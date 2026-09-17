@@ -16,9 +16,9 @@ func TestFilePreviewRendersSelectedFile(t *testing.T) {
 	const content = "inputs = {}\n"
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte(content), 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/terragrunt.hcl"), []byte(content), 0o644))
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorDisabled)
 	m = press(t, m, 'l') // into the unit, selecting terragrunt.hcl
@@ -33,9 +33,12 @@ func TestFilePreviewColorHighlights(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, repoPath("vpc/terragrunt.hcl"), []byte("inputs = {}\n"), 0o644),
+	)
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorEnabled)
 	m = press(t, m, 'l')
@@ -47,10 +50,13 @@ func TestFilePreviewBinary(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/blob", []byte("a\x00b"), 0o644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, repoPath("vpc/terragrunt.hcl"), []byte("inputs = {}\n"), 0o644),
+	)
+	require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/blob"), []byte("a\x00b"), 0o644))
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorDisabled)
 	m = press(t, m, 'l') // into the unit; "blob" sorts before "terragrunt.hcl"
@@ -65,9 +71,9 @@ func TestFilePreviewTreatsNulPastSniffWindowAsText(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/log.txt", []byte("ok\x00"), 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/log.txt"), []byte("ok\x00"), 0o644))
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorDisabled, tui.WithBinarySniffLen(2))
 	m = press(t, m, 'l')
@@ -82,9 +88,9 @@ func TestFilePreviewReadsAtMostTheByteLimit(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/big.txt", []byte("HEADtail"), 0o644))
+	require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/big.txt"), []byte("HEADtail"), 0o644))
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorDisabled, tui.WithPreviewByteLimit(4))
 	m = press(t, m, 'l')
@@ -98,10 +104,16 @@ func TestMarkdownPreviewIsStyled(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/README.md", []byte("# Heading\n\nBody text.\n"), 0o644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, repoPath("vpc/terragrunt.hcl"), []byte("inputs = {}\n"), 0o644),
+	)
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, repoPath("vpc/README.md"), []byte("# Heading\n\nBody text.\n"), 0o644),
+	)
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorEnabled)
 	m = press(t, m, 'l')
@@ -116,9 +128,17 @@ func TestFilePreviewStripsTerminalControlSequences(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/evil.txt", []byte("before\x1b]0;pwned\x07after\r\nnext"), 0o644))
+	require.NoError(
+		t,
+		vfs.WriteFile(
+			fs,
+			repoPath("vpc/evil.txt"),
+			[]byte("before\x1b]0;pwned\x07after\r\nnext"),
+			0o644,
+		),
+	)
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorDisabled)
 	m = press(t, m, 'l')
@@ -137,10 +157,16 @@ func TestFilePreviewLexesByContentWithoutExtension(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
-	require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/bootstrap", []byte("#!/bin/bash\necho hello\n"), 0o644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, repoPath("vpc/terragrunt.hcl"), []byte("inputs = {}\n"), 0o644),
+	)
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, repoPath("vpc/bootstrap"), []byte("#!/bin/bash\necho hello\n"), 0o644),
+	)
 
-	root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+	root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 	m := newModel(t, fs, root, tui.ColorEnabled)
 	m = press(t, m, 'l')

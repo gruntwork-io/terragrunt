@@ -1,6 +1,7 @@
 package discovery_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -92,7 +93,7 @@ func TestRelPathOrAbs(t *testing.T) {
 			l := logger.CreateLogger()
 
 			got := discovery.RelPathOrAbs(l, tc.base, tc.target, "test")
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.want, filepath.ToSlash(got))
 		})
 	}
 }

@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
-	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
 
 	"maps"
@@ -732,22 +731,9 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 	varFiles := []string{}
 
 	for _, arg := range argList {
-		// Use shlex to handle shell style quoting rules. This will reduce quoted args to remove quoting rules. For
-		// example, the string:
-		// -var="'"foo"'"='bar'
-		// becomes:
-		// -var='foo'=bar
-		shlexedArgSlice, err := shlex.Split(arg)
-		if err != nil {
-			return vars, varFiles, err
-		}
-		// Since we expect each element in extra_args.arguments to correspond to a single arg for terraform, we join
-		// back the shlex split slice even if it thinks there are multiple.
-		shlexedArg := strings.Join(shlexedArgSlice, " ")
-
-		if strings.HasPrefix(shlexedArg, "-var=") {
+		if strings.HasPrefix(arg, "-var=") {
 			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
-			splitArg := strings.Split(shlexedArg, "=")
+			splitArg := strings.Split(arg, "=")
 			if len(splitArg) < splitCount {
 				return vars, varFiles, fmt.Errorf(
 					"unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s",
@@ -758,7 +744,7 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 			vars = append(vars, splitArg[1])
 		}
 
-		if after, ok := strings.CutPrefix(shlexedArg, "-var-file="); ok {
+		if after, ok := strings.CutPrefix(arg, "-var-file="); ok {
 			varFiles = append(varFiles, after)
 		}
 	}

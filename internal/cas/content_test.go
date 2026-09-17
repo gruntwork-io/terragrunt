@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -48,6 +49,10 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("stores under the requested perm with write bits cleared", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
 
 		v := venvtest.NewOSWithEmptyEnv()
 
@@ -433,8 +438,17 @@ func TestContent_Link(t *testing.T) {
 			os.SameFile(sourceInfo, targetInfo),
 			"expected an independent inode, not a hard link",
 		)
-		assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm(),
-			"a mutable link must preserve the git perms exactly")
+
+		t.Run("preserves the git mode", func(t *testing.T) {
+			t.Parallel()
+
+			if helpers.IsWindows() {
+				t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+			}
+
+			assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm(),
+				"a mutable link must preserve the git perms exactly")
+		})
 
 		copied, err := os.ReadFile(targetPath)
 		require.NoError(t, err)
@@ -479,6 +493,10 @@ func TestContent_Link(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
+			if helpers.IsWindows() {
+				t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+			}
+
 			v := venvtest.NewOSWithEmptyEnv()
 
 			storeDir := t.TempDir()
@@ -516,6 +534,10 @@ func TestContent_Link(t *testing.T) {
 	t.Run("default path falls back to copy on perm collision", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
+
 		v := venvtest.NewOSWithEmptyEnv()
 
 		storeDir := t.TempDir()
@@ -549,6 +571,10 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("mutable link preserves executable bits", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
 
 		v := venvtest.NewOSWithEmptyEnv()
 
@@ -674,6 +700,10 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("a narrower request copies when stored perms are not accepted", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
 
 		v := venvtest.NewOSWithEmptyEnv()
 
@@ -824,7 +854,7 @@ func (f *linkBeforeRenameFS) Rename(oldname, newname string) error {
 		}
 	}
 
-	return f.FS.Rename(oldname, newname)
+	return vfs.RenameOver(f.FS, oldname, newname)
 }
 
 func TestContent_EnsureWithWait(t *testing.T) {

@@ -12,11 +12,10 @@ import (
 // change can do to a file on Windows.
 const writableFilePerms = os.FileMode(0o666)
 
-// RenameOver renames oldPath onto newPath, replacing whatever newPath names.
-// MoveFileEx refuses to replace a read-only file, so the attribute is cleared
-// first. A hard link shares the attribute with every other name of the file,
-// which stays writable under them.
-func RenameOver(fsys FS, oldPath, newPath string) error {
+// renameOver renames through fsys.Rename. MoveFileEx refuses to replace a
+// read-only file, so the attribute is cleared first. A hard link shares the
+// attribute with every other name of the file, which stays writable under them.
+func renameOver(fsys FS, oldPath, newPath string) error {
 	info, err := fsys.Stat(newPath)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err

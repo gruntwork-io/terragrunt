@@ -138,7 +138,10 @@ func TestNew(t *testing.T) {
 
 		l := thlogger.CreateLogger()
 
-		filters, err := filter.ParseFilterQueries(l, []string{filepath.Join(memRoot, "keep")})
+		filters, err := filter.ParseFilterQueries(
+			l,
+			[]string{filepath.ToSlash(filepath.Join(memRoot, "keep"))},
+		)
 		require.NoError(t, err)
 
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)

@@ -1,12 +1,15 @@
 package hclparse_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/function"
@@ -695,15 +698,21 @@ func TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`stack "more" {
+	stackDir := venvtest.Root("/test")
+	require.NoError(t, fs.MkdirAll(stackDir, 0755))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`stack "more" {
   source = "."
   path   = "more"
 }
 `), 0644))
 	require.NoError(
 		t,
-		vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
+		vfs.WriteFile(
+			fs,
+			filepath.Join(stackDir, ".terragrunt-stack", "more", "terragrunt.stack.hcl"),
+			[]byte(`unit "deep" {
   source = "."
   path   = "deep"
 }
@@ -719,15 +728,15 @@ func TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir(t *testing.T) {
 
 	_, err := hclparse.UnitPathsFromStackDir(
 		fs,
-		"/test",
+		stackDir,
 		&hclparse.StackDirArgs{FuncsFor: funcsFor},
 	)
 	require.NoError(t, err)
 
-	nested := filepath.Join("/test", ".terragrunt-stack", "more")
+	nested := filepath.Join(stackDir, ".terragrunt-stack", "more")
 	assert.Equal(
 		t,
-		[]string{"/test", nested},
+		[]string{stackDir, nested},
 		seenDirs,
 		"the factory must be rebuilt for the top dir and the nested dir",
 	)
@@ -738,8 +747,11 @@ func TestUnitPathsFromStackDir_NilFuncsFactoryMapPanics(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+	stackDir := venvtest.Root("/test")
+	require.NoError(t, fs.MkdirAll(stackDir, 0755))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`unit "vpc" {
   source = "."
   path   = "vpc"
 }
@@ -749,12 +761,16 @@ func TestUnitPathsFromStackDir_NilFuncsFactoryMapPanics(t *testing.T) {
 		return nil, nil
 	}
 
-	assert.PanicsWithValue(t,
-		`hclparse.UnitPathsFromStackDir: funcsFor returned a nil map (stackDir="/test")`,
+	assert.PanicsWithValue(
+		t,
+		fmt.Sprintf(
+			"hclparse.UnitPathsFromStackDir: funcsFor returned a nil map (stackDir=%q)",
+			stackDir,
+		),
 		func() {
 			_, _ = hclparse.UnitPathsFromStackDir(
 				fs,
-				"/test",
+				stackDir,
 				&hclparse.StackDirArgs{FuncsFor: nilMapFactory},
 			)
 		},
@@ -949,20 +965,43 @@ func TestParseStackFileFromPath_NoFile(t *testing.T) {
 func TestParseStackFileFromPath_StackDirIsFileReturnsError(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	filePath := filepath.Join(tmpDir, "another-name.hcl")
-	require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
+	t.Run("on the OS filesystem", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), filePath)
-	require.Error(t, err)
-	assert.Nil(t, result)
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "another-name.hcl")
+		require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
 
-	var readErr hclparse.FileReadError
-	require.ErrorAs(t, err, &readErr)
-	// On macOS, t.TempDir() returns paths under /var/folders/... where /var is a symlink to /private/var; vfs.ResolveForCompare follows it, so resolve our side too before comparing.
-	resolvedFilePath, evalErr := filepath.EvalSymlinks(filePath)
-	require.NoError(t, evalErr)
-	assert.Equal(t, filepath.Join(resolvedFilePath, "terragrunt.stack.hcl"), readErr.FilePath)
+		result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), filePath)
+		assert.Nil(t, result)
+
+		var readErr hclparse.FileReadError
+		require.ErrorAs(t, err, &readErr)
+		require.ErrorIs(t, err, syscall.ENOTDIR)
+		// On macOS, t.TempDir() returns paths under /var/folders/... where /var is a symlink to /private/var; vfs.ResolveForCompare follows it, so resolve our side too before comparing.
+		resolvedFilePath, evalErr := filepath.EvalSymlinks(filePath)
+		require.NoError(t, evalErr)
+		assert.Equal(t, filepath.Join(resolvedFilePath, "terragrunt.stack.hcl"), readErr.FilePath)
+	})
+
+	t.Run("on the in-memory filesystem", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		filePath := venvtest.Root("/stack/another-name.hcl")
+		require.NoError(
+			t,
+			vfs.WriteFile(fsys, filePath, []byte(`# regular file, not a directory`), 0644),
+		)
+
+		result, err := hclparse.ParseStackFileFromPath(fsys, filePath)
+		assert.Nil(t, result)
+
+		var readErr hclparse.FileReadError
+		require.ErrorAs(t, err, &readErr)
+		require.ErrorIs(t, err, syscall.ENOTDIR)
+		assert.Equal(t, filepath.Join(filePath, "terragrunt.stack.hcl"), readErr.FilePath)
+	})
 }
 
 func TestParseStackFileFromPath_Symlink(t *testing.T) {
@@ -1026,8 +1065,10 @@ func TestParseStackFile_WithInclude(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test/includes", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/includes/extra.stack.hcl", []byte(`
+	stackDir := venvtest.Root("/test")
+	includePath := filepath.Join(stackDir, "includes", "extra.stack.hcl")
+	require.NoError(t, fs.MkdirAll(filepath.Dir(includePath), 0755))
+	require.NoError(t, vfs.WriteFile(fs, includePath, []byte(`
 unit "monitoring" {
   source = "../catalog/units/monitoring"
   path   = "monitoring"
@@ -1037,7 +1078,7 @@ unit "monitoring" {
 	// Create the main stack file
 	mainSrc := `
 include "extra" {
-  path = "/test/includes/extra.stack.hcl"
+  path = "` + filepath.ToSlash(includePath) + `"
 }
 
 unit "vpc" {
@@ -1050,8 +1091,8 @@ unit "vpc" {
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(mainSrc),
-			Filename: "/test/terragrunt.stack.hcl",
-			StackDir: "/test",
+			Filename: filepath.Join(stackDir, "terragrunt.stack.hcl"),
+			StackDir: stackDir,
 		},
 	)
 	require.NoError(t, err)

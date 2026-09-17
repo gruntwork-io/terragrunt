@@ -257,18 +257,25 @@ func TestFileHashSumsTheVenvContents(t *testing.T) {
 func TestAbsPathResolvesAgainstTheVenvWorkingDir(t *testing.T) {
 	t.Parallel()
 
+	wd := venvtest.Root("/work/dir")
+	abs := venvtest.Root("/already/absolute.tf")
+
 	v := memVenv(t, nil)
-	v.Platform.Getwd = func() (string, error) { return "/work/dir", nil }
+	v.Platform.Getwd = func() (string, error) { return wd, nil }
 
 	fn := patch.AbsPathFunc(v)
 
 	got, err := fn.Call([]cty.Value{cty.StringVal("rel/file.tf")})
 	require.NoError(t, err)
-	assert.Equal(t, cty.StringVal("/work/dir/rel/file.tf"), got)
+	assert.Equal(
+		t,
+		cty.StringVal(filepath.ToSlash(filepath.Join(wd, "rel/file.tf"))),
+		got,
+	)
 
-	got, err = fn.Call([]cty.Value{cty.StringVal("/already/absolute.tf")})
+	got, err = fn.Call([]cty.Value{cty.StringVal(abs)})
 	require.NoError(t, err)
-	assert.Equal(t, cty.StringVal("/already/absolute.tf"), got)
+	assert.Equal(t, cty.StringVal(filepath.ToSlash(abs)), got)
 }
 
 func TestPathExpandUsesTheVenvHomeDir(t *testing.T) {
