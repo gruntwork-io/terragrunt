@@ -35,7 +35,7 @@ jobs:
       - name: Remove released Before/Since gates
         env:
           LATEST_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
-        run: mise x bun -- bun .github/scripts/docs-cleanup-version-gates.js
+        run: mise x bun -- bun .github/scripts/docs-cleanup-version-gates.ts
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7

@@ -5,8 +5,12 @@ on:
     paths:
       - "**/*.sh"
       - "**/*.bats"
-      - ".github/scripts/**/*.js"
+      - ".github/scripts/**/*.ts"
+      - ".github/scripts/package.json"
+      - ".github/scripts/bun.lock"
+      - ".github/scripts/tsconfig.json"
       - ".github/workflows/scripts-ci.yml"
+      - "docs/vercel.json"
       - "mise.toml"
 
 jobs:
@@ -72,6 +76,14 @@ jobs:
           version: 2026.5.12
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: .github/scripts
+        run: mise x bun -- bun install --frozen-lockfile
+
+      - name: tsc
+        working-directory: .github/scripts
+        run: mise x bun -- bunx tsc --noEmit
 
       - name: bun test
         working-directory: .github/scripts

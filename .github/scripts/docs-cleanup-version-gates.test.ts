@@ -1,9 +1,9 @@
-const { describe, test, expect } = require("bun:test");
-const {
+import { describe, test, expect } from "bun:test";
+import {
   isReleased,
   cleanupContent,
   pruneImports,
-} = require("./docs-cleanup-version-gates");
+} from "./docs-cleanup-version-gates";
 
 const IMPORTS = [
   "import Since from '@components/Since.astro';",
