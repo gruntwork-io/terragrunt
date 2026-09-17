@@ -6,13 +6,15 @@ sidebar:
   order: 7
 ---
 
+import Since from '@components/Since.astro';
+
 ## Overview
 
 A registry address is an indirection: the registry resolves a module and version to an underlying archive, such as a versioned tarball or a Git commit. The CAS keys that resolved archive, so caching tracks the immutable artifact rather than the registry address.
 
 ## The cheap probe
 
-The probe Terragrunt uses to attempt to avoid fetching tfr sources is the registry's service-discovery and module-download protocol against the registry host. When the URL omits a host (the `tfr:///` form), the default registry is used. The probe requires an explicit `version` in the URL.
+The probe Terragrunt uses to attempt to avoid fetching tfr sources is the registry's service-discovery and module-download protocol against the registry host. When the URL omits a host (the `tfr:///` form), the default registry is used. The probe requires an explicit `version` in the URL.<Since version="1.2.0"> A [`version`](/reference/hcl/blocks#terraform) constraint on the `terraform` block satisfies this, because Terragrunt resolves it to an exact version before the probe runs.</Since>
 
 It resolves the module to the download location the registry returns and uses that location as the cache key. A `//subdir` selector is stripped before the probe, so two requests that differ only by subdirectory share one key; the download still extracts the requested subdirectory.
 

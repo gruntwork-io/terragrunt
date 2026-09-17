@@ -1,0 +1,21 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+#### Version constraints for registry modules
+
+The `terraform` block accepts a `version` attribute holding a version constraint for a `tfr://` registry module. Terragrunt downloads the highest published version that satisfies the constraint, using the same syntax as the `version` argument on OpenTofu and Terraform `module` blocks:
+
+```hcl
+terraform {
+  source  = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"
+  version = "~> 3.3"
+}
+```
+
+See the [`terraform` block reference](/reference/hcl/blocks#terraform) for the full rules.
+
+Previously gated behind the `version-attribute` experiment, version constraints for registry modules no longer require `--experiment version-attribute`.

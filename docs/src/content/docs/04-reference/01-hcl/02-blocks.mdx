@@ -57,9 +57,13 @@ The `terraform` block supports the following arguments:
 
 - `version` (attribute): A version constraint used to resolve a `tfr://` registry module, as an alternative to pinning an exact version in the source URL.
 
+  <Before version="1.2.0">
+
   <Aside type="tip" title="Experimental">
     The `version` attribute is gated behind the `version-attribute` experiment. Enable it with `--experiment version-attribute` (or `TG_EXPERIMENT=version-attribute`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#version-attribute).
   </Aside>
+
+  </Before>
 
   Terragrunt resolves the constraint against the registry's list-versions endpoint and downloads the highest published version that satisfies it. The constraint syntax matches the `version` argument on OpenTofu and Terraform `module` blocks:
 
@@ -72,8 +76,8 @@ The `terraform` block supports the following arguments:
 
   - The `version` attribute applies to `tfr://` sources only. Setting it alongside a Git, local, or other source is an error.
   - Do not also pin `?version=` inline on the same source. Specify the version in the attribute or the URL, not both, or Terragrunt reports an error.
-  - The `--source` and `TG_SOURCE` overrides accept an exact version pin only (for example `?version=3.4.0`); a constraint there is an error.
-  - A resolved constraint is cached by source URL. A newly published version that matches the constraint is only picked up after you re-resolve with `--source-update`.
+  - The `--source` and `TG_SOURCE` overrides replace the `version` attribute along with the source. They accept an exact version pin only (for example `?version=3.4.0`); a constraint there is an error.
+  - Terragrunt resolves the constraint against the registry on every run. When a newly published version satisfies the constraint, the next run downloads it, with no `--source-update` needed.
   - Prereleases follow OpenTofu and Terraform: a prerelease is eligible only when the constraint itself names one (for example `>= 2.0.0-rc1`).
 
 - `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied from the same directory containing `terragrunt.hcl` into the

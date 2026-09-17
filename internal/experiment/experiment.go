@@ -86,8 +86,9 @@ const (
 	// Distribution registries via oci:// sources. It is enabled by default and
 	// the flag is retained only for backwards compatibility.
 	OCI = "oci"
-	// VersionAttribute gates resolving a tfr:// registry module from a version
-	// constraint expressed through the version attribute on the terraform block.
+	// VersionAttribute names the now-stable version attribute on the terraform
+	// block, which resolves a tfr:// registry module from a version constraint.
+	// It is enabled by default.
 	VersionAttribute = "version-attribute"
 	// OtelLogs enables the OpenTelemetry logs signal, exporting Terragrunt's log
 	// records through the configured logs exporter and correlating them with
@@ -228,7 +229,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: VersionAttribute,
+			Name:   VersionAttribute,
+			Status: StatusCompleted,
 		},
 		{
 			Name: OtelLogs,
