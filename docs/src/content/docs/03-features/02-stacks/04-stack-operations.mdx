@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 
 ## Passing outputs between units
 
@@ -161,6 +162,16 @@ dependency "vpc" {
   skip_outputs = true
 }
 ```
+
+<Since version="1.2.0">
+
+To skip outputs for every `dependency` block in a run without editing configuration, pass [`--no-dependency-outputs`](/reference/cli/commands/run#no-dependency-outputs). It has the same effect as setting `skip_outputs = true` on each block, and suits commands that do not read dependency outputs:
+
+```bash
+terragrunt run --all validate --no-dependency-outputs
+```
+
+</Since>
 
 You can also use `mock_outputs_merge_strategy_with_state` on the `dependency` block to merge mocked outputs and real outputs:
 

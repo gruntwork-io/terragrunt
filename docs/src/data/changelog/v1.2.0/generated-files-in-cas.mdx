@@ -1,0 +1,38 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Generated files stored in the CAS
+
+The [Content Addressable Store (CAS)](/features/caching/cas) now stores the files that `generate` blocks produce. Each unit's working directory gets a hard link to the stored copy, so every unit that includes this block shares one `provider.tf` on disk:
+
+```hcl
+# root.hcl
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = "provider \"aws\" {}"
+}
+```
+
+Generated files are read-only by default, so an existing hook or script that edits a generated file in place fails with a permission error. Set `mutable = true` on that `generate` block to give each unit a writable file of its own:
+
+```hcl
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  mutable   = true
+  contents  = "provider \"aws\" {}"
+}
+```
+
+Passing `--no-cas` turns off the CAS for a run, and Terragrunt writes generated files as plain files:
+
+```bash
+terragrunt run --all --no-cas -- plan
+```
+
+See [Generate blocks](/features/units#generate-blocks) and [Immutable by default](/features/caching/cas#immutable-by-default) for details.
+
+Previously gated behind the `mutable-generate` experiment, CAS storage for generated files no longer requires `--experiment mutable-generate`.

@@ -1666,7 +1666,7 @@ func ParseConfig(
 		return nil, err
 	}
 
-	if err := ValidateBlockIteration(pctx.Experiments, file); err != nil {
+	if err := ValidateExpansionSpelling(file); err != nil {
 		return nil, err
 	}
 
@@ -2300,15 +2300,6 @@ func convertToTerragruntConfig(
 		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
 		if err != nil {
 			errs = append(errs, InvalidGenerateBlockError{BlockName: block.Name, Err: err})
-			continue
-		}
-
-		if block.Mutable != nil && !pctx.Experiments.Evaluate(experiment.MutableGenerate) {
-			errs = append(errs, MutableGenerateRequiresExperimentError{
-				ConfigPath: cfgPath,
-				BlockName:  block.Name,
-			})
-
 			continue
 		}
 

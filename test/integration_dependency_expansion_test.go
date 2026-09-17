@@ -23,7 +23,7 @@ func TestDependencyExpansionReportsEveryInstanceAsDependency(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt find --no-color --dependencies --json --experiment block-iteration --working-dir "+
+		"terragrunt find --no-color --dependencies --json --working-dir "+
 			testFixtureDependencyExpansionKeyed,
 	)
 	require.NoError(t, err)

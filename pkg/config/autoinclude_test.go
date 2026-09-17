@@ -1726,7 +1726,7 @@ dependency "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newExpansionParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, v, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -1774,7 +1774,7 @@ dependency "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newExpansionParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, v, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 

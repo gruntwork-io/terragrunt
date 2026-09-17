@@ -20,7 +20,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/multierror"
@@ -257,7 +256,7 @@ func GenerateConfig(
 // A CAS that cannot be initialized is not fatal: generation falls back to direct
 // writes, matching how source downloads degrade.
 func generateWriteOptions(l log.Logger, v *venv.Venv, opts *Options) []codegen.WriteOption {
-	if opts.NoCAS || !opts.Experiments.Evaluate(experiment.MutableGenerate) {
+	if opts.NoCAS {
 		return nil
 	}
 

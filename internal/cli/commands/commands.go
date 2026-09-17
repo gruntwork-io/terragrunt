@@ -667,10 +667,6 @@ func initialSetup(
 
 	opts.Filters = deduped
 
-	if opts.Filters.HasGraphBoundary() && !opts.Experiments.Evaluate(experiment.BoundedDiscovery) {
-		return filter.ErrBoundaryRequiresExperiment
-	}
-
 	// --- Terragrunt Version
 	terragruntVersion, err := semver.Parse(cliCtx.Version)
 	if err != nil {

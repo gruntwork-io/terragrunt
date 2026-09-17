@@ -1171,7 +1171,6 @@ inputs = {
 	ctx, pctx := newTestParsingContext(t, v, consumerPath)
 	ctx = config.WithConfigValues(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState))
 
 	if enableAzure {
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.AzureBackend))

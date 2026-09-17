@@ -150,8 +150,7 @@ type TerragruntOptions struct {
 	FiltersFile string
 	// DiscoveryBoundary encloses graph discovery for filters within the given
 	// directory instead of the git repository root: dependencies and dependents
-	// resolving outside it are not discovered. Gated behind the bounded-discovery
-	// experiment.
+	// resolving outside it are not discovered.
 	DiscoveryBoundary string
 	// Report format.
 	ReportFormat report.Format

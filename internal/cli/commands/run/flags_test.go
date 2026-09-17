@@ -41,25 +41,10 @@ func TestNoHooksFlagAllowedWithExperiment(t *testing.T) {
 	assert.True(t, opts.NoRunHooks)
 }
 
-func TestNoDependencyOutputsFlagRequiresExperiment(t *testing.T) {
+func TestNoDependencyOutputsFlagSetsSkipOutput(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
-
-	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}, map[string]string{}))
-
-	err := flags.RunActions(context.Background(), &clihelper.Context{})
-
-	require.ErrorIs(t, err, runcommand.ErrNoDependencyOutputsRequiresExperiment)
-	assert.True(t, opts.SkipOutput)
-}
-
-func TestNoDependencyOutputsFlagAllowedWithExperiment(t *testing.T) {
-	t.Parallel()
-
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OptionalDependencyOutputs))
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}, map[string]string{}))

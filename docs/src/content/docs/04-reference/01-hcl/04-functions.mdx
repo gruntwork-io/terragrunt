@@ -6,6 +6,8 @@ sidebar:
   order: 4
 ---
 
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 
@@ -1182,9 +1184,9 @@ The HCL function supports all the same constraints that you can use for version 
 
 ## base64gzip_compat
 
-`base64gzip_compat(str)` returns the value `base64gzip(str)` returned in Terragrunt v1.1.3 and earlier, and keeps returning it after Terragrunt 1.2 switches `base64gzip()` to the current Go encoder.
+`base64gzip_compat(str)` returns the value `base64gzip(str)` returned in Terragrunt v1.1.3 and earlier, and keeps returning it <Before version="1.2.0">after Terragrunt 1.2 switches</Before><Since version="1.2.0">now that Terragrunt 1.2 has switched</Since> `base64gzip()` to the current Go encoder.
 
-`base64gzip_compat` requires the [`base64gzip-compat`](/reference/experiments/active#base64gzip-compat) experiment. Calling it without the experiment enabled returns an error. The name may still change to match OpenTofu.
+`base64gzip_compat` requires the [`base64gzip-compat`](/reference/experiments/active#base64gzip-compat) experiment. Calling it without the experiment enabled returns an error.
 
 Terragrunt v1.1.4 was built with Go 1.27, which changed the compressed bytes its gzip encoder produces. The bytes still decompress to the same content, but a resource that compares the encoded value, such as an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`, sees a change and plans a replacement. Use this function where the encoded value must stay stable across Terragrunt upgrades:
 
@@ -1194,4 +1196,10 @@ inputs = {
 }
 ```
 
+<Before version="1.2.0">
 By default, `base64gzip()` returns the same bytes. Enable the [`legacy-base64gzip`](/reference/strict-controls/active#legacy-base64gzip) strict control to use the current encoder before Terragrunt 1.2 makes that behavior the default.
+</Before>
+
+<Since version="1.2.0">
+Since Terragrunt 1.2, `base64gzip()` returns the current Go encoder's bytes. Call `base64gzip_compat()` where the encoded value must not change.
+</Since>

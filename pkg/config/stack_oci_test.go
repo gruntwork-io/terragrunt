@@ -43,7 +43,7 @@ func ociStackFixture(t *testing.T, fsys vfs.FS, kind, source string) string {
 }
 
 // generateOCIStack runs stack generation for an oci:// component against an unreachable registry.
-func generateOCIStack(t *testing.T, kind, sourceScheme string, ociEnabled bool) (string, error) {
+func generateOCIStack(t *testing.T, kind, sourceScheme string) (string, error) {
 	t.Helper()
 
 	// An in-memory venv: no disk, and a fail-closed client so no fetch can leave the test.
@@ -66,11 +66,8 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string, ociEnabled bool) 
 	pctx.TerragruntConfigPath = stackPath
 	// CAS is on by default, so this also covers that an oci:// source bypasses it.
 	pctx.CASCloneDepth = 1
+	// Defaults only: the oci experiment is completed, so nothing is enabled here.
 	pctx.Experiments = experiment.NewExperiments()
-
-	if ociEnabled {
-		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OCI))
-	}
 
 	pool := worker.NewWorkerPool(1)
 	pool.Start()
@@ -86,33 +83,15 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string, ociEnabled bool) 
 	return logBuf.String(), errors.Join(genErr, waitErr)
 }
 
-// TestGenerateStackOCIRequiresExperiment: an oci:// component is rejected up front without the experiment.
-func TestGenerateStackOCIRequiresExperiment(t *testing.T) {
-	t.Parallel()
+// requireReachedOCIGetter fails unless the source was routed to the OCI getter.
+func requireReachedOCIGetter(t *testing.T, err error, msg string) {
+	t.Helper()
 
-	for _, kind := range []string{"unit", "stack"} {
-		t.Run(kind, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := generateOCIStack(t, kind, "oci://", false)
-			require.Error(t, err, "an oci:// source must not be fetched without the experiment")
-
-			var resolutionErr getter.OCIReferenceResolutionError
-			assert.NotErrorAs(
-				t,
-				err,
-				&resolutionErr,
-				"the oci getter must not run when the experiment is off",
-			)
-
-			var gateErr config.OCIExperimentRequiredError
-			require.ErrorAs(t, err, &gateErr, "the gate must surface a typed error")
-			assert.Equal(t, kind, gateErr.Kind)
-		})
-	}
+	var resolutionErr getter.OCIReferenceResolutionError
+	require.ErrorAs(t, err, &resolutionErr, msg)
 }
 
-// TestGenerateStackOCIReachesGetter: with the experiment on, an oci:// component reaches the real OCI getter.
+// TestGenerateStackOCIReachesGetter: an oci:// component reaches the OCI getter with stock defaults.
 func TestGenerateStackOCIReachesGetter(t *testing.T) {
 	t.Parallel()
 
@@ -120,61 +99,52 @@ func TestGenerateStackOCIReachesGetter(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()
 
-			logs, err := generateOCIStack(t, kind, "oci://", true)
+			logs, err := generateOCIStack(t, kind, "oci://")
 			require.Error(t, err, "the venv's fail-closed HTTP client rejects every fetch")
 
-			var resolutionErr getter.OCIReferenceResolutionError
-			require.ErrorAs(
-				t,
-				err,
-				&resolutionErr,
-				"the oci getter must run and surface a typed OCI error when the experiment is on",
-			)
+			requireReachedOCIGetter(t, err,
+				"the oci getter must run without any experiment being enabled")
 			assert.NotContains(t, logs, "CAS processing failed",
 				"an oci:// source must bypass the git-backed CAS path, not fail through it")
 		})
 	}
 }
 
-// TestGenerateStackOCIForcedFormGated: go-getter's oci:: forced form is gated by the experiment too.
-func TestGenerateStackOCIForcedFormGated(t *testing.T) {
+// TestGenerateStackOCIForcedFormReachesGetter: go-getter's oci:: forced form routes to the OCI getter.
+func TestGenerateStackOCIForcedFormReachesGetter(t *testing.T) {
 	t.Parallel()
 
-	_, err := generateOCIStack(t, "unit", "oci::https://", false)
-	require.Error(t, err, "the oci:: forced form must not bypass the experiment gate")
-
-	var gateErr config.OCIExperimentRequiredError
-	require.ErrorAs(t, err, &gateErr, "the forced form must hit the same typed gate")
-}
-
-// TestGenerateStackOCIUpperCaseForcedFormNotClaimed: OCI:: cannot dispatch, so the gate must not claim it.
-func TestGenerateStackOCIUpperCaseForcedFormNotClaimed(t *testing.T) {
-	t.Parallel()
-
-	_, err := generateOCIStack(t, "unit", "OCI::https://", false)
+	_, err := generateOCIStack(t, "unit", "oci::https://")
 	require.Error(t, err)
 
-	var gateErr config.OCIExperimentRequiredError
-	assert.NotErrorAs(t, err, &gateErr,
-		"an upper-case forced token is not an oci source, so the gate must not claim it")
+	requireReachedOCIGetter(t, err, "the oci:: forced form must route to the oci getter")
 }
 
-// TestGenerateStackOCIUpperCaseSchemeGated: an upper-case scheme must not slip past the experiment gate.
-func TestGenerateStackOCIUpperCaseSchemeGated(t *testing.T) {
+// TestGenerateStackOCIUpperCaseSchemeReachesGetter: an upper-case scheme still routes to the OCI getter.
+func TestGenerateStackOCIUpperCaseSchemeReachesGetter(t *testing.T) {
 	t.Parallel()
 
 	// go-getter matches the forced token exactly, so only the URL scheme folds.
-	tc := []string{"OCI://"}
-
-	for _, scheme := range tc {
+	for _, scheme := range []string{"OCI://"} {
 		t.Run(scheme, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := generateOCIStack(t, "unit", scheme, false)
-			require.Error(t, err, "an upper-case oci scheme must not bypass the experiment gate")
+			_, err := generateOCIStack(t, "unit", scheme)
+			require.Error(t, err)
 
-			var gateErr config.OCIExperimentRequiredError
-			require.ErrorAs(t, err, &gateErr, "the upper-case form must hit the same typed gate")
+			requireReachedOCIGetter(t, err, "an upper-case oci scheme must route to the oci getter")
 		})
 	}
+}
+
+// TestGenerateStackOCIUpperCaseForcedFormNotClaimed: OCI:: cannot dispatch, so the oci getter must not claim it.
+func TestGenerateStackOCIUpperCaseForcedFormNotClaimed(t *testing.T) {
+	t.Parallel()
+
+	_, err := generateOCIStack(t, "unit", "OCI::https://")
+	require.Error(t, err)
+
+	var resolutionErr getter.OCIReferenceResolutionError
+	assert.NotErrorAs(t, err, &resolutionErr,
+		"an upper-case forced token is not an oci source, so the oci getter must not claim it")
 }
