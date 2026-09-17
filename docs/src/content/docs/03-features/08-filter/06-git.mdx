@@ -8,6 +8,8 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 Match units and stacks based on changes between Git references. This is useful for targeting infrastructure that has been modified, added, or removed between commits, branches, or tags.
 
@@ -119,11 +121,369 @@ Will result in the following:
 When using Git-based filter expressions and the run command, Terragrunt won't destroy units that are removed between the two Git references unless you use the `--filter-allow-destroy` flag.
 
 ```bash
-terragrunt run --all --filter '[main...HEAD]' --filter-allow-destroy -- destroy
+terragrunt run --all --filter '[main...HEAD]' --filter-allow-destroy -- apply
 ```
 
 This is a safeguard to prevent unintended destruction of infrastructure.
 
+</Aside>
+
+## Destroying removed components
+
+A component is orphaned when it is removed from the configuration, or a stack stops generating it, while its infrastructure is still deployed. Terragrunt finds orphans in the diff between the two references and runs them with `-destroy` in the worktree for the "from" reference, as described in [How it works](#how-it-works).
+
+### Deleted units
+
+Deleting a unit's `terragrunt.hcl` orphans that unit. e.g. a commit that deletes the `live/cache` unit:
+
+<FileTree>
+
+- live
+  - cache
+    - terragrunt.hcl
+  - vpc
+    - terragrunt.hcl
+
+</FileTree>
+
+```bash
+git rm -r live/cache
+git commit -m "Remove cache"
+```
+
+`terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy -- plan` then runs the equivalent of `terragrunt run -- plan -destroy` in `live/cache` in the temporary worktree generated for `HEAD^`:
+
+<FileTree>
+
+- _HEAD^-worktree_ temporary worktree for `HEAD^`
+  - live
+    - **cache**
+      - **terragrunt.hcl**
+    - vpc
+      - terragrunt.hcl
+
+</FileTree>
+
+### Deleted stacks
+
+Deleting a `terragrunt.stack.hcl` orphans every component the stack generated. e.g. a commit that deletes the `live` stack:
+
+<FileTree>
+
+- live
+  - terragrunt.stack.hcl
+  - .terragrunt-stack
+    - app
+      - terragrunt.hcl
+    - db
+      - terragrunt.hcl
+
+</FileTree>
+
+```bash
+git rm live/terragrunt.stack.hcl
+git commit -m "Remove live stack"
+```
+
+`terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy -- plan` then generates the stack in the temporary worktree generated for `HEAD^` and runs the equivalent of `terragrunt run -- plan -destroy` in every unit it generates:
+
+<FileTree>
+
+- _HEAD^-worktree_ temporary worktree for `HEAD^`
+  - live
+    - terragrunt.stack.hcl
+    - .terragrunt-stack
+      - **app**
+        - **terragrunt.hcl**
+      - **db**
+        - **terragrunt.hcl**
+
+</FileTree>
+
+### Changed stack files
+
+When a stack file changes between references without being added or removed, Terragrunt generates the stack in both references and compares the results. e.g. a stack that generates one [expanded](/reference/hcl/blocks#expansion) unit per region:
+
+```hcl
+# live/terragrunt.stack.hcl
+
+locals {
+  regions = ["us-east-1", "us-west-2", "eu-west-1"]
+}
+
+unit "app" {
+  expansion {
+    for_each = toset(local.regions)
+  }
+
+  source = "../units/app"
+  path   = "app/${each.key}"
+
+  values = {
+    region = each.key
+  }
+}
+```
+
+<FileTree>
+
+- units
+  - app
+    - terragrunt.hcl
+- live
+  - terragrunt.stack.hcl
+  - .terragrunt-stack
+    - app
+      - us-east-1
+        - terragrunt.hcl
+      - us-west-2
+        - terragrunt.hcl
+      - eu-west-1
+        - terragrunt.hcl
+
+</FileTree>
+
+Removing `"us-west-2"` from `local.regions`:
+
+```hcl
+# live/terragrunt.stack.hcl
+
+locals {
+  regions = ["us-east-1", "eu-west-1"]
+}
+```
+
+<Before version="1.2.0">
+
+The stack in `HEAD^` generates `app/us-west-2` and the stack in `HEAD` does not, so `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy --experiment block-iteration -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
+
+</Before>
+
+<Since version="1.2.0">
+
+The stack in `HEAD^` generates `app/us-west-2` and the stack in `HEAD` does not, so `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
+
+</Since>
+
+<FileTree>
+
+- _HEAD^-worktree_ temporary worktree for `HEAD^`
+  - units
+    - app
+      - terragrunt.hcl
+  - live
+    - terragrunt.stack.hcl
+    - .terragrunt-stack
+      - app
+        - us-east-1
+          - terragrunt.hcl
+        - **us-west-2**
+          - **terragrunt.hcl**
+        - eu-west-1
+          - terragrunt.hcl
+
+</FileTree>
+
+### Changed files read by a stack
+
+Terragrunt also compares the generated stacks when the stack file itself is unchanged but the diff includes [a file the stack reads](/features/filter/attributes#reading-based-expressions). e.g. a stack that reads its regions from `regions.hcl`:
+
+<FileTree>
+
+- units
+  - app
+    - terragrunt.hcl
+- live
+  - terragrunt.stack.hcl
+  - regions.hcl
+  - .terragrunt-stack
+    - app
+      - us-east-1
+        - terragrunt.hcl
+      - us-west-2
+        - terragrunt.hcl
+      - eu-west-1
+        - terragrunt.hcl
+
+</FileTree>
+
+```hcl
+# live/terragrunt.stack.hcl
+
+locals {
+  regions = read_terragrunt_config("regions.hcl").locals.regions
+}
+```
+
+<Before version="1.2.0">
+
+Removing `"us-west-2"` from `regions.hcl` orphans `app/us-west-2` in the same way, and `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy --experiment block-iteration -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
+
+</Before>
+
+<Since version="1.2.0">
+
+Removing `"us-west-2"` from `regions.hcl` orphans `app/us-west-2` in the same way, and `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
+
+</Since>
+
+<FileTree>
+
+- _HEAD^-worktree_ temporary worktree for `HEAD^`
+  - units
+    - app
+      - terragrunt.hcl
+  - live
+    - terragrunt.stack.hcl
+    - regions.hcl
+    - .terragrunt-stack
+      - app
+        - us-east-1
+          - terragrunt.hcl
+        - **us-west-2**
+          - **terragrunt.hcl**
+        - eu-west-1
+          - terragrunt.hcl
+
+</FileTree>
+
+### Changes outside the diff
+
+If an expansion shrinks because of something outside the diff, Terragrunt cannot find the orphan. e.g. a stack that reads its regions from an environment variable:
+
+<FileTree>
+
+- units
+  - app
+    - terragrunt.hcl
+- live
+  - terragrunt.stack.hcl
+  - .terragrunt-stack
+    - app
+      - us-east-1
+        - terragrunt.hcl
+      - us-west-2
+        - terragrunt.hcl
+      - eu-west-1
+        - terragrunt.hcl
+
+</FileTree>
+
+```hcl
+# live/terragrunt.stack.hcl
+
+locals {
+  regions = split(",", get_env("REGIONS"))
+}
+```
+
+Changing `REGIONS` from `us-east-1,us-west-2` to `us-east-1` changes no file in the repository, so `[HEAD^...HEAD]` does not select `app/us-west-2` and its infrastructure stays deployed. The same happens with a values file outside the repository. Destroy those components yourself.
+
+## Narrowing Git expressions
+
+Consider a branch that removes `"us-west-2"` and `"eu-west-1"` from `local.regions` in the `live` stack, and deletes the `staging/cache` unit. `[main...HEAD]` alone selects the three orphans in bold:
+
+<FileTree>
+
+- units
+  - app
+    - terragrunt.hcl
+- live
+  - terragrunt.stack.hcl
+  - .terragrunt-stack
+    - app
+      - us-east-1
+        - terragrunt.hcl
+      - **us-west-2**
+        - **terragrunt.hcl**
+      - **eu-west-1**
+        - **terragrunt.hcl**
+- staging
+  - **cache**
+    - **terragrunt.hcl**
+
+</FileTree>
+
+To limit the search to part of the repository, intersect the Git expression with another expression using `|` in the same `--filter`. The intersection applies to every component the Git expression selects, including orphans, which you can select by their generated path:
+
+<Before version="1.2.0">
+
+```bash
+terragrunt run --all --filter '[main...HEAD] | ./live/**' --filter-allow-destroy --experiment block-iteration -- apply
+terragrunt run --all --filter '[main...HEAD] | ./live/.terragrunt-stack/app/us-west-2' --filter-allow-destroy --experiment block-iteration -- apply
+```
+
+</Before>
+
+<Since version="1.2.0">
+
+```bash
+terragrunt run --all --filter '[main...HEAD] | ./live/**' --filter-allow-destroy -- apply
+terragrunt run --all --filter '[main...HEAD] | ./live/.terragrunt-stack/app/us-west-2' --filter-allow-destroy -- apply
+```
+
+</Since>
+
+The first command destroys `app/us-west-2` and `app/eu-west-1`, and skips `staging/cache`. The second destroys only `app/us-west-2`.
+
+<Aside type="caution" title="Paths are relative to the worktree root">
+
+Path expressions combined with a Git expression resolve against the root of each worktree, not against the directory you run Terragrunt from. `./live/**` means the same thing whether you run Terragrunt from the repository root or from `live/prod`.
+
+A path relative to your current directory could point at a directory that doesn't exist in one of the references. e.g. a branch that adds the `live/prod` stack and deletes the `live/staging/cache` unit, run from `live/prod`:
+
+<FileTree>
+
+- live
+  - prod you run Terragrunt here
+    - terragrunt.stack.hcl
+  - staging
+    - vpc
+      - terragrunt.hcl
+
+</FileTree>
+
+The worktree for `main` has no `live/prod` directory to resolve a relative path against, but it still holds the orphan in `live/staging/cache`:
+
+<FileTree>
+
+- _main-worktree_ temporary worktree for `main`
+  - live
+    - staging
+      - **cache**
+        - **terragrunt.hcl**
+      - vpc
+        - terragrunt.hcl
+
+</FileTree>
+
+Resolving from the worktree root keeps every path valid in both references, so `--filter '[main...HEAD] | ./live/staging/**'` selects `live/staging/cache` from any directory.
+
+</Aside>
+
+Filters in a [`.terragrunt-filters` file](/features/filter/filters-file) also apply in the worktree for each reference. e.g. a repository that keeps unit templates in `catalog`:
+
+<FileTree>
+
+- catalog
+  - units
+    - app
+      - terragrunt.hcl
+- live
+  - terragrunt.stack.hcl
+
+</FileTree>
+
+```text
+# .terragrunt-filters
+
+!./catalog/**
+```
+
+`terragrunt run --filter '[main...HEAD]' --filter-allow-destroy -- plan` skips everything under `catalog`, in both worktrees, even when the diff changes or deletes a unit there.
+
+<Aside type="tip" title="Excluding a catalog">
+  A catalog unit is a template for stacks to generate from, not something to run directly. It often reads `values`, which only exist in a generated unit, so Terragrunt cannot parse it on its own. Without the exclusion, a Git expression selects any catalog unit the diff touches, and the run fails on it. Committing `!./catalog/**` to `.terragrunt-filters` keeps every run away from the catalog, including runs with Git expressions.
 </Aside>
 
 ## The `--filter-affected` flag
