@@ -71,7 +71,6 @@ const (
 	testFixtureNoSubmodules                   = "fixtures/no-submodules/"
 	testFixtureNullValue                      = "fixtures/null-values"
 	testFixtureOutDir                         = "fixtures/out-dir"
-	testFixtureOutputAll                      = "fixtures/output-all"
 	testFixtureParallelRun                    = "fixtures/parallel-run"
 	testFixtureParallelStateInit              = "fixtures/parallel-state-init"
 	testFixtureParallelism                    = "fixtures/parallelism"
