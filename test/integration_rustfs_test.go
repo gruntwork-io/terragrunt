@@ -3,12 +3,19 @@
 package test_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -207,6 +214,190 @@ func TestRustFSStackDependencyMockOutputs(t *testing.T) {
 		stderr,
 	)
 	assert.Equal(t, "networking", mockTypeErr.DependencyName)
+}
+
+// TestRustFSDependencyOutputOptimization pins how a unit reads its
+// dependency's outputs when the dependency's own dependency has no state. The
+// live unit depends on dep, and dep depends on deepdep. Each case deletes
+// deepdep's state object and checks which commands the live unit spawns.
+func TestRustFSDependencyOutputOptimization(t *testing.T) {
+	rustfsAddr := setupRustFS(t)
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "rustfsadmin")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "rustfsadmin")
+	t.Setenv("AWS_DEFAULT_REGION", "us-east-1")
+
+	testCases := []struct {
+		assert   func(t *testing.T, commands []helpers.RecordedCommand, depCacheDir, liveCacheDir string)
+		name     string
+		fixture  string
+		flags    string
+		depState dependencyOutputState
+	}{
+		{
+			name:     "state read by default",
+			fixture:  "nested-optimization-rustfs",
+			depState: depTerraformDirRemoved,
+			assert: func(t *testing.T, commands []helpers.RecordedCommand, _, liveCacheDir string) {
+				t.Helper()
+
+				assert.False(
+					t,
+					slices.ContainsFunc(commands, func(c helpers.RecordedCommand) bool {
+						return (isOutputJSON(c) || isDependencyOutputInit(c)) && c.Dir != liveCacheDir
+					}),
+					"expected output reads only in %s, got %v",
+					liveCacheDir,
+					commands,
+				)
+			},
+		},
+		{
+			name:     "bare init with generated backend",
+			fixture:  "nested-optimization-rustfs",
+			flags:    "--no-dependency-fetch-output-from-state",
+			depState: depTerraformDirRemoved,
+			assert: func(t *testing.T, commands []helpers.RecordedCommand, _, _ string) {
+				t.Helper()
+
+				assertDependencyOutputFromBackend(t, commands)
+			},
+		},
+		{
+			name:     "bare init with backend block",
+			fixture:  "nested-optimization-nogen-rustfs",
+			flags:    "--no-dependency-fetch-output-from-state",
+			depState: depTerraformDirRemoved,
+			assert: func(t *testing.T, commands []helpers.RecordedCommand, _, _ string) {
+				t.Helper()
+
+				assertDependencyOutputFromBackend(t, commands)
+			},
+		},
+		{
+			name:     "output from init-ed working dir",
+			fixture:  "nested-optimization-rustfs",
+			flags:    "--no-dependency-fetch-output-from-state",
+			depState: depTerraformDirKept,
+			assert: func(t *testing.T, commands []helpers.RecordedCommand, depCacheDir, _ string) {
+				t.Helper()
+
+				assert.False(
+					t,
+					slices.ContainsFunc(commands, isDependencyOutputInit),
+					"unexpected bare init, got %v",
+					commands,
+				)
+				assert.True(
+					t,
+					slices.ContainsFunc(commands, func(c helpers.RecordedCommand) bool {
+						return isOutputJSON(c) && c.Dir == depCacheDir
+					}),
+					"expected output -json in %s, got %v",
+					depCacheDir,
+					commands,
+				)
+			},
+		},
+	}
+
+	for _, tc := range testCases { //nolint:paralleltest // the parent sets RustFS credentials with t.Setenv, which bars t.Parallel
+		t.Run(tc.name, func(t *testing.T) {
+			s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, tc.fixture)
+			rootTerragruntConfigPath := filepath.Join(rootPath, "root.hcl")
+			livePath := filepath.Join(rootPath, "live")
+
+			helpers.CopyAndFillMapPlaceholders(
+				t,
+				rootTerragruntConfigPath,
+				rootTerragruntConfigPath,
+				map[string]string{
+					"__FILL_IN_BUCKET_NAME__": s3BucketName,
+					"__FILL_IN_S3_ENDPOINT__": rustfsAddr,
+				},
+			)
+
+			helpers.RunTerragrunt(
+				t,
+				"terragrunt run --all apply --non-interactive --backend-bootstrap --working-dir "+rootPath,
+			)
+
+			depCacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(rootPath, "dep"))
+			require.NotEmpty(t, depCacheDir, "Cache directory for dep should exist")
+
+			if tc.depState == depTerraformDirRemoved {
+				helpers.CleanupTerraformFolder(t, depCacheDir)
+			}
+
+			deepDepCacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(rootPath, "deepdep"))
+			require.NotEmpty(t, deepDepCacheDir, "Cache directory for deepdep should exist")
+			require.NoError(t, os.Remove(filepath.Join(deepDepCacheDir, "terraform.tfstate")))
+
+			recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+			stdout := bytes.Buffer{}
+			v := venv.OSVenv().WithExec(recorder)
+			v.Writers = &writer.Writers{Writer: &stdout, ErrWriter: os.Stderr}
+
+			err := helpers.RunTerragruntCommandWithVenv(
+				t,
+				t.Context(),
+				v,
+				"terragrunt run "+tc.flags+" --non-interactive --working-dir "+livePath+" -- output -no-color -json",
+			)
+			require.NoError(t, err)
+
+			outputs := map[string]helpers.TerraformOutput{}
+			require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+			assert.Equal(t, `They said, "No, The answer is 42"`, outputs["output"].Value)
+
+			tc.assert(t, recorder.Commands(), depCacheDir, helpers.FindCacheWorkingDir(t, livePath))
+		})
+	}
+}
+
+// dependencyOutputState says whether a dependency output test removes the dep
+// unit's .terraform directory before reading outputs.
+type dependencyOutputState int
+
+const (
+	depTerraformDirKept dependencyOutputState = iota
+	depTerraformDirRemoved
+)
+
+// isDependencyOutputInit reports whether c is the init Terragrunt runs before
+// reading a dependency's outputs from its backend.
+func isDependencyOutputInit(c helpers.RecordedCommand) bool {
+	return len(c.Args) > 0 && c.Args[0] == tf.CommandNameInit && slices.Contains(c.Args, "-get=false")
+}
+
+// isOutputJSON reports whether c reads outputs as JSON.
+func isOutputJSON(c helpers.RecordedCommand) bool {
+	return len(c.Args) > 0 && c.Args[0] == tf.CommandNameOutput && slices.Contains(c.Args, "-json")
+}
+
+// assertDependencyOutputFromBackend asserts that dependency outputs were read
+// by running output in the directory where Terragrunt ran a bare init against
+// the dependency's backend.
+func assertDependencyOutputFromBackend(t *testing.T, commands []helpers.RecordedCommand) {
+	t.Helper()
+
+	initIdx := slices.IndexFunc(commands, isDependencyOutputInit)
+	require.NotEqual(t, -1, initIdx, "expected a bare init for the dep backend, got %v", commands)
+
+	initDir := commands[initIdx].Dir
+
+	assert.True(
+		t,
+		slices.ContainsFunc(commands[initIdx+1:], func(c helpers.RecordedCommand) bool {
+			return isOutputJSON(c) && c.Dir == initDir
+		}),
+		"expected output -json in %s after the bare init, got %v",
+		initDir,
+		commands,
+	)
 }
 
 func setupRustFS(t *testing.T) string {

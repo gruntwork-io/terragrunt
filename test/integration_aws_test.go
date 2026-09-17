@@ -11,7 +11,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -29,12 +28,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -1802,43 +1798,6 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	assert.Equal(t, outputs["user_id"].Value, *identity.UserId)
 }
 
-// We test the path with remote_state blocks by:
-// - Applying all modules initially
-// - Deleting the local state of the nested deep dependency
-// - Reading the outputs of the root module
-// If output optimization is working, we should still get the same correct output even though the state of the upmost
-// module has been destroyed.
-func TestAwsDependencyOutputOptimization(t *testing.T) {
-	t.Parallel()
-
-	commands, _ := dependencyOutputOptimizationTest(t, "nested-optimization", depTerraformDirRemoved)
-	assertDependencyOutputFromBackend(t, commands)
-}
-
-func TestAwsDependencyOutputOptimizationSkipInit(t *testing.T) {
-	t.Parallel()
-
-	commands, depCacheDir := dependencyOutputOptimizationTest(t, "nested-optimization", depTerraformDirKept)
-
-	assert.False(t, slices.ContainsFunc(commands, isDependencyOutputInit), "unexpected bare init, got %v", commands)
-	assert.True(
-		t,
-		slices.ContainsFunc(commands, func(c helpers.RecordedCommand) bool {
-			return isOutputJSON(c) && c.Dir == depCacheDir
-		}),
-		"expected output -json in %s, got %v",
-		depCacheDir,
-		commands,
-	)
-}
-
-func TestAwsDependencyOutputOptimizationNoGenerate(t *testing.T) {
-	t.Parallel()
-
-	commands, _ := dependencyOutputOptimizationTest(t, "nested-optimization-nogen", depTerraformDirRemoved)
-	assertDependencyOutputFromBackend(t, commands)
-}
-
 func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 	t.Parallel()
 
@@ -3166,132 +3125,6 @@ func TestAwsTerragruntInvokeTerraformTests(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "1 passed, 0 failed")
-}
-
-// dependencyOutputState says whether a dependency optimization test removes
-// the dep unit's .terraform directory before reading outputs.
-type dependencyOutputState int
-
-const (
-	depTerraformDirKept dependencyOutputState = iota
-	depTerraformDirRemoved
-)
-
-// dependencyOutputOptimizationTest applies moduleName, deletes the deepdep
-// state, and reads the live unit's outputs with dependency outputs fetched
-// through tofu rather than from state. It returns the commands that final read
-// spawned and the dep unit's cache working directory.
-func dependencyOutputOptimizationTest(
-	t *testing.T,
-	moduleName string,
-	depState dependencyOutputState,
-) ([]helpers.RecordedCommand, string) {
-	t.Helper()
-
-	expectedOutput := `They said, "No, The answer is 42"`
-	generatedUniqueID := helpers.UniqueID()
-
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, moduleName)
-	rootTerragruntConfigPath := filepath.Join(rootPath, "root.hcl")
-	livePath := filepath.Join(rootPath, "live")
-	deepDepPath := filepath.Join(rootPath, "deepdep")
-	depPath := filepath.Join(rootPath, "dep")
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(generatedUniqueID)
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(generatedUniqueID)
-
-	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
-
-	helpers.CopyTerragruntConfigAndFillPlaceholders(
-		t,
-		rootTerragruntConfigPath,
-		rootTerragruntConfigPath,
-		s3BucketName,
-		lockTableName,
-		helpers.TerraformRemoteStateS3Region,
-	)
-
-	helpers.RunTerragrunt(
-		t,
-		"terragrunt run --all apply --non-interactive --backend-bootstrap --working-dir "+rootPath,
-	)
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt output -no-color -json --non-interactive --working-dir "+livePath,
-	)
-	require.NoError(t, err)
-
-	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-	assert.Equal(t, expectedOutput, outputs["output"].Value)
-
-	depCacheDir := helpers.FindCacheWorkingDir(t, depPath)
-	require.NotEmpty(t, depCacheDir, "Cache directory for dep should exist")
-
-	if depState == depTerraformDirRemoved {
-		helpers.CleanupTerraformFolder(t, depCacheDir)
-	}
-
-	// Since terraform runs from cache, the state file is in the cache directory
-	deepDepCacheDir := helpers.FindCacheWorkingDir(t, deepDepPath)
-	require.NotEmpty(t, deepDepCacheDir, "Cache directory for deepdep should exist")
-	require.NoError(t, os.Remove(filepath.Join(deepDepCacheDir, "terraform.tfstate")))
-
-	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
-	reout := bytes.Buffer{}
-	v := venv.OSVenv().WithExec(recorder)
-	v.Writers = &writer.Writers{Writer: &reout, ErrWriter: os.Stderr}
-
-	err = helpers.RunTerragruntCommandWithVenv(
-		t,
-		t.Context(),
-		v,
-		"terragrunt run --no-dependency-fetch-output-from-state --non-interactive --working-dir "+livePath+
-			" -- output -no-color -json",
-	)
-	require.NoError(t, err)
-
-	require.NoError(t, json.Unmarshal(reout.Bytes(), &outputs))
-	assert.Equal(t, expectedOutput, outputs["output"].Value)
-
-	return recorder.Commands(), depCacheDir
-}
-
-// isDependencyOutputInit reports whether c is the init Terragrunt runs before
-// reading a dependency's outputs from its backend.
-func isDependencyOutputInit(c helpers.RecordedCommand) bool {
-	return len(c.Args) > 0 && c.Args[0] == tf.CommandNameInit && slices.Contains(c.Args, "-get=false")
-}
-
-// isOutputJSON reports whether c reads outputs as JSON.
-func isOutputJSON(c helpers.RecordedCommand) bool {
-	return len(c.Args) > 0 && c.Args[0] == tf.CommandNameOutput && slices.Contains(c.Args, "-json")
-}
-
-// assertDependencyOutputFromBackend asserts that dependency outputs were read
-// by running output in the directory where Terragrunt ran a bare init against
-// the dependency's backend.
-func assertDependencyOutputFromBackend(t *testing.T, commands []helpers.RecordedCommand) {
-	t.Helper()
-
-	initIdx := slices.IndexFunc(commands, isDependencyOutputInit)
-	require.NotEqual(t, -1, initIdx, "expected a bare init for the dep backend, got %v", commands)
-
-	initDir := commands[initIdx].Dir
-
-	assert.True(
-		t,
-		slices.ContainsFunc(commands[initIdx+1:], func(c helpers.RecordedCommand) bool {
-			return isOutputJSON(c) && c.Dir == initDir
-		}),
-		"expected output -json in %s after the bare init, got %v",
-		initDir,
-		commands,
-	)
 }
 
 func assertS3Tags(
