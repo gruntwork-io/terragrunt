@@ -377,7 +377,7 @@ locals {
 }
 ```
 
-Changing `REGIONS` from `us-east-1,us-west-2` to `us-east-1` changes no file in the repository, so `[HEAD^...HEAD]` does not select `app/us-west-2` and its infrastructure stays deployed. The same happens with a values file outside the repository. Destroy those components yourself.
+Changing `REGIONS` from `us-east-1,us-west-2,eu-west-1` to `us-east-1,eu-west-1` changes no file in the repository, so `[HEAD^...HEAD]` does not select `app/us-west-2` and its infrastructure stays deployed. The same happens with a values file outside the repository. Destroy those components yourself.
 
 ## Narrowing Git expressions
 

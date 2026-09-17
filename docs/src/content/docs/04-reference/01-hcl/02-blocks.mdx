@@ -2257,7 +2257,7 @@ unit "canary" {
 ```
 
 <Aside type="tip" title="Optional components">
-  To make a component optional, prefer the `enabled` over the `count` attribute.
+  To make a component optional, prefer `enabled` to `count`.
 
   If you have been using OpenTofu/Terraform for a while, you might have a habit of using `count` to control the presence of resources. That was the only way to make resources conditional for a good portion of their histories. OpenTofu introduced the `enabled` attribute to improve the ergonomics of making resources conditional, and Terragrunt adopted it in the design of resource expansion for the same reason.
 
