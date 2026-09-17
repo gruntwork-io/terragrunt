@@ -1182,7 +1182,15 @@ func collectStackOutputs(
 
 		unitAddress := slices.Concat(stackAddress, []string{unit.Name})
 
-		value, ok, err := collectUnitOutput(ctx, pctx, l, dependencyConfig, stackDir, unit, unitAddress)
+		value, ok, err := collectUnitOutput(
+			ctx,
+			pctx,
+			l,
+			dependencyConfig,
+			stackDir,
+			unit,
+			unitAddress,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -1290,7 +1298,11 @@ func collectUnitOutput(
 
 	outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
 	if err != nil {
-		return cty.NilVal, false, fmt.Errorf("stack unit %s output parse failed: %w", unit.Name, err)
+		return cty.NilVal, false, fmt.Errorf(
+			"stack unit %s output parse failed: %w",
+			unit.Name,
+			err,
+		)
 	}
 
 	if len(outputMap) == 0 {
@@ -1299,7 +1311,11 @@ func collectUnitOutput(
 
 	convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 	if err != nil {
-		return cty.NilVal, false, fmt.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
+		return cty.NilVal, false, fmt.Errorf(
+			"stack unit %s output convert failed: %w",
+			unit.Name,
+			err,
+		)
 	}
 
 	return convertedOutput, true, nil
@@ -2490,7 +2506,15 @@ func runTerragruntOutputJSON(
 
 	runCfg := cfg.ToRunConfig(l, pctx.Venv.FS)
 
-	err = run.Run(ctx, l, pctx.Venv, RunOptionsFromParsingContext(pctx), report.NewReport(), runCfg, credentialGetter)
+	err = run.Run(
+		ctx,
+		l,
+		pctx.Venv,
+		RunOptionsFromParsingContext(pctx),
+		report.NewReport(),
+		runCfg,
+		credentialGetter,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2705,10 +2729,12 @@ func foldSiblingAutoIncludeDeps(
 		return nil, err
 	}
 
-	decoded := TerragruntDependency{}
-	if err := autoFile.Decode(&decoded, evalCtx); err != nil {
+	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, autoFile, evalCtx)
+	if err != nil {
 		return nil, err
 	}
+
+	decoded := TerragruntDependency{Dependencies: autoDependencies}
 
 	// Fold in dependency blocks the autoinclude inherits through its own include blocks, mirroring the unit decode path so inherited deps resolve before the unit body is evaluated.
 	if autoPctx.TrackInclude != nil && len(autoPctx.TrackInclude.CurrentList) > 0 {

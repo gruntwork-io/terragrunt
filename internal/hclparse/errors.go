@@ -42,6 +42,24 @@ func (e DuplicateStackNameError) Error() string {
 	return fmt.Sprintf("duplicate stack name %q after include merge", e.Name)
 }
 
+// ComponentRefCollisionError indicates that one unit or stack label names both an
+// unexpanded block and the elements of an expanded block, so a reference to the
+// label cannot resolve to either.
+type ComponentRefCollisionError struct {
+	Root string
+	Name string
+}
+
+func (e ComponentRefCollisionError) Error() string {
+	return fmt.Sprintf(
+		"%s %q is declared both with and without an expansion, so %s.%s cannot refer to both; rename one of them",
+		e.Root,
+		e.Name,
+		e.Root,
+		e.Name,
+	)
+}
+
 // IncludeValidationError indicates that an included stack file violates
 // constraints (e.g. defines locals or nested includes). Err preserves the
 // underlying error (such as hcl.Diagnostics from include-path evaluation)

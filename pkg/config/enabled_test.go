@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -41,13 +42,13 @@ stack "team" {
 // generatedStack is one in-memory generation run, so a test can ask what landed under
 // .terragrunt-stack without touching disk.
 type generatedStack struct {
-	fs  vfs.FS
+	v   *venv.Venv
 	dir string
 }
 
 // generated reports whether the named path exists under the generated stack directory.
 func (gen generatedStack) generated(path ...string) bool {
-	return vfs.Exists(gen.fs, filepath.Join(slices.Concat([]string{gen.dir}, path)...))
+	return vfs.Exists(gen.v.FS, filepath.Join(slices.Concat([]string{gen.dir}, path)...))
 }
 
 // generateEnabledStack writes stackHCL alongside a local unit source and a local nested
@@ -55,11 +56,7 @@ func (gen generatedStack) generated(path ...string) bool {
 func generateEnabledStack(t *testing.T, stackHCL string) generatedStack {
 	t.Helper()
 
-	v := venvtest.New()
-
-	for path, body := range map[string]string{
-		filepath.Join("units", "app", "main.tf"):                                               "",
-		filepath.Join("units", "app", config.DefaultTerragruntConfigPath):                      "",
+	return generateStack(t, map[string]string{
 		filepath.Join("stacks", "team", "units", "member", "main.tf"):                          "",
 		filepath.Join("stacks", "team", "units", "member", config.DefaultTerragruntConfigPath): "",
 		filepath.Join("stacks", "team", config.DefaultStackFile): `
@@ -69,7 +66,26 @@ unit "member" {
 }
 `,
 		config.DefaultStackFile: stackHCL,
-	} {
+	})
+}
+
+// generateStack writes files under enabledStackDir alongside a local unit source at
+// enabledUnitSource, then generates the stack file into an in-memory filesystem.
+func generateStack(t *testing.T, files map[string]string) generatedStack {
+	t.Helper()
+
+	v := venvtest.New()
+
+	for _, path := range []string{"main.tf", config.DefaultTerragruntConfigPath} {
+		require.NoError(t, vfs.WriteFile(
+			v.FS,
+			filepath.Join(enabledStackDir, enabledUnitSource, path),
+			nil,
+			0o644,
+		))
+	}
+
+	for path, body := range files {
 		require.NoError(
 			t,
 			vfs.WriteFile(v.FS, filepath.Join(enabledStackDir, path), []byte(body), 0o644),
@@ -94,7 +110,7 @@ unit "member" {
 	require.NoError(t, config.GenerateStackFile(ctx, l, pctx, pool, stackPath))
 	require.NoError(t, pool.Wait())
 
-	return generatedStack{fs: v.FS, dir: filepath.Join(enabledStackDir, config.StackDir)}
+	return generatedStack{v: v, dir: filepath.Join(enabledStackDir, config.StackDir)}
 }
 
 func TestGenerateStackSkipsDisabledComponents(t *testing.T) {

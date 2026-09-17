@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -34,6 +35,72 @@ func FuzzParseStackFile(f *testing.F) {
 		`locals { a = local.b; b = local.a }; unit "x" { source = "."; path = "x" }`,
 		`locals { x = 42 }; unit "x" { source = "."; path = "x" }`,
 		`locals { flag = true }; unit "x" { source = "."; path = "x" }`,
+		`unit "vpc" {
+  expansion {
+    for_each = { east = "east", west = "west" }
+  }
+  source = "."
+  path = "vpc/${each.key}"
+}
+
+unit "app" {
+  source = "."
+  path = "app"
+  autoinclude {
+    dependency "vpc" {
+      expansion {
+        for_each = { east = "east", west = "west" }
+      }
+      config_path = unit.vpc[each.key].path
+    }
+  }
+}`,
+		`unit "shard" {
+  expansion {
+    count = 2
+  }
+  source = "."
+  path = "shard/${count.index}"
+  autoinclude {
+    dependency "peer" {
+      expansion {
+        count = count.index
+      }
+      config_path = unit.shard[count.index].path
+    }
+  }
+}`,
+		`unit "env" {
+  source = "."
+  path = "env"
+}
+
+unit "env" {
+  expansion {
+    for_each = { dev = "dev" }
+  }
+  source = "."
+  path = "env/${each.key}"
+}`,
+		`unit "x" {
+  expansion {
+    count = 1
+    for_each = { a = "a" }
+  }
+  source = "."
+  path = "x"
+}`,
+		`unit "x" {
+  source = "."
+  path = "x"
+  autoinclude {
+    dependency "d" {
+      expansion {
+      }
+      config_path = "../d"
+    }
+  }
+}`,
 	}
 
 	for _, seed := range seeds {
@@ -90,7 +157,7 @@ func FuzzPartialEval(f *testing.F) {
 		},
 	}
 
-	deferred := map[string]bool{"dependency": true}
+	deferred := map[string]struct{}{"dependency": {}}
 
 	f.Fuzz(func(t *testing.T, input string) {
 		srcBytes := []byte(input)
@@ -205,7 +272,11 @@ func FuzzBuildComponentRefMap(f *testing.F) {
 	f.Add("name", "/also-reserved")
 
 	f.Fuzz(func(t *testing.T, name, path string) {
-		hclparse.BuildComponentRefMap([]hclparse.ComponentRef{{Name: name, Path: path}})
+		_, err := hclparse.BuildComponentRefMap(
+			hclparse.VarUnit,
+			[]hclparse.ComponentRef{{Name: name, Path: path}},
+		)
+		require.NoError(t, err)
 	})
 }
 
@@ -221,6 +292,83 @@ func FuzzAutoIncludeResolve(f *testing.F) {
 		`{}`,
 		`dependency "x" {}`,
 		`retry "err" { retryable_errors = [".*"]; max_attempts = 3 }`,
+		`dependency "vpc" {
+  expansion {
+    for_each = { a = "../a", b = "../b" }
+  }
+  config_path = each.value
+}`,
+		`dependency "vpc" {
+  expansion {
+    count = 2
+  }
+  config_path = "../vpc-${count.index}"
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each = { a = 1, b = null }
+  }
+  config_path = each.value
+}`,
+		`dependency "vpc" {
+  expansion {
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each = { a = "a" }
+    count = 1
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    count = 1
+  }
+  expansion {
+    count = 2
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion "x" {
+    count = 1
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each {
+    }
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    bogus = 1
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    count = -1
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each = ["a"]
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each = { a = "a" }
+  }
+  config_path = unit[each.key].path
+  mock_outputs = { id = each.key }
+}`,
 	}
 
 	for _, seed := range seeds {
@@ -306,7 +454,11 @@ func FuzzUnitPathsFromStackDir_ArgPanics(f *testing.F) {
 			}
 		}()
 
-		_, _ = hclparse.UnitPathsFromStackDir(fs, stackDir, &hclparse.StackDirArgs{FuncsFor: noFuncs})
+		_, _ = hclparse.UnitPathsFromStackDir(
+			fs,
+			stackDir,
+			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		)
 	})
 }
 
@@ -459,6 +611,10 @@ func FuzzUnitPathsFromStackDir_AutoIncludeContent(f *testing.F) {
 			0644,
 		)
 
-		_, _ = hclparse.UnitPathsFromStackDir(fs, "/fuzz", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+		_, _ = hclparse.UnitPathsFromStackDir(
+			fs,
+			"/fuzz",
+			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		)
 	})
 }
