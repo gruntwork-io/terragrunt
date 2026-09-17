@@ -56,9 +56,10 @@ const (
 // logger. funcsCb returns the table templatefile renders a template with,
 // which is the table these functions are registered in.
 //
-// Each of these functions reports every file it reaches to onRead, as the path
-// the venv's filesystem sees, before it touches the file. A template rendered
-// by another template reports its own file the same way.
+// Each of these functions reports every file it reads to onRead, as the path
+// the venv's filesystem sees. A path with no file behind it goes unreported,
+// including one fileexists finds missing. A template rendered by another
+// template reports its own file the same way.
 func Functions(
 	v *venv.Venv,
 	l log.Logger,
@@ -157,8 +158,6 @@ func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) func
 				return cty.UnknownVal(cty.Bool), err
 			}
 
-			onRead(path)
-
 			fi, err := v.FS.Stat(path)
 			if err != nil {
 				if errors.Is(err, fs.ErrNotExist) {
@@ -171,6 +170,8 @@ func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) func
 			}
 
 			if fi.Mode().IsRegular() {
+				onRead(path)
+
 				return cty.True.WithMarks(pathMarks), nil
 			}
 
@@ -456,12 +457,12 @@ func hashFile(
 		return nil, err
 	}
 
-	onRead(name)
-
 	f, err := v.FS.Open(name)
 	if err != nil {
 		return nil, err
 	}
+
+	onRead(name)
 
 	defer func() {
 		err = errors.Join(err, f.Close())
@@ -531,8 +532,6 @@ func readFileBytes(
 		return nil, err
 	}
 
-	onRead(name)
-
 	src, err := vfs.ReadFile(v.FS, name)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -547,6 +546,8 @@ func readFileBytes(
 
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
+
+	onRead(name)
 
 	return src, nil
 }

@@ -67,6 +67,19 @@ func TestHCLFileExistsRecordsTheFileAsRead(t *testing.T) {
 	assert.Contains(t, paths, memUnitDir+"/data.txt")
 }
 
+func TestHCLFileExistsLeavesAMissingFileUnrecorded(t *testing.T) {
+	t.Parallel()
+
+	paths := parseTrackingReads(t,
+		map[string]string{"data.txt": "contents\n"},
+		`locals {
+  there = fileexists("missing.txt")
+}`,
+	)
+
+	assert.NotContains(t, paths, memUnitDir+"/missing.txt")
+}
+
 func TestHCLTemplateFileRecordsTheTemplateAsRead(t *testing.T) {
 	t.Parallel()
 
