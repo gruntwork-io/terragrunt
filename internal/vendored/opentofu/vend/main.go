@@ -567,6 +567,8 @@ func declInfo(decl ast.Decl) (string, *ast.CommentGroup) {
 
 // commentOutEntries comments out the function table entry of each of keys,
 // found by its name so that the padding gofmt gives the table does not matter.
+// Each commented-out entry ends with a note naming its replacement in
+// patch.Functions.
 func commentOutEntries(decls string, keys []string) (string, error) {
 	for _, key := range keys {
 		row := regexp.MustCompile(`(?m)^(\t\t)("` + regexp.QuoteMeta(key) + `":.*)$`)
@@ -575,7 +577,7 @@ func commentOutEntries(decls string, keys []string) (string, error) {
 			return "", fmt.Errorf("%d entries named %q to comment out, want 1", n, key)
 		}
 
-		decls = row.ReplaceAllString(decls, "${1}// ${2}")
+		decls = row.ReplaceAllString(decls, "${1}// ${2} // Replaced by patch.Functions")
 	}
 
 	return decls, nil
