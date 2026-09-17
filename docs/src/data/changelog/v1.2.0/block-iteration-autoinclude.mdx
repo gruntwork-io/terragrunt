@@ -115,4 +115,10 @@ inputs = {
 
 A stack file that declares the same `unit` or `stack` label both with and without an `expansion` now fails to parse, because `unit.<name>` cannot refer to both.
 
-Discovery failed the same way on a `dependency` whose `config_path` pointed at a stack directory containing an expanded unit. It dropped the dependency instead of reporting the error, so `run --all` did not wait for the units in that stack. The dependency now covers every element of the expanded unit.
+Discovery also mishandled a `dependency` whose `config_path` pointed at a stack directory. With an expanded unit, it failed the same way but dropped the dependency instead of reporting the error, so `run --all` did not wait for the units in that stack. With `enabled = false` on a `unit` or `stack` block, it kept a dependency on a component that stack generation never writes, and `run --all` failed:
+
+```text
+You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file. Please add a terragrunt.hcl file and try again.
+```
+
+The dependency now covers every element of an expanded unit and skips disabled units and stacks, including disabled elements of an expanded block.

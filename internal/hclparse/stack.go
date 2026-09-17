@@ -260,9 +260,10 @@ func (u *unitPathOnlyHCL) GeneratedPath(stackDir string) string {
 	return GeneratedComponentPath(stackDir, u.Path, u.NoStack != nil && *u.NoStack)
 }
 
-// unitPathOnlyHCL is the discovery shape for unit name and path.
+// unitPathOnlyHCL is the discovery shape for unit name, path, and enabled.
 type unitPathOnlyHCL struct {
 	Remain   hcl.Body `hcl:",remain"`
+	Enabled  *bool    `hcl:"enabled,optional"`
 	NoStack  *bool    `hcl:"no_dot_terragrunt_stack,optional"`
 	Instance pkghclparse.InstanceKey
 	Path     string `hcl:"path,attr"`
@@ -274,9 +275,15 @@ func (u *unitPathOnlyHCL) bindInstance(instance pkghclparse.Instance) {
 	u.Instance = instance.InstanceKey
 }
 
-// stackPathOnlyHCL is the discovery shape for stack name, path, and source; Source is lazy so non-literal sources don't block decode.
+// disabled reports whether the unit sets enabled = false, which stack generation skips.
+func (u *unitPathOnlyHCL) disabled() bool {
+	return u.Enabled != nil && !*u.Enabled
+}
+
+// stackPathOnlyHCL is the discovery shape for stack name, path, source, and enabled; Source is lazy so non-literal sources don't block decode.
 type stackPathOnlyHCL struct {
 	Remain   hcl.Body       `hcl:",remain"`
+	Enabled  *bool          `hcl:"enabled,optional"`
 	NoStack  *bool          `hcl:"no_dot_terragrunt_stack,optional"`
 	Source   hcl.Expression `hcl:"source,attr"`
 	Instance pkghclparse.InstanceKey
@@ -287,6 +294,11 @@ type stackPathOnlyHCL struct {
 // bindInstance records the expansion element s was decoded from.
 func (s *stackPathOnlyHCL) bindInstance(instance pkghclparse.Instance) {
 	s.Instance = instance.InstanceKey
+}
+
+// disabled reports whether the stack sets enabled = false, which stack generation skips.
+func (s *stackPathOnlyHCL) disabled() bool {
+	return s.Enabled != nil && !*s.Enabled
 }
 
 // GeneratedPath returns the on-disk path this stack generates to under stackDir.
@@ -521,7 +533,9 @@ func unitPathsFromStackDir(
 	return paths, nil
 }
 
-// decodeDiscovery parses discovery targets and returns path-only unit and stack data.
+// decodeDiscovery parses discovery targets and returns path-only data for the enabled units and
+// stacks. Disabled components are dropped after the autoinclude merge, so an override can disable a
+// base block, but they still publish unit.<name>.path / stack.<name>.path refs as in the full parse.
 //
 // funcs is the function map injected into the discovery eval context; callers
 // must supply a non-nil map (validated at the public entrypoint).
@@ -612,7 +626,10 @@ func decodeDiscovery(
 		return nil, nil, err
 	}
 
-	return decoded.Units, decoded.Stacks, nil
+	units := slices.DeleteFunc(decoded.Units, (*unitPathOnlyHCL).disabled)
+	stacks := slices.DeleteFunc(decoded.Stacks, (*stackPathOnlyHCL).disabled)
+
+	return units, stacks, nil
 }
 
 // readDiscoveryValues reads the generated terragrunt.values.hcl next to a stack file

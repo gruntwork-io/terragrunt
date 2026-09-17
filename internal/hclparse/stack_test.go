@@ -96,6 +96,201 @@ func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
 	)
 }
 
+// TestUnitPathsFromStackDir_SkipsDisabledComponents pins that discovery leaves out a disabled unit, and
+// does not walk into a disabled nested stack even when a stale generated copy of it is on disk, since
+// stack generation produces neither.
+func TestUnitPathsFromStackDir_SkipsDisabledComponents(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+
+unit "private" {
+  enabled = false
+  source  = "."
+  path    = "private"
+}
+
+stack "legacy" {
+  enabled = false
+  source  = "."
+  path    = "legacy"
+}
+`), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/.terragrunt-stack/legacy/terragrunt.stack.hcl", []byte(`unit "stale" {
+  source = "."
+  path   = "stale"
+}
+`), 0644),
+	)
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "vpc")}, paths)
+}
+
+// TestUnitPathsFromStackDir_SkipsDisabledExpansionElements pins that discovery evaluates enabled once
+// per expansion element, so an element whose enabled reads false through each.* or count.index is left
+// out while its siblings stay.
+func TestUnitPathsFromStackDir_SkipsDisabledExpansionElements(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "subnet" {
+  expansion {
+    for_each = {
+      a = true
+      b = false
+    }
+  }
+
+  enabled = each.value
+  source  = "."
+  path    = "subnet-${each.key}"
+}
+
+stack "zone" {
+  expansion {
+    count = 2
+  }
+
+  enabled = count.index == 1
+  source  = "."
+  path    = "zone-${count.index}"
+}
+`), 0644))
+
+	for _, zone := range []string{"zone-0", "zone-1"} {
+		require.NoError(
+			t,
+			vfs.WriteFile(fs, "/test/.terragrunt-stack/"+zone+"/terragrunt.stack.hcl", []byte(`unit "app" {
+  source = "."
+  path   = "app"
+}
+`), 0644),
+		)
+	}
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	require.NoError(t, err)
+
+	generated := filepath.Join("/test", ".terragrunt-stack")
+	assert.Equal(
+		t,
+		[]string{
+			filepath.Join(generated, "subnet-a"),
+			filepath.Join(generated, "zone-1", ".terragrunt-stack", "app"),
+		},
+		paths,
+	)
+}
+
+// TestUnitPathsFromStackDir_StackAutoIncludeOverrideDisables pins that discovery drops a base unit
+// that a stack autoinclude overrides with enabled = false.
+func TestUnitPathsFromStackDir_StackAutoIncludeOverrideDisables(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+
+unit "db" {
+  source = "."
+  path   = "db"
+}
+`), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "db" {
+  enabled = false
+  source  = "."
+  path    = "db"
+}
+`), 0644),
+	)
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "vpc")}, paths)
+}
+
+// TestUnitPathsFromStackDir_DisabledUnitStillPublishesRef pins that a disabled unit keeps its
+// unit.<name>.path ref, so an autoinclude block whose path references it resolves as it does in the
+// full stack parse.
+func TestUnitPathsFromStackDir_DisabledUnitStillPublishesRef(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "anchor" {
+  enabled = false
+  source  = "."
+  path    = "anchor"
+}
+`), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "${unit.anchor.path}-vpc"
+}
+`), 0644),
+	)
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	require.NoError(t, err)
+
+	anchorPath := filepath.Join("/test", ".terragrunt-stack", "anchor")
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", anchorPath+"-vpc")}, paths)
+}
+
+// TestDirectComponentPaths_SkipsDisabled pins that the direct component paths leave out a disabled
+// unit and a disabled element of an expanded stack.
+func TestDirectComponentPaths_SkipsDisabled(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  enabled = false
+  source  = "."
+  path    = "vpc"
+}
+
+unit "db" {
+  source = "."
+  path   = "db"
+}
+
+stack "zone" {
+  expansion {
+    count = 2
+  }
+
+  enabled = count.index == 1
+  source  = "."
+  path    = "zone-${count.index}"
+}
+`), 0644))
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(fs, "/test", noFuncs)
+	require.NoError(t, err)
+
+	generated := filepath.Join("/test", ".terragrunt-stack")
+	assert.Equal(t, []string{filepath.Join(generated, "db")}, unitPaths)
+	assert.Equal(t, []string{filepath.Join(generated, "zone-1")}, stackPaths)
+}
+
 // TestUnitPathsFromStackDir_ValuesFileResolvesLocals pins that discovery loads the
 // generated terragrunt.values.hcl next to the stack file and publishes it as the
 // `values` variable, so a stack whose locals reference values.* expands instead of

@@ -74,6 +74,7 @@ const (
 	testFixtureStackDepsAutoIncTemplateLiteral   = "fixtures/stacks/stack-deps-autoinclude-template-literal"
 	testFixtureStackDepsAutoIncObjectKey         = "fixtures/stacks/stack-deps-autoinclude-object-key"
 	testFixtureStackDepsAutoIncConfigPathValues  = "fixtures/stacks/stack-deps-autoinclude-config-path-values"
+	testFixtureStackDepsDisabledComponents       = "fixtures/stacks/stack-deps-disabled-components"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,

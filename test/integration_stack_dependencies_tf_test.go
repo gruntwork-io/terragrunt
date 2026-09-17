@@ -703,6 +703,34 @@ func TestTFStackDepsNestedStackOutputs(t *testing.T) {
 	assert.Equal(t, "vpc-from-network/subnet-from-nested-stack", strings.TrimSpace(stdout))
 }
 
+// TestTFStackDepsDisabledComponentsRunAll pins that run --all applies a unit whose dependency points
+// at a stack directory with disabled components. The queue would otherwise hold the directories that
+// stack generation skipped, and every unit in the run would fail before applying.
+func TestTFStackDepsDisabledComponentsRunAll(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsDisabledComponents)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsDisabledComponents)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsDisabledComponents)
+
+	helpers.CreateGitRepo(t, gitPath)
+
+	rootPath, err := filepath.EvalSymlinks(filepath.Join(gitPath, "live"))
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
+	)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt output -raw vpc_id --non-interactive --working-dir "+filepath.Join(rootPath, "app"),
+	)
+	require.NoError(t, err, "stderr=%s", stderr)
+	assert.Equal(t, "vpc-from-networking", strings.TrimSpace(stdout))
+}
+
 // TestTFStackDepsTransitiveStackDirDependency checks that a transitive dependency on a stack directory resolves.
 func TestTFStackDepsTransitiveStackDirDependency(t *testing.T) {
 	t.Parallel()
