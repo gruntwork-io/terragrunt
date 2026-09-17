@@ -1,12 +1,12 @@
-const { describe, test, expect } = require("bun:test");
-const {
+import { describe, test, expect } from "bun:test";
+import {
   mapIssuesToPRs,
   buildComment,
   hasExistingComment,
   collectMergedPRs,
   listCommitsInRange,
   MARKER_PREFIX,
-} = require("./release-notify-issues");
+} from "./release-notify-issues";
 
 const DEFAULT_OWNER = "gruntwork-io";
 const DEFAULT_REPO = "terragrunt";
@@ -57,8 +57,8 @@ describe("mapIssuesToPRs", () => {
   });
 
   test("skips cross-repo references and warns", () => {
-    const warnings = [];
-    const core = { warning: (msg) => warnings.push(msg) };
+    const warnings: string[] = [];
+    const core = { warning: (msg: string) => warnings.push(msg) };
     const mergedPRs = [
       {
         number: 100,
@@ -175,10 +175,11 @@ describe("hasExistingComment", () => {
   });
 
   test("passes correct parameters to paginate", async () => {
-    let capturedMethod, capturedOpts;
+    let capturedMethod: unknown;
+    let capturedOpts: unknown;
     const listCommentsFn = () => {};
     const github = {
-      paginate: async (method, opts) => {
+      paginate: async (method: unknown, opts: unknown) => {
         capturedMethod = method;
         capturedOpts = opts;
         return [];
@@ -206,7 +207,7 @@ describe("hasExistingComment", () => {
 
 describe("collectMergedPRs", () => {
   test("deduplicates PRs across commits and drops unmerged ones", async () => {
-    const prsByCommit = {
+    const prsByCommit: Record<string, Array<{ number: number; merged_at: string | null }>> = {
       sha1: [
         { number: 1, merged_at: "2024-01-01T00:00:00Z" },
         { number: 2, merged_at: null },
@@ -219,7 +220,7 @@ describe("collectMergedPRs", () => {
     const github = {
       rest: {
         repos: {
-          listPullRequestsAssociatedWithCommit: async ({ commit_sha }) => ({
+          listPullRequestsAssociatedWithCommit: async ({ commit_sha }: { commit_sha: string }) => ({
             data: prsByCommit[commit_sha] || [],
           }),
         },
@@ -258,14 +259,20 @@ describe("collectMergedPRs", () => {
 
 describe("listCommitsInRange", () => {
   test("uses paginate with the basehead form, 100 per_page, and extracts commits via mapFn", async () => {
-    let capturedMethod, capturedOpts, capturedMapFn;
+    let capturedMethod: unknown;
+    let capturedOpts: unknown;
+    let capturedMapFn: ((response: unknown) => Array<{ sha: string }>) | undefined;
     const compareFn = () => {};
     const github = {
-      paginate: async (method, opts, mapFn) => {
+      paginate: async (
+        method: unknown,
+        opts: unknown,
+        mapFn?: (response: unknown) => Array<{ sha: string }>,
+      ) => {
         capturedMethod = method;
         capturedOpts = opts;
         capturedMapFn = mapFn;
-        return mapFn({ data: { commits: [{ sha: "a" }, { sha: "b" }] } });
+        return mapFn!({ data: { commits: [{ sha: "a" }, { sha: "b" }] } });
       },
       rest: { repos: { compareCommitsWithBasehead: compareFn } },
     };
@@ -288,7 +295,7 @@ describe("listCommitsInRange", () => {
     });
     expect(typeof capturedMapFn).toBe("function");
     expect(
-      capturedMapFn({ data: { commits: [{ sha: "x" }] } }),
+      capturedMapFn!({ data: { commits: [{ sha: "x" }] } }),
     ).toEqual([{ sha: "x" }]);
   });
 });

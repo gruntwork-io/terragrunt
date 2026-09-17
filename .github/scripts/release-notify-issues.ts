@@ -7,24 +7,35 @@
  * from each PR body, and comments on each referenced issue with a link to
  * the release.
  *
- * @param {Object} params
- * @param {Object} params.github - GitHub API client (Octokit)
- * @param {Object} params.context - GitHub Actions context
- * @param {Object} params.core - GitHub Actions core utilities
- * @param {string} params.tagName - The current release tag (e.g. "v0.96.0")
- * @param {string} params.previousTagName - The previous non-prerelease tag
+ * Loaded by `github-script`, which run on Node 24 and
+ * type-strip this file, so imports must carry explicit extensions and the
+ * syntax must stay erasable.
  */
-const { parseIssueReferences } = require("./tip-build-notify-issues");
+import {
+  type AssociatedPR,
+  type Context,
+  type Core,
+  type GithubClient,
+  type IssueRef,
+  type ListPullRequestsAssociatedWithCommit,
+  parseIssueReferences,
+} from "./tip-build-notify-issues.ts";
 
 const MARKER_PREFIX = "release-notify:";
 
-module.exports = async ({
+export default async function notifyReleasedIssues({
   github,
   context,
   core,
   tagName,
   previousTagName,
-}) => {
+}: {
+  github: GithubClient;
+  context: Context;
+  core: Core;
+  tagName: string | undefined;
+  previousTagName: string | undefined;
+}) {
   const owner = context.repo.owner;
   const repo = context.repo.repo;
 
@@ -99,18 +110,37 @@ module.exports = async ({
         commented++;
       } catch (err) {
         core.warning(
-          `Failed to comment on issue #${issueNumber}: ${err.message}`,
+          `Failed to comment on issue #${issueNumber}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
 
     core.info(`Notified ${commented} issue(s) about release ${tagName}.`);
   } catch (error) {
-    core.setFailed(`Failed to notify issues: ${error.message}`);
+    core.setFailed(`Failed to notify issues: ${error instanceof Error ? error.message : String(error)}`);
   }
-};
+}
 
-async function listCommitsInRange({ github, owner, repo, base, head }) {
+export async function listCommitsInRange({
+  github,
+  owner,
+  repo,
+  base,
+  head,
+}: {
+  github: {
+    paginate(
+      method: unknown,
+      opts: unknown,
+      mapFn: (response: unknown) => Array<{ sha: string }>,
+    ): Promise<Array<{ sha: string }>>;
+    rest: { repos: { compareCommitsWithBasehead: unknown } };
+  };
+  owner: string;
+  repo: string;
+  base: string;
+  head: string;
+}): Promise<Array<{ sha: string }>> {
   return await github.paginate(
     github.rest.repos.compareCommitsWithBasehead,
     {
@@ -119,12 +149,29 @@ async function listCommitsInRange({ github, owner, repo, base, head }) {
       basehead: `${base}...${head}`,
       per_page: 100,
     },
-    (response) => response.data.commits,
+    (response) =>
+      (response as { data: { commits: Array<{ sha: string }> } }).data.commits,
   );
 }
 
-async function collectMergedPRs({ github, owner, repo, commits }) {
-  const seen = new Map();
+export async function collectMergedPRs({
+  github,
+  owner,
+  repo,
+  commits,
+}: {
+  github: {
+    rest: {
+      repos: {
+        listPullRequestsAssociatedWithCommit: ListPullRequestsAssociatedWithCommit;
+      };
+    };
+  };
+  owner: string;
+  repo: string;
+  commits: Array<{ sha: string }>;
+}): Promise<AssociatedPR[]> {
+  const seen = new Map<number, AssociatedPR>();
   for (const commit of commits) {
     const { data: prs } =
       await github.rest.repos.listPullRequestsAssociatedWithCommit({
@@ -141,13 +188,23 @@ async function collectMergedPRs({ github, owner, repo, commits }) {
   return [...seen.values()];
 }
 
-function mapIssuesToPRs({ mergedPRs, owner, repo, core }) {
-  const map = new Map();
+export function mapIssuesToPRs({
+  mergedPRs,
+  owner,
+  repo,
+  core,
+}: {
+  mergedPRs: Array<{ number: number; body?: string | null }>;
+  owner: string;
+  repo: string;
+  core?: Pick<Core, "warning">;
+}): Map<number, number[]> {
+  const map = new Map<number, number[]>();
   for (const pr of mergedPRs) {
     if (!pr.body) {
       continue;
     }
-    const refs = parseIssueReferences(pr.body, owner, repo);
+    const refs: IssueRef[] = parseIssueReferences(pr.body, owner, repo);
     for (const ref of refs) {
       if (ref.owner !== owner || ref.repo !== repo) {
         if (core) {
@@ -167,13 +224,25 @@ function mapIssuesToPRs({ mergedPRs, owner, repo, core }) {
   return map;
 }
 
-async function hasExistingComment({
+export async function hasExistingComment({
   github,
   owner,
   repo,
   issueNumber,
   tagName,
-}) {
+}: {
+  github: {
+    paginate(
+      method: unknown,
+      opts: unknown,
+    ): Promise<Array<{ body?: string | null }>>;
+    rest: { issues: { listComments: unknown } };
+  };
+  owner: string;
+  repo: string;
+  issueNumber: number;
+  tagName: string;
+}): Promise<boolean> {
   const comments = await github.paginate(github.rest.issues.listComments, {
     owner,
     repo,
@@ -186,7 +255,17 @@ async function hasExistingComment({
   );
 }
 
-function buildComment({ owner, repo, tagName, prNumbers }) {
+export function buildComment({
+  owner,
+  repo,
+  tagName,
+  prNumbers,
+}: {
+  owner: string;
+  repo: string;
+  tagName: string;
+  prNumbers: number[];
+}): string {
   const prLinks = prNumbers.map((n) => `#${n}`).join(", ");
   const releaseUrl = `https://github.com/${owner}/${repo}/releases/tag/${tagName}`;
 
@@ -199,10 +278,4 @@ function buildComment({ owner, repo, tagName, prNumbers }) {
   ].join("\n");
 }
 
-module.exports.parseIssueReferences = parseIssueReferences;
-module.exports.mapIssuesToPRs = mapIssuesToPRs;
-module.exports.buildComment = buildComment;
-module.exports.hasExistingComment = hasExistingComment;
-module.exports.collectMergedPRs = collectMergedPRs;
-module.exports.listCommitsInRange = listCommitsInRange;
-module.exports.MARKER_PREFIX = MARKER_PREFIX;
+export { MARKER_PREFIX };
