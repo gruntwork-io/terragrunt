@@ -49,7 +49,7 @@ func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 	return client
 }
 
-func TestAwsCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
+func TestAWSCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -59,7 +59,7 @@ func TestAwsCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
 	})
 }
 
-func TestAwsCreateLockTableConcurrency(t *testing.T) {
+func TestAWSCreateLockTableConcurrency(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -85,7 +85,7 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 	waitGroup.Wait()
 }
 
-func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
+func TestAWSWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -110,7 +110,7 @@ func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	assert.True(t, errorMatchs, "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
-func TestAwsCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
+func TestAWSCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -127,7 +127,7 @@ func TestAwsCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 	})
 }
 
-func TestAwsTableTagging(t *testing.T) {
+func TestAWSTableTagging(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -147,10 +147,10 @@ func TestAwsTableTagging(t *testing.T) {
 	})
 }
 
-// TestAwsCreateLockTableWithTagsAtCreation verifies that
+// TestAWSCreateLockTableWithTagsAtCreation verifies that
 // DynamoDB lock table tags are applied during the initial
 // CreateTable API request.
-func TestAwsCreateLockTableWithTagsAtCreation(t *testing.T) {
+func TestAWSCreateLockTableWithTagsAtCreation(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -300,11 +300,11 @@ func CreateKeyFromItemID(itemID string) map[string]dynamodbtypes.AttributeValue 
 	}
 }
 
-// TestAwsCreateS3BucketWithTagsAtCreation verifies that tags passed via
+// TestAWSCreateS3BucketWithTagsAtCreation verifies that tags passed via
 // CreateS3BucketOpts are applied at bucket creation time (via
 // CreateBucketConfiguration.Tags), without relying on a subsequent
 // PutBucketTagging call.
-func TestAwsCreateS3BucketWithTagsAtCreation(t *testing.T) {
+func TestAWSCreateS3BucketWithTagsAtCreation(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)

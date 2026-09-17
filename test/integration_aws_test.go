@@ -69,7 +69,7 @@ const (
 	includeNoMergeFixturePath    = "qa/my-app"
 )
 
-func TestAwsBootstrapBackend(t *testing.T) {
+func TestAWSBootstrapBackend(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -230,7 +230,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	}
 }
 
-func TestAwsDualLockingBackend(t *testing.T) {
+func TestAWSDualLockingBackend(t *testing.T) {
 	t.Parallel()
 
 	if !helpers.IsNativeS3LockingSupported(t) {
@@ -301,7 +301,7 @@ func TestAwsDualLockingBackend(t *testing.T) {
 	)
 }
 
-func TestAwsNativeS3LockingBackend(t *testing.T) {
+func TestAWSNativeS3LockingBackend(t *testing.T) {
 	t.Parallel()
 
 	if !helpers.IsNativeS3LockingSupported(t) {
@@ -367,7 +367,7 @@ func TestAwsNativeS3LockingBackend(t *testing.T) {
 	)
 }
 
-func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
+func TestAWSBootstrapBackendWithoutVersioning(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
@@ -506,7 +506,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestAwsBootstrapBackendWithAccessLogging(t *testing.T) {
+func TestAWSBootstrapBackendWithAccessLogging(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
@@ -587,7 +587,7 @@ func TestAwsBootstrapBackendWithAccessLogging(t *testing.T) {
 	)
 }
 
-func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
+func TestAWSMigrateBackendWithoutVersioning(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
@@ -649,7 +649,7 @@ func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestAwsDeleteBackend(t *testing.T) {
+func TestAWSDeleteBackend(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
@@ -763,7 +763,7 @@ func TestAwsDeleteBackend(t *testing.T) {
 	}
 }
 
-func TestAwsMigrateBackend(t *testing.T) {
+func TestAWSMigrateBackend(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
@@ -918,7 +918,7 @@ func TestAwsMigrateBackend(t *testing.T) {
 	assert.Contains(t, stdout, "No changes")
 }
 
-func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
+func TestAWSWorksWithLocalTerraformVersion(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
@@ -974,7 +974,7 @@ func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 // Regression test to ensure that `accesslogging_bucket_name` and `accesslogging_target_prefix` are taken into account
 // & the TargetLogs bucket is set to a new S3 bucket, different from the origin S3 bucket
 // & the logs objects are prefixed with the `accesslogging_target_prefix` value
-func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetPrefix(
+func TestAWSSetsAccessLoggingForTFStateS3BucketToADifferentBucketWithGivenTargetPrefix(
 	t *testing.T,
 ) {
 	t.Parallel()
@@ -1067,7 +1067,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 
 // Regression test to ensure that `accesslogging_bucket_name` is taken into account
 // & when no `accesslogging_target_prefix` provided, then **default** value is used for TargetPrefix
-func TestAwsSetsAccessLoggingForTfSTateS3BucketToADifferentBucketWithDefaultTargetPrefix(
+func TestAWSSetsAccessLoggingForTFStateS3BucketToADifferentBucketWithDefaultTargetPrefix(
 	t *testing.T,
 ) {
 	t.Parallel()
@@ -1139,7 +1139,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BucketToADifferentBucketWithDefaultTarg
 	assert.Equal(t, s3backend.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
 }
 
-func TestAwsStackCommands(t *testing.T) { //nolint:paralleltest // parallel runs trip a CircleCI bucket-policy error
+func TestAWSStackCommands(t *testing.T) { //nolint:paralleltest // parallel runs trip a CircleCI bucket-policy error
 	// It seems that disabling parallel test execution helps avoid the CircleCi error: "NoSuchBucket Policy: The bucket policy does not exist."
 	// t.Parallel()
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -1194,7 +1194,7 @@ func TestAwsStackCommands(t *testing.T) { //nolint:paralleltest // parallel runs
 	)
 }
 
-func TestAwsRemoteWithBackend(t *testing.T) {
+func TestAWSRemoteWithBackend(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -1229,7 +1229,7 @@ func TestAwsRemoteWithBackend(t *testing.T) {
 	)
 }
 
-func TestAwsLocalWithBackend(t *testing.T) {
+func TestAWSLocalWithBackend(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -1263,7 +1263,7 @@ func TestAwsLocalWithBackend(t *testing.T) {
 	)
 }
 
-func TestAwsGetAccountAliasFunctions(t *testing.T) {
+func TestAWSGetAccountAliasFunctions(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAwsAccountAlias)
@@ -1305,7 +1305,7 @@ func TestAwsGetAccountAliasFunctions(t *testing.T) {
 	assert.Equal(t, outputs["account_alias"].Value, alias)
 }
 
-func TestAwsGetCallerIdentityFunctions(t *testing.T) {
+func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAwsGetCallerIdentity)
@@ -1344,7 +1344,7 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	assert.Equal(t, outputs["user_id"].Value, *identity.UserId)
 }
 
-func TestAwsProviderPatch(t *testing.T) {
+func TestAWSProviderPatch(t *testing.T) {
 	t.Parallel()
 
 	mirror := helpers.NewGitServer(t)
@@ -1391,7 +1391,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	)
 }
 
-func TestAwsPrintAwsErrors(t *testing.T) {
+func TestAWSPrintAWSErrors(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3Errors)
@@ -1436,7 +1436,7 @@ func TestAwsPrintAwsErrors(t *testing.T) {
 	)
 }
 
-func TestAwsErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
+func TestAWSErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3Errors)
@@ -1505,7 +1505,7 @@ func TestAwsErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
 	)
 }
 
-func TestAwsDisableBucketUpdate(t *testing.T) {
+func TestAWSDisableBucketUpdate(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
@@ -1543,7 +1543,7 @@ func TestAwsDisableBucketUpdate(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestAwsUpdatePolicy(t *testing.T) {
+func TestAWSUpdatePolicy(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
@@ -1584,7 +1584,7 @@ func TestAwsUpdatePolicy(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestAwsAssumeRoleDuration(t *testing.T) {
+func TestAWSAssumeRoleDuration(t *testing.T) {
 	t.Parallel()
 
 	if isTerraform(t.Context()) {
@@ -1648,12 +1648,12 @@ func TestAwsAssumeRoleDuration(t *testing.T) {
 	assert.Contains(t, output, "no changes are needed.")
 }
 
-// TestAwsIamRoleAttrWithAmbientCredentials runs a unit whose role comes from the iam_role
+// TestAWSIAMRoleAttrWithAmbientCredentials runs a unit whose role comes from the iam_role
 // attribute while the run's ambient AWS credentials can assume that role. Terragrunt assumes the
 // role once up front and must reuse that session for its own backend operations: a second
 // assumption would ask the role to assume itself, which STS rejects unless the role's trust
 // policy includes the role.
-func TestAwsIamRoleAttrWithAmbientCredentials(t *testing.T) {
+func TestAWSIAMRoleAttrWithAmbientCredentials(t *testing.T) {
 	t.Parallel()
 
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
@@ -1695,10 +1695,10 @@ func TestAwsIamRoleAttrWithAmbientCredentials(t *testing.T) {
 	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
-// TestAwsIamRoleFlagWithAmbientCredentials is the --iam-assume-role flag variant of
-// [TestAwsIamRoleAttrWithAmbientCredentials]: same S3 backend without its own assume_role, with
+// TestAWSIAMRoleFlagWithAmbientCredentials is the --iam-assume-role flag variant of
+// [TestAWSIAMRoleAttrWithAmbientCredentials]: same S3 backend without its own assume_role, with
 // the role supplied on the command line instead of the iam_role attribute.
-func TestAwsIamRoleFlagWithAmbientCredentials(t *testing.T) {
+func TestAWSIAMRoleFlagWithAmbientCredentials(t *testing.T) {
 	t.Parallel()
 
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
@@ -1740,7 +1740,7 @@ func TestAwsIamRoleFlagWithAmbientCredentials(t *testing.T) {
 	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
-func TestAwsRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
+func TestAWSRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
@@ -1773,7 +1773,7 @@ func TestAwsRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 	)
 }
 
-func TestAwsOutputFromRemoteState(t *testing.T) { //nolint:paralleltest // config.ClearOutputCache mutates a global these tests share
+func TestAWSOutputFromRemoteState(t *testing.T) { //nolint:paralleltest // config.ClearOutputCache mutates a global these tests share
 	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
 	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
 	// t.Parallel()
@@ -1852,7 +1852,7 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint:paralleltest // confi
 	)
 }
 
-func TestAwsParallelStateInit(t *testing.T) {
+func TestAWSParallelStateInit(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
@@ -1890,7 +1890,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 	)
 }
 
-func TestAwsAssumeRole(t *testing.T) {
+func TestAWSAssumeRole(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRole)
@@ -1944,7 +1944,7 @@ func TestAwsAssumeRole(t *testing.T) {
 	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 
-func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
+func TestAWSAssumeRoleWithExternalIDWithComma(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWithExternalIDWithComma)
@@ -2001,7 +2001,7 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 
-func TestAwsReadTerragruntAuthProviderCmd(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmd(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -2039,7 +2039,7 @@ func TestAwsReadTerragruntAuthProviderCmd(t *testing.T) {
 	assert.Equal(t, "app3-bar", outputs["foo-app3"].Value)
 }
 
-func TestAwsReadTerragruntAuthProviderCmdWithSops(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdWithSOPS(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
@@ -2080,7 +2080,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithSops(t *testing.T) {
 	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["hello"].Value)
 }
 
-func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
+func TestAWSReadTerragruntConfigIAMRole(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -2116,7 +2116,7 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(rootPath, identityArn+".txt"))
 }
 
-func TestAwsTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
+func TestAWSTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	t.Skip("requires an AWS backend not provisioned in the CI account")
 	t.Parallel()
 
@@ -2154,7 +2154,7 @@ func TestAwsTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	)
 }
 
-func TestAwsTerragruntWorksWithIncludeNoMerge(t *testing.T) {
+func TestAWSTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, includeFixturePath)
@@ -2191,7 +2191,7 @@ func TestAwsTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 	)
 }
 
-func TestAwsErrorExplaining(t *testing.T) {
+func TestAWSErrorExplaining(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
@@ -2215,7 +2215,7 @@ func TestAwsErrorExplaining(t *testing.T) {
 	assert.Contains(t, explanation, "Check your credentials and permissions")
 }
 
-func TestAwsTerragruntInvokeTerraformTests(t *testing.T) {
+func TestAWSTerragruntInvokeTerraformTests(t *testing.T) {
 	t.Parallel()
 
 	if isTerraform(t.Context()) {

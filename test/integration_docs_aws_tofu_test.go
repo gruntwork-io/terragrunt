@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
+func TestAWSDocsTerralithToTerragruntGuide(t *testing.T) {
 	t.Parallel()
 
 	fixturePath := filepath.Join("..", "docs", "src", "fixtures", "terralith-to-terragrunt")

@@ -53,7 +53,7 @@ const arraysPolicy = `
 		}
 	`
 
-func TestAwsUnmarshalStringActionResource(t *testing.T) {
+func TestAWSUnmarshalStringActionResource(t *testing.T) {
 	t.Parallel()
 
 	bucketPolicy, err := awshelper.UnmarshalPolicy(simplePolicy)
@@ -82,7 +82,7 @@ func TestAwsUnmarshalStringActionResource(t *testing.T) {
 	assert.NotContains(t, string(out), "null")
 }
 
-func TestAwsUnmarshalActionResourceList(t *testing.T) {
+func TestAWSUnmarshalActionResourceList(t *testing.T) {
 	t.Parallel()
 
 	bucketPolicy, err := awshelper.UnmarshalPolicy(arraysPolicy)

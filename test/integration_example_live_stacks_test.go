@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAwsExampleLiveStacks(t *testing.T) {
+func TestAWSExampleLiveStacks(t *testing.T) {
 	uniqueID := strings.ToLower(helpers.UniqueID())
 
 	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger(), venv.OSVenv())

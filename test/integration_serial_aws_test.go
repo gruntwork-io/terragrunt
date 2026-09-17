@@ -24,7 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
-func TestAwsTerragruntParallelism(t *testing.T) {
+func TestAWSTerragruntParallelism(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -76,7 +76,7 @@ func TestAwsTerragruntParallelism(t *testing.T) {
 	}
 }
 
-func TestAwsReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
@@ -129,7 +129,7 @@ func TestAwsReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	)
 }
 
-func TestAwsReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
