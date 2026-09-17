@@ -1333,6 +1333,63 @@ func TestWalkDirWithSymlinks(t *testing.T) {
 			func(_ string, _ fs.DirEntry, err error) error { return err },
 		))
 	})
+
+	t.Run("missing root skipped by fn", func(t *testing.T) {
+		t.Parallel()
+
+		root := filepath.Join(evaledTempDir(t), "nonexistent")
+
+		var errPaths []string
+
+		require.NoError(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(path string, _ fs.DirEntry, err error) error {
+				if err != nil {
+					errPaths = append(errPaths, path)
+				}
+
+				return nil
+			},
+		))
+
+		assert.Equal(t, []string{root}, errPaths)
+	})
+
+	t.Run("broken symlink skipped by fn", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "nonexistent"), filepath.Join(root, "a-broken")),
+		)
+		require.NoError(t, os.WriteFile(filepath.Join(root, "b.txt"), []byte("test"), 0644))
+
+		var paths, errPaths []string
+
+		require.NoError(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(path string, _ fs.DirEntry, err error) error {
+				rel, relErr := filepath.Rel(root, path)
+				require.NoError(t, relErr)
+
+				switch {
+				case err != nil:
+					errPaths = append(errPaths, rel)
+				default:
+					paths = append(paths, rel)
+				}
+
+				return nil
+			},
+		))
+
+		assert.Equal(t, []string{"a-broken"}, errPaths)
+		assert.Equal(t, []string{".", "a-broken", "b.txt"}, paths)
+	})
 }
 
 // evaledTempDir returns a temp dir with symlinks resolved, so paths the walk

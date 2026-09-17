@@ -658,13 +658,7 @@ func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirPar
 //
 // Adapted from spf13/afero#571; replace with afero.WalkDir once merged.
 func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
-	info, err := lstatIfPossible(fsys, root)
-	if err != nil {
-		err = fn(root, nil, err)
-	} else {
-		err = walkDir(fsys, root, FileInfoDirEntry{FileInfo: info}, fn)
-	}
-
+	err := walkDirRoot(fsys, root, fn)
 	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
 		return nil
 	}
@@ -681,6 +675,10 @@ func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 // Each logical path is reported once, so a directory reachable through several
 // links is visited once, and a link pointing back at an ancestor terminates
 // instead of looping.
+//
+// A root or link that fails to resolve is handed to fn with the error, as
+// [WalkDir] does for an entry it cannot read, so fn decides whether the walk
+// goes on.
 func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
 	w := &symlinkWalker{
 		fsys:           fsys,
@@ -689,12 +687,12 @@ func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
 		visitedLogical: make(map[string]bool),
 	}
 
-	realRoot, err := EvalSymlinks(fsys, root)
-	if err != nil {
-		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+	err := w.walkRoot(root)
+	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
+		return nil
 	}
 
-	return w.walk(realRoot, filepath.Clean(root))
+	return err
 }
 
 // symlinkWalker carries the bookkeeping [WalkDirWithSymlinks] needs across the
@@ -704,6 +702,17 @@ type symlinkWalker struct {
 	fn             fs.WalkDirFunc
 	visited        map[string]bool
 	visitedLogical map[string]bool
+}
+
+// walkRoot resolves root and walks the tree it lands on, handing fn the error
+// when root does not resolve.
+func (w *symlinkWalker) walkRoot(root string) error {
+	realRoot, err := EvalSymlinks(w.fsys, root)
+	if err != nil {
+		return w.fn(root, nil, fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err))
+	}
+
+	return w.walk(realRoot, filepath.Clean(root))
 }
 
 // walk traverses the tree at physical, reporting entries under logical.
@@ -737,21 +746,21 @@ func (w *symlinkWalker) walk(physical, logical string) error {
 			return nil
 		}
 
-		return w.follow(current, logicalPath)
+		return w.follow(current, logicalPath, d)
 	})
 }
 
-// follow resolves the link at current and, when it lands on a directory,
+// follow resolves the link d at current and, when it lands on a directory,
 // walks the target as though it lived at logicalPath.
-func (w *symlinkWalker) follow(current, logicalPath string) error {
+func (w *symlinkWalker) follow(current, logicalPath string, d fs.DirEntry) error {
 	realPath, err := EvalSymlinks(w.fsys, current)
 	if err != nil {
-		return fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err)
+		return w.fn(logicalPath, d, fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err))
 	}
 
 	realInfo, err := w.fsys.Stat(realPath)
 	if err != nil {
-		return fmt.Errorf("failed to describe file %s: %w", realPath, err)
+		return w.fn(logicalPath, d, fmt.Errorf("failed to describe file %s: %w", realPath, err))
 	}
 
 	if w.visited[realPath+":"+current] {
@@ -1629,6 +1638,17 @@ func walkSymlinksLinkParent(dest string, vol string, volLen int) string {
 	}
 
 	return dest[:idx]
+}
+
+// walkDirRoot describes root and walks the tree under it, handing fn the error
+// when root cannot be described.
+func walkDirRoot(fsys FS, root string, fn fs.WalkDirFunc) error {
+	info, err := lstatIfPossible(fsys, root)
+	if err != nil {
+		return fn(root, nil, err)
+	}
+
+	return walkDir(fsys, root, FileInfoDirEntry{FileInfo: info}, fn)
 }
 
 // walkDir recursively descends path, calling walkDirFn.
