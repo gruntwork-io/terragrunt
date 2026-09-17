@@ -1,0 +1,20 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Terragrunt MCP docs server
+
+Terragrunt now publishes a read-only [MCP server](https://mcp.docs.terragrunt.com) that answers Terragrunt questions from the official docs, the CLI reference, a curated design-pattern library, and real example config. The server is public and unauthenticated, and results pin to Terragrunt versions: docs pages can be read at any release tag from v0.80 onward.
+
+For Claude Code:
+
+```bash
+claude mcp add -s user --transport http terragrunt-docs https://mcp.docs.terragrunt.com/mcp
+```
+
+Cursor and other MCP clients that read an `mcp.json` point at `https://mcp.docs.terragrunt.com/mcp` instead.
+
+The server is in public beta. It has no availability guarantee and may change significantly.
+
+See the [install docs](/getting-started/install#terragrunt-mcp-docs-server) for the full setup.

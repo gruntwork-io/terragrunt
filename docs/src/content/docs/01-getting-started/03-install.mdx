@@ -402,6 +402,41 @@ terragrunt --install-autocomplete
 
 Once the autocomplete support is installed, you will need to restart your shell.
 
+## Terragrunt MCP docs server
+
+<Aside type="caution" title="Public beta">
+  The MCP docs server is in public beta. It has no availability guarantee and might change significantly in the future.
+</Aside>
+
+If you use an AI coding assistant that speaks MCP, Terragrunt publishes a read-only MCP server at [mcp.docs.terragrunt.com](https://mcp.docs.terragrunt.com) that answers Terragrunt questions from the official docs, the CLI reference, a curated design-pattern library, and real example config. The server is public and needs no authentication.
+
+It indexes the docs at specific releases, and can answer questions in the context of a specific release from v0.80 onward, so an AI agent can answer questions based on the version you actually run.
+
+<Tabs>
+  <TabItem label="Claude Code">
+    Install it for every project you work on:
+
+    ```bash
+    claude mcp add -s user --transport http terragrunt-docs https://mcp.docs.terragrunt.com/mcp
+    ```
+
+    Drop `-s user` to install it for the current directory only, or use `-s project` to write a `.mcp.json` to the repo root that everyone who clones the repo gets.
+  </TabItem>
+  <TabItem label="Cursor and other MCP clients">
+    Add the server to your client's `mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "terragrunt-docs": { "url": "https://mcp.docs.terragrunt.com/mcp" }
+      }
+    }
+    ```
+
+    Cursor reads this from `.cursor/mcp.json` in the project or `~/.cursor/mcp.json` globally.
+  </TabItem>
+</Tabs>
+
 ## Uninstall
 
 Terragrunt is a single binary with no background services, so removing it means deleting the binary and, optionally, the caches it wrote.
