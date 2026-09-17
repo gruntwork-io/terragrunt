@@ -51,6 +51,10 @@ const (
 	pathParam = "path"
 )
 
+// ErrUserSpecificHomeDir is returned for a path that starts with ~ followed by
+// a user name, such as ~alice/main.tf, which upstream refuses to expand.
+var ErrUserSpecificHomeDir = errors.New("cannot expand user-specific home dir")
+
 // Functions returns the replacements for the upstream functions commented out
 // of the vendored function table, each going through the Terragrunt venv or
 // logger. funcsCb returns the table templatefile renders a template with,
@@ -587,11 +591,19 @@ func resolvePath(v *venv.Venv, baseDir, path string) (string, error) {
 }
 
 // expandHome replaces a leading ~ in path with the home directory of the user
-// the venv reports, leaving every other path as it is.
+// the venv reports, leaving every other path as it is. The ~ may be followed
+// by either separator, as upstream accepts on every platform.
+//
+// Returns [ErrUserSpecificHomeDir] when the ~ is followed by anything but a
+// separator.
 func expandHome(v *venv.Venv, path string) (string, error) {
 	rest, ok := strings.CutPrefix(path, "~")
-	if !ok || (rest != "" && rest[0] != '/') {
+	if !ok {
 		return path, nil
+	}
+
+	if rest != "" && rest[0] != '/' && rest[0] != '\\' {
+		return "", ErrUserSpecificHomeDir
 	}
 
 	home, err := v.Platform.UserHomeDir()

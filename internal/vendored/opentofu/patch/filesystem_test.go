@@ -292,6 +292,43 @@ func TestPathExpandUsesTheVenvHomeDir(t *testing.T) {
 	assert.Equal(t, cty.StringVal("relative/path.tf"), got)
 }
 
+func TestPathExpandAcceptsABackslashAfterTheTilde(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(t, nil)
+	v.Platform.UserHomeDir = func() (string, error) { return "/home/tester", nil }
+
+	got, err := patch.PathExpandFunc(v).
+		Call([]cty.Value{cty.StringVal(`~\configs\main.tf`)})
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		cty.StringVal(filepath.Join("/home/tester", `\configs\main.tf`)),
+		got,
+	)
+}
+
+func TestPathExpandRejectsAUserSpecificHomeDir(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(t, nil)
+	v.Platform.UserHomeDir = func() (string, error) { return "/home/tester", nil }
+
+	_, err := patch.PathExpandFunc(v).
+		Call([]cty.Value{cty.StringVal("~alice/main.tf")})
+	require.ErrorIs(t, err, patch.ErrUserSpecificHomeDir)
+}
+
+func TestFileExistsRejectsAUserSpecificHomeDir(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(t, map[string]string{"~alice/main.tf": "# shadow"})
+
+	_, err := patch.FileExistsFunc(v, baseDir, noRead).
+		Call([]cty.Value{cty.StringVal("~alice/main.tf")})
+	require.ErrorIs(t, err, patch.ErrUserSpecificHomeDir)
+}
+
 func TestBase64DecodeReturnsTheDecodedString(t *testing.T) {
 	t.Parallel()
 
