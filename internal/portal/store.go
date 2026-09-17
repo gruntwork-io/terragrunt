@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -135,51 +136,68 @@ func SaveToken(l log.Logger, v *venv.Venv, baseURL string, token *Token) error {
 	return writeFileAtomic(v.FS, path, data, tokenStoreFileMode)
 }
 
-// LoadTokens returns the credentials held for the portal serving baseURL, keyed
-// by org id. An expired credential is left out.
-func LoadTokens(l log.Logger, v *venv.Venv, baseURL string) (map[string]StoredToken, error) {
+// Credentials is what the store holds for one portal: the credentials that
+// still work, keyed by org id, and the organizations left holding one that has
+// run out.
+type Credentials struct {
+	Valid   map[string]StoredToken
+	Expired []Org
+}
+
+// LoadCredentials returns everything the store holds for the portal serving
+// baseURL. An organization whose credential has run out comes back under
+// Expired rather than being dropped, so a caller can tell it apart from one the
+// user never logged in to. Organizations come back in a fixed order.
+func LoadCredentials(l log.Logger, v *venv.Venv, baseURL string) (Credentials, error) {
 	v.RequireFS()
 
 	key, err := portalKey(baseURL)
 	if err != nil {
-		return nil, err
+		return Credentials{}, err
 	}
 
 	path, err := TokenStorePath(v)
 	if err != nil {
-		return nil, err
+		return Credentials{}, err
 	}
 
 	store, err := readTokenStore(l, v.FS, path)
 	if err != nil {
-		return nil, err
+		return Credentials{}, err
 	}
 
-	return store.unexpired(key, time.Now()), nil
+	return store.credentials(key, time.Now()), nil
 }
 
-// unexpired returns the credentials the portal named by key still has, keyed by
-// org id.
-func (s *tokenStore) unexpired(key string, now time.Time) map[string]StoredToken {
-	orgs := s.Portals[key]
-	tokens := make(map[string]StoredToken, len(orgs))
+// credentials sorts what the portal named by key holds into the credentials
+// that still work and the organizations whose credential has run out.
+func (s *tokenStore) credentials(key string, now time.Time) Credentials {
+	entries := s.Portals[key]
+	valid := make(map[string]StoredToken, len(entries))
 
-	for orgID, entry := range orgs {
+	var expired []Org
+
+	for _, orgID := range slices.Sorted(maps.Keys(entries)) {
+		entry := entries[orgID]
+		org := Org{ID: orgID, Name: entry.OrgName}
+
 		if !entry.ExpiresAt.After(now) {
+			expired = append(expired, org)
+
 			continue
 		}
 
-		tokens[orgID] = StoredToken{
+		valid[orgID] = StoredToken{
 			ExpiresAt:   entry.ExpiresAt,
 			AccessToken: entry.AccessToken,
 			TokenType:   entry.TokenType,
 			Scope:       entry.Scope,
-			Org:         Org{ID: orgID, Name: entry.OrgName},
+			Org:         org,
 			Account:     Account{Email: entry.AccountEmail},
 		}
 	}
 
-	return tokens
+	return Credentials{Valid: valid, Expired: expired}
 }
 
 // record files token under the portal named by key, creating the maps on the

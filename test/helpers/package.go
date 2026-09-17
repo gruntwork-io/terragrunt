@@ -1170,7 +1170,14 @@ func RunTerragruntCommandWithContext(
 ) error {
 	t.Helper()
 
-	v := venv.OSVenv()
+	// Portal credentials are read out of the user configuration directory, so
+	// the run is pointed at one of the test's own. Left on the real one, a
+	// machine where somebody has run `terragrunt login` would send that
+	// credential to the production portal in the middle of a test and take
+	// whatever it answered into the test's own assertions.
+	configDir := t.TempDir()
+
+	v := venv.OSVenv().WithUserConfigDir(func() (string, error) { return configDir, nil })
 	v.Writers = &writerpkg.Writers{Writer: writer, ErrWriter: errwriter}
 
 	return RunTerragruntCommandWithVenv(t, ctx, v, command)
