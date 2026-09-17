@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,7 +39,7 @@ func TestHCLFileRecordsTheFileAsRead(t *testing.T) {
 }`,
 	)
 
-	assert.Contains(t, paths, memUnitDir+"/data.txt")
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "data.txt"))
 }
 
 func TestHCLFileHashRecordsTheFileAsRead(t *testing.T) {
@@ -51,7 +52,7 @@ func TestHCLFileHashRecordsTheFileAsRead(t *testing.T) {
 }`,
 	)
 
-	assert.Contains(t, paths, memUnitDir+"/data.txt")
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "data.txt"))
 }
 
 func TestHCLFileExistsRecordsTheFileAsRead(t *testing.T) {
@@ -64,7 +65,7 @@ func TestHCLFileExistsRecordsTheFileAsRead(t *testing.T) {
 }`,
 	)
 
-	assert.Contains(t, paths, memUnitDir+"/data.txt")
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "data.txt"))
 }
 
 func TestHCLFileExistsLeavesAMissingFileUnrecorded(t *testing.T) {
@@ -77,7 +78,7 @@ func TestHCLFileExistsLeavesAMissingFileUnrecorded(t *testing.T) {
 }`,
 	)
 
-	assert.NotContains(t, paths, memUnitDir+"/missing.txt")
+	assert.NotContains(t, paths, filepath.Join(memUnitDir, "missing.txt"))
 }
 
 func TestHCLTemplateFileRecordsTheTemplateAsRead(t *testing.T) {
@@ -90,7 +91,7 @@ func TestHCLTemplateFileRecordsTheTemplateAsRead(t *testing.T) {
 }`,
 	)
 
-	assert.Contains(t, paths, memUnitDir+"/greeting.tmpl")
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "greeting.tmpl"))
 }
 
 func TestHCLFileSetRecordsEachMatchAsRead(t *testing.T) {
@@ -107,9 +108,9 @@ func TestHCLFileSetRecordsEachMatchAsRead(t *testing.T) {
 }`,
 	)
 
-	assert.Contains(t, paths, memUnitDir+"/a.tf")
-	assert.Contains(t, paths, memUnitDir+"/b.tf")
-	assert.NotContains(t, paths, memUnitDir+"/skip.txt")
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "a.tf"))
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "b.tf"))
+	assert.NotContains(t, paths, filepath.Join(memUnitDir, "skip.txt"))
 }
 
 func TestHCLFileReadsAreUnrecordedWithoutTracking(t *testing.T) {
@@ -144,8 +145,8 @@ func TestHCLTemplateFileRecordsANestedFileAsRead(t *testing.T) {
 }`,
 	)
 
-	assert.Contains(t, paths, memUnitDir+"/outer.tmpl")
-	assert.Contains(t, paths, memUnitDir+"/inner.txt")
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "outer.tmpl"))
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "inner.txt"))
 }
 
 func TestHCLTemplateFileRecordsANestedTemplateAsRead(t *testing.T) {
@@ -161,6 +162,6 @@ func TestHCLTemplateFileRecordsANestedTemplateAsRead(t *testing.T) {
 }`,
 	)
 
-	assert.Contains(t, paths, memUnitDir+"/outer.tmpl")
-	assert.Contains(t, paths, memUnitDir+"/inner.tmpl")
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "outer.tmpl"))
+	assert.Contains(t, paths, filepath.Join(memUnitDir, "inner.tmpl"))
 }
