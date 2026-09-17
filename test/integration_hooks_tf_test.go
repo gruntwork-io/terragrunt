@@ -168,7 +168,7 @@ func TestTFTerragruntRunNoHooksSkipsConfiguredHooks(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --experiment optional-hooks --no-hooks --non-interactive --working-dir "+directPath+
+		"terragrunt run --no-hooks --non-interactive --working-dir "+directPath+
 			" -- plan -input=false",
 	)
 
@@ -178,7 +178,7 @@ func TestTFTerragruntRunNoHooksSkipsConfiguredHooks(t *testing.T) {
 
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --experiment optional-hooks --no-hooks --non-interactive --working-dir "+stackPath+
+		"terragrunt run --all --no-hooks --non-interactive --working-dir "+stackPath+
 			" -- plan -input=false",
 	)
 
