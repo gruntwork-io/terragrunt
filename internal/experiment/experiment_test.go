@@ -61,6 +61,16 @@ func TestDependencyFetchOutputFromStateIsCompleted(t *testing.T) {
 	assert.True(t, got.Evaluate(), "dependency-fetch-output-from-state must be enabled by default")
 }
 
+func TestAzureBackendIsCompleted(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.AzureBackend)
+	require.NotNil(t, got, "azure-backend experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusCompleted, got.Status, "azure-backend must be completed")
+	assert.True(t, got.Evaluate(), "azure-backend must be enabled by default")
+}
+
 func TestOptionalHooksIsOngoing(t *testing.T) {
 	t.Parallel()
 

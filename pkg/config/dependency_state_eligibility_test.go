@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -29,7 +28,6 @@ type dependencyStateEligibilityTestCase struct {
 	filesystem             vfs.FS
 	producerTerraformExtra string
 	wantRequest            string
-	enableAzure            bool
 	optOut                 bool
 	wantDirect             bool
 }
@@ -208,15 +206,9 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 `,
 		},
 		{
-			name:          "Azure requires backend experiment",
-			backend:       "azurerm",
-			backendConfig: azureConfig,
-		},
-		{
 			name:          "Azure snapshot boolean remains direct",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"snapshot": "true"}),
-			enableAzure:   true,
 			wantRequest:   "stateaccount.blob.core.windows.net/state/service.tfstate",
 			wantDirect:    true,
 		},
@@ -224,26 +216,22 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			name:          "Azure invalid snapshot boolean falls back",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"snapshot": `"not-a-bool"`}),
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure invalid OIDC boolean falls back",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"use_oidc": `"not-a-bool"`}),
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure disabled CLI falls back",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"use_cli": "false"}),
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure inherited HTTPS_PROXY remains direct",
 			backend:       "azurerm",
 			backendConfig: azureConfig,
 			env:           map[string]string{"HTTPS_PROXY": "http://proxy.example.com"},
-			enableAzure:   true,
 			wantRequest:   "stateaccount.blob.core.windows.net/state/service.tfstate",
 			wantDirect:    true,
 		},
@@ -252,7 +240,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			backend:       "azurerm",
 			backendConfig: azureConfig,
 			env:           map[string]string{"HTTPS_PROXY": "http://inherited.example.com"},
-			enableAzure:   true,
 			producerTerraformExtra: `terraform {
   extra_arguments "output_proxy" {
     commands = ["output"]
@@ -270,7 +257,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{
 				"sas_token": `"?sig=test"`,
 			}),
-			enableAzure: true,
 		},
 		{
 			name:    "Azure competing MSI and OIDC fall back",
@@ -284,7 +270,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 				"ARM_USE_MSI":  "true",
 				"ARM_USE_OIDC": "true",
 			},
-			enableAzure: true,
 		},
 		{
 			name:    "Azure OIDC without token source falls back",
@@ -298,40 +283,34 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 				},
 				"access_key",
 			),
-			enableAzure: true,
 		},
 		{
 			name:          "Azure customer-provided key environment falls back",
 			backend:       "azurerm",
 			backendConfig: azureConfig,
 			env:           map[string]string{"ARM_CUSTOMER_PROVIDED_KEY": "secret"},
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure helper-only credential alias falls back",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{}, "access_key"),
 			env:           map[string]string{"AZURE_STORAGE_KEY": azureAccessKey},
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure MSI resource ID environment falls back",
 			backend:       "azurerm",
 			backendConfig: azureConfig,
 			env:           map[string]string{"ARM_MSI_RESOURCE_ID": "/subscriptions/example/identity"},
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure unsupported cloud alias falls back",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"environment": `"global"`}),
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure padded state key falls back",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"key": `" service.tfstate"`}),
-			enableAzure:   true,
 		},
 		{
 			name:    "Azure incomplete service principal falls back",
@@ -346,7 +325,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 				"ARM_CLIENT_SECRET": "secret",
 				"ARM_TENANT_ID":     "tenant",
 			},
-			enableAzure: true,
 		},
 	}
 
@@ -456,10 +434,6 @@ inputs = {
 	ctx = config.WithConfigValues(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.NoDependencyFetchOutputFromState = testCase.optOut
-
-	if testCase.enableAzure {
-		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.AzureBackend))
-	}
 
 	return config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), consumerPath, nil)
 }

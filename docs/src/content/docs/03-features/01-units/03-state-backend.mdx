@@ -7,6 +7,8 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 import { Aside } from '@astrojs/starlight/components';
 
 OpenTofu/Terraform supports [remote state storage](https://opentofu.org/docs/language/state/remote/) via various [backends](https://opentofu.org/docs/language/settings/backends/configuration/) that you normally configure in your `.tf` files as follows:
@@ -167,7 +169,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
-- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental; bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm)<Before version="1.2.0"> (experimental; bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)</Before>
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -351,14 +353,17 @@ The following config options are only valid for the `gcs` backend and are used b
 
 ### Azure Storage (azurerm) Backend
 
+<Before version="1.2.0">
 <Aside type="caution" title="Experimental">
 Azure backend support is delivered through the [`azure-backend`](/reference/experiments/active#azure-backend) experiment.
 
 With the experiment enabled, Terragrunt bootstraps, deletes, and migrates Azure Storage state resources.
 Otherwise, these operations return an error. OpenTofu/Terraform's native azurerm backend handles normal state reads and writes.
+</Aside>
+</Before>
 
-When `azure-backend` is enabled and the Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
-
+<Aside type="note">
+<Before version="1.2.0">When `azure-backend` is enabled and the</Before><Since version="1.2.0">When the</Since> Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
 </Aside>
 
 Example configuration:
