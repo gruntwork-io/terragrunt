@@ -1,10 +1,10 @@
-const { describe, test, expect } = require("bun:test");
-const {
+import { describe, test, expect } from "bun:test";
+import {
   parseIssueReferences,
   buildComment,
   hasExistingComment,
   findMergedPRs,
-} = require("./tip-build-notify-issues");
+} from "./tip-build-notify-issues";
 
 const DEFAULT_OWNER = "gruntwork-io";
 const DEFAULT_REPO = "terragrunt";
@@ -210,7 +210,7 @@ describe("buildComment", () => {
 describe("hasExistingComment", () => {
   test("returns true when marker comment exists", async () => {
     const github = {
-      paginate: async (_method, _opts) => [
+      paginate: async (_method: unknown, _opts: unknown) => [
         { body: "some comment" },
         { body: "Included in `tip-abc123` build" },
       ],
@@ -229,7 +229,7 @@ describe("hasExistingComment", () => {
 
   test("returns false when no marker comment exists", async () => {
     const github = {
-      paginate: async (_method, _opts) => [
+      paginate: async (_method: unknown, _opts: unknown) => [
         { body: "some comment" },
         { body: "tip-differentsha" },
       ],
@@ -248,7 +248,7 @@ describe("hasExistingComment", () => {
 
   test("returns false for empty comments list", async () => {
     const github = {
-      paginate: async (_method, _opts) => [],
+      paginate: async (_method: unknown, _opts: unknown) => [],
       rest: { issues: { listComments: {} } },
     };
 
@@ -263,10 +263,11 @@ describe("hasExistingComment", () => {
   });
 
   test("passes correct parameters to paginate", async () => {
-    let capturedMethod, capturedOpts;
+    let capturedMethod: unknown;
+    let capturedOpts: unknown;
     const listCommentsFn = () => {};
     const github = {
-      paginate: async (method, opts) => {
+      paginate: async (method: unknown, opts: unknown) => {
         capturedMethod = method;
         capturedOpts = opts;
         return [];

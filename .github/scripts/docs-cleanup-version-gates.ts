@@ -25,14 +25,41 @@
  * The script takes no network calls; the workflow passes the latest release tag
  * in via LATEST_TAG.
  */
-const fs = require("fs");
-const path = require("path");
+import fs from "node:fs";
+import path from "node:path";
+import type { Dirent } from "node:fs";
+
+type Filesystem = {
+  readFileSync(path: string, encoding: BufferEncoding): string;
+  writeFileSync(path: string, data: string): void;
+  readdirSync(path: string, options: { withFileTypes: true }): Dirent[];
+};
 
 // Matches either an opening gate (<Before version="X"> / <Since version="X">)
 // or a closing gate (</Before> / </Since>). Group 1/2 are the tag/version of an
 // opening tag; group 3 is the tag of a closing tag.
 const GATE_TOKEN =
   /<(Before|Since)\s+version=["']([^"']+)["']\s*>|<\/(Before|Since)>/g;
+
+type GateTag = "Before" | "Since";
+
+type TextNode = { type: "text"; value: string };
+
+type GateNode = {
+  type: "gate";
+  tag: GateTag;
+  version: string;
+  children: Node[];
+  start: number;
+  end: number;
+  raw: string;
+};
+
+type Node = TextNode | GateNode;
+
+// The root the parse builds into. It has the shape of an unreleased gate, so
+// the stack can treat every frame the same; it never leaves the stack.
+type StackNode = GateNode | { type: "root"; children: Node[] };
 
 // Placeholder left where a released gate is removed, so the whitespace it
 // occupied can be reclaimed without disturbing blank lines elsewhere in the
@@ -45,12 +72,8 @@ const REMOVED = String.fromCharCode(0);
  * Since.astro, and isReleased() in docs/src/lib/changelog.ts. Keep the three in
  * sync: a leading "v" is stripped from both sides and the remainder is compared
  * with locale-aware numeric ordering so v1.0.10 sorts after v1.0.2.
- *
- * @param {string} latestTag - The latest release tag (e.g. "v1.0.7").
- * @param {string} targetVersion - The gate's version (e.g. "1.0.5").
- * @returns {boolean}
  */
-function isReleased(latestTag, targetVersion) {
+export function isReleased(latestTag: string, targetVersion: string): boolean {
   const latest = String(latestTag).replace(/^v/, "");
   const target = String(targetVersion).replace(/^v/, "");
   return latest.localeCompare(target, undefined, { numeric: true }) >= 0;
@@ -61,15 +84,13 @@ function isReleased(latestTag, targetVersion) {
  * run or a gate with its own child nodes. Gates nest, so this builds a tree
  * rather than matching tags with a flat regex.
  *
- * @param {string} source
- * @returns {Array<object>} The root-level nodes.
- * @throws {Error} When the gate tags are unbalanced.
+ * Throws when the gate tags are unbalanced.
  */
-function parseNodes(source) {
-  const root = { children: [] };
-  const stack = [root];
+export function parseNodes(source: string): Node[] {
+  const root: StackNode = { type: "root", children: [] };
+  const stack: StackNode[] = [root];
   let lastIndex = 0;
-  let match;
+  let match: RegExpExecArray | null;
 
   GATE_TOKEN.lastIndex = 0;
   while ((match = GATE_TOKEN.exec(source)) !== null) {
@@ -83,12 +104,14 @@ function parseNodes(source) {
 
     const isOpening = match[1] !== undefined;
     if (isOpening) {
-      const node = {
+      const node: GateNode = {
         type: "gate",
-        tag: match[1],
+        tag: match[1] as GateTag,
         version: match[2],
         children: [],
         start: match.index,
+        end: 0,
+        raw: "",
       };
       top.children.push(node);
       stack.push(node);
@@ -123,12 +146,11 @@ function parseNodes(source) {
  * inside an unreleased one is still resolved. Unchanged subtrees are emitted
  * verbatim from their original source to keep diffs minimal. Removed gates
  * leave a REMOVED sentinel that cleanupContent later reclaims.
- *
- * @param {Array<object>} nodes
- * @param {string} latestTag
- * @returns {{ text: string, changed: boolean }}
  */
-function renderNodes(nodes, latestTag) {
+function renderNodes(
+  nodes: Node[],
+  latestTag: string,
+): { text: string; changed: boolean } {
   let text = "";
   let changed = false;
 
@@ -163,11 +185,8 @@ function renderNodes(nodes, latestTag) {
 /**
  * Drops the import line for a gate component once the file has no remaining
  * usages of it.
- *
- * @param {string} source
- * @returns {string}
  */
-function pruneImports(source) {
+export function pruneImports(source: string): string {
   let result = source;
   for (const tag of ["Before", "Since"]) {
     if (new RegExp(`<${tag}\\b`).test(result)) {
@@ -191,13 +210,10 @@ function pruneImports(source) {
  * together with any blank lines flanking it, collapses to a single blank-line
  * separator — or to nothing at the start or end of the file. A sentinel sharing
  * a line with real text is the inline form and is simply deleted.
- *
- * @param {string} source
- * @returns {string}
  */
-function reclaimWhitespace(source) {
+function reclaimWhitespace(source: string): string {
   const lines = source.split("\n");
-  const out = [];
+  const out: string[] = [];
 
   for (let i = 0; i < lines.length; ) {
     const line = lines[i];
@@ -237,17 +253,20 @@ function reclaimWhitespace(source) {
 
 /**
  * Rewrites a single file's contents, removing gates the release has obsoleted.
- *
- * @param {string} source
- * @param {string} latestTag
- * @returns {{ content: string, changed: boolean, error?: string }}
  */
-function cleanupContent(source, latestTag) {
-  let nodes;
+export function cleanupContent(
+  source: string,
+  latestTag: string,
+): { content: string; changed: boolean; error?: string } {
+  let nodes: Node[];
   try {
     nodes = parseNodes(source);
   } catch (error) {
-    return { content: source, changed: false, error: error.message };
+    return {
+      content: source,
+      changed: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 
   const { text, changed } = renderNodes(nodes, latestTag);
@@ -261,13 +280,9 @@ function cleanupContent(source, latestTag) {
 
 /**
  * Recursively collects every .mdx file under `dir`.
- *
- * @param {string} dir
- * @param {object} fsImpl - A handler exposing readdirSync.
- * @returns {Array<string>}
  */
-function listMdxFiles(dir, fsImpl) {
-  const files = [];
+export function listMdxFiles(dir: string, fsImpl: Filesystem): string[] {
+  const files: string[] = [];
   for (const entry of fsImpl.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
@@ -284,15 +299,20 @@ function listMdxFiles(dir, fsImpl) {
 /**
  * Walks the docs content tree and rewrites every file with obsolete gates.
  *
- * @param {object} params
- * @param {string} params.contentDir - Root of the docs content tree.
- * @param {string} params.latestTag - The latest release tag.
- * @param {object} [params.fs] - A filesystem handler (injected for testing).
- * @param {(message: string) => void} [params.log]
- * @returns {Array<string>} The paths of the files that changed.
+ * Returns the paths of the files that changed.
  */
-function run({ contentDir, latestTag, fs: fsImpl = fs, log = console.log }) {
-  const changedFiles = [];
+export function run({
+  contentDir,
+  latestTag,
+  fs: fsImpl = fs,
+  log = console.log,
+}: {
+  contentDir: string;
+  latestTag: string;
+  fs?: Filesystem;
+  log?: (message: string) => void;
+}): string[] {
+  const changedFiles: string[] = [];
   for (const file of listMdxFiles(contentDir, fsImpl)) {
     const source = fsImpl.readFileSync(file, "utf8");
     if (!source.includes("<Before") && !source.includes("<Since")) {
@@ -315,20 +335,12 @@ function run({ contentDir, latestTag, fs: fsImpl = fs, log = console.log }) {
   return changedFiles;
 }
 
-module.exports = run;
-module.exports.run = run;
-module.exports.isReleased = isReleased;
-module.exports.cleanupContent = cleanupContent;
-module.exports.parseNodes = parseNodes;
-module.exports.pruneImports = pruneImports;
-module.exports.listMdxFiles = listMdxFiles;
-
-if (require.main === module) {
+if (import.meta.main) {
   const latestTag = process.env.LATEST_TAG || process.argv[2];
   const contentDir =
     process.env.CONTENT_DIR ||
     process.argv[3] ||
-    path.join(__dirname, "..", "..", "docs", "src", "content");
+    path.join(import.meta.dir, "..", "..", "docs", "src", "content");
 
   if (!latestTag) {
     console.error("LATEST_TAG is required.");

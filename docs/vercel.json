@@ -1,6 +1,6 @@
 {
-  "buildCommand": "bunx bun@1.4.0 run build",
-  "installCommand": "bunx bun@1.4.0 install",
+  "buildCommand": "bunx bun@1.4.2 run build",
+  "installCommand": "bunx bun@1.4.2 install",
   "framework": "astro",
   "trailingSlash": true,
   "rewrites": [

@@ -5,12 +5,73 @@
  * finds issue-closing keywords in the PR body and comments on each
  * referenced issue with installation instructions for the tip build.
  *
- * @param {Object} params
- * @param {Object} params.github - GitHub API client (Octokit)
- * @param {Object} params.context - GitHub Actions context
- * @param {Object} params.core - GitHub Actions core utilities
+ * Loaded by `github-script`, which run on Node 24 and
+ * type-strip this file, so imports must carry explicit extensions and the
+ * syntax must stay erasable.
  */
-module.exports = async ({ github, context, core }) => {
+
+export type Core = {
+  info(msg: string): void;
+  warning(msg: string): void;
+  setFailed(msg: string): void;
+};
+
+export type Context = {
+  repo: { owner: string; repo: string };
+  sha: string;
+  runId: number;
+};
+
+export type AssociatedPR = {
+  number: number;
+  merged_at: string | null;
+  body?: string | null;
+};
+
+export type ListPullRequestsAssociatedWithCommit = (params: {
+  owner: string;
+  repo: string;
+  commit_sha: string;
+}) => Promise<{ data: AssociatedPR[] }>;
+
+export type GithubClient = {
+  paginate<T>(
+    method: unknown,
+    opts: unknown,
+    mapFn: (response: unknown) => T[],
+  ): Promise<T[]>;
+  paginate(
+    method: unknown,
+    opts: unknown,
+  ): Promise<Array<{ body?: string | null }>>;
+  rest: {
+    repos: {
+      listPullRequestsAssociatedWithCommit: ListPullRequestsAssociatedWithCommit;
+      compareCommitsWithBasehead: unknown;
+    };
+    issues: {
+      listComments: unknown;
+      createComment(params: {
+        owner: string;
+        repo: string;
+        issue_number: number;
+        body: string;
+      }): Promise<unknown>;
+    };
+  };
+};
+
+export type IssueRef = { owner: string; repo: string; number: number };
+
+export default async function notifyTipBuildIssues({
+  github,
+  context,
+  core,
+}: {
+  github: GithubClient;
+  context: Context;
+  core: Core;
+}) {
   const owner = context.repo.owner;
   const repo = context.repo.repo;
   const commitSha = context.sha;
@@ -22,8 +83,8 @@ module.exports = async ({ github, context, core }) => {
       return;
     }
 
-    const issueNumbers = new Set();
-    const prNumbers = [];
+    const issueNumbers = new Set<number>();
+    const prNumbers: number[] = [];
 
     for (const pr of mergedPRs) {
       if (!pr.body) {
@@ -69,27 +130,44 @@ module.exports = async ({ github, context, core }) => {
         core.info(`Commented on issue #${issueNumber}.`);
         commented++;
       } catch (err) {
-        core.warning(`Failed to comment on issue #${issueNumber}: ${err.message}`);
+        core.warning(`Failed to comment on issue #${issueNumber}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
     core.info(`Notified ${commented} issue(s) about tip build.`);
   } catch (error) {
-    core.setFailed(`Failed to notify issues: ${error.message}`);
+    core.setFailed(`Failed to notify issues: ${error instanceof Error ? error.message : String(error)}`);
   }
-};
+}
 
 /**
  * Finds merged PRs associated with the given commit SHA.
  */
-async function findMergedPRs({ github, owner, repo, commitSha }) {
-  const { data: pullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-    owner,
-    repo,
-    commit_sha: commitSha,
-  });
+export async function findMergedPRs({
+  github,
+  owner,
+  repo,
+  commitSha,
+}: {
+  github: {
+    rest: {
+      repos: {
+        listPullRequestsAssociatedWithCommit: ListPullRequestsAssociatedWithCommit;
+      };
+    };
+  };
+  owner: string;
+  repo: string;
+  commitSha: string;
+}): Promise<AssociatedPR[]> {
+  const { data: pullRequests } =
+    await github.rest.repos.listPullRequestsAssociatedWithCommit({
+      owner,
+      repo,
+      commit_sha: commitSha,
+    });
 
-  return pullRequests.filter(pr => pr.merged_at !== null);
+  return pullRequests.filter((pr) => pr.merged_at !== null);
 }
 
 /**
@@ -101,13 +179,15 @@ async function findMergedPRs({ github, owner, repo, commitSha }) {
  *   closed #123, fixed #456, resolved #789
  *   fixes #123, #456, #789
  *   closes https://github.com/owner/repo/issues/123
- *
- * @returns {Array<{owner: string, repo: string, number: number}>}
  */
-function parseIssueReferences(body, defaultOwner, defaultRepo) {
+export function parseIssueReferences(
+  body: string,
+  defaultOwner: string,
+  defaultRepo: string,
+): IssueRef[] {
   const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+((?:(?:https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+|#\d+)[\s,&]*(?:and\s+)?)+)/gi;
-  const refs = [];
-  const seen = new Set();
+  const refs: IssueRef[] = [];
+  const seen = new Set<string>();
 
   let match;
   while ((match = pattern.exec(body)) !== null) {
@@ -126,7 +206,7 @@ function parseIssueReferences(body, defaultOwner, defaultRepo) {
     }
   }
 
-  function addRef(refOwner, refRepo, refNumber) {
+  function addRef(refOwner: string, refRepo: string, refNumber: number) {
     const key = `${refOwner}/${refRepo}#${refNumber}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -140,7 +220,25 @@ function parseIssueReferences(body, defaultOwner, defaultRepo) {
 /**
  * Checks whether a tip build comment for this commit already exists on the issue.
  */
-async function hasExistingComment({ github, owner, repo, issueNumber, commitSha }) {
+export async function hasExistingComment({
+  github,
+  owner,
+  repo,
+  issueNumber,
+  commitSha,
+}: {
+  github: {
+    paginate(
+      method: unknown,
+      opts: unknown,
+    ): Promise<Array<{ body?: string | null }>>;
+    rest: { issues: { listComments: unknown } };
+  };
+  owner: string;
+  repo: string;
+  issueNumber: number;
+  commitSha: string;
+}): Promise<boolean> {
   const comments = await github.paginate(github.rest.issues.listComments, {
     owner,
     repo,
@@ -148,14 +246,26 @@ async function hasExistingComment({ github, owner, repo, issueNumber, commitSha 
     per_page: 100,
   });
 
-  return comments.some(c => c.body && c.body.includes(`\`tip-${commitSha}\``));
+  return comments.some((c) => c.body && c.body.includes(`\`tip-${commitSha}\``));
 }
 
 /**
  * Builds the comment body to post on the issue.
  */
-function buildComment({ owner, repo, commitSha, prNumbers, runId }) {
-  const prLinks = prNumbers.map(n => `#${n}`).join(', ');
+export function buildComment({
+  owner,
+  repo,
+  commitSha,
+  prNumbers,
+  runId,
+}: {
+  owner: string;
+  repo: string;
+  commitSha: string;
+  prNumbers: number[];
+  runId: number;
+}): string {
+  const prLinks = prNumbers.map((n) => `#${n}`).join(', ');
   const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
 
   return [
@@ -166,8 +276,3 @@ function buildComment({ owner, repo, commitSha, prNumbers, runId }) {
     'This fix will also be included in a future release.',
   ].join('\n');
 }
-
-module.exports.parseIssueReferences = parseIssueReferences;
-module.exports.buildComment = buildComment;
-module.exports.hasExistingComment = hasExistingComment;
-module.exports.findMergedPRs = findMergedPRs;

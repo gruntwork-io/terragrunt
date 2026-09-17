@@ -123,7 +123,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
-            const notify = require('./.github/scripts/tip-build-notify-issues.js');
+            const { default: notify } = require('./.github/scripts/tip-build-notify-issues.ts');
             await notify({ github, context, core });
 
   build_no_proxy:
