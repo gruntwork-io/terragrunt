@@ -16,7 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
-func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
+func TestGCPCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	// Terragrunt has to work when only GOOGLE_CREDENTIALS is set, so the CI credential
 	// is taken out of the environment for this test. t.Setenv registers the restore,
 	// and the Unsetenv that follows takes the variable out rather than blanking it.
@@ -65,7 +65,7 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	)
 }
 
-func TestGcpWorksWithImpersonateBackend(t *testing.T) {
+func TestGCPWorksWithImpersonateBackend(t *testing.T) {
 	impersonatorKey := os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	require.NotEmpty(
 		t,

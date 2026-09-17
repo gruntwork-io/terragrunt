@@ -32,7 +32,7 @@ const (
 	testFixtureAssumeRoleWebIdentityFile = "fixtures/assume-role-web-identity/file-path"
 )
 
-func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
+func TestAWSAssumeRoleWebIdentityFile(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 	token := fetchGitHubOIDCToken(t)
@@ -98,7 +98,7 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
-func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
+func TestAWSAssumeRoleWebIdentityFlag(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 	token := fetchGitHubOIDCToken(t)
@@ -127,7 +127,7 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	)
 }
 
-func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 	token := fetchGitHubOIDCToken(t)
@@ -151,7 +151,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 	)
 }
 
-func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 	token := fetchGitHubOIDCToken(t)
@@ -214,7 +214,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestAwsReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole verifies chained role assumption
+// TestAWSReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole verifies chained role assumption
 // for the backend: --auth-provider-cmd returns a role assumed via OIDC web identity (the source
 // role), and the assume_role attribute of the remote_state block names a second role (the target
 // role) whose trust policy only allows the source role to assume it. Terragrunt must chain the
@@ -226,7 +226,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 //     permission to assume the target role, but no S3 permissions.
 //   - AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN: trusts the source role and has the S3 permissions
 //     required to bootstrap the backend.
-func TestAwsReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 	if isTerraform(t.Context()) {

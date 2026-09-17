@@ -19,11 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestAwsS3SourceURLForms downloads a module archive through the default
+// TestAWSS3SourceURLForms downloads a module archive through the default
 // (non-CAS) client in each AWS S3 endpoint form a `source` URL can use.
 // The forms differ only in how the hostname encodes bucket and region;
 // all of them must fetch the same object.
-func TestAwsS3SourceURLForms(t *testing.T) {
+func TestAWSS3SourceURLForms(t *testing.T) {
 	t.Parallel()
 
 	region := helpers.TerraformRemoteStateS3Region

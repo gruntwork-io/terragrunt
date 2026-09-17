@@ -17,8 +17,8 @@ import (
 
 const testFixtureAwsAuthProviderRoleReuse = "fixtures/auth-provider-cmd/role-session-reuse"
 
-// TestAwsAuthProviderRoleIsAssumedWithCallerIdentity checks real STS gets the caller's own credentials.
-func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
+// TestAWSAuthProviderRoleIsAssumedWithCallerIdentity checks real STS gets the caller's own credentials.
+func TestAWSAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
 	require.NotEmpty(t, assumeRole, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")
@@ -47,8 +47,8 @@ func TestAwsAuthProviderRoleIsAssumedWithCallerIdentity(t *testing.T) {
 	assertAuthProviderAssumedRole(t, stderr, assumeRole)
 }
 
-// TestAwsAuthProviderRoleWithJSONOutDir covers the --json-out-dir path, which runs each unit twice.
-func TestAwsAuthProviderRoleWithJSONOutDir(t *testing.T) {
+// TestAWSAuthProviderRoleWithJSONOutDir covers the --json-out-dir path, which runs each unit twice.
+func TestAWSAuthProviderRoleWithJSONOutDir(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
 	require.NotEmpty(t, assumeRole, "AWS_TEST_S3_ASSUME_ROLE environment variable not set")

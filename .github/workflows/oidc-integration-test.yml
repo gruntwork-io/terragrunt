@@ -23,7 +23,7 @@ jobs:
             os: ubuntu
             target: ./...
             tags: awsoidc
-            run: '^TestAws'
+            run: '^TestAWS'
             # We leave the key and secret on so that cleanup steps can use them.
             secrets: [AWS_TEST_OIDC_ROLE_ARN, AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN, AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
             setup_scripts:
