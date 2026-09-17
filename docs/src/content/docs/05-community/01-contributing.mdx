@@ -199,7 +199,7 @@ Note that some tests may require that you opt-in for them to be tested. This is 
 For example, AWS tests are tagged using the `aws` build tag. To run these tests, you can use the `-tags` flag set in the `GOFLAGS` environment variable like so:
 
 ```bash
-GOFLAGS='-tags=aws' go test -run 'TestAwsInitHookNoSourceWithBackend' .
+GOFLAGS='-tags=aws' go test -run 'TestAwsBootstrapBackend' .
 ```
 
 Depending on how you've configured your editor, you may need to make sure that your editor has the `GOFLAGS` environment variable set before starting for the best development experience:

@@ -5,44 +5,11 @@ package helpers
 
 import (
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/require"
 )
-
-// deleteS3BucketBackoff is how long DeleteS3BucketWithRetry waits between attempts, giving
-// S3 time to settle after an eventually consistent read.
-const deleteS3BucketBackoff = 10 * time.Second
-
-// DeleteS3BucketWithRetry will attempt to delete the specified S3 bucket, retrying up to 3 times if there are errors to
-// handle eventual consistency issues.
-func DeleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
-	t.Helper()
-
-	for range 3 {
-		err := DeleteS3Bucket(t, awsRegion, bucketName)
-		if err == nil {
-			return
-		}
-
-		t.Logf(
-			"Error deleting s3 bucket %s. Sleeping for %s before retrying.",
-			bucketName,
-			deleteS3BucketBackoff,
-		)
-		time.Sleep(deleteS3BucketBackoff)
-	}
-
-	require.FailNowf(
-		t,
-		"max retries exhausted",
-		"Max retries attempting to delete s3 bucket %s in region %s",
-		bucketName,
-		awsRegion,
-	)
-}
 
 // GetS3BucketLoggingTarget returns the target bucket for access logging on the given S3 bucket.
 func GetS3BucketLoggingTarget(t *testing.T, region, bucket string) string {
