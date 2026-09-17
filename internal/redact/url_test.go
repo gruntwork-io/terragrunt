@@ -91,6 +91,45 @@ func TestURLString(t *testing.T) {
 	}
 }
 
+func TestURLStringKeepsRevision(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "ref kept, credentials dropped",
+			in:   "git::https://user:token@example.com/org/repo.git//modules/vpc?ref=v1.2.3",
+			want: "git::https://example.com/org/repo.git//modules/vpc?ref=v1.2.3",
+		},
+		{
+			name: "ref kept, sshkey redacted",
+			in:   "git::ssh://example.com/org/repo.git?ref=v1.2.3&sshkey=SECRET",
+			want: "git::ssh://example.com/org/repo.git?ref=v1.2.3&sshkey=REDACTED",
+		},
+		{
+			name: "version kept",
+			in:   "tfr:///org/vpc/aws?version=5.0.0",
+			want: "tfr:///org/vpc/aws?version=5.0.0",
+		},
+		{
+			name: "s3 credentials redacted",
+			in:   "s3::https://s3.amazonaws.com/bucket/key.tgz?aws_access_key_secret=SECRET",
+			want: "s3::https://s3.amazonaws.com/bucket/key.tgz?aws_access_key_secret=REDACTED",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, redact.NewURL(tt.in).String())
+		})
+	}
+}
+
 func TestURLFormatting(t *testing.T) {
 	t.Parallel()
 

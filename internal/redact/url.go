@@ -14,6 +14,15 @@ const Placeholder = "REDACTED"
 // the address it applies to.
 const forcedGetterSeparator = "::"
 
+// revisionKeys are the query keys that name which revision of a source an
+// address points at: the ref of a git source, the version of a registry
+// source. They select code rather than authorize a fetch, so rendering them
+// as written reveals no credential.
+var revisionKeys = map[string]struct{}{
+	"ref":     {},
+	"version": {},
+}
+
 // URL is an address that may carry credentials in its userinfo or its query.
 // Formatting one renders [URL.String], so the full address leaves only
 // through [URL.Reveal].
@@ -31,10 +40,13 @@ func NewURL(raw string) URL {
 }
 
 // String renders the address with its user and password removed and every
-// query value replaced by [Placeholder]. A forced getter prefix such as git::
-// is kept, and the address after it is rendered the same way. An address
-// [url.Parse] rejects, such as the SCP form git@host:path, is returned
-// unchanged.
+// query value but the revision replaced by [Placeholder]. A forced getter
+// prefix such as git:: is kept, and the address after it is rendered the same
+// way. An address [url.Parse] rejects, such as the SCP form git@host:path, is
+// returned unchanged.
+//
+// The ref and version query values render as written, so a rendered address
+// still names the revision it points at.
 func (u URL) String() string {
 	forced, rest, ok := strings.Cut(u.raw, forcedGetterSeparator)
 	if ok && isGetterName(forced) {
@@ -72,8 +84,9 @@ func (u URL) WithoutUserinfo() string {
 	return parsed.String()
 }
 
-// render removes the userinfo from raw and replaces its query values with
-// [Placeholder], returning raw unchanged when [url.Parse] rejects it.
+// render removes the userinfo from raw and replaces every query value but the
+// ones named by [revisionKeys] with [Placeholder], returning raw unchanged
+// when [url.Parse] rejects it.
 func render(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil {
@@ -87,7 +100,12 @@ func render(raw string) string {
 	}
 
 	query := parsed.Query()
-	for _, values := range query {
+
+	for key, values := range query {
+		if _, revision := revisionKeys[key]; revision {
+			continue
+		}
+
 		for i := range values {
 			values[i] = Placeholder
 		}
