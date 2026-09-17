@@ -21,8 +21,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -1002,10 +1002,10 @@ func createGitWorktrees(
 	}
 
 	if experiments.Evaluate(experiment.SlowTaskReporting) {
-		if err := util.NotifyIfSlow(
+		if err := spinner.ShowAfter(
 			ctx,
 			l,
-			util.SpinnerWriter(v),
+			spinner.Writer(v),
 			time.Second,
 			slowWorktreeMsg(gitRefs),
 			create,
@@ -1025,16 +1025,16 @@ func createGitWorktrees(
 
 // slowWorktreeMsg returns the progress messages shown while worktrees are being
 // created for gitRefs.
-func slowWorktreeMsg(gitRefs []string) util.SlowNotifyMsg {
+func slowWorktreeMsg(gitRefs []string) spinner.Messages {
 	if len(gitRefs) == 1 {
-		return util.SlowNotifyMsg{
-			Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", gitRefs[0]),
+		return spinner.Messages{
+			Working: fmt.Sprintf("Creating Git worktree for reference %s...", gitRefs[0]),
 			Done:    "Created Git worktree for reference " + gitRefs[0],
 		}
 	}
 
-	return util.SlowNotifyMsg{
-		Spinner: fmt.Sprintf("Creating Git worktrees for %d references...", len(gitRefs)),
+	return spinner.Messages{
+		Working: fmt.Sprintf("Creating Git worktrees for %d references...", len(gitRefs)),
 		Done:    fmt.Sprintf("Created Git worktrees for %d references", len(gitRefs)),
 	}
 }

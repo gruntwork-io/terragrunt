@@ -120,10 +120,9 @@ const (
 	// which skips all dependency output resolution during a run. The flag is
 	// available without enabling the experiment.
 	OptionalDependencyOutputs = "optional-dependency-outputs"
-	// TGLogin reserves the experiment flag for signing in to the Gruntwork
-	// Developer Portal from the CLI, so an admin can define a catalog in the
-	// portal instead of local HCL. Nothing is gated on it yet; the login
-	// command and the portal-defined catalog land in follow-up PRs.
+	// TGLogin gates `terragrunt login`, which signs the user in to the
+	// Gruntwork Developer Portal so an admin can define a catalog there for
+	// the CLI to read.
 	TGLogin = "tg-login"
 	// Base64GzipCompat enables the base64gzip_compat HCL function.
 	Base64GzipCompat = "base64gzip-compat"
