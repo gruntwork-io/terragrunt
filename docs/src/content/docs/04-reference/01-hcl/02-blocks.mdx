@@ -1695,7 +1695,7 @@ Attributes:
 | `if`                   | boolean      | Condition to dynamically determine whether the unit should be excluded.                                                 |
 | `actions`              | list(string) | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
 | `exclude_dependencies` | boolean      | Indicates whether the dependencies of the excluded unit should also be excluded (default: `false`).                     |
-| `no_run`               | boolean      | When `true` and `if` is `true`, prevents the unit from running entirely for single unit commands (e.g., `terragrunt run plan`), but only when the current action matches the `actions` list. This attribute is ignored for `run --all` commands. |
+| `no_run`               | boolean      | When `true` and `if` is `true`, prevents the unit from running entirely for single unit commands (e.g., `terragrunt run -- plan`), but only when the current action matches the `actions` list. This attribute is ignored for `run --all` commands. |
 
 Examples:
 
@@ -1747,7 +1747,7 @@ exclude {
 }
 ```
 
-This configuration prevents the unit from running when `if` is `true` AND the current action is "plan". The `no_run` attribute only applies to single unit commands (e.g., `terragrunt run plan`) and is ignored for `run --all` commands. The exclusion only takes effect when the current action matches the `actions` list.
+This configuration prevents the unit from running when `if` is `true` AND the current action is "plan". The `no_run` attribute only applies to single unit commands (e.g., `terragrunt run -- plan`) and is ignored for `run --all` commands. The exclusion only takes effect when the current action matches the `actions` list.
 
 Consider using this for units that are expensive to continuously update, and can be opted in when necessary.
 
@@ -2187,13 +2187,17 @@ dependency "shard" {
 inputs = {
   web_id      = dependency.aurora["web"].outputs.id
   api_id      = dependency.aurora["api"].outputs.id
-  shard_first = dependency.shard["0"].outputs.id
+  shard_first = dependency.shard[0].outputs.id
 }
 ```
 
 You reach an expanded `dependency` by key. `dependency.aurora` is a map of instances, and each value under it is the object an unexpanded dependency exposes, `outputs` included. Reading `dependency.aurora.outputs` without a key fails, because `aurora` has no `outputs` attribute of its own.
 
-Keys are strings. A `for_each` over a set of numbers stringifies each element, and `count` keys are the stringified indices, so the `shard` block above is reached as `dependency.shard["0"]` and `dependency.shard["1"]`.
+Reach a `count` instance by its index, e.g. `dependency.shard[0]`.
+
+<Aside type="note" title="Number keys">
+  Instance keys are strings. Terragrunt converts a number index to a string, so `dependency.shard[0]` and `dependency.shard["0"]` reach the same instance. The same applies to a `for_each` over a set of numbers.
+</Aside>
 
 A configuration that declares both an expanded and an unexpanded `dependency` under the same label is an error, since the unexpanded block would claim the name the instances are keyed under.
 
@@ -2248,11 +2252,69 @@ unit "canary" {
 }
 ```
 
-Omitting `enabled` keeps the component, so only an explicit `false` drops it. A disabled `unit` or `stack` is skipped during stack generation and does not appear in `terragrunt stack output`.
+<Aside type="tip" title="Optional components">
+  To make a component optional, prefer the `enabled` over the `count` attribute.
 
-Toggling `enabled` leaves the component's address and generated path unchanged. Adding an `expansion` block changes the address: `unit "aurora"` becomes `aurora["web"]` and `aurora["api"]`, and the one generated directory becomes one directory per element.
+  If you have been using OpenTofu/Terraform for a while, you might have a habit of using `count` to control the presence of resources. That was the only way to make resources conditional for a good portion of their histories. OpenTofu introduced the `enabled` attribute to improve the ergonomics of making resources conditional, and Terragrunt adopted it in the design of resource expansion for the same reason.
 
-The two compose. `enabled` is evaluated once per element, so `each.key` and `count.index` are available to it and a single block can expand into a collection with some elements dropped:
+  An `expansion` block with a `count` changes the address of a conditional resource to `canary[0]` when the resource is present. This causes unnecessary churn in configurations and makes it harder to introduce conditionality without forcing consumers to adopt a breaking change.
+</Aside>
+
+A disabled `unit` or `stack` is skipped during stack generation and does not appear in `terragrunt stack output`.
+
+```hcl
+# terragrunt.stack.hcl
+
+locals {
+  deploy_canary = false
+}
+
+unit "app" {
+  source = "../units/app"
+  path   = "app"
+
+  values = {
+    role = "app"
+  }
+}
+
+unit "canary" {
+  enabled = local.deploy_canary
+
+  source = "../units/app"
+  path   = "canary"
+
+  values = {
+    role = "canary"
+  }
+}
+```
+
+Generating this stack creates `.terragrunt-stack/app` and no `canary` directory. After an apply, the output lists only `app`:
+
+<Before version="1.2.0">
+
+```bash
+$ terragrunt stack output --experiment block-iteration
+app = {
+  role = "app"
+}
+```
+
+</Before>
+
+<Since version="1.2.0">
+
+```bash
+$ terragrunt stack output
+app = {
+  role = "app"
+}
+```
+
+</Since>
+
+You can use both `enabled` _and_ `expansion` in the same configuration block. `enabled` is evaluated once per element, so `each.key` and `count.index` are available to it and a single block can expand into a collection with some elements dropped:
 
 ```hcl
 # terragrunt.stack.hcl
@@ -2273,65 +2335,96 @@ That generates `shard/web` and skips `shard/api`. The elements that survive keep
 
 ### Rules and limits
 
-- `for_each` accepts a set, map, or object. Lists and tuples are rejected. Wrap a list in `toset()` to iterate it.
-- Element keys must be strings or numbers. Numbers are stringified, so `for_each = toset([1, 2])` gives you the keys `"1"` and `"2"`.
-- `count` must be a non-negative whole number.
-- `for_each` and `count` expressions have to resolve to known, non-null values while the configuration is being parsed. An expression that depends on a dependency output is not known that early.
-- Attributes other than `count` and `for_each` are rejected inside an `expansion` block.
+- `for_each` accepts a set, map, or object. Wrap a list in `toset()` to iterate it.
+- Element keys must be strings or numbers. Numbers are stringified, so `for_each = toset([1, 2])` is equivalent to `for_each = toset(["1", "2")]`.
+- `count` must be a non-negative integer.
+- `for_each` and `count` expressions have to resolve to known, non-null values while the configuration is being parsed. As a result, dependency outputs cannot be used to set `for_each` and `count` values.
 - A single block expands into at most 1,000,000 instances.
-- Unit and stack names must be unique after expansion, and so must their generated paths.
+- Unit and stack addresses must be unique after expansion, and so must their generated paths.
 
-An `expansion` block whose collection is empty produces no instances, and `count = 0` does the same. A stack file whose blocks all resolve to nothing stays valid: Terragrunt logs that there is nothing to generate and moves on. Only a stack file that declares no `unit` or `stack` block at all is an error.
+An `expansion` block with a zero length `for_each` value or a `count = 0` produces no instances. A stack file whose blocks all resolve to nothing stays valid: Terragrunt logs that there is nothing to generate and moves on. Only a stack file that declares no `unit` or `stack` block at all is an error.
 
 ### Prefer `for_each` over `count`
 
-`count` addresses instances by position, so removing an element shifts every element after it. Deleting the middle entry of a three-element `count` renames the third instance from `2` to `1`, and the state that instance managed no longer matches the configuration at that address. Keys under `for_each` come from the collection itself, so the elements you left alone keep the addresses they had.
+`count` addresses instances by position, so removing an element shifts every element after it. This can result in surprises, as keys don't remain stable. You might intend to remove the second item in a `count = 3`, and see a plan to update the second instance to the properties of the third element and remove the third. Keys under `for_each` come from the collection itself, so the elements you left alone keep the addresses they had.
 
 Use `count` when the instances are interchangeable and you only ever add to or remove from the end of the set.
 
+This stack expands the same list of regions with `count`:
+
+```hcl
+# terragrunt.stack.hcl
+
+locals {
+  regions = ["us-east-1", "us-west-2", "eu-west-1"]
+}
+
+unit "app" {
+  expansion {
+    count = length(local.regions)
+  }
+
+  source = "../units/app"
+  path   = "app/${count.index}"
+
+  values = {
+    region = local.regions[count.index]
+  }
+}
+```
+
+It generates `app/0` for `us-east-1`, `app/1` for `us-west-2`, and `app/2` for `eu-west-1`.
+
+Removing `"us-west-2"` from the list leaves two instances: `app/0` stays on `us-east-1`, `app/1` switches to `eu-west-1`, and `app/2` is orphaned. A run then updates the infrastructure in `app/1` to `eu-west-1`, and the `eu-west-1` infrastructure in `app/2` still needs destroying.
+
+With `for_each`, each instance keeps its region as its key:
+
+```hcl
+# terragrunt.stack.hcl
+
+locals {
+  regions = ["us-east-1", "us-west-2", "eu-west-1"]
+}
+
+unit "app" {
+  expansion {
+    for_each = toset(local.regions)
+  }
+
+  source = "../units/app"
+  path   = "app/${each.key}"
+
+  values = {
+    region = each.key
+  }
+}
+```
+
+Removing `"us-west-2"` orphans only `app/us-west-2`. `app/us-east-1` and `app/eu-west-1` are unchanged.
+
 ### Lifecycle
 
-Adding an `expansion` block to a block that did not have one changes that block's address, and shrinking a `for_each` or lowering a `count` removes addresses. There is no `moved` equivalent in Terragrunt, so unlike OpenTofu there is nothing that records the rename for you. Every transition is manual:
+Adding an `expansion` block to an existing block changes its address. Shrinking a `for_each` or lowering a `count` removes addresses. Terragrunt has no equivalent of OpenTofu's `moved` block, so you handle each change yourself.
 
-1. References to the block have to be rewritten to their keyed form, in `inputs` and anywhere else the address appears.
-2. Scripts that read `terragrunt stack output` have to be updated to the nested address.
-3. State that belonged to a component whose address no longer exists has to be destroyed deliberately.
+Removing an instance leaves its infrastructure deployed. To destroy it, see [Destroying removed components](/features/filter/git#destroying-removed-components).
 
-For the third, we recommend Git-based `--filter` expressions. Terragrunt evaluates a Git expression by building a worktree for each reference and discovering units in both, then runs the units that exist only on the "from" side with `-destroy` appended:
+Cleaning up components within `.terragrunt-stack` that are no longer generated by `terragrunt.stack.hcl` due to a change in expansion does not happen by default. Use `--source-update` to explicitly request that the `.terragrunt-stack` is cleaned before regenerating.
 
-<Before version="1.2.0">
+### Selecting instances
 
-```bash
-terragrunt run --all apply --filter '[main...HEAD]' --experiment block-iteration
-```
-
-</Before>
-
-<Since version="1.2.0">
+`--filter` does not accept keyed addresses like `aurora["web"]`, because `[` starts a Git expression. Select one element with a [path expression](/features/filter/path) for its generated directory:
 
 ```bash
-terragrunt run --all apply --filter '[main...HEAD]'
+terragrunt run --all --filter './.terragrunt-stack/aurora/web' -- apply
 ```
 
-</Since>
-
-`run --all destroy --filter` is rejected. The worktree phase accepts `plan` and `apply`, along with argument-free discovery commands such as `find` and `list`, and it appends `-destroy` to the "from" side itself. See [Git Expressions](/features/filter/git) for how the worktrees are built.
-
-Orphan discovery reads the Git diff between the two references. It finds an orphan only when `terragrunt.stack.hcl` itself, or a file the stack file reads, appears in that diff. Whether the generated `.terragrunt-stack` tree is committed makes no difference, and we recommend leaving it out of Git. An expansion that shrinks for a reason the diff does not show still orphans the component, but Terragrunt has no way to find it. A `get_env` value that changed in the environment, or a values file kept outside the repository, leaves nothing behind for the diff to report. Destroy those components yourself.
-
-Do not pair the Git expression with a selecting filter. An orphan lives at a path the current configuration no longer mentions, so a second filter that narrows by path or type drops it: `--filter '[HEAD~1...HEAD]' --filter './live | type=stack'` keeps the stack but loses the orphaned element under it, and naming the orphan's own generated path selects nothing, because that path is absent from the "to" side. Run the Git expression on its own and let it discover both sides.
-
-Keyed addresses like `aurora["web"]` are display strings. You cannot write them as `--filter` terms, because `[` opens a Git expression in the filter syntax. Select an individual element with a [path expression](/features/filter/path) naming the directory its `path` attribute produced:
-
-```bash
-terragrunt run --all apply --filter './.terragrunt-stack/aurora/web'
-```
-
-Regenerating a stack does not delete directories for components it no longer produces. `terragrunt stack clean` removes generated stack directories outright, and passing `--source-update` to `terragrunt stack generate` or `terragrunt run --all` clears them before regenerating.
+<Aside type="note" title="Keyed addresses">
+  A future release may add a way to select an instance by its keyed address. Until then, use its generated path.
+</Aside>
 
 ### `render` output is a preview
 
-`terragrunt render` shows an expanded block as it was written, followed by the elements it expanded into, commented out and with their bodies resolved:
+`terragrunt render` shows an expanded block as it was written, followed by the elements it expands into, commented out:
 
 <Before version="1.2.0">
 
@@ -2383,22 +2476,11 @@ dependency "aurora" {
 
 </Since>
 
-The elements stay commented out because they all repeat the block's label, which a Terragrunt configuration cannot do. Terragrunt acts on the block above them.
+The elements stay commented out because they all repeat the block's label, which a Terragrunt configuration is not allowed to do. Terragrunt only recognizes the configurations of the block above them. These comments are here just to help you understand how the block will be expanded internally when parsed by Terragrunt.
 
-<Before version="1.1.5">
+JSON configurations (`terragrunt.hcl.json`) render HCL the same way. `render` writes the block as the equivalent HCL to the JSON in `terragrunt.hcl.json` and previews the elements under it. `terragrunt render --format json` has nowhere to put a comment, so it emits the block as written, with its `expansion` block and references. Rendering either output again returns it unchanged.
 
-Two cases behave differently:
-
-- A JSON configuration (`terragrunt.hcl.json`) has no HCL text to quote back, so `render` emits one block per element, all under the same label. That output is a preview only. Reading it back gives you a single dependency, and under the `duplicate-dependency-labels` strict control it is an error.
-- `terragrunt render --format json` keys dependencies by their bare label and knows nothing about expansion, so every element of an expanded block collapses onto the last one and the `expansion` block disappears. Use the default HCL output to inspect an expanded configuration.
-
-</Before>
-
-<Since version="1.1.5">
-
-A JSON configuration (`terragrunt.hcl.json`) renders the same way. `render` writes the block as the HCL that means the same thing and previews the elements under it. `terragrunt render --format json` has nowhere to put a comment, so it emits the block as written, with its `expansion` block and references. Rendering either output again returns it unchanged. The [`render` command reference](/reference/cli/commands/render#expanded-dependencies) has examples of both.
-
-</Since>
+The [`render` command reference](/reference/cli/commands/render#expanded-dependencies) has examples of both.
 
 ## autoinclude
 
