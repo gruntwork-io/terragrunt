@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -43,7 +44,7 @@ func TestFetchSource_ProbeFailureRecordsFallback(t *testing.T) {
 	dst := filepath.Join(t.TempDir(), "dst")
 	require.NoError(t, c.FetchSource(ctx, l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
 		Scheme:   "http",
-		URL:      "https://example.com/mod.tgz",
+		URL:      redact.NewURL("https://example.com/mod.tgz"),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, map[string]string{"main.tf": "ok"}, &fetchCalls),
 	}))

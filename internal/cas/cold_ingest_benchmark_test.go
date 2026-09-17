@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -61,7 +62,7 @@ func BenchmarkColdIngest(b *testing.B) {
 				c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 				require.NoError(b, err)
 
-				require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
+				require.NoError(b, c.Clone(b.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 					cas.WithDepth(-1)))
 			}
 		})

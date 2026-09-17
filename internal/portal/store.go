@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -283,12 +284,12 @@ func writeFileAtomic(fsys vfs.FS, path string, data []byte, perm os.FileMode) er
 func portalKey(baseURL string) (string, error) {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
-		return "", &UnusablePortalURLError{URL: baseURL, Err: fmt.Errorf("%w: %w", ErrUnusablePortalURL, err)}
+		return "", &UnusablePortalURLError{URL: redact.NewURL(baseURL), Err: fmt.Errorf("%w: %w", ErrUnusablePortalURL, err)}
 	}
 
 	host := strings.ToLower(parsed.Host)
 	if host == "" {
-		return "", &UnusablePortalURLError{URL: baseURL, Err: ErrNoPortalHost}
+		return "", &UnusablePortalURLError{URL: redact.NewURL(baseURL), Err: ErrNoPortalHost}
 	}
 
 	var defaultPort string
@@ -299,7 +300,7 @@ func portalKey(baseURL string) (string, error) {
 	case "http":
 		defaultPort = ":80"
 	default:
-		return "", &UnusablePortalURLError{URL: baseURL, Err: ErrPortalSchemeUnsupported}
+		return "", &UnusablePortalURLError{URL: redact.NewURL(baseURL), Err: ErrPortalSchemeUnsupported}
 	}
 
 	return parsed.Scheme + "://" + strings.TrimSuffix(host, defaultPort), nil

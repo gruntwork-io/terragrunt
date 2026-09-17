@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -86,7 +87,7 @@ func TestFetchSourceServesRecordedProbeWithinTTL(t *testing.T) {
 		return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
 			cas.SourceRequest{
 				Scheme:   "http",
-				URL:      probeCacheTestURL,
+				URL:      redact.NewURL(probeCacheTestURL),
 				Resolver: resolver,
 				Fetch:    fakeFetcher(c, map[string]string{"main.tf": "# hello"}, &fetchCalls),
 			})
@@ -202,7 +203,7 @@ func TestFetchSourceOfflineMissFails(t *testing.T) {
 
 	require.ErrorAs(t, err, &miss)
 	require.ErrorIs(t, err, cas.ErrCASOffline)
-	assert.Equal(t, probeCacheTestURL, miss.Source)
+	assert.Equal(t, probeCacheTestURL, miss.Source.String())
 	assert.Equal(t, int32(0), resolver.calls.Load())
 }
 
@@ -233,7 +234,7 @@ func TestFetchSourceRecordsNothingWithoutProbeCache(t *testing.T) {
 		return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
 			cas.SourceRequest{
 				Scheme:   resolver.scheme,
-				URL:      probeCacheTestURL,
+				URL:      redact.NewURL(probeCacheTestURL),
 				Resolver: resolver,
 				Fetch:    fakeFetcher(c, map[string]string{"main.tf": "# hello"}, &fetchCalls),
 			})
@@ -271,7 +272,7 @@ func fetchThroughNewCAS(
 	return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
 		cas.SourceRequest{
 			Scheme:   resolver.scheme,
-			URL:      probeCacheTestURL,
+			URL:      redact.NewURL(probeCacheTestURL),
 			Resolver: resolver,
 			Fetch:    fakeFetcher(c, map[string]string{"main.tf": "# hello"}, &fetchCalls),
 		})
@@ -300,7 +301,7 @@ func TestFetchSourceOfflineRefusesRepair(t *testing.T) {
 	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst1")},
 		cas.SourceRequest{
 			Scheme:   "http",
-			URL:      probeCacheTestURL,
+			URL:      redact.NewURL(probeCacheTestURL),
 			Resolver: resolver,
 			Fetch:    fakeFetcher(c, files, &fetchCalls),
 		}))
@@ -312,7 +313,7 @@ func TestFetchSourceOfflineRefusesRepair(t *testing.T) {
 	err = offline.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst2")},
 		cas.SourceRequest{
 			Scheme:   "http",
-			URL:      probeCacheTestURL,
+			URL:      redact.NewURL(probeCacheTestURL),
 			Resolver: resolver,
 			Fetch:    fakeFetcher(offline, files, &fetchCalls),
 		})
@@ -321,7 +322,7 @@ func TestFetchSourceOfflineRefusesRepair(t *testing.T) {
 
 	require.ErrorAs(t, err, &refused)
 	require.NotErrorIs(t, err, cas.ErrCASOffline)
-	assert.Equal(t, probeCacheTestURL, refused.Source)
+	assert.Equal(t, probeCacheTestURL, refused.Source.String())
 
 	var missing *cas.MissingObjectError
 

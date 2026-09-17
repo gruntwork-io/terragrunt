@@ -16,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -42,7 +43,7 @@ func BenchmarkClone(b *testing.B) {
 			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 			require.NoError(b, err)
 
-			require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
+			require.NoError(b, c.Clone(b.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 				cas.WithDepth(-1)))
 		}
 	})
@@ -57,7 +58,7 @@ func BenchmarkClone(b *testing.B) {
 
 		require.NoError(
 			b,
-			c.Clone(b.Context(), l, v, repoURL, cas.WithDir(filepath.Join(tempDir, "initial")),
+			c.Clone(b.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(filepath.Join(tempDir, "initial")),
 				cas.WithDepth(-1)),
 		)
 
@@ -70,7 +71,7 @@ func BenchmarkClone(b *testing.B) {
 			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 			require.NoError(b, err)
 
-			require.NoError(b, c.Clone(b.Context(), l, v, repoURL, cas.WithDir(targetPath),
+			require.NoError(b, c.Clone(b.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 				cas.WithDepth(-1)))
 		}
 	})
@@ -159,7 +160,7 @@ func cloneConcurrently(
 				return err
 			}
 
-			return c.Clone(ctx, l, v, repoURL,
+			return c.Clone(ctx, l, v, redact.NewURL(repoURL),
 				cas.WithDir(filepath.Join(targetRoot, strconv.Itoa(i))),
 				cas.WithBranch("main"),
 				cas.WithDepth(-1))

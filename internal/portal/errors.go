@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 )
 
 // ErrMalformedResponse reports a response the portal did not refuse but that
@@ -80,26 +81,15 @@ var ErrPortalSchemeUnsupported = fmt.Errorf("%w: only http and https are address
 // carry a password.
 type UnusablePortalURLError struct {
 	Err error
-	URL string
+	URL redact.URL
 }
 
 func (e *UnusablePortalURLError) Error() string {
-	return fmt.Sprintf("%q: %v", redactURL(e.URL), e.Err)
+	return fmt.Sprintf("%q: %v", e.URL, e.Err)
 }
 
 func (e *UnusablePortalURLError) Unwrap() error {
 	return e.Err
-}
-
-// redactURL replaces the password in rawURL. An address [url.Parse] rejects is
-// returned unchanged.
-func redactURL(rawURL string) string {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return rawURL
-	}
-
-	return parsed.Redacted()
 }
 
 // MissingFieldError reports a response that left out a field the CLI needs. It

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -41,7 +42,7 @@ func TestFetchSource_ProbeHitSkipsDownload(t *testing.T) {
 		t,
 		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
 			Scheme:   "http",
-			URL:      "https://example.com/mod.tgz",
+			URL:      redact.NewURL("https://example.com/mod.tgz"),
 			Resolver: resolver,
 			Fetch:    fetch,
 		}),
@@ -55,7 +56,7 @@ func TestFetchSource_ProbeHitSkipsDownload(t *testing.T) {
 		t,
 		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
 			Scheme:   "http",
-			URL:      "https://example.com/mod.tgz",
+			URL:      redact.NewURL("https://example.com/mod.tgz"),
 			Resolver: resolver,
 			Fetch:    fetch,
 		}),
@@ -88,7 +89,7 @@ func TestFetchSource_NoMetadataFallsBackToContentHash(t *testing.T) {
 		t,
 		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
 			Scheme:   "http",
-			URL:      "https://example.com/mod.tgz",
+			URL:      redact.NewURL("https://example.com/mod.tgz"),
 			Resolver: resolver,
 			Fetch:    fetch,
 		}),
@@ -99,7 +100,7 @@ func TestFetchSource_NoMetadataFallsBackToContentHash(t *testing.T) {
 		t,
 		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
 			Scheme:   "http",
-			URL:      "https://example.com/mod.tgz",
+			URL:      redact.NewURL("https://example.com/mod.tgz"),
 			Resolver: resolver,
 			Fetch:    fetch,
 		}),
@@ -127,7 +128,7 @@ func TestFetchSource_NilResolverContentHashes(t *testing.T) {
 		t,
 		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
 			Scheme: "s3",
-			URL:    "s3://bucket/key.tgz",
+			URL:    redact.NewURL("s3://bucket/key.tgz"),
 			Fetch:  fetch,
 		}),
 	)
@@ -161,7 +162,7 @@ func TestFetchSource_ContentAddressedDedupesAcrossURLs(t *testing.T) {
 		t,
 		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
 			Scheme:   "s3",
-			URL:      "s3://bucketA/mod.tgz",
+			URL:      redact.NewURL("s3://bucketA/mod.tgz"),
 			Resolver: resolverA,
 			Fetch:    fakeFetcher(c, files, &fetchCalls),
 		}),
@@ -172,7 +173,7 @@ func TestFetchSource_ContentAddressedDedupesAcrossURLs(t *testing.T) {
 		t,
 		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
 			Scheme:   "gcs",
-			URL:      "gs://bucketB/different/path.tgz",
+			URL:      redact.NewURL("gs://bucketB/different/path.tgz"),
 			Resolver: resolverB,
 			Fetch:    fakeFetcher(c, files, &fetchCalls),
 		}),
@@ -207,7 +208,7 @@ func TestFetchSource_OpaqueProbeURLScoped(t *testing.T) {
 		t,
 		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
 			Scheme:   "http",
-			URL:      "https://a.example.com/mod.tgz",
+			URL:      redact.NewURL("https://a.example.com/mod.tgz"),
 			Resolver: resolverA,
 			Fetch:    fakeFetcher(c, files, &fetchCalls),
 		}),
@@ -218,7 +219,7 @@ func TestFetchSource_OpaqueProbeURLScoped(t *testing.T) {
 		t,
 		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
 			Scheme:   "http",
-			URL:      "https://b.example.com/mod.tgz",
+			URL:      redact.NewURL("https://b.example.com/mod.tgz"),
 			Resolver: resolverB,
 			Fetch:    fakeFetcher(c, files, &fetchCalls),
 		}),
@@ -261,7 +262,7 @@ func TestFetchSource_ConcurrentFetchesOfSameKeyWithRacing(t *testing.T) {
 		g.Go(func() error {
 			return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
 				Scheme:   "http",
-				URL:      "https://example.com/race.tgz",
+				URL:      redact.NewURL("https://example.com/race.tgz"),
 				Resolver: resolver,
 				Fetch:    fakeFetcher(c, files, &fetchCalls),
 			})
@@ -284,7 +285,7 @@ func TestFetchSource_RequiresFetchClosure(t *testing.T) {
 
 	err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: t.TempDir()}, cas.SourceRequest{
 		Scheme: "http",
-		URL:    "https://example.com",
+		URL:    redact.NewURL("https://example.com"),
 	})
 	require.ErrorIs(t, err, cas.ErrFetchClosureRequired)
 }
@@ -337,9 +338,9 @@ type fakeResolver struct {
 
 func (f *fakeResolver) Scheme() string { return f.scheme }
 
-func (f *fakeResolver) Pinned(_ string) bool { return f.pinned }
+func (f *fakeResolver) Pinned(_ redact.URL) bool { return f.pinned }
 
-func (f *fakeResolver) Probe(_ context.Context, _ string) (string, error) {
+func (f *fakeResolver) Probe(_ context.Context, _ redact.URL) (string, error) {
 	f.calls.Add(1)
 
 	if f.gate != nil {

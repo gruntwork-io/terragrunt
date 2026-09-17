@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -98,7 +99,7 @@ func TestResolverPinned(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, tt.resolver.Pinned(tt.url))
+			assert.Equal(t, tt.want, tt.resolver.Pinned(redact.NewURL(tt.url)))
 		})
 	}
 }
