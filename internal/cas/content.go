@@ -250,7 +250,7 @@ func (c *Content) copyBlob(
 	hash, sourcePath, targetPath string,
 	perm os.FileMode,
 ) (LinkOutcome, error) {
-	data, readErr := vfs.ReadFile(v.FS, sourcePath)
+	data, readErr := vfs.ReadFileSharingDelete(v.FS, sourcePath)
 	if readErr != nil {
 		return LinkOutcome{}, storeReadError(hash, sourcePath, readErr)
 	}
@@ -503,7 +503,7 @@ func (c *Content) GetTmpHandle(v *venv.Venv, hash string) (vfs.File, error) {
 func (c *Content) Read(v *venv.Venv, hash string) ([]byte, error) {
 	path := c.getPath(hash)
 
-	data, err := vfs.ReadFile(v.FS, path)
+	data, err := vfs.ReadFileSharingDelete(v.FS, path)
 	if err != nil {
 		return nil, storeReadError(hash, path, err)
 	}
