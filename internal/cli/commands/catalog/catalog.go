@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/login"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/portal"
@@ -345,14 +346,14 @@ func discoverPortalURLs(
 		return nil
 	}
 
-	// An expired credential is the ordinary end of every login, and it takes the
-	// organization's repositories out of the catalog with nothing else going
-	// wrong for the user to notice.
+	loginCmd := login.Command(opts.Experiments)
+
 	for _, org := range credentials.Expired {
 		l.Warnf(
-			"The portal credential for %s has expired, so its repositories are not in this catalog;"+
-				" run `terragrunt login` to get a new one",
-			orgName(org),
+			"The portal credential for %s has expired, so the repositories that"+
+				" organization selected in the Gruntwork Developer Portal are not in"+
+				" this catalog. Run `%s` to sign in again",
+			orgName(org), loginCmd,
 		)
 	}
 
@@ -365,7 +366,7 @@ func discoverPortalURLs(
 		wg.Go(func() {
 			repositories, err := portal.FetchCatalog(ctx, l, v.HTTP, opts.PortalBaseURL, token.AccessToken)
 			if err != nil {
-				reportPortalFailure(ctx, l, token.Org, err)
+				reportPortalFailure(ctx, l, token.Org, err, loginCmd)
 
 				return
 			}
@@ -385,7 +386,7 @@ func discoverPortalURLs(
 // failure that kept back a catalog the organization actually has warrants a
 // warning: the components it would have contributed are missing from the list
 // the user is looking at.
-func reportPortalFailure(ctx context.Context, l log.Logger, org portal.Org, err error) {
+func reportPortalFailure(ctx context.Context, l log.Logger, org portal.Org, err error, loginCmd string) {
 	name := orgName(org)
 
 	if ctx.Err() != nil {
@@ -396,6 +397,18 @@ func reportPortalFailure(ctx context.Context, l log.Logger, org portal.Org, err 
 
 	if errors.Is(err, portal.ErrNoHostedCatalog) {
 		l.Debugf("The portal serves no catalog for %s: %v", name, err)
+
+		return
+	}
+
+	if errors.Is(err, portal.ErrCredentialRejected) {
+		l.Warnf(
+			"The portal rejected the credential for %s, so the repositories that"+
+				" organization selected in the Gruntwork Developer Portal are not in"+
+				" this catalog. The credential has not expired, so run `%s --%s` to"+
+				" replace it",
+			name, loginCmd, login.ForceFlagName,
+		)
 
 		return
 	}
