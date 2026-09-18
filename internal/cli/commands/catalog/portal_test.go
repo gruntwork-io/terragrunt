@@ -46,16 +46,19 @@ func TestRunLoadsComponentsFromAPortalRepository(t *testing.T) {
 	rootDir := t.TempDir()
 	repoDir := filepath.Join(rootDir, "repo")
 
+	// Both producers name the repository with the spelling an HCL string can hold.
+	repoURL := filepath.ToSlash(repoDir)
+
 	fromPortal := renderCatalog(t, rootDir, repoDir, func(t *testing.T, v *venv.Venv) *venv.Venv {
 		t.Helper()
 
-		return withPortalCatalog(t, v, repoDir)
+		return withPortalCatalog(t, v, repoURL)
 	})
 
 	fromCatalogBlock := renderCatalog(t, rootDir, repoDir, func(t *testing.T, v *venv.Venv) *venv.Venv {
 		t.Helper()
 
-		writeCatalogBlock(t, v, rootDir, repoDir)
+		writeCatalogBlock(t, v, rootDir, repoURL)
 
 		return v
 	})
@@ -89,7 +92,7 @@ func TestRunLoadsARepoNamedByThePortalAndTheConfigOnceWithRacing(t *testing.T) {
 			rootDir := t.TempDir()
 
 			// A local path that does not exist fails in the getter without reaching the network.
-			repoURL := filepath.Join(rootDir, "missing-repo")
+			repoURL := filepath.ToSlash(filepath.Join(rootDir, "missing-repo"))
 
 			v := withPortalCatalog(t, newPortalVenv(t), repoURL+tt.portalSuffix)
 
@@ -244,7 +247,7 @@ func TestRunSurvivesAPortalThatServesNoCatalog(t *testing.T) {
 
 			saveCredential(t, v, organizationID)
 			writeLocalRepo(t, v, repoDir)
-			writeCatalogBlock(t, v, rootDir, repoDir)
+			writeCatalogBlock(t, v, rootDir, filepath.ToSlash(repoDir))
 
 			err := catalog.Run(
 				t.Context(), logger.CreateLogger(), v,
