@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,26 @@ func TestNewForDiscoveryCommand_QueueConstructAs(t *testing.T) {
 		)
 	}
 
-	testCases := []struct {
+	emptyCases := []struct {
+		name             string
+		queueConstructAs string
+	}{
+		{name: "whitespace", queueConstructAs: "   "},
+		{name: "tab", queueConstructAs: "\t"},
+		{name: "double quoted empty string", queueConstructAs: `""`},
+		{name: "single quoted empty string", queueConstructAs: "''"},
+	}
+
+	for _, tc := range emptyCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := newForDiscoveryCommand(t, tc.queueConstructAs)
+			require.ErrorAs(t, err, &discovery.EmptyQueueConstructAsError{})
+		})
+	}
+
+	operatorCases := []struct {
 		name             string
 		queueConstructAs string
 	}{
@@ -36,19 +56,16 @@ func TestNewForDiscoveryCommand_QueueConstructAs(t *testing.T) {
 		{name: "logical and", queueConstructAs: "&&"},
 		{name: "redirect", queueConstructAs: ">"},
 		{name: "stderr redirect", queueConstructAs: "2>&1"},
-		{name: "whitespace", queueConstructAs: "   "},
-		{name: "tab", queueConstructAs: "\t"},
 		{name: "command after separator", queueConstructAs: "; plan"},
-		{name: "double quoted empty string", queueConstructAs: `""`},
-		{name: "single quoted empty string", queueConstructAs: "''"},
+		{name: "separator after command", queueConstructAs: "plan; apply"},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range operatorCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			_, err := newForDiscoveryCommand(t, tc.queueConstructAs)
-			require.ErrorAs(t, err, &discovery.EmptyQueueConstructAsError{})
+			require.ErrorIs(t, err, split.ErrShellOperator)
 		})
 	}
 
