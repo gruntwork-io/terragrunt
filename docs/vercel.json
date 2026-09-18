@@ -23,6 +23,10 @@
       "destination": "/sitemap-index.xml"
     },
     {
+      "source": "/mtag/gtm.js",
+      "destination": "/api/mtag"
+    },
+    {
       "source": "/mtag/:path*",
       "destination": "https://www.googletagmanager.com/:path*"
     },
