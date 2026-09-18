@@ -1,0 +1,10 @@
+---
+version: "v1.1.6"
+category: "bug-fixes"
+---
+
+#### Git filters find nested units on Windows again
+
+On Windows, [`find`](/reference/cli/commands/find/), [`list`](/reference/cli/commands/list/) and [`browse`](/reference/cli/commands/browse) returned nothing for a [Git-based filter](/features/filter/git/) such as `--filter '[main...HEAD]'` when the diff changed only unit configurations in nested directories, like `nested\path\terragrunt.hcl`.
+
+The worktree optimization in v1.1.5 checks out only the directories of changed units for these commands. On Windows, it spelled those directories with `\` separators and looked them up in Git's file listing, which uses `/`. None matched, so it checked out nothing. Terragrunt now uses / separators for those directories on every platform.
