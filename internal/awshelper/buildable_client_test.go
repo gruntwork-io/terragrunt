@@ -280,6 +280,36 @@ func TestAssumeIamRoleUsesEnvCredentials(t *testing.T) {
 		"STS call must be signed with the v.Env credentials")
 }
 
+// TestAssumeIamRoleRejectsResponseWithoutCredentials pins the error for an
+// STS endpoint that answers 200 but leaves out the credentials.
+func TestAssumeIamRoleRejectsResponseWithoutCredentials(t *testing.T) {
+	t.Parallel()
+
+	memHTTP := vhttp.NewMemClient(func(context.Context, *http.Request) (*http.Response, error) {
+		xml := `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">` +
+			`<AssumeRoleResult></AssumeRoleResult></AssumeRoleResponse>`
+
+		return vhttp.Respond(http.StatusOK, []byte(xml), nil), nil
+	})
+
+	v := venvtest.New().
+		WithHTTP(memHTTP).
+		WithEnv(map[string]string{
+			"AWS_REGION":            "us-east-1",
+			"AWS_ACCESS_KEY_ID":     "AKIAENVCREDSTESTKEY",
+			"AWS_SECRET_ACCESS_KEY": "env-secret-key",
+		})
+
+	creds, err := awshelper.AssumeIamRole(
+		t.Context(),
+		v,
+		iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/test-role"},
+		"",
+	)
+	require.ErrorIs(t, err, awshelper.ErrNoAssumedCredentials)
+	assert.Nil(t, creds)
+}
+
 // TestAWSBuildableClientOSTransportIsBuildable explicitly tests the
 // function's return type with a production OS client.
 func TestAWSBuildableClientOSTransportIsBuildable(t *testing.T) {

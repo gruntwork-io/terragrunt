@@ -297,6 +297,16 @@ func (err DependencyFileNotFoundError) Error() string {
 
 // Dependency Custom error types
 
+// DependencyConfigPathNotStringError reports a dependency whose config_path did not
+// evaluate to a known string, so there is no config to read outputs from.
+type DependencyConfigPathNotStringError struct {
+	Name string
+}
+
+func (err DependencyConfigPathNotStringError) Error() string {
+	return fmt.Sprintf("config_path of dependency %q did not evaluate to a string", err.Name)
+}
+
 type DependencyConfigNotFound struct {
 	Path string
 }

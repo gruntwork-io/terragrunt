@@ -156,3 +156,21 @@ func TestProviderCommandShellwordsParsing(t *testing.T) {
 func newRunOpts() *shell.ShellOptions {
 	return shell.NewShellOptions(map[string]string{})
 }
+
+// TestProviderCommandWithoutWordsErrors pins the error for a command that
+// parses to no words: shellwords stops at a leading operator and drops
+// whitespace, so neither leaves a program to run.
+func TestProviderCommandWithoutWordsErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, cmd := range []string{"&", "   "} {
+		t.Run(cmd, func(t *testing.T) {
+			t.Parallel()
+
+			p := externalcmd.NewProvider(logger.CreateLogger(), cmd, newRunOpts())
+
+			_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), venvtest.New())
+			require.ErrorIs(t, err, externalcmd.ErrEmptyAuthProviderCmd)
+		})
+	}
+}
