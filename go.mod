@@ -36,7 +36,10 @@ require (
 	github.com/getsops/sops/v3 v3.13.3
 	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/gliderlabs/ssh v0.3.8
-	github.com/gobwas/glob v1.0.0
+	// Pinned: v1.0.0 is an engine rewrite that dropped the `**` collapse for
+	// `literal/**/literal` patterns, a user-facing break for filter and
+	// ignore globs. See internal/glob/glob.go for the documented semantics.
+	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/flock v0.13.1
 	github.com/google/uuid v1.6.0
 	github.com/gruntwork-io/boilerplate v0.16.0
