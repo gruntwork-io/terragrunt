@@ -204,6 +204,18 @@ func TestNewWorktreesFilteredPathsOnly(t *testing.T) {
 			wantAbsent:  []string{"other/terragrunt.hcl", "modules/app/main.tf"},
 		},
 		{
+			// Pathspecs are '/'-separated on every platform, so a nested unit
+			// must not be checked out under its OS spelling.
+			name: "a changed unit configuration in a nested directory selects units by path",
+			files: map[string]string{
+				"nested/changed/terragrunt.hcl":   "inputs = {}\n",
+				"nested/unchanged/terragrunt.hcl": "inputs = {}\n",
+			},
+			changed:     "nested/changed/terragrunt.hcl",
+			wantPresent: []string{"nested/changed/terragrunt.hcl"},
+			wantAbsent:  []string{"nested/unchanged/terragrunt.hcl"},
+		},
+		{
 			name: "a changed file beside a unit selects it by path",
 			files: map[string]string{
 				"unit/terragrunt.hcl":  "inputs = {}\n",
