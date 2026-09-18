@@ -17,11 +17,15 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 )
 
-const (
-	generationParityLiveDir       = "/virtual/live"
-	generationParityUnitSource    = "/virtual/catalog/units/app"
-	generationParityStackSource   = "/virtual/catalog/stacks/team"
-	generationParityMaxStackDepth = 5
+const generationParityMaxStackDepth = 5
+
+var (
+	generationParityLiveDir = venvtest.Root("/virtual/live")
+
+	// The sources are interpolated into HCL strings, where a backslash starts an escape, so they
+	// keep forward slashes. filepath.Join converts them wherever they name a file.
+	generationParityUnitSource  = filepath.ToSlash(venvtest.Root("/virtual/catalog/units/app"))
+	generationParityStackSource = filepath.ToSlash(venvtest.Root("/virtual/catalog/stacks/team"))
 )
 
 // TestUnitPathsFromStackDirAgreesWithGeneration pins that discovery reports exactly the units stack
