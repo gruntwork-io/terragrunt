@@ -188,6 +188,83 @@ func TestStorageAccount_Create_RejectsUnknownAccessTier(t *testing.T) {
 	assert.Equal(t, "Frozen", unknownTier.Tier)
 }
 
+func TestStorageAccount_Create_RejectsUnknownMinimumTLSVersion(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	// minimum_tls_version is user supplied, so an unknown value is a user error.
+	// TLS1_1 is deprecated on Azure and is not one of the accepted values.
+	err = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:              testAccount,
+		Location:          "eastus",
+		MinimumTLSVersion: "TLS1_1",
+	})
+
+	var unknownTLS *azurehelper.UnknownMinimumTLSVersionError
+	require.ErrorAs(t, err, &unknownTLS)
+	assert.Equal(t, "TLS1_1", unknownTLS.Version)
+}
+
+func TestStorageAccount_Create_DefaultsMinimumTLSVersion(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{"provisioningState": "Succeeded"},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	// An unset minimum_tls_version must default to TLS1_2, not Azure's implicit
+	// TLS1_0.
+	require.NoError(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:     testAccount,
+		Location: "eastus",
+	}))
+	assert.Contains(t, tr.lastPutBody(), `"minimumTlsVersion":"TLS1_2"`, "default minimum TLS version must reach the request")
+}
+
+func TestStorageAccount_Create_SetsMinimumTLSVersion(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{"provisioningState": "Succeeded"},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	require.NoError(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:              testAccount,
+		Location:          "eastus",
+		MinimumTLSVersion: "TLS1_3",
+	}))
+	assert.Contains(t, tr.lastPutBody(), `"minimumTlsVersion":"TLS1_3"`, "configured minimum TLS version must reach the request")
+}
+
+func TestStorageAccount_Create_SetsExplicitTLS12(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{"provisioningState": "Succeeded"},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	// An explicit TLS1_2 must reach the request, same as the default path.
+	require.NoError(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:              testAccount,
+		Location:          "eastus",
+		MinimumTLSVersion: "TLS1_2",
+	}))
+	assert.Contains(t, tr.lastPutBody(), `"minimumTlsVersion":"TLS1_2"`, "explicit minimum TLS version must reach the request")
+}
+
 func TestStorageAccount_GetKeys_FiltersEmptyValues(t *testing.T) {
 	t.Parallel()
 

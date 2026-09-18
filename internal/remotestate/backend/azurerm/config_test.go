@@ -26,6 +26,7 @@ func TestExtendedAzurermConfig_ParsesFields(t *testing.T) {
 	assert.Equal(t, "eastus", ext.Location)
 	assert.Equal(t, "Standard", ext.AccountTier)
 	assert.Equal(t, "LRS", ext.AccountReplicationType)
+	assert.Equal(t, "TLS1_3", ext.MinimumTLSVersion)
 	assert.True(t, ext.EnableSoftDelete)
 	assert.Equal(t, 14, ext.SoftDeleteRetentionDays)
 	assert.Equal(t, map[string]string{"team": "platform"}, ext.Tags)
@@ -90,7 +91,7 @@ func TestGetTFInitArgs_StripsTerragruntOnlyKeys(t *testing.T) {
 	// Terragrunt-only bootstrap keys are stripped (the azurerm backend rejects them).
 	for _, k := range []string{
 		"location", "account_tier", "account_replication_type", "account_kind",
-		"access_tier", "tags", "skip_resource_group_creation", "skip_storage_account_creation",
+		"access_tier", "minimum_tls_version", "tags", "skip_resource_group_creation", "skip_storage_account_creation",
 		"skip_container_creation", "skip_versioning", "enable_soft_delete",
 		"soft_delete_retention_days", "allow_blob_public_access",
 		"assign_blob_data_role", "principal_id",
@@ -112,6 +113,16 @@ func TestGetAzureSessionConfig_Mapping(t *testing.T) {
 	assert.Equal(t, "00000000-0000-0000-0000-000000000000", sess.SubscriptionID)
 	require.NotNil(t, sess.UseAzureADAuth)
 	assert.True(t, *sess.UseAzureADAuth)
+}
+
+func TestStorageAccountConfig_MapsMinimumTLSVersion(t *testing.T) {
+	t.Parallel()
+
+	ext, err := fullConfig().ExtendedAzurermConfig()
+	require.NoError(t, err)
+
+	sa := ext.StorageAccountConfig()
+	assert.Equal(t, "TLS1_3", sa.MinimumTLSVersion, "minimum_tls_version must reach the storage account config")
 }
 
 func TestGetTFInitArgs_EmptyConfig(t *testing.T) {
@@ -175,6 +186,7 @@ func fullConfig() azurerm.Config {
 		"location":                   "eastus",
 		"account_tier":               "Standard",
 		"account_replication_type":   "LRS",
+		"minimum_tls_version":        "TLS1_3",
 		"skip_versioning":            false,
 		"enable_soft_delete":         true,
 		"soft_delete_retention_days": 14,
@@ -197,6 +209,7 @@ func TestParseExtendedAzurermConfig_TrimsWhitespace(t *testing.T) {
 		"key":                  " unit/terraform.tfstate ",
 		"resource_group_name":  "\trg\t",
 		"location":             " eastus ",
+		"minimum_tls_version":  " TLS1_2 ",
 	}
 
 	ext, err := cfg.ParseExtendedAzurermConfig()
@@ -208,6 +221,7 @@ func TestParseExtendedAzurermConfig_TrimsWhitespace(t *testing.T) {
 	assert.Equal(t, "unit/terraform.tfstate", rs.Key)
 	assert.Equal(t, "rg", rs.ResourceGroupName)
 	assert.Equal(t, "eastus", ext.Location)
+	assert.Equal(t, "TLS1_2", ext.MinimumTLSVersion)
 }
 
 // TestValidate_RejectsWhitespaceOnlyRequiredKeys pins that a whitespace-only
@@ -258,6 +272,11 @@ func TestExtendedCacheKey_IsPolicyAware(t *testing.T) {
 	// The container identity is still part of it.
 	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["container_name"] = "other" }))
 	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["environment"] = "usgovernment" }))
+
+	// minimum_tls_version is a create-only property, not a policy that bootstrap
+	// converges on an existing account, so it must NOT change the cache identity
+	// (mirrors account_kind, account_tier, and access_tier).
+	assert.Equal(t, base, keyFor(func(c azurerm.Config) { c["minimum_tls_version"] = "TLS1_2" }))
 }
 
 // TestCacheKey_DistinguishesRoleAssignment pins that a unit asking for the

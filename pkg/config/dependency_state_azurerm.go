@@ -538,6 +538,7 @@ func azureBackendConfigKeyKnown(key string) bool {
 		"allow_blob_public_access",
 		"enable_soft_delete",
 		"location",
+		"minimum_tls_version",
 		"msi_resource_id",
 		"skip_container_creation",
 		"skip_resource_group_creation",

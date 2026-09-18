@@ -31,6 +31,12 @@ const (
 	defaultAccessTier      = "Hot"
 	defaultSoftDeleteDays  = 7
 
+	// defaultMinimumTLSVersion is the minimum TLS version applied to a new
+	// account when the caller does not set one. Azure's own default is TLS1_0,
+	// but TLS1_0 and TLS1_1 are deprecated on Azure services since August 2025,
+	// so Terragrunt provisions accounts with TLS1_2.
+	defaultMinimumTLSVersion = "TLS1_2"
+
 	// maxAccountListPages bounds the subscription account walk in
 	// FindResourceGroupForAccount.
 	maxAccountListPages = 100
@@ -65,6 +71,10 @@ type StorageAccountConfig struct {
 
 	// AccessTier is "Hot" or "Cool". Default: Hot.
 	AccessTier string
+
+	// MinimumTLSVersion is the minimum TLS version permitted on requests to the
+	// account, "TLS1_2" or "TLS1_3". Default: TLS1_2.
+	MinimumTLSVersion string
 
 	// AllowBlobPublicAccess controls whether containers may permit anonymous access.
 	AllowBlobPublicAccess bool
@@ -184,6 +194,11 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 		return err
 	}
 
+	minTLSVersion, err := minimumTLSVersionValue(cfg.MinimumTLSVersion)
+	if err != nil {
+		return err
+	}
+
 	params := armstorage.AccountCreateParameters{
 		Kind:     &kind,
 		Location: new(cfg.Location),
@@ -191,6 +206,7 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 		Tags:     stringMapPtr(cfg.Tags),
 		Properties: &armstorage.AccountPropertiesCreateParameters{
 			AccessTier:            accessTier,
+			MinimumTLSVersion:     minTLSVersion,
 			AllowBlobPublicAccess: new(cfg.AllowBlobPublicAccess),
 		},
 	}
@@ -392,6 +408,10 @@ func (in *StorageAccountConfig) withDefaults() {
 		in.AccessTier = defaultAccessTier
 	}
 
+	if in.MinimumTLSVersion == "" {
+		in.MinimumTLSVersion = defaultMinimumTLSVersion
+	}
+
 	tags := maps.Clone(in.Tags)
 	if tags == nil {
 		tags = make(map[string]string, 1)
@@ -419,6 +439,22 @@ func accessTierValue(s string) (*armstorage.AccessTier, error) {
 		return new(armstorage.AccessTierPremium), nil
 	default:
 		return nil, &UnknownAccessTierError{Tier: s}
+	}
+}
+
+// minimumTLSVersionValue maps a string to the SDK's MinimumTLSVersion enum. An
+// empty input yields the package default (TLS1_2). Only TLS1_2 and TLS1_3 are
+// accepted: TLS1_0 and TLS1_1 are deprecated on Azure services, and
+// minimum_tls_version is user supplied, so any other value returns an
+// UnknownMinimumTLSVersionError.
+func minimumTLSVersionValue(s string) (*armstorage.MinimumTLSVersion, error) {
+	switch s {
+	case "", "TLS1_2":
+		return new(armstorage.MinimumTLSVersionTLS12), nil
+	case "TLS1_3":
+		return new(armstorage.MinimumTLSVersionTLS13), nil
+	default:
+		return nil, &UnknownMinimumTLSVersionError{Version: s}
 	}
 }
 
