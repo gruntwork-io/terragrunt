@@ -32,7 +32,19 @@
     },
     {
       "source": "/htag/:path*",
-      "destination": "https://js.hs-analytics.net/:path*"
+      "destination": "https://js.hs-scripts.com/:path*"
+    },
+    {
+      "source": "/rtag/:path*",
+      "destination": "https://www.redditstatic.com/:path*"
+    },
+    {
+      "source": "/gtag/:path*",
+      "destination": "https://analytics.google.com/:path*"
+    },
+    {
+      "source": "/ltag/:path*",
+      "destination": "https://snap.licdn.com/:path*"
     }
   ],
   "redirects": [
