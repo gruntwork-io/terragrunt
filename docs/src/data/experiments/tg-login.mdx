@@ -5,7 +5,7 @@ since: "1.1.5"
 
 import Since from '@components/Since.astro';
 import Before from '@components/Before.astro';
-import { Aside } from '@astrojs/starlight/components';
+import PortalCatalogBeta from '@components/PortalCatalogBeta.astro';
 
 Signing in to the Gruntwork Developer Portal from the CLI, so an admin can define a catalog in the portal alongside the one local HCL names.
 
@@ -23,19 +23,11 @@ A `catalog` block in your configuration keeps working whether or not you are sig
 
 <Since version="1.2.0">
 
-Adds `terragrunt login`, which signs you in to the Gruntwork Developer Portal using the OAuth 2.0 Device Authorization Grant ([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)).
+<PortalCatalogBeta campaign="tg-login-experiment" />
 
-The CLI prints a one-time code and opens your browser to the page that asks for it. Confirm the code there, and the CLI receives a token scoped to your organization and files it under your user configuration directory, readable only by you. The token lasts 30 days. There is no way to renew it and no `logout` command, so when it runs out you sign in again.
+Adds the `terragrunt login` command, which signs you in to the Gruntwork Developer Portal using the OAuth 2.0 Device Authorization Grant ([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)).
 
-On a machine with no browser, or over SSH, the code and the URL are printed and the CLI keeps waiting, so you can approve from a phone or another computer.
-
-Running `terragrunt login` while a token is still good reports who you are signed in as and leaves it alone. Pass `--force` to sign in again anyway. That replaces the stored credential, which is what you want when it stopped working before it expired, or when you think it has been exposed.
-
-`terragrunt catalog` reads the portal once you are signed in. The repositories your organization selected there join whatever a `catalog` block in your configuration names, and both are browsed and scaffolded the same way. The portal supplies repository URLs and nothing else, so `no_shell`, `no_hooks`, and `default_template` still come from the `catalog` block. A `catalog` block keeps working whether or not you are signed in.
-
-<Aside type="note" title="Private beta">
-The Gruntwork Developer Portal is the only web portal supported for registering catalog entries, and registering them there is in private beta right now. If your organization uses the Gruntwork.io GitHub App and you want access to catalog management, request it from [Gruntwork support](https://gruntwork.io/support) while the beta is in progress.
-</Aside>
+While the `tg-login` experiment is active, `terragrunt catalog` automatically discovers repositories your organization has registered in the Gruntwork Developer Portal as part of your catalog.
 
 </Since>
 
@@ -89,5 +81,6 @@ To transition the `tg-login` feature to a stable release, the following must be 
 - [x] A user with no catalog configured anywhere gets guidance on setting one up.
 - [x] Test coverage for login and catalog that does not need a live portal.
 - [ ] Documentation for login and catalog setup.
+- [ ] Completion of the private beta in the Gruntwork Developer Portal.
 
 </Since>
