@@ -9,7 +9,10 @@ import (
 	"io/fs"
 	"maps"
 	"net/http"
+	"os"
 	"path/filepath"
+	"regexp"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -54,6 +57,20 @@ const (
 	fuzzFileMode        = 0o644
 )
 
+// EnvFuzzSkipList names a file of failure signatures, one per line, that
+// [FuzzFullCLI] skips instead of failing on, so a long fuzz run gets past a
+// bug it already reported.
+const EnvFuzzSkipList = "TG_TEST_FUZZ_SKIP_LIST"
+
+// fuzzModuleFramePrefix marks the stack frames a signature is taken from.
+const fuzzModuleFramePrefix = "github.com/gruntwork-io/terragrunt/"
+
+var (
+	fuzzDigitsRe      = regexp.MustCompile(`[0-9]+`)
+	fuzzFrameArgsRe   = regexp.MustCompile(`\([^()]*\)$`)
+	fuzzMessageDataRe = regexp.MustCompile(`[("'].*$`)
+)
+
 // fuzzRoot is where every iteration's world is laid down in memory, and the
 // directory the CLI starts in.
 var fuzzRoot = venvtest.Root("/work")
@@ -86,7 +103,11 @@ var fuzzExcludedCommands = map[string]struct{}{
 //
 // An iteration fails on a panic, including one the CLI recovers and reports
 // as a crash, or on a run that exits with an error without writing anything
-// to stderr while logging is enabled.
+// to stderr while logging is enabled. Each failure logs a line starting with
+// "fuzz signature: ". A failure whose signature is listed in the file
+// [EnvFuzzSkipList] names is skipped instead. A panic on a goroutine the CLI
+// spawns ends the worker process before the test sees it, so it cannot be
+// skipped.
 //
 // Subprocess and HTTP handlers draw from the same input as the rest, so when
 // run --all fans out, the order they draw in varies between runs. A
@@ -94,6 +115,7 @@ var fuzzExcludedCommands = map[string]struct{}{
 func FuzzFullCLI(f *testing.F) {
 	vocab := newFuzzVocab(f)
 	worlds := newFuzzWorlds(f)
+	skips := loadFuzzSkipList(f)
 
 	// One seed per command path, each paired with a different world, so plain
 	// `go test` runs every command at least once.
@@ -106,6 +128,13 @@ func FuzzFullCLI(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		c := newFuzzConsumer(data)
 		inv := vocab.invocation(c, worlds)
+
+		defer func() {
+			if r := recover(); r != nil {
+				sig := fuzzPanicSignature(fmt.Sprint(r), debug.Stack())
+				failFuzz(t, skips, sig, "panic: %v\n%s\nargs=%q\nenv=%q", r, debug.Stack(), inv.args, inv.env)
+			}
+		}()
 
 		fsys := vfs.NewMemMapFS()
 		for path, contents := range inv.files {
@@ -148,7 +177,8 @@ func FuzzFullCLI(f *testing.F) {
 
 		if panicreport.IsPanic(err) {
 			msg, stack := panicreport.PanicDetails(err)
-			require.Failf(t, "recovered panic", "%s\n%s\nargs=%q\nenv=%q", msg, stack, inv.args, inv.env)
+			failFuzz(t, skips, fuzzPanicSignature(msg, stack),
+				"recovered panic: %s\n%s\nargs=%q\nenv=%q", msg, stack, inv.args, inv.env)
 		}
 
 		// ExitCodeFor is what main.go runs after RunContext; it logs the error.
@@ -157,8 +187,91 @@ func FuzzFullCLI(f *testing.F) {
 		silenced := l.Formatter().DisabledOutput() || l.Level() < log.ErrorLevel
 		silentFailure := err != nil && stderr.n.Load() == 0 && ctx.Err() == nil && !silenced &&
 			!errors.Is(err, runall.ErrUserCancelled)
-		require.Falsef(t, silentFailure, "exited with %v but wrote nothing to stderr\nargs=%q\nenv=%q", err, inv.args, inv.env)
+		if silentFailure {
+			sig := fmt.Sprintf("silent failure: %s %T", strings.Join(inv.command, " "), err)
+			failFuzz(t, skips, sig, "exited with %v but wrote nothing to stderr\nargs=%q\nenv=%q", err, inv.args, inv.env)
+		}
 	})
+}
+
+// failFuzz fails t with the given message, unless sig is in skips, in which
+// case it skips t.
+func failFuzz(t *testing.T, skips map[string]struct{}, sig, format string, args ...any) {
+	t.Helper()
+
+	if _, ok := skips[sig]; ok {
+		t.Skipf("known failure: %s", sig)
+	}
+
+	t.Logf("fuzz signature: %s", sig)
+	require.Failf(t, "fuzz failure", format, args...)
+}
+
+// fuzzPanicSignature names a panic by its message and the innermost
+// Terragrunt frame that raised it, so two inputs tripping the same bug share
+// a signature. Digits and anything from the first quote or parenthesis on are
+// dropped from the message, since that is where input data lands.
+//
+// .github/scripts/fuzz/full-cli.sh derives the same signature from the output
+// of a crashed worker; keep the two in step.
+func fuzzPanicSignature(msg string, stack []byte) string {
+	msg, _, _ = strings.Cut(msg, "\n")
+	msg = fuzzMessageDataRe.ReplaceAllString(fuzzDigitsRe.ReplaceAllString(msg, "N"), "")
+
+	return "panic: " + strings.TrimSpace(msg) + " at " + fuzzPanicFrame(stack)
+}
+
+// fuzzPanicFrame returns the first Terragrunt function after the last
+// `panic(` frame in stack, or after the start when there is none.
+func fuzzPanicFrame(stack []byte) string {
+	lines := strings.Split(string(stack), "\n")
+
+	start := 0
+
+	for i, line := range lines {
+		if strings.HasPrefix(line, "panic(") {
+			start = i + 1
+		}
+	}
+
+	for _, line := range lines[start:] {
+		if strings.HasPrefix(line, fuzzModuleFramePrefix) {
+			return fuzzFrameArgsRe.ReplaceAllString(line, "")
+		}
+	}
+
+	return "unknown"
+}
+
+// loadFuzzSkipList reads the signatures in the file [EnvFuzzSkipList] names.
+// Blank lines and lines starting with # are ignored.
+func loadFuzzSkipList(f *testing.F) map[string]struct{} {
+	f.Helper()
+
+	skips := map[string]struct{}{}
+
+	path := os.Getenv(EnvFuzzSkipList)
+	if path == "" {
+		return skips
+	}
+
+	contents, err := vfs.ReadFile(vfs.NewOSFS(), path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return skips
+	}
+
+	require.NoError(f, err)
+
+	for line := range strings.Lines(string(contents)) {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		skips[line] = struct{}{}
+	}
+
+	return skips
 }
 
 // fuzzCountingWriter counts the bytes written to it and drops them. It is
@@ -275,10 +388,11 @@ type fuzzVocab struct {
 
 // fuzzInvocation is one derived run of the CLI.
 type fuzzInvocation struct {
-	files map[string][]byte
-	env   map[string]string
-	stdin string
-	args  []string
+	files   map[string][]byte
+	env     map[string]string
+	stdin   string
+	command []string
+	args    []string
 }
 
 // newFuzzVocab walks the command tree of a real app, so a new command or
@@ -371,10 +485,11 @@ func (vocab *fuzzVocab) invocation(c *fuzzConsumer, worlds []fuzzWorld) fuzzInvo
 	}
 
 	return fuzzInvocation{
-		args:  args,
-		env:   env,
-		files: files,
-		stdin: c.choose(fuzzStdinPool),
+		command: cmd.path,
+		args:    args,
+		env:     env,
+		files:   files,
+		stdin:   c.choose(fuzzStdinPool),
 	}
 }
 
