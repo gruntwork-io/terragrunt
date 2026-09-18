@@ -65,7 +65,7 @@ func TestMinimumTLSVersionValue(t *testing.T) {
 		assert.Equal(t, tc.want, *got, "input %q", tc.in)
 	}
 
-	for _, bad := range []string{"TLS1_0", "TLS1_1", "tls1_2", "garbage"} {
+	for _, bad := range []string{"TLS1_0", "TLS1_1", "tls1_2", " TLS1_2", "garbage"} {
 		_, err := minimumTLSVersionValue(bad)
 
 		var unknown *UnknownMinimumTLSVersionError

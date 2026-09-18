@@ -213,6 +213,13 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			wantDirect:    true,
 		},
 		{
+			name:          "Azure minimum TLS version remains direct",
+			backend:       "azurerm",
+			backendConfig: eligibilityConfig(azureConfig, map[string]string{"minimum_tls_version": `"TLS1_2"`}),
+			wantRequest:   "stateaccount.blob.core.windows.net/state/service.tfstate",
+			wantDirect:    true,
+		},
+		{
 			name:          "Azure invalid snapshot boolean falls back",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"snapshot": `"not-a-bool"`}),

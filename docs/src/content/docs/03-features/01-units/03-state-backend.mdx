@@ -10,7 +10,6 @@ import FileTree from '@components/vendored/starlight/FileTree.astro';
 import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
 
 OpenTofu/Terraform supports [remote state storage](https://opentofu.org/docs/language/state/remote/) via various [backends](https://opentofu.org/docs/language/settings/backends/configuration/) that you normally configure in your `.tf` files as follows:
 
@@ -439,7 +438,7 @@ The following config options are only valid for the `azurerm` backend and are us
 - `account_tier` - Storage account tier, `Standard` or `Premium`. Defaults to `Standard`.
 - `account_replication_type` - Replication type, e.g. `LRS`, `GRS`, `ZRS`. Defaults to `LRS`.
 - `access_tier` - Blob access tier, `Hot`, `Cool`, `Cold`, or `Premium`. Defaults to `Hot`.
-<Since version="1.1.6">
+<Since version="1.2.0">
 - `minimum_tls_version` - Minimum TLS version permitted on requests to the storage account, `TLS1_2` or `TLS1_3`. Defaults to `TLS1_2`. The deprecated `TLS1_0` and `TLS1_1` are not accepted. Applies only when Terragrunt creates the account.
 </Since>
 - `tags` - Map of tags applied to the storage account on creation.
