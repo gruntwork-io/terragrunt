@@ -55,6 +55,26 @@
       "destination": "https://www.redditstatic.com/:path*"
     },
     {
+      "source": "/gtag/g/collect/",
+      "destination": "https://analytics.google.com/g/collect"
+    },
+    {
+      "source": "/gtag/ccm/collect/",
+      "destination": "https://analytics.google.com/ccm/collect"
+    },
+    {
+      "source": "/gtag/ccm/s/collect/",
+      "destination": "https://analytics.google.com/ccm/s/collect"
+    },
+    {
+      "source": "/gtag/mc/collect/",
+      "destination": "https://analytics.google.com/mc/collect"
+    },
+    {
+      "source": "/gtag/rmkt/collect/",
+      "destination": "https://analytics.google.com/rmkt/collect"
+    },
+    {
       "source": "/gtag/:path*",
       "destination": "https://analytics.google.com/:path*"
     },
