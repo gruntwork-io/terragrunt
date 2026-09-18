@@ -38,13 +38,7 @@ const commands = defineCollection({
 
 const docs = defineCollection({
 	loader: docsLoader(),
-	schema: docsSchema({
-		extend: z.object({
-			banner: z.object({ content: z.string() }).default({
-				content: '🎉 <strong>Terragrunt v1.0 is here!</strong> Read the <a href="https://www.gruntwork.io/blog/terragrunt-1-0-released">announcement</a> to learn more.',
-			}),
-		}),
-	}),
+	schema: docsSchema(),
 });
 
 const flags = defineCollection({
