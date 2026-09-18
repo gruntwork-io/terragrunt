@@ -358,10 +358,10 @@ func TestAWSCreateS3BucketWithTagsAtCreation(t *testing.T) {
 	)
 }
 
-// TestAwsCreateS3BucketInAccountRegionalNamespace verifies that a bucket named for the caller's
+// TestAWSCreateS3BucketInAccountRegionalNamespace verifies that a bucket named for the caller's
 // account regional namespace is created there. S3 rejects that name in the shared global namespace,
 // so a successful create proves Terragrunt asked for the right one.
-func TestAwsCreateS3BucketInAccountRegionalNamespace(t *testing.T) {
+func TestAWSCreateS3BucketInAccountRegionalNamespace(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)

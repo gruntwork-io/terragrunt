@@ -224,6 +224,6 @@ Analysis complete:
 
 Top flaky tests:
   1. TestIntegrationCatalog (5 failures, 62.5%)
-  2. TestAwsS3Backend (3 failures, 37.5%)
+  2. TestAWSS3Backend (3 failures, 37.5%)
   3. TestSSHClone (3 failures, 37.5%)
 ```

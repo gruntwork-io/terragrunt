@@ -1061,10 +1061,10 @@ func TestAWSSetsAccessLoggingForTFStateS3BucketToADifferentBucketWithGivenTarget
 	assert.Contains(t, sids, s3backend.SidAccessLogDelivery)
 }
 
-// TestAwsBootstrapBackendLeavesExistingAccessLoggingBucketPolicyAlone pins that a logs bucket
+// TestAWSBootstrapBackendLeavesExistingAccessLoggingBucketPolicyAlone pins that a logs bucket
 // that predates the run keeps whatever permissions it has, so bootstrapping never rewrites the
 // policy of a bucket someone else set up.
-func TestAwsBootstrapBackendLeavesExistingAccessLoggingBucketPolicyAlone(t *testing.T) {
+func TestAWSBootstrapBackendLeavesExistingAccessLoggingBucketPolicyAlone(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
