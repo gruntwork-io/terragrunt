@@ -24,15 +24,13 @@ jobs:
       uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
       with:
         version: 2026.5.12
+        cache_save: ${{ github.ref == 'refs/heads/main' }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - id: go-cache-paths
       shell: bash
       run: |
-        echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-        echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-
         if [ "$RUNNER_OS" == "macOS" ]; then
           echo "golangci-lint-cache=$HOME/Library/Caches/golangci-lint" >> "$GITHUB_OUTPUT"
           exit 0
@@ -49,23 +47,10 @@ jobs:
         mkdir -p "$(go env GOCACHE)"
         mkdir -p "$HOME/Library/Caches/golangci-lint"
 
-    - name: Go Build Cache
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+    - name: Restore Go caches
+      uses: $/.github/actions/go-cache-restore
       with:
-        path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ runner.arch }}
-        restore-keys: |
-          ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
-
-    - name: Go Mod Cache
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-      with:
-        path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ runner.arch }}
-        restore-keys: |
-          ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
-          ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-
-          ${{ runner.os }}-go-mod-
+        gocache-name: lint
 
     - name: golangci-lint Cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
@@ -131,3 +116,7 @@ jobs:
         else
           make run-lint-incremental
         fi
+
+    - name: Save Go caches
+      if: ${{ !cancelled() }}
+      uses: $/.github/actions/go-cache-save
