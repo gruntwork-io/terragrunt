@@ -87,7 +87,7 @@ func portalAnswering(t *testing.T, answers map[string]answer) vhttp.Client {
 	return vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
 		staged, ok := answers[req.URL.Path]
 		if !ok {
-			t.Errorf("the login reached %s, which no answer was staged for", req.URL.Path)
+			assert.Failf(t, "unexpected request", "the login reached %s, which no answer was staged for", req.URL.Path)
 
 			return nil, errUnexpectedRequest
 		}
