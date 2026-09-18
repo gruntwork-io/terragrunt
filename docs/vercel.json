@@ -27,6 +27,18 @@
       "destination": "/api/mtag"
     },
     {
+      "source": "/mtag/gtag/js/",
+      "destination": "https://www.googletagmanager.com/gtag/js"
+    },
+    {
+      "source": "/mtag/gtag/destination/",
+      "destination": "https://www.googletagmanager.com/gtag/destination"
+    },
+    {
+      "source": "/mtag/debug/bootstrap/",
+      "destination": "https://www.googletagmanager.com/debug/bootstrap"
+    },
+    {
       "source": "/mtag/:path*",
       "destination": "https://www.googletagmanager.com/:path*"
     },
