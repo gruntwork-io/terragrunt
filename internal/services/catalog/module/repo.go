@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -303,8 +304,8 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, v *venv.Ve
 		return
 	}
 
-	remote := repo.remoteForTagLookup()
-	if remote == "" {
+	remote := redact.NewURL(repo.remoteForTagLookup())
+	if remote.Reveal() == "" {
 		return
 	}
 
@@ -321,9 +322,9 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, v *venv.Ve
 		return
 	}
 
-	refs, err := runner.LsRemoteTags(ctx, remote)
+	refs, err := runner.LsRemoteTags(ctx, remote.Reveal())
 	if err != nil {
-		l.Debugf("catalog: failed to resolve latest tag for %q: %v", cas.RedactURL(remote), err)
+		l.Debugf("catalog: failed to resolve latest tag for %q: %v", remote, err)
 
 		return
 	}
@@ -634,7 +635,7 @@ func (repo *Repo) newCAS(v *venv.Venv) (*cas.CAS, error) {
 
 // resolveStoredLatestTag sets LatestTag from the tags of remote the CAS store
 // holds.
-func (repo *Repo) resolveStoredLatestTag(ctx context.Context, l log.Logger, v *venv.Venv, remote string) {
+func (repo *Repo) resolveStoredLatestTag(ctx context.Context, l log.Logger, v *venv.Venv, remote redact.URL) {
 	casStore, err := repo.newCAS(v)
 	if err != nil {
 		l.Debugf("catalog: skip tag lookup: %v", err)
@@ -646,10 +647,10 @@ func (repo *Repo) resolveStoredLatestTag(ctx context.Context, l log.Logger, v *v
 }
 
 // recordTags records refs, the tags remote lists, in the CAS store.
-func (repo *Repo) recordTags(l log.Logger, v *venv.Venv, remote string, refs []gitpkg.LsRemoteResult) {
+func (repo *Repo) recordTags(l log.Logger, v *venv.Venv, remote redact.URL, refs []gitpkg.LsRemoteResult) {
 	casStore, err := repo.newCAS(v)
 	if err != nil {
-		l.Debugf("catalog: skip recording tags for %q: %v", cas.RedactURL(remote), err)
+		l.Debugf("catalog: skip recording tags for %q: %v", remote, err)
 
 		return
 	}

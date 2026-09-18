@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -24,7 +25,7 @@ func TestProbeCache_StoreTagsKeepsReleaseTagsHighestFirst(t *testing.T) {
 	p := cas.NewProbeCache(probeCacheRoot)
 	url := "https://example.com/tags.git"
 
-	require.NoError(t, p.StoreTags(fsys, url, []git.LsRemoteResult{
+	require.NoError(t, p.StoreTags(fsys, redact.NewURL(url), []git.LsRemoteResult{
 		{Hash: testTagHash(1), Ref: "refs/tags/v1.2.0"},
 		{Hash: testTagHash(2), Ref: "refs/tags/v1.10.0"},
 		{Hash: testTagHash(3), Ref: "refs/tags/v1.10.0^{}"},
@@ -36,8 +37,8 @@ func TestProbeCache_StoreTagsKeepsReleaseTagsHighestFirst(t *testing.T) {
 	assert.Equal(t, []git.LsRemoteResult{
 		{Hash: testTagHash(2), Ref: "refs/tags/v1.10.0"},
 		{Hash: testTagHash(1), Ref: "refs/tags/v1.2.0"},
-	}, p.LookupTags(fsys, url))
-	assert.Empty(t, p.LookupTags(fsys, "https://example.com/other.git"))
+	}, p.LookupTags(fsys, redact.NewURL(url)))
+	assert.Empty(t, p.LookupTags(fsys, redact.NewURL("https://example.com/other.git")))
 }
 
 // TestProbeCache_StoreTagsBoundsEntry pins that a listing with more release
@@ -54,9 +55,9 @@ func TestProbeCache_StoreTagsBoundsEntry(t *testing.T) {
 		refs = append(refs, git.LsRemoteResult{Hash: testTagHash(i), Ref: fmt.Sprintf("refs/tags/v1.%d.0", i)})
 	}
 
-	require.NoError(t, p.StoreTags(fsys, url, refs))
+	require.NoError(t, p.StoreTags(fsys, redact.NewURL(url), refs))
 
-	got := p.LookupTags(fsys, url)
+	got := p.LookupTags(fsys, redact.NewURL(url))
 	require.Len(t, got, 256)
 	assert.Equal(t, "refs/tags/v1.299.0", got[0].Ref)
 	assert.Equal(t, "refs/tags/v1.44.0", got[len(got)-1].Ref)
@@ -71,9 +72,10 @@ func TestProbeCache_LookupTagsDamagedEntry(t *testing.T) {
 	p := cas.NewProbeCache(probeCacheRoot)
 	url := "https://example.com/damaged-tags.git"
 
-	require.NoError(t, vfs.WriteFileAtomic(fsys, p.TagsPath(url), []byte(`{"tags":[`), cas.RegularFilePerms))
+	path := p.TagsPath(redact.NewURL(url))
+	require.NoError(t, vfs.WriteFileAtomic(fsys, path, []byte(`{"tags":[`), cas.RegularFilePerms))
 
-	assert.Empty(t, p.LookupTags(fsys, url))
+	assert.Empty(t, p.LookupTags(fsys, redact.NewURL(url)))
 }
 
 // TestCAS_StoredTagsServesRecordedTags pins that tags recorded by one process
@@ -92,22 +94,22 @@ func TestCAS_StoredTagsServesRecordedTags(t *testing.T) {
 	uncached, err := cas.New(v, cas.WithStorePath(uncachedDir))
 	require.NoError(t, err)
 
-	uncached.RecordTags(l, v, url, refs)
+	uncached.RecordTags(l, v, redact.NewURL(url), refs)
 
 	offlineUncached, err := cas.New(v, cas.WithStorePath(uncachedDir), cas.WithOffline())
 	require.NoError(t, err)
-	assert.Empty(t, offlineUncached.StoredTags(t.Context(), l, v, url))
+	assert.Empty(t, offlineUncached.StoredTags(t.Context(), l, v, redact.NewURL(url)))
 
 	cachedDir := t.TempDir()
 
 	online, err := cas.New(v, cas.WithStorePath(cachedDir), cas.WithProbeCache())
 	require.NoError(t, err)
 
-	online.RecordTags(l, v, url, refs)
+	online.RecordTags(l, v, redact.NewURL(url), refs)
 
 	offline, err := cas.New(v, cas.WithStorePath(cachedDir), cas.WithOffline())
 	require.NoError(t, err)
-	assert.Equal(t, refs, offline.StoredTags(t.Context(), l, v, url))
+	assert.Equal(t, refs, offline.StoredTags(t.Context(), l, v, redact.NewURL(url)))
 }
 
 // testTagHash returns a full SHA-1 object name distinct for each i.

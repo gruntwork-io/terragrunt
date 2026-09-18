@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -71,7 +72,7 @@ func FetchCatalog(
 ) ([]Repository, error) {
 	endpoint, err := url.JoinPath(baseURL, catalogPath)
 	if err != nil {
-		return nil, fmt.Errorf("building the portal catalog URL from %q: %w", redactURL(baseURL), err)
+		return nil, fmt.Errorf("building the portal catalog URL from %q: %w", redact.NewURL(baseURL), err)
 	}
 
 	fetchCtx, cancel := context.WithTimeout(ctx, catalogTimeout)
