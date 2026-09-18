@@ -2,8 +2,8 @@ name: Save Go caches
 description: >-
   Saves the caches that go-cache-restore restored, on main only and only when
   the exact key missed. Other branches restore main's entries, so saving from
-  them would only evict main's. Run with `if: ${{ !cancelled() }}` so a failing
-  job still seeds the cache.
+  them would only evict main's. Run it with an `if: !cancelled()` guard so a
+  failing job still seeds the cache.
 
 runs:
   using: composite
