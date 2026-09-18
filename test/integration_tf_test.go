@@ -3753,8 +3753,9 @@ func TestTFTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
-//nolint:paralleltest // it overrides the global version.Version
 func TestTFTerragruntValidateAllWithVersionChecks(t *testing.T) {
+	t.Parallel()
+
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/version-check")
 
 	stdout := bytes.Buffer{}
@@ -3788,8 +3789,9 @@ func TestTFTerragruntIncludeParentHclFile(t *testing.T) {
 	assert.Contains(t, stderr, "common_hcl")
 }
 
-//nolint:paralleltest // runTerragruntVersionCommand overrides the global version.Version
 func TestTFTerragruntVersionConstraints(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name                 string
 		terragruntVersion    string
@@ -3840,8 +3842,10 @@ func TestTFTerragruntVersionConstraints(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases { //nolint:paralleltest // the parent test overrides the global version.Version
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_constraints")
 
@@ -4084,8 +4088,9 @@ func TestTFIamRolesLoadingFromDifferentModules(t *testing.T) {
 	assert.NotEmptyf(t, component2, "Missing role for component 2")
 }
 
-//nolint:paralleltest // it overrides the global version.Version
 func TestTFTerragruntVersionConstraintsPartialParse(t *testing.T) {
+	t.Parallel()
+
 	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
 	helpers.CleanupTerragruntFolder(t, fixturePath)
 
