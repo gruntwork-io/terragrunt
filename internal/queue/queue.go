@@ -487,9 +487,15 @@ func (q *Queue) FailEntry(e *Entry) {
 }
 
 // earlyExitDependents - Recursively mark all entries that are dependent on this one as early exit.
+//
+// Only up-command dependents are marked. A down-command (destroy) dependent never waited on this
+// entry - areDependentsReadyUnsafe and UpdateBlocked skip up-command entries for it - so it must
+// not be cancelled by this entry's failure either. Marking it EarlyExit would leave any down-command
+// dependency it gates (which needs it to be *Succeeded*) Ready forever, with no goroutine left to
+// wake the controller: the queue never finishes and run --all hangs.
 func (q *Queue) earlyExitDependents(e *Entry) {
 	for _, entry := range q.Entries {
-		if len(entry.Component.Dependencies()) == 0 {
+		if len(entry.Component.Dependencies()) == 0 || !entry.IsUp() {
 			continue
 		}
 
@@ -510,6 +516,13 @@ func (q *Queue) earlyExitDependents(e *Entry) {
 }
 
 // earlyExitDependencies - Recursively mark all entries that are dependencies on this one as early exit.
+//
+// Only down-command dependencies are marked. An up-command (plan/apply) dependency never waited on
+// this entry - areDependenciesReadyUnsafe and UpdateBlocked skip down-command entries for it - so a
+// failed destroy must not cancel it. Marking it EarlyExit would leave every up-command entry gated
+// on it (which needs it to be *Succeeded*) Ready forever; that is the `run --all --filter-allow-destroy`
+// hang where a deleted unit's failed `plan -destroy` early-exits a surviving shared dependency and the
+// surviving units downstream of it are never scheduled or finished.
 func (q *Queue) earlyExitDependencies(e *Entry) {
 	if len(e.Component.Dependencies()) == 0 {
 		return
@@ -517,7 +530,7 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 
 	for _, dep := range e.Component.Dependencies() {
 		depEntry := q.entryByPathUnsafe(dep.Path())
-		if depEntry == nil {
+		if depEntry == nil || depEntry.IsUp() {
 			continue
 		}
 
