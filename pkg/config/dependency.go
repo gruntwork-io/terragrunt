@@ -208,6 +208,17 @@ func (dep *Dependency) isEnabled() bool {
 	return *dep.Enabled
 }
 
+// configPathString returns config_path when it evaluated to a known string. hcl validate
+// decodes configs that failed to parse and discovery decodes before every value resolves,
+// so config_path can arrive unknown or null.
+func (dep *Dependency) configPathString() (string, bool) {
+	if dep.ConfigPath.IsNull() || !dep.ConfigPath.IsWhollyKnown() || !dep.ConfigPath.Type().Equals(cty.String) {
+		return "", false
+	}
+
+	return dep.ConfigPath.AsString(), true
+}
+
 // isDisabled returns true if the dependency is disabled
 func (dep *Dependency) isDisabled() bool {
 	return !dep.isEnabled()
@@ -878,11 +889,13 @@ func dependencyBlocksToCtyValue(
 			}
 
 			if dependencyConfig.RenderedOutputs != nil {
-				lock.Lock()
+				if configPath, ok := dependencyConfig.configPathString(); ok {
+					lock.Lock()
 
-				paths = append(paths, dependencyConfig.ConfigPath.AsString())
+					paths = append(paths, configPath)
 
-				lock.Unlock()
+					lock.Unlock()
+				}
 
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
 			} else if pctx.SkipOutput {
@@ -1018,9 +1031,18 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	// When we get no output, it can be an indication that either the module has no outputs or the module is not
 	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
 	// return error.
+	configPath, ok := dependencyConfig.configPathString()
+	if !ok {
+		if dependencyConfig.shouldReturnMockOutputs(pctx) {
+			return dependencyConfig.MockOutputs, nil
+		}
+
+		return nil, DependencyConfigPathNotStringError{Name: dependencyConfig.Name}
+	}
+
 	targetConfig := getCleanedTargetConfigPath(
 		pctx.Venv.FS,
-		dependencyConfig.ConfigPath.AsString(),
+		configPath,
 		pctx.TerragruntConfigPath,
 	)
 
@@ -1039,7 +1061,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	// did not exist.
 	err := TerragruntOutputTargetNoOutputs{
 		targetName:    dependencyConfig.Name,
-		targetPath:    dependencyConfig.ConfigPath.AsString(),
+		targetPath:    configPath,
 		targetConfig:  targetConfig,
 		currentConfig: pctx.TerragruntConfigPath,
 	}

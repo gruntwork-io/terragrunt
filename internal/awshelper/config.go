@@ -296,7 +296,13 @@ func getExternalID(awsCfg *AwsSessionConfig) string {
 	return awsCfg.ExternalID
 }
 
-// AssumeIamRole assumes an IAM role and returns the credentials.
+// ErrNoAssumedCredentials is returned when STS answers an assume-role call
+// successfully but the response carries no credentials.
+var ErrNoAssumedCredentials = errors.New("STS returned no credentials for the assumed role")
+
+// AssumeIamRole assumes an IAM role and returns the credentials. The
+// credentials are never nil when the error is; a response without them is
+// reported as [ErrNoAssumedCredentials].
 func AssumeIamRole(
 	ctx context.Context,
 	v *venv.Venv,
@@ -355,6 +361,10 @@ func AssumeIamRole(
 			return nil, fmt.Errorf("error assuming role with web identity: %w", err)
 		}
 
+		if result.Credentials == nil {
+			return nil, ErrNoAssumedCredentials
+		}
+
 		return result.Credentials, nil
 	}
 
@@ -372,6 +382,10 @@ func AssumeIamRole(
 	result, err := stsClient.AssumeRole(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("error assuming role: %w", err)
+	}
+
+	if result.Credentials == nil {
+		return nil, ErrNoAssumedCredentials
 	}
 
 	return result.Credentials, nil
