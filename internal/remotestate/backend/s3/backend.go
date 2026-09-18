@@ -47,7 +47,7 @@ func (backend *Backend) NeedsBootstrap(
 		return false, err
 	}
 
-	if err := evaluateSkipAccessLoggingBucketACL(ctx, l, backendConfig, opts); err != nil {
+	if err := evaluateDeprecatedAttributes(ctx, l, backendConfig, opts); err != nil {
 		return false, err
 	}
 
@@ -92,7 +92,7 @@ func (backend *Backend) Bootstrap(
 		return err
 	}
 
-	if err := evaluateSkipAccessLoggingBucketACL(ctx, l, backendConfig, opts); err != nil {
+	if err := evaluateDeprecatedAttributes(ctx, l, backendConfig, opts); err != nil {
 		return err
 	}
 
@@ -356,21 +356,39 @@ func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {
 	return Config(config).GetTFInitArgs()
 }
 
-// evaluateSkipAccessLoggingBucketACL reports the `skip_accesslogging_bucket_acl` deprecation
-// through its strict control. Presence of the attribute is what matters, not its value, so this
-// reads the raw config rather than the parsed struct, which cannot tell an explicit `false` from
-// an absent attribute.
-func evaluateSkipAccessLoggingBucketACL(
+// deprecatedAttributeControls pairs each deprecated backend config attribute with the strict
+// control that reports it.
+var deprecatedAttributeControls = []struct {
+	attribute string
+	control   string
+}{
+	{attribute: configSkipAccessLoggingBucketACLKey, control: controls.SkipAccessLoggingBucketACL},
+	{attribute: configSkipBucketRootAccessKey, control: controls.SkipBucketRootAccess},
+}
+
+// evaluateDeprecatedAttributes reports each deprecated attribute set in the config through its
+// strict control. Presence of the attribute is what matters, not its value, so this reads the raw
+// config rather than the parsed struct, which cannot tell an explicit `false` from an absent
+// attribute.
+func evaluateDeprecatedAttributes(
 	ctx context.Context,
 	l log.Logger,
 	backendConfig backend.Config,
 	opts *backend.Options,
 ) error {
-	if _, ok := backendConfig[configSkipAccessLoggingBucketACLKey]; !ok {
+	var names []string
+
+	for _, deprecated := range deprecatedAttributeControls {
+		if _, ok := backendConfig[deprecated.attribute]; ok {
+			names = append(names, deprecated.control)
+		}
+	}
+
+	if len(names) == 0 {
 		return nil
 	}
 
 	return opts.StrictControls.
-		FilterByNames(controls.SkipAccessLoggingBucketACL).
+		FilterByNames(names...).
 		Evaluate(log.ContextWithLogger(ctx, l))
 }
