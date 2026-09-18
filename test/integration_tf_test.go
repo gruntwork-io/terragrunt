@@ -850,8 +850,8 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 			)
 
 			providers := []string{
-				"hashicorp/null/3.2.3",
-				"hashicorp/local/2.5.2",
+				"hashicorp/null/3.2.4",
+				"hashicorp/local/2.6.1",
 			}
 
 			registryName := "registry.opentofu.org"

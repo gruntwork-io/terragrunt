@@ -40,25 +40,6 @@ jobs:
         with:
           gocache-name: test
 
-      - id: go-cache-paths
-        run: |
-          # Terragrunt's provider cache lives under os.UserCacheDir: ~/.cache on Linux,
-          # ~/Library/Caches on macOS, %LOCALAPPDATA% on Windows.
-          case "$RUNNER_OS" in
-            Linux)   echo "tg-cache=$HOME/.cache/terragrunt" >> "$GITHUB_OUTPUT" ;;
-            macOS)   echo "tg-cache=$HOME/Library/Caches/terragrunt" >> "$GITHUB_OUTPUT" ;;
-            Windows) echo "tg-cache=$(cygpath "$LOCALAPPDATA")/terragrunt" >> "$GITHUB_OUTPUT" ;;
-          esac
-        shell: bash
-
-      - name: Terragrunt Provider Cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: ${{ steps.go-cache-paths.outputs.tg-cache }}
-          key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
-          restore-keys: |
-            ${{ runner.os }}-terragrunt-provider-cache-
-
       - name: Run Tests
         id: run-tests
         run: ./.github/scripts/coverage/coverage-report.sh run .

@@ -21,6 +21,9 @@ jobs:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Restore Go caches
+        uses: $/.github/actions/go-cache-restore
+
       - name: Run go mod tidy
         run: go mod tidy
 

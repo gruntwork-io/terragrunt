@@ -91,14 +91,6 @@ jobs:
         with:
           gocache-name: test
 
-      - name: Terragrunt Provider Cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: ~/.cache/terragrunt
-          key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
-          restore-keys: |
-            ${{ runner.os }}-terragrunt-provider-cache-
-
       - name: Run Tests
         run: |
           if [ "$SKIP" != "true" ]; then

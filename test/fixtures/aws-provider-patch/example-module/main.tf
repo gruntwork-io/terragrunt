@@ -1,3 +1,16 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "registry.opentofu.org/hashicorp/aws"
+      version = "6.56.0"
+    }
+    null = {
+      source  = "registry.opentofu.org/hashicorp/null"
+      version = "3.2.4"
+    }
+  }
+}
+
 # We intentionally have an AWS provider block nested within this module so that we can have an integration test that
 # checks if the aws-provider-patch command helps to work around https://github.com/hashicorp/terraform/issues/13018.
 provider "aws" {

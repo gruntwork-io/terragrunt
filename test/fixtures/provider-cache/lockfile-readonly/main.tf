@@ -7,7 +7,7 @@ terraform {
       # based on the Terraform/OpenTofu implementation, allowing the provider
       # cache to intercept requests.
       source  = "hashicorp/null"
-      version = "3.2.2"
+      version = "3.2.4"
     }
   }
 }

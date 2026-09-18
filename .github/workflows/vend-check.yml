@@ -24,6 +24,11 @@ jobs:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Restore Go caches
+        uses: $/.github/actions/go-cache-restore
+        with:
+          gocache-name: test
+
       - name: Run vend
         run: go run ./internal/vendored/opentofu/vend
 
