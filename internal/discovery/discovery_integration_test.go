@@ -135,6 +135,41 @@ func TestDiscovery_StackHiddenDiscovered(t *testing.T) {
 	assert.Contains(t, components.Filter(component.UnitKind).Paths(), stackHiddenDir)
 }
 
+// TestDiscovery_JSONConfigUnit tests that units configured via terragrunt.hcl.json (rather than
+// terragrunt.hcl) are discovered, since --filter and friends rely on this same discovery to build
+// the component graph.
+func TestDiscovery_JSONConfigUnit(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	jsonUnitDir := filepath.Join(tmpDir, "json-unit")
+	hclUnitDir := filepath.Join(tmpDir, "hcl-unit")
+
+	require.NoError(t, os.MkdirAll(jsonUnitDir, 0755))
+	require.NoError(t, os.MkdirAll(hclUnitDir, 0755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(jsonUnitDir, "terragrunt.hcl.json"), []byte("{}"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(hclUnitDir, "terragrunt.hcl"), []byte(""), 0644))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir: tmpDir,
+	}
+
+	ctx := t.Context()
+
+	d := discovery.NewDiscovery(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: tmpDir,
+	})
+
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	units := components.Filter(component.UnitKind).Paths()
+	assert.ElementsMatch(t, []string{jsonUnitDir, hclUnitDir}, units)
+}
+
 // TestDiscovery_WithDependencies tests dependency discovery and relationship building.
 func TestDiscovery_WithDependencies(t *testing.T) {
 	t.Parallel()
@@ -896,6 +931,75 @@ func TestDiscovery_ExternalDependencies(t *testing.T) {
 			assert.True(t, dep.External(), "external app should be marked as external")
 		}
 	}
+}
+
+// TestDiscovery_ExternalJSONDependency verifies that an external dependency configured only via
+// terragrunt.hcl.json (no terragrunt.hcl) gets that filename recorded on its Unit component,
+// rather than the terragrunt.hcl default. Unlike TestDiscovery_ExternalDependencies, the external
+// unit is never visited by the filesystem walk, so its component is synthesized by
+// componentFromDependencyPath -- the only place this default could otherwise leak through.
+func TestDiscovery_ExternalJSONDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	internalDir := filepath.Join(tmpDir, "internal")
+	externalDir := filepath.Join(tmpDir, "external")
+	appDir := filepath.Join(internalDir, "app")
+	extApp := filepath.Join(externalDir, "app")
+
+	for _, d := range []string{appDir, extApp} {
+		require.NoError(t, os.MkdirAll(d, 0755))
+	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+	dependency "external" { config_path = "../../external/app" }
+	`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(extApp, "terragrunt.hcl.json"), []byte("{}"), 0644))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir:     internalDir,
+		RootWorkingDir: internalDir,
+	}
+
+	ctx := t.Context()
+
+	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
+	require.NoError(t, err)
+
+	d := discovery.NewDiscovery(internalDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
+		WithFilters(filters)
+
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	var appCfg *component.Unit
+
+	for _, c := range components {
+		if c.Path() == appDir {
+			if unit, ok := c.(*component.Unit); ok {
+				appCfg = unit
+			}
+
+			break
+		}
+	}
+
+	require.NotNil(t, appCfg)
+
+	var extDep component.Component
+
+	for _, dep := range appCfg.Dependencies() {
+		if dep.Path() == extApp {
+			extDep = dep
+		}
+	}
+
+	require.NotNil(t, extDep, "external dependency should be present")
+	assert.True(t, extDep.External(), "external app should be marked as external")
+	assert.Equal(t, "terragrunt.hcl.json", extDep.ConfigFile())
 }
 
 // TestDiscovery_BreakCycles tests that WithBreakCycles removes cyclic components.
