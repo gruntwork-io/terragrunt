@@ -2,7 +2,7 @@ terraform {
   required_providers {
     aws = {
       source  = "registry.opentofu.org/hashicorp/aws"
-      version = "6.28.0"
+      version = "6.56.0"
     }
     google = {
       source  = "registry.opentofu.org/hashicorp/google"

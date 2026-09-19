@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "registry.opentofu.org/hashicorp/aws"
+      version = "6.56.0"
+    }
+  }
+}
+
 provider "aws" {
   region              = var.primary_aws_region
   allowed_account_ids = var.allowed_account_ids

@@ -1,0 +1,56 @@
+name: Restore Go caches
+description: >-
+  Restores the Go module cache and, when gocache-name is set, a Go build cache.
+  Run go-cache-save at the end of the job to write them back from main.
+
+inputs:
+  gocache-name:
+    description: >-
+      Build cache to restore, such as `test` or `build-linux-amd64`. Jobs that
+      compile the same packages with the same flags share a name. Leave empty
+      to restore only the module cache.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - id: keys
+      shell: bash
+      env:
+        GO_SUM_HASH: ${{ hashFiles('**/go.sum') }}
+        GOCACHE_NAME: ${{ inputs.gocache-name }}
+      run: |
+        {
+          echo "GO_CACHE_GOMODCACHE_PATH=$(go env GOMODCACHE)"
+          echo "GO_CACHE_GOMODCACHE_KEY=${RUNNER_OS}-gomodcache-${GO_SUM_HASH}"
+          if [[ -n "$GOCACHE_NAME" ]]; then
+            echo "GO_CACHE_GOCACHE_PATH=$(go env GOCACHE)"
+            echo "GO_CACHE_GOCACHE_KEY=${RUNNER_OS}-gocache-${GOCACHE_NAME}-${GO_SUM_HASH}"
+          fi
+        } >> "$GITHUB_ENV"
+
+    - id: gomodcache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        path: ${{ env.GO_CACHE_GOMODCACHE_PATH }}
+        key: ${{ env.GO_CACHE_GOMODCACHE_KEY }}
+        restore-keys: ${{ runner.os }}-gomodcache-
+
+    - id: gocache
+      if: inputs.gocache-name != ''
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        path: ${{ env.GO_CACHE_GOCACHE_PATH }}
+        key: ${{ env.GO_CACHE_GOCACHE_KEY }}
+        restore-keys: ${{ runner.os }}-gocache-${{ inputs.gocache-name }}-
+
+    - shell: bash
+      env:
+        GOMODCACHE_HIT: ${{ steps.gomodcache.outputs.cache-hit }}
+        GOCACHE_HIT: ${{ steps.gocache.outputs.cache-hit }}
+      run: |
+        {
+          echo "GO_CACHE_GOMODCACHE_HIT=${GOMODCACHE_HIT:-false}"
+          echo "GO_CACHE_GOCACHE_HIT=${GOCACHE_HIT:-false}"
+        } >> "$GITHUB_ENV"

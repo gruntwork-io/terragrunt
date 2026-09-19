@@ -1,0 +1,37 @@
+name: Save Go caches
+description: >-
+  Saves the caches that go-cache-restore restored, on main only and only when
+  the exact key missed. Other branches restore main's entries, so saving from
+  them would only evict main's. Run it with an `if: !cancelled()` guard so a
+  failing job still seeds the cache.
+
+runs:
+  using: composite
+  steps:
+    # Jobs that share a module cache key race to save it. Downloading every
+    # module first makes the entry the same whichever job wins.
+    - name: Download all modules
+      if: >-
+        github.ref == 'refs/heads/main' &&
+        env.GO_CACHE_GOMODCACHE_KEY != '' &&
+        env.GO_CACHE_GOMODCACHE_HIT != 'true'
+      shell: bash
+      run: go mod download
+
+    - if: >-
+        github.ref == 'refs/heads/main' &&
+        env.GO_CACHE_GOMODCACHE_KEY != '' &&
+        env.GO_CACHE_GOMODCACHE_HIT != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        path: ${{ env.GO_CACHE_GOMODCACHE_PATH }}
+        key: ${{ env.GO_CACHE_GOMODCACHE_KEY }}
+
+    - if: >-
+        github.ref == 'refs/heads/main' &&
+        env.GO_CACHE_GOCACHE_KEY != '' &&
+        env.GO_CACHE_GOCACHE_HIT != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        path: ${{ env.GO_CACHE_GOCACHE_PATH }}
+        key: ${{ env.GO_CACHE_GOCACHE_KEY }}
