@@ -45,6 +45,13 @@ type RenameReplacer interface {
 	RenameReplacingIfPossible(oldname, newname string) error
 }
 
+// DeleteSharingReader is an optional interface for filesystems that can read a
+// file while other handles hold delete access to it. [ReadFileSharingDelete]
+// prefers it.
+type DeleteSharingReader interface {
+	ReadFileSharingDeleteIfPossible(name string) ([]byte, error)
+}
+
 // Unlocker can release a held lock.
 type Unlocker interface {
 	Unlock() error
@@ -377,6 +384,23 @@ func WriteFile(fsys FS, filename string, data []byte, perm os.FileMode) error {
 // ReadFile reads the contents of a file from the given filesystem.
 func ReadFile(fsys FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fsys, filename)
+}
+
+// ReadFileSharingDelete reads a file like [ReadFile], but lets other handles
+// hold delete access to it throughout the read.
+//
+// Windows refuses a plain read while such a handle is open. A rename holds
+// one on the file it has just published until it closes it.
+//
+// Filesystems that do not implement [DeleteSharingReader] read through
+// [ReadFile].
+func ReadFileSharingDelete(fsys FS, filename string) ([]byte, error) {
+	reader, ok := fsys.(DeleteSharingReader)
+	if !ok {
+		return ReadFile(fsys, filename)
+	}
+
+	return reader.ReadFileSharingDeleteIfPossible(filename)
 }
 
 // ReadFileAsString reads the contents of a file from the given filesystem as a
@@ -814,6 +838,10 @@ type osFS struct {
 
 func (fsys *osFS) LinkIfPossible(oldname, newname string) error {
 	return os.Link(oldname, newname)
+}
+
+func (fsys *osFS) ReadFileSharingDeleteIfPossible(name string) ([]byte, error) {
+	return readFileSharingDelete(name)
 }
 
 func (fsys *osFS) RenameReplacingIfPossible(oldname, newname string) error {

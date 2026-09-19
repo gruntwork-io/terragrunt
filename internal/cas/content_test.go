@@ -1,9 +1,12 @@
 package cas_test
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -962,4 +965,59 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []byte("process 1 data"), storedData)
 	})
+}
+
+// TestContent_ReadAsObjectAppearsWithRacing pins that a reader which sees an
+// object appear in the store can read it straight away. Every round, the
+// readers poll a fresh hash until the writer publishes it and then read it
+// immediately, so each read starts as soon after the publishing rename as
+// the scheduler allows.
+func TestContent_ReadAsObjectAppearsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const (
+		rounds  = 2000
+		readers = 4
+	)
+
+	l := logger.CreateLogger()
+	v := venvtest.NewOSWithEmptyEnv()
+	storePath := helpers.TmpDirWOSymlinks(t)
+	data := []byte("tree data")
+
+	writer := cas.NewContent(cas.NewStore(storePath))
+
+	for round := range rounds {
+		hash := fmt.Sprintf("%064x", round)
+
+		var ready, wg sync.WaitGroup
+
+		ready.Add(readers)
+
+		errs := make([]error, readers)
+		got := make([][]byte, readers)
+
+		for i := range readers {
+			wg.Go(func() {
+				store := cas.NewStore(storePath)
+
+				ready.Done()
+
+				for store.NeedsWrite(v, hash) {
+					runtime.Gosched()
+				}
+
+				got[i], errs[i] = cas.NewContent(store).Read(v, hash)
+			})
+		}
+
+		ready.Wait()
+		require.NoError(t, writer.Store(l, v, hash, data, cas.StoredFilePerms))
+		wg.Wait()
+
+		for i := range readers {
+			require.NoError(t, errs[i], "round %d, reader %d", round, i)
+			require.Equal(t, data, got[i], "round %d, reader %d", round, i)
+		}
+	}
 }
