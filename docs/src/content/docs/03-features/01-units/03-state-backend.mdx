@@ -503,6 +503,9 @@ The following config options are only valid for the `azurerm` backend and are us
 - `account_tier` - Storage account tier, `Standard` or `Premium`. Defaults to `Standard`.
 - `account_replication_type` - Replication type, e.g. `LRS`, `GRS`, `ZRS`. Defaults to `LRS`.
 - `access_tier` - Blob access tier, `Hot`, `Cool`, `Cold`, or `Premium`. Defaults to `Hot`.
+<Since version="1.2.0">
+- `minimum_tls_version` - Minimum TLS version permitted on requests to the storage account, `TLS1_2` or `TLS1_3`. Defaults to `TLS1_2`. The deprecated `TLS1_0` and `TLS1_1` are not accepted. Applies only when Terragrunt creates the account.
+</Since>
 - `tags` - Map of tags applied to the storage account on creation.
 - `skip_resource_group_creation` - When `true`, never create the resource group.
 - `skip_storage_account_creation` - When `true`, never create the storage account; it must already exist.

@@ -235,6 +235,17 @@ func (e *UnknownAccessTierError) Error() string {
 	return fmt.Sprintf("unknown access tier %q (want Hot, Cool, Cold, or Premium)", e.Tier)
 }
 
+// UnknownMinimumTLSVersionError is returned for a
+// StorageAccountConfig.MinimumTLSVersion outside the supported set. TLS1_0 and
+// TLS1_1 are deprecated on Azure services and are not accepted.
+type UnknownMinimumTLSVersionError struct {
+	Version string
+}
+
+func (e *UnknownMinimumTLSVersionError) Error() string {
+	return fmt.Sprintf("unknown minimum TLS version %q (want TLS1_2 or TLS1_3)", e.Version)
+}
+
 // IsRetryable reports whether the error is one a caller may retry. Only
 // recognised transient service conditions qualify: throttling (429) and 5xx
 // responses. Anything that did not come back as an azcore.ResponseError is an
