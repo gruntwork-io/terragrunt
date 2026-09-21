@@ -1,0 +1,35 @@
+---
+name: no-cache
+---
+
+Skip the `.terragrunt-cache` copy for local modules.
+
+### `no-cache` - What it does
+
+By default, Terragrunt copies all Terraform/OpenTofu source into a `.terragrunt-cache` directory before running any commands. When `terraform.no_cache = true` is set in `terragrunt.hcl` and this experiment is enabled, Terragrunt skips the copy and runs directly from the unit directory.
+
+This only applies when no external `terraform.source` is configured. If a remote source or `--terragrunt-source` CLI override is present, the cache is used regardless of the `no_cache` setting.
+
+```hcl
+terraform {
+  no_cache = true
+}
+```
+
+Enable the experiment with:
+
+```bash
+terragrunt apply --experiment no-cache
+```
+
+### `no-cache` - How to provide feedback
+
+Provide your feedback on the [no_cache option](https://github.com/gruntwork-io/terragrunt/issues/6199) issue.
+
+### `no-cache` - Criteria for stabilization
+
+To stabilize this feature, the following need to be resolved, at a minimum:
+
+- [ ] Validate behavior with `before_hook` and `after_hook` blocks that reference relative paths.
+- [ ] Validate behavior with `generate` blocks that write into the working directory.
+- [ ] Gather community feedback on edge cases.
