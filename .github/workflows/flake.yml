@@ -26,9 +26,9 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          version: 2026.5.12
+          version: 2026.9.12
           cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
