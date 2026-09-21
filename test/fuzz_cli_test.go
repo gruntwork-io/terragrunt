@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"flag"
 	"fmt"
 	"io/fs"
 	"maps"
 	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -37,10 +39,7 @@ import (
 )
 
 const (
-	// fuzzPerRunTimeout caps one iteration, so a retry loop or a sleep in an
-	// errors block cannot stall a fuzz worker.
-	fuzzPerRunTimeout = 5 * time.Second
-
+	fuzzPerRunTimeout   = 5 * time.Second
 	fuzzFixturesDir     = "fixtures"
 	fuzzMaxFixtureFile  = 64 << 10
 	fuzzMaxFlags        = 5
@@ -92,6 +91,8 @@ var fuzzExcludedCommands = map[string]struct{}{
 // run --all fans out, the order they draw in varies between runs. A
 // reproducer for such a failure may need a few runs to trip again.
 func FuzzFullCLI(f *testing.F) {
+	isolateFuzzProcessEnv(f)
+
 	vocab := newFuzzVocab(f)
 	worlds := newFuzzWorlds(f)
 
@@ -174,6 +175,64 @@ func FuzzFullCLI(f *testing.F) {
 			inv.env,
 		)
 	})
+}
+
+// fuzzKeptEnvVars survive [isolateFuzzProcessEnv]: the temporary directory,
+// which os.TempDir on Windows replaces with the Windows directory when they
+// are missing, and SystemRoot, which Windows programs need to load system
+// libraries.
+var fuzzKeptEnvVars = []string{"TMPDIR", "TMP", "TEMP", "SystemRoot"}
+
+// fuzzHomeEnvVars are the variables the Go standard library and the cloud
+// SDKs resolve the invoking user's home and config directories from.
+var fuzzHomeEnvVars = []string{"HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA"}
+
+// isolateFuzzProcessEnv strips the process environment down to an empty home
+// directory and an empty PATH. It covers the libraries a run reaches that read
+// the process environment rather than the venv: go-getter runs git with it,
+// and the AWS, GCP, and Azure SDKs find credentials in it and in the home
+// directory. A git spawned that way then finds no binary on PATH, so it
+// cannot reach a remote or prompt the terminal for credentials, and no
+// credential of the invoking user is in reach.
+//
+// It runs only in a fuzz worker, a process that runs nothing but this target.
+// Under plain `go test` the tests sharing the process would lose their
+// environment mid-run.
+func isolateFuzzProcessEnv(f *testing.F) {
+	f.Helper()
+
+	if !inFuzzWorker() {
+		return
+	}
+
+	// The directories are made before the environment naming them is cleared.
+	home, bin := f.TempDir(), f.TempDir()
+
+	isolated := map[string]string{"PATH": bin}
+
+	for _, name := range fuzzKeptEnvVars {
+		if value, ok := os.LookupEnv(name); ok {
+			isolated[name] = value
+		}
+	}
+
+	for _, name := range fuzzHomeEnvVars {
+		isolated[name] = home
+	}
+
+	os.Clearenv()
+
+	for name, value := range isolated {
+		require.NoError(f, os.Setenv(name, value))
+	}
+}
+
+// inFuzzWorker reports whether this process is a fuzz worker, which cmd/go
+// starts with -test.fuzzworker to run one target.
+func inFuzzWorker() bool {
+	worker := flag.Lookup("test.fuzzworker")
+
+	return worker != nil && worker.Value.String() == "true"
 }
 
 // fuzzCountingWriter counts the bytes written to it and drops them. It is

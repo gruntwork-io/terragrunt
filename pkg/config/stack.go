@@ -1081,7 +1081,7 @@ func copyFiles(
 			v,
 			cp.dest,
 			cp.src,
-			stackGetterOptions(v, opts)...); err != nil {
+			stackGetterOptions(opts)...); err != nil {
 			return fmt.Errorf(
 				"failed to fetch %s %s for %s %w",
 				cp.src,
@@ -1131,8 +1131,8 @@ func isOCISource(source string) bool {
 }
 
 // stackGetterOptions builds the getter options a component fetch needs, adding oci:// when enabled.
-func stackGetterOptions(v *venv.Venv, opts *generateOpts) []getter.Option {
-	clientOpts := []getter.Option{getter.WithHTTP(v.HTTP)}
+func stackGetterOptions(opts *generateOpts) []getter.Option {
+	var clientOpts []getter.Option
 
 	if opts.ociGetter != nil {
 		clientOpts = append(clientOpts, getter.WithOCI(opts.ociGetter))

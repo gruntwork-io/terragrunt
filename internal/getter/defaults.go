@@ -126,11 +126,9 @@ func WithOCIConfig(v *venv.Venv) GenericFetcherOption {
 }
 
 // WithHTTPClient overrides the outbound-HTTP client the generic-dispatch
-// fetchers and resolvers probe and fetch through, replacing the venv
-// client [WithDefaultGenericDispatch] supplies. Required by
-// [DefaultGenericFetchers] when [WithTFRConfig] registers the tfr
-// fetcher; [DefaultSourceResolvers] takes its client as a parameter
-// instead.
+// fetchers probe and fetch through, which [DefaultGenericFetchers] otherwise
+// takes from the venv. [DefaultSourceResolvers] reads its client from the
+// venv it is handed instead.
 func WithHTTPClient(c vhttp.Client) GenericFetcherOption {
 	return func(cfg *genericFetcherConfig) { cfg.httpClient = c }
 }
@@ -161,7 +159,9 @@ func WithTFRConfig(impl tfimpl.Type) GenericFetcherOption {
 // CAS-only clients (the CAS-experiment path in
 // runner/run/download_source.go) share the fetcher set NewClient uses.
 func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[string]getter.Getter {
-	var cfg genericFetcherConfig
+	v.RequireHTTP()
+
+	cfg := genericFetcherConfig{httpClient: v.HTTP}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -177,12 +177,6 @@ func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[stri
 
 	if cfg.tfrEnabled {
 		requireLoggerFS(&cfg, SchemeTFR)
-
-		if cfg.httpClient == nil {
-			panic(
-				"getter.DefaultGenericFetchers: WithHTTPClient is required when WithTFRConfig registers the tfr fetcher",
-			)
-		}
 
 		m[SchemeTFR] = NewRegistryGetter(cfg.logger, dispatchVenv(v, &cfg)).
 			WithTofuImplementation(cfg.tfrImpl)

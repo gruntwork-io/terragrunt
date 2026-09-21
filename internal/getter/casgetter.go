@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -99,18 +98,18 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 			opt(&cfg)
 		}
 
-		c := cfg.httpClient
-		if c == nil {
-			g.Venv.RequireHTTP()
-			c = g.Venv.HTTP
+		g.Venv.RequireExec()
+		g.Venv.RequireHTTP()
+
+		// An overriding client rides a venv copy, which is how both
+		// constructors below take theirs.
+		v := g.Venv
+		if cfg.httpClient != nil {
+			v = v.WithHTTP(cfg.httpClient)
 		}
 
-		g.Venv.RequireExec()
-
-		g.fetchers = DefaultGenericFetchers(
-			g.Venv,
-			slices.Concat(opts, []GenericFetcherOption{WithHTTPClient(c)})...)
-		g.resolvers = DefaultSourceResolvers(g.Venv.WithHTTP(c), opts...)
+		g.fetchers = DefaultGenericFetchers(v, opts...)
+		g.resolvers = DefaultSourceResolvers(v, opts...)
 	}
 }
 
