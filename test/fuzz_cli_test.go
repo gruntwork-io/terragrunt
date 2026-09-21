@@ -57,15 +57,6 @@ const (
 // directory the CLI starts in.
 var fuzzRoot = venvtest.Root("/work")
 
-// fuzzExcludedCommands are command paths the fuzz never invokes.
-//
-//   - browse and catalog start a Bubble Tea program that takes over the
-//     process's terminal, which no venv handle intercepts.
-var fuzzExcludedCommands = map[string]struct{}{
-	"browse":  {},
-	"catalog": {},
-}
-
 // FuzzFullCLI drives the whole Terragrunt CLI, from argument parsing down to
 // the subprocess and HTTP calls a command makes, through an in-memory venv.
 // Each input deterministically derives one invocation:
@@ -391,10 +382,6 @@ func (vocab *fuzzVocab) walk(
 ) {
 	for _, cmd := range cmds {
 		path := append(slices.Clone(parent), cmd.Name)
-		if _, ok := fuzzExcludedCommands[strings.Join(path, " ")]; ok {
-			continue
-		}
-
 		flags := append(slices.Clone(inherited), fuzzFlagsOf(cmd.Flags, envKeys)...)
 
 		vocab.commands = append(vocab.commands, fuzzCommand{path: path, flags: flags})

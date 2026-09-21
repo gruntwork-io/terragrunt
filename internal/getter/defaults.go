@@ -247,10 +247,6 @@ func buildGetters(b *builder) []Getter {
 	gcsGetter := NewGCSGetter(b.v)
 
 	if b.casStore != nil {
-		if b.httpClient == nil {
-			panic("getter: WithCAS requires WithHTTP; wire the venv client at construction")
-		}
-
 		fetchers := map[string]getter.Getter{
 			SchemeS3:    s3Getter,
 			SchemeGCS:   gcsGetter,
