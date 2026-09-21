@@ -4,23 +4,30 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/csv"
+	"encoding/json"
 	"errors"
+	libflag "flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/md"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -39,19 +46,64 @@ import (
 )
 
 const (
-	fuzzPerRunTimeout   = 5 * time.Second
-	fuzzFixturesDir     = "fixtures"
-	fuzzMaxFixtureFile  = 64 << 10
-	fuzzMaxFlags        = 5
-	fuzzMaxPositionals  = 2
-	fuzzMaxTFArgs       = 3
-	fuzzMaxEnvEntries   = 6
-	fuzzMaxSlot         = 24
-	fuzzMaxMalformedHCL = 256
-	fuzzMaxSubprocOut   = 96
-	fuzzMaxHTTPBody     = 128
-	fuzzFileMode        = 0o644
+	fuzzPerRunTimeout     = 5 * time.Second
+	fuzzFixturesDir       = "fixtures"
+	fuzzMaxFixtureFile    = 64 << 10
+	fuzzMaxFlags          = 5
+	fuzzMaxPositionals    = 2
+	fuzzMaxTFArgs         = 3
+	fuzzMaxEnvEntries     = 6
+	fuzzMaxSlot           = 24
+	fuzzMaxMalformedHCL   = 256
+	fuzzMaxSubprocOut     = 96
+	fuzzMaxCapturedOutput = 1 << 20
+	fuzzMaxHTTPBody       = 128
+	fuzzFileMode          = 0o644
 )
+
+// Formats this file parses a command's output as.
+const (
+	fuzzFormatJSON  = "json"
+	fuzzFormatJSONL = "jsonl"
+	fuzzFormatCSV   = "csv"
+	fuzzFormatMD    = "md"
+)
+
+var fuzzParsedFormats = map[string]struct{}{
+	fuzzFormatJSON:  {},
+	fuzzFormatJSONL: {},
+	fuzzFormatCSV:   {},
+	fuzzFormatMD:    {},
+}
+
+// fuzzProseFlagNames make a command print prose instead of the format the rest
+// of the invocation asked for. The parser takes each under one dash or two,
+// and "h" and "v" are the aliases global.NewFlags gives the first two.
+var fuzzProseFlagNames = map[string]struct{}{
+	"help": {}, "h": {}, "version": {}, "v": {},
+}
+
+// errFuzzInvalidJSON reports output a JSON parser rejects.
+var errFuzzInvalidJSON = errors.New("output is not valid JSON")
+
+// errFuzzInvalidUTF8 reports a document holding bytes no reader can decode.
+var errFuzzInvalidUTF8 = errors.New("output is not valid UTF-8")
+
+// errFuzzMarkdownHasNoHeading reports a Markdown document that lost the
+// heading it opens with, which is where its sections hang off.
+var errFuzzMarkdownHasNoHeading = errors.New("markdown output has no heading")
+
+// fuzzStructuredCommands are the commands whose standard output is entirely
+// Terragrunt's own rendering, so a document parses from it whole. Commands
+// that forward a subprocess's output are absent: the in-memory subprocess
+// writes fuzz bytes to the same stream.
+var fuzzStructuredCommands = map[string]struct{}{
+	"catalog":      {},
+	"find":         {},
+	"render":       {},
+	"stack output": {},
+	"hcl validate": {},
+}
 
 // fuzzRoot is the in-memory directory every iteration's world is written to,
 // and the directory the CLI starts in.
@@ -102,7 +154,7 @@ func FuzzFullCLI(f *testing.F) {
 			require.NoError(t, vfs.WriteFile(fsys, path, contents, fuzzFileMode))
 		}
 
-		stdout, stderr := &fuzzCountingWriter{}, &fuzzCountingWriter{}
+		stdout, stderr := &fuzzCapturingWriter{}, &fuzzCountingWriter{}
 
 		v := venvtest.New().
 			WithFS(fsys).
@@ -151,9 +203,12 @@ func FuzzFullCLI(f *testing.F) {
 
 		cli.ExitCodeFor(l, args, app.Version, err, 0, panicreport.New(v))
 
-		silenced := l.Formatter().DisabledOutput() || l.Level() < log.ErrorLevel
-		silentFailure := err != nil && stderr.n.Load() == 0 && ctx.Err() == nil && !silenced &&
-			!errors.Is(err, runall.ErrUserCancelled)
+		if err == nil && ctx.Err() == nil {
+			checkFuzzOutputFormat(t, &inv, stdout, fsys)
+		}
+
+		silentFailure := err != nil && stderr.n.Load() == 0 && ctx.Err() == nil &&
+			!fuzzLoggerSilenced(l) && !errors.Is(err, runall.ErrUserCancelled)
 		require.Falsef(
 			t,
 			silentFailure,
@@ -219,6 +274,232 @@ func isFuzzKeptEnvVar(name string) bool {
 	return slices.ContainsFunc(fuzzKeptEnvVars, func(kept string) bool {
 		return strings.EqualFold(kept, name)
 	})
+}
+
+// fuzzLoggerSilenced reports whether an error logged through l reaches its
+// writer at all. A run asked for silence writes nothing whatever it exits
+// with: --log-disable, a level below error, and a --log-custom-format naming
+// no placeholder all leave the logger with nothing to render.
+func fuzzLoggerSilenced(l log.Logger) bool {
+	var probe bytes.Buffer
+
+	l.WithOptions(log.WithOutput(&probe)).Error("probe")
+
+	return probe.Len() == 0
+}
+
+// checkFuzzOutputFormat parses what a successful run printed, for the
+// invocations that asked for a structured format, and the report file it was
+// told to write. A command that prints a document a parser rejects has
+// produced output no consumer can read, whatever its exit code says.
+func checkFuzzOutputFormat(t *testing.T, inv *fuzzInvocation, stdout *fuzzCapturingWriter, fsys vfs.FS) {
+	t.Helper()
+
+	if format := fuzzStdoutFormat(inv); format != "" {
+		out, truncated := stdout.captured()
+		if !truncated {
+			requireFuzzFormat(t, inv, format, "stdout", out)
+		}
+	}
+
+	path, format := fuzzReportFile(inv)
+	if path == "" || format == "" {
+		return
+	}
+
+	report, err := vfs.ReadFile(fsys, path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+
+	require.NoError(t, err)
+	requireFuzzFormat(t, inv, format, path, report)
+}
+
+// requireFuzzFormat fails t unless out parses as format. Empty output passes:
+// a command with nothing to report prints nothing.
+func requireFuzzFormat(t *testing.T, inv *fuzzInvocation, format, source string, out []byte) {
+	t.Helper()
+
+	if len(bytes.TrimSpace(out)) == 0 {
+		return
+	}
+
+	var err error
+
+	switch format {
+	case fuzzFormatJSON:
+		err = fuzzDecodeJSON(out)
+	case fuzzFormatJSONL:
+		for line := range bytes.Lines(out) {
+			if len(bytes.TrimSpace(line)) > 0 && !json.Valid(line) {
+				err = errFuzzInvalidJSON
+
+				break
+			}
+		}
+	case fuzzFormatCSV:
+		_, err = csv.NewReader(bytes.NewReader(out)).ReadAll()
+	case fuzzFormatMD:
+		err = fuzzParseMarkdown(out)
+	}
+
+	require.NoErrorf(
+		t,
+		err,
+		"%s is not valid %s\nargs=%q\nenv=%q\noutput=%q",
+		source,
+		format,
+		inv.args,
+		inv.env,
+		out,
+	)
+}
+
+// fuzzParseMarkdown reads out with the parser Terragrunt reads Markdown with,
+// so a document it renders and one it parses cannot drift apart. No input
+// makes that parser fail, so the document is held to what every one Terragrunt
+// writes has: text, and the heading it opens with.
+func fuzzParseMarkdown(out []byte) error {
+	if !utf8.Valid(out) {
+		return errFuzzInvalidUTF8
+	}
+
+	if len(md.Parse(string(out)).Headings()) == 0 {
+		return errFuzzMarkdownHasNoHeading
+	}
+
+	return nil
+}
+
+// fuzzDecodeJSON reads out as a JSON value, or as a sequence of them: with
+// --all, info print writes one object per unit, one after another.
+func fuzzDecodeJSON(out []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(out))
+
+	for {
+		var value any
+
+		err := decoder.Decode(&value)
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+}
+
+// fuzzStdoutFormat returns the format a run's standard output has to parse as,
+// and "" when the invocation promised none.
+func fuzzStdoutFormat(inv *fuzzInvocation) string {
+	if fuzzAsksForProse(inv.args) {
+		return ""
+	}
+
+	command := strings.Join(inv.command, " ")
+
+	if command == "info print" {
+		return fuzzFormatJSON
+	}
+
+	if _, ok := fuzzStructuredCommands[command]; !ok {
+		return ""
+	}
+
+	if slices.Contains(inv.args, "--"+fuzzFormatJSON) {
+		return fuzzFormatJSON
+	}
+
+	return fuzzParsedFormat(inv.args, "--format")
+}
+
+// fuzzAsksForProse reports whether the args carry a flag that makes the
+// command print prose whatever format the rest of them asked for.
+func fuzzAsksForProse(args []string) bool {
+	return slices.ContainsFunc(args, func(arg string) bool {
+		if !strings.HasPrefix(arg, "-") {
+			return false
+		}
+
+		_, ok := fuzzProseFlagNames[strings.TrimLeft(arg, "-")]
+
+		return ok
+	})
+}
+
+// fuzzReportFile returns the path a run was told to write its report to and
+// the format it was told to use, or "" for either when it was told neither.
+func fuzzReportFile(inv *fuzzInvocation) (string, string) {
+	return fuzzFlagValue(inv.args, "--report-file"), fuzzParsedFormat(inv.args, "--report-format")
+}
+
+// fuzzParsedFormat returns the value the args give name when it names a format
+// this file parses, and "" otherwise.
+func fuzzParsedFormat(args []string, name string) string {
+	format := fuzzFlagValue(args, name)
+	if _, ok := fuzzParsedFormats[format]; !ok {
+		return ""
+	}
+
+	return format
+}
+
+// fuzzFlagValue returns the value the args give name in either the
+// `--name=value` or the `--name value` form, and "" when they do not give one.
+func fuzzFlagValue(args []string, name string) string {
+	value := ""
+
+	for i, arg := range args {
+		switch {
+		case strings.HasPrefix(arg, name+"="):
+			value = strings.TrimPrefix(arg, name+"=")
+		case arg == name && i+1 < len(args):
+			value = args[i+1]
+		}
+	}
+
+	return value
+}
+
+// fuzzCapturingWriter keeps the first fuzzMaxCapturedOutput bytes written to
+// it and drops the rest. It is safe for the concurrent writes run --all makes.
+type fuzzCapturingWriter struct {
+	buf       bytes.Buffer
+	mu        sync.Mutex
+	truncated bool
+}
+
+func (w *fuzzCapturingWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	room := fuzzMaxCapturedOutput - w.buf.Len()
+	if room <= 0 {
+		w.truncated = true
+
+		return len(p), nil
+	}
+
+	if len(p) > room {
+		w.truncated = true
+		w.buf.Write(p[:room])
+
+		return len(p), nil
+	}
+
+	w.buf.Write(p)
+
+	return len(p), nil
+}
+
+// captured returns what the writer kept, and whether it dropped anything.
+func (w *fuzzCapturingWriter) captured() ([]byte, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return w.buf.Bytes(), w.truncated
 }
 
 // fuzzCountingWriter counts the bytes written to it and drops them. It is
@@ -322,6 +603,7 @@ type fuzzCommand struct {
 type fuzzFlag struct {
 	defaultVal string
 	names      []string
+	valid      []string
 	takesValue bool
 }
 
@@ -335,10 +617,11 @@ type fuzzVocab struct {
 
 // fuzzInvocation is one derived run of the CLI.
 type fuzzInvocation struct {
-	files map[string][]byte
-	env   map[string]string
-	stdin string
-	args  []string
+	files   map[string][]byte
+	env     map[string]string
+	stdin   string
+	command []string
+	args    []string
 }
 
 // newFuzzVocab walks the command tree of a real app, so a new command or
@@ -359,8 +642,8 @@ func newFuzzVocab(f *testing.F) *fuzzVocab {
 		envKeys[key] = struct{}{}
 	}
 
-	global := fuzzFlagsOf(app.Flags, envKeys)
-	vocab.walk(app.Commands, nil, global, envKeys)
+	global := fuzzFlagsOf(f, app.Flags, envKeys)
+	vocab.walk(f, app.Commands, nil, global, envKeys)
 
 	vocab.envKeys = slices.Sorted(maps.Keys(envKeys))
 
@@ -370,21 +653,31 @@ func newFuzzVocab(f *testing.F) *fuzzVocab {
 }
 
 func (vocab *fuzzVocab) walk(
+	f *testing.F,
 	cmds clihelper.Commands,
 	parent []string,
 	inherited []fuzzFlag,
 	envKeys map[string]struct{},
 ) {
+	f.Helper()
+
 	for _, cmd := range cmds {
 		path := append(slices.Clone(parent), cmd.Name)
-		flags := append(slices.Clone(inherited), fuzzFlagsOf(cmd.Flags, envKeys)...)
+		flags := append(slices.Clone(inherited), fuzzFlagsOf(f, cmd.Flags, envKeys)...)
 
 		vocab.commands = append(vocab.commands, fuzzCommand{path: path, flags: flags})
-		vocab.walk(cmd.Subcommands, path, flags, envKeys)
+		vocab.walk(f, cmd.Subcommands, path, flags, envKeys)
 	}
 }
 
-func fuzzFlagsOf(flags clihelper.Flags, envKeys map[string]struct{}) []fuzzFlag {
+// fuzzFlagsOf reads what the args builder needs from each flag. A flag holds
+// its value only once applied to a flag set, and Names, TakesValue, and the
+// default text all read from that value, so each flag is applied to a set of
+// its own first. Nameless flags are skipped: there is nothing to render them
+// under.
+func fuzzFlagsOf(f *testing.F, flags clihelper.Flags, envKeys map[string]struct{}) []fuzzFlag {
+	f.Helper()
+
 	out := make([]fuzzFlag, 0, len(flags))
 
 	for _, flag := range flags {
@@ -392,14 +685,56 @@ func fuzzFlagsOf(flags clihelper.Flags, envKeys map[string]struct{}) []fuzzFlag 
 			envKeys[key] = struct{}{}
 		}
 
+		require.NoError(f, flag.Apply(libflag.NewFlagSet("fuzz", libflag.ContinueOnError), map[string]string{}))
+
+		if len(flag.Names()) == 0 {
+			continue
+		}
+
 		out = append(out, fuzzFlag{
 			names:      flag.Names(),
-			takesValue: flag.TakesValue(),
+			takesValue: flag.TakesValue() && !fuzzIsBoolFlag(flag),
 			defaultVal: flag.GetDefaultText(),
+			valid:      fuzzValidValues(flag.GetUsage()),
 		})
 	}
 
 	return out
+}
+
+// fuzzIsBoolFlag reports whether the flag is set by its presence alone. Its
+// value answers, once the flag has been applied to a flag set.
+func fuzzIsBoolFlag(flag clihelper.Flag) bool {
+	if flag.Value() == nil {
+		return false
+	}
+
+	_, ok := flag.Value().Get().(bool)
+
+	return ok
+}
+
+// fuzzValidValuesRe matches the "Valid values: a, b, c." and "Valid values
+// are: a, b" forms the flag usages use to name a fixed set.
+var fuzzValidValuesRe = regexp.MustCompile(`(?i)valid values(?: are)?:\s*([^.]+)`)
+
+// fuzzValidValues returns the values a flag's usage names, and nil when it
+// names none.
+func fuzzValidValues(usage string) []string {
+	match := fuzzValidValuesRe.FindStringSubmatch(usage)
+	if match == nil {
+		return nil
+	}
+
+	var values []string
+
+	for value := range strings.SplitSeq(match[1], ",") {
+		if value = strings.TrimSpace(value); value != "" {
+			values = append(values, value)
+		}
+	}
+
+	return values
 }
 
 func (vocab *fuzzVocab) invocation(c *fuzzConsumer, worlds []fuzzWorld) fuzzInvocation {
@@ -436,10 +771,11 @@ func (vocab *fuzzVocab) invocation(c *fuzzConsumer, worlds []fuzzWorld) fuzzInvo
 	}
 
 	return fuzzInvocation{
-		args:  args,
-		env:   env,
-		files: files,
-		stdin: c.choose(fuzzStdinPool),
+		command: cmd.path,
+		args:    args,
+		env:     env,
+		files:   files,
+		stdin:   c.choose(fuzzStdinPool),
 	}
 }
 
@@ -452,7 +788,11 @@ func (vocab *fuzzVocab) flagArgs(c *fuzzConsumer, flag fuzzFlag) []string {
 	}
 
 	value := vocab.value(c)
-	if flag.defaultVal != "" && c.boolean() {
+
+	switch {
+	case len(flag.valid) > 0 && c.nextByte()%4 != 0:
+		value = c.choose(flag.valid)
+	case flag.defaultVal != "" && c.boolean():
 		value = flag.defaultVal
 	}
 
@@ -481,7 +821,8 @@ func (vocab *fuzzVocab) value(c *fuzzConsumer) string {
 func fuzzValuePool() []string {
 	return slices.Concat([]string{
 		"", "true", "false", "0", "1", "-1", "2", "10", "1s", "1m",
-		"json", "text", "hcl", "csv", "raw", "tree", "long", "dag", "type", "alpha",
+		"json", "jsonl", "md", "tui", "dot", "text", "hcl", "csv", "raw", "tree", "long",
+		"dag", "type", "alpha",
 		"trace", "debug", "info", "warn", "error", "stderr", "stdout",
 		"bare", "pretty", "key-value", "%time %level %msg", "%(color=red)%msg",
 		"tofu", "terraform", "opentofu", "plan", "apply", "destroy", "output", "init", "validate",
