@@ -2,6 +2,7 @@ package split_test
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/shell/split"
@@ -36,7 +37,7 @@ func TestCommandSplitsWithShellQuoting(t *testing.T) {
 		},
 		{
 			name:      "a single quote inside single quotes",
-			line:      `echo 'it'\''s'`,
+			line:      `echo 'it'"'"'s'`,
 			wantWords: []string{"echo", "it's"},
 		},
 		{
@@ -69,6 +70,23 @@ func TestCommandSplitsWithShellQuoting(t *testing.T) {
 			assert.Equal(t, tc.wantWords, words)
 		})
 	}
+}
+
+// TestCommandReadsABackslashAsAnEscape pins that, outside Windows, a backslash
+// escapes the character after it, and a trailing one has nothing to escape.
+func TestCommandReadsABackslashAsAnEscape(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: Command reads a backslash as a forward slash")
+	}
+
+	words, err := split.Command(`echo 'it'\''s'`)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"echo", "it's"}, words)
+
+	_, err = split.Command(`jq \`)
+	require.ErrorIs(t, err, split.ErrInvalidCommand)
 }
 
 // TestCommandRefusesAShellOperator pins that an unquoted operator fails with
@@ -105,7 +123,6 @@ func TestCommandRefusesAMalformedLine(t *testing.T) {
 	for _, line := range []string{
 		`jq "unterminated`,
 		`jq 'unterminated`,
-		`jq \`,
 		"echo (",
 		"echo )",
 	} {
@@ -135,7 +152,7 @@ func TestQuoteRendersOneWord(t *testing.T) {
 		{word: "a | type=unit", want: "'a | type=unit'"},
 		{word: "~/x", want: "'~/x'"},
 		{word: "$HOME", want: "'$HOME'"},
-		{word: "it's", want: `'it'\''s'`},
+		{word: "it's", want: `'it'"'"'s'`},
 	} {
 		t.Run(tc.word, func(t *testing.T) {
 			t.Parallel()

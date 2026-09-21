@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -916,6 +917,10 @@ func TestCommandApprovalOffersRefusedProgramsOnce(t *testing.T) {
 func TestCommandApprovalRunsWhatWasApproved(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsWindows() {
+		t.Skip("Skipping on Windows: the unit runs sh, which Windows does not ship")
+	}
+
 	dir, marker := newShellUnitTree(t)
 
 	var prompts []string
@@ -938,6 +943,10 @@ func TestCommandApprovalRunsWhatWasApproved(t *testing.T) {
 // matches runs without a prompt.
 func TestAllowCmdRunsWithoutAsking(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping on Windows: the unit runs sh, which Windows does not ship")
+	}
 
 	dir, marker := newShellUnitTree(t)
 
@@ -1202,6 +1211,10 @@ const unitRunsForgedProgramName = "\nlocals {\n" +
 // pattern naming that path does.
 func TestAllowCmdMatchesAProgramTheTreeShipsByPath(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 
 	for _, tc := range []struct {
 		name     string

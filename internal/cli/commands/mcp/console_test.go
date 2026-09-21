@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -53,6 +54,10 @@ func mcpArgs(args ...string) []string {
 // binary --tf-path names, and a client disconnecting ends the command cleanly.
 func TestMCPCommandServesOnStdio(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 
 	tfPath := filepath.Join(t.TempDir(), "tofu-from-flag")
 	require.NoError(t, vfs.WriteFile(vfs.NewOSFS(), tfPath, []byte(fakeTofu), 0o755))

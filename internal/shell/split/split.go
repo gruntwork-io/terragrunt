@@ -55,14 +55,15 @@ func Command(line string) ([]string, error) {
 // back as word, except that [Command] on Windows reads a backslash as a
 // forward slash. A word made only of characters no shell treats specially is
 // returned as is. Anything else is wrapped in single quotes, and each single
-// quote inside it closes the quoting, appears backslash-escaped, and reopens
-// it.
+// quote inside it closes the quoting, appears double-quoted, and reopens it.
+// The result holds no backslash of its own, so [Command] on Windows reads it
+// back too.
 func Quote(word string) string {
 	if word != "" && strings.IndexFunc(word, needsQuoting) == -1 {
 		return word
 	}
 
-	return "'" + strings.ReplaceAll(word, "'", `'\''`) + "'"
+	return "'" + strings.ReplaceAll(word, "'", `'"'"'`) + "'"
 }
 
 // needsQuoting reports whether a shell could read r as anything but itself.
