@@ -20,6 +20,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/multierror"
@@ -170,17 +171,25 @@ func Run(
 		return err
 	}
 
-	// Always download/copy source to cache directory for consistency.
-	// When no source is specified, sourceURL will be "." (current directory).
-	err = telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "download_terraform_source", map[string]any{
-			"sourceUrl": redact.NewURL(sourceURL),
-		}, func(ctx context.Context, l log.Logger) error {
-			updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
+	if sourceURL == "" && !opts.Experiments.Evaluate(experiment.NoCache) {
+		sourceURL = "."
+	}
+
+	if sourceURL == "" {
+		updatedOpts = opts
+	} else {
+		// Always download/copy source to cache directory for consistency.
+		// When no source is specified, sourceURL will be "." (current directory).
+		err = telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "download_terraform_source", map[string]any{
+				"sourceUrl": redact.NewURL(sourceURL),
+			}, func(ctx context.Context, l log.Logger) error {
+				updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
+				return err
+			})
+		if err != nil {
 			return err
-		})
-	if err != nil {
-		return err
+		}
 	}
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
