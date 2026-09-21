@@ -11,7 +11,6 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -22,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/zclconf/go-cty/cty"
 )
 
 // outputsSensitivePlaceholder replaces sensitive output values unless the
@@ -79,11 +77,10 @@ func registerGetOutputs(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *
 		Name: "get_outputs",
 		Description: "Read the applied OpenTofu/Terraform outputs of one unit. Use when another unit's " +
 			"inputs reference dependency outputs and you need the real values. With --allow=exec this runs " +
-			"'terragrunt output -json' for full fidelity; sensitive values are replaced with \"(sensitive)\" " +
-			"unless include_sensitive=true. Without --allow=exec the server can only read the remote state " +
-			"in-process, which the s3, gcs, and azurerm backends support: sensitivity is unknown on that path, " +
-			"so nothing is redacted and the degraded list says so; a unit whose state cannot be read that way " +
-			"returns empty outputs with a degraded explanation.",
+			"'terragrunt output -json' for full fidelity. Without --allow=exec the server can only read the " +
+			"remote state in-process, which the s3, gcs, and azurerm backends support; a unit whose state " +
+			"cannot be read that way returns empty outputs with a degraded explanation. Either way, sensitive " +
+			"values are replaced with \"(sensitive)\" unless include_sensitive=true.",
 		Annotations: &mcp.ToolAnnotations{
 			// Under --allow=exec this drives the whole run pipeline, which
 			// downloads sources, runs init, and fires hooks. That writes as
@@ -110,18 +107,13 @@ func runGetOutputs(
 		return getOutputsOutput{}, err
 	}
 
+	sensitivity := outputsSensitivityFor(input.IncludeSensitive)
+
 	if d.allowExec {
-		return outputsFetchViaRun(
-			ctx,
-			l,
-			d,
-			rootVenv,
-			dir,
-			outputsSensitivityFor(input.IncludeSensitive),
-		)
+		return outputsFetchViaRun(ctx, l, d, rootVenv, dir, sensitivity)
 	}
 
-	return outputsFetchViaStateRead(ctx, l, d, rootVenv, dir)
+	return outputsFetchViaStateRead(ctx, l, d, rootVenv, dir, sensitivity)
 }
 
 // outputsFetchViaRun runs the unit's `output -json` through the full
@@ -199,6 +191,21 @@ func outputsFetchViaRun(
 		return getOutputsOutput{}, fmt.Errorf("parsing output JSON for %s: %w", dir, err)
 	}
 
+	out, err := outputsDecode(dir, raw, sensitivity)
+	if err != nil {
+		return getOutputsOutput{}, err
+	}
+
+	out.Degraded = d.rec.notes()
+
+	return out, nil
+}
+
+// outputsDecode turns the object `tofu output -json` prints into the tool's
+// result, replacing each sensitive value with [outputsSensitivePlaceholder]
+// unless sensitivity reveals it. A state file's outputs object has the same
+// shape, so both fetch paths redact here.
+func outputsDecode(dir string, raw []byte, sensitivity outputsSensitivity) (getOutputsOutput, error) {
 	var metas map[string]outputsTFMeta
 	if err := json.Unmarshal(raw, &metas); err != nil {
 		return getOutputsOutput{}, fmt.Errorf("decoding output JSON for %s: %w", dir, err)
@@ -239,8 +246,6 @@ func outputsFetchViaRun(
 
 	slices.Sort(out.Redacted)
 
-	out.Degraded = d.rec.notes()
-
 	return out, nil
 }
 
@@ -255,6 +260,7 @@ func outputsFetchViaStateRead(
 	d *serverDeps,
 	rootVenv *venv.Venv,
 	dir string,
+	sensitivity outputsSensitivity,
 ) (getOutputsOutput, error) {
 	// The "render" tag makes any dependency-output evaluation the machinery
 	// performs fall back to mock_outputs instead of hard-failing the parse.
@@ -302,7 +308,7 @@ func outputsFetchViaStateRead(
 
 	unit := &config.Unit{Name: filepath.Base(dir), Path: dir}
 
-	outputMap, err := unit.ReadOutputs(parseCtx, l, pctx, dir)
+	raw, err := unit.ReadOutputsJSON(parseCtx, l, pctx, dir)
 	if err != nil {
 		// A denied subprocess means the machinery gave up on the in-process
 		// path (e.g. a nested dependency needed a real fetch); degrade
@@ -319,19 +325,12 @@ func outputsFetchViaStateRead(
 		return getOutputsOutput{}, err
 	}
 
-	vals, err := ctyhelper.ParseCtyValueToMap(cty.ObjectVal(outputMap))
+	out, err = outputsDecode(dir, raw, sensitivity)
 	if err != nil {
-		return getOutputsOutput{}, fmt.Errorf("converting outputs of %s: %w", dir, err)
+		return getOutputsOutput{}, err
 	}
 
-	for name, v := range vals {
-		out.Outputs[name] = outputEntry{Value: v}
-	}
-
-	out.Degraded = append(
-		d.rec.notes(),
-		"outputs read in-process from the unit's remote state: sensitivity flags are unavailable on this path, so no values were redacted",
-	)
+	out.Degraded = d.rec.notes()
 
 	return out, nil
 }

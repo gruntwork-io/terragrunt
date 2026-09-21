@@ -2,6 +2,10 @@ package mcp
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -32,6 +36,13 @@ const approvalEntryMaxLen = 120
 // happen, and neither is a failure of the tool.
 var ErrApprovalDeclined = errors.New(
 	"the run was not approved, so nothing was applied or destroyed",
+)
+
+// ErrApprovalMismatch is returned when an acceptance arrives without the state
+// the approval prompt handed out for the same command and arguments.
+var ErrApprovalMismatch = errors.New(
+	"the approval does not match this call's arguments, so nothing was applied or destroyed; " +
+		"call the tool again to ask for approval of these arguments",
 )
 
 // ErrApprovalUnavailable is returned when the approval could not be put in
@@ -75,7 +86,16 @@ func runMutatingCommand(
 		return nil, runAllOutput{}, ErrApprovalDeclined
 	}
 
-	out, err := runAllCommand(ctx, l, d, rootVenv, input, command)
+	state, err := approvalState(d.approvalKey, input, command)
+	if err != nil {
+		return nil, runAllOutput{}, err
+	}
+
+	if !hmac.Equal([]byte(req.Params.RequestState), []byte(state)) {
+		return nil, runAllOutput{}, ErrApprovalMismatch
+	}
+
+	out, err := runAllCommand(ctx, l, d.withRefusal(refusalFails), rootVenv, input, command)
 
 	return nil, out, err
 }
@@ -125,11 +145,39 @@ func requestApproval(
 		return nil, err
 	}
 
+	state, err := approvalState(d.approvalKey, input, command)
+	if err != nil {
+		return nil, err
+	}
+
 	return &mcp.CallToolResult{
 		InputRequests: mcp.InputRequestMap{
 			approvalRequestID: &mcp.ElicitParams{Message: message},
 		},
+		RequestState: state,
 	}, nil
+}
+
+// approvalState signs the command and arguments an approval prompt asks about.
+// The client echoes it back with the answer, and a retry whose state does not
+// match its own arguments is refused. That keeps an acceptance from carrying
+// over to arguments the person never saw, and keeps a client from answering a
+// prompt the server never sent.
+func approvalState(key []byte, input runAllInput, command string) (string, error) {
+	payload, err := json.Marshal(struct {
+		Command string      `json:"command"`
+		Input   runAllInput `json:"input"`
+	}{Command: command, Input: input})
+	if err != nil {
+		return "", fmt.Errorf("encoding the %s for approval: %w", command, err)
+	}
+
+	mac := hmac.New(sha256.New, key)
+	if _, err := mac.Write(payload); err != nil {
+		return "", fmt.Errorf("signing the %s for approval: %w", command, err)
+	}
+
+	return hex.EncodeToString(mac.Sum(nil)), nil
 }
 
 // approvalMessage describes the pending run to the person approving it.

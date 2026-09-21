@@ -28,6 +28,25 @@ var ErrExecDenied = errors.New(
 // can turn it into guidance rather than letting it read as a broken file.
 var ErrSopsDenied = errors.New("SOPS decryption disabled; restart the MCP server with --allow=sops")
 
+// ErrCmdNotAllowed is the error a program a configuration named fails with
+// during apply and destroy, when no --allow-cmd pattern allows it.
+var ErrCmdNotAllowed = errors.New(
+	"the configuration names a program no --allow-cmd pattern allows; restart the MCP server with a pattern that matches it",
+)
+
+// refusal selects what a program a configuration named gets back when nothing
+// allowed it.
+type refusal int
+
+const (
+	// refusalStubs answers with empty output and a zero exit, so the tools
+	// that read a configuration can still evaluate it.
+	refusalStubs refusal = iota
+	// refusalFails answers with an error, so a run that changes
+	// infrastructure stops rather than proceeding on a stubbed answer.
+	refusalFails
+)
+
 const (
 	// execNotesMaxDistinct caps how many distinct denial notes one tool call
 	// reports; a run_cmd in a root config included by N units would otherwise
@@ -167,7 +186,7 @@ func (d *serverDeps) callVenv(
 
 	return v.WithExec(&allowlistExec{
 		Exec:      v.Exec,
-		denied:    vexec.NewMemExec(configCommandHandler(d.rec)),
+		denied:    vexec.NewMemExec(configCommandHandler(d.rec, d.refusal)),
 		approved:  d.approved,
 		allowCmds: d.allowCmds,
 	})
@@ -242,16 +261,33 @@ func denySopsHandler(rec *execRecorder) vsops.Handler {
 	}
 }
 
-// configCommandHandler answers a program a configuration named. It returns
-// empty output and a zero exit for the same reason the deny-all handler does
-// for run_cmd: an error there aborts the whole HCL parse, which would turn a
-// refused command into an unreadable configuration.
-func configCommandHandler(rec *execRecorder) vexec.Handler {
+// configCommandHandler answers a program a configuration named. Under
+// [refusalStubs] it returns empty output and a zero exit for the same reason
+// the deny-all handler does for run_cmd: an error there aborts the whole HCL
+// parse, which would turn a refused command into an unreadable configuration.
+//
+// Under [refusalFails] it fails instead. A stub reads as success, so a
+// before_hook meant to block an apply would let it through, and a run_cmd
+// would feed an empty string into the inputs being applied.
+func configCommandHandler(rec *execRecorder, mode refusal) vexec.Handler {
 	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		cmdline := execCmdline(&inv)
+		note := truncateRunes(cmdline, execCmdlineMaxLen)
+
 		rec.refuse(execProgram(inv.Name))
+
+		if mode == refusalFails {
+			rec.record(fmt.Sprintf(
+				"refused %q: apply and destroy fail a unit whose configuration names a program no --allow-cmd pattern allows",
+				note,
+			))
+
+			return vexec.Result{Err: fmt.Errorf("%w: %s", ErrCmdNotAllowed, cmdline), ExitCode: 1}
+		}
+
 		rec.record(fmt.Sprintf(
 			"stubbed %q: --allow=exec runs Terragrunt's own commands, not programs a configuration names",
-			truncateRunes(execCmdline(&inv), execCmdlineMaxLen),
+			note,
 		))
 
 		return vexec.Result{}

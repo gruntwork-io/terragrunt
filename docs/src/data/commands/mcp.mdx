@@ -116,7 +116,7 @@ Neither acts when the agent calls it. Each first returns an elicitation (the pro
 
 Every tool takes a `working_dir` relative to the server root. It is optional and defaults to the root, except on `render_config` and `get_outputs`, which act on a single unit and require it. Where a tool takes `filter`, it accepts [filter queries](/features/filter) and narrows that tool the way `--filter` narrows a run.
 
-The tools that run OpenTofu/Terraform use the binary the server was started with. Set it with [`--tf-path`](/reference/cli/commands/mcp#tf-path), as a name on the server's `PATH` or as a path. It defaults to `tofu`, or to `terraform` when `tofu` is not installed. The server ignores a unit's `terraform_binary`, because Terragrunt runs that binary under `--allow=exec` without an `--allow-cmd` pattern or an approval.
+The tools that run OpenTofu/Terraform use the binary the server was started with. Set it with [`--tf-path`](/reference/cli/commands/mcp#tf-path), as a name on the server's `PATH` or as a path. It defaults to `tofu`, or to `terraform` when `tofu` is not installed. The server ignores a unit's `terraform_binary` and its `engine` block, because Terragrunt starts both under `--allow=exec` without an `--allow-cmd` pattern or an approval.
 
 When a capability is not granted, the call's `degraded` list names what the tool could not do. See [Capabilities](#capabilities).
 
@@ -247,6 +247,8 @@ Lets the tools run the `tofu`, `terraform`, and `git` that Terragrunt starts to 
 Without it, Terragrunt also points the server's own `PATH` at an empty directory before serving, so nothing the server loads can start a program by name.
 
 A refused program is reported in the call's `degraded` list and the call continues, because an error there would abort the whole HCL parse and turn a refused command into an unreadable configuration.
+
+`apply` and `destroy` fail the unit instead, so a hook written to block the run still blocks it.
 
 To run a program a configuration names, allow it with an [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd) pattern, or let the read-only tools offer it. The agent chooses which repository the server is pointed at, and a configuration under that root can name any program on the machine, so a pattern or approval naming a bare program such as `git` covers a path only when that path is where the server's `PATH` finds the program. A tree shipping its own file called `git` cannot run it as `./git` unless a pattern or approval names `./git` itself. `discover`, `render_config`, `validate`, and `run_order` return the refused programs as an elicitation, then run again with whatever the person operating the client accepts. `plan`, `apply`, and `destroy` never ask, since answering would mean running them a second time.
 

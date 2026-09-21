@@ -78,7 +78,7 @@ func buildDirOptions(
 	filterQueries []string,
 ) (*options.TerragruntOptions, map[string]string, error) {
 	opts := options.NewTerragruntOptions(rootVenv.Exec)
-	pinTFPath(d, opts)
+	pinBinaries(d, opts)
 
 	// A filter that follows the graph otherwise walks out to the git repository
 	// root, so a unit outside the tree the server was launched in can come back
@@ -143,7 +143,7 @@ func buildUnitOptions(
 		return nil, nil, err
 	}
 
-	pinTFPath(d, opts)
+	pinBinaries(d, opts)
 	opts.DiscoveryBoundary = d.launchDir
 	opts.NonInteractive = true
 	opts.Experiments = d.baseOpts.Experiments
@@ -157,17 +157,19 @@ func buildUnitOptions(
 	return opts, d.callEnv(rootVenv), nil
 }
 
-// pinTFPath fixes the binary a tool call runs to the one the operator named
+// pinBinaries fixes the binary a tool call runs to the one the operator named
 // with --tf-path, or to the default when they left it alone, and marks it as
-// explicitly set so a unit's terraform_binary cannot replace it. Terragrunt
-// starts that binary as one of its own commands, past the exec allowlist, so a
-// configuration that chose it would run a program nobody allowed.
-func pinTFPath(d *serverDeps, opts *options.TerragruntOptions) {
+// explicitly set so a unit's terraform_binary cannot replace it. It also turns
+// off IaC engines, whose plugin a unit's engine block names. Terragrunt starts
+// both as its own commands, past the exec allowlist, so a configuration that
+// chose either would run a program nobody allowed.
+func pinBinaries(d *serverDeps, opts *options.TerragruntOptions) {
 	if tfPath := d.operatorTFPath(); tfPath != "" {
 		opts.TFPath = tfPath
 	}
 
 	opts.TFPathExplicitlySet = true
+	opts.EngineOptions.NoEngine = true
 }
 
 // setupGitFilterWorktrees creates git worktrees for filter queries containing

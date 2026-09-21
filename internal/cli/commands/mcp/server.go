@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -23,18 +24,20 @@ import (
 // root venv and miss the per-call deny-all wrapper, so each handler is instead
 // handed the venv it may use.
 type serverDeps struct {
-	baseOpts   *options.TerragruntOptions
-	rec        *execRecorder
-	runSem     chan struct{}
-	tgVersion  *semver.Version
-	launchDir  string
-	allowCmds  []AllowCmd
-	approved   []string
-	allowExec  bool
-	allowHTTP  bool
-	allowSops  bool
-	allowEnv   bool
-	allowApply bool
+	baseOpts    *options.TerragruntOptions
+	rec         *execRecorder
+	runSem      chan struct{}
+	tgVersion   *semver.Version
+	launchDir   string
+	allowCmds   []AllowCmd
+	approved    []string
+	approvalKey []byte
+	refusal     refusal
+	allowExec   bool
+	allowHTTP   bool
+	allowSops   bool
+	allowEnv    bool
+	allowApply  bool
 }
 
 // forCall returns a copy of d scoped to one tool call, with its own recorder
@@ -45,6 +48,15 @@ func (d *serverDeps) forCall(approved []string) *serverDeps {
 	c := *d
 	c.rec = &execRecorder{}
 	c.approved = approved
+
+	return &c
+}
+
+// withRefusal returns a copy of d whose calls answer a program nothing allowed
+// according to mode.
+func (d *serverDeps) withRefusal(mode refusal) *serverDeps {
+	c := *d
+	c.refusal = mode
 
 	return &c
 }
@@ -149,7 +161,12 @@ func Serve(
 		allowEnv:   granted.Has(CapabilityEnv),
 		allowApply: opts.AllowApply,
 		allowCmds:  allowCmds,
+		refusal:    refusalStubs,
 		runSem:     make(chan struct{}, 1),
+	}
+
+	if opts.AllowApply {
+		deps.approvalKey = []byte(rand.Text())
 	}
 
 	srv := mcp.NewServer(&mcp.Implementation{

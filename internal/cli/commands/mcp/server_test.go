@@ -14,6 +14,7 @@ import (
 	"time"
 
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -286,7 +287,7 @@ func newTestSessionWith(
 	cmdOpts := tgmcp.NewOptions(opts)
 	configure(cmdOpts)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(engine.WithEngineValues(context.Background()))
 
 	served := make(chan error, 1)
 
@@ -712,33 +713,57 @@ func TestToolAnnotationsFollowTheGrantedCapabilities(t *testing.T) {
 }
 
 // s3StateObject is the state the unitS3Config backend points at, with one
-// output.
-const s3StateObject = `{"version":4,"serial":1,"lineage":"test","outputs":{"id":{"value":"from-state","type":"string"}},"resources":[]}`
+// plain output and one sensitive output.
+const s3StateObject = `{"version":4,"serial":1,"lineage":"test","outputs":{` +
+	`"id":{"value":"from-state","type":"string"},` +
+	`"secret":{"value":"hunter2","type":"string","sensitive":true}` +
+	`},"resources":[]}`
 
 // TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP pins the http capability
 // on a request Terragrunt makes itself. Without exec, get_outputs reads an s3
 // backend's state object directly. Denied, it sends no request and says why it
-// returned nothing. Granted, it returns the outputs in the object.
+// returned nothing. Granted, it returns the outputs in the object, with the
+// sensitive ones redacted unless the call asks for them.
 func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		requested assert.BoolAssertionFunc
+		degraded  assert.ValueAssertionFunc
 		want      map[string]outputEntry
+		args      map[string]any
 		name      string
 		allow     []string
 	}{
 		{
 			name:      "denied",
 			allow:     []string{"env"},
+			args:      map[string]any{"working_dir": "s3-backed"},
 			requested: assert.False,
+			degraded:  assert.NotEmpty,
 			want:      map[string]outputEntry{},
 		},
 		{
 			name:      "granted",
 			allow:     []string{"env", "http"},
+			args:      map[string]any{"working_dir": "s3-backed"},
 			requested: assert.True,
-			want:      map[string]outputEntry{"id": {Value: "from-state"}},
+			degraded:  assert.Empty,
+			want: map[string]outputEntry{
+				"id":     {Value: "from-state"},
+				"secret": {Value: "(sensitive)", Sensitive: true},
+			},
+		},
+		{
+			name:      "granted with sensitive values requested",
+			allow:     []string{"env", "http"},
+			args:      map[string]any{"working_dir": "s3-backed", "include_sensitive": true},
+			requested: assert.True,
+			degraded:  assert.Empty,
+			want: map[string]outputEntry{
+				"id":     {Value: "from-state"},
+				"secret": {Value: "hunter2", Sensitive: true},
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -769,10 +794,10 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 
 			var out getOutputsOutput
 
-			callTool(t, session, "get_outputs", map[string]any{"working_dir": "s3-backed"}, &out)
+			callTool(t, session, "get_outputs", tc.args, &out)
 
 			assert.Equal(t, tc.want, out.Outputs)
-			assert.NotEmpty(t, out.Degraded)
+			tc.degraded(t, out.Degraded)
 			tc.requested(t, requests.Load() > 0, "whether the state object was requested")
 		})
 	}
@@ -826,6 +851,46 @@ func TestDestroyDeclinedRunsNothing(t *testing.T) {
 		exists, err := vfs.FileExists(vfs.NewOSFS(), filepath.Join(dir, unit, "terragrunt.hcl"))
 		require.NoError(t, err)
 		assert.True(t, exists, "declining must leave the tree alone")
+	}
+}
+
+// TestDestroyRefusesAnApprovalTheServerDidNotIssue pins that an acceptance
+// counts only with the state the server's own prompt handed out for the same
+// arguments. A client that sends an accepted answer with no prompt behind it,
+// or with state it altered, runs nothing.
+func TestDestroyRefusesAnApprovalTheServerDidNotIssue(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		state string
+	}{
+		{name: "no state"},
+		{name: "altered state", state: "0000"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var prompts []string
+
+			session := newApprovingSession(t, newTestTree(t), "accept", &prompts)
+
+			res, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+				Name:           "destroy",
+				Arguments:      map[string]any{},
+				InputResponses: mcp.InputResponseMap{"approval": &mcp.ElicitResult{Action: "accept"}},
+				RequestState:   tc.state,
+			})
+			require.NoError(t, err)
+
+			require.True(t, res.IsError, "a forged approval must be refused")
+			require.Len(t, res.Content, 1)
+
+			text, ok := res.Content[0].(*mcp.TextContent)
+			require.True(t, ok, "the refusal must be text: %T", res.Content[0])
+			assert.Contains(t, text.Text, tgmcp.ErrApprovalMismatch.Error())
+			assert.Empty(t, prompts, "a call that arrives answered is not asked")
+		})
 	}
 }
 

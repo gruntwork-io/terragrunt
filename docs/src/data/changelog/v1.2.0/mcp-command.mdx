@@ -104,7 +104,7 @@ The restrictions this server places on itself are not a sandbox. They bound what
 You remain responsible for how your agents manage infrastructure, and for what they do with the access you give them. An agent with these tools and your credentials can change or destroy real resources, and accepting that risk is your decision.
 </Aside>
 
-The tools that run OpenTofu/Terraform use the binary named by `--tf-path`, and ignore a unit's `terraform_binary`, since Terragrunt runs that binary without an `--allow-cmd` pattern or an approval. `plan`, `apply`, and `destroy` take `parallelism` to cap how many units run at once.
+The tools that run OpenTofu/Terraform use the binary named by `--tf-path`, and ignore a unit's `terraform_binary` and `engine` block, since Terragrunt starts both without an `--allow-cmd` pattern or an approval. `plan`, `apply`, and `destroy` take `parallelism` to cap how many units run at once.
 
 The tools the server offers, the arguments they take, and what each capability grants are documented with the [`mcp` command](/reference/cli/commands/mcp).
 
