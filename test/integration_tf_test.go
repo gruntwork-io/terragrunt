@@ -4422,7 +4422,12 @@ func TestTFInitSkipCache(t *testing.T) {
 
 	// verify that after adding new file, init is executed
 	tfFile := filepath.Join(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
-	require.NoError(t, os.WriteFile(tfFile, []byte(""), 0o644), "Error writing new Terraform file to %s", tfFile)
+	require.NoError(
+		t,
+		os.WriteFile(tfFile, []byte(""), 0o644),
+		"Error writing new Terraform file to %s",
+		tfFile,
+	)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,

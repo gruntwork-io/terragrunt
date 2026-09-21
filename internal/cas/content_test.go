@@ -786,7 +786,12 @@ func TestContent_Link(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		assertSoleLink(t, filepath.Join(storeDir, testHashValue[:2], testHashValue), targetPath, testData)
+		assertSoleLink(
+			t,
+			filepath.Join(storeDir, testHashValue[:2], testHashValue),
+			targetPath,
+			testData,
+		)
 	})
 
 	t.Run("a blob linked onto the target mid-swap leaves no temp link", func(t *testing.T) {
@@ -882,7 +887,13 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		require.NoError(t, err)
 
 		// EnsureWithWait should not need to write again
-		err = content.EnsureWithWait(l, v, testHash, []byte("different content"), cas.StoredFilePerms)
+		err = content.EnsureWithWait(
+			l,
+			v,
+			testHash,
+			[]byte("different content"),
+			cas.StoredFilePerms,
+		)
 		require.NoError(t, err)
 
 		// Verify original content remains
@@ -937,7 +948,13 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		go func() {
 			defer close(process1Done)
 
-			err := content.EnsureWithWait(l, v, testHash, []byte("process 1 data"), cas.StoredFilePerms)
+			err := content.EnsureWithWait(
+				l,
+				v,
+				testHash,
+				[]byte("process 1 data"),
+				cas.StoredFilePerms,
+			)
 			assert.NoError(t, err)
 
 			close(process1Started)
@@ -950,7 +967,13 @@ func TestContent_EnsureWithWait(t *testing.T) {
 			// Wait for process 1 to start
 			<-process1Started
 
-			err := content.EnsureWithWait(l, v, testHash, []byte("process 2 data"), cas.StoredFilePerms)
+			err := content.EnsureWithWait(
+				l,
+				v,
+				testHash,
+				[]byte("process 2 data"),
+				cas.StoredFilePerms,
+			)
 			assert.NoError(t, err)
 		}()
 

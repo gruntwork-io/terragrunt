@@ -240,24 +240,26 @@ func TestAssumeIamRoleUsesEnvCredentials(t *testing.T) {
 	var authHead atomic.Value
 	authHead.Store("")
 
-	memHTTP := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
-		authHead.Store(req.Header.Get("Authorization"))
+	memHTTP := vhttp.NewMemClient(
+		func(_ context.Context, req *http.Request) (*http.Response, error) {
+			authHead.Store(req.Header.Get("Authorization"))
 
-		xml := `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">` +
-			`<AssumeRoleResult><Credentials>` +
-			`<AccessKeyId>` + assumedKeyID + `</AccessKeyId>` +
-			`<SecretAccessKey>assumed-secret</SecretAccessKey>` +
-			`<SessionToken>assumed-token</SessionToken>` +
-			`<Expiration>2030-12-31T23:59:59Z</Expiration>` +
-			`</Credentials>` +
-			`<AssumedRoleUser>` +
-			`<AssumedRoleId>AROATEST:session</AssumedRoleId>` +
-			`<Arn>arn:aws:iam::123456789012:role/test-role</Arn>` +
-			`</AssumedRoleUser>` +
-			`</AssumeRoleResult></AssumeRoleResponse>`
+			xml := `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">` +
+				`<AssumeRoleResult><Credentials>` +
+				`<AccessKeyId>` + assumedKeyID + `</AccessKeyId>` +
+				`<SecretAccessKey>assumed-secret</SecretAccessKey>` +
+				`<SessionToken>assumed-token</SessionToken>` +
+				`<Expiration>2030-12-31T23:59:59Z</Expiration>` +
+				`</Credentials>` +
+				`<AssumedRoleUser>` +
+				`<AssumedRoleId>AROATEST:session</AssumedRoleId>` +
+				`<Arn>arn:aws:iam::123456789012:role/test-role</Arn>` +
+				`</AssumedRoleUser>` +
+				`</AssumeRoleResult></AssumeRoleResponse>`
 
-		return vhttp.Respond(http.StatusOK, []byte(xml), nil), nil
-	})
+			return vhttp.Respond(http.StatusOK, []byte(xml), nil), nil
+		},
+	)
 
 	v := venvtest.New().
 		WithHTTP(memHTTP).
@@ -401,13 +403,19 @@ func newAssumeRoleSTSServer(t *testing.T) *assumeRoleSTSServer {
 		}
 
 		w.Header().Set("Content-Type", "text/xml")
-		_, _ = fmt.Fprintf(w, `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">`+
-			`<AssumeRoleResult><Credentials><AccessKeyId>%s</AccessKeyId>`+
-			`<SecretAccessKey>assumed-secret</SecretAccessKey><SessionToken>assumed-token</SessionToken>`+
-			`<Expiration>%s</Expiration></Credentials>`+
-			`<AssumedRoleUser><AssumedRoleId>AROATEST:session</AssumedRoleId><Arn>%s</Arn></AssumedRoleUser>`+
-			`</AssumeRoleResult><ResponseMetadata><RequestId>test</RequestId></ResponseMetadata>`+
-			`</AssumeRoleResponse>`, testAssumedAccessKeyID, expiration, testAssumedRoleARN)
+		_, _ = fmt.Fprintf(
+			w,
+			`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">`+
+				`<AssumeRoleResult><Credentials><AccessKeyId>%s</AccessKeyId>`+
+				`<SecretAccessKey>assumed-secret</SecretAccessKey><SessionToken>assumed-token</SessionToken>`+
+				`<Expiration>%s</Expiration></Credentials>`+
+				`<AssumedRoleUser><AssumedRoleId>AROATEST:session</AssumedRoleId><Arn>%s</Arn></AssumedRoleUser>`+
+				`</AssumeRoleResult><ResponseMetadata><RequestId>test</RequestId></ResponseMetadata>`+
+				`</AssumeRoleResponse>`,
+			testAssumedAccessKeyID,
+			expiration,
+			testAssumedRoleARN,
+		)
 	}))
 	t.Cleanup(srv.Close)
 

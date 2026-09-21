@@ -148,7 +148,15 @@ func FuzzFullCLI(f *testing.F) {
 
 		if panicreport.IsPanic(err) {
 			msg, stack := panicreport.PanicDetails(err)
-			require.Failf(t, "recovered panic", "%s\n%s\nargs=%q\nenv=%q", msg, stack, inv.args, inv.env)
+			require.Failf(
+				t,
+				"recovered panic",
+				"%s\n%s\nargs=%q\nenv=%q",
+				msg,
+				stack,
+				inv.args,
+				inv.env,
+			)
 		}
 
 		// ExitCodeFor is what main.go runs after RunContext; it logs the error.
@@ -157,7 +165,14 @@ func FuzzFullCLI(f *testing.F) {
 		silenced := l.Formatter().DisabledOutput() || l.Level() < log.ErrorLevel
 		silentFailure := err != nil && stderr.n.Load() == 0 && ctx.Err() == nil && !silenced &&
 			!errors.Is(err, runall.ErrUserCancelled)
-		require.Falsef(t, silentFailure, "exited with %v but wrote nothing to stderr\nargs=%q\nenv=%q", err, inv.args, inv.env)
+		require.Falsef(
+			t,
+			silentFailure,
+			"exited with %v but wrote nothing to stderr\nargs=%q\nenv=%q",
+			err,
+			inv.args,
+			inv.env,
+		)
 	})
 }
 
@@ -286,7 +301,11 @@ type fuzzInvocation struct {
 func newFuzzVocab(f *testing.F) *fuzzVocab {
 	f.Helper()
 
-	app := cli.NewApp(logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewNoSpawnExec()), venvtest.New())
+	app := cli.NewApp(
+		logger.CreateLogger(),
+		options.NewTerragruntOptions(vexec.NewNoSpawnExec()),
+		venvtest.New(),
+	)
 
 	vocab := &fuzzVocab{values: fuzzValuePool()}
 	envKeys := map[string]struct{}{}
@@ -305,7 +324,12 @@ func newFuzzVocab(f *testing.F) *fuzzVocab {
 	return vocab
 }
 
-func (vocab *fuzzVocab) walk(cmds clihelper.Commands, parent []string, inherited []fuzzFlag, envKeys map[string]struct{}) {
+func (vocab *fuzzVocab) walk(
+	cmds clihelper.Commands,
+	parent []string,
+	inherited []fuzzFlag,
+	envKeys map[string]struct{},
+) {
 	for _, cmd := range cmds {
 		path := append(slices.Clone(parent), cmd.Name)
 		if _, ok := fuzzExcludedCommands[strings.Join(path, " ")]; ok {
@@ -919,7 +943,9 @@ func fuzzPlausibleExec(inv *vexec.Invocation) vexec.Result {
 	case (name == "tofu" || name == "terraform") && slices.ContainsFunc(inv.Args, isFuzzVersionArg):
 		return vexec.Result{Stdout: []byte("OpenTofu v1.10.0\non linux_amd64\n")}
 	case (name == "tofu" || name == "terraform") && slices.Contains(inv.Args, tf.CommandNameOutput):
-		return vexec.Result{Stdout: []byte(`{"id":{"sensitive":false,"type":"string","value":"fuzz"}}`)}
+		return vexec.Result{
+			Stdout: []byte(`{"id":{"sensitive":false,"type":"string","value":"fuzz"}}`),
+		}
 	case name == "git" && slices.Contains(inv.Args, "--show-toplevel"):
 		return vexec.Result{Stdout: []byte(fuzzRoot + "\n")}
 	case name == "git" && slices.Contains(inv.Args, "remote"):

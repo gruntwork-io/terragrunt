@@ -22,8 +22,12 @@ var (
 	ErrLocationRequiredForRG        = errors.New("location is required to create resource group")
 	ErrLocationRequired             = errors.New("location is required")
 	ErrNoAccessKeysReturned         = errors.New("no access keys returned for storage account")
-	ErrAllAccessKeysEmpty           = errors.New("storage account returned keys but all values were empty")
-	ErrScopePrincipalRoleArgs       = errors.New("scope, principal id, and role definition id are required")
+	ErrAllAccessKeysEmpty           = errors.New(
+		"storage account returned keys but all values were empty",
+	)
+	ErrScopePrincipalRoleArgs = errors.New(
+		"scope, principal id, and role definition id are required",
+	)
 	// ErrARMAudienceRequired is returned when the cloud config has no Resource
 	// Manager audience, so ResolvePrincipal cannot pick a sovereign-cloud scope.
 	ErrARMAudienceRequired = errors.New(
@@ -142,7 +146,11 @@ type StorageAccountNotFoundError struct {
 }
 
 func (e *StorageAccountNotFoundError) Error() string {
-	return fmt.Sprintf("storage account %q was not found in subscription %q", e.Account, e.SubscriptionID)
+	return fmt.Sprintf(
+		"storage account %q was not found in subscription %q",
+		e.Account,
+		e.SubscriptionID,
+	)
 }
 
 // UnparsableResourceIDError is returned when an ARM resource id does not carry
@@ -183,7 +191,11 @@ type UnsupportedAuthForOpError struct {
 }
 
 func (e *UnsupportedAuthForOpError) Error() string {
-	return fmt.Sprintf("%s require a token credential (auth method %q is not supported)", e.Operation, e.Method)
+	return fmt.Sprintf(
+		"%s require a token credential (auth method %q is not supported)",
+		e.Operation,
+		e.Method,
+	)
 }
 
 // MissingCopyBlobArgsError names every CopyBlob argument left empty.
@@ -213,7 +225,10 @@ type UnknownAuthorityHostError struct {
 }
 
 func (e *UnknownAuthorityHostError) Error() string {
-	return fmt.Sprintf("unknown Azure AD authority host %q; cannot derive a blob endpoint suffix", e.Host)
+	return fmt.Sprintf(
+		"unknown Azure AD authority host %q; cannot derive a blob endpoint suffix",
+		e.Host,
+	)
 }
 
 // UnknownCloudEnvironmentError is returned for an unrecognised CloudEnvironment string.
@@ -222,7 +237,10 @@ type UnknownCloudEnvironmentError struct {
 }
 
 func (e *UnknownCloudEnvironmentError) Error() string {
-	return fmt.Sprintf("unknown cloud environment %q (want one of: public, government, china)", e.Name)
+	return fmt.Sprintf(
+		"unknown cloud environment %q (want one of: public, government, china)",
+		e.Name,
+	)
 }
 
 // UnknownAccessTierError is returned for a StorageAccountConfig.AccessTier

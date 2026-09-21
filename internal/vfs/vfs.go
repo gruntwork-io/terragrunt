@@ -810,7 +810,11 @@ func (w *symlinkWalker) walk(physical, logical string) error {
 func (w *symlinkWalker) follow(current, logicalPath string, d fs.DirEntry) error {
 	realPath, err := EvalSymlinks(w.fsys, current)
 	if err != nil {
-		return w.fn(logicalPath, d, fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err))
+		return w.fn(
+			logicalPath,
+			d,
+			fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err),
+		)
 	}
 
 	realInfo, err := w.fsys.Stat(realPath)

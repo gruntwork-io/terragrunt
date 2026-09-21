@@ -97,7 +97,9 @@ func (b *AWSConfigBuilder) WithSessionConfig(cfg *AwsSessionConfig) *AWSConfigBu
 // own rather than resolving them from the environment. It outranks the
 // environment and any role the session config names, the way credentials
 // supplied inline outrank ambient ones everywhere else.
-func (b *AWSConfigBuilder) WithCredentialsProvider(creds aws.CredentialsProvider) *AWSConfigBuilder {
+func (b *AWSConfigBuilder) WithCredentialsProvider(
+	creds aws.CredentialsProvider,
+) *AWSConfigBuilder {
 	b.creds = creds
 	return b
 }

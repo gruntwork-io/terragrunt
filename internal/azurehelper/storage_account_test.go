@@ -126,7 +126,11 @@ func TestStorageAccount_Delete_NotFoundIsNoop(t *testing.T) {
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
 	require.NoError(t, err, "setup")
 
-	require.NoError(t, sc.EnsureDeleted(t.Context(), log.New()), "delete on a missing account must be a no-op")
+	require.NoError(
+		t,
+		sc.EnsureDeleted(t.Context(), log.New()),
+		"delete on a missing account must be a no-op",
+	)
 }
 
 func TestStorageAccount_Create_RequiresLocation(t *testing.T) {
@@ -138,7 +142,11 @@ func TestStorageAccount_Create_RequiresLocation(t *testing.T) {
 	require.NoError(t, err, "setup")
 
 	// location is user supplied, so a missing value is a user error.
-	require.ErrorIs(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{}), azurehelper.ErrLocationRequired)
+	require.ErrorIs(
+		t,
+		sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{}),
+		azurehelper.ErrLocationRequired,
+	)
 }
 
 func TestStorageAccount_Create_NameMismatch(t *testing.T) {
@@ -292,7 +300,12 @@ func TestStorageAccount_EnableVersioning(t *testing.T) {
 	require.NoError(t, err, "setup")
 
 	require.NoError(t, sc.EnableVersioning(t.Context(), log.New()))
-	assert.Contains(t, tr.lastPutBody(), `"isVersioningEnabled":true`, "PUT body must enable versioning")
+	assert.Contains(
+		t,
+		tr.lastPutBody(),
+		`"isVersioningEnabled":true`,
+		"PUT body must enable versioning",
+	)
 }
 
 func TestStorageAccount_IsVersioningEnabled(t *testing.T) {
@@ -355,7 +368,12 @@ func TestStorageAccount_EnableSoftDelete_ClampsOutOfRange(t *testing.T) {
 	require.NoError(t, err, "setup")
 
 	require.NoError(t, sc.EnableSoftDelete(t.Context(), log.New(), 99999))
-	assert.Contains(t, tr.lastPutBody(), `"days":7`, "out-of-range retention must clamp to the default")
+	assert.Contains(
+		t,
+		tr.lastPutBody(),
+		`"days":7`,
+		"out-of-range retention must clamp to the default",
+	)
 
 	require.NoError(t, sc.EnableSoftDelete(t.Context(), log.New(), 30), "in-range retention")
 
@@ -370,7 +388,11 @@ func TestFindResourceGroupForAccount_BoundsPages(t *testing.T) {
 		"nextLink": "https://management.azure.com/next",
 	})}
 
-	_, err := azurehelper.FindResourceGroupForAccount(t.Context(), cfgWithTransport(tr), testAccount)
+	_, err := azurehelper.FindResourceGroupForAccount(
+		t.Context(),
+		cfgWithTransport(tr),
+		testAccount,
+	)
 
 	var tooMany *azurehelper.TooManyStorageAccountPagesError
 	require.ErrorAs(t, err, &tooMany)
@@ -442,7 +464,10 @@ func (s *stubTransport) lastPutBody() string {
 // fakeCredential satisfies azcore.TokenCredential without contacting AAD.
 type fakeCredential struct{}
 
-func (fakeCredential) GetToken(_ context.Context, _ policy.TokenRequestOptions) (azcore.AccessToken, error) {
+func (fakeCredential) GetToken(
+	_ context.Context,
+	_ policy.TokenRequestOptions,
+) (azcore.AccessToken, error) {
 	return azcore.AccessToken{Token: "fake", ExpiresOn: time.Now().Add(time.Hour)}, nil
 }
 

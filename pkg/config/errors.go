@@ -398,7 +398,10 @@ type InvalidTFWorkspaceError struct {
 }
 
 func (err InvalidTFWorkspaceError) Error() string {
-	return fmt.Sprintf("determining dependency workspace: invalid TF_WORKSPACE value %q", err.Workspace)
+	return fmt.Sprintf(
+		"determining dependency workspace: invalid TF_WORKSPACE value %q",
+		err.Workspace,
+	)
 }
 
 // StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs

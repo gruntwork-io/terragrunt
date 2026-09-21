@@ -212,7 +212,8 @@ func (dep *Dependency) isEnabled() bool {
 // decodes configs that failed to parse and discovery decodes before every value resolves,
 // so config_path can arrive unknown or null.
 func (dep *Dependency) configPathString() (string, bool) {
-	if dep.ConfigPath.IsNull() || !dep.ConfigPath.IsWhollyKnown() || !dep.ConfigPath.Type().Equals(cty.String) {
+	if dep.ConfigPath.IsNull() || !dep.ConfigPath.IsWhollyKnown() ||
+		!dep.ConfigPath.Type().Equals(cty.String) {
 		return "", false
 	}
 
