@@ -15,6 +15,7 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -153,8 +154,13 @@ func PrepareSource(
 		return nil, err
 	}
 
-	// When no_cache is true and no external source is configured, sourceURL
-	// is empty. Run directly from the unit directory.
+	// When the no-cache experiment is enabled and no_cache is set in config,
+	// GetTerraformSourceURL returns "" to signal that the unit directory
+	// should be used directly without copying to .terragrunt-cache.
+	if sourceURL == "" && !opts.Experiments.Evaluate(experiment.NoCache) {
+		sourceURL = "."
+	}
+
 	if sourceURL == "" {
 		_, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 		if err != nil {

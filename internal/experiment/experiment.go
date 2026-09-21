@@ -134,6 +134,10 @@ const (
 	// MCPCommand gates the `terragrunt mcp` command, which serves Terragrunt
 	// operations to AI agents over the Model Context Protocol.
 	MCPCommand = "mcp-command"
+	// NoCache gates the terraform.no_cache attribute, which skips copying
+	// local source to .terragrunt-cache and runs Terraform directly from the
+	// unit directory when no external terraform.source is configured.
+	NoCache = "no-cache"
 )
 
 const (
@@ -274,6 +278,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: MCPCommand,
+		},
+		{
+			Name: NoCache,
 		},
 	}
 }
