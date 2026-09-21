@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"flag"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -27,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -175,49 +175,50 @@ var fuzzKeptEnvVars = []string{"TMPDIR", "TMP", "TEMP", "SystemRoot"}
 // SDKs resolve the invoking user's home and config directories from.
 var fuzzHomeEnvVars = []string{"HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA"}
 
-// isolateFuzzProcessEnv strips the process environment down to an empty home
-// directory and an empty PATH.
+// isolateFuzzProcessEnv empties every environment variable but the few in
+// fuzzKeptEnvVars, points the home variables at an empty directory, and points
+// PATH at another.
 //
 // It covers the libraries a run reaches that read the process environment
 // instead of the venv: go-getter runs git with it, and the AWS, GCP, and Azure SDKs
 // find credentials in it and in the home directory. A git spawned that way
 // finds no binary on PATH, so it reaches no remote and prompts for no credentials,
 // and the invoking user's credentials stay out of reach.
-func isolateFuzzProcessEnv(f *testing.F) {
-	f.Helper()
+//
+// Every variable is set through tb, which restores it when tb finishes and
+// panics when tb is parallel or becomes parallel. The environment belongs to
+// the whole process, and tests sharing it would lose theirs mid-run.
+func isolateFuzzProcessEnv(tb testing.TB) {
+	tb.Helper()
 
-	if !inFuzzWorker() {
-		return
-	}
+	// TempDir reads the environment emptied below, so the directories come first.
+	home, bin := tb.TempDir(), tb.TempDir()
 
-	// TempDir reads the environment cleared below, so the directories come first.
-	home, bin := f.TempDir(), f.TempDir()
-
-	isolated := map[string]string{"PATH": bin}
-
-	for _, name := range fuzzKeptEnvVars {
-		if value, ok := os.LookupEnv(name); ok {
-			isolated[name] = value
+	for name := range venv.ParseEnviron(os.Environ()) {
+		if !isFuzzKeptEnvVar(name) {
+			tb.Setenv(name, "")
 		}
 	}
 
 	for _, name := range fuzzHomeEnvVars {
-		isolated[name] = home
+		tb.Setenv(name, home)
 	}
 
-	os.Clearenv()
-
-	for name, value := range isolated {
-		require.NoError(f, os.Setenv(name, value))
-	}
+	tb.Setenv("PATH", bin)
 }
 
-// inFuzzWorker reports whether this process is a fuzz worker, which cmd/go
-// starts with -test.fuzzworker to run one target.
-func inFuzzWorker() bool {
-	worker := flag.Lookup("test.fuzzworker")
+// isFuzzKeptEnvVar reports whether name is one of fuzzKeptEnvVars, matching
+// case-insensitively as Windows matches variable names. A Windows per-drive
+// working directory, whose name starts with "=", is kept as well, since
+// os.Setenv rejects it.
+func isFuzzKeptEnvVar(name string) bool {
+	if strings.HasPrefix(name, "=") {
+		return true
+	}
 
-	return worker != nil && worker.Value.String() == "true"
+	return slices.ContainsFunc(fuzzKeptEnvVars, func(kept string) bool {
+		return strings.EqualFold(kept, name)
+	})
 }
 
 // fuzzCountingWriter counts the bytes written to it and drops them. It is
