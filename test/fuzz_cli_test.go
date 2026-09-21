@@ -53,8 +53,8 @@ const (
 	fuzzFileMode        = 0o644
 )
 
-// fuzzRoot is where every iteration's world is laid down in memory, and the
-// directory the CLI starts in.
+// fuzzRoot is the in-memory directory every iteration's world is written to,
+// and the directory the CLI starts in.
 var fuzzRoot = venvtest.Root("/work")
 
 // FuzzFullCLI drives the whole Terragrunt CLI, from argument parsing down to
@@ -87,8 +87,6 @@ func FuzzFullCLI(f *testing.F) {
 	vocab := newFuzzVocab(f)
 	worlds := newFuzzWorlds(f)
 
-	// One seed per command path, each paired with a different world, so plain
-	// `go test` runs every command at least once.
 	for i := range vocab.commands {
 		seed := binary.LittleEndian.AppendUint16(nil, uint16(i))
 		seed = binary.LittleEndian.AppendUint16(seed, uint16(i%len(worlds)))
@@ -151,7 +149,6 @@ func FuzzFullCLI(f *testing.F) {
 			)
 		}
 
-		// ExitCodeFor is what main.go runs after RunContext; it logs the error.
 		cli.ExitCodeFor(l, args, app.Version, err, 0, panicreport.New(v))
 
 		silenced := l.Formatter().DisabledOutput() || l.Level() < log.ErrorLevel
@@ -179,16 +176,13 @@ var fuzzKeptEnvVars = []string{"TMPDIR", "TMP", "TEMP", "SystemRoot"}
 var fuzzHomeEnvVars = []string{"HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA"}
 
 // isolateFuzzProcessEnv strips the process environment down to an empty home
-// directory and an empty PATH. It covers the libraries a run reaches that read
-// the process environment rather than the venv: go-getter runs git with it,
-// and the AWS, GCP, and Azure SDKs find credentials in it and in the home
-// directory. A git spawned that way then finds no binary on PATH, so it
-// cannot reach a remote or prompt the terminal for credentials, and no
-// credential of the invoking user is in reach.
+// directory and an empty PATH.
 //
-// It runs only in a fuzz worker, a process that runs nothing but this target.
-// Under plain `go test` the tests sharing the process would lose their
-// environment mid-run.
+// It covers the libraries a run reaches that read the process environment
+// instead of the venv: go-getter runs git with it, and the AWS, GCP, and Azure SDKs
+// find credentials in it and in the home directory. A git spawned that way
+// finds no binary on PATH, so it reaches no remote and prompts for no credentials,
+// and the invoking user's credentials stay out of reach.
 func isolateFuzzProcessEnv(f *testing.F) {
 	f.Helper()
 
@@ -196,7 +190,7 @@ func isolateFuzzProcessEnv(f *testing.F) {
 		return
 	}
 
-	// The directories are made before the environment naming them is cleared.
+	// TempDir reads the environment cleared below, so the directories come first.
 	home, bin := f.TempDir(), f.TempDir()
 
 	isolated := map[string]string{"PATH": bin}
@@ -330,8 +324,8 @@ type fuzzFlag struct {
 	takesValue bool
 }
 
-// fuzzVocab is what an invocation is assembled from: the command tree, the
-// env vars its flags read, and pools of plausible values.
+// fuzzVocab groups the parts an invocation is assembled from: the command
+// tree, the env vars its flags read, and pools of plausible values.
 type fuzzVocab struct {
 	commands []fuzzCommand
 	envKeys  []string
@@ -481,8 +475,8 @@ func (vocab *fuzzVocab) value(c *fuzzConsumer) string {
 	}
 }
 
-// fuzzValuePool collects values that some flag accepts, so a flag that
-// validates its value still gets past validation often.
+// fuzzValuePool collects values that some flag accepts, so a flag that checks
+// its value often gets past that check.
 func fuzzValuePool() []string {
 	return slices.Concat([]string{
 		"", "true", "false", "0", "1", "-1", "2", "10", "1s", "1m",
@@ -521,8 +515,8 @@ var fuzzExtraEnvKeys = []string{
 	"GITHUB_TOKEN", "GIT_TERMINAL_PROMPT",
 }
 
-// fuzzTFArgPool is what follows `--`. The subprocess is in memory, so these
-// only exercise Terragrunt's own argument handling.
+// fuzzTFArgPool supplies the args after `--`. The subprocess is in memory, so
+// these only exercise Terragrunt's own argument handling.
 var fuzzTFArgPool = []string{
 	"plan", "apply", "destroy", "init", "output", "validate", "show", "state", "import",
 	"-out=plan.bin", "plan.bin", "-input=false", "-no-color", "-auto-approve",
@@ -533,8 +527,8 @@ var fuzzTFArgPool = []string{
 var fuzzStdinPool = []string{"", "y\n", "n\n", "yes\n", "\n", "y\ny\ny\n"}
 
 // fuzzMutateOneFile sometimes damages one file of the world: it truncates it,
-// splices input bytes into it, or replaces it with input bytes. That is where
-// the parsers see input no fixture holds.
+// splices input bytes into it, or replaces it with input bytes. The parsers
+// then see input no fixture contains.
 func fuzzMutateOneFile(c *fuzzConsumer, files map[string][]byte) {
 	op := c.nextByte() % 8
 	if op > 2 || len(files) == 0 {
@@ -960,7 +954,8 @@ func orFuzzDefault(s, fallback string) string {
 	return s
 }
 
-// fuzzLookPath finds every binary, so commands reach the point of running it.
+// fuzzLookPath resolves every binary name, so a command reaches the point of
+// running one.
 func fuzzLookPath(file string) (string, error) {
 	return "/usr/bin/" + file, nil
 }
@@ -1006,8 +1001,8 @@ func isFuzzVersionArg(arg string) bool {
 }
 
 // fuzzHTTPHandler answers every outbound request, the cloud SDKs' included,
-// from the input. It leans towards `{}` so JSON decoders pass and the caller
-// gets further.
+// from the input. It answers `{}` more often than not, so JSON decoders pass
+// and the caller gets further.
 func fuzzHTTPHandler(c *fuzzConsumer) vhttp.Handler {
 	return func(_ context.Context, _ *http.Request) (*http.Response, error) {
 		status := []int{http.StatusOK, http.StatusNotFound, http.StatusInternalServerError}[c.nextByte()%3]

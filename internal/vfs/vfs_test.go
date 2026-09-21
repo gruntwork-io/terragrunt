@@ -814,7 +814,7 @@ func TestUnzipFilesLimit(t *testing.T) {
 		assert.Contains(t, err.Error(), "exceeds limit")
 	})
 
-	t.Run("no limit when FilesLimit is zero", func(t *testing.T) {
+	t.Run("no limit when FilesLimit is explicitly zero", func(t *testing.T) {
 		t.Parallel()
 
 		fs := vfs.NewMemMapFS()
@@ -825,10 +825,21 @@ func TestUnzipFilesLimit(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFilesLimit(0)).Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 	})
+}
+
+// TestNewZipDecompressorBoundsByDefault pins that a decompressor built
+// without options still bounds what it extracts.
+func TestNewZipDecompressorBoundsByDefault(t *testing.T) {
+	t.Parallel()
+
+	z := vfs.NewZipDecompressor()
+
+	assert.Equal(t, vfs.DefaultZipFileSizeLimit, z.FileSizeLimit)
+	assert.Equal(t, vfs.DefaultZipFilesLimit, z.FilesLimit)
 }
 
 func TestUnzipFileSizeLimit(t *testing.T) {

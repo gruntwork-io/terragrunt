@@ -127,8 +127,8 @@ func WithOCIConfig(v *venv.Venv) GenericFetcherOption {
 
 // WithHTTPClient overrides the outbound-HTTP client the generic-dispatch
 // fetchers probe and fetch through, which [DefaultGenericFetchers] otherwise
-// takes from the venv. [DefaultSourceResolvers] reads its client from the
-// venv it is handed instead.
+// takes from the venv. [DefaultSourceResolvers] reads its client from its
+// venv argument instead.
 func WithHTTPClient(c vhttp.Client) GenericFetcherOption {
 	return func(cfg *genericFetcherConfig) { cfg.httpClient = c }
 }

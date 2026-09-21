@@ -101,8 +101,6 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 		g.Venv.RequireExec()
 		g.Venv.RequireHTTP()
 
-		// An overriding client rides a venv copy, which is how both
-		// constructors below take theirs.
 		v := g.Venv
 		if cfg.httpClient != nil {
 			v = v.WithHTTP(cfg.httpClient)

@@ -197,8 +197,8 @@ func indexStandalone(str, absPath string, from int) int {
 	return -1
 }
 
-// standsAlone reports whether str[start:end] holds a path of its own rather
-// than a leading piece of a longer path or a word. A separator or a word
+// standsAlone reports whether str[start:end] is a path of its own, not a
+// leading piece of a longer path or a word. A separator or a word
 // character before it makes it part of something longer, and so does anything
 // but a separator, a quote, or whitespace after it.
 func standsAlone(str string, start, end int) bool {

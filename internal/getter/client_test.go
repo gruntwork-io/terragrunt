@@ -45,9 +45,9 @@ func TestGetFileConvenience(t *testing.T) {
 	assert.Equal(t, body, string(got))
 }
 
-// TestNewClientFetchesThroughVenvHTTP pins that an http source rides the
-// venv's client without the caller asking for it, so a call site that passes
-// no HTTP option cannot reach the network behind the venv's back.
+// TestNewClientFetchesThroughVenvHTTP pins that an http source goes through
+// the venv's client with no option passed, so a call site that forgets one
+// cannot reach the network outside the venv.
 func TestNewClientFetchesThroughVenvHTTP(t *testing.T) {
 	t.Parallel()
 

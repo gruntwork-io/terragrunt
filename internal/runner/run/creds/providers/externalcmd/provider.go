@@ -20,8 +20,8 @@ import (
 	"github.com/mattn/go-shellwords"
 )
 
-// ErrEmptyAuthProviderCmd is returned when the auth provider command holds no
-// command to run once parsed, such as a value of only spaces or one starting
+// ErrEmptyAuthProviderCmd is returned when parsing the auth provider command
+// yields no command to run, such as a value of only spaces or one starting
 // with a shell operator.
 var ErrEmptyAuthProviderCmd = errors.New("auth provider command has no command to run")
 
