@@ -26,6 +26,7 @@
     "astro-d2": "^0.13.1",
     "gray-matter": "^4.0.3",
     "hast-util-select": "^6.0.4",
+    "picomatch": "^4.0.5",
     "rehype-parse": "^9.0.1",
     "rehype-remark": "^10.0.1",
     "remark-gfm": "^4.0.1",
@@ -38,7 +39,8 @@
   },
   "devDependencies": {
     "@types/bun": "^1.4.1",
-    "@types/hast": "^3.0.5"
+    "@types/hast": "^3.0.5",
+    "@types/picomatch": "^4.0.3"
   },
   "overrides": {
     "estree-walker": "2.0.2"

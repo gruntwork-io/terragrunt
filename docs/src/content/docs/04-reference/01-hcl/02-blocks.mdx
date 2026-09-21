@@ -57,7 +57,7 @@ The `terraform` block supports the following arguments:
 
 - `version` (attribute): A version constraint used to resolve a `tfr://` registry module, as an alternative to pinning an exact version in the source URL.
 
-  <Before version="1.2.0">
+  <Before version="v1.2.0">
 
   <Aside type="tip" title="Experimental">
     The `version` attribute is gated behind the `version-attribute` experiment. Enable it with `--experiment version-attribute` (or `TG_EXPERIMENT=version-attribute`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#version-attribute).
@@ -494,13 +494,13 @@ For the `s3` backend, the following additional properties are supported in the `
 - `accesslogging_target_object_partition_date_source`: (Optional) When provided as a valid `string`, it configures the `PartitionDateSource` option. This option is part of the `TargetObjectKeyFormat` and `PartitionedPrefix` AWS configurations, allowing you to configure the log object key format for the access log files. Reference: [Logging requests with server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html).
 - `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Opentofu/Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 - `skip_accesslogging_bucket_acl`: When set to `true`, the S3 bucket where access logs are stored will not be configured with bucket ACL.
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 - `skip_accesslogging_bucket_policy`: When set to `true`, the S3 bucket where access logs are stored will not be configured with a bucket policy granting S3 permission to deliver access logs to it.
 - `skip_accesslogging_bucket_acl`: *DEPRECATED* Opted out of the bucket ACL that used to carry this grant, an approach [AWS recommends against](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general). It now has no effect, since Terragrunt sets no ACL. Use `skip_accesslogging_bucket_policy` to skip the grant. Terragrunt warns when it is used. See the [`skip-accesslogging-bucket-acl`](/reference/strict-controls/active#skip-accesslogging-bucket-acl) strict control.
@@ -1329,7 +1329,7 @@ The `dependency` block supports the following arguments:
 - `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
 - `expansion` (block, optional): Iterates the `dependency` block, producing one dependency per element of a `count` or `for_each`. Each instance is referenced by key, as in `dependency.aurora["web"].outputs.id`. See [`expansion`](#expansion).
 
-  <Before version="1.2.0">
+  <Before version="v1.2.0">
 
   <Aside type="tip" title="Experimental">
     The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
@@ -1533,7 +1533,7 @@ unit "private" {
 
 Terragrunt no longer generates `private`, so its entry is gone from the output:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 $ terragrunt stack output --experiment block-iteration
@@ -1550,7 +1550,7 @@ vpc = {
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 $ terragrunt stack output
@@ -1603,7 +1603,7 @@ unit "subnets" {
 
 `terragrunt stack output` prints each element under `subnets`, keyed by availability zone:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 $ terragrunt stack output --experiment block-iteration
@@ -1627,7 +1627,7 @@ vpc = {
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 $ terragrunt stack output
@@ -1813,7 +1813,7 @@ stack "subnets" {
 
 `terragrunt stack output` prints the `public` and `private` units of each element under its key:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 $ terragrunt stack output --experiment block-iteration
@@ -1851,7 +1851,7 @@ vpc = {
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 $ terragrunt stack output
@@ -1941,13 +1941,13 @@ When no unit in the stack has outputs yet, the whole `mock_outputs` value stands
 - `shallow` fills a missing top-level unit or nested stack. It does not fill a unit missing from a nested stack that has some outputs, e.g. `subnets.private` when only `subnets.public` is applied.
 - `deep_map_only` fills missing units at every level.
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 Running with [`--dependency-fetch-output-from-state`](/reference/cli/commands/run#dependency-fetch-output-from-state) on a backend that supports it also fills them. A unit whose state object is missing uses its own `mock_outputs` entry when mocks are allowed for the command, and a unit with no entry is left out. When mocks are not allowed, the dependency fails and names that unit.
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 Terragrunt reads dependency outputs from state by default on a backend that supports it, and that also fills them. A unit whose state object is missing uses its own `mock_outputs` entry when mocks are allowed for the command, and a unit with no entry is left out. When mocks are not allowed, the dependency fails and names that unit. [`--no-dependency-fetch-output-from-state`](/reference/cli/commands/run#no-dependency-fetch-output-from-state) turns this off.
 
@@ -2052,7 +2052,7 @@ The `generate` block supports the following arguments:
 
 - `mutable` (attribute): When `true`, the generated file is an ordinary writable file. Defaults to `false`. Optional.
 
-  <Before version="1.2.0">
+  <Before version="v1.2.0">
 
   <Aside type="tip" title="Experimental">
     The `mutable` attribute is gated behind the `mutable-generate` experiment. Enable it with `--experiment mutable-generate` (or `TG_EXPERIMENT=mutable-generate`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#mutable-generate).
@@ -2472,7 +2472,7 @@ The `unit` block supports the following arguments:
 - `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the unit's configuration. When set to `true`, Terragrunt will skip validation checks for this unit.
 - `enabled` (attribute, optional): When `false`, the unit is skipped during stack generation and omitted from `terragrunt stack output`. Defaults to `true`. Toggling it leaves the unit's address and generated path unchanged. See [`enabled` vs `expansion`](#enabled-vs-expansion).
 
-  <Before version="1.2.0">
+  <Before version="v1.2.0">
 
   <Aside type="tip" title="Experimental">
     The `enabled` attribute is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
@@ -2482,7 +2482,7 @@ The `unit` block supports the following arguments:
 
 - `expansion` (block, optional): Iterates the `unit` block, generating one unit per element of a `count` or `for_each`. Each instance needs its own `path`. See [`expansion`](#expansion).
 
-  <Before version="1.2.0">
+  <Before version="v1.2.0">
 
   <Aside type="tip" title="Experimental">
     The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
@@ -2618,7 +2618,7 @@ The `stack` block supports the following arguments:
 - `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the stack's configuration. When set to `true`, Terragrunt will skip validation checks for this stack.
 - `enabled` (attribute, optional): When `false`, the stack is skipped during stack generation and omitted from `terragrunt stack output`. Defaults to `true`. Toggling it leaves the stack's address and generated path unchanged. See [`enabled` vs `expansion`](#enabled-vs-expansion).
 
-  <Before version="1.2.0">
+  <Before version="v1.2.0">
 
   <Aside type="tip" title="Experimental">
     The `enabled` attribute is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
@@ -2628,7 +2628,7 @@ The `stack` block supports the following arguments:
 
 - `expansion` (block, optional): Iterates the `stack` block, generating one stack per element of a `count` or `for_each`. Each instance needs its own `path`. See [`expansion`](#expansion).
 
-  <Before version="1.2.0">
+  <Before version="v1.2.0">
 
   <Aside type="tip" title="Experimental">
     The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
@@ -2673,7 +2673,7 @@ Terragrunt will recursively generate a stack using the contents of the `.terragr
 
 ## expansion
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 <Aside type="tip" title="Experimental">
   The `expansion` block is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#block-iteration).
@@ -2751,7 +2751,7 @@ Reach a `count` instance by its index, e.g. `dependency.shard[0]`.
 
 A configuration that declares both an expanded and an unexpanded `dependency` under the same label is an error, since the unexpanded block would claim the name the instances are keyed under.
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 A stack file can declare an expanded `dependency` inside the [`autoinclude`](#autoinclude) block of a `unit`, and a `unit` or `stack` block can declare both `expansion` and `autoinclude`. See the `autoinclude` reference for how generation writes each.
 
@@ -2761,7 +2761,7 @@ A stack file can declare an expanded `dependency` inside the [`autoinclude`](#au
 
 `terragrunt stack output` nests each element of an expanded unit under its key:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 terragrunt stack output 'aurora["web"].role' --experiment block-iteration
@@ -2770,7 +2770,7 @@ terragrunt stack output 'shard[0].role' --experiment block-iteration
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 terragrunt stack output 'aurora["web"].role'
@@ -2783,7 +2783,7 @@ Terragrunt parses an output address as an HCL traversal, so an iteration key con
 
 ### `enabled` vs `expansion`
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 <Aside type="tip" title="Experimental">
   The `enabled` attribute on `unit` and `stack` blocks is gated behind the `block-iteration` experiment. Enable it with `--experiment block-iteration` (or `TG_EXPERIMENT=block-iteration`) until it graduates to general availability. The `enabled` attribute on `dependency` blocks predates the experiment and is not gated. See the [experiment documentation](/reference/experiments/active#block-iteration).
@@ -2848,7 +2848,7 @@ unit "canary" {
 
 Generating this stack creates `.terragrunt-stack/app` and no `canary` directory. After an apply, the output lists only `app`:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 $ terragrunt stack output --experiment block-iteration
@@ -2859,7 +2859,7 @@ app = {
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 $ terragrunt stack output
@@ -2982,7 +2982,7 @@ terragrunt run --all --filter './.terragrunt-stack/aurora/web' -- apply
 
 `terragrunt render` shows an expanded block as it was written, followed by the elements it expands into, commented out:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 $ terragrunt render --experiment block-iteration
@@ -3007,7 +3007,7 @@ dependency "aurora" {
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 $ terragrunt render
@@ -3120,7 +3120,7 @@ inputs = {
 
 Expressions in the autoinclude body resolve at generation time, in the context of the stack file: `local.*`, `values.*`, `unit.<name>.path`, `stack.<name>.path`, and function calls all become literals in the generated file. Because functions evaluate against the stack file rather than the unit, directory functions report the stack file's location (`get_terragrunt_dir()` returns the stack file's directory, and `path_relative_to_include()` returns `"."`). Only `dependency.*` references are kept verbatim, because dependency outputs exist only when the unit runs.
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 `autoinclude` works with [`expansion`](#expansion). When the `unit` or `stack` block declares an `expansion`, each element gets its own generated file, and `each.key`, `each.value`, and `count.index` in the autoinclude body resolve to that element.
 
@@ -3198,7 +3198,7 @@ When the `unit` block and the `dependency` block are both expanded, the dependen
 
 These variables are available inside `autoinclude` blocks and in the `values` attribute of `unit` and `stack` blocks, so a parent stack can pass a component's path down to a child stack. Only components declared in the same stack file are visible; referencing an undeclared name fails generation.
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 An [expanded](#expansion) component exposes one path per element, under the key its [address](#addressing-expanded-units-in-stack-output) uses: `unit.vpc["us-east-1"].path` for a `for_each`, or `unit.shard[0].path` for a `count`. A label declared both with and without an `expansion` fails the parse, since `unit.<name>` cannot refer to both.
 

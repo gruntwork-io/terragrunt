@@ -3,7 +3,7 @@ import { Aside, Code } from '@astrojs/starlight/components';
 import { getEntry, render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import Flag from './Flag.astro';
-import { isFlagVisible } from '@lib/flags';
+import { isPublished } from '@lib/release';
 
 const { path } = Astro.props;
 
@@ -20,7 +20,7 @@ const visibleFlagSlugs = data?.flags
 				data.flags.map(async (slug) => {
 					const flag = await getEntry('flags', slug);
 					if (!flag) return null;
-					return (await isFlagVisible(flag.data.since)) ? slug : null;
+					return (await isPublished(flag.data.since)) ? slug : null;
 				}),
 			)
 		).filter((slug): slug is string => slug !== null)

@@ -169,7 +169,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
-- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm)<Before version="1.2.0"> (experimental; bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)</Before>
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm)<Before version="v1.2.0"> (experimental; bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)</Before>
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -216,13 +216,13 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 - **Access logging bucket**: If you specify an `accesslogging_bucket_name` in `remote_state.config` and that bucket doesn't already exist, Terragrunt will create it automatically. You can tag the access logging bucket with custom tags using `remote_state.config.accesslogging_bucket_tags`, and control the log object prefix using `accesslogging_target_prefix`.
 
-  <Before version="1.2.0">
+  <Before version="v1.2.0">
 
   Terragrunt grants S3 permission to deliver logs into this bucket with a bucket ACL, granting `WRITE` and `READ_ACP` to the S3 log delivery group. It does this every run, on a bucket it creates and on one that already exists. A bucket with ACLs disabled rejects the grant.
 
   </Before>
 
-  <Since version="1.2.0">
+  <Since version="v1.2.0">
 
   A bucket Terragrunt creates here gets a bucket policy letting S3 deliver access logs into it on behalf of buckets in the same AWS account. AWS [recommends a bucket policy over the log delivery group ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general) for this, and documents the [policy to use](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-bucket-policy). Terragrunt also creates buckets with ACLs disabled, [which AWS recommends](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html) and applies by default to new buckets.
 
@@ -230,7 +230,7 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
   </Since>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 Terragrunt creates a bucket in your [account regional namespace](https://docs.aws.amazon.com/AmazonS3/latest/userguide/gpbucketnamespaces.html) when you name it using a name that's reserved for the account regional namespace. That namespace is a reserved subdivision of the S3 namespace that only your account can create buckets in, and its names end with your account ID, the region, and `-an`:
 
@@ -418,7 +418,7 @@ The following config options are only valid for the `gcs` backend and are used b
 
 ### Azure Storage (azurerm) Backend
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 <Aside type="caution" title="Experimental">
 Azure backend support is delivered through the [`azure-backend`](/reference/experiments/active#azure-backend) experiment.
 
@@ -428,7 +428,7 @@ Otherwise, these operations return an error. OpenTofu/Terraform's native azurerm
 </Before>
 
 <Aside type="note">
-<Before version="1.2.0">When `azure-backend` is enabled and the</Before><Since version="1.2.0">When the</Since> Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
+<Before version="v1.2.0">When `azure-backend` is enabled and the</Before><Since version="v1.2.0">When the</Since> Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
 </Aside>
 
 Example configuration:
@@ -503,7 +503,7 @@ The following config options are only valid for the `azurerm` backend and are us
 - `account_tier` - Storage account tier, `Standard` or `Premium`. Defaults to `Standard`.
 - `account_replication_type` - Replication type, e.g. `LRS`, `GRS`, `ZRS`. Defaults to `LRS`.
 - `access_tier` - Blob access tier, `Hot`, `Cool`, `Cold`, or `Premium`. Defaults to `Hot`.
-<Since version="1.2.0">
+<Since version="v1.2.0">
 - `minimum_tls_version` - Minimum TLS version permitted on requests to the storage account, `TLS1_2` or `TLS1_3`. Defaults to `TLS1_2`. The deprecated `TLS1_0` and `TLS1_1` are not accepted. Applies only when Terragrunt creates the account.
 </Since>
 - `tags` - Map of tags applied to the storage account on creation.

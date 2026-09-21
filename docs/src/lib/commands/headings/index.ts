@@ -1,5 +1,5 @@
 import { getEntry, type CollectionEntry } from 'astro:content';
-import { isFlagVisible } from '@lib/flags';
+import { isPublished } from '@lib/release';
 
 export async function getHeadings(
 	command: CollectionEntry<'commands'>,
@@ -34,7 +34,7 @@ export async function getHeadings(
 			await Promise.all(
 				flagEntries.map(async (flag) => {
 					if (!flag) return null;
-					return (await isFlagVisible(flag.data.since)) ? flag : null;
+					return (await isPublished(flag.data.since)) ? flag : null;
 				}),
 			)
 		).filter((flag): flag is NonNullable<typeof flag> => flag !== null);

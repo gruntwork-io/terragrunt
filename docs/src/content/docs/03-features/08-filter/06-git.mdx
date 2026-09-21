@@ -253,13 +253,13 @@ locals {
 }
 ```
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 The stack in `HEAD^` generates `app/us-west-2` and the stack in `HEAD` does not, so `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy --experiment block-iteration -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 The stack in `HEAD^` generates `app/us-west-2` and the stack in `HEAD` does not, so `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
 
@@ -315,13 +315,13 @@ locals {
 }
 ```
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 Removing `"us-west-2"` from `regions.hcl` orphans `app/us-west-2` in the same way, and `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy --experiment block-iteration -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 Removing `"us-west-2"` from `regions.hcl` orphans `app/us-west-2` in the same way, and `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
 
@@ -406,7 +406,7 @@ Consider a branch that removes `"us-west-2"` and `"eu-west-1"` from `local.regio
 
 To limit the search to part of the repository, intersect the Git expression with another expression using `|` in the same `--filter`. The intersection applies to every component the Git expression selects, including orphans, which you can select by their generated path:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 terragrunt run --all --filter '[main...HEAD] | ./live/**' --filter-allow-destroy --experiment block-iteration -- apply
@@ -415,7 +415,7 @@ terragrunt run --all --filter '[main...HEAD] | ./live/.terragrunt-stack/app/us-w
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 terragrunt run --all --filter '[main...HEAD] | ./live/**' --filter-allow-destroy -- apply

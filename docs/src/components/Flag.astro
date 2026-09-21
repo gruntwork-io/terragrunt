@@ -3,7 +3,7 @@ import { Badge } from '@astrojs/starlight/components';
 import Card from '@components/vendored/starlight/Card.astro';
 import type { CollectionEntry } from 'astro:content';
 import { render, getEntry } from 'astro:content';
-import { isFlagVisible } from '@lib/flags';
+import { isPublished } from '@lib/release';
 
 interface Props {
   slug: string;
@@ -12,7 +12,7 @@ interface Props {
 const { slug } = Astro.props;
 
 const flagEntry = await getEntry('flags', slug) as CollectionEntry<'flags'>;
-const visible = await isFlagVisible(flagEntry.data.since);
+const visible = await isPublished(flagEntry.data.since);
 const { Content } = await render(flagEntry);
 const { aliases, description, type, env, name, defaultVal } = flagEntry.data;
 ---
