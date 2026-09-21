@@ -1259,7 +1259,7 @@ func TestTFDownloadWithCASMutable(t *testing.T) {
 func TestTFLocalNoCacheSkipsTerragruntCache(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalNoCache)
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCache)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -1274,7 +1274,7 @@ func TestTFLocalNoCacheSkipsTerragruntCache(t *testing.T) {
 func TestTFLocalNoCacheWithoutExperimentStillUsesCache(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalNoCache)
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCache)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
