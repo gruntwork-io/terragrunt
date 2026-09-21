@@ -20,11 +20,15 @@
 // parse then reaches for.
 //
 // A tool call starts from an empty environment unless [CapabilityEnv] is
-// granted, in which case it sees a copy of the server's own.
+// granted, in which case it sees a copy of the server's own. The command also
+// strips its own process environment the same way before serving, as
+// [IsolatedEnv] describes, because go-getter and the cloud SDKs read that
+// directly instead of reading them from the venv.
 package mcp
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
@@ -126,7 +130,17 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, cmdOpts)
+			granted, err := ParseCapabilities(cmdOpts.Allow)
+			if err != nil {
+				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
+			}
+
+			cleanup, err := isolateProcessEnv(v, granted)
+			if err != nil {
+				return err
+			}
+
+			return errors.Join(Run(ctx, l, v, cmdOpts), cleanup())
 		},
 	}
 }

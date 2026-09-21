@@ -138,3 +138,59 @@ func TestMCPCommandRefusesFlagsItCannotHonor(t *testing.T) {
 		})
 	}
 }
+
+// TestMCPCommandIsolatesTheProcessEnvironment pins that the command replaces
+// the process environment before serving, keeping PATH under --allow=exec and
+// dropping credentials without --allow=env.
+func TestMCPCommandIsolatesTheProcessEnvironment(t *testing.T) {
+	t.Parallel()
+
+	var replaced map[string]string
+
+	v := venvtest.NewOSWithEmptyEnv().
+		WithEnv(map[string]string{"PATH": "/usr/bin", "AWS_ACCESS_KEY_ID": "AKIAEXAMPLE"}).
+		WithReplaceEnviron(func(env map[string]string) error {
+			replaced = env
+			return nil
+		}).
+		WithStdin(strings.NewReader("")).
+		WithWriter(io.Discard).
+		WithErrWriter(io.Discard)
+	l := logger.CreateLogger()
+
+	args := slices.Concat([]string{"terragrunt"}, mcpArgs("--working-dir", t.TempDir(), "--allow=exec"))
+	require.NoError(t, cli.NewApp(l, options.NewTerragruntOptions(v.Exec), v).RunContext(t.Context(), l, v, args))
+
+	assert.Equal(t, "/usr/bin", replaced["PATH"])
+	assert.NotContains(t, replaced, "AWS_ACCESS_KEY_ID")
+	assert.NotEmpty(t, replaced["HOME"])
+	assert.NoDirExists(t, replaced["HOME"], "the empty home should be removed once the server stops")
+}
+
+// TestMCPCommandRefusesToServeWhenTheEnvironmentCannotBeReplaced pins that a
+// failed replacement stops the command and removes the empty directories it
+// made for HOME and PATH.
+func TestMCPCommandRefusesToServeWhenTheEnvironmentCannotBeReplaced(t *testing.T) {
+	t.Parallel()
+
+	errReplace := errors.New("replace failed")
+
+	var home string
+
+	v := venvtest.NewOSWithEmptyEnv().
+		WithReplaceEnviron(func(env map[string]string) error {
+			home = env["HOME"]
+			return errReplace
+		}).
+		WithStdin(strings.NewReader("")).
+		WithWriter(io.Discard).
+		WithErrWriter(io.Discard)
+	l := logger.CreateLogger()
+
+	args := slices.Concat([]string{"terragrunt"}, mcpArgs("--working-dir", t.TempDir()))
+	err := cli.NewApp(l, options.NewTerragruntOptions(v.Exec), v).RunContext(t.Context(), l, v, args)
+
+	require.ErrorIs(t, err, errReplace)
+	require.NotEmpty(t, home)
+	assert.NoDirExists(t, filepath.Dir(home))
+}

@@ -152,7 +152,7 @@ linters:
         - pattern: ^os\.(ReadFile|WriteFile|Open|OpenFile|OpenRoot|Create|CreateTemp|MkdirTemp|Stat|Lstat|Mkdir|MkdirAll|Remove|RemoveAll|ReadDir|Rename|Symlink|Readlink|Chmod|Chdir|Getwd|Link|Truncate)$
           pkg: ^os$
           msg: read and write through the venv's vfs.FS instead of the real filesystem
-        - pattern: ^os\.(Getenv|Setenv|Unsetenv|LookupEnv|Environ|ExpandEnv)$
+        - pattern: ^os\.(Getenv|Setenv|Unsetenv|Clearenv|LookupEnv|Environ|ExpandEnv)$
           pkg: ^os$
           msg: read and write the venv's Env map instead of the process environment
         - pattern: ^os\.(UserHomeDir|UserCacheDir|UserConfigDir)$

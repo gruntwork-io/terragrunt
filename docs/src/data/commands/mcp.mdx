@@ -243,6 +243,8 @@ They do not control what a program started by Terragrunt does. With `exec` grant
 
 Lets the tools run the `tofu`, `terraform`, and `git` that Terragrunt starts to do its own work: a plan, a source download, a git-range filter. It does not let a configuration run those programs itself. A `tofu apply` or a `git` a configuration names, through `run_cmd()`, a hook, or `--auth-provider-cmd`, is refused like any other program, so pointing the server at a repository does not hand it the three programs Terragrunt runs.
 
+Without it, Terragrunt also points the server's own `PATH` at an empty directory before serving, so nothing the server loads can start a program by name.
+
 A refused program is reported in the call's `degraded` list and the call continues, because an error there would abort the whole HCL parse and turn a refused command into an unreadable configuration.
 
 To run a program a configuration names, allow it with an [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd) pattern, or let the read-only tools offer it. The agent chooses which repository the server is pointed at, and a configuration under that root can name any program on the machine, so a pattern or approval naming a bare program such as `git` covers a path only when that path is where the server's `PATH` finds the program. A tree shipping its own file called `git` cannot run it as `./git` unless a pattern or approval names `./git` itself. `discover`, `render_config`, `validate`, and `run_order` return the refused programs as an elicitation, then run again with whatever the person operating the client accepts. `plan`, `apply`, and `destroy` never ask, since answering would mean running them a second time.
@@ -273,7 +275,7 @@ Without it, a tool call starts from an empty environment. A configuration's `get
 
 Granting it passes every one of the server's environment variables to configurations and the commands the tools run, as every other Terragrunt command does. That can include cloud credentials, and a configuration can put any variable in a tool result through `get_env()`.
 
-The cloud SDKs Terragrunt uses to read remote state itself, and the SOPS decrypter, look for credentials in the server's own environment whether or not `env` is granted. To keep a credential away from them, leave it out of the environment your MCP client launches the server with.
+Without it, Terragrunt also clears the server's own environment variables before serving and points `HOME` at an empty directory. This covers what reads the server's environment variables directly: the cloud SDKs Terragrunt uses to read remote state, the SOPS decrypter, and `git` commands Terragrunt runs download source code. They find no credential variables and none of the files under your home directory, such as `~/.aws/credentials` or `~/.gitconfig`. So `sops` without `env` cannot find an age key file or key service credentials.
 
 ## Logs
 

@@ -45,7 +45,7 @@ The remaining capabilities are denied the same way, each granted on its own:
 
 - `--allow=env` passes the server's environment variables to configurations and the commands the tools run.
 
-  Unless it is granted, tool calls start from an empty environment, so `get_env()` returns its default. The cloud SDKs Terragrunt uses to read remote state itself, and the SOPS decrypter, still look for credentials in the server's own environment.
+  Unless it is granted, tool calls start from an empty environment, so `get_env()` returns its default. The server also clears its own environment variables and points `HOME` at an empty directory, so cloud SDKs, the SOPS decrypter, and `git` commands Terragrunt runs will find no credentials in environment variables or your home directory.
 
 Granting a capability only changes the capabilities of Terragrunt. A process started under `--allow=exec` can still reach out on the network on its own, so `tofu init` will download providers whether or not `--allow=http` was passed to allow Terragrunt to make network requests. The directory the server is launched in is its root. A tool call targeting a directory outside it is refused, and graph traversal is bounded there too, so a filter following dependencies or dependents cannot bring back a unit from a tree the server was never pointed at. That bounds what the server acts on, not what a configuration can read: an HCL function such as `file()` reads the real disk wherever it points.
 
