@@ -137,47 +137,6 @@ url = "https://dl.google.com/go/go1.27.0.windows-amd64.zip"
 checksum = "sha256:f0c0a0d33ba94f4d2c5dbc887334ce678b21813504ddb3aafcb06e60a5a667c4"
 url = "https://dl.google.com/go/go1.27.0.windows-amd64.zip"
 
-[[tools.go-junit-report]]
-version = "2.1.0"
-backend = "aqua:jstemmer/go-junit-report"
-
-[tools.go-junit-report."platforms.linux-x64"]
-checksum = "blake3:309c665e7decfd91af75cd982b105f82b4ba70b84233b0d1341e26f4f2a351f0"
-url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-linux-amd64.tar.gz"
-url_api = "https://api.github.com/repos/jstemmer/go-junit-report/releases/assets/131268941"
-
-[tools.go-junit-report."platforms.linux-x64-baseline"]
-url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-linux-amd64.tar.gz"
-url_api = "https://api.github.com/repos/jstemmer/go-junit-report/releases/assets/131268941"
-
-[tools.go-junit-report."platforms.linux-x64-musl"]
-url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-linux-amd64.tar.gz"
-url_api = "https://api.github.com/repos/jstemmer/go-junit-report/releases/assets/131268941"
-
-[tools.go-junit-report."platforms.linux-x64-musl-baseline"]
-url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-linux-amd64.tar.gz"
-url_api = "https://api.github.com/repos/jstemmer/go-junit-report/releases/assets/131268941"
-
-[tools.go-junit-report."platforms.macos-arm64"]
-checksum = "blake3:33ef2867b00d5e2ffbdde455ba9c0472deba8cc6a8d11ff58fc657148cd5f47d"
-url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-darwin-arm64.tar.gz"
-
-[tools.go-junit-report."platforms.macos-x64"]
-url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-darwin-amd64.tar.gz"
-url_api = "https://api.github.com/repos/jstemmer/go-junit-report/releases/assets/131268937"
-
-[tools.go-junit-report."platforms.macos-x64-baseline"]
-url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-darwin-amd64.tar.gz"
-url_api = "https://api.github.com/repos/jstemmer/go-junit-report/releases/assets/131268937"
-
-[tools.go-junit-report."platforms.windows-x64"]
-url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-windows-amd64.zip"
-url_api = "https://api.github.com/repos/jstemmer/go-junit-report/releases/assets/131268944"
-
-[tools.go-junit-report."platforms.windows-x64-baseline"]
-url = "https://github.com/jstemmer/go-junit-report/releases/download/v2.1.0/go-junit-report-v2.1.0-windows-amd64.zip"
-url_api = "https://api.github.com/repos/jstemmer/go-junit-report/releases/assets/131268944"
-
 [[tools."go:github.com/golangci/golines"]]
 version = "0.15.0"
 backend = "go:github.com/golangci/golines"

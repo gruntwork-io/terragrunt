@@ -55,9 +55,6 @@ cmd_run() {
 	local status=$?
 	set -e
 
-	# gotestsum keys results on the structured pass and fail events. go-junit-report
-	# re-parses the output text, which test2json splits for long subtest names, and
-	# then reports those subtests as having no result.
 	if ! gotestsum --junitfile "$junit" --format none --raw-command -- cat "$events" && [[ "$status" -eq 0 ]]; then
 		echo "Could not write JUnit report $junit" >&2
 		return 1

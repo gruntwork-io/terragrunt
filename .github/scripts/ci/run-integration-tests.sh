@@ -2,7 +2,15 @@
 
 set -euo pipefail
 
-# Run one entry of the integration matrix and record a JUnit report for it.
+# Run one entry of the integration matrix and record a JUnit report and the
+# go test -json event stream for it.
+#
+# --rerun-fails retries only the failed tests, up to twice, so a transient cloud
+# API or registry error does not fail the whole leg. gotestsum skips the reruns
+# when the first pass has more than 10 failures, so a real breakage still fails
+# fast. Every attempt lands in result.xml, where the report step lists tests that
+# passed on a rerun as flaky. gotestsum replaces the -run filter with the failed
+# test's name on a rerun, and requires the packages in --packages.
 
 : "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is not set}"
 : "${TARGET:?TARGET is not set}"
@@ -19,7 +27,7 @@ if [[ "$HAS_DOCKER" == "true" ]]; then
 	TAGS="${TAGS:+${TAGS},}docker"
 fi
 
-args=(-v -timeout 45m)
+args=(-timeout 45m)
 
 if [[ -n "$TAGS" ]]; then
 	args+=(-tags "$TAGS")
@@ -35,5 +43,12 @@ if [[ -n "$TEST_ARGS" ]]; then
 fi
 
 set -x
-go test "${args[@]}" "$TARGET" | tee test_output.log
-go-junit-report <test_output.log >result.xml
+gotestsum \
+	--format github-actions \
+	--junitfile result.xml \
+	--jsonfile test-events.ndjson \
+	--rerun-fails=2 \
+	--rerun-fails-abort-on-data-race \
+	--rerun-fails-report rerun-report.txt \
+	--packages "$TARGET" \
+	-- "${args[@]}"
