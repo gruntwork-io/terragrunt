@@ -51,11 +51,17 @@ cmd_run() {
 	local events="$out/test-events.ndjson" cover="$out/coverage.out" junit="$out/result.xml"
 
 	set +e
-	go test -json -coverprofile="$cover" -covermode=atomic "${pkgs[@]}" -timeout "${TEST_TIMEOUT:-45m}" |
-		tee "$events" |
-		go-junit-report -parser gojson -set-exit-code >"$junit"
-	local status=${PIPESTATUS[0]}
+	go test -json -coverprofile="$cover" -covermode=atomic "${pkgs[@]}" -timeout "${TEST_TIMEOUT:-45m}" >"$events"
+	local status=$?
 	set -e
+
+	# gotestsum keys results on the structured pass and fail events. go-junit-report
+	# re-parses the output text, which test2json splits for long subtest names, and
+	# then reports those subtests as having no result.
+	if ! gotestsum --junitfile "$junit" --format none --raw-command -- cat "$events" && [[ "$status" -eq 0 ]]; then
+		echo "Could not write JUnit report $junit" >&2
+		return 1
+	fi
 
 	echo "go test exit status: $status"
 	echo "Events: $events ($(wc -l <"$events") lines)"

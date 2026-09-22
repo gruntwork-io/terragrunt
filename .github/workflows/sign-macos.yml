@@ -55,7 +55,7 @@ jobs:
       - name: Restore Go caches
         uses: $/.github/actions/go-cache-restore
         with:
-          gocache-name: build-darwin-${{ matrix.arch }}
+          gocache-name: build
 
       - name: Build Terragrunt
         env:
