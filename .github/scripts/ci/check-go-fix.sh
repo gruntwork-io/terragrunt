@@ -9,5 +9,5 @@ if make run-go-fix-check; then
 	exit 0
 fi
 
-echo "::error::go fix has pending fixes. Please run 'make run-go-fix' locally and commit the changes."
+echo "::error::go fix has pending fixes. Please run 'make run-go-fix' locally and commit the changes." >&2
 exit 1

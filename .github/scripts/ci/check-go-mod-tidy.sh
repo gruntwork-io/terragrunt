@@ -11,5 +11,5 @@ if git diff --exit-code go.mod go.sum; then
 	exit 0
 fi
 
-echo "::error::go.mod or go.sum are not tidy. Please run 'go mod tidy' locally and commit the changes."
+echo "::error::go.mod or go.sum are not tidy. Please run 'go mod tidy' locally and commit the changes." >&2
 exit 1

@@ -56,6 +56,45 @@ jobs:
         if: ${{ !cancelled() }}
         run: ./.github/scripts/ci/check-go-fix.sh
 
+      - name: Run shellcheck
+        if: ${{ !cancelled() }}
+        run: |
+          find . -name "*.sh" \
+            -not -path "./node_modules/*" \
+            -not -path "./docs/node_modules/*" \
+            -not -path "./.git/*" \
+            -print0 \
+            | xargs -0 shellcheck -x -P SCRIPTDIR
+
+      - name: Run shfmt
+        if: ${{ !cancelled() }}
+        run: |
+          find . -name "*.sh" \
+            -not -path "./node_modules/*" \
+            -not -path "./docs/node_modules/*" \
+            -not -path "./.git/*" \
+            -print0 \
+            | xargs -0 shfmt -d
+
+      - name: Run bats
+        if: ${{ !cancelled() }}
+        run: bats --print-output-on-failure .github/scripts/ci/tests/ .github/scripts/release/tests/ .github/scripts/coverage/tests/ .github/scripts/security-scan/tests/
+
+      - name: Install script dependencies
+        if: ${{ !cancelled() }}
+        working-directory: .github/scripts
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck scripts
+        if: ${{ !cancelled() }}
+        working-directory: .github/scripts
+        run: bunx tsc --noEmit
+
+      - name: Test scripts
+        if: ${{ !cancelled() }}
+        working-directory: .github/scripts
+        run: bun test
+
       - name: Run License Check
         if: ${{ !cancelled() }}
         run: ./.github/scripts/ci/run-license-check.sh

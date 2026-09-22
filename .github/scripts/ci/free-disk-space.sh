@@ -13,7 +13,9 @@ function available_kb {
 }
 
 function human {
-	awk -v kb="$1" 'BEGIN { printf "%.2f GiB", kb / 1024 / 1024 }'
+	local -r kb="$1"
+
+	awk -v kb="$kb" 'BEGIN { printf "%.2f GiB", kb / 1024 / 1024 }'
 }
 
 before="$(available_kb)"

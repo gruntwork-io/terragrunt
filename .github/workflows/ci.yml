@@ -8,25 +8,58 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # Skips the Go jobs for pushes that touch only docs, and the install script
+  # tests for pushes that leave the install script alone. Jobs gated below skip
+  # everything that needs them, so only the roots of the graph check the outputs.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.detect.outputs.code }}
+      install: ${{ steps.detect.outputs.install }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          # Full history for the merge base with main; file lists need no blobs.
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Detect changes
+        id: detect
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: ./.github/scripts/ci/detect-changes.sh "$BEFORE" >>"$GITHUB_OUTPUT"
+
   lint:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     uses: ./.github/workflows/lint.yml
     permissions:
       contents: read
     secrets: inherit
 
   precommit:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     uses: ./.github/workflows/precommit.yml
     permissions:
       contents: read
     secrets: inherit
 
   go_mod_tidy_check:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     uses: ./.github/workflows/go-mod-tidy-check.yml
     permissions:
       contents: read
     secrets: inherit
 
   vend_check:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     uses: ./.github/workflows/vend-check.yml
     permissions:
       contents: read
@@ -39,6 +72,8 @@ jobs:
     secrets: inherit
 
   install_script_test:
+    needs: [changes]
+    if: needs.changes.outputs.install == 'true'
     uses: ./.github/workflows/install-script-test.yml
     permissions:
       contents: read
