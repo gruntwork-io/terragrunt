@@ -289,6 +289,7 @@ unit "vpc" {
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
+		t.Context(),
 		vfs.NewOSFS(),
 		stackDir,
 		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
@@ -332,6 +333,7 @@ unit "vpc" {
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
+		t.Context(),
 		vfs.NewOSFS(),
 		stackDir,
 		&inthclparse.StackDirArgs{FuncsFor: funcsFor},

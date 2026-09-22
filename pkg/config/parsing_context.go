@@ -94,6 +94,8 @@ type ParsingContext struct {
 	PartialParseDecodeList []PartialDecodeSectionType
 	ParserOptions          []hclparse.Option
 
+	ReadConfigChain []string
+
 	ProviderCacheOptions pcoptions.ProviderCacheOptions
 
 	MaxFoldersToCheck int
