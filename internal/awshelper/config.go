@@ -97,7 +97,9 @@ func (b *AWSConfigBuilder) WithSessionConfig(cfg *AwsSessionConfig) *AWSConfigBu
 // own rather than resolving them from the environment. It outranks the
 // environment and any role the session config names, the way credentials
 // supplied inline outrank ambient ones everywhere else.
-func (b *AWSConfigBuilder) WithCredentialsProvider(creds aws.CredentialsProvider) *AWSConfigBuilder {
+func (b *AWSConfigBuilder) WithCredentialsProvider(
+	creds aws.CredentialsProvider,
+) *AWSConfigBuilder {
 	b.creds = creds
 	return b
 }
@@ -296,7 +298,13 @@ func getExternalID(awsCfg *AwsSessionConfig) string {
 	return awsCfg.ExternalID
 }
 
+// ErrNoAssumedCredentials is returned when STS answers an assume-role call
+// successfully but the response has no credentials.
+var ErrNoAssumedCredentials = errors.New("STS returned no credentials for the assumed role")
+
 // AssumeIamRole assumes an IAM role and returns the credentials.
+//
+// Returns [ErrNoAssumedCredentials] when the response has no credentials.
 func AssumeIamRole(
 	ctx context.Context,
 	v *venv.Venv,
@@ -355,6 +363,10 @@ func AssumeIamRole(
 			return nil, fmt.Errorf("error assuming role with web identity: %w", err)
 		}
 
+		if result.Credentials == nil {
+			return nil, ErrNoAssumedCredentials
+		}
+
 		return result.Credentials, nil
 	}
 
@@ -372,6 +384,10 @@ func AssumeIamRole(
 	result, err := stsClient.AssumeRole(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("error assuming role: %w", err)
+	}
+
+	if result.Credentials == nil {
+		return nil, ErrNoAssumedCredentials
 	}
 
 	return result.Credentials, nil

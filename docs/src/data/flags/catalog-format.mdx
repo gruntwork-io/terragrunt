@@ -11,7 +11,7 @@ import { Aside } from '@astrojs/starlight/components';
 import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 <Aside type="tip" title="Experimental">
 This flag is gated behind the [`catalog-format`](/reference/experiments/active#catalog-format) experiment. Enable it with `--experiment=catalog-format` or `TG_EXPERIMENT=catalog-format`.
@@ -25,13 +25,13 @@ This flag is gated behind the [`catalog-format`](/reference/experiments/active#c
 - `jsonl` writes one JSON object per line to standard output, so a script can read the catalog where a terminal user interface cannot be used.
 - `md` writes a Markdown document to standard output, with a section per catalog entry, for reading by a person or by an agent.
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 `tui` is the default.
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 Without `--format`, the catalog uses `tui` when standard input and standard output are both terminals, and `jsonl` otherwise (e.g., when piped to another program).
 
@@ -39,7 +39,7 @@ Without `--format`, the catalog uses `tui` when standard input and standard outp
 
 ## JSONL
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 $ terragrunt catalog --experiment=catalog-format --format=jsonl | head -1
@@ -48,7 +48,7 @@ $ terragrunt catalog --experiment=catalog-format --format=jsonl | head -1
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 $ terragrunt catalog --format=jsonl | head -1
@@ -61,7 +61,7 @@ Each entry is emitted as it is discovered, so a consumer that only needs the fir
 
 Entries arrive in discovery order, which interleaves the repositories being loaded and differs between runs. Collect them before sorting when you need a stable order:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 terragrunt catalog --experiment=catalog-format --format=jsonl | jq -s -c 'sort_by(.component_source)[]'
@@ -69,7 +69,7 @@ terragrunt catalog --experiment=catalog-format --format=jsonl | jq -s -c 'sort_b
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 terragrunt catalog --format=jsonl | jq -s -c 'sort_by(.component_source)[]'
@@ -79,7 +79,7 @@ terragrunt catalog --format=jsonl | jq -s -c 'sort_by(.component_source)[]'
 
 Every entry carries the body of the component's README in `doc`, and no flag suppresses it. Drop it when you only want the metadata:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c 'del(.doc)'
@@ -87,7 +87,7 @@ terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c 'del(.doc)
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 terragrunt catalog --format=jsonl | jq -c 'del(.doc)'
@@ -97,7 +97,7 @@ terragrunt catalog --format=jsonl | jq -c 'del(.doc)'
 
 Or keep only the fields you are after:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c '{kind, title, component_source}'
@@ -105,7 +105,7 @@ terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c '{kind, ti
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 terragrunt catalog --format=jsonl | jq -c '{kind, title, component_source}'
@@ -117,7 +117,7 @@ Entries follow a [published JSON schema](https://docs.terragrunt.com/schemas/cat
 
 ## Markdown
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 ```bash
 terragrunt catalog --experiment=catalog-format --format=md > catalog.md
@@ -125,7 +125,7 @@ terragrunt catalog --experiment=catalog-format --format=md > catalog.md
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 ```bash
 terragrunt catalog --format=md > catalog.md

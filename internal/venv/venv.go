@@ -18,6 +18,7 @@ package venv
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"net"
@@ -113,16 +114,21 @@ var ErrVenvUserConfigDirUnset = errors.New("venv.Venv.Platform.UserConfigDir is 
 // TempDir is nil.
 var ErrVenvTempDirUnset = errors.New("venv.Venv.Platform.TempDir is required but unset")
 
+// ErrVenvReplaceEnvironUnset is the panic value [Venv.RequireReplaceEnviron]
+// raises when ReplaceEnviron is nil.
+var ErrVenvReplaceEnvironUnset = errors.New("venv.Venv.Platform.ReplaceEnviron is required but unset")
+
 // Platform carries the operating-system handles used below the CLI boundary.
 type Platform struct {
-	UserHomeDir   func() (string, error)
-	UserCacheDir  func() (string, error)
-	UserConfigDir func() (string, error)
-	TempDir       func() string
-	Getwd         func() (string, error)
-	GetPID        func() int
-	GOOS          string
-	GOARCH        string
+	UserHomeDir    func() (string, error)
+	UserCacheDir   func() (string, error)
+	UserConfigDir  func() (string, error)
+	TempDir        func() string
+	Getwd          func() (string, error)
+	GetPID         func() int
+	ReplaceEnviron func(env map[string]string) error
+	GOOS           string
+	GOARCH         string
 }
 
 // Terminal reports the console a run's output is adapting to: whether each
@@ -327,6 +333,20 @@ func (v *Venv) WithTempDir(tempDir func() string) *Venv {
 	return &c
 }
 
+// WithReplaceEnviron returns a copy of v whose process environment
+// replacement is replaceEnviron.
+func (v *Venv) WithReplaceEnviron(replaceEnviron func(env map[string]string) error) *Venv {
+	v.RequirePlatform()
+
+	platform := *v.Platform
+	platform.ReplaceEnviron = replaceEnviron
+
+	c := *v
+	c.Platform = &platform
+
+	return &c
+}
+
 // WithEnv returns a copy of v whose shell environment is env. It panics
 // with [ErrVenvEnvNil] on a nil env so the result always satisfies
 // [Venv.RequireEnv].
@@ -494,6 +514,14 @@ func (v *Venv) RequireUserConfigDir() {
 	}
 }
 
+// RequireReplaceEnviron panics with [ErrVenvReplaceEnvironUnset] when
+// ReplaceEnviron is nil.
+func (v *Venv) RequireReplaceEnviron() {
+	if v.Platform == nil || v.Platform.ReplaceEnviron == nil {
+		panic(ErrVenvReplaceEnvironUnset)
+	}
+}
+
 // RequireTempDir panics with [ErrVenvTempDirUnset] when TempDir is nil.
 func (v *Venv) RequireTempDir() {
 	if v.Platform == nil || v.Platform.TempDir == nil {
@@ -523,14 +551,15 @@ func OSVenv() *Venv {
 		Stdin:   os.Stdin,
 		Env:     ParseEnviron(os.Environ()),
 		Platform: &Platform{
-			UserHomeDir:   os.UserHomeDir,
-			UserCacheDir:  os.UserCacheDir,
-			UserConfigDir: os.UserConfigDir,
-			TempDir:       os.TempDir,
-			Getwd:         os.Getwd,
-			GetPID:        os.Getpid,
-			GOOS:          runtime.GOOS,
-			GOARCH:        runtime.GOARCH,
+			UserHomeDir:    os.UserHomeDir,
+			UserCacheDir:   os.UserCacheDir,
+			UserConfigDir:  os.UserConfigDir,
+			TempDir:        os.TempDir,
+			Getwd:          os.Getwd,
+			GetPID:         os.Getpid,
+			ReplaceEnviron: replaceOSEnviron,
+			GOOS:           runtime.GOOS,
+			GOARCH:         runtime.GOARCH,
 		},
 		Terminal: &Terminal{
 			StdinIsTTY:  func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
@@ -540,6 +569,20 @@ func OSVenv() *Venv {
 		},
 		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}
+}
+
+// replaceOSEnviron clears the process environment, then sets every variable
+// in env.
+func replaceOSEnviron(env map[string]string) error {
+	os.Clearenv()
+
+	for name, value := range env {
+		if err := os.Setenv(name, value); err != nil {
+			return fmt.Errorf("setting %s in the process environment: %w", name, err)
+		}
+	}
+
+	return nil
 }
 
 // osTerminalWidth reports the real terminal's width, and 0 when stdout is not

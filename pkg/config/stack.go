@@ -1081,7 +1081,7 @@ func copyFiles(
 			v,
 			cp.dest,
 			cp.src,
-			stackGetterOptions(v, opts)...); err != nil {
+			stackGetterOptions(opts)...); err != nil {
 			return fmt.Errorf(
 				"failed to fetch %s %s for %s %w",
 				cp.src,
@@ -1131,8 +1131,8 @@ func isOCISource(source string) bool {
 }
 
 // stackGetterOptions builds the getter options a component fetch needs, adding oci:// when enabled.
-func stackGetterOptions(v *venv.Venv, opts *generateOpts) []getter.Option {
-	clientOpts := []getter.Option{getter.WithHTTP(v.HTTP)}
+func stackGetterOptions(opts *generateOpts) []getter.Option {
+	var clientOpts []getter.Option
 
 	if opts.ociGetter != nil {
 		clientOpts = append(clientOpts, getter.WithOCI(opts.ociGetter))
@@ -1166,20 +1166,30 @@ func (u *Unit) ReadOutputs(
 	pctx *ParsingContext,
 	unitDir string,
 ) (map[string]cty.Value, error) {
-	cfgPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
-	l.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
-
-	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, cfgPath)
+	jsonBytes, err := u.ReadOutputsJSON(ctx, l, pctx, unitDir)
 	if err != nil {
 		return nil, err
 	}
 
-	outputMap, err := TerraformOutputJSONToCtyValueMap(cfgPath, jsonBytes)
+	outputMap, err := TerraformOutputJSONToCtyValueMap(filepath.Join(unitDir, DefaultTerragruntConfigPath), jsonBytes)
 	if err != nil {
 		return nil, err
 	}
 
 	return outputMap, nil
+}
+
+// ReadOutputsJSON retrieves this unit's outputs as the object `tofu output -json` prints, which keeps each
+// output's sensitive flag. [Unit.ReadOutputs] drops that flag when it converts the values.
+func (u *Unit) ReadOutputsJSON(
+	ctx context.Context,
+	l log.Logger,
+	pctx *ParsingContext,
+	unitDir string,
+) ([]byte, error) {
+	l.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
+
+	return getOutputJSONWithCaching(ctx, pctx, l, filepath.Join(unitDir, DefaultTerragruntConfigPath))
 }
 
 // ReadStackConfigFile reads and parses a Terragrunt stack configuration file from the given path.

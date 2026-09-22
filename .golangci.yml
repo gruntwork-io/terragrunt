@@ -112,6 +112,34 @@ linters:
               desc: use github.com/gruntwork-io/terragrunt/internal/md instead
             - pkg: github.com/yuin/goldmark
               desc: use github.com/gruntwork-io/terragrunt/internal/md instead
+        no-direct-shell-split:
+          # Shell-style word splitting is confined to the internal/shell/split
+          # package, which owns the libraries doing it. Everything else, tests
+          # included, splits and quotes command lines through
+          # internal/shell/split, so the grammar a call site gets is chosen there
+          # and a library can be replaced without touching a caller.
+          list-mode: lax
+          files:
+            - $all
+            - "!**/internal/shell/split/**"
+          deny:
+            - pkg: github.com/mattn/go-shellwords
+              desc: use github.com/gruntwork-io/terragrunt/internal/shell/split instead
+            - pkg: github.com/google/shlex
+              desc: use github.com/gruntwork-io/terragrunt/internal/shell/split instead
+        no-direct-gobwas-glob:
+          # Glob compilation is confined to the internal/glob package, which
+          # refuses the patterns gobwas/glob accepts but crashes matching.
+          # Everything else, tests included, compiles globs through
+          # internal/glob, so no caller can reach a matcher that skipped that
+          # check.
+          list-mode: lax
+          files:
+            - $all
+            - "!**/internal/glob/**"
+          deny:
+            - pkg: github.com/gobwas/glob
+              desc: use github.com/gruntwork-io/terragrunt/internal/glob instead
     dupl:
       threshold: 120
     # Terragrunt routes every side effect through the virtualized environment
@@ -124,7 +152,7 @@ linters:
         - pattern: ^os\.(ReadFile|WriteFile|Open|OpenFile|OpenRoot|Create|CreateTemp|MkdirTemp|Stat|Lstat|Mkdir|MkdirAll|Remove|RemoveAll|ReadDir|Rename|Symlink|Readlink|Chmod|Chdir|Getwd|Link|Truncate)$
           pkg: ^os$
           msg: read and write through the venv's vfs.FS instead of the real filesystem
-        - pattern: ^os\.(Getenv|Setenv|Unsetenv|LookupEnv|Environ|ExpandEnv)$
+        - pattern: ^os\.(Getenv|Setenv|Unsetenv|Clearenv|LookupEnv|Environ|ExpandEnv)$
           pkg: ^os$
           msg: read and write the venv's Env map instead of the process environment
         - pattern: ^os\.(UserHomeDir|UserCacheDir|UserConfigDir)$
@@ -253,13 +281,13 @@ linters:
           - forbidigo
         text: venv|vfs\.DetectFSKind|process arguments
         path: ^internal/(vfs|vexec|vhttp|vsops|vbrowser|venv)/|^internal/os/exec/
-      # A pty is the real terminal by definition, so the two callers that
-      # decide whether to allocate one read the real descriptor to do it.
-      # Both are reached only once the venv's Terminal has already reported
-      # that the stream is a tty.
+      # A pty is the real terminal by definition, so the caller that decides
+      # whether to allocate one reads the real descriptor to do it. It is
+      # reached only once the venv's Terminal has already reported that the
+      # stream is a tty.
       - linters:
           - forbidigo
-        path: ^(internal/view/tui/tty\.go|internal/tf/run_cmd\.go)$
+        path: ^internal/tf/run_cmd\.go$
       # colorgen runs from `go generate`, not inside a Terragrunt process, so it
       # writes its output file and reports failures through the real OS.
       - linters:

@@ -178,7 +178,8 @@ func (c *Content) tryLink(
 	o linkOpts,
 ) bool {
 	info, statErr := v.FS.Stat(sourcePath)
-	if statErr != nil || !linkable(l, hash, targetPath, info.Mode().Perm(), linkPerm, o.storedPerm) {
+	if statErr != nil ||
+		!linkable(l, hash, targetPath, info.Mode().Perm(), linkPerm, o.storedPerm) {
 		return false
 	}
 

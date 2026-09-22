@@ -1,14 +1,13 @@
 package discovery
 
 import (
-	"path/filepath"
 	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mattn/go-shellwords"
 )
 
 // DiscoveryCommandOptions contains options for discovery commands like find and list.
@@ -82,16 +81,11 @@ func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOpt
 	if opts.QueueConstructAs != "" {
 		d = d.WithParseExclude()
 
-		parser := shellwords.NewParser()
-
-		// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
-		args, err := parser.Parse(filepath.ToSlash(opts.QueueConstructAs))
+		args, err := split.Command(opts.QueueConstructAs)
 		if err != nil {
 			return nil, err
 		}
 
-		// The parser stops at a shell operator like ';' or '|' without reporting an error, so
-		// a value that leads with one yields no words. A quoted empty string yields one empty word.
 		if len(args) == 0 || args[0] == "" {
 			return nil, NewEmptyQueueConstructAsError(opts.QueueConstructAs)
 		}

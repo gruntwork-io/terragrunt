@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -814,7 +816,7 @@ func TestUnzipFilesLimit(t *testing.T) {
 		assert.Contains(t, err.Error(), "exceeds limit")
 	})
 
-	t.Run("no limit when FilesLimit is zero", func(t *testing.T) {
+	t.Run("no limit when FilesLimit is explicitly zero", func(t *testing.T) {
 		t.Parallel()
 
 		fs := vfs.NewMemMapFS()
@@ -825,10 +827,21 @@ func TestUnzipFilesLimit(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFilesLimit(0)).Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 	})
+}
+
+// TestNewZipDecompressorBoundsByDefault pins that a decompressor built
+// without options still bounds what it extracts.
+func TestNewZipDecompressorBoundsByDefault(t *testing.T) {
+	t.Parallel()
+
+	z := vfs.NewZipDecompressor()
+
+	assert.Equal(t, vfs.DefaultZipFileSizeLimit, z.FileSizeLimit)
+	assert.Equal(t, vfs.DefaultZipFilesLimit, z.FilesLimit)
 }
 
 func TestUnzipFileSizeLimit(t *testing.T) {
@@ -2086,6 +2099,44 @@ func TestWalkDirParallel(t *testing.T) {
 		assert.Contains(t, seen, filepath.Join(root, "keep", "a.txt"))
 		assert.NotContains(t, seen, filepath.Join(root, "skip", "b.txt"))
 	})
+
+	t.Run("WithWorkers(1) never overlaps two callbacks", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		osFs := vfs.NewOSFS()
+
+		for i := range 32 {
+			require.NoError(t, vfs.WriteFile(
+				osFs,
+				filepath.Join(root, fmt.Sprintf("d%02d", i), "f.txt"),
+				[]byte("x"),
+				0o644,
+			))
+		}
+
+		var inFlight, overlaps, visited atomic.Int32
+
+		err := vfs.WalkDirParallel(osFs, root, func(_ string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if inFlight.Add(1) > 1 {
+				overlaps.Add(1)
+			}
+
+			visited.Add(1)
+			inFlight.Add(-1)
+
+			return nil
+		}, vfs.WithWorkers(1))
+
+		require.NoError(t, err)
+		assert.Zero(t, overlaps.Load())
+		// root, 32 dirs, 32 files.
+		assert.Equal(t, int32(65), visited.Load())
+	})
 }
 
 func TestCreateTemp(t *testing.T) {
@@ -2183,7 +2234,10 @@ func TestValidateResolvedSymlinkTarget(t *testing.T) {
 
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
 		require.NoError(t, os.WriteFile(outside, []byte("secret\n"), 0o600))
-		require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "real.txt"), []byte("ok\n"), 0o644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(root, "sub", "real.txt"), []byte("ok\n"), 0o644),
+		)
 
 		return root, outside
 	}

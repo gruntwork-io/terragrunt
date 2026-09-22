@@ -11,6 +11,8 @@ aliases:
   - --as
 ---
 
+import Since from '@components/Since.astro';
+
 Sort output based on the dependency graph, as if a particular command was run. This flag implies the `--dag` flag.
 
 The flag has a shorter alias `--as`.
@@ -23,6 +25,10 @@ The flag has a shorter alias `--as`.
 ```
 
 Where `COMMAND` is the command to simulate (e.g., `plan`, `destroy`).
+
+<Since version="v1.2.0">
+Terragrunt splits `COMMAND` into words with shell quoting rules. An unquoted shell operator such as `|` or `;` is an error.
+</Since>
 
 ## Examples
 

@@ -15,8 +15,14 @@ import (
 // directly, as it will consistently configure the client with the
 // default protocol set (s3, gcs, git, hg, smb, http(s), file) plus
 // the FileCopy and tfr customizations.
+//
+// Every http(s) fetch goes through v's client, so no source reaches the
+// network outside the venv. A caller fetching through a different client
+// passes [WithHTTP].
 func NewClient(l log.Logger, v *venv.Venv, opts ...Option) *getter.Client {
-	b := &builder{logger: l, v: v}
+	v.RequireHTTP()
+
+	b := &builder{logger: l, v: v, httpClient: v.HTTP}
 	for _, opt := range opts {
 		opt(b)
 	}

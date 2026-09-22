@@ -1,8 +1,15 @@
-import { defineCollection, z } from 'astro:content';
+import { defineCollection } from 'astro:content';
+import { z } from 'astro/zod';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
 import { glob, file } from 'astro/loaders';
 import { CHANGELOG_CATEGORY_SLUGS } from './lib/changelog';
+import { publishedOnly } from './lib/release';
+import { RELEASE_VERSION } from './lib/versions';
+
+const releaseVersion = z.string().regex(RELEASE_VERSION, 'must have the form vX.Y.Z, e.g. v1.2.0');
+
+const compatibilityVersion = z.string().regex(/^\d+\.\d+\.\d+$/, 'must have the form X.Y.Z, e.g. 1.2.0');
 
 const commands = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/commands" }),
@@ -27,18 +34,24 @@ const commands = defineCollection({
 		examples: z.array(z.object({
 			code: z.string(),
 			description: z.string().optional(),
+			lang: z.string().optional(),
 		})),
 		flags: z.array(z.string()).optional(),
 		experiment: z.object({
 			control: z.string(),
 			name: z.string(),
 		}).optional(),
+		since: releaseVersion.optional(),
 	}),
 });
 
 const docs = defineCollection({
-	loader: docsLoader(),
-	schema: docsSchema(),
+	loader: publishedOnly(docsLoader()),
+	schema: docsSchema({
+		extend: z.object({
+			since: releaseVersion.optional(),
+		}),
+	}),
 });
 
 const flags = defineCollection({
@@ -50,7 +63,7 @@ const flags = defineCollection({
 		type: z.string(),
 		env: z.array(z.string()).optional(),
 		aliases: z.array(z.string()).optional(),
-		since: z.string().optional(),
+		since: releaseVersion.optional(),
 	}),
 });
 
@@ -87,7 +100,7 @@ const patterns = defineCollection({
 const changelog = defineCollection({
 	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/changelog" }),
 	schema: z.object({
-		version: z.string(),
+		version: releaseVersion,
 		category: z.enum(CHANGELOG_CATEGORY_SLUGS),
 		order: z.number().optional(),
 	}),
@@ -99,8 +112,8 @@ const compatibility = defineCollection({
 		id: z.string(),
 		tool: z.enum(["opentofu", "terraform"]),
 		version: z.string(),
-		terragrunt_min: z.string(),
-		terragrunt_max: z.string().nullable(),
+		terragrunt_min: compatibilityVersion,
+		terragrunt_max: compatibilityVersion.nullable(),
 		order: z.number(),
 	}),
 });
@@ -115,8 +128,8 @@ const experiments = defineCollection({
 		// release ships, the experiment is treated as completed. An
 		// experiment's active/completed status is derived from these versions
 		// rather than a separate `status` field.
-		since: z.string().optional(),
-		completedSince: z.string().optional(),
+		since: releaseVersion.optional(),
+		completedSince: releaseVersion.optional(),
 	}),
 });
 
@@ -125,7 +138,7 @@ const strictControls = defineCollection({
 	schema: z.object({
 		name: z.string(),
 		status: z.enum(["active", "completed"]),
-		since: z.string().optional(),
+		since: releaseVersion.optional(),
 	}),
 });
 

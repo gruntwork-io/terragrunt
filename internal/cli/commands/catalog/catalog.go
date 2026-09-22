@@ -100,9 +100,11 @@ func runTUI(
 	opts *Options,
 	repoURL string,
 ) error {
+	v.RequireTerminal()
+
 	// Fail fast with a clear error when there is no terminal to attach the
 	// TUI to, instead of surfacing bubbletea's raw TTY failure.
-	if err := viewtui.EnsureOSTTY(); err != nil {
+	if err := viewtui.EnsureTTY(v.Terminal.StdinIsTTY); err != nil {
 		return err
 	}
 
