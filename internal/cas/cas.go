@@ -311,8 +311,16 @@ func (r *GitResolver) Pinned(_ redact.URL) bool { return false }
 // [GitResolver.storeProbe]). Concurrent probes of the same (URL, ref)
 // anywhere in the process share one ls-remote, and a persisted answer
 // within its TTL (see [ProbeTTL]) skips ls-remote entirely.
+//
+// Returns the [NewGitStoreVenv] error when the store would be consulted and
+// r.Venv cannot back it.
 func (r *GitResolver) Probe(ctx context.Context, u redact.URL) (string, error) {
-	if hash, ok := r.storeProbe(ctx, u); ok {
+	hash, ok, err := r.storeProbe(ctx, u)
+	if err != nil {
+		return "", err
+	}
+
+	if ok {
 		recordProbeOrigin(ctx, probeOriginGitStore)
 
 		return hash, nil
@@ -339,16 +347,23 @@ func (r *GitResolver) Probe(ctx context.Context, u redact.URL) (string, error) {
 // only other outcome is [OfflineMissError], so an abbreviated SHA is
 // offered too; [GitStore.ProbeCachedCommit] rejects a name that resolved
 // through ref lookup on its own.
-func (r *GitResolver) storeProbe(ctx context.Context, u redact.URL) (string, bool) {
+func (r *GitResolver) storeProbe(ctx context.Context, u redact.URL) (string, bool, error) {
 	if r.Store == nil {
-		return "", false
+		return "", false, nil
 	}
 
 	if !looksLikeFullSHA(r.Branch) && r.Mode != ProbeModeOffline {
-		return "", false
+		return "", false, nil
 	}
 
-	return r.Store.ProbeCachedCommit(ctx, r.Venv, u, r.Branch)
+	gv, err := NewGitStoreVenv(r.Venv)
+	if err != nil {
+		return "", false, err
+	}
+
+	hash, ok := r.Store.ProbeCachedCommit(ctx, gv, u, r.Branch)
+
+	return hash, ok, nil
 }
 
 // flightKey identifies the probe of u for r.Branch within the
@@ -668,18 +683,18 @@ func (c *CAS) populateTreeFromSymbolicRef(
 	ref *symbolicRef,
 	mode IngestMode,
 ) error {
-	gitRunner, err := git.NewGitRunner(v)
+	gv, err := NewGitStoreVenv(v)
 	if err != nil {
 		return err
 	}
 
 	depth := resolveCloneDepth(opts.Depth, c.cloneDepth)
 
-	repo, err := c.gitStore.EnsureRef(ctx, l, v, ref.URL, ref.Branch, ref.Hash, depth)
+	repo, err := c.gitStore.EnsureRef(ctx, l, gv, ref.URL, ref.Branch, ref.Hash, depth)
 	if err == nil {
 		defer repo.Release(l)
 
-		runner := gitRunner.WithWorkDir(repo.Path)
+		runner := gv.runner.WithWorkDir(repo.Path)
 
 		return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts, mode)
 	}
@@ -698,7 +713,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 
 	defer cleanup()
 
-	runner := gitRunner.WithWorkDir(tempDir)
+	runner := gv.runner.WithWorkDir(tempDir)
 
 	if err := runner.Clone(ctx, ref.URL.Reveal(), true, depth, ref.Branch); err != nil {
 		return err
@@ -719,12 +734,12 @@ func (c *CAS) populateTreeFromCommitRef(
 	ref *commitRef,
 	mode IngestMode,
 ) (string, error) {
-	gitRunner, err := git.NewGitRunner(v)
+	gv, err := NewGitStoreVenv(v)
 	if err != nil {
 		return "", err
 	}
 
-	repo, err := c.gitStore.EnsureCommit(ctx, l, v, ref.URL, ref.RawRef, ref.Hash)
+	repo, err := c.gitStore.EnsureCommit(ctx, l, gv, ref.URL, ref.RawRef, ref.Hash)
 	if err == nil {
 		defer repo.Release(l)
 
@@ -732,7 +747,7 @@ func (c *CAS) populateTreeFromCommitRef(
 			return repo.Hash, nil
 		}
 
-		runner := gitRunner.WithWorkDir(repo.Path)
+		runner := gv.runner.WithWorkDir(repo.Path)
 
 		if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, repo.Hash, opts, mode); err != nil {
 			return "", err
@@ -759,7 +774,7 @@ func (c *CAS) populateTreeFromCommitRef(
 
 	defer cleanup()
 
-	runner := gitRunner.WithWorkDir(tempDir)
+	runner := gv.runner.WithWorkDir(tempDir)
 
 	if err := runner.Clone(ctx, ref.URL.Reveal(), true, 0, ""); err != nil {
 		return "", err
@@ -898,17 +913,17 @@ func (r *commitRef) origin() (redact.URL, string) { return r.URL, r.RawRef }
 func (c *CAS) resolveReference(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
+	gv *GitStoreVenv,
 	u redact.URL,
 	branch string,
 ) (resolvedRef, error) {
 	if looksLikeFullSHA(branch) || c.probeMode == ProbeModeOffline {
-		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, v, u, branch); ok {
+		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, gv, u, branch); ok {
 			return &commitRef{URL: u, RawRef: branch, Hash: hash}, nil
 		}
 	}
 
-	key, err := c.newGitResolver(l, v, branch).Probe(ctx, u)
+	key, err := c.newGitResolver(l, gv.v, branch).Probe(ctx, u)
 	if err != nil {
 		if errors.Is(err, ErrNoVersionMetadata) {
 			return &commitRef{URL: u, RawRef: branch}, nil
