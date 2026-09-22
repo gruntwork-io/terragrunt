@@ -1,0 +1,10 @@
+---
+version: "v1.2.1"
+category: "performance-improvements"
+---
+
+#### Faster discovery with dependent filters
+
+Terragrunt wastes less time resolving symlinks in discovery. Dependent filters, such as `--filter '...vpc'` were able to reduce the number of wasted syscalls to resolve symlinks, improving dependent discovery.
+
+On a repository of 1,024 units, discovery with a dependent filter took 30% less time from the repository root and 47% less time from the target unit's directory on an M3 Max. It also allocated 12-16% less memory.

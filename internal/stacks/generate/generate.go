@@ -615,7 +615,7 @@ func worktreeStacksToGenerate(
 		return component.Components{}, nil
 	}
 
-	stacksToGenerate := component.NewThreadSafeComponents(v.FS, component.Components{})
+	stacksToGenerate := component.NewThreadSafeComponents(vfs.NewPathResolver(v.FS), component.Components{})
 
 	// If we edit a stack in a worktree, we need to generate it, at the minimum.
 	stackDiff := w.Stacks()
@@ -630,7 +630,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, stack := range editedStacks {
-		stacksToGenerate.EnsureComponent(v.FS, stack)
+		stacksToGenerate.EnsureComponent(stack)
 	}
 
 	// When the expanded filter for a given Git expression requires parsing,
@@ -728,11 +728,11 @@ func worktreeStacksToGenerate(
 			}
 
 			for _, c := range allFromStacks {
-				stacksToGenerate.EnsureComponent(v.FS, c)
+				stacksToGenerate.EnsureComponent(c)
 			}
 
 			for _, c := range allToStacks {
-				stacksToGenerate.EnsureComponent(v.FS, c)
+				stacksToGenerate.EnsureComponent(c)
 			}
 
 			matchedToStacks, err := stacksReadingFiles(l, toReadFilters, allToStacks)

@@ -175,14 +175,14 @@ func TestThreadSafeComponentsEnsureNoDuplicates(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	tsc := component.NewThreadSafeComponents(fsys, component.Components{})
+	tsc := component.NewThreadSafeComponents(vfs.NewPathResolver(fsys), component.Components{})
 
 	// Add same path twice - should not duplicate
 	unit1 := component.NewUnit("/test/path")
 	unit2 := component.NewUnit("/test/path")
 
-	added1, wasAdded1 := tsc.EnsureComponent(fsys, unit1)
-	added2, wasAdded2 := tsc.EnsureComponent(fsys, unit2)
+	added1, wasAdded1 := tsc.EnsureComponent(unit1)
+	added2, wasAdded2 := tsc.EnsureComponent(unit2)
 
 	assert.True(t, wasAdded1, "first component should be added")
 	assert.False(t, wasAdded2, "second component should not be added (duplicate)")
@@ -195,23 +195,69 @@ func TestThreadSafeComponentsFindByPath(t *testing.T) {
 
 	unit := component.NewUnit("/test/path")
 	fsys := vfs.NewMemMapFS()
-	tsc := component.NewThreadSafeComponents(fsys, component.Components{unit})
+	tsc := component.NewThreadSafeComponents(vfs.NewPathResolver(fsys), component.Components{unit})
 
 	// Find by exact path
-	found := tsc.FindByPath(fsys, "/test/path")
+	found := tsc.FindByPath("/test/path")
 	assert.NotNil(t, found, "should find component by exact path")
 	assert.Equal(t, "/test/path", found.Path())
 
 	// Find non-existent path
-	notFound := tsc.FindByPath(fsys, "/nonexistent")
+	notFound := tsc.FindByPath("/nonexistent")
 	assert.Nil(t, notFound, "should not find non-existent path")
+}
+
+func TestThreadSafeComponentsFindByPathThroughSymlink(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll("/root/real/unit", 0o755))
+	require.NoError(t, vfs.Symlink(fsys, "/root/real", "/root/link"))
+
+	unit := component.NewUnit("/root/real/unit")
+	tsc := component.NewThreadSafeComponents(vfs.NewPathResolver(fsys), component.Components{unit})
+
+	assert.Same(t, unit, tsc.FindByPath("/root/link/unit"))
+}
+
+func TestThreadSafeComponentsEnsureComponentThroughSymlink(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll("/root/real/unit", 0o755))
+	require.NoError(t, vfs.Symlink(fsys, "/root/real", "/root/link"))
+
+	tsc := component.NewThreadSafeComponents(vfs.NewPathResolver(fsys), component.Components{})
+
+	added, wasAdded := tsc.EnsureComponent(component.NewUnit("/root/real/unit"))
+	require.True(t, wasAdded)
+
+	found, wasAdded := tsc.EnsureComponent(component.NewUnit("/root/link/unit"))
+
+	assert.False(t, wasAdded)
+	assert.Same(t, added, found)
+	assert.Equal(t, 1, tsc.Len())
+}
+
+func TestThreadSafeComponentsFindByPathReturnsFirstOfDuplicates(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	first := component.NewUnit("/test/path")
+	second := component.NewUnit("/test/path")
+	tsc := component.NewThreadSafeComponents(
+		vfs.NewPathResolver(fsys),
+		component.Components{first, second},
+	)
+
+	assert.Same(t, first, tsc.FindByPath("/test/path"))
 }
 
 func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	tsc := component.NewThreadSafeComponents(fsys, component.Components{})
+	tsc := component.NewThreadSafeComponents(vfs.NewPathResolver(fsys), component.Components{})
 
 	var wg sync.WaitGroup
 
@@ -221,7 +267,7 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 	for range goroutines {
 		wg.Go(func() {
 			unit := component.NewUnit("/test/path")
-			tsc.EnsureComponent(fsys, unit)
+			tsc.EnsureComponent(unit)
 		})
 	}
 
@@ -229,7 +275,7 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 	for range goroutines {
 		wg.Go(func() {
 			for range 100 {
-				_ = tsc.FindByPath(fsys, "/test/path")
+				_ = tsc.FindByPath("/test/path")
 				_ = tsc.Len()
 				_ = tsc.ToComponents()
 			}

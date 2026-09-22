@@ -95,7 +95,7 @@ func (p *GraphPhase) Run(
 	allComponents := make([]component.Component, 0, len(input.Components)+len(candidateComponents))
 	allComponents = append(allComponents, input.Components...)
 	allComponents = append(allComponents, candidateComponents...)
-	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
+	threadSafeComponents := component.NewThreadSafeComponents(input.Discovery.paths, allComponents)
 
 	graphTargetCandidates := make([]DiscoveryResult, 0, len(input.Candidates))
 	otherCandidates := make([]DiscoveryResult, 0, len(input.Candidates))
@@ -326,7 +326,7 @@ func (p *GraphPhase) discoverDependencies(
 
 	cfg := unit.Config()
 
-	depPaths, err := extractDependencyPaths(v.FS, cfg, c)
+	depPaths, err := extractDependencyPaths(state.discovery.paths, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -529,7 +529,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		return nil
 	}
 
-	resolvedTargetPath := vfs.ResolveForCompare(v.FS, target.Path())
+	resolvedTargetPath := state.discovery.paths.Resolve(target.Path())
 
 	// When the target is from a worktree, we need to compare using relative suffixes
 	// because the absolute paths will differ (worktree vs original directory).
@@ -537,12 +537,12 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	targetRelSuffix := ""
 
 	if targetDCtx := target.DiscoveryContext(); targetDCtx != nil && targetDCtx.WorkingDir != "" {
-		resolvedWorkingDir := vfs.ResolveForCompare(v.FS, targetDCtx.WorkingDir)
+		resolvedWorkingDir := state.discovery.paths.Resolve(targetDCtx.WorkingDir)
 		targetRelSuffix = strings.TrimPrefix(resolvedTargetPath, resolvedWorkingDir)
 	}
 
 	// Resolve discovery.workingDir for consistent path comparison.
-	resolvedDiscoveryWorkingDir := vfs.ResolveForCompare(v.FS, state.discovery.workingDir)
+	resolvedDiscoveryWorkingDir := state.discovery.paths.Resolve(state.discovery.workingDir)
 
 	var candidates []component.Component
 
@@ -716,7 +716,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
 	graphState := state.graphTraversalState
 
-	published := graphState.threadSafeComponents.FindByPath(v.FS, candidate.Path())
+	published := graphState.threadSafeComponents.FindByPath(candidate.Path())
 	parseUnit := upstreamParseUnit(published, unit)
 
 	if err := ensureParsed(
@@ -740,7 +740,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	cfg := parseUnit.Config()
 
-	deps, err := extractDependencyPaths(v.FS, cfg, candidate)
+	deps, err := extractDependencyPaths(graphState.discovery.paths, cfg, candidate)
 	if err != nil {
 		state.errMu.Lock()
 
@@ -773,10 +773,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 		candidate.SetDiscoveryContext(copiedCtx)
 	}
 
-	canonicalCandidate, _ := graphState.threadSafeComponents.EnsureComponent(
-		v.FS,
-		candidate,
-	)
+	canonicalCandidate, _ := graphState.threadSafeComponents.EnsureComponent(candidate)
 
 	dependsOnTarget := false
 
@@ -793,14 +790,11 @@ func (p *GraphPhase) processUpstreamCandidate(
 			assignGraphDiscoveryContext(v.FS, depComponent, parentCtx, dep)
 		}
 
-		depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(
-			v.FS,
-			depComponent,
-		)
+		depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(depComponent)
 
 		// Compare paths: first try exact match, then try relative suffix match
 		// for worktree scenarios where target is in a different directory.
-		resolvedDep := vfs.ResolveForCompare(v.FS, dep)
+		resolvedDep := state.graphTraversalState.discovery.paths.Resolve(dep)
 
 		switch {
 		case resolvedDep == state.resolvedTargetPath:
@@ -871,7 +865,7 @@ func (p *GraphPhase) resolveDependency(
 
 	assignGraphDiscoveryContext(fsys, depComponent, parentCtx, depPath)
 
-	addedComponent, _ := threadSafeComponents.EnsureComponent(fsys, depComponent)
+	addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
 
 	parent.AddDependency(addedComponent)
 

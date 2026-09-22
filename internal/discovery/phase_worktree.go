@@ -85,7 +85,7 @@ func (p *WorktreePhase) Run(
 		return results, nil
 	}
 
-	discoveredComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
+	discoveredComponents := component.NewThreadSafeComponents(input.Discovery.paths, component.Components{})
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
 	discoveryGroup.SetLimit(p.numWorkers)
@@ -109,7 +109,7 @@ func (p *WorktreePhase) Run(
 					}
 
 					for _, c := range components {
-						discoveredComponents.EnsureComponent(v.FS, c)
+						discoveredComponents.EnsureComponent(c)
 					}
 
 					return nil
@@ -149,7 +149,7 @@ func (p *WorktreePhase) Run(
 					}
 
 					for _, c := range components {
-						discoveredComponents.EnsureComponent(v.FS, c)
+						discoveredComponents.EnsureComponent(c)
 					}
 
 					return nil
@@ -167,7 +167,7 @@ func (p *WorktreePhase) Run(
 		}
 
 		for _, c := range components {
-			discoveredComponents.EnsureComponent(v.FS, c)
+			discoveredComponents.EnsureComponent(c)
 		}
 
 		return nil
@@ -341,7 +341,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	input *PhaseInput,
 	w *worktrees.Worktrees,
 ) (component.Components, error) {
-	discoveredComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
+	discoveredComponents := component.NewThreadSafeComponents(input.Discovery.paths, component.Components{})
 
 	stackDiff := w.Stacks()
 
@@ -391,7 +391,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 			}
 
 			for _, c := range components {
-				discoveredComponents.EnsureComponent(v.FS, c)
+				discoveredComponents.EnsureComponent(c)
 			}
 
 			return nil
