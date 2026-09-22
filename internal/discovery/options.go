@@ -164,6 +164,13 @@ func (d *Discovery) WithGitRoot(gitRoot string) *Discovery {
 	return d
 }
 
+// WithWalkRoot narrows the filesystem walk to a subdirectory of the working
+// directory without changing the logical base for filter evaluation.
+func (d *Discovery) WithWalkRoot(root string) *Discovery {
+	d.walkRoot = root
+	return d
+}
+
 // WithDiscoveryBoundary sets the directory that encloses graph discovery for
 // filters, in place of the automatically detected git repository root:
 // dependencies and dependents resolving outside it are not discovered. The

@@ -123,8 +123,14 @@ type Discovery struct {
 	// worktrees is the worktrees created for Git-based filters.
 	worktrees *worktrees.Worktrees
 
-	// workingDir is the directory to search for Terragrunt configurations.
+	// workingDir is the logical working directory for filter evaluation and display paths.
 	workingDir string
+
+	// walkRoot overrides the filesystem walk root when set. The filesystem
+	// phase walks walkRoot instead of workingDir, while workingDir stays the
+	// logical base for relative path filters and display paths. Empty means
+	// the walk starts at workingDir.
+	walkRoot string
 
 	// resolvedWorkingDir is workingDir with symlinks resolved, which is how
 	// boundaries and dependency paths name it. Discover fills it in before any

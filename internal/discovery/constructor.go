@@ -36,8 +36,9 @@ type HCLCommandOptions struct {
 
 // StackGenerateOptions contains options for stack generate commands.
 type StackGenerateOptions struct {
-	WorkingDir string
-	Filters    filter.Filters
+	WorkingDir        string
+	DiscoveryBoundary string
+	Filters           filter.Filters
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
@@ -156,11 +157,40 @@ func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts HCLCommandOptions) (*Disco
 }
 
 // NewForStackGenerate creates a Discovery configured for `stack generate`.
-func NewForStackGenerate(l log.Logger, opts StackGenerateOptions) (*Discovery, error) {
+// The walk root is narrowed to the effective boundary when it falls inside the
+// working directory, so only stacks within the boundary are generated. The
+// effective boundary is --discovery-boundary when set, otherwise the narrowest
+// inline "(dir)" graph boundary extracted from the filters.
+func NewForStackGenerate(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.Filters) > 0 {
 		d = d.WithFilters(opts.Filters.RestrictToStacks())
+	}
+
+	effectiveBoundary := opts.DiscoveryBoundary
+
+	// Fall back to inline "(dir)" graph boundaries when no explicit flag is set.
+	if effectiveBoundary == "" {
+		if dirs := opts.Filters.InlineGraphBoundaries(); len(dirs) > 0 {
+			effectiveBoundary = dirs[0]
+		}
+	}
+
+	if effectiveBoundary != "" {
+		boundary, err := resolveDiscoveryBoundary(
+			fsys,
+			opts.WorkingDir,
+			effectiveBoundary,
+			boundaryEnclosureOptional,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if vfs.Within(fsys, opts.WorkingDir, boundary) {
+			d = d.WithWalkRoot(boundary)
+		}
 	}
 
 	return d, nil
