@@ -1,8 +1,5 @@
 name: Fuzz
 
-# Per-push runs still cover regressions: go test replays each target's seed
-# corpus as an ordinary unit test in base_tests. Only new-input discovery
-# happens here.
 on:
   schedule:
     # Every day at 07:00 UTC

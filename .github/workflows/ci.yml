@@ -155,8 +155,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Enumerating every test under all build tags needs the full module graph,
-      # which is a refetch from proxy.golang.org on every run without the cache.
       - name: Restore Go caches
         uses: $/.github/actions/go-cache-restore
         with:

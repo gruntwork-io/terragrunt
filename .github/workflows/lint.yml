@@ -4,8 +4,6 @@ on:
   workflow_call:
 
 jobs:
-  # Linux only: every darwin build constraint in the tree is `linux || darwin`,
-  # so a macOS run type-checks an identical set of files.
   lint:
     name: Lint (${{ matrix.os }})
     runs-on: ${{ matrix.os }}-latest

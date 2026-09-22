@@ -38,9 +38,6 @@ jobs:
           IS_RELEASE_INPUT: ${{ inputs.is_release }}
         run: ./.github/scripts/build/detect-release.sh
 
-  # One job for all seven targets: seven wrote a 1-2GB build cache apiece, which
-  # alone exceeded the repo's 10GB cache budget.
-  #
   # Each platform keeps its own artifact name, which sign-macos, sign-windows
   # and upload-tip-build select by pattern.
   build:

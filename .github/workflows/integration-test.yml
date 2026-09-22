@@ -56,9 +56,6 @@ jobs:
                 GOOGLE_COMPUTE_ZONE,
                 GOOGLE_IDENTITY_EMAIL,
                 GOOGLE_PROJECT_ID,
-                # No AZURE_CLIENT_* or AZURE_TENANT_ID: azurehelper reads the
-                # same credentials from ARM_*, and their presence disables the
-                # direct state read TestAzureDependencyFetchOutputFromState checks.
                 TG_AZURE_TEST_STORAGE_ACCOUNT,
                 TG_AZURE_TEST_SUBSCRIPTION_ID,
                 TG_AZURE_TEST_RESOURCE_GROUP,
@@ -106,8 +103,6 @@ jobs:
               - .github/scripts/setup/windows-setup.ps1
             tags: "windows,exec"
             run: "^(TestWindows|TestExec)"
-          # The provider cache server only changes how tofu fetches providers,
-          # so only the suites that drive a real binary are worth re-running.
           - name: Provider Cache Server with Latest Terraform
             os: ubuntu
             target: ./test

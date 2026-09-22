@@ -25,8 +25,6 @@ jobs:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # go fix loads every package, so a cold module cache refetches the whole
-      # dependency graph and fails outright when proxy.golang.org hiccups.
       - name: Restore Go caches
         uses: $/.github/actions/go-cache-restore
         with:
