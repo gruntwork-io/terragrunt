@@ -4,6 +4,9 @@
 # Stubs the `gh` CLI via PATH so tests run hermetically.
 
 setup() {
+  # Keep any summary a script writes inside this test's tmpdir, not in the job summary.
+  export GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md"
+
   SCRIPT="${BATS_TEST_DIRNAME}/../resolve-version-ref.sh"
   STUB_DIR="$(mktemp -d)"
   cp "${BATS_TEST_DIRNAME}/helpers/gh-stub.sh" "${STUB_DIR}/gh"

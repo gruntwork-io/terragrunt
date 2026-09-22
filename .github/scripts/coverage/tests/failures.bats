@@ -4,6 +4,9 @@
 bats_require_minimum_version 1.5.0
 
 setup() {
+  # Keep any summary a script writes inside this test's tmpdir, not in the job summary.
+  export GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md"
+
   SCRIPT="${BATS_TEST_DIRNAME}/../coverage-report.sh"
   EVENTS="${BATS_TEST_TMPDIR}/events.ndjson"
 
@@ -49,7 +52,7 @@ EOF
 }
 
 @test "writes the failing tests to the step summary" {
-  GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md" run "$SCRIPT" failures "$EVENTS"
+  run "$SCRIPT" failures "$EVENTS"
   run cat "${BATS_TEST_TMPDIR}/summary.md"
   [[ "$output" == *"TestFails"* ]]
 }

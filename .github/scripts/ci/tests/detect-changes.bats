@@ -4,6 +4,9 @@
 bats_require_minimum_version 1.5.0
 
 setup() {
+  # Keep any summary a script writes inside this test's tmpdir, not in the job summary.
+  export GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md"
+
   SCRIPT="${BATS_TEST_DIRNAME}/../detect-changes.sh"
 
   cd "$BATS_TEST_TMPDIR"
