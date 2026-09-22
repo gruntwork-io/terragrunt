@@ -544,7 +544,10 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	// Resolve discovery.workingDir for consistent path comparison.
 	resolvedDiscoveryWorkingDir := state.discovery.paths.Resolve(state.discovery.workingDir)
 
-	var candidates []component.Component
+	var (
+		candidates   []component.Component
+		candidatesMu sync.Mutex
+	)
 
 	walkFn := walkDirFunc(v, state.opts)
 
@@ -582,7 +585,11 @@ func (p *GraphPhase) discoverDependentsUpstream(
 			state.discovery.discoveryContext,
 		)
 		if candidate != nil {
+			candidatesMu.Lock()
+
 			candidates = append(candidates, candidate)
+
+			candidatesMu.Unlock()
 		}
 
 		return nil

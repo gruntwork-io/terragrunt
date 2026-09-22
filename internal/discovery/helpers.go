@@ -44,6 +44,10 @@ var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config
 // walkDirFunc returns the tree walk the discovery phases use, bound to the
 // venv filesystem so discovery only sees what the venv exposes. The symlinks
 // experiment swaps in the walk that descends into symlinked directories.
+//
+// The default walk reads directories in parallel on an OS filesystem, so it
+// calls fn from several goroutines in no fixed order. fn must be safe for
+// concurrent use.
 func walkDirFunc(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
@@ -61,7 +65,14 @@ func walkDirFunc(
 	}
 
 	return func(root string, fn fs.WalkDirFunc) error {
-		return vfs.WalkDir(v.FS, root, fn)
+		// The parallel walk stats root and descends through a symlinked root,
+		// where the sequential walk reports it as one entry and stops.
+		info, err := vfs.Lstat(v.FS, root)
+		if err != nil || !info.IsDir() {
+			return vfs.WalkDir(v.FS, root, fn)
+		}
+
+		return vfs.WalkDirParallel(v.FS, root, fn)
 	}
 }
 
