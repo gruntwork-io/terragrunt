@@ -1,6 +1,5 @@
 {
-  "buildCommand": "bunx bun@1.4.2 run build",
-  "installCommand": "bunx bun@1.4.2 install",
+  "installCommand": "bun install --frozen-lockfile",
   "framework": "astro",
   "trailingSlash": true,
   "rewrites": [

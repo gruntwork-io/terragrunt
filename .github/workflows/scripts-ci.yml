@@ -10,7 +10,6 @@ on:
       - ".github/scripts/bun.lock"
       - ".github/scripts/tsconfig.json"
       - ".github/workflows/scripts-ci.yml"
-      - "docs/vercel.json"
       - "mise.toml"
 
 jobs:
