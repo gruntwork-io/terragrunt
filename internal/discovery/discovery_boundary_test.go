@@ -617,8 +617,9 @@ func TestDiscoveryBoundary_ExcludedDependencyStaysLinked(t *testing.T) {
 }
 
 // TestNewForStackGenerate_BoundaryNarrowsWalk pins that a boundary never
-// widens the working-directory scope and that inline graph boundaries are
-// extracted as a fallback when --discovery-boundary is not set.
+// widens the working-directory scope, that inline graph boundaries override the
+// flag (matching filter evaluation precedence), and that disjoint inline
+// boundaries do not silently drop targets.
 func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 	t.Parallel()
 
@@ -639,10 +640,8 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	inlineFilter := func(dir string) filter.Filters {
-		filters, err := filter.ParseFilterQueries(l, []string{
-			"(" + dir + ")...[main...HEAD]",
-		})
+	parseFilters := func(queries ...string) filter.Filters {
+		filters, err := filter.ParseFilterQueries(l, queries)
 		require.NoError(t, err)
 
 		return filters
@@ -681,14 +680,23 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 		{
 			name:     "inline graph boundary restricts without flag",
 			workDir:  repoRoot,
-			filters:  inlineFilter(liveDir),
+			filters:  parseFilters("(" + liveDir + ")...[main...HEAD]"),
 			expected: []string{liveDir},
 		},
 		{
-			name:     "flag boundary takes precedence over inline boundary",
+			name:     "inline boundary overrides wider flag",
 			workDir:  repoRoot,
 			boundary: repoRoot,
-			filters:  inlineFilter(liveDir),
+			filters:  parseFilters("(" + liveDir + ")...[main...HEAD]"),
+			expected: []string{liveDir},
+		},
+		{
+			name:    "disjoint inline boundaries do not narrow",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveDir+")...[main...HEAD]",
+				"("+catalogDir+")...[main...HEAD]",
+			),
 			expected: []string{liveDir, catalogDir},
 		},
 	}
