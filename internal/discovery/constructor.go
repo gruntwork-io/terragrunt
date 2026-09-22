@@ -1,11 +1,19 @@
 package discovery
 
 import (
+	"context"
+	"errors"
+	"io/fs"
+	"path/filepath"
 	"runtime"
+	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell/split"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -16,6 +24,7 @@ type DiscoveryCommandOptions struct {
 	QueueConstructAs  string
 	DiscoveryBoundary string
 	Filters           filter.Filters
+	Experiments       experiment.Experiments
 	NoHidden          bool
 	Exclude           bool
 	Include           bool
@@ -31,6 +40,7 @@ type HCLCommandOptions struct {
 	WorkingDir        string
 	DiscoveryBoundary string
 	Filters           filter.Filters
+	Experiments       experiment.Experiments
 }
 
 // StackGenerateOptions contains options for stack generate commands.
@@ -113,7 +123,7 @@ func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOpt
 			fsys,
 			opts.WorkingDir,
 			opts.DiscoveryBoundary,
-			boundaryEnclosureFor(opts.Filters),
+			boundaryEnclosureWith(opts.Filters, opts.Experiments),
 		)
 		if err != nil {
 			return nil, err
@@ -126,7 +136,7 @@ func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOpt
 }
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
-func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts HCLCommandOptions) (*Discovery, error) {
+func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts *HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.Filters) > 0 {
@@ -138,7 +148,7 @@ func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts HCLCommandOptions) (*Disco
 			fsys,
 			opts.WorkingDir,
 			opts.DiscoveryBoundary,
-			boundaryEnclosureFor(opts.Filters),
+			boundaryEnclosureWith(opts.Filters, opts.Experiments),
 		)
 		if err != nil {
 			return nil, err
@@ -163,7 +173,7 @@ func NewForStackGenerate(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) (
 	}
 
 	// Inline "(dir)" operands override the flag, matching filter evaluation precedence.
-	walkBoundary := stackWalkBoundary(fsys, opts)
+	walkBoundary := StackWalkBoundary(fsys, opts)
 
 	if walkBoundary != "" {
 		d = d.WithWalkRoot(walkBoundary)
@@ -187,52 +197,112 @@ func NewForStackGenerate(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) (
 	return d, nil
 }
 
-// stackWalkBoundary derives the filesystem walk root for stack generation.
-// Inline graph boundaries take precedence over the flag. When multiple inline
-// boundaries exist and do not nest, the walk root is not narrowed so all
-// targets are reachable.
-func stackWalkBoundary(fsys vfs.FS, opts StackGenerateOptions) string {
-	dirs := opts.Filters.InlineGraphBoundaries()
-
-	if len(dirs) > 0 {
-		return resolveStackWalkRoot(fsys, opts.WorkingDir, dirs)
+// StackWalkBoundary returns the outermost boundary when it lies inside the working directory, or "".
+func StackWalkBoundary(fsys vfs.FS, opts StackGenerateOptions) string {
+	root := outermostBoundary(fsys, opts)
+	if root == "" || !vfs.Within(fsys, opts.WorkingDir, root) {
+		return ""
 	}
 
-	if opts.DiscoveryBoundary != "" {
-		return resolveStackWalkRoot(fsys, opts.WorkingDir, []string{opts.DiscoveryBoundary})
-	}
-
-	return ""
+	return root
 }
 
-// resolveStackWalkRoot resolves boundary directories to an effective walk root.
-// When a single boundary falls inside the working directory, it becomes the walk
-// root. When multiple disjoint boundaries exist, the walk root stays empty
-// (meaning the working directory) so all targets remain reachable.
-func resolveStackWalkRoot(fsys vfs.FS, workingDir string, dirs []string) string {
-	if len(dirs) == 0 {
+// WorktreeBoundary returns the outermost boundary clipped to the working directory, relative to the Git root, or "".
+func WorktreeBoundary(ctx context.Context, v *venv.Venv, opts StackGenerateOptions) string {
+	root := outermostBoundary(v.FS, opts)
+	if root == "" {
 		return ""
 	}
 
-	first, err := resolveDiscoveryBoundary(fsys, workingDir, dirs[0], boundaryEnclosureOptional)
-	if err != nil || !vfs.Within(fsys, workingDir, first) {
+	if !vfs.Within(v.FS, opts.WorkingDir, root) {
+		root = opts.WorkingDir
+	}
+
+	gitRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir)
+	if err != nil || !vfs.Within(v.FS, gitRoot, root) {
 		return ""
 	}
 
-	// Single boundary: use it as the walk root.
-	if len(dirs) == 1 {
-		return first
+	rel, err := filepath.Rel(vfs.ResolveForCompare(v.FS, gitRoot), vfs.ResolveForCompare(v.FS, root))
+	if err != nil || rel == "." {
+		return ""
 	}
 
-	// Multiple boundaries: use the first only when all others nest inside it.
-	for _, dir := range dirs[1:] {
-		resolved, err := resolveDiscoveryBoundary(fsys, workingDir, dir, boundaryEnclosureOptional)
-		if err != nil || !vfs.Within(fsys, first, resolved) {
+	return rel
+}
+
+// WorktreeWalkRoot returns boundary mirrored into a worktree; ok is false when it is not a directory at that ref.
+func WorktreeWalkRoot(fsys vfs.FS, worktreePath, boundary string) (string, bool, error) {
+	root := filepath.Join(worktreePath, boundary)
+
+	info, err := fsys.Stat(root)
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+		return "", false, nil
+	}
+
+	if err != nil {
+		return "", false, err
+	}
+
+	if !info.IsDir() {
+		return "", false, nil
+	}
+
+	return root, true, nil
+}
+
+// WithinWorktreeBoundary reports whether a worktree component lies inside boundary, relative to its worktree root.
+func WithinWorktreeBoundary(fsys vfs.FS, c component.Component, boundary string) bool {
+	dc := c.DiscoveryContext()
+	if boundary == "" || dc == nil || dc.WorkingDir == "" {
+		return true
+	}
+
+	return vfs.Within(fsys, filepath.Join(dc.WorkingDir, boundary), c.Path())
+}
+
+// outermostBoundary returns the boundary enclosing every positive filter, or "" when unbounded or disjoint.
+func outermostBoundary(fsys vfs.FS, opts StackGenerateOptions) string {
+	var dirs []string
+
+	for _, flt := range opts.Filters {
+		if filter.IsPureNegation(flt.Expression()) {
+			continue
+		}
+
+		bounds := filter.Filters{flt}.InlineGraphBoundaries()
+		if len(bounds) == 0 {
+			if opts.DiscoveryBoundary == "" {
+				return ""
+			}
+
+			bounds = []string{opts.DiscoveryBoundary}
+		}
+
+		dirs = append(dirs, bounds...)
+	}
+
+	if len(dirs) == 0 && opts.DiscoveryBoundary != "" {
+		dirs = []string{opts.DiscoveryBoundary}
+	}
+
+	var root string
+
+	for _, dir := range dirs {
+		resolved, err := resolveDiscoveryBoundary(fsys, opts.WorkingDir, dir, boundaryEnclosureOptional)
+		if err != nil {
+			return ""
+		}
+
+		switch {
+		case root == "", vfs.Within(fsys, resolved, root):
+			root = resolved
+		case !vfs.Within(fsys, root, resolved):
 			return ""
 		}
 	}
 
-	return first
+	return root
 }
 
 // NewDiscovery creates a new Discovery with sensible defaults.

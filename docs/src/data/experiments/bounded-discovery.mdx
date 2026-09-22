@@ -54,5 +54,5 @@ Criteria for moving `bounded-discovery` to a stable release:
 - [x] A single directory boundary covers per-environment directories, including units that include a shared parent configuration above the boundary and units that depend on components outside it.
 - [x] A boundary is a directory. Terragrunt does not expand a glob in the operand or the flag.
 - [x] Path-restricting filter intersections (e.g. `...{unit} | ./**`) do not narrow the boundary. Set one with a `(dir)` operand or `--discovery-boundary`.
-- [ ] Decide whether and how the boundary should apply to Git-based filter expressions (e.g. `[main...HEAD]`).
+- [ ] Decide whether and how the boundary should apply to Git-based filter expressions (e.g. `[main...HEAD]`). The [`git-discovery-boundary`](/reference/experiments/active#git-discovery-boundary) experiment explores this.
 - [x] Positive feedback from users relying on the operand and the flag in repositories with isolated environments.

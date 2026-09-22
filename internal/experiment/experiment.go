@@ -134,6 +134,8 @@ const (
 	// MCPCommand gates the `terragrunt mcp` command, which serves Terragrunt
 	// operations to AI agents over the Model Context Protocol.
 	MCPCommand = "mcp-command"
+	// GitDiscoveryBoundary bounds Git expression worktree discovery and allows a dependent boundary in the working dir.
+	GitDiscoveryBoundary = "git-discovery-boundary"
 )
 
 const (
@@ -274,6 +276,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: MCPCommand,
+		},
+		{
+			Name: GitDiscoveryBoundary,
 		},
 	}
 }

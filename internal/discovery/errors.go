@@ -192,7 +192,8 @@ func (e DiscoveryBoundaryScopeError) Error() string {
 	return fmt.Sprintf(
 		"discovery boundary %q does not contain the working directory %q. "+
 			"Filters that traverse dependents search upward from the working directory, "+
-			"so their boundary must be the working directory or one of its parent directories.",
+			"so their boundary must be the working directory or one of its parent directories. "+
+			"The git-discovery-boundary experiment also accepts a boundary inside the working directory.",
 		e.Boundary, e.WorkingDir,
 	)
 }

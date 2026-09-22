@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -466,6 +465,72 @@ func (d *Discovery) dependentWalkBoundary() string {
 	return d.gitRoot
 }
 
+// dependentBoundaries returns each dependent expression's boundary, or nil when any is unbounded.
+func (d *Discovery) dependentBoundaries(fsys vfs.FS) []string {
+	var boundaries []string
+
+	for _, expr := range d.classifier.GraphExpressions() {
+		if !expr.Dependents.Include {
+			continue
+		}
+
+		if expr.Dependents.Boundary == "" {
+			if d.discoveryBoundary == "" {
+				return nil
+			}
+
+			boundaries = append(boundaries, d.discoveryBoundary)
+
+			continue
+		}
+
+		resolved, err := resolveGraphBoundary(fsys, d.workingDir, expr.Dependents.Boundary)
+		if err != nil {
+			return nil
+		}
+
+		boundaries = append(boundaries, resolved)
+	}
+
+	return boundaries
+}
+
+// potentialDependentsOutsideBoundary returns potential dependents no dependent traversal can reach.
+func (d *Discovery) potentialDependentsOutsideBoundary(
+	fsys vfs.FS,
+	candidates []DiscoveryResult,
+) map[string]struct{} {
+	boundaries := d.dependentBoundaries(fsys)
+	if len(boundaries) == 0 {
+		return nil
+	}
+
+	outside := make(map[string]struct{})
+
+	for _, candidate := range candidates {
+		if candidate.Reason != filter.CandidacyReasonPotentialDependent {
+			continue
+		}
+
+		c := candidate.Component
+
+		// Worktree components live outside the working tree by construction.
+		if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
+			continue
+		}
+
+		if slices.ContainsFunc(boundaries, func(boundary string) bool {
+			return !isExternal(fsys, boundary, c.Path())
+		}) {
+			continue
+		}
+
+		outside[c.Path()] = struct{}{}
+	}
+
+	return outside
+}
+
 // evaluationContext hands filter evaluation the settings its graph traversal
 // has to honor. Discover resolves the boundary and the working directory before
 // any phase runs, so this carries absolute paths rather than raw user input.
@@ -534,6 +599,7 @@ type boundaryEnclosure int
 const (
 	boundaryEnclosureOptional boundaryEnclosure = iota
 	boundaryEnclosureRequired
+	boundaryEnclosureNested
 )
 
 // boundaryEnclosureFor reports what the given filters demand of a discovery
@@ -586,10 +652,38 @@ func resolveDiscoveryBoundary(
 		resolvedWorkingDir = filepath.Clean(workingDir)
 	}
 
-	rel, err := filepath.Rel(resolved, resolvedWorkingDir)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	if isExternal(fsys, resolved, resolvedWorkingDir) &&
+		(enclosure != boundaryEnclosureNested || isExternal(fsys, resolvedWorkingDir, resolved)) {
 		return "", NewDiscoveryBoundaryScopeError(resolved, workingDir)
 	}
 
 	return resolved, nil
+}
+
+// boundaryEnclosureWith relaxes boundaryEnclosureFor to nesting either way under git-discovery-boundary.
+func boundaryEnclosureWith(filters filter.Filters, exps experiment.Experiments) boundaryEnclosure {
+	enclosure := boundaryEnclosureFor(filters)
+	if enclosure == boundaryEnclosureRequired && exps.Evaluate(experiment.GitDiscoveryBoundary) {
+		return boundaryEnclosureNested
+	}
+
+	return enclosure
+}
+
+// gitDiscoveryBoundary reports whether the git-discovery-boundary experiment is enabled.
+func gitDiscoveryBoundary(opts *options.TerragruntOptions) bool {
+	return opts != nil && opts.Experiments.Evaluate(experiment.GitDiscoveryBoundary)
+}
+
+// worktreeBoundary returns the boundary mirrored into each worktree under git-discovery-boundary, or "" when unbounded.
+func (d *Discovery) worktreeBoundary(ctx context.Context, v *venv.Venv, opts *options.TerragruntOptions) string {
+	if !gitDiscoveryBoundary(opts) {
+		return ""
+	}
+
+	return WorktreeBoundary(ctx, v, StackGenerateOptions{
+		WorkingDir:        d.workingDir,
+		DiscoveryBoundary: d.discoveryBoundary,
+		Filters:           d.filters,
+	})
 }

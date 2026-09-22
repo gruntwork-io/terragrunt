@@ -9,9 +9,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -254,4 +256,136 @@ dependency "vpc" {
 			configs.Filter(component.UnitKind).Paths(),
 		)
 	})
+}
+
+// Test that dependent discovery skips parsing units outside every dependent boundary (#6988).
+func TestDiscoveryGraphBoundary_SkipsParsingOutsideDependentBoundary(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := venvtest.Root("/repo")
+	liveDir := filepath.Join(repoRoot, "live")
+	accountDir := filepath.Join(liveDir, "account")
+	rolesDir := filepath.Join(liveDir, "roles")
+	missingDir := filepath.Join(liveDir, "missing")
+	catalogDir := filepath.Join(repoRoot, "catalog", "units", "roles")
+	elsewhereDir := venvtest.Root("/elsewhere")
+
+	testCases := []struct {
+		errAs                any
+		name                 string
+		query                string
+		boundary             string
+		errText              string
+		expected             []string
+		gitDiscoveryBoundary bool
+	}{
+		{
+			name:  "inline boundary",
+			query: "(" + liveDir + ")...{" + missingDir + "}",
+		},
+		{
+			name:  "relative inline boundary",
+			query: "(./live/)...{./live/missing}",
+		},
+		{
+			name:     "inline boundary overrides wider flag",
+			query:    "(" + liveDir + ")...{" + missingDir + "}",
+			boundary: repoRoot,
+		},
+		{
+			name:  "nested inline boundaries",
+			query: "(" + accountDir + ")...{" + missingDir + "} | (" + liveDir + ")...{" + missingDir + "}",
+		},
+		{
+			name:    "unbounded query still parses the catalog",
+			query:   "...{" + missingDir + "}",
+			errText: "roles.yml",
+		},
+		{
+			name:    "one unbounded dependent expression parses the catalog",
+			query:   "(" + liveDir + ")...{" + missingDir + "} | ...{" + rolesDir + "}",
+			errText: "roles.yml",
+		},
+		{
+			name:    "wider boundary still parses the catalog",
+			query:   "(" + repoRoot + ")...{" + missingDir + "}",
+			errText: "roles.yml",
+		},
+		{
+			name:  "boundary inside the working directory still rejects a matched target",
+			query: "(" + liveDir + ")...{" + accountDir + "}",
+			errAs: &discovery.DiscoveryBoundaryScopeError{},
+		},
+		{
+			name:                 "git-discovery-boundary walks an inline boundary inside the working directory",
+			query:                "(" + liveDir + ")...{" + accountDir + "}",
+			expected:             []string{accountDir, rolesDir},
+			gitDiscoveryBoundary: true,
+		},
+		{
+			name:                 "git-discovery-boundary walks a flag boundary inside the working directory",
+			query:                "...{" + accountDir + "}",
+			boundary:             liveDir,
+			expected:             []string{accountDir, rolesDir},
+			gitDiscoveryBoundary: true,
+		},
+		{
+			name:                 "git-discovery-boundary still rejects a boundary outside the working directory",
+			query:                "(" + elsewhereDir + ")...{" + accountDir + "}",
+			errAs:                &discovery.DiscoveryBoundaryScopeError{},
+			gitDiscoveryBoundary: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := memRepoRootVenv(t, repoRoot)
+
+			writeUnits(t, v.FS, map[string]string{
+				accountDir: ``,
+				rolesDir: `
+dependency "account" {
+  config_path = "../account"
+}
+`,
+				catalogDir: `
+locals {
+  roles = find_in_parent_folders("roles.yml")
+}
+`,
+			})
+			require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(elsewhereDir, ".keep"), nil, 0o644))
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = repoRoot
+			opts.RootWorkingDir = repoRoot
+
+			if tc.gitDiscoveryBoundary {
+				require.NoError(t, opts.Experiments.EnableExperiment(experiment.GitDiscoveryBoundary))
+			}
+
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{tc.query})
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(repoRoot).WithFilters(filters)
+
+			if tc.boundary != "" {
+				d = d.WithDiscoveryBoundary(tc.boundary)
+			}
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), v, opts)
+
+			switch {
+			case tc.errAs != nil:
+				require.ErrorAs(t, err, tc.errAs)
+			case tc.errText != "":
+				require.ErrorContains(t, err, tc.errText)
+			default:
+				require.NoError(t, err)
+				assert.ElementsMatch(t, tc.expected, configs.Filter(component.UnitKind).Paths())
+			}
+		})
+	}
 }

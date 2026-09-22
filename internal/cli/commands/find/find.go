@@ -37,6 +37,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		Reading:           opts.Reading,
 		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,
+		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return err

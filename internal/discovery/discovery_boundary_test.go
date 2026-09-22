@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -245,7 +246,11 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 
 	f, v := newBoundaryFixture(t)
 
-	newForDiscoveryCommand := func(t *testing.T, query, boundary string) (*discovery.Discovery, error) {
+	newForDiscoveryCommand := func(
+		t *testing.T,
+		query, boundary string,
+		exps experiment.Experiments,
+	) (*discovery.Discovery, error) {
 		t.Helper()
 
 		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
@@ -258,15 +263,20 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 				WorkingDir:        f.stagingDir,
 				DiscoveryBoundary: boundary,
 				Filters:           filters,
+				Experiments:       exps,
 			},
 		)
 	}
+
+	gitDiscoveryBoundary := experiment.NewExperiments()
+	require.NoError(t, gitDiscoveryBoundary.EnableExperiment(experiment.GitDiscoveryBoundary))
 
 	testCases := []struct {
 		errAs    any
 		name     string
 		query    string
 		boundary string
+		exps     experiment.Experiments
 	}{
 		{
 			name:     "nonexistent boundary",
@@ -280,13 +290,26 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 			boundary: f.consumerDir,
 			errAs:    &discovery.DiscoveryBoundaryScopeError{},
 		},
+		{
+			name:     "dependent direction rejects a boundary inside the working directory",
+			query:    "...{" + f.vpcDir + "}",
+			boundary: f.vpcDir,
+			errAs:    &discovery.DiscoveryBoundaryScopeError{},
+		},
+		{
+			name:     "git-discovery-boundary still rejects a disjoint boundary",
+			query:    "...{" + f.vpcDir + "}",
+			boundary: f.consumerDir,
+			exps:     gitDiscoveryBoundary,
+			errAs:    &discovery.DiscoveryBoundaryScopeError{},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := newForDiscoveryCommand(t, tc.query, tc.boundary)
+			_, err := newForDiscoveryCommand(t, tc.query, tc.boundary, tc.exps)
 			require.ErrorAs(t, err, tc.errAs)
 		})
 	}
@@ -294,7 +317,15 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 	t.Run("valid boundary", func(t *testing.T) {
 		t.Parallel()
 
-		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", "..")
+		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", "..", nil)
+		require.NoError(t, err)
+		require.NotNil(t, d)
+	})
+
+	t.Run("git-discovery-boundary accepts a boundary inside the working directory", func(t *testing.T) {
+		t.Parallel()
+
+		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", f.vpcDir, gitDiscoveryBoundary)
 		require.NoError(t, err)
 		require.NotNil(t, d)
 	})
@@ -304,7 +335,7 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			d, err := newForDiscoveryCommand(t, "{"+f.edgeDir+"}...", f.consumerDir)
+			d, err := newForDiscoveryCommand(t, "{"+f.edgeDir+"}...", f.consumerDir, nil)
 			require.NoError(t, err)
 			require.NotNil(t, d)
 		},
@@ -626,6 +657,7 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 	repoRoot := venvtest.Root("/monorepo")
 	liveDir := filepath.Join(repoRoot, "live")
 	catalogDir := filepath.Join(repoRoot, "catalog", "stacks")
+	liveSubDir := filepath.Join(liveDir, "sub")
 
 	v := memRepoRootVenv(t, repoRoot)
 
@@ -637,6 +669,8 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			0o644,
 		))
 	}
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(liveSubDir, ".keep"), nil, 0o644))
 
 	l := logger.CreateLogger()
 
@@ -689,6 +723,49 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			boundary: repoRoot,
 			filters:  parseFilters("(" + liveDir + ")...[main...HEAD]"),
 			expected: []string{liveDir},
+		},
+		{
+			name:    "nested inline boundaries narrow to the outermost",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveDir+")...[main...HEAD]",
+				"("+liveSubDir+")...[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:    "nested inline boundaries narrow to the outermost in child-first order",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveSubDir+")...[main...HEAD]",
+				"("+liveDir+")...[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:    "an unbounded filter does not narrow",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveDir+")...[main...HEAD]",
+				"[main...HEAD]",
+			),
+			expected: []string{liveDir, catalogDir},
+		},
+		{
+			name:     "an unbounded filter narrows to the flag",
+			workDir:  repoRoot,
+			boundary: liveDir,
+			filters: parseFilters(
+				"("+liveSubDir+")...[main...HEAD]",
+				"[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:     "a negated boundary does not narrow",
+			workDir:  repoRoot,
+			filters:  parseFilters("!(" + liveDir + ")...{" + liveDir + "}"),
+			expected: []string{liveDir, catalogDir},
 		},
 		{
 			name:    "disjoint inline boundaries do not narrow",

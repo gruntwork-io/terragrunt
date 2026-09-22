@@ -9,6 +9,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -45,11 +46,16 @@ func (d *Discovery) Discover(
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
 
 	if d.discoveryBoundary != "" {
+		var exps experiment.Experiments
+		if opts != nil {
+			exps = opts.Experiments
+		}
+
 		boundary, boundaryErr := resolveDiscoveryBoundary(
 			v.FS,
 			d.workingDir,
 			d.discoveryBoundary,
-			boundaryEnclosureFor(d.filters),
+			boundaryEnclosureWith(d.filters, exps),
 		)
 		if boundaryErr != nil {
 			return nil, boundaryErr
@@ -473,10 +479,12 @@ func (d *Discovery) runGraphPhase(
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
 
+		unparsed := d.potentialDependentsOutsideBoundary(v.FS, candidates)
+
 		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
-				return errors.Join(d.buildDependencyGraph(childCtx, l, v, opts, allComponents)...)
+				return errors.Join(d.buildDependencyGraph(childCtx, l, v, opts, allComponents, unparsed)...)
 			})
 
 		if buildErr != nil && !d.suppressParseErrors {
@@ -546,12 +554,14 @@ func (d *Discovery) runRelationshipPhase(
 // buildDependencyGraph parses all components and builds bidirectional dependency links.
 // This is called before the graph phase when dependent filters exist, to populate
 // the reverse links (dependents) that the graph phase needs for dependent traversal.
+// Components whose paths are in unparsed stay in the graph but are not parsed.
 func (d *Discovery) buildDependencyGraph(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	allComponents component.Components,
+	unparsed map[string]struct{},
 ) []error {
 	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
 
@@ -564,6 +574,11 @@ func (d *Discovery) buildDependencyGraph(
 	g.SetLimit(d.numWorkers)
 
 	for _, c := range allComponents {
+		if _, skip := unparsed[c.Path()]; skip {
+			l.Debugf("Discovery: %s is outside every dependent boundary; not parsing it", c.Path())
+			continue
+		}
+
 		g.Go(func() error {
 			err := d.buildComponentDependencies(ctx, l, v, opts, c, threadSafeComponents)
 			if err != nil {
