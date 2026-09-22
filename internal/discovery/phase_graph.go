@@ -246,8 +246,7 @@ func (p *GraphPhase) processGraphTarget(
 				return rerr
 			}
 
-			if isExternal(v.FS, resolved, startDir) &&
-				(!gitDiscoveryBoundary(state.opts) || isExternal(v.FS, startDir, resolved)) {
+			if isExternal(v.FS, resolved, startDir) && isExternal(v.FS, startDir, resolved) {
 				return NewDiscoveryBoundaryScopeError(resolved, startDir)
 			}
 
@@ -265,9 +264,8 @@ func (p *GraphPhase) processGraphTarget(
 			}
 		}
 
-		// git-discovery-boundary starts the walk at a boundary inside the working directory.
-		if gitDiscoveryBoundary(state.opts) && boundaryRoot != "" &&
-			isExternal(v.FS, boundaryRoot, startDir) && !isExternal(v.FS, startDir, boundaryRoot) {
+		// A boundary inside the working directory starts the walk at itself.
+		if boundaryRoot != "" && isExternal(v.FS, boundaryRoot, startDir) && !isExternal(v.FS, startDir, boundaryRoot) {
 			startDir = boundaryRoot
 		}
 

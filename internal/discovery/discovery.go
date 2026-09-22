@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -46,16 +45,11 @@ func (d *Discovery) Discover(
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
 
 	if d.discoveryBoundary != "" {
-		var exps experiment.Experiments
-		if opts != nil {
-			exps = opts.Experiments
-		}
-
 		boundary, boundaryErr := resolveDiscoveryBoundary(
 			v.FS,
 			d.workingDir,
 			d.discoveryBoundary,
-			boundaryEnclosureWith(d.filters, exps),
+			boundaryEnclosureFor(d.filters),
 		)
 		if boundaryErr != nil {
 			return nil, boundaryErr

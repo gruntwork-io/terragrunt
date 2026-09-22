@@ -87,7 +87,7 @@ func (p *WorktreePhase) Run(
 
 	discoveredComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
 
-	boundary := discovery.worktreeBoundary(ctx, v, input.Opts)
+	boundary := discovery.worktreeBoundary(ctx, v)
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
 	discoveryGroup.SetLimit(p.numWorkers)

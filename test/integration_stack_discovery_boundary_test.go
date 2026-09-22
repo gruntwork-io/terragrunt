@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -68,14 +67,28 @@ const boundaryStackLiveStack = `stack "account" {
 }
 `
 
+// boundaryStackStandaloneUnit tolerates its read file being deleted, so a deletion diff still parses.
+const boundaryStackStandaloneUnit = `locals {
+  extra = try(file(mark_as_read("${get_terragrunt_dir()}/extra.yml")), "")
+}
+`
+
+const boundaryStackStandaloneModule = `output "ok" {
+  value = "ok"
+}
+`
+
 const (
-	boundaryStackRolesFile     = "live/accounts/my-account/roles.yml"
-	boundaryStackLiveStackFile = "live/accounts/my-account/terragrunt.stack.hcl"
-	boundaryStackCatalogFile   = "catalog/stacks/account/terragrunt.stack.hcl"
-	boundaryStackCatalogUnit   = "catalog/units/account/terragrunt.hcl"
-	boundaryStackGeneratedDir  = "live/accounts/my-account/.terragrunt-stack/account"
-	boundaryStackRolesUnitDir  = boundaryStackGeneratedDir + "/.terragrunt-stack/roles"
-	boundaryStackBoundedFilter = "--filter '(./live/)...[main...HEAD]'"
+	boundaryStackStandaloneDir  = "live/standalone"
+	boundaryStackStandaloneRead = boundaryStackStandaloneDir + "/extra.yml"
+	boundaryStackRolesFile      = "live/accounts/my-account/roles.yml"
+	boundaryStackLiveStackFile  = "live/accounts/my-account/terragrunt.stack.hcl"
+	boundaryStackCatalogFile    = "catalog/stacks/account/terragrunt.stack.hcl"
+	boundaryStackCatalogUnit    = "catalog/units/account/terragrunt.hcl"
+	boundaryStackUnusedUnit     = "catalog/units/unused/terragrunt.hcl"
+	boundaryStackGeneratedDir   = "live/accounts/my-account/.terragrunt-stack/account"
+	boundaryStackRolesUnitDir   = boundaryStackGeneratedDir + "/.terragrunt-stack/roles"
+	boundaryStackBoundedFilter  = "--filter '(./live/)...[main...HEAD]'"
 )
 
 // TestStackDiscoveryBoundaryGitFilterSkipsCatalog pins that worktree stack generation stays inside the boundary.
@@ -101,10 +114,9 @@ func TestStackDiscoveryBoundaryGitFilterSkipsCatalog(t *testing.T) {
 			expected: []string{"live/accounts/my-account"},
 		},
 		{
-			name:     "find with catalog stack file change",
-			changed:  boundaryStackCatalogFile,
-			command:  "find",
-			expected: []string{"catalog/stacks/account"},
+			name:    "find with catalog stack file change",
+			changed: boundaryStackCatalogFile,
+			command: "find",
 		},
 		{name: "stack generate with read file change", changed: boundaryStackRolesFile, command: "stack generate"},
 		{name: "stack generate with live stack file change", changed: boundaryStackLiveStackFile, command: "stack generate"},
@@ -134,47 +146,43 @@ func TestStackDiscoveryBoundaryGitFilterSkipsCatalog(t *testing.T) {
 	}
 }
 
-// TestStackDiscoveryBoundaryGitFilterExperiment pins that git-discovery-boundary narrows Git worktree unit discovery.
-func TestStackDiscoveryBoundaryGitFilterExperiment(t *testing.T) {
+// TestStackDiscoveryBoundaryGitFilterBoundsTargets pins that the boundary confines Git worktree unit discovery.
+func TestStackDiscoveryBoundaryGitFilterBoundsTargets(t *testing.T) {
 	t.Parallel()
-
-	gitDiscoveryBoundary := " --experiment " + experiment.GitDiscoveryBoundary
-	flagBoundedFilter := "--discovery-boundary ./live --filter '...[main...HEAD]'"
 
 	testCases := []struct {
 		name     string
 		changed  string
+		removed  string
 		args     string
 		expected []string
-		wantErr  bool
 	}{
 		{
-			name:     "catalog unit change is a target without the experiment",
-			changed:  boundaryStackCatalogUnit,
-			args:     boundaryStackBoundedFilter,
-			expected: []string{"catalog/units/account"},
-		},
-		{
-			name:    "catalog unit change is outside the boundary with the experiment",
+			name:    "changed catalog unit outside the boundary",
 			changed: boundaryStackCatalogUnit,
-			args:    boundaryStackBoundedFilter + gitDiscoveryBoundary,
+			args:    boundaryStackBoundedFilter,
 		},
 		{
-			name:     "read file change with the experiment",
+			name:    "removed catalog unit outside the boundary",
+			removed: boundaryStackUnusedUnit,
+			args:    boundaryStackBoundedFilter,
+		},
+		{
+			name:     "changed read file inside the boundary",
 			changed:  boundaryStackRolesFile,
-			args:     boundaryStackBoundedFilter + gitDiscoveryBoundary,
+			args:     boundaryStackBoundedFilter,
 			expected: []string{boundaryStackGeneratedDir, boundaryStackRolesUnitDir},
 		},
 		{
-			name:    "flag boundary inside the working directory without the experiment",
-			changed: boundaryStackRolesFile,
-			args:    flagBoundedFilter,
-			wantErr: true,
+			name:     "deleted read file inside the boundary",
+			removed:  boundaryStackStandaloneRead,
+			args:     boundaryStackBoundedFilter,
+			expected: []string{boundaryStackStandaloneDir},
 		},
 		{
-			name:     "flag boundary inside the working directory with the experiment",
+			name:     "flag boundary inside the working directory",
 			changed:  boundaryStackRolesFile,
-			args:     flagBoundedFilter + gitDiscoveryBoundary,
+			args:     "--discovery-boundary ./live --filter '...[main...HEAD]'",
 			expected: []string{boundaryStackGeneratedDir, boundaryStackRolesUnitDir},
 		},
 	}
@@ -185,16 +193,18 @@ func TestStackDiscoveryBoundaryGitFilterExperiment(t *testing.T) {
 
 			tmpDir, runner := setupBoundaryStackRepo(t)
 
-			appendBoundaryStackChange(t, runner, filepath.Join(tmpDir, tc.changed))
-
-			stdout, stderr, err := runBoundaryStackCommand(t, tmpDir, "find", tc.args)
-			if tc.wantErr {
-				require.ErrorContains(t, err, "does not contain the working directory")
-				return
+			if tc.changed != "" {
+				appendBoundaryStackChange(t, runner, filepath.Join(tmpDir, tc.changed))
 			}
 
+			if tc.removed != "" {
+				removeBoundaryStackPath(t, runner, filepath.Join(tmpDir, tc.removed))
+			}
+
+			stdout, stderr, err := runBoundaryStackCommand(t, tmpDir, "find", tc.args)
 			require.NoError(t, err, "stderr: %s", stderr)
 			assert.ElementsMatch(t, tc.expected, outputLines(stdout))
+			assert.NotContains(t, stderr, "catalog/")
 		})
 	}
 }
@@ -207,14 +217,18 @@ func setupBoundaryStackRepo(t *testing.T) (string, *git.GitRunner) {
 	runner := helpers.InitTestGitRunner(t, tmpDir)
 
 	for path, contents := range map[string]string{
-		".gitignore":                         ".terragrunt-stack\n",
-		boundaryStackCatalogFile:             boundaryStackCatalogStack,
-		boundaryStackCatalogUnit:             "",
-		"catalog/units/account/main.tf":      boundaryStackAccountModule,
-		"catalog/units/roles/terragrunt.hcl": boundaryStackCatalogRolesUnit,
-		"catalog/units/roles/main.tf":        boundaryStackRolesModule,
-		boundaryStackLiveStackFile:           boundaryStackLiveStack,
-		boundaryStackRolesFile:               "[]\n",
+		".gitignore":                                   ".terragrunt-stack\n",
+		boundaryStackCatalogFile:                       boundaryStackCatalogStack,
+		boundaryStackCatalogUnit:                       "",
+		"catalog/units/account/main.tf":                boundaryStackAccountModule,
+		"catalog/units/roles/terragrunt.hcl":           boundaryStackCatalogRolesUnit,
+		boundaryStackUnusedUnit:                        boundaryStackCatalogRolesUnit,
+		"catalog/units/roles/main.tf":                  boundaryStackRolesModule,
+		boundaryStackLiveStackFile:                     boundaryStackLiveStack,
+		boundaryStackRolesFile:                         "[]\n",
+		boundaryStackStandaloneDir + "/terragrunt.hcl": boundaryStackStandaloneUnit,
+		boundaryStackStandaloneDir + "/main.tf":        boundaryStackStandaloneModule,
+		boundaryStackStandaloneRead:                    "extra: true\n",
 	} {
 		writeExpansionFilterFile(t, filepath.Join(tmpDir, filepath.FromSlash(path)), contents)
 	}
@@ -243,6 +257,15 @@ func appendBoundaryStackChange(t *testing.T, runner *git.GitRunner, path string)
 	require.NoError(t, f.Close())
 
 	commitExpansionFilterChanges(t, runner, "Change "+filepath.Base(path))
+}
+
+// removeBoundaryStackPath deletes path and commits the removal on the current branch.
+func removeBoundaryStackPath(t *testing.T, runner *git.GitRunner, path string) {
+	t.Helper()
+
+	require.NoError(t, os.Remove(filepath.FromSlash(path)))
+
+	commitExpansionFilterChanges(t, runner, "Remove "+filepath.Base(path))
 }
 
 // runBoundaryStackCommand runs a terragrunt command against dir.

@@ -9,7 +9,6 @@ import (
 	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell/split"
@@ -24,7 +23,6 @@ type DiscoveryCommandOptions struct {
 	QueueConstructAs  string
 	DiscoveryBoundary string
 	Filters           filter.Filters
-	Experiments       experiment.Experiments
 	NoHidden          bool
 	Exclude           bool
 	Include           bool
@@ -40,7 +38,6 @@ type HCLCommandOptions struct {
 	WorkingDir        string
 	DiscoveryBoundary string
 	Filters           filter.Filters
-	Experiments       experiment.Experiments
 }
 
 // StackGenerateOptions contains options for stack generate commands.
@@ -123,7 +120,7 @@ func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOpt
 			fsys,
 			opts.WorkingDir,
 			opts.DiscoveryBoundary,
-			boundaryEnclosureWith(opts.Filters, opts.Experiments),
+			boundaryEnclosureFor(opts.Filters),
 		)
 		if err != nil {
 			return nil, err
@@ -136,7 +133,7 @@ func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOpt
 }
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
-func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts *HCLCommandOptions) (*Discovery, error) {
+func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.Filters) > 0 {
@@ -148,7 +145,7 @@ func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts *HCLCommandOptions) (*Disc
 			fsys,
 			opts.WorkingDir,
 			opts.DiscoveryBoundary,
-			boundaryEnclosureWith(opts.Filters, opts.Experiments),
+			boundaryEnclosureFor(opts.Filters),
 		)
 		if err != nil {
 			return nil, err

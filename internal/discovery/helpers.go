@@ -592,14 +592,13 @@ func resolveGraphBoundary(fsys vfs.FS, workingDir, boundary string) (string, err
 	return resolved, nil
 }
 
-// boundaryEnclosure states whether a discovery boundary has to enclose the
-// working directory to be usable.
+// boundaryEnclosure states whether a discovery boundary has to nest with the
+// working directory, containing it or sitting inside it, to be usable.
 type boundaryEnclosure int
 
 const (
 	boundaryEnclosureOptional boundaryEnclosure = iota
 	boundaryEnclosureRequired
-	boundaryEnclosureNested
 )
 
 // boundaryEnclosureFor reports what the given filters demand of a discovery
@@ -652,35 +651,16 @@ func resolveDiscoveryBoundary(
 		resolvedWorkingDir = filepath.Clean(workingDir)
 	}
 
-	if isExternal(fsys, resolved, resolvedWorkingDir) &&
-		(enclosure != boundaryEnclosureNested || isExternal(fsys, resolvedWorkingDir, resolved)) {
+	// A boundary inside the working directory starts the dependent walk there instead.
+	if isExternal(fsys, resolved, resolvedWorkingDir) && isExternal(fsys, resolvedWorkingDir, resolved) {
 		return "", NewDiscoveryBoundaryScopeError(resolved, workingDir)
 	}
 
 	return resolved, nil
 }
 
-// boundaryEnclosureWith relaxes boundaryEnclosureFor to nesting either way under git-discovery-boundary.
-func boundaryEnclosureWith(filters filter.Filters, exps experiment.Experiments) boundaryEnclosure {
-	enclosure := boundaryEnclosureFor(filters)
-	if enclosure == boundaryEnclosureRequired && exps.Evaluate(experiment.GitDiscoveryBoundary) {
-		return boundaryEnclosureNested
-	}
-
-	return enclosure
-}
-
-// gitDiscoveryBoundary reports whether the git-discovery-boundary experiment is enabled.
-func gitDiscoveryBoundary(opts *options.TerragruntOptions) bool {
-	return opts != nil && opts.Experiments.Evaluate(experiment.GitDiscoveryBoundary)
-}
-
-// worktreeBoundary returns the boundary mirrored into each worktree under git-discovery-boundary, or "" when unbounded.
-func (d *Discovery) worktreeBoundary(ctx context.Context, v *venv.Venv, opts *options.TerragruntOptions) string {
-	if !gitDiscoveryBoundary(opts) {
-		return ""
-	}
-
+// worktreeBoundary returns the boundary mirrored into each worktree, or "" when unbounded.
+func (d *Discovery) worktreeBoundary(ctx context.Context, v *venv.Venv) string {
 	return WorktreeBoundary(ctx, v, StackGenerateOptions{
 		WorkingDir:        d.workingDir,
 		DiscoveryBoundary: d.discoveryBoundary,

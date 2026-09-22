@@ -4,27 +4,28 @@ package test_test
 
 import (
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestTFStackRunDiscoveryBoundary pins the #6988 command and the units each diff plans.
+// boundaryStackPlannedUnit matches working tree unit prefixes on tofu output, skipping worktree dependency reads.
+var boundaryStackPlannedUnit = regexp.MustCompile(`prefix=([^.\s]\S*) tf-path=`)
+
+// TestTFStackRunDiscoveryBoundary pins the #6988 command and the exact set of units each diff plans.
 func TestTFStackRunDiscoveryBoundary(t *testing.T) {
 	t.Parallel()
-
-	gitDiscoveryBoundary := " --experiment " + experiment.GitDiscoveryBoundary
 
 	testCases := []struct {
 		errAs    any
 		name     string
 		changed  string
+		removed  string
 		workDir  string
 		args     string
-		errText  string
 		expected []string
 	}{
 		{
@@ -32,45 +33,51 @@ func TestTFStackRunDiscoveryBoundary(t *testing.T) {
 			args: boundaryStackBoundedFilter,
 		},
 		{
-			name:    "read file change without the experiment",
-			changed: boundaryStackRolesFile,
-			args:    boundaryStackBoundedFilter,
-			errText: "roles.yml",
-		},
-		{
-			name:    "catalog unit change without the experiment",
-			changed: boundaryStackCatalogUnit,
-			args:    boundaryStackBoundedFilter,
-			errAs:   &discovery.DiscoveryBoundaryScopeError{},
-		},
-		{
-			name:     "read file change with the experiment",
+			name:     "changed read file",
 			changed:  boundaryStackRolesFile,
-			args:     boundaryStackBoundedFilter + gitDiscoveryBoundary,
+			args:     boundaryStackBoundedFilter,
 			expected: []string{boundaryStackRolesUnitDir},
 		},
 		{
-			name:    "live stack file change without generated unit changes with the experiment",
+			name:    "changed live stack file without generated unit changes",
 			changed: boundaryStackLiveStackFile,
-			args:    boundaryStackBoundedFilter + gitDiscoveryBoundary,
+			args:    boundaryStackBoundedFilter,
 		},
 		{
-			name:    "catalog unit change with the experiment",
+			name:    "changed catalog unit outside the boundary",
 			changed: boundaryStackCatalogUnit,
-			args:    boundaryStackBoundedFilter + gitDiscoveryBoundary,
+			args:    boundaryStackBoundedFilter,
 		},
 		{
-			name:     "flag boundary with the experiment",
+			name:    "removed catalog unit outside the boundary",
+			removed: boundaryStackUnusedUnit,
+			args:    boundaryStackBoundedFilter,
+		},
+		{
+			name:     "deleted read file inside the boundary",
+			removed:  boundaryStackStandaloneRead,
+			args:     boundaryStackBoundedFilter,
+			expected: []string{boundaryStackStandaloneDir},
+		},
+		{
+			name:     "flag boundary inside the working directory",
 			changed:  boundaryStackRolesFile,
-			args:     "--discovery-boundary ./live --filter '...[main...HEAD]'" + gitDiscoveryBoundary,
+			args:     "--discovery-boundary ./live --filter '...[main...HEAD]'",
 			expected: []string{boundaryStackRolesUnitDir},
 		},
 		{
-			name:     "parent boundary from a subdirectory with the experiment",
+			name:     "parent boundary from a subdirectory",
 			changed:  boundaryStackRolesFile,
 			workDir:  "live/accounts",
-			args:     "--filter '(..)...[main...HEAD]'" + gitDiscoveryBoundary,
+			args:     "--filter '(..)...[main...HEAD]'",
 			expected: []string{boundaryStackRolesUnitDir},
+		},
+		{
+			name:    "flag boundary outside the working directory",
+			changed: boundaryStackRolesFile,
+			workDir: "live",
+			args:    "--discovery-boundary ../catalog --filter '...[main...HEAD]'",
+			errAs:   &discovery.DiscoveryBoundaryScopeError{},
 		},
 	}
 
@@ -84,6 +91,10 @@ func TestTFStackRunDiscoveryBoundary(t *testing.T) {
 				appendBoundaryStackChange(t, runner, filepath.Join(tmpDir, tc.changed))
 			}
 
+			if tc.removed != "" {
+				removeBoundaryStackPath(t, runner, filepath.Join(tmpDir, tc.removed))
+			}
+
 			stdout, stderr, err := runBoundaryStackCommand(
 				t,
 				filepath.Join(tmpDir, filepath.FromSlash(tc.workDir)),
@@ -91,20 +102,33 @@ func TestTFStackRunDiscoveryBoundary(t *testing.T) {
 				tc.args,
 			)
 
-			switch {
-			case tc.errAs != nil:
+			if tc.errAs != nil {
 				require.ErrorAs(t, err, tc.errAs)
-			case tc.errText != "":
-				require.ErrorContains(t, err, tc.errText)
-			default:
-				require.NoError(t, err, "stderr: %s", stderr)
-
-				for _, unit := range tc.expected {
-					assert.Contains(t, stdout+stderr, "prefix="+unit+" tf-path=")
-				}
-
-				assert.NotContains(t, stdout+stderr, "catalog/units")
+				return
 			}
+
+			require.NoError(t, err, "stderr: %s", stderr)
+			assert.ElementsMatch(t, tc.expected, plannedUnits(stdout+stderr))
+			assert.NotContains(t, stdout+stderr, "catalog/units")
 		})
 	}
+}
+
+// plannedUnits returns the distinct working tree units that printed tofu output.
+func plannedUnits(output string) []string {
+	seen := make(map[string]struct{})
+
+	var units []string
+
+	for _, match := range boundaryStackPlannedUnit.FindAllStringSubmatch(output, -1) {
+		unit := filepath.ToSlash(match[1])
+		if _, ok := seen[unit]; ok {
+			continue
+		}
+
+		seen[unit] = struct{}{}
+		units = append(units, unit)
+	}
+
+	return units
 }

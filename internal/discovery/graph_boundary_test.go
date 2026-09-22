@@ -9,7 +9,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -271,13 +270,12 @@ func TestDiscoveryGraphBoundary_SkipsParsingOutsideDependentBoundary(t *testing.
 	elsewhereDir := venvtest.Root("/elsewhere")
 
 	testCases := []struct {
-		errAs                any
-		name                 string
-		query                string
-		boundary             string
-		errText              string
-		expected             []string
-		gitDiscoveryBoundary bool
+		errAs    any
+		name     string
+		query    string
+		boundary string
+		errText  string
+		expected []string
 	}{
 		{
 			name:  "inline boundary",
@@ -312,28 +310,20 @@ func TestDiscoveryGraphBoundary_SkipsParsingOutsideDependentBoundary(t *testing.
 			errText: "roles.yml",
 		},
 		{
-			name:  "boundary inside the working directory still rejects a matched target",
-			query: "(" + liveDir + ")...{" + accountDir + "}",
+			name:     "inline boundary inside the working directory walks from the boundary",
+			query:    "(" + liveDir + ")...{" + accountDir + "}",
+			expected: []string{accountDir, rolesDir},
+		},
+		{
+			name:     "flag boundary inside the working directory walks from the boundary",
+			query:    "...{" + accountDir + "}",
+			boundary: liveDir,
+			expected: []string{accountDir, rolesDir},
+		},
+		{
+			name:  "boundary outside the working directory is rejected",
+			query: "(" + elsewhereDir + ")...{" + accountDir + "}",
 			errAs: &discovery.DiscoveryBoundaryScopeError{},
-		},
-		{
-			name:                 "git-discovery-boundary walks an inline boundary inside the working directory",
-			query:                "(" + liveDir + ")...{" + accountDir + "}",
-			expected:             []string{accountDir, rolesDir},
-			gitDiscoveryBoundary: true,
-		},
-		{
-			name:                 "git-discovery-boundary walks a flag boundary inside the working directory",
-			query:                "...{" + accountDir + "}",
-			boundary:             liveDir,
-			expected:             []string{accountDir, rolesDir},
-			gitDiscoveryBoundary: true,
-		},
-		{
-			name:                 "git-discovery-boundary still rejects a boundary outside the working directory",
-			query:                "(" + elsewhereDir + ")...{" + accountDir + "}",
-			errAs:                &discovery.DiscoveryBoundaryScopeError{},
-			gitDiscoveryBoundary: true,
 		},
 	}
 
@@ -361,10 +351,6 @@ locals {
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = repoRoot
 			opts.RootWorkingDir = repoRoot
-
-			if tc.gitDiscoveryBoundary {
-				require.NoError(t, opts.Experiments.EnableExperiment(experiment.GitDiscoveryBoundary))
-			}
 
 			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{tc.query})
 			require.NoError(t, err)

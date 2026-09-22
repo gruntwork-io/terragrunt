@@ -10,7 +10,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -246,11 +245,7 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 
 	f, v := newBoundaryFixture(t)
 
-	newForDiscoveryCommand := func(
-		t *testing.T,
-		query, boundary string,
-		exps experiment.Experiments,
-	) (*discovery.Discovery, error) {
+	newForDiscoveryCommand := func(t *testing.T, query, boundary string) (*discovery.Discovery, error) {
 		t.Helper()
 
 		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
@@ -263,20 +258,15 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 				WorkingDir:        f.stagingDir,
 				DiscoveryBoundary: boundary,
 				Filters:           filters,
-				Experiments:       exps,
 			},
 		)
 	}
-
-	gitDiscoveryBoundary := experiment.NewExperiments()
-	require.NoError(t, gitDiscoveryBoundary.EnableExperiment(experiment.GitDiscoveryBoundary))
 
 	testCases := []struct {
 		errAs    any
 		name     string
 		query    string
 		boundary string
-		exps     experiment.Experiments
 	}{
 		{
 			name:     "nonexistent boundary",
@@ -290,26 +280,13 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 			boundary: f.consumerDir,
 			errAs:    &discovery.DiscoveryBoundaryScopeError{},
 		},
-		{
-			name:     "dependent direction rejects a boundary inside the working directory",
-			query:    "...{" + f.vpcDir + "}",
-			boundary: f.vpcDir,
-			errAs:    &discovery.DiscoveryBoundaryScopeError{},
-		},
-		{
-			name:     "git-discovery-boundary still rejects a disjoint boundary",
-			query:    "...{" + f.vpcDir + "}",
-			boundary: f.consumerDir,
-			exps:     gitDiscoveryBoundary,
-			errAs:    &discovery.DiscoveryBoundaryScopeError{},
-		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := newForDiscoveryCommand(t, tc.query, tc.boundary, tc.exps)
+			_, err := newForDiscoveryCommand(t, tc.query, tc.boundary)
 			require.ErrorAs(t, err, tc.errAs)
 		})
 	}
@@ -317,15 +294,15 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 	t.Run("valid boundary", func(t *testing.T) {
 		t.Parallel()
 
-		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", "..", nil)
+		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", "..")
 		require.NoError(t, err)
 		require.NotNil(t, d)
 	})
 
-	t.Run("git-discovery-boundary accepts a boundary inside the working directory", func(t *testing.T) {
+	t.Run("dependent direction accepts a boundary inside the working directory", func(t *testing.T) {
 		t.Parallel()
 
-		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", f.vpcDir, gitDiscoveryBoundary)
+		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", f.vpcDir)
 		require.NoError(t, err)
 		require.NotNil(t, d)
 	})
@@ -335,7 +312,7 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			d, err := newForDiscoveryCommand(t, "{"+f.edgeDir+"}...", f.consumerDir, nil)
+			d, err := newForDiscoveryCommand(t, "{"+f.edgeDir+"}...", f.consumerDir)
 			require.NoError(t, err)
 			require.NotNil(t, d)
 		},

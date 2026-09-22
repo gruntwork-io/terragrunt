@@ -154,7 +154,6 @@ func runRunOrder(
 		Filters:           opts.Filters,
 		WithRequiresParse: true,
 		WithRelationships: true,
-		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return runOrderOutput{}, err

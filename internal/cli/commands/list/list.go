@@ -37,7 +37,6 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		WithRelationships: opts.Dependencies || opts.Mode == ModeDAG,
 		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,
-		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return err

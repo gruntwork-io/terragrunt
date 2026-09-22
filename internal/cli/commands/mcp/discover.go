@@ -129,7 +129,6 @@ func runDiscover(
 		NoHidden:          !input.Hidden,
 		WithRequiresParse: input.Dependencies,
 		WithRelationships: input.Dependencies,
-		Experiments:       opts.Experiments,
 	})
 	if err != nil {
 		return discoverOutput{}, err
