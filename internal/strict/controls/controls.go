@@ -43,6 +43,12 @@ const (
 	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
 	RequireExplicitBootstrap = "require-explicit-bootstrap"
 
+	// SkipAccessLoggingBucketACL is the control that prevents the use of the deprecated `skip_accesslogging_bucket_acl` config attribute.
+	SkipAccessLoggingBucketACL = "skip-accesslogging-bucket-acl"
+
+	// SkipBucketRootAccess is the control that prevents the use of the deprecated `skip_bucket_root_access` config attribute.
+	SkipBucketRootAccess = "skip-bucket-root-access"
+
 	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
 
@@ -56,6 +62,11 @@ const (
 	// DoubleStar enables the use of the `**` glob pattern as a way to match files in subdirectories.
 	// and will log a warning when using **/*
 	DoubleStar = "double-star"
+
+	// DependencyFetchOutputFromState is the control that prevents the use of the deprecated
+	// `--dependency-fetch-output-from-state` flag. Reading dependency outputs from state is
+	// the default as of v1.2.0.
+	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
 
 	// QueueExcludeExternal is the control that prevents the use of the deprecated `--queue-exclude-external` flag.
 	QueueExcludeExternal = "queue-exclude-external"
@@ -111,12 +122,6 @@ const LegacyGCSDeprecationWarning = "Plain `https://www.googleapis.com/storage/.
 	"silence this warning, or enable the `legacy-gcs-public-prefix` strict control to download anonymously instead." +
 	" This will be the default behavior of Terragrunt in the future."
 
-// LegacyBase64GzipWarning is the warning text emitted when base64gzip() returns the v1.1.3 bytes.
-const LegacyBase64GzipWarning = "`base64gzip()` returns the gzip bytes produced by Terragrunt v1.1.3 and earlier (Go 1.26) for " +
-	"backward compatibility. Terragrunt 1.2 will switch it to the current Go encoder. Use `base64gzip_compat()` " +
-	"(experiment `base64gzip-compat`) to keep these bytes, or enable the `legacy-base64gzip` strict control to use " +
-	"the current Go encoder now and silence this warning."
-
 // IsFastCopyEnabled reports whether the `fast-copy` strict control is enabled.
 func IsFastCopyEnabled(strictControls strict.Controls) bool {
 	return len(strictControls.FilterByNames(FastCopy).FilterByEnabled()) > 0
@@ -143,6 +148,24 @@ func New() strict.Controls {
 		Status:  strict.CompletedStatus,
 	}
 
+	skipAccessLoggingBucketACLControl := &Control{
+		Name:        SkipAccessLoggingBucketACL,
+		Description: "Prevents the use of the deprecated `skip_accesslogging_bucket_acl` config attribute. Terragrunt no longer puts an ACL on the access logging bucket, so the attribute has nothing left to skip. Use `skip_accesslogging_bucket_policy` to skip the bucket policy that carries the grant now.",
+		Error: errors.New(
+			"The `skip_accesslogging_bucket_acl` config attribute is no longer supported. Terragrunt does not put an ACL on the access logging bucket. Use `skip_accesslogging_bucket_policy` to skip the bucket policy that grants access log delivery.",
+		),
+		Warning: "The `skip_accesslogging_bucket_acl` config attribute is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer puts an ACL on the access logging bucket, so this attribute has no effect. Use `skip_accesslogging_bucket_policy` to skip the bucket policy that grants access log delivery.",
+	}
+
+	skipBucketRootAccessControl := &Control{
+		Name:        SkipBucketRootAccess,
+		Description: "Prevents the use of the deprecated `skip_bucket_root_access` config attribute. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so the attribute has nothing left to skip.",
+		Error: errors.New(
+			"The `skip_bucket_root_access` config attribute is no longer supported. Terragrunt does not grant the AWS account root user access to S3 state buckets. Use `enable_bucket_root_access` to grant that access.",
+		),
+		Warning: "The `skip_bucket_root_access` config attribute is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so this attribute has no effect. Use `enable_bucket_root_access` to grant that access.",
+	}
+
 	controls := strict.Controls{
 		&Control{
 			Name:        DeprecatedCommands,
@@ -162,10 +185,14 @@ func New() strict.Controls {
 			Subcontrols: strict.Controls{
 				skipDependenciesInputsControl,
 				requireExplicitBootstrapControl,
+				skipAccessLoggingBucketACLControl,
+				skipBucketRootAccessControl,
 			},
 		},
 		skipDependenciesInputsControl,
 		requireExplicitBootstrapControl,
+		skipAccessLoggingBucketACLControl,
+		skipBucketRootAccessControl,
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",
@@ -265,6 +292,14 @@ func New() strict.Controls {
 			Status:  strict.CompletedStatus,
 		},
 		&Control{
+			Name:        DependencyFetchOutputFromState,
+			Description: "Prevents the use of the deprecated `--dependency-fetch-output-from-state` flag.",
+			Error: errors.New(
+				"The `--dependency-fetch-output-from-state` flag is no longer supported. Dependency outputs are read from state by default as of v1.2.0. Remove the flag, or use --no-dependency-fetch-output-from-state to opt out.",
+			),
+			Warning: "The `--dependency-fetch-output-from-state` flag is deprecated. Dependency outputs are read from state by default as of v1.2.0. Remove the flag, or use --no-dependency-fetch-output-from-state to opt out.",
+		},
+		&Control{
 			Name:        QueueExcludeExternal,
 			Description: "Prevents the use of the deprecated `--queue-exclude-external` flag.",
 			Error: errors.New(
@@ -339,8 +374,8 @@ func New() strict.Controls {
 		},
 		&Control{
 			Name:        LegacyBase64Gzip,
-			Description: "Stops `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. Go 1.27 changed the gzip encoder, so v1.1.4 returned different bytes for the same input, and resources that compare the encoded value, such as EC2 `user_data_base64`, planned a replacement. The v1.1.3 bytes are restored by default with a deprecation warning, and `base64gzip_compat()` (experiment `base64gzip-compat`) returns them permanently. Enable this control to use the current Go encoder, which becomes the default in Terragrunt 1.2, and silence the warning.",
-			Warning:     LegacyBase64GzipWarning,
+			Description: "Stopped `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. Go 1.27 changed the gzip encoder, so v1.1.4 returned different bytes for the same input, and resources that compare the encoded value, such as EC2 `user_data_base64`, planned a replacement. Terragrunt 1.2 made the current encoder the default, so this control has nothing left to switch. `base64gzip_compat()` returns the v1.1.3 bytes and needs no flag.",
+			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        OptionalHooks,

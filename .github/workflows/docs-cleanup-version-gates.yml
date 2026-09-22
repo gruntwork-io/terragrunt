@@ -29,17 +29,19 @@ jobs:
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           version: 2026.5.12
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Remove released Before/Since gates
         env:
           LATEST_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
-        run: mise x bun -- bun .github/scripts/docs-cleanup-version-gates.js
+        run: mise x bun -- bun .github/scripts/docs-cleanup-version-gates.ts
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
         with:
+          sign-commits: true
           branch: docs/cleanup-version-gates
           commit-message: 'docs: clean up released version gates for ${{ github.event.release.tag_name || inputs.tag_name }}'
           title: 'docs: clean up released version gates for ${{ github.event.release.tag_name || inputs.tag_name }}'

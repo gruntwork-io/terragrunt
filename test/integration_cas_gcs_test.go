@@ -20,11 +20,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
-// TestGcpCASGCSMD5Probe exercises CASGetter end-to-end against a
+// TestGCPCASGCSMD5Probe exercises CASGetter end-to-end against a
 // real GCS bucket. The MD5 metadata GCS records for single-chunk
 // uploads drives the content-addressed cache key; a second
 // CASGetter request materializes from CAS without re-downloading.
-func TestGcpCASGCSMD5Probe(t *testing.T) {
+func TestGCPCASGCSMD5Probe(t *testing.T) {
 	t.Parallel()
 
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")

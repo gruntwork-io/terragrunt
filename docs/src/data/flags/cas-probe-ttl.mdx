@@ -1,0 +1,25 @@
+---
+name: cas-probe-ttl
+description: When using CAS, trust a recorded probe of a source that can change upstream for this long before asking the remote again.
+defaultVal: "0"
+type: string
+env:
+  - TG_CAS_PROBE_TTL
+since: "v1.1.5"
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`offline-cas`](/reference/experiments/active#offline-cas) experiment. Enable it with `--experiment=offline-cas` or `TG_EXPERIMENT=offline-cas`; otherwise setting `--cas-probe-ttl` returns an error.
+</Aside>
+
+Sets how long the CAS serves a recorded probe of a source that can change upstream in place of a fresh one. That covers a Git branch or `HEAD`, a Git tag that is not a semantic version, an HTTP endpoint, a GCS object, an OCI tag, and a Mercurial branch name. The value is a duration such as `30s`, `10m`, or `1h`. Negative values are rejected.
+
+The default of `0` probes these sources on every run, so a push or an upload followed by a run sees the new revision. Raise it when a burst of runs against the same sources should not each pay for a probe, accepting that a change made inside the window is not seen until it passes.
+
+```bash
+terragrunt run --all --cas-probe-ttl 10m -- plan
+```
+
+A source pinned to a specific revision is trusted for 24 hours regardless of this flag; see [Recorded probes](/features/caching/cas#recorded-probes) for which sources count as pinned. Use `--cas-refresh` to bypass every recorded result for one run.

@@ -493,7 +493,7 @@ func serviceUnitCASRef(t *testing.T, root string) string {
 		}
 	}
 
-	t.Fatalf("no %q unit in the processed stack file", serviceUnitName)
+	require.Failf(t, "unit not found", "no %q unit in the processed stack file", serviceUnitName)
 
 	return ""
 }

@@ -22,7 +22,7 @@ func generateEnabledStack(t *testing.T) string {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt stack generate --experiment block-iteration --working-dir "+rootPath,
+		"terragrunt stack generate --working-dir "+rootPath,
 	)
 
 	return filepath.Join(rootPath, ".terragrunt-stack")
@@ -53,7 +53,7 @@ func TestStackEnabledAllDisabledGeneratesNothing(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt stack generate --experiment block-iteration --working-dir "+rootPath,
+		"terragrunt stack generate --working-dir "+rootPath,
 	)
 
 	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-stack"))

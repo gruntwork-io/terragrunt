@@ -36,6 +36,11 @@ const (
 	// concurrentWarmupRequests is how many clients must be answered while one download is in flight.
 	concurrentWarmupRequests = 20
 
+	// warmupRegistryName addresses the fake registry by a reserved name that never resolves, so the
+	// cache server reaches it only through the seeded discovery URLs. The registry name becomes a
+	// directory and file name in the cache, where the colon of an httptest host:port is invalid on Windows.
+	warmupRegistryName = "registry.test"
+
 	warmupProviderNamespace = "example"
 	warmupProviderName      = "tiny"
 	warmupProviderVersion   = "1.0.0"
@@ -94,9 +99,8 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 				"http://"+r.Host+archiveURLPath,
 			)
 
-			if _, err := io.WriteString(w, body); err != nil {
-				t.Errorf("upstream platform response write failed: %v", err)
-			}
+			_, err := io.WriteString(w, body)
+			assert.NoError(t, err, "upstream platform response write failed")
 		case archiveURLPath:
 			archiveHitsMu.Lock()
 
@@ -106,16 +110,13 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 			<-releaseArchive
 
-			if _, err := w.Write(archive); err != nil {
-				t.Errorf("upstream archive write failed: %v", err)
-			}
+			_, err := w.Write(archive)
+			assert.NoError(t, err, "upstream archive write failed")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	t.Cleanup(upstream.Close)
-
-	registryName := strings.TrimPrefix(upstream.URL, "http://")
 
 	l := logger.CreateLogger()
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
@@ -137,7 +138,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		new(cliconfig.ProviderInstallationDirect),
 		nil,
 	)
-	directHandler.SetDiscoveryURLCache(registryName, &handlers.RegistryURLs{
+	directHandler.SetDiscoveryURLCache(warmupRegistryName, &handlers.RegistryURLs{
 		ProvidersV1: upstream.URL + "/v1/providers",
 	})
 
@@ -159,8 +160,8 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("listener close failed: %v", err)
+		if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err, "listener close failed")
 		}
 	})
 
@@ -172,7 +173,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	downloadURL := server.ProviderController.URL()
 	downloadURL.Path += "/" + strings.Join([]string{
 		requestID,
-		registryName,
+		warmupRegistryName,
 		warmupProviderNamespace,
 		warmupProviderName,
 		warmupProviderVersion,
@@ -232,7 +233,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	packageDir := filepath.Join(
 		providerCacheDir,
-		registryName,
+		warmupRegistryName,
 		warmupProviderNamespace,
 		warmupProviderName,
 		warmupProviderVersion,

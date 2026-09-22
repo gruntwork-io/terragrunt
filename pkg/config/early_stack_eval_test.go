@@ -54,10 +54,6 @@ var terragruntFuncNames = []string{
 	config.FuncNameGetDefaultRetryableErrors,
 	config.FuncNameReadTfvarsFile,
 	config.FuncNameGetWorkingDir,
-	config.FuncNameStartsWith,
-	config.FuncNameEndsWith,
-	config.FuncNameStrContains,
-	config.FuncNameTimeCmp,
 	config.FuncNameMarkAsRead,
 	config.FuncNameMarkGlobAsRead,
 	config.FuncNameConstraintCheck,
@@ -109,7 +105,7 @@ func TestEarlyStackParseFunctions_PureEvaluatesNormally(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	got, err := funcs[config.FuncNameStartsWith].Call(
+	got, err := funcs["startswith"].Call(
 		[]cty.Value{cty.StringVal("foobar"), cty.StringVal("foo")},
 	)
 	require.NoError(t, err)

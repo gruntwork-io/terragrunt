@@ -28,7 +28,7 @@ const (
 	s3SSEKMSFixturePath            = "fixtures/s3-encryption/sse-kms"
 )
 
-func TestAwsS3SSEAES(t *testing.T) {
+func TestAWSS3SSEAES(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEAESFixturePath)
@@ -64,7 +64,7 @@ func TestAwsS3SSEAES(t *testing.T) {
 	assert.Nil(t, sseRule.KMSMasterKeyID)
 }
 
-func TestAwsS3SSECustomKey(t *testing.T) {
+func TestAWSS3SSECustomKey(t *testing.T) {
 	t.Parallel()
 
 	// Note: This test requires a KMS key with alias 'alias/dedicated-test-key' to exist in the AWS account.
@@ -145,7 +145,7 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	)
 }
 
-func TestAwsS3SSEKeyNotReverted(t *testing.T) {
+func TestAWSS3SSEKeyNotReverted(t *testing.T) {
 	t.Parallel()
 
 	// Note: This test requires a KMS key with alias 'alias/dedicated-test-key' to exist in the AWS account.
@@ -219,7 +219,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	)
 }
 
-func TestAwsS3EncryptionWarning(t *testing.T) {
+func TestAWSS3EncryptionWarning(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEKMSFixturePath)
@@ -283,7 +283,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 	)
 }
 
-func TestAwsSkipBackend(t *testing.T) {
+func TestAWSSkipBackend(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEAESFixturePath)

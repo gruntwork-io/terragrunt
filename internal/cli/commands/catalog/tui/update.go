@@ -468,6 +468,8 @@ func formatSourceFailureNotice(err error, accent string) string {
 				valuesBoxMuteStyle.Render(viewtui.SanitizeLabel(f.Err.Error())),
 			)
 		}
+
+		rows = append(rows, "", valuesBoxMuteStyle.Render(SourceAccessHint))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, rows...)

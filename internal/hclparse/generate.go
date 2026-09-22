@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -65,11 +66,17 @@ func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
 //     evaluated, so generate-time roots (local.*, values.*, unit.*, stack.*) and
 //     function calls resolve to literals while dependency.*.outputs.* stays verbatim
 //     (resolved inside the generated unit at run time).
+//   - An expanded dependency keeps its expansion block, with for_each or count written as the
+//     literal it evaluated to and config_path looked up per element, so the generated unit expands
+//     it again. each.* and count.index stay verbatim inside the block.
 //   - All non-dependency content (inputs, generate, remote_state, etc.) is partially
 //     evaluated the same way: only dependency.* (and any expression referencing it) is
 //     preserved verbatim for runtime resolution.
 //
-// Requires non-nil fsys and non-empty targetDir (panics otherwise). resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
+// resolved may be nil, which writes nothing. srcBytes must be the bytes of the file resolved.RawBody
+// was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
+//
+// Panics when fsys is nil, targetDir is empty, or a dependency in resolved has a nil ConfigPath.
 func GenerateAutoIncludeFile(
 	fsys vfs.FS,
 	resolved *AutoIncludeResolved,
@@ -171,6 +178,7 @@ func copyBlock(
 	block *hclsyntax.Block,
 	srcBytes []byte,
 	evalCtx *hcl.EvalContext,
+	deferred map[string]struct{},
 	depth int,
 ) error {
 	if depth > maxBlockDepth {
@@ -181,13 +189,13 @@ func copyBlock(
 	blockBody := newBlock.Body()
 
 	for _, attr := range SortedAttributes(block.Body.Attributes) {
-		if err := writeAttribute(blockBody, attr, srcBytes, evalCtx); err != nil {
+		if err := writeAttribute(blockBody, attr, srcBytes, evalCtx, deferred); err != nil {
 			return err
 		}
 	}
 
 	for _, nested := range block.Body.Blocks {
-		if err := copyBlock(blockBody, nested, srcBytes, evalCtx, depth+1); err != nil {
+		if err := copyBlock(blockBody, nested, srcBytes, evalCtx, deferred, depth+1); err != nil {
 			return err
 		}
 	}
@@ -246,8 +254,12 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 // writeDependencyBlock writes a single dependency block with config_path converted to relative-to-targetDir.
 // Its other attributes (mock_outputs, etc.) are partially evaluated like the rest of the autoinclude body:
 // generate-time roots (local.*, values.*, unit.*, stack.*) and function calls resolve to literals while
-// dependency.*.outputs.* is kept verbatim (resolved inside the generated unit). When evalCtx is nil the
-// attributes are copied from source bytes unchanged.
+// dependency.*.outputs.* is kept verbatim (resolved inside the generated unit). An expanded dependency also
+// keeps each.* and count.index verbatim.
+//
+// When evalCtx is nil the attributes are copied from source bytes unchanged.
+//
+// Panics when dep.ConfigPath is nil.
 func writeDependencyBlock(
 	outBody *hclwrite.Body,
 	dep AutoIncludeDependency,
@@ -259,13 +271,9 @@ func writeDependencyBlock(
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
 
-	// Convert config_path to relative from the target directory.
-	relPath, err := filepath.Rel(targetDir, dep.ConfigPath)
-	if err != nil {
-		relPath = dep.ConfigPath // fallback to absolute
-	}
+	dep.ConfigPath.writeConfigPath(depBody, targetDir)
 
-	depBody.SetAttributeRaw(attrConfigPath, quotedStringTokens(relPath))
+	deferred := dep.ConfigPath.deferred()
 
 	// Render the remaining attributes (mock_outputs, etc.) with the same partial evaluation.
 	for _, attr := range SortedAttributes(origBlock.Body.Attributes) {
@@ -273,19 +281,106 @@ func writeDependencyBlock(
 			continue
 		}
 
-		if err := writeAttribute(depBody, attr, srcBytes, evalCtx); err != nil {
+		if err := writeAttribute(depBody, attr, srcBytes, evalCtx, deferred); err != nil {
 			return err
 		}
 	}
 
 	// Render nested blocks within the dependency (if any) with the same partial evaluation.
 	for _, nested := range origBlock.Body.Blocks {
-		if err := copyBlock(depBody, nested, srcBytes, evalCtx, 0); err != nil {
+		if nested.Type == pkghclparse.ExpansionBlockName {
+			continue
+		}
+
+		if err := copyBlock(depBody, nested, srcBytes, evalCtx, deferred, 0); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// writeConfigPath writes config_path relative to targetDir.
+func (path SingleConfigPath) writeConfigPath(body *hclwrite.Body, targetDir string) {
+	body.SetAttributeRaw(
+		attrConfigPath,
+		quotedStringTokens(relativeConfigPath(targetDir, string(path))),
+	)
+}
+
+// deferred returns the roots a dependency that does not expand keeps verbatim.
+func (SingleConfigPath) deferred() map[string]struct{} {
+	return deferredRoots
+}
+
+// writeConfigPath writes an expansion block with count set to the number of elements, and config_path
+// as a list of paths relative to targetDir that the generated unit reads by count.index.
+func (paths CountConfigPaths) writeConfigPath(body *hclwrite.Body, targetDir string) {
+	writeExpansionBlock(body, pkghclparse.MetaArgCount, cty.NumberIntVal(int64(len(paths))))
+
+	relative := make([]cty.Value, 0, len(paths))
+
+	for _, path := range paths {
+		relative = append(relative, cty.StringVal(relativeConfigPath(targetDir, path)))
+	}
+
+	body.SetAttributeRaw(attrConfigPath, slices.Concat(
+		hclwrite.TokensForValue(cty.TupleVal(relative)),
+		RawTokens([]byte("["+varCount+".index]")),
+	))
+}
+
+// deferred returns the roots a dependency expanded by count keeps verbatim.
+func (CountConfigPaths) deferred() map[string]struct{} {
+	return expandedDependencyDeferredRoots
+}
+
+// writeConfigPath writes an expansion block with for_each set to the collection, and config_path as an
+// object of paths relative to targetDir that the generated unit reads by each.key.
+func (paths ForEachConfigPaths) writeConfigPath(body *hclwrite.Body, targetDir string) {
+	writeExpansionBlock(body, pkghclparse.MetaArgForEach, paths.Collection)
+
+	relative := make(map[string]cty.Value, len(paths.Paths))
+
+	for key, path := range paths.Paths {
+		relative[key] = cty.StringVal(relativeConfigPath(targetDir, path))
+	}
+
+	body.SetAttributeRaw(attrConfigPath, slices.Concat(
+		hclwrite.TokensForValue(cty.ObjectVal(relative)),
+		RawTokens([]byte("["+varEach+".key]")),
+	))
+}
+
+// deferred returns the roots a dependency expanded by for_each keeps verbatim.
+func (ForEachConfigPaths) deferred() map[string]struct{} {
+	return expandedDependencyDeferredRoots
+}
+
+// writeExpansionBlock writes an expansion block setting metaArg to value as a literal, so the generated
+// unit iterates the same elements without the stack file's context.
+func writeExpansionBlock(body *hclwrite.Body, metaArg pkghclparse.MetaArg, value cty.Value) {
+	tokens := hclwrite.TokensForValue(value)
+
+	// hclwrite renders a set as a tuple, which for_each rejects.
+	if value.Type().IsSetType() {
+		tokens = slices.Concat(RawTokens([]byte("toset(")), tokens, RawTokens([]byte(")")))
+	}
+
+	block := body.AppendNewBlock(pkghclparse.ExpansionBlockName, nil)
+	block.Body().SetAttributeRaw(string(metaArg), tokens)
+	body.AppendNewline()
+}
+
+// relativeConfigPath returns configPath relative to targetDir, or configPath unchanged when no relative
+// path between them exists.
+func relativeConfigPath(targetDir, configPath string) string {
+	relPath, err := filepath.Rel(targetDir, configPath)
+	if err != nil {
+		return configPath
+	}
+
+	return relPath
 }
 
 // writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body. Generate-time
@@ -298,7 +393,7 @@ func writeNonDependencyContent(
 	evalCtx *hcl.EvalContext,
 ) error {
 	for _, attr := range SortedAttributes(body.Attributes) {
-		if err := writeAttribute(outBody, attr, srcBytes, evalCtx); err != nil {
+		if err := writeAttribute(outBody, attr, srcBytes, evalCtx, deferredRoots); err != nil {
 			return err
 		}
 	}
@@ -308,7 +403,7 @@ func writeNonDependencyContent(
 			continue
 		}
 
-		if err := copyBlock(outBody, block, srcBytes, evalCtx, 0); err != nil {
+		if err := copyBlock(outBody, block, srcBytes, evalCtx, deferredRoots, 0); err != nil {
 			return err
 		}
 	}
@@ -330,6 +425,7 @@ func writeAttribute(
 	attr *hclsyntax.Attribute,
 	srcBytes []byte,
 	evalCtx *hcl.EvalContext,
+	deferred map[string]struct{},
 ) error {
 	if evalCtx == nil {
 		body.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
@@ -339,7 +435,7 @@ func writeAttribute(
 
 	result, err := PartialEval(
 		attr.Expr,
-		&EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots},
+		&EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferred},
 	)
 	if err != nil {
 		return err

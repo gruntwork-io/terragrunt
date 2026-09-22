@@ -65,7 +65,7 @@ func TestSplitSourceDoubleSlash(t *testing.T) {
 func TestResolveInRepoSource(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := filepath.Join(string(filepath.Separator), "tmp", "repo")
+	repoRoot := venvtest.Root("/tmp/repo")
 	dirPath := filepath.Join(repoRoot, "stacks", "app")
 
 	tests := []struct {
@@ -91,7 +91,7 @@ func TestResolveInRepoSource(t *testing.T) {
 		},
 		{
 			name:    "absolute source rejected",
-			source:  filepath.Join(string(filepath.Separator), "etc", "passwd"),
+			source:  venvtest.Root("/abs/path"),
 			wantErr: cas.ErrAbsoluteSource,
 		},
 		{

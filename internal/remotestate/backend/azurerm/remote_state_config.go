@@ -17,6 +17,7 @@ var terragruntOnlyConfigs = []string{
 	"account_replication_type",
 	"account_kind",
 	"access_tier",
+	"minimum_tls_version",
 	"tags",
 	"skip_resource_group_creation",
 	"skip_storage_account_creation",
@@ -43,6 +44,7 @@ type ExtendedRemoteStateConfigAzurerm struct {
 	AccountReplicationType string            `mapstructure:"account_replication_type"`
 	AccountKind            string            `mapstructure:"account_kind"`
 	AccessTier             string            `mapstructure:"access_tier"`
+	MinimumTLSVersion      string            `mapstructure:"minimum_tls_version"`
 	// PrincipalID defaults to the identity Terragrunt authenticated as.
 	PrincipalID              string                   `mapstructure:"principal_id"`
 	RemoteStateConfigAzurerm RemoteStateConfigAzurerm `mapstructure:",squash"`
@@ -142,6 +144,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) StorageAccountConfig() *azurehelper
 		AccountTier:           cfg.AccountTier,
 		ReplicationType:       cfg.AccountReplicationType,
 		AccessTier:            cfg.AccessTier,
+		MinimumTLSVersion:     cfg.MinimumTLSVersion,
 		Tags:                  cfg.Tags,
 		AllowBlobPublicAccess: cfg.AllowBlobPublicAccess,
 	}
@@ -180,7 +183,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) normalize() {
 		&rs.SasToken, &rs.AccessKey, &rs.Environment, &rs.MSIResourceID,
 		&rs.OIDCTokenFilePath,
 		&cfg.Location, &cfg.AccountTier, &cfg.AccountReplicationType,
-		&cfg.AccountKind, &cfg.AccessTier, &cfg.PrincipalID,
+		&cfg.AccountKind, &cfg.AccessTier, &cfg.MinimumTLSVersion, &cfg.PrincipalID,
 	} {
 		*field = strings.TrimSpace(*field)
 	}

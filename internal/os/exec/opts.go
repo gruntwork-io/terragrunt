@@ -17,7 +17,7 @@ func WithUsePTY(state bool) Option {
 	}
 }
 
-// WithEnv sets envs to the Cmd.
+// WithEnv overrides the environment [Command] took from the venv.
 func WithEnv(env map[string]string) Option {
 	return func(cmd *Cmd) {
 		cmd.SetEnv(venv.Environ(env))

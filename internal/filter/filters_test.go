@@ -1244,3 +1244,65 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 		assert.True(t, filters.HasPositiveFilter(), "Git-graph expression is a positive filter")
 	})
 }
+
+func TestFilters_RequiresReading(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		queries []string
+		want    bool
+	}{
+		{
+			name:    "no filters",
+			queries: nil,
+			want:    false,
+		},
+		{
+			name:    "path and name filters",
+			queries: []string{"./apps/*", "name=db"},
+			want:    false,
+		},
+		{
+			name:    "source filter parses but reads nothing",
+			queries: []string{"source=../modules/vpc"},
+			want:    false,
+		},
+		{
+			name:    "bare reading filter",
+			queries: []string{"reading=shared.hcl"},
+			want:    true,
+		},
+		{
+			name:    "negated reading filter",
+			queries: []string{"!reading=shared.hcl"},
+			want:    true,
+		},
+		{
+			name:    "reading filter as one operand",
+			queries: []string{"name=db | reading=shared.hcl"},
+			want:    true,
+		},
+		{
+			name:    "reading filter as a graph target",
+			queries: []string{"reading=shared.hcl..."},
+			want:    true,
+		},
+		{
+			name:    "reading filter alongside unrelated ones",
+			queries: []string{"./apps/*", "reading=shared.hcl"},
+			want:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			filters, err := filter.ParseFilterQueries(testLogger(), tc.queries)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, filters.RequiresReading())
+		})
+	}
+}

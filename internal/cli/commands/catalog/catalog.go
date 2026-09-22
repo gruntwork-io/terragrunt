@@ -1,7 +1,9 @@
 package catalog
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"runtime"
@@ -13,7 +15,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/login"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/portal"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -22,16 +27,17 @@ import (
 )
 
 // urlChannelBufferSize is the buffer size for the discovery URL channel. It
-// absorbs short producer bursts from the two concurrent URL discoverers
-// without blocking them on a slow consumer.
+// absorbs short producer bursts from the concurrent URL discoverers without
+// blocking them on a slow consumer.
 const urlChannelBufferSize = 10
 
 // Run is the main entry point for the catalog command.
 //
 // When an explicit repo URL is given, only that URL is loaded; otherwise
-// source discovery walks the configuration to find catalog and source URLs.
-// The components that turn up are either browsed in the TUI or written to
-// standard output, depending on the requested format.
+// source discovery walks the configuration to find catalog and source URLs,
+// and asks the portal for the repositories the user's organizations selected
+// there. The components that turn up are either browsed in the TUI or written
+// to standard output, depending on the requested format.
 func Run(
 	ctx context.Context,
 	l log.Logger,
@@ -40,7 +46,7 @@ func Run(
 	repoURL string,
 ) error {
 	if opts.Format == FormatTUI {
-		return runTUI(ctx, l, v, opts.TerragruntOptions, repoURL)
+		return runTUI(ctx, l, v, opts, repoURL)
 	}
 
 	renderer, err := format.NewRenderer(opts.Format)
@@ -58,10 +64,30 @@ func Run(
 
 	defer tempDirs.Cleanup(l)
 
-	return Stream(
+	return withSourceGuidance(Stream(
 		streamCtx, l, v.Writers.Writer, renderer,
-		newLoadFunc(l, v, opts.TerragruntOptions, tempDirs, repoURL),
-	)
+		newLoadFunc(l, v, opts, tempDirs, repoURL),
+	))
+}
+
+// withSourceGuidance names the repositories a non-interactive run could not
+// load. The plain formats put nothing on standard output, so this error is the
+// whole report.
+func withSourceGuidance(err error) error {
+	var loadErr *tui.SourceLoadError
+	if !errors.As(err, &loadErr) {
+		return err
+	}
+
+	lines := make([]string, 0, len(loadErr.Failures)+1)
+
+	for _, failure := range loadErr.Failures {
+		lines = append(lines, "  "+failure.URL+": "+failure.Err.Error())
+	}
+
+	lines = append(lines, tui.SourceAccessHint)
+
+	return fmt.Errorf("%w:\n%s", err, strings.Join(lines, "\n"))
 }
 
 // runTUI launches the TUI immediately with a loading screen, then loads
@@ -71,12 +97,14 @@ func runTUI(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	repoURL string,
 ) error {
+	v.RequireTerminal()
+
 	// Fail fast with a clear error when there is no terminal to attach the
 	// TUI to, instead of surfacing bubbletea's raw TTY failure.
-	if err := viewtui.EnsureOSTTY(); err != nil {
+	if err := viewtui.EnsureTTY(v.Terminal.StdinIsTTY); err != nil {
 		return err
 	}
 
@@ -92,7 +120,7 @@ func runTUI(
 	loadLogger := l.WithOptions(log.WithOutput(io.Discard), log.WithHooks(viewtui.NewWarnHook(warnCh)))
 
 	return tui.Run(
-		ctx, l, v, opts, warnCh,
+		ctx, l, v, opts.TerragruntOptions, warnCh,
 		newLoadFunc(loadLogger, v, opts, tempDirs, repoURL),
 	)
 }
@@ -101,7 +129,7 @@ func runTUI(
 func newLoadFunc(
 	l log.Logger,
 	v *venv.Venv,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	tempDirs *tui.TempDirTracker,
 	repoURL string,
 ) tui.LoadFunc {
@@ -111,17 +139,17 @@ func newLoadFunc(
 		if repoURL != "" {
 			status("Loading " + repoURL + "...")
 
-			return tui.LoadURL(ctx, l, v, opts, tempDirs, repoURL, componentCh)
+			return tui.LoadURL(ctx, l, v, opts.TerragruntOptions, tempDirs, repoURL, componentCh)
 		}
 
 		return discoverAndLoad(ctx, l, v, opts, tempDirs, status, componentCh)
 	}
 }
 
-// discoverAndLoad runs the two concurrent URL discoverers and loads each
-// distinct repo URL they surface into componentCh, bounded by parallelism.
+// discoverAndLoad runs the concurrent URL discoverers and loads each distinct
+// repo URL they surface into componentCh, bounded by parallelism.
 func discoverAndLoad(
-	ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions,
+	ctx context.Context, l log.Logger, v *venv.Venv, opts *Options,
 	tempDirs *tui.TempDirTracker,
 	status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 ) error {
@@ -130,11 +158,15 @@ func discoverAndLoad(
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return discoverCatalogConfigURLs(gctx, l, v, opts, urlCh)
+		return discoverCatalogConfigURLs(gctx, l, v, opts.TerragruntOptions, urlCh)
 	})
 
 	g.Go(func() error {
-		return discoverSourceFileURLs(gctx, l, v, opts, urlCh)
+		return discoverSourceFileURLs(gctx, l, v, opts.TerragruntOptions, urlCh)
+	})
+
+	g.Go(func() error {
+		return discoverPortalURLs(gctx, l, v, opts, urlCh)
 	})
 
 	go func() {
@@ -164,14 +196,15 @@ func discoverAndLoad(
 	seen := make(map[string]struct{})
 
 	for repoURL := range urlCh {
-		if _, ok := seen[repoURL]; ok {
+		key := dedupKey(repoURL)
+		if _, ok := seen[key]; ok {
 			continue
 		}
 
-		seen[repoURL] = struct{}{}
+		seen[key] = struct{}{}
 
 		loaders.Go(func() error {
-			err := tui.LoadURL(loadCtx, l, v, opts, tempDirs, repoURL, componentCh)
+			err := tui.LoadURL(loadCtx, l, v, opts.TerragruntOptions, tempDirs, repoURL, componentCh)
 			if err == nil {
 				return nil
 			}
@@ -207,6 +240,34 @@ func discoverAndLoad(
 	}
 
 	return nil
+}
+
+// dedupKey is what a discovered repository is deduplicated on. Each discoverer
+// names repositories in whatever spelling its own source holds, so the portal
+// and a `catalog` block can reach one repository by two strings, which compared
+// as they arrived would clone it once per spelling and list every component in
+// it that many times.
+func dedupKey(repoURL string) string {
+	key := repoURL
+
+	// The getter infers https for a URL that names no scheme, so the shorthand
+	// the `catalog` block documents addresses what an absolute URL does.
+	for _, scheme := range []string{"https://", "http://"} {
+		if rest, found := strings.CutPrefix(key, scheme); found {
+			key = rest
+
+			break
+		}
+	}
+
+	host, path, found := strings.Cut(key, "/")
+
+	key = strings.ToLower(host)
+	if found {
+		key += "/" + path
+	}
+
+	return strings.TrimSuffix(strings.TrimSuffix(key, "/"), ".git")
 }
 
 // discoverCatalogConfigURLs reads catalog URLs from the root config and
@@ -259,4 +320,106 @@ func discoverSourceFileURLs(
 	}
 
 	return nil
+}
+
+// discoverPortalURLs sends the repositories the user's organizations selected
+// in the Gruntwork Developer Portal to urlCh.
+func discoverPortalURLs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *Options,
+	urlCh chan<- string,
+) error {
+	// The experiment gates the whole portal feature, not only the login that
+	// files the credential. Nothing else takes a stored credential out of use,
+	// so switching the experiment off is all a signed-in user has to stop this
+	// request with.
+	if !opts.Experiments.Evaluate(experiment.TGLogin) {
+		return nil
+	}
+
+	v.RequireHTTP()
+
+	credentials, err := portal.LoadCredentials(l, v, opts.PortalBaseURL)
+	if err != nil {
+		l.Debugf("No portal credential could be read: %v", err)
+
+		return nil
+	}
+
+	loginCmd := login.Command(opts.Experiments)
+
+	for _, org := range credentials.Expired {
+		l.Warnf(
+			"The portal credential for %s has expired, so the repositories that"+
+				" organization selected in the Gruntwork Developer Portal are not in"+
+				" this catalog. Run `%s` to sign in again",
+			orgName(org), loginCmd,
+		)
+	}
+
+	// Organizations are asked in parallel. Each fetch bounds its own wait on the
+	// portal, so asking in turn would let a portal that accepts the connection
+	// and then says nothing hold the run for that wait once per organization.
+	var wg sync.WaitGroup
+
+	for _, token := range credentials.Valid {
+		wg.Go(func() {
+			repositories, err := portal.FetchCatalog(ctx, l, v.HTTP, opts.PortalBaseURL, token.AccessToken)
+			if err != nil {
+				reportPortalFailure(ctx, l, token.Org, err, loginCmd)
+
+				return
+			}
+
+			for _, repository := range repositories {
+				urlCh <- repository.URL
+			}
+		})
+	}
+
+	wg.Wait()
+
+	return nil
+}
+
+// reportPortalFailure decides how loudly a failed fetch is reported. Only a
+// failure that kept back a catalog the organization actually has warrants a
+// warning: the components it would have contributed are missing from the list
+// the user is looking at.
+func reportPortalFailure(ctx context.Context, l log.Logger, org portal.Org, err error, loginCmd string) {
+	name := orgName(org)
+
+	if ctx.Err() != nil {
+		l.Debugf("Abandoned the portal catalog for %s: %v", name, err)
+
+		return
+	}
+
+	if errors.Is(err, portal.ErrNoHostedCatalog) {
+		l.Debugf("The portal serves no catalog for %s: %v", name, err)
+
+		return
+	}
+
+	if errors.Is(err, portal.ErrCredentialRejected) {
+		l.Warnf(
+			"The portal rejected the credential for %s, so the repositories that"+
+				" organization selected in the Gruntwork Developer Portal are not in"+
+				" this catalog. The credential has not expired, so run `%s --%s` to"+
+				" replace it",
+			name, loginCmd, login.ForceFlagName,
+		)
+
+		return
+	}
+
+	l.Warnf("Could not read the portal catalog for %s: %v", name, err)
+}
+
+// orgName is what an organization is called in output: the name the portal
+// sent when it sent one, and the id it is filed under otherwise.
+func orgName(org portal.Org) string {
+	return cmp.Or(org.Name, org.ID)
 }

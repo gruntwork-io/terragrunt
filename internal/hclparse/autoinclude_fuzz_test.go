@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/require"
@@ -14,9 +15,9 @@ import (
 	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
 
-const (
-	aiFuzzStackDir = "/fuzz/stack"
-	aiFuzzGenDir   = "/fuzz/stack/.terragrunt-stack/app"
+var (
+	aiFuzzStackDir = venvtest.Root("/fuzz/stack")
+	aiFuzzGenDir   = venvtest.Root("/fuzz/stack/.terragrunt-stack/app")
 )
 
 // aiFuzzFuncs is a small generate-time function set so function calls in autoinclude bodies can resolve.
@@ -276,6 +277,69 @@ func aiBlockBodySeeds() []string {
 // generate pipeline. Invariants: it never panics, and any generated terragrunt.autoinclude.hcl re-parses as valid HCL.
 func FuzzAutoIncludeBlockBody(f *testing.F) {
 	for _, s := range aiBlockBodySeeds() {
+		f.Add(s)
+	}
+
+	for _, s := range []string{
+		`dependency "db" {
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+  config_path  = unit.vpc.path
+  mock_outputs = { id = each.key }
+}
+
+inputs = { ids = { for k, d in dependency.db : k => d.outputs.id } }`,
+		`dependency "db" {
+  expansion {
+    for_each = local.map
+  }
+  config_path  = "../db-${each.key}"
+  mock_outputs = { id = "${local.env}-${each.value}" }
+}`,
+		`dependency "db" {
+  expansion {
+    count = local.count
+  }
+  config_path  = "../db-${count.index}"
+  mock_outputs = { id = count.index }
+}
+
+inputs = { first = dependency.db["0"].outputs.id }`,
+		`dependency "db" {
+  expansion {
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "db" {
+  expansion {
+    count    = 1
+    for_each = local.map
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "db" {
+  expansion {
+    count = 1
+  }
+  expansion {
+    count = 1
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "db" {
+  expansion {
+    for_each = local.list
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "db" {
+  expansion {
+    for_each = { a = 1 }
+  }
+  config_path = each.value
+}`,
+	} {
 		f.Add(s)
 	}
 

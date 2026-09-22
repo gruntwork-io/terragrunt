@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -849,8 +850,8 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 			)
 
 			providers := []string{
-				"hashicorp/null/3.2.3",
-				"hashicorp/local/2.5.2",
+				"hashicorp/null/3.2.4",
+				"hashicorp/local/2.6.1",
 			}
 
 			registryName := "registry.opentofu.org"
@@ -1181,9 +1182,7 @@ func TestTFTerraformSubcommandCliArgs(t *testing.T) {
 		// Call helpers.RunTerragruntCommand directly because this command
 		// contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-		if err == nil {
-			t.Fatalf("Failed to properly fail command: %v.", cmd)
-		}
+		require.Error(t, err, "Failed to properly fail command: %v.", cmd)
 
 		assert.True(
 			t,
@@ -1361,9 +1360,7 @@ func TestTFTerragruntExcludeExternalDependencies(t *testing.T) {
 
 	applyAllStdoutString := applyAllStdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	assert.Contains(t, applyAllStdoutString, "Hello World, "+includedModule)
 	assert.NotContains(t, applyAllStdoutString, "Hello World, "+excludedModule)
@@ -3890,7 +3887,7 @@ func TestTFReadTerragruntAuthProviderCmd(t *testing.T) {
 	appPath := filepath.Join(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	helpers.RunTerragrunt(
 		t,
@@ -3964,7 +3961,7 @@ func TestTFReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
@@ -4024,7 +4021,7 @@ func TestTFNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
@@ -4338,7 +4335,9 @@ func TestTFExplainingMissingCredentials(t *testing.T) {
 	// no parallel because we need to set env vars
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/tmp/not-existing-creds-46521694")
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
 	initTestCase := filepath.Join(tmpEnvPath, testFixtureInitError)
@@ -4423,9 +4422,12 @@ func TestTFInitSkipCache(t *testing.T) {
 
 	// verify that after adding new file, init is executed
 	tfFile := filepath.Join(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
-	if err := os.WriteFile(tfFile, []byte(""), 0o644); err != nil {
-		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
-	}
+	require.NoError(
+		t,
+		os.WriteFile(tfFile, []byte(""), 0o644),
+		"Error writing new Terraform file to %s",
+		tfFile,
+	)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,

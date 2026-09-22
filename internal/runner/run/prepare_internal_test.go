@@ -20,7 +20,7 @@ import (
 // Bootstrap skip behavior (DisableInit=true preventing bootstrap even when
 // BackendBootstrap=true) is tested by:
 //   - TestNeedsBootstrapDisableInit in internal/remotestate/remote_state_test.go
-//   - TestAwsDisableInitS3Backend in test/integration_aws_test.go
+//   - TestRustFSDisableInitS3Backend in test/integration_rustfs_hooks_test.go
 func TestPrepareInitCommandRunCfg(t *testing.T) {
 	t.Parallel()
 

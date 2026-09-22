@@ -1,0 +1,22 @@
+---
+version: "v1.2.0"
+category: "experiments-updated"
+---
+
+import PortalCatalogBeta from '@components/PortalCatalogBeta.astro';
+
+#### `tg-login` — Signing in to the Gruntwork Developer Portal
+
+<PortalCatalogBeta campaign="changelog-v1-2-0" />
+
+The `tg-login` experiment now enables `terragrunt login`, which signs you in to the [Gruntwork Developer Portal](https://app.gruntwork.io).
+
+Running it logs you into the Gruntwork Developer Portal in the Terragrunt CLI.
+
+Once you are signed in, `terragrunt catalog` will automatically discover repositories your organization has selected in the portal and use them as part of your [`catalog`](https://docs.terragrunt.com/features/catalog/). See [Gruntwork Developer Portal](/features/catalog/gruntwork-developer-portal) for how to select those repositories in the portal.
+
+```bash
+terragrunt --experiment tg-login login
+```
+
+See the [experiment documentation](/reference/experiments/active#tg-login) for what still has to land before it stabilizes.

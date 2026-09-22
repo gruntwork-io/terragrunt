@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/require"
 )
 
 // settleTimeout is the maximum fake-clock duration driveModel advances after
@@ -150,14 +151,15 @@ func driveModel(t *testing.T, m tea.Model, width, height int, interact []tea.Msg
 		synctest.Sleep(50 * time.Millisecond)
 	}
 
-	if iter == settleMaxIterations-1 {
-		t.Fatalf(
-			"driveModel: bubble did not settle within %d iterations; "+
-				"a cmd is likely re-arming itself instantly and "+
-				"preventing the fake clock from advancing",
-			settleMaxIterations,
-		)
-	}
+	require.NotEqual(
+		t,
+		settleMaxIterations-1,
+		iter,
+		"driveModel: bubble did not settle within %d iterations; "+
+			"a cmd is likely re-arming itself instantly and "+
+			"preventing the fake clock from advancing",
+		settleMaxIterations,
+	)
 
 	return m
 }

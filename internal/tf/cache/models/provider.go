@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	goversion "github.com/hashicorp/go-version"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 )
 
 type Providers []*Provider
@@ -79,7 +79,7 @@ func (versions Versions) FilterValid() (Versions, []string) {
 			continue
 		}
 
-		if _, err := goversion.NewVersion(v.Version); err != nil {
+		if _, err := semver.Parse(v.Version); err != nil {
 			invalid = append(invalid, v.Version)
 			continue
 		}

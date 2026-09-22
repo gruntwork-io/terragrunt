@@ -27,16 +27,16 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 		expectedVarFiles []string
 	}{
 		{
-			"VarsWithQuotes",
-			[]string{`-var='hello=world'`, `-var="foo=bar"`, `-var="'"enabled"'"=false`},
-			[]string{"'enabled'", "foo", "hello"},
-			[]string{},
+			"QuotesStayPartOfTheArgument",
+			[]string{`-var='hello=world'`, `-var-file="other_vars.tfvars"`},
+			[]string{"'hello"},
+			[]string{`"other_vars.tfvars"`},
 		},
 		{
-			"VarFilesWithQuotes",
-			[]string{`-var-file='terraform.tfvars'`, `-var-file="other_vars.tfvars"`},
+			"BackslashesInVarFileName",
+			[]string{`-var-file=C:\work\unit\varfiles\main.tfvars`},
 			[]string{},
-			[]string{"other_vars.tfvars", "terraform.tfvars"},
+			[]string{`C:\work\unit\varfiles\main.tfvars`},
 		},
 		{
 			"MixedWithOtherIrrelevantArgs",
@@ -52,7 +52,7 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 		},
 		{
 			"SpaceInVarFileName",
-			[]string{"-var-file='this is a test.tfvars'"},
+			[]string{"-var-file=this is a test.tfvars"},
 			[]string{},
 			[]string{"this is a test.tfvars"},
 		},

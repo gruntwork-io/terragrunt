@@ -8,6 +8,8 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 Filter units and stacks based on their dependency relationships using graph traversal operators. This allows you to find components that depend on a target, or components that a target depends on.
 
@@ -151,3 +153,89 @@ When using graph expressions, Terragrunt automatically discovers dependency rela
 
 Note that this overhead is especially noticeable in _dependent_ graph expressions, as Terragrunt will need to recursively parse _all_ units that could _possibly_ depend on the target. Use this expression judiciously.
 </Aside>
+
+## Bounded Traversal
+
+<Before version="v1.2.0">
+
+Enclosing graph traversal within a directory requires the [`bounded-discovery`](/reference/experiments/active#bounded-discovery) experiment.
+
+</Before>
+
+<Since version="v1.2.0">
+
+The search for dependents runs from the working directory up to the Git repository root, and dependencies are followed wherever their `config_path` points. To keep either direction inside a directory, write that directory in parentheses where a depth would go:
+
+```bash
+# Find 'vpc' and its dependents inside the working directory
+terragrunt find --filter '(.)...vpc'
+
+# Find 'app' and its dependencies inside the working directory
+terragrunt find --filter 'app...(.)'
+
+# Bound each direction separately
+terragrunt find --filter '(..)...vpc...(.)'
+```
+
+Given this layout, with `environments/staging` as the working directory:
+
+<FileTree>
+- environments
+  - staging
+    - vpc
+      - terragrunt.hcl
+    - app
+      - terragrunt.hcl (depends on: vpc)
+  - production
+    - vpc
+      - terragrunt.hcl
+    - app
+      - terragrunt.hcl (depends on: vpc)
+</FileTree>
+
+Using `(.)...vpc`:
+
+<FileTree>
+- environments
+  - staging
+    - **vpc** \<-- Matched (target)
+      - terragrunt.hcl
+    - **app** \<-- Matched (depends on vpc)
+      - terragrunt.hcl (depends on: vpc)
+  - production
+    - vpc \<-- Not parsed (outside the boundary)
+      - terragrunt.hcl
+    - app \<-- Not parsed (outside the boundary)
+      - terragrunt.hcl (depends on: vpc)
+</FileTree>
+
+Without the boundary, the search for dependents would climb to the repository root and parse `production/vpc` and `production/app` to check whether either depends on `staging/vpc`. With `(.)`, Terragrunt reads nothing under `production`.
+
+The boundary must be an existing directory. Terragrunt resolves a relative path against the working directory. A dependent-side boundary must be the working directory or one of its parents, since the search for dependents starts there. A dependency-side boundary can be any directory.
+
+Traversal stops at the boundary, so a unit inside the boundary that is reachable only through a unit outside it is never reached. Here, `foo` depends on `bar`, and `bar` depends on `baz`. Using `foo...(.)` with `inside` as the working directory:
+
+<FileTree>
+- inside
+  - **foo** \<-- Matched (target)
+    - terragrunt.hcl (depends on: ../../outside/bar)
+  - baz \<-- Not matched (reachable only through bar)
+    - terragrunt.hcl
+- outside
+  - bar \<-- Not matched (outside the boundary)
+    - terragrunt.hcl (depends on: ../../inside/baz)
+</FileTree>
+
+The operand reserves `(` and `)`, so wrap a name or path that contains them in braces (e.g. `{./weird(name)}`).
+
+The [`--discovery-boundary`](/reference/cli/commands/find#discovery-boundary) flag sets one boundary for every `--filter` expression on the command, in both directions. A `(dir)` operand overrides the flag for the expression it appears in:
+
+```bash
+# Dependents of 'vpc' stay inside the working directory
+terragrunt find --filter '...vpc' --discovery-boundary .
+
+# The operand extends this expression's search for dependents to production
+terragrunt find --filter '(..)...vpc' --discovery-boundary .
+```
+
+</Since>

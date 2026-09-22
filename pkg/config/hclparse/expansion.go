@@ -18,9 +18,6 @@ const (
 	// dependency, unit, or stack block.
 	ExpansionBlockName = "expansion"
 
-	forEachAttrName = "for_each"
-	countAttrName   = "count"
-
 	eachVarName  = "each"
 	countVarName = "count"
 
@@ -28,9 +25,20 @@ const (
 	eachValueAttrName  = "value"
 	countIndexAttrName = "index"
 
-	forEachElementLabel = forEachAttrName + " element"
+	forEachElementLabel = string(MetaArgForEach) + " element"
 
 	labelTagKind = "label"
+)
+
+// MetaArg names an argument of an expansion block that sets how the block iterates. An expansion
+// block sets exactly one.
+type MetaArg string
+
+const (
+	// MetaArgForEach iterates over the elements of a set, map, or object.
+	MetaArgForEach MetaArg = "for_each"
+	// MetaArgCount iterates a whole number of times.
+	MetaArgCount MetaArg = "count"
 )
 
 // DefaultMaxInstances bounds how many instances a single block may expand into,
@@ -74,16 +82,26 @@ type ExpansionBlock struct {
 	InstanceKey
 }
 
-// SourceBlock is a block as it was written, before expansion decoded it once per
-// element. Every instance of one block points at the same SourceBlock, so a caller can
-// group instances back together by [SourceBlock.Range].
+// SourceBlock is the HCL text of a block, before expansion decoded it once per element. Every
+// instance of one block points at the same SourceBlock, so a caller can group instances back
+// together by [SourceBlock.Range].
 //
-// Only [ExpandBlocks] fills it in, and only for native HCL syntax: a block handed to
-// [ExpandBlock] on its own carries no file to slice, and a JSON config has no HCL text
-// to quote back.
+// Only [ExpandBlocks] fills it in, and only for a block that expansion split into elements. A
+// block handed to [ExpandBlock] on its own carries no file to read it out of.
 type SourceBlock struct {
-	Text  string
+	err   error
+	text  string
 	Range hcl.Range
+}
+
+// NewSourceBlock builds a block over text that was not read out of a file.
+func NewSourceBlock(text string, rng hcl.Range) *SourceBlock {
+	return &SourceBlock{text: text, Range: rng}
+}
+
+// Body returns the block's HCL text, or the error that stopped Terragrunt from recovering it.
+func (src *SourceBlock) Body() (string, error) {
+	return src.text, src.err
 }
 
 // InstanceKey identifies which expansion element produced a decoded block. It carries
@@ -117,11 +135,22 @@ func (key InstanceKey) Expanded() bool {
 	return key.EachKey != nil || key.CountIndex != nil
 }
 
+// Address returns the address of this instance of the block labeled label: the label alone
+// for a block that was not expanded, and label[key] for one element of an expanded block.
+func (key InstanceKey) Address(label string) string {
+	if !key.Expanded() {
+		return label
+	}
+
+	return label + "[" + key.Key() + "]"
+}
+
 // Instance is one decoded product of expanding a block. A block with no expansion
 // block yields a single Instance with both keys nil.
 type Instance struct {
-	Value  any
-	Source *SourceBlock
+	Value       any
+	Source      *SourceBlock
+	EvalContext *hcl.EvalContext
 	InstanceKey
 }
 
@@ -162,10 +191,7 @@ func (file *File) ExpandBlocks(
 
 		expanded, err := ExpandBlock(block, out, ctx, opts...)
 		if err == nil {
-			source := blockSource(file.Bytes, block)
-			for i := range expanded {
-				expanded[i].Source = source
-			}
+			attachSource(file.Bytes, block, out, expanded)
 
 			instances = append(instances, expanded...)
 
@@ -254,13 +280,36 @@ func skipBlock(block *hcl.Block, skipLabels map[string]struct{}) bool {
 	return err == nil && expansion == nil
 }
 
+// attachSource records the text of a block that expansion split into elements, so a caller can
+// quote the block rather than the elements it produced.
+//
+// A block that expanded into nothing, and one that never declared expansion, has no elements to
+// group and gets no text. Recovering the text of a block written in JSON means transcoding it,
+// and blocks that would throw the text away stay off that path.
+func attachSource(src []byte, block *hcl.Block, out any, instances []Instance) {
+	if len(instances) == 0 || !instances[0].Expanded() {
+		return
+	}
+
+	source, err := blockSource(src, block, out)
+	if err != nil {
+		// Only render reads this text, so the failure rides along on the block rather than
+		// failing the parse that every command performs.
+		source = &SourceBlock{err: err, Range: block.DefRange}
+	}
+
+	for i := range instances {
+		instances[i].Source = source
+	}
+}
+
 // blockSource slices block back out of the file it was parsed from, so a caller can quote
-// the block as written rather than as decoded. A body that is not native HCL syntax has
-// no such text and yields nil.
-func blockSource(src []byte, block *hcl.Block) *SourceBlock {
+// the block as written rather than as decoded. A block written in JSON becomes the equivalent
+// HCL instead, since the preview of its elements has to hang off a block.
+func blockSource(src []byte, block *hcl.Block, out any) (*SourceBlock, error) {
 	body, ok := block.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil
+		return jsonBlockSource(src, block, out)
 	}
 
 	rng := hcl.Range{
@@ -270,9 +319,9 @@ func blockSource(src []byte, block *hcl.Block) *SourceBlock {
 	}
 
 	return &SourceBlock{
-		Text:  string(src[rng.Start.Byte:rng.End.Byte]),
+		text:  string(src[rng.Start.Byte:rng.End.Byte]),
 		Range: rng,
-	}
+	}, nil
 }
 
 // ExpandBlock decodes block once per iteration element, returning one Instance per
@@ -282,10 +331,15 @@ func blockSource(src []byte, block *hcl.Block) *SourceBlock {
 // A block with no expansion block decodes to exactly one Instance, so callers can
 // route expanded and unexpanded blocks through the same path.
 //
+// A block declaring more than one expansion block, or an expansion block that sets
+// both or neither of for_each and count, returns an error and no Instance.
+//
 // Expansion is driven by the presence of the statically-known expansion sub-block,
 // read before the surrounding body is evaluated. That ordering is what lets the
 // body reference each.value at all: the references are still unevaluated here, and
 // only resolve in the per-element decode below.
+//
+// Panics when out is nil or not a pointer.
 func ExpandBlock(
 	block *hcl.Block,
 	out any,
@@ -313,7 +367,7 @@ func ExpandBlock(
 			return nil, diags
 		}
 
-		return []Instance{{Value: instance}}, nil
+		return []Instance{{Value: instance, EvalContext: ctx}}, nil
 	}
 
 	forEach, count, err := expansionMetaArg(expansion)
@@ -358,16 +412,16 @@ func expansionMetaArg(expansion *hcl.Block) (forEach, count *hcl.Attribute, err 
 	// loud "unsupported argument" rather than a silently ignored attribute.
 	content, diags := expansion.Body.Content(&hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
-			{Name: forEachAttrName},
-			{Name: countAttrName},
+			{Name: string(MetaArgForEach)},
+			{Name: string(MetaArgCount)},
 		},
 	})
 	if diags.HasErrors() {
 		return nil, nil, diags
 	}
 
-	forEach = content.Attributes[forEachAttrName]
-	count = content.Attributes[countAttrName]
+	forEach = content.Attributes[string(MetaArgForEach)]
+	count = content.Attributes[string(MetaArgCount)]
 
 	switch {
 	case forEach != nil && count != nil:
@@ -391,7 +445,7 @@ func expandCount(
 		return nil, diags
 	}
 
-	if err := requireConcrete(value, countAttrName, &count.Range); err != nil {
+	if err := requireConcrete(value, string(MetaArgCount), &count.Range); err != nil {
 		return nil, err
 	}
 
@@ -407,7 +461,7 @@ func expandCount(
 	// Checked before the allocation below, which is what the ceiling protects.
 	if total > maxInstances {
 		return nil, ExpansionLimitExceededError{
-			Attr:    countAttrName,
+			Attr:    string(MetaArgCount),
 			Size:    total,
 			Limit:   maxInstances,
 			Subject: &count.Range,
@@ -444,7 +498,7 @@ func expandForEach(
 
 	// LengthInt and ElementIterator panic on unknown or null values, so these are
 	// rejected before the collection is touched rather than after the type check.
-	if err := requireConcrete(collection, forEachAttrName, &forEach.Range); err != nil {
+	if err := requireConcrete(collection, string(MetaArgForEach), &forEach.Range); err != nil {
 		return nil, err
 	}
 
@@ -460,7 +514,7 @@ func expandForEach(
 	size := collection.LengthInt()
 	if size > maxInstances {
 		return nil, ExpansionLimitExceededError{
-			Attr:    forEachAttrName,
+			Attr:    string(MetaArgForEach),
 			Size:    size,
 			Limit:   maxInstances,
 			Subject: &forEach.Range,
@@ -562,7 +616,10 @@ func (dec *elementDecoder) decode(
 ) {
 	value, diags := decodeInstance(block, outType, ctx)
 	if !diags.HasErrors() {
-		dec.instances = append(dec.instances, Instance{Value: value, InstanceKey: key})
+		dec.instances = append(
+			dec.instances,
+			Instance{Value: value, EvalContext: ctx, InstanceKey: key},
+		)
 
 		return
 	}

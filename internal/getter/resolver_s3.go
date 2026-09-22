@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -91,6 +92,22 @@ func NewS3Resolver(v *venv.Venv) *S3Resolver { return &S3Resolver{Venv: v, Logge
 // Scheme returns "s3".
 func (r *S3Resolver) Scheme() string { return "s3" }
 
+// Pinned reports whether source carries an object version, which S3
+// never reissues.
+func (r *S3Resolver) Pinned(source redact.URL) bool {
+	u, err := url.Parse(source.Reveal())
+	if err != nil {
+		return false
+	}
+
+	target, err := parseS3URL(u)
+	if err != nil {
+		return false
+	}
+
+	return target.Version != ""
+}
+
 // Probe runs HeadObject with ChecksumMode=ENABLED and returns a
 // cache key from the strongest available token. The cascade prefers
 // content-addressed checksums (cross-URL dedupe) over the opaque ETag
@@ -106,15 +123,15 @@ func (r *S3Resolver) Scheme() string { return "s3" }
 // The ETag stays opaque even for single-part objects: multipart ETag
 // `<md5>-<n>` is not a content hash. Network or AWS errors surface as
 // [cas.ErrNoVersionMetadata].
-func (r *S3Resolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	u, err := url.Parse(rawURL)
+func (r *S3Resolver) Probe(ctx context.Context, source redact.URL) (string, error) {
+	u, err := url.Parse(source.Reveal())
 	if err != nil {
-		return "", fmt.Errorf("parse S3 URL %s: %w", rawURL, err)
+		return "", fmt.Errorf("parse S3 URL %s: %w", source, err)
 	}
 
 	target, err := parseS3URL(u)
 	if err != nil {
-		return "", fmt.Errorf("parse S3 URL %s: %w", rawURL, err)
+		return "", fmt.Errorf("parse S3 URL %s: %w", source, err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, s3ResolverTimeout)
@@ -143,7 +160,7 @@ func (r *S3Resolver) Probe(ctx context.Context, rawURL string) (string, error) {
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	return pickS3CacheKey(rawURL, out)
+	return pickS3CacheKey(source.Reveal(), out)
 }
 
 // client returns the S3 client for region, using the AWS SDK config

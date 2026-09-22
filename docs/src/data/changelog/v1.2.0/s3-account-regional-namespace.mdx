@@ -1,0 +1,26 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### S3 buckets can be created in your account regional namespace
+
+An [account regional namespace](https://docs.aws.amazon.com/AmazonS3/latest/userguide/gpbucketnamespaces.html) is a reserved subdivision of the S3 bucket namespace that only your account can create buckets in, so no one else can ever take or re-create those names. Bucket names in it end with your account ID, the region, and `-an`.
+
+Terragrunt now reads the namespace off the name when it matches the reserved namespace for account regional buckets and provisions it in that namespace accordingly:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "my-terraform-state-111122223333-us-east-1-an"
+    key    = "${path_relative_to_include()}/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+```
+
+There is no new setting to enable this. S3 only accepts the `-an` suffix for the account regional namespace, so Terragrunt creates it as an account regional bucket when it detects the naming convention. Terragrunt also reads `accesslogging_bucket_name` the same way. Buckets named any other way are still created in the global namespace, and the namespace is left out of the request entirely, so S3-compatible object stores are unaffected.
+
+A name that fits the convention but names a region other than the bucket's own fails immediately.

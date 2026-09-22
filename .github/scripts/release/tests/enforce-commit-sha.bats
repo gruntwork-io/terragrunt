@@ -1,6 +1,9 @@
 #!/usr/bin/env bats
 
 setup() {
+  # Keep any summary a script writes inside this test's tmpdir, not in the job summary.
+  export GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md"
+
   SCRIPT="${BATS_TEST_DIRNAME}/../enforce-commit-sha.sh"
   VALID_SHA="a1b2c3d4e5f6789012345678901234567890abcd"
 }

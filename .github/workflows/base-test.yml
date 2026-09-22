@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos]
+        os: [ubuntu, macos, windows]
     env:
       # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
       GOGC: "400"
@@ -25,39 +25,20 @@ jobs:
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           version: 2026.5.12
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - id: go-cache-paths
-        run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-        shell: bash
+      - name: Windows Setup
+        if: runner.os == 'Windows'
+        run: pwsh -File ./.github/scripts/setup/windows-setup.ps1
+        shell: pwsh
 
-      - name: Go Build Cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      - name: Restore Go caches
+        uses: $/.github/actions/go-cache-restore
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
-          restore-keys: |
-            ${{ runner.os }}-go-build-
-
-      - name: Go Mod Cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
-          restore-keys: |
-            ${{ runner.os }}-go-mod-
-
-      - name: Terragrunt Provider Cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: ${{ runner.os == 'Linux' && '~/.cache/terragrunt' || '~/Library/Caches/terragrunt' }}
-          key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
-          restore-keys: |
-            ${{ runner.os }}-terragrunt-provider-cache-
+          gocache-name: test
 
       - name: Run Tests
         id: run-tests
@@ -82,6 +63,14 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-events.ndjson
+          path: test-events.ndjson
+          retention-days: 7
+
+      - name: Upload test-events-windows.ndjson
+        if: always() && matrix.os == 'windows'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-events-windows.ndjson
           path: test-events.ndjson
           retention-days: 7
 
@@ -129,6 +118,10 @@ jobs:
         if: always()
         with:
           report_paths: result.xml
-          detailed_summary: 'true'
-          include_time_in_summary: 'true'
-          group_suite: 'true'
+          detailed_summary: "true"
+          include_time_in_summary: "true"
+          group_suite: "true"
+
+      - name: Save Go caches
+        if: ${{ !cancelled() }}
+        uses: $/.github/actions/go-cache-save

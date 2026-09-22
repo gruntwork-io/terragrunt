@@ -8,17 +8,22 @@ package cas
 import (
 	"context"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
 	"errors"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -27,6 +32,9 @@ import (
 
 // DefaultCASCloneDepth is the default shallow clone depth for CAS (git clone --depth).
 const DefaultCASCloneDepth = 1
+
+// gitScheme is the [SourceRequest.Scheme] of sources ingested through git.
+const gitScheme = "git"
 
 // Option configures the behavior of CAS.
 type Option func(*CAS)
@@ -41,8 +49,11 @@ type CloneOptions struct {
 	// If empty, uses HEAD.
 	Branch string
 
-	// IncludedGitFiles specifies the files to preserve from the .git directory.
-	// If empty, does not preserve any files.
+	// IncludedGitFiles names files from the source repository's git
+	// directory to write under .git in the target directory. If empty,
+	// no .git directory is written. Ingest records each file against the
+	// commit on its own, so callers asking for different lists share one
+	// tree and each receive only the files they named.
 	IncludedGitFiles []string
 
 	// Depth limits the clone history to the given number of commits passed to git clone --depth.
@@ -50,9 +61,9 @@ type CloneOptions struct {
 	// Set to -1 for full history (Terragrunt omits --depth; git rejects --depth 0).
 	Depth int
 
-	// Mutable, when true, copies blobs into the target directory instead of
-	// hardlinking them from the CAS store. The destination tree becomes safe
-	// to mutate without corrupting the shared store.
+	// Mutable, when true, materializes separate writable files in the target
+	// directory instead of hard links to the CAS store. The destination tree
+	// becomes safe to edit without corrupting the shared store.
 	Mutable bool
 }
 
@@ -87,21 +98,24 @@ func WithDepth(depth int) CloneOption {
 	return func(o *CloneOptions) { o.Depth = depth }
 }
 
-// WithMutable copies blobs into the target directory instead of
-// hardlinking from the CAS store, so the destination tree is safe to
-// mutate without corrupting the shared store.
+// WithMutable sets [CloneOptions.Mutable].
 func WithMutable(mutable bool) CloneOption {
 	return func(o *CloneOptions) { o.Mutable = mutable }
 }
 
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
-	blobStore  *Store
-	treeStore  *Store
-	synthStore *Store
-	gitStore   *GitStore
-	storePath  string
-	cloneDepth int
+	blobStore         *Store
+	treeStore         *Store
+	synthStore        *Store
+	gitFileStore      *Store
+	gitStore          *GitStore
+	probeCache        *ProbeCache
+	storePath         string
+	cloneDepth        int
+	probeTTL          time.Duration
+	probeMode         ProbeMode
+	probeCacheEnabled bool
 }
 
 // WithStorePath specifies a custom path for the content store.
@@ -120,6 +134,57 @@ func WithStorePath(path string) Option {
 func WithCloneDepth(depth int) Option {
 	return func(c *CAS) {
 		c.cloneDepth = depth
+	}
+}
+
+// WithProbeCache records every probe answer in the store and serves one
+// back while it is fresh, so a later process can resolve a source without
+// asking its remote again. Without it nothing is written to or read from
+// `probes/` and every process probes every source, which is what a run
+// gets until the offline-cas experiment is enabled.
+//
+// [WithProbeTTL] sets how long an answer for a source that can change
+// upstream is served; a pinned source keeps [DefaultImmutableProbeTTL]
+// regardless. [WithOffline] and [WithProbeRefresh] act on this cache and
+// enable it themselves, having nothing to do without one.
+func WithProbeCache() Option {
+	return func(c *CAS) {
+		c.probeCacheEnabled = true
+	}
+}
+
+// WithOffline forbids every call to a remote. Probes answer from the local
+// git store and the persisted probe cache regardless of TTL, and content
+// the store lacks fails with [OfflineMissError] instead of being fetched.
+// A source with no cheap probe, such as an SMB share, has no answer to
+// serve and is still fetched.
+// Passing this together with [WithProbeRefresh] is a caller bug that the
+// CLI rejects at flag validation; here the later option wins.
+func WithOffline() Option {
+	return func(c *CAS) {
+		c.probeMode = ProbeModeOffline
+		c.probeCacheEnabled = true
+	}
+}
+
+// WithProbeRefresh ignores the persisted probe cache for this process, so
+// every probe reaches the network unless it joins one already in flight.
+// Answers are still recorded for later runs.
+func WithProbeRefresh() Option {
+	return func(c *CAS) {
+		c.probeMode = ProbeModeRefresh
+		c.probeCacheEnabled = true
+	}
+}
+
+// WithProbeTTL sets how long a persisted probe of a source that can change
+// upstream is served without asking the remote again. Zero, the default,
+// re-probes in every process so a push followed by a run sees the new
+// revision. A pinned source keeps [DefaultImmutableProbeTTL] regardless.
+// Has no effect without [WithProbeCache].
+func WithProbeTTL(ttl time.Duration) Option {
+	return func(c *CAS) {
+		c.probeTTL = ttl
 	}
 }
 
@@ -143,7 +208,9 @@ func New(v *venv.Venv, opts ...Option) (*CAS, error) {
 	c.blobStore = NewStore(filepath.Join(c.storePath, "blobs"))
 	c.treeStore = NewStore(filepath.Join(c.storePath, "trees"))
 	c.synthStore = NewStore(filepath.Join(c.storePath, "synth", "trees"))
+	c.gitFileStore = NewStore(filepath.Join(c.storePath, "gitfiles"))
 	c.gitStore = NewGitStore(filepath.Join(c.storePath, "git"))
+	c.probeCache = NewProbeCache(filepath.Join(c.storePath, probeCacheDirName))
 
 	return c, nil
 }
@@ -156,6 +223,12 @@ func (c *CAS) TreeStore() *Store { return c.treeStore }
 
 // SynthStore returns the store for synthetic tree content.
 func (c *CAS) SynthStore() *Store { return c.synthStore }
+
+// GitFileStore returns the store with one record per (commit, git file
+// name) pair for the files [CloneOptions.IncludedGitFiles] can name. Each
+// record is a single tree line pointing at the file's blob; [GitFileKey]
+// derives the record key.
+func (c *CAS) GitFileStore() *Store { return c.gitFileStore }
 
 // StorePath returns the root directory containing every CAS store.
 func (c *CAS) StorePath() string { return c.storePath }
@@ -172,7 +245,7 @@ func (c *CAS) ensureStorePaths(v *venv.Venv) error {
 		return fmt.Errorf("create CAS store path: %w", err)
 	}
 
-	for _, s := range []*Store{c.blobStore, c.treeStore, c.synthStore} {
+	for _, s := range []*Store{c.blobStore, c.treeStore, c.synthStore, c.gitFileStore} {
 		if err := v.FS.MkdirAll(s.Path(), DefaultDirPerms); err != nil {
 			return fmt.Errorf("create CAS store subdirectory %s: %w", s.Path(), err)
 		}
@@ -190,16 +263,41 @@ func (c *CAS) ensureStorePaths(v *venv.Venv) error {
 type GitResolver struct {
 	// Venv supplies the executor Probe derives its git runner from. Required.
 	Venv *venv.Venv
-	// Store enables an offline fast path: a full-length SHA in
+	// Logger receives probe-cache diagnostics. Required when Cache is set.
+	Logger log.Logger
+	// Store enables an offline fast path: a commit-form
 	// [GitResolver.Branch] is checked against the local store before
-	// reaching ls-remote. When nil, every Probe runs ls-remote.
+	// reaching ls-remote, in the shapes [GitResolver.storeProbe]
+	// accepts. When nil, every Probe runs ls-remote.
 	Store *GitStore
+	// Cache persists ls-remote answers across processes. When nil no
+	// answer is recorded or served; the in-process flight still applies.
+	Cache *ProbeCache
 	// Branch is the ref to query. Empty means HEAD.
 	Branch string
+	// MutableTTL is how long a persisted probe for a branch, HEAD, or a
+	// tag that is not a version is served without ls-remote. Zero means
+	// every process re-probes. See [ProbeTTL].
+	MutableTTL time.Duration
+	// Mode selects between the network and the persisted cache.
+	Mode ProbeMode
+}
+
+// probeResult is what one probe flight delivers to every caller that
+// joined it.
+type probeResult struct {
+	key    string
+	origin probeOrigin
 }
 
 // Scheme returns "git".
-func (r *GitResolver) Scheme() string { return "git" }
+func (r *GitResolver) Scheme() string { return gitScheme }
+
+// Pinned always reports false. Git decides immutability after probing,
+// from the ref ls-remote matched rather than the ref that was asked for
+// (see [GitResolver.recordProbe]), so it has no pre-probe answer to give.
+// Nothing consults it: [CAS.Clone] asks for [ProbeCachedByResolver].
+func (r *GitResolver) Pinned(_ redact.URL) bool { return false }
 
 // Probe returns the commit SHA for r.Branch (HEAD when empty). The
 // returned SHA is the cache key verbatim and doubles as the git
@@ -208,37 +306,174 @@ func (r *GitResolver) Scheme() string { return "git" }
 // `git ls-remote` is authoritative; ls-remote misses (the caller
 // supplied a commit-form ref directly) surface as
 // [ErrNoVersionMetadata] so the fetcher canonicalizes via rev-parse.
-// When [GitResolver.Store] is set, a full-length SHA in r.Branch
-// short-circuits ls-remote on a local cache hit.
-func (r *GitResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	if r.Store != nil && looksLikeFullSHA(r.Branch) {
-		if hash, ok := r.Store.ProbeCachedCommit(ctx, r.Venv, rawURL, r.Branch); ok {
-			return hash, nil
-		}
+// When [GitResolver.Store] is set, a commit r.Branch names that the
+// store already holds short-circuits ls-remote (see
+// [GitResolver.storeProbe]). Concurrent probes of the same (URL, ref)
+// anywhere in the process share one ls-remote, and a persisted answer
+// within its TTL (see [ProbeTTL]) skips ls-remote entirely.
+func (r *GitResolver) Probe(ctx context.Context, u redact.URL) (string, error) {
+	if hash, ok := r.storeProbe(ctx, u); ok {
+		recordProbeOrigin(ctx, probeOriginGitStore)
+
+		return hash, nil
+	}
+
+	res, err := flights.probe.do(ctx, r.flightKey(u), func(ctx context.Context) (probeResult, error) {
+		return r.probeUncoalesced(ctx, u)
+	})
+	if err != nil {
+		return "", err
+	}
+
+	recordProbeOrigin(ctx, res.origin)
+
+	return res.key, nil
+}
+
+// storeProbe answers from the local bare repository when it already
+// holds the commit r.Branch names.
+//
+// Online only a full-length SHA is offered to the store, so a hex-named
+// branch keeps tracking its remote tip instead of freezing at the first
+// commit its name prefixed. Offline there is no tip to track and the
+// only other outcome is [OfflineMissError], so an abbreviated SHA is
+// offered too; [GitStore.ProbeCachedCommit] rejects a name that resolved
+// through ref lookup on its own.
+func (r *GitResolver) storeProbe(ctx context.Context, u redact.URL) (string, bool) {
+	if r.Store == nil {
+		return "", false
+	}
+
+	if !looksLikeFullSHA(r.Branch) && r.Mode != ProbeModeOffline {
+		return "", false
+	}
+
+	return r.Store.ProbeCachedCommit(ctx, r.Venv, u, r.Branch)
+}
+
+// flightKey identifies the probe of u for r.Branch within the
+// process. See [probeFlightKey] for how the key is built.
+func (r *GitResolver) flightKey(u redact.URL) string {
+	root := ""
+	if r.Cache != nil {
+		root = r.Cache.RootPath()
+	}
+
+	return probeFlightKey(root, u, r.Branch)
+}
+
+// probeFlightKey identifies the probe of u for ref within the process.
+// It carries the cache root because the flight records its answer there,
+// and probes over different stores must each record their own. The URL's
+// userinfo is dropped so the flights line up with the partition
+// [ProbeCache.EntryPath] records under: two units reaching one source
+// through different credentials share an answer here for the same reason
+// they share the persisted one.
+func probeFlightKey(cacheRoot string, u redact.URL, ref string) string {
+	return cacheRoot + "\x00" + u.WithoutUserinfo() + "\x00" + ref
+}
+
+// probeUncoalesced answers one probe from the persisted cache or, when
+// the mode allows it, from ls-remote, recording a fresh network answer
+// for later processes.
+func (r *GitResolver) probeUncoalesced(ctx context.Context, u redact.URL) (probeResult, error) {
+	if entry, ok := r.cachedProbe(u); ok {
+		return probeResult{key: entry.Key, origin: probeOriginProbeCache}, nil
+	}
+
+	if r.Mode == ProbeModeOffline {
+		return probeResult{}, &OfflineMissError{Source: u, Ref: probeRefName(r.Branch)}
 	}
 
 	runner, err := git.NewGitRunner(r.Venv)
 	if err != nil {
-		return "", err
+		return probeResult{}, err
 	}
 
-	results, err := runner.LsRemote(ctx, rawURL, r.Branch)
+	results, err := runner.LsRemote(ctx, u.Reveal(), r.Branch)
 	if err != nil {
 		if errors.Is(err, git.ErrNoMatchingReference) {
-			return "", ErrNoVersionMetadata
+			return probeResult{}, ErrNoVersionMetadata
 		}
 
-		return "", err
+		return probeResult{}, err
 	}
 
 	if len(results) == 0 {
-		return "", ErrNoVersionMetadata
+		return probeResult{}, ErrNoVersionMetadata
 	}
 
-	return results[0].Hash, nil
+	r.recordProbe(u, results[0])
+
+	return probeResult{key: results[0].Hash, origin: probeOriginLsRemote}, nil
 }
 
-// Clone fetches url into the target directory through the CAS, using a
+// cachedProbe returns the persisted answer for u when the mode and
+// TTL allow serving it.
+func (r *GitResolver) cachedProbe(u redact.URL) (ProbeEntry, bool) {
+	if r.Cache == nil || r.Mode == ProbeModeRefresh {
+		return ProbeEntry{}, false
+	}
+
+	entry, ok := r.Cache.Lookup(r.Venv.FS, u, r.Branch)
+	if !ok || !looksLikeFullSHA(entry.Key) {
+		return ProbeEntry{}, false
+	}
+
+	if r.Mode == ProbeModeOffline {
+		return entry, true
+	}
+
+	ttl := ProbeTTL(&entry, r.MutableTTL)
+	if ttl <= 0 || time.Since(entry.ProbedAt) >= ttl {
+		return ProbeEntry{}, false
+	}
+
+	return entry, true
+}
+
+// recordProbe persists a network answer. A failed write costs only the
+// next process a probe, so it is logged rather than failing a probe that
+// already succeeded.
+func (r *GitResolver) recordProbe(u redact.URL, res git.LsRemoteResult) {
+	if r.Cache == nil {
+		return
+	}
+
+	// Immutability follows the ref ls-remote matched, not the name asked
+	// for: a branch named v1.2.3 shadows a tag of that name in ls-remote's
+	// output and must keep re-probing like any other branch.
+	entry := ProbeEntry{
+		ProbedAt:  time.Now(),
+		Key:       res.Hash,
+		Immutable: IsSemverTag(res.Ref),
+	}
+
+	if err := r.Cache.Store(r.Venv.FS, u, r.Branch, &entry); err != nil {
+		r.Logger.Debugf("cas: probe cache write for %s failed: %v", u, err)
+	}
+}
+
+// newGitResolver builds the [GitResolver] for branch with this CAS's
+// stores, probe cache, and mode.
+func (c *CAS) newGitResolver(l log.Logger, v *venv.Venv, branch string) *GitResolver {
+	cache := c.probeCache
+	if !c.probeCacheEnabled {
+		cache = nil
+	}
+
+	return &GitResolver{
+		Venv:       v,
+		Logger:     l,
+		Store:      c.gitStore,
+		Cache:      cache,
+		Branch:     branch,
+		MutableTTL: c.probeTTL,
+		Mode:       c.probeMode,
+	}
+}
+
+// Clone fetches u into the target directory through the CAS, using a
 // [GitResolver] for the probe and ingesting via `git ls-tree -r` /
 // `git cat-file` so the native git blob and tree formats reach the
 // stores intact. Callers customize the clone by passing options such as
@@ -252,7 +487,7 @@ func (c *CAS) Clone(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	url string,
+	u redact.URL,
 	options ...CloneOption,
 ) error {
 	v.RequireFS()
@@ -264,20 +499,21 @@ func (c *CAS) Clone(
 	}
 
 	clonedOpts := opts
-	clonedOpts.Dir = c.prepareTargetDirectory(opts.Dir, url)
+	clonedOpts.Dir = c.prepareTargetDirectory(opts.Dir, u)
 
 	return c.FetchSource(ctx, l, v, &clonedOpts, SourceRequest{
-		Scheme:   "git",
-		URL:      url,
-		Resolver: &GitResolver{Venv: v, Store: c.gitStore, Branch: opts.Branch},
-		Fetch:    c.gitFetcher(url, &opts),
-		Attrs:    map[string]any{"branch": opts.Branch},
+		Scheme:       gitScheme,
+		URL:          u,
+		Resolver:     c.newGitResolver(l, v, opts.Branch),
+		Fetch:        c.gitFetcher(u, &opts),
+		Attrs:        map[string]any{"branch": opts.Branch},
+		ProbeCaching: ProbeCachedByResolver,
 	})
 }
 
 // EnsureBlob stores the blob named by hash unless the store already has
-// it, streaming its content straight from batch into the store's temp
-// file instead of going through [Content.Store]. The stored blob takes the
+// it, streaming its content straight from batch into a temp file in the
+// store instead of going through [Content.Store]. The stored blob takes the
 // git tree mode with the write bits cleared, so the default-link path can
 // hardlink it without changing whether it is executable.
 func (c *CAS) EnsureBlob(
@@ -285,45 +521,14 @@ func (c *CAS) EnsureBlob(
 	batch *git.CatFileBatch,
 	hash string,
 	gitPerm os.FileMode,
-) (err error) {
+) error {
 	v.RequireGOOS()
 
-	needsWrite, lock, err := c.blobStore.EnsureWithWait(v, hash)
-	if err != nil {
-		return err
-	}
+	needsWrite, unlock := c.blobStore.EnsureWithWait(v, hash)
+	defer unlock()
 
 	if !needsWrite {
 		return nil
-	}
-
-	defer func() {
-		if unlockErr := lock.Unlock(); unlockErr != nil {
-			err = errors.Join(err, unlockErr)
-		}
-	}()
-
-	content := NewContent(c.blobStore)
-
-	tmpHandle, err := content.GetTmpHandle(v, hash)
-	if err != nil {
-		return err
-	}
-
-	tmpPath := tmpHandle.Name()
-
-	defer func() {
-		if _, statErr := v.FS.Stat(tmpPath); statErr == nil {
-			err = errors.Join(err, v.FS.Remove(tmpPath))
-		}
-	}()
-
-	if err = streamBlob(v, batch, hash, tmpHandle); err != nil {
-		return err
-	}
-
-	if err = v.FS.Rename(tmpPath, content.getPath(hash)); err != nil {
-		return err
 	}
 
 	// Symlink entries (git mode 120000) have no permission bits, but the blob
@@ -334,11 +539,17 @@ func (c *CAS) EnsureBlob(
 		storedPerm = StoredFilePerms
 	}
 
-	if err = v.FS.Chmod(content.getPath(hash), storedPerm); err != nil {
-		return err
-	}
+	return NewContent(c.blobStore).writeObject(v, hash, storedPerm, func(f vfs.File) error {
+		if err := batch.ReadBlob(hash, f); err != nil {
+			return err
+		}
 
-	return nil
+		if v.Platform.GOOS == WindowsOS {
+			return f.Sync()
+		}
+
+		return nil
+	})
 }
 
 // gitFetcher returns a SourceFetcher that ingests through the git-native
@@ -346,47 +557,99 @@ func (c *CAS) EnsureBlob(
 // commit SHA from ls-remote; empty means ls-remote produced no match and
 // rev-parse against the central GitStore canonicalizes the user ref after
 // fetching.
-func (c *CAS) gitFetcher(url string, opts *CloneOptions) SourceFetcher {
-	return func(ctx context.Context, l log.Logger, v *venv.Venv, suggestedKey string) (string, error) {
+func (c *CAS) gitFetcher(u redact.URL, opts *CloneOptions) SourceFetcher {
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		suggestedKey string,
+		mode IngestMode,
+	) (string, error) {
 		var ref resolvedRef
 		if suggestedKey != "" {
-			ref = &symbolicRef{URL: url, Branch: opts.Branch, Hash: suggestedKey}
+			ref = &symbolicRef{URL: u, Branch: opts.Branch, Hash: suggestedKey}
 		} else {
-			ref = &commitRef{URL: url, RawRef: opts.Branch}
+			ref = &commitRef{URL: u, RawRef: opts.Branch}
 		}
 
-		return c.populateTreeFromRef(ctx, l, v, opts, ref)
+		return c.populateTreeFromRef(ctx, l, v, opts, ref, mode)
 	}
 }
 
-// populateTreeFromRef dispatches by ref kind, short-circuiting on a
-// cached [symbolicRef] and otherwise calling the kind-specific
-// populate. Returns the canonical commit hash.
+// populateTreeFromRef returns the canonical commit hash for ref, ingesting
+// its tree and opts.IncludedGitFiles when the store lacks either.
+// Concurrent ingests of the same ref and list anywhere in the process
+// share one flight; the flight runs with the first caller's logger, venv,
+// and clone options, and later callers only wait for what it stores.
+//
+// Under [IngestRepair] the store hit is passed over, so the tree is
+// ingested again and the objects it names are written back.
 func (c *CAS) populateTreeFromRef(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *CloneOptions,
 	ref resolvedRef,
+	mode IngestMode,
+) (string, error) {
+	if hash := ref.knownHash(); mode.trustsStoreHits() && hash != "" && !c.needsIngest(v, hash, opts) {
+		return hash, nil
+	}
+
+	if c.probeMode == ProbeModeOffline {
+		url, requested := ref.origin()
+
+		return "", &OfflineMissError{Source: url, Ref: probeRefName(requested)}
+	}
+
+	return flights.ingest.do(ctx, c.ingestFlightKey(ref, mode, opts), func(ctx context.Context) (string, error) {
+		return c.ingestRef(ctx, l, v, opts, ref, mode)
+	})
+}
+
+// ingestFlightKey identifies what an ingest writes into this store: the
+// tree for the commit hash when it is already known, otherwise for the
+// (URL, ref) pair that will resolve to it, plus the records for
+// opts.IncludedGitFiles. The list is part of the key because a caller
+// joining a flight only waits for it, so a flight run with another
+// caller's list would leave the joiner's .git files unrecorded.
+//
+// The mode is part of the key because a repair that joined a cached
+// ingest would get back an ingest that trusted the store hit the repair
+// was started to correct.
+func (c *CAS) ingestFlightKey(ref resolvedRef, mode IngestMode, opts *CloneOptions) string {
+	scope := c.storePath + "\x00" + strconv.Itoa(int(mode))
+	files := "\x00files\x00" + strings.Join(opts.IncludedGitFiles, "\x00")
+
+	if hash := ref.knownHash(); hash != "" {
+		return scope + "\x00commit\x00" + hash + files
+	}
+
+	url, requested := ref.origin()
+
+	return scope + "\x00ref\x00" + url.Reveal() + "\x00" + requested + files
+}
+
+// ingestRef dispatches by ref kind to the populate that fills the store.
+// Returns the canonical commit hash.
+func (c *CAS) ingestRef(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *CloneOptions,
+	ref resolvedRef,
+	mode IngestMode,
 ) (string, error) {
 	switch ref := ref.(type) {
 	case *symbolicRef:
-		if !c.treeStore.NeedsWrite(v, ref.Hash) {
-			return ref.Hash, nil
-		}
-
-		if err := c.populateTreeFromSymbolicRef(ctx, l, v, opts, ref); err != nil {
+		if err := c.populateTreeFromSymbolicRef(ctx, l, v, opts, ref, mode); err != nil {
 			return "", err
 		}
 
 		return ref.Hash, nil
 
 	case *commitRef:
-		if ref.Hash != "" && !c.treeStore.NeedsWrite(v, ref.Hash) {
-			return ref.Hash, nil
-		}
-
-		return c.populateTreeFromCommitRef(ctx, l, v, opts, ref)
+		return c.populateTreeFromCommitRef(ctx, l, v, opts, ref, mode)
 
 	default:
 		return "", fmt.Errorf("unsupported resolved ref type %T", ref)
@@ -403,6 +666,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 	v *venv.Venv,
 	opts *CloneOptions,
 	ref *symbolicRef,
+	mode IngestMode,
 ) error {
 	gitRunner, err := git.NewGitRunner(v)
 	if err != nil {
@@ -417,7 +681,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 
 		runner := gitRunner.WithWorkDir(repo.Path)
 
-		return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts)
+		return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts, mode)
 	}
 
 	l.Warnf(
@@ -436,23 +700,24 @@ func (c *CAS) populateTreeFromSymbolicRef(
 
 	runner := gitRunner.WithWorkDir(tempDir)
 
-	if err := runner.Clone(ctx, ref.URL, true, depth, ref.Branch); err != nil {
+	if err := runner.Clone(ctx, ref.URL.Reveal(), true, depth, ref.Branch); err != nil {
 		return err
 	}
 
-	return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts)
+	return c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, ref.Hash, opts, mode)
 }
 
 // populateTreeFromCommitRef resolves ref via [GitStore.EnsureCommit]
-// (full-depth fetch on a cache miss) and stores its tree in the CAS.
-// Returns the canonical commit hash. Falls back to a temporary bare
-// clone if the central [GitStore] is unavailable.
+// (a cache miss fetches through [fetchPinnedCommit]) and stores its tree
+// in the CAS. Returns the canonical commit hash. Falls back to a
+// temporary bare clone if the central [GitStore] is unavailable.
 func (c *CAS) populateTreeFromCommitRef(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *CloneOptions,
 	ref *commitRef,
+	mode IngestMode,
 ) (string, error) {
 	gitRunner, err := git.NewGitRunner(v)
 	if err != nil {
@@ -463,13 +728,13 @@ func (c *CAS) populateTreeFromCommitRef(
 	if err == nil {
 		defer repo.Release(l)
 
-		if !c.treeStore.NeedsWrite(v, repo.Hash) {
+		if mode.trustsStoreHits() && !c.needsIngest(v, repo.Hash, opts) {
 			return repo.Hash, nil
 		}
 
 		runner := gitRunner.WithWorkDir(repo.Path)
 
-		if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, repo.Hash, opts); err != nil {
+		if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, repo.Hash, opts, mode); err != nil {
 			return "", err
 		}
 
@@ -496,7 +761,7 @@ func (c *CAS) populateTreeFromCommitRef(
 
 	runner := gitRunner.WithWorkDir(tempDir)
 
-	if err := runner.Clone(ctx, ref.URL, true, 0, ""); err != nil {
+	if err := runner.Clone(ctx, ref.URL.Reveal(), true, 0, ""); err != nil {
 		return "", err
 	}
 
@@ -513,11 +778,11 @@ func (c *CAS) populateTreeFromCommitRef(
 		return "", err
 	}
 
-	if !c.treeStore.NeedsWrite(v, canonicalHash) {
+	if mode.trustsStoreHits() && !c.needsIngest(v, canonicalHash, opts) {
 		return canonicalHash, nil
 	}
 
-	if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, canonicalHash, opts); err != nil {
+	if err := c.storeRootTreeFrom(ctx, l, v, runner, ref.URL, canonicalHash, opts, mode); err != nil {
 		return "", err
 	}
 
@@ -561,10 +826,10 @@ func resolveCloneDepth(optDepth, casDepth int) int {
 	return depth
 }
 
-func (c *CAS) prepareTargetDirectory(dir, url string) string {
+func (c *CAS) prepareTargetDirectory(dir string, u redact.URL) string {
 	targetDir := dir
 	if targetDir == "" {
-		targetDir = git.ExtractRepoName(url)
+		targetDir = git.ExtractRepoName(u.Reveal())
 	}
 
 	return filepath.Clean(targetDir)
@@ -575,11 +840,16 @@ func (c *CAS) prepareTargetDirectory(dir, url string) string {
 // otherwise.
 type resolvedRef interface {
 	CommitHash() string
+	// knownHash returns the canonical commit hash when resolution already
+	// produced one, and "" when only a fetch can produce it.
+	knownHash() string
+	// origin returns the remote URL and the ref the caller asked for.
+	origin() (url redact.URL, ref string)
 }
 
 // symbolicRef carries an ls-remote-resolved branch, tag, or HEAD.
 type symbolicRef struct {
-	URL    string
+	URL    redact.URL
 	Branch string // ref name, used for the per-ref fetch
 	Hash   string // canonical commit hash
 }
@@ -587,12 +857,16 @@ type symbolicRef struct {
 // CommitHash returns the canonical commit hash ls-remote resolved.
 func (r *symbolicRef) CommitHash() string { return r.Hash }
 
+func (r *symbolicRef) knownHash() string { return r.Hash }
+
+func (r *symbolicRef) origin() (redact.URL, string) { return r.URL, r.Branch }
+
 // commitRef carries a ref ls-remote did not canonicalize. The central git
-// store resolves it later via rev-parse and a full-history fetch on a
-// cache miss.
+// store resolves it later via rev-parse, fetching through
+// [fetchPinnedCommit] on a cache miss.
 type commitRef struct {
 	// URL is the remote repository URL.
-	URL string
+	URL redact.URL
 	// RawRef is the user-supplied ref. Any form `git rev-parse` accepts
 	// works (full SHA, abbreviated SHA, name ls-remote did not match).
 	RawRef string
@@ -607,36 +881,43 @@ type commitRef struct {
 // git store happened to have the commit cached.
 func (r *commitRef) CommitHash() string { return r.RawRef }
 
+func (r *commitRef) knownHash() string { return r.Hash }
+
+func (r *commitRef) origin() (redact.URL, string) { return r.URL, r.RawRef }
+
 // resolveReference resolves branch into a [resolvedRef] via [GitResolver].
 //
 // Full-length SHAs (40 or 64 hex chars) are checked against the local git
-// store first so previously-cloned commits resolve offline; abbreviated
-// SHAs skip the probe to avoid mistaking a hex-named branch tip for the
-// SHA prefix and freezing the branch at its first-fetched tip (see
-// [looksLikeFullSHA]).
+// store first so previously-cloned commits resolve offline; online an
+// abbreviated SHA skips that check to avoid mistaking a hex-named branch
+// tip for the SHA prefix and freezing the branch at its first-fetched tip
+// (see [looksLikeFullSHA]). Offline there is no moving tip to track and
+// the alternative is a failed run, so the store answers an abbreviated
+// SHA too, still as a [commitRef] so the stack key stays the ref the user
+// wrote.
 func (c *CAS) resolveReference(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
-	url, branch string,
+	u redact.URL,
+	branch string,
 ) (resolvedRef, error) {
-	if looksLikeFullSHA(branch) {
-		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, v, url, branch); ok {
-			return &commitRef{URL: url, RawRef: branch, Hash: hash}, nil
+	if looksLikeFullSHA(branch) || c.probeMode == ProbeModeOffline {
+		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, v, u, branch); ok {
+			return &commitRef{URL: u, RawRef: branch, Hash: hash}, nil
 		}
 	}
 
-	r := &GitResolver{Venv: v, Store: c.gitStore, Branch: branch}
-
-	key, err := r.Probe(ctx, url)
+	key, err := c.newGitResolver(l, v, branch).Probe(ctx, u)
 	if err != nil {
 		if errors.Is(err, ErrNoVersionMetadata) {
-			return &commitRef{URL: url, RawRef: branch}, nil
+			return &commitRef{URL: u, RawRef: branch}, nil
 		}
 
 		return nil, err
 	}
 
-	return &symbolicRef{URL: url, Branch: branch, Hash: key}, nil
+	return &symbolicRef{URL: u, Branch: branch, Hash: key}, nil
 }
 
 // looksLikeFullSHA reports whether s is exactly 40 or 64 hex characters,
@@ -655,8 +936,9 @@ func looksLikeFullSHA(s string) bool {
 
 // storeRootTreeFrom reads the recursive tree at hash from the supplied
 // runner's working repository and stores its tree and reachable blobs in
-// the CAS. The runner must already have its WorkDir pointed at a bare repo
-// (or worktree) that contains the requested object. url is the remote the
+// the CAS, then records each of opts.IncludedGitFiles against hash. The
+// runner must already have its WorkDir pointed at a bare repo (or
+// worktree) that contains the requested object. u is the remote the
 // repository came from; submodule ingestion resolves relative .gitmodules
 // URLs against it.
 func (c *CAS) storeRootTreeFrom(
@@ -664,74 +946,122 @@ func (c *CAS) storeRootTreeFrom(
 	l log.Logger,
 	v *venv.Venv,
 	runner *git.GitRunner,
-	url, hash string,
+	u redact.URL,
+	hash string,
 	opts *CloneOptions,
+	mode IngestMode,
 ) error {
 	tree, err := runner.LsTreeRecursive(ctx, hash)
 	if err != nil {
 		return err
 	}
 
-	if err = c.storeTreeRecursive(ctx, l, v, runner, url, hash, tree); err != nil {
+	if err = c.storeTreeRecursive(ctx, l, v, runner, u, hash, tree, mode); err != nil {
 		return err
 	}
 
-	if len(opts.IncludedGitFiles) == 0 {
-		return nil
+	return c.storeIncludedGitFiles(l, v, runner.WorkDir, hash, opts.IncludedGitFiles)
+}
+
+// needsIngest reports whether the store lacks the tree at hash or a
+// record for any of opts.IncludedGitFiles against it. Checking the tree
+// alone would let an earlier ingest with a shorter list short-circuit a
+// later caller out of the .git files it asked for.
+func (c *CAS) needsIngest(v *venv.Venv, hash string, opts *CloneOptions) bool {
+	if c.treeStore.NeedsWrite(v, hash) {
+		return true
 	}
 
-	treeContent := NewContent(c.treeStore)
-
-	data, err := treeContent.Read(v, hash)
-	if err != nil {
-		return err
-	}
-
-	for _, file := range opts.IncludedGitFiles {
-		stat, err := v.FS.Stat(filepath.Join(runner.WorkDir, file))
-		if err != nil {
-			return err
+	for _, name := range opts.IncludedGitFiles {
+		if c.gitFileStore.NeedsWrite(v, GitFileKey(hash, name)) {
+			return true
 		}
+	}
 
-		if stat.IsDir() {
+	return false
+}
+
+// storeIncludedGitFiles copies each named file from the git directory
+// at repoDir into the blob store and records it against hash. Names
+// already recorded are skipped, so a later caller with a longer list
+// only adds the files the earlier ingest did not cover. The record is
+// written after the blob so a record hit implies the blob is present.
+func (c *CAS) storeIncludedGitFiles(
+	l log.Logger,
+	v *venv.Venv,
+	repoDir, hash string,
+	names []string,
+) error {
+	blobContent := NewContent(c.blobStore)
+	recordContent := NewContent(c.gitFileStore)
+
+	for _, name := range names {
+		key := GitFileKey(hash, name)
+		if !c.gitFileStore.NeedsWrite(v, key) {
 			continue
 		}
 
-		workDirPath := filepath.Join(runner.WorkDir, file)
+		srcPath := filepath.Join(repoDir, name)
 
-		includedHash, err := hashFile(v.FS, workDirPath)
+		info, err := v.FS.Stat(srcPath)
 		if err != nil {
 			return err
 		}
 
-		blobContent := NewContent(c.blobStore)
+		if info.IsDir() {
+			return &WrappedError{Op: "store_git_file", Path: srcPath, Err: ErrIncludedGitFileIsDir}
+		}
 
-		if err := blobContent.EnsureCopy(l, v, includedHash, workDirPath); err != nil {
+		blobHash, err := hashFile(v.FS, srcPath)
+		if err != nil {
 			return err
 		}
 
-		path := filepath.Join(".git", file)
+		if err := blobContent.EnsureCopy(l, v, blobHash, srcPath); err != nil {
+			return err
+		}
 
-		data = append(
-			data,
-			fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), includedHash, path)...)
+		record := fmt.Appendf(nil, "%06o blob %s\t%s\n", info.Mode().Perm(), blobHash, name)
+
+		if err := recordContent.EnsureWithWait(l, v, key, record, StoredFilePerms); err != nil {
+			return err
+		}
 	}
 
-	return treeContent.Store(l, v, hash, data, StoredFilePerms)
+	return nil
+}
+
+// GitFileKey returns the [CAS.GitFileStore] key for the git directory
+// file name recorded against the commit at hash.
+func GitFileKey(hash, name string) string {
+	h := sha256.New()
+	h.Write([]byte("gitfile\x00"))
+	h.Write([]byte(hash))
+	h.Write([]byte{0})
+	h.Write([]byte(name))
+
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // storeTreeRecursive stores a tree fetched from git ls-tree -r. The tree
 // object is written last so a tree-store hit implies every blob and
 // submodule tree it references is already present.
+//
+// [IngestRepair] is what to pass once that implication has been shown
+// false. The listing is walked again and every object it names that the
+// store lacks is written, so a store missing one blob is read back out of
+// the repository one blob at a time, not wholesale.
 func (c *CAS) storeTreeRecursive(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	runner *git.GitRunner,
-	url, hash string,
+	u redact.URL,
+	hash string,
 	tree *git.Tree,
+	mode IngestMode,
 ) error {
-	if !c.treeStore.NeedsWrite(v, hash) {
+	if mode.trustsStoreHits() && !c.treeStore.NeedsWrite(v, hash) {
 		return nil
 	}
 
@@ -739,7 +1069,7 @@ func (c *CAS) storeTreeRecursive(
 		return err
 	}
 
-	if err := c.storeSubmodules(ctx, l, v, runner, url, tree); err != nil {
+	if err := c.storeSubmodules(ctx, l, v, runner, u, tree, mode); err != nil {
 		return err
 	}
 
@@ -862,7 +1192,7 @@ func (c *CAS) blobsNeedingWrite(v *venv.Venv, entries []git.TreeEntry) []git.Tre
 // materializer can later link each submodule's tree by its pinned commit
 // hash, which is exactly the key the recursive ingest stores it under.
 // Submodule URLs come from the tree's .gitmodules blob, with relative
-// URLs resolved against url. Recursion bottoms out naturally: nested
+// URLs resolved against u. Recursion bottoms out naturally: nested
 // gitlinks pin commits by hash, and a hash cycle cannot be constructed.
 //
 // Gitlinks without a .gitmodules entry (the shape left behind by
@@ -874,8 +1204,9 @@ func (c *CAS) storeSubmodules(
 	l log.Logger,
 	v *venv.Venv,
 	runner *git.GitRunner,
-	url string,
+	u redact.URL,
 	tree *git.Tree,
+	mode IngestMode,
 ) error {
 	var gitlinks []git.TreeEntry
 
@@ -905,10 +1236,10 @@ func (c *CAS) storeSubmodules(
 			continue
 		}
 
-		resolvedURL := git.ResolveSubmoduleURL(url, subURL)
+		resolvedURL := redact.NewURL(git.ResolveSubmoduleURL(u.Reveal(), subURL))
 
 		ref := &commitRef{URL: resolvedURL, RawRef: entry.Hash, Hash: entry.Hash}
-		if _, err := c.populateTreeFromRef(ctx, l, v, &CloneOptions{}, ref); err != nil {
+		if _, err := c.populateTreeFromRef(ctx, l, v, &CloneOptions{}, ref, mode); err != nil {
 			return fmt.Errorf("fetch submodule %s from %s: %w", entry.Path, resolvedURL, err)
 		}
 	}
@@ -930,30 +1261,6 @@ func submoduleURLs(
 	}
 
 	return nil, nil
-}
-
-// streamBlob reads the blob named by hash from batch into tmpHandle and
-// closes the handle whatever the outcome. The caller removes or renames
-// the file next, and Windows refuses both while a handle is open.
-func streamBlob(
-	v *venv.Venv,
-	batch *git.CatFileBatch,
-	hash string,
-	tmpHandle vfs.File,
-) (err error) {
-	defer func() {
-		err = errors.Join(err, tmpHandle.Close())
-	}()
-
-	if err := batch.ReadBlob(hash, tmpHandle); err != nil {
-		return err
-	}
-
-	if v.Platform.GOOS == WindowsOS {
-		return tmpHandle.Sync()
-	}
-
-	return nil
 }
 
 func hashFile(fsys vfs.FS, path string) (string, error) {

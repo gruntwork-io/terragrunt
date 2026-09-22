@@ -3,19 +3,19 @@ export const prerender = true;
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import ExperimentEntries from '@components/ExperimentEntries.astro';
 import { getCollection } from 'astro:content';
-import { getLatestRelease } from '@lib/github';
-import { isCompleted, isVersionReleased } from '@lib/experiments';
+import { getLatestVersion } from '@lib/release';
+import { isCompleted } from '@lib/experiments';
+import { isReleased } from '@lib/versions';
 
 const showUnreleased = import.meta.env.DEV;
 
-const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
-const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+const latestVersion = await getLatestVersion();
 
 const allEntries = await getCollection('experiments');
 
 const entries = allEntries
 	.filter((e) => !isCompleted(e, latestVersion))
-	.filter((e) => showUnreleased || isVersionReleased(e.data.since, latestVersion))
+	.filter((e) => showUnreleased || !e.data.since || isReleased(e.data.since, latestVersion))
 	.sort((a, b) => a.data.name.localeCompare(b.data.name));
 
 const headings: { depth: number; slug: string; text: string }[] = [];

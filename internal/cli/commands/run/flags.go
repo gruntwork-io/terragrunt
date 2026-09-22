@@ -3,7 +3,6 @@ package run
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -87,14 +86,6 @@ const (
 	IAMAssumeRoleDurationFlagName         = shared.IAMAssumeRoleDurationFlagName
 	IAMAssumeRoleSessionNameFlagName      = shared.IAMAssumeRoleSessionNameFlagName
 	IAMAssumeRoleWebIdentityTokenFlagName = shared.IAMAssumeRoleWebIdentityTokenFlagName
-)
-
-var ErrNoHooksRequiresExperiment = errors.New(
-	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
-)
-
-var ErrNoDependencyOutputsRequiresExperiment = errors.New(
-	"--no-dependency-outputs requires the 'optional-dependency-outputs' experiment to be enabled (e.g., --experiment=optional-dependency-outputs)",
 )
 
 // NewFlags creates and returns global flags.
@@ -189,36 +180,14 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			Name:        NoHooksFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoHooksFlagName),
 			Destination: &opts.NoRunHooks,
-			Usage:       "Disable Terragrunt hooks during run. Requires the 'optional-hooks' experiment.",
-			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
-				if !value {
-					return nil
-				}
-
-				if opts.Experiments.Evaluate(experiment.OptionalHooks) {
-					return nil
-				}
-
-				return ErrNoHooksRequiresExperiment
-			},
+			Usage:       "Disable Terragrunt hooks during run.",
 		}),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoDependencyOutputsFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoDependencyOutputsFlagName),
 			Destination: &opts.SkipOutput,
-			Usage:       "Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output. Requires the 'optional-dependency-outputs' experiment.",
-			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
-				if !value {
-					return nil
-				}
-
-				if opts.Experiments.Evaluate(experiment.OptionalDependencyOutputs) {
-					return nil
-				}
-
-				return ErrNoDependencyOutputsRequiresExperiment
-			},
+			Usage:       "Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output.",
 		}),
 
 		shared.NewDownloadDirFlag(opts, prefix),
@@ -267,12 +236,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			&clihelper.BoolFlag{
 				Name:    DependencyFetchOutputFromStateFlagName,
 				EnvVars: tgPrefix.EnvVars(DependencyFetchOutputFromStateFlagName),
-				Usage:   "Enable the dependency-fetch-output-from-state experiment to fetch dependency output directly from the state file instead of using tofu/terraform output.",
-				Action: func(_ context.Context, _ *clihelper.Context, val bool) error {
+				Usage:   "Read dependency outputs directly from the state file. Enabled by default; retained for backwards compatibility.",
+				Action: func(ctx context.Context, _ *clihelper.Context, val bool) error {
 					if val {
-						return opts.Experiments.EnableExperiment(
-							experiment.DependencyFetchOutputFromState,
-						)
+						return opts.StrictControls.FilterByNames(controls.DependencyFetchOutputFromState).
+							Evaluate(ctx)
 					}
 
 					return nil
@@ -288,8 +256,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			Name:        NoDependencyFetchOutputFromStateFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoDependencyFetchOutputFromStateFlagName),
 			Destination: &opts.NoDependencyFetchOutputFromState,
-			Usage:       "Disable the dependency-fetch-output-from-state feature even when the experiment is enabled.",
-			Hidden:      true,
+			Usage:       "Read dependency outputs by running tofu/terraform output instead of reading the state file directly.",
 		}),
 
 		flags.NewFlag(

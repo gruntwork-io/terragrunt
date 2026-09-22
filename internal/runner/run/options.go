@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/puzpuzpuz/xsync/v4"
-
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
@@ -47,7 +45,7 @@ type Options struct {
 	EngineConfig                 *engine.EngineConfig
 	EngineOptions                *engine.EngineOptions
 	Errors                       *errorconfig.Config
-	FeatureFlags                 *xsync.Map[string, string]
+	FeatureFlags                 map[string]string
 	Telemetry                    *telemetry.Options
 	SourceMap                    map[string]string
 	TFPath                       string
@@ -69,7 +67,10 @@ type Options struct {
 	StrictControls               strict.Controls
 	MaxFoldersToCheck            int
 	CASCloneDepth                int
+	CASProbeTTL                  time.Duration
 	NoCAS                        bool
+	CASOffline                   bool
+	CASRefresh                   bool
 	NoHooks                      bool
 	TofuCPUProfileUserSet        bool
 	AutoRetry                    bool
@@ -228,6 +229,7 @@ func (o *Options) remoteStateOpts(env map[string]string) *remotestate.Options {
 	return &remotestate.Options{
 		Experiments:                  o.Experiments,
 		IAMRoleOptions:               o.IAMRoleOptions,
+		StrictControls:               o.StrictControls,
 		NonInteractive:               o.NonInteractive,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		TFRunOpts:                    o.tfRunOptions(env),

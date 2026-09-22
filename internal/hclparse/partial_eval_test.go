@@ -438,8 +438,8 @@ func TestIsPure(t *testing.T) {
 }
 
 // testDeferred is the standard deferred roots map for tests.
-var testDeferred = map[string]bool{
-	"dependency": true,
+var testDeferred = map[string]struct{}{
+	"dependency": {},
 }
 
 // parseFirstAttrExpr parses an HCL snippet with a single attribute and returns
@@ -461,7 +461,7 @@ func parseFirstAttrExpr(t *testing.T, src string) (hclsyntax.Expression, []byte)
 		return attr.Expr, srcBytes
 	}
 
-	t.Fatal("unreachable")
+	require.Fail(t, "unreachable")
 
 	return nil, nil
 }

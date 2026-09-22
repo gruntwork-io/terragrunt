@@ -298,7 +298,7 @@ func TestParseTerragruntConfigGenerateBlockInvalidIfDisabledWithInclude(t *testi
 
 	childCfg := `
 include "root" {
-  path   = "` + filepath.Join(tmpDir, "root.hcl") + `"
+  path   = "` + filepath.ToSlash(filepath.Join(tmpDir, "root.hcl")) + `"
   expose = true
 }
 
@@ -434,9 +434,7 @@ remote_state {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Empty(t, terragruntConfig.IamRole)
@@ -489,9 +487,7 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Empty(t, terragruntConfig.IamRole)
@@ -575,9 +571,7 @@ func TestParseIamRole(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -603,9 +597,7 @@ func TestParseIamAssumeRoleDuration(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -631,9 +623,7 @@ func TestParseIamAssumeRoleSessionName(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -665,9 +655,7 @@ func TestParseIamWebIdentity(t *testing.T) {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -697,9 +685,7 @@ dependencies {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -736,9 +722,7 @@ dependencies {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -794,9 +778,7 @@ dependencies {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)
@@ -862,9 +844,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)
@@ -934,7 +914,7 @@ include {
 			assert.Equal(
 				t,
 				"child/sub-child/sub-sub-child/terraform.tfstate",
-				terragruntConfig.RemoteState.BackendConfig["key"],
+				slashPath(t, terragruntConfig.RemoteState.BackendConfig["key"]),
 			)
 			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
@@ -981,7 +961,7 @@ include {
 			assert.Equal(
 				t,
 				"child/sub-child/sub-sub-child/terraform.tfstate",
-				terragruntConfig.RemoteState.BackendConfig["key"],
+				slashPath(t, terragruntConfig.RemoteState.BackendConfig["key"]),
 			)
 			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
@@ -1154,9 +1134,7 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	configPath := absPath(t, configPathRel)
 
 	cfg, err := vfs.ReadFileAsString(vfs.NewOSFS(), configPathRel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	l := createLogger()
 
@@ -1187,9 +1165,7 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	configPath := absPath(t, configPathRel)
 
 	cfg, err := vfs.ReadFileAsString(vfs.NewOSFS(), configPathRel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	l := createLogger()
 
@@ -1261,9 +1237,7 @@ func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
 		cfgString,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, cfg.RemoteState)
 }
@@ -1287,9 +1261,7 @@ terraform {}
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
@@ -1319,9 +1291,7 @@ terraform {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
@@ -1361,9 +1331,7 @@ terraform {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
@@ -1549,6 +1517,27 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 	}
 }
 
+// toSlashAll returns paths in slash form, so a fixture list written with forward
+// slashes compares equal to the OS-native paths the finder returns.
+func toSlashAll(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		out = append(out, filepath.ToSlash(path))
+	}
+
+	return out
+}
+
+// slashPath returns a string-typed config value in slash form.
+func slashPath(t *testing.T, value any) string {
+	t.Helper()
+
+	path, ok := value.(string)
+	require.True(t, ok, "expected a string, got %T", value)
+
+	return filepath.ToSlash(path)
+}
+
 func testDownloadDir(tb testing.TB, configPath string) string {
 	tb.Helper()
 
@@ -1588,7 +1577,7 @@ func TestFindConfigFilesInPathOneConfig(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesInPathOneJsonConfig(t *testing.T) {
@@ -1607,7 +1596,7 @@ func TestFindConfigFilesInPathOneJsonConfig(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
@@ -1628,7 +1617,7 @@ func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesInPathMultipleJsonConfigs(t *testing.T) {
@@ -1649,7 +1638,7 @@ func TestFindConfigFilesInPathMultipleJsonConfigs(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesInPathMultipleMixedConfigs(t *testing.T) {
@@ -1670,7 +1659,7 @@ func TestFindConfigFilesInPathMultipleMixedConfigs(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
@@ -1689,20 +1678,22 @@ func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expected, toSlashAll(actual))
 }
 
 func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 	t.Parallel()
 
+	workingDir := copyIgnoreTerraformDataDirFixture(t)
+
 	expected := []string{
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl",
+		filepath.Join(workingDir, ".tf_data", "modules", "mod", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", ".tf_data", "modules", "mod", "terragrunt.hcl"),
 	}
 	actual, err := config.FindConfigFilesInPath(
 		vfs.NewOSFS(),
-		"../../test/fixtures/config-files/ignore-terraform-data-dir",
+		workingDir,
 		experiment.NewExperiments(),
 		"test",
 		map[string]string{},
@@ -1716,13 +1707,15 @@ func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 	t.Parallel()
 
+	workingDir := copyIgnoreTerraformDataDirFixture(t)
+
 	expected := []string{
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
+		filepath.Join(workingDir, "subdir", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", ".terraform", "modules", "mod", "terragrunt.hcl"),
 	}
 	actual, err := config.FindConfigFilesInPath(
 		vfs.NewOSFS(),
-		"../../test/fixtures/config-files/ignore-terraform-data-dir",
+		workingDir,
 		experiment.NewExperiments(),
 		"test",
 		map[string]string{"TF_DATA_DIR": ".tf_data"},
@@ -1736,14 +1729,16 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 	t.Parallel()
 
+	workingDir := copyIgnoreTerraformDataDirFixture(t)
+
 	expected := []string{
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
-		"../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
+		filepath.Join(workingDir, ".tf_data", "modules", "mod", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", ".terraform", "modules", "mod", "terragrunt.hcl"),
 	}
 	actual, err := config.FindConfigFilesInPath(
 		vfs.NewOSFS(),
-		"../../test/fixtures/config-files/ignore-terraform-data-dir",
+		workingDir,
 		experiment.NewExperiments(),
 		"test",
 		map[string]string{"TF_DATA_DIR": "subdir/.tf_data"},
@@ -1757,10 +1752,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	t.Parallel()
 
-	workingDir, err := filepath.Abs(
-		filepath.Join("..", "..", "test", "fixtures", "config-files", "ignore-terraform-data-dir"),
-	)
-	require.NoError(t, err)
+	workingDir := copyIgnoreTerraformDataDirFixture(t)
 
 	actual, err := config.FindConfigFilesInPath(
 		vfs.NewOSFS(),
@@ -1815,7 +1807,7 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 	)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+	assert.ElementsMatch(t, expected, toSlashAll(actual))
 }
 
 func TestParseTerragruntConfigPreventDestroyTrue(t *testing.T) {
@@ -1837,9 +1829,7 @@ prevent_destroy = true
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -1866,9 +1856,7 @@ prevent_destroy = false
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -1947,9 +1935,7 @@ terraform {
 		cfg,
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	assert.Equal(t, "child", *terragruntConfig.Terraform.Source)
 }
@@ -2235,8 +2221,7 @@ func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
 	assert.False(t, *generateConfig.HclFmt)
 }
 
-// TestParseConfigGenerateBlockWithMutable verifies that mutable is parsed from generate blocks
-// once the gating experiment is enabled.
+// TestParseConfigGenerateBlockWithMutable verifies that mutable is parsed from generate blocks.
 func TestParseConfigGenerateBlockWithMutable(t *testing.T) {
 	t.Parallel()
 
@@ -2249,7 +2234,6 @@ func TestParseConfigGenerateBlockWithMutable(t *testing.T) {
 
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MutableGenerate))
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
@@ -2283,7 +2267,6 @@ func TestParseConfigGenerateAttrWithMutable(t *testing.T) {
 
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MutableGenerate))
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
@@ -2300,35 +2283,6 @@ func TestParseConfigGenerateAttrWithMutable(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, generateConfig.Mutable)
 	assert.False(t, *generateConfig.Mutable)
-}
-
-// TestParseConfigGenerateBlockMutableRequiresExperiment verifies that mutable is rejected
-// until the experiment that gates it is enabled.
-func TestParseConfigGenerateBlockMutableRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	cfg := `generate "test" {
-  path = "test.tf"
-  if_exists = "overwrite"
-  contents = "test = 1"
-  mutable = false
-}`
-
-	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-
-	_, err := config.ParseConfigString(
-		ctx,
-		pctx,
-		l,
-		config.DefaultTerragruntConfigPath,
-		cfg,
-		nil,
-	)
-
-	var experimentErr config.MutableGenerateRequiresExperimentError
-	require.ErrorAs(t, err, &experimentErr)
-	assert.Equal(t, "test", experimentErr.BlockName)
 }
 
 // TestParseConfigWithMissingIfExists verifies that generate blocks require the if_exists attribute.
@@ -2818,4 +2772,27 @@ func createLogger() log.Logger {
 	formatter.SetDisabledColors(true)
 
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
+}
+
+// copyIgnoreTerraformDataDirFixture copies the ignore-terraform-data-dir fixture into a temporary directory,
+// adds a module under subdir/.terraform, and returns the directory's path.
+func copyIgnoreTerraformDataDirFixture(t *testing.T) string {
+	t.Helper()
+
+	workingDir := helpers.TmpDirWOSymlinks(t)
+	helpers.CopyDir(
+		t,
+		filepath.Join("..", "..", "test", "fixtures", "config-files", "ignore-terraform-data-dir"),
+		workingDir,
+	)
+
+	fsys := vfs.NewOSFS()
+	modDir := filepath.Join(workingDir, "subdir", ".terraform", "modules", "mod")
+
+	// .gitignore excludes every .terraform directory, so the fixture cannot carry this module.
+	for _, name := range []string{"main.tf", config.DefaultTerragruntConfigPath} {
+		require.NoError(t, vfs.WriteFile(fsys, filepath.Join(modDir, name), nil, 0644))
+	}
+
+	return workingDir
 }

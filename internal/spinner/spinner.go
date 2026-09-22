@@ -1,0 +1,191 @@
+// Package spinner reports the progress of an operation the user is waiting on.
+//
+// On a terminal the report is an animated spinner. Where there is none it is a
+// log line, repeated with an elapsed time so a CI system watching for output
+// does not take the wait for a hang.
+//
+// [Show] reports from the start. [ShowAfter] waits for a threshold first.
+package spinner
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"strings"
+	"time"
+
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+)
+
+// spinnerFrames are braille dot characters used for the progress spinner.
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+const spinnerInterval = 100 * time.Millisecond
+
+// keepaliveInterval is how often a progress log line is emitted in non-interactive
+// environments (no TTY) to prevent CI systems from killing the job due to inactivity.
+const keepaliveInterval = 30 * time.Second
+
+// spinnerLineOverhead is the number of extra bytes the spinner line uses beyond the message itself
+// (braille character 3 bytes + space 1 byte). Since braille dots occupy a single terminal column,
+// this over-clears by a couple of columns, which is harmless.
+const spinnerLineOverhead = 4
+
+// Messages holds the messages for ShowAfter.
+type Messages struct {
+	// Working is shown while the operation is in progress (e.g. "Creating Git worktree for ref main...").
+	Working string
+	// Done is logged as INFO when the operation completes (e.g. "Created Git worktree for ref main").
+	Done string
+}
+
+// Writer returns v's error writer if it is an interactive terminal, nil
+// otherwise. Use the returned writer as the spinnerW argument to ShowAfter.
+func Writer(v *venv.Venv) io.Writer {
+	v.RequireTerminal()
+
+	if v.Terminal.StderrIsTTY() {
+		return v.Writers.ErrWriter
+	}
+
+	return nil
+}
+
+// Show runs fn and reports its progress from the moment it starts, for an
+// operation already known to be slow. Use [ShowAfter] for one that is usually
+// quick, so nothing is reported unless it turns out not to be.
+func Show(ctx context.Context, l log.Logger, spinnerW io.Writer, msgs Messages, fn func() error) error {
+	return ShowAfter(ctx, l, spinnerW, 0, msgs, fn)
+}
+
+// ShowAfter runs fn and, if it takes longer than timeout, shows a spinner on spinnerW.
+// When fn completes successfully, the spinner is replaced by an INFO log with the done message and elapsed time.
+// When fn returns an error, the spinner is cleared but no success message is logged.
+func ShowAfter(
+	ctx context.Context,
+	l log.Logger,
+	spinnerW io.Writer,
+	timeout time.Duration,
+	msgs Messages,
+	fn func() error,
+) error {
+	result := make(chan error, 1)
+	showed := make(chan struct{})
+	start := time.Now()
+
+	go notifyLoop(ctx, l, spinnerW, timeout, msgs, start, result, showed)
+
+	err := fn()
+
+	result <- err
+
+	<-showed
+
+	return err
+}
+
+// notifyLoop waits for the timeout, then shows a spinner until done.
+// On successful completion it clears the spinner and logs the done message with elapsed time.
+// On error or context cancellation no completion message is logged.
+func notifyLoop(
+	ctx context.Context,
+	l log.Logger,
+	spinnerW io.Writer,
+	timeout time.Duration,
+	msgs Messages,
+	start time.Time,
+	result <-chan error,
+	showed chan<- struct{},
+) {
+	defer close(showed)
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+	case <-result:
+		return
+	case <-ctx.Done():
+		return
+	}
+
+	// No spinner writer — log and emit periodic keepalive lines so CI systems
+	// (e.g. CircleCI) do not kill the job due to prolonged output silence.
+	if spinnerW == nil {
+		l.Info(msgs.Working)
+
+		ticker := time.NewTicker(keepaliveInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				l.Infof("%s (%.0fs elapsed)", msgs.Working, time.Since(start).Seconds())
+			case err := <-result:
+				if err == nil {
+					logDone(l, msgs.Done, start)
+				}
+
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+
+	// Animate spinner until the operation finishes.
+	ticker := time.NewTicker(spinnerInterval)
+	defer ticker.Stop()
+
+	frame := 0
+
+	writeSpinnerFrame(spinnerW, spinnerFrames[0], msgs.Working)
+
+	frame++
+
+	for {
+		select {
+		case <-ticker.C:
+			writeSpinnerFrame(spinnerW, spinnerFrames[frame%len(spinnerFrames)], msgs.Working)
+
+			frame++
+		case err := <-result:
+			clearSpinner(spinnerW, msgs.Working)
+
+			if err == nil {
+				logDone(l, msgs.Done, start)
+			}
+
+			return
+		case <-ctx.Done():
+			clearSpinner(spinnerW, msgs.Working)
+
+			return
+		}
+	}
+}
+
+// logDone logs the completion message, appending elapsed seconds when > 1s.
+func logDone(l log.Logger, msg string, start time.Time) {
+	elapsed := time.Since(start)
+
+	if elapsed >= time.Second {
+		l.Infof("%s (%.1fs)", msg, elapsed.Seconds())
+	} else {
+		l.Info(msg)
+	}
+}
+
+// writeSpinnerFrame writes a single spinner frame to the writer.
+func writeSpinnerFrame(w io.Writer, frame, msg string) {
+	_, _ = fmt.Fprintf(w, "\r%s %s", frame, msg)
+}
+
+// clearSpinner overwrites the spinner line with spaces and returns the cursor to the start.
+func clearSpinner(w io.Writer, msg string) {
+	blank := strings.Repeat(" ", len(msg)+spinnerLineOverhead)
+
+	_, _ = fmt.Fprintf(w, "\r%s\r", blank)
+}

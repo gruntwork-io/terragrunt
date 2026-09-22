@@ -13,8 +13,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/github"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -253,22 +253,14 @@ func TestGetLatestReleaseCaching(t *testing.T) {
 func TestNewGitHubReleasesDownloadClient(t *testing.T) {
 	t.Parallel()
 
-	client := github.NewGitHubReleasesDownloadClient()
-	require.NotNil(t, client)
-}
-
-func TestNewGitHubReleasesDownloadClientWithOptions(t *testing.T) {
-	t.Parallel()
-
-	logger := log.New()
-	client := github.NewGitHubReleasesDownloadClient(github.WithLogger(logger))
+	client := github.NewGitHubReleasesDownloadClient(logger.CreateLogger())
 	require.NotNil(t, client)
 }
 
 func TestDownloadReleaseAssetsValidation(t *testing.T) {
 	t.Parallel()
 
-	client := github.NewGitHubReleasesDownloadClient()
+	client := github.NewGitHubReleasesDownloadClient(logger.CreateLogger())
 	ctx := context.Background()
 
 	testCases := []struct {
@@ -340,7 +332,7 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 	defer server.Close()
 
 	// Use direct URL approach for testing since mock servers are complex to set up for GitHub releases format
-	client := github.NewGitHubReleasesDownloadClient()
+	client := github.NewGitHubReleasesDownloadClient(logger.CreateLogger())
 
 	assets := &github.ReleaseAssets{
 		Repository:  server.URL + "/package.zip", // Direct URL
@@ -394,7 +386,7 @@ func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
 	}
 
 	// Use direct URL approach for testing since mock servers are complex to set up for GitHub releases format
-	client := github.NewGitHubReleasesDownloadClient()
+	client := github.NewGitHubReleasesDownloadClient(logger.CreateLogger())
 
 	t.Run("prefer GH_TOKEN", func(t *testing.T) {
 		t.Parallel()
@@ -463,7 +455,7 @@ func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := github.NewGitHubReleasesDownloadClient()
+	client := github.NewGitHubReleasesDownloadClient(logger.CreateLogger())
 
 	assets := &github.ReleaseAssets{
 		Repository:  server.URL + "/direct-download.zip",

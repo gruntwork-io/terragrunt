@@ -35,6 +35,6 @@ If you use Terraform, an older OpenTofu, an NFS-mounted cache, or you are at a s
 terragrunt run --all --provider-cache -- plan
 ```
 
-**Deduplicate repository clones.** The [Content Addressable Store](/features/caching/cas/) stores the content of a git clone once and reuses it across every unit that sources from the same repository, rather than cloning it again per unit. It is on by default as of 1.1; on earlier versions, enable it with `--experiment cas`.
+**Deduplicate repository clones.** The [Content Addressable Store](/features/caching/cas/) stores the content of a git clone once and reuses it across every unit that sources from the same repository, rather than cloning it again per unit.
 
 See [Performance](/troubleshooting/performance/) for how these fit together.

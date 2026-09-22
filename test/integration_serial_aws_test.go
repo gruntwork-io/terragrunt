@@ -19,12 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
-func TestAwsTerragruntParallelism(t *testing.T) {
+func TestAWSTerragruntParallelism(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -76,17 +77,20 @@ func TestAwsTerragruntParallelism(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // it swaps the process-wide AWS credentials
-func TestAwsReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
-	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	// Registered before the credentials are cleared, so it runs after they are put back.
+	t.Cleanup(func() {
+		helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	})
 
 	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
 	helpers.CopyTerragruntConfigAndFillPlaceholders(
@@ -101,13 +105,13 @@ func TestAwsReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 
-	os.Setenv("AWS_ACCESS_KEY_ID", "")     //nolint:usetesting // t.Setenv doesn't work for this test, for reasons nobody has pinned down
-	os.Setenv("AWS_SECRET_ACCESS_KEY", "") //nolint:usetesting // as above
-
-	defer func() {
-		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)         //nolint:usetesting // restores the creds the test cleared above
-		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint:usetesting // as above
-	}()
+	// The run has to reach AWS through the auth provider command rather than the
+	// static key and secret. The SDK reads an empty variable as a credential, so
+	// each one is taken out of the environment; t.Setenv puts it back at the end.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	credsConfig := filepath.Join(rootPath, "creds.config")
 
@@ -126,7 +130,7 @@ func TestAwsReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	)
 }
 
-func TestAwsReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
@@ -136,7 +140,9 @@ func TestAwsReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	dependencyCredsConfig := filepath.Join(rootPath, "dependency", "creds.config")
 	helpers.CopyAndFillMapPlaceholders(
@@ -160,7 +166,7 @@ func TestAwsReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 		},
 	)
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	helpers.RunTerragrunt(
 		t,

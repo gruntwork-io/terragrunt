@@ -2,8 +2,6 @@ package cas
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -11,7 +9,11 @@ import (
 
 	"errors"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -19,11 +21,38 @@ import (
 
 const (
 	gitStoreURLHashLen = 16
+	// gitStoreURLHashAlgorithm names the per-URL directories under git/.
+	gitStoreURLHashAlgorithm = HashSHA256
 	// gitStoreLockTimeout bounds how long EnsureRef waits for the per-URL
 	// lock before giving up and letting the caller fall back to a temporary
 	// clone. Generous enough to outlast a typical fetch, short enough that a
 	// hung holder does not stall every concurrent unit indefinitely.
 	gitStoreLockTimeout = 5 * time.Minute
+	// pinnedCommitDepth is the history depth requested when asking a remote
+	// for one commit by its object name. The stored tree is read with
+	// ls-tree and cat-file, neither of which needs a parent.
+	pinnedCommitDepth = 1
+	// allRefsRefspec fetches every branch and tag with full history. It is
+	// the fallback for commits a bare object name cannot reach.
+	allRefsRefspec = "+refs/*:refs/*"
+	// fullHistoryDepth tells [git.GitRunner.Fetch] to omit --depth.
+	fullHistoryDepth = 0
+)
+
+// commitFetchPath names the fetch that brought a pinned commit into a
+// per-URL bare repository. It is set as the git_store_commit_fetch span
+// attribute and logged at debug level, so a remote that refuses bare object
+// names shows up as full_refs fetches.
+type commitFetchPath string
+
+const (
+	// commitFetchShallowSHA reports that the remote served the commit on
+	// its own at [pinnedCommitDepth].
+	commitFetchShallowSHA commitFetchPath = "shallow_sha"
+
+	// commitFetchFullRefs reports that the commit arrived only after
+	// fetching every ref with full history.
+	commitFetchFullRefs commitFetchPath = "full_refs"
 )
 
 // GitStore keeps one bare git repository per remote URL on disk so CAS cache
@@ -45,7 +74,7 @@ type GitStoreRepo struct {
 
 	// url is the source URL, kept so Release can name it in
 	// unlock-failure logs without callers re-threading it.
-	url string
+	url redact.URL
 
 	// Path is the bare repository path, suitable for
 	// [git.GitRunner.WithWorkDir].
@@ -77,7 +106,7 @@ func NewGitStore(rootPath string) *GitStore {
 	return &GitStore{rootPath: rootPath}
 }
 
-// EnsureRef ensures the bare repository for url contains the object at
+// EnsureRef ensures the bare repository for u contains the object at
 // hash, fetching ref at the requested depth on a cache miss. The returned
 // handle holds the per-URL flock; the caller must release it via
 // [GitStoreRepo.Unlock] or [GitStoreRepo.Release]. On error the lock is
@@ -86,10 +115,11 @@ func (s *GitStore) EnsureRef(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	url, ref, hash string,
+	u redact.URL,
+	ref, hash string,
 	depth int,
 ) (*GitStoreRepo, error) {
-	session, err := s.acquire(ctx, v, l, url)
+	session, err := s.acquire(ctx, v, l, u)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +137,7 @@ func (s *GitStore) EnsureRef(
 			fetchRef = "HEAD"
 		}
 
-		if err := session.runner.Fetch(ctx, url, fetchRef, depth); err != nil {
+		if err := session.runner.Fetch(ctx, u.Reveal(), fetchRef, depth); err != nil {
 			return nil, err
 		}
 
@@ -117,24 +147,23 @@ func (s *GitStore) EnsureRef(
 		}
 
 		if !has {
-			return nil, &GitStoreObjectMissingError{Hash: hash, Ref: fetchRef, URL: url}
+			return nil, &GitStoreObjectMissingError{Hash: hash, Ref: fetchRef, URL: u}
 		}
 	}
 
 	return session.keep(), nil
 }
 
-// EnsureCommit ensures the bare repository for url contains a commit
+// EnsureCommit ensures the bare repository for u contains a commit
 // reachable from rawRef and returns its canonical full hash via
 // [GitStoreRepo.Hash]. Any rawRef `git rev-parse` accepts works.
 //
 // If knownHash is non-empty (typically from [GitStore.ProbeCachedCommit])
 // the cache-hit path verifies it with [git.GitRunner.HasObject] and skips
-// rev-parse. On a cache miss the bare repo fetches every branch with no
-// --depth; fetching by raw SHA would require `uploadpack.allowAnySHA1InWant`,
-// which is not universally enabled on git servers. An unresolvable rawRef
-// after the fetch surfaces as [git.WrappedError] wrapping
-// [git.ErrNoMatchingReference] so callers can match it with [errors.Is].
+// rev-parse. A cache miss fetches through [fetchPinnedCommit]. An
+// unresolvable rawRef after the fetch surfaces as [git.WrappedError]
+// wrapping [git.ErrNoMatchingReference] so callers can match it with
+// [errors.Is].
 //
 // Lock contract matches [GitStore.EnsureRef]: callers must release on
 // success, the lock is released for them on error.
@@ -142,9 +171,10 @@ func (s *GitStore) EnsureCommit(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	url, rawRef, knownHash string,
+	u redact.URL,
+	rawRef, knownHash string,
 ) (*GitStoreRepo, error) {
-	session, err := s.acquire(ctx, v, l, url)
+	session, err := s.acquire(ctx, v, l, u)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +182,7 @@ func (s *GitStore) EnsureCommit(
 	defer session.cleanup()
 
 	if knownHash != "" {
-		return s.ensureKnownCommit(ctx, session, url, rawRef, knownHash)
+		return s.ensureKnownCommit(ctx, session, u, rawRef, knownHash)
 	}
 
 	hash, err := session.runner.RevParseCommit(ctx, rawRef)
@@ -165,7 +195,7 @@ func (s *GitStore) EnsureCommit(
 		return nil, err
 	}
 
-	if err := session.runner.Fetch(ctx, url, "+refs/*:refs/*", 0); err != nil {
+	if err := fetchPinnedCommit(ctx, session, u, rawRef); err != nil {
 		return nil, err
 	}
 
@@ -174,7 +204,7 @@ func (s *GitStore) EnsureCommit(
 		if errors.Is(err, git.ErrUnknownRevision) {
 			return nil, &git.WrappedError{
 				Op:      "git_store_resolve",
-				Context: fmt.Sprintf("%q in %s", rawRef, url),
+				Context: fmt.Sprintf("%q in %s", rawRef, u),
 				Err:     git.ErrNoMatchingReference,
 			}
 		}
@@ -189,12 +219,13 @@ func (s *GitStore) EnsureCommit(
 
 // ensureKnownCommit handles the [GitStore.EnsureCommit] path where the
 // caller has already canonicalized rawRef. A locked miss (a peer ran
-// git-gc between the lock-free probe and this verify) triggers a
-// full-history fetch and a recheck.
+// git-gc between the lock-free probe and this verify) refetches through
+// [fetchPinnedCommit] and rechecks.
 func (s *GitStore) ensureKnownCommit(
 	ctx context.Context,
 	session *repoSession,
-	url, rawRef, knownHash string,
+	u redact.URL,
+	rawRef, knownHash string,
 ) (*GitStoreRepo, error) {
 	has, err := session.runner.HasObject(ctx, knownHash)
 	if err != nil {
@@ -206,7 +237,7 @@ func (s *GitStore) ensureKnownCommit(
 		return session.keep(), nil
 	}
 
-	if err := session.runner.Fetch(ctx, url, "+refs/*:refs/*", 0); err != nil {
+	if err := fetchPinnedCommit(ctx, session, u, knownHash); err != nil {
 		return nil, err
 	}
 
@@ -218,7 +249,7 @@ func (s *GitStore) ensureKnownCommit(
 	if !has {
 		return nil, &git.WrappedError{
 			Op:      "git_store_resolve",
-			Context: fmt.Sprintf("%q in %s", rawRef, url),
+			Context: fmt.Sprintf("%q in %s", rawRef, u),
 			Err:     git.ErrNoMatchingReference,
 		}
 	}
@@ -242,13 +273,14 @@ func (s *GitStore) ensureKnownCommit(
 func (s *GitStore) ProbeCachedCommit(
 	ctx context.Context,
 	v *venv.Venv,
-	url, rawRef string,
+	u redact.URL,
+	rawRef string,
 ) (string, bool) {
 	if !vfs.IsOSFS(v.FS) {
 		panic(ErrGitStoreFSNotOS)
 	}
 
-	_, repoPath, _ := s.repoPaths(url)
+	_, repoPath, _ := s.repoPaths(u)
 
 	initialized, err := bareRepoInitialized(v.FS, repoPath)
 	if err != nil || !initialized {
@@ -282,16 +314,15 @@ func (s *GitStore) RootPath() string {
 }
 
 // EntryPathForURL returns the directory used for the bare repository
-// belonging to url. Exported so tests can place blocking files at the path.
-func EntryPathForURL(rootPath, url string) string {
-	sum := sha256.Sum256([]byte(url))
-	name := hex.EncodeToString(sum[:])[:gitStoreURLHashLen]
-
-	return filepath.Join(rootPath, name)
+// belonging to url, hashed with alg so a caller that records the algorithm
+// in the path above this one derives every component with it. Exported so
+// tests can place blocking files at the path.
+func EntryPathForURL(rootPath, url string, alg HashAlgorithm) string {
+	return filepath.Join(rootPath, alg.Sum([]byte(url))[:gitStoreURLHashLen])
 }
 
-func (s *GitStore) repoPaths(url string) (dir, repo, lockPath string) {
-	dir = EntryPathForURL(s.rootPath, url)
+func (s *GitStore) repoPaths(u redact.URL) (dir, repo, lockPath string) {
+	dir = EntryPathForURL(s.rootPath, u.Reveal(), gitStoreURLHashAlgorithm)
 	repo = filepath.Join(dir, "repo")
 	lockPath = filepath.Join(dir, "lock")
 
@@ -304,6 +335,109 @@ func (s *GitStore) repoPaths(url string) (dir, repo, lockPath string) {
 // per-call init spawn once a store entry exists.
 func bareRepoInitialized(fsys vfs.FS, repoPath string) (bool, error) {
 	return vfs.FileExists(fsys, filepath.Join(repoPath, "HEAD"))
+}
+
+// fetchPinnedCommit brings the commit named by ref into session's bare
+// repository.
+//
+// A full object name is asked for on its own at [pinnedCommitDepth]
+// first, which transfers one commit instead of every ref with its whole
+// history. Protocol v2 always answers a want line naming an object the
+// server never advertised; older servers answer only with
+// uploadpack.allowAnySHA1InWant or uploadpack.allowReachableSHA1InWant
+// set, and no server can answer for a commit it does not hold. Those
+// cases fall through to [allRefsRefspec], as does an abbreviated SHA or
+// a ref name, which git resolves from the ref advertisement rather than
+// from a want line.
+//
+// The bare repository is left shallow when the remote serves the commit by
+// name. ls-tree and cat-file, the only readers CAS ingest uses, work at a
+// shallow boundary, and [fetchAllRefs] crosses it for the later ref that
+// needs the history behind it.
+func fetchPinnedCommit(ctx context.Context, session *repoSession, u redact.URL, ref string) error {
+	served, err := fetchBareObject(ctx, session, u, ref)
+	if err != nil {
+		return err
+	}
+
+	if served {
+		recordCommitFetchPath(ctx, session.l, u, ref, commitFetchShallowSHA)
+
+		return nil
+	}
+
+	if err := fetchAllRefs(ctx, session, u); err != nil {
+		return err
+	}
+
+	recordCommitFetchPath(ctx, session.l, u, ref, commitFetchFullRefs)
+
+	return nil
+}
+
+// fetchAllRefs brings every ref into session's bare repository with its
+// whole history.
+//
+// The per-URL repository is shared by every source naming that URL, and an
+// earlier depth-limited fetch leaves a boundary a plain fetch only grafts
+// onto: history behind it stays unreachable, and a ref that needs it, such
+// as an abbreviated SHA or a rev expression, resolves nowhere. Unshallowing
+// reaches that history, so this fetch serves every ref the object-name fetch
+// cannot.
+func fetchAllRefs(ctx context.Context, session *repoSession, u redact.URL) error {
+	shallow, err := session.runner.IsShallow(ctx)
+	if err != nil {
+		return err
+	}
+
+	if shallow {
+		return session.runner.FetchUnshallow(ctx, u.Reveal(), allRefsRefspec)
+	}
+
+	return session.runner.Fetch(ctx, u.Reveal(), allRefsRefspec, fullHistoryDepth)
+}
+
+// fetchBareObject asks u for ref as a bare object name and reports
+// whether the object arrived. A false return means the remote did not serve
+// ref by object name; only an unreadable local repository surfaces as an
+// error.
+func fetchBareObject(ctx context.Context, session *repoSession, u redact.URL, ref string) (bool, error) {
+	if !looksLikeFullSHA(ref) {
+		return false, nil
+	}
+
+	if err := session.runner.Fetch(ctx, u.Reveal(), ref, pinnedCommitDepth); err != nil {
+		// The error includes git's stderr, which can repeat the URL.
+		session.l.Debugf(
+			"git store: %s did not serve %s by object name, falling back to full history: %s",
+			u,
+			ref,
+			strings.ReplaceAll(err.Error(), u.Reveal(), u.String()),
+		)
+
+		return false, nil
+	}
+
+	return session.runner.HasObject(ctx, ref)
+}
+
+// recordCommitFetchPath reports which fetch served a pinned commit at
+// debug level and as an attribute on the active span.
+func recordCommitFetchPath(
+	ctx context.Context,
+	l log.Logger,
+	u redact.URL,
+	ref string,
+	path commitFetchPath,
+) {
+	l.Debugf("git store: fetched %s from %s via %s", ref, u, path)
+
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	span.SetAttributes(attribute.String("git_store_commit_fetch", string(path)))
 }
 
 // repoSession bundles the locked repo handle, the runner pointed at it,
@@ -340,7 +474,7 @@ func (s *GitStore) acquire(
 	ctx context.Context,
 	v *venv.Venv,
 	l log.Logger,
-	url string,
+	u redact.URL,
 ) (*repoSession, error) {
 	if !vfs.IsOSFS(v.FS) {
 		return nil, ErrGitStoreFSNotOS
@@ -359,7 +493,7 @@ func (s *GitStore) acquire(
 		)
 	}
 
-	dir, repoPath, lockPath := s.repoPaths(url)
+	dir, repoPath, lockPath := s.repoPaths(u)
 
 	if err := v.FS.MkdirAll(dir, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf(
@@ -374,12 +508,12 @@ func (s *GitStore) acquire(
 
 	unlocker, err := vfs.LockContext(lockCtx, v.FS, lockPath)
 	if err != nil {
-		return nil, fmt.Errorf("lock git store for %s: %w", url, errors.Join(ErrGitStoreLock, err))
+		return nil, fmt.Errorf("lock git store for %s: %w", u, errors.Join(ErrGitStoreLock, err))
 	}
 
 	session := &repoSession{
 		l:      l,
-		repo:   &GitStoreRepo{unlocker: unlocker, url: url, Path: repoPath},
+		repo:   &GitStoreRepo{unlocker: unlocker, url: u, Path: repoPath},
 		runner: runner.WithWorkDir(repoPath),
 	}
 

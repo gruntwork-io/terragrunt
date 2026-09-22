@@ -20,10 +20,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/multierror"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
@@ -174,7 +174,7 @@ func Run(
 	// When no source is specified, sourceURL will be "." (current directory).
 	err = telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "download_terraform_source", map[string]any{
-			"sourceUrl": sourceURL,
+			"sourceUrl": redact.NewURL(sourceURL),
 		}, func(ctx context.Context, l log.Logger) error {
 			updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
 			return err
@@ -257,7 +257,7 @@ func GenerateConfig(
 // A CAS that cannot be initialized is not fatal: generation falls back to direct
 // writes, matching how source downloads degrade.
 func generateWriteOptions(l log.Logger, v *venv.Venv, opts *Options) []codegen.WriteOption {
-	if opts.NoCAS || !opts.Experiments.Evaluate(experiment.MutableGenerate) {
+	if opts.NoCAS {
 		return nil
 	}
 

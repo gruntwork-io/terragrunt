@@ -170,9 +170,9 @@ func TestWindowsConsoleSaveRestoreOnCONOUT(t *testing.T) {
 
 // TestWindowsConsoleStdinFlagsOnCONIN verifies stdin prompt flags can be
 // cleared and restored via raw API on a real console input handle.
+//
+//nolint:paralleltest // subprocesses started by parallel tests change the shared console input mode
 func TestWindowsConsoleStdinFlagsOnCONIN(t *testing.T) {
-	t.Parallel()
-
 	conin := openConsoleInput(t)
 	original := getMode(t, conin)
 
@@ -181,15 +181,14 @@ func TestWindowsConsoleStdinFlagsOnCONIN(t *testing.T) {
 	required := uint32(
 		windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT,
 	)
+	withRequired := original | required
 
-	assert.Equal(t, required, original&required,
-		"a default console input handle should have LINE_INPUT, ECHO_INPUT, PROCESSED_INPUT")
-
-	setMode(t, conin, original&^required)
+	setMode(t, conin, withRequired)
+	setMode(t, conin, withRequired&^required)
 	assert.Equal(t, uint32(0), getMode(t, conin)&required,
 		"required flags should be cleared after corruption")
 
-	setMode(t, conin, original)
+	setMode(t, conin, withRequired)
 	assert.Equal(t, required, getMode(t, conin)&required,
 		"required flags should be restored")
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAwsSessionValidationFail(t *testing.T) {
+func TestAWSSessionValidationFail(t *testing.T) {
 	t.Skip("Skipping for now as we need to change the signature of CreateAwsConfig")
 	t.Parallel()
 
@@ -37,7 +37,7 @@ func TestAwsSessionValidationFail(t *testing.T) {
 
 // Test to validate cases when is not possible to read all S3 configurations
 // https://github.com/gruntwork-io/terragrunt/issues/2109
-func TestAwsNegativePublicAccessResponse(t *testing.T) {
+func TestAWSNegativePublicAccessResponse(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -84,7 +84,7 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 	}
 }
 
-func TestAwsConfigWithAuthProviderEnv(t *testing.T) {
+func TestAWSConfigWithAuthProviderEnv(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -112,7 +112,7 @@ func TestAwsConfigWithAuthProviderEnv(t *testing.T) {
 	assert.Equal(t, "test-session-token", creds.SessionToken)
 }
 
-func TestAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
+func TestAWSConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -131,12 +131,12 @@ func TestAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 	assert.NotNil(t, cfg.Credentials)
 }
 
-// TestAwsConfigWithAuthProviderEnvChainsAssumeRole verifies that credentials provided via
+// TestAWSConfigWithAuthProviderEnvChainsAssumeRole verifies that credentials provided via
 // env (e.g. from --auth-provider-cmd) do not short-circuit role assumption: when a role ARN is
 // configured (e.g. via the assume_role attribute of the remote_state block), the resulting
 // identity must be the assumed role, with the env credentials serving only as the source
 // identity for the STS exchange.
-func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
+func TestAWSConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
 	t.Parallel()
 
 	roleARN := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
@@ -204,7 +204,7 @@ const (
 	wantDefaultChain
 )
 
-// TestAwsConfigRoleSourcePermutations covers every combination of ambient env credentials, merged
+// TestAWSConfigRoleSourcePermutations covers every combination of ambient env credentials, merged
 // IAM role options (the iam_role attribute and the --iam-assume-role flag both arrive here), and
 // a backend role (the assume_role attribute of the remote_state block).
 //
@@ -212,7 +212,7 @@ const (
 // provider already applied them, so the env credentials are that role's session and re-assuming
 // would make the role assume itself. A backend role is never pre-applied, so it must always be
 // assumed, with present env credentials serving as the source identity for the exchange.
-func TestAwsConfigRoleSourcePermutations(t *testing.T) {
+func TestAWSConfigRoleSourcePermutations(t *testing.T) {
 	t.Parallel()
 
 	envCreds := map[string]string{
@@ -327,7 +327,7 @@ func TestAwsConfigRoleSourcePermutations(t *testing.T) {
 	}
 }
 
-func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
+func TestAWSConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()

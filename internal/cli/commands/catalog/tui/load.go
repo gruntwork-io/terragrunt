@@ -82,6 +82,10 @@ func LoadURL(
 		WalkWithSymlinks: walkWithSymlinks,
 		AllowCAS:         allowCAS,
 		CASCloneDepth:    opts.CASCloneDepth,
+		CASProbeTTL:      opts.CASProbeTTL,
+		CASOffline:       opts.CASOffline,
+		CASRefresh:       opts.CASRefresh,
+		CASProbeCache:    opts.Experiments.Evaluate(experiment.OfflineCAS),
 		SlowReporting:    slowReporting,
 		RootWorkingDir:   opts.RootWorkingDir,
 	})

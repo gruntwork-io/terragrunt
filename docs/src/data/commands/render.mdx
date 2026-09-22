@@ -90,17 +90,17 @@ This will render all configurations discovered from the current working director
 
 ## Expanded dependencies
 
-<Before version="1.1.4">
-Previewing how a `dependency` block expands will be supported in v1.1.4.
-</Before>
-
-<Since version="1.1.4">
+<Before version="v1.2.0">
 
 <Aside type="tip" title="Experimental">
 Expanding a `dependency` block over a `count` or `for_each` is gated behind the [`block-iteration`](/reference/experiments/active#block-iteration) experiment. Enable it with `--experiment=block-iteration` or `TG_EXPERIMENT=block-iteration`.
 </Aside>
 
+</Before>
+
 A `dependency` block that carries an `expansion` block renders as it was written, references and all, followed by the elements it expanded into. Each element is commented out, with its body resolved against the iteration it came from:
+
+<Before version="v1.2.0">
 
 ```bash
 $ terragrunt render --experiment block-iteration
@@ -123,7 +123,36 @@ dependency "aurora" {
 # }
 ```
 
+</Before>
+
+<Since version="v1.2.0">
+
+```bash
+$ terragrunt render
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  config_path = "../aurora-${each.key}"
+}
+
+# Expands to:
+#
+# dependency "aurora" {
+#   config_path = "../aurora-api"
+# }
+#
+# dependency "aurora" {
+#   config_path = "../aurora-web"
+# }
+```
+
+</Since>
+
 `count` reads the same way:
+
+<Before version="v1.2.0">
 
 ```bash
 $ terragrunt render --experiment block-iteration
@@ -146,8 +175,141 @@ dependency "shard" {
 # }
 ```
 
+</Before>
+
+<Since version="v1.2.0">
+
+```bash
+$ terragrunt render
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path = "../shard-${count.index}"
+}
+
+# Expands to:
+#
+# dependency "shard" {
+#   config_path = "../shard-0"
+# }
+#
+# dependency "shard" {
+#   config_path = "../shard-1"
+# }
+```
+
+</Since>
+
 The expanded blocks are in comments because they are not a valid Terragrunt configuration: they all carry one label, and only the last block with a given label can be referenced. Terragrunt warns about that, and rejects it outright under the `duplicate-dependency-labels` [strict control](/reference/strict-controls/active#duplicate-dependency-labels). They are present as comments to help you predict how Terragrunt will expand the block with an `expansion` block.
 
 A `dependency` block with no `expansion` block renders as it always has.
+
+<Since version="v1.1.5">
+
+A configuration written in JSON reads the same way. It has no HCL to quote, so `render` writes the block as the HCL that means the same thing and previews the elements underneath it:
+
+<Before version="v1.2.0">
+
+```bash
+$ cat terragrunt.hcl.json
+{"dependency": {"shard": {
+  "expansion": {"count": 2},
+  "config_path": "../shard-${count.index}"
+}}}
+
+$ terragrunt render --experiment block-iteration
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path = "../shard-${count.index}"
+}
+
+# Expands to:
+#
+# dependency "shard" {
+#   config_path = "../shard-0"
+# }
+#
+# dependency "shard" {
+#   config_path = "../shard-1"
+# }
+```
+
+</Before>
+
+<Since version="v1.2.0">
+
+```bash
+$ cat terragrunt.hcl.json
+{"dependency": {"shard": {
+  "expansion": {"count": 2},
+  "config_path": "../shard-${count.index}"
+}}}
+
+$ terragrunt render
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path = "../shard-${count.index}"
+}
+
+# Expands to:
+#
+# dependency "shard" {
+#   config_path = "../shard-0"
+# }
+#
+# dependency "shard" {
+#   config_path = "../shard-1"
+# }
+```
+
+</Since>
+
+`--format json` has no comment to preview the elements in, and its `dependency` map is keyed by label, which every element shares. It emits the block as it was written, references and all:
+
+<Before version="v1.2.0">
+
+```bash
+$ terragrunt render --format json --experiment block-iteration
+{
+  "dependency": {
+    "shard": {
+      "expansion": { "count": 2 },
+      "config_path": "../shard-${count.index}",
+      "skip_outputs": true
+    }
+  }
+}
+```
+
+</Before>
+
+<Since version="v1.2.0">
+
+```bash
+$ terragrunt render --format json
+{
+  "dependency": {
+    "shard": {
+      "expansion": { "count": 2 },
+      "config_path": "../shard-${count.index}",
+      "skip_outputs": true
+    }
+  }
+}
+```
+
+</Since>
+
+An expanded block uses the names the configuration writes, such as `skip_outputs`, rather than the resolved names an unexpanded block gets, such as `skip`. Nothing about it has been resolved, so it appears as declared.
+
+Whichever syntax you write and whichever format you ask for, rendering the output again returns it unchanged.
 
 </Since>

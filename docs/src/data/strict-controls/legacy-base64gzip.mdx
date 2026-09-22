@@ -1,23 +1,34 @@
 ---
 name: legacy-base64gzip
-status: active
-since: "1.1.5"
+status: completed
+since: "v1.1.5"
 ---
 
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
+<Before version="v1.2.0">
 Stops `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. The v1.1.3 bytes are restored by default with a deprecation warning. Enable this control to use the current Go encoder and silence the warning.
+</Before>
+
+<Since version="v1.2.0">
+Stopped `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. This control is complete: since Terragrunt 1.2, `base64gzip()` uses the current Go encoder by default. Passing the control still works, and Terragrunt logs a warning that it is completed.
+</Since>
 
 ### `legacy-base64gzip` - Reason
 
 Terragrunt v1.1.4 was built with Go 1.27, which changed the compressed bytes its gzip encoder produces. The bytes still decompress to the same content, but `base64gzip()` returned a different string for the same input, and a resource that compares the encoded value, such as an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`, planned a replacement.
 
-Since v1.1.5, `base64gzip()` returns the v1.1.3 bytes again, so upgrading from v1.1.3 or earlier plans no change. If you applied the v1.1.4 output, every plan shows the encoded value changing back until you apply it or enable this control, and a resource that replaces on user data changes is replaced by that apply.
-
-Where the encoded value must stay stable after that default changes, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat) instead of `base64gzip()`. It requires the [`base64gzip-compat`](/reference/experiments/active#base64gzip-compat) experiment.
-
-Enable this control to keep the current Go encoder's output instead:
+<Before version="v1.2.0">
+Since v1.1.5, `base64gzip()` returns the v1.1.3 bytes again, so upgrading from v1.1.3 or earlier plans no change. Enable this control to take the current Go encoder before Terragrunt 1.2 makes it the default:
 
 ```bash
 terragrunt run plan --strict-control legacy-base64gzip
 ```
+</Before>
 
-The current encoder becomes the default in Terragrunt 1.2.
+<Since version="v1.2.0">
+Terragrunt v1.1.5 restored the v1.1.3 bytes and warned that the default would change. This control let you take the current encoder early. Terragrunt 1.2 made it the default, so the control has nothing left to switch.
+</Since>
+
+Where the encoded value must not change, call [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat) instead of `base64gzip()`.

@@ -44,6 +44,92 @@ func BenchmarkDiscovery(b *testing.B) {
 			})
 		}
 	})
+
+	b.Run("dependents_expression", func(b *testing.B) {
+		for _, n := range unitCounts {
+			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
+				benchmarkDependents(b, dependentsFromRepoRoot, chainedDependentsFixture(n))
+			})
+		}
+	})
+
+	b.Run("dependents_expression_from_target", func(b *testing.B) {
+		for _, n := range unitCounts {
+			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
+				benchmarkDependents(b, dependentsFromTargetDir, chainedDependentsFixture(n))
+			})
+		}
+	})
+}
+
+// dependentsPlacement names where a dependents benchmark runs discovery from.
+type dependentsPlacement int
+
+const (
+	// dependentsFromRepoRoot runs discovery from the fixture root.
+	dependentsFromRepoRoot dependentsPlacement = iota
+	// dependentsFromTargetDir runs discovery from the target unit's directory.
+	dependentsFromTargetDir
+)
+
+// dependentsFixture builds a fixture under dir and returns the path of the unit
+// a dependents query targets, along with the number of components that query
+// selects.
+type dependentsFixture func(tb testing.TB, dir string) (target string, selected int)
+
+// chainedDependentsFixture builds the shared n-unit layout and targets
+// infra-0000, whose only dependent is infra-0001, so the upstream dependent walk
+// covers the whole fixture to find that one dependent.
+func chainedDependentsFixture(n int) dependentsFixture {
+	return func(tb testing.TB, dir string) (string, int) {
+		tb.Helper()
+
+		createFixtures(tb, dir, n)
+
+		return filepath.Join(dir, "infra", "infra-0000"), 2
+	}
+}
+
+// benchmarkDependents benchmarks discovery with a dependents filter over
+// fixture, running from the directory placement names.
+//
+// Both placements are worth measuring, because they cost differently: from the
+// repository root the filesystem phase has already found every dependent, so
+// the upstream walk parses nothing it has not already seen, while from the
+// target's own directory the walk is what finds them, and it re-sweeps the
+// boundary tree once per dependent it finds.
+func benchmarkDependents(b *testing.B, placement dependentsPlacement, fixture dependentsFixture) {
+	b.Helper()
+
+	tmpDir := b.TempDir()
+	target, selected := fixture(b, tmpDir)
+
+	workingDir := tmpDir
+	if placement == dependentsFromTargetDir {
+		workingDir = target
+	}
+
+	l := newDiscardLogger()
+	opts := &options.TerragruntOptions{WorkingDir: workingDir, RootWorkingDir: workingDir}
+
+	filterQueries, err := filter.ParseFilterQueries(l, []string{"...{" + target + "}"})
+	require.NoError(b, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	b.ResetTimer()
+
+	for b.Loop() {
+		d := discovery.NewDiscovery(workingDir).
+			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
+			WithGitRoot(tmpDir).
+			WithFilters(filterQueries).
+			WithSuppressParseErrors()
+
+		components, err := d.Discover(b.Context(), l, v, opts)
+		require.NoError(b, err)
+		require.Len(b, components, selected)
+	}
 }
 
 // benchmarkPathExpression benchmarks discovery with a path-only filter.
@@ -147,8 +233,8 @@ func newDiscardLogger() log.Logger {
 //   - n/2 "app" units in apps/app-NNNN/terragrunt.hcl (minimal, no dependencies)
 //   - n/2 "infra" units in infra/infra-NNNN/terragrunt.hcl (paired dependency chains:
 //     odd-numbered units depend on the preceding even unit, e.g. infra-0001 → infra-0000)
-func createFixtures(b *testing.B, tmpDir string, n int) {
-	b.Helper()
+func createFixtures(tb testing.TB, tmpDir string, n int) {
+	tb.Helper()
 
 	half := n / 2
 
@@ -156,8 +242,8 @@ func createFixtures(b *testing.B, tmpDir string, n int) {
 
 	for i := range half {
 		dir := filepath.Join(appsDir, fmt.Sprintf("app-%04d", i))
-		require.NoError(b, os.MkdirAll(dir, 0755))
-		require.NoError(b, os.WriteFile(
+		require.NoError(tb, os.MkdirAll(dir, 0755))
+		require.NoError(tb, os.WriteFile(
 			filepath.Join(dir, "terragrunt.hcl"),
 			[]byte("# Minimal config\n"),
 			0644,
@@ -168,7 +254,7 @@ func createFixtures(b *testing.B, tmpDir string, n int) {
 
 	for i := range half {
 		dir := filepath.Join(infraDir, fmt.Sprintf("infra-%04d", i))
-		require.NoError(b, os.MkdirAll(dir, 0755))
+		require.NoError(tb, os.MkdirAll(dir, 0755))
 
 		var content string
 
@@ -179,7 +265,7 @@ func createFixtures(b *testing.B, tmpDir string, n int) {
 			content = "# Leaf unit\n"
 		}
 
-		require.NoError(b, os.WriteFile(
+		require.NoError(tb, os.WriteFile(
 			filepath.Join(dir, "terragrunt.hcl"),
 			[]byte(content),
 			0644,

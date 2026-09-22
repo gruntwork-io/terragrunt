@@ -289,8 +289,8 @@ func (m WelcomeModel) WithOpenURL(fn OpenURLFunc) WelcomeModel {
 }
 
 func (m WelcomeModel) discoveryErrorView() string {
-	// One slot per fixed line surrounding the detail block.
-	const fixedRows = 8
+	// One slot per fixed row surrounding the detail block.
+	const fixedRows = 7
 
 	title := welcomeTitleStyle.Render(" Terragrunt Catalog ")
 
@@ -308,8 +308,7 @@ func (m WelcomeModel) discoveryErrorView() string {
 
 	rows = append(rows,
 		"",
-		"Please check your network connection, authentication, and",
-		"catalog configuration, then try again.",
+		m.discoveryErrorGuidance(),
 		"",
 		welcomeHintStyle.Render("q/esc: exit"),
 	)
@@ -345,6 +344,16 @@ func (m WelcomeModel) discoveryErrorDetail() []string {
 	}
 
 	return rows
+}
+
+// discoveryErrorGuidance closes the error screen with something to act on.
+func (m WelcomeModel) discoveryErrorGuidance() string {
+	if errors.As(m.lastDiscoveryErr, new(*SourceLoadError)) {
+		return SourceAccessHint
+	}
+
+	return "Please check your network connection, authentication, and\n" +
+		"catalog configuration, then try again."
 }
 
 func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) {

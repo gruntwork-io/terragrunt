@@ -53,7 +53,7 @@ jobs:
           PREVIOUS_TAG_NAME: ${{ steps.prev.outputs.tag }}
         with:
           script: |
-            const notify = require('./.github/scripts/release-notify-issues.js');
+            const { default: notify } = require('./.github/scripts/release-notify-issues.ts');
             await notify({
               github,
               context,

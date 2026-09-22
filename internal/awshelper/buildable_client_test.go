@@ -229,6 +229,90 @@ func TestAssumeIamRoleFallsBackToIMDSv1WhenTokenEndpointHangs(t *testing.T) {
 		"STS call must be signed with the IMDSv1 instance credentials")
 }
 
+// TestAssumeIamRoleUsesEnvCredentials verifies that AssumeIamRole signs the STS request with v.Env credentials.
+func TestAssumeIamRoleUsesEnvCredentials(t *testing.T) {
+	t.Parallel()
+
+	const (
+		envAccessKeyID = "AKIAENVCREDSTESTKEY"
+		assumedKeyID   = "ASIAASSUMEDTESTKEY"
+	)
+
+	var authHead atomic.Value
+	authHead.Store("")
+
+	memHTTP := vhttp.NewMemClient(
+		func(_ context.Context, req *http.Request) (*http.Response, error) {
+			authHead.Store(req.Header.Get("Authorization"))
+
+			xml := `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">` +
+				`<AssumeRoleResult><Credentials>` +
+				`<AccessKeyId>` + assumedKeyID + `</AccessKeyId>` +
+				`<SecretAccessKey>assumed-secret</SecretAccessKey>` +
+				`<SessionToken>assumed-token</SessionToken>` +
+				`<Expiration>2030-12-31T23:59:59Z</Expiration>` +
+				`</Credentials>` +
+				`<AssumedRoleUser>` +
+				`<AssumedRoleId>AROATEST:session</AssumedRoleId>` +
+				`<Arn>arn:aws:iam::123456789012:role/test-role</Arn>` +
+				`</AssumedRoleUser>` +
+				`</AssumeRoleResult></AssumeRoleResponse>`
+
+			return vhttp.Respond(http.StatusOK, []byte(xml), nil), nil
+		},
+	)
+
+	v := venvtest.New().
+		WithHTTP(memHTTP).
+		WithEnv(map[string]string{
+			"AWS_REGION":            "us-east-1",
+			"AWS_ACCESS_KEY_ID":     envAccessKeyID,
+			"AWS_SECRET_ACCESS_KEY": "env-secret-key",
+		})
+
+	creds, err := awshelper.AssumeIamRole(
+		t.Context(),
+		v,
+		iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/test-role"},
+		"",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, creds)
+	assert.Equal(t, assumedKeyID, aws.ToString(creds.AccessKeyId))
+	assert.Contains(t, authHead.Load().(string), "Credential="+envAccessKeyID+"/",
+		"STS call must be signed with the v.Env credentials")
+}
+
+// TestAssumeIamRoleRejectsResponseWithoutCredentials pins the error for an
+// STS endpoint that answers 200 but leaves out the credentials.
+func TestAssumeIamRoleRejectsResponseWithoutCredentials(t *testing.T) {
+	t.Parallel()
+
+	memHTTP := vhttp.NewMemClient(func(context.Context, *http.Request) (*http.Response, error) {
+		xml := `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">` +
+			`<AssumeRoleResult></AssumeRoleResult></AssumeRoleResponse>`
+
+		return vhttp.Respond(http.StatusOK, []byte(xml), nil), nil
+	})
+
+	v := venvtest.New().
+		WithHTTP(memHTTP).
+		WithEnv(map[string]string{
+			"AWS_REGION":            "us-east-1",
+			"AWS_ACCESS_KEY_ID":     "AKIAENVCREDSTESTKEY",
+			"AWS_SECRET_ACCESS_KEY": "env-secret-key",
+		})
+
+	creds, err := awshelper.AssumeIamRole(
+		t.Context(),
+		v,
+		iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/test-role"},
+		"",
+	)
+	require.ErrorIs(t, err, awshelper.ErrNoAssumedCredentials)
+	assert.Nil(t, creds)
+}
+
 // TestAWSBuildableClientOSTransportIsBuildable explicitly tests the
 // function's return type with a production OS client.
 func TestAWSBuildableClientOSTransportIsBuildable(t *testing.T) {
@@ -388,13 +472,19 @@ func newAssumeRoleSTSServer(t *testing.T) *assumeRoleSTSServer {
 		}
 
 		w.Header().Set("Content-Type", "text/xml")
-		_, _ = fmt.Fprintf(w, `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">`+
-			`<AssumeRoleResult><Credentials><AccessKeyId>%s</AccessKeyId>`+
-			`<SecretAccessKey>assumed-secret</SecretAccessKey><SessionToken>assumed-token</SessionToken>`+
-			`<Expiration>%s</Expiration></Credentials>`+
-			`<AssumedRoleUser><AssumedRoleId>AROATEST:session</AssumedRoleId><Arn>%s</Arn></AssumedRoleUser>`+
-			`</AssumeRoleResult><ResponseMetadata><RequestId>test</RequestId></ResponseMetadata>`+
-			`</AssumeRoleResponse>`, testAssumedAccessKeyID, expiration, testAssumedRoleARN)
+		_, _ = fmt.Fprintf(
+			w,
+			`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">`+
+				`<AssumeRoleResult><Credentials><AccessKeyId>%s</AccessKeyId>`+
+				`<SecretAccessKey>assumed-secret</SecretAccessKey><SessionToken>assumed-token</SessionToken>`+
+				`<Expiration>%s</Expiration></Credentials>`+
+				`<AssumedRoleUser><AssumedRoleId>AROATEST:session</AssumedRoleId><Arn>%s</Arn></AssumedRoleUser>`+
+				`</AssumeRoleResult><ResponseMetadata><RequestId>test</RequestId></ResponseMetadata>`+
+				`</AssumeRoleResponse>`,
+			testAssumedAccessKeyID,
+			expiration,
+			testAssumedRoleARN,
+		)
 	}))
 	t.Cleanup(srv.Close)
 

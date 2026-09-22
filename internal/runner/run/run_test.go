@@ -241,13 +241,12 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			opts.WorkingDir = tmpDir
 
 			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts))
-			if (err != nil) && tc.valid {
-				t.Error("valid terraform returned error")
+			if tc.valid {
+				assert.NoError(t, err, "valid terraform returned error")
+				return
 			}
 
-			if (err == nil) && !tc.valid {
-				t.Error("invalid terraform did not return error")
-			}
+			assert.Error(t, err, "invalid terraform did not return error")
 		})
 	}
 }
@@ -652,9 +651,7 @@ func mockOptions(
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
-	if err != nil {
-		t.Fatalf("error: %v\n", err)
-	}
+	require.NoError(t, err)
 
 	opts.WorkingDir = workingDir
 	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
@@ -670,9 +667,8 @@ func createTempFile(t *testing.T) string {
 	t.Helper()
 
 	tmpFile, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
-	}
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
 
 	return tmpFile.Name()
 }

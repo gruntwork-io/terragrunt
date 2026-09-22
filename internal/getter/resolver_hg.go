@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 )
 
@@ -40,7 +41,37 @@ func NewHgResolver(e vexec.Exec) *HgResolver { return &HgResolver{Exec: e} }
 // Scheme returns "hg".
 func (r *HgResolver) Scheme() string { return "hg" }
 
-// Probe runs `hg identify --template '{node}\n'` against rawURL and
+// Pinned reports whether source names a full changeset node, which
+// addresses one changeset for good.
+func (r *HgResolver) Pinned(source redact.URL) bool {
+	u, err := url.Parse(source.Reveal())
+	if err != nil {
+		return false
+	}
+
+	return isHgNode(u.Query().Get("rev"))
+}
+
+// isHgNode reports whether rev is a full 40-character changeset node
+// rather than a name or an abbreviation, which can both come to mean a
+// different changeset.
+func isHgNode(rev string) bool {
+	const hgNodeLen = 40
+
+	if len(rev) != hgNodeLen {
+		return false
+	}
+
+	for _, r := range rev {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Probe runs `hg identify --template '{node}\n'` against source and
 // returns the 40-char node hash as a content-addressed cache key. The
 // ref comes from the URL's `rev` query parameter; absent or empty
 // means "tip". Missing binary, timeout, or unreachable remote produce
@@ -49,15 +80,15 @@ func (r *HgResolver) Scheme() string { return "hg" }
 // `--template '{node}'` is used instead of `--id` because `--id`
 // returns the abbreviated 12-char short hash, which is not
 // collision-safe for cache keying.
-func (r *HgResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	u, err := url.Parse(rawURL)
+func (r *HgResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
+	u, err := url.Parse(source.Reveal())
 	if err != nil {
-		return "", fmt.Errorf("parse hg URL %s: %w", rawURL, err)
+		return "", fmt.Errorf("parse hg URL %s: %w", source, err)
 	}
 
 	rev := u.Query().Get("rev")
 	if err := validateHgRev(rev); err != nil {
-		return "", fmt.Errorf("parse hg URL %s: %w", rawURL, err)
+		return "", fmt.Errorf("parse hg URL %s: %w", source, err)
 	}
 
 	cleaned := *u

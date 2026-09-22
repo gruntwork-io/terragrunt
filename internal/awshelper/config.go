@@ -97,7 +97,9 @@ func (b *AWSConfigBuilder) WithSessionConfig(cfg *AwsSessionConfig) *AWSConfigBu
 // own rather than resolving them from the environment. It outranks the
 // environment and any role the session config names, the way credentials
 // supplied inline outrank ambient ones everywhere else.
-func (b *AWSConfigBuilder) WithCredentialsProvider(creds aws.CredentialsProvider) *AWSConfigBuilder {
+func (b *AWSConfigBuilder) WithCredentialsProvider(
+	creds aws.CredentialsProvider,
+) *AWSConfigBuilder {
 	b.creds = creds
 	return b
 }
@@ -296,7 +298,13 @@ func getExternalID(awsCfg *AwsSessionConfig) string {
 	return awsCfg.ExternalID
 }
 
+// ErrNoAssumedCredentials is returned when STS answers an assume-role call
+// successfully but the response has no credentials.
+var ErrNoAssumedCredentials = errors.New("STS returned no credentials for the assumed role")
+
 // AssumeIamRole assumes an IAM role and returns the credentials.
+//
+// Returns [ErrNoAssumedCredentials] when the response has no credentials.
 func AssumeIamRole(
 	ctx context.Context,
 	v *venv.Venv,
@@ -309,14 +317,17 @@ func AssumeIamRole(
 
 	region := cmp.Or(getRegionFromEnv(v.Env), defaultAWSRegion)
 
-	// Set user agent to include terragrunt version
-	//nolint:forbidigo // This is the wrapper the rule points callers at; WithHTTPClient below carries the venv's client.
-	cfg, err := config.LoadDefaultConfig(
-		ctx,
+	configOptions := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
-		config.WithAppID("terragrunt/"+version.GetVersion()),
+		config.WithAppID("terragrunt/" + version.GetVersion()),
 		config.WithHTTPClient(AWSBuildableClient(v.HTTP)),
-	)
+	}
+	if envCreds := createCredentialsFromEnv(v.Env); envCreds != nil {
+		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
+	}
+
+	//nolint:forbidigo // This is the wrapper the rule points callers at; WithHTTPClient below carries the venv's client.
+	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("error loading AWS config: %w", err)
 	}
@@ -352,6 +363,10 @@ func AssumeIamRole(
 			return nil, fmt.Errorf("error assuming role with web identity: %w", err)
 		}
 
+		if result.Credentials == nil {
+			return nil, ErrNoAssumedCredentials
+		}
+
 		return result.Credentials, nil
 	}
 
@@ -369,6 +384,10 @@ func AssumeIamRole(
 	result, err := stsClient.AssumeRole(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("error assuming role: %w", err)
+	}
+
+	if result.Credentials == nil {
+		return nil, ErrNoAssumedCredentials
 	}
 
 	return result.Credentials, nil

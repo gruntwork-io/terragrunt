@@ -342,7 +342,6 @@ func runCommand(
 	cmd.SetStderr(cmdStderr)
 	cmd.Configure(
 		exec.WithUsePTY(cmdOpts.NeedsPTY),
-		exec.WithEnv(v.Env),
 		exec.WithForwardSignalDelay(forwardSignalDelay),
 	)
 

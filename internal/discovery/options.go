@@ -44,17 +44,18 @@ func (d *Discovery) WithParserOptions(opts []hclparse.Option) *Discovery {
 func (d *Discovery) WithFilters(filters filter.Filters) *Discovery {
 	d.filters = filters
 
-	// If there are any positive filters, exclude by default
 	if d.filters.HasPositiveFilter() {
 		d.excludeByDefault = true
 	}
 
-	// Check if filters require parsing
 	if _, ok := d.filters.RequiresParse(); ok {
 		d.addParseReason(parseReasonFiltersRequireParse)
 	}
 
-	// Collect Git expressions
+	if d.filters.RequiresReading() {
+		d = d.WithTrackReads()
+	}
+
 	d.gitExpressions = d.filters.UniqueGitFilters()
 
 	return d
@@ -79,6 +80,14 @@ func (d *Discovery) WithNumWorkers(numWorkers int) *Discovery {
 func (d *Discovery) WithNoHidden() *Discovery {
 	d.noHidden = true
 	return d
+}
+
+// ParsesConfigs reports whether the options set so far commit discovery to
+// parsing Terragrunt configurations. The classifier can still call for a parse
+// later, from a filter expression that exists only once a Git diff has been
+// expanded.
+func (d *Discovery) ParsesConfigs() bool {
+	return len(d.parseReasons) > 0
 }
 
 // WithRequiresParse enables parsing of Terragrunt configurations.
@@ -111,10 +120,21 @@ func (d *Discovery) WithParseStackConfigs() *Discovery {
 	return d
 }
 
-// WithReadFiles enables parsing for file reading information.
+// WithReadFiles parses every discovered component so that all of them report the
+// files they read, rather than only those a filter forces through the parser.
 func (d *Discovery) WithReadFiles() *Discovery {
 	d.readFiles = true
 	d.addParseReason(parseReasonReadFiles)
+
+	return d.WithTrackReads()
+}
+
+// WithTrackReads records, for each component parsing visits, the files it read.
+// Discovery derives this from the filters it is given; callers that consume
+// [component.Component.Reading] without a reading filter to ask for it, such as
+// the browse TUI, set it themselves.
+func (d *Discovery) WithTrackReads() *Discovery {
+	d.trackReads = true
 
 	return d
 }
@@ -141,6 +161,13 @@ func (d *Discovery) WithRelationships() *Discovery {
 // upstream dependent walk, bypassing automatic detection.
 func (d *Discovery) WithGitRoot(gitRoot string) *Discovery {
 	d.gitRoot = gitRoot
+	return d
+}
+
+// WithWalkRoot narrows the filesystem walk to a subdirectory of the working
+// directory without changing the logical base for filter evaluation.
+func (d *Discovery) WithWalkRoot(root string) *Discovery {
+	d.walkRoot = root
 	return d
 }
 

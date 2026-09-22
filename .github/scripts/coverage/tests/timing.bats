@@ -1,6 +1,9 @@
 #!/usr/bin/env bats
 
 setup() {
+	# Keep any summary a script writes inside this test's tmpdir, not in the job summary.
+	export GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md"
+
 	SCRIPT="${BATS_TEST_DIRNAME}/../coverage-report.sh"
 	CURRENT="${BATS_TEST_TMPDIR}/current.json"
 	PREVIOUS="${BATS_TEST_TMPDIR}/previous.json"

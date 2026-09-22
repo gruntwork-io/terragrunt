@@ -7,8 +7,6 @@ sidebar:
 ---
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
-import Before from '@components/Before.astro';
 
 Terragrunt releases use [semantic versions (semver)](https://semver.org/).
 
@@ -24,13 +22,7 @@ Terragrunt uses [GitHub's immutable releases](https://docs.github.com/en/code-se
 
 To support immutability, releases are built as **drafts** first. All artifacts are uploaded and verified before the release is published. Once published, the git tag is created and the release is locked.
 
-<Before version="1.1.0">
-Immutable releases are not yet enabled for the repository. The release workflow already supports them, and the setting will be turned on starting with `v1.1.0`.
-</Before>
-
-<Since version="1.1.0">
 Releases starting with `v1.1.0` are immutable. Releases published before then predate the setting being enabled on the repository, so they are not locked.
-</Since>
 
 ## When to Cut a New Release
 

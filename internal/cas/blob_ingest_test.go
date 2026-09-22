@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -56,7 +57,7 @@ func TestCAS_ColdIngestBlobsMatchGit(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	require.NoError(t, c.Clone(ctx, l, v, repoURL, cas.WithDir(targetPath), cas.WithDepth(-1)))
+	require.NoError(t, c.Clone(ctx, l, v, redact.NewURL(repoURL), cas.WithDir(targetPath), cas.WithDepth(-1)))
 
 	for path, want := range files {
 		linked, err := os.ReadFile(filepath.Join(targetPath, filepath.FromSlash(path)))
@@ -117,32 +118,27 @@ func TestCAS_EnsureBlobClosesTempHandleOnReadFailure(t *testing.T) {
 	assert.NoFileExists(t, tmp.Name())
 }
 
-// handleTrackingFS records every file Create hands out so a test can
-// assert the caller closed it. Locks pass through to the wrapped
-// filesystem, since the store takes one before it writes.
+// handleTrackingFS records every file opened with O_CREATE so a test can
+// assert the caller closed it.
 type handleTrackingFS struct {
 	vfs.FS
 	created []*trackedHandle
 }
 
-func (fsys *handleTrackingFS) Create(name string) (vfs.File, error) {
-	f, err := fsys.FS.Create(name)
+func (fsys *handleTrackingFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
+	f, err := fsys.FS.OpenFile(name, flag, perm)
 	if err != nil {
 		return nil, err
+	}
+
+	if flag&os.O_CREATE == 0 {
+		return f, nil
 	}
 
 	tracked := &trackedHandle{File: f}
 	fsys.created = append(fsys.created, tracked)
 
 	return tracked, nil
-}
-
-func (fsys *handleTrackingFS) Lock(name string) (vfs.Unlocker, error) {
-	return vfs.Lock(fsys.FS, name)
-}
-
-func (fsys *handleTrackingFS) TryLock(name string) (vfs.Unlocker, bool, error) {
-	return vfs.TryLock(fsys.FS, name)
 }
 
 // trackedHandle flags itself closed so handleTrackingFS can report a

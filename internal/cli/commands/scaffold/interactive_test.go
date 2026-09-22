@@ -1,13 +1,11 @@
 package scaffold_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/term"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -131,15 +129,8 @@ func TestRunInteractiveNonInteractiveSkipsTheForm(t *testing.T) {
 // TestRunInteractiveWithoutTerminalSkipsTheForm covers a run with no terminal
 // to draw the form on, such as a CI job: scaffolding falls back to its
 // placeholders rather than failing.
-//
-// It skips where stdin is a terminal, since a regression would open the form
-// for real and block.
 func TestRunInteractiveWithoutTerminalSkipsTheForm(t *testing.T) {
 	t.Parallel()
-
-	if term.IsTerminal(int(os.Stdin.Fd())) {
-		t.Skip("stdin is a terminal; a regression would open the scaffold form for real")
-	}
 
 	source := writeComponent(t, "units/app", map[string]string{
 		"terragrunt.hcl": unitConfig,
@@ -152,9 +143,15 @@ func TestRunInteractiveWithoutTerminalSkipsTheForm(t *testing.T) {
 
 	opts.WorkingDir = outputDir
 
-	require.NoError(t, scaffold.RunInteractive(
-		t.Context(), logger.CreateLogger(), venv.OSVenv(), opts, source, "",
-	))
+	v := venv.OSVenv()
+	v.Terminal = &venv.Terminal{
+		StdinIsTTY:  func() bool { return false },
+		StdoutIsTTY: func() bool { return false },
+		StderrIsTTY: func() bool { return false },
+		Width:       func() int { return 0 },
+	}
+
+	require.NoError(t, scaffold.RunInteractive(t.Context(), logger.CreateLogger(), v, opts, source, ""))
 
 	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
 	assert.Contains(t, readFile(t, filepath.Join(outputDir, "terragrunt.values.hcl")), `"TODO"`)

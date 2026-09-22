@@ -445,9 +445,10 @@ func ListStackFiles(
 	var discoveredComponents component.Components
 
 	if scope != worktreeStacksOnly {
-		d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-			WorkingDir: opts.WorkingDir,
-			Filters:    opts.Filters,
+		d, err := discovery.NewForStackGenerate(l, v.FS, discovery.StackGenerateOptions{
+			WorkingDir:        opts.WorkingDir,
+			DiscoveryBoundary: opts.DiscoveryBoundary,
+			Filters:           opts.Filters,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
@@ -491,9 +492,10 @@ func ListStackFilesWithExcludes(
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
-	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
+	d, err := discovery.NewForStackGenerate(l, v.FS, discovery.StackGenerateOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
@@ -676,10 +678,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters, err := pair.Expand(v.FS)
-		if err != nil {
-			return nil, fmt.Errorf("failed to expand worktree pair: %w", err)
-		}
+		fromFilters, toFilters := pair.FromFilters, pair.ToFilters
 
 		// Evaluate every reading filter, not just the first: a stack matches one filter per file it reads.
 		// The from filters mix deleted-file reading filters with path filters for genuine removals, so the

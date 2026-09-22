@@ -1,58 +1,137 @@
 ---
 name: format
 description: |
-  Format the catalog as specified. Supported values (tui, jsonl, md). Default: tui.
+  Format the catalog as specified. Supported values (tui, jsonl, md). Default: tui when stdin and stdout are terminals, jsonl otherwise.
 type: string
 env:
   - TG_FORMAT
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
+<Before version="v1.2.0">
 
 <Aside type="tip" title="Experimental">
 This flag is gated behind the [`catalog-format`](/reference/experiments/active#catalog-format) experiment. Enable it with `--experiment=catalog-format` or `TG_EXPERIMENT=catalog-format`.
 </Aside>
 
+</Before>
+
 ## Formats
 
-- `tui` is the default format for the `catalog` command, and results in the catalog rendering as an interactive Terminal User Interface.
+- `tui` renders the catalog as an interactive Terminal User Interface.
 - `jsonl` writes one JSON object per line to standard output, so a script can read the catalog where a terminal user interface cannot be used.
 - `md` writes a Markdown document to standard output, with a section per catalog entry, for reading by a person or by an agent.
 
+<Before version="v1.2.0">
+
+`tui` is the default.
+
+</Before>
+
+<Since version="v1.2.0">
+
+Without `--format`, the catalog uses `tui` when standard input and standard output are both terminals, and `jsonl` otherwise (e.g., when piped to another program).
+
+</Since>
+
 ## JSONL
+
+<Before version="v1.2.0">
 
 ```bash
 $ terragrunt catalog --experiment=catalog-format --format=jsonl | head -1
 {"kind":"module","title":"VPC","description":"Creates a VPC.","tags":["networking"],"source":"github.com/acme/infrastructure-modules","dir":"modules/vpc","version":"v0.14.2","url":"https://github.com/acme/infrastructure-modules/tree/main/modules/vpc","component_source":"github.com/acme/infrastructure-modules//modules/vpc","doc":"Everything a VPC needs.\n"}
 ```
 
+</Before>
+
+<Since version="v1.2.0">
+
+```bash
+$ terragrunt catalog --format=jsonl | head -1
+{"kind":"module","title":"VPC","description":"Creates a VPC.","tags":["networking"],"source":"github.com/acme/infrastructure-modules","dir":"modules/vpc","version":"v0.14.2","url":"https://github.com/acme/infrastructure-modules/tree/main/modules/vpc","component_source":"github.com/acme/infrastructure-modules//modules/vpc","doc":"Everything a VPC needs.\n"}
+```
+
+</Since>
+
 Each entry is emitted as it is discovered, so a consumer that only needs the first few results can stop reading before discovery finishes.
 
 Entries arrive in discovery order, which interleaves the repositories being loaded and differs between runs. Collect them before sorting when you need a stable order:
+
+<Before version="v1.2.0">
 
 ```bash
 terragrunt catalog --experiment=catalog-format --format=jsonl | jq -s -c 'sort_by(.component_source)[]'
 ```
 
+</Before>
+
+<Since version="v1.2.0">
+
+```bash
+terragrunt catalog --format=jsonl | jq -s -c 'sort_by(.component_source)[]'
+```
+
+</Since>
+
 Every entry carries the body of the component's README in `doc`, and no flag suppresses it. Drop it when you only want the metadata:
+
+<Before version="v1.2.0">
 
 ```bash
 terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c 'del(.doc)'
 ```
 
+</Before>
+
+<Since version="v1.2.0">
+
+```bash
+terragrunt catalog --format=jsonl | jq -c 'del(.doc)'
+```
+
+</Since>
+
 Or keep only the fields you are after:
+
+<Before version="v1.2.0">
 
 ```bash
 terragrunt catalog --experiment=catalog-format --format=jsonl | jq -c '{kind, title, component_source}'
 ```
 
+</Before>
+
+<Since version="v1.2.0">
+
+```bash
+terragrunt catalog --format=jsonl | jq -c '{kind, title, component_source}'
+```
+
+</Since>
+
 Entries follow a [published JSON schema](https://docs.terragrunt.com/schemas/catalog/v1/schema.json), which describes the schema for each entry, not the stream as a whole.
 
 ## Markdown
 
+<Before version="v1.2.0">
+
 ```bash
 terragrunt catalog --experiment=catalog-format --format=md > catalog.md
 ```
+
+</Before>
+
+<Since version="v1.2.0">
+
+```bash
+terragrunt catalog --format=md > catalog.md
+```
+
+</Since>
 
 The document opens with a header describing what it holds, and gives each entry a section carrying the same metadata the `jsonl` format puts in a record:
 

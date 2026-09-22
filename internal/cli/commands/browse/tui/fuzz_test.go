@@ -20,8 +20,8 @@ var errFuzzDiscovery = errors.New("fuzz discovery failure")
 // fuzzComponents is the discovery result fed while fuzzing; it matches the fixed
 // tree so the component-attach, reading-highlight, and count paths are exercised.
 var fuzzComponents = component.Components{
-	component.NewUnit("/repo/vpc").WithReading("/repo/vpc/main.tf"),
-	component.NewStack("/repo/live"),
+	component.NewUnit(repoPath("vpc")).WithReading(repoPath("vpc/main.tf")),
+	component.NewStack(repoPath("live")),
 }
 
 // fuzzFS builds a fixed in-memory estate covering the classifier's branches: a
@@ -36,14 +36,14 @@ func fuzzFS(t *testing.T) vfs.FS {
 		require.NoError(t, vfs.WriteFile(fs, path, []byte(body), 0o644))
 	}
 
-	write("/repo/vpc/terragrunt.hcl", "inputs = {}\n")
-	write("/repo/vpc/main.tf", "resource \"null_resource\" \"x\" {}\n")
-	write("/repo/vpc/README.md", "# vpc\n\nbody\n")
-	write("/repo/live/terragrunt.stack.hcl", "unit \"x\" {\n  source = \"./x\"\n}\n")
-	write("/repo/data.json", "{}\n")
-	write("/repo/mod/.terragrunt-cache/y/terragrunt.hcl", "")
+	write(repoPath("vpc/terragrunt.hcl"), "inputs = {}\n")
+	write(repoPath("vpc/main.tf"), "resource \"null_resource\" \"x\" {}\n")
+	write(repoPath("vpc/README.md"), "# vpc\n\nbody\n")
+	write(repoPath("live/terragrunt.stack.hcl"), "unit \"x\" {\n  source = \"./x\"\n}\n")
+	write(repoPath("data.json"), "{}\n")
+	write(repoPath("mod/.terragrunt-cache/y/terragrunt.hcl"), "")
 
-	require.NoError(t, fs.MkdirAll("/repo/.git", 0o755))
+	require.NoError(t, fs.MkdirAll(repoPath(".git"), 0o755))
 
 	return fs
 }
@@ -99,7 +99,7 @@ func FuzzModel(f *testing.F) {
 	msgs := fuzzMsgs()
 
 	f.Fuzz(func(t *testing.T, ops []byte) {
-		m := newModel(t, fuzzFS(t), tui.NewRoot("/repo"), tui.ColorDisabled)
+		m := newModel(t, fuzzFS(t), tui.NewRoot(repoRoot), tui.ColorDisabled)
 
 		for i, b := range ops {
 			if i >= maxFuzzSteps {
@@ -129,10 +129,10 @@ func FuzzFilePreview(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, content []byte) {
 		fs := vfs.NewMemMapFS()
-		require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/doc.md", content, 0o644))
-		require.NoError(t, vfs.WriteFile(fs, "/repo/vpc/src.tf", content, 0o644))
+		require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/doc.md"), content, 0o644))
+		require.NoError(t, vfs.WriteFile(fs, repoPath("vpc/src.tf"), content, 0o644))
 
-		root := tui.BuildTree("/repo", component.Components{component.NewUnit("/repo/vpc")})
+		root := tui.BuildTree(repoRoot, component.Components{component.NewUnit(repoPath("vpc"))})
 
 		// Color on so both the Markdown and the source renderers actually render.
 		m := newModel(t, fs, root, tui.ColorEnabled)

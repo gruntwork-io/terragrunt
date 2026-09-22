@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
@@ -67,6 +68,41 @@ func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
 
 	expectedErr := new(shared.AllGraphFlagsError)
 	require.ErrorAs(t, err, &expectedErr)
+}
+
+// TestUsingCASOfflineAndRefreshFlagsSimultaneously pins the refusal to
+// answer only from the probe cache while also ignoring it, in either
+// flag order since each flag's check runs after both are parsed.
+func TestUsingCASOfflineAndRefreshFlagsSimultaneously(t *testing.T) {
+	t.Parallel()
+
+	for _, args := range [][]string{
+		{"run", "--experiment", experiment.OfflineCAS, "--cas-offline", "--cas-refresh"},
+		{"run", "--experiment", experiment.OfflineCAS, "--cas-refresh", "--cas-offline"},
+	} {
+		_, err := runCLI(t, venvtest.New(), args...)
+
+		expectedErr := new(shared.CASOfflineRefreshFlagsError)
+		require.ErrorAs(t, err, &expectedErr)
+	}
+}
+
+// TestCASProbeCacheFlagsRequireExperiment pins that each flag controlling the
+// persisted probe cache is refused until the experiment that gates it is on.
+func TestCASProbeCacheFlagsRequireExperiment(t *testing.T) {
+	t.Parallel()
+
+	for flagName, args := range map[string][]string{
+		shared.CASOfflineFlagName:  {"run", "--cas-offline"},
+		shared.CASRefreshFlagName:  {"run", "--cas-refresh"},
+		shared.CASProbeTTLFlagName: {"run", "--cas-probe-ttl", "10m"},
+	} {
+		_, err := runCLI(t, venvtest.New(), args...)
+
+		gateErr := new(shared.CASExperimentRequiredError)
+		require.ErrorAs(t, err, &gateErr)
+		assert.Equal(t, flagName, gateErr.FlagName)
+	}
 }
 
 // TestShowErrorWhenRunAllInvokedWithoutArguments pins that `run --all` with no

@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    null = {
+      source  = "registry.opentofu.org/hashicorp/null"
+      version = "3.2.4"
+    }
+  }
+}
+
 variable "desired_count" {
   description = "The desired count of the ECS Service"
   type        = map(number)

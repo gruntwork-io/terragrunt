@@ -2,16 +2,19 @@ package worktrees_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -42,11 +45,288 @@ func TestNewWorktrees(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger(), vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.Background(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
 	require.NotEmpty(t, w.WorktreePairs)
+}
+
+// TestNewWorktreesWithSymlinkOutsideRepository pins that a tracked symlink
+// pointing outside the repository does not keep a reference from being
+// materialized. Git checks the link out as it is committed, writing it the
+// way any clone or `git worktree add` would.
+func TestNewWorktreesWithSymlinkOutsideRepository(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("creating a symlink on Windows takes a privilege the runner may not have")
+	}
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	outside := filepath.Join(helpers.TmpDirWOSymlinks(t), "outside.txt")
+	require.NoError(t, os.WriteFile(outside, []byte("outside\n"), 0o600))
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	unitDir := filepath.Join(tmpDir, "unit")
+	require.NoError(t, os.MkdirAll(unitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0o600))
+	require.NoError(t, os.Symlink(outside, filepath.Join(tmpDir, "link")))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
+
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte("# changed\n"), 0o600))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Second commit"))
+
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), v))
+	})
+
+	materialized := 0
+
+	for _, pair := range w.WorktreePairs {
+		for _, worktree := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if worktree.Path == "" {
+				continue
+			}
+
+			materialized++
+
+			target, err := os.Readlink(filepath.Join(worktree.Path, "link"))
+			require.NoError(t, err)
+			assert.Equal(t, outside, target)
+			assert.FileExists(t, filepath.Join(worktree.Path, "unit", "terragrunt.hcl"))
+		}
+	}
+
+	assert.Positive(t, materialized)
+}
+
+// TestNewWorktreesForSeveralRefsWithRacing materializes several references at
+// once, which is what the concurrent worktree creation has to get right.
+func TestNewWorktreesForSeveralRefsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	for i := range 3 {
+		name := fmt.Sprintf("unit-%d", i)
+
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(tmpDir, name, "terragrunt.hcl"),
+			[]byte("inputs = {}\n"),
+			0o600,
+		))
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Commit "+name))
+	}
+
+	filters, err := filter.ParseFilterQueries(
+		logger.CreateLogger(),
+		[]string{"[HEAD~2...HEAD~1]", "[HEAD~1...HEAD]"},
+	)
+	require.NoError(t, err)
+
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv()))
+	})
+
+	require.Len(t, w.WorktreePairs, 2)
+
+	// A worktree that was never created has no path: these commits only add
+	// units, so nothing reads the "from" side of either diff.
+	materialized := 0
+
+	for _, pair := range w.WorktreePairs {
+		for _, worktree := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if worktree.Path == "" {
+				continue
+			}
+
+			materialized++
+
+			assert.FileExists(t, filepath.Join(worktree.Path, "unit-0", "terragrunt.hcl"))
+		}
+	}
+
+	assert.Positive(t, materialized)
+}
+
+// TestNewWorktreesFilteredPathsOnly pins how much of a reference is checked
+// out. A caller that only locates the components a filter names gets those
+// directories, and anything that parses configurations gets the whole tree.
+func TestNewWorktreesFilteredPathsOnly(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		files       map[string]string
+		name        string
+		changed     string
+		experiments []string
+		wantPresent []string
+		wantAbsent  []string
+	}{
+		{
+			name: "a changed unit configuration selects units by path",
+			files: map[string]string{
+				"unit/terragrunt.hcl":  "inputs = {}\n",
+				"other/terragrunt.hcl": "inputs = {}\n",
+				"modules/app/main.tf":  "",
+			},
+			changed:     "unit/terragrunt.hcl",
+			wantPresent: []string{"unit/terragrunt.hcl"},
+			wantAbsent:  []string{"other/terragrunt.hcl", "modules/app/main.tf"},
+		},
+		{
+			// Pathspecs are '/'-separated on every platform, so a nested unit
+			// must not be checked out under its OS spelling.
+			name: "a changed unit configuration in a nested directory selects units by path",
+			files: map[string]string{
+				"nested/changed/terragrunt.hcl":   "inputs = {}\n",
+				"nested/unchanged/terragrunt.hcl": "inputs = {}\n",
+			},
+			changed:     "nested/changed/terragrunt.hcl",
+			wantPresent: []string{"nested/changed/terragrunt.hcl"},
+			wantAbsent:  []string{"nested/unchanged/terragrunt.hcl"},
+		},
+		{
+			name: "a changed file beside a unit selects it by path",
+			files: map[string]string{
+				"unit/terragrunt.hcl":  "inputs = {}\n",
+				"unit/main.tf":         "",
+				"other/terragrunt.hcl": "inputs = {}\n",
+			},
+			changed:     "unit/main.tf",
+			wantPresent: []string{"unit/terragrunt.hcl", "unit/main.tf"},
+			wantAbsent:  []string{"other/terragrunt.hcl"},
+		},
+		{
+			name: "a changed file no unit sits beside selects units by what they read",
+			files: map[string]string{
+				"unit/terragrunt.hcl": "inputs = {}\n",
+				"modules/app/main.tf": "",
+			},
+			changed:     "modules/app/main.tf",
+			wantPresent: []string{"unit/terragrunt.hcl", "modules/app/main.tf"},
+		},
+		{
+			// Discovery following a symlink walks wherever it points, which a
+			// worktree of some directories cannot answer for.
+			name: "symlinks are followed out of the checked-out directories",
+			files: map[string]string{
+				"unit/terragrunt.hcl":  "inputs = {}\n",
+				"other/terragrunt.hcl": "inputs = {}\n",
+			},
+			changed:     "unit/terragrunt.hcl",
+			experiments: []string{experiment.Symlinks},
+			wantPresent: []string{"unit/terragrunt.hcl", "other/terragrunt.hcl"},
+		},
+		{
+			name: "a stack in the tree is generated by parsing it",
+			files: map[string]string{
+				"unit/terragrunt.hcl":       "inputs = {}\n",
+				"live/terragrunt.stack.hcl": "unit \"app\" {\n  source = \"../unit\"\n  path   = \"app\"\n}\n",
+			},
+			changed:     "unit/terragrunt.hcl",
+			wantPresent: []string{"unit/terragrunt.hcl", "live/terragrunt.stack.hcl"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			runner := helpers.InitTestGitRunner(t, tmpDir)
+
+			for name, content := range tc.files {
+				path := filepath.Join(tmpDir, filepath.FromSlash(name))
+
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+				require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+			}
+
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
+
+			changed := filepath.Join(tmpDir, filepath.FromSlash(tc.changed))
+			require.NoError(t, os.WriteFile(changed, []byte("# changed\n"), 0o600))
+			require.NoError(t, runner.Add(t.Context(), "."))
+			require.NoError(t, runner.Commit(t.Context(), "Second commit"))
+
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
+			require.NoError(t, err)
+
+			v := venvtest.NewOSWithEmptyEnv()
+
+			experiments := experiment.NewExperiments()
+
+			for _, name := range tc.experiments {
+				require.NoError(t, experiments.EnableExperiment(name))
+			}
+
+			w, err := worktrees.NewWorktrees(t.Context(), logger.CreateLogger(), v, worktrees.WorktreeOpts{
+				WorkingDir:        tmpDir,
+				GitExpressions:    filters.UniqueGitFilters(),
+				Experiments:       experiments,
+				FilteredPathsOnly: true,
+			})
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				require.NoError(t, w.Cleanup(context.Background(), logger.CreateLogger(), v))
+			})
+
+			materialized := 0
+
+			for _, pair := range w.WorktreePairs {
+				for _, worktree := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+					if worktree.Path == "" {
+						continue
+					}
+
+					materialized++
+
+					for _, present := range tc.wantPresent {
+						assert.FileExists(t, filepath.Join(worktree.Path, filepath.FromSlash(present)))
+					}
+
+					for _, absent := range tc.wantAbsent {
+						assert.NoFileExists(t, filepath.Join(worktree.Path, filepath.FromSlash(absent)))
+					}
+				}
+			}
+
+			assert.Positive(t, materialized)
+		})
+	}
 }
 
 func TestNewWorktreesWithInvalidReference(t *testing.T) {
@@ -185,16 +465,9 @@ func TestExpressionExpansion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+			wp := &worktrees.WorktreePair{Diffs: tt.diffs}
 
-			runner := helpers.InitTestGitRunner(t, tmpDir)
-			require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
-
-			wp := &worktrees.WorktreePair{
-				Diffs: tt.diffs,
-			}
-
-			fromFilters, toFilters, err := wp.Expand(vfs.NewOSFS())
+			fromFilters, toFilters, err := wp.Expand(treePaths())
 			require.NoError(t, err)
 
 			// Verify from filters count
@@ -318,16 +591,9 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+			wp := &worktrees.WorktreePair{Diffs: tt.diffs}
 
-			runner := helpers.InitTestGitRunner(t, tmpDir)
-			require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
-
-			wp := &worktrees.WorktreePair{
-				Diffs: tt.diffs,
-			}
-
-			_, toFilters, err := wp.Expand(vfs.NewOSFS())
+			_, toFilters, err := wp.Expand(treePaths())
 			require.NoError(t, err)
 
 			// Extract reading filters
@@ -392,27 +658,17 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                 string
-		setupFilesystem      func(tmpDir string) error
 		diffs                *git.Diffs
+		name                 string
+		toTree               []string
 		expectedToPaths      []string
 		expectedToReadings   []string
 		expectedFromReadings []string
 		expectedFrom         int
 	}{
 		{
-			name: "removed file in unit directory creates path filter",
-			setupFilesystem: func(tmpDir string) error {
-				// Create unit directory with terragrunt.hcl
-				unitDir := filepath.Join(tmpDir, "unit1")
-				if err := os.MkdirAll(unitDir, 0755); err != nil {
-					return err
-				}
-
-				terragruntFile := filepath.Join(unitDir, "terragrunt.hcl")
-
-				return os.WriteFile(terragruntFile, []byte("# terragrunt config"), 0644)
-			},
+			name:   "removed file in unit directory creates path filter",
+			toTree: []string{"unit1/terragrunt.hcl"},
 			diffs: &git.Diffs{
 				Removed: []string{
 					"unit1/main.tf",
@@ -423,12 +679,8 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			expectedFrom:       0,
 		},
 		{
-			name: "removed file in non-unit directory creates reading filter against from worktree",
-			setupFilesystem: func(tmpDir string) error {
-				// Create non-unit directory (no terragrunt.hcl)
-				nonUnitDir := filepath.Join(tmpDir, "non-unit")
-				return os.MkdirAll(nonUnitDir, 0755)
-			},
+			name:   "removed file in non-unit directory creates reading filter against from worktree",
+			toTree: []string{"non-unit/some-file.tf"},
 			diffs: &git.Diffs{
 				Removed: []string{
 					"non-unit/some-file.tf",
@@ -440,18 +692,8 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			expectedFrom:         1,
 		},
 		{
-			name: "added file in unit directory creates path filter",
-			setupFilesystem: func(tmpDir string) error {
-				// Create unit directory with terragrunt.hcl
-				unitDir := filepath.Join(tmpDir, "unit1")
-				if err := os.MkdirAll(unitDir, 0755); err != nil {
-					return err
-				}
-
-				terragruntFile := filepath.Join(unitDir, "terragrunt.hcl")
-
-				return os.WriteFile(terragruntFile, []byte("# terragrunt config"), 0644)
-			},
+			name:   "added file in unit directory creates path filter",
+			toTree: []string{"unit1/terragrunt.hcl"},
 			diffs: &git.Diffs{
 				Added: []string{
 					"unit1/variables.tf",
@@ -462,12 +704,8 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			expectedFrom:       0,
 		},
 		{
-			name: "added file in non-unit directory creates reading filter against to worktree",
-			setupFilesystem: func(tmpDir string) error {
-				// Create non-unit directory (no terragrunt.hcl)
-				nonUnitDir := filepath.Join(tmpDir, "non-unit")
-				return os.MkdirAll(nonUnitDir, 0755)
-			},
+			name:   "added file in non-unit directory creates reading filter against to worktree",
+			toTree: []string{"non-unit/some-file.tf"},
 			diffs: &git.Diffs{
 				Added: []string{
 					"non-unit/new-file.tf",
@@ -478,18 +716,8 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			expectedFrom:       0,
 		},
 		{
-			name: "changed file in unit directory creates path filter",
-			setupFilesystem: func(tmpDir string) error {
-				// Create unit directory with terragrunt.hcl
-				unitDir := filepath.Join(tmpDir, "unit1")
-				if err := os.MkdirAll(unitDir, 0755); err != nil {
-					return err
-				}
-
-				terragruntFile := filepath.Join(unitDir, "terragrunt.hcl")
-
-				return os.WriteFile(terragruntFile, []byte("# terragrunt config"), 0644)
-			},
+			name:   "changed file in unit directory creates path filter",
+			toTree: []string{"unit1/terragrunt.hcl"},
 			diffs: &git.Diffs{
 				Changed: []string{
 					"unit1/main.tf",
@@ -500,12 +728,8 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 			expectedFrom:       0,
 		},
 		{
-			name: "changed file in non-unit directory creates reading filter",
-			setupFilesystem: func(tmpDir string) error {
-				// Create non-unit directory (no terragrunt.hcl)
-				nonUnitDir := filepath.Join(tmpDir, "non-unit")
-				return os.MkdirAll(nonUnitDir, 0755)
-			},
+			name:   "changed file in non-unit directory creates reading filter",
+			toTree: []string{"non-unit/some-file.tf"},
 			diffs: &git.Diffs{
 				Changed: []string{
 					"non-unit/some-file.tf",
@@ -517,41 +741,10 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 		},
 		{
 			name: "mixed scenarios with multiple units and non-units",
-			setupFilesystem: func(tmpDir string) error {
-				// Create unit1 directory
-				unit1Dir := filepath.Join(tmpDir, "unit1")
-				if err := os.MkdirAll(unit1Dir, 0755); err != nil {
-					return err
-				}
-
-				terragruntFile1 := filepath.Join(unit1Dir, "terragrunt.hcl")
-				if err := os.WriteFile(
-					terragruntFile1,
-					[]byte("# terragrunt config"),
-					0644,
-				); err != nil {
-					return err
-				}
-
-				// Create unit2 directory
-				unit2Dir := filepath.Join(tmpDir, "unit2")
-				if err := os.MkdirAll(unit2Dir, 0755); err != nil {
-					return err
-				}
-
-				terragruntFile2 := filepath.Join(unit2Dir, "terragrunt.hcl")
-				if err := os.WriteFile(
-					terragruntFile2,
-					[]byte("# terragrunt config"),
-					0644,
-				); err != nil {
-					return err
-				}
-
-				// Create non-unit directory
-				nonUnitDir := filepath.Join(tmpDir, "non-unit")
-
-				return os.MkdirAll(nonUnitDir, 0755)
+			toTree: []string{
+				"unit1/terragrunt.hcl",
+				"unit2/terragrunt.hcl",
+				"non-unit/shared.tf",
 			},
 			diffs: &git.Diffs{
 				Removed: []string{
@@ -575,20 +768,9 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+			wp := &worktrees.WorktreePair{Diffs: tt.diffs}
 
-			// Setup filesystem structure
-			err := tt.setupFilesystem(tmpDir)
-			require.NoError(t, err)
-
-			wp := &worktrees.WorktreePair{
-				Diffs: tt.diffs,
-				ToWorktree: worktrees.Worktree{
-					Path: tmpDir,
-				},
-			}
-
-			fromFilters, toFilters, err := wp.Expand(vfs.NewOSFS())
+			fromFilters, toFilters, err := wp.Expand(treePaths(tt.toTree...))
 			require.NoError(t, err)
 
 			// Verify from filters count
@@ -693,4 +875,147 @@ func TestWorktreeCleanup(t *testing.T) {
 	}
 
 	assert.False(t, worktreeExists, "Worktree test-worktree-cleanup should be deleted")
+}
+
+// TestNewWorktreesInterruptedCheckoutLeavesNoRegistrationWithRacing pins that a
+// worktree registered before an interrupt is unregistered again. The context is
+// cancelled as the checkout that fills the worktree starts.
+func TestNewWorktreesInterruptedCheckoutLeavesNoRegistrationWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	commitUnits(t, tmpDir, 2)
+
+	l := logger.CreateLogger()
+
+	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	v := venvtest.NewOSWithEmptyEnv()
+	v = v.WithExec(&cancelOnCheckoutExec{Exec: v.Exec, cancel: cancel})
+
+	_, err = worktrees.NewWorktrees(
+		ctx,
+		l,
+		v,
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.ErrorIs(t, err, context.Canceled)
+
+	assert.Empty(t, registeredWorktrees(t, tmpDir))
+}
+
+// TestWorktreeCleanupWithCancelledContextWithRacing pins that Cleanup removes
+// worktrees when its context is already cancelled, as it is when an
+// interrupted run cleans up.
+func TestWorktreeCleanupWithCancelledContextWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	commitUnits(t, tmpDir, 2)
+
+	l := logger.CreateLogger()
+	v := venvtest.NewOSWithEmptyEnv()
+
+	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		l,
+		v,
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, registeredWorktrees(t, tmpDir))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	require.NoError(t, w.Cleanup(ctx, l, v))
+
+	assert.Empty(t, registeredWorktrees(t, tmpDir))
+
+	for _, pair := range w.WorktreePairs {
+		for _, worktree := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if worktree.Path == "" {
+				continue
+			}
+
+			assert.NoDirExists(t, worktree.Path)
+		}
+	}
+}
+
+// cancelOnCheckoutExec cancels a context when a `git checkout` is prepared,
+// which is after a worktree is registered and before it is filled.
+type cancelOnCheckoutExec struct {
+	vexec.Exec
+	cancel context.CancelFunc
+}
+
+// Command cancels the context before preparing a `git checkout`, and prepares
+// every command through the wrapped Exec.
+func (e *cancelOnCheckoutExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
+	if slices.Contains(args, "checkout") {
+		e.cancel()
+	}
+
+	return e.Exec.Command(ctx, name, args...)
+}
+
+// commitUnits initializes a repository in dir and commits n units to it, one
+// per commit.
+func commitUnits(t *testing.T, dir string, n int) {
+	t.Helper()
+
+	runner := helpers.InitTestGitRunner(t, dir)
+
+	for i := range n {
+		name := fmt.Sprintf("unit-%d", i)
+
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, name), 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, name, "terragrunt.hcl"),
+			[]byte("inputs = {}\n"),
+			0o600,
+		))
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Commit "+name))
+	}
+}
+
+// registeredWorktrees returns the worktrees registered in the repository at
+// repoDir besides its main worktree.
+func registeredWorktrees(t *testing.T, repoDir string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(filepath.Join(repoDir, ".git", "worktrees"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+
+	return names
+}
+
+// treePaths returns the paths of a reference, as [git.GitRunner.LsTreeNames]
+// reports them.
+func treePaths(paths ...string) git.TreePaths {
+	tree := make(git.TreePaths, len(paths))
+
+	for _, path := range paths {
+		tree[path] = struct{}{}
+	}
+
+	return tree
 }

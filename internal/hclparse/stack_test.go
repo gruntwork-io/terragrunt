@@ -1,12 +1,15 @@
 package hclparse_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/function"
@@ -23,9 +26,10 @@ func noFuncs(string) (map[string]function.Function, error) {
 func TestBuildComponentRefMapExposesPath(t *testing.T) {
 	t.Parallel()
 
-	got := hclparse.BuildComponentRefMap([]hclparse.ComponentRef{
+	got, err := hclparse.BuildComponentRefMap(hclparse.VarStack, []hclparse.ComponentRef{
 		{Name: "networking", Path: ".terragrunt-stack/networking"},
 	})
+	require.NoError(t, err)
 
 	networking := got.AsValueMap()["networking"].AsValueMap()
 	assert.Equal(t, ".terragrunt-stack/networking", networking["path"].AsString())
@@ -50,7 +54,11 @@ unit "db" {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
@@ -78,13 +86,55 @@ func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Equal(
 		t,
 		[]string{filepath.Join("/test", ".terragrunt-stack", "more", ".terragrunt-stack", "deep")},
 		paths,
 	)
+}
+
+// TestUnitPathsFromStackDir_SkipsDisabledStack pins that discovery leaves out the units of a
+// disabled stack, including a tree generated before the stack was disabled.
+func TestUnitPathsFromStackDir_SkipsDisabledStack(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
+unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+
+stack "team" {
+  enabled = false
+
+  source = "."
+  path   = "team"
+}
+`), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/.terragrunt-stack/team/terragrunt.stack.hcl", []byte(`
+unit "member" {
+  source = "."
+  path   = "member"
+}
+`), 0644),
+	)
+
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "vpc")}, paths)
 }
 
 // TestUnitPathsFromStackDir_ValuesFileResolvesLocals pins that discovery loads the
@@ -108,7 +158,11 @@ unit "vpc" {
 	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.values.hcl", []byte(`env = "dev"
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(
 		t,
 		err,
@@ -135,7 +189,11 @@ unit "vpc" {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "prod-vpc")}, paths)
 }
@@ -213,7 +271,11 @@ unit "deep" {
 		),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Equal(
 		t,
@@ -275,7 +337,11 @@ func TestUnitPathsFromStackDir_MergesStackAutoInclude(t *testing.T) {
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	require.Len(
 		t,
@@ -310,7 +376,11 @@ func TestUnitPathsFromStackDir_StackAutoIncludePathReferencesSiblingRef(t *testi
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(
 		t,
 		err,
@@ -348,7 +418,11 @@ func TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack(t *testing.
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "vpc"))
 	assert.Contains(
@@ -422,7 +496,11 @@ func TestUnitPathsFromStackDir_StackAutoIncludeSameNameOverrides(t *testing.T) {
 `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(
 		t,
 		err,
@@ -620,15 +698,21 @@ func TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`stack "more" {
+	stackDir := venvtest.Root("/test")
+	require.NoError(t, fs.MkdirAll(stackDir, 0755))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`stack "more" {
   source = "."
   path   = "more"
 }
 `), 0644))
 	require.NoError(
 		t,
-		vfs.WriteFile(fs, "/test/.terragrunt-stack/more/terragrunt.stack.hcl", []byte(`unit "deep" {
+		vfs.WriteFile(
+			fs,
+			filepath.Join(stackDir, ".terragrunt-stack", "more", "terragrunt.stack.hcl"),
+			[]byte(`unit "deep" {
   source = "."
   path   = "deep"
 }
@@ -642,13 +726,17 @@ func TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir(t *testing.T) {
 		return map[string]function.Function{}, nil
 	}
 
-	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: funcsFor})
+	_, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		stackDir,
+		&hclparse.StackDirArgs{FuncsFor: funcsFor},
+	)
 	require.NoError(t, err)
 
-	nested := filepath.Join("/test", ".terragrunt-stack", "more")
+	nested := filepath.Join(stackDir, ".terragrunt-stack", "more")
 	assert.Equal(
 		t,
-		[]string{"/test", nested},
+		[]string{stackDir, nested},
 		seenDirs,
 		"the factory must be rebuilt for the top dir and the nested dir",
 	)
@@ -659,8 +747,11 @@ func TestUnitPathsFromStackDir_NilFuncsFactoryMapPanics(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+	stackDir := venvtest.Root("/test")
+	require.NoError(t, fs.MkdirAll(stackDir, 0755))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`unit "vpc" {
   source = "."
   path   = "vpc"
 }
@@ -670,10 +761,18 @@ func TestUnitPathsFromStackDir_NilFuncsFactoryMapPanics(t *testing.T) {
 		return nil, nil
 	}
 
-	assert.PanicsWithValue(t,
-		`hclparse.UnitPathsFromStackDir: funcsFor returned a nil map (stackDir="/test")`,
+	assert.PanicsWithValue(
+		t,
+		fmt.Sprintf(
+			"hclparse.UnitPathsFromStackDir: funcsFor returned a nil map (stackDir=%q)",
+			stackDir,
+		),
 		func() {
-			_, _ = hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: nilMapFactory})
+			_, _ = hclparse.UnitPathsFromStackDir(
+				fs,
+				stackDir,
+				&hclparse.StackDirArgs{FuncsFor: nilMapFactory},
+			)
 		},
 	)
 }
@@ -691,7 +790,11 @@ func TestUnitPathsFromStackDir_CycleTerminates(t *testing.T) {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Empty(t, paths)
 }
@@ -750,7 +853,11 @@ include "units" {
 }
 `), 0644))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Contains(t, paths[0], filepath.Join(hclparse.StackDir, "vpc"))
@@ -779,7 +886,11 @@ func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -789,7 +900,11 @@ func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/nonexistent", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/nonexistent",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -804,7 +919,11 @@ func TestUnitPathsFromStackDir_MalformedReturnsError(t *testing.T) {
 		vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "x" { source = "." `), 0644),
 	)
 
-	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	paths, err := hclparse.UnitPathsFromStackDir(
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 	require.Error(t, err)
 	assert.Nil(t, paths)
 
@@ -846,20 +965,43 @@ func TestParseStackFileFromPath_NoFile(t *testing.T) {
 func TestParseStackFileFromPath_StackDirIsFileReturnsError(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	filePath := filepath.Join(tmpDir, "another-name.hcl")
-	require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
+	t.Run("on the OS filesystem", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), filePath)
-	require.Error(t, err)
-	assert.Nil(t, result)
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "another-name.hcl")
+		require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
 
-	var readErr hclparse.FileReadError
-	require.ErrorAs(t, err, &readErr)
-	// On macOS, t.TempDir() returns paths under /var/folders/... where /var is a symlink to /private/var; vfs.ResolveForCompare follows it, so resolve our side too before comparing.
-	resolvedFilePath, evalErr := filepath.EvalSymlinks(filePath)
-	require.NoError(t, evalErr)
-	assert.Equal(t, filepath.Join(resolvedFilePath, "terragrunt.stack.hcl"), readErr.FilePath)
+		result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), filePath)
+		assert.Nil(t, result)
+
+		var readErr hclparse.FileReadError
+		require.ErrorAs(t, err, &readErr)
+		require.ErrorIs(t, err, syscall.ENOTDIR)
+		// On macOS, t.TempDir() returns paths under /var/folders/... where /var is a symlink to /private/var; vfs.ResolveForCompare follows it, so resolve our side too before comparing.
+		resolvedFilePath, evalErr := filepath.EvalSymlinks(filePath)
+		require.NoError(t, evalErr)
+		assert.Equal(t, filepath.Join(resolvedFilePath, "terragrunt.stack.hcl"), readErr.FilePath)
+	})
+
+	t.Run("on the in-memory filesystem", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		filePath := venvtest.Root("/stack/another-name.hcl")
+		require.NoError(
+			t,
+			vfs.WriteFile(fsys, filePath, []byte(`# regular file, not a directory`), 0644),
+		)
+
+		result, err := hclparse.ParseStackFileFromPath(fsys, filePath)
+		assert.Nil(t, result)
+
+		var readErr hclparse.FileReadError
+		require.ErrorAs(t, err, &readErr)
+		require.ErrorIs(t, err, syscall.ENOTDIR)
+		assert.Equal(t, filepath.Join(filePath, "terragrunt.stack.hcl"), readErr.FilePath)
+	})
 }
 
 func TestParseStackFileFromPath_Symlink(t *testing.T) {
@@ -923,8 +1065,10 @@ func TestParseStackFile_WithInclude(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test/includes", 0755))
-	require.NoError(t, vfs.WriteFile(fs, "/test/includes/extra.stack.hcl", []byte(`
+	stackDir := venvtest.Root("/test")
+	includePath := filepath.Join(stackDir, "includes", "extra.stack.hcl")
+	require.NoError(t, fs.MkdirAll(filepath.Dir(includePath), 0755))
+	require.NoError(t, vfs.WriteFile(fs, includePath, []byte(`
 unit "monitoring" {
   source = "../catalog/units/monitoring"
   path   = "monitoring"
@@ -934,7 +1078,7 @@ unit "monitoring" {
 	// Create the main stack file
 	mainSrc := `
 include "extra" {
-  path = "/test/includes/extra.stack.hcl"
+  path = "` + filepath.ToSlash(includePath) + `"
 }
 
 unit "vpc" {
@@ -947,8 +1091,8 @@ unit "vpc" {
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(mainSrc),
-			Filename: "/test/terragrunt.stack.hcl",
-			StackDir: "/test",
+			Filename: filepath.Join(stackDir, "terragrunt.stack.hcl"),
+			StackDir: stackDir,
 		},
 	)
 	require.NoError(t, err)
@@ -964,7 +1108,8 @@ unit "vpc" {
 func TestBuildComponentRefMap_Empty(t *testing.T) {
 	t.Parallel()
 
-	result := hclparse.BuildComponentRefMap(nil)
+	result, err := hclparse.BuildComponentRefMap(hclparse.VarUnit, nil)
+	require.NoError(t, err)
 	assert.True(t, result.Type().IsObjectType())
 }
 
@@ -976,7 +1121,8 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 		{Name: "app", Path: "app-service"},
 	}
 
-	result := hclparse.BuildComponentRefMap(refs)
+	result, err := hclparse.BuildComponentRefMap(hclparse.VarUnit, refs)
+	require.NoError(t, err)
 
 	require.True(t, result.Type().IsObjectType())
 

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -77,6 +79,23 @@ func (r *TFRResolver) WithTofuImplementation(impl tfimpl.Type) *TFRResolver {
 // Scheme returns "tfr".
 func (r *TFRResolver) Scheme() string { return SchemeTFR }
 
+// Pinned reports whether source names one exact module version, which a
+// registry publishes once. A constraint can start matching a newer
+// release.
+func (r *TFRResolver) Pinned(source redact.URL) bool {
+	u, err := url.Parse(source.Reveal())
+	if err != nil {
+		return false
+	}
+
+	versions, ok := u.Query()[versionQueryKey]
+	if !ok || len(versions) != 1 {
+		return false
+	}
+
+	return semver.IsExact(versions[0])
+}
+
 // resolverAuth returns r.Auth carrying the resolver's implementation, so credential
 // lookup reads the same implementation's CLI config files as registry-domain selection.
 func (r *TFRResolver) resolverAuth() RegistryAuth {
@@ -87,15 +106,15 @@ func (r *TFRResolver) resolverAuth() RegistryAuth {
 }
 
 // Probe runs the registry's service-discovery + module-download protocol
-// against rawURL and returns the resolved X-Terraform-Get URL as a
+// against source and returns the resolved X-Terraform-Get URL as a
 // content-addressed cache key.
 //
 // Any failure — malformed URL, missing version query, registry error —
 // returns [cas.ErrNoVersionMetadata] so the fetch falls through to the
 // download-then-content-hash path. The underlying error surfaces on the
 // real fetch attempt.
-func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	srcURL, err := url.Parse(rawURL)
+func (r *TFRResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
+	srcURL, err := url.Parse(source.Reveal())
 	if err != nil || srcURL.Scheme != SchemeTFR {
 		return "", cas.ErrNoVersionMetadata
 	}

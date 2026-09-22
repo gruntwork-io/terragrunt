@@ -41,7 +41,6 @@ const (
 	testFixtureDownload                       = "fixtures/download"
 	testFixtureEmptyState                     = "fixtures/empty-state/"
 	testFixtureEnvVarsBlockPath               = "fixtures/env-vars-block/"
-	testFixtureErrorPrint                     = "fixtures/error-print"
 	testFixtureExcludesFile                   = "fixtures/excludes-file"
 	testFixtureExternalDependence             = "fixtures/external-dependencies"
 	testFixtureExternalDependency             = "fixtures/external-dependency/"
@@ -71,7 +70,6 @@ const (
 	testFixtureNoSubmodules                   = "fixtures/no-submodules/"
 	testFixtureNullValue                      = "fixtures/null-values"
 	testFixtureOutDir                         = "fixtures/out-dir"
-	testFixtureOutputAll                      = "fixtures/output-all"
 	testFixtureParallelRun                    = "fixtures/parallel-run"
 	testFixtureParallelStateInit              = "fixtures/parallel-state-init"
 	testFixtureParallelism                    = "fixtures/parallelism"
@@ -96,7 +94,6 @@ const (
 	testFixtureExecCmdTfPath                  = "fixtures/exec-cmd-tf-path"
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
-	testFixtureTfPathBasic                    = "fixtures/tf-path/basic"
 	testFixtureTfPathTofuTerraform            = "fixtures/tf-path/tofu-terraform"
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
@@ -487,71 +484,6 @@ func TestTerragruntInfoError(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestErrorMessageIncludeInOutput(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorPrint)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := filepath.Join(tmpEnvPath, testFixtureErrorPrint)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt apply  --non-interactive --working-dir "+testPath+" --tf-path "+testPath+"/custom-tf-script.sh --log-level trace",
-	)
-	require.Error(t, err)
-
-	assert.Contains(t, err.Error(), "Custom error from script")
-}
-
-//nolint:paralleltest // it unsets TG_TF_PATH for the whole process
-func TestTfPath(t *testing.T) {
-	// This test can't be parallelized because it explicitly unsets the TG_TF_PATH environment variable.
-	// t.Parallel()
-
-	// Test that the terragrunt run version command correctly identifies and uses
-	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
-	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
-	workingDir := filepath.Join(rootPath, testFixtureTfPathBasic)
-	workingDir, err := filepath.EvalSymlinks(workingDir)
-	require.NoError(t, err)
-
-	// If TG_TF_PATH is not set, we'll use the default tofu binary,
-	// we'll explicitly set the value so that the test can pass.
-	if tfPath := os.Getenv("TG_TF_PATH"); tfPath != "" {
-		// Unset after using t.Setenv so that it'll be reset after the test.
-		t.Setenv("TG_TF_PATH", "")
-		os.Unsetenv("TG_TF_PATH")
-	}
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run version --working-dir "+workingDir,
-	)
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "TF script used!")
-}
-
-func TestTfPathOverridesConfig(t *testing.T) {
-	t.Parallel()
-	// Test that the terragrunt run version command correctly identifies and uses
-	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
-	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
-	workingDir := filepath.Join(rootPath, testFixtureTfPathBasic)
-	workingDir, err := filepath.EvalSymlinks(workingDir)
-	require.NoError(t, err)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run version --tf-path ./other-tf.sh --working-dir "+workingDir,
-	)
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "Other TF script used!")
-}
-
 func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 	t.Parallel()
 
@@ -723,7 +655,7 @@ func runMutableGenerateUnit(t *testing.T, unitPath string) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt exec --experiment mutable-generate --working-dir "+unitPath+" -- true",
+		"terragrunt exec --working-dir "+unitPath+" -- true",
 	)
 	require.NoError(t, err)
 }

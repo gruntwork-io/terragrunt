@@ -16,8 +16,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -384,17 +386,17 @@ func DownloadTerraformSourceIfNecessary(
 		func(childCtx context.Context) error {
 			if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
 				sourceURL := strings.TrimPrefix(
-					terraformSource.CanonicalSourceURL.String(),
+					redact.NewURL(terraformSource.CanonicalSourceURL.String()).String(),
 					fileURIScheme,
 				)
 
-				return util.NotifyIfSlow(
+				return spinner.ShowAfter(
 					childCtx,
 					l,
-					util.SpinnerWriter(v),
+					spinner.Writer(v),
 					time.Second,
-					util.SlowNotifyMsg{
-						Spinner: "Downloading source from " + sourceURL + "...",
+					spinner.Messages{
+						Working: "Downloading source from " + sourceURL + "...",
 						Done:    "Downloaded source from " + sourceURL,
 					},
 					func() error {
@@ -409,7 +411,7 @@ func DownloadTerraformSourceIfNecessary(
 	if downloadErr != nil {
 		return false, DownloadingTerraformSourceErr{
 			ErrMsg: downloadErr,
-			URL:    terraformSource.CanonicalSourceURL.String(),
+			URL:    redact.NewURL(terraformSource.CanonicalSourceURL.String()),
 		}
 	}
 
@@ -529,10 +531,11 @@ func downloadSource(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
-	canonicalSourceURL := src.CanonicalSourceURL.String()
-
 	// Strip file:// so file://../../path/to/dir doesn't show up in user-facing logs.
-	canonicalSourceURL = strings.TrimPrefix(canonicalSourceURL, fileURIScheme)
+	canonicalSourceURL := strings.TrimPrefix(
+		redact.NewURL(src.CanonicalSourceURL.String()).String(),
+		fileURIScheme,
+	)
 
 	l.Infof(
 		"Downloading Terraform configurations from %s into %s",
@@ -584,7 +587,8 @@ func downloadSource(
 // is recoverable (CAS init failure, CAS-getter download failure). Caller
 // should fall through to the standard getter.
 // Returns (false, err) for fatal misconfiguration the user must fix
-// (e.g. an invalid CASCloneDepth). Caller must propagate the error.
+// (e.g. an invalid CASCloneDepth) and for any failure the caller must not
+// recover from (see [casFailureIsFatal]). Caller must propagate the error.
 func tryCASDownload(
 	ctx context.Context,
 	l log.Logger,
@@ -593,45 +597,60 @@ func tryCASDownload(
 	opts *Options,
 	mutable bool,
 ) (bool, error) {
-	ociEnabled := opts.Experiments.Evaluate(experiment.OCI)
-
-	// Without the oci experiment the CAS maps carry no oci entries, so skip
-	// the attempt instead of logging a guaranteed fallback on every download.
-	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI && !ociEnabled {
-		return false, nil
-	}
-
 	canonicalSourceURL := src.CanonicalSourceURL.String()
+	reportedSourceURL := redact.NewURL(canonicalSourceURL)
 
 	l.Debugf(
 		"CAS enabled: attempting to use Content Addressable Storage for source: %s",
-		canonicalSourceURL,
+		reportedSourceURL,
 	)
 
 	if err := cas.ValidateCASCloneDepth(opts.CASCloneDepth); err != nil {
 		return false, err
 	}
 
-	c, err := cas.New(v, cas.WithCloneDepth(opts.CASCloneDepth))
+	casOpts := []cas.Option{cas.WithCloneDepth(opts.CASCloneDepth), cas.WithProbeTTL(opts.CASProbeTTL)}
+
+	if opts.Experiments.Evaluate(experiment.OfflineCAS) {
+		casOpts = append(casOpts, cas.WithProbeCache())
+	}
+
+	if opts.CASOffline {
+		casOpts = append(casOpts, cas.WithOffline())
+	}
+
+	if opts.CASRefresh {
+		casOpts = append(casOpts, cas.WithProbeRefresh())
+	}
+
+	c, err := cas.New(v, casOpts...)
 	if err != nil {
+		if casFailureIsFatal(opts, err) {
+			return false, err
+		}
+
 		l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,
 			l,
 			cas.FallbackReasonInitError,
-			map[string]any{"url": canonicalSourceURL},
+			map[string]any{"url": reportedSourceURL},
 		)
 
 		return false, nil
 	}
 
 	if _, err := git.NewGitRunner(v); err != nil {
+		if casFailureIsFatal(opts, err) {
+			return false, err
+		}
+
 		l.Warnf("Failed to initialize CAS environment: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,
 			l,
 			cas.FallbackReasonInitError,
-			map[string]any{"url": canonicalSourceURL},
+			map[string]any{"url": reportedSourceURL},
 		)
 
 		return false, nil
@@ -651,10 +670,7 @@ func tryCASDownload(
 		getter.WithDispatchFS(v.FS),
 		getter.WithDispatchVenv(v),
 		getter.WithTFRConfig(opts.TofuImplementation),
-	}
-
-	if ociEnabled {
-		dispatchOpts = append(dispatchOpts, getter.WithOCIConfig(v))
+		getter.WithOCIConfig(v),
 	}
 
 	// CAS-only client: CASProtocolGetter handles cas::sha1:<hash> sources
@@ -679,12 +695,16 @@ func tryCASDownload(
 		Dst: src.DownloadDir,
 		Pwd: opts.CacheDir,
 	}); err != nil {
+		if casFailureIsFatal(opts, err) {
+			return false, err
+		}
+
 		l.Warnf("CAS download failed: %v. Falling back to standard getter.", err)
 		cas.RecordFallback(
 			ctx,
 			l,
 			cas.FallbackReasonGetterError,
-			map[string]any{"url": canonicalSourceURL},
+			map[string]any{"url": reportedSourceURL},
 		)
 
 		// Clear any partial CAS output before the fallback runs; mixing
@@ -697,16 +717,29 @@ func tryCASDownload(
 		return false, nil
 	}
 
-	l.Debugf("Successfully downloaded source using CAS: %s", canonicalSourceURL)
+	l.Debugf("Successfully downloaded source using CAS: %s", reportedSourceURL)
 
 	return true, nil
+}
+
+// casFailureIsFatal reports whether err ends the run instead of sending
+// the source through the standard getter. An offline miss says so
+// outright, and while --cas-offline is set no source reaching here has a
+// fallback left: a local path never gets this far, so every route the
+// standard getter has is to the remote the flag forbids.
+func casFailureIsFatal(opts *Options, err error) bool {
+	if errors.Is(err, cas.ErrCASOffline) {
+		return true
+	}
+
+	return opts.CASOffline
 }
 
 // BuildDownloadClient constructs the go-getter client used for the standard
 // (non-CAS) download path. The customizations layered on top of the default
 // protocol set are: FileCopyGetter (copies local sources instead of
-// symlinking), RegistryGetter (resolves tfr:// sources), and, behind the oci
-// experiment, OCIGetter (resolves oci:// sources).
+// symlinking), RegistryGetter (resolves tfr:// sources), and OCIGetter
+// (resolves oci:// sources).
 //
 // The client carries the full protocol set whatever v.FS is. Sources that
 // need a getter which cannot honor a virtual filesystem are rejected up front
@@ -720,8 +753,6 @@ func BuildDownloadClient(
 	cfg *runcfg.RunConfig,
 ) (*getter.Client, error) {
 	clientOpts := []getter.Option{
-		getter.WithLogger(l),
-		getter.WithHTTP(v.HTTP),
 		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).
 			WithLogger(l).
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).
@@ -730,13 +761,10 @@ func BuildDownloadClient(
 			WithSymlinkedGlobRoots(opts.Experiments.Evaluate(experiment.Symlinks))),
 		getter.WithTFRegistry(getter.NewRegistryGetter(l, v).
 			WithTofuImplementation(opts.TofuImplementation)),
+		getter.WithOCI(getter.NewOCIGetter(l, v)),
 	}
 
-	if opts.Experiments.Evaluate(experiment.OCI) {
-		clientOpts = append(clientOpts, getter.WithOCI(getter.NewOCIGetter(l, v)))
-	}
-
-	return getter.NewClient(v, clientOpts...), nil
+	return getter.NewClient(l, v, clientOpts...), nil
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is a directory
@@ -789,7 +817,7 @@ func (err WorkingDirNotDir) Error() string {
 
 type DownloadingTerraformSourceErr struct {
 	ErrMsg error
-	URL    string
+	URL    redact.URL
 }
 
 func (err DownloadingTerraformSourceErr) Error() string {

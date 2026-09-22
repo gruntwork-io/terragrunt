@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,29 @@ const defaultDirPerms = 0o755
 
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
+}
+
+// FileURL returns the file:// URL for an absolute host path. A Windows path
+// needs a slash ahead of the drive letter ("file:///C:/tmp/x", RFC 8089);
+// without it go-getter reads "C:" as the host and the source is not found.
+func FileURL(absPath string) string {
+	p := filepath.ToSlash(absPath)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+
+	return "file://" + p
+}
+
+// ToSlashAll returns paths with every separator turned into a slash, so
+// command output listing OS-native paths compares against slash literals.
+func ToSlashAll(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		out = append(out, filepath.ToSlash(p))
+	}
+
+	return out
 }
 
 // MustAbs resolves rel against the Go test process working directory.
@@ -434,15 +458,16 @@ func FileExistsInCache(t *testing.T, rootDir, filename string) bool {
 }
 
 // ValidateAuthProviderScript runs the given auth provider script in the specified directory
-// and validates its response against the expected schema.
-func ValidateAuthProviderScript(t *testing.T, dir string, script string) {
+// with v's executor and environment, and validates its response against the expected schema.
+func ValidateAuthProviderScript(t *testing.T, v *venv.Venv, dir string, script string) {
 	t.Helper()
 
 	scriptStdout := bytes.Buffer{}
 
-	cmd := exec.CommandContext(t.Context(), script)
-	cmd.Dir = dir
-	cmd.Stdout = &scriptStdout
+	cmd := v.Exec.Command(t.Context(), script)
+	cmd.SetDir(dir)
+	cmd.SetEnv(venv.Environ(v.Env))
+	cmd.SetStdout(&scriptStdout)
 
 	err := cmd.Run()
 	require.NoError(t, err)
@@ -510,5 +535,5 @@ func LocalGitRemote(t *testing.T, fixturePath string) string {
 
 	InitGitRepoWithBranchRef(t, repoDir, "main")
 
-	return "file://" + filepath.ToSlash(repoDir)
+	return FileURL(repoDir)
 }

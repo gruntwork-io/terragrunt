@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAwsCountingSemaphoreHappyPath(t *testing.T) {
+func TestAWSCountingSemaphoreHappyPath(t *testing.T) {
 	t.Parallel()
 
 	semaphore := s3backend.NewCountingSemaphore(1)
@@ -23,7 +23,7 @@ func TestAwsCountingSemaphoreHappyPath(t *testing.T) {
 // and then firing up M >> N goroutines that all try to Acquire the semaphore. As each goroutine executes, it uses an
 // atomic increment operation to record how many goroutines are running simultaneously. We check the number of running
 // goroutines to ensure that it goes up to N, but does not exceed it.
-func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
+func TestAWSCountingSemaphoreConcurrency(t *testing.T) {
 	t.Parallel()
 
 	permits := 10

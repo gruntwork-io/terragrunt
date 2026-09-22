@@ -160,10 +160,12 @@ type TerragruntDependency struct {
 	Dependencies Dependencies `hcl:"dependency,block"`
 }
 
-// terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config
+// terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config.
+// It decodes remote_state written as either a block or an attribute, as [terragruntConfigFile] does.
 type terragruntRemoteState struct {
-	RemoteState *remotestate.ConfigFile `hcl:"remote_state,block"`
-	Remain      hcl.Body                `hcl:",remain"`
+	RemoteState     *remotestate.ConfigFile `hcl:"remote_state,block"`
+	RemoteStateAttr *cty.Value              `hcl:"remote_state,optional"`
+	Remain          hcl.Body                `hcl:",remain"`
 }
 
 // terragruntEngine is a struct that can only be used to decode the engine block.
@@ -407,15 +409,9 @@ func cliFlagsToCty(
 	ctx *ParsingContext,
 	flagByName map[string]*FeatureFlag,
 ) (map[string]cty.Value, error) {
-	if ctx.FeatureFlags == nil {
-		return make(map[string]cty.Value), nil
-	}
-
 	evaluatedFlags := make(map[string]cty.Value)
 
-	var conversionErr error
-
-	ctx.FeatureFlags.Range(func(name, value string) bool {
+	for name, value := range ctx.FeatureFlags {
 		var flag cty.Value
 
 		var err error
@@ -427,18 +423,10 @@ func cliFlagsToCty(
 		}
 
 		if err != nil {
-			conversionErr = err
-
-			return false
+			return nil, err
 		}
 
 		evaluatedFlags[name] = flag
-
-		return true
-	})
-
-	if conversionErr != nil {
-		return nil, conversionErr
 	}
 
 	return evaluatedFlags, nil
@@ -449,21 +437,21 @@ func PartialParseConfigFile(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
-	fileInfo, err := pctx.Venv.FS.Stat(configPath)
+	fileInfo, err := pctx.Venv.FS.Stat(cfgPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, TerragruntConfigNotFoundError{Path: configPath}
+			return nil, TerragruntConfigNotFoundError{Path: cfgPath}
 		}
 
 		return nil, err
 	}
 
-	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", cfgPath, fileInfo.ModTime().UnixMicro())
 
 	// Check cache hit status before tracing
 	_, cacheHit := hclCache.Get(ctx, cacheKey)
@@ -473,7 +461,7 @@ func PartialParseConfigFile(
 	err = TraceParseConfigFile(
 		ctx,
 		l,
-		configPath,
+		cfgPath,
 		pctx.WorkingDir,
 		true, // isPartial
 		pctx.PartialParseDecodeList,
@@ -488,7 +476,7 @@ func PartialParseConfigFile(
 				var parseErr error
 
 				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).
-					ParseFromFile(pctx.Venv.FS, configPath)
+					ParseFromFile(pctx.Venv.FS, cfgPath)
 				if parseErr != nil {
 					return parseErr
 				}
@@ -588,10 +576,10 @@ func PartialParseConfigString(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
-	configPath, configString string,
+	cfgPath, configString string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromString(configString, configPath)
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}
@@ -617,7 +605,7 @@ func PartialParseConfig(
 		return nil, err
 	}
 
-	if err := ValidateBlockIteration(pctx.Experiments, file); err != nil {
+	if err := ValidateExpansionSpelling(file); err != nil {
 		return nil, err
 	}
 
@@ -825,6 +813,15 @@ func PartialParseConfig(
 
 				output.RemoteState = remotestate.New(config)
 			}
+
+			if decoded.RemoteStateAttr != nil {
+				remoteState, err := remoteStateFromAttr(*decoded.RemoteStateAttr)
+				if err != nil {
+					return nil, err
+				}
+
+				output.RemoteState = remoteState
+			}
 		case FeatureFlagsBlock:
 			decoded := terragruntFeatureFlags{}
 
@@ -1004,14 +1001,14 @@ func decodeAsTerragruntInclude(
 // registerSiblingAutoInclude records the sibling terragrunt.autoinclude.hcl on trackInclude as a high-priority override when it is in scope and exists, so the merge consumers read one registered entry instead of recomputing the gate.
 func registerSiblingAutoInclude(
 	pctx *ParsingContext,
-	configPath string,
+	cfgPath string,
 	trackInclude *TrackInclude,
 ) {
 	if trackInclude == nil {
 		return
 	}
 
-	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, cfgPath)
 	if !ok {
 		return
 	}
@@ -1136,9 +1133,9 @@ func reconcileAutoIncludeModulePaths(
 func autoIncludeCacheKeySuffix(
 	ctx context.Context,
 	pctx *ParsingContext,
-	configPath string,
+	cfgPath string,
 ) string {
-	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, cfgPath)
 	if !ok {
 		return ""
 	}
