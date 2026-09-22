@@ -20,8 +20,7 @@ import (
 )
 
 // ErrEmptyAuthProviderCmd is returned when parsing the auth provider command
-// yields no command to run, such as a value of only spaces or one starting
-// with a shell operator.
+// yields no command to run, such as a value of only spaces.
 var ErrEmptyAuthProviderCmd = errors.New("auth provider command has no command to run")
 
 // Provider runs external command that returns a json string with credentials.

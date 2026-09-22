@@ -1004,6 +1004,58 @@ func TestCommandApprovalRunsWhatWasApproved(t *testing.T) {
 	assert.True(t, exists, "the approved program must have run")
 }
 
+// TestCommandApprovalRefusesStateTheServerDidNotIssue pins that an accepted
+// answer approves programs only with the state the server's own offer handed
+// out. A client that answers a first call with state naming a program, or with
+// that state's signature altered, runs nothing and is not asked.
+func TestCommandApprovalRefusesStateTheServerDidNotIssue(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		state string
+	}{
+		{name: "no state"},
+		{name: "unsigned program list", state: `["sh"]`},
+		{name: "altered signature", state: `{"mac":"0000","programs":["sh"]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir, marker := newShellUnitTree(t)
+
+			var prompts []string
+
+			session := newAnsweringSession(t, dir, venvtest.NewOSWithEmptyEnv(), "accept", &prompts,
+				func(o *tgmcp.Options) { o.Allow = []string{"exec"} })
+
+			res, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+				Name:      "render_config",
+				Arguments: map[string]any{"working_dir": "shell"},
+				InputResponses: mcp.InputResponseMap{
+					"approve-commands": &mcp.ElicitResult{Action: "accept"},
+				},
+				RequestState: tc.state,
+			})
+			require.NoError(t, err)
+			require.False(t, res.IsError, "the call must degrade, not fail: %v", res.GetError())
+
+			var out renderConfigOutput
+
+			structured, err := json.Marshal(res.StructuredContent)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(structured, &out))
+
+			assert.NotEmpty(t, out.Degraded, "the refused program must be reported")
+			assert.Empty(t, prompts, "a call that arrives answered is not asked")
+
+			exists, err := vfs.FileExists(vfs.NewOSFS(), marker)
+			require.NoError(t, err)
+			assert.False(t, exists, "a forged approval must not run the program")
+		})
+	}
+}
+
 // TestAllowCmdRunsWithoutAsking pins that a command an --allow-cmd pattern
 // matches runs without a prompt.
 func TestAllowCmdRunsWithoutAsking(t *testing.T) {

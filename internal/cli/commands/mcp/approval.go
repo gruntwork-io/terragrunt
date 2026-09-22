@@ -164,17 +164,28 @@ func requestApproval(
 // over to arguments the person never saw, and keeps a client from answering a
 // prompt the server never sent.
 func approvalState(key []byte, input runAllInput, command string) (string, error) {
-	payload, err := json.Marshal(struct {
+	state, err := signApproval(key, struct {
 		Command string      `json:"command"`
 		Input   runAllInput `json:"input"`
 	}{Command: command, Input: input})
 	if err != nil {
-		return "", fmt.Errorf("encoding the %s for approval: %w", command, err)
+		return "", fmt.Errorf("signing the %s for approval: %w", command, err)
+	}
+
+	return state, nil
+}
+
+// signApproval returns the hex HMAC-SHA256 of subject's JSON encoding under
+// key, the per-server secret generated at startup.
+func signApproval(key []byte, subject any) (string, error) {
+	payload, err := json.Marshal(subject)
+	if err != nil {
+		return "", err
 	}
 
 	mac := hmac.New(sha256.New, key)
 	if _, err := mac.Write(payload); err != nil {
-		return "", fmt.Errorf("signing the %s for approval: %w", command, err)
+		return "", err
 	}
 
 	return hex.EncodeToString(mac.Sum(nil)), nil
