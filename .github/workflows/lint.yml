@@ -5,12 +5,8 @@ on:
 
 jobs:
   lint:
-    name: Lint (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu]
+    name: Lint
+    runs-on: ubuntu-latest
     env:
       # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
       GOGC: "400"
@@ -37,9 +33,9 @@ jobs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
       with:
         path: ~/.cache/golangci-lint
-        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ runner.arch }}
+        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ runner.arch }}
         restore-keys: |
-          ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
+          ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-
           ${{ runner.os }}-golangci-lint-
 
     # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately.
@@ -55,6 +51,10 @@ jobs:
       run: ./.github/scripts/ci/run-lint.sh
       env:
         GITHUB_REF: ${{ github.ref }}
+
+    - name: Check go mod tidy
+      if: ${{ !cancelled() }}
+      run: ./.github/scripts/ci/check-go-mod-tidy.sh
 
     - name: Save Go caches
       if: ${{ !cancelled() }}

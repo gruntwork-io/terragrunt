@@ -9,8 +9,8 @@ concurrency:
 
 jobs:
   # Skips the Go jobs for pushes that touch only docs, and the install script
-  # tests for pushes that leave the install script alone. Jobs gated below skip
-  # everything that needs them, so only the roots of the graph check the outputs.
+  # tests for pushes that leave the install script alone. Every Go job needs
+  # lint, so gating lint skips the rest.
   changes:
     name: Detect changes
     runs-on: ubuntu-slim
@@ -41,30 +41,6 @@ jobs:
       contents: read
     secrets: inherit
 
-  precommit:
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
-    uses: ./.github/workflows/precommit.yml
-    permissions:
-      contents: read
-    secrets: inherit
-
-  go_mod_tidy_check:
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
-    uses: ./.github/workflows/go-mod-tidy-check.yml
-    permissions:
-      contents: read
-    secrets: inherit
-
-  vend_check:
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
-    uses: ./.github/workflows/vend-check.yml
-    permissions:
-      contents: read
-    secrets: inherit
-
   static_checks:
     uses: ./.github/workflows/static-checks.yml
     permissions:
@@ -83,7 +59,7 @@ jobs:
   # whole integration matrix behind it; the rest are enforced by branch
   # protection rules, not by job dependencies.
   base_tests:
-    needs: [lint, precommit, go_mod_tidy_check]
+    needs: [lint]
     uses: ./.github/workflows/base-test.yml
     permissions:
       contents: read
@@ -91,14 +67,14 @@ jobs:
     secrets: inherit
 
   sandboxed_tests:
-    needs: [lint, precommit, go_mod_tidy_check]
+    needs: [lint]
     uses: ./.github/workflows/sandboxed-test.yml
     permissions:
       contents: read
     secrets: inherit
 
   build:
-    needs: [lint, precommit, go_mod_tidy_check]
+    needs: [lint]
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ github.ref == 'refs/heads/main' && format('tip-{0}', github.sha) || '' }}
@@ -146,7 +122,7 @@ jobs:
   build_no_proxy:
     # Only run no_proxy builds on main branch to save CI time
     if: github.ref == 'refs/heads/main'
-    needs: [lint, precommit, go_mod_tidy_check]
+    needs: [lint]
     uses: ./.github/workflows/build-no-proxy.yml
     permissions:
       contents: read

@@ -56,6 +56,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: ./.github/scripts/ci/check-go-fix.sh
 
+      - name: Run vend check
+        if: ${{ !cancelled() }}
+        run: ./.github/scripts/ci/check-vend.sh
+
+      - name: Run tofu fmt
+        if: ${{ !cancelled() }}
+        run: ./.github/scripts/ci/check-tofu-fmt.sh
+
       - name: Run shellcheck
         if: ${{ !cancelled() }}
         run: |
@@ -81,17 +89,18 @@ jobs:
         run: bats --print-output-on-failure .github/scripts/ci/tests/ .github/scripts/release/tests/ .github/scripts/coverage/tests/ .github/scripts/security-scan/tests/
 
       - name: Install script dependencies
+        id: bun-install
         if: ${{ !cancelled() }}
         working-directory: .github/scripts
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Typecheck scripts
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.bun-install.outcome == 'success' }}
         working-directory: .github/scripts
-        run: bunx tsc --noEmit
+        run: bun run typecheck
 
       - name: Test scripts
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.bun-install.outcome == 'success' }}
         working-directory: .github/scripts
         run: bun test
 
