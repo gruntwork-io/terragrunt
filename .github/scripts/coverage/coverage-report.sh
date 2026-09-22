@@ -52,8 +52,9 @@ cmd_run() {
 
 	# cmd_failures below prints the failing tests, so gotestsum's own failure summary is hidden.
 	set +e
-	gotestsum --format pkgname --hide-summary failed,output \
-		--jsonfile "$events" --junitfile "$junit" \
+	gotestsum --format pkgname --format-hide-empty-pkg --hide-summary skipped,failed,output \
+		--jsonfile "$events" --junitfile "$junit" --junitfile-hide-empty-pkg \
+		--junitfile-testcase-classname relative --junitfile-testsuite-name relative \
 		-- -coverprofile="$cover" -covermode=atomic "${pkgs[@]}" -timeout "${TEST_TIMEOUT:-45m}"
 	local status=$?
 	set -e
