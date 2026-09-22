@@ -152,21 +152,18 @@ func Serve(
 	}
 
 	deps := &serverDeps{
-		launchDir:  launchDir,
-		baseOpts:   opts.TerragruntOptions,
-		tgVersion:  tgVersion,
-		allowExec:  granted.Has(CapabilityExec),
-		allowHTTP:  granted.Has(CapabilityHTTP),
-		allowSops:  granted.Has(CapabilitySops),
-		allowEnv:   granted.Has(CapabilityEnv),
-		allowApply: opts.AllowApply,
-		allowCmds:  allowCmds,
-		refusal:    refusalStubs,
-		runSem:     make(chan struct{}, 1),
-	}
-
-	if opts.AllowApply {
-		deps.approvalKey = []byte(rand.Text())
+		launchDir:   launchDir,
+		baseOpts:    opts.TerragruntOptions,
+		tgVersion:   tgVersion,
+		allowExec:   granted.Has(CapabilityExec),
+		allowHTTP:   granted.Has(CapabilityHTTP),
+		allowSops:   granted.Has(CapabilitySops),
+		allowEnv:    granted.Has(CapabilityEnv),
+		allowApply:  opts.AllowApply,
+		allowCmds:   allowCmds,
+		approvalKey: []byte(rand.Text()),
+		refusal:     refusalStubs,
+		runSem:      make(chan struct{}, 1),
 	}
 
 	srv := mcp.NewServer(&mcp.Implementation{

@@ -37,6 +37,8 @@ Runs are serialized with the other real-run tools, so concurrent calls queue rat
 
 Neither tool acts when the agent calls it. The first call answers with an elicitation (the protocol's way for a server to ask the client's user a question) describing what the run would do, and the run starts only when the person operating the client accepts it. A decline or a dismissal ends the call, and calling again asks again.
 
+An acceptance counts only for the arguments the elicitation asked about. One sent with different arguments, or with no elicitation from the server behind it, is refused, and nothing runs.
+
 The description names the units the run would touch, worked out the way `terragrunt find --as=apply` and `terragrunt find --as=destroy` work them out, so the `exclude` blocks belonging to the action being approved are honored.
 
 ```text
