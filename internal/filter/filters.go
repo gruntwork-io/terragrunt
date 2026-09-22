@@ -211,6 +211,8 @@ func (f Filters) UniqueGitFilters() GitExpressions {
 func (f Filters) InlineGraphBoundaries() []string {
 	var boundaries []string
 
+	seen := make(map[string]struct{})
+
 	for _, flt := range f {
 		WalkExpressions(flt.expr, func(e Expression) bool {
 			g, ok := e.(*GraphExpression)
@@ -218,12 +220,15 @@ func (f Filters) InlineGraphBoundaries() []string {
 				return true
 			}
 
-			if g.Dependents.Boundary != "" {
-				boundaries = append(boundaries, g.Dependents.Boundary)
-			}
+			for _, b := range []string{g.Dependents.Boundary, g.Dependencies.Boundary} {
+				if b == "" {
+					continue
+				}
 
-			if g.Dependencies.Boundary != "" {
-				boundaries = append(boundaries, g.Dependencies.Boundary)
+				if _, dup := seen[b]; !dup {
+					seen[b] = struct{}{}
+					boundaries = append(boundaries, b)
+				}
 			}
 
 			return true
