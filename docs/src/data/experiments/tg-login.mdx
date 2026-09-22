@@ -1,6 +1,6 @@
 ---
 name: tg-login
-since: "1.1.5"
+since: "v1.1.5"
 ---
 
 import Since from '@components/Since.astro';
@@ -11,7 +11,7 @@ Signing in to the Gruntwork Developer Portal from the CLI, so an admin can defin
 
 ### `tg-login` - What it does
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 Nothing yet. The flag is reserved, and no command reads it.
 
@@ -21,7 +21,7 @@ A `catalog` block in your configuration keeps working whether or not you are sig
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 <PortalCatalogBeta campaign="tg-login-experiment" />
 
@@ -42,13 +42,13 @@ export TG_EXPERIMENT=tg-login
 terragrunt login
 ```
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 `terragrunt login` does not exist yet, so both forms currently set a flag that nothing reads.
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 Without the experiment, `terragrunt login` is still listed in `--help` and refuses to run, naming the experiment it needs. `terragrunt catalog` stops reading the portal too, so dropping the flag returns it to the `catalog` block alone, whether or not a credential from an earlier login is still on disk.
 
@@ -58,7 +58,7 @@ Without the experiment, `terragrunt login` is still listed in `--help` and refus
 
 To transition the `tg-login` feature to a stable release, the following must be addressed, at a minimum:
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 - [ ] `terragrunt login` completes the device flow and reports the signed-in user and organization.
 - [ ] On a headless or SSH session, the CLI prints the URL and code to open on another device, and login still completes.
@@ -71,7 +71,7 @@ To transition the `tg-login` feature to a stable release, the following must be 
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 - [x] `terragrunt login` completes the device flow and reports the signed-in user and organization.
 - [x] On a headless or SSH session, the CLI prints the URL and code to open on another device, and login still completes.

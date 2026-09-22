@@ -93,6 +93,9 @@ func New() *venv.Venv {
 			GetPID: func() int {
 				return memPID
 			},
+			ReplaceEnviron: func(map[string]string) error {
+				return nil
+			},
 			GOOS:   runtime.GOOS,
 			GOARCH: runtime.GOARCH,
 		},
@@ -116,6 +119,11 @@ func NewWithOSFS() *venv.Venv {
 // a variable set on the machine running the suite cannot reach the code under
 // test. Tests that drive the real filesystem and real subprocesses need it;
 // prefer [NewWithOSFS] when only the filesystem has to be real.
+//
+// Replacing the process environment is a no-op, because parallel tests share
+// the process and would lose PATH mid-run.
 func NewOSWithEmptyEnv() *venv.Venv {
-	return venv.OSVenv().WithEnv(map[string]string{})
+	return venv.OSVenv().
+		WithEnv(map[string]string{}).
+		WithReplaceEnviron(func(map[string]string) error { return nil })
 }

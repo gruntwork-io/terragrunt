@@ -2,6 +2,8 @@
 package dag
 
 import (
+	"fmt"
+	"io"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -349,4 +351,44 @@ func relatedComponents(c component.Component, reverse bool) component.Components
 	}
 
 	return c.Dependencies()
+}
+
+// RenderDot writes the components to w as a GraphViz DOT digraph.
+func RenderDot(w io.Writer, components ListedComponents) error {
+	var buf strings.Builder
+
+	buf.WriteString("digraph {\n")
+
+	sortedComponents := make(ListedComponents, len(components))
+	copy(sortedComponents, components)
+	sort.Slice(sortedComponents, func(i, j int) bool {
+		return sortedComponents[i].Path < sortedComponents[j].Path
+	})
+
+	for _, component := range sortedComponents {
+		if len(component.Dependencies) > 1 {
+			sort.Slice(component.Dependencies, func(i, j int) bool {
+				return component.Dependencies[i].Path < component.Dependencies[j].Path
+			})
+		}
+	}
+
+	for _, component := range sortedComponents {
+		style := ""
+		if component.Excluded {
+			style = "[color=red]"
+		}
+
+		fmt.Fprintf(&buf, "\t\"%s\" %s;\n", component.Path, style)
+
+		for _, dep := range component.Dependencies {
+			fmt.Fprintf(&buf, "\t\"%s\" -> \"%s\";\n", component.Path, dep.Path)
+		}
+	}
+
+	buf.WriteString("}\n")
+
+	_, err := w.Write([]byte(buf.String()))
+
+	return err
 }

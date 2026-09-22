@@ -1,4 +1,5 @@
 // @ts-check
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 import { unified } from "@astrojs/markdown-remark";
 
@@ -14,6 +15,7 @@ import d2 from "astro-d2";
 
 import { sidebar } from "./src/data/sidebar.ts";
 import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
+import { excludeLinks } from "./src/lib/unpublished-links.ts";
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
@@ -136,7 +138,7 @@ export default defineConfig({
       sidebar: sidebar,
       plugins: [
         starlightLinksValidator({
-          exclude: [
+          exclude: await excludeLinks(fileURLToPath(new URL("./src", import.meta.url)), [
             // Used in the docs for OpenTelemetry
             "http://localhost:16686/",
             "http://localhost:9090/",
@@ -159,7 +161,7 @@ export default defineConfig({
             // Used as redirects to the Terragrunt Discord server
             "/community/invite",
             "/tgs-discord",
-          ],
+          ]),
         }),
         starlightLlmsTxtWithoutIndex()
       ],

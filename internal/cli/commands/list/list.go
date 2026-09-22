@@ -158,14 +158,9 @@ func discoveredToListed(
 			}
 		}
 
-		base := opts.WorkingDir
-		if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
-			base = c.DiscoveryContext().WorkingDir
-		}
-
 		listedCfg := &dag.ListedComponent{
 			Type:     c.Kind(),
-			Path:     discovery.RelPathOrAbs(l, base, c.Path(), "component"),
+			Path:     discovery.RelPathForComponent(l, c, opts.WorkingDir, c.Path(), "component"),
 			Excluded: excluded,
 		}
 
@@ -179,11 +174,6 @@ func discoveredToListed(
 
 		desc := fmt.Sprintf("dependency of unit %q", c.Path())
 		for i, dep := range c.Dependencies() {
-			depBase := opts.WorkingDir
-			if dep.DiscoveryContext() != nil && dep.DiscoveryContext().WorkingDir != "" {
-				depBase = dep.DiscoveryContext().WorkingDir
-			}
-
 			depExcluded := false
 
 			if opts.QueueConstructAs != "" {
@@ -198,7 +188,7 @@ func discoveredToListed(
 
 			listedCfg.Dependencies[i] = &dag.ListedComponent{
 				Type:     dep.Kind(),
-				Path:     discovery.RelPathOrAbs(l, depBase, dep.Path(), desc),
+				Path:     discovery.RelPathForComponent(l, dep, opts.WorkingDir, dep.Path(), desc),
 				Excluded: depExcluded,
 			}
 		}
@@ -292,7 +282,12 @@ func buildLongHeadings(opts *Options, c *dag.Colorizer, longestPathLen int) stri
 }
 
 // renderTabular renders the components in a tabular format.
-func renderTabular(v *venv.Venv, w io.Writer, components dag.ListedComponents, c *dag.Colorizer) error {
+func renderTabular(
+	v *venv.Venv,
+	w io.Writer,
+	components dag.ListedComponents,
+	c *dag.Colorizer,
+) error {
 	var buf strings.Builder
 
 	maxCols, colWidth := getMaxCols(v, components)
@@ -333,7 +328,7 @@ func outputTree(
 
 // outputDot outputs the discovered components in GraphViz DOT format.
 func outputDot(v *venv.Venv, components dag.ListedComponents) error {
-	return renderDot(v.Writers.Writer, components)
+	return dag.RenderDot(v.Writers.Writer, components)
 }
 
 // generateTree creates a tree structure from dag.ListedComponents
@@ -475,44 +470,4 @@ func getLongestPathLen(components dag.ListedComponents) int {
 	}
 
 	return longest
-}
-
-// renderDot renders the components in GraphViz DOT format.
-func renderDot(w io.Writer, components dag.ListedComponents) error {
-	var buf strings.Builder
-
-	buf.WriteString("digraph {\n")
-
-	sortedComponents := make(dag.ListedComponents, len(components))
-	copy(sortedComponents, components)
-	sort.Slice(sortedComponents, func(i, j int) bool {
-		return sortedComponents[i].Path < sortedComponents[j].Path
-	})
-
-	for _, component := range sortedComponents {
-		if len(component.Dependencies) > 1 {
-			sort.Slice(component.Dependencies, func(i, j int) bool {
-				return component.Dependencies[i].Path < component.Dependencies[j].Path
-			})
-		}
-	}
-
-	for _, component := range sortedComponents {
-		style := ""
-		if component.Excluded {
-			style = "[color=red]"
-		}
-
-		fmt.Fprintf(&buf, "\t\"%s\" %s;\n", component.Path, style)
-
-		for _, dep := range component.Dependencies {
-			fmt.Fprintf(&buf, "\t\"%s\" -> \"%s\";\n", component.Path, dep.Path)
-		}
-	}
-
-	buf.WriteString("}\n")
-
-	_, err := w.Write([]byte(buf.String()))
-
-	return err
 }

@@ -156,13 +156,13 @@ Note that this overhead is especially noticeable in _dependent_ graph expression
 
 ## Bounded Traversal
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 Enclosing graph traversal within a directory requires the [`bounded-discovery`](/reference/experiments/active#bounded-discovery) experiment.
 
 </Before>
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 The search for dependents runs from the working directory up to the Git repository root, and dependencies are followed wherever their `config_path` points. To keep either direction inside a directory, write that directory in parentheses where a depth would go:
 

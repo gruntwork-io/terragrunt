@@ -7,10 +7,8 @@ import CopyReleaseNotes from '@components/CopyReleaseNotes.astro';
 import { getCollection } from 'astro:content';
 import { compareCommits, getLatestRelease, getReleaseByTag } from '@lib/github';
 import {
-  compareVersionsDesc,
   entriesForVersion,
   groupByCategory,
-  isReleased,
   parsePullRequests,
   prepareForGitHub,
   pullRequestsFromCommits,
@@ -18,11 +16,12 @@ import {
   uniqueVersions,
   type PullRequestGroup,
 } from '@lib/changelog';
+import { getLatestVersion } from '@lib/release';
+import { compareVersionsDesc, isReleased } from '@lib/versions';
 
 export async function getStaticPaths() {
   const showUnreleased = import.meta.env.DEV;
-  const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
-  const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+  const latestVersion = await getLatestVersion();
 
   const entries = await getCollection('changelog');
   const versions = uniqueVersions(entries).filter(
@@ -43,7 +42,7 @@ const { version } = Astro.props;
 
 const showUnreleased = import.meta.env.DEV;
 const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
-const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+const latestVersion = releaseData?.tag_name ?? 'v0.0.0';
 
 const allEntries = await getCollection('changelog');
 const entries = entriesForVersion(allEntries, version);
@@ -60,13 +59,12 @@ const older =
     ? visibleVersions[currentIndex + 1]
     : null;
 
-const tagName = version.startsWith('v') ? version : `v${version}`;
 // Published releases carry an auto-generated "What's Changed" body. An
 // unreleased version has no release yet, so list the pull requests merged into
 // main since the latest release instead.
 let pullRequestGroups: PullRequestGroup[] = [];
 if (isReleased(version, latestVersion)) {
-  const versionRelease = await getReleaseByTag('gruntwork-io', 'terragrunt', tagName);
+  const versionRelease = await getReleaseByTag('gruntwork-io', 'terragrunt', version);
   pullRequestGroups = parsePullRequests(versionRelease?.body);
 } else if (releaseData?.tag_name) {
   const commits = await compareCommits('gruntwork-io', 'terragrunt', releaseData.tag_name, 'main');

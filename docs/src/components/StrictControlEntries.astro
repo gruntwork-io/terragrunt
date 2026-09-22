@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from "astro:content";
-import { getLatestRelease } from "@lib/github";
+import { getLatestVersion } from "@lib/release";
+import { isReleased } from "@lib/versions";
 
 interface Props {
   status: "active" | "completed";
@@ -9,20 +10,13 @@ interface Props {
 
 const { status, showUnreleased = false } = Astro.props;
 
-const releaseData = await getLatestRelease("gruntwork-io", "terragrunt");
-const latestVersion = (releaseData?.tag_name ?? "v0.0.0").replace(/^v/, "");
-
-function isSinceReleased(since?: string): boolean {
-  if (!since) return true;
-  const target = since.replace(/^v/, "");
-  return latestVersion.localeCompare(target, undefined, { numeric: true }) >= 0;
-}
+const latestVersion = await getLatestVersion();
 
 const allEntries = await getCollection("strictControls");
 
 const entries = allEntries
   .filter((entry) => entry.data.status === status)
-  .filter((entry) => showUnreleased || isSinceReleased(entry.data.since))
+  .filter((entry) => showUnreleased || !entry.data.since || isReleased(entry.data.since, latestVersion))
   .sort((a, b) => a.data.name.localeCompare(b.data.name));
 
 const rendered = await Promise.all(
