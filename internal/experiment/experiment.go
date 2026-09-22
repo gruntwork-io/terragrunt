@@ -131,6 +131,10 @@ const (
 	// OfflineCAS gates the CAS flags that control the persisted probe cache:
 	// --cas-offline, --cas-refresh, and --cas-probe-ttl.
 	OfflineCAS = "offline-cas"
+	// OverwriteTerragruntOrSkip gates the "overwrite_terragrunt_or_skip" value for the
+	// if_exists attribute of generate blocks, which leaves a file terragrunt did not
+	// generate as-is instead of erroring out.
+	OverwriteTerragruntOrSkip = "overwrite-terragrunt-or-skip"
 )
 
 const (
@@ -268,6 +272,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OfflineCAS,
+		},
+		{
+			Name: OverwriteTerragruntOrSkip,
 		},
 	}
 }
