@@ -6,9 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -61,14 +66,7 @@ func (p *FilesystemPhase) Run(
 		filenames = DefaultConfigFilenames
 	}
 
-	walkFn := walkDirFunc(v, input.Opts)
-
-	walkStart := discoveryContext.WorkingDir
-	if discovery.walkRoot != "" {
-		walkStart = discovery.walkRoot
-	}
-
-	err := walkFn(walkStart, func(path string, d fs.DirEntry, err error) error {
+	visit := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -98,9 +96,50 @@ func (p *FilesystemPhase) Run(
 		}
 
 		return nil
-	})
+	}
 
-	return results, err
+	roots, reasons := input.Classifier.WalkRoots(discoveryContext.WorkingDir)
+
+	l.Debugf("Discovery: pruned walk from %d root(s): %s", len(roots), strings.Join(reasons, "; "))
+
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
+		span.SetAttributes(
+			attribute.Int("walk_roots", len(roots)),
+			attribute.StringSlice("walk_reasons", reasons),
+		)
+	}
+
+	walkRoot, err := walkRootUnder(v.FS, discoveryContext.WorkingDir, discovery.walkRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	walk := &prunedWalk{
+		visit:       visit,
+		workingDir:  discoveryContext.WorkingDir,
+		walkRoot:    walkRoot,
+		numWorkers:  p.numWorkers,
+		followLinks: input.Opts.Experiments.Evaluate(experiment.Symlinks),
+	}
+
+	return results, walk.run(ctx, v.FS, roots)
+}
+
+// walkRootUnder spells walkRoot below workingDir, since the pruned walk
+// compares paths as text. An empty walkRoot means the whole working directory.
+// [NewForStackGenerate] sets walkRoot only when it sits within workingDir, but
+// walkRoot has its symlinks resolved and workingDir may not.
+func walkRootUnder(fsys vfs.FS, workingDir, walkRoot string) (string, error) {
+	if walkRoot == "" {
+		return workingDir, nil
+	}
+
+	rel, err := filepath.Rel(vfs.ResolveForCompare(fsys, workingDir), vfs.ResolveForCompare(fsys, walkRoot))
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(workingDir, rel), nil
 }
 
 // skipDirIfIgnorable determines if a directory should be skipped during traversal.

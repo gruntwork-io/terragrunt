@@ -97,7 +97,7 @@ type GraphExpressionInfo struct {
 // as discovered, candidate, or excluded without full evaluation.
 type Classifier struct {
 	// pathExprs are path-based expressions that target specific filesystem locations.
-	pathExprs []Expression
+	pathExprs []*PathExpression
 	// attributeExprs are attribute-based expressions (e.g. type=stack) that qualify
 	// components broadly. Unlike path expressions, these do not discount negated path
 	// expressions during early exclusion.
@@ -304,7 +304,7 @@ func (c *Classifier) matchesGitExpression(comp component.Component) bool {
 
 // matchesPathExpression checks if the component matches any path expression.
 func (c *Classifier) matchesPathExpression(comp component.Component) bool {
-	return slices.ContainsFunc(c.pathExprs, func(expr Expression) bool {
+	return slices.ContainsFunc(c.pathExprs, func(expr *PathExpression) bool {
 		return MatchComponent(comp, expr)
 	})
 }
