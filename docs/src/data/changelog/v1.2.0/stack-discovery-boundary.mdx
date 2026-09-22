@@ -3,9 +3,6 @@ version: "v1.2.0"
 category: "bug-fixes"
 ---
 
-#### `--discovery-boundary` respected by `stack generate`, `stack run`, and `stack output`
+#### Stack commands respect `--discovery-boundary`
 
-- `stack generate` and `stack run` now honor `--discovery-boundary` and inline `(dir)` graph boundaries, restricting which stacks are discovered and generated.
-- Previously, stack commands scanned the entire working directory regardless of the boundary, causing `find_in_parent_folders` errors in monorepos where catalog stacks coexist with live stacks.
-- Inline `(dir)` operands override the `--discovery-boundary` flag, matching the precedence used during filter evaluation.
-- Multiple disjoint inline boundaries keep the full working-directory scope so no target is silently dropped.
+The `--discovery-boundary` flag now works with `stack generate`, `stack run`, and `stack output`. Previously these commands scanned the entire working directory for stack files, ignoring the boundary. In monorepos where a catalog lives alongside live infrastructure, this caused errors when out-of-scope stacks referenced files that only exist in the live tree.
