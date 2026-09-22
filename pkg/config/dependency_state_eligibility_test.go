@@ -42,9 +42,12 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 
 	testCases := []dependencyStateEligibilityTestCase{
 		{
-			name:          "S3 explicit empty workspace prefix remains direct",
-			backend:       "s3",
-			backendConfig: eligibilityConfig(s3Config, map[string]string{"workspace_key_prefix": `""`}),
+			name:    "S3 explicit empty workspace prefix remains direct",
+			backend: "s3",
+			backendConfig: eligibilityConfig(
+				s3Config,
+				map[string]string{"workspace_key_prefix": `""`},
+			),
 			env: map[string]string{
 				"AWS_ACCESS_KEY_ID":     "test-access-key",
 				"AWS_SECRET_ACCESS_KEY": "test-secret-key",
@@ -54,9 +57,12 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			wantDirect:  true,
 		},
 		{
-			name:          "S3 SSE-C config falls back",
-			backend:       "s3",
-			backendConfig: eligibilityConfig(s3Config, map[string]string{"sse_customer_key": `"c2VjcmV0"`}),
+			name:    "S3 SSE-C config falls back",
+			backend: "s3",
+			backendConfig: eligibilityConfig(
+				s3Config,
+				map[string]string{"sse_customer_key": `"c2VjcmV0"`},
+			),
 		},
 		{
 			name:          "S3 SSE-C environment falls back",
@@ -65,9 +71,12 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			env:           map[string]string{"AWS_SSE_CUSTOMER_KEY": "c2VjcmV0"},
 		},
 		{
-			name:          "S3 invalid workspace prefix type falls back",
-			backend:       "s3",
-			backendConfig: eligibilityConfig(s3Config, map[string]string{"workspace_key_prefix": "42"}),
+			name:    "S3 invalid workspace prefix type falls back",
+			backend: "s3",
+			backendConfig: eligibilityConfig(
+				s3Config,
+				map[string]string{"workspace_key_prefix": "42"},
+			),
 		},
 		{
 			name:          "GCS empty legacy path remains native",
@@ -85,27 +94,42 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"bucket": "42"}),
 		},
 		{
-			name:          "GCS inline credentials fall back",
-			backend:       "gcs",
-			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"credentials": `jsonencode({ type = "service_account" })`}),
+			name:    "GCS inline credentials fall back",
+			backend: "gcs",
+			backendConfig: eligibilityConfig(
+				gcsConfig,
+				map[string]string{"credentials": `jsonencode({ type = "service_account" })`},
+			),
 		},
 		{
-			name:          "GCS relative credential path falls back",
-			backend:       "gcs",
-			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"credentials": `"credentials.json"`}),
+			name:    "GCS relative credential path falls back",
+			backend: "gcs",
+			backendConfig: eligibilityConfig(
+				gcsConfig,
+				map[string]string{"credentials": `"credentials.json"`},
+			),
 		},
 		{
-			name:          "GCS external account credential file without a credential source falls back",
-			backend:       "gcs",
-			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"credentials": `"/credentials/external.json"`}),
-			files:         map[string]string{"/credentials/external.json": `{"type":"external_account"}`},
+			name:    "GCS external account credential file without a credential source falls back",
+			backend: "gcs",
+			backendConfig: eligibilityConfig(
+				gcsConfig,
+				map[string]string{"credentials": `"/credentials/external.json"`},
+			),
+			files: map[string]string{
+				"/credentials/external.json": `{"type":"external_account"}`,
+			},
 		},
 		{
 			name:          "GCS access token and ADC conflict falls back",
 			backend:       "gcs",
 			backendConfig: gcsConfig,
-			env:           map[string]string{"GOOGLE_APPLICATION_CREDENTIALS": "/credentials/service-account.json"},
-			files:         map[string]string{"/credentials/service-account.json": `{"type":"service_account"}`},
+			env: map[string]string{
+				"GOOGLE_APPLICATION_CREDENTIALS": "/credentials/service-account.json",
+			},
+			files: map[string]string{
+				"/credentials/service-account.json": `{"type":"service_account"}`,
+			},
 		},
 		{
 			name:    "GCS environment credentials and ADC conflict falls back",
@@ -134,9 +158,12 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			env: map[string]string{"GOOGLE_OAUTH_ACCESS_TOKEN": "environment-token"},
 		},
 		{
-			name:          "GCS impersonation remains native",
-			backend:       "gcs",
-			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"impersonate_service_account": `"state@example.com"`}),
+			name:    "GCS impersonation remains native",
+			backend: "gcs",
+			backendConfig: eligibilityConfig(
+				gcsConfig,
+				map[string]string{"impersonate_service_account": `"state@example.com"`},
+			),
 		},
 		{
 			name:    "GCS CSEK and CMEK conflict falls back",
@@ -150,7 +177,10 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			name:    "GCS strict base64 encryption key remains direct",
 			backend: "gcs",
 			backendConfig: eligibilityConfig(gcsConfig, map[string]string{
-				"encryption_key": fmt.Sprintf("%q", base64.StdEncoding.EncodeToString(make([]byte, 32))),
+				"encryption_key": fmt.Sprintf(
+					"%q",
+					base64.StdEncoding.EncodeToString(make([]byte, 32)),
+				),
 			}),
 			wantRequest: "storage.googleapis.com/state-bucket/environment/service/default.tfstate",
 			wantDirect:  true,
@@ -213,21 +243,30 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			wantDirect:    true,
 		},
 		{
-			name:          "Azure minimum TLS version remains direct",
-			backend:       "azurerm",
-			backendConfig: eligibilityConfig(azureConfig, map[string]string{"minimum_tls_version": `"TLS1_2"`}),
-			wantRequest:   "stateaccount.blob.core.windows.net/state/service.tfstate",
-			wantDirect:    true,
+			name:    "Azure minimum TLS version remains direct",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"minimum_tls_version": `"TLS1_2"`},
+			),
+			wantRequest: "stateaccount.blob.core.windows.net/state/service.tfstate",
+			wantDirect:  true,
 		},
 		{
-			name:          "Azure invalid snapshot boolean falls back",
-			backend:       "azurerm",
-			backendConfig: eligibilityConfig(azureConfig, map[string]string{"snapshot": `"not-a-bool"`}),
+			name:    "Azure invalid snapshot boolean falls back",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"snapshot": `"not-a-bool"`},
+			),
 		},
 		{
-			name:          "Azure invalid OIDC boolean falls back",
-			backend:       "azurerm",
-			backendConfig: eligibilityConfig(azureConfig, map[string]string{"use_oidc": `"not-a-bool"`}),
+			name:    "Azure invalid OIDC boolean falls back",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"use_oidc": `"not-a-bool"`},
+			),
 		},
 		{
 			name:          "Azure disabled CLI falls back",
@@ -307,17 +346,25 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			name:          "Azure MSI resource ID environment falls back",
 			backend:       "azurerm",
 			backendConfig: azureConfig,
-			env:           map[string]string{"ARM_MSI_RESOURCE_ID": "/subscriptions/example/identity"},
+			env: map[string]string{
+				"ARM_MSI_RESOURCE_ID": "/subscriptions/example/identity",
+			},
 		},
 		{
-			name:          "Azure unsupported cloud alias falls back",
-			backend:       "azurerm",
-			backendConfig: eligibilityConfig(azureConfig, map[string]string{"environment": `"global"`}),
+			name:    "Azure unsupported cloud alias falls back",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"environment": `"global"`},
+			),
 		},
 		{
-			name:          "Azure padded state key falls back",
-			backend:       "azurerm",
-			backendConfig: eligibilityConfig(azureConfig, map[string]string{"key": `" service.tfstate"`}),
+			name:    "Azure padded state key falls back",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"key": `" service.tfstate"`},
+			),
 		},
 		{
 			name:    "Azure incomplete service principal falls back",
@@ -473,7 +520,11 @@ func eligibilityAzureConfig(accessKey string) map[string]string {
 	}
 }
 
-func eligibilityConfig(base map[string]string, overrides map[string]string, remove ...string) map[string]string {
+func eligibilityConfig(
+	base map[string]string,
+	overrides map[string]string,
+	remove ...string,
+) map[string]string {
 	config := maps.Clone(base)
 	maps.Copy(config, overrides)
 

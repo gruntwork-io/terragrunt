@@ -16,14 +16,28 @@ func TestMatchAccountID(t *testing.T) {
 	accounts := []*armstorage.Account{
 		nil,
 		{},
-		{Name: new("other"), ID: new("/subscriptions/sub/resourceGroups/other/providers/Microsoft.Storage/storageAccounts/other")},
+		{
+			Name: new("other"),
+			ID: new(
+				"/subscriptions/sub/resourceGroups/other/providers/Microsoft.Storage/storageAccounts/other",
+			),
+		},
 		{Name: new("target")},
-		{Name: new("target"), ID: new("/subscriptions/sub/resourceGroups/target/providers/Microsoft.Storage/storageAccounts/target")},
+		{
+			Name: new("target"),
+			ID: new(
+				"/subscriptions/sub/resourceGroups/target/providers/Microsoft.Storage/storageAccounts/target",
+			),
+		},
 	}
 
 	id, found := matchAccountID(accounts, "target")
 	require.True(t, found)
-	require.Equal(t, "/subscriptions/sub/resourceGroups/target/providers/Microsoft.Storage/storageAccounts/target", id)
+	require.Equal(
+		t,
+		"/subscriptions/sub/resourceGroups/target/providers/Microsoft.Storage/storageAccounts/target",
+		id,
+	)
 
 	id, found = matchAccountID(accounts, "missing")
 	require.False(t, found)

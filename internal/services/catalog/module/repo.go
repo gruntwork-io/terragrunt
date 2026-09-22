@@ -573,7 +573,7 @@ func (repo *Repo) performClone(
 // repository with.
 func (repo *Repo) newCloneClient(l log.Logger, v *venv.Venv) (*getter.Client, error) {
 	if !repo.allowCAS {
-		return getter.NewClient(l, v, getter.WithHTTP(v.HTTP)), nil
+		return getter.NewClient(l, v), nil
 	}
 
 	casStore, err := repo.newCAS(v)
@@ -602,7 +602,7 @@ func (repo *Repo) newCloneClient(l log.Logger, v *venv.Venv) (*getter.Client, er
 		}, nil
 	}
 
-	return getter.NewClient(l, v, getter.WithHTTP(v.HTTP), getter.WithCAS(casStore, cloneOpts)), nil
+	return getter.NewClient(l, v, getter.WithCAS(casStore, cloneOpts)), nil
 }
 
 // newCAS builds the CAS store with the repository's CAS settings.

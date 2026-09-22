@@ -41,8 +41,16 @@ func TestExtendedAzurermConfig_Validation(t *testing.T) {
 		wantError bool
 	}{
 		{name: "valid", mutate: func(azurerm.Config) {}, wantError: false},
-		{name: "missing storage_account_name", mutate: func(c azurerm.Config) { delete(c, "storage_account_name") }, wantError: true},
-		{name: "missing container_name", mutate: func(c azurerm.Config) { delete(c, "container_name") }, wantError: true},
+		{
+			name:      "missing storage_account_name",
+			mutate:    func(c azurerm.Config) { delete(c, "storage_account_name") },
+			wantError: true,
+		},
+		{
+			name:      "missing container_name",
+			mutate:    func(c azurerm.Config) { delete(c, "container_name") },
+			wantError: true,
+		},
 		{name: "missing key", mutate: func(c azurerm.Config) { delete(c, "key") }, wantError: true},
 		{
 			name: "missing resource_group is fine when skipping account creation",
@@ -55,7 +63,11 @@ func TestExtendedAzurermConfig_Validation(t *testing.T) {
 		// resource_group_name is not required at validation time; it is enforced
 		// at the ARM call site, so a data-plane (SAS/access-key) config without it
 		// still parses cleanly.
-		{name: "missing resource_group is allowed at validation", mutate: func(c azurerm.Config) { delete(c, "resource_group_name") }, wantError: false},
+		{
+			name:      "missing resource_group is allowed at validation",
+			mutate:    func(c azurerm.Config) { delete(c, "resource_group_name") },
+			wantError: false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -266,7 +278,11 @@ func TestExtendedCacheKey_IsPolicyAware(t *testing.T) {
 	// Each converged policy must change the identity.
 	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["skip_versioning"] = true }))
 	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["enable_soft_delete"] = false }))
-	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["soft_delete_retention_days"] = 30 }))
+	assert.NotEqual(
+		t,
+		base,
+		keyFor(func(c azurerm.Config) { c["soft_delete_retention_days"] = 30 }),
+	)
 	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["skip_container_creation"] = true }))
 
 	// The container identity is still part of it.

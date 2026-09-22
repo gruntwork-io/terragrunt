@@ -21,3 +21,22 @@ examples:
       }
 
 ---
+
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
+<Before version="1.2.0">
+
+With `--all`, each unit's JSON object is indented over several lines, one object after another, and every unit reports the root's `download_dir`.
+
+</Before>
+
+<Since version="1.2.0">
+
+With `--all`, each unit is written on one line, so the output is JSON Lines and a reader can take it a line at a time. Each unit reports the context `run --all` gives it, including the `download_dir` it caches into:
+
+```bash
+terragrunt info print --all | jq -c '{config_path, download_dir}'
+```
+
+</Since>

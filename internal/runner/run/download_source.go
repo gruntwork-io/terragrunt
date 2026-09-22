@@ -753,7 +753,6 @@ func BuildDownloadClient(
 	cfg *runcfg.RunConfig,
 ) (*getter.Client, error) {
 	clientOpts := []getter.Option{
-		getter.WithHTTP(v.HTTP),
 		getter.WithFileCopy(getter.NewFileCopyGetter(v.FS).
 			WithLogger(l).
 			WithIncludeInCopy(cfg.Terraform.IncludeInCopy...).

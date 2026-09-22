@@ -810,7 +810,11 @@ func (w *symlinkWalker) walk(physical, logical string) error {
 func (w *symlinkWalker) follow(current, logicalPath string, d fs.DirEntry) error {
 	realPath, err := EvalSymlinks(w.fsys, current)
 	if err != nil {
-		return w.fn(logicalPath, d, fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err))
+		return w.fn(
+			logicalPath,
+			d,
+			fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err),
+		)
 	}
 
 	realInfo, err := w.fsys.Stat(realPath)
@@ -1253,6 +1257,12 @@ const defaultZipDirMode os.FileMode = 0755
 // maxSymlinkTargetSize bounds a symlink target read, far above any real path.
 const maxSymlinkTargetSize = 4096
 
+// Default bounds [NewZipDecompressor] applies.
+const (
+	DefaultZipFileSizeLimit int64 = 1 << 30 // 1 GiB
+	DefaultZipFilesLimit          = 10000
+)
+
 // ZipDecompressor handles zip archive extraction with configurable limits.
 type ZipDecompressor struct {
 	// FileSizeLimit limits total decompressed size in bytes. Zero means no limit.
@@ -1264,25 +1274,32 @@ type ZipDecompressor struct {
 // ZipDecompressorOption is a functional option for configuring ZipDecompressor.
 type ZipDecompressorOption func(*ZipDecompressor)
 
-// WithFileSizeLimit sets the maximum total decompressed size in bytes.
-// Zero means no limit.
+// WithFileSizeLimit sets the maximum total decompressed size in bytes,
+// replacing [DefaultZipFileSizeLimit]. Zero removes the limit, leaving
+// extraction bounded only by the disk.
 func WithFileSizeLimit(limit int64) ZipDecompressorOption {
 	return func(z *ZipDecompressor) {
 		z.FileSizeLimit = limit
 	}
 }
 
-// WithFilesLimit sets the maximum number of files that can be extracted.
-// Zero means no limit.
+// WithFilesLimit sets the maximum number of files that can be extracted,
+// replacing [DefaultZipFilesLimit]. Zero removes the limit, leaving
+// extraction bounded only by the disk.
 func WithFilesLimit(limit int) ZipDecompressorOption {
 	return func(z *ZipDecompressor) {
 		z.FilesLimit = limit
 	}
 }
 
-// NewZipDecompressor creates a new ZipDecompressor with the given options.
+// NewZipDecompressor creates a new ZipDecompressor bounded by
+// [DefaultZipFileSizeLimit] and [DefaultZipFilesLimit], which
+// [WithFileSizeLimit] and [WithFilesLimit] replace.
 func NewZipDecompressor(opts ...ZipDecompressorOption) *ZipDecompressor {
-	z := &ZipDecompressor{}
+	z := &ZipDecompressor{
+		FileSizeLimit: DefaultZipFileSizeLimit,
+		FilesLimit:    DefaultZipFilesLimit,
+	}
 	for _, opt := range opts {
 		opt(z)
 	}

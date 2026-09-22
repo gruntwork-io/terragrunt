@@ -253,13 +253,13 @@ linters:
           - forbidigo
         text: venv|vfs\.DetectFSKind|process arguments
         path: ^internal/(vfs|vexec|vhttp|vsops|vbrowser|venv)/|^internal/os/exec/
-      # A pty is the real terminal by definition, so the two callers that
-      # decide whether to allocate one read the real descriptor to do it.
-      # Both are reached only once the venv's Terminal has already reported
-      # that the stream is a tty.
+      # A pty is the real terminal by definition, so the caller that decides
+      # whether to allocate one reads the real descriptor to do it. It is
+      # reached only once the venv's Terminal has already reported that the
+      # stream is a tty.
       - linters:
           - forbidigo
-        path: ^(internal/view/tui/tty\.go|internal/tf/run_cmd\.go)$
+        path: ^internal/tf/run_cmd\.go$
       # colorgen runs from `go generate`, not inside a Terragrunt process, so it
       # writes its output file and reports failures through the real OS.
       - linters:

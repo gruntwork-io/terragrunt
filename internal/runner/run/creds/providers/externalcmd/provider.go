@@ -4,6 +4,7 @@ package externalcmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -18,6 +19,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-shellwords"
 )
+
+// ErrEmptyAuthProviderCmd is returned when parsing the auth provider command
+// yields no command to run, such as a value of only spaces or one starting
+// with a shell operator.
+var ErrEmptyAuthProviderCmd = errors.New("auth provider command has no command to run")
 
 // Provider runs external command that returns a json string with credentials.
 type Provider struct {
@@ -84,6 +90,10 @@ func (provider *Provider) fetchCredentials(
 	parts, err := parser.Parse(filepath.ToSlash(provider.authProviderCmd))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse auth provider command: %w", err)
+	}
+
+	if len(parts) == 0 {
+		return nil, ErrEmptyAuthProviderCmd
 	}
 
 	command := parts[0]
