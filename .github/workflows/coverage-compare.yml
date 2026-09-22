@@ -51,8 +51,7 @@ jobs:
 
       - name: Run Tests with Coverage
         run: |
-          set -o pipefail
-          if ! go test -coverprofile=coverage.out -covermode=atomic ./... -timeout 45m; then
+          if ! ./_coverage-scripts/.github/scripts/coverage/coverage-report.sh run .; then
             echo "::warning::Some tests failed — coverage data may be incomplete"
           fi
         shell: bash
@@ -102,8 +101,7 @@ jobs:
 
       - name: Run Tests with Coverage
         run: |
-          set -o pipefail
-          if ! go test -coverprofile=coverage.out -covermode=atomic ./... -timeout 45m; then
+          if ! ./_coverage-scripts/.github/scripts/coverage/coverage-report.sh run .; then
             echo "::warning::Some tests failed — coverage data may be incomplete"
           fi
         shell: bash

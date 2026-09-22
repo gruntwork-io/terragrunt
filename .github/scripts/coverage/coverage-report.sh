@@ -40,7 +40,7 @@ now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 this_commit() { echo "${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"; }
 this_ref() { echo "${GITHUB_REF:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)}"; }
 
-# Run the suite (-json) and emit coverage.out, test-events.ndjson and result.xml
+# Run the suite through gotestsum and emit coverage.out, test-events.ndjson and result.xml
 cmd_run() {
 	local out="${1:?Usage: coverage-report.sh run <out-dir> [packages...]}"
 	shift
@@ -50,22 +50,24 @@ cmd_run() {
 	mkdir -p "$out"
 	local events="$out/test-events.ndjson" cover="$out/coverage.out" junit="$out/result.xml"
 
+	# cmd_failures below prints the failing tests, so gotestsum's own failure summary is hidden.
 	set +e
-	go test -json -coverprofile="$cover" -covermode=atomic "${pkgs[@]}" -timeout "${TEST_TIMEOUT:-45m}" >"$events"
+	gotestsum --format pkgname --hide-summary failed,output \
+		--jsonfile "$events" --junitfile "$junit" \
+		-- -coverprofile="$cover" -covermode=atomic "${pkgs[@]}" -timeout "${TEST_TIMEOUT:-45m}"
 	local status=$?
 	set -e
 
-	if ! gotestsum --junitfile "$junit" --format none --raw-command -- cat "$events" && [[ "$status" -eq 0 ]]; then
+	if [[ ! -s "$junit" && "$status" -eq 0 ]]; then
 		echo "Could not write JUnit report $junit" >&2
 		return 1
 	fi
 
-	echo "go test exit status: $status"
+	echo "gotestsum exit status: $status"
 	echo "Events: $events ($(wc -l <"$events") lines)"
 	echo "Cover:  $cover"
 	echo "JUnit:  $junit"
 
-	# The -json stream lands in a file, so a failing run would otherwise print only the exit status.
 	if [[ "$status" -ne 0 ]]; then
 		cmd_failures "$events" || echo "Could not summarize failures from $events" >&2
 	fi

@@ -29,7 +29,7 @@ function main {
 	printf 'Testing %d packages, leaving out the generated ones under %s\n' \
 		"${#pkgs[@]}" "$EXCLUDED"
 
-	go test \
+	gotestsum --format pkgname -- \
 		-exec "$CURDIR/sandbox-exec.sh" \
 		-timeout "$TEST_TIMEOUT" \
 		"${pkgs[@]}"
