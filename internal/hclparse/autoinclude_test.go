@@ -21,7 +21,7 @@ func TestAutoIncludeHCL_Resolve_Nil(t *testing.T) {
 
 	var a *hclparse.AutoIncludeHCL
 
-	result, diags := a.Resolve(nil)
+	result, diags := a.Resolve(t.Context(), nil)
 	assert.Nil(t, result)
 	assert.False(t, diags.HasErrors())
 }
@@ -51,7 +51,7 @@ dependency "vpc" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
@@ -91,7 +91,7 @@ dependency "vpc" {
 				},
 			}
 
-			result, diags := autoInclude.Resolve(evalCtx)
+			result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 			require.True(t, diags.HasErrors(), "%s must surface as a diagnostic", tc.summary)
 			assert.Equal(t, tc.summary, diags[0].Summary)
 			require.NotNil(
@@ -117,7 +117,10 @@ dependency {
 
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
 
-	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
+	result, diags := autoInclude.Resolve(
+		t.Context(),
+		&hcl.EvalContext{Variables: map[string]cty.Value{}},
+	)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "exactly one label, got 0")
 	require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
@@ -136,7 +139,10 @@ dependency "vpc" "extra" {
 
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
 
-	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
+	result, diags := autoInclude.Resolve(
+		t.Context(),
+		&hcl.EvalContext{Variables: map[string]cty.Value{}},
+	)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "exactly one label, got 2")
 	require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
@@ -175,7 +181,7 @@ dependency "db" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 2)
@@ -210,7 +216,7 @@ dependency "networking" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
@@ -254,7 +260,7 @@ inputs = {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 
@@ -530,7 +536,7 @@ unit "extra" {
 `
 	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
 
-	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, diags := bad.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.True(
 		t,
 		diags.HasErrors(),
@@ -559,7 +565,7 @@ unit "extra" {
 `
 	supported := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, okSrc)}
 
-	_, okDiags := supported.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, okDiags := supported.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.False(
 		t,
 		okDiags.HasErrors(),
@@ -580,7 +586,7 @@ inputs = {
 `
 	unitAutoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, unitSrc)}
 
-	_, unitDiags := unitAutoInclude.ResolveForKind(evalCtx, hclparse.KindUnit, "")
+	_, unitDiags := unitAutoInclude.ResolveForKind(t.Context(), evalCtx, hclparse.KindUnit, "")
 	require.False(
 		t,
 		unitDiags.HasErrors(),
@@ -623,7 +629,7 @@ unit "extra" {
 `
 	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
 
-	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, diags := bad.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.True(t, diags.HasErrors(), "the index traversal form must trip the typed error too")
 
 	extra, ok := diags[0].Extra.(error)
@@ -676,7 +682,7 @@ unit "extra" {
 `
 	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
 
-	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, diags := bad.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.True(t, diags.HasErrors(), "a dynamic dependency index must trip the typed error too")
 
 	extra, ok := diags[0].Extra.(error)
@@ -728,7 +734,7 @@ unit "extra" {
 `
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, src)}
 
-	_, diags := autoInclude.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, diags := autoInclude.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.True(
 		t,
 		diags.HasErrors(),

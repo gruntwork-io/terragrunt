@@ -35,7 +35,10 @@ func TestUnitPathsFromStackDirAgreesWithGeneration(t *testing.T) {
 	t.Parallel()
 
 	liveStackFile := filepath.Join(generationParityLiveDir, config.DefaultStackFile)
-	liveAutoIncludeFile := filepath.Join(generationParityLiveDir, config.DefaultAutoIncludeStackFile)
+	liveAutoIncludeFile := filepath.Join(
+		generationParityLiveDir,
+		config.DefaultAutoIncludeStackFile,
+	)
 	teamStackFile := filepath.Join(generationParityStackSource, config.DefaultStackFile)
 
 	testCases := []struct {
@@ -271,7 +274,12 @@ unit "member" {
 
 			v := generateStackTree(t, tc.files)
 
-			configPaths := filesNamed(t, v.FS, generationParityLiveDir, config.DefaultTerragruntConfigPath)
+			configPaths := filesNamed(
+				t,
+				v.FS,
+				generationParityLiveDir,
+				config.DefaultTerragruntConfigPath,
+			)
 			require.NotEmpty(t, configPaths)
 
 			generatedUnitPaths := make([]string, 0, len(configPaths))
@@ -283,6 +291,7 @@ unit "member" {
 			ctx, pctx := newTestParsingContext(t, v, liveStackFile)
 
 			unitPaths, err := inthclparse.UnitPathsFromStackDir(
+				ctx,
 				v.FS,
 				generationParityLiveDir,
 				&inthclparse.StackDirArgs{
@@ -377,17 +386,20 @@ func filesNamed(t *testing.T, fsys vfs.FS, root, name string) []string {
 
 	var paths []string
 
-	require.NoError(t, vfs.WalkDir(fsys, root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+	require.NoError(
+		t,
+		vfs.WalkDir(fsys, root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
 
-		if !entry.IsDir() && entry.Name() == name {
-			paths = append(paths, path)
-		}
+			if !entry.IsDir() && entry.Name() == name {
+				paths = append(paths, path)
+			}
 
-		return nil
-	}))
+			return nil
+		}),
+	)
 
 	return paths
 }

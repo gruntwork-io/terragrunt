@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -344,6 +343,7 @@ func resolveStackAutoIncludes(
 	earlyFuncs := StackParseFunctionsFrom(prodEvalCtx.Functions, stackSourceDir)
 
 	parseResult, parseErr := inthclparse.ParseStackFile(
+		ctx,
 		scopedPctx.Venv.FS,
 		&inthclparse.ParseStackFileInput{
 			Src:       stackSrcBytes,
@@ -510,7 +510,7 @@ func setupCAS(l log.Logger, pctx *ParsingContext, enabled bool) (casSetup, error
 		return casSetup{}, nil
 	}
 
-	if _, err := git.NewGitRunner(v); err != nil {
+	if _, err := cas.NewGitStoreVenv(v); err != nil {
 		if pctx.CASOffline {
 			return casSetup{}, err
 		}
@@ -1171,7 +1171,10 @@ func (u *Unit) ReadOutputs(
 		return nil, err
 	}
 
-	outputMap, err := TerraformOutputJSONToCtyValueMap(filepath.Join(unitDir, DefaultTerragruntConfigPath), jsonBytes)
+	outputMap, err := TerraformOutputJSONToCtyValueMap(
+		filepath.Join(unitDir, DefaultTerragruntConfigPath),
+		jsonBytes,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1189,7 +1192,12 @@ func (u *Unit) ReadOutputsJSON(
 ) ([]byte, error) {
 	l.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
 
-	return getOutputJSONWithCaching(ctx, pctx, l, filepath.Join(unitDir, DefaultTerragruntConfigPath))
+	return getOutputJSONWithCaching(
+		ctx,
+		pctx,
+		l,
+		filepath.Join(unitDir, DefaultTerragruntConfigPath),
+	)
 }
 
 // ReadStackConfigFile reads and parses a Terragrunt stack configuration file from the given path.
@@ -1268,6 +1276,7 @@ func ParseStackConfig(
 	// can reference where sibling components generate to (e.g. to pass a unit path
 	// down to a child stack).
 	if err := injectStackComponentRefs(
+		ctx,
 		parser.Venv.FS,
 		file,
 		evalParsingContext,
@@ -1282,7 +1291,7 @@ func ParseStackConfig(
 		return nil, decodeErr
 	}
 
-	config.Units, config.Stacks, err = decodeComponents(file, evalParsingContext)
+	config.Units, config.Stacks, err = decodeComponents(ctx, file, evalParsingContext)
 	if err != nil {
 		return nil, err
 	}
@@ -1291,6 +1300,7 @@ func ParseStackConfig(
 	stackDir := filepath.Dir(file.ConfigPath)
 
 	if err := processStackConfigIncludes(
+		ctx,
 		parser.Venv.FS,
 		config,
 		stackDir,
@@ -1301,6 +1311,7 @@ func ParseStackConfig(
 	}
 
 	if err := mergeStackAutoIncludeFile(
+		ctx,
 		parser.Venv.FS,
 		l,
 		config,
@@ -1365,13 +1376,14 @@ func (h *stackComponentHeader) GeneratedPath(stackDir string) string {
 // overridden component's path reflects the override, not the stale base path.
 // stackDir is the directory containing the stack file.
 func injectStackComponentRefs(
+	ctx context.Context,
 	fsys vfs.FS,
 	file *hclparse.File,
 	evalCtx *hcl.EvalContext,
 	stackDir string,
 	parserOpts []hclparse.Option,
 ) error {
-	baseUnits, baseStacks, err := decodeComponentHeaders(file, evalCtx)
+	baseUnits, baseStacks, err := decodeComponentHeaders(ctx, file, evalCtx)
 	if err != nil {
 		return err
 	}
@@ -1383,6 +1395,7 @@ func injectStackComponentRefs(
 	}
 
 	autoUnits, autoStacks, err := stackAutoIncludeComponentHeaders(
+		ctx,
 		fsys,
 		stackDir,
 		evalCtx,
@@ -1453,6 +1466,7 @@ func componentRefs(headers []*stackComponentHeader, stackDir string) []inthclpar
 // stackAutoIncludeComponentHeaders decodes the unit and stack block headers (name and path only) declared
 // by a sibling terragrunt.autoinclude.stack.hcl. It returns nil slices when no autoinclude file exists.
 func stackAutoIncludeComponentHeaders(
+	ctx context.Context,
 	fsys vfs.FS,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
@@ -1474,7 +1488,7 @@ func stackAutoIncludeComponentHeaders(
 		return nil, nil, fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
 	}
 
-	autoUnits, autoStacks, decodeErr := decodeComponentHeaders(incFile, evalCtx)
+	autoUnits, autoStacks, decodeErr := decodeComponentHeaders(ctx, incFile, evalCtx)
 	if decodeErr != nil {
 		return nil, nil, fmt.Errorf(
 			"failed to decode stack autoinclude headers %q: %w",
@@ -1490,15 +1504,16 @@ func stackAutoIncludeComponentHeaders(
 // expanded so that a path referencing each.*/count.index still decodes, and every element of an
 // expanded block comes back with its instance key.
 func decodeComponentHeaders(
+	ctx context.Context,
 	file *hclparse.File,
 	evalCtx *hcl.EvalContext,
 ) ([]*stackComponentHeader, []*stackComponentHeader, error) {
-	units, err := expandComponentHeaders(file, MetadataUnit, evalCtx)
+	units, err := expandComponentHeaders(ctx, file, MetadataUnit, evalCtx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	stacks, err := expandComponentHeaders(file, MetadataStack, evalCtx)
+	stacks, err := expandComponentHeaders(ctx, file, MetadataStack, evalCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1507,11 +1522,12 @@ func decodeComponentHeaders(
 }
 
 func expandComponentHeaders(
+	ctx context.Context,
 	file *hclparse.File,
 	blockType string,
 	evalCtx *hcl.EvalContext,
 ) ([]*stackComponentHeader, error) {
-	instances, err := file.ExpandBlocks(blockType, &stackComponentHeader{}, evalCtx)
+	instances, err := file.ExpandBlocks(ctx, blockType, &stackComponentHeader{}, evalCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1672,15 +1688,16 @@ func componentAddress(name string, expansion *hclparse.ExpansionBlock) string {
 // decodeComponents decodes a stack file's unit and stack blocks, returning one value per
 // iteration element. A block that declares no expansion yields a single value.
 func decodeComponents(
+	ctx context.Context,
 	file *hclparse.File,
 	evalCtx *hcl.EvalContext,
 ) ([]*Unit, []*Stack, error) {
-	units, err := decodeUnitBlocks(file, evalCtx)
+	units, err := decodeUnitBlocks(ctx, file, evalCtx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	stacks, err := decodeStackBlocks(file, evalCtx)
+	stacks, err := decodeStackBlocks(ctx, file, evalCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1690,8 +1707,12 @@ func decodeComponents(
 
 // decodeUnitBlocks decodes a stack file's unit blocks, returning one Unit per iteration
 // element. A block that declares no expansion yields a single Unit.
-func decodeUnitBlocks(file *hclparse.File, evalContext *hcl.EvalContext) ([]*Unit, error) {
-	instances, err := file.ExpandBlocks(MetadataUnit, &Unit{}, evalContext)
+func decodeUnitBlocks(
+	ctx context.Context,
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+) ([]*Unit, error) {
+	instances, err := file.ExpandBlocks(ctx, MetadataUnit, &Unit{}, evalContext)
 	if err != nil {
 		return nil, err
 	}
@@ -1719,8 +1740,12 @@ func decodeUnitBlocks(file *hclparse.File, evalContext *hcl.EvalContext) ([]*Uni
 
 // decodeStackBlocks decodes a stack file's stack blocks, returning one Stack per iteration
 // element. A block that declares no expansion yields a single Stack.
-func decodeStackBlocks(file *hclparse.File, evalContext *hcl.EvalContext) ([]*Stack, error) {
-	instances, err := file.ExpandBlocks(MetadataStack, &Stack{}, evalContext)
+func decodeStackBlocks(
+	ctx context.Context,
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+) ([]*Stack, error) {
+	instances, err := file.ExpandBlocks(ctx, MetadataStack, &Stack{}, evalContext)
 	if err != nil {
 		return nil, err
 	}
@@ -1751,6 +1776,7 @@ func decodeStackBlocks(file *hclparse.File, evalContext *hcl.EvalContext) ([]*St
 // its units and stacks into the main config so generation sees all components,
 // not just those in the root file.
 func processStackConfigIncludes(
+	ctx context.Context,
 	fsys vfs.FS,
 	config *StackConfigFile,
 	stackDir string,
@@ -1777,7 +1803,7 @@ func processStackConfigIncludes(
 			return fmt.Errorf("failed to decode include %q: %w", inc.Name, decodeErr)
 		}
 
-		included.Units, included.Stacks, err = decodeComponents(incFile, evalCtx)
+		included.Units, included.Stacks, err = decodeComponents(ctx, incFile, evalCtx)
 		if err != nil {
 			return fmt.Errorf("failed to decode include %q: %w", inc.Name, err)
 		}
@@ -1828,6 +1854,7 @@ func processStackConfigIncludes(
 // autoinclude block materialize in the nested stack the same way a unit's
 // terragrunt.autoinclude.hcl merges into its terragrunt.hcl via [mergeAutoIncludeIfPresent].
 func mergeStackAutoIncludeFile(
+	ctx context.Context,
 	fsys vfs.FS,
 	l log.Logger,
 	config *StackConfigFile,
@@ -1879,7 +1906,7 @@ func mergeStackAutoIncludeFile(
 		return fmt.Errorf("failed to decode stack autoinclude %q: %w", autoIncludePath, decodeErr)
 	}
 
-	included.Units, included.Stacks, err = decodeComponents(incFile, evalCtx)
+	included.Units, included.Stacks, err = decodeComponents(ctx, incFile, evalCtx)
 	if err != nil {
 		return fmt.Errorf("failed to decode stack autoinclude %q: %w", autoIncludePath, err)
 	}

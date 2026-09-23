@@ -1094,14 +1094,24 @@ func ParseTerragruntConfig(
 		path = filepath.Clean(path)
 	}
 
-	// Track that this file was read during parsing
+	readingPath := pctx.TerragruntConfigPath
+	if !filepath.IsAbs(readingPath) {
+		readingPath = filepath.Clean(filepath.Join(pctx.WorkingDir, readingPath))
+	}
+
+	chain := slices.Concat(pctx.ReadConfigChain, []string{readingPath})
+	if slices.Contains(chain, path) {
+		return cty.NilVal, ReadTerragruntConfigCycleError{Chain: append(chain, path)}
+	}
+
 	pctx.FilesRead.Add(path)
 
-	// We update the ctx of terragruntOptions to the config being read in.
 	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
 	if err != nil {
 		return cty.NilVal, err
 	}
+
+	pctx.ReadConfigChain = chain
 
 	pctx = pctx.WithDiagnosticsSuppressed(l)
 

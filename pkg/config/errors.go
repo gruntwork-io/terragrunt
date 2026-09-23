@@ -596,6 +596,18 @@ func (err MaxParseDepthError) Error() string {
 	)
 }
 
+// ReadTerragruntConfigCycleError is returned when read_terragrunt_config reads
+// a config that is already being read further up the chain.
+type ReadTerragruntConfigCycleError struct {
+	// Chain lists the configs being read, outermost first, ending with the
+	// config that closes the cycle.
+	Chain []string
+}
+
+func (err ReadTerragruntConfigCycleError) Error() string {
+	return "read_terragrunt_config cycle detected: " + strings.Join(err.Chain, " -> ")
+}
+
 // AutoIncludeParserStageError reports which stage of autoinclude parsing failed.
 type AutoIncludeParserStageError struct {
 	Err   error

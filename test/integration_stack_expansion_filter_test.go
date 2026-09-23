@@ -139,24 +139,6 @@ func generateExpansionFilterStacks(t *testing.T, tmpDir, args string) []string {
 func TestStackExpansionGitFilterSelectsRemovedInstance(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, runner := setupExpansionFilterRepo(t)
-	stackFile := filepath.Join(tmpDir, "live", "terragrunt.stack.hcl")
-
-	writeExpansionFilterFile(t, stackFile, expansionFilterStack(`["web", "api"]`))
-	commitExpansionFilterChanges(t, runner, "Expand shard over web and api")
-
-	// --filter-affected compares against main, so the initial state has to live there before
-	// the change lands on a branch of its own.
-	if branch, err := runner.Config(t.Context(), "init.defaultBranch"); err != nil ||
-		branch != "main" {
-		require.NoError(t, runner.Checkout(t.Context(), "main", true))
-	}
-
-	require.NoError(t, runner.Checkout(t.Context(), "shrink-expansion", true))
-
-	writeExpansionFilterFile(t, stackFile, expansionFilterStack(`["web"]`))
-	commitExpansionFilterChanges(t, runner, "Drop the api shard")
-
 	expected := []string{"live", "live/.terragrunt-stack/shard/api"}
 
 	for _, tc := range []struct {
@@ -168,6 +150,22 @@ func TestStackExpansionGitFilterSelectsRemovedInstance(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			tmpDir, runner := setupExpansionFilterRepo(t)
+			stackFile := filepath.Join(tmpDir, "live", "terragrunt.stack.hcl")
+
+			writeExpansionFilterFile(t, stackFile, expansionFilterStack(`["web", "api"]`))
+			commitExpansionFilterChanges(t, runner, "Expand shard over web and api")
+
+			if branch, err := runner.Config(t.Context(), "init.defaultBranch"); err != nil ||
+				branch != "main" {
+				require.NoError(t, runner.Checkout(t.Context(), "main", true))
+			}
+
+			require.NoError(t, runner.Checkout(t.Context(), "shrink-expansion", true))
+
+			writeExpansionFilterFile(t, stackFile, expansionFilterStack(`["web"]`))
+			commitExpansionFilterChanges(t, runner, "Drop the api shard")
 
 			assert.ElementsMatch(t, expected, runExpansionFilterFind(t, tmpDir, tc.args))
 		})

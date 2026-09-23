@@ -6,7 +6,6 @@
 package test_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -40,10 +39,9 @@ func TestExecErrorMessageIncludeInOutput(t *testing.T) {
 	assert.Contains(t, err.Error(), "Custom error from script")
 }
 
-//nolint:paralleltest // it unsets TG_TF_PATH for the whole process
 func TestExecTfPath(t *testing.T) {
-	// This test can't be parallelized because it explicitly unsets the TG_TF_PATH environment variable.
-	// t.Parallel()
+	t.Parallel()
+
 	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows since bash script execution is not supported")
 	}
@@ -56,16 +54,14 @@ func TestExecTfPath(t *testing.T) {
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
-	// If TG_TF_PATH is not set, we'll use the default tofu binary,
-	// we'll explicitly set the value so that the test can pass.
-	if tfPath := os.Getenv("TG_TF_PATH"); tfPath != "" {
-		// Unset after using t.Setenv so that it'll be reset after the test.
-		t.Setenv("TG_TF_PATH", "")
-		os.Unsetenv("TG_TF_PATH")
-	}
+	// The run has to fall through to the terraform_binary the config names, so it
+	// starts without the TG_TF_PATH the suite may be running under.
+	v := helpers.RunVenv(t)
+	delete(v.Env, "TG_TF_PATH")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
+		v,
 		"terragrunt run version --working-dir "+workingDir,
 	)
 	require.NoError(t, err)

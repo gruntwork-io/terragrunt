@@ -77,6 +77,9 @@ type StackCASResult struct {
 // Requires v.FS unconditionally. Remote sources additionally require
 // v.Exec for the git runner; the assertion fires once dispatch picks
 // the remote branch.
+//
+// Returns the [NewGitStoreVenv] error for a remote source when v cannot
+// back the git store.
 func (c *CAS) ProcessStackComponent(
 	ctx context.Context,
 	l log.Logger,
@@ -107,13 +110,18 @@ func (c *CAS) ProcessStackComponent(
 
 	cleanURL := redact.NewURL(strings.TrimPrefix(strippedURL.String(), "git::"))
 
+	gv, err := NewGitStoreVenv(v)
+	if err != nil {
+		return nil, err
+	}
+
 	// Stack processing derives deterministic CAS keys from refHash, so
 	// abbreviated SHAs would produce keys that depend on the input
 	// shape. Full SHAs are the supported form for commit refs in
 	// stacks; CommitHash returns the user input as-is for the
 	// commit-ref path, and the canonical hash for the symbolic-ref
 	// path.
-	resolved, err := c.resolveReference(ctx, l, v, cleanURL, ref)
+	resolved, err := c.resolveReference(ctx, l, gv, cleanURL, ref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve reference %q: %w", ref, err)
 	}

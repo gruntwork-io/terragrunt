@@ -8,11 +8,14 @@ import (
 	"io"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 )
 
 type Parser struct {
@@ -74,6 +77,7 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 		hclFile, diags = parser.ParseJSON(content, configPath)
 	default:
 		hclFile, diags = parser.ParseHCL(content, configPath)
+		diags = append(diags, rejectOutOfRangeNumbers(hclFile)...)
 	}
 
 	file = &File{
@@ -126,4 +130,45 @@ func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error
 	}
 
 	return diags
+}
+
+// rejectOutOfRangeNumbers reports each number literal in file whose magnitude is outside the
+// range [ctyhelper.ValidateNumberRanges] allows, and makes its value unknown. Converting such a
+// number to a string, as toset(["a", 1e999999999]) or "${1e999999999}" do, writes out every
+// digit, which takes minutes. The literal is disarmed as well as reported because some callers
+// carry on evaluating a config that failed to parse.
+//
+// The parser never produces an unknown literal, so one found here was disarmed by an earlier
+// call and is reported again. That matters because [hclparse.Parser.ParseHCL] hands back the
+// file it cached for a path it has already parsed, without the original diagnostics.
+//
+// file must come from [hclparse.Parser.ParseHCL], which always returns an [hclsyntax.Body].
+func rejectOutOfRangeNumbers(file *hcl.File) hcl.Diagnostics {
+	return hclsyntax.VisitAll(
+		file.Body.(*hclsyntax.Body),
+		func(node hclsyntax.Node) hcl.Diagnostics {
+			lit, ok := node.(*hclsyntax.LiteralValueExpr)
+			if !ok {
+				return nil
+			}
+
+			err := ctyhelper.ValidateNumberRanges(lit.Val)
+			if err == nil && lit.Val.IsKnown() {
+				return nil
+			}
+
+			if err == nil {
+				err = ctyhelper.NumberOutOfRangeError{}
+			}
+
+			lit.Val = cty.DynamicVal
+
+			return hcl.Diagnostics{{
+				Severity: hcl.DiagError,
+				Summary:  "Number out of range",
+				Detail:   err.Error(),
+				Subject:  lit.SrcRange.Ptr(),
+			}}
+		},
+	)
 }

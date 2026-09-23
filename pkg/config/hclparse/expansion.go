@@ -1,6 +1,7 @@
 package hclparse
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strconv"
@@ -161,9 +162,10 @@ type Instance struct {
 // is dropped from the result rather than failing the file, so those callers keep parsing
 // best-effort.
 func (file *File) ExpandBlocks(
+	ctx context.Context,
 	blockType string,
 	out any,
-	ctx *hcl.EvalContext,
+	evalCtx *hcl.EvalContext,
 	opts ...ExpandOption,
 ) ([]Instance, error) {
 	if file.fileUpdateHandlerFunc != nil {
@@ -189,7 +191,7 @@ func (file *File) ExpandBlocks(
 			continue
 		}
 
-		expanded, err := ExpandBlock(block, out, ctx, opts...)
+		expanded, err := ExpandBlock(ctx, block, out, evalCtx, opts...)
 		if err == nil {
 			attachSource(file.Bytes, block, out, expanded)
 
@@ -339,11 +341,16 @@ func blockSource(src []byte, block *hcl.Block, out any) (*SourceBlock, error) {
 // body reference each.value at all: the references are still unevaluated here, and
 // only resolve in the per-element decode below.
 //
+// An expansion stops with ctx's error once ctx is cancelled. A block can expand into
+// up to [DefaultMaxInstances] instances, and decoding that many takes long enough that
+// a timeout or an interrupt should not have to wait for it.
+//
 // Panics when out is nil or not a pointer.
 func ExpandBlock(
+	ctx context.Context,
 	block *hcl.Block,
 	out any,
-	ctx *hcl.EvalContext,
+	evalCtx *hcl.EvalContext,
 	opts ...ExpandOption,
 ) ([]Instance, error) {
 	outType := reflect.TypeOf(out)
@@ -362,12 +369,12 @@ func ExpandBlock(
 	}
 
 	if expansion == nil {
-		instance, diags := decodeInstance(block, outType, ctx)
+		instance, diags := decodeInstance(block, outType, evalCtx)
 		if diags.HasErrors() {
 			return nil, diags
 		}
 
-		return []Instance{{Value: instance, EvalContext: ctx}}, nil
+		return []Instance{{Value: instance, EvalContext: evalCtx}}, nil
 	}
 
 	forEach, count, err := expansionMetaArg(expansion)
@@ -376,10 +383,10 @@ func ExpandBlock(
 	}
 
 	if count != nil {
-		return expandCount(block, outType, ctx, count, cfg.maxInstances)
+		return expandCount(ctx, block, outType, evalCtx, count, cfg.maxInstances)
 	}
 
-	return expandForEach(block, outType, ctx, forEach, cfg.maxInstances)
+	return expandForEach(ctx, block, outType, evalCtx, forEach, cfg.maxInstances)
 }
 
 // expansionBlock returns the block's expansion sub-block, or nil when it declares none.
@@ -434,13 +441,14 @@ func expansionMetaArg(expansion *hcl.Block) (forEach, count *hcl.Attribute, err 
 }
 
 func expandCount(
+	ctx context.Context,
 	block *hcl.Block,
 	outType reflect.Type,
-	ctx *hcl.EvalContext,
+	evalCtx *hcl.EvalContext,
 	count *hcl.Attribute,
 	maxInstances int,
 ) ([]Instance, error) {
-	value, diags := count.Expr.Value(ctx)
+	value, diags := count.Expr.Value(evalCtx)
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -471,7 +479,11 @@ func expandCount(
 	decoder := newElementDecoder(total)
 
 	for index := range total {
-		child := ctx.NewChild()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		child := evalCtx.NewChild()
 		child.Variables = map[string]cty.Value{
 			countVarName: cty.ObjectVal(map[string]cty.Value{
 				countIndexAttrName: cty.NumberIntVal(int64(index)),
@@ -485,13 +497,14 @@ func expandCount(
 }
 
 func expandForEach(
+	ctx context.Context,
 	block *hcl.Block,
 	outType reflect.Type,
-	ctx *hcl.EvalContext,
+	evalCtx *hcl.EvalContext,
 	forEach *hcl.Attribute,
 	maxInstances int,
 ) ([]Instance, error) {
-	collection, diags := forEach.Expr.Value(ctx)
+	collection, diags := forEach.Expr.Value(evalCtx)
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -524,6 +537,10 @@ func expandForEach(
 	decoder := newElementDecoder(size)
 
 	for it := collection.ElementIterator(); it.Next(); {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		elementKey, elementValue := it.Element()
 
 		key, err := expansionKey(elementKey, &forEach.Range)
@@ -531,7 +548,7 @@ func expandForEach(
 			return nil, err
 		}
 
-		child := ctx.NewChild()
+		child := evalCtx.NewChild()
 		child.Variables = map[string]cty.Value{
 			eachVarName: cty.ObjectVal(map[string]cty.Value{
 				eachKeyAttrName:   cty.StringVal(key),
