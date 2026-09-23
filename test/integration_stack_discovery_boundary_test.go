@@ -161,6 +161,13 @@ func TestStackDiscoveryBoundaryGitFilterBoundsTargets(t *testing.T) {
 		expected []string
 	}{
 		{
+			name:     "unbounded Git filter from a subdirectory spans the repository",
+			changed:  boundaryStackStandaloneDir + "/terragrunt.hcl",
+			workDir:  "live/accounts",
+			args:     "--filter '[main...HEAD]'",
+			expected: []string{boundaryStackStandaloneDir},
+		},
+		{
 			name:     "changed sibling unit under a parent boundary",
 			changed:  boundaryStackStandaloneDir + "/terragrunt.hcl",
 			workDir:  "live/accounts",
