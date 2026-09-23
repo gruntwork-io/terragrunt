@@ -36,7 +36,7 @@ import (
 func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) {
 	t.Parallel()
 
-	endpoint, env := setupRustFSForCAS(t)
+	endpoint, v := setupRustFSForCAS(t)
 
 	bucket := "cas-test-" + strings.ToLower(helpers.UniqueID())
 	key := "modules/example.tar.gz"
@@ -53,8 +53,6 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) {
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
-
-	v := venv.OSVenv().WithEnv(env)
 
 	resolvers := tggetter.DefaultSourceResolvers(v)
 	resolvers[tggetter.SchemeS3] = newRustFSS3Resolver(t, endpoint)
@@ -94,9 +92,9 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) {
 }
 
 // setupRustFSForCAS spins up the same RustFS container the existing integration
-// tests use, and returns its address alongside the environment the SDK config
-// chain reads its credentials from.
-func setupRustFSForCAS(t *testing.T) (string, map[string]string) {
+// tests use, and returns its address and a venv with the RustFS credentials in
+// its environment.
+func setupRustFSForCAS(t *testing.T) (string, *venv.Venv) {
 	t.Helper()
 
 	_, addr := helpers.RunContainer(
@@ -107,12 +105,7 @@ func setupRustFSForCAS(t *testing.T) (string, map[string]string) {
 		testcontainers.WithWaitStrategy(wait.ForLog("Starting:")),
 	)
 
-	env := helpers.RunEnv(t)
-	env["AWS_ACCESS_KEY_ID"] = "rustfsadmin"
-	env["AWS_SECRET_ACCESS_KEY"] = "rustfsadmin"
-	env["AWS_DEFAULT_REGION"] = "us-east-1"
-
-	return addr, env
+	return addr, rustfsVenv()
 }
 
 func newRustFSClient(t *testing.T, endpoint string) *s3.Client {
@@ -220,7 +213,7 @@ func rustfsSourceURL(t *testing.T, endpoint, bucket, key string) string {
 func TestS3PrefixDownloadReproducesLayout(t *testing.T) {
 	t.Parallel()
 
-	endpoint, env := setupRustFSForCAS(t)
+	endpoint, v := setupRustFSForCAS(t)
 
 	bucket := "prefix-test-" + strings.ToLower(helpers.UniqueID())
 	prefix := "modules/vpc"
@@ -243,7 +236,6 @@ func TestS3PrefixDownloadReproducesLayout(t *testing.T) {
 	// must stay out of the download.
 	uploadRustFSObject(t, s3Client, bucket, prefix+"-sibling.tf", []byte("# excluded"))
 
-	v := venv.OSVenv().WithEnv(env)
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "module")
 
 	_, err := tggetter.NewClient(logger.CreateLogger(), v).Get(t.Context(), &tggetter.Request{

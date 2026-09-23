@@ -56,12 +56,12 @@ func TestExecTfPath(t *testing.T) {
 
 	// The run has to fall through to the terraform_binary the config names, so it
 	// starts without the TG_TF_PATH the suite may be running under.
-	env := helpers.RunEnv(t)
-	delete(env, "TG_TF_PATH")
+	v := helpers.RunVenv(t)
+	delete(v.Env, "TG_TF_PATH")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(
+	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
-		helpers.ContextWithEnv(t.Context(), env),
+		v,
 		"terragrunt run version --working-dir "+workingDir,
 	)
 	require.NoError(t, err)
