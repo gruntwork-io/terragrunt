@@ -3,6 +3,7 @@ package filter
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"errors"
@@ -237,6 +238,24 @@ func (f Filters) InlineDependentBoundaries() []string {
 	return boundaries
 }
 
+// RootGitBoundaries returns the filters with the relative "(dir)" boundaries of Git-targeted graph expressions
+// joined to root, since Git expressions resolve paths against the repository root, not the working directory.
+func (f Filters) RootGitBoundaries(root string) Filters {
+	rooted := make(Filters, 0, len(f))
+
+	for _, flt := range f {
+		expr, changed := rootGitBoundaries(flt.expr, root)
+		if !changed {
+			rooted = append(rooted, flt)
+			continue
+		}
+
+		rooted = append(rooted, NewFilter(expr, flt.originalQuery))
+	}
+
+	return rooted
+}
+
 // RestrictToStacks returns a new Filters object with only the filters that are restricted to stacks.
 func (f Filters) RestrictToStacks() Filters {
 	result := make(Filters, 0, len(f))
@@ -402,6 +421,11 @@ func containsReadingExpression(expr Expression) bool {
 	return found
 }
 
+// ContainsGitExpression reports whether the expression tree contains a Git expression.
+func ContainsGitExpression(expr Expression) bool {
+	return containsGitExpression(expr)
+}
+
 // containsGitExpression returns true if the expression tree contains a GitExpression.
 func containsGitExpression(expr Expression) bool {
 	found := false
@@ -503,4 +527,50 @@ func collectWorktreeExpressions(expr Expression) []*GitExpression {
 	})
 
 	return targets
+}
+
+// rootGitBoundaries rewrites expr so Git-targeted graph boundaries are joined to root, reporting whether it changed.
+func rootGitBoundaries(expr Expression, root string) (Expression, bool) {
+	switch node := expr.(type) {
+	case *GraphExpression:
+		if !containsGitExpression(node.Target) {
+			return node, false
+		}
+
+		rooted := *node
+		rooted.Dependents.Boundary = rootBoundary(node.Dependents.Boundary, root)
+		rooted.Dependencies.Boundary = rootBoundary(node.Dependencies.Boundary, root)
+
+		changed := rooted.Dependents.Boundary != node.Dependents.Boundary ||
+			rooted.Dependencies.Boundary != node.Dependencies.Boundary
+
+		return &rooted, changed
+	case *PrefixExpression:
+		right, changed := rootGitBoundaries(node.Right, root)
+		if !changed {
+			return node, false
+		}
+
+		return NewPrefixExpression(node.Operator, right), true
+	case *InfixExpression:
+		left, leftChanged := rootGitBoundaries(node.Left, root)
+		right, rightChanged := rootGitBoundaries(node.Right, root)
+
+		if !leftChanged && !rightChanged {
+			return node, false
+		}
+
+		return NewInfixExpression(left, node.Operator, right), true
+	default:
+		return expr, false
+	}
+}
+
+// rootBoundary joins a relative boundary to root, leaving empty and absolute boundaries unchanged.
+func rootBoundary(boundary, root string) string {
+	if boundary == "" || filepath.IsAbs(boundary) {
+		return boundary
+	}
+
+	return filepath.Join(root, boundary)
 }

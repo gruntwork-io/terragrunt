@@ -187,13 +187,22 @@ func TestWorktreeBoundaries(t *testing.T) {
 			expected: []string{"live"},
 		},
 		{
-			name: "inline boundary relative to a nested working directory",
+			name: "Git boundary resolves against the Git root, not the working directory",
 			v:    v,
 			opts: discovery.StackGenerateOptions{
 				WorkingDir: liveDir,
-				Filters:    parseFilters("(./staging)...[main...HEAD]"),
+				Filters:    parseFilters("(./live/staging)...[main...HEAD]"),
 			},
 			expected: []string{filepath.Join("live", "staging")},
+		},
+		{
+			name: "Git boundary missing from the working tree is kept for the worktrees",
+			v:    v,
+			opts: discovery.StackGenerateOptions{
+				WorkingDir: repoRoot,
+				Filters:    parseFilters("(./live/new)...[main...HEAD]"),
+			},
+			expected: []string{filepath.Join("live", "new")},
 		},
 		{
 			name:     "boundary equal to the git root",
@@ -214,9 +223,9 @@ func TestWorktreeBoundaries(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name:     "inline parent boundary keeps its scope",
+			name:     "Git boundary wider than the working directory keeps its scope",
 			v:        v,
-			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, Filters: parseFilters("(..)...[main...HEAD]")},
+			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, Filters: parseFilters("(./live)...[main...HEAD]")},
 			expected: []string{"live"},
 		},
 		{
@@ -253,19 +262,22 @@ func TestWorktreeBoundaries(t *testing.T) {
 			expected: []string{"live"},
 		},
 		{
-			name:     "boundary beside the working directory",
-			v:        v,
-			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, DiscoveryBoundary: siblingDir},
-			expected: nil,
+			name: "Git boundary beside the working directory",
+			v:    v,
+			opts: discovery.StackGenerateOptions{
+				WorkingDir: stagingDir,
+				Filters:    parseFilters("(./live/production)...[main...HEAD]"),
+			},
+			expected: []string{filepath.Join("live", "production")},
 		},
 		{
-			name: "nonexistent boundary",
+			name: "flag boundary is mirrored even when missing locally",
 			v:    v,
 			opts: discovery.StackGenerateOptions{
 				WorkingDir:        repoRoot,
 				DiscoveryBoundary: filepath.Join(repoRoot, "missing"),
 			},
-			expected: nil,
+			expected: []string{"missing"},
 		},
 		{
 			name: "outside a git repository",

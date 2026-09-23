@@ -210,11 +210,16 @@ func (p *GraphPhase) processGraphTarget(
 
 		if graphExpr.Dependencies.Boundary != "" {
 			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
-			if err != nil {
+
+			switch {
+			case err == nil:
+				boundary = resolved
+			case filter.ContainsGitExpression(graphExpr.Target) && errors.As(err, new(DiscoveryBoundaryDirError)):
+				// A Git-rooted boundary may exist only in the compared commits; it still confines traversal.
+				boundary = absBoundary(state.discovery.workingDir, graphExpr.Dependencies.Boundary)
+			default:
 				return err
 			}
-
-			boundary = resolved
 		}
 
 		err := p.discoverDependencies(ctx, l, v, state, c, depth, boundary)
@@ -240,14 +245,31 @@ func (p *GraphPhase) processGraphTarget(
 		startDir := state.discovery.workingDir
 		boundaryRoot := state.discovery.dependentWalkBoundary()
 
+		// A Git-targeted boundary is rooted at the repository root, so it need not overlap the working directory.
+		gitTargeted := filter.ContainsGitExpression(graphExpr.Target)
+
 		if graphExpr.Dependents.Boundary != "" {
 			resolved, rerr := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependents.Boundary)
 			if rerr != nil {
+				if gitTargeted && errors.As(rerr, new(DiscoveryBoundaryDirError)) {
+					l.Debugf(
+						"Boundary %s is not in the working tree; no dependents of %s to find",
+						graphExpr.Dependents.Boundary,
+						c.Path(),
+					)
+
+					return nil
+				}
+
 				return rerr
 			}
 
 			if isExternal(v.FS, resolved, startDir) && isExternal(v.FS, startDir, resolved) {
-				return NewDiscoveryBoundaryScopeError(resolved, startDir)
+				if !gitTargeted {
+					return NewDiscoveryBoundaryScopeError(resolved, startDir)
+				}
+
+				startDir = resolved
 			}
 
 			boundaryRoot = resolved

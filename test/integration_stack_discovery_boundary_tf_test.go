@@ -66,17 +66,17 @@ func TestTFStackRunDiscoveryBoundary(t *testing.T) {
 			expected: []string{boundaryStackRolesUnitDir},
 		},
 		{
-			name:     "parent boundary from a subdirectory",
+			name:     "wider Git boundary from a subdirectory",
 			changed:  boundaryStackRolesFile,
 			workDir:  "live/accounts",
-			args:     "--filter '(..)...[main...HEAD]'",
+			args:     "--filter '(./live)...[main...HEAD]'",
 			expected: []string{boundaryStackRolesUnitDir},
 		},
 		{
-			name:     "changed sibling unit under a parent boundary",
+			name:     "changed sibling unit under a wider Git boundary",
 			changed:  boundaryStackStandaloneDir + "/terragrunt.hcl",
 			workDir:  "live/accounts",
-			args:     "--filter '(..)...[main...HEAD]'",
+			args:     "--filter '(./live)...[main...HEAD]'",
 			expected: []string{boundaryStackStandaloneDir},
 		},
 		{

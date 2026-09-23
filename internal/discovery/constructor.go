@@ -211,26 +211,31 @@ func StackWalkRoots(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) []stri
 }
 
 // WorktreeBoundaries returns the positive filters' disjoint boundaries relative to the Git root, or nil if unbounded.
+// Git-targeted boundaries resolve against the Git root, and each worktree checks whether they exist at its ref.
 func WorktreeBoundaries(ctx context.Context, l log.Logger, v *venv.Venv, opts StackGenerateOptions) []string {
-	roots, ok := boundaryRoots(l, v.FS, opts)
-	if !ok {
-		return nil
-	}
-
 	gitRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir)
 	if err != nil {
 		l.Debugf("Discovery: no Git root for %s (%v); not narrowing worktree discovery", opts.WorkingDir, err)
 		return nil
 	}
 
-	for _, root := range roots {
-		if !vfs.Within(v.FS, gitRoot, root) ||
-			(isExternal(v.FS, root, opts.WorkingDir) && isExternal(v.FS, opts.WorkingDir, root)) {
-			l.Debugf("Discovery: boundary %s does not nest with %s in Git root %s; not narrowing worktree discovery",
-				root, opts.WorkingDir, gitRoot)
+	opts.Filters = opts.Filters.RootGitBoundaries(gitRoot)
 
+	dirs, ok := positiveBoundaryDirs(opts)
+	if !ok {
+		return nil
+	}
+
+	var roots []string
+
+	for _, dir := range dirs {
+		root := absBoundary(opts.WorkingDir, dir)
+		if !vfs.Within(v.FS, gitRoot, root) {
+			l.Debugf("Discovery: boundary %s is outside Git root %s; not narrowing worktree discovery", root, gitRoot)
 			return nil
 		}
+
+		roots = appendOutermost(v.FS, roots, root)
 	}
 
 	rels := make([]string, 0, len(roots))
@@ -238,6 +243,7 @@ func WorktreeBoundaries(ctx context.Context, l log.Logger, v *venv.Venv, opts St
 	for _, root := range roots {
 		rel, err := filepath.Rel(vfs.ResolveForCompare(v.FS, gitRoot), vfs.ResolveForCompare(v.FS, root))
 		if err != nil || rel == "." {
+			l.Debugf("Discovery: boundary %s covers Git root %s; not narrowing worktree discovery", root, gitRoot)
 			return nil
 		}
 
