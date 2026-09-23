@@ -45,6 +45,7 @@ unit "db" {
 `
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -84,6 +85,7 @@ unit "db" {
 `
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -139,6 +141,7 @@ unit "app" {
 `
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -177,6 +180,7 @@ unit "app" {
 `
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -237,6 +241,7 @@ unit "c" {
 `
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -292,6 +297,7 @@ unit "app" {
 `
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -323,6 +329,7 @@ unit "vpc" {
 `
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -351,6 +358,7 @@ unit "app" {
 `
 
 	_, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -409,6 +417,7 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      srcBytes,
@@ -493,7 +502,7 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 		Src:       srcBytes,
 		Filename:  "terragrunt.stack.hcl",
 		StackDir:  testStackDir,
@@ -563,7 +572,7 @@ unit "app" {
   }
 }
 `
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
 
@@ -614,7 +623,7 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 		Src:       srcBytes,
 		Filename:  "terragrunt.stack.hcl",
 		StackDir:  testStackDir,
@@ -671,7 +680,7 @@ unit "app" {
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 		Src:       srcBytes,
 		Filename:  "terragrunt.stack.hcl",
 		StackDir:  testStackDir,
@@ -742,6 +751,7 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      srcBytes,
@@ -833,6 +843,7 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      srcBytes,
@@ -889,6 +900,7 @@ unit "app" {
 	srcBytes := []byte(src)
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      srcBytes,
@@ -949,6 +961,7 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      srcBytes,
@@ -1019,6 +1032,7 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      srcBytes,
@@ -1085,6 +1099,7 @@ unit "vpc" {
 `
 
 	_, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -1112,6 +1127,7 @@ unit "vpc" {
 `
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -1137,7 +1153,7 @@ unit "vpc" {
 }
 `
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src:      []byte(src),
 		Filename: "terragrunt.stack.hcl",
 		StackDir: testStackDir,
@@ -1177,6 +1193,7 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      srcBytes,
@@ -1223,6 +1240,7 @@ stack "networking" {
 `
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -1267,6 +1285,7 @@ stack "networking" {
 `
 
 	_, err := hclparse.ParseStackFile(
+		t.Context(),
 		vfs.NewMemMapFS(),
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(src),
@@ -1315,6 +1334,7 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      srcBytes,
@@ -1446,6 +1466,7 @@ unit "vpc" {
 	)
 
 	_, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(mainSrc),
@@ -1486,6 +1507,7 @@ stack "infra" {
 	)
 
 	_, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(mainSrc),
@@ -1519,9 +1541,13 @@ unit "consumer" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
-	})
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 
@@ -1546,9 +1572,13 @@ stack "path" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
-	})
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Stacks, 1)
 	assert.Equal(t, "path", result.Stacks[0].Name)
@@ -1582,6 +1612,7 @@ unit "vpc" {
 	)
 
 	_, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(mainSrc),
@@ -1621,6 +1652,7 @@ unit "vpc" {
 	)
 
 	_, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(mainSrc),
@@ -1663,6 +1695,7 @@ unit "vpc" {
 	)
 
 	result, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      []byte(rootSrc),
@@ -1715,6 +1748,7 @@ unit "app" {
 
 	for b.Loop() {
 		_, err := hclparse.ParseStackFile(
+			b.Context(),
 			fs,
 			&hclparse.ParseStackFileInput{
 				Src:      src,
@@ -1775,6 +1809,7 @@ unit "app" {
 
 	for b.Loop() {
 		_, err := hclparse.ParseStackFile(
+			b.Context(),
 			fs,
 			&hclparse.ParseStackFileInput{
 				Src:      src,
@@ -1815,6 +1850,7 @@ unit "app" {
 	fs := vfs.NewMemMapFS()
 
 	result, err := hclparse.ParseStackFile(
+		b.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      src,
@@ -1855,9 +1891,18 @@ unit "u" {
 `
 	values := cty.ObjectVal(map[string]cty.Value{"producer_path": cty.StringVal("../producer")})
 
-	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir, Values: &values,
-	})
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src: []byte(
+				src,
+			),
+			Filename: "terragrunt.stack.hcl",
+			StackDir: testStackDir,
+			Values:   &values,
+		},
+	)
 	require.NoError(
 		t,
 		err,
@@ -1913,7 +1958,7 @@ unit "app" {
 
 	values := cty.ObjectVal(map[string]cty.Value{"region": cty.StringVal("us-east-1")})
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 		Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir, Values: &values,
 	})
 	require.NoError(t, err)
@@ -2020,9 +2065,13 @@ unit "u" {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
-			})
+			_, err := hclparse.ParseStackFile(
+				t.Context(),
+				vfs.NewMemMapFS(),
+				&hclparse.ParseStackFileInput{
+					Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+				},
+			)
 
 			var localsErr hclparse.AutoIncludeLocalsBlockError
 
@@ -2083,9 +2132,13 @@ stack "s" {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-				Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
-			})
+			_, err := hclparse.ParseStackFile(
+				t.Context(),
+				vfs.NewMemMapFS(),
+				&hclparse.ParseStackFileInput{
+					Src: []byte(tc.src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
+				},
+			)
 
 			var nestedErr hclparse.AutoIncludeNestedError
 
@@ -2113,7 +2166,7 @@ unit "u" {
 }
 `
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
 	require.Error(t, err)
@@ -2161,7 +2214,7 @@ unit "app" {
 		vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644),
 	)
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 		Src:      []byte(mainSrc),
 		Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
 		StackDir: testStackDir,
@@ -2208,7 +2261,7 @@ unit "vpc" {
 		vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644),
 	)
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 		Src:      []byte(mainSrc),
 		Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"),
 		StackDir: testStackDir,
@@ -2229,7 +2282,7 @@ unit "vpc" {
 }
 `
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
 	require.Error(
@@ -2256,7 +2309,7 @@ stack "networking" {
 }
 `
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir,
 	})
 	require.Error(
@@ -2309,7 +2362,7 @@ unit "app" {
 }
 `)
 
-	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+	_, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 		Src:      src,
 		Filename: "terragrunt.stack.hcl",
 		StackDir: venvtest.Root("/test"),
@@ -2367,11 +2420,15 @@ stack "networking" {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-				Src:      []byte(tc.src),
-				Filename: "terragrunt.stack.hcl",
-				StackDir: testStackDir,
-			})
+			_, err := hclparse.ParseStackFile(
+				t.Context(),
+				vfs.NewMemMapFS(),
+				&hclparse.ParseStackFileInput{
+					Src:      []byte(tc.src),
+					Filename: "terragrunt.stack.hcl",
+					StackDir: testStackDir,
+				},
+			)
 
 			require.Error(t, err)
 		})
@@ -2398,6 +2455,7 @@ unit "vpc" {
 
 	for i := range 5 {
 		_, err := hclparse.ParseStackFile(
+			t.Context(),
 			vfs.NewMemMapFS(),
 			&hclparse.ParseStackFileInput{
 				Src:      src,
@@ -2452,6 +2510,7 @@ unit "app" {
 `)
 
 	_, err := hclparse.ParseStackFile(
+		t.Context(),
 		fs,
 		&hclparse.ParseStackFileInput{
 			Src:      src,
@@ -2498,7 +2557,7 @@ unit "app" {
 }
 `)
 
-	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+	_, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 		Src:      src,
 		Filename: "terragrunt.stack.hcl",
 		StackDir: "/test",

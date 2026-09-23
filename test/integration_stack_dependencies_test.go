@@ -92,11 +92,15 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-		Src:      srcBytes,
-		Filename: stackFile,
-		StackDir: liveDir,
-	})
+	result, err := inthclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewOSFS(),
+		&inthclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: stackFile,
+			StackDir: liveDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 
@@ -244,11 +248,15 @@ func TestStackDepsAutoIncludeSymlink(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-		Src:      srcBytes,
-		Filename: stackFile,
-		StackDir: symlinkDir,
-	})
+	result, err := inthclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewOSFS(),
+		&inthclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: stackFile,
+			StackDir: symlinkDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 
@@ -271,11 +279,15 @@ func TestStackDepsDAGWithoutAutoInclude(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-		Src:      srcBytes,
-		Filename: stackFile,
-		StackDir: liveDir,
-	})
+	result, err := inthclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewOSFS(),
+		&inthclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: stackFile,
+			StackDir: liveDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app")]
@@ -317,11 +329,15 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-		Src:      srcBytes,
-		Filename: stackFile,
-		StackDir: liveDir,
-	})
+	result, err := inthclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewOSFS(),
+		&inthclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: stackFile,
+			StackDir: liveDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app_stack_dep")]
@@ -363,9 +379,15 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
+	ctx, pctx := configbridge.NewParsingContext(
+		t.Context(),
+		l,
+		venv.OSVenv(),
+		options.NewTerragruntOptions(vexec.NewOSExec()),
+	)
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
+		ctx,
 		vfs.NewOSFS(),
 		stackDir,
 		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, pctx)},
@@ -406,9 +428,15 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
+	ctx, pctx := configbridge.NewParsingContext(
+		t.Context(),
+		l,
+		venv.OSVenv(),
+		options.NewTerragruntOptions(vexec.NewOSExec()),
+	)
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
+		ctx,
 		vfs.NewOSFS(),
 		root,
 		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, pctx)},
@@ -432,9 +460,15 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 	root := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
+	ctx, pctx := configbridge.NewParsingContext(
+		t.Context(),
+		l,
+		venv.OSVenv(),
+		options.NewTerragruntOptions(vexec.NewOSExec()),
+	)
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
+		ctx,
 		vfs.NewOSFS(),
 		root,
 		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, pctx)},

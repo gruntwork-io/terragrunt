@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -20,7 +21,7 @@ type testBlock struct {
 func TestExpandBlockUnexpanded(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   path = "../vpc"
 }
@@ -37,7 +38,7 @@ dependency "a" {
 func TestExpandBlockForEachSet(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     for_each = local.services
@@ -69,7 +70,7 @@ dependency "a" {
 func TestExpandBlockForEachMap(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     for_each = local.service_map
@@ -94,7 +95,7 @@ dependency "a" {
 func TestExpandBlockForEachObject(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     for_each = {
@@ -124,7 +125,7 @@ dependency "a" {
 func TestExpandBlockForEachMapNullValue(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     for_each = local.service_map_with_null_value
@@ -143,7 +144,7 @@ dependency "a" {
 func TestExpandBlockCount(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     count = 3
@@ -204,7 +205,7 @@ dependency "a" {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			instances, err := expand(t, tc.cfg)
+			instances, err := expand(t.Context(), t, tc.cfg)
 			require.NoError(t, err)
 			assert.Empty(t, instances)
 		})
@@ -347,7 +348,7 @@ dependency "a" {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := expand(t, tc.cfg)
+			_, err := expand(t.Context(), t, tc.cfg)
 			require.Error(t, err)
 			require.ErrorAs(t, err, tc.target)
 		})
@@ -407,7 +408,7 @@ func TestExpandBlockRejectsNonConcreteValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := expand(t, `
+			_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     `+tc.attr+`
@@ -450,7 +451,7 @@ func TestExpandBlockInstanceLimit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			instances, err := expand(t, `
+			instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     `+tc.attr+`
@@ -480,7 +481,7 @@ dependency "a" {
 func TestExpandBlockDefaultInstanceLimit(t *testing.T) {
 	t.Parallel()
 
-	_, err := expand(t, `
+	_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     count = 1000001
@@ -516,7 +517,7 @@ func TestExpansionLimitExceededErrorGuidesTheUser(t *testing.T) {
 func TestExpandBlockNumericForEachKeys(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     for_each = local.numeric_keys
@@ -537,7 +538,7 @@ dependency "a" {
 func TestExpandBlockRejectsEachUnderCount(t *testing.T) {
 	t.Parallel()
 
-	_, err := expand(t, `
+	_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     count = 2
@@ -554,7 +555,7 @@ dependency "a" {
 func TestExpandBlockRejectsLabeledExpansionBlock(t *testing.T) {
 	t.Parallel()
 
-	_, err := expand(t, `
+	_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion "extra" {
     count = 2
@@ -586,7 +587,7 @@ func TestExpandBlockRejectsUnknownExpansionAttribute(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := expand(t, `
+			_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     `+tc.attr+`
@@ -609,7 +610,7 @@ dependency "a" {
 func TestExpandBlockAssignsLabels(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "aurora" {
   expansion {
     count = 2
@@ -647,7 +648,7 @@ dependency "aurora" {
 `, "terragrunt.hcl")
 	require.NoError(t, err)
 
-	instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+	instances, err := file.ExpandBlocks(t.Context(), "dependency", new(testBlock), nil)
 	require.NoError(t, err)
 	require.Len(t, instances, 3)
 
@@ -681,7 +682,7 @@ dependency "vpc" {
 `, "terragrunt.hcl")
 	require.NoError(t, err)
 
-	instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+	instances, err := file.ExpandBlocks(t.Context(), "dependency", new(testBlock), nil)
 	require.NoError(t, err)
 	require.Len(t, instances, 1)
 
@@ -704,10 +705,10 @@ dependency "vpc" {
 `, "terragrunt.hcl")
 	require.NoError(t, err)
 
-	_, err = file.ExpandBlocks("dependency", new(testBlock), nil)
+	_, err = file.ExpandBlocks(t.Context(), "dependency", new(testBlock), nil)
 	require.Error(t, err, "without the option, the unresolvable reference must fail the decode")
 
-	instances, err := file.ExpandBlocks(
+	instances, err := file.ExpandBlocks(t.Context(),
 		"dependency", new(testBlock), nil,
 		hclparse.WithSkipLabels(map[string]struct{}{"broken": {}}),
 	)
@@ -731,7 +732,7 @@ dependency "vpc" {
 `, "terragrunt.hcl")
 	require.NoError(t, err)
 
-	_, err = file.ExpandBlocks(
+	_, err = file.ExpandBlocks(t.Context(),
 		"dependency", new(testBlock), nil,
 		hclparse.WithSkipLabels(map[string]struct{}{"other": {}}),
 	)
@@ -762,7 +763,7 @@ dependency "vpc" {
 		},
 	}
 
-	instances, err := file.ExpandBlocks(
+	instances, err := file.ExpandBlocks(t.Context(),
 		"dependency", new(testBlock), evalCtx,
 		hclparse.WithSkipLabels(map[string]struct{}{"vpc": {}}),
 	)
@@ -802,6 +803,7 @@ dependency "shard" {
 }
 
 func expand(
+	ctx context.Context,
 	tb testing.TB,
 	cfg string,
 	opts ...hclparse.ExpandOption,
@@ -815,7 +817,7 @@ func expand(
 	require.True(tb, ok)
 	require.Len(tb, body.Blocks, 1)
 
-	ctx := &hcl.EvalContext{
+	evalCtx := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"local": cty.ObjectVal(map[string]cty.Value{
 				"services": cty.SetVal([]cty.Value{
@@ -858,7 +860,7 @@ func expand(
 		},
 	}
 
-	return hclparse.ExpandBlock(body.Blocks[0].AsHCLBlock(), new(testBlock), ctx, opts...)
+	return hclparse.ExpandBlock(ctx, body.Blocks[0].AsHCLBlock(), new(testBlock), evalCtx, opts...)
 }
 
 func keysOf(instances []hclparse.Instance) []string {
@@ -968,7 +970,7 @@ dependency "vpc" {
 `, "terragrunt.hcl")
 	require.NoError(t, err)
 
-	instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+	instances, err := file.ExpandBlocks(t.Context(), "dependency", new(testBlock), nil)
 	require.NoError(t, err)
 	require.Len(t, instances, 1)
 
@@ -978,12 +980,44 @@ dependency "vpc" {
 func expandDependencies(
 	tb testing.TB,
 	cfg string,
-	ctx *hcl.EvalContext,
+	evalCtx *hcl.EvalContext,
 ) ([]hclparse.Instance, error) {
 	tb.Helper()
 
 	file, err := hclparse.NewParser().ParseFromString(cfg, "terragrunt.hcl")
 	require.NoError(tb, err)
 
-	return file.ExpandBlocks("dependency", new(testBlock), ctx)
+	return file.ExpandBlocks(tb.Context(), "dependency", new(testBlock), evalCtx)
+}
+
+func TestExpandBlockStopsWhenContextCancelled(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		attr string
+	}{
+		{name: "count", attr: "count = 3"},
+		{name: "for_each", attr: "for_each = local.services"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			_, err := expand(ctx, t, `
+dependency "a" {
+  expansion {
+    `+tc.attr+`
+  }
+
+  path = "../x"
+}
+`)
+			require.ErrorIs(t, err, context.Canceled)
+		})
+	}
 }

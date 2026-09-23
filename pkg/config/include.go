@@ -636,7 +636,8 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 }
 
 // fetchDependencyPaths returns each dependency's config path, keyed the way include
-// merging matches dependencies up.
+// merging matches dependencies up. A dependency whose config_path is not a known string
+// has no path to carry over, so it is left out, as [Dependency.DeepMerge] ignores it too.
 func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	var m = make(map[string]string)
 	if config == nil {
@@ -644,7 +645,9 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	}
 
 	for _, dependency := range config.TerragruntDependencies {
-		m[dependency.mergeKey()] = dependency.ConfigPath.AsString()
+		if configPath, ok := dependency.configPathString(); ok {
+			m[dependency.mergeKey()] = configPath
+		}
 	}
 
 	return m

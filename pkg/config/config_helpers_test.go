@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -2182,4 +2183,137 @@ func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
 			}, "run_cmd with options-only %v must not panic", tc.params)
 		})
 	}
+}
+
+func TestReadTerragruntConfigCycle(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		files map[string]string
+		name  string
+		chain []string
+	}{
+		{
+			name: "self by file",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `locals { self = read_terragrunt_config("terragrunt.hcl") }`,
+			},
+			chain: []string{config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath},
+		},
+		{
+			name: "self by directory",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `locals { self = read_terragrunt_config(get_terragrunt_dir()) }`,
+			},
+			chain: []string{config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath},
+		},
+		{
+			name: "mutual",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `locals { a = read_terragrunt_config("a.hcl") }`,
+				"a.hcl":                            `locals { b = read_terragrunt_config("b.hcl") }`,
+				"b.hcl":                            `locals { a = read_terragrunt_config("a.hcl") }`,
+			},
+			chain: []string{config.DefaultTerragruntConfigPath, "a.hcl", "b.hcl", "a.hcl"},
+		},
+		{
+			name: "same file read twice",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `
+locals {
+  first  = read_terragrunt_config("common.hcl")
+  second = read_terragrunt_config("common.hcl")
+}
+inputs = {
+  first  = local.first.locals.value
+  second = local.second.locals.value
+}`,
+				"common.hcl": `locals { value = "shared" }`,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, rootDir := newMemTestDir(t)
+
+			for name, contents := range tc.files {
+				require.NoError(
+					t,
+					vfs.WriteFile(v.FS, filepath.Join(rootDir, name), []byte(contents), 0o644),
+				)
+			}
+
+			cfgPath := filepath.Join(rootDir, config.DefaultTerragruntConfigPath)
+			ctx, pctx := newTestParsingContext(t, v, cfgPath)
+
+			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+
+			if tc.chain != nil {
+				chain := make([]string, 0, len(tc.chain))
+				for _, name := range tc.chain {
+					chain = append(chain, filepath.Join(rootDir, name))
+				}
+
+				require.ErrorContains(
+					t,
+					err,
+					config.ReadTerragruntConfigCycleError{Chain: chain}.Error(),
+				)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, "shared", cfg.Inputs["first"])
+			assert.Equal(t, "shared", cfg.Inputs["second"])
+		})
+	}
+}
+
+func TestDeepMergeIncludeWithNonStringDependencyConfigPath(t *testing.T) {
+	t.Parallel()
+
+	v, rootDir := newMemTestDir(t)
+	files := map[string]string{
+		"root.hcl": `
+dependency "vpc" {
+  config_path = 42
+}
+`,
+		filepath.Join("unit", config.DefaultTerragruntConfigPath): `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`,
+	}
+
+	for name, contents := range files {
+		require.NoError(
+			t,
+			vfs.WriteFile(v.FS, filepath.Join(rootDir, name), []byte(contents), 0o644),
+		)
+	}
+
+	cfgPath := filepath.Join(rootDir, "unit", config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	pctx.SkipOutput = true
+
+	cfg, err := config.PartialParseConfigFile(
+		ctx,
+		pctx.WithDecodeList(config.DependencyBlock),
+		logger.CreateLogger(),
+		cfgPath,
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, cfg.TerragruntDependencies, 1)
+	assert.Equal(t, "../vpc", cfg.TerragruntDependencies[0].ConfigPath.AsString())
 }

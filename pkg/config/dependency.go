@@ -114,7 +114,7 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 		dep.Expansion = sourceDepConfig.Expansion
 	}
 
-	if sourceDepConfig.ConfigPath.AsString() != "" {
+	if configPath, ok := sourceDepConfig.configPathString(); ok && configPath != "" {
 		dep.ConfigPath = sourceDepConfig.ConfigPath
 	}
 
@@ -299,7 +299,12 @@ func decodeDependencyBlocks(
 	evalContext *hcl.EvalContext,
 	opts ...hclparse.ExpandOption,
 ) (Dependencies, error) {
-	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext, opts...)
+	instances, err := file.ExpandBlocks(
+		ctx,
+		MetadataDependency,
+		&Dependency{},
+		evalContext,
+		opts...)
 	if err != nil {
 		return nil, err
 	}
