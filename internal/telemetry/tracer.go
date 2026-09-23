@@ -314,7 +314,10 @@ func errorType(err error, depth int) string {
 		return errorType(inner, depth+1)
 	}
 
-	if named, ok := errors.AsType[interface{ ErrorType() string }](err); ok {
+	if named, ok := errors.AsType[interface {
+		error
+		ErrorType() string
+	}](err); ok {
 		if name := named.ErrorType(); name != "" {
 			return name
 		}
