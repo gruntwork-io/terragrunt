@@ -459,7 +459,11 @@ The worktree for `main` has no `live/prod` directory to resolve a relative path 
 
 Resolving from the worktree root keeps every path valid in both references, so `--filter '[main...HEAD] | ./live/staging/**'` selects `live/staging/cache` from any directory.
 
+<Since version="v1.2.0">
+
 An inline `(dir)` [boundary](/features/filter/graph) on a Git expression resolves the same way. `--filter '(./live/staging)...[main...HEAD]'` limits discovery to `live/staging` from any directory, even when that directory exists in only one of the references.
+
+</Since>
 
 </Aside>
 

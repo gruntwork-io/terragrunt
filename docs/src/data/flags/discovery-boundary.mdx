@@ -75,4 +75,14 @@ The boundary must be an existing directory. Relative paths are resolved against 
 
 The boundary applies to what traversal reaches, so a command that names no filter keeps every configuration under the working directory even when the boundary sits below it. Narrow the working directory itself, with `--working-dir`, to change where discovery starts.
 
+<Before version="v1.2.0">
+
+Where the boundary may sit depends on the directions the filters traverse. Dependent traversal searches upward from the working directory, so a boundary that excludes the working directory could never take effect; filters that traverse dependents require the boundary to be the working directory or one of its parents. Dependency traversal follows declared paths outward from the units a filter matched and never consults the working directory, so filters that traverse only dependencies accept any directory, including one below the working directory. That is the same rule the inline `(dir)` operand follows.
+
+</Before>
+
+<Since version="v1.2.0">
+
 Where the boundary may sit depends on the directions the filters traverse. Dependent traversal searches from the working directory, so filters that traverse dependents require the boundary to be the working directory, one of its parents, or a directory inside it. A boundary inside the working directory starts the search there. Terragrunt rejects any other boundary, because it can never take effect. Dependency traversal follows declared paths outward from the units a filter matched and never consults the working directory, so filters that traverse only dependencies accept any directory, including one below the working directory. That is the same rule the inline `(dir)` operand follows.
+
+</Since>
