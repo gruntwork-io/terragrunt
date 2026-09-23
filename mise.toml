@@ -12,7 +12,6 @@ shellcheck = "0.11.0"
 shfmt = "3.13.1"
 jq = "1.8.1"
 bun = "1.4.2"
-go-junit-report = "2.1.0"
 gotestsum = "1.13.0"
 pre-commit = { version = "4.6.2", os = ["macos", "linux"] }
 pipx = { version = "1.8.0", os = ["macos", "linux"] }
