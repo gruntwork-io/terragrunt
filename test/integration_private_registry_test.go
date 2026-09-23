@@ -34,13 +34,8 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 	rootPath := filepath.Join(tmpEnvPath, privateRegistryFixturePath)
 
 	URL, err := url.Parse("tfr://" + registryURL)
-	if err != nil {
-		t.Fatalf("REGISTRY_URL is invalid: %v", err)
-	}
-
-	if URL.Hostname() == "" {
-		t.Fatal("REGISTRY_URL is invalid")
-	}
+	require.NoError(t, err, "REGISTRY_URL is invalid")
+	require.NotEmpty(t, URL.Hostname(), "REGISTRY_URL is invalid")
 
 	helpers.CopyAndFillMapPlaceholders(
 		t,

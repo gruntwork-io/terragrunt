@@ -17,6 +17,7 @@ import (
 	getter "github.com/hashicorp/go-getter/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -233,27 +234,18 @@ type S3FetchTarget struct {
 	Endpoint string
 }
 
-// redactedURL renders u for an error message with its query dropped. An S3
-// URL carries credentials there, and a rejected URL still reaches logs.
-func redactedURL(u *url.URL) string {
-	clean := *u
-	clean.RawQuery = ""
-
-	return clean.String()
-}
-
 // ParseS3FetchURL resolves a path-style S3 URL. Detect has already rewritten
 // the AWS virtual-host and modern path-style forms, so only
 // `<host>/<bucket>/<key>` reaches here.
 //
-// Credentials supplied in the query are also the signal that the URL names an
-// S3-compatible service rather than AWS, so they pin the endpoint to the URL's
-// own host in path style. That mirrors the upstream getter, which callers rely
-// on to reach non-AWS object stores.
+// A non-AWS host pins the endpoint to the URL's own host with path-style
+// addressing, regardless of how credentials are supplied. Credentials in the
+// query build a static provider; otherwise the default credential chain
+// (env vars, IAM role, etc.) applies.
 func ParseS3FetchURL(u *url.URL) (S3FetchTarget, error) {
 	pathParts := strings.SplitN(u.Path, "/", s3PathParts)
 	if len(pathParts) != s3PathParts || pathParts[1] == "" || pathParts[2] == "" {
-		return S3FetchTarget{}, fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, redactedURL(u))
+		return S3FetchTarget{}, fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, redact.NewURL(u.String()))
 	}
 
 	q := u.Query()
@@ -272,13 +264,17 @@ func ParseS3FetchURL(u *url.URL) (S3FetchTarget, error) {
 
 	target.Region = region
 
+	// Pin endpoint for non-AWS hosts so the SDK does not redirect to amazonaws.com.
+	if !strings.Contains(u.Host, "amazonaws.com") {
+		target.Endpoint = s3EndpointScheme(u.Scheme) + "://" + u.Host
+	}
+
 	keyID := q.Get("aws_access_key_id")
 	secret := q.Get("aws_access_key_secret")
 	token := q.Get("aws_access_token")
 
 	if cmp.Or(keyID, secret, token) != "" {
 		target.Creds = credentials.NewStaticCredentialsProvider(keyID, secret, token)
-		target.Endpoint = u.Scheme + "://" + u.Host
 	}
 
 	return target, nil
@@ -294,12 +290,12 @@ func S3Region(u *url.URL) (string, error) {
 
 	hostParts := strings.Split(u.Host, ".")
 	if len(hostParts) != s3AWSHostParts {
-		return "", fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, redactedURL(u))
+		return "", fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, redact.NewURL(u.String()))
 	}
 
 	region, ok := S3RegionFromHostLabel(hostParts[0])
 	if !ok {
-		return "", fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, redactedURL(u))
+		return "", fmt.Errorf("%w: %q", ErrS3InvalidFetchURL, redact.NewURL(u.String()))
 	}
 
 	return region, nil
@@ -353,4 +349,15 @@ func S3ClientForTarget(
 	}
 
 	return b.BuildS3Client(ctx, l, v)
+}
+
+// s3EndpointScheme normalizes the URL scheme to a transport the HTTP client
+// supports. The upstream s3 getter claims `s3://` URLs without rewriting the
+// scheme, so the raw value may be "s3" rather than "http" or "https".
+func s3EndpointScheme(scheme string) string {
+	if scheme == SchemeHTTP {
+		return SchemeHTTP
+	}
+
+	return SchemeHTTPS
 }

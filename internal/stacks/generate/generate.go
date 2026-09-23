@@ -31,6 +31,9 @@ import (
 // purpose: real stack trees stay far below it.
 const DefaultMaxLevel = 1024
 
+// worktreesPerPair is the number of worktrees in a comparison pair: the from worktree and the to worktree.
+const worktreesPerPair = 2
+
 // Generator owns the per-working-directory lock for in-process GenerateStacks calls.
 type Generator struct {
 	locks    *util.KeyLocks
@@ -442,9 +445,10 @@ func ListStackFiles(
 	var discoveredComponents component.Components
 
 	if scope != worktreeStacksOnly {
-		d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-			WorkingDir: opts.WorkingDir,
-			Filters:    opts.Filters,
+		d, err := discovery.NewForStackGenerate(l, v.FS, discovery.StackGenerateOptions{
+			WorkingDir:        opts.WorkingDir,
+			DiscoveryBoundary: opts.DiscoveryBoundary,
+			Filters:           opts.Filters,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
@@ -488,9 +492,10 @@ func ListStackFilesWithExcludes(
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
-	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
+	d, err := discovery.NewForStackGenerate(l, v.FS, discovery.StackGenerateOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
@@ -634,8 +639,7 @@ func worktreeStacksToGenerate(
 	// can walk them for unit-level changes.
 
 	g, ctx := errgroup.WithContext(ctx)
-	// Allow up to 2 generation tasks per worktree pair (at least 1), capped by available CPUs.
-	g.SetLimit(min(runtime.GOMAXPROCS(0), max(1, len(w.WorktreePairs)*2))) //nolint:mnd
+	g.SetLimit(min(runtime.GOMAXPROCS(0), max(1, len(w.WorktreePairs)*worktreesPerPair)))
 
 	var (
 		mu              sync.Mutex
@@ -674,10 +678,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters, err := pair.Expand(v.FS)
-		if err != nil {
-			return nil, fmt.Errorf("failed to expand worktree pair: %w", err)
-		}
+		fromFilters, toFilters := pair.FromFilters, pair.ToFilters
 
 		// Evaluate every reading filter, not just the first: a stack matches one filter per file it reads.
 		// The from filters mix deleted-file reading filters with path filters for genuine removals, so the

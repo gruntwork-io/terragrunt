@@ -325,14 +325,14 @@ func TestTFDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	)
 	require.Error(t, runErr)
 	// Accept match in either stderr or the returned error string
-	if !strings.Contains(stderr, "has invalid config_path") &&
-		!strings.Contains(runErr.Error(), "has invalid config_path") {
-		t.Fatalf(
-			"unexpected error; want invalid config_path message, got: %v\nstderr: %s",
-			runErr,
-			stderr,
-		)
-	}
+	require.True(
+		t,
+		strings.Contains(stderr, "has invalid config_path") ||
+			strings.Contains(runErr.Error(), "has invalid config_path"),
+		"unexpected error; want invalid config_path message, got: %v\nstderr: %s",
+		runErr,
+		stderr,
+	)
 }
 
 // TestTFSensitiveValues tests that sensitive values can be properly handled
@@ -460,7 +460,7 @@ func TestTFOutputFlushOnInterrupt(t *testing.T) {
 	cmdErr := make(chan error, 1)
 
 	go func() {
-		cmdErr <- helpers.RunTerragruntCommandWithContext(t, ctx, venv.OSVenv(), "terragrunt run --all apply --non-interactive --working-dir "+testPath, stdout, stderr)
+		cmdErr <- helpers.RunTerragruntCommandWithContext(t, ctx, "terragrunt run --all apply --non-interactive --working-dir "+testPath, stdout, stderr)
 	}()
 
 	// Wait for first write, then cancel to test flush on interrupt
@@ -479,9 +479,9 @@ func TestTFOutputFlushOnInterrupt(t *testing.T) {
 		)
 		cancel()
 	case <-cmdErr:
-		t.Fatal("Command finished before we could interrupt it")
+		require.FailNow(t, "Command finished before we could interrupt it")
 	case <-time.After(3 * time.Second):
-		t.Fatal("No output appeared before timeout")
+		require.FailNow(t, "No output appeared before timeout")
 	}
 
 	// Wait briefly for flush to occur after cancellation

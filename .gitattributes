@@ -1,2 +1,16 @@
 # Ensure golden test files are not treated as text files to prevent line ending conversions
 *.golden -text
+
+# Fixtures whose tests assert on byte offsets or exact file contents, which a
+# CRLF checkout on Windows would shift.
+test/fixtures/hclfmt-diff/** text eol=lf
+test/fixtures/hclvalidate/** text eol=lf
+test/fixtures/render-expansion/** text eol=lf
+test/fixtures/render-json-metadata/** text eol=lf
+
+# Templates the vendored OpenTofu function tests render and compare against
+# literals holding "\n". A CRLF checkout on Windows renders "\r\n" instead.
+# The glob leaves the icon.png beside them alone, which the attribute would
+# rewrite as text.
+internal/vendored/opentofu/upstream/lang/funcs/testdata/*.tmpl text eol=lf
+internal/vendored/opentofu/upstream/lang/funcs/testdata/*.txt text eol=lf

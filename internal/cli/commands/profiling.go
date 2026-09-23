@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +9,6 @@ import (
 	"runtime/pprof"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -24,11 +22,6 @@ const (
 
 	profileFileMode = 0o600
 	profileDirMode  = 0o700
-)
-
-// ErrProfilingRequiresExperiment is returned when profiling flags are used without the 'profiling' experiment.
-var ErrProfilingRequiresExperiment = errors.New(
-	"profiling flags require usage of the 'profiling' experiment (e.g., --experiment=profiling)",
 )
 
 // WrapWithProfiling wraps command actions with profile collection driven by the profiling flags.
@@ -72,10 +65,6 @@ type profilePaths struct {
 func startProfiling(l log.Logger, fsys vfs.FS, opts *options.TerragruntOptions) (func(), error) {
 	if opts.ProfileCPU == "" && opts.ProfileMem == "" && opts.ProfileGoroutine == "" && opts.ProfileDir == "" {
 		return noopStop, nil
-	}
-
-	if !opts.Experiments.Evaluate(experiment.Profiling) {
-		return nil, ErrProfilingRequiresExperiment
 	}
 
 	paths, err := resolveProfilePaths(fsys, opts)

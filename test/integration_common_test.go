@@ -169,7 +169,7 @@ func runMockRegistryWithAbsoluteModuleURL(
 
 	go func() {
 		<-ctx.Done()
-		server.Shutdown(ctx) //nolint:errcheck
+		server.Shutdown(ctx)
 	}()
 
 	return &url.URL{

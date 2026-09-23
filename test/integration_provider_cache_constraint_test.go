@@ -25,7 +25,7 @@ const (
 // module constraints instead of pinning exact versions in .terraform.lock.hcl files.
 // Reproduces and validates the fix for GitHub issue #4512.
 //
-//nolint:paralleltest,tparallel
+//nolint:paralleltest,tparallel // the subtests build on each other in one working dir
 func TestTFTerragruntProviderCacheWeakConstraint(t *testing.T) {
 	t.Parallel()
 

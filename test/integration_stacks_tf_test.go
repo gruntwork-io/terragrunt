@@ -887,12 +887,10 @@ func TestTFStackOutputWithDependency(t *testing.T) {
 	assert.Contains(t, result, "app3")
 
 	// check that result map under app-with-dependency contains result key with value "app1"
-	if appWithDependency, ok := result["app-with-dependency"].(map[string]any); ok {
-		assert.Contains(t, appWithDependency, "result")
-		assert.Equal(t, "app1", appWithDependency["result"])
-	} else {
-		t.Errorf("Expected result[\"app-with-dependency\"] to be a map, but it was not.")
-	}
+	appWithDependency, ok := result["app-with-dependency"].(map[string]any)
+	require.True(t, ok, "Expected result[\"app-with-dependency\"] to be a map, but it was not.")
+	assert.Contains(t, appWithDependency, "result")
+	assert.Equal(t, "app1", appWithDependency["result"])
 }
 
 func TestTFStackApplyStrictInclude(t *testing.T) {
@@ -1199,7 +1197,9 @@ func TestTFStacksReadFiles(t *testing.T) {
 							len(expectedValues)+1,
 						)
 					} else {
-						t.Fatalf(
+						require.FailNowf(
+							t,
+							"dev-app-2 is not an object",
 							"Expected dev-app-2 to be an object type, got %s",
 							objVal.Type().FriendlyName(),
 						)
@@ -1207,7 +1207,12 @@ func TestTFStacksReadFiles(t *testing.T) {
 				}
 			}
 		} else {
-			t.Fatalf("Expected dev to be an object type, got %s", devObjVal.Type().FriendlyName())
+			require.FailNowf(
+				t,
+				"dev is not an object",
+				"Expected dev to be an object type, got %s",
+				devObjVal.Type().FriendlyName(),
+			)
 		}
 	}
 }
@@ -1649,10 +1654,9 @@ func TestTFStackFindInParentFolders(t *testing.T) {
 }
 
 // TestTFStackVersionConstraints verifies that version constraints are respected in stack runs.
-// This test cannot be parallelized as it changes the global version.Version.
-//
-//nolint:paralleltest
 func TestTFStackVersionConstraints(t *testing.T) {
+	t.Parallel()
+
 	helpers.CleanupTerragruntFolder(t, testFixtureStackVersionConstraints)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackVersionConstraints)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackVersionConstraints, "live")

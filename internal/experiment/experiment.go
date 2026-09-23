@@ -38,8 +38,10 @@ const (
 	FilterFlag = "filter-flag"
 	// IacEngine is the experiment that enables usage of Terragrunt IaC engines for running IaC operations.
 	IacEngine = "iac-engine"
-	// DependencyFetchOutputFromState is the experiment that enables fetching dependency outputs
-	// directly from state files instead of using terraform/tofu output commands.
+	// DependencyFetchOutputFromState names the now-stable reading of dependency
+	// outputs straight from state files instead of running terraform/tofu output.
+	// It is enabled by default and is opted out of with
+	// --no-dependency-fetch-output-from-state.
 	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
 	// SlowTaskReporting enables progress spinners and completion logs for long-running operations.
 	SlowTaskReporting = "slow-task-reporting"
@@ -61,9 +63,10 @@ const (
 	// the module) and the mark_glob_as_read HCL function. Both are enabled
 	// by default.
 	MarkManyAsRead = "mark-many-as-read"
-	// AzureBackend enables Terragrunt-managed Azure Storage (azurerm) remote state
-	// bootstrap, delete, and migrate operations and, together with
-	// DependencyFetchOutputFromState, direct dependency state reads.
+	// AzureBackend names the now-stable Terragrunt-managed Azure Storage (azurerm)
+	// remote state bootstrap, delete, and migrate operations and, together with
+	// DependencyFetchOutputFromState, direct dependency state reads. They are
+	// enabled by default and the flag is retained only for backwards compatibility.
 	AzureBackend = "azure-backend"
 	// DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"
@@ -74,47 +77,63 @@ const (
 	// HookContextEnv exposes additional TG_CTX_* environment variables to hook
 	// scripts: TG_CTX_HOOK_TYPE, TG_CTX_SOURCE, and TG_CTX_TERRAGRUNT_DIR.
 	HookContextEnv = "hook-context-env"
-	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
+	// OptionalHooks names the now-stable --no-hooks flag, which skips
+	// before_hook, after_hook, and error_hook blocks during a run. The flag is
+	// available without enabling the experiment.
 	OptionalHooks = "optional-hooks"
-	// Profiling enables collecting runtime profiles (CPU, memory/heap, goroutine) via CLI flags or env vars.
+	// Profiling names the now-stable collection of runtime profiles (CPU,
+	// memory/heap, goroutine) via CLI flags or env vars. It is enabled by default.
 	Profiling = "profiling"
-	// OCI gates downloading modules from OCI Distribution registries via oci:// sources.
+	// OCI names the now-stable support for downloading modules from OCI
+	// Distribution registries via oci:// sources. It is enabled by default and
+	// the flag is retained only for backwards compatibility.
 	OCI = "oci"
-	// VersionAttribute gates resolving a tfr:// registry module from a version
-	// constraint expressed through the version attribute on the terraform block.
+	// VersionAttribute names the now-stable version attribute on the terraform
+	// block, which resolves a tfr:// registry module from a version constraint.
+	// It is enabled by default.
 	VersionAttribute = "version-attribute"
 	// OtelLogs enables the OpenTelemetry logs signal, exporting Terragrunt's log
 	// records through the configured logs exporter and correlating them with
 	// traces via the active span.
 	OtelLogs = "otel-logs"
-	// CatalogFormat enables non-interactive output formats for the catalog
-	// command, rendering discovered components as JSON Lines or Markdown on
-	// standard output instead of launching the terminal user interface.
+	// CatalogFormat names the now-stable non-interactive output formats for the
+	// catalog command, which render discovered components as JSON Lines or
+	// Markdown on standard output instead of launching the terminal user
+	// interface. They are enabled by default.
 	CatalogFormat = "catalog-format"
-	// BoundedDiscovery gates the inline "(dir)" graph boundary operand and the
-	// --discovery-boundary flag, which enclose graph discovery within a
+	// BoundedDiscovery names the now-stable inline "(dir)" graph boundary operand
+	// and --discovery-boundary flag, which enclose graph discovery within a
 	// directory instead of the git repository root: dependencies and dependents
-	// resolving outside it are not discovered.
+	// resolving outside it are not discovered. Both are enabled by default.
 	BoundedDiscovery = "bounded-discovery"
-	// BlockIteration gates the expansion block, which iterates a dependency, unit,
-	// or stack block over a count or for_each, along with the enabled attribute on
-	// unit and stack blocks.
+	// BlockIteration names the now-stable expansion block, which iterates a
+	// dependency, unit, or stack block over a count or for_each, and the enabled
+	// attribute on unit and stack blocks. Both are enabled by default.
 	BlockIteration = "block-iteration"
 	// BrowseTUI gates the interactive Miller-columns browser for `terragrunt browse`.
 	BrowseTUI = "browse-tui"
-	// MutableGenerate gates the mutable attribute on the generate block and the
-	// default it changes: generated files are deduplicated through
-	// content-addressable storage and hard-linked into each working directory
-	// rather than written per unit.
+	// MutableGenerate names the now-stable deduplication of generated files:
+	// generate block output is stored in content-addressable storage and
+	// hard-linked read-only into each working directory, unless the block sets
+	// the mutable attribute. It is enabled by default and can be disabled with
+	// the --no-cas flag.
 	MutableGenerate = "mutable-generate"
-	// OptionalDependencyOutputs gates the --no-dependency-outputs flag that skips
-	// all dependency output resolution during a run.
+	// OptionalDependencyOutputs names the now-stable --no-dependency-outputs flag,
+	// which skips all dependency output resolution during a run. The flag is
+	// available without enabling the experiment.
 	OptionalDependencyOutputs = "optional-dependency-outputs"
-	// TGLogin reserves the experiment flag for signing in to the Gruntwork
-	// Developer Portal from the CLI, so an admin can define a catalog in the
-	// portal instead of local HCL. Nothing is gated on it yet; the login
-	// command and the portal-defined catalog land in follow-up PRs.
+	// TGLogin gates `terragrunt login`, which signs the user in to the
+	// Gruntwork Developer Portal so an admin can define a catalog there for
+	// the CLI to read.
 	TGLogin = "tg-login"
+	// Base64GzipCompat enables the base64gzip_compat HCL function.
+	Base64GzipCompat = "base64gzip-compat"
+	// OfflineCAS gates the CAS flags that control the persisted probe cache:
+	// --cas-offline, --cas-refresh, and --cas-probe-ttl.
+	OfflineCAS = "offline-cas"
+	// MCPCommand gates the `terragrunt mcp` command, which serves Terragrunt
+	// operations to AI agents over the Model Context Protocol.
+	MCPCommand = "mcp-command"
 )
 
 const (
@@ -166,7 +185,8 @@ func NewExperiments() Experiments {
 			Name: IacEngine,
 		},
 		{
-			Name: DependencyFetchOutputFromState,
+			Name:   DependencyFetchOutputFromState,
+			Status: StatusCompleted,
 		},
 		{
 			Name: SlowTaskReporting,
@@ -188,7 +208,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: AzureBackend,
+			Name:   AzureBackend,
+			Status: StatusCompleted,
 		},
 		{
 			Name: DeepMerge,
@@ -201,40 +222,58 @@ func NewExperiments() Experiments {
 			Name: HookContextEnv,
 		},
 		{
-			Name: OptionalHooks,
+			Name:   OptionalHooks,
+			Status: StatusCompleted,
 		},
 		{
-			Name: Profiling,
+			Name:   Profiling,
+			Status: StatusCompleted,
 		},
 		{
-			Name: OCI,
+			Name:   OCI,
+			Status: StatusCompleted,
 		},
 		{
-			Name: VersionAttribute,
+			Name:   VersionAttribute,
+			Status: StatusCompleted,
 		},
 		{
 			Name: OtelLogs,
 		},
 		{
-			Name: CatalogFormat,
+			Name:   CatalogFormat,
+			Status: StatusCompleted,
 		},
 		{
-			Name: BoundedDiscovery,
+			Name:   BoundedDiscovery,
+			Status: StatusCompleted,
 		},
 		{
-			Name: BlockIteration,
+			Name:   BlockIteration,
+			Status: StatusCompleted,
 		},
 		{
 			Name: BrowseTUI,
 		},
 		{
-			Name: MutableGenerate,
+			Name:   MutableGenerate,
+			Status: StatusCompleted,
 		},
 		{
-			Name: OptionalDependencyOutputs,
+			Name:   OptionalDependencyOutputs,
+			Status: StatusCompleted,
 		},
 		{
 			Name: TGLogin,
+		},
+		{
+			Name: Base64GzipCompat,
+		},
+		{
+			Name: OfflineCAS,
+		},
+		{
+			Name: MCPCommand,
 		},
 	}
 }

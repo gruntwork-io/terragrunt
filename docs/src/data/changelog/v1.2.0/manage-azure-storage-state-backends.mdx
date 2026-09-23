@@ -1,0 +1,12 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Bootstrap, delete, and migrate Azure Storage state backends
+
+Terragrunt provisions the resource group, storage account, and blob container backing an `azurerm` state, and converges blob versioning and soft delete on both new and pre-existing accounts. It also deletes state blobs and containers, and migrates state within a storage account. With [`--dependency-fetch-output-from-state`](/reference/cli/commands/run#dependency-fetch-output-from-state), it reads Azure dependency outputs straight from the state blob.
+
+If you already pass `--backend-bootstrap`, Terragrunt will now create Azure resources it previously skipped.
+
+Previously gated behind the `azure-backend` experiment, these operations no longer require `--experiment azure-backend`. See [State Backend](/features/units/state-backend#azure-storage-azurerm-backend) for configuration keys and authentication.

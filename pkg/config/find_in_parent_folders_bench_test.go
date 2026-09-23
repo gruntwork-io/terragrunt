@@ -34,9 +34,8 @@ func BenchmarkFindInParentFolders(b *testing.B) {
 					for _, configPath := range configPaths {
 						pctx.TerragruntConfigPath = configPath
 
-						if _, err := config.FindInParentFolders(ctx, pctx, l, params); err != nil {
-							b.Fatal(err)
-						}
+						_, err := config.FindInParentFolders(ctx, pctx, l, params)
+						require.NoError(b, err)
 					}
 				}
 			})

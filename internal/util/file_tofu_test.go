@@ -639,7 +639,6 @@ func BenchmarkIsTFFile(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
 	for b.Loop() {
 		for _, path := range testPaths {
@@ -671,7 +670,6 @@ func BenchmarkDirContainsTFFiles(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
 	for b.Loop() {
 		result, err := util.DirContainsTFFiles(vfs.NewOSFS(), tmpDir)

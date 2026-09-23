@@ -1,4 +1,4 @@
-//nolint:paralleltest,tparallel // Every test in this file calls RequireSSH, which uses t.Setenv and therefore can't run in parallel.
+//nolint:paralleltest // Every test in this file calls RequireSSH, which uses t.Setenv and therefore can't run in parallel.
 package test_test
 
 import (

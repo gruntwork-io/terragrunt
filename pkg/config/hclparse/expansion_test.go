@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -20,7 +21,7 @@ type testBlock struct {
 func TestExpandBlockUnexpanded(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   path = "../vpc"
 }
@@ -37,7 +38,7 @@ dependency "a" {
 func TestExpandBlockForEachSet(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     for_each = local.services
@@ -69,7 +70,7 @@ dependency "a" {
 func TestExpandBlockForEachMap(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     for_each = local.service_map
@@ -89,13 +90,42 @@ dependency "a" {
 	assert.ElementsMatch(t, []string{"../web/frontend", "../api/backend"}, paths)
 }
 
+// TestExpandBlockForEachObject pins that an object expands like a map. An inline
+// for_each literal parses as an object, and object values need not share a type.
+func TestExpandBlockForEachObject(t *testing.T) {
+	t.Parallel()
+
+	instances, err := expand(t.Context(), t, `
+dependency "a" {
+  expansion {
+    for_each = {
+      web = 1
+      api = "backend"
+    }
+  }
+
+  path = "../${each.key}-${each.value}"
+}
+`)
+	require.NoError(t, err)
+	require.Len(t, instances, 2)
+
+	paths := make([]string, 0, len(instances))
+	for _, inst := range instances {
+		paths = append(paths, inst.Value.(*testBlock).Path)
+	}
+
+	assert.ElementsMatch(t, []string{"api", "web"}, keysOf(instances))
+	assert.ElementsMatch(t, []string{"../web-1", "../api-backend"}, paths)
+}
+
 // TestExpandBlockForEachMapNullValue pins that the concreteness check on element keys
 // leaves values alone: a map key is concrete no matter what it maps to, so a null
 // value only fails the body that dereferences it.
 func TestExpandBlockForEachMapNullValue(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     for_each = local.service_map_with_null_value
@@ -114,7 +144,7 @@ dependency "a" {
 func TestExpandBlockCount(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     count = 3
@@ -175,7 +205,7 @@ dependency "a" {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			instances, err := expand(t, tc.cfg)
+			instances, err := expand(t.Context(), t, tc.cfg)
 			require.NoError(t, err)
 			assert.Empty(t, instances)
 		})
@@ -259,6 +289,21 @@ dependency "a" {
 			target: new(hclparse.UnsupportedForEachTypeError),
 		},
 		{
+			// A bracketed literal parses as a tuple, which is ordered rather than
+			// keyed, so nothing in it can name an instance.
+			name: "for_each is a tuple",
+			cfg: `
+dependency "a" {
+  expansion {
+    for_each = ["web", "api"]
+  }
+
+  path = "../x"
+}
+`,
+			target: new(hclparse.UnsupportedForEachTypeError),
+		},
+		{
 			name: "for_each element key is not a string or number",
 			cfg: `
 dependency "a" {
@@ -303,7 +348,7 @@ dependency "a" {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := expand(t, tc.cfg)
+			_, err := expand(t.Context(), t, tc.cfg)
 			require.Error(t, err)
 			require.ErrorAs(t, err, tc.target)
 		})
@@ -363,7 +408,7 @@ func TestExpandBlockRejectsNonConcreteValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := expand(t, `
+			_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     `+tc.attr+`
@@ -406,7 +451,7 @@ func TestExpandBlockInstanceLimit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			instances, err := expand(t, `
+			instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     `+tc.attr+`
@@ -436,7 +481,7 @@ dependency "a" {
 func TestExpandBlockDefaultInstanceLimit(t *testing.T) {
 	t.Parallel()
 
-	_, err := expand(t, `
+	_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     count = 1000001
@@ -468,11 +513,11 @@ func TestExpansionLimitExceededErrorGuidesTheUser(t *testing.T) {
 }
 
 // TestExpandBlockNumericForEachKeys pins how a numeric each.key renders into an
-// address, since OSS-3971 builds the dependency cty map from the same string.
+// address, since a dependency address embeds the same string.
 func TestExpandBlockNumericForEachKeys(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     for_each = local.numeric_keys
@@ -493,7 +538,7 @@ dependency "a" {
 func TestExpandBlockRejectsEachUnderCount(t *testing.T) {
 	t.Parallel()
 
-	_, err := expand(t, `
+	_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     count = 2
@@ -510,7 +555,7 @@ dependency "a" {
 func TestExpandBlockRejectsLabeledExpansionBlock(t *testing.T) {
 	t.Parallel()
 
-	_, err := expand(t, `
+	_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion "extra" {
     count = 2
@@ -542,7 +587,7 @@ func TestExpandBlockRejectsUnknownExpansionAttribute(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := expand(t, `
+			_, err := expand(t.Context(), t, `
 dependency "a" {
   expansion {
     `+tc.attr+`
@@ -551,7 +596,11 @@ dependency "a" {
   path = "../x"
 }
 `)
-			require.Error(t, err)
+
+			// Swallowing the attribute would fail too, as a missing meta-arg, so a
+			// bare error assertion would not tell the two apart.
+			var diags hcl.Diagnostics
+			require.ErrorAs(t, err, &diags)
 		})
 	}
 }
@@ -561,7 +610,7 @@ dependency "a" {
 func TestExpandBlockAssignsLabels(t *testing.T) {
 	t.Parallel()
 
-	instances, err := expand(t, `
+	instances, err := expand(t.Context(), t, `
 dependency "aurora" {
   expansion {
     count = 2
@@ -599,7 +648,7 @@ dependency "aurora" {
 `, "terragrunt.hcl")
 	require.NoError(t, err)
 
-	instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+	instances, err := file.ExpandBlocks(t.Context(), "dependency", new(testBlock), nil)
 	require.NoError(t, err)
 	require.Len(t, instances, 3)
 
@@ -633,7 +682,7 @@ dependency "vpc" {
 `, "terragrunt.hcl")
 	require.NoError(t, err)
 
-	instances, err := file.ExpandBlocks("dependency", new(testBlock), nil)
+	instances, err := file.ExpandBlocks(t.Context(), "dependency", new(testBlock), nil)
 	require.NoError(t, err)
 	require.Len(t, instances, 1)
 
@@ -656,10 +705,10 @@ dependency "vpc" {
 `, "terragrunt.hcl")
 	require.NoError(t, err)
 
-	_, err = file.ExpandBlocks("dependency", new(testBlock), nil)
+	_, err = file.ExpandBlocks(t.Context(), "dependency", new(testBlock), nil)
 	require.Error(t, err, "without the option, the unresolvable reference must fail the decode")
 
-	instances, err := file.ExpandBlocks(
+	instances, err := file.ExpandBlocks(t.Context(),
 		"dependency", new(testBlock), nil,
 		hclparse.WithSkipLabels(map[string]struct{}{"broken": {}}),
 	)
@@ -683,7 +732,7 @@ dependency "vpc" {
 `, "terragrunt.hcl")
 	require.NoError(t, err)
 
-	_, err = file.ExpandBlocks(
+	_, err = file.ExpandBlocks(t.Context(),
 		"dependency", new(testBlock), nil,
 		hclparse.WithSkipLabels(map[string]struct{}{"other": {}}),
 	)
@@ -714,7 +763,7 @@ dependency "vpc" {
 		},
 	}
 
-	instances, err := file.ExpandBlocks(
+	instances, err := file.ExpandBlocks(t.Context(),
 		"dependency", new(testBlock), evalCtx,
 		hclparse.WithSkipLabels(map[string]struct{}{"vpc": {}}),
 	)
@@ -754,6 +803,7 @@ dependency "shard" {
 }
 
 func expand(
+	ctx context.Context,
 	tb testing.TB,
 	cfg string,
 	opts ...hclparse.ExpandOption,
@@ -767,7 +817,7 @@ func expand(
 	require.True(tb, ok)
 	require.Len(tb, body.Blocks, 1)
 
-	ctx := &hcl.EvalContext{
+	evalCtx := &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"local": cty.ObjectVal(map[string]cty.Value{
 				"services": cty.SetVal([]cty.Value{
@@ -810,7 +860,7 @@ func expand(
 		},
 	}
 
-	return hclparse.ExpandBlock(body.Blocks[0].AsHCLBlock(), new(testBlock), ctx, opts...)
+	return hclparse.ExpandBlock(ctx, body.Blocks[0].AsHCLBlock(), new(testBlock), evalCtx, opts...)
 }
 
 func keysOf(instances []hclparse.Instance) []string {
@@ -820,4 +870,154 @@ func keysOf(instances []hclparse.Instance) []string {
 	}
 
 	return keys
+}
+
+// TestExpandBlocksReportsOneDiagnosticPerMistake pins that a mistake in the body of an
+// expanded block is reported once, not once per element. The block below expands to five
+// instances, every one of which fails to decode the same way.
+func TestExpandBlocksReportsOneDiagnosticPerMistake(t *testing.T) {
+	t.Parallel()
+
+	_, err := expandDependencies(t, `
+dependency "a" {
+  expansion {
+    count = 5
+  }
+
+  path  = "../x"
+  bogus = "nope"
+}
+`, nil)
+
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+	assert.Len(t, diags, 1)
+}
+
+// TestExpandBlocksDecodesPastAFailingElement pins that expansion decodes every element even
+// after one has failed, so a mistake only one element's each.value reaches is still
+// reported. Both elements below fail, each in its own way.
+func TestExpandBlocksDecodesPastAFailingElement(t *testing.T) {
+	t.Parallel()
+
+	const cfg = `
+dependency "a" {
+  expansion {
+    for_each = local.shapes
+  }
+
+  path = "../${each.value.name}"
+}
+`
+
+	shapes := func(elements map[string]cty.Value) *hcl.EvalContext {
+		return &hcl.EvalContext{
+			Variables: map[string]cty.Value{
+				"local": cty.ObjectVal(map[string]cty.Value{
+					"shapes": cty.ObjectVal(elements),
+				}),
+			},
+		}
+	}
+
+	// Objects sort their keys, so "b" is decoded first.
+	noName := cty.ObjectVal(map[string]cty.Value{"other": cty.StringVal("x")})
+	notAnObject := cty.StringVal("plain")
+
+	_, err := expandDependencies(t, cfg, shapes(map[string]cty.Value{"b": noName}))
+
+	var first hcl.Diagnostics
+	require.ErrorAs(t, err, &first)
+
+	_, err = expandDependencies(t, cfg, shapes(map[string]cty.Value{
+		"b": noName,
+		"c": notAnObject,
+	}))
+
+	var both hcl.Diagnostics
+	require.ErrorAs(t, err, &both)
+
+	assert.Greater(t, len(both), len(first))
+}
+
+// TestExpandBlocksKeepsParsingPastABrokenExpansion covers the best-effort parsing find, list
+// and the LSP depend on. A block whose elements cannot decode is dropped when the handler
+// forgives its diagnostics, and the rest of the file still comes back.
+func TestExpandBlocksKeepsParsingPastABrokenExpansion(t *testing.T) {
+	t.Parallel()
+
+	parser := hclparse.NewParser(
+		hclparse.WithDiagnosticsHandler(
+			func(_ *hcl.File, _ hcl.Diagnostics) (hcl.Diagnostics, error) {
+				return nil, nil
+			},
+		),
+	)
+
+	file, err := parser.ParseFromString(`
+dependency "broken" {
+  expansion {
+    count = 2
+  }
+
+  path  = "../${count.index}"
+  bogus = "nope"
+}
+
+dependency "vpc" {
+  path = "../vpc"
+}
+`, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	instances, err := file.ExpandBlocks(t.Context(), "dependency", new(testBlock), nil)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+
+	assert.Equal(t, "vpc", instances[0].Value.(*testBlock).Name)
+}
+
+func expandDependencies(
+	tb testing.TB,
+	cfg string,
+	evalCtx *hcl.EvalContext,
+) ([]hclparse.Instance, error) {
+	tb.Helper()
+
+	file, err := hclparse.NewParser().ParseFromString(cfg, "terragrunt.hcl")
+	require.NoError(tb, err)
+
+	return file.ExpandBlocks(tb.Context(), "dependency", new(testBlock), evalCtx)
+}
+
+func TestExpandBlockStopsWhenContextCancelled(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		attr string
+	}{
+		{name: "count", attr: "count = 3"},
+		{name: "for_each", attr: "for_each = local.services"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			_, err := expand(ctx, t, `
+dependency "a" {
+  expansion {
+    `+tc.attr+`
+  }
+
+  path = "../x"
+}
+`)
+			require.ErrorIs(t, err, context.Canceled)
+		})
+	}
 }

@@ -1,0 +1,12 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Deleted files in the CAS are fetched again instead of failing the run
+
+When something removes a file from the [Content Addressable Store (CAS)](/features/caching/cas) that a cached source still needs, Terragrunt now downloads that source again and restores what is missing, then carries on.
+
+Terragrunt used to treat a cached source as complete once it had been downloaded, so a file deleted from the store afterwards ended the run with a read failure naming a path inside the store. Recovering meant clearing the store by hand.
+
+A source that no longer supplies the missing content still fails, and now says which object the store is missing. The same is true of a `cas::` reference in a stack file, which names stored content directly and has no source behind it to download again, and of a run under `--cas-offline`, which forbids the download that would restore the store.

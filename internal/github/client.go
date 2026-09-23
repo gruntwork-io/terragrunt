@@ -21,6 +21,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// maxAPIResponseBytes bounds an API response. The one response read here
+// describes a single release.
+const maxAPIResponseBytes = 1 << 20
+
 // GitHubAPIClient represents a GitHub API client.
 type GitHubAPIClient struct {
 	baseURL        string
@@ -148,7 +152,7 @@ func (c *GitHubAPIClient) GetLatestRelease(
 		)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -202,27 +206,9 @@ type DownloadResult struct {
 	ChecksumSigFile string
 }
 
-// GitHubReleasesDownloadClientOption is a function that configures a GitHubReleasesDownloadClient.
-type GitHubReleasesDownloadClientOption func(*GitHubReleasesDownloadClient)
-
-// WithLogger sets the logger for the download client.
-func WithLogger(l log.Logger) GitHubReleasesDownloadClientOption {
-	return func(c *GitHubReleasesDownloadClient) {
-		c.logger = l
-	}
-}
-
 // NewGitHubReleasesDownloadClient creates a new GitHub releases download client.
-func NewGitHubReleasesDownloadClient(
-	opts ...GitHubReleasesDownloadClientOption,
-) *GitHubReleasesDownloadClient {
-	client := &GitHubReleasesDownloadClient{}
-
-	for _, opt := range opts {
-		opt(client)
-	}
-
-	return client
+func NewGitHubReleasesDownloadClient(l log.Logger) *GitHubReleasesDownloadClient {
+	return &GitHubReleasesDownloadClient{logger: l}
 }
 
 // DownloadReleaseAssets downloads the specified release assets from a GitHub repository.
@@ -289,12 +275,9 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 
 	for url, localPath := range downloads {
 		g.Go(func() error {
-			if c.logger != nil {
-				c.logger.Infof("Downloading %s to %s", url, localPath)
-			}
+			c.logger.Infof("Downloading %s to %s", url, localPath)
 
 			opts := []getter.Option{
-				getter.WithHTTP(v.HTTP),
 				// Disable archive decompression: GitHub release assets are
 				// fetched verbatim, not unpacked.
 				getter.WithDecompressors(map[string]getter.Decompressor{}),
@@ -306,7 +289,7 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 				opts = append(opts, getter.WithHTTPSAuth(http.Header{"Authorization": {"Bearer " + tok}}))
 			}
 
-			if _, err := getter.GetFile(downloadCtx, v, localPath, url, opts...); err != nil {
+			if _, err := getter.GetFile(downloadCtx, c.logger, v, localPath, url, opts...); err != nil {
 				return fmt.Errorf("failed to download %s: %w", url, err)
 			}
 

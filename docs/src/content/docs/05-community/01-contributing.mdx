@@ -199,7 +199,7 @@ Note that some tests may require that you opt-in for them to be tested. This is 
 For example, AWS tests are tagged using the `aws` build tag. To run these tests, you can use the `-tags` flag set in the `GOFLAGS` environment variable like so:
 
 ```bash
-GOFLAGS='-tags=aws' go test -run 'TestAwsInitHookNoSourceWithBackend' .
+GOFLAGS='-tags=aws' go test -run 'TestAWSBootstrapBackend' .
 ```
 
 Depending on how you've configured your editor, you may need to make sure that your editor has the `GOFLAGS` environment variable set before starting for the best development experience:
@@ -211,7 +211,7 @@ neovim .
 
 In general, we try to make sure that any test that requires a build tag is also consistently prefixed a certain way so that they can be tested independently.
 
-For example, all AWS tests are prefixed with `TestAws*`.
+For example, all AWS tests are prefixed with `TestAWS*`.
 
 The largest group of opt-in tests are the ones that drive a real OpenTofu or Terraform binary. They're prefixed with `TestTF*` and tagged with the `tf` build tag:
 
@@ -227,10 +227,10 @@ go test -tags=tofu,tf -run '^(TestTF|TestTofu)' ./...
 
 Without those tags, `go test ./...` only runs the tests that Terragrunt can satisfy on its own, so the suite stays green in an environment with no OpenTofu or Terraform installed. Add the tag whenever you touch behavior that reaches the binary.
 
-Terragrunt also includes integration tests for Google Cloud Platform (GCP). These tests are prefixed with `TestGcp*` and are tagged with the `gcp` build tag. To run these tests, you can use the `-tags` flag set in the `GOFLAGS` environment variable, similar to AWS tests:
+Terragrunt also includes integration tests for Google Cloud Platform (GCP). These tests are prefixed with `TestGCP*` and are tagged with the `gcp` build tag. To run these tests, you can use the `-tags` flag set in the `GOFLAGS` environment variable, similar to AWS tests:
 
 ```bash
-GOFLAGS='-tags=gcp' go test -run 'TestGcp*' .
+GOFLAGS='-tags=gcp' go test -run 'TestGCP*' .
 ```
 
 To successfully run the GCP tests, you must set the following environment variables:
@@ -346,7 +346,7 @@ A test can break that in ways that never show up as a test failure:
 To check for all of them, run the suite through the sandbox wrapper:
 
 ```bash
-go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" ./...
+./.github/scripts/ci/sandbox-test.sh
 ```
 
 <Aside type="tip">

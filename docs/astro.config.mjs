@@ -1,4 +1,5 @@
 // @ts-check
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 import { unified } from "@astrojs/markdown-remark";
 
@@ -6,7 +7,6 @@ import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
 import vercel from "@astrojs/vercel";
 import node from "@astrojs/node";
-import partytown from "@astrojs/partytown";
 import tailwindcss from "@tailwindcss/vite";
 
 import starlightLinksValidator from "starlight-links-validator";
@@ -15,6 +15,7 @@ import d2 from "astro-d2";
 
 import { sidebar } from "./src/data/sidebar.ts";
 import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
+import { excludeLinks } from "./src/lib/unpublished-links.ts";
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
@@ -137,7 +138,7 @@ export default defineConfig({
       sidebar: sidebar,
       plugins: [
         starlightLinksValidator({
-          exclude: [
+          exclude: await excludeLinks(fileURLToPath(new URL("./src", import.meta.url)), [
             // Used in the docs for OpenTelemetry
             "http://localhost:16686/",
             "http://localhost:9090/",
@@ -160,7 +161,7 @@ export default defineConfig({
             // Used as redirects to the Terragrunt Discord server
             "/community/invite",
             "/tgs-discord",
-          ],
+          ]),
         }),
         starlightLlmsTxtWithoutIndex()
       ],
@@ -170,53 +171,6 @@ export default defineConfig({
       // and generate diagrams locally:
       // https://astro-d2.vercel.app/guides/how-astro-d2-works/#deployment
       skipGeneration: !!isVercel,
-    }),
-    partytown({
-      config: {
-        debug: false,
-        logCalls: false,
-        logGetters: false,
-        logSetters: false,
-        logImageRequests: false,
-        logScriptExecution: false,
-        logStackTraces: false,
-        forward: ['dataLayer.push'],
-        // Partytown runs the GTM container in a web worker, and a worker can
-        // only pull a script in with `fetch()`. That makes every cross-origin
-        // tag GTM injects subject to CORS, and vendors that serve their
-        // loaders off a plain CDN don't send `Access-Control-Allow-Origin`.
-        // The fetch fails, the tag never runs, and the console fills with
-        // "has been blocked by CORS policy".
-        //
-        // Route those hosts through same-origin rewrites (see vercel.json) so
-        // the request never crosses an origin boundary and CORS never applies.
-        // Only `script`/`fetch`/`xhr` are affected; `image` requests are
-        // issued `no-cors`, and `iframe` isn't a fetch at all.
-        //
-        // NOTE: this function is serialized to a string and re-evaluated
-        // inside the worker, so it must not close over anything outside its
-        // own body.
-        resolveUrl(url, location, type) {
-          const proxiedHosts = {
-            // Vector (cdn.vector.co sends no ACAO header)
-            'cdn.vector.co': '/vtag',
-            // HubSpot analytics, injected by the js.hs-scripts.com loader
-            // (which does send ACAO; js.hs-analytics.net does not)
-            'js.hs-analytics.net': '/htag',
-          };
-
-          const prefix = proxiedHosts[url.hostname];
-          if (!prefix || (type !== 'script' && type !== 'fetch' && type !== 'xhr')) {
-            return url;
-          }
-
-          const proxied = new URL(String(location));
-          proxied.pathname = prefix + url.pathname;
-          proxied.search = url.search;
-          proxied.hash = '';
-          return proxied;
-        },
-      },
     }),
     sitemap({
       // changefreq/priority intentionally omitted: the Docusaurus/Astro

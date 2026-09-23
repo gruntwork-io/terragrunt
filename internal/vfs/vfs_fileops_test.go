@@ -2,18 +2,21 @@ package vfs_test
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestCopyFile(t *testing.T) {
@@ -370,6 +373,103 @@ func TestLink(t *testing.T) {
 	})
 }
 
+func TestRenameOver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("replaces a read-only destination on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewOSFS()
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source")
+		target := filepath.Join(dir, "target")
+
+		require.NoError(t, vfs.WriteFile(fsys, source, []byte("new"), 0o644))
+		require.NoError(t, vfs.WriteFile(fsys, target, []byte("old"), 0o444))
+
+		require.NoError(t, vfs.RenameOver(fsys, source, target))
+
+		contents, err := vfs.ReadFile(fsys, target)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("new"), contents)
+
+		_, err = fsys.Stat(source)
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("leaves the replaced file read-only through its other links on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewOSFS()
+		dir := t.TempDir()
+		blob := filepath.Join(dir, "blob")
+		source := filepath.Join(dir, "source")
+		target := filepath.Join(dir, "target")
+
+		require.NoError(t, vfs.WriteFile(fsys, blob, []byte("old"), 0o444))
+		require.NoError(t, vfs.Link(fsys, blob, target))
+		require.NoError(t, vfs.WriteFile(fsys, source, []byte("new"), 0o644))
+
+		require.NoError(t, vfs.RenameOver(fsys, source, target))
+
+		contents, err := vfs.ReadFile(fsys, target)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("new"), contents)
+
+		blobContents, err := vfs.ReadFile(fsys, blob)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("old"), blobContents)
+
+		info, err := fsys.Stat(blob)
+		require.NoError(t, err)
+		assert.Zero(
+			t,
+			info.Mode().Perm()&0o222,
+			"the blob behind the replaced link must stay read-only",
+		)
+	})
+
+	t.Run("replaces a destination on MemMapFS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/data/source", []byte("new"), 0o644))
+		require.NoError(t, vfs.WriteFile(fsys, "/data/target", []byte("old"), 0o444))
+
+		require.NoError(t, vfs.RenameOver(fsys, "/data/source", "/data/target"))
+
+		contents, err := vfs.ReadFile(fsys, "/data/target")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("new"), contents)
+	})
+
+	t.Run("missing source returns fs.ErrNotExist on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+
+		err := vfs.RenameOver(
+			vfs.NewOSFS(),
+			filepath.Join(dir, "missing"),
+			filepath.Join(dir, "target"),
+		)
+
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("a filesystem without the capability uses its own Rename", func(t *testing.T) {
+		t.Parallel()
+
+		err := vfs.RenameOver(
+			afero.NewReadOnlyFs(vfs.NewMemMapFS()),
+			"/data/source",
+			"/data/target",
+		)
+
+		require.ErrorIs(t, err, syscall.EPERM)
+	})
+}
+
 func TestReadlink(t *testing.T) {
 	t.Parallel()
 
@@ -574,6 +674,68 @@ func TestMemMapFSRemove(t *testing.T) {
 	})
 }
 
+func TestMemMapFSRename(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a renamed symlink keeps its target", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/root/target.txt", []byte("target"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "/root/target.txt", "/root/tmp.txt"))
+
+		require.NoError(t, fsys.Rename("/root/tmp.txt", "/root/link.txt"))
+
+		target, err := vfs.Readlink(fsys, "/root/link.txt")
+		require.NoError(t, err)
+		assert.Equal(t, "/root/target.txt", target)
+
+		_, err = vfs.Readlink(fsys, "/root/tmp.txt")
+		require.Error(t, err)
+	})
+
+	t.Run("a symlink replaces the file it is renamed onto", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/root/target.txt", []byte("target"), 0o644))
+		require.NoError(t, vfs.WriteFile(fsys, "/root/link.txt", []byte("stale"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "/root/target.txt", "/root/tmp.txt"))
+
+		require.NoError(t, fsys.Rename("/root/tmp.txt", "/root/link.txt"))
+
+		target, err := vfs.Readlink(fsys, "/root/link.txt")
+		require.NoError(t, err)
+		assert.Equal(t, "/root/target.txt", target)
+
+		// Stat follows the link to its target, so a file left beneath the
+		// link only shows once the link itself is removed.
+		require.NoError(t, fsys.Remove("/root/link.txt"))
+
+		exists, err := vfs.FileExists(fsys, "/root/link.txt")
+		require.NoError(t, err)
+		assert.False(t, exists, "the file the link was renamed onto must be gone")
+	})
+
+	t.Run("a file replaces the symlink it is renamed onto", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/root/target.txt", []byte("target"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "/root/target.txt", "/root/link.txt"))
+		require.NoError(t, vfs.WriteFile(fsys, "/root/tmp.txt", []byte("fresh"), 0o644))
+
+		require.NoError(t, fsys.Rename("/root/tmp.txt", "/root/link.txt"))
+
+		_, err := vfs.Readlink(fsys, "/root/link.txt")
+		require.Error(t, err)
+
+		got, err := vfs.ReadFile(fsys, "/root/link.txt")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("fresh"), got)
+	})
+}
+
 func TestNoSymlinkFS(t *testing.T) {
 	t.Parallel()
 
@@ -602,7 +764,7 @@ func TestEvalSymlinksRelativePaths(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fsys, "/root/first/../second")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/second", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/second"), resolved)
 	})
 
 	t.Run("resolves a parent reference above the root", func(t *testing.T) {
@@ -627,7 +789,7 @@ func TestEvalSymlinksRelativePaths(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fsys, "/root/link.txt")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/target.txt", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/target.txt"), resolved)
 	})
 }
 
@@ -739,4 +901,57 @@ func (file *trackedFile) Close() error {
 	file.closed.Store(true)
 
 	return file.File.Close()
+}
+
+// TestMemMapFSSymlinkTableWithRacing pins that the side table holding the
+// in-memory filesystem's symlinks survives concurrent use. Rename reaches it
+// on every materialized blob, so an unguarded table crashes the process with
+// a concurrent map write rather than failing a call.
+func TestMemMapFSSymlinkTableWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const workers = 16
+
+	fsys := vfs.NewMemMapFS()
+
+	for i := range workers {
+		require.NoError(t, vfs.WriteFile(fsys, fmt.Sprintf("/src%d", i), []byte("x"), 0o644))
+	}
+
+	targets := make([]string, workers)
+
+	var g errgroup.Group
+
+	for i := range workers {
+		g.Go(func() error {
+			link := fmt.Sprintf("/link%d", i)
+			if err := vfs.Symlink(fsys, "/target", link); err != nil {
+				return err
+			}
+
+			target, err := vfs.Readlink(fsys, link)
+			if err != nil {
+				return err
+			}
+
+			targets[i] = target
+
+			if err := fsys.Rename(fmt.Sprintf("/src%d", i), fmt.Sprintf("/dst%d", i)); err != nil {
+				return err
+			}
+
+			return fsys.Remove(link)
+		})
+	}
+
+	require.NoError(t, g.Wait())
+
+	for i := range workers {
+		assert.Equal(t, "/target", targets[i])
+	}
+
+	for i := range workers {
+		_, err := fsys.Stat(fmt.Sprintf("/dst%d", i))
+		require.NoError(t, err)
+	}
 }

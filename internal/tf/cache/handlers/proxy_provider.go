@@ -62,8 +62,6 @@ func (handler *ProxyProviderHandler) String() string {
 
 // GetVersions implements ProviderHandler.GetVersions
 // https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
-//
-//nolint:lll
 func (handler *ProxyProviderHandler) GetVersions(
 	ctx echo.Context,
 	provider *models.Provider,

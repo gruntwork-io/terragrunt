@@ -13,58 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// FuzzHCLStringHelpers: wrong arity must return WrongNumberOfParamsError; otherwise the result must agree with the Go stdlib equivalent.
-func FuzzHCLStringHelpers(f *testing.F) {
-	seeds := []string{
-		"",
-		"foo",
-		"foo\x00bar",
-		"foo\x00bar\x00baz",
-		"\x00",
-		"\x00\x00",
-		"a\x00b\x00c\x00d\x00e",
-		"hello world\x00world",
-		"hello world\x00hello",
-		"hello world\x00wor",
-	}
-	for _, s := range seeds {
-		f.Add(s)
-	}
-
-	f.Fuzz(func(t *testing.T, raw string) {
-		args := strings.Split(raw, "\x00")
-
-		ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "")
-
-		swOut, swErr := config.StartsWith(ctx, pctx, args)
-		ewOut, ewErr := config.EndsWith(ctx, pctx, args)
-		scOut, scErr := config.StrContains(ctx, pctx, args)
-
-		if len(args) != 2 {
-			require.Error(t, swErr, "startswith with %d args must error", len(args))
-			require.ErrorAs(t, swErr, new(config.WrongNumberOfParamsError))
-			require.Error(t, ewErr, "endswith with %d args must error", len(args))
-			require.ErrorAs(t, ewErr, new(config.WrongNumberOfParamsError))
-			require.Error(t, scErr, "strcontains with %d args must error", len(args))
-			require.ErrorAs(t, scErr, new(config.WrongNumberOfParamsError))
-
-			return
-		}
-
-		require.NoError(t, swErr, "startswith(%q,%q) must not error", args[0], args[1])
-		require.Equal(t, strings.HasPrefix(args[0], args[1]), swOut,
-			"startswith(%q,%q) must agree with strings.HasPrefix", args[0], args[1])
-
-		require.NoError(t, ewErr, "endswith(%q,%q) must not error", args[0], args[1])
-		require.Equal(t, strings.HasSuffix(args[0], args[1]), ewOut,
-			"endswith(%q,%q) must agree with strings.HasSuffix", args[0], args[1])
-
-		require.NoError(t, scErr, "strcontains(%q,%q) must not error", args[0], args[1])
-		require.Equal(t, strings.Contains(args[0], args[1]), scOut,
-			"strcontains(%q,%q) must agree with strings.Contains", args[0], args[1])
-	})
-}
-
 // FuzzHCLRunCommand fuzzes config.RunCommand with arbitrary argv. Subprocess execution
 // is intercepted by an in-memory vexec backend installed via pctx.Exec, so no real host
 // commands ever run, even mutator-supplied paths like "/bin/sh\x00-c\x00rm -rf /" are

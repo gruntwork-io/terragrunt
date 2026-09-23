@@ -7,8 +7,8 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"time"
 
-	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
@@ -53,7 +53,7 @@ type ParsingContext struct {
 	EngineOptions    *engine.EngineOptions
 
 	// FeatureFlags contains explicit feature flag overrides supplied by the user.
-	FeatureFlags *xsync.Map[string, string]
+	FeatureFlags map[string]string
 
 	FilesRead *FilesRead
 	Telemetry *telemetry.Options
@@ -70,7 +70,7 @@ type ParsingContext struct {
 	dependencyOutputEnvKeys map[string]struct{}
 	PredefinedFunctions     map[string]function.Function
 
-	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, cfgPath string, cfgFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
@@ -94,11 +94,14 @@ type ParsingContext struct {
 	PartialParseDecodeList []PartialDecodeSectionType
 	ParserOptions          []hclparse.Option
 
+	ReadConfigChain []string
+
 	ProviderCacheOptions pcoptions.ProviderCacheOptions
 
 	MaxFoldersToCheck int
 	ParseDepth        int
 	CASCloneDepth     int
+	CASProbeTTL       time.Duration
 
 	TFPathExplicitlySet bool
 	SkipOutput          bool
@@ -115,6 +118,8 @@ type ParsingContext struct {
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
 	NoCAS                            bool
+	CASOffline                       bool
+	CASRefresh                       bool
 	LogShowAbsPaths                  bool
 	LogDisableErrorSummary           bool
 
@@ -126,6 +131,11 @@ type ParsingContext struct {
 
 // NewParsingContext builds a parsing context whose file reads, subprocesses,
 // and decryption all travel on v.
+//
+// The returned context keeps no record of the files it reads. Recording them
+// costs a walk of every local module a config sources, and only a caller that
+// surfaces the record has any use for it, so those call
+// [ParsingContext.WithFileReadTracking] and the rest pay nothing.
 func NewParsingContext(
 	ctx context.Context,
 	l log.Logger,
@@ -138,7 +148,6 @@ func NewParsingContext(
 
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
-		FilesRead:        NewFilesRead(),
 		Venv:             v,
 	}
 
@@ -252,6 +261,16 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingConte
 	return c
 }
 
+// WithFileReadTracking returns a copy that records every file it reads, so that
+// the caller can read them back off [ParsingContext.FilesRead] once parsing is
+// done. Clones made from the returned context share the one record.
+func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
+	c := ctx.Clone()
+	c.FilesRead = NewFilesRead()
+
+	return c
+}
+
 func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	c := ctx.Clone()
 	c.SkipOutputsResolution = true
@@ -277,7 +296,7 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 
 // WithConfigPath returns a new ParsingContext targeting a different config file.
 //
-// It normalizes configPath to an absolute path, sets TerragruntConfigPath and
+// It normalizes cfgPath to an absolute path, sets TerragruntConfigPath and
 // WorkingDir accordingly, and updates the logger when the working directory changes.
 //
 // OriginalTerragruntConfigPath is preserved so that get_original_terragrunt_dir()
@@ -287,14 +306,14 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 // To parse a dependency as an independent unit, use [ParsingContext.WithDependencyConfigPath].
 func (ctx *ParsingContext) WithConfigPath(
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 ) (log.Logger, *ParsingContext, error) {
-	configPath = filepath.Clean(configPath)
-	if !filepath.IsAbs(configPath) {
-		configPath = filepath.Clean(filepath.Join(ctx.WorkingDir, configPath))
+	cfgPath = filepath.Clean(cfgPath)
+	if !filepath.IsAbs(cfgPath) {
+		cfgPath = filepath.Clean(filepath.Join(ctx.WorkingDir, cfgPath))
 	}
 
-	workingDir := filepath.Dir(configPath)
+	workingDir := filepath.Dir(cfgPath)
 
 	if workingDir != ctx.WorkingDir {
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
@@ -310,10 +329,10 @@ func (ctx *ParsingContext) WithConfigPath(
 	// dirs (which won't match any module's default) are preserved unchanged.
 	_, defaultDir := util.DefaultWorkingAndDownloadDirs(ctx.TerragruntConfigPath)
 	if filepath.Clean(c.DownloadDir) == filepath.Clean(defaultDir) {
-		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(configPath)
+		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(cfgPath)
 	}
 
-	c.TerragruntConfigPath = configPath
+	c.TerragruntConfigPath = cfgPath
 	c.WorkingDir = workingDir
 
 	return l, c, nil
@@ -328,9 +347,9 @@ func (ctx *ParsingContext) WithConfigPath(
 // own directory rather than the caller's.
 func (ctx *ParsingContext) WithDependencyConfigPath(
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 ) (log.Logger, *ParsingContext, error) {
-	l, c, err := ctx.WithConfigPath(l, configPath)
+	l, c, err := ctx.WithConfigPath(l, cfgPath)
 	if err != nil {
 		return l, nil, err
 	}

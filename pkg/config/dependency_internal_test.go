@@ -1,97 +1,15 @@
 package config
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// TestExtractFirstJSONObject verifies that we can isolate the first JSON object emitted by
-// `tofu/terraform output -json` even when stdout is polluted with non-JSON content on either
-// side of the JSON. See https://github.com/gruntwork-io/terragrunt/issues/6001 for the trailing-
-// warning regression introduced by Terraform 1.15, and #2233 for the leading AWS CSM log line.
-func TestExtractFirstJSONObject(t *testing.T) {
-	t.Parallel()
-
-	const validJSON = `{"foo":{"sensitive":false,"type":"string","value":"bar"}}`
-
-	tcs := []struct {
-		name      string
-		input     string
-		want      string
-		wantExact bool // when true, compare bytes exactly instead of as JSON
-		wantErr   bool
-	}{
-		{
-			name:  "pure JSON is returned unchanged",
-			input: validJSON,
-			want:  validJSON,
-		},
-		{
-			name:  "leading AWS CSM log line is stripped",
-			input: "2023/05/04 20:22:43 Enabling CSM" + validJSON,
-			want:  validJSON,
-		},
-		{
-			name:  "leading ANSI-colored warning is stripped",
-			input: "\x1b[33m\x1b[1mWarning:\x1b[0m Deprecated Parameter\n\n" + validJSON,
-			want:  validJSON,
-		},
-		{
-			name: "trailing Terraform 1.15 deprecation warning is ignored",
-			input: validJSON + "\n\n" +
-				"Warning: Deprecated Parameter\n\n" +
-				`The parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile" instead.` + "\n",
-			want: validJSON,
-		},
-		{
-			name: "leading and trailing pollution together",
-			input: "2023/05/04 20:22:43 Enabling CSM" + validJSON +
-				"\nWarning: Deprecated Parameter\n",
-			want: validJSON,
-		},
-		{
-			name:  "empty outputs object is preserved",
-			input: "Warning: something\n{}\nWarning: trailing\n",
-			want:  "{}",
-		},
-		{
-			name:      "no JSON returns input unchanged so downstream surfaces the underlying error",
-			input:     "no json here at all",
-			want:      "no json here at all",
-			wantExact: true,
-		},
-		{
-			name:    "truncated JSON object surfaces a parse error",
-			input:   `{"foo":`,
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := extractFirstJSONObject([]byte(tc.input))
-			if tc.wantErr {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-
-			if tc.wantExact {
-				assert.Equal(t, tc.want, string(got))
-				return
-			}
-
-			assert.JSONEq(t, tc.want, string(got))
-		})
-	}
-}
 
 // TestResolveStackFilePath pins resolveStackFilePath across dependency-target shapes (direct stack file, explicit terragrunt config, bare directory).
 func TestResolveStackFilePath(t *testing.T) {
@@ -308,4 +226,112 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 			assert.Equal(t, tc.want, pctx.Venv.Env)
 		})
 	}
+}
+
+// TestGCSCredentialFileDirectStateReadSupported covers every credential file shape the gate decides on, including the external_account sources of issue #6810.
+func TestGCSCredentialFileDirectStateReadSupported(t *testing.T) {
+	t.Parallel()
+
+	credentialPath := venvtest.Root("/config/credentials.json")
+
+	testCases := []struct {
+		name     string
+		contents string
+		want     bool
+	}{
+		{name: "service account", contents: `{"type":"service_account"}`, want: true},
+		{name: "authorized user", contents: `{"type":"authorized_user"}`, want: true},
+		{
+			name: "external account with a file source",
+			contents: fmt.Sprintf(
+				`{"type":"external_account","credential_source":{"file":%q}}`,
+				venvtest.Root("/var/run/token"),
+			),
+			want: true,
+		},
+		{
+			name:     "external account with a relative file source",
+			contents: `{"type":"external_account","credential_source":{"file":"token.json"}}`,
+		},
+		{
+			name:     "external account with a tilde file source",
+			contents: `{"type":"external_account","credential_source":{"file":"~/token"}}`,
+		},
+		{
+			name: "external account with a kubernetes token file and format",
+			contents: fmt.Sprintf(
+				`{"type":"external_account","credential_source":{"file":%q,"format":{"type":"text"}}}`,
+				venvtest.Root("/var/run/service-account/token"),
+			),
+			want: true,
+		},
+		{
+			name:     "external account with a url source and headers",
+			contents: `{"type":"external_account","credential_source":{"url":"https://sts.example.com/token","headers":{"Authorization":"Bearer x"},"format":{"type":"json","subject_token_field_name":"value"}}}`,
+			want:     true,
+		},
+		{
+			name:     "external account with a url source",
+			contents: `{"type":"external_account","credential_source":{"url":"https://sts.example.com/token"}}`,
+			want:     true,
+		},
+		{
+			name:     "external account with an aws source",
+			contents: `{"type":"external_account","credential_source":{"environment_id":"aws1","region_url":"http://169.254.169.254/latest/meta-data/placement/availability-zone","url":"http://169.254.169.254/latest/meta-data/iam/security-credentials","regional_cred_verification_url":"https://sts.{region}.amazonaws.com"}}`,
+		},
+		{
+			name:     "external account with a certificate source",
+			contents: `{"type":"external_account","credential_source":{"certificate":{"use_default_certificate_config":true}}}`,
+		},
+		{
+			name:     "external account with an executable alongside a url",
+			contents: `{"type":"external_account","credential_source":{"url":"https://sts.example.com/token","executable":{"command":"/usr/bin/token"}}}`,
+		},
+		{
+			name:     "external account with an executable source",
+			contents: `{"type":"external_account","credential_source":{"executable":{"command":"/usr/bin/token"}}}`,
+		},
+		{
+			name:     "external account with no source",
+			contents: `{"type":"external_account"}`,
+		},
+		{
+			name:     "external account with an unrecognized source",
+			contents: `{"type":"external_account","credential_source":{"future":"kind"}}`,
+		},
+		{
+			name:     "external account with a null credential source",
+			contents: `{"type":"external_account","credential_source":null}`,
+		},
+		{name: "external account authorized user", contents: `{"type":"external_account_authorized_user"}`},
+		{name: "impersonated service account", contents: `{"type":"impersonated_service_account"}`},
+		{name: "missing type", contents: `{}`},
+		{name: "empty object", contents: `{"type":""}`},
+		{name: "malformed json", contents: `{"type":`},
+		{name: "trailing content", contents: `{"type":"service_account"}{"extra":true}`},
+		{name: "not an object", contents: `"service_account"`},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New()
+			require.NoError(t, vfs.WriteFile(v.FS, credentialPath, []byte(testCase.contents), 0o600))
+
+			pctx := &ParsingContext{Venv: v}
+
+			assert.Equal(t, testCase.want, gcsCredentialFileDirectStateReadSupported(pctx, credentialPath))
+		})
+	}
+}
+
+// TestGCSCredentialFileDirectStateReadSupportedMissingFile pins that an unreadable credential file falls back instead of reading state as the wrong identity.
+func TestGCSCredentialFileDirectStateReadSupportedMissingFile(t *testing.T) {
+	t.Parallel()
+
+	pctx := &ParsingContext{Venv: venvtest.New()}
+
+	assert.True(t, gcsCredentialFileDirectStateReadSupported(pctx, ""), "an unset credential path is not a divergence")
+	assert.False(t, gcsCredentialFileDirectStateReadSupported(pctx, "/config/absent.json"))
 }

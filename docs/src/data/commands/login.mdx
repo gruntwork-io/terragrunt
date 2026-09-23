@@ -1,0 +1,41 @@
+---
+name: login
+path: login
+category: catalog
+sidebar:
+  order: 450
+description: Sign in to the Gruntwork Developer Portal.
+since: "v1.2.0"
+experiment:
+  control: tg-login
+  name: Experimental
+usage: |
+  The `login` command signs you in to the Gruntwork Developer Portal, so `terragrunt catalog` can discover the repositories your organization selected there.
+examples:
+  - description: |
+      Sign in to the Gruntwork Developer Portal.
+    code: |
+      terragrunt --experiment tg-login login
+  - description: |
+      Sign in again, replacing a credential that has not expired yet.
+    code: |
+      terragrunt --experiment tg-login login --force
+flags:
+  - login-force
+---
+
+import PortalCatalogBeta from '@components/PortalCatalogBeta.astro';
+
+<PortalCatalogBeta campaign="login-command" />
+
+## Signing in
+
+`login` uses the OAuth 2.0 Device Authorization Grant ([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)). Running it prints a one-time code and opens your browser to the portal's approval page.
+
+## Credentials
+
+Terragrunt keeps one credential per organization, in `terragrunt/tokens.json` under your user configuration directory:
+
+- Linux: `$XDG_CONFIG_HOME/terragrunt/tokens.json`, or `~/.config/terragrunt/tokens.json` when `XDG_CONFIG_HOME` is unset
+- macOS: `~/Library/Application Support/terragrunt/tokens.json`
+- Windows: `%AppData%\terragrunt\tokens.json`

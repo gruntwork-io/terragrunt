@@ -6,20 +6,19 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-version"
 )
 
 const (
@@ -33,13 +32,10 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	exec           vexec.Exec
-	env            map[string]string
-	repoRootMu     *sync.Mutex
-	GitPath        string
-	WorkDir        string
-	repoRoot       string
-	repoRootCached bool
+	exec    vexec.Exec
+	env     map[string]string
+	GitPath string
+	WorkDir string
 }
 
 // NewGitRunner creates a new GitRunner instance. It resolves the `git` binary
@@ -60,10 +56,9 @@ func NewGitRunner(v *venv.Venv) (*GitRunner, error) {
 	}
 
 	return &GitRunner{
-		GitPath:    gitPath,
-		exec:       v.Exec,
-		env:        v.Env,
-		repoRootMu: &sync.Mutex{},
+		GitPath: gitPath,
+		exec:    v.Exec,
+		env:     v.Env,
 	}, nil
 }
 
@@ -75,17 +70,8 @@ func ExtractRepoName(repo string) string {
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	// GetRepoRoot writes the memo fields under repoRootMu, so the copy must
-	// hold the same lock to avoid racing with a concurrent memoization.
-	g.repoRootMu.Lock()
 	newRunner := *g
-	g.repoRootMu.Unlock()
-
 	newRunner.WorkDir = workDir
-	// A different WorkDir may resolve to a different root, so reset the memo.
-	newRunner.repoRootMu = &sync.Mutex{}
-	newRunner.repoRoot = ""
-	newRunner.repoRootCached = false
 
 	return &newRunner
 }
@@ -101,33 +87,6 @@ func (g *GitRunner) RequiresWorkDir() error {
 	}
 
 	return nil
-}
-
-// GetRepoRoot returns the root directory of the git repository. The
-// successful result is memoized per-runner so subsequent calls skip the
-// `git rev-parse` fork; failures are not cached so callers can retry.
-// WithWorkDir clears the memo so a derived runner resolves its own root.
-func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
-	if err := g.RequiresWorkDir(); err != nil {
-		return "", err
-	}
-
-	g.repoRootMu.Lock()
-	defer g.repoRootMu.Unlock()
-
-	if g.repoRootCached {
-		return g.repoRoot, nil
-	}
-
-	root, err := g.runRepoRoot(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	g.repoRoot = root
-	g.repoRootCached = true
-
-	return root, nil
 }
 
 // LsRemoteResult represents the output of git ls-remote
@@ -191,48 +150,100 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 
 const refsTags = "refs/tags/"
 
-// LatestReleaseTag returns the highest semver release tag from the given remote.
-// It uses `git ls-remote --tags` against the named remote (e.g. "origin") and
-// returns the tag with the greatest semantic version, or "" if none exist.
-func (g *GitRunner) LatestReleaseTag(ctx context.Context, remote string) (string, error) {
-	results, err := g.LsRemote(ctx, remote, "refs/tags/*")
-	if err != nil {
-		// No tags is not an error — just means no release tags exist.
-		if errors.Is(err, ErrNoMatchingReference) {
-			return "", nil
-		}
-
-		return "", err
+// LsRemoteTags lists the tags remote advertises, with `git ls-remote`. A
+// remote with no tags returns no results and no error.
+func (g *GitRunner) LsRemoteTags(ctx context.Context, remote string) ([]LsRemoteResult, error) {
+	results, err := g.LsRemote(ctx, remote, refsTags+"*")
+	if errors.Is(err, ErrNoMatchingReference) {
+		return nil, nil
 	}
 
-	var best *version.Version
+	return results, err
+}
 
-	for _, r := range results {
-		name := strings.TrimPrefix(r.Ref, refsTags)
-		// Skip dereferenced tag objects (e.g. refs/tags/v1.0.0^{})
-		if strings.HasSuffix(name, "^{}") {
-			continue
-		}
+// LocalTags lists the tags in the configured working-directory repository, in
+// the shape [GitRunner.LsRemote] reports them, without contacting a remote.
+func (g *GitRunner) LocalTags(ctx context.Context) ([]LsRemoteResult, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
 
-		v, err := version.NewVersion(name)
-		if err != nil {
-			continue
-		}
+	cmd := g.prepareCommand(ctx, "for-each-ref", "--format=%(objectname) %(refname)", refsTags)
 
-		if v.Prerelease() != "" {
-			continue
-		}
+	var stdout, stderr bytes.Buffer
 
-		if best == nil || v.GreaterThan(best) {
-			best = v
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_for_each_ref",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
-	if best == nil {
-		return "", nil
+	var results []LsRemoteResult
+
+	for line := range strings.Lines(stdout.String()) {
+		parts := strings.Fields(line)
+		if len(parts) < minGitPartsLength {
+			continue
+		}
+
+		results = append(results, LsRemoteResult{Hash: parts[0], Ref: parts[1]})
 	}
 
-	return best.Original(), nil
+	return results, nil
+}
+
+// ReleaseTags returns the release tags among refs, highest version first. A
+// release tag is a refs/tags/ name that parses as a version with no
+// pre-release suffix. The peeled `^{}` entries ls-remote lists for annotated
+// tags are left out.
+func ReleaseTags(refs []LsRemoteResult) []LsRemoteResult {
+	type release struct {
+		version *semver.Version
+		ref     LsRemoteResult
+	}
+
+	releases := make([]release, 0, len(refs))
+
+	for _, ref := range refs {
+		name, isTag := strings.CutPrefix(ref.Ref, refsTags)
+		if !isTag || strings.HasSuffix(name, "^{}") {
+			continue
+		}
+
+		version, err := semver.Parse(name)
+		if err != nil || version.Prerelease() != "" {
+			continue
+		}
+
+		releases = append(releases, release{version: version, ref: ref})
+	}
+
+	slices.SortStableFunc(releases, func(a, b release) int {
+		return b.version.Compare(a.version)
+	})
+
+	out := make([]LsRemoteResult, 0, len(releases))
+	for _, r := range releases {
+		out = append(out, r.ref)
+	}
+
+	return out
+}
+
+// LatestReleaseTag returns the name of the highest release tag among refs, as
+// [ReleaseTags] orders them, or "" when refs holds none.
+func LatestReleaseTag(refs []LsRemoteResult) string {
+	releases := ReleaseTags(refs)
+	if len(releases) == 0 {
+		return ""
+	}
+
+	return strings.TrimPrefix(releases[0].Ref, refsTags)
 }
 
 // Clone performs a git clone operation
@@ -309,33 +320,46 @@ func (g *GitRunner) InitBare(ctx context.Context) error {
 // positive depth adds --depth and --no-tags. A zero or negative depth fetches
 // full history.
 func (g *GitRunner) Fetch(ctx context.Context, repo, ref string, depth int) error {
-	if err := g.RequiresWorkDir(); err != nil {
-		return err
-	}
-
 	args := []string{}
 
 	if depth > 0 {
 		args = append(args, "--depth", strconv.Itoa(depth), "--no-tags")
 	}
 
-	args = append(args, "--", repo, ref)
+	return g.fetch(ctx, repo, ref, args)
+}
 
-	cmd := g.prepareCommand(ctx, "fetch", args...)
+// FetchUnshallow runs `git fetch --unshallow` for a single ref against the
+// given remote URL, bringing in the history a previous depth-limited fetch
+// stopped at. Git rejects it on a repository that has no shallow boundary,
+// so callers gate it on [GitRunner.IsShallow].
+func (g *GitRunner) FetchUnshallow(ctx context.Context, repo, ref string) error {
+	return g.fetch(ctx, repo, ref, []string{"--unshallow"})
+}
 
-	var stderr bytes.Buffer
+// IsShallow reports whether the configured working-directory repository has
+// a shallow boundary, which a fetch must unshallow to reach older history.
+func (g *GitRunner) IsShallow(ctx context.Context) (bool, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return false, err
+	}
 
+	cmd := g.prepareCommand(ctx, "rev-parse", "--is-shallow-repository")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
 	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
-		return &WrappedError{
-			Op:      "git_fetch",
+		return false, &WrappedError{
+			Op:      "git_rev_parse",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrGitFetch, err),
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
-	return nil
+	return strings.TrimSpace(stdout.String()) == "true", nil
 }
 
 // RevParseCommit resolves ref to its canonical commit hash in the
@@ -476,39 +500,114 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 	return tree, nil
 }
 
-// CatFile writes the contents of a git object
-// to a given writer.
-func (g *GitRunner) CatFile(ctx context.Context, hash string, w io.Writer) error {
-	if err := g.RequiresWorkDir(); err != nil {
-		return err
+// WorktreeCheckout selects whether [GitRunner.CreateDetachedWorktree] fills the
+// worktree it creates.
+type WorktreeCheckout int
+
+const (
+	// CheckoutFiles has git write the files of the reference into the worktree.
+	CheckoutFiles WorktreeCheckout = iota
+	// SkipCheckout leaves the worktree empty, for a caller that fills it
+	// itself, such as with [GitRunner.CheckoutPaths].
+	SkipCheckout
+)
+
+// TreePaths is the set of paths in a tree, in the slash-separated form git
+// reports them in.
+type TreePaths map[string]struct{}
+
+// Has reports whether the tree contains path.
+func (t TreePaths) Has(path string) bool {
+	_, ok := t[path]
+
+	return ok
+}
+
+// HasOrContains reports whether the tree holds path itself or anything under
+// it, which is what a pathspec naming path selects.
+func (t TreePaths) HasOrContains(path string) bool {
+	if t.Has(path) {
+		return true
 	}
 
-	var stderr bytes.Buffer
+	prefix := path + "/"
 
-	cmd := g.prepareCommand(ctx, "cat-file", "-p", hash)
-
-	cmd.SetStdout(w)
-	cmd.SetStderr(&stderr)
-
-	if err := cmd.Run(); err != nil {
-		return &WrappedError{
-			Op:      "git_cat_file",
-			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+	for treePath := range t {
+		if strings.HasPrefix(treePath, prefix) {
+			return true
 		}
 	}
 
-	return nil
+	return false
+}
+
+// LsTreeNames returns every path in the tree at ref, recursively, which tells a
+// caller what a reference contains without checking it out.
+func (g *GitRunner) LsTreeNames(ctx context.Context, v *venv.Venv, ref string) (TreePaths, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
+
+	// Run from the repository root: git limits a listing to the directory it
+	// runs in, and callers may be working from a subdirectory. -z keeps a path
+	// with unusual characters intact, which git would otherwise quote.
+	root, err := GoRepoRoot(ctx, v, g.WorkDir)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := g.prepareCommand(ctx, "ls-tree", "-r", "--name-only", "-z", ref)
+	cmd.SetDir(root)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_ls_tree_names",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrReadTree, err),
+		}
+	}
+
+	paths := make(TreePaths)
+
+	for name := range strings.SplitSeq(strings.TrimSuffix(stdout.String(), "\x00"), "\x00") {
+		if name == "" {
+			continue
+		}
+
+		paths[name] = struct{}{}
+	}
+
+	return paths, nil
 }
 
 // CreateDetachedWorktree creates a new detached worktree for a given reference
 // as a given directory
-func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string) error {
+func (g *GitRunner) CreateDetachedWorktree(
+	ctx context.Context,
+	v *venv.Venv,
+	dir, ref string,
+	checkout WorktreeCheckout,
+) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
 
-	cmd := g.prepareCommand(ctx, "worktree", "add", "--detach", dir, ref)
+	args := []string{
+		"-c", "checkout.workers=" + strconv.Itoa(vfs.FSWorkersFor(v.FS, dir)),
+		"worktree", "add", "--detach",
+	}
+	if checkout == SkipCheckout {
+		args = append(args, "--no-checkout")
+	}
+
+	args = append(args, dir, ref)
+
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
 
 	var stdout, stderr bytes.Buffer
 
@@ -518,6 +617,54 @@ func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string)
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
 			Op:      "git_create_detached_worktree",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	return nil
+}
+
+// CheckoutPaths writes the paths the working directory's HEAD holds into the
+// working directory and stages them in its index. Given pathspecs, only the
+// paths they name are written; without any, the whole tree is. The working
+// directory is expected to be a worktree registered without a checkout, so
+// the checkout fills it rather than switching to another reference. Relative
+// references such as HEAD~1 name the worktree's own HEAD, so the checkout
+// runs against HEAD rather than against the reference the caller holds.
+func (g *GitRunner) CheckoutPaths(
+	ctx context.Context,
+	v *venv.Venv,
+	pathspecs ...string,
+) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	target := []string{"--force", "HEAD"}
+	if len(pathspecs) > 0 {
+		target = append([]string{"HEAD", "--"}, pathspecs...)
+	}
+
+	args := slices.Concat(
+		[]string{
+			"-c",
+			"checkout.workers=" + strconv.Itoa(vfs.FSWorkersFor(v.FS, g.WorkDir)),
+			"checkout",
+		},
+		target,
+	)
+
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_checkout_paths",
 			Context: stderr.String(),
 			Err:     errors.Join(ErrCommandSpawn, err),
 		}
@@ -789,12 +936,9 @@ func (g *GitRunner) GetDefaultBranchRemote(ctx context.Context) (string, error) 
 			continue
 		}
 
-		if strings.HasPrefix(line, "ref:") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 { //nolint:mnd
-				ref := parts[1]
-
-				if after, ok := strings.CutPrefix(ref, "refs/heads/"); ok {
+		if symref, ok := strings.CutPrefix(line, "ref:"); ok {
+			if fields := strings.Fields(symref); len(fields) > 0 {
+				if after, ok := strings.CutPrefix(fields[0], "refs/heads/"); ok {
 					return after, nil
 				}
 			}
@@ -848,29 +992,7 @@ func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
 	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
-		// Older Git versions don't support --show-object-format; default to sha1.
-		return "sha1", nil //nolint:nilerr
-	}
-
-	return strings.TrimSpace(stdout.String()), nil
-}
-
-// runRepoRoot performs the uncached `git rev-parse --show-toplevel`. Use
-// GetRepoRoot for the memoized entry point.
-func (g *GitRunner) runRepoRoot(ctx context.Context) (string, error) {
-	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
-
-	var stdout, stderr bytes.Buffer
-
-	cmd.SetStdout(&stdout)
-	cmd.SetStderr(&stderr)
-
-	if err := cmd.Run(); err != nil {
-		return "", &WrappedError{
-			Op:      "git_rev_parse",
-			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
-		}
+		return "sha1", nil //nolint:nilerr // older Git lacks --show-object-format, and only ever wrote sha1
 	}
 
 	return strings.TrimSpace(stdout.String()), nil
@@ -980,7 +1102,34 @@ func (g *GitRunner) ConfigSet(ctx context.Context, name, value string) error {
 	return nil
 }
 
+// fetch runs `git fetch` with args placed ahead of the remote and refspec.
+func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	args = append(args, "--", repo, ref)
+
+	cmd := g.prepareCommand(ctx, "fetch", args...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      "git_fetch",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrGitFetch, err),
+		}
+	}
+
+	return nil
+}
+
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) vexec.Cmd {
+	ctx = vexec.WithTrustedCommand(ctx)
+
 	cmd := g.exec.Command(ctx, g.GitPath, append([]string{name}, args...)...)
 	cmd.SetEnv(venv.Environ(g.env))
 	cmd.SetCancel(func() error {

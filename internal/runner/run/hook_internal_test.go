@@ -18,7 +18,7 @@ func TestHookErrorMessage_WithStderr(t *testing.T) {
 	var output util.CmdOutput
 	output.Stderr.WriteString("resource missing required tags")
 
-	err := util.ProcessExecutionError{
+	err := &util.ProcessExecutionError{
 		Err:        stubExitErr{code: 2},
 		Command:    "tflint",
 		Args:       []string{"--config", ".tflint.hcl"},
@@ -39,7 +39,7 @@ func TestHookErrorMessage_StdoutFallback(t *testing.T) {
 	var output util.CmdOutput
 	output.Stdout.WriteString("warning: deprecated feature")
 
-	err := util.ProcessExecutionError{
+	err := &util.ProcessExecutionError{
 		Err:        stubExitErr{code: 1},
 		Command:    "custom-lint",
 		Args:       []string{"--fix"},
@@ -57,7 +57,7 @@ func TestHookErrorMessage_StdoutFallback(t *testing.T) {
 func TestHookErrorMessage_NoOutput(t *testing.T) {
 	t.Parallel()
 
-	err := util.ProcessExecutionError{
+	err := &util.ProcessExecutionError{
 		Err:        stubExitErr{code: 3},
 		Command:    "check",
 		Args:       []string{"-strict"},
@@ -76,7 +76,7 @@ func TestHookErrorMessage_TflintWrapped(t *testing.T) {
 	var output util.CmdOutput
 	output.Stderr.WriteString("3 issue(s) found")
 
-	processErr := util.ProcessExecutionError{
+	processErr := &util.ProcessExecutionError{
 		Err:        stubExitErr{code: 2},
 		Command:    "tflint",
 		Args:       []string{"--config", ".tflint.hcl"},
@@ -167,7 +167,7 @@ func FuzzHookErrorMessage(f *testing.F) {
 			output.Stderr.WriteString(stderr)
 			output.Stdout.WriteString(stdout)
 
-			feed = util.ProcessExecutionError{
+			feed = &util.ProcessExecutionError{
 				Err:        stubExitErr{code: exitCode},
 				Command:    command,
 				Args:       args,

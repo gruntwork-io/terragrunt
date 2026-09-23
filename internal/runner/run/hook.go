@@ -136,7 +136,7 @@ func ProcessErrorHooks(
 		errorMessage := e.Error()
 		// Process execution errors carry stdout that hook patterns need to match against.
 		// https://github.com/gruntwork-io/terragrunt/issues/2045
-		if processError, ok := errors.AsType[util.ProcessExecutionError](e); ok {
+		if processError, ok := errors.AsType[*util.ProcessExecutionError](e); ok {
 			errorMessage = fmt.Sprintf(
 				"%s\n%s",
 				processError.Error(),
@@ -198,7 +198,7 @@ func ProcessErrorHooks(
 // hookErrorMessage extracts command, args and output from the error
 // so users see WHY a hook failed, not just the exit code.
 func hookErrorMessage(hookName string, err error) string {
-	var processErr util.ProcessExecutionError
+	var processErr *util.ProcessExecutionError
 	if !errors.As(err, &processErr) {
 		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
 	}

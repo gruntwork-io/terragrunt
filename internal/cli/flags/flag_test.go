@@ -74,6 +74,97 @@ func TestFlag_TakesValue(t *testing.T) {
 	}
 }
 
+// newDeprecatedAliasFlag mirrors the shape of `--no-auto-init`: a negative bool flag
+// whose deprecated alias is a separate flag carrying the opposite sense.
+func newDeprecatedAliasFlag(dest *bool) *flags.Flag {
+	return flags.NewFlag(
+		&clihelper.BoolFlag{
+			Name:        "no-auto-init",
+			EnvVars:     []string{"TG_NO_AUTO_INIT"},
+			Negative:    true,
+			Destination: dest,
+		},
+		flags.WithDeprecatedFlag(&clihelper.BoolFlag{
+			Name:    "terragrunt-auto-init",
+			EnvVars: []string{"TERRAGRUNT_AUTO_INIT"},
+		}, nil, strict.Controls{}),
+	)
+}
+
+// TestFlag_ValueCarriesDeprecatedAlias pins that a value given only by a deprecated
+// alias reaches the flag, and that reading the flag repeatedly does not change it.
+func TestFlag_ValueCarriesDeprecatedAlias(t *testing.T) {
+	t.Parallel()
+
+	dest := new(true)
+	testFlag := newDeprecatedAliasFlag(dest)
+
+	require.NoError(t, testFlag.Parse(nil, map[string]string{"TERRAGRUNT_AUTO_INIT": "false"}))
+
+	assert.Equal(t, false, testFlag.Value().Get())
+	assert.Equal(t, false, testFlag.Value().Get(), "reading the flag again must not change its value")
+	assert.False(t, *dest)
+}
+
+// TestFlag_ValueKeepsExplicitOverDeprecatedAlias pins the precedence between a
+// flag's current name and its deprecated alias: a command-line argument beats an
+// environment variable under either name, and at the same level the current
+// name wins.
+func TestFlag_ValueKeepsExplicitOverDeprecatedAlias(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		env      map[string]string
+		name     string
+		args     []string
+		expected bool
+	}{
+		{
+			name:     "flag argument turns auto-init off, alias env turns it on",
+			args:     []string{"--no-auto-init"},
+			env:      map[string]string{"TERRAGRUNT_AUTO_INIT": "true"},
+			expected: false,
+		},
+		{
+			name:     "flag argument turns auto-init on, alias env turns it off",
+			args:     []string{"--no-auto-init=false"},
+			env:      map[string]string{"TERRAGRUNT_AUTO_INIT": "false"},
+			expected: true,
+		},
+		{
+			name:     "flag argument beats alias argument",
+			args:     []string{"--no-auto-init", "--terragrunt-auto-init=true"},
+			env:      map[string]string{},
+			expected: false,
+		},
+		{
+			name:     "alias argument beats flag env",
+			args:     []string{"--terragrunt-auto-init=true"},
+			env:      map[string]string{"TG_NO_AUTO_INIT": "true"},
+			expected: true,
+		},
+		{
+			name:     "flag env beats alias env",
+			env:      map[string]string{"TG_NO_AUTO_INIT": "true", "TERRAGRUNT_AUTO_INIT": "true"},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dest := new(true)
+			testFlag := newDeprecatedAliasFlag(dest)
+
+			require.NoError(t, testFlag.Parse(tc.args, tc.env))
+
+			assert.Equal(t, tc.expected, testFlag.Value().Get())
+			assert.Equal(t, tc.expected, *dest)
+		})
+	}
+}
+
 func TestFlag_Evaluate(t *testing.T) {
 	t.Parallel()
 

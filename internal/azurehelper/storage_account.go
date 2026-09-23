@@ -31,6 +31,12 @@ const (
 	defaultAccessTier      = "Hot"
 	defaultSoftDeleteDays  = 7
 
+	// defaultMinimumTLSVersion is the minimum TLS version applied to a new
+	// account when the caller does not set one. Azure's own default is TLS1_0,
+	// but TLS1_0 and TLS1_1 are deprecated on Azure services since August 2025,
+	// so Terragrunt provisions accounts with TLS1_2.
+	defaultMinimumTLSVersion = "TLS1_2"
+
 	// maxAccountListPages bounds the subscription account walk in
 	// FindResourceGroupForAccount.
 	maxAccountListPages = 100
@@ -65,6 +71,10 @@ type StorageAccountConfig struct {
 
 	// AccessTier is "Hot" or "Cool". Default: Hot.
 	AccessTier string
+
+	// MinimumTLSVersion is the minimum TLS version permitted on requests to the
+	// account, "TLS1_2" or "TLS1_3". Default: TLS1_2.
+	MinimumTLSVersion string
 
 	// AllowBlobPublicAccess controls whether containers may permit anonymous access.
 	AllowBlobPublicAccess bool
@@ -101,7 +111,10 @@ func NewStorageAccountClient(cfg *AzureConfig) (*StorageAccountClient, error) {
 	}
 
 	if cfg.Credential == nil {
-		return nil, &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "storage account operations"}
+		return nil, &UnsupportedAuthForOpError{
+			Method:    cfg.Method,
+			Operation: "storage account operations",
+		}
 	}
 
 	if cfg.ResourceGroup == "" {
@@ -115,7 +128,11 @@ func NewStorageAccountClient(cfg *AzureConfig) (*StorageAccountClient, error) {
 		return nil, fmt.Errorf("creating armstorage accounts client: %w", err)
 	}
 
-	blobServices, err := armstorage.NewBlobServicesClient(cfg.SubscriptionID, cfg.Credential, armOpts)
+	blobServices, err := armstorage.NewBlobServicesClient(
+		cfg.SubscriptionID,
+		cfg.Credential,
+		armOpts,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("creating armstorage blob services client: %w", err)
 	}
@@ -153,17 +170,33 @@ func (c *StorageAccountClient) Exists(ctx context.Context) (bool, error) {
 // The call blocks until ARM reports the create operation as complete.
 // Blob versioning and soft delete are configured separately via
 // EnableVersioning / EnableSoftDelete after the account exists.
-func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *StorageAccountConfig) error {
+func (c *StorageAccountClient) Create(
+	ctx context.Context,
+	l log.Logger,
+	in *StorageAccountConfig,
+) error {
 	if in == nil {
 		panic(ErrStorageAccountConfigRequired)
 	}
 
 	if in.Name != "" && in.Name != c.accountName {
-		panic(fmt.Errorf("storage account name %q does not match client account name %q", in.Name, c.accountName))
+		panic(
+			fmt.Errorf(
+				"storage account name %q does not match client account name %q",
+				in.Name,
+				c.accountName,
+			),
+		)
 	}
 
 	if in.ResourceGroupName != "" && in.ResourceGroupName != c.resourceGroup {
-		panic(fmt.Errorf("storage account resource group %q does not match client resource group %q", in.ResourceGroupName, c.resourceGroup))
+		panic(
+			fmt.Errorf(
+				"storage account resource group %q does not match client resource group %q",
+				in.ResourceGroupName,
+				c.resourceGroup,
+			),
+		)
 	}
 
 	// location comes from user config, so a missing value is a user error.
@@ -184,6 +217,11 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 		return err
 	}
 
+	minTLSVersion, err := minimumTLSVersionValue(cfg.MinimumTLSVersion)
+	if err != nil {
+		return err
+	}
+
 	params := armstorage.AccountCreateParameters{
 		Kind:     &kind,
 		Location: new(cfg.Location),
@@ -191,11 +229,18 @@ func (c *StorageAccountClient) Create(ctx context.Context, l log.Logger, in *Sto
 		Tags:     stringMapPtr(cfg.Tags),
 		Properties: &armstorage.AccountPropertiesCreateParameters{
 			AccessTier:            accessTier,
+			MinimumTLSVersion:     minTLSVersion,
 			AllowBlobPublicAccess: new(cfg.AllowBlobPublicAccess),
 		},
 	}
 
-	l.Debugf("azurehelper: creating storage account %q in %q (%s, %s)", c.accountName, c.resourceGroup, kind, skuName)
+	l.Debugf(
+		"azurehelper: creating storage account %q in %q (%s, %s)",
+		c.accountName,
+		c.resourceGroup,
+		kind,
+		skuName,
+	)
 
 	poller, err := c.accounts.BeginCreate(ctx, c.resourceGroup, c.accountName, params, nil)
 	if err != nil {
@@ -251,7 +296,13 @@ func (c *StorageAccountClient) updateBlobServiceProperties(
 	// read-only ID/Name/SKU/Type fields that do not belong in a PUT body.
 	update := armstorage.BlobServiceProperties{BlobServiceProperties: inner}
 
-	if _, err := c.blobServices.SetServiceProperties(ctx, c.resourceGroup, c.accountName, update, nil); err != nil {
+	if _, err := c.blobServices.SetServiceProperties(
+		ctx,
+		c.resourceGroup,
+		c.accountName,
+		update,
+		nil,
+	); err != nil {
 		return fmt.Errorf("set blob service properties for %q: %w", c.accountName, err)
 	}
 
@@ -290,7 +341,9 @@ func (c *StorageAccountClient) IsVersioningEnabled(ctx context.Context) (bool, e
 // retention, in days, that EnableSoftDelete configures. A policy that is
 // absent or disabled reports 0 days, so a caller can treat 0 as "off" and
 // compare a non-zero count against the desired retention to detect drift.
-func (c *StorageAccountClient) SoftDeleteRetention(ctx context.Context) (blobDays, containerDays int32, err error) {
+func (c *StorageAccountClient) SoftDeleteRetention(
+	ctx context.Context,
+) (blobDays, containerDays int32, err error) {
 	resp, err := c.blobServices.GetServiceProperties(ctx, c.resourceGroup, c.accountName, nil)
 	if err != nil {
 		return 0, 0, fmt.Errorf("get blob service properties for %q: %w", c.accountName, err)
@@ -319,7 +372,11 @@ func retentionPolicyDays(p *armstorage.DeleteRetentionPolicy) int32 {
 // supplied retention. retentionDays must be 1-365; values outside that
 // range are clamped to defaultSoftDeleteDays and the clamping is logged
 // at WARN so the caller can spot a typo.
-func (c *StorageAccountClient) EnableSoftDelete(ctx context.Context, l log.Logger, retentionDays int) error {
+func (c *StorageAccountClient) EnableSoftDelete(
+	ctx context.Context,
+	l log.Logger,
+	retentionDays int,
+) error {
 	if retentionDays < 1 || retentionDays > 365 {
 		l.Warnf("azurehelper: soft-delete retention %d out of range [1,365] for %q; clamping to %d",
 			retentionDays, c.accountName, defaultSoftDeleteDays)
@@ -327,7 +384,11 @@ func (c *StorageAccountClient) EnableSoftDelete(ctx context.Context, l log.Logge
 		retentionDays = defaultSoftDeleteDays
 	}
 
-	l.Debugf("azurehelper: enabling soft delete on %q (retention=%d days)", c.accountName, retentionDays)
+	l.Debugf(
+		"azurehelper: enabling soft delete on %q (retention=%d days)",
+		c.accountName,
+		retentionDays,
+	)
 
 	days := int32(retentionDays) // bounded to [1,365] above
 
@@ -392,6 +453,10 @@ func (in *StorageAccountConfig) withDefaults() {
 		in.AccessTier = defaultAccessTier
 	}
 
+	if in.MinimumTLSVersion == "" {
+		in.MinimumTLSVersion = defaultMinimumTLSVersion
+	}
+
 	tags := maps.Clone(in.Tags)
 	if tags == nil {
 		tags = make(map[string]string, 1)
@@ -419,6 +484,22 @@ func accessTierValue(s string) (*armstorage.AccessTier, error) {
 		return new(armstorage.AccessTierPremium), nil
 	default:
 		return nil, &UnknownAccessTierError{Tier: s}
+	}
+}
+
+// minimumTLSVersionValue maps a string to the SDK's MinimumTLSVersion enum. An
+// empty input yields the package default (TLS1_2). Only TLS1_2 and TLS1_3 are
+// accepted: TLS1_0 and TLS1_1 are deprecated on Azure services, and
+// minimum_tls_version is user supplied, so any other value returns an
+// UnknownMinimumTLSVersionError.
+func minimumTLSVersionValue(s string) (*armstorage.MinimumTLSVersion, error) {
+	switch s {
+	case "", "TLS1_2":
+		return new(armstorage.MinimumTLSVersionTLS12), nil
+	case "TLS1_3":
+		return new(armstorage.MinimumTLSVersionTLS13), nil
+	default:
+		return nil, &UnknownMinimumTLSVersionError{Version: s}
 	}
 }
 
@@ -454,7 +535,11 @@ func isStatusCode(err error, status int) bool {
 // example integration tests, or a config that omits resource_group_name) do not
 // have to be told the group separately. It needs an ARM-capable credential, so
 // SAS-token and access-key configs cannot use it.
-func FindResourceGroupForAccount(ctx context.Context, cfg *AzureConfig, accountName string) (string, error) {
+func FindResourceGroupForAccount(
+	ctx context.Context,
+	cfg *AzureConfig,
+	accountName string,
+) (string, error) {
 	if accountName == "" {
 		panic(ErrStorageAccountRequired)
 	}
@@ -464,7 +549,10 @@ func FindResourceGroupForAccount(ctx context.Context, cfg *AzureConfig, accountN
 	}
 
 	if cfg.Credential == nil {
-		return "", &UnsupportedAuthForOpError{Method: cfg.Method, Operation: "resource group lookup"}
+		return "", &UnsupportedAuthForOpError{
+			Method:    cfg.Method,
+			Operation: "resource group lookup",
+		}
 	}
 
 	client, err := armstorage.NewAccountsClient(
@@ -494,7 +582,11 @@ func FindResourceGroupForAccount(ctx context.Context, cfg *AzureConfig, accountN
 
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return "", fmt.Errorf("listing storage accounts in subscription %q: %w", cfg.SubscriptionID, err)
+			return "", fmt.Errorf(
+				"listing storage accounts in subscription %q: %w",
+				cfg.SubscriptionID,
+				err,
+			)
 		}
 
 		if id, found := matchAccountID(page.Value, accountName); found {
@@ -507,13 +599,17 @@ func FindResourceGroupForAccount(ctx context.Context, cfg *AzureConfig, accountN
 		}
 	}
 
-	return "", &StorageAccountNotFoundError{Account: accountName, SubscriptionID: cfg.SubscriptionID}
+	return "", &StorageAccountNotFoundError{
+		Account:        accountName,
+		SubscriptionID: cfg.SubscriptionID,
+	}
 }
 
 // matchAccountID returns the ARM resource id of the account named accountName.
 func matchAccountID(accounts []*armstorage.Account, accountName string) (string, bool) {
 	for _, account := range accounts {
-		if account == nil || account.Name == nil || account.ID == nil || *account.Name != accountName {
+		if account == nil || account.Name == nil || account.ID == nil ||
+			*account.Name != accountName {
 			continue
 		}
 

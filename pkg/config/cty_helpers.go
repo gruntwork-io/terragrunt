@@ -1,4 +1,3 @@
-//nolint:dupl
 package config
 
 import (
@@ -45,31 +44,6 @@ func wrapStringSliceToStringAsFuncImpl(
 			}
 
 			return cty.StringVal(out), nil
-		},
-	})
-}
-
-func wrapStringSliceToNumberAsFuncImpl(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (int64, error),
-) function.Function {
-	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type:     function.StaticReturnType(cty.Number),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			params, err := ctySliceToStringSlice(args)
-			if err != nil {
-				return cty.NumberIntVal(0), err
-			}
-
-			out, err := toWrap(ctx, pctx, l, params)
-			if err != nil {
-				return cty.NumberIntVal(0), err
-			}
-
-			return cty.NumberIntVal(out), nil
 		},
 	})
 }

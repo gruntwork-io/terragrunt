@@ -18,9 +18,9 @@ const (
 )
 
 // TestTFRootTerragruntHCLStrictMode uses globally mutated state to determine if strict mode has already
-// been triggered, so we don't run it in parallel.
+// been triggered.
 //
-//nolint:paralleltest,tparallel
+//nolint:paralleltest // strict mode is triggered through global state
 func TestTFRootTerragruntHCLStrictMode(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureFindParentWithDeprecatedRoot)
 
@@ -79,9 +79,9 @@ func TestTFRootTerragruntHCLStrictMode(t *testing.T) {
 }
 
 // TestTFBareIncludeStrictMode uses globally mutated state to determine if strict mode has already
-// been triggered, so we don't run it in parallel.
+// been triggered.
 //
-//nolint:paralleltest,tparallel
+//nolint:paralleltest // strict mode is triggered through global state
 func TestTFBareIncludeStrictMode(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStrictBareInclude)
 

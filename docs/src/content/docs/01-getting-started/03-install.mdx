@@ -7,7 +7,6 @@ sidebar:
 ---
 
 import InstallTabs from '@components/InstallTabs.astro'
-import Before from '@components/Before.astro'
 import { Aside, Code, Tabs, TabItem } from '@astrojs/starlight/components'
 import { getLatestRelease } from '@lib/github';
 export const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
@@ -103,12 +102,6 @@ cosign verify-blob SHA256SUMS \
 ```
 
 ### Verifying releases with the GitHub CLI
-
-<Before version="1.1.0">
-<Aside type="note" title="Coming in v1.1.0">
-  Terragrunt adopts immutable releases starting with `v1.1.0`. The verification below will be supported once `v1.1.0` is published.
-</Aside>
-</Before>
 
 Terragrunt releases starting with `v1.1.0` are published as [immutable releases](/process/releases#immutable-releases), and each one includes a release attestation: a signed record binding the release tag, commit SHA, and asset digests. The [GitHub CLI](https://cli.github.com/) (version 2.81.0 or later) can check a release and your downloaded files against that attestation.
 
@@ -408,6 +401,41 @@ terragrunt --install-autocomplete
 ```
 
 Once the autocomplete support is installed, you will need to restart your shell.
+
+## Terragrunt MCP docs server
+
+<Aside type="caution" title="Public beta">
+  The MCP docs server is in public beta. It has no availability guarantee and might change significantly in the future.
+</Aside>
+
+If you use an AI coding assistant that speaks MCP, Terragrunt publishes a read-only MCP server at [mcp.docs.terragrunt.com](https://mcp.docs.terragrunt.com) that answers Terragrunt questions from the official docs, the CLI reference, a curated design-pattern library, and real example config. The server is public and needs no authentication.
+
+It indexes the docs at specific releases, and can answer questions in the context of a specific release from v0.80 onward, so an AI agent can answer questions based on the version you actually run.
+
+<Tabs>
+  <TabItem label="Claude Code">
+    Install it for every project you work on:
+
+    ```bash
+    claude mcp add -s user --transport http terragrunt-docs https://mcp.docs.terragrunt.com/mcp
+    ```
+
+    Drop `-s user` to install it for the current directory only, or use `-s project` to write a `.mcp.json` to the repo root that everyone who clones the repo gets.
+  </TabItem>
+  <TabItem label="Cursor and other MCP clients">
+    Add the server to your client's `mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "terragrunt-docs": { "url": "https://mcp.docs.terragrunt.com/mcp" }
+      }
+    }
+    ```
+
+    Cursor reads this from `.cursor/mcp.json` in the project or `~/.cursor/mcp.json` globally.
+  </TabItem>
+</Tabs>
 
 ## Uninstall
 

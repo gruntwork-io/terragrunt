@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
-
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
@@ -24,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -52,7 +51,6 @@ func TestTFDetailedExitCodeError(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.Error(t, err)
@@ -97,7 +95,6 @@ func TestTFDetailedExitCodeChangesPresentAll(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
@@ -117,7 +114,6 @@ func TestTFDetailedExitCodeChangesUnit(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply",
 	)
 	require.NoError(t, err)
@@ -137,7 +133,6 @@ func TestTFDetailedExitCodeChangesUnit(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
@@ -160,7 +155,6 @@ func TestTFDetailedExitCodeFailOnFirstRun(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+filepath.Join(
 			tmpEnvPath,
 			testFixturePath,
@@ -186,7 +180,6 @@ func TestTFDetailedExitCodeFailOnFirstRunWithStatus(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --working-dir "+filepath.Join(
 			tmpEnvPath,
 			testFixturePath,
@@ -212,7 +205,6 @@ func TestTFDetailedExitCodeFailOnFirstRunAllWithStatus(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --working-dir "+filepath.Join(
 			tmpEnvPath,
 			testFixturePath,
@@ -248,7 +240,6 @@ func TestTFDetailedExitCodeChangesPresentOne(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
@@ -278,7 +269,6 @@ func TestTFDetailedExitCodeNoChanges(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
@@ -313,7 +303,7 @@ func TestTFRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
-		t, ctx, venv.OSVenv(),
+		t, ctx,
 		"terragrunt run --all --non-interactive --working-dir "+
 			rootPath+
 			" -- plan -detailed-exitcode",
@@ -342,7 +332,6 @@ func TestTFDetailedExitCodeChangesPresentAllWithSource(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
-		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
@@ -861,8 +850,8 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 			)
 
 			providers := []string{
-				"hashicorp/null/3.2.3",
-				"hashicorp/local/2.5.2",
+				"hashicorp/null/3.2.4",
+				"hashicorp/local/2.6.1",
 			}
 
 			registryName := "registry.opentofu.org"
@@ -1193,9 +1182,7 @@ func TestTFTerraformSubcommandCliArgs(t *testing.T) {
 		// Call helpers.RunTerragruntCommand directly because this command
 		// contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-		if err == nil {
-			t.Fatalf("Failed to properly fail command: %v.", cmd)
-		}
+		require.Error(t, err, "Failed to properly fail command: %v.", cmd)
 
 		assert.True(
 			t,
@@ -1373,9 +1360,7 @@ func TestTFTerragruntExcludeExternalDependencies(t *testing.T) {
 
 	applyAllStdoutString := applyAllStdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	assert.Contains(t, applyAllStdoutString, "Hello World, "+includedModule)
 	assert.NotContains(t, applyAllStdoutString, "Hello World, "+excludedModule)
@@ -3768,10 +3753,9 @@ func TestTFTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
-// This function cannot be parallelized as it changes the global version.Version
-//
-//nolint:paralleltest
 func TestTFTerragruntValidateAllWithVersionChecks(t *testing.T) {
+	t.Parallel()
+
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/version-check")
 
 	stdout := bytes.Buffer{}
@@ -3805,12 +3789,9 @@ func TestTFTerragruntIncludeParentHclFile(t *testing.T) {
 	assert.Contains(t, stderr, "common_hcl")
 }
 
-// The tests here cannot be parallelized.
-// This is due to a race condition brought about by overriding `version.Version` in
-// runTerragruntVersionCommand
-//
-//nolint:paralleltest,funlen
 func TestTFTerragruntVersionConstraints(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name                 string
 		terragruntVersion    string
@@ -3861,8 +3842,10 @@ func TestTFTerragruntVersionConstraints(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases { //nolint:paralleltest
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_constraints")
 
@@ -3908,7 +3891,7 @@ func TestTFReadTerragruntAuthProviderCmd(t *testing.T) {
 	appPath := filepath.Join(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	helpers.RunTerragrunt(
 		t,
@@ -3982,7 +3965,7 @@ func TestTFReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
@@ -4042,7 +4025,7 @@ func TestTFNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
@@ -4105,10 +4088,9 @@ func TestTFIamRolesLoadingFromDifferentModules(t *testing.T) {
 	assert.NotEmptyf(t, component2, "Missing role for component 2")
 }
 
-// This function cannot be parallelized as it changes the global version.Version
-//
-//nolint:paralleltest
 func TestTFTerragruntVersionConstraintsPartialParse(t *testing.T) {
+	t.Parallel()
+
 	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
 	helpers.CleanupTerragruntFolder(t, fixturePath)
 
@@ -4358,7 +4340,9 @@ func TestTFExplainingMissingCredentials(t *testing.T) {
 	// no parallel because we need to set env vars
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/tmp/not-existing-creds-46521694")
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
 	initTestCase := filepath.Join(tmpEnvPath, testFixtureInitError)
@@ -4443,9 +4427,12 @@ func TestTFInitSkipCache(t *testing.T) {
 
 	// verify that after adding new file, init is executed
 	tfFile := filepath.Join(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
-	if err := os.WriteFile(tfFile, []byte(""), 0o644); err != nil {
-		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
-	}
+	require.NoError(
+		t,
+		os.WriteFile(tfFile, []byte(""), 0o644),
+		"Error writing new Terraform file to %s",
+		tfFile,
+	)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,

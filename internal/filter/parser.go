@@ -209,6 +209,10 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		switch p.curToken.Type {
 		case PIPE:
 			leftExpr = p.parseInfixExpression(leftExpr)
+
+			if leftExpr == nil {
+				return nil
+			}
 		case ILLEGAL,
 			EOF,
 			IDENT,
@@ -314,7 +318,12 @@ func (p *Parser) parseBoundaryOperand() (string, bool) {
 	p.nextToken() // consume '('
 
 	if p.curToken.Type == RPAREN {
-		p.addErrorWithCode(ErrorCodeEmptyExpression, "Empty boundary", "A graph boundary '()' cannot be empty")
+		p.addErrorWithCode(
+			ErrorCodeEmptyExpression,
+			"Empty boundary",
+			"A graph boundary '()' cannot be empty",
+		)
+
 		return "", false
 	}
 

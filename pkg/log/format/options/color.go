@@ -10,7 +10,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/puzpuzpuz/xsync/v4"
 )
 
 //go:generate go run ./colorgen
@@ -44,7 +43,7 @@ const (
 )
 
 var (
-	colorList = NewColorList(map[ColorValue]string{ //nolint:gochecknoglobals
+	colorList = NewColorList(map[ColorValue]string{
 		PresetColor:   "preset",
 		GradientColor: "gradient",
 		DisableColor:  "disable",
@@ -68,7 +67,7 @@ var (
 		LightWhiteColor:   "light-white",
 	})
 
-	colorScheme = ColorScheme{ //nolint:gochecknoglobals
+	colorScheme = ColorScheme{
 		BlackColor:        "black",
 		RedColor:          "red",
 		WhiteColor:        "white",
@@ -157,7 +156,7 @@ const (
 
 // ansiBaseColors maps the historical color names accepted by this package to
 // their corresponding ANSI palette index.
-var ansiBaseColors = map[string]int{ //nolint:gochecknoglobals
+var ansiBaseColors = map[string]int{
 	"black":   ansiBlack,
 	"red":     ansiRed,
 	"green":   ansiGreen,
@@ -321,7 +320,7 @@ var (
 	// sequentially to each unique text in a rotating order
 	// https://user-images.githubusercontent.com/995050/47952855-ecb12480-df75-11e8-89d4-ac26c50e80b9.png
 	// https://www.hackitu.de/termcolor256/
-	defaultAutoColorValues = []ColorValue{ //nolint:gochecknoglobals
+	defaultAutoColorValues = []ColorValue{
 		66,
 		67,
 		95,
@@ -339,9 +338,7 @@ var (
 
 type gradientColor struct {
 	// cache stores unique text with their color code.
-	// We use [xsync.Map](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
-	// instead of standard `sync.Map` since it's faster and has generic types.
-	cache  *xsync.Map[string, ColorValue]
+	cache  map[string]ColorValue
 	values []ColorValue
 	mu     sync.Mutex
 
@@ -351,7 +348,7 @@ type gradientColor struct {
 
 func newGradientColor() *gradientColor {
 	return &gradientColor{
-		cache:  xsync.NewMap[string, ColorValue](),
+		cache:  make(map[string]ColorValue),
 		values: defaultAutoColorValues,
 	}
 }
@@ -360,7 +357,7 @@ func (color *gradientColor) Value(text string) ColorValue {
 	color.mu.Lock()
 	defer color.mu.Unlock()
 
-	if colorCode, ok := color.cache.Load(text); ok {
+	if colorCode, ok := color.cache[text]; ok {
 		return colorCode
 	}
 
@@ -370,7 +367,7 @@ func (color *gradientColor) Value(text string) ColorValue {
 
 	colorCode := color.values[color.nextStyleIndex]
 
-	color.cache.Store(text, colorCode)
+	color.cache[text] = colorCode
 
 	color.nextStyleIndex++
 

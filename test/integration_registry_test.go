@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -71,14 +70,14 @@ func TestTFTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt run --non-interactive --experiment version-attribute --working-dir "+rootPath+" -- apply -auto-approve",
+		"terragrunt run --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
 	)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(
 		t,
-		"terragrunt run --non-interactive --experiment version-attribute --working-dir "+rootPath+" -- output -no-color -json",
+		"terragrunt run --non-interactive --working-dir "+rootPath+" -- output -no-color -json",
 		&stdout,
 		&stderr,
 	)
@@ -146,7 +145,7 @@ func TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *test
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt run --all --non-interactive --experiment version-attribute --working-dir "+rootPath+" -- apply -auto-approve",
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
 	)
 
 	l := logger.CreateLogger()
@@ -173,36 +172,6 @@ func TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *test
 	}
 }
 
-// TestTFTerraformRegistryVersionConstraintRequiresExperiment pins the typed
-// error returned when the terraform block sets the version attribute but the
-// version-attribute experiment is not enabled.
-func TestTFTerraformRegistryVersionConstraintRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, so the experiment-disabled error this test pins cannot occur")
-	}
-
-	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintModulePath)
-	helpers.CleanupTerraformFolder(t, modPath)
-	tmpEnvPath := helpers.CopyEnvironment(t, modPath)
-	rootPath := filepath.Join(tmpEnvPath, modPath)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
-		t,
-		"terragrunt plan --non-interactive --working-dir "+rootPath,
-		&stdout,
-		&stderr,
-	)
-	require.Error(t, err)
-
-	var expectedErr config.VersionAttributeRequiresExperimentError
-
-	assert.ErrorAs(t, err, &expectedErr)
-}
-
 // TestTFTerraformRegistryVersionConstraintNoMatchingVersion pins the typed
 // error returned at download time when the registry publishes versions but
 // none satisfy the configured constraint.
@@ -218,7 +187,7 @@ func TestTFTerraformRegistryVersionConstraintNoMatchingVersion(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(
 		t,
-		"terragrunt plan --non-interactive --experiment version-attribute --working-dir "+rootPath,
+		"terragrunt plan --non-interactive --working-dir "+rootPath,
 		&stdout,
 		&stderr,
 	)
@@ -231,8 +200,7 @@ func TestTFTerraformRegistryVersionConstraintNoMatchingVersion(t *testing.T) {
 
 // TestTFTerraformRegistryVersionConstraintInQueryRejected pins the typed error
 // returned when a tfr:// source carries a version constraint in its ?version=
-// query, which accepts an exact version only. The guard is active without the
-// version-attribute experiment, since such a source was never valid.
+// query, which accepts an exact version only.
 func TestTFTerraformRegistryVersionConstraintInQueryRejected(t *testing.T) {
 	t.Parallel()
 

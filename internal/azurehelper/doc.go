@@ -16,6 +16,5 @@
 //     See storage_account.go (EnableSoftDelete, EnableVersioning).
 //
 // Backend bootstrap/delete/migrate orchestration lives in
-// internal/remotestate/backend/azurerm, which consumes this package. See
-// docs/src/data/experiments/azure-backend.mdx for the experiment status.
+// internal/remotestate/backend/azurerm, which consumes this package.
 package azurehelper

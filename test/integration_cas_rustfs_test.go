@@ -33,8 +33,10 @@ import (
 // against an in-Docker RustFS instance: a second CASGetter request for
 // the same object skips the download when HeadObject reports the same
 // version metadata.
-func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: paralleltest // setupRustFSForCAS calls t.Setenv, which bars t.Parallel.
-	endpoint := setupRustFSForCAS(t)
+func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) {
+	t.Parallel()
+
+	endpoint, v := setupRustFSForCAS(t)
 
 	bucket := "cas-test-" + strings.ToLower(helpers.UniqueID())
 	key := "modules/example.tar.gz"
@@ -51,8 +53,6 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: parallelt
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
-
-	v := venv.OSVenv()
 
 	resolvers := tggetter.DefaultSourceResolvers(v)
 	resolvers[tggetter.SchemeS3] = newRustFSS3Resolver(t, endpoint)
@@ -91,10 +91,10 @@ func TestCAS_S3_RustFS_ProbeAvoidsRedownload(t *testing.T) { //nolint: parallelt
 	require.FileExists(t, filepath.Join(second, "main.tf"))
 }
 
-// setupRustFSForCAS spins up the same RustFS container the existing
-// integration tests use and exports the AWS_* env vars the SDK config
-// chain reads.
-func setupRustFSForCAS(t *testing.T) string {
+// setupRustFSForCAS spins up the same RustFS container the existing integration
+// tests use, and returns its address and a venv with the RustFS credentials in
+// its environment.
+func setupRustFSForCAS(t *testing.T) (string, *venv.Venv) {
 	t.Helper()
 
 	_, addr := helpers.RunContainer(
@@ -105,11 +105,7 @@ func setupRustFSForCAS(t *testing.T) string {
 		testcontainers.WithWaitStrategy(wait.ForLog("Starting:")),
 	)
 
-	t.Setenv("AWS_ACCESS_KEY_ID", "rustfsadmin")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "rustfsadmin")
-	t.Setenv("AWS_DEFAULT_REGION", "us-east-1")
-
-	return addr
+	return addr, rustfsVenv()
 }
 
 func newRustFSClient(t *testing.T, endpoint string) *s3.Client {
@@ -214,8 +210,10 @@ func rustfsSourceURL(t *testing.T, endpoint, bucket, key string) string {
 // The single-object test above resolves to ModeFile and never reaches
 // S3Getter.Get, so this is what covers the paginated listing and the
 // key-to-path mapping.
-func TestS3PrefixDownloadReproducesLayout(t *testing.T) { //nolint: paralleltest // setupRustFSForCAS calls t.Setenv, which bars t.Parallel.
-	endpoint := setupRustFSForCAS(t)
+func TestS3PrefixDownloadReproducesLayout(t *testing.T) {
+	t.Parallel()
+
+	endpoint, v := setupRustFSForCAS(t)
 
 	bucket := "prefix-test-" + strings.ToLower(helpers.UniqueID())
 	prefix := "modules/vpc"
@@ -238,10 +236,9 @@ func TestS3PrefixDownloadReproducesLayout(t *testing.T) { //nolint: paralleltest
 	// must stay out of the download.
 	uploadRustFSObject(t, s3Client, bucket, prefix+"-sibling.tf", []byte("# excluded"))
 
-	v := venv.OSVenv()
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "module")
 
-	_, err := tggetter.NewClient(v).Get(t.Context(), &tggetter.Request{
+	_, err := tggetter.NewClient(logger.CreateLogger(), v).Get(t.Context(), &tggetter.Request{
 		Src:     rustfsSourceURL(t, endpoint, bucket, prefix),
 		Dst:     dst,
 		GetMode: tggetter.ModeAny,

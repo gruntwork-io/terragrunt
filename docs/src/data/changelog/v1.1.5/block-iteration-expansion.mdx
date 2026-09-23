@@ -1,0 +1,32 @@
+---
+version: "v1.1.5"
+category: "experiments-updated"
+---
+
+#### `expansion` blocks now iterate `dependency`, `unit`, and `stack` blocks
+
+With the [`block-iteration`](/reference/experiments/active#block-iteration) experiment enabled, a `dependency`, `unit`, or `stack` block can have an `expansion` block declaring a `count` or a `for_each`. Terragrunt reads the block once per element, producing one dependency, unit, or stack for each:
+
+```hcl
+# terragrunt.stack.hcl
+unit "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  source = "../units/app"
+  path   = "aurora/${each.key}"
+
+  values = {
+    role = each.key
+  }
+}
+```
+
+You address each element by its key. An expanded dependency is read as `dependency.aurora["web"].outputs.id`, and `terragrunt stack output 'aurora["web"].role'` reaches one element of an expanded unit.
+
+Adding an expansion to a block that did not have one therefore changes its address, and shrinking a `for_each` or lowering a `count` removes addresses. Terragrunt has no `moved` equivalent, so nothing records the rename for you: references and `stack output` scripts need updating by hand, and state left behind at an address that no longer exists has to be destroyed deliberately.
+
+The experiment also enables an `enabled` attribute on `unit` and `stack` blocks. Setting it to `false` drops the component from stack generation and from `terragrunt stack output`, and leaves every other address alone. `dependency` blocks accept `enabled` without the experiment.
+
+See the [`expansion` block reference](/reference/hcl/blocks#expansion) for the rules, the addressing scheme, and how to clean up state left behind when an expansion shrinks.

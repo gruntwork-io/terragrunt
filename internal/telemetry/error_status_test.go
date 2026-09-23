@@ -52,7 +52,7 @@ func TestTraceSetsErrorStatusAndType(t *testing.T) {
 
 	other := semconv.ErrorTypeOther.Value.AsString()
 
-	tofuFailed := util.ProcessExecutionError{Err: errors.New("exit status 1"), Command: "tofu", Args: []string{"plan"}}
+	tofuFailed := &util.ProcessExecutionError{Err: errors.New("exit status 1"), Command: "tofu", Args: []string{"plan"}}
 	parseFailed := hcl.Diagnostics{{Severity: hcl.DiagError, Summary: "Missing expression"}}
 
 	tests := []struct {

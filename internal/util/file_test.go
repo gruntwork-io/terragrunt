@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -61,7 +62,7 @@ func TestCanonicalPath(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(
 				t,
-				tc.expected,
+				filepath.FromSlash(tc.expected),
 				actual,
 				"For path %s and basePath %s",
 				tc.path,
@@ -578,7 +579,7 @@ func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "exceeded 100000 manifests")
-	assert.Contains(t, err.Error(), root)
+	assert.Contains(t, err.Error(), strconv.Quote(root))
 }
 
 func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
@@ -602,7 +603,92 @@ func TestFileManifestCleanRejectsTooManyEntries(t *testing.T) {
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "entry cap")
-	assert.Contains(t, err.Error(), root)
+	assert.Contains(t, err.Error(), strconv.Quote(manifestPath))
+}
+
+// TestCopyFolderContentsSkipsSourceManifest pins that a source carrying the
+// manifest of an earlier copy does not have it copied over the manifest this
+// copy writes.
+func TestCopyFolderContentsSkipsSourceManifest(t *testing.T) {
+	t.Parallel()
+
+	acceptAll := func(string) bool { return true }
+
+	testCases := []struct {
+		copy func(l tglog.Logger, src, dst string) error
+		name string
+	}{
+		{
+			name: "filtered copy",
+			copy: func(l tglog.Logger, src, dst string) error {
+				return util.CopyFolderContentsWithFilter(
+					l,
+					vfs.NewOSFS(),
+					src,
+					dst,
+					testManifestName,
+					acceptAll,
+				)
+			},
+		},
+		{
+			name: "fast copy with an include matching the manifest",
+			copy: func(l tglog.Logger, src, dst string) error {
+				return util.CopyFolderContents(
+					l, vfs.NewOSFS(), src, dst, testManifestName,
+					util.WithFastCopy(), util.WithIncludeInCopy(".*"),
+				)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := t.TempDir()
+			dst := t.TempDir()
+
+			require.NoError(t, os.WriteFile(filepath.Join(src, "main.tf"), []byte("x"), 0o644))
+			writeManifest(t, filepath.Join(src, testManifestName), filepath.Join(src, "stale.tf"))
+
+			require.NoError(t, tc.copy(logger.CreateLogger(), src, dst))
+
+			assert.Equal(
+				t,
+				[]manifestTestEntry{manifestFile(filepath.Join(dst, "main.tf"))},
+				readManifest(t, filepath.Join(dst, testManifestName)),
+			)
+		})
+	}
+}
+
+// readManifest decodes every entry of the manifest at path.
+func readManifest(t *testing.T, path string) []manifestTestEntry {
+	t.Helper()
+
+	f, err := os.Open(path)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	decoder := gob.NewDecoder(f)
+	entries := []manifestTestEntry{}
+
+	for {
+		var entry manifestTestEntry
+
+		err := decoder.Decode(&entry)
+		if errors.Is(err, io.EOF) {
+			return entries
+		}
+
+		require.NoError(t, err)
+
+		entries = append(entries, entry)
+	}
 }
 
 func writeManifest(t *testing.T, path string, paths ...string) {
@@ -1125,7 +1211,7 @@ func Test_sanitizePath(t *testing.T) {
 		{
 			name:    "file is just a slash",
 			baseDir: "./testdata/fixture-sanitize-path/env/unit",
-			file:    "/",
+			file:    helpers.RootFolder,
 			want:    "",
 			wantErr: true,
 		},
@@ -1139,7 +1225,7 @@ func Test_sanitizePath(t *testing.T) {
 		{
 			name:    "encoded characters",
 			baseDir: "./testdata/fixture-sanitize-path/env/unit",
-			file:    "..%2F..%2Fetc%2Fpasswd",
+			file:    "..%2F..%2Foutside",
 			want:    "",
 			wantErr: true,
 		},
@@ -1157,7 +1243,14 @@ func Test_sanitizePath(t *testing.T) {
 
 			require.NoError(t, err)
 
-			assert.Equalf(t, tt.want, got, "sanitizePath(%v, %v)", tt.baseDir, tt.file)
+			assert.Equalf(
+				t,
+				filepath.FromSlash(tt.want),
+				got,
+				"sanitizePath(%v, %v)",
+				tt.baseDir,
+				tt.file,
+			)
 		})
 	}
 }
@@ -1567,3 +1660,238 @@ func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
 
 func BenchmarkCopyFolderContents_Slow(b *testing.B) { benchmarkCopyFolderContents(b, false) }
 func BenchmarkCopyFolderContents_Fast(b *testing.B) { benchmarkCopyFolderContents(b, true) }
+
+// TestIncludeInCopySymlinkedDirectory reproduces issue #6791: with the
+// symlinks experiment on, the contents of a symlinked directory named in
+// include_in_copy must land in the destination; without it, the slow path
+// keeps the pre-experiment behavior.
+func TestIncludeInCopySymlinkedDirectory(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range []struct {
+		name            string
+		copyOpts        []util.CopyOption
+		contentExpected bool
+	}{
+		{name: "slow-default", contentExpected: false},
+		{
+			name:            "slow-symlinks-experiment",
+			copyOpts:        []util.CopyOption{util.WithSymlinkedGlobRoots()},
+			contentExpected: true,
+		},
+		// The fast-copy walk always follows symlinks, so the experiment is moot there.
+		{
+			name:            "fast",
+			copyOpts:        []util.CopyOption{util.WithFastCopy()},
+			contentExpected: true,
+		},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			tempDir := helpers.TmpDirWOSymlinks(t)
+
+			// The link target lives outside the copied source, like the issue's /tmp dir.
+			target := filepath.Join(tempDir, "important-target")
+			require.NoError(t, os.MkdirAll(filepath.Join(target, "sub"), os.ModePerm))
+			require.NoError(t, os.WriteFile(filepath.Join(target, "stuff1"), []byte("yay"), 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join(target, "sub", "stuff2"), []byte("yay"), 0o644))
+
+			source := filepath.Join(tempDir, "source")
+			require.NoError(t, os.MkdirAll(source, os.ModePerm))
+			require.NoError(t, os.WriteFile(filepath.Join(source, "main.tf"), []byte("# main"), 0o644))
+
+			require.NoError(t, os.Symlink(target, filepath.Join(source, ".important_stuff")))
+
+			destination := filepath.Join(tempDir, "destination")
+
+			copyOpts := append(
+				[]util.CopyOption{util.WithIncludeInCopy(".important_stuff")},
+				mode.copyOpts...,
+			)
+
+			require.NoError(
+				t,
+				util.CopyFolderContents(
+					logger.CreateLogger(),
+					vfs.NewOSFS(),
+					source,
+					destination,
+					".terragrunt-test",
+					copyOpts...,
+				),
+			)
+
+			assert.FileExists(t, filepath.Join(destination, "main.tf"))
+
+			if !mode.contentExpected {
+				assert.NoFileExists(t, filepath.Join(destination, ".important_stuff", "stuff1"))
+				assert.NoFileExists(t, filepath.Join(destination, ".important_stuff", "sub", "stuff2"))
+
+				return
+			}
+
+			assert.FileExists(t, filepath.Join(destination, ".important_stuff", "stuff1"))
+			assert.FileExists(t, filepath.Join(destination, ".important_stuff", "sub", "stuff2"))
+		})
+	}
+}
+
+// TestExcludeFromCopySymlinkedDirectory pins the exclude_from_copy half of
+// issue #6791: with the symlinks experiment on, a glob rooted at a symlinked
+// directory must exclude its matches; without it, the slow path keeps the
+// pre-experiment behavior of excluding nothing.
+func TestExcludeFromCopySymlinkedDirectory(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range []struct {
+		name            string
+		copyOpts        []util.CopyOption
+		excludeExpected bool
+	}{
+		{name: "slow-default", excludeExpected: false},
+		{
+			name:            "slow-symlinks-experiment",
+			copyOpts:        []util.CopyOption{util.WithSymlinkedGlobRoots()},
+			excludeExpected: true,
+		},
+		{
+			name:            "fast",
+			copyOpts:        []util.CopyOption{util.WithFastCopy()},
+			excludeExpected: true,
+		},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			tempDir := helpers.TmpDirWOSymlinks(t)
+
+			target := filepath.Join(tempDir, "linked-target")
+			require.NoError(t, os.MkdirAll(target, os.ModePerm))
+			require.NoError(t, os.WriteFile(filepath.Join(target, "a.txt"), []byte("skip"), 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join(target, "b.md"), []byte("keep"), 0o644))
+
+			source := filepath.Join(tempDir, "source")
+			require.NoError(t, os.MkdirAll(source, os.ModePerm))
+			require.NoError(t, os.WriteFile(filepath.Join(source, "main.tf"), []byte("# main"), 0o644))
+
+			// A visible symlinked directory is copied by default, so only the exclusion is under test.
+			require.NoError(t, os.Symlink(target, filepath.Join(source, "linked_stuff")))
+
+			destination := filepath.Join(tempDir, "destination")
+
+			copyOpts := append(
+				[]util.CopyOption{util.WithExcludeFromCopy("linked_stuff/*.txt")},
+				mode.copyOpts...,
+			)
+
+			require.NoError(
+				t,
+				util.CopyFolderContents(
+					logger.CreateLogger(),
+					vfs.NewOSFS(),
+					source,
+					destination,
+					".terragrunt-test",
+					copyOpts...,
+				),
+			)
+
+			assert.FileExists(t, filepath.Join(destination, "main.tf"))
+			assert.FileExists(t, filepath.Join(destination, "linked_stuff", "b.md"))
+
+			if mode.excludeExpected {
+				assert.NoFileExists(t, filepath.Join(destination, "linked_stuff", "a.txt"))
+
+				return
+			}
+
+			assert.FileExists(t, filepath.Join(destination, "linked_stuff", "a.txt"))
+		})
+	}
+}
+
+// TestIncludeInCopySymlinkLoop pins that, with the symlinks experiment on, an
+// include_in_copy entry that links back at a directory already being copied
+// is skipped with a warning instead of being followed again (issue #6791).
+func TestIncludeInCopySymlinkLoop(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		pattern string
+		// link creates the loop under source, using outside for a hop outside source.
+		link func(t *testing.T, source, outside string)
+		// wantWarning is the warning the copy must log for the skipped link.
+		wantWarning string
+		// absent is the destination path, relative to it, that the skipped link must not produce.
+		absent string
+	}{
+		{
+			name:    "link to the source itself",
+			pattern: ".loop",
+			link: func(t *testing.T, source, _ string) {
+				t.Helper()
+				require.NoError(t, os.Symlink(source, filepath.Join(source, ".loop")))
+			},
+			wantWarning: "links back to",
+			absent:      ".loop",
+		},
+		{
+			name:    "pattern rooted at a link to the source itself",
+			pattern: ".loop/*",
+			link: func(t *testing.T, source, _ string) {
+				t.Helper()
+				require.NoError(t, os.Symlink(source, filepath.Join(source, ".loop")))
+			},
+			wantWarning: "Skipping copy pattern",
+			absent:      ".loop",
+		},
+		{
+			name:    "link back through a directory outside the source",
+			pattern: ".loop",
+			link: func(t *testing.T, source, outside string) {
+				t.Helper()
+				require.NoError(t, os.Symlink(source, filepath.Join(outside, "back")))
+				require.NoError(t, os.Symlink(outside, filepath.Join(source, ".loop")))
+			},
+			wantWarning: "links back to",
+			absent:      filepath.Join(".loop", "back"),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tempDir := helpers.TmpDirWOSymlinks(t)
+
+			source := filepath.Join(tempDir, "source")
+			require.NoError(t, os.MkdirAll(source, os.ModePerm))
+			require.NoError(t, os.WriteFile(filepath.Join(source, "main.tf"), []byte("# main"), 0o644))
+
+			outside := filepath.Join(tempDir, "outside")
+			require.NoError(t, os.MkdirAll(outside, os.ModePerm))
+
+			tc.link(t, source, outside)
+
+			destination := filepath.Join(tempDir, "destination")
+			l, logs := createBufferedLogger()
+
+			require.NoError(
+				t,
+				util.CopyFolderContents(
+					l,
+					vfs.NewOSFS(),
+					source,
+					destination,
+					".terragrunt-test",
+					util.WithIncludeInCopy(tc.pattern),
+					util.WithSymlinkedGlobRoots(),
+				),
+			)
+
+			assert.FileExists(t, filepath.Join(destination, "main.tf"))
+			assert.NoDirExists(t, filepath.Join(destination, tc.absent))
+			assert.Contains(t, logs.String(), tc.wantWarning)
+		})
+	}
+}

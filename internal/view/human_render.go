@@ -23,7 +23,6 @@ const (
 	ansiReset = "\x1b[0m"
 )
 
-//nolint:gochecknoglobals
 var (
 	redStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	yellowStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
@@ -112,8 +111,7 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 		leftRuleWidth                            int // in visual character cells
 	)
 
-	// TODO: Remove lint suppression
-	switch hcl.DiagnosticSeverity(diag.Severity) { //nolint:exhaustive
+	switch hcl.DiagnosticSeverity(diag.Severity) {
 	case hcl.DiagError:
 		buf.WriteString(render.styled(&boldRedStyle, "Error: "))
 		leftRuleLine = render.styled(&redStyle, "│") + " "
@@ -126,6 +124,8 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 		leftRuleStart = render.styled(&yellowStyle, "╷")
 		leftRuleEnd = render.styled(&yellowStyle, "╵")
 		leftRuleWidth = 2
+	case hcl.DiagInvalid:
+		fallthrough
 	default:
 		// Clear out any coloring that might be applied by Terraform's UI helper,
 		// so our result is not context-sensitive.

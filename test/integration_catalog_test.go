@@ -361,9 +361,9 @@ func TestCatalogDiscoveryWithIgnoreFiles(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-// TestCatalogNonTTYFailsFast verifies that running the catalog command
-// without an interactive terminal exits with the friendly typed error
-// instead of bubbletea's raw TTY failure.
+// TestCatalogNonTTYFailsFast verifies that requesting the catalog TUI without
+// an interactive terminal exits with the friendly typed error instead of
+// bubbletea's raw TTY failure.
 //
 // The guard mirrors the command's own TTY probe: when the test environment
 // has a controlling terminal (a developer's shell), the command would
@@ -389,10 +389,37 @@ func TestCatalogNonTTYFailsFast(t *testing.T) {
 	workDir := t.TempDir()
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --working-dir "+workDir)
+		"terragrunt catalog --format tui --working-dir "+workDir)
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, viewtui.ErrNoTerminal)
+}
+
+// TestCatalogDefaultsToJSONLWithoutATerminal runs the catalog with no --format
+// and checks that it writes JSON Lines instead of opening the TUI. Where stdin
+// and stdout are both terminals, the command would launch the real TUI and
+// block, so the test only runs where one of them is not (e.g. CI runners).
+func TestCatalogDefaultsToJSONLWithoutATerminal(t *testing.T) {
+	t.Parallel()
+
+	if term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())) {
+		t.Skip("stdin and stdout are terminals; the catalog TUI would launch for real")
+	}
+
+	workDir := catalogFixture(t)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt catalog --working-dir "+workDir)
+	require.NoError(t, err)
+
+	byDir := parseCatalogJSONL(t, stdout)
+
+	dirs := make([]string, 0, len(byDir))
+	for dir := range byDir {
+		dirs = append(dirs, dir)
+	}
+
+	assert.ElementsMatch(t, []string{"modules/vpc", "templates/service", "units/app", "stacks/prod"}, dirs)
 }
 
 // TestCatalogJSONLFormat renders a catalog non-interactively, one JSON object
@@ -403,7 +430,7 @@ func TestCatalogJSONLFormat(t *testing.T) {
 	workDir := catalogFixture(t)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir)
+		"terragrunt catalog --format jsonl --working-dir "+workDir)
 	require.NoError(t, err)
 
 	byDir := parseCatalogJSONL(t, stdout)
@@ -445,13 +472,15 @@ func TestCatalogJSONLFormatWithoutTTY(t *testing.T) {
 		}
 
 		require.NoError(t, closeErr)
-		t.Skip("a controlling terminal is available; a regression would launch the catalog TUI for real")
+		t.Skip(
+			"a controlling terminal is available; a regression would launch the catalog TUI for real",
+		)
 	}
 
 	workDir := catalogFixture(t)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir)
+		"terragrunt catalog --format jsonl --working-dir "+workDir)
 	require.NoError(t, err)
 	assert.Len(t, parseCatalogJSONL(t, stdout), 4)
 }
@@ -464,10 +493,14 @@ func TestCatalogMDFormat(t *testing.T) {
 	workDir := catalogFixture(t)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format md --working-dir "+workDir)
+		"terragrunt catalog --format md --working-dir "+workDir)
 	require.NoError(t, err)
 
-	assert.True(t, strings.HasPrefix(stdout, "# Terragrunt Catalog\n"), "the header opens the document")
+	assert.True(
+		t,
+		strings.HasPrefix(stdout, "# Terragrunt Catalog\n"),
+		"the header opens the document",
+	)
 
 	for _, want := range []string{
 		backticks(`## VPC
@@ -589,7 +622,7 @@ func TestCatalogPipeHelper(t *testing.T) {
 	}
 
 	err := helpers.RunTerragruntCommand(t,
-		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir,
+		"terragrunt catalog --format jsonl --working-dir "+workDir,
 		os.Stdout, os.Stderr)
 
 	// Standard output is the broken pipe under test, so the marker goes to

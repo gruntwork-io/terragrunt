@@ -5,3 +5,4 @@ repos:
       - id: tofu-fmt
         exclude: test/fixtures/hclvalidate/valid/.*
       - id: goimports
+        exclude: ^internal/vendored/(compress|opentofu/upstream)/

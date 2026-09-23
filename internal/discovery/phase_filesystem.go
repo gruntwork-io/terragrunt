@@ -63,7 +63,12 @@ func (p *FilesystemPhase) Run(
 
 	walkFn := walkDirFunc(v, input.Opts)
 
-	err := walkFn(discoveryContext.WorkingDir, func(path string, d fs.DirEntry, err error) error {
+	walkStart := discoveryContext.WorkingDir
+	if discovery.walkRoot != "" {
+		walkStart = discovery.walkRoot
+	}
+
+	err := walkFn(walkStart, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

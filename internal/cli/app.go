@@ -76,12 +76,17 @@ func (app *App) Run(l log.Logger, v *venv.Venv, args []string) error {
 	return app.RunContext(context.Background(), l, v, args)
 }
 
-func (app *App) registerGracefullyShutdown(ctx context.Context, l log.Logger) context.Context {
+func (app *App) registerGracefullyShutdown(ctx context.Context, l log.Logger, v *venv.Venv) context.Context {
+	v.RequireSignals()
+
 	ctx, cancel := context.WithCancelCause(ctx)
 
-	signal.NotifierWithContext(ctx, func(sig os.Signal) {
+	v.Signals(ctx, func(sig os.Signal) {
 		// Carriage return helps prevent "^C" from being printed
-		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
+		if _, err := fmt.Fprint(app.Writer, "\r"); err != nil {
+			l.Debugf("Failed to write to the output on %s: %v", sig, err)
+		}
+
 		l.Infof(
 			"%s signal received. Gracefully shutting down...",
 			cases.Title(language.English).String(sig.String()),
@@ -102,7 +107,7 @@ func (app *App) RunContext(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ctx = app.registerGracefullyShutdown(ctx, l)
+	ctx = app.registerGracefullyShutdown(ctx, l, v)
 
 	ctx = config.WithConfigValues(ctx)
 	// configure engine context

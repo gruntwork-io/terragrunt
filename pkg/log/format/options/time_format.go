@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	timeFormatList = NewTimeFormatValue(map[string]string{ //nolint:gochecknoglobals
+	timeFormatList = NewTimeFormatValue(map[string]string{
 		YearFull:       "2006",
 		Year:           "06",
 		MonthNumZero:   "01",

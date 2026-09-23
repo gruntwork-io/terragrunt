@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,29 @@ const defaultDirPerms = 0o755
 
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
+}
+
+// FileURL returns the file:// URL for an absolute host path. A Windows path
+// needs a slash ahead of the drive letter ("file:///C:/tmp/x", RFC 8089);
+// without it go-getter reads "C:" as the host and the source is not found.
+func FileURL(absPath string) string {
+	p := filepath.ToSlash(absPath)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+
+	return "file://" + p
+}
+
+// ToSlashAll returns paths with every separator turned into a slash, so
+// command output listing OS-native paths compares against slash literals.
+func ToSlashAll(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		out = append(out, filepath.ToSlash(p))
+	}
+
+	return out
 }
 
 // MustAbs resolves rel against the Go test process working directory.
@@ -209,6 +233,16 @@ func IsExperimentMode(t *testing.T) bool {
 	return strings.EqualFold(val, "true")
 }
 
+// SkipInExperimentMode skips a test that pins what happens with the named experiment
+// disabled, since TG_EXPERIMENT_MODE forces every experiment on.
+func SkipInExperimentMode(t *testing.T, name string) {
+	t.Helper()
+
+	if IsExperimentMode(t) {
+		t.Skipf("TG_EXPERIMENT_MODE forces the %s experiment on, so its disabled-state behavior cannot be verified", name)
+	}
+}
+
 // ExecWithTestLogger executes a command and logs the output to the test logger.
 func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 	t.Helper()
@@ -290,7 +324,7 @@ func (tl *testLogger) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	//nolint:nilerr
+	//nolint:nilerr // a partial line left in the buffer isn't a write failure
 	return n, nil
 }
 
@@ -424,15 +458,16 @@ func FileExistsInCache(t *testing.T, rootDir, filename string) bool {
 }
 
 // ValidateAuthProviderScript runs the given auth provider script in the specified directory
-// and validates its response against the expected schema.
-func ValidateAuthProviderScript(t *testing.T, dir string, script string) {
+// with v's executor and environment, and validates its response against the expected schema.
+func ValidateAuthProviderScript(t *testing.T, v *venv.Venv, dir string, script string) {
 	t.Helper()
 
 	scriptStdout := bytes.Buffer{}
 
-	cmd := exec.CommandContext(t.Context(), script)
-	cmd.Dir = dir
-	cmd.Stdout = &scriptStdout
+	cmd := v.Exec.Command(t.Context(), script)
+	cmd.SetDir(dir)
+	cmd.SetEnv(venv.Environ(v.Env))
+	cmd.SetStdout(&scriptStdout)
 
 	err := cmd.Run()
 	require.NoError(t, err)
@@ -500,5 +535,5 @@ func LocalGitRemote(t *testing.T, fixturePath string) string {
 
 	InitGitRepoWithBranchRef(t, repoDir, "main")
 
-	return "file://" + filepath.ToSlash(repoDir)
+	return FileURL(repoDir)
 }

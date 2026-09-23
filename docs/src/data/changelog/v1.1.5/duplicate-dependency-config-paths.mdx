@@ -1,0 +1,24 @@
+---
+version: "v1.1.5"
+category: "new-features"
+---
+
+#### `duplicate-dependency-labels` also catches a shared `config_path`
+
+Two `dependency` blocks with different labels can point at the same `config_path`. Both parse, so the same unit is declared twice, and the two blocks drift apart as soon as one gains a `mock_outputs` or `skip_outputs` the other lacks:
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "network" {
+  config_path = "../vpc"
+}
+```
+
+Terragrunt now warns when it finds this, alongside the existing warning for two blocks sharing a label. With the [`duplicate-dependency-labels`](/reference/strict-controls/active#duplicate-dependency-labels) strict control enabled, the warning becomes an error naming both addresses and the path they share:
+
+```text
+/path/to/terragrunt.hcl: dependencies vpc and network both point at ../vpc; declare that dependency once and reference it under one name
+```

@@ -41,6 +41,25 @@ var excludePaths = []string{
 	config.StackDir,
 }
 
+// maxFormatWorkers caps the default format fan-out.
+//
+// Experimentally, a good ceiling for this was
+// determined to be 8 workers even on a 16 core machine.
+//
+// Might require additional tuning.
+const maxFormatWorkers = 8
+
+// formatWorkers bounds how many files are formatted at once. An
+// explicit --parallelism is honored as given; the default is the
+// smaller of the machine's cores and [maxFormatWorkers].
+func formatWorkers(parallelism int) int {
+	if parallelism != options.DefaultParallelism {
+		return parallelism
+	}
+
+	return min(runtime.GOMAXPROCS(0), maxFormatWorkers)
+}
+
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile
@@ -116,11 +135,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 	g, _ := errgroup.WithContext(ctx)
 
-	// Use user-specified parallelism, falling back to available CPUs.
-	limit := opts.Parallelism
-	if limit == options.DefaultParallelism {
-		limit = runtime.GOMAXPROCS(0)
-	}
+	limit := formatWorkers(opts.Parallelism)
 
 	g.SetLimit(limit)
 
@@ -157,11 +172,7 @@ func RunForFiles(
 ) error {
 	g, _ := errgroup.WithContext(ctx)
 
-	// Use user-specified parallelism, falling back to available CPUs.
-	limit := opts.Parallelism
-	if limit == options.DefaultParallelism {
-		limit = runtime.GOMAXPROCS(0)
-	}
+	limit := formatWorkers(opts.Parallelism)
 
 	g.SetLimit(limit)
 
@@ -217,7 +228,7 @@ func formatFromStdin(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions
 	needsFormatting := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && needsFormatting {
-		if _, err := v.Writers.Writer.Write(bytesDiff(contents, newContents, stdinPath)); err != nil {
+		if _, err := v.Writers.Writer.Write(BytesDiff(contents, newContents, stdinPath)); err != nil {
 			l.Errorf("Failed to print diff for stdin")
 
 			return err
@@ -282,7 +293,7 @@ func formatTgHCL(
 	fileUpdated := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && fileUpdated {
-		if _, err := v.Writers.Writer.Write(bytesDiff(contents, newContents, tgHclFile)); err != nil {
+		if _, err := v.Writers.Writer.Write(BytesDiff(contents, newContents, tgHclFile)); err != nil {
 			l.Errorf("Failed to print diff for %s", tgHclFile)
 			return err
 		}
@@ -320,8 +331,8 @@ func checkErrors(l log.Logger, v *venv.Venv, contents []byte, tgHclFile string) 
 	return nil
 }
 
-// bytesDiff returns a unified diff between the original and formatted HCL contents.
-func bytesDiff(b1, b2 []byte, name string) []byte {
+// BytesDiff returns a unified diff between the original and formatted HCL contents.
+func BytesDiff(b1, b2 []byte, name string) []byte {
 	// Diff labels are slash separated on every platform, so that consumers of the diff don't have to
 	// handle a Windows-specific spelling of the same label.
 	name = filepath.ToSlash(name)

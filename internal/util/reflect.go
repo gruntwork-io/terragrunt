@@ -34,21 +34,27 @@ func KindOf(value any) reflect.Kind {
 //	path ["a", "d", "1"] will return 2
 //	path ["a", "foo"] will return nil
 func MustWalkTerraformOutput(value any, path ...string) any {
-	if value == nil {
-		return nil
-	}
-
 	found := value
 	for _, p := range path {
+		if found == nil {
+			return nil
+		}
+
 		v := reflect.ValueOf(found)
 
-		switch reflect.TypeOf(found).Kind() { //nolint:exhaustive
+		switch v.Kind() { //nolint:exhaustive // only the kinds a path can descend into matter; reflect.Kind has 26 members
 		case reflect.Map:
-			if !v.MapIndex(reflect.ValueOf(p)).IsValid() {
+			key := reflect.ValueOf(p)
+			if !key.Type().AssignableTo(v.Type().Key()) {
 				return nil
 			}
 
-			found = v.MapIndex(reflect.ValueOf(p)).Interface()
+			elem := v.MapIndex(key)
+			if !elem.IsValid() {
+				return nil
+			}
+
+			found = elem.Interface()
 
 		case reflect.Slice, reflect.Array:
 			i, err := strconv.Atoi(p)
@@ -56,7 +62,7 @@ func MustWalkTerraformOutput(value any, path ...string) any {
 				return nil
 			}
 
-			if v.Len()-1 < i {
+			if i < 0 || i >= v.Len() {
 				return nil
 			}
 

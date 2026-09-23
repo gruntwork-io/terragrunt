@@ -13,8 +13,12 @@ examples:
       terragrunt stack generate
 flags:
   - stack-generate-filter
+  - discovery-boundary
   - no-cas
   - cas-clone-depth
+  - cas-offline
+  - cas-refresh
+  - cas-probe-ttl
 ---
 
 import FileTree from "@components/vendored/starlight/FileTree.astro";

@@ -3,6 +3,7 @@ package config_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -928,7 +930,7 @@ func forceModTimeChange(t *testing.T, path string, prev time.Time) {
 		time.Sleep(1 * time.Millisecond)
 	}
 
-	t.Fatalf("Failed to change modification time of %s within 5 seconds", path)
+	require.FailNow(t, "Failed to change modification time of "+path+" within 5 seconds")
 }
 
 // TestPartialParseConfigCacheDifferentCallers verifies that the partial parse config cache
@@ -1355,6 +1357,38 @@ terraform {
 	)
 }
 
+// TestPartialParseIncludeRejectsDeepMapOnly pins that deep_map_only, which applies to
+// dependency mock outputs rather than includes, is reported as unsupported.
+func TestPartialParseIncludeRejectsDeepMapOnly(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, "root.hcl"), []byte(`
+feature "skip_ci" {
+  default = true
+}
+`), 0644))
+
+	childPath := filepath.Join(tmpDir, "child", config.DefaultTerragruntConfigPath)
+	require.NoError(t, vfs.WriteFile(v.FS, childPath, []byte(`
+include "root" {
+  path           = "../root.hcl"
+  merge_strategy = "deep_map_only"
+}
+`), 0644))
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, v, childPath)
+	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
+
+	_, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
+
+	var strategyErr config.IncludeMergeStrategyNotSupportedError
+
+	require.ErrorAs(t, err, &strategyErr)
+}
+
 // TestPartialParseFeatureFlagDefaultsFromIncludes verifies included feature defaults are available during partial parsing.
 func TestPartialParseFeatureFlagDefaultsFromIncludes(t *testing.T) {
 	t.Parallel()
@@ -1472,9 +1506,7 @@ exclude {
 			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
 			pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
 
-			for name, value := range tc.cliFlags {
-				pctx.FeatureFlags.Store(name, value)
-			}
+			maps.Copy(pctx.FeatureFlags, tc.cliFlags)
 
 			terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
 			if tc.expectedErr != "" {

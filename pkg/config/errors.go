@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 // Custom error types
@@ -69,6 +69,20 @@ func (err InvalidMergeStrategyTypeError) Error() string {
 		ShallowMerge,
 		DeepMerge,
 		DeepMergeMapOnly,
+	)
+}
+
+// IncludeMergeStrategyNotSupportedError reports a merge strategy that parses but
+// applies only to dependency mock outputs, so an include block cannot use it.
+type IncludeMergeStrategyNotSupportedError string
+
+func (err IncludeMergeStrategyNotSupportedError) Error() string {
+	return fmt.Sprintf(
+		"Include merge strategy %s is not supported for include blocks. Valid strategies are: %s, %s, %s",
+		string(err),
+		NoMerge,
+		ShallowMerge,
+		DeepMerge,
 	)
 }
 
@@ -283,6 +297,16 @@ func (err DependencyFileNotFoundError) Error() string {
 
 // Dependency Custom error types
 
+// DependencyConfigPathNotStringError reports a dependency whose config_path did not
+// evaluate to a known string, so there is no config to read outputs from.
+type DependencyConfigPathNotStringError struct {
+	Name string
+}
+
+func (err DependencyConfigPathNotStringError) Error() string {
+	return fmt.Sprintf("config_path of dependency %q did not evaluate to a string", err.Name)
+}
+
 type DependencyConfigNotFound struct {
 	Path string
 }
@@ -323,6 +347,25 @@ func (err DependencyStateParseError) Unwrap() error {
 	return err.Err
 }
 
+// ErrDependencyStateEncrypted reports state that OpenTofu encrypted client-side, which a
+// direct backend read has no key material to decrypt.
+var ErrDependencyStateEncrypted = errors.New("dependency state is encrypted")
+
+// DependencyStateEncryptedError reports a dependency state protected by OpenTofu's
+// client-side state encryption, so its outputs have to come from OpenTofu itself.
+type DependencyStateEncryptedError struct {
+	// Location identifies the encrypted remote state object.
+	Location string
+}
+
+func (err DependencyStateEncryptedError) Error() string {
+	return ErrDependencyStateEncrypted.Error() + ": " + err.Location
+}
+
+func (err DependencyStateEncryptedError) Unwrap() error {
+	return ErrDependencyStateEncrypted
+}
+
 type TerragruntOutputParsingError struct {
 	Err  error
 	Path string
@@ -355,7 +398,10 @@ type InvalidTFWorkspaceError struct {
 }
 
 func (err InvalidTFWorkspaceError) Error() string {
-	return fmt.Sprintf("determining dependency workspace: invalid TF_WORKSPACE value %q", err.Workspace)
+	return fmt.Sprintf(
+		"determining dependency workspace: invalid TF_WORKSPACE value %q",
+		err.Workspace,
+	)
 }
 
 // StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs
@@ -373,8 +419,8 @@ func (err StackUnitOutputFetchError) Unwrap() error {
 	return err.Err
 }
 
-// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs that
-// isn't keyed by unit name, so no unit can be matched against it.
+// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs, or a
+// nested stack's entry in it, that isn't keyed by name, so no unit can be matched against it.
 type StackMockOutputsTypeError struct {
 	DependencyName string
 	UnitName       string
@@ -383,10 +429,26 @@ type StackMockOutputsTypeError struct {
 
 func (err StackMockOutputsTypeError) Error() string {
 	return fmt.Sprintf(
-		"mock_outputs for dependency %s must be a map or object keyed by stack unit name (e.g. { %s = { ... } }), but got %s",
+		"mock_outputs for dependency %s must be a map or object keyed by stack unit or nested stack name (e.g. { %s = { ... } }), but got %s",
 		err.DependencyName,
 		err.UnitName,
 		err.Actual,
+	)
+}
+
+// StackOutputAddressCollisionError is returned when a unit and a nested stack declared in one
+// stack file share a name. A dependency on that stack reads both at the same address, so keeping
+// either would drop the other's outputs.
+type StackOutputAddressCollisionError struct {
+	StackDir string
+	Name     string
+}
+
+func (err StackOutputAddressCollisionError) Error() string {
+	return fmt.Sprintf(
+		"a unit and a nested stack in %s are both named %q, so a dependency on the stack cannot address their outputs separately",
+		err.StackDir,
+		err.Name,
 	)
 }
 
@@ -415,6 +477,25 @@ func (err DuplicateDependencyError) Error() string {
 		"%s: dependency %s is declared more than once; every dependency needs an address of its own",
 		err.ConfigPath,
 		err.Address,
+	)
+}
+
+// DuplicateDependencyConfigPathError is returned when two dependency blocks in one config
+// point at the same config_path under different addresses.
+type DuplicateDependencyConfigPathError struct {
+	ConfigPath     string
+	DependencyPath string
+	FirstAddress   string
+	SecondAddress  string
+}
+
+func (err DuplicateDependencyConfigPathError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependencies %s and %s both point at %s; declare that dependency once and reference it under one name",
+		err.ConfigPath,
+		err.FirstAddress,
+		err.SecondAddress,
+		err.DependencyPath,
 	)
 }
 
@@ -515,6 +596,18 @@ func (err MaxParseDepthError) Error() string {
 	)
 }
 
+// ReadTerragruntConfigCycleError is returned when read_terragrunt_config reads
+// a config that is already being read further up the chain.
+type ReadTerragruntConfigCycleError struct {
+	// Chain lists the configs being read, outermost first, ending with the
+	// config that closes the cycle.
+	Chain []string
+}
+
+func (err ReadTerragruntConfigCycleError) Error() string {
+	return "read_terragrunt_config cycle detected: " + strings.Join(err.Chain, " -> ")
+}
+
 // AutoIncludeParserStageError reports which stage of autoinclude parsing failed.
 type AutoIncludeParserStageError struct {
 	Err   error
@@ -543,30 +636,15 @@ func (err DeepMergeRequiresExperimentError) Error() string {
 	)
 }
 
-// VersionAttributeRequiresExperimentError is returned when the terraform block sets the
-// version attribute without the version-attribute experiment enabled.
-type VersionAttributeRequiresExperimentError struct {
+// Base64GzipCompatRequiresExperimentError is returned when the base64gzip_compat HCL function
+// is called without the base64gzip-compat experiment enabled.
+type Base64GzipCompatRequiresExperimentError struct {
 	ConfigPath string
 }
 
-func (err VersionAttributeRequiresExperimentError) Error() string {
+func (err Base64GzipCompatRequiresExperimentError) Error() string {
 	return fmt.Sprintf(
-		"the terraform block in %s sets the version attribute, which requires the 'version-attribute' experiment; enable it with --experiment version-attribute",
-		err.ConfigPath,
-	)
-}
-
-// MutableGenerateRequiresExperimentError is returned when a generate block sets the
-// mutable attribute without the mutable-generate experiment enabled.
-type MutableGenerateRequiresExperimentError struct {
-	ConfigPath string
-	BlockName  string
-}
-
-func (err MutableGenerateRequiresExperimentError) Error() string {
-	return fmt.Sprintf(
-		"the generate block %q in %s sets the mutable attribute, which requires the 'mutable-generate' experiment; enable it with --experiment mutable-generate",
-		err.BlockName,
+		"base64gzip_compat in %s requires the 'base64gzip-compat' experiment; enable it with --experiment base64gzip-compat",
 		err.ConfigPath,
 	)
 }
@@ -598,49 +676,27 @@ func (err VersionAttributeSourceConstraintConflictError) Error() string {
 	)
 }
 
-// ExpansionRequiresExperimentError is returned when a dependency, unit, or stack block
-// carries an expansion block without the block-iteration experiment enabled.
-type ExpansionRequiresExperimentError struct {
+// MisspelledExpansionBlockError is returned when a dependency, unit, or stack block nests a
+// block whose name is a near miss of expansion.
+type MisspelledExpansionBlockError struct {
 	ConfigPath string
 	BlockType  string
 	BlockLabel string
+	BlockName  string
 }
 
-func (err ExpansionRequiresExperimentError) Error() string {
+func (err MisspelledExpansionBlockError) Error() string {
 	block := err.BlockType
 	if err.BlockLabel != "" {
 		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
 	}
 
 	return fmt.Sprintf(
-		"the %s block in %s uses an expansion block, which requires the '%s' experiment; enable it with --experiment %s",
+		"the %s block in %s declares a %q block, which Terragrunt does not recognize; did you mean %q?",
 		block,
 		err.ConfigPath,
-		experiment.BlockIteration,
-		experiment.BlockIteration,
-	)
-}
-
-// EnabledRequiresExperimentError is returned when a unit or stack block carries a bare
-// enabled attribute while the block-iteration experiment is off.
-type EnabledRequiresExperimentError struct {
-	ConfigPath string
-	BlockType  string
-	BlockLabel string
-}
-
-func (err EnabledRequiresExperimentError) Error() string {
-	block := err.BlockType
-	if err.BlockLabel != "" {
-		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
-	}
-
-	return fmt.Sprintf(
-		"the %s block in %s uses an enabled attribute, which requires the '%s' experiment; enable it with --experiment %s",
-		block,
-		err.ConfigPath,
-		experiment.BlockIteration,
-		experiment.BlockIteration,
+		err.BlockName,
+		hclparse.ExpansionBlockName,
 	)
 }
 

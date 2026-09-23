@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	goversion "github.com/hashicorp/go-version"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -138,7 +138,10 @@ func TestNew(t *testing.T) {
 
 		l := thlogger.CreateLogger()
 
-		filters, err := filter.ParseFilterQueries(l, []string{filepath.Join(memRoot, "keep")})
+		filters, err := filter.ParseFilterQueries(
+			l,
+			[]string{filepath.ToSlash(filepath.Join(memRoot, "keep"))},
+		)
 		require.NoError(t, err)
 
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
@@ -248,7 +251,7 @@ func TestNew_VersionConstraints(t *testing.T) {
 			writeUnit(t, v, memRoot, "vpc", tc.unitBody)
 
 			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
-			opts.TerragruntVersion = goversion.Must(goversion.NewVersion("0.1.0"))
+			opts.TerragruntVersion = semver.MustParse("0.1.0")
 
 			rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
 
@@ -277,7 +280,7 @@ func TestCheckUnitVersionConstraints_UnitLeftUnparsed(t *testing.T) {
 	require.Nil(t, unit.Config(), "the unit has no parsed config for the check to reuse")
 
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
-	opts.TerragruntVersion = goversion.Must(goversion.NewVersion("0.1.0"))
+	opts.TerragruntVersion = semver.MustParse("0.1.0")
 
 	l := thlogger.CreateLogger()
 

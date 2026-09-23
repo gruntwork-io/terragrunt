@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -481,7 +480,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 				require.NoError(t, cleanupErr)
 			})
 
@@ -767,7 +766,7 @@ unit "unit_to_be_untouched" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -922,7 +921,7 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -1225,7 +1224,7 @@ locals {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 				require.NoError(t, cleanupErr)
 			})
 
@@ -1323,7 +1322,7 @@ locals {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -1600,7 +1599,7 @@ locals {
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 				require.NoError(t, cleanupErr)
 			})
 
@@ -1708,7 +1707,7 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
-				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 				require.NoError(t, cleanupErr)
 			})
 
@@ -1897,7 +1896,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -2091,7 +2090,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -2275,7 +2274,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -2443,7 +2442,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -2584,7 +2583,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -2710,7 +2709,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -2764,7 +2763,7 @@ func runWorktreeDiscovery(
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -2880,7 +2879,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -3034,7 +3033,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS()))
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv()))
 	})
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
@@ -3159,7 +3158,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS()))
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv()))
 	})
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
@@ -3259,7 +3258,7 @@ locals {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -3342,7 +3341,7 @@ locals {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -3448,7 +3447,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 
@@ -3553,7 +3552,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, vfs.NewOSFS())
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
 		require.NoError(t, cleanupErr)
 	})
 

@@ -22,11 +22,18 @@ import (
 // TUI fills from the filesystem, and runs discovery in the background so unit and
 // stack metadata and counts stream in without blocking the initial render.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
+	v.RequireTerminal()
+
+	if err := viewtui.EnsureTTY(v.Terminal.StdinIsTTY); err != nil {
+		return err
+	}
+
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		WithRequiresParse: true,
 		WithRelationships: true,
 		ParseStackConfigs: true,
+		TrackReads:        true,
 		Filters:           opts.Filters,
 	})
 	if err != nil {

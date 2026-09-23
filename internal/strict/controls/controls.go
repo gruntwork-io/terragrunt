@@ -43,6 +43,12 @@ const (
 	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
 	RequireExplicitBootstrap = "require-explicit-bootstrap"
 
+	// SkipAccessLoggingBucketACL is the control that prevents the use of the deprecated `skip_accesslogging_bucket_acl` config attribute.
+	SkipAccessLoggingBucketACL = "skip-accesslogging-bucket-acl"
+
+	// SkipBucketRootAccess is the control that prevents the use of the deprecated `skip_bucket_root_access` config attribute.
+	SkipBucketRootAccess = "skip-bucket-root-access"
+
 	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
 
@@ -56,6 +62,11 @@ const (
 	// DoubleStar enables the use of the `**` glob pattern as a way to match files in subdirectories.
 	// and will log a warning when using **/*
 	DoubleStar = "double-star"
+
+	// DependencyFetchOutputFromState is the control that prevents the use of the deprecated
+	// `--dependency-fetch-output-from-state` flag. Reading dependency outputs from state is
+	// the default as of v1.2.0.
+	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
 
 	// QueueExcludeExternal is the control that prevents the use of the deprecated `--queue-exclude-external` flag.
 	QueueExcludeExternal = "queue-exclude-external"
@@ -93,10 +104,13 @@ const (
 	// access.
 	LegacyGCSPublicPrefix = "legacy-gcs-public-prefix"
 
+	// LegacyBase64Gzip is the control that switches base64gzip() from the Go 1.26 gzip bytes to the current encoder.
+	LegacyBase64Gzip = "legacy-base64gzip"
+
 	OptionalHooks = "optional-hooks"
 
 	// DuplicateDependencyLabels is the control that prevents two `dependency` blocks in one
-	// configuration from claiming the same address.
+	// configuration from addressing the same dependency, by label or by config_path.
 	DuplicateDependencyLabels = "duplicate-dependency-labels"
 )
 
@@ -113,12 +127,11 @@ func IsFastCopyEnabled(strictControls strict.Controls) bool {
 	return len(strictControls.FilterByNames(FastCopy).FilterByEnabled()) > 0
 }
 
-//nolint:lll
 func New() strict.Controls {
 	skipDependenciesInputsControl := &Control{
 		Name:        SkipDependenciesInputs,
 		Description: "Controls whether to allow the deprecated dependency inputs feature. Dependency inputs are now disabled by default for performance. Use dependency outputs instead.",
-		Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+		Error: errors.New(
 			"reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs.",
 		),
 		Warning: "Reading inputs from dependencies has been deprecated and is now disabled by default for performance. Use dependency outputs instead.",
@@ -128,11 +141,29 @@ func New() strict.Controls {
 	requireExplicitBootstrapControl := &Control{
 		Name:        RequireExplicitBootstrap,
 		Description: "Don't bootstrap backends by default. When enabled, users must supply `--backend-bootstrap` explicitly to automatically bootstrap backend resources.",
-		Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+		Error: errors.New(
 			"bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead.",
 		),
 		Warning: "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
 		Status:  strict.CompletedStatus,
+	}
+
+	skipAccessLoggingBucketACLControl := &Control{
+		Name:        SkipAccessLoggingBucketACL,
+		Description: "Prevents the use of the deprecated `skip_accesslogging_bucket_acl` config attribute. Terragrunt no longer puts an ACL on the access logging bucket, so the attribute has nothing left to skip. Use `skip_accesslogging_bucket_policy` to skip the bucket policy that carries the grant now.",
+		Error: errors.New(
+			"The `skip_accesslogging_bucket_acl` config attribute is no longer supported. Terragrunt does not put an ACL on the access logging bucket. Use `skip_accesslogging_bucket_policy` to skip the bucket policy that grants access log delivery.",
+		),
+		Warning: "The `skip_accesslogging_bucket_acl` config attribute is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer puts an ACL on the access logging bucket, so this attribute has no effect. Use `skip_accesslogging_bucket_policy` to skip the bucket policy that grants access log delivery.",
+	}
+
+	skipBucketRootAccessControl := &Control{
+		Name:        SkipBucketRootAccess,
+		Description: "Prevents the use of the deprecated `skip_bucket_root_access` config attribute. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so the attribute has nothing left to skip.",
+		Error: errors.New(
+			"The `skip_bucket_root_access` config attribute is no longer supported. Terragrunt does not grant the AWS account root user access to S3 state buckets. Use `enable_bucket_root_access` to grant that access.",
+		),
+		Warning: "The `skip_bucket_root_access` config attribute is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so this attribute has no effect. Use `enable_bucket_root_access` to grant that access.",
 	}
 
 	controls := strict.Controls{
@@ -154,10 +185,14 @@ func New() strict.Controls {
 			Subcontrols: strict.Controls{
 				skipDependenciesInputsControl,
 				requireExplicitBootstrapControl,
+				skipAccessLoggingBucketACLControl,
+				skipBucketRootAccessControl,
 			},
 		},
 		skipDependenciesInputsControl,
 		requireExplicitBootstrapControl,
+		skipAccessLoggingBucketACLControl,
+		skipBucketRootAccessControl,
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",
@@ -223,7 +258,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        RootTerragruntHCL,
 			Description: "Throw an error when users try to reference a root terragrunt.hcl file using find_in_parent_folders.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl",
 			),
 			Warning: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl",
@@ -232,7 +267,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        BareInclude,
 			Description: "Prevents the use of the `include` block without a label.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"Using an `include` block without a label is deprecated. Please use the `include` block with a label instead.",
 			),
 			Warning: "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://docs.terragrunt.com/migrate/bare-include/",
@@ -240,26 +275,34 @@ func New() strict.Controls {
 
 		&Control{
 			Name:        DuplicateDependencyLabels,
-			Description: "Prevents two `dependency` blocks in one configuration from claiming the same address.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
-				"Two `dependency` blocks address the same dependency. Give each block a label of its own.",
+			Description: "Prevents two `dependency` blocks in one configuration from addressing the same dependency, whether by sharing a label or a `config_path`.",
+			Error: errors.New(
+				"Two `dependency` blocks address the same dependency, by sharing a label or a `config_path`. Declare each dependency once.",
 			),
-			Warning: "Two `dependency` blocks address the same dependency, so only the last of them can be referenced and the rest are unreachable. Give each block a label of its own. In a future version of Terragrunt, this will result in an error.",
+			Warning: "Two `dependency` blocks address the same dependency, by sharing a label or a `config_path`. Only the last block with a given label can be referenced, and two blocks for one `config_path` declare the same unit twice. Declare each dependency once. In a future version of Terragrunt, this will result in an error.",
 		},
 
 		&Control{
 			Name:        DoubleStar,
 			Description: "Use the `**` glob pattern to select all files in a directory and its subdirectories.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 			),
 			Warning: "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
 			Status:  strict.CompletedStatus,
 		},
 		&Control{
+			Name:        DependencyFetchOutputFromState,
+			Description: "Prevents the use of the deprecated `--dependency-fetch-output-from-state` flag.",
+			Error: errors.New(
+				"The `--dependency-fetch-output-from-state` flag is no longer supported. Dependency outputs are read from state by default as of v1.2.0. Remove the flag, or use --no-dependency-fetch-output-from-state to opt out.",
+			),
+			Warning: "The `--dependency-fetch-output-from-state` flag is deprecated. Dependency outputs are read from state by default as of v1.2.0. Remove the flag, or use --no-dependency-fetch-output-from-state to opt out.",
+		},
+		&Control{
 			Name:        QueueExcludeExternal,
 			Description: "Prevents the use of the deprecated `--queue-exclude-external` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--queue-exclude-external` flag is no longer supported. External dependencies are now excluded by default. Use --queue-include-external to include them.",
 			),
 			Warning: "The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.",
@@ -267,7 +310,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        QueueStrictInclude,
 			Description: "Prevents the use of the deprecated `--queue-strict-include` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--queue-strict-include` flag is no longer supported. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.",
 			),
 			Warning: "The `--queue-strict-include` flag is deprecated and will be removed in a future version of Terragrunt. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.",
@@ -275,7 +318,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        UnitsThatInclude,
 			Description: "Prevents the use of the deprecated `--units-that-include` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--units-that-include` flag is no longer supported. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
 			),
 			Warning: "The `--units-that-include` flag is deprecated and will be removed in a future version of Terragrunt. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
@@ -283,7 +326,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        DisableCommandValidation,
 			Description: "Prevents the use of the deprecated `--disable-command-validation` flag. Command validation has been removed entirely.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--disable-command-validation` flag is no longer supported. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
 			),
 			Warning: "The `--disable-command-validation` flag is deprecated and will be removed in a future version of Terragrunt. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
@@ -291,7 +334,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        NoDestroyDependenciesCheck,
 			Description: "Prevents the use of the deprecated `--no-destroy-dependencies-check` flag. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--no-destroy-dependencies-check` flag is no longer supported. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
 			),
 			Warning: "The `--no-destroy-dependencies-check` flag is deprecated and will be removed in a future version of Terragrunt. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
@@ -299,7 +342,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        InternalTFLint,
 			Description: "Prevents the use of the deprecated embedded version of tflint, instead treating `tflint` as a normal hook.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The embedded version of tflint is no longer supported. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally.",
 			),
 			Warning: "The embedded version of tflint is deprecated and will be removed in a future version of Terragrunt. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally and avoid this warning.",
@@ -307,7 +350,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        DeprecatedHiddenFlag,
 			Description: "Prevents the use of the deprecated `--hidden` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--hidden` flag is no longer supported. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
 			),
 			Warning: "The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
@@ -315,7 +358,7 @@ func New() strict.Controls {
 		&Control{
 			Name:        DisableDependentModules,
 			Description: "Prevents the use of the deprecated `--disable-dependent-modules` flag.",
-			Error: errors.New( //nolint:staticcheck // user-facing message intentionally written as full sentences
+			Error: errors.New(
 				"The `--disable-dependent-modules` flag is no longer supported. Dependent modules discovery has been removed from `terragrunt render`.",
 			),
 			Warning: "The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.",
@@ -328,6 +371,11 @@ func New() strict.Controls {
 			Name:        LegacyGCSPublicPrefix,
 			Description: "Stops auto-prefixing plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`. Pre-v1.0.5 Terragrunt routed those URLs through the credentialed gcs getter; v1.0.5+ routes them through the http getter for anonymous access. The legacy prefix-rewrite is restored by default with a deprecation warning. Enable this control to opt into the new behavior and silence the warning.",
 			Warning:     LegacyGCSDeprecationWarning,
+		},
+		&Control{
+			Name:        LegacyBase64Gzip,
+			Description: "Stopped `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. Go 1.27 changed the gzip encoder, so v1.1.4 returned different bytes for the same input, and resources that compare the encoded value, such as EC2 `user_data_base64`, planned a replacement. Terragrunt 1.2 made the current encoder the default, so this control has nothing left to switch. `base64gzip_compat()` returns the v1.1.3 bytes and needs no flag.",
+			Status:      strict.CompletedStatus,
 		},
 		&Control{
 			Name:        OptionalHooks,

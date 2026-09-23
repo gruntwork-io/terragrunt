@@ -13,6 +13,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
@@ -66,19 +67,23 @@ func NewGCSResolver(v *venv.Venv) *GCSResolver { return &GCSResolver{Venv: v} }
 // Scheme returns "gcs".
 func (r *GCSResolver) Scheme() string { return "gcs" }
 
+// Pinned always reports false: a GCS URL names an object without a
+// generation, so the probe describes whichever one is current.
+func (r *GCSResolver) Pinned(_ redact.URL) bool { return false }
+
 // Probe reads object metadata via ObjectHandle.Attrs and returns a
 // content-addressed cache key from MD5 (when present) or CRC32C
 // (always populated by GCS). Errors surface as
 // [cas.ErrNoVersionMetadata].
-func (r *GCSResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	u, err := url.Parse(rawURL)
+func (r *GCSResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
+	u, err := url.Parse(source.Reveal())
 	if err != nil {
-		return "", fmt.Errorf("parse GCS URL %s: %w", rawURL, err)
+		return "", fmt.Errorf("parse GCS URL %s: %w", source, err)
 	}
 
 	bucket, object, err := parseGCSURL(u)
 	if err != nil {
-		return "", fmt.Errorf("parse GCS URL %s: %w", rawURL, err)
+		return "", fmt.Errorf("parse GCS URL %s: %w", source, err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, gcsResolverTimeout)

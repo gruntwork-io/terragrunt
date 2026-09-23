@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
-	"github.com/puzpuzpuz/xsync/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -28,6 +27,7 @@ type Controller struct {
 	runner      UnitRunnerFunc
 	readyCh     chan struct{}
 	unitsMap    map[string]*component.Unit
+	unitErrs    map[string]error
 	concurrency int
 }
 
@@ -50,6 +50,13 @@ func WithMaxConcurrency(concurrency int) ControllerOption {
 
 		dr.concurrency = concurrency
 	}
+}
+
+// UnitErr returns the error recorded for the unit at path during [Controller.Run],
+// or nil if the unit did not run or succeeded. It must not be called while Run
+// is still executing.
+func (dr *Controller) UnitErr(path string) error {
+	return dr.unitErrs[path]
 }
 
 // NewController creates a new Controller with the given options and a pre-built queue, which must not be nil.
@@ -85,10 +92,23 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			"ignore_dependency_order": dr.q.IgnoreDependencyOrder,
 		}, func(childCtx context.Context, l log.Logger) error {
 			var (
-				wg      sync.WaitGroup
-				sem     = make(chan struct{}, dr.concurrency)
-				results = xsync.NewMap[string, error]()
+				wg        sync.WaitGroup
+				resultsMu sync.Mutex
+				sem       = make(chan struct{}, dr.concurrency)
 			)
+
+			// Fresh map per execution, kept on the controller after Run returns:
+			// the report sweep must read only this execution's errors, never
+			// stale ones from a prior Run on the same controller.
+			results := make(map[string]error)
+			dr.unitErrs = results
+
+			recordResult := func(path string, err error) {
+				resultsMu.Lock()
+				defer resultsMu.Unlock()
+
+				results[path] = err
+			}
 
 			if dr.runner == nil {
 				return ErrRunnerNotSet
@@ -142,13 +162,13 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 								ent.Component.Path(),
 							)
 							dr.q.FailEntry(ent)
-							results.Store(ent.Component.Path(), err)
+							recordResult(ent.Component.Path(), err)
 
 							return
 						}
 
 						err := dr.runner(childCtx, unit)
-						results.Store(ent.Component.Path(), err)
+						recordResult(ent.Component.Path(), err)
 
 						if err != nil {
 							l.Debugf("Runner Pool Controller: %s failed", ent.Component.Path())
@@ -196,7 +216,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					// Non-terminal states are not counted in the summary.
 				}
 
-				if err, ok := results.Load(entry.Component.Path()); ok {
+				if err, ok := results[entry.Component.Path()]; ok {
 					if err == nil {
 						continue
 					}

@@ -1,9 +1,12 @@
 package discovery_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
@@ -17,13 +20,36 @@ func TestNewForDiscoveryCommand_QueueConstructAs(t *testing.T) {
 
 		v := venvtest.New()
 
-		return discovery.NewForDiscoveryCommand(logger.CreateLogger(), v.FS, &discovery.DiscoveryCommandOptions{
-			WorkingDir:       "/repo",
-			QueueConstructAs: queueConstructAs,
+		return discovery.NewForDiscoveryCommand(
+			logger.CreateLogger(),
+			v.FS,
+			&discovery.DiscoveryCommandOptions{
+				WorkingDir:       venvtest.Root("/repo"),
+				QueueConstructAs: queueConstructAs,
+			},
+		)
+	}
+
+	emptyCases := []struct {
+		name             string
+		queueConstructAs string
+	}{
+		{name: "whitespace", queueConstructAs: "   "},
+		{name: "tab", queueConstructAs: "\t"},
+		{name: "double quoted empty string", queueConstructAs: `""`},
+		{name: "single quoted empty string", queueConstructAs: "''"},
+	}
+
+	for _, tc := range emptyCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := newForDiscoveryCommand(t, tc.queueConstructAs)
+			require.ErrorAs(t, err, &discovery.EmptyQueueConstructAsError{})
 		})
 	}
 
-	testCases := []struct {
+	operatorCases := []struct {
 		name             string
 		queueConstructAs string
 	}{
@@ -32,19 +58,16 @@ func TestNewForDiscoveryCommand_QueueConstructAs(t *testing.T) {
 		{name: "logical and", queueConstructAs: "&&"},
 		{name: "redirect", queueConstructAs: ">"},
 		{name: "stderr redirect", queueConstructAs: "2>&1"},
-		{name: "whitespace", queueConstructAs: "   "},
-		{name: "tab", queueConstructAs: "\t"},
 		{name: "command after separator", queueConstructAs: "; plan"},
-		{name: "double quoted empty string", queueConstructAs: `""`},
-		{name: "single quoted empty string", queueConstructAs: "''"},
+		{name: "separator after command", queueConstructAs: "plan; apply"},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range operatorCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			_, err := newForDiscoveryCommand(t, tc.queueConstructAs)
-			require.ErrorAs(t, err, &discovery.EmptyQueueConstructAsError{})
+			require.ErrorIs(t, err, split.ErrShellOperator)
 		})
 	}
 
@@ -62,5 +85,60 @@ func TestNewForDiscoveryCommand_QueueConstructAs(t *testing.T) {
 		_, err := newForDiscoveryCommand(t, "plan '")
 		require.Error(t, err)
 		require.NotErrorAs(t, err, &discovery.EmptyQueueConstructAsError{})
+	})
+}
+
+func TestNewForStackGenerate_DiscoveryBoundary(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := venvtest.Root("/repo")
+	liveDir := filepath.Join(repoRoot, "live")
+
+	v := memRepoRootVenv(t, repoRoot)
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(liveDir, ".keep"), nil, 0o644))
+
+	t.Run("valid boundary returns discovery", func(t *testing.T) {
+		t.Parallel()
+
+		d, err := discovery.NewForStackGenerate(
+			logger.CreateLogger(),
+			v.FS,
+			discovery.StackGenerateOptions{
+				WorkingDir:        liveDir,
+				DiscoveryBoundary: liveDir,
+			},
+		)
+		require.NoError(t, err)
+		require.NotNil(t, d)
+	})
+
+	t.Run("nonexistent boundary is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := discovery.NewForStackGenerate(
+			logger.CreateLogger(),
+			v.FS,
+			discovery.StackGenerateOptions{
+				WorkingDir:        liveDir,
+				DiscoveryBoundary: filepath.Join(repoRoot, "does-not-exist"),
+			},
+		)
+		require.ErrorAs(t, err, &discovery.DiscoveryBoundaryDirError{})
+	})
+
+	t.Run("empty boundary is a no-op", func(t *testing.T) {
+		t.Parallel()
+
+		d, err := discovery.NewForStackGenerate(
+			logger.CreateLogger(),
+			v.FS,
+			discovery.StackGenerateOptions{
+				WorkingDir:        liveDir,
+				DiscoveryBoundary: "",
+			},
+		)
+		require.NoError(t, err)
+		require.NotNil(t, d)
 	})
 }

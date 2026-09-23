@@ -22,7 +22,13 @@ flags:
   - catalog-no-hooks
   - no-cas
   - cas-clone-depth
+  - cas-offline
+  - cas-refresh
+  - cas-probe-ttl
 ---
+
+import Since from '@components/Since.astro';
+import PortalCatalogBeta from '@components/PortalCatalogBeta.astro';
 
 ```bash
 terragrunt catalog [repo-url] [options]

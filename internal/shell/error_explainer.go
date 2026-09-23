@@ -44,7 +44,7 @@ func ExplainError(err error) string {
 		message := err.Error()
 
 		// extract process output, if it is the case
-		var processError util.ProcessExecutionError
+		var processError *util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {
 			errorOutput := processError.Output.Stderr.String()
 			stdOut := processError.Output.Stdout.String()

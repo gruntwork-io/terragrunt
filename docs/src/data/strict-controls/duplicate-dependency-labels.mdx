@@ -1,10 +1,13 @@
 ---
 name: duplicate-dependency-labels
 status: active
-since: "1.1.4"
+since: "v1.1.4"
 ---
 
-Throw an error when two `dependency` blocks in one configuration claim the same address.
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
+Throw an error when two `dependency` blocks in one configuration address the same dependency, by sharing a label or a `config_path`.
 
 ### `duplicate-dependency-labels` - Reason
 
@@ -33,4 +36,22 @@ Terragrunt warns about this by default. Enabling the control turns it into an er
 
 Give each block a label of its own. A configuration that was relying on the shadowing to pick the last block should keep only that block.
 
-Blocks are compared by the address they resolve to rather than by label alone, so the elements of a block expanded with the [`block-iteration`](/reference/experiments/active#block-iteration) experiment, which all carry the label the block was written with, remain valid.
+Two blocks with different labels can also point at one `config_path`. Both are reachable, so the same unit is declared twice, and the two blocks drift apart as soon as one gains a `mock_outputs` or `skip_outputs` the other lacks:
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "network" {
+  config_path = "../vpc"
+}
+```
+
+That is warned about by default too. Under the control it is an error naming both addresses and the path they share:
+
+```text
+/path/to/terragrunt.hcl: dependencies vpc and network both point at ../vpc; declare that dependency once and reference it under one name
+```
+
+Blocks are compared by the address they resolve to rather than by label alone, so the elements of a block expanded with <Before version="v1.2.0">the [`block-iteration`](/reference/experiments/active#block-iteration) experiment</Before><Since version="v1.2.0">an [`expansion`](/reference/hcl/blocks#expansion) block</Since>, which all carry the label the block was written with, remain valid.

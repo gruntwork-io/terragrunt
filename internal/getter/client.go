@@ -6,6 +6,7 @@ import (
 	getter "github.com/hashicorp/go-getter/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // NewClient returns a *go-getter/v2.Client configured for Terragrunt.
@@ -14,8 +15,14 @@ import (
 // directly, as it will consistently configure the client with the
 // default protocol set (s3, gcs, git, hg, smb, http(s), file) plus
 // the FileCopy and tfr customizations.
-func NewClient(v *venv.Venv, opts ...Option) *getter.Client {
-	b := &builder{v: v}
+//
+// Every http(s) fetch goes through v's client, so no source reaches the
+// network outside the venv. A caller fetching through a different client
+// passes [WithHTTP].
+func NewClient(l log.Logger, v *venv.Venv, opts ...Option) *getter.Client {
+	v.RequireHTTP()
+
+	b := &builder{logger: l, v: v, httpClient: v.HTTP}
 	for _, opt := range opts {
 		opt(b)
 	}
@@ -34,11 +41,12 @@ func NewClient(v *venv.Venv, opts ...Option) *getter.Client {
 // Get is a convenience wrapper for downloading directories.
 func Get(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	dst, src string,
 	opts ...Option,
 ) (*GetResult, error) {
-	return NewClient(v, opts...).Get(ctx, &Request{
+	return NewClient(l, v, opts...).Get(ctx, &Request{
 		Src:     src,
 		Dst:     dst,
 		GetMode: ModeDir,
@@ -49,11 +57,12 @@ func Get(
 // through a Terragrunt-configured client whose getter list includes s3 and gcs.
 func GetAny(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	dst, src string,
 	opts ...Option,
 ) (*GetResult, error) {
-	return NewClient(v, opts...).Get(ctx, &Request{
+	return NewClient(l, v, opts...).Get(ctx, &Request{
 		Src:     src,
 		Dst:     dst,
 		GetMode: ModeAny,
@@ -63,11 +72,12 @@ func GetAny(
 // GetFile is a convenience wrapper for downloading a single file.
 func GetFile(
 	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	dst, src string,
 	opts ...Option,
 ) (*GetResult, error) {
-	return NewClient(v, opts...).Get(ctx, &Request{
+	return NewClient(l, v, opts...).Get(ctx, &Request{
 		Src:     src,
 		Dst:     dst,
 		GetMode: ModeFile,

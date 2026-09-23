@@ -7,9 +7,9 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import { Aside } from '@astrojs/starlight/components';
 import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
+import { Aside } from '@astrojs/starlight/components';
 
 OpenTofu/Terraform supports [remote state storage](https://opentofu.org/docs/language/state/remote/) via various [backends](https://opentofu.org/docs/language/settings/backends/configuration/) that you normally configure in your `.tf` files as follows:
 
@@ -169,7 +169,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
-- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental; <Before version="1.1.2">see the [`azure-backend`](/reference/experiments/active#azure-backend) experiment, which currently does not change behavior</Before><Since version="1.1.2">bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment</Since>)
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm)<Before version="v1.2.0"> (experimental; bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)</Before>
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -216,6 +216,40 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 - **Access logging bucket**: If you specify an `accesslogging_bucket_name` in `remote_state.config` and that bucket doesn't already exist, Terragrunt will create it automatically. You can tag the access logging bucket with custom tags using `remote_state.config.accesslogging_bucket_tags`, and control the log object prefix using `accesslogging_target_prefix`.
 
+  <Before version="v1.2.0">
+
+  Terragrunt grants S3 permission to deliver logs into this bucket with a bucket ACL, granting `WRITE` and `READ_ACP` to the S3 log delivery group. It does this every run, on a bucket it creates and on one that already exists. A bucket with ACLs disabled rejects the grant.
+
+  </Before>
+
+  <Since version="v1.2.0">
+
+  A bucket Terragrunt creates here gets a bucket policy letting S3 deliver access logs into it on behalf of buckets in the same AWS account. AWS [recommends a bucket policy over the log delivery group ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general) for this, and documents the [policy to use](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-bucket-policy). Terragrunt also creates buckets with ACLs disabled, [which AWS recommends](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html) and applies by default to new buckets.
+
+  A bucket that already exists keeps the permissions it has: Terragrunt reads and writes nothing on its policy, so if access logs don't arrive, grant `s3:PutObject` to `logging.s3.amazonaws.com` on that bucket yourself.
+
+  </Since>
+
+<Since version="v1.2.0">
+
+Terragrunt creates a bucket in your [account regional namespace](https://docs.aws.amazon.com/AmazonS3/latest/userguide/gpbucketnamespaces.html) when you name it using a name that's reserved for the account regional namespace. That namespace is a reserved subdivision of the S3 namespace that only your account can create buckets in, and its names end with your account ID, the region, and `-an`:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "my-terraform-state-111122223333-us-east-1-an"
+    key    = "${path_relative_to_include()}/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+```
+
+`accesslogging_bucket_name` follows the same rule. A name that fits the convention but names a region other than the one you are deploying to is refused before Terragrunt offers to create the bucket.
+
+</Since>
+
 <Aside type="tip" title="Using profiles">
 
 If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile when creating the S3 bucket, DynamoDB table, or access logging bucket.
@@ -257,10 +291,42 @@ remote_state {
 }
 ```
 
+#### Root user access to the state bucket
+
+Terragrunt used to attach a bucket policy statement with the `Sid` `RootAccess` to every state bucket it bootstrapped, granting `s3:*` on the bucket and its objects to `arn:aws:iam::<account-id>:root`. A resource policy naming that ARN grants access to the AWS account as a whole, not only to its root user. That statement has been removed. The account already owns the bucket, so the statement gave the account no reach it did not have, and state files often contain secrets that belong behind least-privilege access.
+
+If your setup depends on that statement, set `enable_bucket_root_access` to add it back:
+
+```hcl
+# root.hcl
+remote_state {
+  # ... other args omitted for brevity ...
+  config = {
+    # ... other config omitted for brevity ...
+    enable_bucket_root_access = true
+  }
+}
+```
+
+Terragrunt does not strip the statement from buckets that already have it. To drop it, fetch the current policy, delete the statement whose `Sid` is `RootAccess`, and put the policy back:
+
+```bash
+aws s3api get-bucket-policy --bucket my-tofu-state --query Policy --output text \
+  | jq '.Statement |= map(select(.Sid != "RootAccess"))' > policy.json
+
+aws s3api put-bucket-policy --bucket my-tofu-state --policy file://policy.json
+```
+
+Before you apply this, confirm that the principals you expect can still reach the bucket through their own IAM policies.
+
 #### Advanced configuration
 
 <Aside type="caution" title="DEPRECATED">
 The `skip_bucket_accesslogging` option, which previously disabled access logging on the state bucket, is now deprecated. Use `accesslogging_bucket_name` instead to explicitly configure the target logging bucket.
+</Aside>
+
+<Aside type="caution" title="DEPRECATED">
+The `skip_bucket_root_access` option no longer has any effect and is now deprecated. Terragrunt does not grant the AWS account root user access to the state bucket, so there is nothing left to skip. Use `enable_bucket_root_access` if you need that access granted. Terragrunt warns about the option when it bootstraps the backend; enable the [`skip-bucket-root-access`](/reference/strict-controls/active#skip-bucket-root-access) strict control to turn that warning into an error.
 </Aside>
 
 For the `s3` backend, the following additional config options can be used for S3-compatible object stores, as necessary:
@@ -273,7 +339,6 @@ remote_state {
   config = {
     skip_bucket_versioning         = true
     skip_bucket_ssencryption       = true
-    skip_bucket_root_access        = true
     skip_bucket_enforced_tls       = true
     skip_credentials_validation    = true
     enable_lock_table_ssencryption = true
@@ -288,7 +353,6 @@ remote_state {
 
 - `skip_bucket_versioning` — Skip versioning on the state bucket. Use only if the object store does not support versioning.
 - `skip_bucket_ssencryption` — Skip server-side encryption on the state bucket. Use only if non-encrypted state is required or the object store does not support server-side encryption.
-- `skip_bucket_root_access` — Skip granting the AWS account root user access to the state bucket.
 - `skip_bucket_enforced_tls` — Skip enforcing TLS on the state bucket. Use only if you need to access the S3 bucket without TLS being enforced.
 - `skip_credentials_validation` — Skip validation of AWS credentials. Useful when using S3-compatible object stores other than AWS.
 - `enable_lock_table_ssencryption` — Enable server-side encryption on the DynamoDB lock table.
@@ -308,6 +372,7 @@ The following config options are only valid for the `s3` backend and are used by
 - `skip_bucket_versioning`
 - `skip_bucket_ssencryption`
 - `skip_bucket_root_access`
+- `enable_bucket_root_access`
 - `skip_bucket_enforced_tls`
 - `skip_bucket_public_access_blocking`
 - `accesslogging_bucket_name`
@@ -353,20 +418,17 @@ The following config options are only valid for the `gcs` backend and are used b
 
 ### Azure Storage (azurerm) Backend
 
+<Before version="v1.2.0">
 <Aside type="caution" title="Experimental">
 Azure backend support is delivered through the [`azure-backend`](/reference/experiments/active#azure-backend) experiment.
-<Before version="1.1.2">
-Until that experiment lands functional behavior, Terragrunt does not bootstrap, delete, or migrate Azure resources;
-OpenTofu/Terraform's native `azurerm` backend is used as-is.
-</Before>
-<Since version="1.1.2">
+
 With the experiment enabled, Terragrunt bootstraps, deletes, and migrates Azure Storage state resources.
 Otherwise, these operations return an error. OpenTofu/Terraform's native azurerm backend handles normal state reads and writes.
+</Aside>
+</Before>
 
-<Since version="1.1.4">
-When both `azure-backend` and [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state) are enabled, and the Azure backend configuration is supported by the direct reader, Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
-</Since>
-</Since>
+<Aside type="note">
+<Before version="v1.2.0">When `azure-backend` is enabled and the</Before><Since version="v1.2.0">When the</Since> Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
 </Aside>
 
 Example configuration:
@@ -386,11 +448,6 @@ remote_state {
 }
 ```
 
-<Before version="1.1.2">
-Further configuration keys, authentication methods, and Terragrunt-side bootstrap behavior will be documented as the experiment matures.
-</Before>
-
-<Since version="1.1.2">
 Terragrunt-only bootstrap settings are set in the same `config` block:
 
 ```hcl
@@ -410,7 +467,7 @@ remote_state {
 
 Creating a storage account grants no access to the blobs inside it, so an identity using
 `use_azuread_auth` can create the account and still read state as unauthorized.
-<Since version="1.1.5">
+
 Set `assign_blob_data_role` to have bootstrap grant **Storage Blob Data Contributor** on the
 account, which closes that gap:
 
@@ -434,7 +491,6 @@ The assignment is skipped when it already exists, so reruns need no write permis
 This is opt-in because creating a role assignment requires
 `Microsoft.Authorization/roleAssignments/write` (held by Owner and User Access
 Administrator, but not Contributor), which many CI identities deliberately lack.
-</Since>
 
 When bootstrapping (`terragrunt backend bootstrap` or `--backend-bootstrap`), Terragrunt creates the resource group,
 storage account, and blob container when they do not exist (each step can be skipped with the `skip_*` options below),
@@ -447,6 +503,9 @@ The following config options are only valid for the `azurerm` backend and are us
 - `account_tier` - Storage account tier, `Standard` or `Premium`. Defaults to `Standard`.
 - `account_replication_type` - Replication type, e.g. `LRS`, `GRS`, `ZRS`. Defaults to `LRS`.
 - `access_tier` - Blob access tier, `Hot`, `Cool`, `Cold`, or `Premium`. Defaults to `Hot`.
+<Since version="v1.2.0">
+- `minimum_tls_version` - Minimum TLS version permitted on requests to the storage account, `TLS1_2` or `TLS1_3`. Defaults to `TLS1_2`. The deprecated `TLS1_0` and `TLS1_1` are not accepted. Applies only when Terragrunt creates the account.
+</Since>
 - `tags` - Map of tags applied to the storage account on creation.
 - `skip_resource_group_creation` - When `true`, never create the resource group.
 - `skip_storage_account_creation` - When `true`, never create the storage account; it must already exist.
@@ -457,10 +516,10 @@ The following config options are only valid for the `azurerm` backend and are us
 - `allow_blob_public_access` - When `true`, allow containers on the account to permit anonymous access. Defaults to `false`.
 - `msi_resource_id` - Resource ID of a user-assigned managed identity to use with `use_msi`.
 - `environment` - Azure cloud partition: `public` (default), `usgovernment` (Azure Government), or `china`. Also accepted via `ARM_ENVIRONMENT`.
-<Since version="1.1.5">
+
 - `assign_blob_data_role` - When `true`, bootstrap grants **Storage Blob Data Contributor** on the storage account to `principal_id` (or to the identity Terragrunt authenticated as when unset). Opt-in because it requires `Microsoft.Authorization/roleAssignments/write`.
 - `principal_id` - Microsoft Entra object id that receives the data-plane role when `assign_blob_data_role` is `true`. Defaults to the caller resolved from the access token.
-</Since>
+
 Authentication is resolved in the following order, with `ARM_*` and `AZURE_*` environment variable fallbacks applied
 to any values not set in the config:
 
@@ -499,7 +558,6 @@ remote_state {
 - With `use_azuread_auth`, reading and writing state requires the **Storage Blob Data Contributor** role on the storage account; the control-plane Contributor role alone is not sufficient. Set `assign_blob_data_role = true` to have bootstrap assign it, or grant it out of band.
 - State migration is supported within a single storage account; cross-account migration must be performed manually (init, state pull, state push).
 </Aside>
-</Since>
 
 ### Disabling automatic remote state bootstrapping
 

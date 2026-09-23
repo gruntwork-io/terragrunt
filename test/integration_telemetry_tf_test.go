@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/require"
 )
@@ -86,12 +85,11 @@ func TestTFTelemetryTracesMarkFailedSpans(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTelemetryErrorStatus)
 			workingDir := filepath.Join(tmpEnvPath, testFixtureTelemetryErrorStatus, tt.dir)
 
-			v := venv.OSVenv()
+			v := helpers.RunVenv(t)
 			v.Env["TG_TELEMETRY_TRACE_EXPORTER"] = "console"
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
+			stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 				t,
-				t.Context(),
 				v,
 				"terragrunt "+tt.args+" --non-interactive -no-color --working-dir "+workingDir,
 			)

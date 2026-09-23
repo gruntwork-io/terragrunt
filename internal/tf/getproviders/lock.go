@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
 	"io/fs"
 	"path/filepath"
 	"slices"
@@ -15,9 +15,9 @@ import (
 	"strings"
 	"unicode"
 
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -51,17 +51,15 @@ func UpdateLockfile(ctx context.Context, fsys vfs.FS, workingDir string, provide
 		return err
 	}
 
-	// CAS may materialize the lock file as a read-only hard link, so remove it before writing
-	if err := fsys.Remove(filename); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("failed to remove lock file %s before writing: %w", filename, err)
-	}
-
 	const ownerWriteGlobalReadPerms = 0644
-	if err := vfs.WriteFile(fsys, filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
-		return err
-	}
 
-	return nil
+	// The rename replaces the entry rather than the file, so a read-only hard link
+	// the CAS materialized here is left intact for whatever else points at it.
+	return vfs.StreamFileAtomic(fsys, filename, ownerWriteGlobalReadPerms, func(w io.Writer) error {
+		_, err := file.WriteTo(w)
+
+		return err
+	})
 }
 
 func updateLockfile(ctx context.Context, fsys vfs.FS, file *hclwrite.File, providers []Provider) error {
@@ -245,12 +243,12 @@ func shouldUpdateConstraints(
 		"",
 	)
 
-	currentConstraints, err := version.NewConstraint(currentConstraintsValue)
+	currentConstraints, err := semver.ParseConstraint(currentConstraintsValue)
 	if err != nil {
 		return true
 	}
 
-	newVersion, err := version.NewVersion(providerVersion)
+	newVersion, err := semver.Parse(providerVersion)
 	if err != nil {
 		return true
 	}
@@ -362,7 +360,7 @@ func UpdateLockfileConstraints(
 			"",
 		)
 
-		currentConstraints, err := version.NewConstraint(currentConstraintsValue)
+		currentConstraints, err := semver.ParseConstraint(currentConstraintsValue)
 		if err != nil {
 			providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
 
@@ -374,7 +372,7 @@ func UpdateLockfileConstraints(
 		versionAttr := providerBlock.Body().GetAttribute("version")
 		if versionAttr != nil {
 			versionVal := getAttributeValueAsUnquotedString(versionAttr)
-			if v, err := version.NewVersion(versionVal); err == nil && currentConstraints.Check(v) {
+			if v, err := semver.Parse(versionVal); err == nil && currentConstraints.Check(v) {
 				continue
 			}
 		}
@@ -386,9 +384,12 @@ func UpdateLockfileConstraints(
 
 	if updated {
 		const ownerWriteGlobalReadPerms = 0644
-		if err := vfs.WriteFile(fsys, filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
+
+		return vfs.StreamFileAtomic(fsys, filename, ownerWriteGlobalReadPerms, func(w io.Writer) error {
+			_, err := file.WriteTo(w)
+
 			return err
-		}
+		})
 	}
 
 	return nil

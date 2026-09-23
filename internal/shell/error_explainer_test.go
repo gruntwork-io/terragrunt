@@ -47,7 +47,7 @@ func TestExplainError(t *testing.T) {
 			output := util.CmdOutput{
 				Stderr: *bytes.NewBufferString(tt.errorOutput)}
 
-			errs := errors.Join(util.ProcessExecutionError{
+			errs := errors.Join(&util.ProcessExecutionError{
 				Err:    errors.New(""),
 				Output: output,
 			})

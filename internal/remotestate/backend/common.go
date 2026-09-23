@@ -6,22 +6,22 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/puzpuzpuz/xsync/v4"
 )
 
 var _ Backend = new(CommonBackend)
 
 type CommonBackend struct {
-	bucketLocks   *xsync.Map[string, *sync.Mutex]
-	initedConfigs *xsync.Map[string, bool]
+	bucketLocks   map[string]*sync.Mutex
+	initedConfigs map[string]struct{}
 	name          string
+	mu            sync.Mutex
 }
 
 func NewCommonBackend(name string) *CommonBackend {
 	return &CommonBackend{
 		name:          name,
-		bucketLocks:   xsync.NewMap[string, *sync.Mutex](),
-		initedConfigs: xsync.NewMap[string, bool](),
+		bucketLocks:   make(map[string]*sync.Mutex),
+		initedConfigs: make(map[string]struct{}),
 	}
 }
 
@@ -111,19 +111,34 @@ func (backend *CommonBackend) GetTFInitArgs(config Config) map[string]any {
 }
 
 func (backend *CommonBackend) GetBucketMutex(bucketName string) *sync.Mutex {
-	mu, _ := backend.bucketLocks.LoadOrCompute(bucketName, func() (*sync.Mutex, bool) {
-		return new(sync.Mutex), false
-	})
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
 
-	return mu
+	bucketMu, ok := backend.bucketLocks[bucketName]
+	if !ok {
+		bucketMu = new(sync.Mutex)
+		backend.bucketLocks[bucketName] = bucketMu
+	}
+
+	return bucketMu
 }
 
 func (backend *CommonBackend) IsConfigInited(config interface{ CacheKey() string }) bool {
-	status, ok := backend.initedConfigs.Load(config.CacheKey())
+	key := config.CacheKey()
 
-	return ok && status
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+
+	_, ok := backend.initedConfigs[key]
+
+	return ok
 }
 
 func (backend *CommonBackend) MarkConfigInited(config interface{ CacheKey() string }) {
-	backend.initedConfigs.Store(config.CacheKey(), true)
+	key := config.CacheKey()
+
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+
+	backend.initedConfigs[key] = struct{}{}
 }

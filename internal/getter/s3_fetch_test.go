@@ -58,11 +58,12 @@ func TestParseS3FetchURL(t *testing.T) {
 			wantProfile: "dev",
 		},
 		{
-			name:       "s3-compatible host takes its region from the query",
-			raw:        "https://minio.example.com/bucket/key?region=us-west-2",
-			wantRegion: "us-west-2",
-			wantBucket: "bucket",
-			wantKey:    "key",
+			name:         "s3-compatible host takes its region from the query",
+			raw:          "https://minio.example.com/bucket/key?region=us-west-2",
+			wantRegion:   "us-west-2",
+			wantBucket:   "bucket",
+			wantKey:      "key",
+			wantEndpoint: "https://minio.example.com",
 		},
 	}
 
@@ -112,6 +113,67 @@ func TestParseS3FetchURLInURLCredentials(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "key", creds.AccessKeyID)
 	assert.Equal(t, "secret", creds.SecretAccessKey)
+}
+
+// TestParseS3FetchURLEnvCredentials is the regression test for #6821: a
+// non-AWS S3-compatible URL without query credentials must still pin the
+// endpoint so the SDK does not redirect to amazonaws.com.
+func TestParseS3FetchURLEnvCredentials(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		raw          string
+		wantEndpoint string
+		wantCreds    bool
+	}{
+		{
+			name:         "custom host without query creds pins endpoint",
+			raw:          "https://s3.example.internal/example-bucket/module.zip",
+			wantEndpoint: "https://s3.example.internal",
+		},
+		{
+			name:         "custom host with query creds pins endpoint and sets creds",
+			raw:          "https://s3.example.internal/bucket/key?aws_access_key_id=k&aws_access_key_secret=s",
+			wantEndpoint: "https://s3.example.internal",
+			wantCreds:    true,
+		},
+		{
+			name:         "localhost MinIO pins endpoint without creds",
+			raw:          "http://127.0.0.1:9000/bucket/modules/mod.tar.gz",
+			wantEndpoint: "http://127.0.0.1:9000",
+		},
+		{
+			name:         "s3 scheme on custom host normalizes to https",
+			raw:          "s3://minio.corp.internal/bucket/module.zip",
+			wantEndpoint: "https://minio.corp.internal",
+		},
+		{
+			name:         "AWS host never pins a custom endpoint",
+			raw:          "s3://s3.amazonaws.com/bucket/key",
+			wantEndpoint: "",
+		},
+		{
+			name:         "regional AWS host never pins a custom endpoint",
+			raw:          "s3://s3-eu-west-1.amazonaws.com/bucket/key",
+			wantEndpoint: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			u, err := url.Parse(tc.raw)
+			require.NoError(t, err)
+
+			got, err := getter.ParseS3FetchURL(u)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.wantEndpoint, got.Endpoint)
+			assert.Equal(t, tc.wantCreds, got.Creds != nil)
+		})
+	}
 }
 
 // TestParseS3FetchURLRejectsIncomplete pins that a URL naming no key is

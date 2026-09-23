@@ -77,7 +77,7 @@ func runTFHelp(
 		configbridge.TFRunOptsFromOpts(v.Env, opts),
 		terraformHelpCmd...)
 	if err != nil {
-		var processError util.ProcessExecutionError
+		var processError *util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {
 			err = processError.Err
 		}

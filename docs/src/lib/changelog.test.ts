@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
   categorySlugSort,
-  compareVersionsDesc,
-  isReleased,
   parsePullRequests,
   prepareForGitHub,
   pullRequestsFromCommits,
@@ -17,33 +15,6 @@ function commit(message: string, login: string | null, name?: string) {
 }
 
 const SITE = "https://terragrunt.gruntwork.io";
-
-describe("compareVersionsDesc", () => {
-  test("orders semver versions descending", () => {
-    const sorted = ["v1.0.10", "v1.0.2", "v1.0.0"].sort(compareVersionsDesc);
-    expect(sorted).toEqual(["v1.0.10", "v1.0.2", "v1.0.0"]);
-  });
-
-  test("non-version strings sort before semver versions", () => {
-    const sorted = ["v1.0.0", "draft", "v0.99.0"].sort(compareVersionsDesc);
-    expect(sorted[0]).toBe("draft");
-  });
-});
-
-describe("isReleased", () => {
-  test("returns true when version is at or below latest", () => {
-    expect(isReleased("v1.0.3", "1.0.3")).toBe(true);
-    expect(isReleased("v1.0.0", "1.0.3")).toBe(true);
-  });
-
-  test("returns false when version is newer than latest", () => {
-    expect(isReleased("v1.0.4", "1.0.3")).toBe(false);
-  });
-
-  test("returns false for non-semver tags", () => {
-    expect(isReleased("draft", "1.0.3")).toBe(false);
-  });
-});
 
 describe("categorySlugSort", () => {
   test("uses the canonical category order", () => {

@@ -1,0 +1,16 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Collect runtime profiles
+
+Terragrunt writes CPU, heap, and goroutine profiles on request, so you can see where a slow run spends its time. Pass `--profile-cpu`, `--profile-mem` or `--profile-goroutine` with a path, or `--profile-dir` to collect all three into one directory under conventional names. Each flag has a matching `TG_PROFILE_*` environment variable.
+
+```bash
+terragrunt --profile-dir /tmp/profiles run --all -- plan
+```
+
+Read the result with `go tool pprof`. This is aimed at investigating Terragrunt itself rather than the OpenTofu/Terraform it runs.
+
+This completes the `profiling` experiment. You no longer have to use the experiment to benefit from this feature.

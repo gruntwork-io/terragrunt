@@ -7,7 +7,6 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
 
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format in the form of traces and metrics.
 
@@ -43,8 +42,6 @@ Metrics configuration:
   - `grpcHttp` - export metrics to an OpenTelemetry collector over gRPC [otlpmetricgrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc)
 - `TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
 
-<Since version="1.1.2">
-
 Logs configuration:
 
 <Aside type="tip" title="Experimental">
@@ -59,8 +56,6 @@ The logs signal is gated behind the [`otel-logs`](/reference/experiments/active#
 - `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter disables TLS and sends logs over an insecure connection, for local logs collection only.
 
 The OTLP log exporters read their endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Records emitted while a span is active carry its trace and span IDs, so those logs and traces correlate in the backend.
-
-</Since>
 
 Resource attributes:
 

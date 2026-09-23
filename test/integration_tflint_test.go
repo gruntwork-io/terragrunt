@@ -1,6 +1,6 @@
 //go:build tflint && !windows
 
-//nolint:paralleltest
+//nolint:paralleltest // tflint runs embedded in the test process and races when runs overlap
 package test_test
 
 import (

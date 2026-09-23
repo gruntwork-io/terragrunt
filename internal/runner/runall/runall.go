@@ -134,7 +134,7 @@ func Run(
 		}
 
 		defer func() {
-			cleanupErr := wts.Cleanup(ctx, l, v.FS)
+			cleanupErr := wts.Cleanup(ctx, l, v)
 			if cleanupErr != nil {
 				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 			}
@@ -184,7 +184,15 @@ func Run(
 
 		// After generation, hint when a literal stack filter left nested stacks ungenerated.
 		funcsFor := configbridge.StackFuncFactory(ctx, l, v, opts)
-		tips.GiveStackNestedGenerateTip(l, v.FS, funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
+		tips.GiveStackNestedGenerateTip(
+			ctx,
+			l,
+			v.FS,
+			funcsFor,
+			opts.WorkingDir,
+			opts.Filters,
+			opts.Tips,
+		)
 	} else {
 		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
 	}

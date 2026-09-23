@@ -1,8 +1,8 @@
 package runner
 
 import (
-	"bytes"
 	"context"
+	"io"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -160,7 +159,6 @@ func (runner *UnitRunner) Run(
 			return err
 		}
 
-		stdout := bytes.Buffer{}
 		jsonOptions.ForwardTFStdout = true
 		jsonOptions.JSONLogFormat = false
 		jsonOptions.TerraformCommand = tf.CommandNameShow
@@ -172,34 +170,20 @@ func (runner *UnitRunner) Run(
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
 
-		jsonV := v.WithWriter(&stdout)
-
 		runOpts := configbridge.NewRunOptions(jsonOptions)
-		if err := run.Run(
-			ctx,
-			jsonLogger,
-			jsonV,
-			runOpts,
-			adhocReport,
-			cfg,
-			credsGetter,
-		); err != nil {
-			return err
-		}
-
 		outputFile := runner.Unit.OutputJSONFile(opts.RootWorkingDir, opts.JSONOutputFolder)
-		jsonDir := filepath.Dir(outputFile)
 
-		const (
-			ownerReadWriteExecutePerms = 0o700
-			ownerReadWritePerms        = 0o600
-		)
-
-		if err := v.FS.MkdirAll(jsonDir, ownerReadWriteExecutePerms); err != nil {
-			return err
-		}
-
-		if err := vfs.WriteFile(v.FS, outputFile, stdout.Bytes(), ownerReadWritePerms); err != nil {
+		if err := WriteJSONOutput(v.FS, outputFile, func(w io.Writer) error {
+			return run.Run(
+				ctx,
+				jsonLogger,
+				v.WithWriter(w),
+				runOpts,
+				adhocReport,
+				cfg,
+				credsGetter,
+			)
+		}); err != nil {
 			return err
 		}
 	}

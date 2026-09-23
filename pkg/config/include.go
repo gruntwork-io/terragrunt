@@ -163,8 +163,7 @@ func handleInclude(
 			return baseConfig, err
 		}
 
-		// TODO: Remove lint suppression
-		switch mergeStrategy { //nolint:exhaustive
+		switch mergeStrategy {
 		case NoMerge:
 			l.Debugf(
 				"%sIncluded config %s has strategy no merge: not merging config in.",
@@ -195,6 +194,8 @@ func handleInclude(
 			}
 
 			baseConfig = parsedIncludeConfig
+		case DeepMergeMapOnly:
+			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		default:
 			return nil, fmt.Errorf(
 				"you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s",
@@ -242,8 +243,7 @@ func handleIncludeForDependency(
 			return nil, err
 		}
 
-		// TODO: Remove lint suppression
-		switch mergeStrategy { //nolint:exhaustive
+		switch mergeStrategy {
 		case NoMerge:
 			l.Debugf(
 				"Included config %s has strategy no merge: not merging config in for dependency.",
@@ -287,6 +287,8 @@ func handleIncludeForDependency(
 			}
 
 			baseDependencyBlock = mergedDependencyBlock
+		case DeepMergeMapOnly:
+			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		default:
 			return nil, fmt.Errorf(
 				"you reached an impossible condition. This is most likely a bug in terragrunt. "+
@@ -634,7 +636,8 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 }
 
 // fetchDependencyPaths returns each dependency's config path, keyed the way include
-// merging matches dependencies up.
+// merging matches dependencies up. A dependency whose config_path is not a known string
+// has no path to carry over, so it is left out, as [Dependency.DeepMerge] ignores it too.
 func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	var m = make(map[string]string)
 	if config == nil {
@@ -642,7 +645,9 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	}
 
 	for _, dependency := range config.TerragruntDependencies {
-		m[dependency.mergeKey()] = dependency.ConfigPath.AsString()
+		if configPath, ok := dependency.configPathString(); ok {
+			m[dependency.mergeKey()] = configPath
+		}
 	}
 
 	return m

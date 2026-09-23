@@ -1,7 +1,6 @@
 package discovery_test
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -31,7 +30,7 @@ func TestDiscoveryWithGraphTarget_RetainsTargetAndDependents(t *testing.T) {
 	dbDir := filepath.Join(tmpDir, "db")
 	appDir := filepath.Join(tmpDir, "app")
 
-	v := memGitTopLevelVenv(t, tmpDir)
+	v := memRepoRootVenv(t, tmpDir)
 
 	writeUnits(t, v.FS, map[string]string{
 		vpcDir: ``,
@@ -81,7 +80,7 @@ func TestDiscoveryGraphTarget_ParityWithFilterQueries(t *testing.T) {
 	dbDir := filepath.Join(tmpDir, "db")
 	appDir := filepath.Join(tmpDir, "app")
 
-	v := memGitTopLevelVenv(t, tmpDir)
+	v := memRepoRootVenv(t, tmpDir)
 
 	writeUnits(t, v.FS, map[string]string{
 		vpcDir: ``,
@@ -142,7 +141,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 	dbDir := filepath.Join(tmpDir, "db")
 	appDir := filepath.Join(tmpDir, "app")
 
-	v := memGitTopLevelVenv(t, tmpDir)
+	v := memRepoRootVenv(t, tmpDir)
 
 	writeUnits(t, v.FS, map[string]string{
 		vpcDir: ``,
@@ -181,7 +180,7 @@ func TestDiscoveryWithOptions_GraphTarget(t *testing.T) {
 	vpcDir := filepath.Join(tmpDir, "vpc")
 	dbDir := filepath.Join(tmpDir, "db")
 
-	v := memGitTopLevelVenv(t, tmpDir)
+	v := memRepoRootVenv(t, tmpDir)
 
 	writeUnits(t, v.FS, map[string]string{
 		vpcDir: ``,
@@ -230,25 +229,16 @@ func writeUnits(t *testing.T, fsys vfs.FS, units map[string]string) {
 	}
 }
 
-// memGitTopLevelVenv returns a venv.Venv whose Exec answers
-// `git rev-parse --show-toplevel` with the supplied repoRoot. Any other
-// invocation fails the test so a regression that fires unexpected git
-// subcommands is caught here.
-func memGitTopLevelVenv(t *testing.T, repoRoot string) *venv.Venv {
+// memRepoRootVenv returns a [venv.Venv] whose in-memory filesystem holds a
+// repository at repoRoot, so [git.GoRepoRoot]'s walk bounds traversal there
+// when no discovery boundary is configured. `.git` is written as a file, the
+// shape a submodule and a linked worktree both use.
+func memRepoRootVenv(t *testing.T, repoRoot string) *venv.Venv {
 	t.Helper()
 
-	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		if inv.Name == "git" && len(inv.Args) == 2 && inv.Args[0] == "rev-parse" &&
-			inv.Args[1] == "--show-toplevel" {
-			return vexec.Result{Stdout: []byte(repoRoot + "\n")}
-		}
-
-		assert.Fail(t, "unexpected git invocation", "name=%q args=%v", inv.Name, inv.Args)
-
-		return vexec.Result{ExitCode: 1}
-	})
-
-	return venvtest.New().WithExec(exec)
+	return venvtest.New().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
+		".git": "gitdir: /elsewhere/.git\n",
+	}))
 }
 
 // mockGraphTargetOption implements the GraphTarget() interface for testing.

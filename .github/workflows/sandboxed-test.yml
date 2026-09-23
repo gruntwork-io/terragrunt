@@ -26,33 +26,17 @@ jobs:
           fetch-depth: 1
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          version: 2026.5.12
+          version: 2026.9.12
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - id: go-cache-paths
-        run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-        shell: bash
-
-      - name: Go Build Cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      - name: Restore Go caches
+        uses: $/.github/actions/go-cache-restore
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-ubuntu-amd64
-          restore-keys: |
-            ${{ runner.os }}-go-build-
-
-      - name: Go Mod Cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-ubuntu-amd64
-          restore-keys: |
-            ${{ runner.os }}-go-mod-
+          gocache-name: test
 
       # Ubuntu 24.04 confines unprivileged user namespaces with AppArmor, which is
       # what `unshare --map-root-user --net` needs. The check below is what
@@ -73,5 +57,5 @@ jobs:
         shell: bash
 
       - name: Run Tests
-        run: go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" -timeout 45m ./...
+        run: ./.github/scripts/ci/sandbox-test.sh
         shell: bash

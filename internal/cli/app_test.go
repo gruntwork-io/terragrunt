@@ -506,9 +506,7 @@ func mockOptions(
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
-	if err != nil {
-		t.Fatalf("error: %v\n", err)
-	}
+	require.NoError(t, err)
 
 	opts.WorkingDir = workingDir
 	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)

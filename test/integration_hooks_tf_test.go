@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,9 +82,7 @@ func TestTFTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	)
 	output := stdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	assert.Equal(
 		t,
@@ -126,9 +125,7 @@ func TestTFTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 
 	output := stdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	assert.Equal(t, 1, strings.Count(
 		output, "AFTER_INIT_ONLY_ONCE\n",
@@ -171,7 +168,7 @@ func TestTFTerragruntRunNoHooksSkipsConfiguredHooks(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --experiment optional-hooks --no-hooks --non-interactive --working-dir "+directPath+
+		"terragrunt run --no-hooks --non-interactive --working-dir "+directPath+
 			" -- plan -input=false",
 	)
 
@@ -181,7 +178,7 @@ func TestTFTerragruntRunNoHooksSkipsConfiguredHooks(t *testing.T) {
 
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --experiment optional-hooks --no-hooks --non-interactive --working-dir "+stackPath+
+		"terragrunt run --all --no-hooks --non-interactive --working-dir "+stackPath+
 			" -- plan -input=false",
 	)
 
@@ -262,9 +259,7 @@ func TestTFTerragruntBeforeAndAfterHook(t *testing.T) {
 
 	output := stdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	assert.Equal(
 		t,
@@ -430,11 +425,8 @@ func TestTFTerragruntBeforeOneArgAction(t *testing.T) {
 	)
 	output := stderr.String()
 
-	if err != nil {
-		t.Error("Expected successful execution of terragrunt with 1 before hook execution.")
-	} else {
-		assert.Contains(t, output, "Running command: date")
-	}
+	require.NoError(t, err, "Expected successful execution of terragrunt with 1 before hook execution.")
+	assert.Contains(t, output, "Running command: date")
 }
 
 func TestTFTerragruntEmptyStringCommandHook(t *testing.T) {
@@ -455,11 +447,8 @@ func TestTFTerragruntEmptyStringCommandHook(t *testing.T) {
 		&stdout,
 		&stderr,
 	)
-	if err != nil {
-		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
-	} else {
-		t.Error("Expected an Error with message: 'Need at least one argument'")
-	}
+	require.Error(t, err, "Expected an Error with message: 'Need at least one argument'")
+	assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
 }
 
 func TestTFTerragruntEmptyCommandListHook(t *testing.T) {
@@ -480,11 +469,8 @@ func TestTFTerragruntEmptyCommandListHook(t *testing.T) {
 		&stdout,
 		&stderr,
 	)
-	if err != nil {
-		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
-	} else {
-		t.Error("Expected an Error with message: 'Need at least one argument'")
-	}
+	require.Error(t, err, "Expected an Error with message: 'Need at least one argument'")
+	assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
 }
 
 func TestTFTerragruntHookInterpolation(t *testing.T) {
@@ -512,9 +498,7 @@ func TestTFTerragruntHookInterpolation(t *testing.T) {
 		homePath = "HelloWorld"
 	}
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	assert.Contains(t, output, homePath)
 }
@@ -587,9 +571,7 @@ func TestTFTerragruntHookContextEnvExperimentEnabled(t *testing.T) {
 func TestTFTerragruntHookContextEnvExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip()
-	}
+	helpers.SkipInExperimentMode(t, experiment.HookContextEnv)
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksContextEnv)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksContextEnv)

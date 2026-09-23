@@ -1,15 +1,13 @@
 package cas
 
 import (
-	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -28,6 +26,10 @@ const (
 	WindowsOS = "windows"
 )
 
+// opWriteTarget is the [WrappedError] Op every link mode reports for a failure
+// writing a materialized file.
+const opWriteTarget = "write_target"
+
 // Content manages git object storage and linking.
 type Content struct {
 	store *Store
@@ -38,211 +40,423 @@ func NewContent(store *Store) *Content {
 	return &Content{store: store}
 }
 
-// LinkOption configures a single Content.Link call.
+// LinkOption configures a single [Content.Link] call.
 type LinkOption func(*linkOpts)
 
 type linkOpts struct {
-	forceCopy bool
+	mode       LinkMode
+	mutable    bool
+	storedPerm bool
+	skipClone  bool
 }
 
-// WithLinkForceCopy makes Link copy the file from the store into the target
-// path instead of creating a hard link, so the destination is safe to mutate
-// without affecting the shared store.
-func WithLinkForceCopy() LinkOption {
-	return func(o *linkOpts) { o.forceCopy = true }
+// WithFileLinkMode selects how the stored blob reaches the target path.
+// Without it, Link uses [DefaultLinkMode].
+func WithFileLinkMode(mode LinkMode) LinkOption {
+	return func(o *linkOpts) { o.mode = mode }
 }
 
-// Link materializes a stored blob at targetPath under gitPerm.
-//
-// The default path hardlinks the stored blob with its write bits stripped, so
-// the destination cannot be edited back into the shared store. The fallback
-// copy path applies when stored perms don't match the request (rare cross-mode
-// collision) or when [WithLinkForceCopy] is in effect, so callers can edit
-// the working tree freely.
+// WithLinkMutable tells Link the destination is going to be edited, so
+// [LinkModeHardlink] is served as [LinkModeClone].
+func WithLinkMutable() LinkOption {
+	return func(o *linkOpts) { o.mutable = true }
+}
+
+// WithLinkStoredPerm leaves the destination at the blob's stored permissions
+// when they differ from the ones requested, rather than taking a private copy.
+// Permissions are fixed when content is first stored.
+func WithLinkStoredPerm() LinkOption {
+	return func(o *linkOpts) { o.storedPerm = true }
+}
+
+// WithoutCloneAttempt tells Link the filesystem holding the target has
+// already refused a copy-on-write clone, so [LinkModeClone] copies without
+// attempting one.
+func WithoutCloneAttempt() LinkOption {
+	return func(o *linkOpts) { o.skipClone = true }
+}
+
+// LinkOutcome reports how one blob reached its destination.
+type LinkOutcome struct {
+	// BytesCopied is the size of the file written when Mode is
+	// [LinkModeCopy], and zero under every other mode.
+	BytesCopied int64
+	// Mode is the mode that produced the file, which differs from the
+	// requested mode when the filesystem could not honor it.
+	Mode LinkMode
+}
+
+// Link materializes a stored blob at targetPath under gitPerm and reports how
+// it got there. [WithFileLinkMode] selects the mode; see [LinkMode] for what
+// each one produces. A mode the filesystem cannot serve falls back to a copy.
 func (c *Content) Link(
-	ctx context.Context,
+	l log.Logger,
 	v *venv.Venv,
 	hash, targetPath string,
 	gitPerm os.FileMode,
 	opts ...LinkOption,
-) error {
-	var o linkOpts
+) (LinkOutcome, error) {
+	o := linkOpts{mode: DefaultLinkMode}
 	for _, opt := range opts {
 		opt(&o)
 	}
 
-	desired := gitPerm.Perm()
-	if !o.forceCopy {
-		desired &^= WriteBitMask
+	mode := resolveLinkMode(o.mode, o.mutable)
+
+	targetDir := filepath.Dir(targetPath)
+	if err := v.FS.MkdirAll(targetDir, DefaultDirPerms); err != nil {
+		return LinkOutcome{}, &WrappedError{
+			Op:   opWriteTarget,
+			Path: targetDir,
+			Err:  err,
+		}
 	}
 
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, "cas_link", map[string]any{
-		"hash":       hash,
-		"path":       targetPath,
-		"force_copy": o.forceCopy,
-		"perm":       uint32(desired),
-	}, func(childCtx context.Context, _ log.Logger) error {
-		sourcePath := c.getPath(hash)
+	sourcePath := c.getPath(hash)
+	perm := destPerm(mode, gitPerm)
 
-		// Hardlink when the stored blob's perms already match what the caller
-		// wants. Otherwise we must produce a fresh inode so a chmod cannot
-		// leak back into the shared store and so the destination carries the
-		// requested mode.
-		if !o.forceCopy {
-			if info, statErr := v.FS.Stat(
-				sourcePath,
-			); statErr == nil &&
-				info.Mode().Perm() == desired {
-				if err := vfs.Link(v.FS, sourcePath, targetPath); err == nil {
-					return nil
-				}
-				// Fall through to copy on link failure. An existing
-				// targetPath is handled by the temp-file+rename below,
-				// which overwrites stale bytes atomically.
-			}
-		}
+	switch mode {
+	case LinkModeHardlink:
+		return c.hardlinkBlob(l, v, hash, sourcePath, targetPath, perm, o)
+	case LinkModeClone:
+		return c.cloneBlob(v, hash, sourcePath, targetPath, perm, o)
+	case LinkModeCopy:
+		return c.copyBlob(v, hash, sourcePath, targetPath, perm)
+	}
 
-		data, readErr := vfs.ReadFile(v.FS, sourcePath)
-		if readErr != nil {
-			return &WrappedError{
-				Op:   "read_source",
-				Path: sourcePath,
-				Err:  ErrReadFile,
-			}
-		}
-
-		targetDir := filepath.Dir(targetPath)
-		if err := v.FS.MkdirAll(targetDir, DefaultDirPerms); err != nil {
-			return &WrappedError{
-				Op:   "write_target",
-				Path: targetDir,
-				Err:  err,
-			}
-		}
-
-		// A unique, freshly-writable temp avoids a fixed "<target>.tmp":
-		// reopening that name fails with EACCES once a prior write (an
-		// interrupted run, or a concurrent Link to the same target) left it at
-		// the read-only `desired` mode.
-		tmp, err := vfs.CreateTemp(v.FS, targetDir, filepath.Base(targetPath)+".tmp")
-		if err != nil {
-			return &WrappedError{
-				Op:   "write_target",
-				Path: targetDir,
-				Err:  err,
-			}
-		}
-
-		tempPath := tmp.Name()
-
-		if _, err := tmp.Write(data); err != nil {
-			return &WrappedError{
-				Op:   "write_target",
-				Path: tempPath,
-				Err:  errors.Join(err, tmp.Close(), v.FS.Remove(tempPath)),
-			}
-		}
-
-		if err := tmp.Close(); err != nil {
-			return &WrappedError{
-				Op:   "write_target",
-				Path: tempPath,
-				Err:  errors.Join(err, v.FS.Remove(tempPath)),
-			}
-		}
-
-		// CreateTemp opens at 0o600, so set the requested mode before publishing.
-		if err := v.FS.Chmod(tempPath, desired); err != nil {
-			return &WrappedError{
-				Op:   "chmod_target",
-				Path: tempPath,
-				Err:  errors.Join(err, v.FS.Remove(tempPath)),
-			}
-		}
-
-		if err := v.FS.Rename(tempPath, targetPath); err != nil {
-			return &WrappedError{
-				Op:   "rename_target",
-				Path: tempPath,
-				Err:  errors.Join(err, v.FS.Remove(tempPath)),
-			}
-		}
-
-		return nil
-	})
+	return LinkOutcome{}, &InvalidLinkModeError{Value: mode.String()}
 }
 
-// Store stores a single content item. This is typically used for trees,
-// as blobs are written directly from git cat-file stdout.
-func (c *Content) Store(l log.Logger, v *venv.Venv, hash string, data []byte) error {
-	lock, err := c.store.AcquireLock(v, hash)
+// hardlinkBlob gives targetPath a second name for the stored blob, and copies
+// where the two cannot share one inode.
+func (c *Content) hardlinkBlob(
+	l log.Logger,
+	v *venv.Venv,
+	hash, sourcePath, targetPath string,
+	perm os.FileMode,
+	o linkOpts,
+) (LinkOutcome, error) {
+	if c.tryLink(l, v, hash, sourcePath, targetPath, perm, o) {
+		return LinkOutcome{Mode: LinkModeHardlink}, nil
+	}
+
+	return c.copyBlob(v, hash, sourcePath, targetPath, perm)
+}
+
+// cloneBlob makes targetPath a copy-on-write clone of the stored blob, and
+// copies where the filesystem cannot clone.
+func (c *Content) cloneBlob(
+	v *venv.Venv,
+	hash, sourcePath, targetPath string,
+	perm os.FileMode,
+	o linkOpts,
+) (LinkOutcome, error) {
+	if o.skipClone {
+		return c.copyBlob(v, hash, sourcePath, targetPath, perm)
+	}
+
+	err := c.cloneInto(v, sourcePath, targetPath, perm)
+	if err == nil {
+		return LinkOutcome{Mode: LinkModeClone}, nil
+	}
+
+	if !errors.Is(err, vfs.ErrNoCloneFile) {
+		return LinkOutcome{}, err
+	}
+
+	return c.copyBlob(v, hash, sourcePath, targetPath, perm)
+}
+
+// tryLink hard links the stored blob onto targetPath and reports whether the
+// link landed. The blob is only shared when it can be handed out under
+// linkPerm, since a link and the blob are one inode.
+func (c *Content) tryLink(
+	l log.Logger,
+	v *venv.Venv,
+	hash, sourcePath, targetPath string,
+	linkPerm os.FileMode,
+	o linkOpts,
+) bool {
+	info, statErr := v.FS.Stat(sourcePath)
+	if statErr != nil ||
+		!linkable(l, hash, targetPath, info.Mode().Perm(), linkPerm, o.storedPerm) {
+		return false
+	}
+
+	linkErr := vfs.Link(v.FS, sourcePath, targetPath)
+	if linkErr == nil {
+		return true
+	}
+
+	// A link refused only because the name is taken is worth a second attempt
+	// beside the target, which keeps the sharing that a copy would give up.
+	if !errors.Is(linkErr, fs.ErrExist) {
+		return false
+	}
+
+	return linkOver(v, sourcePath, info, targetPath) == nil
+}
+
+// cloneInto asks the filesystem for a copy-on-write clone of the stored blob
+// at targetPath.
+//
+// The clone is made at a name of its own and renamed onto targetPath, so
+// several callers materializing one blob at one path each publish a complete
+// file.
+func (c *Content) cloneInto(
+	v *venv.Venv,
+	sourcePath, targetPath string,
+	perm os.FileMode,
+) error {
+	targetDir := filepath.Dir(targetPath)
+
+	tempPath, err := reserveTempPath(v, targetDir, vfs.TempPattern(filepath.Base(targetPath)))
 	if err != nil {
-		return fmt.Errorf("acquire lock for %s: %w", hash, err)
+		return &WrappedError{
+			Op:   opWriteTarget,
+			Path: targetDir,
+			Err:  err,
+		}
+	}
+
+	// Returned unwrapped so the caller can still recognize a filesystem that
+	// cannot clone and pick another mode.
+	if err := vfs.CloneFile(v.FS, sourcePath, tempPath); err != nil {
+		return err
+	}
+
+	if err := v.FS.Chmod(tempPath, perm); err != nil {
+		return &WrappedError{
+			Op:   "chmod_target",
+			Path: tempPath,
+			Err:  errors.Join(err, v.FS.Remove(tempPath)),
+		}
+	}
+
+	if err := vfs.RenameOver(v.FS, tempPath, targetPath); err != nil {
+		return &WrappedError{
+			Op:   "rename_target",
+			Path: tempPath,
+			Err:  errors.Join(err, v.FS.Remove(tempPath)),
+		}
+	}
+
+	return nil
+}
+
+// copyBlob writes an independent copy of the stored blob at targetPath under
+// perm.
+func (c *Content) copyBlob(
+	v *venv.Venv,
+	hash, sourcePath, targetPath string,
+	perm os.FileMode,
+) (LinkOutcome, error) {
+	data, readErr := vfs.ReadFileSharingDelete(v.FS, sourcePath)
+	if readErr != nil {
+		return LinkOutcome{}, storeReadError(hash, sourcePath, readErr)
+	}
+
+	targetDir := filepath.Dir(targetPath)
+
+	// A unique, freshly-writable temp avoids a fixed "<target>.tmp":
+	// reopening that name fails with EACCES once a prior write (an
+	// interrupted run, or a concurrent Link to the same target) left it at
+	// the read-only `perm` mode.
+	tmp, err := vfs.CreateTemp(v.FS, targetDir, vfs.TempPattern(filepath.Base(targetPath)))
+	if err != nil {
+		return LinkOutcome{}, &WrappedError{
+			Op:   opWriteTarget,
+			Path: targetDir,
+			Err:  err,
+		}
+	}
+
+	tempPath := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		return LinkOutcome{}, &WrappedError{
+			Op:   opWriteTarget,
+			Path: tempPath,
+			Err:  errors.Join(err, tmp.Close(), v.FS.Remove(tempPath)),
+		}
+	}
+
+	if err := tmp.Close(); err != nil {
+		return LinkOutcome{}, &WrappedError{
+			Op:   opWriteTarget,
+			Path: tempPath,
+			Err:  errors.Join(err, v.FS.Remove(tempPath)),
+		}
+	}
+
+	// CreateTemp opens at 0o600, so set the requested mode before publishing.
+	if err := v.FS.Chmod(tempPath, perm); err != nil {
+		return LinkOutcome{}, &WrappedError{
+			Op:   "chmod_target",
+			Path: tempPath,
+			Err:  errors.Join(err, v.FS.Remove(tempPath)),
+		}
+	}
+
+	if err := vfs.RenameOver(v.FS, tempPath, targetPath); err != nil {
+		return LinkOutcome{}, &WrappedError{
+			Op:   "rename_target",
+			Path: tempPath,
+			Err:  errors.Join(err, v.FS.Remove(tempPath)),
+		}
+	}
+
+	return LinkOutcome{Mode: LinkModeCopy, BytesCopied: int64(len(data))}, nil
+}
+
+// reserveTempPath returns an unused path in dir matching pattern, for callers
+// handing the name to a syscall that creates the file itself and refuses to
+// replace one. The file is removed before returning, so another process could
+// still take the name first.
+func reserveTempPath(v *venv.Venv, dir, pattern string) (string, error) {
+	f, err := vfs.CreateTemp(v.FS, dir, pattern)
+	if err != nil {
+		return "", err
+	}
+
+	path := f.Name()
+
+	if err := errors.Join(f.Close(), v.FS.Remove(path)); err != nil {
+		return "", err
+	}
+
+	return path, nil
+}
+
+// linkable reports whether a blob stored under stored can be shared by hard
+// link with a caller wanting desired. The modes have to agree, since a link and
+// the blob are one inode, unless the caller has said it would rather share on
+// the store's terms than take a private copy.
+func linkable(
+	l log.Logger,
+	hash, targetPath string,
+	stored, desired os.FileMode,
+	acceptStored bool,
+) bool {
+	if stored == desired {
+		return true
+	}
+
+	if !acceptStored {
+		return false
+	}
+
+	l.Debugf(
+		"CAS already holds %s with permissions %#o, so %s keeps those rather than %#o."+
+			" Permissions are fixed when content is first stored.",
+		hash, uint32(stored), targetPath, uint32(desired),
+	)
+
+	return true
+}
+
+// linkOver hardlinks sourcePath beside targetPath and renames the result onto
+// it, leaving targetPath alone when it already links the blob that source
+// describes. A hard link cannot be made over a name that already exists, and
+// unlinking the target first would drop it for as long as the link takes and
+// lose it for good if the link then fails.
+func linkOver(v *venv.Venv, sourcePath string, source os.FileInfo, targetPath string) (err error) {
+	target, err := vfs.Lstat(v.FS, targetPath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	if err == nil && os.SameFile(source, target) {
+		return nil
+	}
+
+	tmp, err := vfs.CreateTemp(
+		v.FS,
+		filepath.Dir(targetPath),
+		vfs.TempPattern(filepath.Base(targetPath)),
+	)
+	if err != nil {
+		return err
+	}
+
+	tempPath := tmp.Name()
+
+	if err := errors.Join(tmp.Close(), v.FS.Remove(tempPath)); err != nil {
+		return err
+	}
+
+	if err := vfs.Link(v.FS, sourcePath, tempPath); err != nil {
+		return err
 	}
 
 	defer func() {
-		if unlockErr := lock.Unlock(); unlockErr != nil {
-			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
+		if rmErr := v.FS.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+			err = errors.Join(err, rmErr)
 		}
 	}()
 
-	if err = v.FS.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
-		return fmt.Errorf("create store dir %s: %w", c.store.Path(), ErrCreateDir)
-	}
-
-	partitionDir := c.getPartition(hash)
-	if err = v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
-	}
-
-	return c.writeContentToFile(l, v, hash, data)
+	return vfs.RenameOver(v.FS, tempPath, targetPath)
 }
 
-// Ensure ensures that a content item exists in the store.
-func (c *Content) Ensure(l log.Logger, v *venv.Venv, hash string, data []byte) error {
+// Store stores a single content item under perm with its write bits cleared, so
+// nothing holding a link to the blob can edit the copy every other holder sees.
+// This is typically used for trees, as blobs are written directly from git
+// cat-file stdout.
+func (c *Content) Store(
+	l log.Logger,
+	v *venv.Venv,
+	hash string,
+	data []byte,
+	perm os.FileMode,
+) error {
+	unlock := c.store.Lock(hash)
+	defer unlock()
+
+	return c.writeContentToFile(l, v, hash, data, perm)
+}
+
+// Ensure ensures that a content item exists in the store under perm. A blob
+// already there keeps the mode it was first stored with, so content two callers
+// want at different modes is stored once and the second caller links a copy.
+func (c *Content) Ensure(
+	l log.Logger,
+	v *venv.Venv,
+	hash string,
+	data []byte,
+	perm os.FileMode,
+) error {
 	path := c.getPath(hash)
 	if c.store.hasContent(v, path) {
 		return nil
 	}
 
-	return c.Store(l, v, hash, data)
+	return c.Store(l, v, hash, data, perm)
 }
 
 // EnsureWithWait ensures that a content item exists in the store, with optimization
 // to wait for concurrent writes instead of doing redundant work.
-func (c *Content) EnsureWithWait(l log.Logger, v *venv.Venv, hash string, data []byte) error {
-	needsWrite, lock, err := c.store.EnsureWithWait(v, hash)
-	if err != nil {
-		return fmt.Errorf("ensure content for %s: %w", hash, err)
-	}
+func (c *Content) EnsureWithWait(
+	l log.Logger,
+	v *venv.Venv,
+	hash string,
+	data []byte,
+	perm os.FileMode,
+) error {
+	needsWrite, unlock := c.store.EnsureWithWait(v, hash)
+	defer unlock()
 
 	if !needsWrite {
 		return nil
 	}
 
-	defer func() {
-		if unlockErr := lock.Unlock(); unlockErr != nil {
-			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
-		}
-	}()
-
-	if err = v.FS.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
-		return fmt.Errorf("create store dir %s: %w", c.store.Path(), ErrCreateDir)
-	}
-
-	partitionDir := c.getPartition(hash)
-	if err = v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
-	}
-
-	return c.writeContentToFile(l, v, hash, data)
+	return c.writeContentToFile(l, v, hash, data, perm)
 }
 
 // EnsureCopy ensures that a content item exists in the store by copying from a file.
 // The stored blob is chmodded to the source file's perms with the write bits cleared,
 // so the default-link path can hardlink the blob directly without losing its
 // executable-ness or risking writes back into the shared store.
-func (c *Content) EnsureCopy(l log.Logger, v *venv.Venv, hash, src string) (err error) {
+func (c *Content) EnsureCopy(l log.Logger, v *venv.Venv, hash, src string) error {
 	path := c.getPath(hash)
 	if c.store.hasContent(v, path) {
 		return nil
@@ -253,164 +467,80 @@ func (c *Content) EnsureCopy(l log.Logger, v *venv.Venv, hash, src string) (err 
 		return fmt.Errorf("stat source %s: %w", src, err)
 	}
 
-	lock, err := c.store.AcquireLock(v, hash)
-	if err != nil {
-		return fmt.Errorf("acquire lock for %s: %w", hash, err)
-	}
+	unlock := c.store.Lock(hash)
+	defer unlock()
 
-	defer func() {
-		err = errors.Join(err, lock.Unlock())
-	}()
-
-	// Re-check under the lock: another worker may have raced ahead and stored
-	// a read-only blob between the lock-free hasContent check and AcquireLock.
-	// Without this guard, Create below would fail with EACCES on the existing
-	// 0o444 file.
+	// Re-check under the lock: another worker may have stored the blob
+	// between the lock-free hasContent check and Lock, and then the copy
+	// can be skipped.
 	if c.store.hasContent(v, path) {
 		return nil
 	}
 
-	partitionDir := c.getPartition(hash)
-	if err = v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
-	}
-
-	// Write through a tempPath so a crash mid-copy cannot leave a
-	// half-written blob at the final hash-addressed path. The rename
-	// is the publish step.
-	tempPath := path + ".tmp"
-
-	f, err := v.FS.Create(tempPath)
-	if err != nil {
-		return fmt.Errorf("create file %s: %w", tempPath, err)
-	}
-
-	// renamed flips after the publish step so the deferred cleanup
-	// removes a stale tempPath only on the error path.
-	renamed := false
-
-	defer func() {
-		if renamed {
-			return
-		}
-
-		if rmErr := v.FS.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
-			err = errors.Join(err, rmErr)
-		}
-	}()
-
-	r, err := v.FS.Open(src)
-	if err != nil {
-		err = errors.Join(err, f.Close())
-		return fmt.Errorf("open source %s: %w", src, err)
-	}
-
-	defer func() {
-		err = errors.Join(err, r.Close())
-	}()
-
-	if _, err := io.Copy(f, r); err != nil {
-		closeErr := f.Close()
-		return fmt.Errorf("copy from %s: %w", src, errors.Join(err, closeErr))
-	}
-
-	// Close the writer before rename so platforms that disallow
-	// renaming an open file (Windows) can complete the publish.
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("close %s: %w", tempPath, err)
-	}
-
-	if err := v.FS.Chmod(tempPath, srcInfo.Mode().Perm()&^WriteBitMask); err != nil {
-		return fmt.Errorf("chmod %s: %w", tempPath, err)
-	}
-
-	if err := v.FS.Rename(tempPath, path); err != nil {
-		return fmt.Errorf("finalize %s: %w", path, err)
-	}
-
-	renamed = true
-
-	return nil
+	return c.writeObject(v, hash, srcInfo.Mode().Perm()&^WriteBitMask, func(f vfs.File) error {
+		return copySource(v, src, f)
+	})
 }
 
-// GetTmpHandle returns a file handle to a temporary file where content will be stored.
+// GetTmpHandle creates a uniquely named temporary file in the partition
+// for hash, where content will be written before it is published.
+// [Store.Lock] serializes writers of one hash only within a process, so
+// each writer needs a file that no writer in another process shares.
 func (c *Content) GetTmpHandle(v *venv.Venv, hash string) (vfs.File, error) {
 	partitionDir := c.getPartition(hash)
 	if err := v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf("create partition dir %s: %w", partitionDir, ErrCreateDir)
 	}
 
-	path := c.getPath(hash)
-	tempPath := path + ".tmp"
-
-	f, err := v.FS.Create(tempPath)
+	f, err := vfs.CreateTemp(v.FS, partitionDir, vfs.TempPattern(hash))
 	if err != nil {
-		return nil, fmt.Errorf("create temp file %s: %w", tempPath, err)
+		return nil, fmt.Errorf("create temp file in %s: %w", partitionDir, err)
 	}
 
-	return f, err
+	return f, nil
 }
 
 // Read retrieves content from the store by hash.
 func (c *Content) Read(v *venv.Venv, hash string) ([]byte, error) {
 	path := c.getPath(hash)
-	return vfs.ReadFile(v.FS, path)
+
+	data, err := vfs.ReadFileSharingDelete(v.FS, path)
+	if err != nil {
+		return nil, storeReadError(hash, path, err)
+	}
+
+	return data, nil
+}
+
+// storeReadError classifies a failed read of a stored object. An object
+// that is not there is the store missing content the source can supply
+// again, which [CAS.FetchSource] repairs, so it is reported as
+// [MissingObjectError] rather than as an ordinary read failure.
+func storeReadError(hash, path string, err error) error {
+	if errors.Is(err, fs.ErrNotExist) {
+		return &MissingObjectError{Hash: hash, Path: path}
+	}
+
+	return &WrappedError{
+		Op:   "read_source",
+		Path: path,
+		Err:  errors.Join(ErrReadFile, err),
+	}
 }
 
 // writeContentToFile writes data to a temporary file, sets appropriate
 // permissions, and performs an atomic rename.
-func (c *Content) writeContentToFile(l log.Logger, v *venv.Venv, hash string, data []byte) error {
+func (c *Content) writeContentToFile(
+	l log.Logger,
+	v *venv.Venv,
+	hash string,
+	data []byte,
+	perm os.FileMode,
+) error {
 	v.RequireGOOS()
 
 	path := c.getPath(hash)
-	tempPath := path + ".tmp"
-
-	f, err := v.FS.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, RegularFilePerms)
-	if err != nil {
-		return fmt.Errorf("create temp file %s: %w", tempPath, err)
-	}
-
-	buf := bufio.NewWriter(f)
-
-	if _, err := buf.Write(data); err != nil {
-		if closeErr := f.Close(); closeErr != nil {
-			l.Warnf("failed to close temp file %s: %v", tempPath, closeErr)
-		}
-
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return fmt.Errorf("write to %s: %w", tempPath, err)
-	}
-
-	if err := buf.Flush(); err != nil {
-		if closeErr := f.Close(); closeErr != nil {
-			l.Warnf("failed to close temp file %s: %v", tempPath, closeErr)
-		}
-
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return fmt.Errorf("flush %s: %w", tempPath, err)
-	}
-
-	if err := f.Close(); err != nil {
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return fmt.Errorf("close %s: %w", tempPath, err)
-	}
-
-	if err := v.FS.Chmod(tempPath, StoredFilePerms); err != nil {
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return fmt.Errorf("chmod temp %s: %w", tempPath, err)
-	}
+	stored := perm.Perm() &^ WriteBitMask
 
 	if v.Platform.GOOS == WindowsOS {
 		if _, err := v.FS.Stat(path); err == nil {
@@ -420,18 +550,126 @@ func (c *Content) writeContentToFile(l log.Logger, v *venv.Venv, hash string, da
 		}
 	}
 
-	if err := v.FS.Rename(tempPath, path); err != nil {
-		if removeErr := v.FS.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
+	err := c.writeObject(v, hash, stored, func(f vfs.File) error {
+		if _, err := f.Write(data); err != nil {
+			return fmt.Errorf("write to %s: %w", f.Name(), err)
 		}
 
-		return fmt.Errorf("finalize %s: %w", path, err)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	if v.Platform.GOOS == WindowsOS {
-		if err := v.FS.Chmod(path, StoredFilePerms); err != nil {
+		if err := v.FS.Chmod(path, stored); err != nil {
 			return fmt.Errorf("chmod %s: %w", path, err)
 		}
+	}
+
+	return nil
+}
+
+// writeObject publishes the object at hash from what fill writes into a
+// fresh temp file, stored under perm. Content reaches the hash-addressed
+// path only through the final rename, so a write cut short never leaves a
+// partial object there. The temp file is closed and removed on every path
+// that does not publish it, including a panic in fill.
+func (c *Content) writeObject(
+	v *venv.Venv,
+	hash string,
+	perm os.FileMode,
+	fill func(f vfs.File) error,
+) (err error) {
+	f, err := c.GetTmpHandle(v, hash)
+	if err != nil {
+		return err
+	}
+
+	tempPath := f.Name()
+	closed := false
+	published := false
+
+	defer func() {
+		// Windows refuses to remove a file that is still open.
+		if !closed {
+			err = errors.Join(err, f.Close())
+		}
+
+		if published {
+			return
+		}
+
+		if rmErr := v.FS.Remove(tempPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+			err = errors.Join(err, rmErr)
+		}
+	}()
+
+	if err := fill(f); err != nil {
+		return err
+	}
+
+	closed = true
+
+	// Windows refuses to rename a file that is still open.
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", tempPath, err)
+	}
+
+	// The mode is set before the rename so a reader never sees the object at
+	// the temp file's mode between the two steps.
+	if err := v.FS.Chmod(tempPath, perm); err != nil {
+		return fmt.Errorf("chmod %s: %w", tempPath, err)
+	}
+
+	if err := c.publish(v, tempPath, hash); err != nil {
+		return fmt.Errorf("publish %s: %w", c.getPath(hash), err)
+	}
+
+	published = true
+
+	return nil
+}
+
+// copySource copies the file at src into w.
+func copySource(v *venv.Venv, src string, w io.Writer) (err error) {
+	r, err := v.FS.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source %s: %w", src, err)
+	}
+
+	defer func() {
+		err = errors.Join(err, r.Close())
+	}()
+
+	if _, err := io.Copy(w, r); err != nil {
+		return fmt.Errorf("copy from %s: %w", src, err)
+	}
+
+	return nil
+}
+
+// publish renames the closed temp file at tempPath onto the object path
+// of hash.
+//
+// Another process may have published the same object first. Filesystems
+// that refuse to replace an existing read-only file (Windows) report
+// that as a rename error; the object is then present with the same
+// content, so publish discards tempPath and reports success.
+func (c *Content) publish(v *venv.Venv, tempPath, hash string) error {
+	path := c.getPath(hash)
+
+	renameErr := v.FS.Rename(tempPath, path)
+	if renameErr == nil {
+		return nil
+	}
+
+	if !c.store.hasContent(v, path) {
+		return renameErr
+	}
+
+	if err := v.FS.Remove(tempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return errors.Join(renameErr, err)
 	}
 
 	return nil

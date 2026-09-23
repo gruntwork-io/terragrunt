@@ -1,6 +1,5 @@
 //go:build tf
 
-//nolint:paralleltest // CPU profiling is process-global (pprof.StartCPUProfile), so this test must not run in parallel with the rest of the profiling suite.
 package test_test
 
 import (
@@ -16,6 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestTFProfileCPUDoesNotPropagateToTofu runs serially: CPU profiling is
+// process-global (pprof.StartCPUProfile), so it cannot share the process with
+// the rest of the profiling suite.
 func TestTFProfileCPUDoesNotPropagateToTofu(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
@@ -24,7 +26,6 @@ func TestTFProfileCPUDoesNotPropagateToTofu(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "terragrunt_cpu.prof")
 
-	t.Setenv("TG_EXPERIMENT", "profiling")
 	t.Setenv("TG_PROFILE_CPU", profilePath)
 
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)

@@ -1,18 +1,14 @@
 package config_test
 
 import (
-	"context"
 	"encoding/json"
 	"path/filepath"
 	"strconv"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
@@ -59,257 +55,11 @@ stack "team" {
 }
 `
 
-// unitWithExpansionJSON is the JSON encoding of unitWithExpansionHCL. Stack files are only
-// ever HCL, but an include block may point at a JSON file, so the gate has to read one.
-const unitWithExpansionJSON = `{
-  "unit": {
-    "app": {
-      "expansion": {"for_each": ["web"]},
-      "source": "./modules/app",
-      "path": "app/${each.value}"
-    }
-  }
-}`
-
-// TestValidateBlockIterationExperimentGatesExpansion pins which block types reject an
-// expansion block while the experiment is off, and that the error names the offending block.
-func TestValidateBlockIterationExperimentGatesExpansion(t *testing.T) {
+// TestReadStackConfigFileExpandsUnitsInIncludes pins that an expansion block in an included
+// stack file expands. Included stack files decode straight to StackConfigFile without going
+// back through ParseStackConfig.
+func TestReadStackConfigFileExpandsUnitsInIncludes(t *testing.T) {
 	t.Parallel()
-
-	skipInExperimentMode(t)
-
-	testCases := []struct {
-		name          string
-		configPath    string
-		cfg           string
-		wantBlockType string
-		wantLabel     string
-		wantErr       bool
-	}{
-		{
-			name:          "dependency with expansion",
-			configPath:    config.DefaultTerragruntConfigPath,
-			cfg:           dependencyWithExpansionHCL,
-			wantBlockType: "dependency",
-			wantLabel:     "aurora",
-			wantErr:       true,
-		},
-		{
-			name:          "unit with expansion",
-			configPath:    config.DefaultStackFile,
-			cfg:           unitWithExpansionHCL,
-			wantBlockType: "unit",
-			wantLabel:     "app",
-			wantErr:       true,
-		},
-		{
-			name:          "stack with expansion",
-			configPath:    config.DefaultStackFile,
-			cfg:           stackWithExpansionHCL,
-			wantBlockType: "stack",
-			wantLabel:     "team",
-			wantErr:       true,
-		},
-		{
-			name:          "unit with expansion in a json body",
-			configPath:    "extra.json",
-			cfg:           unitWithExpansionJSON,
-			wantBlockType: "unit",
-			wantLabel:     "app",
-			wantErr:       true,
-		},
-		{
-			name:       "dependency without expansion",
-			configPath: config.DefaultTerragruntConfigPath,
-			cfg: `
-dependency "vpc" {
-  config_path = "../vpc"
-}
-`,
-		},
-		{
-			name:       "unit without expansion",
-			configPath: config.DefaultStackFile,
-			cfg: `
-unit "app" {
-  source = "./modules/app"
-  path   = "app"
-}
-`,
-		},
-		{
-			name:       "expansion outside an expandable block",
-			configPath: config.DefaultTerragruntConfigPath,
-			cfg: `
-generate "backend" {
-  expansion {
-    count = 2
-  }
-
-  path      = "backend.tf"
-  if_exists = "overwrite"
-  contents  = ""
-}
-`,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			file := parseHCLString(t, tc.cfg, tc.configPath)
-
-			err := config.ValidateBlockIterationExperiment(experiment.NewExperiments(), file)
-
-			if !tc.wantErr {
-				require.NoError(t, err)
-				return
-			}
-
-			var typed config.ExpansionRequiresExperimentError
-			require.ErrorAs(t, err, &typed)
-			assert.Equal(t, tc.wantBlockType, typed.BlockType)
-			assert.Equal(t, tc.wantLabel, typed.BlockLabel)
-			assert.Equal(t, tc.configPath, typed.ConfigPath)
-		})
-	}
-}
-
-// TestValidateBlockIterationExperimentGateClearsWhenOn pins that turning the experiment on
-// clears the gate for both expansion blocks and bare enabled attributes.
-func TestValidateBlockIterationExperimentGateClearsWhenOn(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name       string
-		configPath string
-		cfg        string
-	}{
-		{
-			name:       "dependency",
-			configPath: config.DefaultTerragruntConfigPath,
-			cfg:        dependencyWithExpansionHCL,
-		},
-		{
-			name:       "unit",
-			configPath: config.DefaultStackFile,
-			cfg:        unitWithExpansionHCL,
-		},
-		{
-			name:       "stack",
-			configPath: config.DefaultStackFile,
-			cfg:        stackWithExpansionHCL,
-		},
-		{
-			name:       "unit with enabled",
-			configPath: config.DefaultStackFile,
-			cfg:        unitWithEnabledHCL,
-		},
-		{
-			name:       "stack with enabled",
-			configPath: config.DefaultStackFile,
-			cfg:        stackWithEnabledHCL,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			experiments := experiment.NewExperiments()
-			require.NoError(t, experiments.EnableExperiment(experiment.BlockIteration))
-
-			require.NoError(
-				t,
-				config.ValidateBlockIterationExperiment(
-					experiments,
-					parseHCLString(t, tc.cfg, tc.configPath),
-				),
-			)
-		})
-	}
-}
-
-// TestParseConfigStringExpansionRequiresExperiment proves the gate is wired into the
-// unit config parse, not just callable on its own.
-func TestParseConfigStringExpansionRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	skipInExperimentMode(t)
-
-	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
-
-	_, err := config.ParseConfigString(
-		ctx,
-		pctx,
-		l,
-		config.DefaultTerragruntConfigPath,
-		dependencyWithExpansionHCL,
-		nil,
-	)
-
-	var typed config.ExpansionRequiresExperimentError
-	require.ErrorAs(t, err, &typed)
-	assert.Equal(t, "dependency", typed.BlockType)
-}
-
-// TestReadStackConfigStringExpansionRequiresExperiment proves the gate is wired into the
-// stack parse. A unit block decodes through an `hcl:",remain"` field that would otherwise
-// absorb the expansion block without complaint.
-func TestReadStackConfigStringExpansionRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	skipInExperimentMode(t)
-
-	testCases := []struct {
-		name          string
-		cfg           string
-		wantBlockType string
-	}{
-		{
-			name:          "unit",
-			cfg:           unitWithExpansionHCL,
-			wantBlockType: "unit",
-		},
-		{
-			name:          "stack",
-			cfg:           stackWithExpansionHCL,
-			wantBlockType: "stack",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultStackFile)
-
-			_, err := config.ReadStackConfigString(
-				ctx,
-				l,
-				pctx,
-				config.DefaultStackFile,
-				tc.cfg,
-				nil,
-			)
-
-			var typed config.ExpansionRequiresExperimentError
-			require.ErrorAs(t, err, &typed)
-			assert.Equal(t, tc.wantBlockType, typed.BlockType)
-		})
-	}
-}
-
-// TestReadStackConfigFileExpansionInIncludeRequiresExperiment pins that the gate follows
-// include blocks. Included stack files decode straight to StackConfigFile without going
-// back through ParseStackConfig, so they are gated separately.
-func TestReadStackConfigFileExpansionInIncludeRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	skipInExperimentMode(t)
 
 	const dir = "/stack"
 
@@ -332,32 +82,17 @@ include "extra" {
 	ctx, pctx := newTestParsingContext(t, venvtest.New(), stackPath)
 	pctx.Venv.FS = fsys
 
-	_, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
+	require.NoError(t, err)
 
-	var typed config.ExpansionRequiresExperimentError
-	require.ErrorAs(t, err, &typed)
-	assert.Equal(t, "unit", typed.BlockType)
-}
+	unitPaths := map[string]string{}
 
-// TestExpansionRequiresExperimentErrorNamesTheFlag pins that the error a user reads
-// names the experiment they need, with and without a block label.
-func TestExpansionRequiresExperimentErrorNamesTheFlag(t *testing.T) {
-	t.Parallel()
-
-	labeled := config.ExpansionRequiresExperimentError{
-		ConfigPath: config.DefaultTerragruntConfigPath,
-		BlockType:  "dependency",
-		BlockLabel: "aurora",
+	for _, unit := range stackCfg.Units {
+		require.NotNil(t, unit.Expansion)
+		unitPaths[unit.Expansion.Key()] = unit.Path
 	}
-	assert.Contains(t, labeled.Error(), experiment.BlockIteration)
-	assert.Contains(t, labeled.Error(), `dependency "aurora"`)
 
-	unlabeled := config.ExpansionRequiresExperimentError{
-		ConfigPath: config.DefaultStackFile,
-		BlockType:  "unit",
-	}
-	assert.Contains(t, unlabeled.Error(), experiment.BlockIteration)
-	assert.NotContains(t, unlabeled.Error(), `""`)
+	assert.Equal(t, map[string]string{"web": "app/web", "api": "app/api"}, unitPaths)
 }
 
 func TestDependencyExpandsForEach(t *testing.T) {
@@ -452,7 +187,7 @@ dependency "vpc" {
 func TestDisabledExpandedDependencySkipsOutputRetrieval(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -534,7 +269,7 @@ dependency "shard" {
 }
 `), 0o644))
 
-			ctx, pctx := newExpansionParsingContext(t, v, configPath)
+			ctx, pctx := newTestParsingContext(t, v, configPath)
 
 			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
 			require.NoError(t, err)
@@ -557,7 +292,7 @@ dependency "shard" {
 func TestExpandedDependencyCarriesItsOwnOutputConfig(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -622,32 +357,10 @@ func TestJSONConfigExpandsDependencies(t *testing.T) {
 	assert.Equal(t, []string{"../aurora-0", "../aurora-1"}, paths)
 }
 
-func TestJSONExpansionRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	skipInExperimentMode(t)
-
-	ctx, pctx := newTestParsingContext(t, venvtest.New(), jsonConfigPath)
-
-	_, err := config.PartialParseConfigString(
-		ctx,
-		pctx.WithDecodeList(config.DependencyBlock),
-		logger.CreateLogger(),
-		jsonConfigPath,
-		jsonDependencyWithExpansion,
-		nil,
-	)
-
-	var typed config.ExpansionRequiresExperimentError
-	require.ErrorAs(t, err, &typed)
-	assert.Equal(t, "dependency", typed.BlockType)
-	assert.Equal(t, "aurora", typed.BlockLabel)
-}
-
 func TestUnknownBlockRemainsRejected(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -810,7 +523,7 @@ unit "app" {
 
 // TestDependencyCtyShapeExcludesExpansionMetadata pins the attribute set a dependency
 // exposes to read_terragrunt_config and render, which a cty tag on expansion metadata
-// would widen for every user, experiment or not.
+// would widen for every user.
 func TestDependencyCtyShapeExcludesExpansionMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -844,7 +557,7 @@ func TestDependencyCtyShapeExcludesExpansionMetadata(t *testing.T) {
 func TestDependencyOutputsAddressedByInstanceKey(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -918,7 +631,7 @@ inputs = {
 func TestDependencyOutputsRejectExpandedBlockWithoutKey(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -959,7 +672,7 @@ inputs = {
 func TestDependencyOutputsEncodeDivergentSchemasPerKey(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -1003,7 +716,7 @@ inputs = {
 func TestDependencyInstanceKeysMatchAddressableKeys(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -1086,7 +799,7 @@ inputs = {
 func TestDependencyOutputsAddressEmptyEachKey(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -1127,7 +840,7 @@ inputs = {
 func TestDependencyLabelClaimedByBlockAndInstances(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
 		ctx,
@@ -1174,7 +887,7 @@ inputs = {
 func TestDependencyOutputsResolveUnknownWhenOutputsSkipped(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 	pctx.SkipOutput = true
 	pctx.SkipOutputsResolution = true
 
@@ -1207,7 +920,7 @@ inputs = {
 func TestDependencyInstancesAccumulateWithRacing(t *testing.T) {
 	t.Parallel()
 
-	ctx, pctx := newExpansionParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
 		ctx,
@@ -1271,10 +984,222 @@ inputs = {
 	}, cfg.Inputs)
 }
 
+// TestValidateExpansionSpellingRejectsMisspelledExpansion pins that a nested block name close
+// enough to expansion to be a typo of it is reported. A unit or stack block decodes through
+// an `hcl:",remain"` field, which would otherwise absorb the block and leave the component a
+// single static instance.
+func TestValidateExpansionSpellingRejectsMisspelledExpansion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		configPath    string
+		cfg           string
+		wantBlockType string
+		wantLabel     string
+		wantBlockName string
+	}{
+		{
+			name:       "unit with a dropped letter",
+			configPath: config.DefaultStackFile,
+			cfg: `
+unit "app" {
+  expanson {
+    count = 2
+  }
+
+  source = "./modules/app"
+  path   = "app"
+}
+`,
+			wantBlockType: "unit",
+			wantLabel:     "app",
+			wantBlockName: "expanson",
+		},
+		{
+			name:       "stack with a swapped letter",
+			configPath: config.DefaultStackFile,
+			cfg: `
+stack "team" {
+  expantion {
+    count = 2
+  }
+
+  source = "./stacks/team"
+  path   = "team"
+}
+`,
+			wantBlockType: "stack",
+			wantLabel:     "team",
+			wantBlockName: "expantion",
+		},
+		{
+			name:       "unit with a capitalized block name",
+			configPath: config.DefaultStackFile,
+			cfg: `
+unit "app" {
+  Expansion {
+    count = 2
+  }
+
+  source = "./modules/app"
+  path   = "app"
+}
+`,
+			wantBlockType: "unit",
+			wantLabel:     "app",
+			wantBlockName: "Expansion",
+		},
+		{
+			name:       "dependency with a dropped letter",
+			configPath: config.DefaultTerragruntConfigPath,
+			cfg: `
+dependency "aurora" {
+  expanson {
+    count = 2
+  }
+
+  config_path = "../aurora"
+}
+`,
+			wantBlockType: "dependency",
+			wantLabel:     "aurora",
+			wantBlockName: "expanson",
+		},
+		{
+			name:       "dependency spelling expansion correctly",
+			configPath: config.DefaultTerragruntConfigPath,
+			cfg:        dependencyWithExpansionHCL,
+		},
+		{
+			name:       "unit spelling expansion correctly",
+			configPath: config.DefaultStackFile,
+			cfg:        unitWithExpansionHCL,
+		},
+		{
+			name:       "stack spelling expansion correctly",
+			configPath: config.DefaultStackFile,
+			cfg:        stackWithExpansionHCL,
+		},
+		{
+			name:       "unit with an autoinclude block",
+			configPath: config.DefaultStackFile,
+			cfg: `
+unit "app" {
+  autoinclude {
+    inputs = {
+      env = "test"
+    }
+  }
+
+  source = "./modules/app"
+  path   = "app"
+}
+`,
+		},
+		{
+			name:       "json body, which names no blocks to compare",
+			configPath: jsonConfigPath,
+			cfg:        `{"dependency": {"aurora": {"expanson": {"count": 2}, "config_path": "../aurora"}}}`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			file := parseHCLString(t, tc.cfg, tc.configPath)
+
+			err := config.ValidateExpansionSpelling(file)
+
+			if tc.wantBlockName == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var typed config.MisspelledExpansionBlockError
+			require.ErrorAs(t, err, &typed)
+			assert.Equal(t, tc.wantBlockType, typed.BlockType)
+			assert.Equal(t, tc.wantLabel, typed.BlockLabel)
+			assert.Equal(t, tc.wantBlockName, typed.BlockName)
+			assert.Equal(t, tc.configPath, typed.ConfigPath)
+		})
+	}
+}
+
+// TestReadStackConfigStringRejectsMisspelledExpansion proves the misspelling check is wired
+// into the stack parse, not just callable on its own. Without it the unit below generates a
+// single static instance.
+func TestReadStackConfigStringRejectsMisspelledExpansion(t *testing.T) {
+	t.Parallel()
+
+	err := parseStackErr(t, `
+unit "app" {
+  expanson {
+    for_each = toset(["web", "api"])
+  }
+
+  source = "./modules/app"
+  path   = "app/${each.key}"
+}
+`)
+
+	var typed config.MisspelledExpansionBlockError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "unit", typed.BlockType)
+	assert.Equal(t, "expanson", typed.BlockName)
+}
+
+// TestPartialParseKeepsParsingPastABrokenExpansion covers the best-effort parsing find and
+// list depend on. With a handler that forgives diagnostics, a dependency whose elements
+// cannot decode is dropped, and the rest of the config still parses.
+func TestPartialParseKeepsParsingPastABrokenExpansion(t *testing.T) {
+	t.Parallel()
+
+	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
+
+	forgiving := hclparse.WithDiagnosticsHandler(
+		func(_ *hcl.File, _ hcl.Diagnostics) (hcl.Diagnostics, error) {
+			return nil, nil
+		},
+	)
+
+	pctx = pctx.
+		WithDecodeList(config.DependencyBlock).
+		WithParseOption(append(pctx.ParserOptions, forgiving))
+
+	cfg, err := config.PartialParseConfigString(
+		ctx,
+		pctx,
+		logger.CreateLogger(),
+		config.DefaultTerragruntConfigPath,
+		`
+dependency "broken" {
+  expansion {
+    count = 2
+  }
+
+  config_path = "../broken-${count.index}"
+  bogus       = "nope"
+}
+
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`,
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, cfg.TerragruntDependencies, 1)
+
+	assert.Equal(t, "vpc", cfg.TerragruntDependencies[0].Name)
+}
+
 func parseDependencyString(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(tb, venvtest.New(), config.DefaultTerragruntConfigPath)
 
 	return config.PartialParseConfigString(
 		ctx,
@@ -1300,7 +1225,7 @@ func parseDependencyJSONString(
 ) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), jsonConfigPath)
+	ctx, pctx := newTestParsingContext(tb, venvtest.New(), jsonConfigPath)
 
 	return config.PartialParseConfigString(
 		ctx,
@@ -1315,13 +1240,25 @@ func parseDependencyJSONString(
 func parseStackString(tb testing.TB, cfg string) (*config.StackConfig, error) {
 	tb.Helper()
 
-	ctx, pctx := newExpansionParsingContext(tb, venvtest.New(), config.DefaultStackFile)
+	return parseStackStringAt(tb, config.DefaultStackFile, cfg)
+}
+
+func parseStackJSONString(tb testing.TB, cfg string) (*config.StackConfig, error) {
+	tb.Helper()
+
+	return parseStackStringAt(tb, config.DefaultStackFile+".json", cfg)
+}
+
+func parseStackStringAt(tb testing.TB, path, cfg string) (*config.StackConfig, error) {
+	tb.Helper()
+
+	ctx, pctx := newTestParsingContext(tb, venvtest.New(), path)
 
 	return config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
 		pctx,
-		config.DefaultStackFile,
+		path,
 		cfg,
 		nil,
 	)
@@ -1335,19 +1272,6 @@ func parseStackErr(tb testing.TB, cfg string) error {
 	return err
 }
 
-func newExpansionParsingContext(
-	tb testing.TB,
-	v *venv.Venv,
-	configPath string,
-) (context.Context, *config.ParsingContext) {
-	tb.Helper()
-
-	ctx, pctx := newTestParsingContext(tb, v, configPath)
-	require.NoError(tb, pctx.Experiments.EnableExperiment(experiment.BlockIteration))
-
-	return ctx, pctx
-}
-
 func parseHCLString(tb testing.TB, cfg, configPath string) *hclparse.File {
 	tb.Helper()
 
@@ -1357,14 +1281,35 @@ func parseHCLString(tb testing.TB, cfg, configPath string) *hclparse.File {
 	return file
 }
 
-// skipInExperimentMode skips a test that asserts disabled-experiment behavior, since
-// TG_EXPERIMENT_MODE forces every experiment on.
-func skipInExperimentMode(t *testing.T) {
-	t.Helper()
+// TestUnitExpandsInJSONStackFile pins that a stack file written in JSON expands the same way an
+// HCL one does, including a unit block written as an array. Nothing reads the HCL a unit block is
+// quoted back into, so the unexpanded unit here carries a property no HCL argument can spell: a
+// stack file must not fail on text that only an expanded block would ever need.
+func TestUnitExpandsInJSONStackFile(t *testing.T) {
+	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces the block-iteration experiment on, so its disabled-state error can't be verified",
-		)
+	stackCfg, err := parseStackJSONString(t, `{
+  "unit": {
+    "app": [{
+      "expansion": {"count": 2},
+      "source": "./modules/app",
+      "path": "app-${count.index}"
+    }],
+    "vpc": {
+      "//": "the network",
+      "source": "./modules/vpc",
+      "path": "vpc",
+      "not an identifier": "a unit block accepts properties it does not declare"
+    }
+  }
+}`)
+	require.NoError(t, err)
+	require.Len(t, stackCfg.Units, 3)
+
+	paths := make([]string, 0, len(stackCfg.Units))
+	for _, unit := range stackCfg.Units {
+		paths = append(paths, unit.Path)
 	}
+
+	assert.ElementsMatch(t, []string{"app-0", "app-1", "vpc"}, paths)
 }

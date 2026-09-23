@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,11 +64,7 @@ func buildSymlinksExperimentFixture(t *testing.T) string {
 func TestSymlinksExperimentUnitDiscoveryWithRacing(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces all experiments on, defeating the disabled-vs-enabled comparison this test pins",
-		)
-	}
+	helpers.SkipInExperimentMode(t, experiment.Symlinks)
 
 	rootDir := buildSymlinksExperimentFixture(t)
 

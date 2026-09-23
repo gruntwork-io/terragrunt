@@ -41,11 +41,12 @@ const dstDirPerms = 0o700
 // FileCopyGetter implements the v2 [getter.Getter] interface. Construct via
 // newFileCopyGetter so FS is populated.
 type FileCopyGetter struct {
-	Logger          log.Logger
-	FS              vfs.FS
-	IncludeInCopy   []string
-	ExcludeFromCopy []string
-	FastCopy        bool
+	Logger             log.Logger
+	FS                 vfs.FS
+	IncludeInCopy      []string
+	ExcludeFromCopy    []string
+	FastCopy           bool
+	SymlinkedGlobRoots bool
 }
 
 // Get copies the source directory referenced by req into req.Dst.
@@ -72,6 +73,10 @@ func (g *FileCopyGetter) Get(_ context.Context, req *getter.Request) error {
 	}
 	if g.FastCopy {
 		copyOpts = append(copyOpts, util.WithFastCopy())
+	}
+
+	if g.SymlinkedGlobRoots {
+		copyOpts = append(copyOpts, util.WithSymlinkedGlobRoots())
 	}
 
 	return util.CopyFolderContents(g.Logger, g.FS, path, req.Dst, SourceManifestName, copyOpts...)
@@ -171,5 +176,12 @@ func (g *FileCopyGetter) WithExcludeFromCopy(patterns ...string) *FileCopyGetter
 // driven by the `fast-copy` strict control.
 func (g *FileCopyGetter) WithFastCopy(enabled bool) *FileCopyGetter {
 	g.FastCopy = enabled
+	return g
+}
+
+// WithSymlinkedGlobRoots makes include/exclude globs expand through symlinked
+// directories, driven by the `symlinks` experiment.
+func (g *FileCopyGetter) WithSymlinkedGlobRoots(enabled bool) *FileCopyGetter {
+	g.SymlinkedGlobRoots = enabled
 	return g
 }

@@ -14,7 +14,7 @@ terraform {
       # based on the Terraform/OpenTofu implementation, allowing the provider
       # cache to intercept requests.
       source  = "hashicorp/time"
-      version = ">= 0.10.0"
+      version = "0.14.2"
     }
   }
 }

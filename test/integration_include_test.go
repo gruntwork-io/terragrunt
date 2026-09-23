@@ -12,8 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
-
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -168,7 +166,6 @@ func TestTFTerragruntRunAllModulesWithPrefix(t *testing.T) {
 				stdout, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(
 					t,
 					ctx,
-					venv.OSVenv(),
 					"terragrunt run --all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
 				)
 				if err != nil {

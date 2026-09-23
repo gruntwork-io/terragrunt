@@ -82,7 +82,7 @@ func RunGenerate(
 		}
 
 		defer func() {
-			cleanupErr := wts.Cleanup(ctx, l, v.FS)
+			cleanupErr := wts.Cleanup(ctx, l, v)
 			if cleanupErr != nil {
 				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 			}
@@ -104,6 +104,7 @@ func RunGenerate(
 	// After generation, hint when a literal stack filter left nested stacks ungenerated.
 	funcsFor := configbridge.StackFuncFactory(ctx, l, v, opts)
 	tips.GiveStackNestedGenerateTip(
+		ctx,
 		l,
 		v.FS,
 		funcsFor,
@@ -273,7 +274,12 @@ func (err InvalidOutputAddressError) Unwrap() error {
 }
 
 // RunClean recursively removes all stack directories under the specified WorkingDir.
-func RunClean(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+func RunClean(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	telemeter := telemetry.TelemeterFromContext(ctx)
 
 	err := telemeter.Collect(ctx, l, "stack_clean", map[string]any{

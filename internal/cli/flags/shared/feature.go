@@ -2,6 +2,7 @@ package shared
 
 import (
 	"context"
+	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -24,9 +25,7 @@ func NewFeatureFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 			Usage:   "Set feature flags for the HCL code.",
 			// Use default splitting behavior with comma separators via MapFlag defaults
 			Action: func(_ context.Context, _ *clihelper.Context, value map[string]string) error {
-				for key, val := range value {
-					opts.FeatureFlags.Store(key, val)
-				}
+				maps.Copy(opts.FeatureFlags, value)
 
 				return nil
 			},

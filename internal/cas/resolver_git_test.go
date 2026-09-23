@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -30,7 +31,7 @@ func TestGitResolver_ProbeHEAD(t *testing.T) {
 	r := &cas.GitResolver{Venv: venv.OSVenv()}
 
 	// Empty Branch → resolver queries HEAD.
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, headHash, got, "Probe(HEAD) must return the canonical commit SHA verbatim")
 }
@@ -50,7 +51,7 @@ func TestGitResolver_ProbeBranch(t *testing.T) {
 
 	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "feature"}
 
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, branchHash, got)
 }
@@ -70,7 +71,7 @@ func TestGitResolver_ProbeTag(t *testing.T) {
 	// Annotated-tag ls-remote returns the tag object's hash, not the
 	// commit it points to. We just assert the resolver returns a
 	// SHA-shaped string; the specific value is whatever git computed.
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Len(t, got, 40)
 }
@@ -92,7 +93,7 @@ func TestGitResolver_CommitFormRefReturnsErrNoVersionMetadata(t *testing.T) {
 	// ls-remote does not resolve raw SHAs as refs; the caller passes
 	// a commit-form ref directly. Probe must surface this as
 	// ErrNoVersionMetadata so the fetcher canonicalizes via rev-parse.
-	_, err = r.Probe(t.Context(), url)
+	_, err = r.Probe(t.Context(), redact.NewURL(url))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -107,7 +108,7 @@ func TestGitResolver_UnknownRefReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "does-not-exist"}
 
-	_, err = r.Probe(t.Context(), url)
+	_, err = r.Probe(t.Context(), redact.NewURL(url))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -125,7 +126,7 @@ func TestGitResolver_TokenIsCacheKeyVerbatim(t *testing.T) {
 
 	r := &cas.GitResolver{Venv: venv.OSVenv()}
 
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	// GitResolver returns the commit SHA itself; SourceCacheKey would
 	// be a no-op on top of this. Any future change that pre-hashes
@@ -154,7 +155,7 @@ func TestGitResolver_FullSHAHitsLocalCacheOffline(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(t.Context(), l, v, url, headHash, "")
+	repo, err := store.EnsureCommit(t.Context(), l, newTestGitStoreVenv(t, v), redact.NewURL(url), headHash, "")
 	require.NoError(t, err)
 	require.NoError(t, repo.Unlock())
 
@@ -162,9 +163,29 @@ func TestGitResolver_FullSHAHitsLocalCacheOffline(t *testing.T) {
 
 	r := &cas.GitResolver{Venv: v, Store: store, Branch: headHash}
 
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err, "fast path must skip ls-remote when commit is cached")
 	assert.Equal(t, headHash, got)
+}
+
+// TestGitResolver_StoreRejectsNonOSFilesystem pins that a store probe from an
+// in-memory venv returns an error instead of running git against paths git
+// cannot see.
+func TestGitResolver_StoreRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubGitExec(func(context.Context, vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+
+	r := &cas.GitResolver{
+		Venv:   venvtest.New().WithExec(stub),
+		Store:  cas.NewGitStore(t.TempDir()),
+		Branch: "deadbeefcafefacedeadbeefcafefacedeadbeef",
+	}
+
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/org/repo.git"))
+	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }
 
 // TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs pins the
@@ -189,7 +210,7 @@ func TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs(t *testing.T) {
 
 	r := &cas.GitResolver{Venv: venvtest.New().WithExec(stub), Branch: "main"}
 
-	_, err := r.Probe(t.Context(), "git@github.com:org/repo.git")
+	_, err := r.Probe(t.Context(), redact.NewURL("git@github.com:org/repo.git"))
 	require.NoError(t, err)
 	assert.Equal(t,
 		[]string{"ls-remote", "--", "git@github.com:org/repo.git", "main"},
@@ -217,7 +238,7 @@ func TestGitResolver_ProbeHTTPURLWithBranchUsesSeparateArgs(t *testing.T) {
 
 	r := &cas.GitResolver{Venv: venvtest.New().WithExec(stub), Branch: "main"}
 
-	_, err := r.Probe(t.Context(), "https://example.com/org/repo.git")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/org/repo.git"))
 	require.NoError(t, err)
 	assert.Equal(t,
 		[]string{"ls-remote", "--", "https://example.com/org/repo.git", "main"},

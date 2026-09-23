@@ -19,21 +19,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
-	"github.com/google/shlex"
-	"github.com/hashicorp/hcl/v2"
-
 	"maps"
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/view"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -74,32 +69,8 @@ func RunValidate(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
-	var diags diagnostic.Diagnostics
-
-	// Diagnostics handler to collect validation errors
-	diagnosticsHandler := hclparse.WithDiagnosticsHandler(
-		func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			for _, hclDiag := range hclDiags {
-				// Only report diagnostics that are actually in the file being parsed,
-				// not errors from dependencies or other files
-				if hclDiag.Subject != nil && file != nil {
-					fileFilename := file.Body.MissingItemRange().Filename
-
-					diagFilename := hclDiag.Subject.Filename
-					if diagFilename != fileFilename {
-						continue
-					}
-				}
-
-				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
-				if !diags.Contains(newDiag) {
-					diags = append(diags, newDiag)
-				}
-			}
-
-			return nil, nil
-		},
-	)
+	collector := &DiagnosticsCollector{}
+	parser := ComponentParser{Collector: collector, Options: CollectorOnly}
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
@@ -111,7 +82,7 @@ func RunValidate(
 		Filters:           opts.Filters,
 	})
 	if err != nil {
-		return processDiagnostics(l, v, opts, diags, err)
+		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
@@ -133,7 +104,7 @@ func RunValidate(
 	}
 
 	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l, v.FS)
+		cleanupErr := worktrees.Cleanup(ctx, l, v)
 		if cleanupErr != nil {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
@@ -143,79 +114,23 @@ func RunValidate(
 
 	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
-		return processDiagnostics(l, v, opts, diags, err)
+		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
 	}
-
-	parseOptions := []hclparse.Option{diagnosticsHandler}
 
 	parseErrs := []error{}
 
 	for _, c := range components {
-		parseOpts := opts.Clone()
-		parseOpts.WorkingDir = c.Path()
-
 		// Parsing can write obtained credentials into the env, so each
 		// component gets its own clone to keep them from leaking to siblings.
 		componentV := v.WithEnvCloned()
 
 		if _, ok := c.(*component.Stack); ok {
-			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
-			parseOpts.TerragruntConfigPath = stackFilePath
-
-			ctx, parser := configbridge.NewParsingContext(ctx, l, componentV, parseOpts)
-
-			values, err := config.ReadValues(ctx, parser, l, c.Path())
-			if err != nil {
-				parseErrs = append(parseErrs, err)
-			}
-
-			parser = parser.WithParseOption(parseOptions)
-			if values != nil {
-				parser = parser.WithValues(values)
-			}
-
-			file, err := hclparse.NewParser(parser.ParserOptions...).
-				ParseFromFile(parser.Venv.FS, stackFilePath)
-			if err != nil {
-				parseErrs = append(parseErrs, err)
-				continue
-			}
-
-			stackCfg, err := config.ParseStackConfig(ctx, l, parser, file, values)
-			if err != nil {
-				parseErrs = append(parseErrs, err)
-				continue
-			}
-
-			// The lenient stack decode above leaves autoinclude blocks unvalidated, so run the
-			// strict autoinclude parse `stack generate` uses. It no-ops unless the
-			// stack-dependencies experiment is enabled and the config declares autoinclude.
-			if err := config.ValidateStackAutoIncludes(
-				ctx,
-				l,
-				parser,
-				stackFilePath,
-				stackCfg,
-				values,
-			); err != nil {
-				parseErrs = append(parseErrs, err)
-			}
+			parseErrs = append(parseErrs, parser.Stack(ctx, l, componentV, opts, c.Path())...)
 
 			continue
 		}
 
-		// Determine which config filename to use for a full parse
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
-		}
-
-		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
-		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
-
-		_, pctx := configbridge.NewParsingContext(ctx, l, componentV, parseOpts)
-
-		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
+		if err := parser.Unit(ctx, l, componentV, opts, c.Path()); err != nil {
 			parseErrs = append(parseErrs, err)
 		}
 	}
@@ -225,7 +140,7 @@ func RunValidate(
 		combinedErr = errors.Join(parseErrs...)
 	}
 
-	return processDiagnostics(l, v, opts, diags, combinedErr)
+	return processDiagnostics(l, v, opts, collector.Diagnostics(), combinedErr)
 }
 
 func processDiagnostics(
@@ -328,7 +243,7 @@ func RunValidateInputs(
 	}
 
 	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l, v.FS)
+		cleanupErr := worktrees.Cleanup(ctx, l, v)
 		if cleanupErr != nil {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
@@ -732,22 +647,9 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 	varFiles := []string{}
 
 	for _, arg := range argList {
-		// Use shlex to handle shell style quoting rules. This will reduce quoted args to remove quoting rules. For
-		// example, the string:
-		// -var="'"foo"'"='bar'
-		// becomes:
-		// -var='foo'=bar
-		shlexedArgSlice, err := shlex.Split(arg)
-		if err != nil {
-			return vars, varFiles, err
-		}
-		// Since we expect each element in extra_args.arguments to correspond to a single arg for terraform, we join
-		// back the shlex split slice even if it thinks there are multiple.
-		shlexedArg := strings.Join(shlexedArgSlice, " ")
-
-		if strings.HasPrefix(shlexedArg, "-var=") {
+		if strings.HasPrefix(arg, "-var=") {
 			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
-			splitArg := strings.Split(shlexedArg, "=")
+			splitArg := strings.Split(arg, "=")
 			if len(splitArg) < splitCount {
 				return vars, varFiles, fmt.Errorf(
 					"unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s",
@@ -758,7 +660,7 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 			vars = append(vars, splitArg[1])
 		}
 
-		if after, ok := strings.CutPrefix(shlexedArg, "-var-file="); ok {
+		if after, ok := strings.CutPrefix(arg, "-var-file="); ok {
 			varFiles = append(varFiles, after)
 		}
 	}

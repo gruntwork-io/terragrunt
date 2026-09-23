@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -21,18 +20,16 @@ import (
 )
 
 type dependencyStateEligibilityTestCase struct {
-	name                        string
-	backend                     string
-	backendConfig               map[string]string
-	env                         map[string]string
-	files                       map[string]string
-	filesystem                  vfs.FS
-	producerTerraformExtra      string
-	wantRequest                 string
-	enableAzure                 bool
-	disableDependencyExperiment bool
-	optOut                      bool
-	wantDirect                  bool
+	name                   string
+	backend                string
+	backendConfig          map[string]string
+	env                    map[string]string
+	files                  map[string]string
+	filesystem             vfs.FS
+	producerTerraformExtra string
+	wantRequest            string
+	optOut                 bool
+	wantDirect             bool
 }
 
 func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
@@ -45,9 +42,12 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 
 	testCases := []dependencyStateEligibilityTestCase{
 		{
-			name:          "S3 explicit empty workspace prefix remains direct",
-			backend:       "s3",
-			backendConfig: eligibilityConfig(s3Config, map[string]string{"workspace_key_prefix": `""`}),
+			name:    "S3 explicit empty workspace prefix remains direct",
+			backend: "s3",
+			backendConfig: eligibilityConfig(
+				s3Config,
+				map[string]string{"workspace_key_prefix": `""`},
+			),
 			env: map[string]string{
 				"AWS_ACCESS_KEY_ID":     "test-access-key",
 				"AWS_SECRET_ACCESS_KEY": "test-secret-key",
@@ -57,9 +57,12 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			wantDirect:  true,
 		},
 		{
-			name:          "S3 SSE-C config falls back",
-			backend:       "s3",
-			backendConfig: eligibilityConfig(s3Config, map[string]string{"sse_customer_key": `"c2VjcmV0"`}),
+			name:    "S3 SSE-C config falls back",
+			backend: "s3",
+			backendConfig: eligibilityConfig(
+				s3Config,
+				map[string]string{"sse_customer_key": `"c2VjcmV0"`},
+			),
 		},
 		{
 			name:          "S3 SSE-C environment falls back",
@@ -68,9 +71,12 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			env:           map[string]string{"AWS_SSE_CUSTOMER_KEY": "c2VjcmV0"},
 		},
 		{
-			name:          "S3 invalid workspace prefix type falls back",
-			backend:       "s3",
-			backendConfig: eligibilityConfig(s3Config, map[string]string{"workspace_key_prefix": "42"}),
+			name:    "S3 invalid workspace prefix type falls back",
+			backend: "s3",
+			backendConfig: eligibilityConfig(
+				s3Config,
+				map[string]string{"workspace_key_prefix": "42"},
+			),
 		},
 		{
 			name:          "GCS empty legacy path remains native",
@@ -88,27 +94,42 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"bucket": "42"}),
 		},
 		{
-			name:          "GCS inline credentials fall back",
-			backend:       "gcs",
-			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"credentials": `jsonencode({ type = "service_account" })`}),
+			name:    "GCS inline credentials fall back",
+			backend: "gcs",
+			backendConfig: eligibilityConfig(
+				gcsConfig,
+				map[string]string{"credentials": `jsonencode({ type = "service_account" })`},
+			),
 		},
 		{
-			name:          "GCS relative credential path falls back",
-			backend:       "gcs",
-			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"credentials": `"credentials.json"`}),
+			name:    "GCS relative credential path falls back",
+			backend: "gcs",
+			backendConfig: eligibilityConfig(
+				gcsConfig,
+				map[string]string{"credentials": `"credentials.json"`},
+			),
 		},
 		{
-			name:          "GCS external account credential file falls back",
-			backend:       "gcs",
-			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"credentials": `"/credentials/external.json"`}),
-			files:         map[string]string{"/credentials/external.json": `{"type":"external_account"}`},
+			name:    "GCS external account credential file without a credential source falls back",
+			backend: "gcs",
+			backendConfig: eligibilityConfig(
+				gcsConfig,
+				map[string]string{"credentials": `"/credentials/external.json"`},
+			),
+			files: map[string]string{
+				"/credentials/external.json": `{"type":"external_account"}`,
+			},
 		},
 		{
 			name:          "GCS access token and ADC conflict falls back",
 			backend:       "gcs",
 			backendConfig: gcsConfig,
-			env:           map[string]string{"GOOGLE_APPLICATION_CREDENTIALS": "/credentials/service-account.json"},
-			files:         map[string]string{"/credentials/service-account.json": `{"type":"service_account"}`},
+			env: map[string]string{
+				"GOOGLE_APPLICATION_CREDENTIALS": "/credentials/service-account.json",
+			},
+			files: map[string]string{
+				"/credentials/service-account.json": `{"type":"service_account"}`,
+			},
 		},
 		{
 			name:    "GCS environment credentials and ADC conflict falls back",
@@ -137,9 +158,12 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			env: map[string]string{"GOOGLE_OAUTH_ACCESS_TOKEN": "environment-token"},
 		},
 		{
-			name:          "GCS impersonation remains native",
-			backend:       "gcs",
-			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"impersonate_service_account": `"state@example.com"`}),
+			name:    "GCS impersonation remains native",
+			backend: "gcs",
+			backendConfig: eligibilityConfig(
+				gcsConfig,
+				map[string]string{"impersonate_service_account": `"state@example.com"`},
+			),
 		},
 		{
 			name:    "GCS CSEK and CMEK conflict falls back",
@@ -153,16 +177,13 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			name:    "GCS strict base64 encryption key remains direct",
 			backend: "gcs",
 			backendConfig: eligibilityConfig(gcsConfig, map[string]string{
-				"encryption_key": fmt.Sprintf("%q", base64.StdEncoding.EncodeToString(make([]byte, 32))),
+				"encryption_key": fmt.Sprintf(
+					"%q",
+					base64.StdEncoding.EncodeToString(make([]byte, 32)),
+				),
 			}),
 			wantRequest: "storage.googleapis.com/state-bucket/environment/service/default.tfstate",
 			wantDirect:  true,
-		},
-		{
-			name:                        "GCS dependency experiment gate falls back",
-			backend:                     "gcs",
-			backendConfig:               gcsConfig,
-			disableDependencyExperiment: true,
 		},
 		{
 			name:          "GCS explicit optimization opt-out falls back",
@@ -215,42 +236,48 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 `,
 		},
 		{
-			name:          "Azure requires backend experiment",
-			backend:       "azurerm",
-			backendConfig: azureConfig,
-		},
-		{
 			name:          "Azure snapshot boolean remains direct",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"snapshot": "true"}),
-			enableAzure:   true,
 			wantRequest:   "stateaccount.blob.core.windows.net/state/service.tfstate",
 			wantDirect:    true,
 		},
 		{
-			name:          "Azure invalid snapshot boolean falls back",
-			backend:       "azurerm",
-			backendConfig: eligibilityConfig(azureConfig, map[string]string{"snapshot": `"not-a-bool"`}),
-			enableAzure:   true,
+			name:    "Azure minimum TLS version remains direct",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"minimum_tls_version": `"TLS1_2"`},
+			),
+			wantRequest: "stateaccount.blob.core.windows.net/state/service.tfstate",
+			wantDirect:  true,
 		},
 		{
-			name:          "Azure invalid OIDC boolean falls back",
-			backend:       "azurerm",
-			backendConfig: eligibilityConfig(azureConfig, map[string]string{"use_oidc": `"not-a-bool"`}),
-			enableAzure:   true,
+			name:    "Azure invalid snapshot boolean falls back",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"snapshot": `"not-a-bool"`},
+			),
+		},
+		{
+			name:    "Azure invalid OIDC boolean falls back",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"use_oidc": `"not-a-bool"`},
+			),
 		},
 		{
 			name:          "Azure disabled CLI falls back",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{"use_cli": "false"}),
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure inherited HTTPS_PROXY remains direct",
 			backend:       "azurerm",
 			backendConfig: azureConfig,
 			env:           map[string]string{"HTTPS_PROXY": "http://proxy.example.com"},
-			enableAzure:   true,
 			wantRequest:   "stateaccount.blob.core.windows.net/state/service.tfstate",
 			wantDirect:    true,
 		},
@@ -259,7 +286,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			backend:       "azurerm",
 			backendConfig: azureConfig,
 			env:           map[string]string{"HTTPS_PROXY": "http://inherited.example.com"},
-			enableAzure:   true,
 			producerTerraformExtra: `terraform {
   extra_arguments "output_proxy" {
     commands = ["output"]
@@ -277,7 +303,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{
 				"sas_token": `"?sig=test"`,
 			}),
-			enableAzure: true,
 		},
 		{
 			name:    "Azure competing MSI and OIDC fall back",
@@ -291,7 +316,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 				"ARM_USE_MSI":  "true",
 				"ARM_USE_OIDC": "true",
 			},
-			enableAzure: true,
 		},
 		{
 			name:    "Azure OIDC without token source falls back",
@@ -305,40 +329,42 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 				},
 				"access_key",
 			),
-			enableAzure: true,
 		},
 		{
 			name:          "Azure customer-provided key environment falls back",
 			backend:       "azurerm",
 			backendConfig: azureConfig,
 			env:           map[string]string{"ARM_CUSTOMER_PROVIDED_KEY": "secret"},
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure helper-only credential alias falls back",
 			backend:       "azurerm",
 			backendConfig: eligibilityConfig(azureConfig, map[string]string{}, "access_key"),
 			env:           map[string]string{"AZURE_STORAGE_KEY": azureAccessKey},
-			enableAzure:   true,
 		},
 		{
 			name:          "Azure MSI resource ID environment falls back",
 			backend:       "azurerm",
 			backendConfig: azureConfig,
-			env:           map[string]string{"ARM_MSI_RESOURCE_ID": "/subscriptions/example/identity"},
-			enableAzure:   true,
+			env: map[string]string{
+				"ARM_MSI_RESOURCE_ID": "/subscriptions/example/identity",
+			},
 		},
 		{
-			name:          "Azure unsupported cloud alias falls back",
-			backend:       "azurerm",
-			backendConfig: eligibilityConfig(azureConfig, map[string]string{"environment": `"global"`}),
-			enableAzure:   true,
+			name:    "Azure unsupported cloud alias falls back",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"environment": `"global"`},
+			),
 		},
 		{
-			name:          "Azure padded state key falls back",
-			backend:       "azurerm",
-			backendConfig: eligibilityConfig(azureConfig, map[string]string{"key": `" service.tfstate"`}),
-			enableAzure:   true,
+			name:    "Azure padded state key falls back",
+			backend: "azurerm",
+			backendConfig: eligibilityConfig(
+				azureConfig,
+				map[string]string{"key": `" service.tfstate"`},
+			),
 		},
 		{
 			name:    "Azure incomplete service principal falls back",
@@ -353,7 +379,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 				"ARM_CLIENT_SECRET": "secret",
 				"ARM_TENANT_ID":     "tenant",
 			},
-			enableAzure: true,
 		},
 	}
 
@@ -387,8 +412,8 @@ func TestDependencyStateEligibilityUsesPersistedWorkspaceInCustomDataDir(t *test
 	testCase := dependencyStateEligibilityTestCase{
 		backend:       "gcs",
 		backendConfig: eligibilityGCSConfig(),
-		env:           map[string]string{"TF_DATA_DIR": "/workspace-data"},
-		files:         map[string]string{"/workspace-data/environment": "staging\n"},
+		env:           map[string]string{"TF_DATA_DIR": venvtest.Root("/workspace-data")},
+		files:         map[string]string{venvtest.Root("/workspace-data/environment"): "staging\n"},
 		wantRequest:   "storage.googleapis.com/state-bucket/environment/service/staging.tfstate",
 		wantDirect:    true,
 	}
@@ -407,9 +432,9 @@ func parseDependencyStateEligibilityFixture(
 ) (*config.TerragruntConfig, error) {
 	t.Helper()
 
-	const (
-		consumerPath = "/eligibility/consumer/terragrunt.hcl"
-		producerPath = "/eligibility/producer/terragrunt.hcl"
+	var (
+		consumerPath = venvtest.Root("/eligibility/consumer/terragrunt.hcl")
+		producerPath = venvtest.Root("/eligibility/producer/terragrunt.hcl")
 	)
 
 	env := testCase.env
@@ -464,14 +489,6 @@ inputs = {
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.NoDependencyFetchOutputFromState = testCase.optOut
 
-	if !testCase.disableDependencyExperiment {
-		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState))
-	}
-
-	if testCase.enableAzure {
-		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.AzureBackend))
-	}
-
 	return config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), consumerPath, nil)
 }
 
@@ -503,7 +520,11 @@ func eligibilityAzureConfig(accessKey string) map[string]string {
 	}
 }
 
-func eligibilityConfig(base map[string]string, overrides map[string]string, remove ...string) map[string]string {
+func eligibilityConfig(
+	base map[string]string,
+	overrides map[string]string,
+	remove ...string,
+) map[string]string {
 	config := maps.Clone(base)
 	maps.Copy(config, overrides)
 
