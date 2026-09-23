@@ -1,7 +1,6 @@
 package filter_test
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -1345,58 +1344,6 @@ func TestFilters_InlineDependentBoundaries(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expected, filters.InlineDependentBoundaries())
-		})
-	}
-}
-
-func TestFilters_RootGitBoundaries(t *testing.T) {
-	t.Parallel()
-
-	root := filepath.FromSlash("/repo")
-
-	testCases := []struct {
-		name     string
-		query    string
-		expected string
-	}{
-		{
-			name:     "relative Git boundary joins the root",
-			query:    "(./live/staging)...[main...HEAD]",
-			expected: "(" + filepath.Join(root, "live", "staging") + ")...[main...HEAD]",
-		},
-		{
-			name:     "both directions of a Git expression join the root",
-			query:    "(./live)...[main...HEAD]...(./shared)",
-			expected: "(" + filepath.Join(root, "live") + ")...[main...HEAD]...(" + filepath.Join(root, "shared") + ")",
-		},
-		{
-			name:     "negated Git boundary joins the root",
-			query:    "!(./live)...[main...HEAD]",
-			expected: "!(" + filepath.Join(root, "live") + ")...[main...HEAD]",
-		},
-		{
-			name:  "non-Git boundary stays relative to the working directory",
-			query: "(./live)...{./app}",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			filters, err := filter.ParseFilterQueries(testLogger(), []string{tc.query})
-			require.NoError(t, err)
-
-			rooted := filters.RootGitBoundaries(root)
-			require.Len(t, rooted, 1)
-			assert.Equal(t, tc.query, rooted[0].String(), "the original query is kept for display")
-
-			if tc.expected == "" {
-				assert.Same(t, filters[0], rooted[0], "a filter without a Git boundary is returned unchanged")
-				return
-			}
-
-			assert.Equal(t, tc.expected, rooted[0].Expression().String())
 		})
 	}
 }

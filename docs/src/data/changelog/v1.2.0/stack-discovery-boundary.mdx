@@ -7,8 +7,10 @@ category: "bug-fixes"
 
 The `--discovery-boundary` flag now works with `stack generate`, `stack run`, and `stack output`. Previously these commands scanned the entire working directory for stack files and ignored the boundary. In monorepos with a catalog next to live infrastructure, this caused errors when out-of-scope stacks referenced files that only exist in the live tree.
 
-The boundary, including an inline `(dir)` operand, also applies when a Git expression such as `[main...HEAD]` generates stacks for both compared commits. If any positive filter has no dependent-side boundary and `--discovery-boundary` is not set, these commands still scan the whole working directory.
+The boundary, including an inline `(dir)` operand, also applies when a Git expression such as `[main...HEAD]` generates stacks for both compared commits. If any positive filter has no dependent-side boundary and `--discovery-boundary` is not set, or the boundaries are in separate directories, these commands still scan the whole working directory.
 
-Dependent discovery no longer parses units outside every dependent-side boundary. For Git expressions, Terragrunt resolves a relative boundary against the repository root, the same as any other path in a Git expression. It ignores changed units outside a dependent-side boundary in both compared commits. A dependency-side boundary only limits dependency traversal. A dependent-side boundary can now be a directory inside the working directory, and the search for dependents starts there.
+Dependent discovery no longer parses units outside every dependent-side boundary. A dependent-side boundary can now be a directory inside the working directory, and the search for dependents starts there.
+
+For Git expressions, Terragrunt resolves a relative boundary against the repository root, the same as any other path in a Git expression. It ignores changed units outside a dependent-side boundary, and returns an error when a boundary exists in neither compared commit. A dependency-side boundary only limits dependency traversal.
 
 You can now run `terragrunt stack run plan --filter '(./live/)...[main...HEAD]'` from the repository root. Terragrunt skips the catalog units outside `./live`, which only parse after Terragrunt generates them into a stack.

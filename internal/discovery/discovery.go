@@ -30,8 +30,6 @@ func (d *Discovery) Discover(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
-	d.filters = RootGitFilters(ctx, v, d.workingDir, d.filters)
-
 	d.classifier = filter.NewClassifier(d.filters)
 
 	// A working directory that cannot be walked to discovers nothing, which is
@@ -45,6 +43,10 @@ func (d *Discovery) Discover(
 	d.resolvedWorkingDir = resolvedWorkingDir
 
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
+
+	if d.discoveryBoundaryInput == "" {
+		d.discoveryBoundaryInput = d.discoveryBoundary
+	}
 
 	if d.discoveryBoundary != "" {
 		boundary, boundaryErr := resolveDiscoveryBoundary(
@@ -72,6 +74,18 @@ func (d *Discovery) Discover(
 
 	withWorktree := len(d.gitExpressions) > 0 && d.worktrees != nil
 
+	if withWorktree {
+		if gitRoot, gitErr := git.GoRepoRoot(ctx, v, d.workingDir); gitErr == nil {
+			d.worktreeGitRoot = gitRoot
+		}
+
+		// A boundary that exists at neither compared reference is a mistake, not an empty result.
+		err := CheckWorktreeBoundaries(ctx, v, d.worktrees, d.filters, d.discoveryBoundaryInput, d.workingDir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	l.Debugf(
 		"Discovery: starting filesystem phase (workers=%d, with_worktree=%t)",
 		d.numWorkers,
@@ -96,7 +110,7 @@ func (d *Discovery) Discover(
 		return nil, err
 	}
 
-	discovered, candidates := results.Discovered, d.withoutUnreachable(v.FS, results.Candidates)
+	discovered, candidates := results.Discovered, results.Candidates
 
 	parseReasons := slices.Clone(d.parseReasons)
 	if d.classifier.HasParseRequiredFilters() {
@@ -853,11 +867,22 @@ func (d *Discovery) dropOutsideBoundary(
 	kept := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		if reachedByTraversal(c) && isExternal(fsys, d.discoveryBoundary, c.Path()) {
+		if !reachedByTraversal(c) {
+			kept = append(kept, c)
+			continue
+		}
+
+		// A component found in a Git worktree is bounded by the flag resolved in that worktree.
+		boundary := d.discoveryBoundary
+		if root := d.worktreeRootOf(fsys, c.Path()); root != "" {
+			boundary = filter.WorktreeBoundaryPath(root, d.worktreeGitRoot, d.discoveryBoundaryInput)
+		}
+
+		if isExternal(fsys, boundary, c.Path()) {
 			l.Debugf(
 				"Discovery: %s was reached across discovery boundary %s; not returning it",
 				c.Path(),
-				d.discoveryBoundary,
+				boundary,
 			)
 
 			continue

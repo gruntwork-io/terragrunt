@@ -461,7 +461,7 @@ Resolving from the worktree root keeps every path valid in both references, so `
 
 <Since version="v1.2.0">
 
-An inline `(dir)` [boundary](/features/filter/graph) on a Git expression resolves the same way. `--filter '(./live/staging)...[main...HEAD]'` limits discovery to `live/staging` from any directory, even when that directory exists in only one of the references.
+An inline `(dir)` [boundary](/features/filter/graph) on a Git expression resolves the same way. `--filter '(./live/staging)...[main...HEAD]'` limits discovery to `live/staging` from any directory, even when that directory exists in only one of the references. A boundary that is not a directory in either reference is an error.
 
 </Since>
 

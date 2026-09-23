@@ -167,12 +167,7 @@ func (d *Discovery) WithGitRoot(gitRoot string) *Discovery {
 // WithWalkRoot narrows the filesystem walk to a subdirectory of the working
 // directory without changing the logical base for filter evaluation.
 func (d *Discovery) WithWalkRoot(root string) *Discovery {
-	return d.WithWalkRoots([]string{root})
-}
-
-// WithWalkRoots narrows the filesystem walk to disjoint subdirectories of the working directory.
-func (d *Discovery) WithWalkRoots(roots []string) *Discovery {
-	d.walkRoots = roots
+	d.walkRoot = root
 	return d
 }
 

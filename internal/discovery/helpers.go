@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -502,7 +503,7 @@ func (d *Discovery) dependentBoundaries(l log.Logger, fsys vfs.FS) []string {
 	return boundaries
 }
 
-// potentialDependentsOutsideBoundary returns unreachable potential dependents; withoutUnreachable prunes pre-parse.
+// potentialDependentsOutsideBoundary returns potential dependents no dependent traversal can reach.
 func (d *Discovery) potentialDependentsOutsideBoundary(
 	l log.Logger,
 	fsys vfs.FS,
@@ -547,6 +548,10 @@ func (d *Discovery) evaluationContext() filter.EvaluationContext {
 		WorkingDir:         d.workingDir,
 		ResolvedWorkingDir: d.resolvedWorkingDir,
 		DiscoveryBoundary:  d.discoveryBoundary,
+		Worktree: &filter.WorktreeContext{
+			DiscoveryBoundaryInput: d.discoveryBoundaryInput,
+			GitRoot:                d.worktreeGitRoot,
+		},
 	}
 }
 
@@ -667,91 +672,28 @@ func resolveDiscoveryBoundary(
 	return resolved, nil
 }
 
-// worktreeBoundaries returns the boundaries mirrored into each worktree, or nil when unbounded.
-func (d *Discovery) worktreeBoundaries(ctx context.Context, l log.Logger, v *venv.Venv) []string {
-	return WorktreeBoundaries(ctx, l, v, StackGenerateOptions{
+// worktreeBoundary returns the boundary mirrored into each worktree, or "" when unbounded.
+func (d *Discovery) worktreeBoundary(ctx context.Context, l log.Logger, v *venv.Venv) string {
+	return WorktreeBoundary(ctx, l, v, StackGenerateOptions{
 		WorkingDir:        d.workingDir,
-		DiscoveryBoundary: d.discoveryBoundary,
+		DiscoveryBoundary: d.discoveryBoundaryInput,
 		Filters:           d.filters,
 	})
 }
 
-// withoutUnreachable drops candidates no positive filter can return; see potentialDependentsOutsideBoundary.
-func (d *Discovery) withoutUnreachable(fsys vfs.FS, candidates []DiscoveryResult) []DiscoveryResult {
-	if !d.filters.HasGraphBoundary() && d.discoveryBoundary == "" {
-		return candidates
+// worktreeRootOf returns the root of the Git worktree holding path, or "" when path is in the working tree.
+func (d *Discovery) worktreeRootOf(fsys vfs.FS, path string) string {
+	if d.worktrees == nil {
+		return ""
 	}
 
-	kept := make([]DiscoveryResult, 0, len(candidates))
-
-	for _, candidate := range candidates {
-		if d.unreachable(fsys, candidate.Component) {
-			continue
-		}
-
-		kept = append(kept, candidate)
-	}
-
-	return kept
-}
-
-// unreachable reports whether every positive filter intersects a bounded graph expression that cannot return c.
-func (d *Discovery) unreachable(fsys vfs.FS, c component.Component) bool {
-	if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
-		return false
-	}
-
-	positive := false
-
-	for _, flt := range d.filters {
-		expr := flt.Expression()
-		if expr == nil || filter.IsPureNegation(expr) {
-			continue
-		}
-
-		positive = true
-
-		if !d.operandExcludes(fsys, expr, c) {
-			return false
+	for _, pair := range d.worktrees.WorktreePairs {
+		for _, wt := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if wt.Path != "" && vfs.Within(fsys, wt.Path, path) {
+				return wt.Path
+			}
 		}
 	}
 
-	return positive
-}
-
-// operandExcludes reports whether an intersection operand of expr is a bounded graph expression that cannot return c.
-func (d *Discovery) operandExcludes(fsys vfs.FS, expr filter.Expression, c component.Component) bool {
-	switch node := expr.(type) {
-	case *filter.InfixExpression:
-		return node.Operator == "|" &&
-			(d.operandExcludes(fsys, node.Left, c) || d.operandExcludes(fsys, node.Right, c))
-	case *filter.GraphExpression:
-		if _, requiresParse := node.Target.RequiresParse(); requiresParse || filter.MatchComponent(c, node.Target) {
-			return false
-		}
-
-		return d.boundExcludes(fsys, node.Dependents, c) && d.boundExcludes(fsys, node.Dependencies, c)
-	default:
-		return false
-	}
-}
-
-// boundExcludes reports whether one traversal direction cannot reach c.
-func (d *Discovery) boundExcludes(fsys vfs.FS, bound filter.GraphBound, c component.Component) bool {
-	if !bound.Include {
-		return true
-	}
-
-	boundary := d.discoveryBoundary
-
-	if bound.Boundary != "" {
-		resolved, err := resolveGraphBoundary(fsys, d.workingDir, bound.Boundary)
-		if err != nil {
-			return false
-		}
-
-		boundary = resolved
-	}
-
-	return boundary != "" && isExternal(fsys, boundary, c.Path())
+	return ""
 }

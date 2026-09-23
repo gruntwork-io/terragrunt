@@ -444,7 +444,11 @@ func ListStackFiles(
 ) ([]string, error) {
 	var discoveredComponents component.Components
 
-	stackOpts := stackGenerateOptions(ctx, v, opts)
+	stackOpts := discovery.StackGenerateOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	}
 
 	if scope != worktreeStacksOnly {
 		d, err := discovery.NewForStackGenerate(l, v.FS, stackOpts)
@@ -490,7 +494,11 @@ func ListStackFilesWithExcludes(
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
-	stackOpts := stackGenerateOptions(ctx, v, opts)
+	stackOpts := discovery.StackGenerateOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	}
 
 	d, err := discovery.NewForStackGenerate(l, v.FS, stackOpts)
 	if err != nil {
@@ -612,7 +620,12 @@ func worktreeStacksToGenerate(
 		return component.Components{}, nil
 	}
 
-	boundaries := discovery.WorktreeBoundaries(ctx, l, v, stackOpts)
+	boundary := discovery.WorktreeBoundary(ctx, l, v, stackOpts)
+
+	err := discovery.CheckWorktreeBoundaries(ctx, v, w, opts.Filters, opts.DiscoveryBoundary, opts.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
 
 	stacksToGenerate := component.NewThreadSafeComponents(v.FS, component.Components{})
 
@@ -629,7 +642,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, stack := range editedStacks {
-		if !discovery.WithinWorktreeBoundary(v.FS, stack, boundaries) {
+		if !discovery.WithinWorktreeBoundary(v.FS, stack, boundary) {
 			l.Debugf("Skipping stack %s outside the discovery boundary", stack.Path())
 			continue
 		}
@@ -710,7 +723,7 @@ func worktreeStacksToGenerate(
 				opts,
 				pair.FromWorktree,
 				len(deletedReadFilters) > 0,
-				boundaries,
+				boundary,
 			)
 			if err != nil {
 				recordErr(err)
@@ -725,7 +738,7 @@ func worktreeStacksToGenerate(
 				opts,
 				pair.ToWorktree,
 				len(toReadFilters) > 0,
-				boundaries,
+				boundary,
 			)
 			if err != nil {
 				recordErr(err)
@@ -804,8 +817,8 @@ func worktreeStacksToGenerate(
 
 // discoverStacks discovers stacks in a worktree.
 // When readFiles is true, all discovered stacks are parsed to populate their Reading
-// attribute (used by reading-affected detection). Boundaries, relative to the
-// worktree root, narrow the walk to those directories.
+// attribute (used by reading-affected detection). A non-empty boundary, relative to
+// the worktree root, narrows the walk to that directory.
 func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
@@ -813,31 +826,32 @@ func discoverStacks(
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	readFiles bool,
-	boundaries []string,
+	boundary string,
 ) (component.Components, error) {
-	walkRoots, err := discovery.WorktreeWalkRoots(v.FS, wt.Path, boundaries)
-	if err != nil {
-		return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
-	}
+	d := discovery.NewDiscovery(wt.Path).
+		WithSuppressParseErrors().
+		WithFilters(StackDiscoveryFilters(opts.Filters))
 
-	components := component.Components{}
-
-	for _, walkRoot := range walkRoots {
-		d := discovery.NewDiscovery(wt.Path).
-			WithSuppressParseErrors().
-			WithFilters(StackDiscoveryFilters(opts.Filters)).
-			WithWalkRoot(walkRoot)
-
-		if readFiles {
-			d = d.WithReadFiles()
-		}
-
-		found, err := d.Discover(ctx, l, v, opts)
+	if boundary != "" {
+		walkRoot, ok, err := discovery.WorktreeWalkRoot(v.FS, wt.Path, boundary)
 		if err != nil {
 			return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
 		}
 
-		components = append(components, found...)
+		if !ok {
+			return component.Components{}, nil
+		}
+
+		d = d.WithWalkRoot(walkRoot)
+	}
+
+	if readFiles {
+		d = d.WithReadFiles()
+	}
+
+	components, err := d.Discover(ctx, l, v, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
 	}
 
 	for _, c := range components {
@@ -966,19 +980,4 @@ func stackTypeFilter() filter.Filters {
 	attrExpr := filter.NewTypeExpression(component.StackKind)
 
 	return filter.Filters{filter.NewFilter(attrExpr, attrExpr.String())}
-}
-
-// stackGenerateOptions builds the stack discovery options, with Git boundaries resolved against the Git root.
-func stackGenerateOptions(
-	ctx context.Context,
-	v *venv.Venv,
-	opts *options.TerragruntOptions,
-) discovery.StackGenerateOptions {
-	filters := discovery.RootGitFilters(ctx, v, opts.WorkingDir, opts.Filters)
-
-	return discovery.StackGenerateOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           filters,
-	}
 }

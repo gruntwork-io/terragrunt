@@ -1,6 +1,7 @@
 package filter_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -2051,6 +2052,82 @@ func TestEvaluate_GraphExpression_BoundaryUnderSymlinkedWorkingDir(t *testing.T)
 			}
 
 			assert.ElementsMatch(t, tc.expected, paths)
+		})
+	}
+}
+
+func TestEvaluationContext_TargetBoundary(t *testing.T) {
+	t.Parallel()
+
+	workingDir := filepath.FromSlash("/repo/live")
+	gitRoot := filepath.FromSlash("/repo")
+	worktree := filepath.FromSlash("/tmp/wt-head")
+
+	inTree := component.NewUnit(filepath.Join(workingDir, "app"))
+	inWorktree := component.NewUnit(filepath.Join(worktree, "live", "app")).WithDiscoveryContext(
+		&component.DiscoveryContext{WorkingDir: worktree, Ref: "HEAD"},
+	)
+
+	evalCtx := filter.EvaluationContext{
+		WorkingDir:        workingDir,
+		DiscoveryBoundary: filepath.Join(workingDir, "prod"),
+		Worktree:          &filter.WorktreeContext{DiscoveryBoundaryInput: "./prod", GitRoot: gitRoot},
+	}
+
+	testCases := []struct {
+		target   component.Component
+		name     string
+		expected string
+		evalCtx  filter.EvaluationContext
+		bound    filter.GraphBound
+	}{
+		{
+			name:     "working-tree target resolves against the working directory",
+			target:   inTree,
+			bound:    filter.GraphBound{Boundary: "./staging"},
+			evalCtx:  evalCtx,
+			expected: filepath.Join(workingDir, "staging"),
+		},
+		{
+			name:     "worktree target resolves against its worktree root",
+			target:   inWorktree,
+			bound:    filter.GraphBound{Boundary: "./live"},
+			evalCtx:  evalCtx,
+			expected: filepath.Join(worktree, "live"),
+		},
+		{
+			name:     "worktree target uses the flag as given",
+			target:   inWorktree,
+			evalCtx:  evalCtx,
+			expected: filepath.Join(worktree, "prod"),
+		},
+		{
+			name:     "absolute boundary is mirrored from the Git root",
+			target:   inWorktree,
+			bound:    filter.GraphBound{Boundary: filepath.Join(gitRoot, "live")},
+			evalCtx:  evalCtx,
+			expected: filepath.Join(worktree, "live"),
+		},
+		{
+			name:     "boundary above the repository root covers the worktree",
+			target:   inWorktree,
+			bound:    filter.GraphBound{Boundary: filepath.Dir(gitRoot)},
+			evalCtx:  evalCtx,
+			expected: worktree,
+		},
+		{
+			name:     "worktree target without a boundary is unbounded",
+			target:   inWorktree,
+			evalCtx:  filter.EvaluationContext{WorkingDir: workingDir},
+			expected: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expected, tc.evalCtx.TargetBoundary(tc.bound, tc.target))
 		})
 	}
 }

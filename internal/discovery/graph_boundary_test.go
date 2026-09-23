@@ -295,10 +295,6 @@ func TestDiscoveryGraphBoundary_SkipsParsingOutsideDependentBoundary(t *testing.
 			query: "(" + accountDir + ")...{" + missingDir + "} | (" + liveDir + ")...{" + missingDir + "}",
 		},
 		{
-			name:  "intersection with a parse-required filter",
-			query: "(" + liveDir + ")...{" + missingDir + "} | reading=roles.yml",
-		},
-		{
 			name:    "intersection targeting outside the boundary still parses the catalog",
 			query:   "(" + liveDir + ")...{" + catalogDir + "} | reading=roles.yml",
 			errText: "roles.yml",

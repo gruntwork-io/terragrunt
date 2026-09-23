@@ -126,11 +126,11 @@ type Discovery struct {
 	// workingDir is the logical working directory for filter evaluation and display paths.
 	workingDir string
 
-	// walkRoots override the filesystem walk roots when set. The filesystem
-	// phase walks each of walkRoots instead of workingDir, while workingDir stays
-	// the logical base for relative path filters and display paths. Empty means
+	// walkRoot overrides the filesystem walk root when set. The filesystem
+	// phase walks walkRoot instead of workingDir, while workingDir stays the
+	// logical base for relative path filters and display paths. Empty means
 	// the walk starts at workingDir.
-	walkRoots []string
+	walkRoot string
 
 	// resolvedWorkingDir is workingDir with symlinks resolved, which is how
 	// boundaries and dependency paths name it. Discover fills it in before any
@@ -148,6 +148,12 @@ type Discovery struct {
 	// gitRoot and prunes dependencies that resolve outside it. Empty unless
 	// --discovery-boundary is set.
 	discoveryBoundary string
+
+	// discoveryBoundaryInput is --discovery-boundary as given, which Git targets resolve against their worktree root.
+	discoveryBoundaryInput string
+
+	// worktreeGitRoot is the Git root that absolute boundaries are mirrored from into worktrees.
+	worktreeGitRoot string
 
 	// graphTarget is the target path for graph filtering (prune to target + dependents).
 	graphTarget string

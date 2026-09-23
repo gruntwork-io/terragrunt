@@ -63,31 +63,12 @@ func (p *FilesystemPhase) Run(
 
 	walkFn := walkDirFunc(v, input.Opts)
 
-	walkStarts := discovery.walkRoots
-	if len(walkStarts) == 0 {
-		walkStarts = []string{discoveryContext.WorkingDir}
+	walkStart := discoveryContext.WorkingDir
+	if discovery.walkRoot != "" {
+		walkStart = discovery.walkRoot
 	}
 
-	for _, walkStart := range walkStarts {
-		if err := p.walk(ctx, walkFn, walkStart, input, discovery, filenames, results); err != nil {
-			return results, err
-		}
-	}
-
-	return results, nil
-}
-
-// walk classifies every configuration file under walkStart into results.
-func (p *FilesystemPhase) walk(
-	ctx context.Context,
-	walkFn func(string, fs.WalkDirFunc) error,
-	walkStart string,
-	input *PhaseInput,
-	discovery *Discovery,
-	filenames []string,
-	results *PhaseResults,
-) error {
-	return walkFn(walkStart, func(path string, d fs.DirEntry, err error) error {
+	err := walkFn(walkStart, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -118,6 +99,8 @@ func (p *FilesystemPhase) walk(
 
 		return nil
 	})
+
+	return results, err
 }
 
 // skipDirIfIgnorable determines if a directory should be skipped during traversal.

@@ -740,6 +740,16 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			expected: []string{liveDir},
 		},
 		{
+			name:     "the flag narrows a dependents filter without an inline boundary",
+			workDir:  repoRoot,
+			boundary: liveDir,
+			filters: parseFilters(
+				"("+liveSubDir+")...[main...HEAD]",
+				"...[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
 			name:     "a negated boundary does not narrow",
 			workDir:  repoRoot,
 			filters:  parseFilters("!(" + liveDir + ")...{" + liveDir + "}"),
@@ -752,13 +762,13 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			expected: []string{liveDir, catalogDir, otherDir},
 		},
 		{
-			name:    "disjoint inline boundaries walk each boundary",
+			name:    "disjoint inline boundaries do not narrow",
 			workDir: repoRoot,
 			filters: parseFilters(
 				"("+liveDir+")...[main...HEAD]",
 				"("+catalogDir+")...[main...HEAD]",
 			),
-			expected: []string{liveDir, catalogDir},
+			expected: []string{liveDir, catalogDir, otherDir},
 		},
 	}
 

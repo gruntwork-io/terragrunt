@@ -78,19 +78,42 @@ const boundaryStackStandaloneModule = `output "ok" {
 }
 `
 
+// boundaryStackAppUnit depends on the sibling db unit so dependency traversal has something to follow.
+const boundaryStackAppUnit = `dependency "db" {
+  config_path = "../db"
+
+  mock_outputs = {
+    id = "mock"
+  }
+}
+
+inputs = {
+  db_id = dependency.db.outputs.id
+}
+`
+
+const boundaryStackDBModule = `output "id" {
+  value = "db"
+}
+`
+
+const boundaryStackAppModule = `variable "db_id" {}
+`
+
 const (
-	boundaryStackStandaloneDir   = "live/standalone"
-	boundaryStackStandaloneRead  = boundaryStackStandaloneDir + "/extra.yml"
-	boundaryStackRolesFile       = "live/accounts/my-account/roles.yml"
-	boundaryStackLiveStackFile   = "live/accounts/my-account/terragrunt.stack.hcl"
-	boundaryStackCatalogFile     = "catalog/stacks/account/terragrunt.stack.hcl"
-	boundaryStackCatalogUnit     = "catalog/units/account/terragrunt.hcl"
-	boundaryStackUnusedUnit      = "catalog/units/unused/terragrunt.hcl"
-	boundaryStackOtherUnit       = "other/unit/terragrunt.hcl"
-	boundaryStackDisjointFilters = "--filter '(./live)...[main...HEAD]' --filter '(./catalog)...[main...HEAD]'"
-	boundaryStackGeneratedDir    = "live/accounts/my-account/.terragrunt-stack/account"
-	boundaryStackRolesUnitDir    = boundaryStackGeneratedDir + "/.terragrunt-stack/roles"
-	boundaryStackBoundedFilter   = "--filter '(./live/)...[main...HEAD]'"
+	boundaryStackAppDir         = "live/app"
+	boundaryStackDBDir          = "live/db"
+	boundaryStackStandaloneDir  = "live/standalone"
+	boundaryStackStandaloneRead = boundaryStackStandaloneDir + "/extra.yml"
+	boundaryStackRolesFile      = "live/accounts/my-account/roles.yml"
+	boundaryStackLiveStackFile  = "live/accounts/my-account/terragrunt.stack.hcl"
+	boundaryStackCatalogFile    = "catalog/stacks/account/terragrunt.stack.hcl"
+	boundaryStackCatalogUnit    = "catalog/units/account/terragrunt.hcl"
+	boundaryStackUnusedUnit     = "catalog/units/unused/terragrunt.hcl"
+	boundaryStackOtherUnit      = "other/unit/terragrunt.hcl"
+	boundaryStackGeneratedDir   = "live/accounts/my-account/.terragrunt-stack/account"
+	boundaryStackRolesUnitDir   = boundaryStackGeneratedDir + "/.terragrunt-stack/roles"
+	boundaryStackBoundedFilter  = "--filter '(./live/)...[main...HEAD]'"
 )
 
 // TestStackDiscoveryBoundaryGitFilterSkipsCatalog pins that worktree stack generation stays inside the boundary.
@@ -188,17 +211,6 @@ func TestStackDiscoveryBoundaryGitFilterBoundsTargets(t *testing.T) {
 			expected: []string{boundaryStackStandaloneDir},
 		},
 		{
-			name:    "changed unit outside disjoint boundaries",
-			changed: boundaryStackOtherUnit,
-			args:    boundaryStackDisjointFilters,
-		},
-		{
-			name:     "changed unit inside one of disjoint boundaries",
-			changed:  boundaryStackStandaloneDir + "/terragrunt.hcl",
-			args:     boundaryStackDisjointFilters,
-			expected: []string{boundaryStackStandaloneDir},
-		},
-		{
 			name:    "changed catalog unit outside the boundary",
 			changed: boundaryStackCatalogUnit,
 			args:    boundaryStackBoundedFilter,
@@ -255,6 +267,136 @@ func TestStackDiscoveryBoundaryGitFilterBoundsTargets(t *testing.T) {
 	}
 }
 
+// TestStackDiscoveryBoundaryGitTargetsResolvePerWorktree pins that Git targets resolve boundaries in their own worktree.
+func TestStackDiscoveryBoundaryGitTargetsResolvePerWorktree(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		changed      string
+		deleteInTree string
+		workDir      string
+		args         string
+		errText      string
+		expected     []string
+	}{
+		{
+			name:     "dependency-side boundary keeps the dependencies of a changed unit",
+			changed:  boundaryStackAppDir + "/terragrunt.hcl",
+			args:     "--filter '[HEAD^...HEAD]...(./live)'",
+			expected: []string{boundaryStackAppDir, boundaryStackDBDir},
+		},
+		{
+			name:     "dependency-side boundary from a subdirectory",
+			changed:  boundaryStackAppDir + "/terragrunt.hcl",
+			workDir:  "other",
+			args:     "--filter '[HEAD^...HEAD]...(./live)'",
+			expected: []string{boundaryStackAppDir, boundaryStackDBDir},
+		},
+		{
+			name:         "dependent-side boundary finds a dependent deleted in the working tree",
+			changed:      boundaryStackDBDir + "/terragrunt.hcl",
+			deleteInTree: boundaryStackAppDir,
+			args:         "--filter '(./live)...[HEAD^...HEAD]'",
+			expected:     []string{boundaryStackDBDir, boundaryStackAppDir},
+		},
+		{
+			name:         "dependent-side boundary from a subdirectory",
+			changed:      boundaryStackDBDir + "/terragrunt.hcl",
+			deleteInTree: boundaryStackAppDir,
+			workDir:      "other",
+			args:         "--filter '(./live)...[HEAD^...HEAD]'",
+			expected:     []string{boundaryStackDBDir, boundaryStackAppDir},
+		},
+		{
+			name:    "boundary at neither reference is an error",
+			changed: boundaryStackDBDir + "/terragrunt.hcl",
+			args:    "--filter '(./nope)...[HEAD^...HEAD]'",
+			errText: "not a directory at either compared reference",
+		},
+		{
+			name:    "dependency-side boundary at neither reference is an error",
+			changed: boundaryStackAppDir + "/terragrunt.hcl",
+			args:    "--filter '[HEAD^...HEAD]...(./liev)'",
+			errText: "not a directory at either compared reference",
+		},
+		{
+			name:     "flag bounds the dependencies of a Git target in its worktree",
+			changed:  boundaryStackAppDir + "/terragrunt.hcl",
+			args:     "--filter '[HEAD^...HEAD]...' --discovery-boundary ./live",
+			expected: []string{boundaryStackAppDir, boundaryStackDBDir},
+		},
+		{
+			name:     "flag above the repository root covers it",
+			changed:  boundaryStackDBDir + "/terragrunt.hcl",
+			workDir:  "live",
+			args:     "--filter '...[HEAD^...HEAD]' --discovery-boundary ..",
+			expected: []string{boundaryStackDBDir, boundaryStackAppDir},
+		},
+		{
+			name:     "flag bounds the dependents of a Git target in its worktree",
+			changed:  boundaryStackDBDir + "/terragrunt.hcl",
+			args:     "--filter '...[HEAD^...HEAD]' --discovery-boundary ./live",
+			expected: []string{boundaryStackDBDir, boundaryStackAppDir},
+		},
+		{
+			name:     "non-Git boundary next to a Git boundary from a subdirectory",
+			changed:  boundaryStackAppDir + "/terragrunt.hcl",
+			workDir:  "live",
+			args:     "--filter '(./db)...{./db}' --filter '(./live)...[HEAD^...HEAD]'",
+			expected: []string{"db", boundaryStackAppDir},
+		},
+		{
+			name:     "flag does not hide changes for a filter without dependents",
+			changed:  boundaryStackOtherUnit,
+			args:     "--filter '[HEAD^...HEAD]' --discovery-boundary ./live",
+			expected: []string{"other/unit"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir, runner := setupBoundaryStackRepo(t)
+
+			appendBoundaryStackChange(t, runner, filepath.Join(tmpDir, tc.changed))
+
+			if tc.deleteInTree != "" {
+				require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, filepath.FromSlash(tc.deleteInTree))))
+			}
+
+			stdout, stderr, err := runBoundaryStackCommand(
+				t,
+				filepath.Join(tmpDir, filepath.FromSlash(tc.workDir)),
+				"find",
+				tc.args,
+			)
+
+			if tc.errText != "" {
+				require.ErrorContains(t, err, tc.errText)
+				return
+			}
+
+			require.NoError(t, err, "stderr: %s", stderr)
+			assert.ElementsMatch(t, tc.expected, outputLines(stdout))
+		})
+	}
+}
+
+// TestStackGenerateFlagNarrowsNonGraphFilters pins that the flag still narrows the working-tree stack walk for path filters.
+func TestStackGenerateFlagNarrowsNonGraphFilters(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, _ := setupBoundaryStackRepo(t)
+
+	_, stderr, err := runBoundaryStackCommand(t, tmpDir, "stack generate", "--discovery-boundary ./live --filter './live/**'")
+	require.NoError(t, err, "stderr: %s", stderr)
+
+	assert.DirExists(t, filepath.Join(tmpDir, filepath.FromSlash(boundaryStackRolesUnitDir)))
+	assert.NoDirExists(t, filepath.Join(tmpDir, "catalog", "stacks", "account", ".terragrunt-stack"))
+}
+
 // setupBoundaryStackRepo creates a catalog beside the live tree on a branch cut from main.
 func setupBoundaryStackRepo(t *testing.T) (string, *git.GitRunner) {
 	t.Helper()
@@ -270,6 +412,10 @@ func setupBoundaryStackRepo(t *testing.T) (string, *git.GitRunner) {
 		"catalog/units/roles/terragrunt.hcl":           boundaryStackCatalogRolesUnit,
 		boundaryStackUnusedUnit:                        boundaryStackCatalogRolesUnit,
 		boundaryStackOtherUnit:                         "",
+		boundaryStackAppDir + "/terragrunt.hcl":        boundaryStackAppUnit,
+		boundaryStackAppDir + "/main.tf":               boundaryStackAppModule,
+		boundaryStackDBDir + "/terragrunt.hcl":         "",
+		boundaryStackDBDir + "/main.tf":                boundaryStackDBModule,
 		"other/unit/main.tf":                           boundaryStackStandaloneModule,
 		"catalog/units/roles/main.tf":                  boundaryStackRolesModule,
 		boundaryStackLiveStackFile:                     boundaryStackLiveStack,

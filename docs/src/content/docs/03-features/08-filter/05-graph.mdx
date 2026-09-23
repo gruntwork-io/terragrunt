@@ -213,7 +213,7 @@ Without the boundary, the search for dependents would climb to the repository ro
 
 The boundary must be an existing directory. Terragrunt resolves a relative path against the working directory. A dependent-side boundary must be the working directory, one of its parents, or a directory inside it. The search for dependents starts at the working directory, or at the boundary when the boundary is inside the working directory. A dependency-side boundary can be any directory.
 
-For [Git-based expressions](/features/filter/git), Terragrunt resolves a relative boundary against the repository root instead. `(./live/staging)...[main...HEAD]` means `live/staging` from any directory. The boundary does not have to contain the working directory, and it only has to exist in the compared commits. Terragrunt ignores a changed unit outside a dependent-side boundary in both commits. A dependency-side boundary only limits dependency traversal, so it never hides a changed unit.
+For [Git-based expressions](/features/filter/git), Terragrunt resolves a relative boundary against the repository root instead. `(./live/staging)...[main...HEAD]` means `live/staging` from any directory. The boundary does not have to contain the working directory. It has to exist in at least one of the compared commits, or Terragrunt returns an error. Terragrunt ignores a changed unit outside a dependent-side boundary in both commits. A dependency-side boundary only limits dependency traversal, so it never hides a changed unit.
 
 Traversal stops at the boundary, so a unit inside the boundary that is reachable only through a unit outside it is never reached. Here, `foo` depends on `bar`, and `bar` depends on `baz`. Using `foo...(.)` with `inside` as the working directory:
 
