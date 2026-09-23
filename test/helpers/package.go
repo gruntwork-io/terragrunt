@@ -1167,29 +1167,14 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
-// envCtxKey keys the environment a run should see, so a test can adjust it
-// without touching the process and can therefore still run in parallel.
-type envCtxKey struct{}
-
-// RunEnv returns the environment a Terragrunt run would start with, for a test
-// to adjust and hand back through [ContextWithEnv].
-func RunEnv(t *testing.T) map[string]string {
+// RunVenv returns [venv.OSVenv] with the user configuration directory set to a
+// temporary directory of the test's own.
+func RunVenv(t *testing.T) *venv.Venv {
 	t.Helper()
 
-	return venv.ParseEnviron(os.Environ())
-}
+	configDir := t.TempDir()
 
-// ContextWithEnv returns a context that runs started with the helpers in this
-// package resolve their environment against, in place of the process environment.
-func ContextWithEnv(ctx context.Context, env map[string]string) context.Context {
-	return context.WithValue(ctx, envCtxKey{}, env)
-}
-
-// envFromContext returns the environment stored by [ContextWithEnv], or nil.
-func envFromContext(ctx context.Context) map[string]string {
-	env, _ := ctx.Value(envCtxKey{}).(map[string]string)
-
-	return env
+	return venv.OSVenv().WithUserConfigDir(func() (string, error) { return configDir, nil })
 }
 
 func RunTerragruntCommandWithContext(
@@ -1216,18 +1201,7 @@ func runTerragruntCommand(
 ) error {
 	t.Helper()
 
-	// Portal credentials are read out of the user configuration directory, so
-	// the run is pointed at one of the test's own. Left on the real one, a
-	// machine where somebody has run `terragrunt login` would send that
-	// credential to the production portal in the middle of a test and take
-	// whatever it answered into the test's own assertions.
-	configDir := t.TempDir()
-
-	v := venv.OSVenv().WithUserConfigDir(func() (string, error) { return configDir, nil })
-	if env := envFromContext(ctx); env != nil {
-		v = v.WithEnv(env)
-	}
-
+	v := RunVenv(t)
 	v.Writers = &writerpkg.Writers{Writer: writer, ErrWriter: errwriter}
 
 	return runTerragruntCommandWithVenv(t, ctx, ver, v, command)

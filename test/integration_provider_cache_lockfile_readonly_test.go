@@ -87,13 +87,13 @@ func TestTFTerragruntProviderCacheLockfileReadonly(t *testing.T) {
 	t.Run("readonly via TF_CLI_ARGS_init is enforced", func(t *testing.T) {
 		t.Parallel()
 
-		env := helpers.RunEnv(t)
-		env[tf.EnvNameTFCLIArgsInit] = fmt.Sprintf("%s=%s", tf.FlagNameLockfile, tf.LockfileModeReadonly)
+		v := helpers.RunVenv(t)
+		v.Env[tf.EnvNameTFCLIArgsInit] = fmt.Sprintf("%s=%s", tf.FlagNameLockfile, tf.LockfileModeReadonly)
 
 		appPath := copyProviderCacheLockfileReadonlyFixture(t)
 		providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, helpers.ContextWithEnv(t.Context(), env), fmt.Sprintf(
+		_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v, fmt.Sprintf(
 			"terragrunt run --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s -- init",
 			providerCacheDir,
 			appPath,
