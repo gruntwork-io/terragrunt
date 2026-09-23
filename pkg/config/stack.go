@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -511,7 +510,7 @@ func setupCAS(l log.Logger, pctx *ParsingContext, enabled bool) (casSetup, error
 		return casSetup{}, nil
 	}
 
-	if _, err := git.NewGitRunner(v); err != nil {
+	if _, err := cas.NewGitStoreVenv(v); err != nil {
 		if pctx.CASOffline {
 			return casSetup{}, err
 		}

@@ -155,7 +155,7 @@ func TestGitResolver_FullSHAHitsLocalCacheOffline(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(t.Context(), l, v, redact.NewURL(url), headHash, "")
+	repo, err := store.EnsureCommit(t.Context(), l, newTestGitStoreVenv(t, v), redact.NewURL(url), headHash, "")
 	require.NoError(t, err)
 	require.NoError(t, repo.Unlock())
 
@@ -166,6 +166,26 @@ func TestGitResolver_FullSHAHitsLocalCacheOffline(t *testing.T) {
 	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err, "fast path must skip ls-remote when commit is cached")
 	assert.Equal(t, headHash, got)
+}
+
+// TestGitResolver_StoreRejectsNonOSFilesystem pins that a store probe from an
+// in-memory venv returns an error instead of running git against paths git
+// cannot see.
+func TestGitResolver_StoreRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubGitExec(func(context.Context, vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+
+	r := &cas.GitResolver{
+		Venv:   venvtest.New().WithExec(stub),
+		Store:  cas.NewGitStore(t.TempDir()),
+		Branch: "deadbeefcafefacedeadbeefcafefacedeadbeef",
+	}
+
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/org/repo.git"))
+	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }
 
 // TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs pins the

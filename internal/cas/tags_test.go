@@ -112,6 +112,25 @@ func TestCAS_StoredTagsServesRecordedTags(t *testing.T) {
 	assert.Equal(t, refs, offline.StoredTags(t.Context(), l, v, redact.NewURL(url)))
 }
 
+// TestCAS_StoredTagsServesRecordedTagsWithoutOSFilesystem pins that an
+// in-memory venv still gets the recorded tags, and the bare repository it
+// cannot reach adds none.
+func TestCAS_StoredTagsServesRecordedTagsWithoutOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venvtest.New()
+	url := redact.NewURL("https://example.com/recorded-tags.git")
+	refs := []git.LsRemoteResult{{Hash: testTagHash(3), Ref: "refs/tags/v2.0.0"}}
+
+	c, err := cas.New(v, cas.WithStorePath("/store"), cas.WithProbeCache())
+	require.NoError(t, err)
+
+	c.RecordTags(l, v, url, refs)
+
+	assert.Equal(t, refs, c.StoredTags(t.Context(), l, v, url))
+}
+
 // testTagHash returns a full SHA-1 object name distinct for each i.
 func testTagHash(i int) string {
 	return fmt.Sprintf("%040x", i)
