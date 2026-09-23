@@ -210,6 +210,20 @@ func StackWalkRoots(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) []stri
 	return roots
 }
 
+// RootGitFilters resolves the inline boundaries of Git expressions against the Git root of workingDir.
+func RootGitFilters(ctx context.Context, v *venv.Venv, workingDir string, filters filter.Filters) filter.Filters {
+	if len(filters.UniqueGitFilters()) == 0 {
+		return filters
+	}
+
+	gitRoot, err := git.GoRepoRoot(ctx, v, workingDir)
+	if err != nil {
+		return filters
+	}
+
+	return filters.RootGitBoundaries(gitRoot)
+}
+
 // WorktreeBoundaries returns the positive filters' disjoint boundaries relative to the Git root, or nil if unbounded.
 // Git-targeted boundaries resolve against the Git root, and each worktree checks whether they exist at its ref.
 func WorktreeBoundaries(ctx context.Context, l log.Logger, v *venv.Venv, opts StackGenerateOptions) []string {

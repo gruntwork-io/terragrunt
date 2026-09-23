@@ -444,11 +444,7 @@ func ListStackFiles(
 ) ([]string, error) {
 	var discoveredComponents component.Components
 
-	stackOpts := discovery.StackGenerateOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           opts.Filters,
-	}
+	stackOpts := stackGenerateOptions(ctx, v, opts)
 
 	if scope != worktreeStacksOnly {
 		d, err := discovery.NewForStackGenerate(l, v.FS, stackOpts)
@@ -494,11 +490,7 @@ func ListStackFilesWithExcludes(
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
-	stackOpts := discovery.StackGenerateOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           opts.Filters,
-	}
+	stackOpts := stackGenerateOptions(ctx, v, opts)
 
 	d, err := discovery.NewForStackGenerate(l, v.FS, stackOpts)
 	if err != nil {
@@ -974,4 +966,19 @@ func stackTypeFilter() filter.Filters {
 	attrExpr := filter.NewTypeExpression(component.StackKind)
 
 	return filter.Filters{filter.NewFilter(attrExpr, attrExpr.String())}
+}
+
+// stackGenerateOptions builds the stack discovery options, with Git boundaries resolved against the Git root.
+func stackGenerateOptions(
+	ctx context.Context,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) discovery.StackGenerateOptions {
+	filters := discovery.RootGitFilters(ctx, v, opts.WorkingDir, opts.Filters)
+
+	return discovery.StackGenerateOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           filters,
+	}
 }

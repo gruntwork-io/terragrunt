@@ -30,12 +30,7 @@ func (d *Discovery) Discover(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
-	// Git expressions resolve inline boundaries against the repository root, not the working directory.
-	if len(d.gitExpressions) > 0 {
-		if gitRoot, gitErr := git.GoRepoRoot(ctx, v, d.workingDir); gitErr == nil {
-			d.filters = d.filters.RootGitBoundaries(gitRoot)
-		}
-	}
+	d.filters = RootGitFilters(ctx, v, d.workingDir, d.filters)
 
 	d.classifier = filter.NewClassifier(d.filters)
 

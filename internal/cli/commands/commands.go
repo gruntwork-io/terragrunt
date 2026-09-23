@@ -17,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -210,7 +209,7 @@ func WrapWithTelemetry(
 				}
 			}()
 
-			if err := initialSetup(childCtx, cliCtx, l, v, opts); err != nil {
+			if err := initialSetup(cliCtx, l, v, opts); err != nil {
 				return err
 			}
 
@@ -528,7 +527,6 @@ func setupAutoProviderCacheDir(
 
 // mostly preparing terragrunt options
 func initialSetup(
-	ctx context.Context,
 	cliCtx *clihelper.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -672,13 +670,6 @@ func initialSetup(
 	}
 
 	opts.Filters = deduped
-
-	// Git expressions resolve inline boundaries against the repository root, not the working directory.
-	if len(opts.Filters.UniqueGitFilters()) > 0 {
-		if gitRoot, gitErr := git.GoRepoRoot(ctx, v, opts.WorkingDir); gitErr == nil {
-			opts.Filters = opts.Filters.RootGitBoundaries(gitRoot)
-		}
-	}
 
 	// --- Terragrunt Version
 	terragruntVersion, err := semver.Parse(cliCtx.Version)
