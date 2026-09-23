@@ -1,6 +1,7 @@
 {
   "packages": [],
   "tests": [
-    "TestCAS_CloneRepoWithNestedSubmodules"
+    "TestCAS_CloneRepoWithNestedSubmodules",
+    "TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit"
   ]
 }
