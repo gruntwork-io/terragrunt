@@ -1677,8 +1677,13 @@ func ParseConfig(
 
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
-	if err := setIAMRole(ctx, pctx, l, file, includeFromChild); err != nil {
+	iamRoleOptions, err := ResolveIAMRoleOptions(ctx, pctx, l, file, includeFromChild)
+	if err != nil {
 		errs = append(errs, err)
+	}
+
+	if err == nil {
+		pctx.IAMRoleOptions = iamRoleOptions
 	}
 
 	// read unit files and add to context
@@ -1934,49 +1939,51 @@ func detectBareIncludeUsage(file *hclparse.File) bool {
 // iamRoleCache - store for cached values of IAM roles
 var iamRoleCache = cache.NewCache[iam.RoleOptions](iamRoleCacheName)
 
-// setIAMRole - extract IAM role details from Terragrunt flags block
-func setIAMRole(
+// ResolveIAMRoleOptions returns the IAM role options for parsing file. A role ARN passed on the CLI wins outright.
+// Otherwise it partially parses the Terragrunt flags of file and merges the CLI options on top.
+//
+// The partial parse is cached. Its key holds the file's path and content, the include block, and the config path,
+// original config path, and working directory that child-relative functions such as get_terragrunt_dir read, so
+// identical content evaluated from different directories gets its own entry.
+func ResolveIAMRoleOptions(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
-) error {
-	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
+) (iam.RoleOptions, error) {
 	if pctx.OriginalIAMRoleOptions.RoleARN != "" {
-		pctx.IAMRoleOptions = pctx.OriginalIAMRoleOptions
-	} else {
-		// as key is considered HCL code and include configuration
-		var (
-			key           = fmt.Sprintf("%v-%v", file.Content(), includeFromChild)
-			config, found = iamRoleCache.Get(ctx, key)
-		)
-
-		if !found {
-			iamConfig, err := TerragruntConfigFromPartialConfig(
-				ctx,
-				pctx.WithDecodeList(TerragruntFlags),
-				l,
-				file,
-				includeFromChild,
-			)
-			if err != nil {
-				return err
-			}
-
-			config = iamConfig.GetIAMRoleOptions()
-			iamRoleCache.Put(ctx, key, config)
-		}
-		// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
-		// precedence.
-		merged := iam.MergeRoleOptions(
-			config,
-			pctx.OriginalIAMRoleOptions,
-		)
-		pctx.IAMRoleOptions = merged
+		return pctx.OriginalIAMRoleOptions, nil
 	}
 
-	return nil
+	key := fmt.Sprintf(
+		"%s-%s-%s-%s-%v-%v",
+		file.ConfigPath,
+		pctx.TerragruntConfigPath,
+		pctx.OriginalTerragruntConfigPath,
+		pctx.WorkingDir,
+		includeFromChild,
+		file.Content(),
+	)
+
+	config, found := iamRoleCache.Get(ctx, key)
+	if !found {
+		iamConfig, err := TerragruntConfigFromPartialConfig(
+			ctx,
+			pctx.WithDecodeList(TerragruntFlags),
+			l,
+			file,
+			includeFromChild,
+		)
+		if err != nil {
+			return iam.RoleOptions{}, err
+		}
+
+		config = iamConfig.GetIAMRoleOptions()
+		iamRoleCache.Put(ctx, key, config)
+	}
+
+	return iam.MergeRoleOptions(config, pctx.OriginalIAMRoleOptions), nil
 }
 
 func decodeAsTerragruntConfigFile(
