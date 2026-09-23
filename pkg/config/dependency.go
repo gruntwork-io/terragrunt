@@ -452,20 +452,20 @@ func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDep
 	return sharedDependencyPath{}, false
 }
 
-// Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
-// resulting map as a cty.Value object.
+// DecodeTerragruntDependencies decodes the dependency blocks of file, folds in sibling autoinclude dependencies,
+// validates config paths, checks for cycles, and merges in the dependency blocks of included configs.
 // TODO: In the future, consider allowing importing dependency blocks from included config
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
-func decodeAndRetrieveOutputs(
+func DecodeTerragruntDependencies(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	file *hclparse.File,
-) (*cty.Value, error) {
-	evalParsingContext, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+) (*TerragruntDependency, error) {
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -509,7 +509,7 @@ func decodeAndRetrieveOutputs(
 		if !IsValidConfigPath(dep.ConfigPath) {
 			// During hcl validate, config_path may be unresolvable (e.g., references an
 			// unavailable local). Skip the invalid dependency instead of aborting — it will
-			// get a cty.DynamicVal placeholder in dependencyBlocksToCtyValue.
+			// get a cty.DynamicVal placeholder in DependencyBlocksToCtyValue.
 			if pctx.SkipOutput {
 				continue
 			}
@@ -546,6 +546,23 @@ func decodeAndRetrieveOutputs(
 		decodedDependency = *mergedDecodedDependency
 	}
 
+	return &decodedDependency, nil
+}
+
+// decodeAndRetrieveOutputs decodes the dependency blocks from the file, then retrieves all the outputs from the
+// remote state and encodes the resulting map as a cty.Value object.
+func decodeAndRetrieveOutputs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	file *hclparse.File,
+) (*cty.Value, error) {
+	decodedDependency, err := DecodeTerragruntDependencies(ctx, l, v, pctx, file)
+	if err != nil {
+		return nil, err
+	}
+
 	// Extract dependency names for tracing
 	dependencyNames := make([]string, 0, len(decodedDependency.Dependencies))
 	for _, dep := range decodedDependency.Dependencies {
@@ -564,7 +581,7 @@ func decodeAndRetrieveOutputs(
 		func(ctx context.Context, l log.Logger) error {
 			var depErr error
 
-			result, depErr = dependencyBlocksToCtyValue(
+			result, depErr = DependencyBlocksToCtyValue(
 				ctx,
 				l,
 				v,
@@ -868,8 +885,8 @@ func getDependencyBlockConfigPathsByFilepath(
 	return tgConfig.Dependencies.Paths, nil
 }
 
-// Encode the list of dependency blocks into a single cty.Value object that maps the dependency block name to the
-// encoded dependency mapping. The encoded dependency mapping should have the attributes:
+// DependencyBlocksToCtyValue encodes the list of dependency blocks into a single cty.Value object that maps the
+// dependency block name to the encoded dependency mapping. The encoded dependency mapping should have the attributes:
 //   - outputs: The map of outputs of the corresponding terraform module that lives at the target config of the
 //     dependency.
 //
@@ -879,7 +896,7 @@ func getDependencyBlockConfigPathsByFilepath(
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
 // The traceCtx parameter is the trace context from the parent span (parse_dependencies) to establish parent-child
 // relationship for individual dependency traces.
-func dependencyBlocksToCtyValue(
+func DependencyBlocksToCtyValue(
 	traceCtx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -2757,7 +2774,7 @@ func foldSiblingAutoIncludeDeps(
 	// Rescope to the autoinclude's own locals so the unit's locals do not leak into the autoinclude decode.
 	autoPctx := pctx.Clone()
 	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
-	autoPctx.skipAutoIncludeMerge = true
+	autoPctx.SkipAutoIncludeMerge = true
 
 	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, autoPctx, autoFile, nil)
 	if err != nil {
@@ -2770,7 +2787,7 @@ func foldSiblingAutoIncludeDeps(
 		autoPctx = autoPctx.WithLocals(baseBlocks.Locals)
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, l, v, autoPctx, autoIncludePath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, autoPctx, autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
