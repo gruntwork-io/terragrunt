@@ -1412,7 +1412,9 @@ func SopsDecryptFileWithDecrypter(
 
 	sopsLocks := sopsLocksFromContext(ctx)
 
-	sopsLocks.Lock(path)
+	if err := sopsLocks.LockContext(ctx, path); err != nil {
+		return "", fmt.Errorf("waiting for an identical sops decrypt: %w", err)
+	}
 	defer sopsLocks.Unlock(path)
 
 	// Whoever held the lock may have been decrypting this very path, so the

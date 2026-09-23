@@ -1604,7 +1604,9 @@ func getOutputJSONWithCaching(
 ) ([]byte, error) {
 	locks := outputLocksFromContext(ctx)
 
-	locks.Lock(targetConfig)
+	if err := locks.LockContext(ctx, targetConfig); err != nil {
+		return nil, fmt.Errorf("waiting for an identical dependency output fetch: %w", err)
+	}
 	defer locks.Unlock(targetConfig)
 
 	l.Debugf(

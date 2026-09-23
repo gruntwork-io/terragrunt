@@ -358,7 +358,9 @@ func downloadEngine(
 		}
 		// locking by file where engine is downloaded
 		// however, it will not help in case of multiple parallel Terragrunt runs
-		locks.Lock(localEngineFile)
+		if err := locks.LockContext(ctx, localEngineFile); err != nil {
+			return fmt.Errorf("waiting for an identical engine download: %w", err)
+		}
 		defer locks.Unlock(localEngineFile)
 
 		if vfs.Exists(v.FS, localEngineFile) {

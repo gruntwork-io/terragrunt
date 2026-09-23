@@ -138,7 +138,9 @@ func (g *Generator) generateStacks(
 		return &CanonicalizeWorkingDirError{Path: opts.WorkingDir, Err: err}
 	}
 
-	g.locks.Lock(workingDir)
+	if err := g.locks.LockContext(ctx, workingDir); err != nil {
+		return fmt.Errorf("waiting for an identical stack generation: %w", err)
+	}
 	defer g.locks.Unlock(workingDir)
 
 	foundFiles, err := ListStackFiles(ctx, l, v, opts, wts, scope)

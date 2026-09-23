@@ -1,12 +1,14 @@
 package config_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -52,14 +54,16 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 	// Echoing the token back into the cleartext is what ties each result to the
 	// venv it was decrypted with, so a leak between units shows up as a
 	// mismatch rather than as a passing test.
-	mockDecrypter := vsops.NewMemDecrypter(func(env map[string]string, path string, _ string) ([]byte, error) {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
+	mockDecrypter := vsops.NewMemDecrypter(
+		func(env map[string]string, path string, _ string) ([]byte, error) {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil, err
+			}
 
-		return fmt.Appendf(data, "\n%s", env[authKey]), nil
-	})
+			return fmt.Appendf(data, "\n%s", env[authKey]), nil
+		},
+	)
 
 	var (
 		wg      sync.WaitGroup
@@ -81,10 +85,22 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: token})
 
-			_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
+			_, pctx := config.NewParsingContext(
+				ctx,
+				l,
+				v,
+				config.WithStrictControls(controls.New()),
+			)
 			pctx.WorkingDir = filepath.Dir(filePath)
 
-			result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, filePath, "json", mockDecrypter)
+			result, err := config.SopsDecryptFileWithDecrypter(
+				ctx,
+				pctx,
+				l,
+				filePath,
+				"json",
+				mockDecrypter,
+			)
 			assert.NoError(t, err)
 			assert.Contains(t, result, `"value":"secret-from-unit-`)
 			assert.Contains(t, result, token)
@@ -138,10 +154,22 @@ func TestSOPSDecryptDistinctPathsOverlapWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
-			_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
+			_, pctx := config.NewParsingContext(
+				ctx,
+				l,
+				v,
+				config.WithStrictControls(controls.New()),
+			)
 			pctx.WorkingDir = dir
 
-			result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, f, "json", blockingDecrypter)
+			result, err := config.SopsDecryptFileWithDecrypter(
+				ctx,
+				pctx,
+				l,
+				f,
+				"json",
+				blockingDecrypter,
+			)
 			require.NoError(t, err)
 			assert.Contains(t, result, `"value":"secret"`)
 		})
@@ -196,10 +224,22 @@ func TestSOPSDecryptDeduplicatesSamePathWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
-			_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
+			_, pctx := config.NewParsingContext(
+				ctx,
+				l,
+				v,
+				config.WithStrictControls(controls.New()),
+			)
 			pctx.WorkingDir = dir
 
-			result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, secretFile, "json", countingDecrypter)
+			result, err := config.SopsDecryptFileWithDecrypter(
+				ctx,
+				pctx,
+				l,
+				secretFile,
+				"json",
+				countingDecrypter,
+			)
 			require.NoError(t, err)
 			assert.Contains(t, result, `"value":"shared"`)
 		})
@@ -209,4 +249,79 @@ func TestSOPSDecryptDeduplicatesSamePathWithRacing(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, int64(1), decrypts.Load(), "the file should be decrypted once for all readers")
+}
+
+// TestSOPSDecryptWaiterStopsWhenContextEndsWithRacing pins that a unit waiting
+// on another unit's decrypt of the same file returns its context's error when
+// the context ends, while the first decrypt finishes.
+func TestSOPSDecryptWaiterStopsWhenContextEndsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const secretFile = "/repo/shared.enc.json"
+
+		var (
+			decrypts atomic.Int32
+			release  = make(chan struct{})
+		)
+
+		blockingDecrypter := vsops.NewMemDecrypter(
+			func(_ map[string]string, _ string, _ string) ([]byte, error) {
+				decrypts.Add(1)
+
+				<-release
+
+				return []byte(`{"value":"shared"}`), nil
+			})
+
+		l := logger.CreateLogger()
+		ctx := config.WithConfigValues(t.Context())
+		_, pctx := config.NewParsingContext(
+			ctx,
+			l,
+			venvtest.New().WithEnv(map[string]string{}),
+			config.WithStrictControls(controls.New()),
+		)
+
+		waiterCtx, cancelWaiter := context.WithCancel(ctx)
+
+		var (
+			wg        sync.WaitGroup
+			firstOut  string
+			firstErr  error
+			waiterErr error
+		)
+
+		wg.Go(func() {
+			firstOut, firstErr = config.SopsDecryptFileWithDecrypter(
+				ctx,
+				pctx,
+				l,
+				secretFile,
+				"json",
+				blockingDecrypter,
+			)
+		})
+
+		synctest.Wait()
+
+		wg.Go(func() {
+			_, waiterErr = config.SopsDecryptFileWithDecrypter(
+				waiterCtx, pctx, l, secretFile, "json", blockingDecrypter,
+			)
+		})
+
+		synctest.Wait()
+		cancelWaiter()
+		synctest.Wait()
+
+		require.ErrorIs(t, waiterErr, context.Canceled)
+
+		close(release)
+		wg.Wait()
+
+		require.NoError(t, firstErr)
+		assert.Contains(t, firstOut, `"value":"shared"`)
+		assert.Equal(t, int32(1), decrypts.Load())
+	})
 }
