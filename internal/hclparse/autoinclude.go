@@ -1,6 +1,7 @@
 package hclparse
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -114,14 +115,18 @@ type dependencyBody struct {
 //  3. inputs and other non-dependency content: NOT evaluated here.
 //     They contain dependency.*.outputs.* which is runtime-only.
 //     The RawBody is preserved so the generator can copy these from the AST.
-func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved, hcl.Diagnostics) {
-	return a.ResolveForKind(evalCtx, KindUnit, "")
+func (a *AutoIncludeHCL) Resolve(
+	ctx context.Context,
+	evalCtx *hcl.EvalContext,
+) (*AutoIncludeResolved, hcl.Diagnostics) {
+	return a.ResolveForKind(ctx, evalCtx, KindUnit, "")
 }
 
 // ResolveForKind is Resolve with the component kind and parent name known, so a
 // stack-level autoinclude can be validated against the unsupported pattern where
 // an injected unit/stack consumes a sibling dependency's outputs through values.
 func (a *AutoIncludeHCL) ResolveForKind(
+	ctx context.Context,
 	evalCtx *hcl.EvalContext,
 	kind AutoIncludeKind,
 	name string,
@@ -182,7 +187,7 @@ func (a *AutoIncludeHCL) ResolveForKind(
 			continue
 		}
 
-		dep, depDiags := resolveDependencyBlock(block, block.Labels[0], evalCtx)
+		dep, depDiags := resolveDependencyBlock(ctx, block, block.Labels[0], evalCtx)
 		diags = append(diags, depDiags...)
 
 		if depDiags.HasErrors() {
@@ -203,6 +208,7 @@ func (a *AutoIncludeHCL) ResolveForKind(
 // resolveDependencyBlock extracts the config_path of the dependency block named name, once per
 // element when the block declares an expansion.
 func resolveDependencyBlock(
+	ctx context.Context,
 	block *hclsyntax.Block,
 	name string,
 	evalCtx *hcl.EvalContext,
@@ -233,6 +239,7 @@ func resolveDependencyBlock(
 	}
 
 	configPaths, diags := resolveDependencyExpansion(
+		ctx,
 		dep.Block,
 		name,
 		expansion,
@@ -257,13 +264,14 @@ func resolveDependencyBlock(
 //
 // Panics when the expansion block sets neither for_each nor count.
 func resolveDependencyExpansion(
+	ctx context.Context,
 	block *hcl.Block,
 	name string,
 	expansion *hclsyntax.Block,
 	configPathAttr *hclsyntax.Attribute,
 	evalCtx *hcl.EvalContext,
 ) (ConfigPath, hcl.Diagnostics) {
-	instances, err := pkghclparse.ExpandBlock(block, &dependencyBody{}, evalCtx)
+	instances, err := pkghclparse.ExpandBlock(ctx, block, &dependencyBody{}, evalCtx)
 	if err != nil {
 		return nil, expansionDiagnostics(err, block.DefRange)
 	}

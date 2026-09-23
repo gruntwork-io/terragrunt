@@ -5,10 +5,11 @@
 // to do its work: [vfs.FS] for filesystem reads and writes, [vexec.Exec]
 // for spawning subprocesses, [vhttp.Client] for outbound HTTP,
 // [vsops.Decrypter] for SOPS decryption, the shell environment variables and
-// platform handles read at startup, the stdin reader, the console
-// characteristics output adapts to, and the stdout/stderr writers. Production
-// code constructs the real bundle once at the top via [OSVenv]; tests
-// construct an in-memory bundle and drive the full CLI through it.
+// platform handles read at startup, the OS signals a run waits on, the stdin
+// reader, the console characteristics output adapts to, and the stdout/stderr
+// writers. Production code constructs the real bundle once at the top via
+// [OSVenv]; tests construct an in-memory bundle and drive the full CLI through
+// it.
 //
 // This is the one Venv type threaded through the codebase. A package may
 // define its own local Venv only when its handle set genuinely differs
@@ -27,6 +28,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -86,6 +88,11 @@ var ErrVenvWritersUnset = errors.New("venv.Venv.Writers is required but unset")
 // is nil. Production callers build the Venv through [OSVenv], so it points at a
 // test that forgot to set Listen rather than a runtime condition.
 var ErrVenvListenUnset = errors.New("venv.Venv.Listen is required but unset")
+
+// ErrVenvSignalsUnset is the panic value [Venv.RequireSignals] raises when
+// Signals is nil. Production callers build the Venv through [OSVenv], so it
+// points at a test that forgot to set Signals rather than a runtime condition.
+var ErrVenvSignalsUnset = errors.New("venv.Venv.Signals is required but unset")
 
 // ErrVenvPlatformUnset is the panic value [Venv.RequirePlatform] raises when
 // Platform is nil. Production callers build the Venv through [OSVenv], so it
@@ -165,6 +172,7 @@ type Venv struct {
 	Sops     vsops.Decrypter
 	Browser  vbrowser.Opener
 	Listen   Listener
+	Signals  signal.NotifierFunc
 	Stdin    io.Reader
 	Env      map[string]string
 	Platform *Platform
@@ -235,6 +243,14 @@ func (v *Venv) WithHTTP(c vhttp.Client) *Venv {
 func (v *Venv) WithBrowser(o vbrowser.Opener) *Venv {
 	c := *v
 	c.Browser = o
+
+	return &c
+}
+
+// WithSignals returns a copy of v whose OS signals are delivered by n.
+func (v *Venv) WithSignals(n signal.NotifierFunc) *Venv {
+	c := *v
+	c.Signals = n
 
 	return &c
 }
@@ -466,6 +482,16 @@ func (v *Venv) RequireListen() {
 	}
 }
 
+// RequireSignals panics with [ErrVenvSignalsUnset] when Signals is nil.
+// Functions that wait on an OS signal call this as their first statement so a
+// missing handle panics at the offending call site instead of inside an
+// unrelated stack frame.
+func (v *Venv) RequireSignals() {
+	if v.Signals == nil {
+		panic(ErrVenvSignalsUnset)
+	}
+}
+
 // RequirePlatform panics with [ErrVenvPlatformUnset] when Platform is nil.
 // The platform builders call this so that refining one handle on a Venv that
 // carries no platform at all fails at the builder rather than silently
@@ -548,6 +574,7 @@ func OSVenv() *Venv {
 		Sops:    vsops.NewOSDecrypter(),
 		Browser: vbrowser.NewOSOpener(),
 		Listen:  (&net.ListenConfig{}).Listen,
+		Signals: signal.NotifierWithContext,
 		Stdin:   os.Stdin,
 		Env:     ParseEnviron(os.Environ()),
 		Platform: &Platform{

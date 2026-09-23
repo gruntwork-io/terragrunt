@@ -214,6 +214,9 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvListenUnset, func() {
 		(&venv.Venv{}).RequireListen()
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvSignalsUnset, func() {
+		(&venv.Venv{}).RequireSignals()
+	})
 	assert.PanicsWithValue(t, venv.ErrVenvStdinUnset, func() {
 		(&venv.Venv{}).RequireStdin()
 	})

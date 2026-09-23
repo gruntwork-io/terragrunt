@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -458,4 +459,22 @@ func structFieldNames(v any) []string {
 	}
 
 	return names
+}
+
+func TestTerragruntConfigAsCtyEngineWithoutMeta(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.TerragruntConfig{
+		Engine: &config.EngineConfig{Source: "github.com/gruntwork-io/terragrunt-engine-opentofu"},
+	}
+
+	ctyVal, err := config.TerragruntConfigAsCty(&cfg)
+	require.NoError(t, err)
+
+	meta := ctyVal.GetAttr(config.MetadataEngine).GetAttr("meta")
+	assert.True(t, meta.IsNull())
+
+	jsonBytes, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
+	require.NoError(t, err)
+	assert.Contains(t, string(jsonBytes), `"meta":null`)
 }

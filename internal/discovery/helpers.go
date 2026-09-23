@@ -421,6 +421,7 @@ func stackDependencyPaths(
 		}
 
 		unitPaths, err := inthclparse.UnitPathsFromStackDir(
+			ctx,
 			v.FS,
 			depPath,
 			&inthclparse.StackDirArgs{FuncsFor: funcsFor},

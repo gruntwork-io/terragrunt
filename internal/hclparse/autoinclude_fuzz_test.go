@@ -136,7 +136,7 @@ func generateAutoIncludeForKind(
 	srcBytes := []byte(src)
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 		Src:       srcBytes,
 		Filename:  "terragrunt.stack.hcl",
 		StackDir:  aiFuzzStackDir,

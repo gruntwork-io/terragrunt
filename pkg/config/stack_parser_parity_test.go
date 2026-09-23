@@ -290,6 +290,7 @@ unit "shard" {
 			require.NoError(t, err)
 
 			unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(
+				ctx,
 				v.FS,
 				dir,
 				func(stackDir string) (map[string]function.Function, error) {
@@ -308,7 +309,7 @@ unit "shard" {
 			funcs, err := config.EarlyStackParseFunctions(ctx, l, dir, pctx)
 			require.NoError(t, err)
 
-			parsed, err := inthclparse.ParseStackFile(v.FS, &inthclparse.ParseStackFileInput{
+			parsed, err := inthclparse.ParseStackFile(ctx, v.FS, &inthclparse.ParseStackFileInput{
 				Values:    values,
 				Functions: funcs,
 				Filename:  config.DefaultStackFile,
