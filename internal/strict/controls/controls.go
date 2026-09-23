@@ -374,7 +374,7 @@ func New() strict.Controls {
 		},
 		&Control{
 			Name:        LegacyBase64Gzip,
-			Description: "Stopped `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. Go 1.27 changed the gzip encoder, so v1.1.4 returned different bytes for the same input, and resources that compare the encoded value, such as EC2 `user_data_base64`, planned a replacement. Terragrunt 1.2 made the current encoder the default, so this control has nothing left to switch. `base64gzip_compat()` returns the v1.1.3 bytes and requires the `base64gzip-compat` experiment: pass `--experiment base64gzip-compat`.",
+			Description: "Stopped `base64gzip()` from returning the gzip bytes produced by Terragrunt v1.1.3 and earlier. Go 1.27 changed the gzip encoder, so v1.1.4 returned different bytes for the same input, and resources that compare the encoded value, such as EC2 `user_data_base64`, planned a replacement. Terragrunt 1.2 made the current encoder the default, so this control has nothing left to switch. `base64gzip_compat()` returns the v1.1.3 bytes and requires the `base64gzip-compat` experiment. Enable it with `--experiment base64gzip-compat`.",
 			Status:      strict.CompletedStatus,
 		},
 		&Control{
