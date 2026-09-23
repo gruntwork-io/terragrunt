@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/gzipcompat"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -609,7 +610,7 @@ func runCommandImpl(
 	// HCL evaluator) would see post-strip residue.
 	args = slices.Clone(args)
 
-	suppressOutput := false
+	mode := runCmdEchoOutput
 	disableCache := false
 	useGlobalCache := false
 	currentPath := filepath.Dir(pctx.TerragruntConfigPath)
@@ -619,7 +620,7 @@ func runCommandImpl(
 	for checkOptions && len(args) > 0 {
 		switch args[0] {
 		case "--terragrunt-quiet":
-			suppressOutput = true
+			mode = runCmdQuiet
 
 			args = slices.Delete(args, 0, 1)
 		case "--terragrunt-global-cache":
@@ -661,25 +662,29 @@ func runCommandImpl(
 
 	// Skip cache lookup if --terragrunt-no-cache is set
 	if !disableCache {
-		cachedEntry, foundInCache := runCommandCache.Get(ctx, cacheKey)
-		if foundInCache {
-			// Replay stdout/stderr to current writers once when we have a real (non-Discard) writer.
-			// This is needed because the command may have first run during discovery phase
-			// with io.Discard writers, so we need to replay the output during execution phase.
-			// We only call Do() when we have a real writer, so it won't fire during discovery.
-			if w := v.Writers.Writer; w != io.Discard {
-				if err := cachedEntry.replay(w, v.Writers.ErrWriter, suppressOutput); err != nil {
-					return "", err
-				}
-			}
+		value, ok, err := cachedRunCmdOutput(ctx, l, v, runCommandCache, cacheKey, mode)
+		if err != nil {
+			return "", err
+		}
 
-			if suppressOutput {
-				l.Debugf("run_cmd, cached output: [REDACTED]")
-			} else {
-				l.Debugf("run_cmd, cached output: [%s]", cachedEntry.Value())
-			}
+		if ok {
+			return value, nil
+		}
 
-			return cachedEntry.Value(), nil
+		runCmdLocks := runCmdLocksFromContext(ctx)
+
+		if err := runCmdLocks.LockContext(ctx, cacheKey); err != nil {
+			return "", fmt.Errorf("waiting for an identical run_cmd: %w", err)
+		}
+		defer runCmdLocks.Unlock(cacheKey)
+
+		value, ok, err = cachedRunCmdOutput(ctx, l, v, runCommandCache, cacheKey, mode)
+		if err != nil {
+			return "", err
+		}
+
+		if ok {
+			return value, nil
 		}
 	}
 
@@ -698,23 +703,17 @@ func runCommandImpl(
 		return "", fmt.Errorf("running command: %w", err)
 	}
 
-	value := strings.TrimSuffix(cmdOutput.Stdout.String(), "\n")
-
-	if suppressOutput {
-		l.Debugf("run_cmd output: [REDACTED]")
-	} else {
-		l.Debugf("run_cmd output: [%s]", value)
-	}
-
 	entry := &RunCmdCacheEntry{
 		Stdout: cmdOutput.Stdout.String(),
 		Stderr: cmdOutput.Stderr.String(),
 	}
 
-	if w := v.Writers.Writer; w != io.Discard {
-		if err := entry.replay(w, v.Writers.ErrWriter, suppressOutput); err != nil {
-			return "", err
-		}
+	value := entry.Value()
+
+	l.Debugf("run_cmd output: [%s]", mode.loggable(value))
+
+	if err := entry.replay(v, mode); err != nil {
+		return "", err
 	}
 
 	if !disableCache {
@@ -722,6 +721,89 @@ func runCommandImpl(
 	}
 
 	return value, nil
+}
+
+// runCmdOutputMode is whether a run_cmd call shows its command's stdout.
+type runCmdOutputMode int
+
+const (
+	// runCmdEchoOutput writes stdout to the caller's writer and logs it.
+	runCmdEchoOutput runCmdOutputMode = iota
+	// runCmdQuiet, set by --terragrunt-quiet, keeps stdout out of both.
+	runCmdQuiet
+)
+
+// loggable wraps value in a [redact.Secret] under runCmdQuiet and returns it
+// unchanged otherwise.
+func (m runCmdOutputMode) loggable(value string) any {
+	if m == runCmdQuiet {
+		return redact.NewSecret(value)
+	}
+
+	return value
+}
+
+// replay writes e's output to v's writers the first time a caller with a
+// real writer reaches e. The command may first have run during discovery,
+// whose writers are [io.Discard], so a later caller writes what it printed.
+func (e *RunCmdCacheEntry) replay(v *venv.Venv, mode runCmdOutputMode) error {
+	w := v.Writers.Writer
+	if w == io.Discard {
+		return nil
+	}
+
+	var err error
+
+	e.replayOnce.Do(func() {
+		if mode == runCmdEchoOutput && e.Stdout != "" {
+			if _, err = io.WriteString(w, e.Stdout); err != nil {
+				return
+			}
+		}
+
+		if e.Stderr != "" {
+			_, err = io.WriteString(v.Writers.ErrWriter, e.Stderr)
+		}
+	})
+
+	return err
+}
+
+// cachedRunCmdOutput returns the cached stdout of a run_cmd invocation and
+// whether one was cached under cacheKey. It errors when replaying the cached
+// output to v's writers fails.
+func cachedRunCmdOutput(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	runCommandCache *cache.Cache[*RunCmdCacheEntry],
+	cacheKey string,
+	mode runCmdOutputMode,
+) (string, bool, error) {
+	cachedEntry, foundInCache := runCommandCache.Get(ctx, cacheKey)
+	if !foundInCache {
+		return "", false, nil
+	}
+
+	if err := cachedEntry.replay(v, mode); err != nil {
+		return "", false, err
+	}
+
+	value := cachedEntry.Value()
+
+	l.Debugf("run_cmd, cached output: [%s]", mode.loggable(value))
+
+	return value, true, nil
+}
+
+// runCmdLocksFromContext returns the locks that make units with the same
+// run_cmd wait for its first run.
+func runCmdLocksFromContext(ctx context.Context) *util.KeyLocks {
+	if val, ok := ctx.Value(RunCmdLocksContextKey).(*util.KeyLocks); ok && val != nil {
+		return val
+	}
+
+	return util.NewKeyLocks()
 }
 
 func getEnvironmentVariable(
@@ -1807,24 +1889,4 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 	}
 
 	return semver.CheckConstraint(args[0], args[1])
-}
-
-// replay writes the entry's stdout to w, unless suppressOutput is set, and its
-// stderr to errW. Only the first call on an entry writes anything.
-func (e *RunCmdCacheEntry) replay(w, errW io.Writer, suppressOutput bool) error {
-	var err error
-
-	e.replayOnce.Do(func() {
-		if !suppressOutput && e.Stdout != "" {
-			if _, err = w.Write([]byte(e.Stdout)); err != nil {
-				return
-			}
-		}
-
-		if e.Stderr != "" {
-			_, err = errW.Write([]byte(e.Stderr))
-		}
-	})
-
-	return err
 }
