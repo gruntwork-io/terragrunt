@@ -323,6 +323,7 @@ func (p *Parser) parseBoundaryOperand() (string, bool) {
 			"Empty boundary",
 			"A graph boundary '()' cannot be empty",
 		)
+
 		return "", false
 	}
 
