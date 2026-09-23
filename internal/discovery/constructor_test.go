@@ -229,6 +229,12 @@ func TestWorktreeBoundaries(t *testing.T) {
 			expected: nil,
 		},
 		{
+			name:     "dependency-side boundary does not narrow",
+			v:        v,
+			opts:     discovery.StackGenerateOptions{WorkingDir: repoRoot, Filters: parseFilters("[main...HEAD]...(./live)")},
+			expected: nil,
+		},
+		{
 			name: "disjoint positive boundaries",
 			v:    v,
 			opts: discovery.StackGenerateOptions{
@@ -275,7 +281,7 @@ func TestWorktreeBoundaries(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.expected, discovery.WorktreeBoundaries(t.Context(), tc.v, tc.opts))
+			assert.Equal(t, tc.expected, discovery.WorktreeBoundaries(t.Context(), logger.CreateLogger(), tc.v, tc.opts))
 		})
 	}
 }

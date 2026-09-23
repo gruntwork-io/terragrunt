@@ -620,7 +620,7 @@ func worktreeStacksToGenerate(
 		return component.Components{}, nil
 	}
 
-	boundaries := discovery.WorktreeBoundaries(ctx, v, stackOpts)
+	boundaries := discovery.WorktreeBoundaries(ctx, l, v, stackOpts)
 
 	stacksToGenerate := component.NewThreadSafeComponents(v.FS, component.Components{})
 

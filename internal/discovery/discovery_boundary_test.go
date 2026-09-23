@@ -746,6 +746,12 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			expected: []string{liveDir, catalogDir, otherDir},
 		},
 		{
+			name:     "a dependency-side boundary does not narrow",
+			workDir:  repoRoot,
+			filters:  parseFilters("[main...HEAD]...(" + liveDir + ")"),
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+		{
 			name:    "disjoint inline boundaries walk each boundary",
 			workDir: repoRoot,
 			filters: parseFilters(

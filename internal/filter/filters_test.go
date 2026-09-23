@@ -1307,7 +1307,7 @@ func TestFilters_RequiresReading(t *testing.T) {
 	}
 }
 
-func TestFilters_InlineGraphBoundaries(t *testing.T) {
+func TestFilters_InlineDependentBoundaries(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -1317,7 +1317,12 @@ func TestFilters_InlineGraphBoundaries(t *testing.T) {
 	}{
 		{name: "no boundary", queries: []string{"...{./app}"}},
 		{name: "dependent boundary", queries: []string{"(./live)...{./app}"}, expected: []string{"./live"}},
-		{name: "dependency boundary", queries: []string{"{./app}...(./live)"}, expected: []string{"./live"}},
+		{name: "dependency boundary is skipped", queries: []string{"{./app}...(./live)"}},
+		{
+			name:     "dependent boundary of a two-way expression",
+			queries:  []string{"(./live)...{./app}...(./shared)"},
+			expected: []string{"./live"},
+		},
 		{
 			name:     "deduplicated across filters",
 			queries:  []string{"(./live)...{./app}", "(./live)...{./db}"},
@@ -1338,7 +1343,7 @@ func TestFilters_InlineGraphBoundaries(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(testLogger(), tc.queries)
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.expected, filters.InlineGraphBoundaries())
+			assert.Equal(t, tc.expected, filters.InlineDependentBoundaries())
 		})
 	}
 }

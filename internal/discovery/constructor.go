@@ -171,7 +171,7 @@ func NewForStackGenerate(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) (
 	}
 
 	// Inline "(dir)" operands override the flag, matching filter evaluation precedence.
-	if walkRoots := StackWalkRoots(fsys, opts); len(walkRoots) > 0 {
+	if walkRoots := StackWalkRoots(l, fsys, opts); len(walkRoots) > 0 {
 		d = d.WithWalkRoots(walkRoots)
 	}
 
@@ -194,8 +194,8 @@ func NewForStackGenerate(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) (
 }
 
 // StackWalkRoots returns the positive filters' boundaries when all lie inside the working directory, or nil.
-func StackWalkRoots(fsys vfs.FS, opts StackGenerateOptions) []string {
-	roots, ok := boundaryRoots(fsys, opts)
+func StackWalkRoots(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) []string {
+	roots, ok := boundaryRoots(l, fsys, opts)
 	if !ok || slices.ContainsFunc(roots, func(root string) bool { return !vfs.Within(fsys, opts.WorkingDir, root) }) {
 		return nil
 	}
@@ -204,20 +204,24 @@ func StackWalkRoots(fsys vfs.FS, opts StackGenerateOptions) []string {
 }
 
 // WorktreeBoundaries returns the positive filters' disjoint boundaries relative to the Git root, or nil if unbounded.
-func WorktreeBoundaries(ctx context.Context, v *venv.Venv, opts StackGenerateOptions) []string {
-	roots, ok := boundaryRoots(v.FS, opts)
+func WorktreeBoundaries(ctx context.Context, l log.Logger, v *venv.Venv, opts StackGenerateOptions) []string {
+	roots, ok := boundaryRoots(l, v.FS, opts)
 	if !ok {
 		return nil
 	}
 
 	gitRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir)
 	if err != nil {
+		l.Debugf("Discovery: no Git root for %s (%v); not narrowing worktree discovery", opts.WorkingDir, err)
 		return nil
 	}
 
 	for _, root := range roots {
 		if !vfs.Within(v.FS, gitRoot, root) ||
-			isExternal(v.FS, root, opts.WorkingDir) && isExternal(v.FS, opts.WorkingDir, root) {
+			(isExternal(v.FS, root, opts.WorkingDir) && isExternal(v.FS, opts.WorkingDir, root)) {
+			l.Debugf("Discovery: boundary %s does not nest with %s in Git root %s; not narrowing worktree discovery",
+				root, opts.WorkingDir, gitRoot)
+
 			return nil
 		}
 	}
@@ -293,7 +297,7 @@ func WithinWorktreeBoundary(fsys vfs.FS, c component.Component, boundaries []str
 }
 
 // boundaryRoots returns the resolved, outermost boundaries of all positive filters, and false when one is unbounded.
-func boundaryRoots(fsys vfs.FS, opts StackGenerateOptions) ([]string, bool) {
+func boundaryRoots(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) ([]string, bool) {
 	dirs, ok := positiveBoundaryDirs(opts)
 	if !ok {
 		return nil, false
@@ -304,6 +308,7 @@ func boundaryRoots(fsys vfs.FS, opts StackGenerateOptions) ([]string, bool) {
 	for _, dir := range dirs {
 		resolved, err := resolveDiscoveryBoundary(fsys, opts.WorkingDir, dir, boundaryEnclosureOptional)
 		if err != nil {
+			l.Debugf("Discovery: cannot resolve boundary %s (%v); not narrowing the walk", dir, err)
 			return nil, false
 		}
 
@@ -322,7 +327,7 @@ func positiveBoundaryDirs(opts StackGenerateOptions) ([]string, bool) {
 			continue
 		}
 
-		bounds := filter.Filters{flt}.InlineGraphBoundaries()
+		bounds := filter.Filters{flt}.InlineDependentBoundaries()
 		if len(bounds) == 0 {
 			if opts.DiscoveryBoundary == "" {
 				return nil, false

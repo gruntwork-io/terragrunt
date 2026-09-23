@@ -660,8 +660,8 @@ func resolveDiscoveryBoundary(
 }
 
 // worktreeBoundaries returns the boundaries mirrored into each worktree, or nil when unbounded.
-func (d *Discovery) worktreeBoundaries(ctx context.Context, v *venv.Venv) []string {
-	return WorktreeBoundaries(ctx, v, StackGenerateOptions{
+func (d *Discovery) worktreeBoundaries(ctx context.Context, l log.Logger, v *venv.Venv) []string {
+	return WorktreeBoundaries(ctx, l, v, StackGenerateOptions{
 		WorkingDir:        d.workingDir,
 		DiscoveryBoundary: d.discoveryBoundary,
 		Filters:           d.filters,

@@ -168,6 +168,12 @@ func TestStackDiscoveryBoundaryGitFilterBoundsTargets(t *testing.T) {
 			expected: []string{boundaryStackStandaloneDir},
 		},
 		{
+			name:     "dependency-side boundary does not hide changed units",
+			changed:  boundaryStackStandaloneDir + "/terragrunt.hcl",
+			args:     "--filter '[main...HEAD]...(./catalog)'",
+			expected: []string{boundaryStackStandaloneDir},
+		},
+		{
 			name:    "changed unit outside disjoint boundaries",
 			changed: boundaryStackOtherUnit,
 			args:    boundaryStackDisjointFilters,

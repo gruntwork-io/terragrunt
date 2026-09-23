@@ -7,7 +7,7 @@ category: "bug-fixes"
 
 The `--discovery-boundary` flag now works with `stack generate`, `stack run`, and `stack output`. Previously these commands scanned the entire working directory for stack files and ignored the boundary. In monorepos with a catalog next to live infrastructure, this caused errors when out-of-scope stacks referenced files that only exist in the live tree.
 
-The boundary, including an inline `(dir)` operand, also applies when a Git expression such as `[main...HEAD]` generates stacks for both compared commits. If any filter has no boundary and `--discovery-boundary` is not set, these commands still scan the whole working directory.
+The boundary, including an inline `(dir)` operand, also applies when a Git expression such as `[main...HEAD]` generates stacks for both compared commits. If any positive filter has no dependent-side boundary and `--discovery-boundary` is not set, these commands still scan the whole working directory.
 
 Dependent discovery no longer parses units outside every dependent boundary. For Git expressions, Terragrunt ignores changed units outside the boundary in both compared commits. A dependent-side boundary can now be a directory inside the working directory, and the search for dependents starts there.
 
