@@ -24,7 +24,7 @@ func StackParseFunctionsFrom(
 
 // EarlyStackParseFunctions returns the HCL function map used to evaluate
 // expressions inside a terragrunt.stack.hcl. The keyset matches
-// createTerragruntEvalContext and each function is bound to a parsing context
+// CreateTerragruntEvalContext and each function is bound to a parsing context
 // rescoped to baseDir.
 //
 // get_working_dir is overridden to return baseDir: the production impl
@@ -32,7 +32,7 @@ func StackParseFunctionsFrom(
 // terragrunt.stack.hcl does not have.
 //
 // The returned map is freshly allocated on every call (via
-// [createTerragruntEvalContext], which builds a new `map[string]function.Function{}`
+// [CreateTerragruntEvalContext], which builds a new `map[string]function.Function{}`
 // per invocation). Callers own the result outright: concurrent discovery
 // goroutines each get their own map, and the override write on
 // [FuncNameGetWorkingDir] is not visible to any other caller.
@@ -52,7 +52,7 @@ func EarlyStackParseFunctions(
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, scoped, l, stackFilePath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, scoped, l, stackFilePath)
 	if err != nil {
 		return nil, err
 	}

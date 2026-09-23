@@ -323,7 +323,7 @@ func resolveStackAutoIncludes(
 	}
 
 	// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
-	prodEvalCtx, evalCtxErr := createTerragruntEvalContext(
+	prodEvalCtx, evalCtxErr := CreateTerragruntEvalContext(
 		ctx,
 		scopedPctx,
 		scopedLogger,
@@ -1267,7 +1267,7 @@ func ParseStackConfig(
 		return nil, err
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -2093,7 +2093,7 @@ func ReadValues(
 		return nil, err
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}

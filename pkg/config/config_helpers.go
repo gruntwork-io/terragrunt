@@ -166,14 +166,14 @@ type TrackInclude struct {
 	CurrentList IncludeConfigs
 }
 
-// Create an EvalContext for the HCL2 parser. We can define functions and variables in this ctx that the HCL2 parser
-// will make available to the Terragrunt configuration during parsing.
+// CreateTerragruntEvalContext creates an EvalContext for the HCL2 parser. We can define functions and variables in this
+// ctx that the HCL2 parser will make available to the Terragrunt configuration during parsing.
 //
 // The subprocess backend for run_cmd is taken from pctx.Venv.Exec so that
 // execution flows through the threaded virtualized environment (real os/exec
 // in production, in-memory mock in tests). It is not used by any other HCL
 // function.
-func createTerragruntEvalContext(
+func CreateTerragruntEvalContext(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,

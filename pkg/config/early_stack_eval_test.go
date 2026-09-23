@@ -23,7 +23,7 @@ import (
 )
 
 // terragruntFuncNames lists every Terragrunt HCL function exposed by the full
-// production eval context. Kept in sync with createTerragruntEvalContext;
+// production eval context. Kept in sync with CreateTerragruntEvalContext;
 // TestEarlyStackParseFunctions_CoversAllTerragruntFunctions guards parity.
 var terragruntFuncNames = []string{
 	config.FuncNameFindInParentFolders,

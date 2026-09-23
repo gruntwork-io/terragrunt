@@ -272,7 +272,7 @@ include "common" {
 // an autoinclude's own include (here b/base.hcl in a DIFFERENT directory, whose own sibling autoinclude
 // declares a foreign "leak" dependency) does not leak that foreign dependency into the unit. The unit
 // must end with the autoinclude's own "wanted" dependency and NOT "leak". It asserts the resulting
-// dependency set (cache-order independent), covering the skipAutoIncludeMerge guard on the fold path.
+// dependency set (cache-order independent), covering the SkipAutoIncludeMerge guard on the fold path.
 func TestFoldSiblingAutoIncludeDeps_PulledInFileDoesNotFoldForeignAutoInclude(t *testing.T) {
 	t.Parallel()
 
