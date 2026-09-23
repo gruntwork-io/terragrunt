@@ -207,8 +207,10 @@ func StackWalkBoundary(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) str
 			return ""
 		}
 
+		prev := root
+
 		if root, ok = outermost(fsys, root, resolved); !ok {
-			l.Debugf("Discovery: boundaries %s and %s do not nest; walking the whole working directory", root, resolved)
+			l.Debugf("Discovery: boundaries %s and %s do not nest; walking the whole working directory", prev, resolved)
 			return ""
 		}
 	}
@@ -238,8 +240,10 @@ func WorktreeBoundary(ctx context.Context, l log.Logger, v *venv.Venv, opts Stac
 
 	for _, dir := range dirs {
 		path := filter.WorktreeBoundaryPath(gitRoot, gitRoot, dir)
+		prev := root
+
 		if root, ok = outermost(v.FS, root, path); !ok {
-			l.Debugf("Discovery: boundaries %s and %s do not nest; not narrowing worktree discovery", root, path)
+			l.Debugf("Discovery: boundaries %s and %s do not nest; not narrowing worktree discovery", prev, path)
 			return ""
 		}
 	}
@@ -287,8 +291,8 @@ func CheckWorktreeBoundaries(
 					continue
 				}
 
-				filter.WalkExpressions(g.Target, func(te filter.Expression) bool {
-					if gitExpr, ok := te.(*filter.GitExpression); ok && checkErr == nil {
+				filter.WalkExpressions(g.Target, func(target filter.Expression) bool {
+					if gitExpr, ok := target.(*filter.GitExpression); ok && checkErr == nil {
 						checkErr = checker.check(ctx, w.WorktreePairs[gitExpr.String()], boundary)
 					}
 

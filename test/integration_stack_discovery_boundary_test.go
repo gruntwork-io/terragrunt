@@ -317,7 +317,7 @@ func TestStackDiscoveryBoundaryGitTargetsResolvePerWorktree(t *testing.T) {
 		{
 			name:    "dependency-side boundary at neither reference is an error",
 			changed: boundaryStackAppDir + "/terragrunt.hcl",
-			args:    "--filter '[HEAD^...HEAD]...(./liev)'",
+			args:    "--filter '[HEAD^...HEAD]...(./missing)'",
 			errText: "not a directory at either compared reference",
 		},
 		{
