@@ -59,7 +59,7 @@ func Run(
 	streamCtx, stopStream := context.WithCancel(ctx)
 	defer stopStream()
 
-	stopNotify := notifyBrokenPipe(ctx, stopStream)
+	stopNotify := notifyBrokenPipe(ctx, v, stopStream)
 	defer stopNotify()
 
 	defer tempDirs.Cleanup(l)
