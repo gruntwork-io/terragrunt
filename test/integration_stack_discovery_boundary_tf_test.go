@@ -80,6 +80,17 @@ func TestTFStackRunDiscoveryBoundary(t *testing.T) {
 			expected: []string{boundaryStackStandaloneDir},
 		},
 		{
+			name:    "changed unit outside disjoint boundaries",
+			changed: boundaryStackOtherUnit,
+			args:    "--filter '(./live/accounts)...[main...HEAD]' --filter '(./live/standalone)...[main...HEAD]'",
+		},
+		{
+			name:     "changed unit inside one of disjoint boundaries",
+			changed:  boundaryStackStandaloneDir + "/terragrunt.hcl",
+			args:     "--filter '(./live/accounts)...[main...HEAD]' --filter '(./live/standalone)...[main...HEAD]'",
+			expected: []string{boundaryStackStandaloneDir},
+		},
+		{
 			name:    "flag boundary outside the working directory",
 			changed: boundaryStackRolesFile,
 			workDir: "live",

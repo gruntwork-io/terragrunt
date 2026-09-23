@@ -126,11 +126,11 @@ type Discovery struct {
 	// workingDir is the logical working directory for filter evaluation and display paths.
 	workingDir string
 
-	// walkRoot overrides the filesystem walk root when set. The filesystem
-	// phase walks walkRoot instead of workingDir, while workingDir stays the
-	// logical base for relative path filters and display paths. Empty means
+	// walkRoots override the filesystem walk roots when set. The filesystem
+	// phase walks each of walkRoots instead of workingDir, while workingDir stays
+	// the logical base for relative path filters and display paths. Empty means
 	// the walk starts at workingDir.
-	walkRoot string
+	walkRoots []string
 
 	// resolvedWorkingDir is workingDir with symlinks resolved, which is how
 	// boundaries and dependency paths name it. Discover fills it in before any

@@ -620,7 +620,7 @@ func worktreeStacksToGenerate(
 		return component.Components{}, nil
 	}
 
-	boundary := discovery.WorktreeBoundary(ctx, v, stackOpts)
+	boundaries := discovery.WorktreeBoundaries(ctx, v, stackOpts)
 
 	stacksToGenerate := component.NewThreadSafeComponents(v.FS, component.Components{})
 
@@ -637,7 +637,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, stack := range editedStacks {
-		if !discovery.WithinWorktreeBoundary(v.FS, stack, boundary) {
+		if !discovery.WithinWorktreeBoundary(v.FS, stack, boundaries) {
 			l.Debugf("Skipping stack %s outside the discovery boundary", stack.Path())
 			continue
 		}
@@ -718,7 +718,7 @@ func worktreeStacksToGenerate(
 				opts,
 				pair.FromWorktree,
 				len(deletedReadFilters) > 0,
-				boundary,
+				boundaries,
 			)
 			if err != nil {
 				recordErr(err)
@@ -733,7 +733,7 @@ func worktreeStacksToGenerate(
 				opts,
 				pair.ToWorktree,
 				len(toReadFilters) > 0,
-				boundary,
+				boundaries,
 			)
 			if err != nil {
 				recordErr(err)
@@ -812,8 +812,8 @@ func worktreeStacksToGenerate(
 
 // discoverStacks discovers stacks in a worktree.
 // When readFiles is true, all discovered stacks are parsed to populate their Reading
-// attribute (used by reading-affected detection). A non-empty boundary, relative to
-// the worktree root, narrows the walk to that directory.
+// attribute (used by reading-affected detection). Boundaries, relative to the
+// worktree root, narrow the walk to those directories.
 func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
@@ -821,32 +821,31 @@ func discoverStacks(
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	readFiles bool,
-	boundary string,
+	boundaries []string,
 ) (component.Components, error) {
-	d := discovery.NewDiscovery(wt.Path).
-		WithSuppressParseErrors().
-		WithFilters(StackDiscoveryFilters(opts.Filters))
+	walkRoots, err := discovery.WorktreeWalkRoots(v.FS, wt.Path, boundaries)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
+	}
 
-	if boundary != "" {
-		walkRoot, ok, err := discovery.WorktreeWalkRoot(v.FS, wt.Path, boundary)
+	components := component.Components{}
+
+	for _, walkRoot := range walkRoots {
+		d := discovery.NewDiscovery(wt.Path).
+			WithSuppressParseErrors().
+			WithFilters(StackDiscoveryFilters(opts.Filters)).
+			WithWalkRoot(walkRoot)
+
+		if readFiles {
+			d = d.WithReadFiles()
+		}
+
+		found, err := d.Discover(ctx, l, v, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
 		}
 
-		if !ok {
-			return component.Components{}, nil
-		}
-
-		d = d.WithWalkRoot(walkRoot)
-	}
-
-	if readFiles {
-		d = d.WithReadFiles()
-	}
-
-	components, err := d.Discover(ctx, l, v, opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
+		components = append(components, found...)
 	}
 
 	for _, c := range components {

@@ -148,7 +148,7 @@ func TestNewForStackGenerate_DiscoveryBoundary(t *testing.T) {
 	})
 }
 
-func TestWorktreeBoundary(t *testing.T) {
+func TestWorktreeBoundaries(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := venvtest.Root("/repo")
@@ -170,7 +170,7 @@ func TestWorktreeBoundary(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		expected string
+		expected []string
 		v        *venv.Venv
 		opts     discovery.StackGenerateOptions
 	}{
@@ -178,13 +178,13 @@ func TestWorktreeBoundary(t *testing.T) {
 			name:     "no boundary",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: repoRoot},
-			expected: "",
+			expected: nil,
 		},
 		{
 			name:     "flag boundary under the git root",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: repoRoot, DiscoveryBoundary: liveDir},
-			expected: "live",
+			expected: []string{"live"},
 		},
 		{
 			name: "inline boundary relative to a nested working directory",
@@ -193,31 +193,31 @@ func TestWorktreeBoundary(t *testing.T) {
 				WorkingDir: liveDir,
 				Filters:    parseFilters("(./staging)...[main...HEAD]"),
 			},
-			expected: filepath.Join("live", "staging"),
+			expected: []string{filepath.Join("live", "staging")},
 		},
 		{
 			name:     "boundary equal to the git root",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: repoRoot, DiscoveryBoundary: repoRoot},
-			expected: "",
+			expected: nil,
 		},
 		{
 			name:     "boundary wider than the working directory keeps its scope",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, DiscoveryBoundary: liveDir},
-			expected: "live",
+			expected: []string{"live"},
 		},
 		{
 			name:     "git root boundary from a nested working directory is unbounded",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, DiscoveryBoundary: repoRoot},
-			expected: "",
+			expected: nil,
 		},
 		{
 			name:     "inline parent boundary keeps its scope",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, Filters: parseFilters("(..)...[main...HEAD]")},
-			expected: "live",
+			expected: []string{"live"},
 		},
 		{
 			name: "an unbounded filter",
@@ -226,13 +226,31 @@ func TestWorktreeBoundary(t *testing.T) {
 				WorkingDir: repoRoot,
 				Filters:    parseFilters("(./live)...[main...HEAD]", "[main...HEAD]"),
 			},
-			expected: "",
+			expected: nil,
+		},
+		{
+			name: "disjoint positive boundaries",
+			v:    v,
+			opts: discovery.StackGenerateOptions{
+				WorkingDir: repoRoot,
+				Filters:    parseFilters("(./live/staging)...[main...HEAD]", "(./live/production)...[main...HEAD]"),
+			},
+			expected: []string{filepath.Join("live", "production"), filepath.Join("live", "staging")},
+		},
+		{
+			name: "nested positive boundaries collapse to the outermost",
+			v:    v,
+			opts: discovery.StackGenerateOptions{
+				WorkingDir: repoRoot,
+				Filters:    parseFilters("(./live/staging)...[main...HEAD]", "(./live)...[main...HEAD]"),
+			},
+			expected: []string{"live"},
 		},
 		{
 			name:     "boundary beside the working directory",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, DiscoveryBoundary: siblingDir},
-			expected: "",
+			expected: nil,
 		},
 		{
 			name: "nonexistent boundary",
@@ -241,7 +259,7 @@ func TestWorktreeBoundary(t *testing.T) {
 				WorkingDir:        repoRoot,
 				DiscoveryBoundary: filepath.Join(repoRoot, "missing"),
 			},
-			expected: "",
+			expected: nil,
 		},
 		{
 			name: "outside a git repository",
@@ -249,7 +267,7 @@ func TestWorktreeBoundary(t *testing.T) {
 				filepath.Join("live", ".keep"): "",
 			})),
 			opts:     discovery.StackGenerateOptions{WorkingDir: repoRoot, DiscoveryBoundary: liveDir},
-			expected: "",
+			expected: nil,
 		},
 	}
 
@@ -257,7 +275,7 @@ func TestWorktreeBoundary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.expected, discovery.WorktreeBoundary(t.Context(), tc.v, tc.opts))
+			assert.Equal(t, tc.expected, discovery.WorktreeBoundaries(t.Context(), tc.v, tc.opts))
 		})
 	}
 }
@@ -324,10 +342,10 @@ func TestWithinWorktreeBoundary(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name      string
-		component component.Component
-		boundary  string
-		expected  bool
+		name       string
+		component  component.Component
+		boundaries []string
+		expected   bool
 	}{
 		{
 			name:      "no boundary",
@@ -335,22 +353,28 @@ func TestWithinWorktreeBoundary(t *testing.T) {
 			expected:  true,
 		},
 		{
-			name:      "inside the boundary",
-			component: inWorktree(filepath.Join("live", "app")),
-			boundary:  "live",
-			expected:  true,
+			name:       "inside the boundary",
+			component:  inWorktree(filepath.Join("live", "app")),
+			boundaries: []string{"live"},
+			expected:   true,
 		},
 		{
-			name:      "outside the boundary",
-			component: inWorktree(filepath.Join("catalog", "app")),
-			boundary:  "live",
-			expected:  false,
+			name:       "outside the boundary",
+			component:  inWorktree(filepath.Join("catalog", "app")),
+			boundaries: []string{"live"},
+			expected:   false,
 		},
 		{
-			name:      "no discovery context",
-			component: component.NewStack(filepath.Join(worktree, "catalog", "app")),
-			boundary:  "live",
-			expected:  true,
+			name:       "inside one of several boundaries",
+			component:  inWorktree(filepath.Join("catalog", "app")),
+			boundaries: []string{"live", "catalog"},
+			expected:   true,
+		},
+		{
+			name:       "no discovery context",
+			component:  component.NewStack(filepath.Join(worktree, "catalog", "app")),
+			boundaries: []string{"live"},
+			expected:   true,
 		},
 	}
 
@@ -358,7 +382,7 @@ func TestWithinWorktreeBoundary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.expected, discovery.WithinWorktreeBoundary(fsys, tc.component, tc.boundary))
+			assert.Equal(t, tc.expected, discovery.WithinWorktreeBoundary(fsys, tc.component, tc.boundaries))
 		})
 	}
 }

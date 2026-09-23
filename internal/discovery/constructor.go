@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -170,10 +171,8 @@ func NewForStackGenerate(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) (
 	}
 
 	// Inline "(dir)" operands override the flag, matching filter evaluation precedence.
-	walkBoundary := StackWalkBoundary(fsys, opts)
-
-	if walkBoundary != "" {
-		d = d.WithWalkRoot(walkBoundary)
+	if walkRoots := StackWalkRoots(fsys, opts); len(walkRoots) > 0 {
+		d = d.WithWalkRoots(walkRoots)
 	}
 
 	// Set discoveryBoundary so dropOutsideBoundary prunes graph-traversed stacks.
@@ -194,34 +193,49 @@ func NewForStackGenerate(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) (
 	return d, nil
 }
 
-// StackWalkBoundary returns the outermost boundary when it lies inside the working directory, or "".
-func StackWalkBoundary(fsys vfs.FS, opts StackGenerateOptions) string {
-	root := outermostBoundary(fsys, opts)
-	if root == "" || !vfs.Within(fsys, opts.WorkingDir, root) {
-		return ""
+// StackWalkRoots returns the positive filters' boundaries when all lie inside the working directory, or nil.
+func StackWalkRoots(fsys vfs.FS, opts StackGenerateOptions) []string {
+	roots, ok := boundaryRoots(fsys, opts)
+	if !ok || slices.ContainsFunc(roots, func(root string) bool { return !vfs.Within(fsys, opts.WorkingDir, root) }) {
+		return nil
 	}
 
-	return root
+	return roots
 }
 
-// WorktreeBoundary returns the outermost boundary relative to the Git root that worktrees mirror, or "" when unbounded.
-func WorktreeBoundary(ctx context.Context, v *venv.Venv, opts StackGenerateOptions) string {
-	root := outermostBoundary(v.FS, opts)
-	if root == "" || isExternal(v.FS, root, opts.WorkingDir) && isExternal(v.FS, opts.WorkingDir, root) {
-		return ""
+// WorktreeBoundaries returns the positive filters' disjoint boundaries relative to the Git root, or nil if unbounded.
+func WorktreeBoundaries(ctx context.Context, v *venv.Venv, opts StackGenerateOptions) []string {
+	roots, ok := boundaryRoots(v.FS, opts)
+	if !ok {
+		return nil
 	}
 
 	gitRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir)
-	if err != nil || !vfs.Within(v.FS, gitRoot, root) {
-		return ""
+	if err != nil {
+		return nil
 	}
 
-	rel, err := filepath.Rel(vfs.ResolveForCompare(v.FS, gitRoot), vfs.ResolveForCompare(v.FS, root))
-	if err != nil || rel == "." {
-		return ""
+	for _, root := range roots {
+		if !vfs.Within(v.FS, gitRoot, root) ||
+			isExternal(v.FS, root, opts.WorkingDir) && isExternal(v.FS, opts.WorkingDir, root) {
+			return nil
+		}
 	}
 
-	return rel
+	rels := make([]string, 0, len(roots))
+
+	for _, root := range roots {
+		rel, err := filepath.Rel(vfs.ResolveForCompare(v.FS, gitRoot), vfs.ResolveForCompare(v.FS, root))
+		if err != nil || rel == "." {
+			return nil
+		}
+
+		rels = append(rels, rel)
+	}
+
+	slices.Sort(rels)
+
+	return rels
 }
 
 // WorktreeWalkRoot returns boundary mirrored into a worktree; ok is false when it is not a directory at that ref.
@@ -244,18 +258,63 @@ func WorktreeWalkRoot(fsys vfs.FS, worktreePath, boundary string) (string, bool,
 	return root, true, nil
 }
 
-// WithinWorktreeBoundary reports whether a worktree component lies inside boundary, relative to its worktree root.
-func WithinWorktreeBoundary(fsys vfs.FS, c component.Component, boundary string) bool {
+// WorktreeWalkRoots mirrors boundaries into a worktree, skipping those absent at its ref; no boundaries yield its root.
+func WorktreeWalkRoots(fsys vfs.FS, worktreePath string, boundaries []string) ([]string, error) {
+	if len(boundaries) == 0 {
+		return []string{worktreePath}, nil
+	}
+
+	var roots []string
+
+	for _, boundary := range boundaries {
+		root, ok, err := WorktreeWalkRoot(fsys, worktreePath, boundary)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			roots = append(roots, root)
+		}
+	}
+
+	return roots, nil
+}
+
+// WithinWorktreeBoundary reports whether a worktree component lies inside any boundary, relative to its worktree root.
+func WithinWorktreeBoundary(fsys vfs.FS, c component.Component, boundaries []string) bool {
 	dc := c.DiscoveryContext()
-	if boundary == "" || dc == nil || dc.WorkingDir == "" {
+	if len(boundaries) == 0 || dc == nil || dc.WorkingDir == "" {
 		return true
 	}
 
-	return vfs.Within(fsys, filepath.Join(dc.WorkingDir, boundary), c.Path())
+	return slices.ContainsFunc(boundaries, func(boundary string) bool {
+		return vfs.Within(fsys, filepath.Join(dc.WorkingDir, boundary), c.Path())
+	})
 }
 
-// outermostBoundary returns the boundary enclosing every positive filter, or "" when unbounded or disjoint.
-func outermostBoundary(fsys vfs.FS, opts StackGenerateOptions) string {
+// boundaryRoots returns the resolved, outermost boundaries of all positive filters, and false when one is unbounded.
+func boundaryRoots(fsys vfs.FS, opts StackGenerateOptions) ([]string, bool) {
+	dirs, ok := positiveBoundaryDirs(opts)
+	if !ok {
+		return nil, false
+	}
+
+	var roots []string
+
+	for _, dir := range dirs {
+		resolved, err := resolveDiscoveryBoundary(fsys, opts.WorkingDir, dir, boundaryEnclosureOptional)
+		if err != nil {
+			return nil, false
+		}
+
+		roots = appendOutermost(fsys, roots, resolved)
+	}
+
+	return roots, true
+}
+
+// positiveBoundaryDirs returns the boundaries of every positive filter, and false when one is unbounded.
+func positiveBoundaryDirs(opts StackGenerateOptions) ([]string, bool) {
 	var dirs []string
 
 	for _, flt := range opts.Filters {
@@ -266,7 +325,7 @@ func outermostBoundary(fsys vfs.FS, opts StackGenerateOptions) string {
 		bounds := filter.Filters{flt}.InlineGraphBoundaries()
 		if len(bounds) == 0 {
 			if opts.DiscoveryBoundary == "" {
-				return ""
+				return nil, false
 			}
 
 			bounds = []string{opts.DiscoveryBoundary}
@@ -275,27 +334,32 @@ func outermostBoundary(fsys vfs.FS, opts StackGenerateOptions) string {
 		dirs = append(dirs, bounds...)
 	}
 
-	if len(dirs) == 0 && opts.DiscoveryBoundary != "" {
+	if len(dirs) == 0 {
+		if opts.DiscoveryBoundary == "" {
+			return nil, false
+		}
+
 		dirs = []string{opts.DiscoveryBoundary}
 	}
 
-	var root string
+	return dirs, true
+}
 
-	for _, dir := range dirs {
-		resolved, err := resolveDiscoveryBoundary(fsys, opts.WorkingDir, dir, boundaryEnclosureOptional)
-		if err != nil {
-			return ""
-		}
+// appendOutermost adds dir to roots unless a root encloses it, dropping the roots it encloses.
+func appendOutermost(fsys vfs.FS, roots []string, dir string) []string {
+	if slices.ContainsFunc(roots, func(root string) bool { return vfs.Within(fsys, root, dir) }) {
+		return roots
+	}
 
-		switch {
-		case root == "", vfs.Within(fsys, resolved, root):
-			root = resolved
-		case !vfs.Within(fsys, root, resolved):
-			return ""
+	kept := make([]string, 0, len(roots)+1)
+
+	for _, root := range roots {
+		if !vfs.Within(fsys, dir, root) {
+			kept = append(kept, root)
 		}
 	}
 
-	return root
+	return append(kept, dir)
 }
 
 // NewDiscovery creates a new Discovery with sensible defaults.

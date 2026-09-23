@@ -79,16 +79,18 @@ const boundaryStackStandaloneModule = `output "ok" {
 `
 
 const (
-	boundaryStackStandaloneDir  = "live/standalone"
-	boundaryStackStandaloneRead = boundaryStackStandaloneDir + "/extra.yml"
-	boundaryStackRolesFile      = "live/accounts/my-account/roles.yml"
-	boundaryStackLiveStackFile  = "live/accounts/my-account/terragrunt.stack.hcl"
-	boundaryStackCatalogFile    = "catalog/stacks/account/terragrunt.stack.hcl"
-	boundaryStackCatalogUnit    = "catalog/units/account/terragrunt.hcl"
-	boundaryStackUnusedUnit     = "catalog/units/unused/terragrunt.hcl"
-	boundaryStackGeneratedDir   = "live/accounts/my-account/.terragrunt-stack/account"
-	boundaryStackRolesUnitDir   = boundaryStackGeneratedDir + "/.terragrunt-stack/roles"
-	boundaryStackBoundedFilter  = "--filter '(./live/)...[main...HEAD]'"
+	boundaryStackStandaloneDir   = "live/standalone"
+	boundaryStackStandaloneRead  = boundaryStackStandaloneDir + "/extra.yml"
+	boundaryStackRolesFile       = "live/accounts/my-account/roles.yml"
+	boundaryStackLiveStackFile   = "live/accounts/my-account/terragrunt.stack.hcl"
+	boundaryStackCatalogFile     = "catalog/stacks/account/terragrunt.stack.hcl"
+	boundaryStackCatalogUnit     = "catalog/units/account/terragrunt.hcl"
+	boundaryStackUnusedUnit      = "catalog/units/unused/terragrunt.hcl"
+	boundaryStackOtherUnit       = "other/unit/terragrunt.hcl"
+	boundaryStackDisjointFilters = "--filter '(./live)...[main...HEAD]' --filter '(./catalog)...[main...HEAD]'"
+	boundaryStackGeneratedDir    = "live/accounts/my-account/.terragrunt-stack/account"
+	boundaryStackRolesUnitDir    = boundaryStackGeneratedDir + "/.terragrunt-stack/roles"
+	boundaryStackBoundedFilter   = "--filter '(./live/)...[main...HEAD]'"
 )
 
 // TestStackDiscoveryBoundaryGitFilterSkipsCatalog pins that worktree stack generation stays inside the boundary.
@@ -166,6 +168,17 @@ func TestStackDiscoveryBoundaryGitFilterBoundsTargets(t *testing.T) {
 			expected: []string{boundaryStackStandaloneDir},
 		},
 		{
+			name:    "changed unit outside disjoint boundaries",
+			changed: boundaryStackOtherUnit,
+			args:    boundaryStackDisjointFilters,
+		},
+		{
+			name:     "changed unit inside one of disjoint boundaries",
+			changed:  boundaryStackStandaloneDir + "/terragrunt.hcl",
+			args:     boundaryStackDisjointFilters,
+			expected: []string{boundaryStackStandaloneDir},
+		},
+		{
 			name:    "changed catalog unit outside the boundary",
 			changed: boundaryStackCatalogUnit,
 			args:    boundaryStackBoundedFilter,
@@ -236,6 +249,8 @@ func setupBoundaryStackRepo(t *testing.T) (string, *git.GitRunner) {
 		"catalog/units/account/main.tf":                boundaryStackAccountModule,
 		"catalog/units/roles/terragrunt.hcl":           boundaryStackCatalogRolesUnit,
 		boundaryStackUnusedUnit:                        boundaryStackCatalogRolesUnit,
+		boundaryStackOtherUnit:                         "",
+		"other/unit/main.tf":                           boundaryStackStandaloneModule,
 		"catalog/units/roles/main.tf":                  boundaryStackRolesModule,
 		boundaryStackLiveStackFile:                     boundaryStackLiveStack,
 		boundaryStackRolesFile:                         "[]\n",

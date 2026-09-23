@@ -634,11 +634,12 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 	repoRoot := venvtest.Root("/monorepo")
 	liveDir := filepath.Join(repoRoot, "live")
 	catalogDir := filepath.Join(repoRoot, "catalog", "stacks")
+	otherDir := filepath.Join(repoRoot, "other")
 	liveSubDir := filepath.Join(liveDir, "sub")
 
 	v := memRepoRootVenv(t, repoRoot)
 
-	for _, dir := range []string{liveDir, catalogDir} {
+	for _, dir := range []string{liveDir, catalogDir, otherDir} {
 		require.NoError(t, vfs.WriteFile(
 			v.FS,
 			filepath.Join(dir, "terragrunt.stack.hcl"),
@@ -668,7 +669,7 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 		{
 			name:     "no boundary discovers all stacks",
 			workDir:  repoRoot,
-			expected: []string{liveDir, catalogDir},
+			expected: []string{liveDir, catalogDir, otherDir},
 		},
 		{
 			name:     "flag boundary restricts to child directory",
@@ -680,7 +681,7 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			name:     "boundary equal to working dir discovers everything",
 			workDir:  repoRoot,
 			boundary: repoRoot,
-			expected: []string{liveDir, catalogDir},
+			expected: []string{liveDir, catalogDir, otherDir},
 		},
 		{
 			name:     "boundary wider than working dir keeps working dir scope",
@@ -726,7 +727,7 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 				"("+liveDir+")...[main...HEAD]",
 				"[main...HEAD]",
 			),
-			expected: []string{liveDir, catalogDir},
+			expected: []string{liveDir, catalogDir, otherDir},
 		},
 		{
 			name:     "an unbounded filter narrows to the flag",
@@ -742,10 +743,10 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			name:     "a negated boundary does not narrow",
 			workDir:  repoRoot,
 			filters:  parseFilters("!(" + liveDir + ")...{" + liveDir + "}"),
-			expected: []string{liveDir, catalogDir},
+			expected: []string{liveDir, catalogDir, otherDir},
 		},
 		{
-			name:    "disjoint inline boundaries do not narrow",
+			name:    "disjoint inline boundaries walk each boundary",
 			workDir: repoRoot,
 			filters: parseFilters(
 				"("+liveDir+")...[main...HEAD]",
