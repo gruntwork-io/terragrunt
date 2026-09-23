@@ -667,3 +667,83 @@ func (d *Discovery) worktreeBoundary(ctx context.Context, v *venv.Venv) string {
 		Filters:           d.filters,
 	})
 }
+
+// withoutUnreachable drops candidates that no positive filter can return, before anything parses them.
+func (d *Discovery) withoutUnreachable(fsys vfs.FS, candidates []DiscoveryResult) []DiscoveryResult {
+	if !d.filters.HasGraphBoundary() && d.discoveryBoundary == "" {
+		return candidates
+	}
+
+	kept := make([]DiscoveryResult, 0, len(candidates))
+
+	for _, candidate := range candidates {
+		if d.unreachable(fsys, candidate.Component) {
+			continue
+		}
+
+		kept = append(kept, candidate)
+	}
+
+	return kept
+}
+
+// unreachable reports whether every positive filter intersects a bounded graph expression that cannot return c.
+func (d *Discovery) unreachable(fsys vfs.FS, c component.Component) bool {
+	if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
+		return false
+	}
+
+	positive := false
+
+	for _, flt := range d.filters {
+		expr := flt.Expression()
+		if expr == nil || filter.IsPureNegation(expr) {
+			continue
+		}
+
+		positive = true
+
+		if !d.operandExcludes(fsys, expr, c) {
+			return false
+		}
+	}
+
+	return positive
+}
+
+// operandExcludes reports whether an intersection operand of expr is a bounded graph expression that cannot return c.
+func (d *Discovery) operandExcludes(fsys vfs.FS, expr filter.Expression, c component.Component) bool {
+	switch node := expr.(type) {
+	case *filter.InfixExpression:
+		return node.Operator == "|" &&
+			(d.operandExcludes(fsys, node.Left, c) || d.operandExcludes(fsys, node.Right, c))
+	case *filter.GraphExpression:
+		if _, requiresParse := node.Target.RequiresParse(); requiresParse || filter.MatchComponent(c, node.Target) {
+			return false
+		}
+
+		return d.boundExcludes(fsys, node.Dependents, c) && d.boundExcludes(fsys, node.Dependencies, c)
+	default:
+		return false
+	}
+}
+
+// boundExcludes reports whether one traversal direction cannot reach c.
+func (d *Discovery) boundExcludes(fsys vfs.FS, bound filter.GraphBound, c component.Component) bool {
+	if !bound.Include {
+		return true
+	}
+
+	boundary := d.discoveryBoundary
+
+	if bound.Boundary != "" {
+		resolved, err := resolveGraphBoundary(fsys, d.workingDir, bound.Boundary)
+		if err != nil {
+			return false
+		}
+
+		boundary = resolved
+	}
+
+	return boundary != "" && isExternal(fsys, boundary, c.Path())
+}

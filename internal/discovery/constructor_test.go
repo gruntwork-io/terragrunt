@@ -154,10 +154,12 @@ func TestWorktreeBoundary(t *testing.T) {
 	repoRoot := venvtest.Root("/repo")
 	liveDir := filepath.Join(repoRoot, "live")
 	stagingDir := filepath.Join(liveDir, "staging")
+	siblingDir := filepath.Join(liveDir, "production")
 
 	v := memRepoRootVenv(t, repoRoot)
 
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(stagingDir, ".keep"), nil, 0o644))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(siblingDir, ".keep"), nil, 0o644))
 
 	parseFilters := func(queries ...string) filter.Filters {
 		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), queries)
@@ -200,22 +202,22 @@ func TestWorktreeBoundary(t *testing.T) {
 			expected: "",
 		},
 		{
-			name:     "boundary wider than the working directory clips to it",
+			name:     "boundary wider than the working directory keeps its scope",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, DiscoveryBoundary: liveDir},
-			expected: filepath.Join("live", "staging"),
+			expected: "live",
 		},
 		{
-			name:     "git root boundary clips to a nested working directory",
+			name:     "git root boundary from a nested working directory is unbounded",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, DiscoveryBoundary: repoRoot},
-			expected: filepath.Join("live", "staging"),
+			expected: "",
 		},
 		{
-			name:     "inline parent boundary clips to the working directory",
+			name:     "inline parent boundary keeps its scope",
 			v:        v,
 			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, Filters: parseFilters("(..)...[main...HEAD]")},
-			expected: filepath.Join("live", "staging"),
+			expected: "live",
 		},
 		{
 			name: "an unbounded filter",
@@ -224,6 +226,12 @@ func TestWorktreeBoundary(t *testing.T) {
 				WorkingDir: repoRoot,
 				Filters:    parseFilters("(./live)...[main...HEAD]", "[main...HEAD]"),
 			},
+			expected: "",
+		},
+		{
+			name:     "boundary beside the working directory",
+			v:        v,
+			opts:     discovery.StackGenerateOptions{WorkingDir: stagingDir, DiscoveryBoundary: siblingDir},
 			expected: "",
 		},
 		{

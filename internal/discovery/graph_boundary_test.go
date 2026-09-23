@@ -257,7 +257,7 @@ dependency "vpc" {
 	})
 }
 
-// Test that dependent discovery skips parsing units outside every dependent boundary (#6988).
+// Test that dependent discovery skips parsing units outside every dependent boundary.
 func TestDiscoveryGraphBoundary_SkipsParsingOutsideDependentBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -293,6 +293,15 @@ func TestDiscoveryGraphBoundary_SkipsParsingOutsideDependentBoundary(t *testing.
 		{
 			name:  "nested inline boundaries",
 			query: "(" + accountDir + ")...{" + missingDir + "} | (" + liveDir + ")...{" + missingDir + "}",
+		},
+		{
+			name:  "intersection with a parse-required filter",
+			query: "(" + liveDir + ")...{" + missingDir + "} | reading=roles.yml",
+		},
+		{
+			name:    "intersection targeting outside the boundary still parses the catalog",
+			query:   "(" + liveDir + ")...{" + catalogDir + "} | reading=roles.yml",
+			errText: "roles.yml",
 		},
 		{
 			name:    "unbounded query still parses the catalog",

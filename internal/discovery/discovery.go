@@ -94,7 +94,7 @@ func (d *Discovery) Discover(
 		return nil, err
 	}
 
-	discovered, candidates := results.Discovered, results.Candidates
+	discovered, candidates := results.Discovered, d.withoutUnreachable(v.FS, results.Candidates)
 
 	parseReasons := slices.Clone(d.parseReasons)
 	if d.classifier.HasParseRequiredFilters() {

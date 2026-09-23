@@ -15,7 +15,7 @@ import (
 // boundaryStackPlannedUnit matches working tree unit prefixes on tofu output, skipping worktree dependency reads.
 var boundaryStackPlannedUnit = regexp.MustCompile(`prefix=([^.\s]\S*) tf-path=`)
 
-// TestTFStackRunDiscoveryBoundary pins the #6988 command and the exact set of units each diff plans.
+// TestTFStackRunDiscoveryBoundary checks the exact set of units planned for each bounded diff.
 func TestTFStackRunDiscoveryBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -71,6 +71,13 @@ func TestTFStackRunDiscoveryBoundary(t *testing.T) {
 			workDir:  "live/accounts",
 			args:     "--filter '(..)...[main...HEAD]'",
 			expected: []string{boundaryStackRolesUnitDir},
+		},
+		{
+			name:     "changed sibling unit under a parent boundary",
+			changed:  boundaryStackStandaloneDir + "/terragrunt.hcl",
+			workDir:  "live/accounts",
+			args:     "--filter '(..)...[main...HEAD]'",
+			expected: []string{boundaryStackStandaloneDir},
 		},
 		{
 			name:    "flag boundary outside the working directory",

@@ -154,9 +154,17 @@ func TestStackDiscoveryBoundaryGitFilterBoundsTargets(t *testing.T) {
 		name     string
 		changed  string
 		removed  string
+		workDir  string
 		args     string
 		expected []string
 	}{
+		{
+			name:     "changed sibling unit under a parent boundary",
+			changed:  boundaryStackStandaloneDir + "/terragrunt.hcl",
+			workDir:  "live/accounts",
+			args:     "--filter '(..)...[main...HEAD]'",
+			expected: []string{boundaryStackStandaloneDir},
+		},
 		{
 			name:    "changed catalog unit outside the boundary",
 			changed: boundaryStackCatalogUnit,
@@ -201,7 +209,12 @@ func TestStackDiscoveryBoundaryGitFilterBoundsTargets(t *testing.T) {
 				removeBoundaryStackPath(t, runner, filepath.Join(tmpDir, tc.removed))
 			}
 
-			stdout, stderr, err := runBoundaryStackCommand(t, tmpDir, "find", tc.args)
+			stdout, stderr, err := runBoundaryStackCommand(
+				t,
+				filepath.Join(tmpDir, filepath.FromSlash(tc.workDir)),
+				"find",
+				tc.args,
+			)
 			require.NoError(t, err, "stderr: %s", stderr)
 			assert.ElementsMatch(t, tc.expected, outputLines(stdout))
 			assert.NotContains(t, stderr, "catalog/")
@@ -209,7 +222,7 @@ func TestStackDiscoveryBoundaryGitFilterBoundsTargets(t *testing.T) {
 	}
 }
 
-// setupBoundaryStackRepo creates the #6988 layout, a catalog beside the live tree, on a branch cut from main.
+// setupBoundaryStackRepo creates a catalog beside the live tree on a branch cut from main.
 func setupBoundaryStackRepo(t *testing.T) (string, *git.GitRunner) {
 	t.Helper()
 

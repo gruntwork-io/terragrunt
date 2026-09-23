@@ -182,7 +182,7 @@ func NewForStackGenerate(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) (
 			fsys,
 			opts.WorkingDir,
 			opts.DiscoveryBoundary,
-			boundaryEnclosureOptional,
+			boundaryEnclosureFor(opts.Filters),
 		)
 		if err != nil {
 			return nil, err
@@ -204,15 +204,11 @@ func StackWalkBoundary(fsys vfs.FS, opts StackGenerateOptions) string {
 	return root
 }
 
-// WorktreeBoundary returns the outermost boundary clipped to the working directory, relative to the Git root, or "".
+// WorktreeBoundary returns the outermost boundary relative to the Git root that worktrees mirror, or "" when unbounded.
 func WorktreeBoundary(ctx context.Context, v *venv.Venv, opts StackGenerateOptions) string {
 	root := outermostBoundary(v.FS, opts)
-	if root == "" {
+	if root == "" || isExternal(v.FS, root, opts.WorkingDir) && isExternal(v.FS, opts.WorkingDir, root) {
 		return ""
-	}
-
-	if !vfs.Within(v.FS, opts.WorkingDir, root) {
-		root = opts.WorkingDir
 	}
 
 	gitRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir)
