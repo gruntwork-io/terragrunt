@@ -3,8 +3,10 @@ package config_test
 import (
 	"context"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -71,6 +73,176 @@ func TestRunCommandCacheHitsCollapseSubprocessForks(t *testing.T) {
 		calls.Load(),
 		"run_cmd cache must collapse repeated invocations to a single subprocess fork",
 	)
+}
+
+// TestRunCommandConcurrentCallersSpawnOnceWithRacing pins that units
+// evaluating the same run_cmd at once share one subprocess. Discovery parses
+// units concurrently, and units share a run_cmd result under
+// --terragrunt-global-cache or when the call is in a file they read with
+// read_terragrunt_config.
+//
+// The first subprocess keeps running until every caller is blocked, so the
+// others arrive while it is still running.
+func TestRunCommandConcurrentCallersSpawnOnceWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const numCallers = 2
+
+		var (
+			calls   atomic.Int32
+			release = make(chan struct{})
+		)
+
+		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			calls.Add(1)
+
+			<-release
+
+			return vexec.Result{Stdout: []byte("shared\n")}
+		})
+
+		l := logger.CreateLogger()
+		ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), t.TempDir())
+		ctx = config.WithConfigValues(ctx)
+
+		var (
+			wg   sync.WaitGroup
+			outs = make([]string, numCallers)
+			errs = make([]error, numCallers)
+		)
+
+		for i := range numCallers {
+			wg.Go(func() {
+				outs[i], errs[i] = config.RunCommand(ctx, pctx, l, []string{"shared-cmd"})
+			})
+		}
+
+		synctest.Wait()
+		close(release)
+
+		wg.Wait()
+
+		for i := range numCallers {
+			require.NoError(t, errs[i])
+			assert.Equal(t, "shared", outs[i])
+		}
+
+		assert.Equal(t, int32(1), calls.Load())
+	})
+}
+
+// TestRunCommandWaiterStopsWhenContextEndsWithRacing pins that a caller
+// waiting on an identical run_cmd returns its context's error when the
+// context ends, while the first run carries on.
+func TestRunCommandWaiterStopsWhenContextEndsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			calls   atomic.Int32
+			release = make(chan struct{})
+		)
+
+		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			calls.Add(1)
+
+			<-release
+
+			return vexec.Result{Stdout: []byte("slow\n")}
+		})
+
+		l := logger.CreateLogger()
+		ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), t.TempDir())
+		ctx = config.WithConfigValues(ctx)
+
+		waiterCtx, cancelWaiter := context.WithCancel(ctx)
+
+		var (
+			wg        sync.WaitGroup
+			firstOut  string
+			firstErr  error
+			waiterErr error
+		)
+
+		wg.Go(func() {
+			firstOut, firstErr = config.RunCommand(ctx, pctx, l, []string{"slow-cmd"})
+		})
+
+		synctest.Wait()
+
+		wg.Go(func() {
+			_, waiterErr = config.RunCommand(waiterCtx, pctx, l, []string{"slow-cmd"})
+		})
+
+		synctest.Wait()
+		cancelWaiter()
+		synctest.Wait()
+
+		require.ErrorIs(t, waiterErr, context.Canceled)
+
+		close(release)
+		wg.Wait()
+
+		require.NoError(t, firstErr)
+		assert.Equal(t, "slow", firstOut)
+		assert.Equal(t, int32(1), calls.Load())
+	})
+}
+
+// TestRunCommandFailedRunIsNotSharedWithRacing pins that a caller waiting on
+// an identical run_cmd runs the command itself when the first run fails. A
+// run can fail for reasons private to its caller, such as a cancelled context.
+func TestRunCommandFailedRunIsNotSharedWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			calls   atomic.Int32
+			release = make(chan struct{})
+		)
+
+		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			if calls.Add(1) > 1 {
+				return vexec.Result{Stdout: []byte("recovered\n")}
+			}
+
+			<-release
+
+			return vexec.Result{ExitCode: 1, Stderr: []byte("transient\n")}
+		})
+
+		l := logger.CreateLogger()
+		ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(exec), t.TempDir())
+		ctx = config.WithConfigValues(ctx)
+
+		var (
+			wg        sync.WaitGroup
+			firstErr  error
+			secondOut string
+			secondErr error
+		)
+
+		wg.Go(func() {
+			_, firstErr = config.RunCommand(ctx, pctx, l, []string{"flaky-cmd"})
+		})
+
+		synctest.Wait()
+
+		wg.Go(func() {
+			secondOut, secondErr = config.RunCommand(ctx, pctx, l, []string{"flaky-cmd"})
+		})
+
+		synctest.Wait()
+		close(release)
+
+		wg.Wait()
+
+		require.Error(t, firstErr)
+		require.NoError(t, secondErr)
+		assert.Equal(t, "recovered", secondOut)
+		assert.Equal(t, int32(2), calls.Load())
+	})
 }
 
 // TestRunCommandNoCacheRefuses pins the contract that
