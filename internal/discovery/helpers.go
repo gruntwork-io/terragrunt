@@ -466,7 +466,7 @@ func (d *Discovery) dependentWalkBoundary() string {
 }
 
 // dependentBoundaries returns each dependent expression's boundary, or nil when any is unbounded.
-func (d *Discovery) dependentBoundaries(fsys vfs.FS) []string {
+func (d *Discovery) dependentBoundaries(l log.Logger, fsys vfs.FS) []string {
 	var boundaries []string
 
 	for _, expr := range d.classifier.GraphExpressions() {
@@ -486,6 +486,12 @@ func (d *Discovery) dependentBoundaries(fsys vfs.FS) []string {
 
 		resolved, err := resolveGraphBoundary(fsys, d.workingDir, expr.Dependents.Boundary)
 		if err != nil {
+			l.Debugf(
+				"Discovery: cannot resolve boundary %s (%v); parsing every potential dependent",
+				expr.Dependents.Boundary,
+				err,
+			)
+
 			return nil
 		}
 
@@ -495,12 +501,13 @@ func (d *Discovery) dependentBoundaries(fsys vfs.FS) []string {
 	return boundaries
 }
 
-// potentialDependentsOutsideBoundary returns potential dependents no dependent traversal can reach.
+// potentialDependentsOutsideBoundary returns unreachable potential dependents; withoutUnreachable prunes pre-parse.
 func (d *Discovery) potentialDependentsOutsideBoundary(
+	l log.Logger,
 	fsys vfs.FS,
 	candidates []DiscoveryResult,
 ) map[string]struct{} {
-	boundaries := d.dependentBoundaries(fsys)
+	boundaries := d.dependentBoundaries(l, fsys)
 	if len(boundaries) == 0 {
 		return nil
 	}
@@ -668,7 +675,7 @@ func (d *Discovery) worktreeBoundaries(ctx context.Context, l log.Logger, v *ven
 	})
 }
 
-// withoutUnreachable drops candidates that no positive filter can return, before anything parses them.
+// withoutUnreachable drops candidates no positive filter can return; see potentialDependentsOutsideBoundary.
 func (d *Discovery) withoutUnreachable(fsys vfs.FS, candidates []DiscoveryResult) []DiscoveryResult {
 	if !d.filters.HasGraphBoundary() && d.discoveryBoundary == "" {
 		return candidates

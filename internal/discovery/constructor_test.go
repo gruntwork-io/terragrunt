@@ -332,6 +332,45 @@ func TestWorktreeWalkRoot(t *testing.T) {
 	}
 }
 
+func TestWorktreeWalkRoots(t *testing.T) {
+	t.Parallel()
+
+	worktree := venvtest.Root("/worktree")
+	fsys := venvtest.NewFS(t, worktree, map[string]string{
+		filepath.Join("live", ".keep"):    "",
+		filepath.Join("catalog", ".keep"): "",
+	})
+
+	testCases := []struct {
+		name       string
+		boundaries []string
+		expected   []string
+	}{
+		{name: "no boundaries walk the worktree root", expected: []string{worktree}},
+		{
+			name:       "each present boundary is walked",
+			boundaries: []string{"live", "catalog"},
+			expected:   []string{filepath.Join(worktree, "live"), filepath.Join(worktree, "catalog")},
+		},
+		{
+			name:       "absent boundaries are skipped",
+			boundaries: []string{"live", "missing"},
+			expected:   []string{filepath.Join(worktree, "live")},
+		},
+		{name: "all boundaries absent walk nothing", boundaries: []string{"missing", "gone"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			roots, err := discovery.WorktreeWalkRoots(fsys, worktree, tc.boundaries)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, roots)
+		})
+	}
+}
+
 func TestWithinWorktreeBoundary(t *testing.T) {
 	t.Parallel()
 

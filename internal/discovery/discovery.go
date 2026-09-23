@@ -473,7 +473,7 @@ func (d *Discovery) runGraphPhase(
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
 
-		unparsed := d.potentialDependentsOutsideBoundary(v.FS, candidates)
+		unparsed := d.potentialDependentsOutsideBoundary(l, v.FS, candidates)
 
 		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},

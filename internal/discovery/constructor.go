@@ -196,8 +196,15 @@ func NewForStackGenerate(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) (
 // StackWalkRoots returns the positive filters' boundaries when all lie inside the working directory, or nil.
 func StackWalkRoots(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) []string {
 	roots, ok := boundaryRoots(l, fsys, opts)
-	if !ok || slices.ContainsFunc(roots, func(root string) bool { return !vfs.Within(fsys, opts.WorkingDir, root) }) {
+	if !ok {
 		return nil
+	}
+
+	for _, root := range roots {
+		if !vfs.Within(fsys, opts.WorkingDir, root) {
+			l.Debugf("Discovery: boundary %s is not inside %s; walking the whole working directory", root, opts.WorkingDir)
+			return nil
+		}
 	}
 
 	return roots
