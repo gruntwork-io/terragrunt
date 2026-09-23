@@ -116,6 +116,7 @@ func TestTFTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 				err = helpers.RunTerragruntCommandWithContext(
 					t,
 					ctx,
+					venv.OSVenv(),
 					fmt.Sprintf(
 						"terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s",
 						providerCacheDir,

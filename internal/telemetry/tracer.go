@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
+	"github.com/gruntwork-io/terragrunt/internal/multierror"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -231,21 +233,83 @@ func (tracer *Tracer) Trace(
 		// classify errors by span status (not by exception events) see them.
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		span.SetAttributes(attribute.String("error.type", errorTypeName(err)))
+		span.SetAttributes(errorTypeAttr(err))
+
 		return err
 	}
 
 	return nil
 }
 
-// errorTypeName returns the canonical Go type name of an error, used as a
-// low-cardinality value for the OpenTelemetry `error.type` attribute.
-func errorTypeName(err error) string {
-	if err == nil {
+// maxErrorTypeDepth caps how deep errorType descends through wrappers and
+// aggregates, so a deeply nested error cannot exhaust the stack.
+const maxErrorTypeDepth = 32
+
+var (
+	// errorStringType is the type [errors.New] returns. It names no failure.
+	errorStringType = reflect.TypeOf(errors.New(""))
+
+	// fmtWrapErrorType is the type [fmt.Errorf] returns for a single %w verb.
+	fmtWrapErrorType = reflect.TypeOf(fmt.Errorf("%w", errors.New("")))
+
+	// aggregateErrorTypes holds the types that collect several errors. A unit
+	// run returns a [multierror.Error] even when it holds one error, so
+	// errorType reports what the collected errors are, not the aggregate.
+	aggregateErrorTypes = map[reflect.Type]struct{}{
+		reflect.TypeFor[*multierror.Error]():                                {},
+		reflect.TypeOf(errors.Join(errors.New(""))):                         {},
+		reflect.TypeOf(fmt.Errorf("%w %w", errors.New(""), errors.New(""))): {},
+	}
+)
+
+// errorTypeAttr returns the OpenTelemetry error.type attribute for err, or
+// [semconv.ErrorTypeOther] when errorType finds no specific type.
+func errorTypeAttr(err error) attribute.KeyValue {
+	if t := errorType(err, 0); t != "" {
+		return semconv.ErrorTypeKey.String(t)
+	}
+
+	return semconv.ErrorTypeOther
+}
+
+// errorType returns the type name that classifies err, or "" when there is
+// none. It looks through [fmt.Errorf] wrappers, and through aggregates whose
+// errors all share one type.
+func errorType(err error, depth int) string {
+	if depth >= maxErrorTypeDepth {
 		return ""
 	}
 
-	return reflect.TypeOf(err).String()
+	t := reflect.TypeOf(err)
+
+	if _, ok := aggregateErrorTypes[t]; ok {
+		shared := ""
+
+		for i, inner := range err.(interface{ Unwrap() []error }).Unwrap() {
+			innerType := errorType(inner, depth+1)
+			if innerType == "" || (i > 0 && innerType != shared) {
+				return ""
+			}
+
+			shared = innerType
+		}
+
+		return shared
+	}
+
+	switch t {
+	case errorStringType:
+		return ""
+	case fmtWrapErrorType:
+		inner := errors.Unwrap(err)
+		if inner == nil {
+			return ""
+		}
+
+		return errorType(inner, depth+1)
+	}
+
+	return semconv.ErrorType(err).Value.AsString()
 }
 
 // openSpan creates a new span with attributes.

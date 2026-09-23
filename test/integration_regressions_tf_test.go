@@ -460,7 +460,7 @@ func TestTFOutputFlushOnInterrupt(t *testing.T) {
 	cmdErr := make(chan error, 1)
 
 	go func() {
-		cmdErr <- helpers.RunTerragruntCommandWithContext(t, ctx, "terragrunt run --all apply --non-interactive --working-dir "+testPath, stdout, stderr)
+		cmdErr <- helpers.RunTerragruntCommandWithContext(t, ctx, venv.OSVenv(), "terragrunt run --all apply --non-interactive --working-dir "+testPath, stdout, stderr)
 	}()
 
 	// Wait for first write, then cancel to test flush on interrupt

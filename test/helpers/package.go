@@ -52,7 +52,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	writerpkg "github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1150,9 +1149,14 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
+// RunTerragruntCommandWithContext runs command in-process against v, writing
+// stdout to writer and stderr to errwriter. Flags read their environment
+// variables from v.Env, so a test can set them on its own venv instead of
+// calling t.Setenv.
 func RunTerragruntCommandWithContext(
 	t *testing.T,
 	ctx context.Context,
+	v *venv.Venv,
 	command string,
 	writer,
 	errwriter io.Writer,
@@ -1195,8 +1199,7 @@ func RunTerragruntCommandWithContext(
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-	v := venv.OSVenv()
-	v.Writers = &writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
+	v = v.WithWriter(syncWriter).WithErrWriter(syncErrWriter)
 
 	l := log.New(
 		log.WithOutput(syncErrWriter),
@@ -1219,7 +1222,7 @@ func RunTerragruntCommand(
 ) error {
 	t.Helper()
 
-	return RunTerragruntCommandWithContext(t, t.Context(), command, writer, errwriter)
+	return RunTerragruntCommandWithContext(t, t.Context(), venv.OSVenv(), command, writer, errwriter)
 }
 
 func RunTerragruntVersionCommand(
@@ -1252,16 +1255,19 @@ func LogBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	}
 }
 
+// RunTerragruntCommandWithOutputWithContext runs command in-process against v
+// and returns its stdout and stderr.
 func RunTerragruntCommandWithOutputWithContext(
 	t *testing.T,
 	ctx context.Context,
+	v *venv.Venv,
 	command string,
 ) (string, string, error) {
 	t.Helper()
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := RunTerragruntCommandWithContext(t, ctx, command, &stdout, &stderr)
+	err := RunTerragruntCommandWithContext(t, ctx, v, command, &stdout, &stderr)
 	LogBufferContentsLineByLine(t, stdout, "stdout")
 	LogBufferContentsLineByLine(t, stderr, "stderr")
 
@@ -1271,7 +1277,7 @@ func RunTerragruntCommandWithOutputWithContext(
 func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
 	t.Helper()
 
-	return RunTerragruntCommandWithOutputWithContext(t, t.Context(), command)
+	return RunTerragruntCommandWithOutputWithContext(t, t.Context(), venv.OSVenv(), command)
 }
 
 func RunTerragruntRedirectOutput(

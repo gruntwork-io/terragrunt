@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
@@ -50,6 +52,7 @@ func TestTFDetailedExitCodeError(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.Error(t, err)
@@ -94,6 +97,7 @@ func TestTFDetailedExitCodeChangesPresentAll(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
@@ -113,6 +117,7 @@ func TestTFDetailedExitCodeChangesUnit(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply",
 	)
 	require.NoError(t, err)
@@ -132,6 +137,7 @@ func TestTFDetailedExitCodeChangesUnit(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
@@ -154,6 +160,7 @@ func TestTFDetailedExitCodeFailOnFirstRun(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+filepath.Join(
 			tmpEnvPath,
 			testFixturePath,
@@ -179,6 +186,7 @@ func TestTFDetailedExitCodeFailOnFirstRunWithStatus(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --working-dir "+filepath.Join(
 			tmpEnvPath,
 			testFixturePath,
@@ -204,6 +212,7 @@ func TestTFDetailedExitCodeFailOnFirstRunAllWithStatus(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --working-dir "+filepath.Join(
 			tmpEnvPath,
 			testFixturePath,
@@ -239,6 +248,7 @@ func TestTFDetailedExitCodeChangesPresentOne(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
@@ -268,6 +278,7 @@ func TestTFDetailedExitCodeNoChanges(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
@@ -302,7 +313,7 @@ func TestTFRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
-		t, ctx,
+		t, ctx, venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+
 			rootPath+
 			" -- plan -detailed-exitcode",
@@ -331,6 +342,7 @@ func TestTFDetailedExitCodeChangesPresentAllWithSource(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
 		t,
 		ctx,
+		venv.OSVenv(),
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
