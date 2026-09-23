@@ -5,6 +5,8 @@ import (
 	"io/fs"
 
 	"errors"
+
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 )
 
 // Error types that can be returned by the cas package
@@ -93,8 +95,8 @@ var (
 // that would have filled a gap in the local store. It unwraps to
 // [ErrCASOffline].
 type OfflineMissError struct {
-	// Source is the source URL with any credentials removed.
-	Source string
+	// Source is the source URL.
+	Source redact.URL
 	// Ref is the branch, tag, or commit requested. Empty for a source that
 	// is not addressed by ref, such as an object in a bucket, whose URL
 	// already names everything that was asked for.
@@ -106,10 +108,10 @@ func (e *OfflineMissError) Error() string {
 		"run once without --cas-offline to populate the store, or drop the flag"
 
 	if e.Ref == "" {
-		return e.Source + gap
+		return e.Source.String() + gap
 	}
 
-	return e.Source + " at " + e.Ref + gap
+	return e.Source.String() + " at " + e.Ref + gap
 }
 
 func (e *OfflineMissError) Unwrap() error { return ErrCASOffline }
@@ -134,7 +136,7 @@ type UpdateSourceWithCASRequiresCASError struct {
 type GitStoreObjectMissingError struct {
 	Hash string
 	Ref  string
-	URL  string
+	URL  redact.URL
 }
 
 func (e *GitStoreObjectMissingError) Error() string {
@@ -180,12 +182,12 @@ func (e *MissingObjectError) Unwrap() error {
 type OfflineRepairError struct {
 	// Missing is the object the store could not produce.
 	Missing *MissingObjectError
-	// Source is the source URL with any credentials removed.
-	Source string
+	// Source is the source URL.
+	Source redact.URL
 }
 
 func (e *OfflineRepairError) Error() string {
-	return e.Missing.Error() + "; --cas-offline forbids fetching " + e.Source +
+	return e.Missing.Error() + "; --cas-offline forbids fetching " + e.Source.String() +
 		" to restore it; run once without --cas-offline to repair the store, or drop the flag"
 }
 

@@ -1,4 +1,5 @@
 import type { CollectionEntry } from "astro:content";
+import { compareVersionsDesc } from "./versions";
 
 export type ChangelogEntry = CollectionEntry<"changelog">;
 
@@ -28,20 +29,6 @@ const CATEGORY_INDEX = new Map(CHANGELOG_CATEGORIES.map((c, i) => [c.slug, i]));
 
 export function categoryLabel(slug: string): string {
   return CHANGELOG_CATEGORIES.find((c) => c.slug === slug)?.label ?? slug;
-}
-
-export function compareVersionsDesc(a: string, b: string): number {
-  const aIsVersion = a.startsWith("v");
-  const bIsVersion = b.startsWith("v");
-  if (!aIsVersion && bIsVersion) return -1;
-  if (aIsVersion && !bIsVersion) return 1;
-  return b.localeCompare(a, undefined, { numeric: true });
-}
-
-export function isReleased(version: string, latestVersion: string): boolean {
-  if (!version.startsWith("v")) return false;
-  const v = version.replace(/^v/, "");
-  return v.localeCompare(latestVersion, undefined, { numeric: true }) <= 0;
 }
 
 export interface CategoryGroup {

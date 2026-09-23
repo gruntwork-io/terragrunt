@@ -14,7 +14,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -39,7 +38,6 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
 		backendConfig string
 		workspace     string
 		wantRequest   string
-		enableAzure   bool
 	}{
 		{
 			name:    "S3 default workspace",
@@ -95,7 +93,6 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
         key                  = "service.tfstate"
         storage_account_name = "stateaccount"`, accessKey),
 			wantRequest: "stateaccount.blob.core.windows.net/state/service.tfstate",
-			enableAzure: true,
 		},
 		{
 			name:      "Azure named workspace",
@@ -107,7 +104,6 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
         key                  = "service.tfstate"
         storage_account_name = "stateaccount"`, accessKey),
 			wantRequest: "stateaccount.blob.core.windows.net/state/service.tfstateenv:production",
-			enableAzure: true,
 		},
 	}
 
@@ -133,7 +129,6 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
 				testCase.backend,
 				testCase.backendConfig,
 				env,
-				testCase.enableAzure,
 				"",
 			)
 			require.NoError(t, err)
@@ -187,7 +182,6 @@ func TestDependencyStateS3AssumeRoleUsedForDirectRead(t *testing.T) {
 			"AWS_ACCESS_KEY_ID":     "base-access-key",
 			"AWS_SECRET_ACCESS_KEY": "base-secret-key",
 		},
-		false,
 		"",
 	)
 	require.NoError(t, err)
@@ -297,7 +291,6 @@ func TestDependencyStateS3AssumeRoleWithClearedIAMOptions(t *testing.T) {
 			"AWS_ACCESS_KEY_ID":     "caller-access-key",
 			"AWS_SECRET_ACCESS_KEY": "caller-secret-key",
 		},
-		false,
 		"",
 	)
 
@@ -318,7 +311,7 @@ remote_state {
   }
 }
 `, producerRoleARN, backendRoleARN)
-	require.NoError(t, vfs.WriteFile(pctx.Venv.FS, "/repo/producer/terragrunt.hcl", []byte(producerHCL), 0o600))
+	require.NoError(t, vfs.WriteFile(pctx.Venv.FS, venvtest.Root("/repo/producer/terragrunt.hcl"), []byte(producerHCL), 0o600))
 
 	pctx.IAMRoleOptions = iam.RoleOptions{
 		RoleARN: callerRoleARN,
@@ -380,7 +373,6 @@ func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T)
 			"AWS_ACCESS_KEY_ID":     "base-access-key",
 			"AWS_SECRET_ACCESS_KEY": "base-secret-key",
 		},
-		false,
 		"",
 	)
 	require.NoError(t, err)
@@ -399,7 +391,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 		name          string
 		backend       string
 		backendConfig string
-		enableAzure   bool
 	}{
 		{
 			name:    "S3 invalid workspace prefix",
@@ -464,7 +455,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
         key                  = "service.tfstate"
         metadata_host        = "https://metadata.example.com"
         storage_account_name = "stateaccount"`, accessKey),
-			enableAzure: true,
 		},
 	}
 
@@ -485,7 +475,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				testCase.backend,
 				testCase.backendConfig,
 				env,
-				testCase.enableAzure,
 				"",
 			)
 
@@ -516,7 +505,6 @@ func TestDependencyStateGCSCustomerEncryptionKey(t *testing.T) {
         bucket        = "state-bucket"
         encryption_key = %q`, encryptionKey),
 		map[string]string{},
-		false,
 		"",
 	)
 
@@ -567,7 +555,6 @@ func TestDependencyStateDirectReadFailureFallsBackToNativeOutput(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 				map[string]string{},
-				false,
 				"",
 			)
 
@@ -609,7 +596,6 @@ func TestDependencyStateStopsReadingAfterOutputs(t *testing.T) {
 			"AWS_ACCESS_KEY_ID":     "test-access-key",
 			"AWS_SECRET_ACCESS_KEY": "test-secret-key",
 		},
-		false,
 		"",
 	)
 
@@ -633,7 +619,6 @@ func TestDependencyStateReadsOutputsAfterResources(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 		map[string]string{},
-		false,
 		"",
 	)
 
@@ -689,7 +674,6 @@ func TestDependencyStateTransportFailureFallsBackToNativeOutput(t *testing.T) {
 					"AWS_ACCESS_KEY_ID":     "test-access-key",
 					"AWS_SECRET_ACCESS_KEY": "test-secret-key",
 				},
-				false,
 				"",
 			)
 
@@ -713,7 +697,6 @@ func TestDependencyStateMissingDirectStateUsesMockOutputs(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 		map[string]string{},
-		false,
 		`mock_outputs = { producer_value = "from-mock" }`,
 	)
 
@@ -753,7 +736,6 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 				map[string]string{},
-				false,
 				testCase.dependencyExtra,
 			)
 			pctx.OriginalTerraformCommand = "plan"
@@ -812,7 +794,6 @@ func TestDependencyStateAzureClientSetupFailureFallsBackWithoutMocks(t *testing.
         subscription_id      = "subscription"
         tenant_id            = "tenant"`,
 		map[string]string{},
-		true,
 		`mock_outputs = { producer_value = "from-mock" }`,
 	)
 
@@ -858,7 +839,6 @@ func TestDependencyStateEncryptedDirectStateFallsBackToNativeOutput(t *testing.T
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 				map[string]string{},
-				false,
 				`mock_outputs = { producer_value = "from-mock" }`,
 			)
 
@@ -903,7 +883,6 @@ func TestDependencyStateRenderDirectReadFailureUsesMockOutputs(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 				map[string]string{},
-				false,
 				`mock_outputs = { producer_value = "from-mock" }`,
 			)
 			pctx.TerraformCliArgs = iacargs.New(testCase.command)
@@ -931,14 +910,13 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 		map[string]string{"TF_DATA_DIR": ".tf_data"},
-		false,
 		"",
 	)
 
 	l := logger.CreateLogger()
 
 	// The fallback must run in the initialized unit so a relative TF_DATA_DIR retains its workspace.
-	producerDir := "/repo/producer"
+	producerDir := venvtest.Root("/repo/producer")
 	source, err := tf.NewSource(
 		l,
 		pctx.Venv.FS,
@@ -1100,7 +1078,6 @@ func parseDependencyStateFixture(
 	backend string,
 	backendConfig string,
 	env map[string]string,
-	enableAzure bool,
 	dependencyExtra string,
 ) (*config.TerragruntConfig, error) {
 	t.Helper()
@@ -1111,7 +1088,6 @@ func parseDependencyStateFixture(
 		backend,
 		backendConfig,
 		env,
-		enableAzure,
 		dependencyExtra,
 	)
 
@@ -1124,14 +1100,13 @@ func prepareDependencyStateFixture(
 	backend string,
 	backendConfig string,
 	env map[string]string,
-	enableAzure bool,
 	dependencyExtra string,
 ) (context.Context, *config.ParsingContext, string) {
 	t.Helper()
 
-	const (
-		consumerPath = "/repo/consumer/terragrunt.hcl"
-		producerPath = "/repo/producer/terragrunt.hcl"
+	var (
+		consumerPath = venvtest.Root("/repo/consumer/terragrunt.hcl")
+		producerPath = venvtest.Root("/repo/producer/terragrunt.hcl")
 	)
 
 	effectiveEnv := maps.Clone(env)
@@ -1171,10 +1146,6 @@ inputs = {
 	ctx, pctx := newTestParsingContext(t, v, consumerPath)
 	ctx = config.WithConfigValues(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
-
-	if enableAzure {
-		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.AzureBackend))
-	}
 
 	return ctx, pctx, consumerPath
 }

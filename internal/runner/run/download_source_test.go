@@ -443,6 +443,57 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	assert.True(t, ok)
 }
 
+// TestDownloadTerraformSourceIfNecessaryRedactsSourceCredentials pins that a
+// download that fails reports the source without the password its URL carries,
+// and with the ref that URL names.
+func TestDownloadTerraformSourceIfNecessaryRedactsSourceCredentials(t *testing.T) {
+	t.Parallel()
+
+	const password = "not-a-real-password"
+
+	// v1.2.3 is not among the server's seeded tags, so the clone fails and the
+	// download is reported as a DownloadingTerraformSourceErr.
+	srv := helpers.NewGitServer(t)
+	canonicalURL := strings.Replace(
+		srv.SourceURL("test/fixtures/download-source/hello-world", "v1.2.3"),
+		"http://",
+		"http://tester:"+password+"@",
+		1,
+	)
+
+	downloadDir := helpers.TmpDirWOSymlinks(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
+
+	terraformSource, opts, cfg, err := createConfig(t, canonicalURL, downloadDir, false)
+	require.NoError(t, err)
+	require.Contains(
+		t,
+		terraformSource.CanonicalSourceURL.String(),
+		password,
+		"the source must reach the download carrying the password",
+	)
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		terraformSource,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.Error(t, err)
+
+	var downloadErr run.DownloadingTerraformSourceErr
+
+	require.ErrorAs(t, err, &downloadErr)
+	assert.NotContains(t, downloadErr.URL.String(), password)
+	assert.Contains(t, downloadErr.URL.String(), "ref=v1.2.3")
+	assert.NotContains(t, err.Error(), password)
+}
+
 func TestInvalidModulePath(t *testing.T) {
 	t.Parallel()
 
@@ -1807,10 +1858,17 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
 
-	// A .tofurc reachable only through this venv's home lookup.
+	// A CLI config reachable only through this venv's home lookup. Windows reads it as
+	// tofu.rc under %APPDATA%, every other platform as ~/.tofurc.
 	home := t.TempDir()
+	configName := ".tofurc"
+
+	if helpers.IsWindows() {
+		configName = "tofu.rc"
+	}
+
 	require.NoError(t, os.WriteFile(
-		filepath.Join(home, ".tofurc"),
+		filepath.Join(home, configName),
 		[]byte(fmt.Sprintf(
 			"\noci_credentials %q {\n  %s = %q\n  %s = %q\n}\n",
 			"registry.example.com", "username", "wired", "password", "fake-secret-wired",
@@ -1819,7 +1877,7 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	))
 
 	v := venvtest.NewOSWithEmptyEnv().
-		WithEnv(map[string]string{"HOME": home}).
+		WithEnv(map[string]string{"HOME": home, "APPDATA": home}).
 		WithUserHomeDir(func() (string, error) { return home, nil })
 
 	client, err := run.BuildDownloadClient(

@@ -39,6 +39,19 @@ type HardLinker interface {
 	LinkIfPossible(oldname, newname string) error
 }
 
+// RenameReplacer is an optional interface for filesystems that provide the
+// rename [RenameOver] prefers.
+type RenameReplacer interface {
+	RenameReplacingIfPossible(oldname, newname string) error
+}
+
+// DeleteSharingReader is an optional interface for filesystems that can read a
+// file while other handles hold delete access to it. [ReadFileSharingDelete]
+// prefers it.
+type DeleteSharingReader interface {
+	ReadFileSharingDeleteIfPossible(name string) ([]byte, error)
+}
+
 // Unlocker can release a held lock.
 type Unlocker interface {
 	Unlock() error
@@ -373,6 +386,23 @@ func ReadFile(fsys FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fsys, filename)
 }
 
+// ReadFileSharingDelete reads a file like [ReadFile], but lets other handles
+// hold delete access to it throughout the read.
+//
+// Windows refuses a plain read while such a handle is open. A rename holds
+// one on the file it has just published until it closes it.
+//
+// Filesystems that do not implement [DeleteSharingReader] read through
+// [ReadFile].
+func ReadFileSharingDelete(fsys FS, filename string) ([]byte, error) {
+	reader, ok := fsys.(DeleteSharingReader)
+	if !ok {
+		return ReadFile(fsys, filename)
+	}
+
+	return reader.ReadFileSharingDeleteIfPossible(filename)
+}
+
 // ReadFileAsString reads the contents of a file from the given filesystem as a
 // string, annotating the failure with the path so a caller reading several
 // files can tell which one failed.
@@ -529,6 +559,31 @@ func Link(fsys FS, oldname, newname string) error {
 	return linker.LinkIfPossible(oldname, newname)
 }
 
+// RenameOver renames oldPath onto newPath, replacing whatever newPath names.
+// On Windows a plain Rename refuses to replace a read-only file, or a file that a
+// concurrent rename has just replaced.
+//
+// It delegates to RenameReplacingIfPossible for filesystems that implement the
+// [RenameReplacer] interface, which replaces both and leaves alone the read-only
+// attribute that every hard link to the replaced file shares. Any other
+// filesystem gets its own Rename, so a filesystem that wraps another keeps the
+// rename it defines. On Windows the read-only attribute of the destination is
+// cleared first on that path, and with it the attribute of every other link to
+// the file.
+//
+// On Windows the [RenameReplacer] path requires Windows 10 version 1809 or later
+// and a filesystem that supports POSIX rename semantics, e.g. NTFS. Elsewhere on
+// Windows the rename fails. A destination that another handle holds open without
+// sharing delete access still cannot be replaced there.
+func RenameOver(fsys FS, oldPath, newPath string) error {
+	replacer, ok := fsys.(RenameReplacer)
+	if !ok {
+		return renameOver(fsys, oldPath, newPath)
+	}
+
+	return replacer.RenameReplacingIfPossible(oldPath, newPath)
+}
+
 // Symlink creates a symbolic link. It uses afero's SymlinkIfPossible
 // which is supported by OsFs and any FS implementing afero.Linker.
 func Symlink(fsys FS, oldname, newname string) error {
@@ -594,6 +649,7 @@ type WalkDirParallelOption func(*walkDirParallelConfig)
 
 type walkDirParallelConfig struct {
 	followSymlinks bool
+	workers        int
 }
 
 // WithFollowSymlinks makes [WalkDirParallel] descend into directories
@@ -607,6 +663,16 @@ type walkDirParallelConfig struct {
 func WithFollowSymlinks() WalkDirParallelOption {
 	return func(c *walkDirParallelConfig) {
 		c.followSymlinks = true
+	}
+}
+
+// WithWorkers sets how many directories [WalkDirParallel] reads at once,
+// for a caller whose walk was measured to want a different count than
+// [walkWorkers] picks for the filesystem. A value of zero or less keeps
+// that measured count.
+func WithWorkers(n int) WalkDirParallelOption {
+	return func(c *walkDirParallelConfig) {
+		c.workers = n
 	}
 }
 
@@ -630,9 +696,14 @@ func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirPar
 		opt(&cfg)
 	}
 
+	workers := walkWorkers(fsys, root)
+	if cfg.workers > 0 {
+		workers = cfg.workers
+	}
+
 	fwCfg := &fastwalk.Config{
 		Follow:     cfg.followSymlinks,
-		NumWorkers: walkWorkers(fsys, root),
+		NumWorkers: workers,
 	}
 
 	err := fastwalk.Walk(fwCfg, root, fn)
@@ -658,13 +729,7 @@ func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirPar
 //
 // Adapted from spf13/afero#571; replace with afero.WalkDir once merged.
 func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
-	info, err := lstatIfPossible(fsys, root)
-	if err != nil {
-		err = fn(root, nil, err)
-	} else {
-		err = walkDir(fsys, root, FileInfoDirEntry{FileInfo: info}, fn)
-	}
-
+	err := walkDirRoot(fsys, root, fn)
 	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
 		return nil
 	}
@@ -681,6 +746,10 @@ func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 // Each logical path is reported once, so a directory reachable through several
 // links is visited once, and a link pointing back at an ancestor terminates
 // instead of looping.
+//
+// A root or link that fails to resolve is handed to fn with the error, as
+// [WalkDir] does for an entry it cannot read, so fn decides whether the walk
+// goes on.
 func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
 	w := &symlinkWalker{
 		fsys:           fsys,
@@ -689,12 +758,12 @@ func WalkDirWithSymlinks(fsys FS, root string, fn fs.WalkDirFunc) error {
 		visitedLogical: make(map[string]bool),
 	}
 
-	realRoot, err := EvalSymlinks(fsys, root)
-	if err != nil {
-		return fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err)
+	err := w.walkRoot(root)
+	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
+		return nil
 	}
 
-	return w.walk(realRoot, filepath.Clean(root))
+	return err
 }
 
 // symlinkWalker carries the bookkeeping [WalkDirWithSymlinks] needs across the
@@ -704,6 +773,17 @@ type symlinkWalker struct {
 	fn             fs.WalkDirFunc
 	visited        map[string]bool
 	visitedLogical map[string]bool
+}
+
+// walkRoot resolves root and walks the tree it lands on, handing fn the error
+// when root does not resolve.
+func (w *symlinkWalker) walkRoot(root string) error {
+	realRoot, err := EvalSymlinks(w.fsys, root)
+	if err != nil {
+		return w.fn(root, nil, fmt.Errorf("failed to evaluate symlinks for %s: %w", root, err))
+	}
+
+	return w.walk(realRoot, filepath.Clean(root))
 }
 
 // walk traverses the tree at physical, reporting entries under logical.
@@ -737,21 +817,25 @@ func (w *symlinkWalker) walk(physical, logical string) error {
 			return nil
 		}
 
-		return w.follow(current, logicalPath)
+		return w.follow(current, logicalPath, d)
 	})
 }
 
-// follow resolves the link at current and, when it lands on a directory,
+// follow resolves the link d at current and, when it lands on a directory,
 // walks the target as though it lived at logicalPath.
-func (w *symlinkWalker) follow(current, logicalPath string) error {
+func (w *symlinkWalker) follow(current, logicalPath string, d fs.DirEntry) error {
 	realPath, err := EvalSymlinks(w.fsys, current)
 	if err != nil {
-		return fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err)
+		return w.fn(
+			logicalPath,
+			d,
+			fmt.Errorf("failed to evaluate symlinks for %s: %w", current, err),
+		)
 	}
 
 	realInfo, err := w.fsys.Stat(realPath)
 	if err != nil {
-		return fmt.Errorf("failed to describe file %s: %w", realPath, err)
+		return w.fn(logicalPath, d, fmt.Errorf("failed to describe file %s: %w", realPath, err))
 	}
 
 	if w.visited[realPath+":"+current] {
@@ -774,6 +858,14 @@ type osFS struct {
 
 func (fsys *osFS) LinkIfPossible(oldname, newname string) error {
 	return os.Link(oldname, newname)
+}
+
+func (fsys *osFS) ReadFileSharingDeleteIfPossible(name string) ([]byte, error) {
+	return readFileSharingDelete(name)
+}
+
+func (fsys *osFS) RenameReplacingIfPossible(oldname, newname string) error {
+	return renameReplacing(oldname, newname)
 }
 
 func (fsys *osFS) SymlinkIfPossible(oldname, newname string) error {
@@ -960,6 +1052,10 @@ func (fsys *memMapFS) symlinkedPrefix(path string) (prefix, target string, found
 	}
 
 	return prefix, target, found
+}
+
+func (fsys *memMapFS) RenameReplacingIfPossible(oldname, newname string) error {
+	return fsys.Rename(oldname, newname)
 }
 
 func (fsys *memMapFS) LinkIfPossible(oldname, newname string) error {
@@ -1177,6 +1273,12 @@ const defaultZipDirMode os.FileMode = 0755
 // maxSymlinkTargetSize bounds a symlink target read, far above any real path.
 const maxSymlinkTargetSize = 4096
 
+// Default bounds [NewZipDecompressor] applies.
+const (
+	DefaultZipFileSizeLimit int64 = 1 << 30 // 1 GiB
+	DefaultZipFilesLimit          = 10000
+)
+
 // ZipDecompressor handles zip archive extraction with configurable limits.
 type ZipDecompressor struct {
 	// FileSizeLimit limits total decompressed size in bytes. Zero means no limit.
@@ -1188,25 +1290,32 @@ type ZipDecompressor struct {
 // ZipDecompressorOption is a functional option for configuring ZipDecompressor.
 type ZipDecompressorOption func(*ZipDecompressor)
 
-// WithFileSizeLimit sets the maximum total decompressed size in bytes.
-// Zero means no limit.
+// WithFileSizeLimit sets the maximum total decompressed size in bytes,
+// replacing [DefaultZipFileSizeLimit]. Zero removes the limit, leaving
+// extraction bounded only by the disk.
 func WithFileSizeLimit(limit int64) ZipDecompressorOption {
 	return func(z *ZipDecompressor) {
 		z.FileSizeLimit = limit
 	}
 }
 
-// WithFilesLimit sets the maximum number of files that can be extracted.
-// Zero means no limit.
+// WithFilesLimit sets the maximum number of files that can be extracted,
+// replacing [DefaultZipFilesLimit]. Zero removes the limit, leaving
+// extraction bounded only by the disk.
 func WithFilesLimit(limit int) ZipDecompressorOption {
 	return func(z *ZipDecompressor) {
 		z.FilesLimit = limit
 	}
 }
 
-// NewZipDecompressor creates a new ZipDecompressor with the given options.
+// NewZipDecompressor creates a new ZipDecompressor bounded by
+// [DefaultZipFileSizeLimit] and [DefaultZipFilesLimit], which
+// [WithFileSizeLimit] and [WithFilesLimit] replace.
 func NewZipDecompressor(opts ...ZipDecompressorOption) *ZipDecompressor {
-	z := &ZipDecompressor{}
+	z := &ZipDecompressor{
+		FileSizeLimit: DefaultZipFileSizeLimit,
+		FilesLimit:    DefaultZipFilesLimit,
+	}
 	for _, opt := range opts {
 		opt(z)
 	}
@@ -1629,6 +1738,17 @@ func walkSymlinksLinkParent(dest string, vol string, volLen int) string {
 	}
 
 	return dest[:idx]
+}
+
+// walkDirRoot describes root and walks the tree under it, handing fn the error
+// when root cannot be described.
+func walkDirRoot(fsys FS, root string, fn fs.WalkDirFunc) error {
+	info, err := lstatIfPossible(fsys, root)
+	if err != nil {
+		return fn(root, nil, err)
+	}
+
+	return walkDir(fsys, root, FileInfoDirEntry{FileInfo: info}, fn)
 }
 
 // walkDir recursively descends path, calling walkDirFn.

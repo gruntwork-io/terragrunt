@@ -92,7 +92,7 @@ func TestLegacyExpandMatchesZglob(t *testing.T) {
 		}
 
 		require.NoError(t, gotErr, "pattern %q", pattern)
-		assert.ElementsMatch(t, want, got, "pattern %q", pattern)
+		assert.ElementsMatch(t, toSlashAll(want), toSlashAll(got), "pattern %q", pattern)
 	}
 }
 
@@ -108,7 +108,7 @@ func TestLegacyExpandReportsMissingLiteralPath(t *testing.T) {
 
 	got, err := glob.LegacyExpand(fsys, "/src/main.tf")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"/src/main.tf"}, got)
+	assert.Equal(t, []string{"/src/main.tf"}, toSlashAll(got))
 
 	_, err = glob.LegacyExpand(fsys, "/src/missing.tf")
 	require.ErrorIs(t, err, os.ErrNotExist)
@@ -128,7 +128,7 @@ func TestLegacyExpandRunsOnAnInMemoryFilesystem(t *testing.T) {
 	require.NoError(t, err)
 
 	// zglob collapses `**`, so the top-level file matches alongside the nested one.
-	assert.ElementsMatch(t, []string{"/src/main.tf", "/src/modules/a/main.tf"}, got)
+	assert.ElementsMatch(t, []string{"/src/main.tf", "/src/modules/a/main.tf"}, toSlashAll(got))
 }
 
 // TestLegacyExpandDoesNotExpandEnvSegments pins the one place LegacyExpand
@@ -148,7 +148,7 @@ func TestLegacyExpandDoesNotExpandEnvSegments(t *testing.T) {
 	// The same tree is reachable when the segment is spelled literally.
 	got, err := glob.LegacyExpand(fsys, "/src/real/*.tf")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"/src/real/main.tf"}, got)
+	assert.Equal(t, []string{"/src/real/main.tf"}, toSlashAll(got))
 }
 
 // symlinkedRootPatterns are walk roots that pass through a symlinked
@@ -198,7 +198,7 @@ func TestLegacyExpandMatchesZglobOnSymlinkedRoot(t *testing.T) {
 
 		got, gotErr := glob.LegacyExpand(fsys, absolute, glob.WithSymlinkedRoots())
 		require.NoError(t, gotErr, "pattern %q", pattern)
-		assert.ElementsMatch(t, want, got, "pattern %q", pattern)
+		assert.ElementsMatch(t, toSlashAll(want), toSlashAll(got), "pattern %q", pattern)
 	}
 }
 
@@ -225,7 +225,7 @@ func TestLegacyExpandExpandsThroughSymlinkedRoot(t *testing.T) {
 	assert.ElementsMatch(
 		t,
 		[]string{"/src/.important_stuff/stuff1", "/src/.important_stuff/stuff2"},
-		got,
+		toSlashAll(got),
 	)
 }
 

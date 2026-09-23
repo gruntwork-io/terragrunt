@@ -63,9 +63,10 @@ const (
 	// the module) and the mark_glob_as_read HCL function. Both are enabled
 	// by default.
 	MarkManyAsRead = "mark-many-as-read"
-	// AzureBackend enables Terragrunt-managed Azure Storage (azurerm) remote state
-	// bootstrap, delete, and migrate operations and, together with
-	// DependencyFetchOutputFromState, direct dependency state reads.
+	// AzureBackend names the now-stable Terragrunt-managed Azure Storage (azurerm)
+	// remote state bootstrap, delete, and migrate operations and, together with
+	// DependencyFetchOutputFromState, direct dependency state reads. They are
+	// enabled by default and the flag is retained only for backwards compatibility.
 	AzureBackend = "azure-backend"
 	// DeepMerge enables the deep_merge HCL function.
 	DeepMerge = "deep-merge"
@@ -76,7 +77,9 @@ const (
 	// HookContextEnv exposes additional TG_CTX_* environment variables to hook
 	// scripts: TG_CTX_HOOK_TYPE, TG_CTX_SOURCE, and TG_CTX_TERRAGRUNT_DIR.
 	HookContextEnv = "hook-context-env"
-	// OptionalHooks gates flags that make Terragrunt hooks optional during runs.
+	// OptionalHooks names the now-stable --no-hooks flag, which skips
+	// before_hook, after_hook, and error_hook blocks during a run. The flag is
+	// available without enabling the experiment.
 	OptionalHooks = "optional-hooks"
 	// Profiling names the now-stable collection of runtime profiles (CPU,
 	// memory/heap, goroutine) via CLI flags or env vars. It is enabled by default.
@@ -85,8 +88,9 @@ const (
 	// Distribution registries via oci:// sources. It is enabled by default and
 	// the flag is retained only for backwards compatibility.
 	OCI = "oci"
-	// VersionAttribute gates resolving a tfr:// registry module from a version
-	// constraint expressed through the version attribute on the terraform block.
+	// VersionAttribute names the now-stable version attribute on the terraform
+	// block, which resolves a tfr:// registry module from a version constraint.
+	// It is enabled by default.
 	VersionAttribute = "version-attribute"
 	// OtelLogs enables the OpenTelemetry logs signal, exporting Terragrunt's log
 	// records through the configured logs exporter and correlating them with
@@ -118,16 +122,18 @@ const (
 	// which skips all dependency output resolution during a run. The flag is
 	// available without enabling the experiment.
 	OptionalDependencyOutputs = "optional-dependency-outputs"
-	// TGLogin reserves the experiment flag for signing in to the Gruntwork
-	// Developer Portal from the CLI, so an admin can define a catalog in the
-	// portal instead of local HCL. Nothing is gated on it yet; the login
-	// command and the portal-defined catalog land in follow-up PRs.
+	// TGLogin gates `terragrunt login`, which signs the user in to the
+	// Gruntwork Developer Portal so an admin can define a catalog there for
+	// the CLI to read.
 	TGLogin = "tg-login"
 	// Base64GzipCompat enables the base64gzip_compat HCL function.
 	Base64GzipCompat = "base64gzip-compat"
 	// OfflineCAS gates the CAS flags that control the persisted probe cache:
 	// --cas-offline, --cas-refresh, and --cas-probe-ttl.
 	OfflineCAS = "offline-cas"
+	// MCPCommand gates the `terragrunt mcp` command, which serves Terragrunt
+	// operations to AI agents over the Model Context Protocol.
+	MCPCommand = "mcp-command"
 )
 
 const (
@@ -202,7 +208,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: AzureBackend,
+			Name:   AzureBackend,
+			Status: StatusCompleted,
 		},
 		{
 			Name: DeepMerge,
@@ -215,7 +222,8 @@ func NewExperiments() Experiments {
 			Name: HookContextEnv,
 		},
 		{
-			Name: OptionalHooks,
+			Name:   OptionalHooks,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   Profiling,
@@ -226,7 +234,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: VersionAttribute,
+			Name:   VersionAttribute,
+			Status: StatusCompleted,
 		},
 		{
 			Name: OtelLogs,
@@ -262,6 +271,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OfflineCAS,
+		},
+		{
+			Name: MCPCommand,
 		},
 	}
 }

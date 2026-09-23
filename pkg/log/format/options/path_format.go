@@ -1,10 +1,8 @@
 package options
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -104,8 +102,8 @@ func PathFormat(val PathFormatValue, allowed ...PathFormatValue) Option {
 // /path/to     ../
 // /path        ../..
 type RelativePather struct {
-	relPaths    []string
-	absPathsReg []*regexp.Regexp
+	absPaths []string
+	relPaths []string
 }
 
 // NewRelativePather returns a new RelativePather instance.
@@ -119,7 +117,7 @@ func NewRelativePather(baseDir string) (*RelativePather, error) {
 	dirs = dirs[1:]
 
 	relPaths := make([]string, len(dirs))
-	absPathsReg := make([]*regexp.Regexp, len(dirs))
+	absPaths := make([]string, len(dirs))
 	reversIndex := len(dirs)
 
 	for _, dir := range dirs {
@@ -132,22 +130,97 @@ func NewRelativePather(baseDir string) (*RelativePather, error) {
 
 		reversIndex--
 		relPaths[reversIndex] = relPath
-
-		regStr := fmt.Sprintf(`(^|[^%[1]s\w])%[2]s([%[1]s"'\s]|$)`,
-			regexp.QuoteMeta(pathSeparator), regexp.QuoteMeta(absPath))
-		absPathsReg[reversIndex] = regexp.MustCompile(regStr)
+		absPaths[reversIndex] = absPath
 	}
 
 	return &RelativePather{
-		absPathsReg: absPathsReg,
-		relPaths:    relPaths,
+		absPaths: absPaths,
+		relPaths: relPaths,
 	}, nil
 }
 
+// ReplaceAbsPaths rewrites every cached absolute path in str to its relative
+// form, deepest directory first. A path is only replaced where it stands alone:
+// the byte before it is not a path separator or a word character, and the byte
+// after it ends the string or is a path separator, a quote, or whitespace.
 func (hook *RelativePather) ReplaceAbsPaths(str string) string {
-	for i, absPath := range hook.absPathsReg {
-		str = absPath.ReplaceAllString(str, "$1"+hook.relPaths[i]+"$2")
+	for i, absPath := range hook.absPaths {
+		str = replaceStandalonePath(str, absPath, hook.relPaths[i])
 	}
 
 	return str
+}
+
+// replaceStandalonePath returns str with every standalone occurrence of
+// absPath replaced by relPath.
+func replaceStandalonePath(str, absPath, relPath string) string {
+	at := indexStandalone(str, absPath, 0)
+	if at < 0 {
+		return str
+	}
+
+	var replaced strings.Builder
+
+	copied := 0
+
+	for at >= 0 {
+		replaced.WriteString(str[copied:at])
+		replaced.WriteString(relPath)
+
+		copied = at + len(absPath)
+		at = indexStandalone(str, absPath, copied)
+	}
+
+	replaced.WriteString(str[copied:])
+
+	return replaced.String()
+}
+
+// indexStandalone returns the index of the first standalone occurrence of
+// absPath in str at or after from, and -1 when there is none.
+func indexStandalone(str, absPath string, from int) int {
+	for at := from; at < len(str); {
+		i := strings.Index(str[at:], absPath)
+		if i < 0 {
+			return -1
+		}
+
+		at += i
+
+		if standsAlone(str, at, at+len(absPath)) {
+			return at
+		}
+
+		at++
+	}
+
+	return -1
+}
+
+// standsAlone reports whether str[start:end] is a path of its own, not a
+// leading piece of a longer path or a word. A separator or a word
+// character before it makes it part of something longer, and so does anything
+// but a separator, a quote, or whitespace after it.
+func standsAlone(str string, start, end int) bool {
+	if start > 0 && (str[start-1] == filepath.Separator || isWordByte(str[start-1])) {
+		return false
+	}
+
+	return end == len(str) || isPathDelimiter(str[end])
+}
+
+// isPathDelimiter reports whether c can follow a path in a log line. A
+// separator counts: the path is then the parent of a longer one, which is
+// replaced along with it.
+func isPathDelimiter(c byte) bool {
+	switch c {
+	case filepath.Separator, '"', '\'', ' ', '\t', '\n', '\f', '\r':
+		return true
+	}
+
+	return false
+}
+
+func isWordByte(c byte) bool {
+	return c == '_' || '0' <= c && c <= '9' || 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
 }

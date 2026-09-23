@@ -601,5 +601,5 @@ func getRelativePath(c component.Component) string {
 		return "/"
 	}
 
-	return filepath.Clean(rel)
+	return filepath.ToSlash(filepath.Clean(rel))
 }

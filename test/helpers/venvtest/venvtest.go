@@ -13,9 +13,11 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"runtime"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -34,21 +36,21 @@ var ErrNoListen = errors.New("venvtest: listening is not permitted")
 // Cache and temp roots for the in-memory bundle. They sit under a name no real
 // machine uses, so a test that accidentally runs them against the OS filesystem
 // fails loudly instead of writing into the invoking user's directories.
-const (
-	memCacheDir  = "/venvtest/cache"
-	memConfigDir = "/venvtest/config"
-	memTempDir   = "/venvtest/tmp"
-	memWorkDir   = "/venvtest/work"
-
-	// memPID is a fixed process id, so a crash report or log line carrying it
-	// compares equal between runs.
-	memPID = 1
+var (
+	memCacheDir  = Root("/venvtest/cache")
+	memConfigDir = Root("/venvtest/config")
+	memTempDir   = Root("/venvtest/tmp")
+	memWorkDir   = Root("/venvtest/work")
 )
+
+// memPID is a fixed process id, so a crash report or log line carrying it
+// compares equal between runs.
+const memPID = 1
 
 // New returns an in-memory venv: a fail-closed exec, an in-memory filesystem,
 // a fail-closed no-network HTTP client, a mem SOPS decrypter yielding empty
-// cleartext, a fail-closed browser opener, an empty (non-nil) environment,
-// deterministic platform handles,
+// cleartext, a fail-closed browser opener, a signal notifier that never
+// delivers, an empty (non-nil) environment, deterministic platform handles,
 // an empty console reader, a console that is no stream's terminal and has no
 // width, and both writers wired to [io.Discard]. Refine it with venv.Venv's
 // fluent With methods.
@@ -72,8 +74,9 @@ func New() *venv.Venv {
 		Listen: func(context.Context, string, string) (net.Listener, error) {
 			return nil, ErrNoListen
 		},
-		Stdin: strings.NewReader(""),
-		Env:   map[string]string{},
+		Signals: func(context.Context, signal.NotifyFunc, ...os.Signal) {},
+		Stdin:   strings.NewReader(""),
+		Env:     map[string]string{},
 		Platform: &venv.Platform{
 			UserHomeDir: func() (string, error) {
 				return "", nil
@@ -92,6 +95,9 @@ func New() *venv.Venv {
 			},
 			GetPID: func() int {
 				return memPID
+			},
+			ReplaceEnviron: func(map[string]string) error {
+				return nil
 			},
 			GOOS:   runtime.GOOS,
 			GOARCH: runtime.GOARCH,
@@ -116,6 +122,11 @@ func NewWithOSFS() *venv.Venv {
 // a variable set on the machine running the suite cannot reach the code under
 // test. Tests that drive the real filesystem and real subprocesses need it;
 // prefer [NewWithOSFS] when only the filesystem has to be real.
+//
+// Replacing the process environment is a no-op, because parallel tests share
+// the process and would lose PATH mid-run.
 func NewOSWithEmptyEnv() *venv.Venv {
-	return venv.OSVenv().WithEnv(map[string]string{})
+	return venv.OSVenv().
+		WithEnv(map[string]string{}).
+		WithReplaceEnviron(func(map[string]string) error { return nil })
 }

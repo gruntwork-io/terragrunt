@@ -75,6 +75,30 @@ func TestMustWalkTerraformOutput(t *testing.T) {
 			path:     []string{"10"},
 			expected: nil,
 		},
+		{
+			value:    []string{"a", "b", "c"},
+			path:     []string{"-1"},
+			expected: nil,
+		},
+		{
+			value:    map[string]any{"a": nil},
+			path:     []string{"a", "b"},
+			expected: nil,
+		},
+		{
+			value:    map[int]string{1: "a"},
+			path:     []string{"1"},
+			expected: nil,
+		},
+		{
+			value: map[string]map[string]string{
+				"a": {
+					"b": "c",
+				},
+			},
+			path:     []string{"a", "b", "value"},
+			expected: "c",
+		},
 	}
 
 	for i, tc := range testCases {

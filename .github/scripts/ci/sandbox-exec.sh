@@ -9,7 +9,11 @@ set -euo pipefail
 #
 # Written for `go test -exec`:
 #
-#   go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" ./...
+#   go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" <packages>
+#
+# sandbox-test.sh, beside this script, runs the suite while excluding the
+# upstream OpenTofu package. Now that we've pulled in OpenTofu packages,
+# we can't run this with ./... , unfortunately.
 #
 # Loopback stays reachable so tests can stand up httptest servers, and writes
 # stay open in the temp dir, the Go caches and Terragrunt's user cache. A test

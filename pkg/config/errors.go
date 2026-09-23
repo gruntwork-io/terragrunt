@@ -297,6 +297,16 @@ func (err DependencyFileNotFoundError) Error() string {
 
 // Dependency Custom error types
 
+// DependencyConfigPathNotStringError reports a dependency whose config_path did not
+// evaluate to a known string, so there is no config to read outputs from.
+type DependencyConfigPathNotStringError struct {
+	Name string
+}
+
+func (err DependencyConfigPathNotStringError) Error() string {
+	return fmt.Sprintf("config_path of dependency %q did not evaluate to a string", err.Name)
+}
+
 type DependencyConfigNotFound struct {
 	Path string
 }
@@ -388,7 +398,10 @@ type InvalidTFWorkspaceError struct {
 }
 
 func (err InvalidTFWorkspaceError) Error() string {
-	return fmt.Sprintf("determining dependency workspace: invalid TF_WORKSPACE value %q", err.Workspace)
+	return fmt.Sprintf(
+		"determining dependency workspace: invalid TF_WORKSPACE value %q",
+		err.Workspace,
+	)
 }
 
 // StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs
@@ -583,6 +596,18 @@ func (err MaxParseDepthError) Error() string {
 	)
 }
 
+// ReadTerragruntConfigCycleError is returned when read_terragrunt_config reads
+// a config that is already being read further up the chain.
+type ReadTerragruntConfigCycleError struct {
+	// Chain lists the configs being read, outermost first, ending with the
+	// config that closes the cycle.
+	Chain []string
+}
+
+func (err ReadTerragruntConfigCycleError) Error() string {
+	return "read_terragrunt_config cycle detected: " + strings.Join(err.Chain, " -> ")
+}
+
 // AutoIncludeParserStageError reports which stage of autoinclude parsing failed.
 type AutoIncludeParserStageError struct {
 	Err   error
@@ -620,19 +645,6 @@ type Base64GzipCompatRequiresExperimentError struct {
 func (err Base64GzipCompatRequiresExperimentError) Error() string {
 	return fmt.Sprintf(
 		"base64gzip_compat in %s requires the 'base64gzip-compat' experiment; enable it with --experiment base64gzip-compat",
-		err.ConfigPath,
-	)
-}
-
-// VersionAttributeRequiresExperimentError is returned when the terraform block sets the
-// version attribute without the version-attribute experiment enabled.
-type VersionAttributeRequiresExperimentError struct {
-	ConfigPath string
-}
-
-func (err VersionAttributeRequiresExperimentError) Error() string {
-	return fmt.Sprintf(
-		"the terraform block in %s sets the version attribute, which requires the 'version-attribute' experiment; enable it with --experiment version-attribute",
 		err.ConfigPath,
 	)
 }

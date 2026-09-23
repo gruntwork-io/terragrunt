@@ -1,7 +1,7 @@
 ---
 name: duplicate-dependency-labels
 status: active
-since: "1.1.4"
+since: "v1.1.4"
 ---
 
 import Before from '@components/Before.astro';
@@ -54,4 +54,4 @@ That is warned about by default too. Under the control it is an error naming bot
 /path/to/terragrunt.hcl: dependencies vpc and network both point at ../vpc; declare that dependency once and reference it under one name
 ```
 
-Blocks are compared by the address they resolve to rather than by label alone, so the elements of a block expanded with <Before version="1.2.0">the [`block-iteration`](/reference/experiments/active#block-iteration) experiment</Before><Since version="1.2.0">an [`expansion`](/reference/hcl/blocks#expansion) block</Since>, which all carry the label the block was written with, remain valid.
+Blocks are compared by the address they resolve to rather than by label alone, so the elements of a block expanded with <Before version="v1.2.0">the [`block-iteration`](/reference/experiments/active#block-iteration) experiment</Before><Since version="v1.2.0">an [`expansion`](/reference/hcl/blocks#expansion) block</Since>, which all carry the label the block was written with, remain valid.

@@ -33,10 +33,10 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/mattn/go-shellwords"
 
 	"errors"
 
@@ -123,6 +123,13 @@ type TerraformOutput struct {
 	Sensitive bool `json:"Sensitive"`
 }
 
+// nestUnder joins path beneath root even when path is absolute. Callers pass an
+// already-copied fixture back in as an absolute path, and on Windows its drive
+// letter would otherwise land in the middle of the joined path ("root\C:\...").
+func nestUnder(root, path string) string {
+	return filepath.Join(root, strings.TrimPrefix(path, filepath.VolumeName(path)))
+}
+
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	t.Helper()
 
@@ -144,7 +151,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 			logger.CreateLogger(),
 			vfs.NewOSFS(),
 			MustAbs(t, environmentPath),
-			filepath.Join(tmpDir, environmentPath),
+			nestUnder(tmpDir, environmentPath),
 			".terragrunt-test",
 			util.WithIncludeInCopy(includeInCopy...),
 			util.WithExcludeFromCopy(excludeFromCopy...),
@@ -1160,23 +1167,72 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
+// RunVenv returns [venv.OSVenv] with the user configuration directory set to a
+// temporary directory of the test's own.
+func RunVenv(t *testing.T) *venv.Venv {
+	t.Helper()
+
+	configDir := t.TempDir()
+
+	return venv.OSVenv().WithUserConfigDir(func() (string, error) { return configDir, nil })
+}
+
 func RunTerragruntCommandWithContext(
 	t *testing.T,
 	ctx context.Context,
 	command string,
 	writer,
 	errwriter io.Writer,
-	extraArgs ...string,
 ) error {
 	t.Helper()
 
-	parser := shellwords.NewParser()
+	return runTerragruntCommand(t, ctx, version.GetVersion(), command, writer, errwriter)
+}
 
-	// Convert backslashes to forward slashes before parsing.
-	// shellwords treats backslashes as escape characters, corrupting Windows paths
-	// like C:\foo\bar into C:foobar. Forward slashes work fine since Terragrunt CLI
-	// normalizes paths internally (see cli/commands/commands.go).
-	args, err := parser.Parse(filepath.ToSlash(command))
+// runTerragruntCommand runs command through an app reporting itself as ver, so a
+// test can pin the Terragrunt version a run sees without touching the process.
+func runTerragruntCommand(
+	t *testing.T,
+	ctx context.Context,
+	ver string,
+	command string,
+	writer,
+	errwriter io.Writer,
+) error {
+	t.Helper()
+
+	v := RunVenv(t)
+	v.Writers = &writerpkg.Writers{Writer: writer, ErrWriter: errwriter}
+
+	return runTerragruntCommandWithVenv(t, ctx, ver, v, command)
+}
+
+// RunTerragruntCommandWithVenv runs command in-process against v, writing
+// through v.Writers. Tests swap a handle on v, such as the exec, to observe or
+// fake what the command reaches.
+func RunTerragruntCommandWithVenv(
+	t *testing.T,
+	ctx context.Context,
+	v *venv.Venv,
+	command string,
+) error {
+	t.Helper()
+
+	return runTerragruntCommandWithVenv(t, ctx, version.GetVersion(), v, command)
+}
+
+// runTerragruntCommandWithVenv runs command against v through an app reporting
+// itself as ver.
+func runTerragruntCommandWithVenv(
+	t *testing.T,
+	ctx context.Context,
+	ver string,
+	v *venv.Venv,
+	command string,
+) error {
+	t.Helper()
+
+	args, err := split.Command(command)
 	require.NoError(t, err)
 
 	if !strings.Contains(command, "-log-format") &&
@@ -1200,13 +1256,12 @@ func RunTerragruntCommandWithContext(
 
 	// Wrap writers with SyncWriter to prevent race conditions when multiple
 	// goroutines write concurrently (e.g., during "run --all" operations).
-	syncWriter := util.NewSyncWriter(writer)
-	syncErrWriter := util.NewSyncWriter(errwriter)
+	syncWriter := util.NewSyncWriter(v.Writers.Writer)
+	syncErrWriter := util.NewSyncWriter(v.Writers.ErrWriter)
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-	v := venv.OSVenv()
-	v.Writers = &writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
+	v = v.WithWriter(syncWriter).WithErrWriter(syncErrWriter)
 
 	l := log.New(
 		log.WithOutput(syncErrWriter),
@@ -1215,6 +1270,7 @@ func RunTerragruntCommandWithContext(
 	)
 
 	app := cli.NewApp(l, opts, v)
+	app.Version = ver
 
 	ctx = log.ContextWithLogger(ctx, l)
 
@@ -1232,6 +1288,8 @@ func RunTerragruntCommand(
 	return RunTerragruntCommandWithContext(t, t.Context(), command, writer, errwriter)
 }
 
+// RunTerragruntVersionCommand runs command against an app that reports itself as
+// ver, which is what version constraints in the config are checked against.
 func RunTerragruntVersionCommand(
 	t *testing.T,
 	ver string,
@@ -1241,9 +1299,7 @@ func RunTerragruntVersionCommand(
 ) error {
 	t.Helper()
 
-	version.Version = ver
-
-	return RunTerragruntCommand(t, command, writer, errwriter)
+	return runTerragruntCommand(t, t.Context(), ver, command, writer, errwriter)
 }
 
 func RunTerragrunt(t *testing.T, command string) {
@@ -1282,6 +1338,25 @@ func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 	t.Helper()
 
 	return RunTerragruntCommandWithOutputWithContext(t, t.Context(), command)
+}
+
+// RunTerragruntCommandWithOutputWithVenv runs command in-process against a copy
+// of v whose writers capture output, and returns its stdout and stderr.
+func RunTerragruntCommandWithOutputWithVenv(
+	t *testing.T,
+	v *venv.Venv,
+	command string,
+) (string, string, error) {
+	t.Helper()
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := RunTerragruntCommandWithVenv(t, t.Context(), v.WithWriter(&stdout).WithErrWriter(&stderr), command)
+	LogBufferContentsLineByLine(t, stdout, "stdout")
+	LogBufferContentsLineByLine(t, stderr, "stderr")
+
+	return stdout.String(), stderr.String(), err
 }
 
 func RunTerragruntRedirectOutput(
@@ -1333,7 +1408,7 @@ func RunTerragruntValidateInputs(
 
 	// Terragrunt writes a .terragrunt-cache into whatever directory it runs in,
 	// so this runs against a copy rather than the fixture in the checked-out tree.
-	moduleDir = filepath.Join(CopyEnvironment(t, moduleDir), moduleDir)
+	moduleDir = nestUnder(CopyEnvironment(t, moduleDir), moduleDir)
 
 	maybeNested := filepath.Join(moduleDir, "module")
 	if vfs.Exists(vfs.NewOSFS(), maybeNested) {

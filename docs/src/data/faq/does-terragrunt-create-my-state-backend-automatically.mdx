@@ -4,6 +4,9 @@ description: "Yes, if you ask it to. Pass --backend-bootstrap on a run, set TG_B
 order: 5
 ---
 
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
 Yes, if you ask it to. Terragrunt can provision the resources named in your [`remote_state`](/reference/hcl/blocks#remote_state) block, such as an S3 bucket, a DynamoDB table, or a GCS bucket, so you do not have to create them by hand before your first run.
 
 This is opt-in. `--backend-bootstrap` defaults to `false`, so an ordinary `terragrunt plan` or `terragrunt apply` never creates cloud resources as a side effect of running.
@@ -34,4 +37,10 @@ The [`backend bootstrap`](/reference/cli/commands/backend/bootstrap/) command an
 
 `remote_state.disable_init` blocks bootstrapping even when you have opted in. If you set it, Terragrunt skips creating backend resources regardless of the flag, while still letting OpenTofu/Terraform initialize a backend that already exists. That combination is useful for `run --all validate` in CI, where you want no resources created at all.
 
-Note that the [Azure backend](/features/units/state-backend/) is behind an experiment and Terragrunt does not bootstrap Azure resources yet.
+<Before version="v1.2.0">
+Bootstrapping the [Azure backend](/features/units/state-backend/) requires the `azure-backend` experiment.
+</Before>
+
+<Since version="v1.2.0">
+Terragrunt also bootstraps the [Azure backend](/features/units/state-backend/): the resource group, storage account, and blob container backing your state.
+</Since>

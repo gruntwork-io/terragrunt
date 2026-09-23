@@ -41,9 +41,9 @@ const (
 	testFixtureGCSDependencyState   = "fixtures/output-from-remote-state-gcs"
 )
 
-// TestGcpDependencyFetchOutputFromState proves that dependency outputs are read from the
+// TestGCPDependencyFetchOutputFromState proves that dependency outputs are read from the
 // GCS state object without invoking the producer's configured OpenTofu/Terraform binary.
-func TestGcpDependencyFetchOutputFromState(t *testing.T) {
+func TestGCPDependencyFetchOutputFromState(t *testing.T) {
 	t.Parallel()
 
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -90,7 +90,7 @@ func TestGcpDependencyFetchOutputFromState(t *testing.T) {
 		"outputs must come from the state object, not from running tofu output")
 }
 
-func TestGcpBootstrapBackend(t *testing.T) {
+func TestGCPBootstrapBackend(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -175,7 +175,7 @@ func TestGcpBootstrapBackend(t *testing.T) {
 	}
 }
 
-func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
+func TestGCPBootstrapBackendWithoutVersioning(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
@@ -221,7 +221,7 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestGcpMigrateBackendWithoutVersioning(t *testing.T) {
+func TestGCPMigrateBackendWithoutVersioning(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
@@ -267,7 +267,7 @@ func TestGcpMigrateBackendWithoutVersioning(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestGcpDeleteBackend(t *testing.T) {
+func TestGCPDeleteBackend(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
@@ -327,7 +327,7 @@ func TestGcpDeleteBackend(t *testing.T) {
 	}
 }
 
-func TestGcpMigrateBackend(t *testing.T) {
+func TestGCPMigrateBackend(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
@@ -412,7 +412,7 @@ func TestGcpMigrateBackend(t *testing.T) {
 	assert.Contains(t, stdout, "No changes")
 }
 
-func TestGcpWorksWithBackend(t *testing.T) {
+func TestGCPWorksWithBackend(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGcsPath)
@@ -454,7 +454,7 @@ func TestGcpWorksWithBackend(t *testing.T) {
 	)
 }
 
-func TestGcpWorksWithExistingBucket(t *testing.T) {
+func TestGCPWorksWithExistingBucket(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGcsByoBucketPath)
@@ -491,7 +491,7 @@ func TestGcpWorksWithExistingBucket(t *testing.T) {
 	validateGCSBucketExistsAndIsLabeled(t, location, gcsBucketName, nil)
 }
 
-func TestGcpCheckMissingBucket(t *testing.T) {
+func TestGCPCheckMissingBucket(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGcsNoBucket)
@@ -523,7 +523,7 @@ func TestGcpCheckMissingBucket(t *testing.T) {
 	assert.Contains(t, err.Error(), "Missing required GCS remote state configuration bucket")
 }
 
-func TestGcpNoPrefixBucket(t *testing.T) {
+func TestGCPNoPrefixBucket(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGcsNoPrefix)
@@ -555,7 +555,7 @@ func TestGcpNoPrefixBucket(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestGcpParallelStateInit(t *testing.T) {
+func TestGCPParallelStateInit(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)

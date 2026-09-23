@@ -10,7 +10,7 @@ import { Aside } from '@astrojs/starlight/components';
 import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
 
-<Before version="1.2.0">
+<Before version="v1.2.0">
 
 <Aside type="tip" title="Experimental">
 The `--format` flag is gated behind the [`catalog-format`](/reference/experiments/active#catalog-format) experiment. Enable it with `--experiment=catalog-format` or `TG_EXPERIMENT=catalog-format`.
@@ -27,7 +27,7 @@ The [catalog TUI](/features/catalog/tui) needs a terminal, which leaves scripts,
 
 Both carry the same information, and neither is interactive. Scaffolding stays in the TUI.
 
-<Since version="1.2.0">
+<Since version="v1.2.0">
 
 Piping the catalog needs no `--format`. Unless standard input and standard output are both terminals, `terragrunt catalog` writes `jsonl`:
 

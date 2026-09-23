@@ -1,9 +1,12 @@
 package cas_test
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -48,6 +52,10 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("stores under the requested perm with write bits cleared", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
 
 		v := venvtest.NewOSWithEmptyEnv()
 
@@ -433,8 +441,17 @@ func TestContent_Link(t *testing.T) {
 			os.SameFile(sourceInfo, targetInfo),
 			"expected an independent inode, not a hard link",
 		)
-		assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm(),
-			"a mutable link must preserve the git perms exactly")
+
+		t.Run("preserves the git mode", func(t *testing.T) {
+			t.Parallel()
+
+			if helpers.IsWindows() {
+				t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+			}
+
+			assert.Equal(t, os.FileMode(0o644), targetInfo.Mode().Perm(),
+				"a mutable link must preserve the git perms exactly")
+		})
 
 		copied, err := os.ReadFile(targetPath)
 		require.NoError(t, err)
@@ -479,6 +496,10 @@ func TestContent_Link(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
+			if helpers.IsWindows() {
+				t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+			}
+
 			v := venvtest.NewOSWithEmptyEnv()
 
 			storeDir := t.TempDir()
@@ -516,6 +537,10 @@ func TestContent_Link(t *testing.T) {
 	t.Run("default path falls back to copy on perm collision", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
+
 		v := venvtest.NewOSWithEmptyEnv()
 
 		storeDir := t.TempDir()
@@ -549,6 +574,10 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("mutable link preserves executable bits", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
 
 		v := venvtest.NewOSWithEmptyEnv()
 
@@ -675,6 +704,10 @@ func TestContent_Link(t *testing.T) {
 	t.Run("a narrower request copies when stored perms are not accepted", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
+
 		v := venvtest.NewOSWithEmptyEnv()
 
 		storeDir := t.TempDir()
@@ -753,7 +786,12 @@ func TestContent_Link(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		assertSoleLink(t, filepath.Join(storeDir, testHashValue[:2], testHashValue), targetPath, testData)
+		assertSoleLink(
+			t,
+			filepath.Join(storeDir, testHashValue[:2], testHashValue),
+			targetPath,
+			testData,
+		)
 	})
 
 	t.Run("a blob linked onto the target mid-swap leaves no temp link", func(t *testing.T) {
@@ -824,7 +862,7 @@ func (f *linkBeforeRenameFS) Rename(oldname, newname string) error {
 		}
 	}
 
-	return f.FS.Rename(oldname, newname)
+	return vfs.RenameOver(f.FS, oldname, newname)
 }
 
 func TestContent_EnsureWithWait(t *testing.T) {
@@ -849,7 +887,13 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		require.NoError(t, err)
 
 		// EnsureWithWait should not need to write again
-		err = content.EnsureWithWait(l, v, testHash, []byte("different content"), cas.StoredFilePerms)
+		err = content.EnsureWithWait(
+			l,
+			v,
+			testHash,
+			[]byte("different content"),
+			cas.StoredFilePerms,
+		)
 		require.NoError(t, err)
 
 		// Verify original content remains
@@ -904,7 +948,13 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		go func() {
 			defer close(process1Done)
 
-			err := content.EnsureWithWait(l, v, testHash, []byte("process 1 data"), cas.StoredFilePerms)
+			err := content.EnsureWithWait(
+				l,
+				v,
+				testHash,
+				[]byte("process 1 data"),
+				cas.StoredFilePerms,
+			)
 			assert.NoError(t, err)
 
 			close(process1Started)
@@ -917,7 +967,13 @@ func TestContent_EnsureWithWait(t *testing.T) {
 			// Wait for process 1 to start
 			<-process1Started
 
-			err := content.EnsureWithWait(l, v, testHash, []byte("process 2 data"), cas.StoredFilePerms)
+			err := content.EnsureWithWait(
+				l,
+				v,
+				testHash,
+				[]byte("process 2 data"),
+				cas.StoredFilePerms,
+			)
 			assert.NoError(t, err)
 		}()
 
@@ -932,4 +988,59 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []byte("process 1 data"), storedData)
 	})
+}
+
+// TestContent_ReadAsObjectAppearsWithRacing pins that a reader which sees an
+// object appear in the store can read it straight away. Every round, the
+// readers poll a fresh hash until the writer publishes it and then read it
+// immediately, so each read starts as soon after the publishing rename as
+// the scheduler allows.
+func TestContent_ReadAsObjectAppearsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const (
+		rounds  = 2000
+		readers = 4
+	)
+
+	l := logger.CreateLogger()
+	v := venvtest.NewOSWithEmptyEnv()
+	storePath := helpers.TmpDirWOSymlinks(t)
+	data := []byte("tree data")
+
+	writer := cas.NewContent(cas.NewStore(storePath))
+
+	for round := range rounds {
+		hash := fmt.Sprintf("%064x", round)
+
+		var ready, wg sync.WaitGroup
+
+		ready.Add(readers)
+
+		errs := make([]error, readers)
+		got := make([][]byte, readers)
+
+		for i := range readers {
+			wg.Go(func() {
+				store := cas.NewStore(storePath)
+
+				ready.Done()
+
+				for store.NeedsWrite(v, hash) {
+					runtime.Gosched()
+				}
+
+				got[i], errs[i] = cas.NewContent(store).Read(v, hash)
+			})
+		}
+
+		ready.Wait()
+		require.NoError(t, writer.Store(l, v, hash, data, cas.StoredFilePerms))
+		wg.Wait()
+
+		for i := range readers {
+			require.NoError(t, errs[i], "round %d, reader %d", round, i)
+			require.Equal(t, data, got[i], "round %d, reader %d", round, i)
+		}
+	}
 }

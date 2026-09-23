@@ -150,48 +150,100 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 
 const refsTags = "refs/tags/"
 
-// LatestReleaseTag returns the highest semver release tag from the given remote.
-// It uses `git ls-remote --tags` against the named remote (e.g. "origin") and
-// returns the tag with the greatest semantic version, or "" if none exist.
-func (g *GitRunner) LatestReleaseTag(ctx context.Context, remote string) (string, error) {
-	results, err := g.LsRemote(ctx, remote, "refs/tags/*")
-	if err != nil {
-		// No tags is not an error — just means no release tags exist.
-		if errors.Is(err, ErrNoMatchingReference) {
-			return "", nil
-		}
-
-		return "", err
+// LsRemoteTags lists the tags remote advertises, with `git ls-remote`. A
+// remote with no tags returns no results and no error.
+func (g *GitRunner) LsRemoteTags(ctx context.Context, remote string) ([]LsRemoteResult, error) {
+	results, err := g.LsRemote(ctx, remote, refsTags+"*")
+	if errors.Is(err, ErrNoMatchingReference) {
+		return nil, nil
 	}
 
-	var best *semver.Version
+	return results, err
+}
 
-	for _, r := range results {
-		name := strings.TrimPrefix(r.Ref, refsTags)
-		// Skip dereferenced tag objects (e.g. refs/tags/v1.0.0^{})
-		if strings.HasSuffix(name, "^{}") {
-			continue
-		}
+// LocalTags lists the tags in the configured working-directory repository, in
+// the shape [GitRunner.LsRemote] reports them, without contacting a remote.
+func (g *GitRunner) LocalTags(ctx context.Context) ([]LsRemoteResult, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
 
-		v, err := semver.Parse(name)
-		if err != nil {
-			continue
-		}
+	cmd := g.prepareCommand(ctx, "for-each-ref", "--format=%(objectname) %(refname)", refsTags)
 
-		if v.Prerelease() != "" {
-			continue
-		}
+	var stdout, stderr bytes.Buffer
 
-		if best == nil || v.GreaterThan(best) {
-			best = v
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_for_each_ref",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 
-	if best == nil {
-		return "", nil
+	var results []LsRemoteResult
+
+	for line := range strings.Lines(stdout.String()) {
+		parts := strings.Fields(line)
+		if len(parts) < minGitPartsLength {
+			continue
+		}
+
+		results = append(results, LsRemoteResult{Hash: parts[0], Ref: parts[1]})
 	}
 
-	return best.Original(), nil
+	return results, nil
+}
+
+// ReleaseTags returns the release tags among refs, highest version first. A
+// release tag is a refs/tags/ name that parses as a version with no
+// pre-release suffix. The peeled `^{}` entries ls-remote lists for annotated
+// tags are left out.
+func ReleaseTags(refs []LsRemoteResult) []LsRemoteResult {
+	type release struct {
+		version *semver.Version
+		ref     LsRemoteResult
+	}
+
+	releases := make([]release, 0, len(refs))
+
+	for _, ref := range refs {
+		name, isTag := strings.CutPrefix(ref.Ref, refsTags)
+		if !isTag || strings.HasSuffix(name, "^{}") {
+			continue
+		}
+
+		version, err := semver.Parse(name)
+		if err != nil || version.Prerelease() != "" {
+			continue
+		}
+
+		releases = append(releases, release{version: version, ref: ref})
+	}
+
+	slices.SortStableFunc(releases, func(a, b release) int {
+		return b.version.Compare(a.version)
+	})
+
+	out := make([]LsRemoteResult, 0, len(releases))
+	for _, r := range releases {
+		out = append(out, r.ref)
+	}
+
+	return out
+}
+
+// LatestReleaseTag returns the name of the highest release tag among refs, as
+// [ReleaseTags] orders them, or "" when refs holds none.
+func LatestReleaseTag(refs []LsRemoteResult) string {
+	releases := ReleaseTags(refs)
+	if len(releases) == 0 {
+		return ""
+	}
+
+	return strings.TrimPrefix(releases[0].Ref, refsTags)
 }
 
 // Clone performs a git clone operation
@@ -1076,6 +1128,8 @@ func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) 
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) vexec.Cmd {
+	ctx = vexec.WithTrustedCommand(ctx)
+
 	cmd := g.exec.Command(ctx, g.GitPath, append([]string{name}, args...)...)
 	cmd.SetEnv(venv.Environ(g.env))
 	cmd.SetCancel(func() error {

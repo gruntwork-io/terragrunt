@@ -3,7 +3,6 @@ package run
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -87,10 +86,6 @@ const (
 	IAMAssumeRoleDurationFlagName         = shared.IAMAssumeRoleDurationFlagName
 	IAMAssumeRoleSessionNameFlagName      = shared.IAMAssumeRoleSessionNameFlagName
 	IAMAssumeRoleWebIdentityTokenFlagName = shared.IAMAssumeRoleWebIdentityTokenFlagName
-)
-
-var ErrNoHooksRequiresExperiment = errors.New(
-	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
 )
 
 // NewFlags creates and returns global flags.
@@ -185,19 +180,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 			Name:        NoHooksFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoHooksFlagName),
 			Destination: &opts.NoRunHooks,
-			Usage: flags.ExperimentUsage(opts.Experiments, experiment.OptionalHooks,
-				"Disable Terragrunt hooks during run."),
-			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
-				if !value {
-					return nil
-				}
-
-				if opts.Experiments.Evaluate(experiment.OptionalHooks) {
-					return nil
-				}
-
-				return ErrNoHooksRequiresExperiment
-			},
+			Usage:       "Disable Terragrunt hooks during run.",
 		}),
 
 		flags.NewFlag(&clihelper.BoolFlag{

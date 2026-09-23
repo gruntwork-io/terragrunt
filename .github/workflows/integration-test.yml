@@ -33,38 +33,48 @@ jobs:
               - .github/scripts/setup/sops.sh
               - .github/scripts/setup/engine.sh
               - .github/scripts/setup/generate-mocks.sh
-            tags: "ssh,sops,deprecated,mocks,engine"
-            run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine)"
-            secrets: [GHA_DEPLOY_KEY]
-          - name: Tflint
-            os: ubuntu
-            target: ./...
-            tags: tflint
-            run: "^TestTflint"
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
-            setup_scripts:
               - .github/scripts/setup/tflint.sh
-          - name: GCP
+            tags: "ssh,sops,deprecated,mocks,engine,parse,http,exec,tflint"
+            run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine|TestParse|TestHTTP|TestExec|TestTflint)"
+            secrets: [GHA_DEPLOY_KEY]
+          - name: Cloud
             os: ubuntu
             target: ./...
+            tags: "gcp,awsgcp,azure,ocilive"
+            run: "^(TestGCP|TestAWSGCP|TestAzure|TestOCILive)"
+            test_args: "-count=1"
             setup_scripts:
               - .github/scripts/setup/gcp.sh
-            tags: gcp
-            run: "^TestGcp"
+              - .github/scripts/setup/ecr-credential-helper.sh
             secrets:
               [
+                AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY,
                 GCLOUD_SERVICE_KEY,
+                GCLOUD_SERVICE_KEY_IMPERSONATOR,
                 GOOGLE_CLOUD_PROJECT,
                 GOOGLE_COMPUTE_ZONE,
                 GOOGLE_IDENTITY_EMAIL,
                 GOOGLE_PROJECT_ID,
-                GCLOUD_SERVICE_KEY_IMPERSONATOR,
+                TG_AZURE_TEST_STORAGE_ACCOUNT,
+                TG_AZURE_TEST_SUBSCRIPTION_ID,
+                TG_AZURE_TEST_RESOURCE_GROUP,
+                ARM_CLIENT_ID,
+                ARM_CLIENT_SECRET,
+                ARM_TENANT_ID,
+                ARM_SUBSCRIPTION_ID,
+                TG_OCI_TEST_ECR_REPOSITORY,
+                TG_OCI_TEST_GHCR_REPOSITORY,
+                TG_OCI_TEST_GHCR_USERNAME,
+                TG_OCI_TEST_GHCR_TOKEN,
               ]
+          # tofu-switch.sh and terraform-switch.sh uninstall each other, so
+          # these two cannot share a runner.
           - name: AWS Tofu
             os: ubuntu
             target: ./...
             tags: "aws,tofu"
-            run: "^TestAws"
+            run: "^TestAWS"
             secrets:
               [
                 AWS_ACCESS_KEY_ID,
@@ -77,7 +87,7 @@ jobs:
             os: ubuntu
             target: ./...
             tags: aws
-            run: "^TestAws"
+            run: "^TestAWS"
             secrets:
               [
                 AWS_ACCESS_KEY_ID,
@@ -86,83 +96,18 @@ jobs:
               ]
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
-          - name: AWSGCP
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/gcp.sh
-            tags: awsgcp
-            run: "^TestAwsGcp"
-            secrets:
-              [
-                AWS_ACCESS_KEY_ID,
-                AWS_SECRET_ACCESS_KEY,
-                GCLOUD_SERVICE_KEY,
-                GOOGLE_CLOUD_PROJECT,
-                GOOGLE_COMPUTE_ZONE,
-                GOOGLE_IDENTITY_EMAIL,
-                GOOGLE_PROJECT_ID,
-              ]
-          - name: Azure
-            os: ubuntu
-            target: ./internal/azurehelper/...
-            tags: azure
-            secrets:
-              [
-                AZURE_CLIENT_ID,
-                AZURE_CLIENT_SECRET,
-                AZURE_TENANT_ID,
-                TG_AZURE_TEST_STORAGE_ACCOUNT,
-                TG_AZURE_TEST_SUBSCRIPTION_ID,
-                ARM_CLIENT_ID,
-                ARM_CLIENT_SECRET,
-                ARM_TENANT_ID,
-                ARM_SUBSCRIPTION_ID,
-              ]
-          - name: Azure Integration
-            os: ubuntu
-            target: ./test
-            tags: azure
-            run: ^TestAzure
-            secrets:
-              [
-                TG_AZURE_TEST_STORAGE_ACCOUNT,
-                TG_AZURE_TEST_SUBSCRIPTION_ID,
-                TG_AZURE_TEST_RESOURCE_GROUP,
-                ARM_CLIENT_ID,
-                ARM_CLIENT_SECRET,
-                ARM_TENANT_ID,
-                ARM_SUBSCRIPTION_ID,
-              ]
-          - name: OCI Registries
-            os: ubuntu
-            target: ./test
-            tags: ocilive
-            run: "^TestOCILive"
-            test_args: "-count=1"
-            skip: false
-            setup_scripts:
-              - .github/scripts/setup/ecr-credential-helper.sh
-            secrets:
-              [
-                AWS_ACCESS_KEY_ID,
-                AWS_SECRET_ACCESS_KEY,
-                TG_OCI_TEST_ECR_REPOSITORY,
-                TG_OCI_TEST_GHCR_REPOSITORY,
-                TG_OCI_TEST_GHCR_USERNAME,
-                TG_OCI_TEST_GHCR_TOKEN,
-              ]
           - name: Windows
             os: windows
             target: ./...
             setup_scripts:
               - .github/scripts/setup/windows-setup.ps1
-            tags: windows
-            run: "^TestWindows"
+            tags: "windows,exec"
+            run: "^(TestWindows|TestExec)"
           - name: Provider Cache Server with Latest Terraform
             os: ubuntu
             target: ./test
             tags: tf
+            run: "^TestTF"
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/terraform-switch-latest.sh
@@ -170,6 +115,7 @@ jobs:
             os: ubuntu
             target: ./test
             tags: "tofu,tf"
+            run: "^(TestTF|TestTofu)"
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/tofu-switch.sh
@@ -179,37 +125,12 @@ jobs:
             tags: tf
             run: ".*WithRacing"
             test_args: "-race"
-          - name: Parse
-            os: ubuntu
-            target: ./...
-            tags: parse
-            run: "^TestParse"
           - name: Experiment mode
             os: ubuntu
             target: ./...
             tags: tf
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
-          - name: OpenTofu Unit Tests
-            os: ubuntu
-            target: ./internal/...
-            tags: tofu
-            run: "^TestTofu"
-          - name: Exec
-            os: ubuntu
-            target: ./...
-            tags: exec
-            run: "^TestExec"
-          - name: Exec Windows
-            os: windows
-            target: ./...
-            tags: exec
-            run: "^TestExec"
-          - name: HTTP
-            os: ubuntu
-            target: ./...
-            tags: http
-            run: "^TestHTTP"
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
@@ -223,17 +144,14 @@ jobs:
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          sudo docker builder prune -a
-          df -h
+        run: ./.github/scripts/ci/free-disk-space.sh
 
       # install dependencies for the integration tests
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          version: 2026.5.12
+          version: 2026.9.12
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -288,47 +206,13 @@ jobs:
           ENV_FILE: ${{ github.workspace }}/.env.secrets
           SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
 
-      - id: go-cache-paths
-        run: |
-          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-        shell: bash
-
-      - name: Go Build Cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      - name: Restore Go caches
+        uses: $/.github/actions/go-cache-restore
         with:
-          path: |
-            ${{ steps.go-cache-paths.outputs.go-build }}
-            ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.integration.os }}-amd64
-          restore-keys: |
-            ${{ runner.os }}-go-build-
-
-      - name: Terragrunt Provider Cache
-        if: runner.os == 'Linux'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: ~/.cache/terragrunt
-          key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
-          restore-keys: |
-            ${{ runner.os }}-terragrunt-provider-cache-
+          gocache-name: test
 
       - name: Run Tests
-        run: |
-          if [ "$SKIP" != "true" ]; then
-            source "${GITHUB_WORKSPACE}/.env.secrets"
-            # print command arguments
-            set -x
-            if [[ "$HAS_DOCKER" == "true" ]]; then
-              TAGS="${TAGS:+$TAGS,docker}"
-              TAGS="${TAGS:=docker}"
-            fi
-            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee test_output.log
-            # Generate XML report from test output
-            go-junit-report < test_output.log > result.xml
-          else
-            echo "Skipping tests for $NAME as the skip flag is true."
-          fi
+        run: ./.github/scripts/ci/run-integration-tests.sh
         shell: bash
         env:
           GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -336,7 +220,6 @@ jobs:
           TARGET: ${{ matrix.integration.target }}
           TAGS: ${{ matrix.integration.tags }}
           RUN: ${{ matrix.integration.run }}
-          SKIP: ${{ matrix.integration.skip }}
           NAME: ${{ matrix.integration.name }}
           TEST_ARGS: ${{ matrix.integration.test_args }}
           HAS_DOCKER: ${{ runner.os == 'Linux' }}
@@ -347,8 +230,9 @@ jobs:
         with:
           name: test-results-${{ matrix.integration.name }}
           path: |
-            test_output.log
             result.xml
+            test-events.ndjson
+            rerun-report.txt
 
       - name: Display Test Results (${{ matrix.integration.name }})
         uses: mikepenz/action-junit-report@d9f48fc87bc235f7e214acf696ca5abc0a986f16 # v6
@@ -358,23 +242,5 @@ jobs:
           detailed_summary: "true"
           include_time_in_summary: "true"
           group_suite: "true"
-
-      - name: Print Failed Tests (${{ matrix.integration.name }})
-        if: always()
-        run: |
-          echo "Failed Tests in ${{ matrix.integration.name }}"
-          if [[ -f test_output.log ]]; then
-            # Count only test failure lines in a way that is safe with -e -o pipefail
-            failed_count=$(grep -E -c '^--- FAIL:' test_output.log || true)
-            echo "Failed tests count: $failed_count"
-            if [[ "${failed_count}" -gt 0 ]]; then
-              echo "Failed test names:"
-              grep -E '^--- FAIL:' test_output.log | sed 's/.*FAIL:[[:space:]]*//'
-            else
-              echo "No failed tests found"
-            fi
-          else
-            echo "No test output found"
-          fi
-          echo ""
-        shell: bash
+          check_retries: "true"
+          flaky_summary: "true"

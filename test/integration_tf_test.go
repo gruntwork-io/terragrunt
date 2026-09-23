@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -849,8 +850,8 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 			)
 
 			providers := []string{
-				"hashicorp/null/3.2.3",
-				"hashicorp/local/2.5.2",
+				"hashicorp/null/3.2.4",
+				"hashicorp/local/2.6.1",
 			}
 
 			registryName := "registry.opentofu.org"
@@ -3752,8 +3753,9 @@ func TestTFTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
-//nolint:paralleltest // it overrides the global version.Version
 func TestTFTerragruntValidateAllWithVersionChecks(t *testing.T) {
+	t.Parallel()
+
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/version-check")
 
 	stdout := bytes.Buffer{}
@@ -3787,8 +3789,9 @@ func TestTFTerragruntIncludeParentHclFile(t *testing.T) {
 	assert.Contains(t, stderr, "common_hcl")
 }
 
-//nolint:paralleltest // runTerragruntVersionCommand overrides the global version.Version
 func TestTFTerragruntVersionConstraints(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name                 string
 		terragruntVersion    string
@@ -3839,8 +3842,10 @@ func TestTFTerragruntVersionConstraints(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases { //nolint:paralleltest // the parent test overrides the global version.Version
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_constraints")
 
@@ -3886,7 +3891,7 @@ func TestTFReadTerragruntAuthProviderCmd(t *testing.T) {
 	appPath := filepath.Join(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	helpers.RunTerragrunt(
 		t,
@@ -3960,7 +3965,7 @@ func TestTFReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
@@ -4020,7 +4025,7 @@ func TestTFNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
@@ -4083,8 +4088,9 @@ func TestTFIamRolesLoadingFromDifferentModules(t *testing.T) {
 	assert.NotEmptyf(t, component2, "Missing role for component 2")
 }
 
-//nolint:paralleltest // it overrides the global version.Version
 func TestTFTerragruntVersionConstraintsPartialParse(t *testing.T) {
+	t.Parallel()
+
 	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
 	helpers.CleanupTerragruntFolder(t, fixturePath)
 
@@ -4421,7 +4427,12 @@ func TestTFInitSkipCache(t *testing.T) {
 
 	// verify that after adding new file, init is executed
 	tfFile := filepath.Join(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
-	require.NoError(t, os.WriteFile(tfFile, []byte(""), 0o644), "Error writing new Terraform file to %s", tfFile)
+	require.NoError(
+		t,
+		os.WriteFile(tfFile, []byte(""), 0o644),
+		"Error writing new Terraform file to %s",
+		tfFile,
+	)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,

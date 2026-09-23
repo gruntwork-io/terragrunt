@@ -1,6 +1,5 @@
 {
-  "buildCommand": "bunx bun@1.4.0 run build",
-  "installCommand": "bunx bun@1.4.0 install",
+  "installCommand": "bun install --frozen-lockfile",
   "framework": "astro",
   "trailingSlash": true,
   "rewrites": [
@@ -23,6 +22,22 @@
       "destination": "/sitemap-index.xml"
     },
     {
+      "source": "/mtag/gtm.js",
+      "destination": "/api/mtag"
+    },
+    {
+      "source": "/mtag/gtag/js/",
+      "destination": "https://www.googletagmanager.com/gtag/js"
+    },
+    {
+      "source": "/mtag/gtag/destination/",
+      "destination": "https://www.googletagmanager.com/gtag/destination"
+    },
+    {
+      "source": "/mtag/debug/bootstrap/",
+      "destination": "https://www.googletagmanager.com/debug/bootstrap"
+    },
+    {
       "source": "/mtag/:path*",
       "destination": "https://www.googletagmanager.com/:path*"
     },
@@ -32,7 +47,39 @@
     },
     {
       "source": "/htag/:path*",
-      "destination": "https://js.hs-analytics.net/:path*"
+      "destination": "https://js.hs-scripts.com/:path*"
+    },
+    {
+      "source": "/rtag/:path*",
+      "destination": "https://www.redditstatic.com/:path*"
+    },
+    {
+      "source": "/gtag/g/collect/",
+      "destination": "https://analytics.google.com/g/collect"
+    },
+    {
+      "source": "/gtag/ccm/collect/",
+      "destination": "https://analytics.google.com/ccm/collect"
+    },
+    {
+      "source": "/gtag/ccm/s/collect/",
+      "destination": "https://analytics.google.com/ccm/s/collect"
+    },
+    {
+      "source": "/gtag/mc/collect/",
+      "destination": "https://analytics.google.com/mc/collect"
+    },
+    {
+      "source": "/gtag/rmkt/collect/",
+      "destination": "https://analytics.google.com/rmkt/collect"
+    },
+    {
+      "source": "/gtag/:path*",
+      "destination": "https://analytics.google.com/:path*"
+    },
+    {
+      "source": "/ltag/:path*",
+      "destination": "https://snap.licdn.com/:path*"
     }
   ],
   "redirects": [

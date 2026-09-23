@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -166,7 +167,7 @@ func benchmarkShapeLinkModes(
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(root, "store")))
 	require.NoError(b, err)
 
-	require.NoError(b, c.Clone(b.Context(), l, v, repoURL,
+	require.NoError(b, c.Clone(b.Context(), l, v, redact.NewURL(repoURL),
 		cas.WithDir(filepath.Join(root, "warm")), cas.WithDepth(-1)))
 
 	tree := benchLinkTree(b, v, repoURL, filepath.Join(root, "src"), shape.files())

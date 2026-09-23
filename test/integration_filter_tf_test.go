@@ -271,7 +271,7 @@ terraform {
 	)
 	require.NoError(t, err)
 
-	mainTF := `resource "null_resource" "test" {
+	mainTF := pinnedProvidersTF("hashicorp/null") + `resource "null_resource" "test" {
   triggers = {
     test = "value"
   }
@@ -1025,7 +1025,7 @@ func TestTFOutDirWithGitFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create main.tf with a simple null resource
-	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "test" {}
 `), 0644)
 	require.NoError(t, err)
@@ -1042,7 +1042,7 @@ resource "null_resource" "test" {}
 	err = os.WriteFile(filepath.Join(newUnitDir, "terragrunt.hcl"), []byte(`# New unit`), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(newUnitDir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(newUnitDir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "test" {}
 `), 0644)
 	require.NoError(t, err)
@@ -1104,7 +1104,7 @@ func TestTFDestroyWithOutDirGitFilter(t *testing.T) {
 	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Unit to destroy`), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "test" {}
 `), 0644)
 	require.NoError(t, err)
@@ -1187,7 +1187,7 @@ func TestTFDestroyWithOutDirGitFilterDependentsWithRacing(t *testing.T) {
 	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Unit to destroy`), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "test" {}
 `), 0644)
 	require.NoError(t, err)
@@ -1209,7 +1209,7 @@ dependency "b" {
 `), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(unitADir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(unitADir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "unit_a" {}
 `), 0644)
 	require.NoError(t, err)

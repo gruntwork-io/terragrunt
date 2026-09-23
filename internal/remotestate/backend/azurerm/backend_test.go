@@ -24,77 +24,17 @@ func TestBackendName(t *testing.T) {
 	assert.Equal(t, azurerm.BackendName, azurerm.NewBackend().Name())
 }
 
-// TestExperimentGate pins how a disabled experiment behaves. The passive
-// lifecycle checks must be no-ops: before this backend existed an azurerm
-// config inherited CommonBackend's no-op, so a globally applied
-// --backend-bootstrap continued into native init. Gating must not turn that
-// previously working path into a failure. Explicitly invoked destructive
-// commands still report that the experiment is required.
-func TestExperimentGate(t *testing.T) {
+// TestInvalidConfigSurfaces verifies that a lifecycle entry point runs config
+// validation and reports an invalid config rather than doing nothing.
+func TestInvalidConfigSurfaces(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 	ctx := t.Context()
-	bcfg := backend.Config(fullConfig())
-	opts := optsWithExperiment(t, false)
 	b := azurerm.NewBackend()
 
-	t.Run("NeedsBootstrap is a no-op", func(t *testing.T) {
-		t.Parallel()
-
-		needs, err := b.NeedsBootstrap(ctx, l, venvtest.New(), bcfg, opts)
-		require.NoError(t, err)
-		assert.False(t, needs)
-	})
-
-	t.Run("Bootstrap is a no-op", func(t *testing.T) {
-		t.Parallel()
-		require.NoError(t, b.Bootstrap(ctx, l, venvtest.New(), bcfg, opts))
-	})
-
-	t.Run("IsVersionControlEnabled is a no-op", func(t *testing.T) {
-		t.Parallel()
-
-		enabled, err := b.IsVersionControlEnabled(ctx, l, venvtest.New(), bcfg, opts)
-		require.NoError(t, err)
-		assert.False(t, enabled)
-	})
-
-	t.Run("Delete reports the experiment", func(t *testing.T) {
-		t.Parallel()
-		require.ErrorIs(t, b.Delete(ctx, l, venvtest.New(), bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
-	})
-
-	t.Run("DeleteBucket reports the experiment", func(t *testing.T) {
-		t.Parallel()
-		require.ErrorIs(
-			t,
-			b.DeleteBucket(ctx, l, venvtest.New(), bcfg, opts),
-			azurerm.ErrAzureBackendExperimentRequired,
-		)
-	})
-
-	t.Run("Migrate reports the experiment", func(t *testing.T) {
-		t.Parallel()
-		require.ErrorIs(t, b.Migrate(ctx, l, venvtest.New(), venvtest.New(), bcfg, bcfg, opts), azurerm.ErrAzureBackendExperimentRequired)
-	})
-}
-
-// TestExperimentEnabled_InvalidConfigSurfaces verifies that once the experiment
-// is enabled, the gate is passed and config validation runs (an invalid config
-// returns a validation error rather than the experiment error).
-func TestExperimentEnabled_InvalidConfigSurfaces(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-	ctx := t.Context()
-	opts := optsWithExperiment(t, true)
-	b := azurerm.NewBackend()
-
-	// Missing required keys -> validation error, NOT the experiment error.
-	_, err := b.NeedsBootstrap(ctx, l, venvtest.New(), backend.Config{}, opts)
-	require.Error(t, err)
-	assert.NotErrorIs(t, err, azurerm.ErrAzureBackendExperimentRequired)
+	_, err := b.NeedsBootstrap(ctx, l, venvtest.New(), backend.Config{}, testBackendOptions(t))
+	require.Error(t, err, "missing required keys must surface as a validation error")
 }
 
 // TestGetTFInitArgs_Backend exercises the Backend.GetTFInitArgs entry point.
@@ -123,7 +63,7 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx := t.Context()
-	opts := optsWithExperiment(t, true)
+	opts := testBackendOptions(t)
 	b := azurerm.NewBackend()
 
 	srcCfg := backend.Config(fullConfig())
@@ -150,7 +90,7 @@ func TestMigrate_CrossCloudRefused(t *testing.T) {
 	t.Parallel()
 
 	b := azurerm.NewBackend()
-	opts := optsWithExperiment(t, true)
+	opts := testBackendOptions(t)
 
 	srcRaw := fullConfig()
 	srcRaw["environment"] = "public"
@@ -180,7 +120,7 @@ func TestMigrate_SameCloudAliasAllowed(t *testing.T) {
 	t.Parallel()
 
 	b := azurerm.NewBackend()
-	opts := optsWithExperiment(t, true)
+	opts := testBackendOptions(t)
 
 	srcRaw := fullConfig()
 	srcRaw["environment"] = "public"
@@ -208,7 +148,7 @@ func TestNeedsBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {
 
 	needs, err := azurerm.NewBackend().NeedsBootstrap(
 		t.Context(),
-		logger.CreateLogger(), venvtest.New(), backend.Config(rgLessSkipAllConfig()), optsWithExperiment(t, true))
+		logger.CreateLogger(), venvtest.New(), backend.Config(rgLessSkipAllConfig()), testBackendOptions(t))
 	require.NoError(t, err)
 	assert.False(t, needs)
 }
@@ -220,7 +160,7 @@ func TestBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {
 
 	err := azurerm.NewBackend().Bootstrap(
 		t.Context(),
-		logger.CreateLogger(), venvtest.New(), backend.Config(rgLessSkipAllConfig()), optsWithExperiment(t, true))
+		logger.CreateLogger(), venvtest.New(), backend.Config(rgLessSkipAllConfig()), testBackendOptions(t))
 	require.NoError(t, err)
 }
 
@@ -236,7 +176,7 @@ func TestBootstrap_AssignBlobDataRoleRequiresARM(t *testing.T) {
 
 	err := azurerm.NewBackend().Bootstrap(
 		t.Context(),
-		logger.CreateLogger(), venvtest.New(), backend.Config(cfg), optsWithExperiment(t, true))
+		logger.CreateLogger(), venvtest.New(), backend.Config(cfg), testBackendOptions(t))
 
 	var requiresARM *azurerm.AssignBlobDataRoleRequiresARMError
 	require.ErrorAs(t, err, &requiresARM)
@@ -256,7 +196,7 @@ func TestNeedsBootstrap_AssignBlobDataRoleRequiresARM(t *testing.T) {
 
 	_, err := azurerm.NewBackend().NeedsBootstrap(
 		t.Context(),
-		logger.CreateLogger(), venvtest.New(), backend.Config(cfg), optsWithExperiment(t, true))
+		logger.CreateLogger(), venvtest.New(), backend.Config(cfg), testBackendOptions(t))
 
 	var requiresARM *azurerm.AssignBlobDataRoleRequiresARMError
 	require.ErrorAs(t, err, &requiresARM)
@@ -278,7 +218,7 @@ func TestNeedsBootstrap_RoleOnlyDriftRequiresBootstrap(t *testing.T) {
 			logger.CreateLogger(),
 			venvtest.New().WithHTTP(roleDriftHTTP(false)),
 			backend.Config(roleOnlyDriftConfig()),
-			optsWithExperiment(t, true),
+			testBackendOptions(t),
 		)
 		require.NoError(t, err)
 		assert.True(t, needs, "missing blob-data role must require bootstrap")
@@ -292,7 +232,7 @@ func TestNeedsBootstrap_RoleOnlyDriftRequiresBootstrap(t *testing.T) {
 			logger.CreateLogger(),
 			venvtest.New().WithHTTP(roleDriftHTTP(true)),
 			backend.Config(roleOnlyDriftConfig()),
-			optsWithExperiment(t, true),
+			testBackendOptions(t),
 		)
 		require.NoError(t, err)
 		assert.False(t, needs, "assigned blob-data role must not require bootstrap")
@@ -308,22 +248,17 @@ func TestIsVersionControlEnabled_NoResourceGroupDegrades(t *testing.T) {
 	delete(cfg, "resource_group_name")
 
 	enabled, err := azurerm.NewBackend().IsVersionControlEnabled(
-		t.Context(), logger.CreateLogger(), venvtest.New(), backend.Config(cfg), optsWithExperiment(t, true))
+		t.Context(), logger.CreateLogger(), venvtest.New(), backend.Config(cfg), testBackendOptions(t))
 	require.NoError(t, err)
 	assert.False(t, enabled)
 }
 
-// optsWithExperiment returns backend.Options with the azure-backend experiment
-// enabled (or not), without touching real Azure.
-func optsWithExperiment(t *testing.T, enabled bool) *backend.Options {
+// testBackendOptions returns backend.Options for a non-interactive run,
+// without touching real Azure.
+func testBackendOptions(t *testing.T) *backend.Options {
 	t.Helper()
 
-	exps := experiment.NewExperiments()
-	if enabled {
-		require.NoError(t, exps.EnableExperiment(experiment.AzureBackend))
-	}
-
-	return &backend.Options{Experiments: exps, NonInteractive: true}
+	return &backend.Options{Experiments: experiment.NewExperiments(), NonInteractive: true}
 }
 
 // rgLessSkipAllConfig returns a config with no resource group and every
@@ -437,7 +372,7 @@ func TestMigrate_CrossCloudFromDestinationEnvRefused(t *testing.T) {
 	cfg := backend.Config(fullConfig()) // identical config on both sides
 
 	err := azurerm.NewBackend().Migrate(
-		t.Context(), logger.CreateLogger(), srcV, dstV, cfg, cfg, optsWithExperiment(t, true))
+		t.Context(), logger.CreateLogger(), srcV, dstV, cfg, cfg, testBackendOptions(t))
 
 	var crossCloud *azurerm.CrossCloudMigrationError
 	require.ErrorAs(t, err, &crossCloud)

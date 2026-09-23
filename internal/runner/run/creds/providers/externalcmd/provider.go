@@ -4,20 +4,24 @@ package externalcmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
-	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mattn/go-shellwords"
 )
+
+// ErrEmptyAuthProviderCmd is returned when parsing the auth provider command
+// yields no command to run, such as a value of only spaces.
+var ErrEmptyAuthProviderCmd = errors.New("auth provider command has no command to run")
 
 // Provider runs external command that returns a json string with credentials.
 type Provider struct {
@@ -78,12 +82,13 @@ func (provider *Provider) fetchCredentials(
 	l log.Logger,
 	v *venv.Venv,
 ) (*providers.Credentials, error) {
-	parser := shellwords.NewParser()
-
-	// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
-	parts, err := parser.Parse(filepath.ToSlash(provider.authProviderCmd))
+	parts, err := split.Command(provider.authProviderCmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse auth provider command: %w", err)
+	}
+
+	if len(parts) == 0 {
+		return nil, ErrEmptyAuthProviderCmd
 	}
 
 	command := parts[0]

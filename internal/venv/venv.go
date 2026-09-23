@@ -5,10 +5,11 @@
 // to do its work: [vfs.FS] for filesystem reads and writes, [vexec.Exec]
 // for spawning subprocesses, [vhttp.Client] for outbound HTTP,
 // [vsops.Decrypter] for SOPS decryption, the shell environment variables and
-// platform handles read at startup, the stdin reader, the console
-// characteristics output adapts to, and the stdout/stderr writers. Production
-// code constructs the real bundle once at the top via [OSVenv]; tests
-// construct an in-memory bundle and drive the full CLI through it.
+// platform handles read at startup, the OS signals a run waits on, the stdin
+// reader, the console characteristics output adapts to, and the stdout/stderr
+// writers. Production code constructs the real bundle once at the top via
+// [OSVenv]; tests construct an in-memory bundle and drive the full CLI through
+// it.
 //
 // This is the one Venv type threaded through the codebase. A package may
 // define its own local Venv only when its handle set genuinely differs
@@ -18,6 +19,7 @@ package venv
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"net"
@@ -26,6 +28,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -86,6 +89,11 @@ var ErrVenvWritersUnset = errors.New("venv.Venv.Writers is required but unset")
 // test that forgot to set Listen rather than a runtime condition.
 var ErrVenvListenUnset = errors.New("venv.Venv.Listen is required but unset")
 
+// ErrVenvSignalsUnset is the panic value [Venv.RequireSignals] raises when
+// Signals is nil. Production callers build the Venv through [OSVenv], so it
+// points at a test that forgot to set Signals rather than a runtime condition.
+var ErrVenvSignalsUnset = errors.New("venv.Venv.Signals is required but unset")
+
 // ErrVenvPlatformUnset is the panic value [Venv.RequirePlatform] raises when
 // Platform is nil. Production callers build the Venv through [OSVenv], so it
 // points at a test that forgot to set Platform rather than a runtime condition.
@@ -113,16 +121,21 @@ var ErrVenvUserConfigDirUnset = errors.New("venv.Venv.Platform.UserConfigDir is 
 // TempDir is nil.
 var ErrVenvTempDirUnset = errors.New("venv.Venv.Platform.TempDir is required but unset")
 
+// ErrVenvReplaceEnvironUnset is the panic value [Venv.RequireReplaceEnviron]
+// raises when ReplaceEnviron is nil.
+var ErrVenvReplaceEnvironUnset = errors.New("venv.Venv.Platform.ReplaceEnviron is required but unset")
+
 // Platform carries the operating-system handles used below the CLI boundary.
 type Platform struct {
-	UserHomeDir   func() (string, error)
-	UserCacheDir  func() (string, error)
-	UserConfigDir func() (string, error)
-	TempDir       func() string
-	Getwd         func() (string, error)
-	GetPID        func() int
-	GOOS          string
-	GOARCH        string
+	UserHomeDir    func() (string, error)
+	UserCacheDir   func() (string, error)
+	UserConfigDir  func() (string, error)
+	TempDir        func() string
+	Getwd          func() (string, error)
+	GetPID         func() int
+	ReplaceEnviron func(env map[string]string) error
+	GOOS           string
+	GOARCH         string
 }
 
 // Terminal reports the console a run's output is adapting to: whether each
@@ -159,6 +172,7 @@ type Venv struct {
 	Sops     vsops.Decrypter
 	Browser  vbrowser.Opener
 	Listen   Listener
+	Signals  signal.NotifierFunc
 	Stdin    io.Reader
 	Env      map[string]string
 	Platform *Platform
@@ -229,6 +243,14 @@ func (v *Venv) WithHTTP(c vhttp.Client) *Venv {
 func (v *Venv) WithBrowser(o vbrowser.Opener) *Venv {
 	c := *v
 	c.Browser = o
+
+	return &c
+}
+
+// WithSignals returns a copy of v whose OS signals are delivered by n.
+func (v *Venv) WithSignals(n signal.NotifierFunc) *Venv {
+	c := *v
+	c.Signals = n
 
 	return &c
 }
@@ -320,6 +342,20 @@ func (v *Venv) WithTempDir(tempDir func() string) *Venv {
 
 	platform := *v.Platform
 	platform.TempDir = tempDir
+
+	c := *v
+	c.Platform = &platform
+
+	return &c
+}
+
+// WithReplaceEnviron returns a copy of v whose process environment
+// replacement is replaceEnviron.
+func (v *Venv) WithReplaceEnviron(replaceEnviron func(env map[string]string) error) *Venv {
+	v.RequirePlatform()
+
+	platform := *v.Platform
+	platform.ReplaceEnviron = replaceEnviron
 
 	c := *v
 	c.Platform = &platform
@@ -446,6 +482,16 @@ func (v *Venv) RequireListen() {
 	}
 }
 
+// RequireSignals panics with [ErrVenvSignalsUnset] when Signals is nil.
+// Functions that wait on an OS signal call this as their first statement so a
+// missing handle panics at the offending call site instead of inside an
+// unrelated stack frame.
+func (v *Venv) RequireSignals() {
+	if v.Signals == nil {
+		panic(ErrVenvSignalsUnset)
+	}
+}
+
 // RequirePlatform panics with [ErrVenvPlatformUnset] when Platform is nil.
 // The platform builders call this so that refining one handle on a Venv that
 // carries no platform at all fails at the builder rather than silently
@@ -494,6 +540,14 @@ func (v *Venv) RequireUserConfigDir() {
 	}
 }
 
+// RequireReplaceEnviron panics with [ErrVenvReplaceEnvironUnset] when
+// ReplaceEnviron is nil.
+func (v *Venv) RequireReplaceEnviron() {
+	if v.Platform == nil || v.Platform.ReplaceEnviron == nil {
+		panic(ErrVenvReplaceEnvironUnset)
+	}
+}
+
 // RequireTempDir panics with [ErrVenvTempDirUnset] when TempDir is nil.
 func (v *Venv) RequireTempDir() {
 	if v.Platform == nil || v.Platform.TempDir == nil {
@@ -520,17 +574,19 @@ func OSVenv() *Venv {
 		Sops:    vsops.NewOSDecrypter(),
 		Browser: vbrowser.NewOSOpener(),
 		Listen:  (&net.ListenConfig{}).Listen,
+		Signals: signal.NotifierWithContext,
 		Stdin:   os.Stdin,
 		Env:     ParseEnviron(os.Environ()),
 		Platform: &Platform{
-			UserHomeDir:   os.UserHomeDir,
-			UserCacheDir:  os.UserCacheDir,
-			UserConfigDir: os.UserConfigDir,
-			TempDir:       os.TempDir,
-			Getwd:         os.Getwd,
-			GetPID:        os.Getpid,
-			GOOS:          runtime.GOOS,
-			GOARCH:        runtime.GOARCH,
+			UserHomeDir:    os.UserHomeDir,
+			UserCacheDir:   os.UserCacheDir,
+			UserConfigDir:  os.UserConfigDir,
+			TempDir:        os.TempDir,
+			Getwd:          os.Getwd,
+			GetPID:         os.Getpid,
+			ReplaceEnviron: replaceOSEnviron,
+			GOOS:           runtime.GOOS,
+			GOARCH:         runtime.GOARCH,
 		},
 		Terminal: &Terminal{
 			StdinIsTTY:  func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
@@ -540,6 +596,20 @@ func OSVenv() *Venv {
 		},
 		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}
+}
+
+// replaceOSEnviron clears the process environment, then sets every variable
+// in env.
+func replaceOSEnviron(env map[string]string) error {
+	os.Clearenv()
+
+	for name, value := range env {
+		if err := os.Setenv(name, value); err != nil {
+			return fmt.Errorf("setting %s in the process environment: %w", name, err)
+		}
+	}
+
+	return nil
 }
 
 // osTerminalWidth reports the real terminal's width, and 0 when stdout is not

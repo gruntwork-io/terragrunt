@@ -97,7 +97,7 @@ func WriteJSONOutput(fsys vfs.FS, path string, fn func(w io.Writer) error) (err 
 		return err
 	}
 
-	return fsys.Rename(tmpPath, path)
+	return vfs.RenameOver(fsys, tmpPath, path)
 }
 
 // releaseJSONOutputWriter returns w to the pool. Resetting it away from the file

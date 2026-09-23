@@ -28,7 +28,8 @@ const issuedTokenBody = `{
 	"token_type": "Bearer",
 	"expires_in": 2592000,
 	"scope": "catalog:read",
-	"org": {"id": "org_fake", "name": "Acme"},
+	"org_id": 42,
+	"org_name": "Acme",
 	"account": {"email": "someone@example.com"}
 }`
 
@@ -170,7 +171,7 @@ func TestPollTokenReturnsTheApprovedToken(t *testing.T) {
 		assert.Equal(t, "fake-access-token", token.AccessToken.Reveal())
 		assert.Equal(t, "Bearer", token.TokenType)
 		assert.Equal(t, "catalog:read", token.Scope)
-		assert.Equal(t, portal.Org{ID: "org_fake", Name: "Acme"}, token.Org)
+		assert.Equal(t, portal.Org{ID: "42", Name: "Acme"}, token.Org)
 		assert.Equal(t, portal.Account{Email: "someone@example.com"}, token.Account)
 		assert.Equal(t, 720*time.Hour, token.ExpiresIn)
 
@@ -186,12 +187,12 @@ func TestPollTokenKeepsAnIssuedTokenWithoutAnAccount(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		body := `{"access_token":"fake-access-token","token_type":"Bearer","expires_in":2592000,` +
-			`"org":{"id":"org_fake","name":"Acme"}}`
+			`"org_id":42,"org_name":"Acme"}`
 
 		token, err := poll(t, answeredWith(http.StatusOK, body).client(), testAuthorization())
 		require.NoError(t, err)
 
-		assert.Equal(t, "org_fake", token.Org.ID)
+		assert.Equal(t, "42", token.Org.ID)
 		assert.Empty(t, token.Account.Email)
 	})
 }
@@ -519,7 +520,7 @@ func TestPollTokenRidesOutATransientFailure(t *testing.T) {
 				token, err := poll(t, stub.client(), testAuthorization())
 				require.NoError(t, err)
 
-				assert.Equal(t, "org_fake", token.Org.ID)
+				assert.Equal(t, "42", token.Org.ID)
 				assert.Len(t, stub.at, 2)
 			})
 		})
@@ -606,15 +607,23 @@ func TestPollTokenRejectsUnusableResponse(t *testing.T) {
 		{name: "not json", body: `<html>hello</html>`},
 		{
 			name: "wrong field type",
-			body: `{"access_token":"fake-access-token","org":{"id":"org_fake"},"expires_in":"2592000"}`,
+			body: `{"access_token":"fake-access-token","org_id":42,"expires_in":"2592000"}`,
 		},
 		{
 			name: "no lifetime",
-			body: `{"access_token":"fake-access-token","org":{"id":"org_fake"}}`,
+			body: `{"access_token":"fake-access-token","org_id":42}`,
 		},
 		{
 			name: "a lifetime too large to hold",
-			body: `{"access_token":"fake-access-token","org":{"id":"org_fake"},"expires_in":2592000000000}`,
+			body: `{"access_token":"fake-access-token","org_id":42,"expires_in":2592000000000}`,
+		},
+		{
+			name: "an org id sent as a string",
+			body: `{"access_token":"fake-access-token","org_id":"42","expires_in":2592000}`,
+		},
+		{
+			name: "an org id that names no org",
+			body: `{"access_token":"fake-access-token","org_id":-42,"expires_in":2592000}`,
 		},
 	}
 
@@ -641,8 +650,8 @@ func TestPollTokenRejectsMissingField(t *testing.T) {
 		field string
 		body  string
 	}{
-		{field: "access_token", body: `{"org":{"id":"org_fake"},"expires_in":2592000}`},
-		{field: "org.id", body: `{"access_token":"fake-access-token","expires_in":2592000}`},
+		{field: "access_token", body: `{"org_id":42,"expires_in":2592000}`},
+		{field: "org_id", body: `{"access_token":"fake-access-token","expires_in":2592000}`},
 	}
 
 	for _, tt := range tc {

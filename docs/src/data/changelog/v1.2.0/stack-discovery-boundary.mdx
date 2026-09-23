@@ -1,0 +1,8 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Stack commands respect `--discovery-boundary`
+
+The `--discovery-boundary` flag now works with `stack generate`, `stack run`, and `stack output`. Previously these commands scanned the entire working directory for stack files, ignoring the boundary. In monorepos where a catalog lives alongside live infrastructure, this caused errors when out-of-scope stacks referenced files that only exist in the live tree.

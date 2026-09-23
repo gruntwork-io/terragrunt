@@ -32,3 +32,6 @@ resource.syso
 
 # pprof profiles from the --profile-* flags and go test -*profile
 *.prof
+
+# .github/scripts dev dependencies
+node_modules

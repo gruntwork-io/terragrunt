@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -45,7 +46,7 @@ func TestProbeOriginStampedOnlyByFetchSource(t *testing.T) {
 	require.NoError(t, c.FetchSource(fetchCtx, l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
 		cas.SourceRequest{
 			Scheme:       "git",
-			URL:          "https://example.com/probe-origin.git",
+			URL:          redact.NewURL("https://example.com/probe-origin.git"),
 			Resolver:     &cas.GitResolver{Venv: v, Branch: "main"},
 			Fetch:        ingestFixture(t, c),
 			ProbeCaching: cas.ProbeCachedByResolver,
@@ -54,7 +55,7 @@ func TestProbeOriginStampedOnlyByFetchSource(t *testing.T) {
 
 	stackCtx, stackSpan := tracer.Start(t.Context(), "stack_generate_unit")
 	_, err = (&cas.GitResolver{Venv: v, Branch: "main"}).
-		Probe(stackCtx, "https://example.com/probe-origin.git")
+		Probe(stackCtx, redact.NewURL("https://example.com/probe-origin.git"))
 	require.NoError(t, err)
 	stackSpan.End()
 

@@ -99,6 +99,7 @@ func TestNestedStacksGenerate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that logs contain stack generation messages
+	stderr = filepath.ToSlash(stderr)
 	assert.Contains(t, stderr, "Generating stack prod from ./terragrunt.stack.hcl")
 	assert.Contains(t, stderr, "Generating stack dev from ./terragrunt.stack.hcl")
 	assert.Contains(
@@ -278,6 +279,7 @@ func TestStackCleanRecursively(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(live, ".terragrunt-stack"))
 	assert.NoDirExists(t, filepath.Join(liveV2, ".terragrunt-stack"))
 
+	stderr = filepath.ToSlash(stderr)
 	assert.Contains(t, stderr, "Deleting stack directory: live/.terragrunt-stack")
 	assert.Contains(t, stderr, "Deleting stack directory: live-v2/.terragrunt-stack")
 }
@@ -707,9 +709,11 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 
 		expected = filepath.ToSlash(expected)
 
+		// The generated file quotes the path as an HCL string, so on Windows
+		// each separator arrives as an escaped backslash.
 		assert.Contains(
 			t,
-			string(content),
+			strings.ReplaceAll(string(content), `\\`, "/"),
 			`stack_dir = "`+expected+`"`,
 			"wrong stack_dir in %s",
 			valuesPath,

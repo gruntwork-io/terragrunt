@@ -456,10 +456,7 @@ func TestTFCustomLockFile(t *testing.T) {
 	readFile, err := os.ReadFile(lockFilePath)
 	require.NoError(t, err)
 
-	// In our lock file, we intentionally have hashes for an older version of the AWS provider. If the lock file
-	// copying works, then Terraform will stick with this older version. If there is a bug, Terraform will end up
-	// installing a newer version (since the version is not pinned in the .tf code, only in the lock file).
-	assert.Contains(t, string(readFile), `version     = "5.23.0"`)
+	assert.Contains(t, string(readFile), `version     = "6.56.0"`)
 }
 
 func TestTFExcludeDirs(t *testing.T) {

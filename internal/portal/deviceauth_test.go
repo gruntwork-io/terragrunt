@@ -286,6 +286,13 @@ func TestAuthorizeDeviceReportsRefusal(t *testing.T) {
 			wantDescription: "Internal server error.",
 		},
 		{
+			name:            "feature switched off",
+			status:          http.StatusForbidden,
+			body:            `{"error":"feature_not_enabled","message":"The catalog feature is not enabled."}`,
+			wantCode:        portal.ErrorCodeFeatureNotEnabled,
+			wantDescription: "The catalog feature is not enabled.",
+		},
+		{
 			name:   "intermediary standing in",
 			status: http.StatusBadGateway,
 			body:   `<html>502 Bad Gateway</html>`,

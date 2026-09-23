@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func TestS3Resolver_PrefersSHA256(t *testing.T) {
 		ETag:           aws.String(`"etag-token"`),
 	}})
 
-	got, err := r.Probe(t.Context(), "https://s3-us-east-1.amazonaws.com/bucket/key.tgz")
+	got, err := r.Probe(t.Context(), redact.NewURL("https://s3-us-east-1.amazonaws.com/bucket/key.tgz"))
 	require.NoError(t, err)
 	assert.Equal(t, cas.ContentKey("sha256", "sha256-token"), got)
 }
@@ -80,7 +81,7 @@ func TestS3Resolver_FallsThroughChecksumCascade(t *testing.T) {
 
 			r := newS3ResolverWith(&fakeS3Head{out: tt.head})
 
-			got, err := r.Probe(t.Context(), "https://s3-us-east-1.amazonaws.com/bucket/key.tgz")
+			got, err := r.Probe(t.Context(), redact.NewURL("https://s3-us-east-1.amazonaws.com/bucket/key.tgz"))
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
@@ -95,7 +96,7 @@ func TestS3Resolver_FallsBackToOpaqueETag(t *testing.T) {
 	}})
 
 	url := "https://s3-us-east-1.amazonaws.com/bucket/key.tgz"
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, cas.OpaqueKey("s3", url, "etag-token"), got)
 }
@@ -108,7 +109,7 @@ func TestS3Resolver_MultipartETagStaysOpaque(t *testing.T) {
 	}})
 
 	url := "https://s3-us-east-1.amazonaws.com/bucket/key.tgz"
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	// Multipart ETag is treated opaquely, scoped to URL.
 	assert.Equal(t, cas.OpaqueKey("s3", url, "d41d8cd98f00b204e9800998ecf8427e-3"), got)
@@ -119,7 +120,7 @@ func TestS3Resolver_HeadFailureSurfacesErrNoVersionMetadata(t *testing.T) {
 
 	r := newS3ResolverWith(&fakeS3Head{err: errors.New("transient AWS error")})
 
-	_, err := r.Probe(t.Context(), "https://s3-us-east-1.amazonaws.com/bucket/key.tgz")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://s3-us-east-1.amazonaws.com/bucket/key.tgz"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -171,7 +172,7 @@ func TestS3Resolver_AcceptsModernURLForms(t *testing.T) {
 				return head, nil
 			}
 
-			got, err := r.Probe(t.Context(), tt.url)
+			got, err := r.Probe(t.Context(), redact.NewURL(tt.url))
 			require.NoError(t, err, "parseS3URL must accept %s", tt.url)
 			assert.Equal(t, cas.ContentKey("sha256", "sha256-token"), got)
 
@@ -240,7 +241,7 @@ func TestS3Resolver_VersionedURLForwardsVersionIDToHeadObject(t *testing.T) {
 			}}
 			r := newS3ResolverWith(head)
 
-			_, err := r.Probe(t.Context(), tt.url)
+			_, err := r.Probe(t.Context(), redact.NewURL(tt.url))
 			require.NoError(t, err)
 			require.NotNil(t, head.gotInput)
 			require.NotNil(
@@ -264,7 +265,7 @@ func TestS3Resolver_UnversionedURLOmitsVersionID(t *testing.T) {
 	}}
 	r := newS3ResolverWith(head)
 
-	_, err := r.Probe(t.Context(), "https://s3-us-east-1.amazonaws.com/bucket/key.tgz")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://s3-us-east-1.amazonaws.com/bucket/key.tgz"))
 	require.NoError(t, err)
 	require.NotNil(t, head.gotInput)
 	assert.Nil(t, head.gotInput.VersionId,
@@ -314,7 +315,7 @@ func TestS3Resolver_RejectsNonS3AmazonawsHosts(t *testing.T) {
 
 			r := newS3ResolverWith(&assertingS3Head{t: t})
 
-			_, err := r.Probe(t.Context(), tt.url)
+			_, err := r.Probe(t.Context(), redact.NewURL(tt.url))
 			require.ErrorIs(t, err, getter.ErrS3UnrecognizedURL,
 				"parseS3URL must reject non-S3 amazonaws.com host %q", tt.url)
 			require.NotErrorIs(
@@ -336,7 +337,7 @@ func TestS3Resolver_RejectsS3CompatibleURLWithoutKey(t *testing.T) {
 
 	r := newS3ResolverWith(&assertingS3Head{t: t})
 
-	_, err := r.Probe(t.Context(), "https://minio.example.com/bucket")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://minio.example.com/bucket"))
 	require.ErrorIs(t, err, getter.ErrS3CompatibleUnrecognizedURL)
 	require.NotErrorIs(t, err, cas.ErrNoVersionMetadata)
 }

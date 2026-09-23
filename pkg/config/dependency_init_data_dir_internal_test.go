@@ -14,7 +14,7 @@ import (
 func TestDependencyInitDataDir(t *testing.T) {
 	t.Parallel()
 
-	workingDir := filepath.Join(string(filepath.Separator), "tmp", "cache", "unit")
+	workingDir := venvtest.Root("/tmp/cache/unit")
 	defaultDataDir := filepath.Join(workingDir, tf.DefaultTFDataDir)
 
 	tcs := []struct {
@@ -39,7 +39,7 @@ func TestDependencyInitDataDir(t *testing.T) {
 		},
 		{
 			name:    "absolute outside the working dir falls back",
-			dataDir: filepath.Join(string(filepath.Separator), "shared", "tf-data"),
+			dataDir: venvtest.Root("/shared/tf-data"),
 			want:    defaultDataDir,
 		},
 		{
@@ -79,8 +79,8 @@ func TestDependencyInitDataDir(t *testing.T) {
 func TestDependencyStateDataDirKeepsAbsolutePath(t *testing.T) {
 	t.Parallel()
 
-	workingDir := filepath.Join(string(filepath.Separator), "tmp", "cache", "unit")
-	shared := filepath.Join(string(filepath.Separator), "shared", "tf-data")
+	workingDir := venvtest.Root("/tmp/cache/unit")
+	shared := venvtest.Root("/shared/tf-data")
 
 	pctx := &ParsingContext{
 		Venv: venvtest.NewOSWithEmptyEnv().WithEnv(map[string]string{"TF_DATA_DIR": shared}),

@@ -13,6 +13,11 @@ import (
 // DoWithRetry runs the specified action. If it returns a value, return that value. If it returns an error, sleep for
 // sleepBetweenRetries and try again, up to a maximum of maxRetries retries. If maxRetries is exceeded, return a
 // MaxRetriesExceeded error.
+//
+// NOTE: This should probably move into internal/retry and delegate to
+// [github.com/gruntwork-io/terragrunt/internal/retry.Do], so the codebase has
+// one retry driver. Whoever does it should preserve the maxRetries+1 attempts
+// this loop makes.
 func DoWithRetry(
 	ctx context.Context,
 	actionDescription string,

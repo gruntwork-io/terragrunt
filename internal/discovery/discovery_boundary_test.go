@@ -13,8 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // boundaryFixture is an in-memory monorepo whose graph crosses out of the
@@ -38,7 +40,7 @@ type boundaryFixture struct {
 func newBoundaryFixture(t *testing.T) (boundaryFixture, *venv.Venv) {
 	t.Helper()
 
-	repoRoot := string(filepath.Separator) + "repo"
+	repoRoot := venvtest.Root("/repo")
 
 	// The venv answers the git top-level probe with repoRoot, so traversal
 	// bounds to the repository root when no discovery boundary is configured.
@@ -610,6 +612,115 @@ func TestDiscoveryBoundary_ExcludedDependencyStaysLinked(t *testing.T) {
 				depPaths,
 				"the dependency stays linked whether or not the boundary returns it",
 			)
+		})
+	}
+}
+
+// TestNewForStackGenerate_BoundaryNarrowsWalk pins that a boundary never
+// widens the working-directory scope, that inline graph boundaries override the
+// flag (matching filter evaluation precedence), and that disjoint inline
+// boundaries do not silently drop targets.
+func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := venvtest.Root("/monorepo")
+	liveDir := filepath.Join(repoRoot, "live")
+	catalogDir := filepath.Join(repoRoot, "catalog", "stacks")
+
+	v := memRepoRootVenv(t, repoRoot)
+
+	for _, dir := range []string{liveDir, catalogDir} {
+		require.NoError(t, vfs.WriteFile(
+			v.FS,
+			filepath.Join(dir, "terragrunt.stack.hcl"),
+			[]byte("# stack\n"),
+			0o644,
+		))
+	}
+
+	l := logger.CreateLogger()
+
+	parseFilters := func(queries ...string) filter.Filters {
+		filters, err := filter.ParseFilterQueries(l, queries)
+		require.NoError(t, err)
+
+		return filters
+	}
+
+	testCases := []struct {
+		name     string
+		workDir  string
+		boundary string
+		filters  filter.Filters
+		expected []string
+	}{
+		{
+			name:     "no boundary discovers all stacks",
+			workDir:  repoRoot,
+			expected: []string{liveDir, catalogDir},
+		},
+		{
+			name:     "flag boundary restricts to child directory",
+			workDir:  repoRoot,
+			boundary: liveDir,
+			expected: []string{liveDir},
+		},
+		{
+			name:     "boundary equal to working dir discovers everything",
+			workDir:  repoRoot,
+			boundary: repoRoot,
+			expected: []string{liveDir, catalogDir},
+		},
+		{
+			name:     "boundary wider than working dir keeps working dir scope",
+			workDir:  liveDir,
+			boundary: repoRoot,
+			expected: []string{liveDir},
+		},
+		{
+			name:     "inline graph boundary restricts without flag",
+			workDir:  repoRoot,
+			filters:  parseFilters("(" + liveDir + ")...[main...HEAD]"),
+			expected: []string{liveDir},
+		},
+		{
+			name:     "inline boundary overrides wider flag",
+			workDir:  repoRoot,
+			boundary: repoRoot,
+			filters:  parseFilters("(" + liveDir + ")...[main...HEAD]"),
+			expected: []string{liveDir},
+		},
+		{
+			name:    "disjoint inline boundaries do not narrow",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveDir+")...[main...HEAD]",
+				"("+catalogDir+")...[main...HEAD]",
+			),
+			expected: []string{liveDir, catalogDir},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			d, err := discovery.NewForStackGenerate(l, v.FS, discovery.StackGenerateOptions{
+				WorkingDir:        tc.workDir,
+				DiscoveryBoundary: tc.boundary,
+				Filters:           tc.filters,
+			})
+			require.NoError(t, err)
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = tc.workDir
+			opts.RootWorkingDir = tc.workDir
+
+			components, err := d.Discover(t.Context(), l, v, opts)
+			require.NoError(t, err)
+
+			stacks := components.Filter(component.StackKind).Paths()
+			assert.ElementsMatch(t, tc.expected, stacks)
 		})
 	}
 }

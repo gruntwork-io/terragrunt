@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -14,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/detect"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -98,18 +98,16 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 			opt(&cfg)
 		}
 
-		c := cfg.httpClient
-		if c == nil {
-			g.Venv.RequireHTTP()
-			c = g.Venv.HTTP
+		g.Venv.RequireExec()
+		g.Venv.RequireHTTP()
+
+		v := g.Venv
+		if cfg.httpClient != nil {
+			v = v.WithHTTP(cfg.httpClient)
 		}
 
-		g.Venv.RequireExec()
-
-		g.fetchers = DefaultGenericFetchers(
-			g.Venv,
-			slices.Concat(opts, []GenericFetcherOption{WithHTTPClient(c)})...)
-		g.resolvers = DefaultSourceResolvers(g.Venv.WithHTTP(c), opts...)
+		g.fetchers = DefaultGenericFetchers(v, opts...)
+		g.resolvers = DefaultSourceResolvers(v, opts...)
 	}
 }
 
@@ -428,7 +426,7 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
 	u, ref := cas.StripGitURLParams(req.URL())
 
-	return g.CAS.Clone(ctx, g.Logger, g.Venv, GitCloneURL(u.String()),
+	return g.CAS.Clone(ctx, g.Logger, g.Venv, redact.NewURL(GitCloneURL(u.String())),
 		cas.WithDir(req.Dst),
 		cas.WithBranch(ref),
 		cas.WithDepth(g.Opts.Depth),
@@ -451,7 +449,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 
 	bare := g.fetchers[scheme]
 
-	innerURL := innerArchiveURL(req.URL(), g.userDisabledArchive)
+	innerURL := redact.NewURL(innerArchiveURL(req.URL(), g.userDisabledArchive))
 
 	opts := *g.Opts
 	opts.Dir = req.Dst
@@ -467,7 +465,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	})
 }
 
-// buildInnerFetch returns a SourceFetcher that downloads urlStr into a
+// buildInnerFetch returns a SourceFetcher that downloads source into a
 // fresh temp directory through an inner [getter.Client] built by
 // [InnerClientBuilder] and ingests the result via
 // [cas.CAS.IngestDirectory]. The inner client uses the default
@@ -482,7 +480,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 // The ingest mode is ignored: this shape downloads and re-ingests every
 // time it runs, and ingesting content already writes each object the
 // store lacks, so a repair pass needs nothing extra from it.
-func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) cas.SourceFetcher {
+func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme string, source redact.URL) cas.SourceFetcher {
 	return func(
 		ctx context.Context,
 		l log.Logger,
@@ -499,10 +497,10 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 
 		inner := g.innerClient(bare, scheme)
 
-		fetchURL, treeKey := g.pinOCIDigest(ctx, scheme, urlStr, suggestedKey)
+		fetchURL, treeKey := g.pinOCIDigest(ctx, scheme, source, suggestedKey)
 
 		if _, err := inner.Get(ctx, &getter.Request{
-			Src:     fetchURL,
+			Src:     fetchURL.Reveal(),
 			Dst:     tempDir,
 			Forced:  scheme,
 			GetMode: getter.ModeAny,
@@ -517,32 +515,37 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 // ociDigestResolver binds a mutable oci reference to the digest it resolves
 // to at download time.
 type ociDigestResolver interface {
-	ResolveDigest(ctx context.Context, rawURL string) (string, error)
+	ResolveDigest(ctx context.Context, source redact.URL) (string, error)
 }
 
 // pinOCIDigest rewrites a mutable oci reference to the digest it resolves to
 // right now, so the download and the cache key name one immutable manifest
 // and a tag moving mid-fetch can never be stored under a stale key.
-func (g *CASGetter) pinOCIDigest(ctx context.Context, scheme, rawURL, suggestedKey string) (string, string) {
+func (g *CASGetter) pinOCIDigest(
+	ctx context.Context,
+	scheme string,
+	source redact.URL,
+	suggestedKey string,
+) (redact.URL, string) {
 	if scheme != SchemeOCI {
-		return rawURL, suggestedKey
+		return source, suggestedKey
 	}
 
 	resolver, ok := g.resolvers[scheme].(ociDigestResolver)
 	if !ok {
 		// No digest contract: content-hash rather than trust a mutable probe key.
-		return rawURL, ""
+		return source, ""
 	}
 
-	digestValue, err := resolver.ResolveDigest(ctx, rawURL)
+	digestValue, err := resolver.ResolveDigest(ctx, source)
 	if err != nil {
 		// Unresolvable right now: content-hash instead of trusting the probe key.
-		g.Logger.Debugf("OCI digest pin of %q failed, content-hashing instead: %v", rawURL, err)
+		g.Logger.Debugf("OCI digest pin of %q failed, content-hashing instead: %v", source, err)
 
-		return rawURL, ""
+		return source, ""
 	}
 
-	return pinnedOCIURL(rawURL, digestValue), cas.ContentKey(ociManifestKeyAlg, digestValue)
+	return redact.NewURL(pinnedOCIURL(source.Reveal(), digestValue)), cas.ContentKey(ociManifestKeyAlg, digestValue)
 }
 
 // pinnedOCIURL swaps a tag reference for the resolved digest pin.

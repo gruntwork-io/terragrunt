@@ -108,6 +108,23 @@ func (s *stringSet) Load(key string) bool {
 	return ok
 }
 
+// RelPathForComponent renders target through [RelPathOrAbs], relative to the
+// directory c was discovered under and to fallback when c names none. A
+// component matched by a git-range filter is discovered inside a worktree, so
+// its paths read against that worktree rather than the caller's working dir.
+func RelPathForComponent(
+	l log.Logger,
+	c component.Component,
+	fallback, target, desc string,
+) string {
+	base := fallback
+	if dctx := c.DiscoveryContext(); dctx != nil && dctx.WorkingDir != "" {
+		base = dctx.WorkingDir
+	}
+
+	return RelPathOrAbs(l, base, target, desc)
+}
+
 // RelPathOrAbs returns target made relative to base. On filepath.Rel failure (Windows cross-volume, etc.), it warns
 // and returns target unchanged so the entry still appears in output. The desc is included parenthetically in the
 // warning to identify which path failed.
@@ -293,7 +310,11 @@ func sanitizeReadFiles(files []string) []string {
 
 // extractDependencyPaths extracts all dependency paths from a Terragrunt
 // configuration, sorted and deduplicated.
-func extractDependencyPaths(fsys vfs.FS, cfg *config.TerragruntConfig, c component.Component) ([]string, error) {
+func extractDependencyPaths(
+	fsys vfs.FS,
+	cfg *config.TerragruntConfig,
+	c component.Component,
+) ([]string, error) {
 	if cfg == nil {
 		return nil, nil
 	}
@@ -436,7 +457,12 @@ func stackDependencyPaths(
 			continue
 		}
 
-		unitPaths, err := inthclparse.UnitPathsFromStackDir(v.FS, depPath, &inthclparse.StackDirArgs{FuncsFor: funcsFor})
+		unitPaths, err := inthclparse.UnitPathsFromStackDir(
+			ctx,
+			v.FS,
+			depPath,
+			&inthclparse.StackDirArgs{FuncsFor: funcsFor},
+		)
 		if err != nil {
 			return nil, NewStackDependencyExpansionError(depPath, err)
 		}

@@ -490,7 +490,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 
 	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{
-		filepath.Join(tmpPath, "terragrunt.hcl"),
+		filepath.ToSlash(filepath.Join(tmpPath, "terragrunt.hcl")),
 		"./a/b/c/d/e/**",
 	})
 	require.NoError(t, parseErr)
@@ -592,8 +592,8 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 // [TestHCLFmtStdin] covers the same flag for content arriving on standard
 // input, where the header names stdin instead of a path.
 //
-// The header names the path the file was found at. An in-memory root gives
-// the same string on every machine, so this compares the header too.
+// The header names the path the file was found at, which the fixture root
+// supplies, so this compares the header too.
 func TestHCLFmtDiffFile(t *testing.T) {
 	t.Parallel()
 
@@ -616,9 +616,9 @@ func TestHCLFmtDiffFile(t *testing.T) {
 		tgOptions,
 	))
 
-	formatted := filepath.Join(root, "terragrunt.hcl")
+	formatted := strings.TrimPrefix(filepath.ToSlash(filepath.Join(root, "terragrunt.hcl")), "/")
 	header := fmt.Sprintf(
-		"diff old%[1]s new%[1]s\n--- old%[1]s\n+++ new%[1]s\n",
+		"diff old/%[1]s new/%[1]s\n--- old/%[1]s\n+++ new/%[1]s\n",
 		formatted,
 	)
 

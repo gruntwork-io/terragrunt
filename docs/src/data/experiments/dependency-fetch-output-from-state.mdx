@@ -1,6 +1,6 @@
 ---
 name: dependency-fetch-output-from-state
-completedSince: "1.2.0"
+completedSince: "v1.2.0"
 ---
 
 import Since from '@components/Since.astro';
@@ -16,7 +16,7 @@ To opt-out of this behavior, pass `--no-dependency-fetch-output-from-state` (env
 **Current Backend Support:**
 
 - S3 and GCS backends: Direct state reads are supported
-- Azure Storage (`azurerm`) backend: Direct state reads are supported when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is enabled
+- Azure Storage (`azurerm`) backend: Direct state reads are supported<Before version="v1.2.0"> when the [`azure-backend`](/reference/experiments/active#azure-backend) experiment is also enabled</Before>
 - Other backends: Falls back to the normal method (using `tofu/terraform output`)
 
 Azure state protected with `customer_provided_key`, and Azure configurations that rely on native-only authentication, `metadata_host`, or `timeout_seconds`, also use the normal method.
@@ -33,21 +33,21 @@ Terragrunt reads credentials files of type `service_account`, `authorized_user`,
 
 **Failure handling:**
 
-<Before version="1.1.5">
+<Before version="v1.1.5">
 Outside `render` and `render-json`, a network, permissions, or parsing failure from a direct state read ends the run instead of retrying through OpenTofu/Terraform. A missing state object still follows the dependency block's `mock_outputs` behavior.
 </Before>
 
-<Since version="1.1.5">
+<Since version="v1.1.5">
 Reading state directly is an optimization. Outside `render` and `render-json`, Terragrunt retries a failed direct read with `tofu output` or `terraform output`, unless the state object is missing. If native output retrieval succeeds, only the speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list.
 </Since>
 
 **OpenTofu state encryption:**
 
-<Before version="1.1.5">
+<Before version="v1.1.5">
 This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the encrypted envelope carries no plaintext `outputs` object. Terragrunt treats the dependency as having no outputs. Referencing a missing output can then fail with `Unsupported attribute`, while configured mock-output merging can supply a mock value instead. Disable this experiment using `--no-dependency-fetch-output-from-state` to force native output retrieval.
 </Before>
 
-<Since version="1.1.5">
+<Since version="v1.1.5">
 The direct reader cannot decrypt state protected by OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) because it does not evaluate OpenTofu's encryption configuration or key providers from the `remote_state.encryption` map. Outside `render` and `render-json`, Terragrunt recognizes the encrypted envelope and retries with `tofu output` or `terraform output`, allowing the configured binary to decrypt the state when it supports that encryption. If native output retrieval succeeds, only the speedup is lost. For missing outputs, Terragrunt uses configured `mock_outputs` only when they are allowed for the original command. `skip_outputs` skips output retrieval and returns eligible configured mocks. The render commands retain their tolerant behavior and can use configured mocks regardless of the command allow-list. Disable the experiment when a render command must resolve real outputs from encrypted state.
 </Since>
 

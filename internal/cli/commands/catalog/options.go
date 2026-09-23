@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/format"
+	"github.com/gruntwork-io/terragrunt/internal/portal"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -26,14 +27,17 @@ const (
 type Options struct {
 	*options.TerragruntOptions
 
-	Format string
+	Format        string
+	PortalBaseURL string
 }
 
-// NewOptions returns catalog options with no format requested, leaving the
-// command to fill one in from [DefaultFormat].
+// NewOptions returns catalog options pointed at the production Gruntwork
+// Developer Portal, with no format requested, leaving the command to fill one
+// in from [DefaultFormat].
 func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
 		TerragruntOptions: opts,
+		PortalBaseURL:     portal.DefaultBaseURL,
 	}
 }
 

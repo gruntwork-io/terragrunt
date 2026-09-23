@@ -14,8 +14,9 @@
 // gracefully instead of failing the build.
 
 import type { APIRoute, GetStaticPaths } from 'astro';
-import { getCollection, getEntry } from 'astro:content';
-import { isFlagVisible } from '@lib/flags';
+import { getEntry, type CollectionEntry } from 'astro:content';
+import { getPublishedCommands } from '@lib/commands/published';
+import { isPublished } from '@lib/release';
 import {
 	markdownDocument,
 	safeEntryToMarkdown,
@@ -24,7 +25,7 @@ import {
 export const prerender = true;
 
 export const getStaticPaths = (async () => {
-	const commands = await getCollection('commands');
+	const commands = await getPublishedCommands();
 	return commands.map((command) => ({
 		// `data.path` is the slug the HTML route uses, so `<path>.md` mirrors it.
 		params: { slug: command.data.path },
@@ -32,7 +33,7 @@ export const getStaticPaths = (async () => {
 	}));
 }) satisfies GetStaticPaths;
 
-type CommandEntry = Awaited<ReturnType<typeof getCollection<'commands'>>>[number];
+type CommandEntry = CollectionEntry<'commands'>;
 
 async function flagToMarkdown(
 	slug: string,
@@ -40,7 +41,7 @@ async function flagToMarkdown(
 ): Promise<string | null> {
 	const flag = await getEntry('flags', slug);
 	if (!flag) return null;
-	if (!(await isFlagVisible(flag.data.since))) return null;
+	if (!(await isPublished(flag.data.since))) return null;
 
 	const { name, description, type, defaultVal, aliases, env } = flag.data;
 	const parts = [`### \`--${name}\``];
@@ -83,7 +84,7 @@ async function commandToMarkdown(
 		sections.push('## Examples');
 		for (const example of data.examples) {
 			if (example.description) sections.push(example.description.trim());
-			sections.push('```bash\n' + example.code.trim() + '\n```');
+			sections.push('```' + (example.lang ?? 'bash') + '\n' + example.code.trim() + '\n```');
 		}
 	}
 

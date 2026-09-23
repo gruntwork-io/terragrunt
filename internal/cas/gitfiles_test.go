@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -76,7 +77,7 @@ func TestCAS_IncludedGitFilesPerCaller(t *testing.T) {
 
 				dir := filepath.Join(tempDir, name)
 
-				require.NoError(t, c.Clone(t.Context(), l, v, repoURL,
+				require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 					cas.WithDir(dir),
 					cas.WithDepth(-1),
 					cas.WithIncludedGitFiles(files)))
@@ -123,7 +124,7 @@ func TestCAS_IncludedGitFilesFromFoldedTree(t *testing.T) {
 	}
 
 	seed := newStoreCAS()
-	require.NoError(t, seed.Clone(t.Context(), l, v, repoURL,
+	require.NoError(t, seed.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 		cas.WithDir(filepath.Join(tempDir, "seed")),
 		cas.WithDepth(-1),
 		cas.WithIncludedGitFiles([]string{"HEAD", "config"})))
@@ -135,7 +136,7 @@ func TestCAS_IncludedGitFilesFromFoldedTree(t *testing.T) {
 
 		dir := filepath.Join(tempDir, name)
 
-		require.NoError(t, newStoreCAS().Clone(t.Context(), l, v, repoURL,
+		require.NoError(t, newStoreCAS().Clone(t.Context(), l, v, redact.NewURL(repoURL),
 			cas.WithDir(dir),
 			cas.WithDepth(-1),
 			cas.WithIncludedGitFiles(files)))
@@ -216,7 +217,7 @@ func TestCAS_IncludedGitFilesConcurrentCallersWithRacing(t *testing.T) {
 		dirs[i] = filepath.Join(tempDir, "clone-"+strings.Join(files, "-"))
 
 		g.Go(func() error {
-			return c.Clone(ctx, l, v, repoURL,
+			return c.Clone(ctx, l, v, redact.NewURL(repoURL),
 				cas.WithDir(dirs[i]),
 				cas.WithDepth(-1),
 				cas.WithIncludedGitFiles(files))
@@ -254,14 +255,14 @@ func TestCAS_IncludedGitFilesFallbackClone(t *testing.T) {
 	require.NoError(t, err)
 
 	first := filepath.Join(tempDir, "first")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL,
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 		cas.WithDir(first),
 		cas.WithDepth(-1),
 		cas.WithIncludedGitFiles([]string{"HEAD", "config"})))
 	assertGitDir(t, first, []string{"HEAD", "config"})
 
 	second := filepath.Join(tempDir, "second")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL,
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 		cas.WithDir(second),
 		cas.WithDepth(-1),
 		cas.WithIncludedGitFiles([]string{"HEAD"})))
@@ -283,7 +284,7 @@ func TestCAS_IncludedGitFilesRejectsDirectory(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
-	err = c.Clone(t.Context(), l, v, repoURL,
+	err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL),
 		cas.WithDir(filepath.Join(tempDir, "repo")),
 		cas.WithDepth(-1),
 		cas.WithIncludedGitFiles([]string{"refs"}))
@@ -310,7 +311,7 @@ func TestFetchSource_IncludedGitFilesWithoutRecordsFails(t *testing.T) {
 
 	err := c.FetchSource(t.Context(), l, v, opts, cas.SourceRequest{
 		Scheme: "http",
-		URL:    "https://example.com/mod.tgz",
+		URL:    redact.NewURL("https://example.com/mod.tgz"),
 		Fetch:  fetch,
 	})
 	require.ErrorIs(t, err, cas.ErrGitFileNotStored)

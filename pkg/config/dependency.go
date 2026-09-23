@@ -114,7 +114,7 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 		dep.Expansion = sourceDepConfig.Expansion
 	}
 
-	if sourceDepConfig.ConfigPath.AsString() != "" {
+	if configPath, ok := sourceDepConfig.configPathString(); ok && configPath != "" {
 		dep.ConfigPath = sourceDepConfig.ConfigPath
 	}
 
@@ -208,6 +208,18 @@ func (dep *Dependency) isEnabled() bool {
 	return *dep.Enabled
 }
 
+// configPathString returns config_path when it evaluated to a known string. hcl validate
+// decodes configs that failed to parse and discovery decodes before every value resolves,
+// so config_path can arrive unknown or null.
+func (dep *Dependency) configPathString() (string, bool) {
+	if dep.ConfigPath.IsNull() || !dep.ConfigPath.IsWhollyKnown() ||
+		!dep.ConfigPath.Type().Equals(cty.String) {
+		return "", false
+	}
+
+	return dep.ConfigPath.AsString(), true
+}
+
 // isDisabled returns true if the dependency is disabled
 func (dep *Dependency) isDisabled() bool {
 	return !dep.isEnabled()
@@ -287,7 +299,12 @@ func decodeDependencyBlocks(
 	evalContext *hcl.EvalContext,
 	opts ...hclparse.ExpandOption,
 ) (Dependencies, error) {
-	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext, opts...)
+	instances, err := file.ExpandBlocks(
+		ctx,
+		MetadataDependency,
+		&Dependency{},
+		evalContext,
+		opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -878,11 +895,13 @@ func dependencyBlocksToCtyValue(
 			}
 
 			if dependencyConfig.RenderedOutputs != nil {
-				lock.Lock()
+				if configPath, ok := dependencyConfig.configPathString(); ok {
+					lock.Lock()
 
-				paths = append(paths, dependencyConfig.ConfigPath.AsString())
+					paths = append(paths, configPath)
 
-				lock.Unlock()
+					lock.Unlock()
+				}
 
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
 			} else if pctx.SkipOutput {
@@ -1018,9 +1037,18 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	// When we get no output, it can be an indication that either the module has no outputs or the module is not
 	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
 	// return error.
+	configPath, ok := dependencyConfig.configPathString()
+	if !ok {
+		if dependencyConfig.shouldReturnMockOutputs(pctx) {
+			return dependencyConfig.MockOutputs, nil
+		}
+
+		return nil, DependencyConfigPathNotStringError{Name: dependencyConfig.Name}
+	}
+
 	targetConfig := getCleanedTargetConfigPath(
 		pctx.Venv.FS,
-		dependencyConfig.ConfigPath.AsString(),
+		configPath,
 		pctx.TerragruntConfigPath,
 	)
 
@@ -1039,7 +1067,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	// did not exist.
 	err := TerragruntOutputTargetNoOutputs{
 		targetName:    dependencyConfig.Name,
-		targetPath:    dependencyConfig.ConfigPath.AsString(),
+		targetPath:    configPath,
 		targetConfig:  targetConfig,
 		currentConfig: pctx.TerragruntConfigPath,
 	}
@@ -1182,7 +1210,15 @@ func collectStackOutputs(
 
 		unitAddress := slices.Concat(stackAddress, []string{unit.Name})
 
-		value, ok, err := collectUnitOutput(ctx, pctx, l, dependencyConfig, stackDir, unit, unitAddress)
+		value, ok, err := collectUnitOutput(
+			ctx,
+			pctx,
+			l,
+			dependencyConfig,
+			stackDir,
+			unit,
+			unitAddress,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -1290,7 +1326,11 @@ func collectUnitOutput(
 
 	outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
 	if err != nil {
-		return cty.NilVal, false, fmt.Errorf("stack unit %s output parse failed: %w", unit.Name, err)
+		return cty.NilVal, false, fmt.Errorf(
+			"stack unit %s output parse failed: %w",
+			unit.Name,
+			err,
+		)
 	}
 
 	if len(outputMap) == 0 {
@@ -1299,7 +1339,11 @@ func collectUnitOutput(
 
 	convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 	if err != nil {
-		return cty.NilVal, false, fmt.Errorf("stack unit %s output convert failed: %w", unit.Name, err)
+		return cty.NilVal, false, fmt.Errorf(
+			"stack unit %s output convert failed: %w",
+			unit.Name,
+			err,
+		)
 	}
 
 	return convertedOutput, true, nil
@@ -1623,7 +1667,7 @@ func getOutputJSONWithCaching(
 			//     Refs: https://github.com/gruntwork-io/terragrunt/issues/6001
 			//
 			// To make parsing robust to either, isolate the first JSON object in the buffer.
-			trimmed, trimErr := extractFirstJSONObject(fetched)
+			trimmed, trimErr := tf.ExtractFirstJSONObject(fetched)
 			if trimErr != nil {
 				return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
 			}
@@ -1638,29 +1682,6 @@ func getOutputJSONWithCaching(
 	}
 
 	return newJSONBytes, nil
-}
-
-// extractFirstJSONObject returns the first complete JSON object found in data, ignoring any
-// non-JSON content that precedes or follows it. This is needed because `tofu/terraform output -json`
-// can intermix log lines, ANSI escape codes, or deprecation warnings with the JSON output, depending
-// on the version and backend in use.
-//
-// If data contains no `{`, the original bytes are returned so downstream JSON parsing surfaces the
-// usual "unexpected end of JSON input" error rather than a cryptic message from this helper.
-func extractFirstJSONObject(data []byte) ([]byte, error) {
-	start := bytes.IndexByte(data, '{')
-	if start < 0 {
-		return data, nil
-	}
-
-	dec := json.NewDecoder(bytes.NewReader(data[start:]))
-
-	var raw json.RawMessage
-	if err := dec.Decode(&raw); err != nil {
-		return nil, err
-	}
-
-	return raw, nil
 }
 
 // adjustSourceForTargetModule rewrites a `--source` CLI override so it points at targetConfig's own module subdir
@@ -1858,7 +1879,7 @@ func resolveOutputJSON(
 	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)
 
 	workspace := ""
-	if shouldFetchDependencyOutputFromState(pctx, remoteStateTGConfig.RemoteState) {
+	if ShouldFetchDependencyOutputFromState(pctx, remoteStateTGConfig.RemoteState) {
 		workspace, err = dependencyStateWorkspace(pctx, workingDir)
 		if err != nil {
 			l.Debugf("Could not determine dependency workspace for direct state retrieval: %v", err)
@@ -1935,16 +1956,15 @@ var directStateBackends = map[string]directStateBackend{
 		read:      getTerragruntOutputJSONFromRemoteStateGCS,
 	},
 	azurermbackend.BackendName: {
-		supported: func(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
-			return pctx.Experiments.Evaluate(experiment.AzureBackend) &&
-				azureDirectStateReadSupported(pctx, remoteState)
-		},
-		read: getTerragruntOutputJSONFromRemoteStateAzurerm,
+		supported: azureDirectStateReadSupported,
+		read:      getTerragruntOutputJSONFromRemoteStateAzurerm,
 	},
 }
 
-// shouldFetchDependencyOutputFromState reports whether a registered backend supports a direct state read.
-func shouldFetchDependencyOutputFromState(
+// ShouldFetchDependencyOutputFromState reports whether a registered backend supports a direct state read.
+// The set of backends and their per-configuration rules live in [directStateBackends], so callers outside
+// this package ask here rather than testing a backend name themselves.
+func ShouldFetchDependencyOutputFromState(
 	pctx *ParsingContext,
 	remoteState *remotestate.RemoteState,
 ) bool {
@@ -2493,7 +2513,15 @@ func runTerragruntOutputJSON(
 
 	runCfg := cfg.ToRunConfig(l, pctx.Venv.FS)
 
-	err = run.Run(ctx, l, pctx.Venv, RunOptionsFromParsingContext(pctx), report.NewReport(), runCfg, credentialGetter)
+	err = run.Run(
+		ctx,
+		l,
+		pctx.Venv,
+		RunOptionsFromParsingContext(pctx),
+		report.NewReport(),
+		runCfg,
+		credentialGetter,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2708,10 +2736,12 @@ func foldSiblingAutoIncludeDeps(
 		return nil, err
 	}
 
-	decoded := TerragruntDependency{}
-	if err := autoFile.Decode(&decoded, evalCtx); err != nil {
+	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, autoFile, evalCtx)
+	if err != nil {
 		return nil, err
 	}
+
+	decoded := TerragruntDependency{Dependencies: autoDependencies}
 
 	// Fold in dependency blocks the autoinclude inherits through its own include blocks, mirroring the unit decode path so inherited deps resolve before the unit body is evaluated.
 	if autoPctx.TrackInclude != nil && len(autoPctx.TrackInclude.CurrentList) > 0 {

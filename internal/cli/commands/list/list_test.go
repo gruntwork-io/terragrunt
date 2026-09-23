@@ -592,7 +592,7 @@ dependency "unit1" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -652,7 +652,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -725,7 +725,7 @@ dependency "unit2" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -803,7 +803,7 @@ dependency "unit2" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -874,7 +874,7 @@ dependency "unit1" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -941,9 +941,9 @@ exclude {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
-	expectedPaths := []string{filepath.Join("001", "unit1"), filepath.Join("001", "unit3")}
+	expectedPaths := []string{"001/unit1", "001/unit3"}
 
 	fields := strings.Fields(outputStr)
 
@@ -1023,7 +1023,7 @@ dependency "unit3" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,

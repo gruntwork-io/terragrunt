@@ -21,8 +21,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -342,10 +342,10 @@ func (wp *WorktreePair) Expand(toTree git.TreePaths) (filter.Filters, filter.Fil
 		return nil, nil, err
 	}
 
-	for _, path := range diffs.Changed {
-		dir := filepath.Dir(path)
+	for _, diffPath := range diffs.Changed {
+		dir := path.Dir(diffPath)
 
-		switch filepath.Base(path) {
+		switch path.Base(diffPath) {
 		case config.DefaultTerragruntConfigPath:
 			expr, err := filter.NewPathFilter(dir)
 			if err != nil {
@@ -355,7 +355,7 @@ func (wp *WorktreePair) Expand(toTree git.TreePaths) (filter.Filters, filter.Fil
 			toExpressions = append(toExpressions, expr)
 		default:
 			// A changed file beside a unit means that unit was modified.
-			if toTree.Has(unitConfigBeside(path)) {
+			if toTree.Has(unitConfigBeside(diffPath)) {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -368,9 +368,9 @@ func (wp *WorktreePair) Expand(toTree git.TreePaths) (filter.Filters, filter.Fil
 
 			// Otherwise, we'll consider it a file that could potentially be read by other units, and needs to be
 			// tracked using a reading filter.
-			expr, err := filter.NewAttributeExpression(filter.AttributeReading, path)
+			expr, err := filter.NewAttributeExpression(filter.AttributeReading, diffPath)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to create reading filter for %s: %w", path, err)
+				return nil, nil, fmt.Errorf("failed to create reading filter for %s: %w", diffPath, err)
 			}
 
 			toExpressions = append(toExpressions, expr)
@@ -863,10 +863,10 @@ func expandDiffPaths(
 	paths []string,
 	primaryExprs, fallbackExprs *filter.Expressions,
 ) error {
-	for _, path := range paths {
-		dir := filepath.Dir(path)
+	for _, diffPath := range paths {
+		dir := path.Dir(diffPath)
 
-		switch filepath.Base(path) {
+		switch path.Base(diffPath) {
 		case config.DefaultTerragruntConfigPath:
 			expr, err := filter.NewPathFilter(dir)
 			if err != nil {
@@ -880,14 +880,14 @@ func expandDiffPaths(
 				return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
 			}
 
-			globExpr, err := filter.NewPathFilter(filepath.Join(dir, "**"))
+			globExpr, err := filter.NewPathFilter(path.Join(dir, "**"))
 			if err != nil {
 				return fmt.Errorf("failed to create path filter for %s/**: %w", dir, err)
 			}
 
 			*primaryExprs = append(*primaryExprs, dirExpr, globExpr)
 		default:
-			if toTree.Has(unitConfigBeside(path)) {
+			if toTree.Has(unitConfigBeside(diffPath)) {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
 					return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -902,9 +902,9 @@ func expandDiffPaths(
 			// (e.g. mark_glob_as_read). Track it with a reading filter so units that read it are
 			// selected. primaryExprs targets the worktree the file exists in: the "to" worktree for
 			// added files, the "from" worktree for removed files (where the deleted file is still present).
-			expr, err := filter.NewAttributeExpression(filter.AttributeReading, path)
+			expr, err := filter.NewAttributeExpression(filter.AttributeReading, diffPath)
 			if err != nil {
-				return fmt.Errorf("failed to create reading filter for %s: %w", path, err)
+				return fmt.Errorf("failed to create reading filter for %s: %w", diffPath, err)
 			}
 
 			*primaryExprs = append(*primaryExprs, expr)
@@ -1002,10 +1002,10 @@ func createGitWorktrees(
 	}
 
 	if experiments.Evaluate(experiment.SlowTaskReporting) {
-		if err := util.NotifyIfSlow(
+		if err := spinner.ShowAfter(
 			ctx,
 			l,
-			util.SpinnerWriter(v),
+			spinner.Writer(v),
 			time.Second,
 			slowWorktreeMsg(gitRefs),
 			create,
@@ -1025,16 +1025,16 @@ func createGitWorktrees(
 
 // slowWorktreeMsg returns the progress messages shown while worktrees are being
 // created for gitRefs.
-func slowWorktreeMsg(gitRefs []string) util.SlowNotifyMsg {
+func slowWorktreeMsg(gitRefs []string) spinner.Messages {
 	if len(gitRefs) == 1 {
-		return util.SlowNotifyMsg{
-			Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", gitRefs[0]),
+		return spinner.Messages{
+			Working: fmt.Sprintf("Creating Git worktree for reference %s...", gitRefs[0]),
 			Done:    "Created Git worktree for reference " + gitRefs[0],
 		}
 	}
 
-	return util.SlowNotifyMsg{
-		Spinner: fmt.Sprintf("Creating Git worktrees for %d references...", len(gitRefs)),
+	return spinner.Messages{
+		Working: fmt.Sprintf("Creating Git worktrees for %d references...", len(gitRefs)),
 		Done:    fmt.Sprintf("Created Git worktrees for %d references", len(gitRefs)),
 	}
 }

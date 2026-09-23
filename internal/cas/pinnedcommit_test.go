@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -51,7 +52,7 @@ func TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(ctx, l, v, url, pinned, "")
+	repo, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), pinned, "")
 	require.NoError(t, err)
 	assert.Equal(t, pinned, repo.Hash)
 
@@ -72,7 +73,7 @@ func TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit(t *testing.T) {
 	// shallow boundary instead of unshallowing it. That serves the store,
 	// which reads named commits with ls-tree and cat-file and never walks
 	// history, so both the tip and the pinned commit stay readable.
-	branchRepo, err := store.EnsureRef(ctx, l, v, url, "main", tip, 0)
+	branchRepo, err := store.EnsureRef(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), "main", tip, 0)
 	require.NoError(t, err)
 
 	tipTree, err := runner.WithWorkDir(branchRepo.Path).LsTreeRecursive(ctx, tip)
@@ -112,7 +113,7 @@ func TestGitStoreEnsureCommit_PinnedSHADeepensForLaterRefs(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(ctx, l, v, url, pinned, "")
+	repo, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), pinned, "")
 	require.NoError(t, err)
 
 	_, err = v.FS.Stat(filepath.Join(repo.Path, "shallow"))
@@ -122,7 +123,7 @@ func TestGitStoreEnsureCommit_PinnedSHADeepensForLaterRefs(t *testing.T) {
 
 	const abbrevLen = 12
 
-	deepened, err := store.EnsureCommit(ctx, l, v, url, older[:abbrevLen], "")
+	deepened, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), older[:abbrevLen], "")
 	require.NoError(t, err, "a later ref must reach the history behind the boundary")
 	assert.Equal(t, older, deepened.Hash)
 
@@ -155,7 +156,7 @@ func TestGitStoreEnsureCommit_ServerRefusingObjectNameFallsBack(t *testing.T) {
 	v := oldProtocolVenv()
 	store := cas.NewGitStore(filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore"))
 
-	repo, err := store.EnsureCommit(ctx, logger.CreateLogger(), v, url, pinned, "")
+	repo, err := store.EnsureCommit(ctx, logger.CreateLogger(), newTestGitStoreVenv(t, v), redact.NewURL(url), pinned, "")
 	require.NoError(t, err, "a refused object name must fall back to the full fetch")
 	assert.Equal(t, pinned, repo.Hash)
 
@@ -193,7 +194,9 @@ func TestGitStoreEnsureCommit_ServerRefusingObjectNameKeepsKnownHashPath(t *test
 	v := oldProtocolVenv()
 	store := cas.NewGitStore(filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore"))
 
-	repo, err := store.EnsureCommit(ctx, logger.CreateLogger(), v, url, pinned, pinned)
+	repo, err := store.EnsureCommit(
+		ctx, logger.CreateLogger(), newTestGitStoreVenv(t, v), redact.NewURL(url), pinned, pinned,
+	)
 	require.NoError(t, err)
 	assert.Equal(t, pinned, repo.Hash)
 

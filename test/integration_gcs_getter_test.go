@@ -16,11 +16,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
-// TestGcpGCSGetterModes downloads from a real GCS bucket in each shape a
+// TestGCPGCSGetterModes downloads from a real GCS bucket in each shape a
 // `source` can name: an object, a prefix, and a prefix written with a
 // trailing separator. Real GCS supplies the listing order and the directory
 // placeholder that the mode scan reads, which no stub can vouch for.
-func TestGcpGCSGetterModes(t *testing.T) {
+func TestGCPGCSGetterModes(t *testing.T) {
 	t.Parallel()
 
 	bucket := provisionGCSGetterLayout(t, cloudGetterLayout)
@@ -67,10 +67,10 @@ func TestGcpGCSGetterModes(t *testing.T) {
 	}
 }
 
-// TestGcpGCSGetterRejectsEscapingKey pins that an object name climbing out of
+// TestGCPGCSGetterRejectsEscapingKey pins that an object name climbing out of
 // the destination is refused against a real bucket, where the name travels
 // through the GCS listing rather than a fixture.
-func TestGcpGCSGetterRejectsEscapingKey(t *testing.T) {
+func TestGCPGCSGetterRejectsEscapingKey(t *testing.T) {
 	t.Parallel()
 
 	bucket := provisionGCSGetterLayout(t, map[string]string{"modules/esc/keep.tf": "keep"})

@@ -184,7 +184,10 @@ type azureCredentials struct {
 }
 
 // azureDirectStateReadSupported reports whether azurehelper reads this state with the identity and validation the native azurerm backend would.
-func azureDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
+func azureDirectStateReadSupported(
+	pctx *ParsingContext,
+	remoteState *remotestate.RemoteState,
+) bool {
 	config := remoteState.BackendConfig
 	if !azureBackendConfigSupported(config) {
 		return false
@@ -310,7 +313,11 @@ func azureResolveAuthToggles(config backend.Config, v *venv.Venv) (azureAuthTogg
 		return azureAuthToggles{}, false
 	}
 
-	if snapshot := backendConfigBoolWithEnv(config, "snapshot", env["ARM_SNAPSHOT"]); !snapshot.valid {
+	if snapshot := backendConfigBoolWithEnv(
+		config,
+		"snapshot",
+		env["ARM_SNAPSHOT"],
+	); !snapshot.valid {
 		return azureAuthToggles{}, false
 	}
 
@@ -362,7 +369,10 @@ func azureConfigEmptyOverridesEnv(config backend.Config, env map[string]string) 
 }
 
 // azureResolveCredentials resolves each credential from config or its env fallback, rejecting conflicting shared-key sources.
-func azureResolveCredentials(config backend.Config, env map[string]string) (*azureCredentials, bool) {
+func azureResolveCredentials(
+	config backend.Config,
+	env map[string]string,
+) (*azureCredentials, bool) {
 	accessKey, valid := backendConfigStringWithEnv(config, "access_key", env, "ARM_ACCESS_KEY")
 	if !valid {
 		return nil, false
@@ -378,7 +388,12 @@ func azureResolveCredentials(config backend.Config, env map[string]string) (*azu
 		return nil, false
 	}
 
-	clientSecret, valid := backendConfigStringWithEnv(config, "client_secret", env, "ARM_CLIENT_SECRET")
+	clientSecret, valid := backendConfigStringWithEnv(
+		config,
+		"client_secret",
+		env,
+		"ARM_CLIENT_SECRET",
+	)
 	if !valid {
 		return nil, false
 	}
@@ -388,7 +403,12 @@ func azureResolveCredentials(config backend.Config, env map[string]string) (*azu
 		return nil, false
 	}
 
-	subscriptionID, valid := backendConfigStringWithEnv(config, "subscription_id", env, "ARM_SUBSCRIPTION_ID")
+	subscriptionID, valid := backendConfigStringWithEnv(
+		config,
+		"subscription_id",
+		env,
+		"ARM_SUBSCRIPTION_ID",
+	)
 	if !valid {
 		return nil, false
 	}
@@ -472,7 +492,8 @@ func azureCredentialMethodSupported(
 	hasSharedKey := creds.accessKey != "" || creds.sasToken != ""
 	hasServicePrincipal := creds.clientID != "" && creds.clientSecret != "" && creds.tenantID != ""
 
-	if !hasSharedKey && !hasServicePrincipal && !azureTokenCredentialComplete(toggles, creds, tokenFile) {
+	if !hasSharedKey && !hasServicePrincipal &&
+		!azureTokenCredentialComplete(toggles, creds, tokenFile) {
 		return false
 	}
 
@@ -485,7 +506,11 @@ func azureCredentialMethodSupported(
 }
 
 // azureTokenCredentialComplete rejects incomplete methods the native backend can skip past but azurehelper selects eagerly.
-func azureTokenCredentialComplete(toggles azureAuthToggles, creds *azureCredentials, tokenFile string) bool {
+func azureTokenCredentialComplete(
+	toggles azureAuthToggles,
+	creds *azureCredentials,
+	tokenFile string,
+) bool {
 	if toggles.useOIDC {
 		return tokenFile != "" && creds.clientID != "" && creds.tenantID != ""
 	}
@@ -538,6 +563,7 @@ func azureBackendConfigKeyKnown(key string) bool {
 		"allow_blob_public_access",
 		"enable_soft_delete",
 		"location",
+		"minimum_tls_version",
 		"msi_resource_id",
 		"skip_container_creation",
 		"skip_resource_group_creation",

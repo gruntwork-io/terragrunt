@@ -18,7 +18,7 @@ func TestNewModelPanicsOnNilChannels(t *testing.T) {
 
 	l := logger.CreateLogger()
 	fs := vfs.NewMemMapFS()
-	root := tui.NewRoot("/repo")
+	root := tui.NewRoot(repoRoot)
 	resultCh := make(chan tui.DiscoveryResult)
 	warnCh := make(chan viewtui.Warning)
 
