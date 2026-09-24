@@ -2249,7 +2249,7 @@ Attributes:
 
 <Since version="v1.2.0">
 
-Don't read dependency outputs in an `exclude` block. Terragrunt builds the run queue before it reads dependency outputs, so such a block can't take a unit out of `run --all`. Use a [feature flag](#feature) instead. Terragrunt warns when an `exclude` block reads a dependency, and the [`exclude-dependency-outputs`](/reference/strict-controls/active#exclude-dependency-outputs) strict control turns the warning into an error.
+Don't read dependency outputs in an `exclude` block. Terragrunt builds the run queue before it reads them, so `if` can't remove the unit from the `run --all` queue and `exclude_dependencies` has no effect. Read a [feature flag](#feature) instead. Terragrunt warns when an `exclude` block reads a dependency, and the [`exclude-dependency-outputs`](/reference/strict-controls/active#exclude-dependency-outputs) strict control turns the warning into an error.
 
 </Since>
 

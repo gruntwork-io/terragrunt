@@ -149,7 +149,7 @@ func evaluateExcludeBlocks(
 	return excludeConfig, nil
 }
 
-// validateExcludeDependencyReferences warns about, or under the exclude-dependency-outputs strict control rejects, an exclude block that reads a dependency.
+// validateExcludeDependencyReferences warns about an exclude block that reads a dependency, or rejects it under the exclude-dependency-outputs strict control; JSON configs are skipped.
 func validateExcludeDependencyReferences(
 	ctx context.Context,
 	pctx *ParsingContext,
@@ -177,7 +177,7 @@ func validateExcludeDependencyReferences(
 			}
 
 			if control.GetEnabled() {
-				return ExcludeReadsDependencyError{ConfigPath: file.ConfigPath, Attribute: name}
+				return ExcludeReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: name}
 			}
 
 			return control.Evaluate(log.ContextWithLogger(ctx, l))

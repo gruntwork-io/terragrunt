@@ -375,9 +375,7 @@ func TestTFExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
 	)
 }
 
-// TestTFExcludeBlockNullOrUnknownStringDiscovery tests that discovery lists
-// units whose exclude block reads a null or unknown string, where it used to
-// panic.
+// TestTFExcludeBlockNullOrUnknownStringDiscovery tests that find and list keep units whose exclude block reads a null or unknown string, where they used to panic.
 func TestTFExcludeBlockNullOrUnknownStringDiscovery(t *testing.T) {
 	t.Parallel()
 
@@ -403,9 +401,7 @@ func TestTFExcludeBlockNullOrUnknownStringDiscovery(t *testing.T) {
 	}
 }
 
-// TestTFExcludeBlockNullOrUnknownStringFindJSON tests that find reports a null
-// string in an exclude block the same way as a null bool, and omits an exclude
-// block that reads a dependency output.
+// TestTFExcludeBlockNullOrUnknownStringFindJSON tests that find reports a null string `if` like a null bool `if` and omits an exclude block that reads a dependency output.
 func TestTFExcludeBlockNullOrUnknownStringFindJSON(t *testing.T) {
 	t.Parallel()
 
@@ -437,9 +433,7 @@ func TestTFExcludeBlockNullOrUnknownStringFindJSON(t *testing.T) {
 	}, excludes)
 }
 
-// TestTFExcludeBlockNullOrUnknownStringRunAll tests that run --all reports a
-// null string in an exclude block as a unit error and runs the unit whose
-// exclude block reads a dependency output, where both used to panic.
+// TestTFExcludeBlockNullOrUnknownStringRunAll tests that run --all fails only the null string unit and runs the unit whose exclude block reads a dependency output.
 func TestTFExcludeBlockNullOrUnknownStringRunAll(t *testing.T) {
 	t.Parallel()
 
@@ -485,15 +479,18 @@ func TestTFExcludeBlockNullOrUnknownStringRunAll(t *testing.T) {
 func TestTFExcludeBlockDependencyOutputStrictControl(t *testing.T) {
 	t.Parallel()
 
+	const strict = "--strict-control exclude-dependency-outputs "
+
 	tests := []struct {
 		name    string
-		command string
-		unitDir string
-		strict  bool
+		args    string
+		dir     string
+		wantErr bool
 	}{
-		{name: "plan", command: "plan --non-interactive --working-dir %s", unitDir: "app"},
-		{name: "plan strict", command: "plan --non-interactive --working-dir %s", unitDir: "app", strict: true},
-		{name: "run all strict", command: "run --all --non-interactive --working-dir %s -- plan", strict: true},
+		{name: "plan", args: "plan --non-interactive --working-dir %s", dir: "app"},
+		{name: "run all", args: "run --all --non-interactive --working-dir %s -- plan"},
+		{name: "plan strict", args: strict + "plan --non-interactive --working-dir %s", dir: "app", wantErr: true},
+		{name: "run all strict", args: strict + "run --all --non-interactive --working-dir %s -- plan", wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -504,13 +501,11 @@ func TestTFExcludeBlockDependencyOutputStrictControl(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDependencyOutputNoRun)
 			rootPath := filepath.Join(tmpEnvPath, testExcludeDependencyOutputNoRun)
 
-			args := fmt.Sprintf(tt.command, filepath.Join(rootPath, tt.unitDir))
-			if tt.strict {
-				args = "--strict-control exclude-dependency-outputs " + args
-			}
-
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+args)
-			if tt.strict {
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt "+fmt.Sprintf(tt.args, filepath.Join(rootPath, tt.dir)),
+			)
+			if tt.wantErr {
 				require.ErrorContains(
 					t,
 					err,

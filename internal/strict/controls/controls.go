@@ -289,9 +289,9 @@ func New() strict.Controls {
 			Name:        ExcludeDependencyOutputs,
 			Description: "Prevents `exclude` blocks from reading dependency outputs.",
 			Error: errors.New(
-				"An `exclude` block reads dependency outputs. Terragrunt builds the run queue before it reads dependency outputs. Use a feature flag instead.",
+				"An `exclude` block reads dependency outputs. Terragrunt builds the run queue before it reads them. Read a feature flag instead.",
 			),
-			Warning: "An `exclude` block reads dependency outputs. Terragrunt builds the run queue before it reads dependency outputs, so the block can't take a unit out of `run --all`. Use a feature flag instead. In a future version of Terragrunt, this will result in an error.",
+			Warning: "An `exclude` block reads dependency outputs. Terragrunt builds the run queue before it reads them, so `if` can't remove the unit from the `run --all` queue and `exclude_dependencies` has no effect. Read a feature flag instead. In a future version of Terragrunt, this will result in an error. For more information, see https://docs.terragrunt.com/reference/strict-controls/active#exclude-dependency-outputs",
 		},
 
 		&Control{

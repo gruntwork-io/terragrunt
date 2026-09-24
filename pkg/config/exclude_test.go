@@ -55,14 +55,20 @@ exclude {
 }
 `)
 
+	var logBuf bytes.Buffer
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(&logBuf))
+
 	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock)
 	pctx.SkipOutputsResolution = true
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
 	require.NoError(t, err)
 	assert.Nil(t, parsed.Exclude)
 	assert.Len(t, parsed.TerragruntDependencies, 1)
+	assert.Contains(t, logBuf.String(), "An `exclude` block reads dependency outputs.")
 }
 
 // TestPartialParseExcludeWithNullUnknownOrSensitiveString pins that discovery parses null, unknown and sensitive string flags like bools instead of panicking.
@@ -232,31 +238,6 @@ include "root" {
 	assert.ErrorContains(t, err, filepath.Join(root, "root.hcl"))
 }
 
-// TestExcludeReadingDependencyWarnsByDefault pins that an exclude block reading a dependency still parses, with a deprecation warning.
-func TestExcludeReadingDependencyWarnsByDefault(t *testing.T) {
-	t.Parallel()
-
-	root := venvtest.Root("/live")
-	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
-	fsys := venvtest.NewFS(t, root, map[string]string{
-		filepath.Join("dep", config.DefaultTerragruntConfigPath):  "",
-		filepath.Join("unit", config.DefaultTerragruntConfigPath): excludeReadingDependency,
-	})
-
-	var logBuf bytes.Buffer
-
-	l := logger.CreateLogger()
-	l.SetOptions(log.WithOutput(&logBuf))
-
-	ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
-	pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
-
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
-	require.NoError(t, err)
-	assert.Nil(t, parsed.Exclude)
-	assert.Contains(t, logBuf.String(), "An `exclude` block reads dependency outputs.")
-}
-
 // TestExcludeReadingDependencyRejectedWhenStrict pins that the exclude-dependency-outputs strict control rejects every attribute that reads a dependency, in discovery and in a full parse.
 func TestExcludeReadingDependencyRejectedWhenStrict(t *testing.T) {
 	t.Parallel()
@@ -309,9 +290,9 @@ exclude {
 				_, err = config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
 			}
 
-			var typed config.ExcludeReadsDependencyError
+			var typed config.ExcludeReferencesDependencyError
 			require.ErrorAs(t, err, &typed)
-			assert.Equal(t, config.ExcludeReadsDependencyError{ConfigPath: cfgPath, Attribute: tt.attribute}, typed)
+			assert.Equal(t, config.ExcludeReferencesDependencyError{ConfigPath: cfgPath, Attribute: tt.attribute}, typed)
 		})
 	}
 }
@@ -352,17 +333,6 @@ exclude {
 	require.NoError(t, err)
 	assert.Equal(t, &config.ExcludeConfig{If: true, Actions: []string{"plan"}}, parsed.Exclude)
 }
-
-const excludeReadingDependency = `
-dependency "dep" {
-  config_path = "../dep"
-}
-
-exclude {
-  if      = dependency.dep.outputs.flag
-  actions = ["plan"]
-}
-`
 
 // enableStrictControl enables the named strict control on pctx.
 func enableStrictControl(tb testing.TB, pctx *config.ParsingContext, name string) {

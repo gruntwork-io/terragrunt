@@ -8,7 +8,7 @@ Throw an error when an `exclude` block reads dependency outputs.
 
 ### `exclude-dependency-outputs` - Reason
 
-Terragrunt builds the run queue before it reads dependency outputs, so an `exclude` block that reads one can't take a unit out of `run --all`:
+Terragrunt builds the run queue before it reads dependency outputs, so an `exclude` block that reads one can't remove a unit from the `run --all` queue, and its `exclude_dependencies` has no effect:
 
 ```hcl
 dependency "vpc" {
@@ -25,8 +25,10 @@ exclude {
 Terragrunt warns about this by default. Enabling the control turns it into an error that names the file and the attribute:
 
 ```text
-exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs; Terragrunt builds the run queue before it reads them, so read a feature flag instead, such as `feature.skip.value`
+exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so declare `feature "skip" { default = false }` and set `if = feature.skip.value` instead
 ```
+
+The error also stops commands on a single unit, such as `terragrunt plan`. Without the control, an `exclude` block there that reads a dependency output with `no_run = true` still skips the unit.
 
 Read a [feature flag](/reference/hcl/blocks#feature) instead:
 

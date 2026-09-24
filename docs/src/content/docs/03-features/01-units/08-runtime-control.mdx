@@ -6,6 +6,8 @@ sidebar:
   order: 8
 ---
 
+import Since from '@components/Since.astro';
+
 Sometimes, you need to have Terragrunt behave differently at runtime due to specific context that you have in your environment.
 
 The following configuration blocks have been designed to work together in concert to provide you a great deal of flexibility in how Terragrunt behaves at runtime.
@@ -158,6 +160,12 @@ exclude {
 In this example, the `exclude` block will prevent the `apply` command from running in a given unit on Fridays, Saturdays, and Sundays, as all good DevOps engineers know that deploying that close to a weekend is a recipe for disaster.
 
 While a toy example, this demonstrates how you can use the `exclude` block to use dynamic information at runtime to control the [run queue](/getting-started/terminology/#run-queue).
+
+<Since version="v1.2.0">
+
+Terragrunt builds the run queue before it reads dependency outputs, so don't read them in an `exclude` block. See the [`exclude-dependency-outputs`](/reference/strict-controls/active#exclude-dependency-outputs) strict control.
+
+</Since>
 
 You can use this block to prevent certain units from running in certain environments, or to prevent certain commands from running in certain units.
 

@@ -5,7 +5,7 @@ category: "new-features"
 
 #### `exclude-dependency-outputs` strict control
 
-An `exclude` block that read a dependency output looked like it worked, but Terragrunt builds the run queue before it reads dependency outputs. The block couldn't take a unit out of `run --all`:
+Terragrunt builds the run queue before it reads dependency outputs, so an `exclude` block that reads one can't remove a unit from the `run --all` queue:
 
 ```hcl
 dependency "vpc" {
@@ -25,7 +25,7 @@ terragrunt run --all --strict-control exclude-dependency-outputs -- plan
 ```
 
 ```text
-exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs; Terragrunt builds the run queue before it reads them, so read a feature flag instead, such as `feature.skip.value`
+exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so declare `feature "skip" { default = false }` and set `if = feature.skip.value` instead
 ```
 
 Read a [feature flag](/reference/hcl/blocks#feature) instead.

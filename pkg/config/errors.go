@@ -135,15 +135,15 @@ func (err InvalidExcludeBlockError) Unwrap() error {
 	return err.Err
 }
 
-// ExcludeReadsDependencyError reports an exclude block attribute that reads a dependency.
-type ExcludeReadsDependencyError struct {
+// ExcludeReferencesDependencyError reports an exclude block attribute that reads a dependency.
+type ExcludeReferencesDependencyError struct {
 	ConfigPath string
 	Attribute  string
 }
 
-func (err ExcludeReadsDependencyError) Error() string {
+func (err ExcludeReferencesDependencyError) Error() string {
 	return fmt.Sprintf(
-		"exclude.%s in %s cannot reference dependency outputs; Terragrunt builds the run queue before it reads them, so read a feature flag instead, such as `feature.skip.value`",
+		"exclude.%s in %s cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so declare `feature \"skip\" { default = false }` and set `if = feature.skip.value` instead",
 		err.Attribute,
 		err.ConfigPath,
 	)
