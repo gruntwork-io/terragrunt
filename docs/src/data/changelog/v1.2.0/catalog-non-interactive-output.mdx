@@ -27,6 +27,4 @@ terragrunt catalog | jq -c '{kind, title, component_source}'
 
 Terragrunt writes each entry as it discovers it. See [Non-interactive catalog](/features/catalog/non-interactive) for the structure of each format and how streaming behaves.
 
-If your environment sets `TG_FORMAT` to `jsonl` or `md`, `terragrunt catalog` now writes the catalog to standard output. Without the experiment enabled, that setting made the command exit with an error.
-
 Previously gated behind the `catalog-format` experiment, non-interactive catalog output no longer requires `--experiment catalog-format`.

@@ -1,0 +1,19 @@
+---
+name: dependency-fetch-output-from-state
+status: active
+since: "v1.2.0"
+---
+
+Throw an error when using the deprecated `--dependency-fetch-output-from-state` flag.
+
+### `dependency-fetch-output-from-state` - Reason
+
+Terragrunt reads dependency outputs from state by default as of v1.2.0, so the flag has nothing left to enable. Remove it, or pass `--no-dependency-fetch-output-from-state` to load dependency outputs through `tofu/terraform output -json` instead.
+
+### `dependency-fetch-output-from-state` - Example
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all --dependency-fetch-output-from-state -- plan
+WARN  The `--dependency-fetch-output-from-state` flag is deprecated. Dependency outputs are read from state by default as of v1.2.0. Remove the flag, or use --no-dependency-fetch-output-from-state to opt out.
+```

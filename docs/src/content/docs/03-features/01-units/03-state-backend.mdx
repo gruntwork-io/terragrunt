@@ -41,7 +41,7 @@ Unfortunately, the `backend` configuration does not currently support expression
 
 </FileTree>
 
-To use remote state with each of these modules, you would have to copy/paste the identical `backend` configuration into each of the `main.tf` files. The only thing that would differ between the configurations would be the `key` parameter: e.g., the `key` for `mysql/main.tf` might be `mysql/terraform.tfstate` and the `key` for `frontend-app/main.tf` might be `frontend-app/terraform.tfstate`.
+To use remote state with each of these modules, you would have to copy/paste the identical `backend` configuration into each of the `main.tf` files. The only thing that would differ between the configurations would be the `key` parameter: e.g., the `key` for `mysql/main.tf` might be `mysql/tofu.tfstate` and the `key` for `frontend-app/main.tf` might be `frontend-app/tofu.tfstate`.
 
 In addition, the resources used for remote state will be provisioned _somewhere else_, and that _somewhere else_ needs to be managed. Most users end up using "click-ops" to provision the S3 bucket and DynamoDB table used for AWS remote state (clicking around in the AWS console until they have what they need). This is error-prone, difficult to reproduce, and makes it hard to do the _right thing_ consistently (e.g., enabling versioning, encryption, and access logging).
 
@@ -185,8 +185,8 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    bucket         = "my-terraform-state"
-    key            = "${path_relative_to_include()}/terraform.tfstate"
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "my-lock-table"
@@ -196,7 +196,7 @@ remote_state {
 
 Like the approach with `generate` blocks, this will generate a `backend.tf` file that contains the remote state
 configuration. However, in addition to that, Terragrunt will also now manage the S3 bucket and DynamoDB table for you.
-This means that if the S3 bucket `my-terraform-state` and DynamoDB table `my-lock-table` does not exist in your account,
+This means that if the S3 bucket `my-tofu-state` and DynamoDB table `my-lock-table` does not exist in your account,
 Terragrunt will automatically create these resources before calling `terraform` and configure them based on the
 specified configuration parameters.
 
@@ -239,8 +239,8 @@ Terragrunt creates a bucket in your [account regional namespace](https://docs.aw
 remote_state {
   backend = "s3"
   config = {
-    bucket = "my-terraform-state-111122223333-us-east-1-an"
-    key    = "${path_relative_to_include()}/terraform.tfstate"
+    bucket = "my-tofu-state-111122223333-us-east-1-an"
+    key    = "${path_relative_to_include()}/tofu.tfstate"
     region = "us-east-1"
   }
 }
@@ -440,8 +440,8 @@ remote_state {
   config = {
     storage_account_name = "myterragruntstate"
     container_name       = "tfstate"
-    key                  = "${path_relative_to_include()}/terraform.tfstate"
-    resource_group_name  = "terraform-rg"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    resource_group_name  = "tofu-rg"
     subscription_id      = "00000000-0000-0000-0000-000000000000"
     use_azuread_auth     = true
   }

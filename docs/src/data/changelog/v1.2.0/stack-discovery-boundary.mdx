@@ -5,12 +5,16 @@ category: "bug-fixes"
 
 #### Stack commands respect `--discovery-boundary`
 
-The `--discovery-boundary` flag now works with `stack generate`, `stack run`, and `stack output`. Previously these commands scanned the entire working directory for stack files and ignored the boundary. In monorepos with a catalog next to live infrastructure, this caused errors when out-of-scope stacks referenced files that only exist in the live tree.
+`stack generate`, `stack run`, and `stack output` scanned the whole working directory for stack files and ignored `--discovery-boundary`. In a monorepo with a catalog next to live infrastructure, a catalog stack referencing files that exist only in the live tree failed the command, even though the command never asked for that stack.
 
-The boundary, including an inline `(dir)` operand, also applies when a Git expression such as `[main...HEAD]` generates stacks for both compared commits. If any positive filter has no dependent-side boundary and `--discovery-boundary` is not set, or the boundaries are in separate directories, these commands still scan the whole working directory.
+The boundary now applies to these commands, including an inline `(dir)` operand, and it holds when a Git expression such as `[main...HEAD]` generates stacks for both compared commits. This works from the repository root:
 
-Dependent discovery no longer parses units outside every dependent-side boundary. A dependent-side boundary can now be a directory inside the working directory, and the search for dependents starts there.
+```bash
+terragrunt stack run plan --filter '(./live/)...[main...HEAD]'
+```
 
-For Git expressions, Terragrunt resolves a relative boundary against the repository root, the same as any other path in a Git expression. It ignores changed units outside a dependent-side boundary, and returns an error when a boundary exists in neither compared commit. A dependency-side boundary only limits dependency traversal.
+Terragrunt skips the catalog units outside `./live`. It still scans the whole working directory when a positive filter has no dependent-side boundary and `--discovery-boundary` is unset, or when the boundaries fall in separate directories.
 
-You can now run `terragrunt stack run plan --filter '(./live/)...[main...HEAD]'` from the repository root. Terragrunt skips the catalog units outside `./live`, which only parse after Terragrunt generates them into a stack.
+Dependent discovery had the same gap and parsed units outside the dependent-side boundary. It now starts the search for dependents at that boundary, which can be a directory inside the working directory.
+
+In a Git expression, a relative boundary resolves against the repository root like any other path in the expression. Changed units outside a dependent-side boundary are ignored, and a boundary that exists in neither compared commit is an error. A dependency-side boundary only limits dependency traversal.
