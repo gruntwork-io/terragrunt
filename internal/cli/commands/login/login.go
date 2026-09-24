@@ -92,19 +92,23 @@ func reportCurrentLogins(w io.Writer, tokens map[string]portal.StoredToken, comm
 	return writeLine(w, "Run `"+command+" --"+ForceFlagName+"` to sign in again.")
 }
 
-// describe names what a credential reaches, narrowing to the organization alone
-// when the portal named no account.
+// describe names what a credential reaches: the account, followed by the
+// organization's name in parentheses when the portal sent one. With no account,
+// it names the organization alone, falling back to its ID.
 func describe(account portal.Account, org portal.Org) string {
-	name := org.Name
-	if name == "" {
-		name = org.ID
-	}
-
 	if account.Email == "" {
-		return "to " + name
+		if org.Name == "" {
+			return "as " + org.ID
+		}
+
+		return "as " + org.Name
 	}
 
-	return "as " + account.Email + " — " + name
+	if org.Name == "" {
+		return "as " + account.Email
+	}
+
+	return "as " + account.Email + " (" + org.Name + ")"
 }
 
 // approvalFailure names the command that starts a new login when the one the
