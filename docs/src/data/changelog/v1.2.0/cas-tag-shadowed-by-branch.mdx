@@ -1,0 +1,17 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### The CAS clones a tag when a branch name ends in it
+
+A source pinned to a tag, such as `?ref=v1.2.3`, failed to clone through the [CAS](/features/caching/cas) when the repository also had a branch whose name ends in the tag name, such as `release/v1.2.3`, and that branch had moved past the tag:
+
+```
+WARN  central git store unavailable for https://github.com/acme/modules.git, falling back to temporary clone: object <release/v1.2.3 commit> not present in central git store after fetching v1.2.3 from https://github.com/acme/modules.git
+WARN  CAS processing failed for unit "service": failed to CAS clone "https://github.com/acme/modules.git": ... fatal: not a tree object
+```
+
+Terragrunt then downloaded the source without the CAS on every run. A unit generated from a stack with `update_source_with_cas = true` and a relative `terraform.source` kept that relative source, which pointed outside `.terragrunt-stack` and failed `init`.
+
+Terragrunt now resolves a ref to the same commit `git fetch` downloads, so `v1.2.3` resolves to the tag. When a branch and a tag share the exact name, the tag wins, as it does for `git fetch`.

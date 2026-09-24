@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -146,6 +147,37 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 	}
 
 	return results, nil
+}
+
+// FetchMatch returns the entry of results that `git fetch` selects for ref.
+//
+// [GitRunner.LsRemote] matches ref against the tail of each advertised name,
+// so v1.2.3 also matches refs/heads/release/v1.2.3, which ls-remote lists
+// before refs/tags/v1.2.3. `git fetch` expands ref through the rules in
+// gitrevisions(7) instead and takes the first rule that names an advertised
+// ref, so a tag wins over a branch of the same name. It reports false when no
+// entry is a name `git fetch` would accept for ref.
+func FetchMatch(results []LsRemoteResult, ref string) (LsRemoteResult, bool) {
+	for _, rule := range fetchRefRules {
+		want := fmt.Sprintf(rule, ref)
+
+		if i := slices.IndexFunc(results, func(res LsRemoteResult) bool { return res.Ref == want }); i >= 0 {
+			return results[i], true
+		}
+	}
+
+	return LsRemoteResult{}, false
+}
+
+// fetchRefRules are the full names `git fetch` tries for a ref, most
+// preferred first, as gitrevisions(7) lists them.
+var fetchRefRules = []string{
+	"%s",
+	"refs/%s",
+	"refs/tags/%s",
+	"refs/heads/%s",
+	"refs/remotes/%s",
+	"refs/remotes/%s/HEAD",
 }
 
 const refsTags = "refs/tags/"
