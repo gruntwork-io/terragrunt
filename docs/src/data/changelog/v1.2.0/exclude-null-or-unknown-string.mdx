@@ -9,7 +9,7 @@ Terragrunt crashed when `if`, `no_run` or `exclude_dependencies` in an [`exclude
 
 These strings now behave the same as the matching bool values:
 
-- A null `if` behaves like `if = null`. `run --all` reports `null value is not allowed` for that unit. Units that don't depend on it still run.
+- A null `if`, such as `tostring(null)`, is rejected the same way as a null bool `if`. `run --all` reports `null value is not allowed` for that unit. Units that don't depend on it still run.
 - A null `no_run` or `exclude_dependencies` is the same as leaving the attribute out.
-- An unknown string, such as one built from a dependency output, makes discovery skip the block and log a warning that names the file.
+- An unknown string, such as one built from a dependency output, makes discovery skip the block and log a warning that names the file. Reading dependency outputs in an `exclude` block is deprecated. See the [`exclude-dependency-outputs`](/reference/strict-controls/active#exclude-dependency-outputs) strict control.
 - A sensitive string reports the same invalid `exclude` block error as `sensitive(true)`.

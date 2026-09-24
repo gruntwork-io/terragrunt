@@ -2,12 +2,17 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -79,6 +84,10 @@ func evaluateExcludeBlocks(
 		)
 	}
 
+	if err := validateExcludeDependencyReferences(ctx, pctx, l, file); err != nil {
+		return nil, err
+	}
+
 	attrs, err := excludeBlock[0].JustAttributes()
 	if err != nil {
 		l.Debugf("Encountered error while decoding exclude block.")
@@ -138,4 +147,42 @@ func evaluateExcludeBlocks(
 	}
 
 	return excludeConfig, nil
+}
+
+// validateExcludeDependencyReferences warns about, or under the exclude-dependency-outputs strict control rejects, an exclude block that reads a dependency.
+func validateExcludeDependencyReferences(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	file *hclparse.File,
+) error {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type != MetadataExclude {
+			continue
+		}
+
+		for _, name := range slices.Sorted(maps.Keys(block.Body.Attributes)) {
+			if !expressionReferencesDependency(block.Body.Attributes[name].Expr) {
+				continue
+			}
+
+			control := pctx.StrictControls.Find(controls.ExcludeDependencyOutputs)
+			if control == nil {
+				return errors.New("failed to find control " + controls.ExcludeDependencyOutputs)
+			}
+
+			if control.GetEnabled() {
+				return ExcludeReadsDependencyError{ConfigPath: file.ConfigPath, Attribute: name}
+			}
+
+			return control.Evaluate(log.ContextWithLogger(ctx, l))
+		}
+	}
+
+	return nil
 }

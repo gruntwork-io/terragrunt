@@ -1,0 +1,42 @@
+---
+name: exclude-dependency-outputs
+status: active
+since: "v1.2.0"
+---
+
+Throw an error when an `exclude` block reads dependency outputs.
+
+### `exclude-dependency-outputs` - Reason
+
+Terragrunt builds the run queue before it reads dependency outputs, so an `exclude` block that reads one can't take a unit out of `run --all`:
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+exclude {
+  # Not known while Terragrunt builds the run queue.
+  if      = dependency.vpc.outputs.skip
+  actions = ["all"]
+}
+```
+
+Terragrunt warns about this by default. Enabling the control turns it into an error that names the file and the attribute:
+
+```text
+exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs; Terragrunt builds the run queue before it reads them, so read a feature flag instead, such as `feature.skip.value`
+```
+
+Read a [feature flag](/reference/hcl/blocks#feature) instead:
+
+```hcl
+feature "skip" {
+  default = false
+}
+
+exclude {
+  if      = feature.skip.value
+  actions = ["all"]
+}
+```

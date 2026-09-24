@@ -1,0 +1,31 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### `exclude-dependency-outputs` strict control
+
+An `exclude` block that read a dependency output looked like it worked, but Terragrunt builds the run queue before it reads dependency outputs. The block couldn't take a unit out of `run --all`:
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+exclude {
+  if      = dependency.vpc.outputs.skip
+  actions = ["all"]
+}
+```
+
+Terragrunt now warns when an `exclude` block reads a dependency. With the new [`exclude-dependency-outputs`](/reference/strict-controls/active#exclude-dependency-outputs) strict control enabled, the warning becomes an error that names the file and the attribute:
+
+```bash
+terragrunt run --all --strict-control exclude-dependency-outputs -- plan
+```
+
+```text
+exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs; Terragrunt builds the run queue before it reads them, so read a feature flag instead, such as `feature.skip.value`
+```
+
+Read a [feature flag](/reference/hcl/blocks#feature) instead.

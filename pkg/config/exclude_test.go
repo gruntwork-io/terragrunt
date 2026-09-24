@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -64,10 +65,7 @@ exclude {
 	assert.Len(t, parsed.TerragruntDependencies, 1)
 }
 
-// TestPartialParseExcludeWithNullUnknownOrSensitiveString pins that discovery
-// parses an exclude block whose flags evaluate to a null, unknown or sensitive
-// string the same way it parses a null, unknown or sensitive bool, where it
-// used to panic.
+// TestPartialParseExcludeWithNullUnknownOrSensitiveString pins that discovery parses null, unknown and sensitive string flags like bools instead of panicking.
 func TestPartialParseExcludeWithNullUnknownOrSensitiveString(t *testing.T) {
 	t.Parallel()
 
@@ -207,9 +205,7 @@ exclude {
 	}
 }
 
-// TestParseConfigFileExcludeInIncludeWithNullString pins that a unit reports
-// an error for an included exclude block whose if is a null string, where it
-// used to panic.
+// TestParseConfigFileExcludeInIncludeWithNullString pins that an included exclude block with a null string if errors instead of panicking.
 func TestParseConfigFileExcludeInIncludeWithNullString(t *testing.T) {
 	t.Parallel()
 
@@ -234,6 +230,147 @@ include "root" {
 	_, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
 	require.ErrorContains(t, err, "null value is not allowed")
 	assert.ErrorContains(t, err, filepath.Join(root, "root.hcl"))
+}
+
+// TestExcludeReadingDependencyWarnsByDefault pins that an exclude block reading a dependency still parses, with a deprecation warning.
+func TestExcludeReadingDependencyWarnsByDefault(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/live")
+	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		filepath.Join("dep", config.DefaultTerragruntConfigPath):  "",
+		filepath.Join("unit", config.DefaultTerragruntConfigPath): excludeReadingDependency,
+	})
+
+	var logBuf bytes.Buffer
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(&logBuf))
+
+	ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
+	pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
+
+	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	require.NoError(t, err)
+	assert.Nil(t, parsed.Exclude)
+	assert.Contains(t, logBuf.String(), "An `exclude` block reads dependency outputs.")
+}
+
+// TestExcludeReadingDependencyRejectedWhenStrict pins that the exclude-dependency-outputs strict control rejects every attribute that reads a dependency, in discovery and in a full parse.
+func TestExcludeReadingDependencyRejectedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		exclude   string
+		attribute string
+		full      bool
+	}{
+		{name: "if", exclude: "if = dependency.dep.outputs.flag", attribute: "if"},
+		{name: "if through a function", exclude: "if = tostring(dependency.dep.outputs.flag)", attribute: "if"},
+		{name: "no_run", exclude: "if = true\nno_run = dependency.dep.outputs.flag", attribute: "no_run"},
+		{
+			name:      "exclude_dependencies",
+			exclude:   "if = true\nexclude_dependencies = dependency.dep.outputs.flag",
+			attribute: "exclude_dependencies",
+		},
+		{name: "actions", exclude: "if = true\nactions = dependency.dep.outputs.actions", attribute: "actions"},
+		{name: "if in a full parse", exclude: "if = dependency.dep.outputs.flag", attribute: "if", full: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/live")
+			cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				filepath.Join("dep", config.DefaultTerragruntConfigPath): "",
+				filepath.Join("unit", config.DefaultTerragruntConfigPath): `
+dependency "dep" {
+  config_path = "../dep"
+}
+
+exclude {
+  ` + tt.exclude + `
+}
+`,
+			})
+
+			ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
+			enableStrictControl(t, pctx, controls.ExcludeDependencyOutputs)
+
+			var err error
+			if tt.full {
+				_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+			} else {
+				pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
+				_, err = config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+			}
+
+			var typed config.ExcludeReadsDependencyError
+			require.ErrorAs(t, err, &typed)
+			assert.Equal(t, config.ExcludeReadsDependencyError{ConfigPath: cfgPath, Attribute: tt.attribute}, typed)
+		})
+	}
+}
+
+// TestExcludeReadingFeatureFlagAcceptedWhenStrict pins that the exclude-dependency-outputs strict control leaves an exclude block without dependency reads alone.
+func TestExcludeReadingFeatureFlagAcceptedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/live")
+	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		filepath.Join("dep", config.DefaultTerragruntConfigPath): "",
+		filepath.Join("unit", config.DefaultTerragruntConfigPath): `
+dependency "dep" {
+  config_path = "../dep"
+}
+
+feature "skip" {
+  default = true
+}
+
+exclude {
+  if      = feature.skip.value
+  actions = ["plan"]
+}
+`,
+	})
+
+	ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
+	enableStrictControl(t, pctx, controls.ExcludeDependencyOutputs)
+	pctx = pctx.WithDecodeList(
+		config.DependencyBlock,
+		config.FeatureFlagsBlock,
+		config.ExcludeBlock,
+	).WithSkipOutputsResolution()
+
+	parsed, err := config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	require.NoError(t, err)
+	assert.Equal(t, &config.ExcludeConfig{If: true, Actions: []string{"plan"}}, parsed.Exclude)
+}
+
+const excludeReadingDependency = `
+dependency "dep" {
+  config_path = "../dep"
+}
+
+exclude {
+  if      = dependency.dep.outputs.flag
+  actions = ["plan"]
+}
+`
+
+// enableStrictControl enables the named strict control on pctx.
+func enableStrictControl(tb testing.TB, pctx *config.ParsingContext, name string) {
+	tb.Helper()
+
+	control := pctx.StrictControls.Find(name)
+	require.NotNil(tb, control)
+	control.Enable()
 }
 
 // writeExcludeUnit writes body as a unit config beside an empty dependency

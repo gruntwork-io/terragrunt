@@ -263,6 +263,18 @@ func TestDuplicateDependencyLabelsControlIsRegistered(t *testing.T) {
 	}
 }
 
+// TestExcludeDependencyOutputsControlIsRegistered pins that the control the exclude block check looks up by name is registered and active.
+func TestExcludeDependencyOutputsControlIsRegistered(t *testing.T) {
+	t.Parallel()
+
+	ctrl := controls.New().Find(controls.ExcludeDependencyOutputs)
+
+	if assert.NotNil(t, ctrl, "exclude-dependency-outputs must be registered") {
+		assert.Equal(t, strict.ActiveStatus, ctrl.GetStatus())
+		assert.Error(t, ctrl.(*controls.Control).Error)
+	}
+}
+
 // TestSkipAccessLoggingBucketACLControlIsRegistered pins that the control the S3 backend looks
 // up by name is one the registry hands back, both standalone and under `deprecated-configs`.
 func TestSkipAccessLoggingBucketACLControlIsRegistered(t *testing.T) {

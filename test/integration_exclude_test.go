@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	testExcludeComprehensive       = "fixtures/exclude/comprehensive"
-	testExcludeNullOrUnknownString = "fixtures/exclude/null-or-unknown-string"
+	testExcludeComprehensive         = "fixtures/exclude/comprehensive"
+	testExcludeNullOrUnknownString   = "fixtures/exclude/null-or-unknown-string"
+	testExcludeDependencyOutputNoRun = "fixtures/exclude/dependency-output-no-run"
 )
 
 // expectedResult defines the expected outcome for a unit in a test case.
@@ -477,5 +478,51 @@ func TestTFExcludeBlockNullOrUnknownStringRunAll(t *testing.T) {
 		run := runs.FindByName(unit)
 		require.NotNil(t, run, "unit %s not found in report. Found: %v", unit, runs.Names())
 		assert.Equal(t, result, run.Result, "unit %s", unit)
+	}
+}
+
+// TestTFExcludeBlockDependencyOutputStrictControl tests that an exclude block reading a dependency output still runs by default and errors under the exclude-dependency-outputs strict control.
+func TestTFExcludeBlockDependencyOutputStrictControl(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		unitDir string
+		strict  bool
+	}{
+		{name: "plan", command: "plan --non-interactive --working-dir %s", unitDir: "app"},
+		{name: "plan strict", command: "plan --non-interactive --working-dir %s", unitDir: "app", strict: true},
+		{name: "run all strict", command: "run --all --non-interactive --working-dir %s -- plan", strict: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testExcludeDependencyOutputNoRun)
+			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDependencyOutputNoRun)
+			rootPath := filepath.Join(tmpEnvPath, testExcludeDependencyOutputNoRun)
+
+			args := fmt.Sprintf(tt.command, filepath.Join(rootPath, tt.unitDir))
+			if tt.strict {
+				args = "--strict-control exclude-dependency-outputs " + args
+			}
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+args)
+			if tt.strict {
+				require.ErrorContains(
+					t,
+					err,
+					"exclude.if in "+filepath.Join(rootPath, "app", "terragrunt.hcl")+" cannot reference dependency outputs",
+				)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Contains(t, stderr, "An `exclude` block reads dependency outputs.")
+			assert.Contains(t, stderr, "Early exit in terragrunt unit")
+		})
 	}
 }
