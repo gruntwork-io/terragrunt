@@ -156,6 +156,45 @@ func TestCAS_CloneTagShadowedByReleaseBranch(t *testing.T) {
 	assert.Equal(t, []byte("tagged"), data)
 }
 
+// TestCAS_CloneTagShadowedByBranchWithoutGitStore pins that the fallback
+// taken when the central git store is unavailable picks a tag over a branch
+// of the same name.
+func TestCAS_CloneTagShadowedByBranchWithoutGitStore(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("tagged"), "init"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.2.3"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("moved"), "move ahead"))
+	require.NoError(t, srv.Branch(t.Context(), "v1.2.3"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+	targetPath := filepath.Join(tempDir, "repo")
+
+	gitStoreRoot := filepath.Join(storePath, "git")
+	require.NoError(t, os.MkdirAll(gitStoreRoot, 0o755))
+
+	entry := cas.EntryPathForURL(gitStoreRoot, repoURL, cas.HashSHA256)
+	require.NoError(t, os.WriteFile(entry, []byte("not a directory"), 0o644))
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
+		cas.WithBranch("v1.2.3"))
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(targetPath, "README.md"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("tagged"), data)
+}
+
 // TestCAS_CloneRepoWithSymlink pins the fix for the stored-blob permission
 // bug: a git symlink entry (mode 120000) has no unix permission bits, so the
 // permission-only view masks to 0. Without a fallback, the blob holding the
