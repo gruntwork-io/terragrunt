@@ -1,0 +1,15 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `exclude` blocks with a null, unknown or sensitive string no longer crash Terragrunt
+
+Terragrunt crashed when `if`, `no_run` or `exclude_dependencies` in an [`exclude`](/reference/hcl/blocks#exclude) block evaluated to a null, unknown or sensitive string. Examples are `if = tostring(null)` and `if = tostring(dependency.vpc.outputs.skip)`. Commands that discover units, such as `run --all`, `find --dag` and `list --dag`, stopped with `panic: value is null`, `panic: value is unknown` or `panic: value is marked, so must be unmarked first`. A command on a single unit, such as `terragrunt plan`, also crashed when the unit included a file with such a block.
+
+These strings now behave the same as the matching bool values:
+
+- A null `if` behaves like `if = null`. `run --all` reports `null value is not allowed` for that unit. Units that don't depend on it still run.
+- A null `no_run` or `exclude_dependencies` is the same as leaving the attribute out.
+- An unknown string, such as one built from a dependency output, makes discovery skip the block and log a warning that names the file.
+- A sensitive string reports the same invalid `exclude` block error as `sensitive(true)`.

@@ -106,7 +106,8 @@ func evaluateExcludeBlocks(
 
 	for _, boolFlag := range boolFlagValues {
 		if value, ok := evaluatedAttrs[boolFlag]; ok {
-			if value.Type() == cty.String { // handle bool flag value
+			// Null, unknown and sensitive strings skip parsing and reach the checks below.
+			if value.Type() == cty.String && !value.IsMarked() && value.IsKnown() && !value.IsNull() {
 				val, err := strconv.ParseBool(value.AsString())
 				if err != nil {
 					return nil, err

@@ -3,6 +3,7 @@
 package test_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -10,13 +11,15 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	testExcludeComprehensive = "fixtures/exclude/comprehensive"
+	testExcludeComprehensive       = "fixtures/exclude/comprehensive"
+	testExcludeNullOrUnknownString = "fixtures/exclude/null-or-unknown-string"
 )
 
 // expectedResult defines the expected outcome for a unit in a test case.
@@ -369,4 +372,110 @@ func TestTFExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
 		err,
 		"terragrunt run-all plan should succeed with feature flags in exclude blocks",
 	)
+}
+
+// TestTFExcludeBlockNullOrUnknownStringDiscovery tests that discovery lists
+// units whose exclude block reads a null or unknown string, where it used to
+// panic.
+func TestTFExcludeBlockNullOrUnknownStringDiscovery(t *testing.T) {
+	t.Parallel()
+
+	for _, command := range []string{"find --dag", "list --dag"} {
+		t.Run(command, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNullOrUnknownString)
+			rootPath := filepath.Join(tmpEnvPath, testExcludeNullOrUnknownString)
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt "+command+" --no-color --working-dir "+rootPath,
+			)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []string{"dep", "null-string", "unknown-string"}, strings.Fields(stdout))
+			assert.Contains(
+				t,
+				stderr,
+				"Ignoring the exclude block in "+filepath.Join(rootPath, "unknown-string", "terragrunt.hcl"),
+			)
+		})
+	}
+}
+
+// TestTFExcludeBlockNullOrUnknownStringFindJSON tests that find reports a null
+// string in an exclude block the same way as a null bool, and omits an exclude
+// block that reads a dependency output.
+func TestTFExcludeBlockNullOrUnknownStringFindJSON(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNullOrUnknownString)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNullOrUnknownString)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --json --exclude --no-color --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	var components []struct {
+		Exclude *config.ExcludeConfig `json:"exclude"`
+		Path    string                `json:"path"`
+	}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	excludes := map[string]*config.ExcludeConfig{}
+	for _, component := range components {
+		excludes[component.Path] = component.Exclude
+	}
+
+	assert.Equal(t, map[string]*config.ExcludeConfig{
+		"dep":            nil,
+		"null-string":    {Actions: []string{"all"}},
+		"unknown-string": nil,
+	}, excludes)
+}
+
+// TestTFExcludeBlockNullOrUnknownStringRunAll tests that run --all reports a
+// null string in an exclude block as a unit error and runs the unit whose
+// exclude block reads a dependency output, where both used to panic.
+func TestTFExcludeBlockNullOrUnknownStringRunAll(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testExcludeNullOrUnknownString)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNullOrUnknownString)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNullOrUnknownString)
+
+	reportFile := filepath.Join(t.TempDir(), "report.json")
+
+	cmd := fmt.Sprintf(
+		"terragrunt run --all --non-interactive --working-dir %s --report-file %s --report-format json -- plan",
+		rootPath,
+		reportFile,
+	)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.Error(t, err)
+	assert.Contains(t, stderr, "null value is not allowed")
+	assert.Contains(
+		t,
+		stderr,
+		"Ignoring the exclude block in "+filepath.Join(rootPath, "unknown-string", "terragrunt.hcl"),
+	)
+
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
+	require.NoError(t, err)
+
+	want := map[string]string{
+		"dep":            "succeeded",
+		"null-string":    "failed",
+		"unknown-string": "succeeded",
+	}
+	require.Len(t, runs, len(want), "Found: %v", runs.Names())
+
+	for unit, result := range want {
+		run := runs.FindByName(unit)
+		require.NotNil(t, run, "unit %s not found in report. Found: %v", unit, runs.Names())
+		assert.Equal(t, result, run.Result, "unit %s", unit)
+	}
 }
