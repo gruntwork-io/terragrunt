@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -2059,9 +2060,9 @@ func TestEvaluate_GraphExpression_BoundaryUnderSymlinkedWorkingDir(t *testing.T)
 func TestEvaluationContext_TargetBoundary(t *testing.T) {
 	t.Parallel()
 
-	workingDir := filepath.FromSlash("/repo/live")
-	gitRoot := filepath.FromSlash("/repo")
-	worktree := filepath.FromSlash("/tmp/wt-head")
+	workingDir := venvtest.Root("/repo/live")
+	gitRoot := venvtest.Root("/repo")
+	worktree := venvtest.Root("/tmp/wt-head")
 
 	inTree := component.NewUnit(filepath.Join(workingDir, "app"))
 	inWorktree := component.NewUnit(filepath.Join(worktree, "live", "app")).WithDiscoveryContext(
