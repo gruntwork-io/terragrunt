@@ -149,6 +149,12 @@ type Discovery struct {
 	// --discovery-boundary is set.
 	discoveryBoundary string
 
+	// discoveryBoundaryInput is --discovery-boundary as given, which Git targets resolve against their worktree root.
+	discoveryBoundaryInput string
+
+	// worktreeGitRoot is the Git root that absolute boundaries are mirrored from into worktrees.
+	worktreeGitRoot string
+
 	// graphTarget is the target path for graph filtering (prune to target + dependents).
 	graphTarget string
 

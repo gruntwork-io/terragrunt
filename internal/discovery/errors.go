@@ -179,10 +179,9 @@ func NewDiscoveryBoundaryDirError(boundary string, err error) error {
 	return DiscoveryBoundaryDirError{Boundary: boundary, Wrapped: err}
 }
 
-// DiscoveryBoundaryScopeError indicates that the working directory is not
-// inside the directory given as the boundary. Dependent discovery walks up from
-// the working directory, so a boundary that does not contain it can never take
-// effect.
+// DiscoveryBoundaryScopeError indicates that the boundary neither contains the
+// working directory nor sits inside it. Dependent discovery searches from the
+// working directory, so such a boundary can never take effect.
 type DiscoveryBoundaryScopeError struct {
 	Boundary   string
 	WorkingDir string
@@ -190,9 +189,10 @@ type DiscoveryBoundaryScopeError struct {
 
 func (e DiscoveryBoundaryScopeError) Error() string {
 	return fmt.Sprintf(
-		"discovery boundary %q does not contain the working directory %q. "+
-			"Filters that traverse dependents search upward from the working directory, "+
-			"so their boundary must be the working directory or one of its parent directories.",
+		"discovery boundary %q does not overlap the working directory %q. "+
+			"Filters that traverse dependents search from the working directory, "+
+			"so their boundary must be the working directory, one of its parent directories, "+
+			"or a directory inside it.",
 		e.Boundary, e.WorkingDir,
 	)
 }

@@ -40,9 +40,19 @@ type graphTraversalParams struct {
 // EvaluationContext carries the discovery settings that graph traversal has to
 // honor. The zero value traverses the whole component graph.
 type EvaluationContext struct {
+	// Worktree resolves the boundaries of Git targets; nil leaves their flag boundary unset.
+	Worktree           *WorktreeContext
 	WorkingDir         string
 	ResolvedWorkingDir string
 	DiscoveryBoundary  string
+}
+
+// WorktreeContext carries what resolving a boundary inside a Git worktree needs.
+type WorktreeContext struct {
+	// DiscoveryBoundaryInput is --discovery-boundary as given.
+	DiscoveryBoundaryInput string
+	// GitRoot mirrors an absolute boundary into a worktree.
+	GitRoot string
 }
 
 // canonical restates a path under the working directory in the spelling symlink
@@ -86,6 +96,53 @@ func (c EvaluationContext) graphBoundary(bound GraphBound) string {
 	}
 
 	return c.canonical(filepath.Join(c.WorkingDir, bound.Boundary))
+}
+
+// TargetBoundary resolves one direction's boundary against the tree target was discovered in.
+func (c EvaluationContext) TargetBoundary(bound GraphBound, target component.Component) string {
+	dctx := target.DiscoveryContext()
+	if dctx == nil || dctx.Ref == "" || dctx.WorkingDir == "" {
+		return c.graphBoundary(bound)
+	}
+
+	var wt WorktreeContext
+	if c.Worktree != nil {
+		wt = *c.Worktree
+	}
+
+	boundary := bound.Boundary
+	if boundary == "" {
+		boundary = wt.DiscoveryBoundaryInput
+	}
+
+	return WorktreeBoundaryPath(dctx.WorkingDir, wt.GitRoot, boundary)
+}
+
+// WorktreeBoundaryPath resolves a boundary inside the Git worktree rooted at worktreeRoot, or "" when unbounded.
+// A boundary at or above the repository root covers the whole worktree.
+func WorktreeBoundaryPath(worktreeRoot, gitRoot, boundary string) string {
+	if boundary == "" {
+		return ""
+	}
+
+	rel := boundary
+
+	if filepath.IsAbs(boundary) {
+		if gitRoot == "" {
+			return filepath.Clean(boundary)
+		}
+
+		var err error
+		if rel, err = filepath.Rel(gitRoot, boundary); err != nil {
+			return worktreeRoot
+		}
+	}
+
+	if rel = filepath.Clean(rel); climbsOut(rel) {
+		return worktreeRoot
+	}
+
+	return filepath.Join(worktreeRoot, rel)
 }
 
 // outsideBoundary reports whether path falls outside boundary. Both are
@@ -422,12 +479,12 @@ func evaluateGraphExpression(
 			resultSet:   resultSet,
 			visited:     make(map[string]int),
 			evalCtx:     evalCtx,
-			boundary:    evalCtx.graphBoundary(expr.Dependencies),
 			direction:   GraphDirectionDependencies,
 			warnOnLimit: warnOnLimit,
 		}
 
 		for _, target := range targetMatches {
+			params.boundary = evalCtx.TargetBoundary(expr.Dependencies, target)
 			traverseGraph(l, target, params, depth)
 		}
 	}
@@ -445,12 +502,12 @@ func evaluateGraphExpression(
 			resultSet:   resultSet,
 			visited:     make(map[string]int),
 			evalCtx:     evalCtx,
-			boundary:    evalCtx.graphBoundary(expr.Dependents),
 			direction:   GraphDirectionDependents,
 			warnOnLimit: warnOnLimit,
 		}
 
 		for _, target := range targetMatches {
+			params.boundary = evalCtx.TargetBoundary(expr.Dependents, target)
 			traverseGraph(l, target, params, depth)
 		}
 	}

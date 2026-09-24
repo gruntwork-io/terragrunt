@@ -44,6 +44,10 @@ func (d *Discovery) Discover(
 
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
 
+	if d.discoveryBoundaryInput == "" {
+		d.discoveryBoundaryInput = d.discoveryBoundary
+	}
+
 	if d.discoveryBoundary != "" {
 		boundary, boundaryErr := resolveDiscoveryBoundary(
 			v.FS,
@@ -69,6 +73,18 @@ func (d *Discovery) Discover(
 	)
 
 	withWorktree := len(d.gitExpressions) > 0 && d.worktrees != nil
+
+	if withWorktree {
+		if gitRoot, gitErr := git.GoRepoRoot(ctx, v, d.workingDir); gitErr == nil {
+			d.worktreeGitRoot = gitRoot
+		}
+
+		// A boundary that exists at neither compared reference is a mistake, not an empty result.
+		err := CheckWorktreeBoundaries(ctx, v, d.worktrees, d.filters, d.discoveryBoundaryInput, d.workingDir)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	l.Debugf(
 		"Discovery: starting filesystem phase (workers=%d, with_worktree=%t)",
@@ -473,10 +489,12 @@ func (d *Discovery) runGraphPhase(
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
 
+		unparsed := d.potentialDependentsOutsideBoundary(l, v.FS, candidates)
+
 		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
-				return errors.Join(d.buildDependencyGraph(childCtx, l, v, opts, allComponents)...)
+				return errors.Join(d.buildDependencyGraph(childCtx, l, v, opts, allComponents, unparsed)...)
 			})
 
 		if buildErr != nil && !d.suppressParseErrors {
@@ -546,12 +564,14 @@ func (d *Discovery) runRelationshipPhase(
 // buildDependencyGraph parses all components and builds bidirectional dependency links.
 // This is called before the graph phase when dependent filters exist, to populate
 // the reverse links (dependents) that the graph phase needs for dependent traversal.
+// Components whose paths are in unparsed stay in the graph but are not parsed.
 func (d *Discovery) buildDependencyGraph(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	allComponents component.Components,
+	unparsed map[string]struct{},
 ) []error {
 	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
 
@@ -564,6 +584,11 @@ func (d *Discovery) buildDependencyGraph(
 	g.SetLimit(d.numWorkers)
 
 	for _, c := range allComponents {
+		if _, skip := unparsed[c.Path()]; skip {
+			l.Debugf("Discovery: %s is outside every dependent boundary; not parsing it", c.Path())
+			continue
+		}
+
 		g.Go(func() error {
 			err := d.buildComponentDependencies(ctx, l, v, opts, c, threadSafeComponents)
 			if err != nil {
@@ -842,11 +867,22 @@ func (d *Discovery) dropOutsideBoundary(
 	kept := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		if reachedByTraversal(c) && isExternal(fsys, d.discoveryBoundary, c.Path()) {
+		if !reachedByTraversal(c) {
+			kept = append(kept, c)
+			continue
+		}
+
+		// A component found in a Git worktree is bounded by the flag resolved in that worktree.
+		boundary := d.discoveryBoundary
+		if root := d.worktreeRootOf(fsys, c.Path()); root != "" {
+			boundary = filter.WorktreeBoundaryPath(root, d.worktreeGitRoot, d.discoveryBoundaryInput)
+		}
+
+		if isExternal(fsys, boundary, c.Path()) {
 			l.Debugf(
 				"Discovery: %s was reached across discovery boundary %s; not returning it",
 				c.Path(),
-				d.discoveryBoundary,
+				boundary,
 			)
 
 			continue

@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -18,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -467,6 +467,79 @@ func (d *Discovery) dependentWalkBoundary() string {
 	return d.gitRoot
 }
 
+// dependentBoundaries returns each dependent expression's boundary, or nil when any is unbounded.
+func (d *Discovery) dependentBoundaries(l log.Logger, fsys vfs.FS) []string {
+	var boundaries []string
+
+	for _, expr := range d.classifier.GraphExpressions() {
+		if !expr.Dependents.Include {
+			continue
+		}
+
+		if expr.Dependents.Boundary == "" {
+			if d.discoveryBoundary == "" {
+				return nil
+			}
+
+			boundaries = append(boundaries, d.discoveryBoundary)
+
+			continue
+		}
+
+		resolved, err := resolveGraphBoundary(fsys, d.workingDir, expr.Dependents.Boundary)
+		if err != nil {
+			l.Debugf(
+				"Discovery: cannot resolve boundary %s (%v); parsing every potential dependent",
+				expr.Dependents.Boundary,
+				err,
+			)
+
+			return nil
+		}
+
+		boundaries = append(boundaries, resolved)
+	}
+
+	return boundaries
+}
+
+// potentialDependentsOutsideBoundary returns potential dependents no dependent traversal can reach.
+func (d *Discovery) potentialDependentsOutsideBoundary(
+	l log.Logger,
+	fsys vfs.FS,
+	candidates []DiscoveryResult,
+) map[string]struct{} {
+	boundaries := d.dependentBoundaries(l, fsys)
+	if len(boundaries) == 0 {
+		return nil
+	}
+
+	outside := make(map[string]struct{})
+
+	for _, candidate := range candidates {
+		if candidate.Reason != filter.CandidacyReasonPotentialDependent {
+			continue
+		}
+
+		c := candidate.Component
+
+		// Worktree components live outside the working tree by construction.
+		if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
+			continue
+		}
+
+		if slices.ContainsFunc(boundaries, func(boundary string) bool {
+			return !isExternal(fsys, boundary, c.Path())
+		}) {
+			continue
+		}
+
+		outside[c.Path()] = struct{}{}
+	}
+
+	return outside
+}
+
 // evaluationContext hands filter evaluation the settings its graph traversal
 // has to honor. Discover resolves the boundary and the working directory before
 // any phase runs, so this carries absolute paths rather than raw user input.
@@ -475,6 +548,10 @@ func (d *Discovery) evaluationContext() filter.EvaluationContext {
 		WorkingDir:         d.workingDir,
 		ResolvedWorkingDir: d.resolvedWorkingDir,
 		DiscoveryBoundary:  d.discoveryBoundary,
+		Worktree: &filter.WorktreeContext{
+			DiscoveryBoundaryInput: d.discoveryBoundaryInput,
+			GitRoot:                d.worktreeGitRoot,
+		},
 	}
 }
 
@@ -528,8 +605,8 @@ func resolveGraphBoundary(fsys vfs.FS, workingDir, boundary string) (string, err
 	return resolved, nil
 }
 
-// boundaryEnclosure states whether a discovery boundary has to enclose the
-// working directory to be usable.
+// boundaryEnclosure states whether a discovery boundary has to nest with the
+// working directory, containing it or sitting inside it, to be usable.
 type boundaryEnclosure int
 
 const (
@@ -587,10 +664,36 @@ func resolveDiscoveryBoundary(
 		resolvedWorkingDir = filepath.Clean(workingDir)
 	}
 
-	rel, err := filepath.Rel(resolved, resolvedWorkingDir)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	// A boundary inside the working directory starts the dependent walk there instead.
+	if isExternal(fsys, resolved, resolvedWorkingDir) && isExternal(fsys, resolvedWorkingDir, resolved) {
 		return "", NewDiscoveryBoundaryScopeError(resolved, workingDir)
 	}
 
 	return resolved, nil
+}
+
+// worktreeBoundary returns the boundary mirrored into each worktree, or "" when unbounded.
+func (d *Discovery) worktreeBoundary(ctx context.Context, l log.Logger, v *venv.Venv) string {
+	return WorktreeBoundary(ctx, l, v, StackGenerateOptions{
+		WorkingDir:        d.workingDir,
+		DiscoveryBoundary: d.discoveryBoundaryInput,
+		Filters:           d.filters,
+	})
+}
+
+// worktreeRootOf returns the root of the Git worktree holding path, or "" when path is in the working tree.
+func (d *Discovery) worktreeRootOf(fsys vfs.FS, path string) string {
+	if d.worktrees == nil {
+		return ""
+	}
+
+	for _, pair := range d.worktrees.WorktreePairs {
+		for _, wt := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if wt.Path != "" && vfs.Within(fsys, wt.Path, path) {
+				return wt.Path
+			}
+		}
+	}
+
+	return ""
 }

@@ -75,4 +75,16 @@ The boundary must be an existing directory. Relative paths are resolved against 
 
 The boundary applies to what traversal reaches, so a command that names no filter keeps every configuration under the working directory even when the boundary sits below it. Narrow the working directory itself, with `--working-dir`, to change where discovery starts.
 
+<Before version="v1.2.0">
+
 Where the boundary may sit depends on the directions the filters traverse. Dependent traversal searches upward from the working directory, so a boundary that excludes the working directory could never take effect; filters that traverse dependents require the boundary to be the working directory or one of its parents. Dependency traversal follows declared paths outward from the units a filter matched and never consults the working directory, so filters that traverse only dependencies accept any directory, including one below the working directory. That is the same rule the inline `(dir)` operand follows.
+
+</Before>
+
+<Since version="v1.2.0">
+
+Where the boundary may sit depends on the directions the filters traverse. Dependent traversal searches from the working directory, so filters that traverse dependents require the boundary to be the working directory, one of its parents, or a directory inside it. A boundary inside the working directory starts the search there. Terragrunt rejects any other boundary, because it can never take effect. Dependency traversal follows declared paths outward from the units a filter matched and never consults the working directory, so filters that traverse only dependencies accept any directory, including one below the working directory. The inline `(dir)` operand follows the same rule.
+
+[Git-based expressions](/features/filter/git) are the exception. For the units Terragrunt finds in the compared commits, a relative boundary resolves against the repository root, whether it comes from an inline `(dir)` operand or from `--discovery-boundary`. It can be any directory in the repository, and it must be a directory in at least one of the compared commits. A boundary at or above the repository root covers the whole commit. The flag only narrows which changed units Terragrunt finds when the filter traverses dependents. The working-directory walk still resolves the flag against the working directory, so run from the repository root to make both mean the same directory.
+
+</Since>
