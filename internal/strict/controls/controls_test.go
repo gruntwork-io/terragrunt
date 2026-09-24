@@ -6,6 +6,7 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -285,5 +286,19 @@ func TestSkipAccessLoggingBucketACLControlIsRegistered(t *testing.T) {
 			parent.GetSubcontrols().Find(controls.SkipAccessLoggingBucketACL),
 			"skip-accesslogging-bucket-acl must be a deprecated-configs subcontrol",
 		)
+	}
+}
+
+// TestLegacyBase64GzipControlNamesCompatExperiment pins that the completed legacy-base64gzip
+// control tells users `base64gzip_compat()` is gated by the `base64gzip-compat` experiment,
+// matching the gate in the config package.
+func TestLegacyBase64GzipControlNamesCompatExperiment(t *testing.T) {
+	t.Parallel()
+
+	ctrl := controls.New().Find(controls.LegacyBase64Gzip)
+
+	if assert.NotNil(t, ctrl, "legacy-base64gzip must be registered") {
+		assert.Equal(t, strict.CompletedStatus, ctrl.GetStatus())
+		assert.Contains(t, ctrl.GetDescription(), "--experiment "+experiment.Base64GzipCompat)
 	}
 }

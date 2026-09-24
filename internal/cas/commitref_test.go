@@ -117,14 +117,14 @@ func TestGitStoreEnsureCommit_CachedAfterFirstFetch(t *testing.T) {
 	ctx := t.Context()
 
 	// First call must fetch.
-	repo, err := store.EnsureCommit(ctx, l, v, redact.NewURL(url), hash, "")
+	repo, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), hash, "")
 	require.NoError(t, err)
 	assert.Equal(t, hash, repo.Hash)
 	assert.NotEmpty(t, repo.Path)
 	require.NoError(t, repo.Unlock())
 
 	// Second call hits the local-cache short-circuit.
-	repo2, err := store.EnsureCommit(ctx, l, v, redact.NewURL(url), hash, "")
+	repo2, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), hash, "")
 	require.NoError(t, err)
 	assert.Equal(t, hash, repo2.Hash)
 	require.NoError(t, repo2.Unlock())
@@ -139,7 +139,7 @@ func TestGitStoreEnsureCommit_AbbreviatedSHA(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(t.Context(), l, v, redact.NewURL(url), hash[:8], "")
+	repo, err := store.EnsureCommit(t.Context(), l, newTestGitStoreVenv(t, v), redact.NewURL(url), hash[:8], "")
 	require.NoError(t, err)
 	assert.Equal(t, hash, repo.Hash, "abbreviated SHA must canonicalize to the full hash")
 	require.NoError(t, repo.Unlock())
@@ -156,7 +156,7 @@ func TestGitStoreEnsureCommit_UnresolvableSurfacesNoMatchingReference(t *testing
 	_, err := store.EnsureCommit(
 		t.Context(),
 		l,
-		v,
+		newTestGitStoreVenv(t, v),
 		redact.NewURL(url),
 		"0000000000000000000000000000000000000000",
 		"",
@@ -374,7 +374,7 @@ func TestGitStoreEnsureCommit_TagOnlyCommit(t *testing.T) {
 	t.Run("rev-parse fallback", func(t *testing.T) {
 		t.Parallel()
 
-		repo, err := store.EnsureCommit(ctx, l, fs, redact.NewURL(repoURL), taggedHash, "")
+		repo, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, fs), redact.NewURL(repoURL), taggedHash, "")
 		require.NoError(t, err)
 		assert.Equal(t, taggedHash, repo.Hash)
 		require.NoError(t, repo.Unlock())
@@ -384,7 +384,7 @@ func TestGitStoreEnsureCommit_TagOnlyCommit(t *testing.T) {
 		t.Parallel()
 
 		store2, fs2, _ := newTestGitStore(t)
-		repo, err := store2.EnsureCommit(ctx, l, fs2, redact.NewURL(repoURL), taggedHash, taggedHash)
+		repo, err := store2.EnsureCommit(ctx, l, newTestGitStoreVenv(t, fs2), redact.NewURL(repoURL), taggedHash, taggedHash)
 		require.NoError(t, err)
 		assert.Equal(t, taggedHash, repo.Hash)
 		require.NoError(t, repo.Unlock())
@@ -412,13 +412,13 @@ func TestGitStoreEnsureCommit_OfflineWhenCached(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx := t.Context()
 
-	primed, err := store.EnsureCommit(ctx, l, v, redact.NewURL(repoURL), hash, "")
+	primed, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(repoURL), hash, "")
 	require.NoError(t, err)
 	require.NoError(t, primed.Unlock())
 
 	require.NoError(t, srv.Close())
 
-	cached, err := store.EnsureCommit(ctx, l, v, redact.NewURL(repoURL), hash, "")
+	cached, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(repoURL), hash, "")
 	require.NoError(t, err, "cached commit must resolve without contacting the server")
 	assert.Equal(t, hash, cached.Hash)
 	require.NoError(t, cached.Unlock())
@@ -445,13 +445,13 @@ func TestGitStoreEnsureCommit_KnownHashFastPath(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx := t.Context()
 
-	primed, err := store.EnsureCommit(ctx, l, fs, redact.NewURL(repoURL), hash, "")
+	primed, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, fs), redact.NewURL(repoURL), hash, "")
 	require.NoError(t, err)
 	require.NoError(t, primed.Unlock())
 
 	require.NoError(t, srv.Close())
 
-	cached, err := store.EnsureCommit(ctx, l, fs, redact.NewURL(repoURL), hash, hash)
+	cached, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, fs), redact.NewURL(repoURL), hash, hash)
 	require.NoError(t, err, "knownHash path must resolve without contacting the server")
 	assert.Equal(t, hash, cached.Hash)
 	require.NoError(t, cached.Unlock())

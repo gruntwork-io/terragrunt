@@ -1,6 +1,7 @@
 package cas_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -146,6 +148,29 @@ func TestDeterministicTreeHash(t *testing.T) {
 	sha256Ref := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	hash5 := cas.DeterministicTreeHash(sha256Ref, "stacks/ec2-asg-stateful-service")
 	assert.Len(t, hash5, 64, "SHA-256 refHash should produce 64-char output")
+}
+
+// TestProcessStackComponent_RemoteSourceRejectsNonOSFilesystem pins that a
+// remote component from an in-memory venv returns an error before any git
+// store lookup.
+func TestProcessStackComponent_RemoteSourceRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New().WithExec(newStubGitExec(func(context.Context, vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	}))
+
+	c, err := cas.New(v, cas.WithStorePath("/store"), cas.WithOffline())
+	require.NoError(t, err)
+
+	_, err = c.ProcessStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		"git::https://example.com/org/repo.git//stacks/app?ref=deadbeef",
+		"stack",
+	)
+	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }
 
 func TestProcessStackComponent_RewritesStackSources(t *testing.T) {

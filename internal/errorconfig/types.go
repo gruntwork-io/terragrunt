@@ -9,6 +9,7 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -63,7 +64,7 @@ type MaxAttemptsReachedError struct {
 }
 
 func (e *MaxAttemptsReachedError) Error() string {
-	return fmt.Sprintf("max retry attempts (%d) reached for error: %v", e.MaxRetries, e.Err)
+	return fmt.Sprintf("max retry attempts (%d) reached for error: %s", e.MaxRetries, errfmt.Format(e.Err))
 }
 
 // AttemptErrorRecovery attempts to recover from an error by checking the ignore and retry rules.
@@ -135,7 +136,7 @@ func ExtractErrorMessage(err error) string {
 	if processErr, ok := errors.AsType[*util.ProcessExecutionError](err); ok {
 		errText = processErr.Output.Stderr.String() + "\n" + processErr.Err.Error()
 	} else {
-		errText = err.Error()
+		errText = errfmt.Format(err)
 	}
 
 	multilineText := log.RemoveAllASCISeq(errText)

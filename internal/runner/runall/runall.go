@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -273,7 +274,7 @@ func RunAllOnStack(
 				// At this stage, we can't handle the error any further, so we just log it and return nil.
 				// After this point, we'll need to report on what happened, and we want that to happen
 				// after the error summary.
-				l.Errorf("Run failed: %v", err)
+				l.Errorf("Run failed: %s", errfmt.Format(err))
 
 				// Save error to potentially return after telemetry completes
 				runErr = err

@@ -106,16 +106,10 @@ func (p *ProbeCache) TagsPath(u redact.URL) string {
 // StoredTags lists the tags in the bare repository for u, and none when the
 // store holds no repository for u. Like [GitStore.ProbeCachedCommit], it
 // takes no lock.
-//
-// Panics when v.FS is not OS-backed; git only sees the real disk.
-func (s *GitStore) StoredTags(ctx context.Context, v *venv.Venv, u redact.URL) ([]git.LsRemoteResult, error) {
-	if !vfs.IsOSFS(v.FS) {
-		panic(ErrGitStoreFSNotOS)
-	}
-
+func (s *GitStore) StoredTags(ctx context.Context, gv *GitStoreVenv, u redact.URL) ([]git.LsRemoteResult, error) {
 	_, repoPath, _ := s.repoPaths(u)
 
-	initialized, err := bareRepoInitialized(v.FS, repoPath)
+	initialized, err := bareRepoInitialized(gv.v.FS, repoPath)
 	if err != nil {
 		return nil, err
 	}
@@ -124,12 +118,7 @@ func (s *GitStore) StoredTags(ctx context.Context, v *venv.Venv, u redact.URL) (
 		return nil, nil
 	}
 
-	runner, err := git.NewGitRunner(v)
-	if err != nil {
-		return nil, err
-	}
-
-	return runner.WithWorkDir(repoPath).LocalTags(ctx)
+	return gv.runner.WithWorkDir(repoPath).LocalTags(ctx)
 }
 
 // RecordTags records refs, a tag listing of u's remote, so [CAS.StoredTags]
@@ -148,9 +137,7 @@ func (c *CAS) RecordTags(l log.Logger, v *venv.Venv, u redact.URL, refs []git.Ls
 // StoredTags returns the tags of u the store holds, without contacting its
 // remote: those [CAS.RecordTags] recorded, and those in the bare repository
 // the git store keeps for u. A bare repository that cannot be listed adds
-// none.
-//
-// Panics when v.FS is not OS-backed; git only sees the real disk.
+// none, and so does one v cannot reach (see [NewGitStoreVenv]).
 func (c *CAS) StoredTags(ctx context.Context, l log.Logger, v *venv.Venv, u redact.URL) []git.LsRemoteResult {
 	var refs []git.LsRemoteResult
 
@@ -158,7 +145,14 @@ func (c *CAS) StoredTags(ctx context.Context, l log.Logger, v *venv.Venv, u reda
 		refs = c.probeCache.LookupTags(v.FS, u)
 	}
 
-	stored, err := c.gitStore.StoredTags(ctx, v, u)
+	gv, err := NewGitStoreVenv(v)
+	if err != nil {
+		l.Debugf("cas: listing tags stored for %s failed: %v", u, err)
+
+		return refs
+	}
+
+	stored, err := c.gitStore.StoredTags(ctx, gv, u)
 	if err != nil {
 		l.Debugf("cas: listing tags stored for %s failed: %v", u, err)
 

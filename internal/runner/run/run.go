@@ -22,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
-	"github.com/gruntwork-io/terragrunt/internal/multierror"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -392,7 +391,7 @@ func runTerragruntWithConfig(
 				}
 			}
 
-			return multierror.Join(runTerraformError, lockFileError)
+			return errors.Join(runTerraformError, lockFileError)
 		},
 	)
 }
@@ -485,7 +484,7 @@ func RunActionWithHooks(
 		allErrors = append(allErrors, errorHookErrors)
 	}
 
-	return multierror.Join(allErrors...)
+	return errors.Join(allErrors...)
 }
 
 // SetTerragruntInputsAsEnvVars merges the inputs from Terragrunt

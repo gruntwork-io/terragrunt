@@ -1,0 +1,14 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Malformed `exclude` blocks report an error
+
+Terragrunt silently dropped an `exclude` block with an attribute of the wrong type, such as `actions = "plan"` where a list belongs, and ran the unit as if the block weren't there. The parse now fails with an error that names the file and the attribute:
+
+```
+exclude block in /live/unit/terragrunt.hcl: json: cannot unmarshal string into Go struct field ExcludeConfig.actions of type []string
+```
+
+Discovery doesn't fetch dependency outputs, so it can't evaluate an `exclude` block that reads one. Terragrunt still skips that block during discovery, and now logs a warning naming the file.

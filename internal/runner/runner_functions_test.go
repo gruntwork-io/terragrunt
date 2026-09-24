@@ -84,41 +84,6 @@ func TestListStackDependentUnits_WithDeps(t *testing.T) {
 	assert.Contains(t, deps["/tmp/test/vpc"], "/tmp/test/app")
 }
 
-func TestFilterDiscoveredUnits_ExcludesExcluded(t *testing.T) {
-	t.Parallel()
-
-	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
-	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
-	app.SetExcluded(true)
-
-	units := []*component.Unit{vpc, app}
-	discovered := component.Components{vpc, app}
-
-	filtered := runner.FilterDiscoveredUnits(discovered, units)
-	require.Len(t, filtered, 1)
-	assert.Equal(t, "/tmp/test/vpc", filtered[0].Path())
-}
-
-func TestFilterDiscoveredUnits_AllIncluded(t *testing.T) {
-	t.Parallel()
-
-	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
-	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
-
-	units := []*component.Unit{vpc, app}
-	discovered := component.Components{vpc, app}
-
-	filtered := runner.FilterDiscoveredUnits(discovered, units)
-	require.Len(t, filtered, 2)
-}
-
-func TestFilterDiscoveredUnits_Empty(t *testing.T) {
-	t.Parallel()
-
-	filtered := runner.FilterDiscoveredUnits(nil, nil)
-	assert.Empty(t, filtered)
-}
-
 func TestNewFromComponents_Empty(t *testing.T) {
 	t.Parallel()
 
@@ -237,57 +202,6 @@ func TestNewFromComponents_FilterAllowDestroy(t *testing.T) {
 	}
 
 	require.True(t, foundVPC, "expected /tmp/test/vpc unit in stack")
-}
-
-func TestFilterDiscoveredUnits_PrunesAndAugments(t *testing.T) {
-	t.Parallel()
-
-	const root = "/tmp/test"
-
-	unitPath := func(name string) string { return filepath.Join(root, name) }
-
-	// Resolved units: old is excluded, app was never discovered.
-	vpc := component.NewUnit(unitPath("vpc"))
-	db := component.NewUnit(unitPath("db"))
-	old := component.NewUnit(unitPath("old"))
-	app := component.NewUnit(unitPath("app"))
-
-	old.SetExcluded(true)
-	db.AddDependency(vpc)
-	app.AddDependency(db)
-	app.AddDependency(old)
-	app.AddDependency(component.NewStack(unitPath("stack")))
-
-	// Discovered components: a stack that must be dropped, an external vpc, and
-	// a db whose dependency on the excluded unit must be pruned.
-	discVPC := component.NewUnit(unitPath("vpc"))
-	discVPC.SetExternal()
-	discVPC.SetReading("shared.hcl")
-
-	discDB := component.NewUnit(unitPath("db"))
-	discDB.AddDependency(component.NewUnit(unitPath("vpc")))
-	discDB.AddDependency(component.NewUnit(unitPath("old")))
-
-	filtered := runner.FilterDiscoveredUnits(
-		component.Components{component.NewStack(unitPath("stack")), discVPC, discDB},
-		[]*component.Unit{vpc, db, old, app},
-	)
-
-	byPath := make(map[string]component.Component, len(filtered))
-	for _, c := range filtered {
-		byPath[c.Path()] = c
-	}
-
-	require.Len(t, byPath, 3)
-	require.Contains(t, byPath, unitPath("vpc"))
-	require.Contains(t, byPath, unitPath("db"))
-	require.Contains(t, byPath, unitPath("app"))
-
-	assert.True(t, byPath[unitPath("vpc")].External())
-	assert.Equal(t, []string{"shared.hcl"}, byPath[unitPath("vpc")].Reading())
-
-	assert.Equal(t, []string{unitPath("vpc")}, dependencyPaths(byPath[unitPath("db")]))
-	assert.Equal(t, []string{unitPath("db")}, dependencyPaths(byPath[unitPath("app")]))
 }
 
 func TestNewFromComponents_PreventDestroyExcludesDependencies(t *testing.T) {

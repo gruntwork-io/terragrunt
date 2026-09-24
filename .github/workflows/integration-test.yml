@@ -206,6 +206,11 @@ jobs:
           ENV_FILE: ${{ github.workspace }}/.env.secrets
           SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
 
+      - name: Windows Dev Drive
+        if: runner.os == 'Windows'
+        run: pwsh -File ./.github/scripts/setup/windows-dev-drive.ps1
+        shell: pwsh
+
       - name: Restore Go caches
         uses: $/.github/actions/go-cache-restore
         with:
