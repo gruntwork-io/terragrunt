@@ -20,6 +20,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -706,7 +707,7 @@ func (rnr *Runner) Run(
 						// the controller captured for this unit so the report carries the
 						// failure text instead of an empty cause.
 						if unitErr := controller.UnitErr(entry.Component.Path()); unitErr != nil {
-							endOpts = append(endOpts, report.WithCauseRunError(unitErr.Error()))
+							endOpts = append(endOpts, report.WithCauseRunError(errfmt.Format(unitErr)))
 						}
 					}
 

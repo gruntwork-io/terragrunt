@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/multierror"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -104,7 +104,7 @@ func ProcessHooks(ctx context.Context, l log.Logger, v *venv.Venv, p ProcessHook
 		}
 	}
 
-	return multierror.Join(allPreviousErrors[priorCount:]...)
+	return errors.Join(allPreviousErrors[priorCount:]...)
 }
 
 // ProcessErrorHooks runs error_hook blocks whose OnErrors regex matches one
@@ -133,7 +133,7 @@ func ProcessErrorHooks(
 
 	errorMessages := make([]string, 0, len(previousExecErrors))
 	for _, e := range previousExecErrors {
-		errorMessage := e.Error()
+		errorMessage := errfmt.Format(e)
 		// Process execution errors carry stdout that hook patterns need to match against.
 		// https://github.com/gruntwork-io/terragrunt/issues/2045
 		if processError, ok := errors.AsType[*util.ProcessExecutionError](e); ok {
@@ -192,7 +192,7 @@ func ProcessErrorHooks(
 		}
 	}
 
-	return multierror.Join(errorsOccured...)
+	return errors.Join(errorsOccured...)
 }
 
 // hookErrorMessage extracts command, args and output from the error
