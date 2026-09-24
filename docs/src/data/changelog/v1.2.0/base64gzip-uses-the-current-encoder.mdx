@@ -3,11 +3,13 @@ version: "v1.2.0"
 category: "breaking-changes"
 ---
 
+import WithinGuarantees from '@components/WithinGuarantees.astro';
+
 #### `base64gzip()` uses the current Go encoder
 
 Go 1.27 changed the compressed output of its gzip encoder. Terragrunt v1.1.5 kept `base64gzip()` on the older output and warned once per run that this was legacy behavior. `base64gzip()` now returns what the Go 1.27 encoder produces.
 
-This stays inside the [1.0 guarantees](/process/1-0-guarantees). `base64gzip()` still takes a string and returns valid gzipped base64 content, and that content decompresses to the same original value. It is listed here because a resource that compares the encoded value can plan a replacement on the first run after upgrading. An [`aws_instance`](https://search.opentofu.org/provider/opentofu/aws/latest/docs/resources/instance) with [`user_data_base64`](https://search.opentofu.org/provider/opentofu/aws/latest/docs/resources/instance#attr-user_data_base64) set from `base64gzip()` and [`user_data_replace_on_change`](https://search.opentofu.org/provider/opentofu/aws/latest/docs/resources/instance#attr-user_data_replace_on_change) set to `true` is one such resource.
+A resource that compares the encoded value can plan a replacement on the first run after upgrading. An [`aws_instance`](https://search.opentofu.org/provider/opentofu/aws/v6.66.0/docs/resources/instance) with [`user_data_base64`](https://search.opentofu.org/provider/opentofu/aws/v6.66.0/docs/resources/instance#attr-user_data_base64) set from `base64gzip()` and [`user_data_replace_on_change`](https://search.opentofu.org/provider/opentofu/aws/v6.66.0/docs/resources/instance#attr-user_data_replace_on_change) set to `true` is one such resource.
 
 Where the encoded value has to stay stable, call the experimental [`base64gzip_compat()`](/reference/hcl/functions/#base64gzip_compat), which returns the v1.1.3 output permanently. It is behind the `base64gzip-compat` experiment and may be renamed or removed:
 
@@ -22,3 +24,7 @@ inputs = {
 ```
 
 This completes the [`legacy-base64gzip`](/reference/strict-controls/completed#legacy-base64gzip) strict control.
+
+<WithinGuarantees>
+  `base64gzip()` still takes a string and returns valid gzipped base64 content that decompresses to the same value, but the encoded value itself changes. `base64gzip_compat()` keeps the old one.
+</WithinGuarantees>

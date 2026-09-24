@@ -3,7 +3,7 @@ version: "v1.2.0"
 category: "breaking-changes"
 ---
 
-import { Aside } from '@astrojs/starlight/components'
+import WithinGuarantees from '@components/WithinGuarantees.astro';
 
 #### S3 state buckets no longer get the `RootAccess` bucket policy statement
 
@@ -26,8 +26,6 @@ remote_state {
 
 Buckets that already have the statement keep it. The [state backend docs](/features/units/state-backend#root-user-access-to-the-state-bucket) cover how to remove it yourself.
 
-<Aside type="note" title="Why this is a bug fix listed under breaking changes">
-This is a bug fix, and it stays inside the [Terragrunt 1.0 Guarantees](/process/1-0-guarantees). The bucket policy Terragrunt writes is not part of the CLI, HCL, or output schemas that 1.x pins, and `skip_bucket_root_access` remains valid configuration.
-
-It is listed here because you may depend on the statement being set automatically. Expect this pattern throughout 1.x. Fixing behavior the maintainers consider a bug can require you to update your workflows, as long as the fix stays inside the 1.0 guarantees. Where such a fix can offer a way back to the old behavior, as `enable_bucket_root_access` does here, it will.
-</Aside>
+<WithinGuarantees>
+  The bucket policy Terragrunt writes is not part of the CLI, HCL, or output schemas the guarantees pin, and `skip_bucket_root_access` remains valid configuration. Removing the statement is a bug fix, and `enable_bucket_root_access` restores it. See [Bugs](/process/1-0-guarantees#bugs) in the guarantees for how a bug fix in 1.x can change your workflows.
+</WithinGuarantees>

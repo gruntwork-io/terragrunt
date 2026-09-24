@@ -1,0 +1,18 @@
+---
+/**
+ * Note for a changelog entry listed under breaking changes even though it
+ * stays inside the 1.0 guarantees.
+ *
+ * Usage in .mdx files:
+ *   <WithinGuarantees>
+ *     `base64gzip()` still returns valid gzipped base64 content, but the encoded value changes.
+ *   </WithinGuarantees>
+ */
+import { Aside } from '@astrojs/starlight/components';
+---
+
+<Aside type="note" title="Within the 1.0 guarantees">
+  The <a href="/process/1-0-guarantees">1.0 guarantees</a> make promises about how Terragrunt remains backwards compatible. This change does not break those promises. It is listed under breaking changes so you are aware of it, in case it affects your workflows.
+
+  <slot />
+</Aside>
