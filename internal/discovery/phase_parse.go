@@ -391,10 +391,6 @@ func parseComponent(
 				config.TerragruntVersionConstraints,
 			).WithSkipOutputsResolution()
 
-			if len(discovery.parserOptions) > 0 {
-				parsingCtx = parsingCtx.WithParseOption(discovery.parserOptions)
-			}
-
 			if discovery.trackReads {
 				parsingCtx = parsingCtx.WithFileReadTracking()
 			}
