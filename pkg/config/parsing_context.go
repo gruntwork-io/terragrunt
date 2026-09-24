@@ -164,26 +164,12 @@ func NewParsingContext(
 	return ctx, pctx
 }
 
-// Clone returns a copy of the ParsingContext.
-// Maps and the embedded Venv (including its Writers pointer and Env map)
-// are deep-copied so that mutations on a clone (credential injection,
-// writer redirection, and so on) do not affect the original or other clones.
+// Clone returns a copy of the ParsingContext. Its maps and slices are
+// deep-copied. The clone shares the original's Venv, so code that changes the
+// env or writers for one context assigns it a new Venv, such as one from
+// [venv.Venv.WithEnvCloned] or [venv.Venv.WithWriter].
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
-
-	if ctx.Venv != nil {
-		v := *ctx.Venv
-		if v.Env != nil {
-			v.Env = maps.Clone(v.Env)
-		}
-
-		if v.Writers != nil {
-			w := *v.Writers
-			v.Writers = &w
-		}
-
-		clone.Venv = &v
-	}
 
 	if ctx.SourceMap != nil {
 		clone.SourceMap = maps.Clone(ctx.SourceMap)

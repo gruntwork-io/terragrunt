@@ -1733,6 +1733,8 @@ func resolveOutputJSON(
 		return nil, "", err
 	}
 
+	pctx.Venv = pctx.Venv.WithEnvCloned()
+
 	callerIsRenderCommand := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 
 	// Set dependency-specific fields
@@ -2421,7 +2423,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Clone pctx and discard init stdout so it doesn't leak into the caller's output buffer.
 	initPctx := pctx.Clone()
-	initPctx.Venv.Writers = initPctx.Venv.Writers.WithWriter(io.Discard)
+	initPctx.Venv = initPctx.Venv.WithWriter(io.Discard)
 
 	// First run init to setup the backend configuration so that we can run output.
 	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
@@ -2483,7 +2485,7 @@ func runTerragruntOutputJSON(
 	pctx = pctx.Clone()
 	pctx.ForwardTFStdout = false
 	pctx.JSONLogFormat = false
-	pctx.Venv.Writers = pctx.Venv.Writers.WithWriter(stdoutBufferWriter)
+	pctx.Venv = pctx.Venv.WithEnvCloned().WithWriter(stdoutBufferWriter)
 
 	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
