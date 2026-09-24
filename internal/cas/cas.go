@@ -294,7 +294,7 @@ type probeResult struct {
 func (r *GitResolver) Scheme() string { return gitScheme }
 
 // Pinned always reports false. Git decides immutability after probing,
-// from the ref ls-remote matched rather than the ref that was asked for
+// from the ref git fetch selects rather than the ref that was asked for
 // (see [GitResolver.recordProbe]), so it has no pre-probe answer to give.
 // Nothing consults it: [CAS.Clone] asks for [ProbeCachedByResolver].
 func (r *GitResolver) Pinned(_ redact.URL) bool { return false }
@@ -414,13 +414,14 @@ func (r *GitResolver) probeUncoalesced(ctx context.Context, u redact.URL) (probe
 		return probeResult{}, err
 	}
 
-	if len(results) == 0 {
+	match, ok := git.FetchMatch(results, probeRefName(r.Branch))
+	if !ok {
 		return probeResult{}, ErrNoVersionMetadata
 	}
 
-	r.recordProbe(u, results[0])
+	r.recordProbe(u, match)
 
-	return probeResult{key: results[0].Hash, origin: probeOriginLsRemote}, nil
+	return probeResult{key: match.Hash, origin: probeOriginLsRemote}, nil
 }
 
 // cachedProbe returns the persisted answer for u when the mode and
@@ -455,9 +456,9 @@ func (r *GitResolver) recordProbe(u redact.URL, res git.LsRemoteResult) {
 		return
 	}
 
-	// Immutability follows the ref ls-remote matched, not the name asked
-	// for: a branch named v1.2.3 shadows a tag of that name in ls-remote's
-	// output and must keep re-probing like any other branch.
+	// Immutability follows the ref git fetch selects, not the name asked
+	// for: v1.2.3 can name a branch when no tag of that name exists, and
+	// that branch must keep re-probing like any other.
 	entry := ProbeEntry{
 		ProbedAt:  time.Now(),
 		Key:       res.Hash,
