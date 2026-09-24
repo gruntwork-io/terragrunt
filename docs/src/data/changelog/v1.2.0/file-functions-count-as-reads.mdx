@@ -5,16 +5,14 @@ category: "new-features"
 
 #### Track the files that OpenTofu file functions read
 
-Terragrunt now automatically records the files targeted by OpenTofu HCL functions as read for the purposes of [reading-based filters](/features/filter/attributes#reading-based-expressions).
-
-The following HCL functions no longer require explicitly using `mark_as_read` in Terragrunt configurations:
+Terragrunt records the files that the built-in file functions read, so [reading-based filters](/features/filter/attributes#reading-based-expressions) select the units that read them without a `mark_as_read` call:
 
 - `file`
 - `templatefile`
 - `fileset`
 - `fileexists`
-- `file*` hash functions
+- the `file*` hash functions, such as `filesha256`
 
 A file read from inside a template counts too.
 
-[`mark_as_read`](/reference/hcl/functions#mark_as_read) remains the way to record a file that only OpenTofu reads, such as one handed to a module as an input and [`run_cmd`](/reference/hcl/functions#run_cmd) scripts.
+[`mark_as_read`](/reference/hcl/functions#mark_as_read) remains the way to record a file that only OpenTofu/Terraform reads, such as one passed to a module as an input, or one a [`run_cmd`](/reference/hcl/functions#run_cmd) script reads.

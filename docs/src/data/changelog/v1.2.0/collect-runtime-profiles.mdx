@@ -11,6 +11,6 @@ Terragrunt writes CPU, heap, and goroutine profiles on request, so you can see w
 terragrunt --profile-dir /tmp/profiles run --all -- plan
 ```
 
-Read the result with `go tool pprof`. This is aimed at investigating Terragrunt itself rather than the OpenTofu/Terraform it runs.
+Read the result with `go tool pprof`. The profiles cover Terragrunt itself, not the OpenTofu/Terraform processes it runs.
 
-This completes the `profiling` experiment. You no longer have to use the experiment to benefit from this feature.
+Previously gated behind the `profiling` experiment, the profile flags no longer require `--experiment profiling`.
