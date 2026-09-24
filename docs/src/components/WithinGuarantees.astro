@@ -1,7 +1,9 @@
 ---
 /**
  * Note for a changelog entry listed under breaking changes even though it
- * stays inside the 1.0 guarantees.
+ * stays inside the 1.0 guarantees. The text ahead of the slot comes from
+ * `@lib/changelog`, which also rewrites this component for GitHub release
+ * notes.
  *
  * Usage in .mdx files:
  *   <WithinGuarantees>
@@ -9,10 +11,18 @@
  *   </WithinGuarantees>
  */
 import { Aside } from '@astrojs/starlight/components';
+import { WITHIN_GUARANTEES_NOTE, WITHIN_GUARANTEES_TITLE } from '@lib/changelog';
+
+// The note is Markdown with plain links only, so a link rewrite is all the
+// rendering it needs.
+const noteHtml = WITHIN_GUARANTEES_NOTE.replace(
+  /\[([^\]]+)\]\(([^)]+)\)/g,
+  '<a href="$2">$1</a>',
+);
 ---
 
-<Aside type="note" title="Within the 1.0 guarantees">
-  The <a href="/process/1-0-guarantees">1.0 guarantees</a> make promises about how Terragrunt remains backwards compatible. This change does not break those promises. It is listed under breaking changes so you are aware of it, in case it affects your workflows.
+<Aside type="note" title={WITHIN_GUARANTEES_TITLE}>
+  <p set:html={noteHtml} />
 
   <slot />
 </Aside>

@@ -5,6 +5,8 @@ import {
   prepareForGitHub,
   pullRequestsFromCommits,
   pullRequestsToMarkdown,
+  WITHIN_GUARANTEES_NOTE,
+  WITHIN_GUARANTEES_TITLE,
 } from "./changelog";
 
 function commit(message: string, login: string | null, name?: string) {
@@ -162,6 +164,29 @@ describe("prepareForGitHub", () => {
       SITE,
     );
     expect(out).toBe(["## Title", "", "Body."].join("\n"));
+  });
+
+  test("renders WithinGuarantees as a NOTE alert with the shared note ahead of its slot", () => {
+    const out = prepareForGitHub(
+      [
+        "import WithinGuarantees from '@components/WithinGuarantees.astro';",
+        "",
+        "<WithinGuarantees>",
+        "  `f()` still returns valid content, but the value changes.",
+        "</WithinGuarantees>",
+      ].join("\n"),
+      SITE,
+    );
+    expect(out).toBe(
+      [
+        "> [!NOTE]",
+        `> **${WITHIN_GUARANTEES_TITLE}**`,
+        ">",
+        `> ${WITHIN_GUARANTEES_NOTE.replace("](/", `](${SITE}/`)}`,
+        ">",
+        "> `f()` still returns valid content, but the value changes.",
+      ].join("\n"),
+    );
   });
 
   test("converts a tip Aside with a title to a GitHub TIP alert", () => {
