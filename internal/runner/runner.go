@@ -544,7 +544,6 @@ func (rnr *Runner) Run(
 							parseCtx,
 							unitLogger,
 							pctx,
-							pctx.ParserOptions,
 						)
 
 						return readErr

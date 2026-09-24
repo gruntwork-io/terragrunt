@@ -3,14 +3,12 @@ package config
 import (
 	"context"
 	"errors"
-	"io"
 	"maps"
 	"path/filepath"
 	"slices"
 	"time"
 
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -68,9 +66,6 @@ type ParsingContext struct {
 	// extra_arguments.env_vars. Inherited process values stay eligible for direct state reads until
 	// output-specific configuration overrides them.
 	dependencyOutputEnvKeys map[string]struct{}
-	PredefinedFunctions     map[string]function.Function
-
-	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, cfgPath string, cfgFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
@@ -92,7 +87,9 @@ type ParsingContext struct {
 	Experiments            experiment.Experiments
 	StrictControls         strict.Controls
 	PartialParseDecodeList []PartialDecodeSectionType
-	ParserOptions          []hclparse.Option
+
+	// Parser configures the HCL parsers this context builds.
+	Parser ParserSettings
 
 	ReadConfigChain []string
 
@@ -127,6 +124,13 @@ type ParsingContext struct {
 	// own include blocks, so those files do not re-merge a sibling autoinclude. This bounds the merge to
 	// the unit being parsed and prevents an autoinclude that includes another file from recursing.
 	skipAutoIncludeMerge bool
+
+	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig].
+	catalogOnly bool
+
+	// stubWorkingDirFunc makes get_working_dir return an empty string, for the parse
+	// get_working_dir runs to find the terraform source.
+	stubWorkingDirFunc bool
 }
 
 // NewParsingContext builds a parsing context whose file reads, subprocesses,
@@ -155,7 +159,7 @@ func NewParsingContext(
 		opt(pctx)
 	}
 
-	pctx.ParserOptions = DefaultParserOptions(l, v, pctx.StrictControls)
+	pctx.Parser = DefaultParserSettings(ctx, pctx.StrictControls)
 
 	return ctx, pctx
 }
@@ -189,6 +193,8 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 		eo := *ctx.EngineOptions
 		clone.EngineOptions = &eo
 	}
+
+	clone.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(ctx.Parser.HaltOnErrorOnlyInBlocks)
 
 	clone.ProviderCacheOptions.RegistryNames = slices.Clone(ctx.ProviderCacheOptions.RegistryNames)
 
@@ -235,30 +241,41 @@ func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *Parsing
 	return c
 }
 
-func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
+// WithParserSettings returns a copy whose parsers use s.
+func (ctx *ParsingContext) WithParserSettings(s ParserSettings) *ParsingContext {
 	c := ctx.Clone()
-	c.ParserOptions = parserOptions
+	c.Parser = s
+	c.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(s.HaltOnErrorOnlyInBlocks)
 
 	return c
 }
 
-// WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
-// Diagnostics are written to stderr in debug mode for troubleshooting, otherwise discarded.
-// This avoids false positive "There is no variable named dependency" errors during parsing
-// when dependency outputs haven't been resolved yet.
-func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
-	var diagWriter = io.Discard
-	if l.Level() >= log.DebugLevel {
-		diagWriter = ctx.Venv.Writers.ErrWriter
-	}
-
+// WithDiagnosticsSuppressed returns a copy whose parsers write diagnostics to stderr at debug
+// level and discard them otherwise. This avoids false positive "There is no variable named
+// dependency" errors while dependency outputs are not yet resolved.
+func (ctx *ParsingContext) WithDiagnosticsSuppressed() *ParsingContext {
 	c := ctx.Clone()
-	c.ParserOptions = slices.Concat(
-		ctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(ctx.Venv, diagWriter, true)},
-	)
+	c.Parser.Diagnostics = DiagnosticsSuppressed
 
 	return c
+}
+
+// WithDiagnosticsDiscarded returns a copy whose parsers discard diagnostics.
+func (ctx *ParsingContext) WithDiagnosticsDiscarded() *ParsingContext {
+	c := ctx.Clone()
+	c.Parser.Diagnostics = DiagnosticsDiscarded
+
+	return c
+}
+
+// ParserOptions returns the [hclparse.Option] list for this context's parser settings.
+func (ctx *ParsingContext) ParserOptions(l log.Logger) []hclparse.Option {
+	return ParserOptions(l, ctx.Venv, ctx.Parser)
+}
+
+// NewParser returns an HCL parser configured by this context's parser settings.
+func (ctx *ParsingContext) NewParser(l log.Logger) *hclparse.Parser {
+	return hclparse.NewParser(ctx.ParserOptions(l)...)
 }
 
 // WithFileReadTracking returns a copy that records every file it reads, so that
