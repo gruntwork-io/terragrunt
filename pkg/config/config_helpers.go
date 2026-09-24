@@ -177,6 +177,69 @@ func CreateTerragruntEvalContext(
 	pctx *ParsingContext,
 	cfgPath string,
 ) (*hcl.EvalContext, error) {
+	evalCtx := &hcl.EvalContext{
+		Functions: TerragruntFunctions(ctx, l, v, pctx, cfgPath),
+	}
+
+	evalCtx.Variables = map[string]cty.Value{}
+	if pctx.Locals != nil {
+		evalCtx.Variables[MetadataLocal] = *pctx.Locals
+	}
+
+	if pctx.Features != nil {
+		evalCtx.Variables[MetadataFeatureFlag] = *pctx.Features
+	}
+
+	if pctx.Values != nil {
+		evalCtx.Variables[MetadataValues] = *pctx.Values
+	}
+
+	if pctx.DecodedDependencies != nil {
+		evalCtx.Variables[MetadataDependency] = *pctx.DecodedDependencies
+	}
+
+	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 {
+		// For each include block, check if we want to expose the included config, and if so, add under the include
+		// variable.
+		exposedInclude, err := includeMapAsCtyVal(ctx, l, v, pctx)
+		if err != nil && len(pctx.PartialParseDecodeList) == 0 {
+			return nil, fmt.Errorf(
+				"could not resolve exposed includes for eval context in %s: %w",
+				cfgPath,
+				err,
+			)
+		}
+
+		if err != nil {
+			// Include resolution can fail during partial parsing of configs in dependency chains,
+			// e.g. when an included config has a dependency block whose outputs aren't yet available.
+			// This is expected and non-fatal — locals referencing the include will be left unevaluated,
+			// and the system will fall back to full parsing when needed.
+			l.Debugf(
+				"Could not resolve exposed includes for eval context in %s (partial parse): %v",
+				cfgPath,
+				err,
+			)
+		}
+
+		if err == nil {
+			evalCtx.Variables[MetadataInclude] = exposedInclude
+		}
+	}
+
+	return evalCtx, nil
+}
+
+// TerragruntFunctions returns the functions of the eval context [CreateTerragruntEvalContext] builds for the config
+// at cfgPath: the OpenTofu functions with Terragrunt's patches, then the Terragrunt functions, which win on a name
+// clash. The functions use ctx, l, v, and pctx when called.
+func TerragruntFunctions(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	cfgPath string,
+) map[string]function.Function {
 	baseDir := filepath.Dir(cfgPath)
 	tfFunctions := lang.MakeBaseFunctionTable(baseDir)
 
@@ -409,57 +472,7 @@ func CreateTerragruntEvalContext(
 		functions[FuncNameGetWorkingDir] = wrapVoidToEmptyStringAsFuncImpl()
 	}
 
-	evalCtx := &hcl.EvalContext{
-		Functions: functions,
-	}
-
-	evalCtx.Variables = map[string]cty.Value{}
-	if pctx.Locals != nil {
-		evalCtx.Variables[MetadataLocal] = *pctx.Locals
-	}
-
-	if pctx.Features != nil {
-		evalCtx.Variables[MetadataFeatureFlag] = *pctx.Features
-	}
-
-	if pctx.Values != nil {
-		evalCtx.Variables[MetadataValues] = *pctx.Values
-	}
-
-	if pctx.DecodedDependencies != nil {
-		evalCtx.Variables[MetadataDependency] = *pctx.DecodedDependencies
-	}
-
-	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 {
-		// For each include block, check if we want to expose the included config, and if so, add under the include
-		// variable.
-		exposedInclude, err := includeMapAsCtyVal(ctx, l, v, pctx)
-		if err != nil && len(pctx.PartialParseDecodeList) == 0 {
-			return nil, fmt.Errorf(
-				"could not resolve exposed includes for eval context in %s: %w",
-				cfgPath,
-				err,
-			)
-		}
-
-		if err != nil {
-			// Include resolution can fail during partial parsing of configs in dependency chains,
-			// e.g. when an included config has a dependency block whose outputs aren't yet available.
-			// This is expected and non-fatal — locals referencing the include will be left unevaluated,
-			// and the system will fall back to full parsing when needed.
-			l.Debugf(
-				"Could not resolve exposed includes for eval context in %s (partial parse): %v",
-				cfgPath,
-				err,
-			)
-		}
-
-		if err == nil {
-			evalCtx.Variables[MetadataInclude] = exposedInclude
-		}
-	}
-
-	return evalCtx, nil
+	return functions
 }
 
 // Return the OS platform
