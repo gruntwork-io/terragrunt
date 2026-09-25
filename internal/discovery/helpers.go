@@ -363,16 +363,16 @@ func storeStackConfigs(
 		// A fresh context per stack scopes it to that stack's file and values, so
 		// a config referencing values.* parses instead of failing on missing
 		// values (and shows its definitions in consumers like browse).
-		ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+		pctx := configbridge.NewParsingContext(opts)
 
-		values, err := config.ReadValues(ctx, pctx, l, stackDir)
+		values, err := config.ReadValues(ctx, l, v, pctx, stackDir)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
 			continue
 		}
 
-		cfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackFile, values)
+		cfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFile, values)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
@@ -393,12 +393,12 @@ func stackDependencyPaths(
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
-	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(
 		func(stackDir string) (map[string]function.Function, error) {
-			return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+			return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
 		},
 	)
 

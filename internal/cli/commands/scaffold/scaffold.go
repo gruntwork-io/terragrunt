@@ -582,9 +582,9 @@ func applyCatalogConfigToScaffold(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) {
-	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
-	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
+	catalogCfg, err := config.ReadCatalogConfig(ctx, l, v, pctx)
 	if err != nil {
 		// Don't fail if catalog config can't be read - it's optional
 		l.Debugf("Could not read catalog config for scaffold: %v", err)
@@ -754,9 +754,9 @@ func prepareBoilerplateFiles(
 
 	// if boilerplate dir is not found, create one with default template
 	if !vfs.IsDir(v.FS, boilerplateDir) {
-		_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+		pctx := configbridge.NewParsingContext(opts)
 
-		config, err := config.ReadCatalogConfig(ctx, l, pctx)
+		config, err := config.ReadCatalogConfig(ctx, l, v, pctx)
 		if err != nil {
 			return "", err
 		}

@@ -13,6 +13,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -30,8 +31,9 @@ const MaxIter = 1000
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
 func EvaluateLocalsBlock(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 ) (map[string]cty.Value, error) {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
@@ -69,8 +71,9 @@ func EvaluateLocalsBlock(
 
 		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
 			ctx,
-			pctx,
 			l,
+			v,
+			pctx,
 			file,
 			attrs,
 			evaluatedLocals,
@@ -118,8 +121,9 @@ func EvaluateLocalsBlock(
 // - any errors from the evaluation
 func attemptEvaluateLocals(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	attrs hclparse.Attributes,
 	evaluatedLocals map[string]cty.Value,
@@ -136,7 +140,7 @@ func attemptEvaluateLocals(
 
 	pctx.Locals = &localsAsCtyVal
 
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		l.Errorf(
 			"Could not convert include to the execution ctx to evaluate additional locals in file %s",

@@ -25,12 +25,14 @@ terraform {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -142,9 +144,10 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
-			terragruntConfig, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			terragruntConfig, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 
 			if tc.expectedErr != nil {
 				require.ErrorAs(t, err, tc.expectedErr)

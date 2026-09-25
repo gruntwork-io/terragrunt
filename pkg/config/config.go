@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -138,6 +139,7 @@ type TerragruntConfig struct {
 func (cfg *TerragruntConfig) GetRemoteState(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 ) (*remotestate.RemoteState, error) {
 	if cfg.RemoteState == nil {
@@ -171,7 +173,7 @@ func (cfg *TerragruntConfig) GetRemoteState(
 
 		tfSource, err := tf.NewSource(
 			l,
-			pctx.Venv.FS,
+			v.FS,
 			canonicalSourceURL,
 			pctx.DownloadDir,
 			pctx.WorkingDir,
@@ -1450,6 +1452,7 @@ func isTerragruntModuleDir(path string, tfDataDir string, downloadDir string) bo
 // The caller provides a fully populated ParsingContext (typically via configbridge.NewParsingContext).
 func ReadTerragruntConfig(ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 ) (*TerragruntConfig, error) {
 	l.Debugf(
@@ -1457,15 +1460,16 @@ func ReadTerragruntConfig(ctx context.Context,
 		util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.LogShowAbsPaths),
 	)
 
-	return ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
+	return ParseConfigFile(ctx, l, v, pctx, pctx.TerragruntConfigPath, nil)
 }
 
 // ParseConfigFile parses the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	cfgPath string,
 	includeFromChild *IncludeConfig,
 ) (*TerragruntConfig, error) {
@@ -1491,7 +1495,7 @@ func ParseConfigFile(
 		decodeListKey = fmt.Sprintf("%v", pctx.PartialParseDecodeList)
 	}
 
-	fileInfo, err := pctx.Venv.FS.Stat(cfgPath)
+	fileInfo, err := v.FS.Stat(cfgPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, TerragruntConfigNotFoundError{Path: cfgPath}
@@ -1526,13 +1530,13 @@ func ParseConfigFile(
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(childCtx, cacheKey); found {
-				file = cacheConfig.Rebind(pctx.NewParser(l))
+				file = cacheConfig.Rebind(pctx.NewParser(l, v))
 			} else {
 				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 				var parseErr error
 
-				file, parseErr = pctx.NewParser(l).
-					ParseFromFile(pctx.Venv.FS, cfgPath)
+				file, parseErr = pctx.NewParser(l, v).
+					ParseFromFile(v.FS, cfgPath)
 				if parseErr != nil {
 					return parseErr
 				}
@@ -1542,7 +1546,7 @@ func ParseConfigFile(
 
 			var parseErr error
 
-			config, parseErr = ParseConfig(childCtx, pctx, l, file, includeFromChild)
+			config, parseErr = ParseConfig(childCtx, l, v, pctx, file, includeFromChild)
 			if parseErr != nil {
 				return parseErr
 			}
@@ -1558,19 +1562,20 @@ func ParseConfigFile(
 
 func ParseConfigString(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	cfgPath string,
 	configString string,
 	includeFromChild *IncludeConfig,
 ) (*TerragruntConfig, error) {
 	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := pctx.NewParser(l).ParseFromString(configString, cfgPath)
+	file, err := pctx.NewParser(l, v).ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}
 
-	config, err := ParseConfig(ctx, pctx, l, file, includeFromChild)
+	config, err := ParseConfig(ctx, l, v, pctx, file, includeFromChild)
 	if err != nil {
 		return config, err
 	}
@@ -1606,8 +1611,9 @@ func ParseConfigString(
 //     blocks, which are only scoped to be available within the defining config.
 func ParseConfig(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
 ) (*TerragruntConfig, error) {
@@ -1636,7 +1642,7 @@ func ParseConfig(
 
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
-	iamRoleOptions, err := ResolveIAMRoleOptions(ctx, pctx, l, file, includeFromChild)
+	iamRoleOptions, err := ResolveIAMRoleOptions(ctx, l, v, pctx, file, includeFromChild)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1646,7 +1652,7 @@ func ParseConfig(
 	}
 
 	// read unit files and add to context
-	unitValues, err := ReadValues(ctx, pctx, l, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}
@@ -1654,7 +1660,7 @@ func ParseConfig(
 	pctx = pctx.WithValues(unitValues)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	baseBlocks, err := DecodeBaseBlocks(ctx, pctx, l, file, includeFromChild)
+	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, pctx, file, includeFromChild)
 	if err != nil {
 		// Surface the error here so it reaches stderr; the multi-error returned at
 		// the function end is not always rendered to the user by the CLI's final
@@ -1672,7 +1678,7 @@ func ParseConfig(
 	if pctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
-		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file)
+		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, l, v, pctx, file)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -1690,14 +1696,14 @@ func ParseConfig(
 		pctx.DecodedDependencies = retrievedOutputs
 	}
 
-	evalContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalContext, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx, pctx, l, file, evalContext)
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx, l, v, pctx, file, evalContext)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1706,7 +1712,7 @@ func ParseConfig(
 		return nil, CouldNotResolveTerragruntConfigInFileError(file.ConfigPath)
 	}
 
-	config, err := convertToTerragruntConfig(pctx, file.ConfigPath, terragruntConfigFile)
+	config, err := convertToTerragruntConfig(v, pctx, file.ConfigPath, terragruntConfigFile)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1714,7 +1720,7 @@ func ParseConfig(
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
 	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
 	if config != nil {
-		merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config)
+		merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, l, v, pctx, config)
 		if autoMergeErr != nil {
 			errs = append(errs, autoMergeErr)
 		}
@@ -1727,7 +1733,7 @@ func ParseConfig(
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	// Skip include merge when config is nil to avoid a nil pointer dereference in Merge/DeepMerge.
 	if pctx.TrackInclude != nil && config != nil {
-		mergedConfig, err := handleInclude(ctx, pctx, l, config, false)
+		mergedConfig, err := handleInclude(ctx, l, v, pctx, config, false)
 		if err != nil {
 			errs = append(errs, err)
 			return config, errors.Join(errs...)
@@ -1906,8 +1912,9 @@ var iamRoleCache = cache.NewCache[iam.RoleOptions](iamRoleCacheName)
 // identical content evaluated from different directories gets its own entry.
 func ResolveIAMRoleOptions(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
 ) (iam.RoleOptions, error) {
@@ -1929,8 +1936,9 @@ func ResolveIAMRoleOptions(
 	if !found {
 		iamConfig, err := TerragruntConfigFromPartialConfig(
 			ctx,
-			pctx.WithDecodeList(TerragruntFlags),
 			l,
+			v,
+			pctx.WithDecodeList(TerragruntFlags),
 			file,
 			includeFromChild,
 		)
@@ -1947,8 +1955,9 @@ func ResolveIAMRoleOptions(
 
 func decodeAsTerragruntConfigFile(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
 ) (*terragruntConfigFile, error) {
@@ -1972,8 +1981,9 @@ func decodeAsTerragruntConfigFile(
 
 	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		file,
 		evalContext,
 	)
@@ -2063,6 +2073,7 @@ func remoteStateFromAttr(attr cty.Value) (*remotestate.RemoteState, error) {
 
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
 func convertToTerragruntConfig(
+	v *venv.Venv,
 	pctx *ParsingContext,
 	cfgPath string,
 	cfgFromFile *terragruntConfigFile,
@@ -2070,7 +2081,7 @@ func convertToTerragruntConfig(
 	var errs []error
 
 	if pctx.catalogOnly {
-		return convertToTerragruntCatalogConfig(pctx, cfgPath, cfgFromFile)
+		return convertToTerragruntCatalogConfig(v, pctx, cfgPath, cfgFromFile)
 	}
 
 	cfg = &TerragruntConfig{
@@ -2115,11 +2126,11 @@ func convertToTerragruntConfig(
 		// FilesRead, so this hook is how files read via read_terragrunt_config of
 		// a config with a local module source reach reading= filters.
 		if cfg.Terraform.Source != nil {
-			markLocalModuleSourceAsRead(pctx, cfgPath, *cfg.Terraform.Source)
+			markLocalModuleSourceAsRead(v, pctx, cfgPath, *cfg.Terraform.Source)
 		}
 	}
 
-	if err := validateDependencies(pctx, cfgFromFile.Dependencies); err != nil {
+	if err := validateDependencies(v, pctx, cfgFromFile.Dependencies); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -2344,7 +2355,7 @@ var moduleSourceReadExtensions = map[string]struct{}{
 // A pctx that keeps no record of its reads gets no walk. The walk feeds nothing
 // but that record, and is the most expensive thing a parse does for it, so this
 // is where the cost of tracking goes when nobody is asking.
-func markLocalModuleSourceAsRead(pctx *ParsingContext, cfgPath, rawSource string) {
+func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, cfgPath, rawSource string) {
 	if !pctx.FilesRead.Tracking() {
 		return
 	}
@@ -2382,7 +2393,7 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, cfgPath, rawSource string
 		walkFunc = vfs.WalkDirWithSymlinks
 	}
 
-	_ = walkFunc(pctx.Venv.FS, moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
+	_ = walkFunc(v.FS, moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip unreadable entries rather than aborting the whole walk.
 			if d != nil && d.IsDir() {
@@ -2420,7 +2431,7 @@ func moduleSourceFileExtension(name string) string {
 }
 
 // Iterate over dependencies paths and check if directories exists, return error with all missing dependencies
-func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies) error {
+func validateDependencies(v *venv.Venv, ctx *ParsingContext, dependencies *ModuleDependencies) error {
 	var missingDependencies []string
 
 	if dependencies == nil {
@@ -2433,7 +2444,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 			fullPath = path.Join(ctx.WorkingDir, fullPath)
 		}
 
-		if !vfs.IsDir(ctx.Venv.FS, fullPath) {
+		if !vfs.IsDir(v.FS, fullPath) {
 			missingDependencies = append(
 				missingDependencies,
 				fmt.Sprintf("%s (%s)", dependencyPath, fullPath),
@@ -2729,9 +2740,10 @@ func errorsPattern(pattern string) (*errorconfig.Pattern, error) {
 func ParseRemoteState(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 ) (*remotestate.RemoteState, error) {
-	cfg, err := readBackendConfig(ctx, l, pctx)
+	cfg, err := readBackendConfig(ctx, l, v, pctx)
 	if err != nil {
 		l.Debugf(
 			"Decoding only the backend blocks of %s failed (%v), reading the whole config instead",
@@ -2743,13 +2755,13 @@ func ParseRemoteState(
 			err,
 		)
 
-		cfg, err = ReadTerragruntConfig(ctx, l, pctx)
+		cfg, err = ReadTerragruntConfig(ctx, l, v, pctx)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return cfg.GetRemoteState(ctx, l, pctx)
+	return cfg.GetRemoteState(ctx, l, v, pctx)
 }
 
 // readBackendConfig reads the config and decodes the two things a backend needs: the
@@ -2762,6 +2774,7 @@ func ParseRemoteState(
 func readBackendConfig(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 ) (*TerragruntConfig, error) {
 	// The whole-config read decides whether this config is valid, so a failure here must not
@@ -2775,8 +2788,9 @@ func readBackendConfig(
 	if iamRoleOptions.RoleARN == "" {
 		flags, err := PartialParseConfigFile(
 			ctx,
-			quietCtx.WithDecodeList(TerragruntFlags),
 			l,
+			v,
+			quietCtx.WithDecodeList(TerragruntFlags),
 			pctx.TerragruntConfigPath,
 			nil,
 		)
@@ -2793,7 +2807,7 @@ func readBackendConfig(
 	backendCtx := quietCtx.WithDecodeList(RemoteStateBlock, TerraformSource)
 	backendCtx.IAMRoleOptions = iamRoleOptions
 
-	return PartialParseConfigFile(ctx, backendCtx, l, pctx.TerragruntConfigPath, nil)
+	return PartialParseConfigFile(ctx, l, v, backendCtx, pctx.TerragruntConfigPath, nil)
 }
 
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside cfgPath
@@ -2823,8 +2837,9 @@ func hasSiblingAutoInclude(pctx *ParsingContext) bool {
 // mergeAutoIncludeIfPresent merges the registered sibling autoinclude override into the unit config the same way a regular include does by default (shallow merge), with the autoinclude winning.
 func mergeAutoIncludeIfPresent(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	cfg *TerragruntConfig,
 ) (*TerragruntConfig, error) {
 	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
@@ -2840,7 +2855,7 @@ func mergeAutoIncludeIfPresent(
 	clonedPctx.DecodedDependencies = nil
 	clonedPctx.skipAutoIncludeMerge = true
 
-	autoIncludeConfig, err := ParseConfigFile(ctx, clonedPctx, l, autoIncludePath, nil)
+	autoIncludeConfig, err := ParseConfigFile(ctx, l, v, clonedPctx, autoIncludePath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}

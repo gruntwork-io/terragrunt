@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -16,10 +17,11 @@ import (
 func DiscoverSourceURLs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *config.ParsingContext,
 ) ([]string, error) {
 	configFiles, err := config.FindConfigFilesInPath(
-		pctx.Venv.FS,
+		v.FS,
 		pctx.RootWorkingDir,
 		pctx.Experiments,
 		config.DefaultTerragruntConfigPath,
@@ -41,7 +43,7 @@ func DiscoverSourceURLs(
 			continue
 		}
 
-		cfg, err := config.PartialParseConfigFile(ctx, filePctx, fileLogger, configFile, nil)
+		cfg, err := config.PartialParseConfigFile(ctx, fileLogger, v, filePctx, configFile, nil)
 		if err != nil {
 			l.Debugf("Skipping %s: failed to parse: %v", configFile, err)
 			continue

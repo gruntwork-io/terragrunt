@@ -20,16 +20,11 @@ import (
 )
 
 // NewParsingContext creates a config.ParsingContext populated from TerragruntOptions.
-func NewParsingContext(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	opts *options.TerragruntOptions,
-) (context.Context, *config.ParsingContext) {
-	ctx, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(opts.StrictControls))
+func NewParsingContext(opts *options.TerragruntOptions) *config.ParsingContext {
+	pctx := config.NewParsingContext(config.WithStrictControls(opts.StrictControls))
 	populateFromOpts(pctx, opts)
 
-	return ctx, pctx
+	return pctx
 }
 
 // StackFuncFactory returns a dir-scoped HCL function factory for early stack
@@ -41,10 +36,10 @@ func StackFuncFactory(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) inthclparse.StackFuncFactory {
-	_, pctx := NewParsingContext(ctx, l, v, opts)
+	pctx := NewParsingContext(opts)
 
 	return func(stackDir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+		return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
 	}
 }
 

@@ -247,7 +247,7 @@ func TestDefaultParserSettingsFollowsBareIncludeControl(t *testing.T) {
 func TestCloneCopiesHaltOnErrorBlocks(t *testing.T) {
 	t.Parallel()
 
-	_, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), venvtest.New())
+	pctx := config.NewParsingContext()
 	pctx.Parser.HaltOnErrorOnlyInBlocks = []string{config.MetadataCatalog}
 
 	clone := pctx.Clone()

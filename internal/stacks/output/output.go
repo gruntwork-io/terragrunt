@@ -146,16 +146,16 @@ func StackOutput(
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
 
-		ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+		pctx := configbridge.NewParsingContext(opts)
 
-		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
+		values, valuesErr := config.ReadValues(ctx, l, v, pctx, dir)
 		if valuesErr != nil {
 			return cty.NilVal, waitWorkerErrors(
 				fmt.Errorf("failed to read values from %s: %w", dir, valuesErr),
 			)
 		}
 
-		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, pctx, path, values)
+		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, v, pctx, path, values)
 		if stackErr != nil {
 			return cty.NilVal, waitWorkerErrors(
 				fmt.Errorf("failed to read stack file %s: %w", path, stackErr),
@@ -195,7 +195,7 @@ func StackOutput(
 			declaredUnits[key] = unit
 
 			wp.Submit(func() error {
-				out, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
+				out, err := readUnitOutput(ctx, l, v, pctx, unit, unitDir)
 				if err != nil {
 					return err
 				}
@@ -380,6 +380,7 @@ func nestUnitOutputs(unitOutputs []unitOutput) (map[string]any, error) {
 func readUnitOutput(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *config.ParsingContext,
 	unit *config.Unit,
 	unitDir string,
@@ -393,7 +394,7 @@ func readUnitOutput(
 	}, func(ctx context.Context, l log.Logger) error {
 		var outputErr error
 
-		output, outputErr = unit.ReadOutputs(ctx, l, pctx, unitDir)
+		output, outputErr = unit.ReadOutputs(ctx, l, v, pctx, unitDir)
 
 		return outputErr
 	})

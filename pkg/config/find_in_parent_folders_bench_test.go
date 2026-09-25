@@ -23,7 +23,8 @@ func BenchmarkFindInParentFolders(b *testing.B) {
 
 			b.Run("depth="+strconv.Itoa(depth)+"/units="+strconv.Itoa(units), func(b *testing.B) {
 				l := logger.CreateLogger()
-				baseCtx, pctx := newTestParsingContext(b, venvtest.NewWithOSFS(), configPaths[0])
+				v := venvtest.NewWithOSFS()
+				baseCtx, pctx := newTestParsingContext(b, configPaths[0])
 				params := []string{benchRootFileName}
 
 				for b.Loop() {
@@ -34,7 +35,7 @@ func BenchmarkFindInParentFolders(b *testing.B) {
 					for _, configPath := range configPaths {
 						pctx.TerragruntConfigPath = configPath
 
-						_, err := config.FindInParentFolders(ctx, pctx, l, params)
+						_, err := config.FindInParentFolders(ctx, l, v, pctx, params)
 						require.NoError(b, err)
 					}
 				}

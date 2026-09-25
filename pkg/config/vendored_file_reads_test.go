@@ -19,11 +19,11 @@ func parseTrackingReads(t *testing.T, files map[string]string, hcl string) []str
 
 	l := logger.CreateLogger()
 	v := venvtest.New().WithFS(memUnitFS(t, files))
-	ctx, pctx := newTestParsingContext(t, v, memConfigPath)
+	ctx, pctx := newTestParsingContext(t, memConfigPath)
 	ctx = config.WithConfigValues(ctx)
 	pctx.FilesRead = config.NewFilesRead()
 
-	_, err := config.ParseConfigString(ctx, pctx, l, memConfigPath, hcl, nil)
+	_, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
 	require.NoError(t, err)
 
 	return pctx.FilesRead.Paths()
@@ -118,14 +118,14 @@ func TestHCLFileReadsAreUnrecordedWithoutTracking(t *testing.T) {
 
 	l := logger.CreateLogger()
 	v := venvtest.New().WithFS(memUnitFS(t, map[string]string{"data.txt": "contents\n"}))
-	ctx, pctx := newTestParsingContext(t, v, memConfigPath)
+	ctx, pctx := newTestParsingContext(t, memConfigPath)
 	ctx = config.WithConfigValues(ctx)
 
 	const hcl = `locals {
   data = file("data.txt")
 }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, memConfigPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "contents\n", out.Locals["data"])

@@ -37,11 +37,13 @@ remote_state {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -71,11 +73,13 @@ remote_state = {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -114,11 +118,13 @@ remote_state = {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -164,11 +170,13 @@ remote_state {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -199,8 +207,9 @@ remote_state = {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 }
 
@@ -225,11 +234,13 @@ generate = {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -258,8 +269,9 @@ generate = {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 }
 
@@ -277,8 +289,9 @@ generate "example" {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
-	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 
 	var target codegen.UnknownGenerateIfDisabledVal
@@ -314,8 +327,9 @@ generate "example" {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
-	_, err := config.ParseConfigString(ctx, pctx, l, childPath, childCfg, nil)
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, childPath)
+	_, err := config.ParseConfigString(ctx, l, v, pctx, childPath, childCfg, nil)
 	require.Error(t, err)
 
 	var target codegen.UnknownGenerateIfDisabledVal
@@ -340,8 +354,9 @@ generate = {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), "test-time-mock")
-	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 
 	var target codegen.UnknownGenerateIfDisabledVal
@@ -364,11 +379,13 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
 		nil,
@@ -393,8 +410,9 @@ remote_state {}
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(
 		t,
@@ -424,12 +442,14 @@ remote_state {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -477,12 +497,14 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 `
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
 		nil,
@@ -517,8 +539,9 @@ retryable_errors = [".*Error.*"]
 `
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
-	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "retryable_errors")
 	assert.Contains(t, err.Error(), "Unsupported argument")
@@ -535,11 +558,13 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	_, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
 		nil,
@@ -561,12 +586,14 @@ func TestParseIamRole(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -587,12 +614,14 @@ func TestParseIamAssumeRoleDuration(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -613,12 +642,14 @@ func TestParseIamAssumeRoleSessionName(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -645,12 +676,14 @@ func TestParseIamWebIdentity(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -675,12 +708,14 @@ dependencies {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -712,12 +747,14 @@ dependencies {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -768,12 +805,14 @@ dependencies {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -834,12 +873,14 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
 		nil,
@@ -900,9 +941,10 @@ include {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	terragruntConfig, parseErr := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
+	terragruntConfig, parseErr := config.ParseConfigString(ctx, l, v, pctx, cfgPath, cfg, nil)
 	if assert.NoError(t, parseErr, "Unexpected error: %v", parseErr) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -947,9 +989,10 @@ include {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	terragruntConfig, parseErr := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
+	terragruntConfig, parseErr := config.ParseConfigString(ctx, l, v, pctx, cfgPath, cfg, nil)
 	if assert.NoError(t, parseErr, "Unexpected error: %v", parseErr) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -1006,9 +1049,10 @@ remote_state {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, v, pctx, cfgPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", err) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -1056,8 +1100,9 @@ dependencies {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), configPath)
-	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, configPath, cfg, nil)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, configPath)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, v, pctx, configPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -1107,8 +1152,9 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
-	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, v, pctx, cfgPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -1138,9 +1184,10 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), configPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, configPath)
 
-	_, actualErr := config.ParseConfigString(ctx, pctx, l, configPath, cfg, nil)
+	_, actualErr := config.ParseConfigString(ctx, l, v, pctx, configPath, cfg, nil)
 
 	errStr := actualErr.Error()
 
@@ -1169,9 +1216,10 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), configPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, configPath)
 
-	_, actualErr := config.ParseConfigString(ctx, pctx, l, configPath, cfg, nil)
+	_, actualErr := config.ParseConfigString(ctx, l, v, pctx, configPath, cfg, nil)
 
 	errStr := actualErr.Error()
 
@@ -1201,11 +1249,13 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -1227,12 +1277,14 @@ func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	cfg, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfgString,
 		nil,
@@ -1251,12 +1303,14 @@ terraform {}
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -1281,12 +1335,14 @@ terraform {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -1321,12 +1377,14 @@ terraform {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -1389,11 +1447,13 @@ terraform {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -1471,11 +1531,13 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
 		nil,
@@ -1819,12 +1881,14 @@ prevent_destroy = true
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -1846,12 +1910,14 @@ prevent_destroy = false
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -1873,9 +1939,10 @@ skip = true
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
-	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "skip")
 	assert.Contains(t, err.Error(), "Unsupported argument")
@@ -1890,9 +1957,10 @@ skip = false
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
-	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "skip")
 	assert.Contains(t, err.Error(), "Unsupported argument")
@@ -1924,13 +1992,15 @@ terraform {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), absConfigPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, absConfigPath)
 	pctx.MaxFoldersToCheck = 5
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		pctx.TerragruntConfigPath,
 		cfg,
 		nil,
@@ -2054,7 +2124,8 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 			require.NoError(b, err)
 
 			l := createLogger()
-			_, pctx := newTestParsingContext(b, venvtest.NewWithOSFS(), workingDir)
+			v := venvtest.NewWithOSFS()
+			_, pctx := newTestParsingContext(b, workingDir)
 			pctx.UsePartialParseConfigCache = fixture.usePartialParseCache
 
 			b.ResetTimer()
@@ -2062,6 +2133,7 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 			actual, err := config.ReadTerragruntConfig(
 				b.Context(),
 				l,
+				v,
 				pctx,
 			)
 			b.StopTimer()
@@ -2135,12 +2207,14 @@ func TestBestEffortParseConfigString(t *testing.T) {
 
 			l := createLogger()
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 			terragruntConfig, err := config.ParseConfigString(
 				ctx,
-				pctx,
 				l,
+				v,
+				pctx,
 				config.DefaultTerragruntConfigPath,
 				tt.cfg,
 				nil,
@@ -2168,12 +2242,14 @@ func TestParseConfigGenerateBlockWithHclFmt(t *testing.T) {
 }`
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -2201,12 +2277,14 @@ func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
 }`
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -2232,12 +2310,14 @@ func TestParseConfigGenerateBlockWithMutable(t *testing.T) {
 }`
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -2265,12 +2345,14 @@ func TestParseConfigGenerateAttrWithMutable(t *testing.T) {
 }`
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -2294,12 +2376,14 @@ func TestParseConfigWithMissingIfExists(t *testing.T) {
 }`
 
 	l := createLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -2352,14 +2436,16 @@ dependency "dep" {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
 	pctx.WorkingDir = unitPath
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -2554,11 +2640,13 @@ inputs = {
 
 	l := createLogger()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-time-mock")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -2574,8 +2662,9 @@ inputs = {
 	// Parse the written config back
 	rereadConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		buf.String(),
 		nil,
@@ -2719,11 +2808,13 @@ exclude {
 }
 `
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), "test-exclude-no-run")
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, "test-exclude-no-run")
 	cfg, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		createLogger(),
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		src,
 		nil,
