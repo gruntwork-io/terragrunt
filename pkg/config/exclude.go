@@ -27,6 +27,12 @@ func (e *ExcludeConfig) IsActionListed(action string) bool {
 	return runcfg.IsActionListedInExclude(e.Actions, action)
 }
 
+// Excludes reports whether the block excludes its unit from action. A block
+// with a false `if` excludes nothing, whatever actions it lists.
+func (e *ExcludeConfig) Excludes(action string) bool {
+	return e.If && e.IsActionListed(action)
+}
+
 // ShouldPreventRun checks if the unit should be prevented from running based on the no_run attribute and current action.
 func (e *ExcludeConfig) ShouldPreventRun(action string) bool {
 	return runcfg.ShouldPreventRunBasedOnExclude(e.Actions, e.NoRun, e.If, action)

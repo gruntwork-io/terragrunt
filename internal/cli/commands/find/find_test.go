@@ -805,3 +805,41 @@ func newTestLogger(t *testing.T) log.Logger {
 
 	return l
 }
+
+// TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse pins that an exclude
+// block only drops a unit from the output when its `if` is true.
+func TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse(t *testing.T) {
+	t.Parallel()
+
+	root := "/find-exclude-if"
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"dropped/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"kept/terragrunt.hcl": `
+exclude {
+  if      = false
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"plain/terragrunt.hcl": "",
+	})
+
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	opts := find.NewOptions(tgOpts)
+	opts.Format = find.FormatText
+	opts.QueueConstructAs = "apply"
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+
+	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
+}

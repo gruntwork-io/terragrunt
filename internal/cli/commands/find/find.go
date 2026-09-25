@@ -147,7 +147,7 @@ func discoveredToFound(
 		if opts.QueueConstructAs != "" {
 			if unit, ok := c.(*component.Unit); ok {
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
-					if cfg.Exclude.IsActionListed(opts.QueueConstructAs) {
+					if cfg.Exclude.Excludes(opts.QueueConstructAs) {
 						continue
 					}
 				}
