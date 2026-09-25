@@ -47,14 +47,15 @@ const (
 	// probeCacheMaxEntrySize bounds how much of an entry file is read. A
 	// well-formed entry measures 189 bytes with a SHA-1 commit hash and 213
 	// with a SHA-256 one, plus up to 10 more for a timestamp carrying
-	// fractional seconds. Anything approaching this bound is damage and is
-	// read as a miss.
+	// fractional seconds and up to 36 for a git fetch rule. Anything
+	// approaching this bound is damage and is read as a miss.
 	probeCacheMaxEntrySize = 512
 )
 
-// ProbeEntry is one persisted probe answer. Every field is fixed width,
-// so an entry is a couple of hundred bytes whatever the source was called
-// and nothing a remote or a configuration chose is written verbatim.
+// ProbeEntry is one persisted probe answer. Every field is fixed width or
+// drawn from a fixed set, so an entry is a couple of hundred bytes whatever
+// the source was called and nothing a remote or a configuration chose is
+// written verbatim.
 type ProbeEntry struct {
 	// ProbedAt is when the probe returned Key.
 	ProbedAt time.Time `json:"probed_at"`
@@ -66,6 +67,10 @@ type ProbeEntry struct {
 	// tree-store key from [ContentKey] or [OpaqueKey] for every other
 	// resolver. Hex either way.
 	Key string `json:"key"`
+	// FetchRule is the git fetch rule the probe matched its ref through,
+	// such as refs/tags/%s. It is empty for other resolvers and in entries
+	// that predate the field, and a fetch then asks for the short name.
+	FetchRule string `json:"fetch_rule,omitempty"`
 	// Immutable reports that the source this answers for cannot change
 	// upstream, so the entry is served for [DefaultImmutableProbeTTL]
 	// rather than the caller's mutable TTL.

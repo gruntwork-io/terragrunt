@@ -155,23 +155,44 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 // so v1.2.3 also matches refs/heads/release/v1.2.3, which ls-remote lists
 // before refs/tags/v1.2.3. `git fetch` expands ref through the rules in
 // gitrevisions(7) instead and takes the first rule that names an advertised
-// ref, so a tag wins over a branch of the same name. It reports false when no
-// entry is a name `git fetch` would accept for ref.
-func FetchMatch(results []LsRemoteResult, ref string) (LsRemoteResult, bool) {
+// ref, so a tag wins over a branch of the same name. It also returns the rule
+// that matched. It reports false when no entry is a name `git fetch` would
+// accept for ref.
+func FetchMatch(results []LsRemoteResult, ref string) (LsRemoteResult, FetchRule, bool) {
 	for _, rule := range fetchRefRules {
-		want := fmt.Sprintf(rule, ref)
+		want := rule.Expand(ref)
 
 		if i := slices.IndexFunc(results, func(res LsRemoteResult) bool { return res.Ref == want }); i >= 0 {
-			return results[i], true
+			return results[i], rule, true
 		}
 	}
 
-	return LsRemoteResult{}, false
+	return LsRemoteResult{}, "", false
 }
 
-// fetchRefRules are the full names `git fetch` tries for a ref, most
-// preferred first, as gitrevisions(7) lists them.
-var fetchRefRules = []string{
+// FetchRule is one of the patterns `git fetch` expands a short ref name
+// through, as gitrevisions(7) lists them.
+type FetchRule string
+
+// ParseFetchRule returns s as a [FetchRule], reporting false when s is not
+// one of the rules `git fetch` tries.
+func ParseFetchRule(s string) (FetchRule, bool) {
+	rule := FetchRule(s)
+
+	return rule, slices.Contains(fetchRefRules, rule)
+}
+
+// Expand returns the full ref name r makes of ref.
+//
+// Fetching the full name selects the ref [FetchMatch] matched. Fetching ref
+// alone can miss it, because `git fetch` reads a 40-hex name as an object ID.
+func (r FetchRule) Expand(ref string) string {
+	return fmt.Sprintf(string(r), ref)
+}
+
+// fetchRefRules are the rules `git fetch` tries for a ref, most preferred
+// first.
+var fetchRefRules = []FetchRule{
 	"%s",
 	"refs/%s",
 	"refs/tags/%s",

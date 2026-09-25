@@ -133,7 +133,8 @@ func NewGitStore(rootPath string) *GitStore {
 }
 
 // EnsureRef ensures the bare repository for u contains the object at
-// hash, fetching ref at the requested depth on a cache miss. The returned
+// hash, fetching ref, such as HEAD or refs/tags/v1.2.3, at the requested
+// depth on a cache miss. The returned
 // handle holds the per-URL flock; the caller must release it via
 // [GitStoreRepo.Unlock] or [GitStoreRepo.Release]. On error the lock is
 // released before returning.
@@ -158,12 +159,7 @@ func (s *GitStore) EnsureRef(
 	}
 
 	if !has {
-		fetchRef := ref
-		if fetchRef == "" {
-			fetchRef = "HEAD"
-		}
-
-		if err := session.runner.Fetch(ctx, u.Reveal(), fetchRef, depth); err != nil {
+		if err := session.runner.Fetch(ctx, u.Reveal(), ref, depth); err != nil {
 			return nil, err
 		}
 
@@ -173,7 +169,7 @@ func (s *GitStore) EnsureRef(
 		}
 
 		if !has {
-			return nil, &GitStoreObjectMissingError{Hash: hash, Ref: fetchRef, URL: u}
+			return nil, &GitStoreObjectMissingError{Hash: hash, Ref: ref, URL: u}
 		}
 	}
 
