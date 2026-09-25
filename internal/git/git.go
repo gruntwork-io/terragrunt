@@ -1161,9 +1161,17 @@ func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) 
 		return err
 	}
 
-	args = append(args, "--", repo, ref)
+	// Git detaches `maintenance run --auto` after a fetch, and that process
+	// writes commit graphs under objects/ after the fetch has returned, past
+	// the lock the caller held for it or into a directory the caller has
+	// removed. Older git runs `gc --auto` in its place.
+	args = slices.Concat(
+		[]string{"-c", "maintenance.auto=false", "-c", "gc.auto=0", "fetch"},
+		args,
+		[]string{"--", repo, ref},
+	)
 
-	cmd := g.prepareCommand(ctx, "fetch", args...)
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
 
 	var stderr bytes.Buffer
 

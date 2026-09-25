@@ -284,7 +284,10 @@ func TestGitRunner_FetchInsertsOptionTerminator(t *testing.T) {
 
 	require.NoError(t, runner.Fetch(t.Context(), "file:///repo", "somebranch", 1))
 	assert.Equal(t,
-		[]string{"fetch", "--depth", "1", "--no-tags", "--", "file:///repo", "somebranch"},
+		[]string{
+			"-c", "maintenance.auto=false", "-c", "gc.auto=0",
+			"fetch", "--depth", "1", "--no-tags", "--", "file:///repo", "somebranch",
+		},
 		got,
 	)
 }
