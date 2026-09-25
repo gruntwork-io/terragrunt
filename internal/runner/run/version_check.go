@@ -219,12 +219,21 @@ func CheckTerragruntVersionMeetsConstraint(
 	return nil
 }
 
-// CheckTerraformVersionMeetsConstraint checks that the current version of
-// Terraform meets the specified constraint and returns an error if it doesn't.
+// CheckTerraformVersionMeetsConstraint checks that the installed OpenTofu/Terraform
+// version meets configConstraint, the terraform_version_constraint from config.
+// An empty configConstraint checks against [DefaultTerraformVersionConstraint].
+//
+// Returns [InvalidTerraformVersion] naming impl when the version does not meet the constraint.
 func CheckTerraformVersionMeetsConstraint(
 	currentVersion *semver.Version,
-	constraint string,
+	impl tfimpl.Type,
+	configConstraint string,
 ) error {
+	constraint, source := configConstraint, ConfigConstraint
+	if constraint == "" {
+		constraint, source = DefaultTerraformVersionConstraint, DefaultConstraint
+	}
+
 	versionConstraint, err := semver.ParseConstraint(constraint)
 	if err != nil {
 		return err
@@ -234,6 +243,8 @@ func CheckTerraformVersionMeetsConstraint(
 		return InvalidTerraformVersion{
 			CurrentVersion:     currentVersion,
 			VersionConstraints: versionConstraint,
+			Implementation:     impl,
+			ConstraintSource:   source,
 		}
 	}
 
@@ -317,12 +328,24 @@ func computeVersionFilesCacheKey(
 type InvalidTerraformVersionSyntax string
 
 func (err InvalidTerraformVersionSyntax) Error() string {
-	return "Unable to parse Terraform version output: " + string(err)
+	return "Unable to parse OpenTofu/Terraform version output: " + string(err)
 }
 
+// ConstraintSource says where an OpenTofu/Terraform version constraint came from.
+type ConstraintSource int
+
+const (
+	// DefaultConstraint is [DefaultTerraformVersionConstraint], the oldest version Terragrunt supports.
+	DefaultConstraint ConstraintSource = iota
+	// ConfigConstraint is the terraform_version_constraint set in config.
+	ConfigConstraint
+)
+
 type InvalidTerraformVersion struct {
+	Implementation     tfimpl.Type
 	CurrentVersion     *semver.Version
 	VersionConstraints semver.Constraints
+	ConstraintSource   ConstraintSource
 }
 
 type InvalidTerragruntVersion struct {
@@ -331,8 +354,18 @@ type InvalidTerragruntVersion struct {
 }
 
 func (err InvalidTerraformVersion) Error() string {
+	if err.ConstraintSource == DefaultConstraint {
+		return fmt.Sprintf(
+			"The installed version of %s (%s) is older than the minimum version Terragrunt supports (%s).",
+			err.Implementation.DisplayName(),
+			err.CurrentVersion.String(),
+			err.VersionConstraints.String(),
+		)
+	}
+
 	return fmt.Sprintf(
-		"The currently installed version of Terraform (%s) is not compatible with the version Terragrunt requires (%s).",
+		"The installed version of %s (%s) does not satisfy terraform_version_constraint (%s).",
+		err.Implementation.DisplayName(),
 		err.CurrentVersion.String(),
 		err.VersionConstraints.String(),
 	)

@@ -259,7 +259,7 @@ func CheckUnitVersionConstraints(
 	})
 	if err != nil {
 		return fmt.Errorf(
-			"failed to populate Terraform version for unit %s: %w",
+			"failed to populate OpenTofu/Terraform version for unit %s: %w",
 			unit.DisplayPath(),
 			err,
 		)
@@ -268,16 +268,17 @@ func CheckUnitVersionConstraints(
 	unitOpts.TerraformVersion = ver
 	unitOpts.TofuImplementation = impl
 
-	terraformVersionConstraint := run.DefaultTerraformVersionConstraint
-	if unitConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = unitConfig.TerraformVersionConstraint
-	}
-
 	if err := run.CheckTerraformVersionMeetsConstraint(
 		unitOpts.TerraformVersion,
-		terraformVersionConstraint,
+		unitOpts.TofuImplementation,
+		unitConfig.TerraformVersionConstraint,
 	); err != nil {
-		return fmt.Errorf("terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
+		return fmt.Errorf(
+			"%s version check failed for unit %s: %w",
+			unitOpts.TofuImplementation.DisplayName(),
+			unit.DisplayPath(),
+			err,
+		)
 	}
 
 	if unitConfig.TerragruntVersionConstraint != "" {

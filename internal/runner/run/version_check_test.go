@@ -43,6 +43,59 @@ func TestCheckTerraformVersionMeetsConstraintLessMajor(t *testing.T) {
 	testCheckTerraformVersionMeetsConstraint(t, "v0.8.8", ">= v0.9.3", false)
 }
 
+func TestCheckTerraformVersionMeetsConstraintReportsImplementationAndSource(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name             string
+		version          string
+		impl             tfimpl.Type
+		configConstraint string
+		wantSource       run.ConstraintSource
+	}{
+		{
+			name:             "opentofu below config constraint",
+			version:          "1.10.6",
+			impl:             tfimpl.OpenTofu,
+			configConstraint: ">= 1.12.6, < 2.0.0",
+			wantSource:       run.ConfigConstraint,
+		},
+		{
+			name:             "terraform below config constraint",
+			version:          "1.5.7",
+			impl:             tfimpl.Terraform,
+			configConstraint: ">= 1.12.6, < 2.0.0",
+			wantSource:       run.ConfigConstraint,
+		},
+		{
+			name:       "opentofu below default constraint",
+			version:    "0.11.0",
+			impl:       tfimpl.OpenTofu,
+			wantSource: run.DefaultConstraint,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := run.CheckTerraformVersionMeetsConstraint(semver.MustParse(tc.version), tc.impl, tc.configConstraint)
+
+			var target run.InvalidTerraformVersion
+
+			require.ErrorAs(t, err, &target)
+			assert.Equal(t, tc.impl, target.Implementation)
+			assert.Equal(t, tc.wantSource, target.ConstraintSource)
+		})
+	}
+}
+
+func TestCheckTerraformVersionMeetsConstraintEmptyConfigUsesDefault(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, run.CheckTerraformVersionMeetsConstraint(semver.MustParse("0.12.0"), tfimpl.OpenTofu, ""))
+}
+
 func TestParseOpenTofuVersionNormal(t *testing.T) {
 	t.Parallel()
 	testParseTerraformVersion(t, "OpenTofu v1.6.0", "v1.6.0", nil)
@@ -119,7 +172,7 @@ func testCheckTerraformVersionMeetsConstraint(
 	current, err := semver.Parse(currentVersion)
 	require.NoError(t, err, "Invalid current version specified in test")
 
-	err = run.CheckTerraformVersionMeetsConstraint(current, versionConstraint)
+	err = run.CheckTerraformVersionMeetsConstraint(current, tfimpl.OpenTofu, versionConstraint)
 	if versionMeetsConstraint && err != nil {
 		assert.NoError(t, err,
 			"Expected Terraform version %s to meet constraint %s, but got error: %v",

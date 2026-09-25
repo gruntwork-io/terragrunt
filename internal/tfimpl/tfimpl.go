@@ -15,6 +15,21 @@ const (
 	Unknown Type = "unknown"
 )
 
+// DisplayName returns the product name of the implementation for user-facing
+// messages: "OpenTofu", "Terraform", or "OpenTofu/Terraform" when unknown.
+func (t Type) DisplayName() string {
+	switch t {
+	case OpenTofu:
+		return "OpenTofu"
+	case Terraform:
+		return "Terraform"
+	case Unknown:
+		return "OpenTofu/Terraform"
+	}
+
+	return "OpenTofu/Terraform"
+}
+
 // Default registry hosts used when a tfr:// URL omits its host.
 const (
 	defaultRegistryDomain   = "registry.terraform.io"

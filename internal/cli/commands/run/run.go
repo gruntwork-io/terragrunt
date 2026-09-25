@@ -232,14 +232,10 @@ func checkVersionConstraints(
 	opts.TerraformVersion = ver
 	opts.TofuImplementation = impl
 
-	terraformVersionConstraint := run.DefaultTerraformVersionConstraint
-	if partialTerragruntConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
-	}
-
 	if err := run.CheckTerraformVersionMeetsConstraint(
 		opts.TerraformVersion,
-		terraformVersionConstraint,
+		opts.TofuImplementation,
+		partialTerragruntConfig.TerraformVersionConstraint,
 	); err != nil {
 		return l, err
 	}
