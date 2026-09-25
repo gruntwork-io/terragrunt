@@ -522,7 +522,7 @@ func SetTerragruntInputsAsEnvVars(
 	return nil
 }
 
-// CheckFolderContainsTerraformCode checks if the folder contains Terraform/OpenTofu code
+// CheckFolderContainsTerraformCode checks if the folder contains OpenTofu/Terraform code
 func CheckFolderContainsTerraformCode(fsys vfs.FS, opts *Options) error {
 	found, err := util.DirContainsTFFiles(fsys, opts.CacheDir)
 	if err != nil {
@@ -907,7 +907,9 @@ func runTerraformInitRunCfg(
 ) error {
 	if opts.TerraformCliArgs.First() != tf.CommandNameInit && !opts.AutoInit {
 		l.Warnf(
-			"Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.",
+			"Detected that init is needed, but Auto-Init is disabled. "+
+				"Continuing with further actions, but subsequent %s commands may fail.",
+			opts.TofuImplementation.DisplayName(),
 		)
 
 		return nil

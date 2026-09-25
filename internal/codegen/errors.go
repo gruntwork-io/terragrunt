@@ -33,7 +33,7 @@ type GenerateFileExistsError struct {
 }
 
 func (err GenerateFileExistsError) Error() string {
-	return fmt.Sprintf("Can not generate terraform file: %s already exists", err.path)
+	return fmt.Sprintf("Can not generate file: %s already exists", err.path)
 }
 
 type GenerateFileRemoveError struct {
@@ -41,5 +41,5 @@ type GenerateFileRemoveError struct {
 }
 
 func (err GenerateFileRemoveError) Error() string {
-	return "Can not remove terraform file: " + err.path
+	return "Can not remove file: " + err.path
 }

@@ -15,7 +15,7 @@ If you've heard about CI, or heard the term CI/CD before, you might not have lea
 
 ## Why infrastructure CI is different
 
-This matters when you're working with Infrastructure as Code, because some of the complexities in CI are amplified when managing infrastructure as opposed to CI for application code. When working with OpenTofu or Terraform:
+This matters when you're working with Infrastructure as Code, because some of the complexities in CI are amplified when managing infrastructure as opposed to CI for application code. When working with OpenTofu/Terraform:
 
 - `plan` tells you what will change before you change it. Every plan should be reviewed, and you should understand what's going to change in your infrastructure before you `apply` it.
 - `apply` changes real infrastructure. Unlike a bad application deploy that you can roll back, a bad `apply` can delete databases, tear down networks, or take down production services. Rolling back isn't always straightforward when working with stateful infrastructure.

@@ -1,6 +1,6 @@
 // Package azurerm implements the Azure Storage (azurerm) backend for
 // interacting with remote state. It bootstraps the resource group, storage
-// account, and blob container backing a unit's Terraform/OpenTofu state, and
+// account, and blob container backing a unit's OpenTofu/Terraform state, and
 // supports delete and migrate lifecycle operations via internal/azurehelper.
 package azurerm
 
@@ -792,7 +792,8 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backen
 	}
 
 	prompt := fmt.Sprintf(
-		"The Terraform state blob %q in container %q (storage account %q) will be deleted. Do you want to continue?",
+		"The OpenTofu/Terraform state blob %q in container %q (storage account %q) "+
+			"will be deleted. Do you want to continue?",
 		rs.Key,
 		rs.ContainerName,
 		rs.StorageAccountName,

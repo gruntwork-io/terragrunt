@@ -132,8 +132,10 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *semver.Version, err
 }
 
 // GetTFVersion checks the OpenTofu/Terraform version directly without using cache.
-// It takes pre-built *tf.TFOptions and runs "terraform version", discarding output
+// It takes pre-built *tf.TFOptions and runs "tofu version", discarding output
 // and stripping TF_CLI_ARGS env vars to avoid interference.
+//
+// Returns [tfimpl.Unknown] with the parsed version when the output names neither tool.
 func GetTFVersion(
 	ctx context.Context,
 	l log.Logger,
@@ -174,15 +176,16 @@ func GetTFVersion(
 	}
 
 	if tfImplementation == tfimpl.Unknown {
-		tfImplementation = tfimpl.Terraform
-
 		l.Warnf(
-			"Failed to identify Terraform implementation, fallback to terraform version: %s",
+			"Could not identify OpenTofu/Terraform from the version output of %s (version %s)",
+			filepath.Base(tfOpts.ShellOptions.TFPath),
 			terraformVersion,
 		)
-	} else {
-		l.Debugf("%s version: %s", tfImplementation, terraformVersion)
+
+		return l, terraformVersion, tfImplementation, nil
 	}
+
+	l.Debugf("%s version: %s", tfImplementation, terraformVersion)
 
 	return l, terraformVersion, tfImplementation, nil
 }
@@ -335,7 +338,8 @@ func (err InvalidTerraformVersionSyntax) Error() string {
 type ConstraintSource int
 
 const (
-	// DefaultConstraint is [DefaultTerraformVersionConstraint], the oldest version Terragrunt supports.
+	// DefaultConstraint is [DefaultTerraformVersionConstraint],
+	// the oldest version Terragrunt supports.
 	DefaultConstraint ConstraintSource = iota
 	// ConfigConstraint is the terraform_version_constraint set in config.
 	ConfigConstraint
@@ -356,7 +360,8 @@ type InvalidTerragruntVersion struct {
 func (err InvalidTerraformVersion) Error() string {
 	if err.ConstraintSource == DefaultConstraint {
 		return fmt.Sprintf(
-			"The installed version of %s (%s) is older than the minimum version Terragrunt supports (%s).",
+			"The installed version of %s (%s) is older than "+
+				"the minimum version Terragrunt supports (%s).",
 			err.Implementation.DisplayName(),
 			err.CurrentVersion.String(),
 			err.VersionConstraints.String(),

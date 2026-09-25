@@ -27,3 +27,53 @@ func TestTypeDisplayName(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultRegistryDomain(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		env  map[string]string
+		impl tfimpl.Type
+		want string
+	}{
+		{
+			name: "opentofu",
+			env:  map[string]string{},
+			impl: tfimpl.OpenTofu,
+			want: "registry.opentofu.org",
+		},
+		{
+			name: "terraform",
+			env:  map[string]string{},
+			impl: tfimpl.Terraform,
+			want: "registry.terraform.io",
+		},
+		{
+			name: "unknown",
+			env:  map[string]string{},
+			impl: tfimpl.Unknown,
+			want: "registry.opentofu.org",
+		},
+		{
+			name: "unset",
+			env:  map[string]string{},
+			impl: "",
+			want: "registry.opentofu.org",
+		},
+		{
+			name: "env override",
+			env:  map[string]string{"TG_TF_DEFAULT_REGISTRY_HOST": "registry.example.com"},
+			impl: tfimpl.Terraform,
+			want: "registry.example.com",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, tfimpl.DefaultRegistryDomain(tc.env, tc.impl))
+		})
+	}
+}

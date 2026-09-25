@@ -178,7 +178,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			valid: true,
 		},
 		{
-			description: "Directory with plain Terraform and OpenTofu",
+			description: "Directory with plain OpenTofu and Terraform",
 			files: map[string]string{
 				"main.tf":   `# Terraform file`,
 				"main.tofu": `# OpenTofu file`,
@@ -200,7 +200,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			valid: true,
 		},
 		{
-			description: "Directory with JSON formatted Terraform and OpenTofu",
+			description: "Directory with JSON formatted OpenTofu and Terraform",
 			files: map[string]string{
 				"main.tf.json":   `{"terraform": {"backend": {"s3": {}}}}`,
 				"main.tofu.json": `{"terraform": {"backend": {"s3": {}}}}`,
@@ -208,7 +208,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			valid: true,
 		},
 		{
-			description: "Directory with no Terraform or OpenTofu",
+			description: "Directory with no OpenTofu/Terraform",
 			files: map[string]string{
 				"main.yaml": `# Not a terraform file`,
 			},

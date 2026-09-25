@@ -15,7 +15,7 @@
 ;; source tree is not among them. A test that writes into testdata or a fixture
 ;; fails here instead of leaving the change behind for the next run.
 ;;
-;; Execution: no real OpenTofu or Terraform binary. The `tf` build tag marks
+;; Execution: no real OpenTofu/Terraform binary. The `tf` build tag marks
 ;; the tests that need one, and the integration jobs run those against a real
 ;; toolchain. A test that needs to stand in for the binary substitutes
 ;; vexec.NewMemExec instead of putting a mock on PATH.

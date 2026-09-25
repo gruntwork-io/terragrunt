@@ -79,7 +79,11 @@ func TestCheckTerraformVersionMeetsConstraintReportsImplementationAndSource(t *t
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := run.CheckTerraformVersionMeetsConstraint(semver.MustParse(tc.version), tc.impl, tc.configConstraint)
+			err := run.CheckTerraformVersionMeetsConstraint(
+				semver.MustParse(tc.version),
+				tc.impl,
+				tc.configConstraint,
+			)
 
 			var target run.InvalidTerraformVersion
 
@@ -93,7 +97,8 @@ func TestCheckTerraformVersionMeetsConstraintReportsImplementationAndSource(t *t
 func TestCheckTerraformVersionMeetsConstraintEmptyConfigUsesDefault(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, run.CheckTerraformVersionMeetsConstraint(semver.MustParse("0.12.0"), tfimpl.OpenTofu, ""))
+	err := run.CheckTerraformVersionMeetsConstraint(semver.MustParse("0.12.0"), tfimpl.OpenTofu, "")
+	require.NoError(t, err)
 }
 
 func TestParseOpenTofuVersionNormal(t *testing.T) {

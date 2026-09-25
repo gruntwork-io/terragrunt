@@ -22,7 +22,8 @@ func NewSourceFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.
 			Name:        SourceFlagName,
 			EnvVars:     tgPrefix.EnvVars(SourceFlagName),
 			Destination: &opts.Source,
-			Usage:       "Download OpenTofu/Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
+			Usage: "Download OpenTofu/Terraform configurations from the specified source " +
+				"into a temporary folder, and run OpenTofu/Terraform in that temporary folder.",
 		},
 		flags.WithDeprecatedEnvVars(
 			terragruntPrefix.EnvVars(SourceFlagName),
