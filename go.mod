@@ -7,8 +7,8 @@ require (
 	charm.land/bubbletea/v2 v2.0.9
 	charm.land/glamour/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.6
-	cloud.google.com/go/auth v0.23.2
-	cloud.google.com/go/storage v1.67.1
+	cloud.google.com/go/auth v0.23.3
+	cloud.google.com/go/storage v1.68.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
@@ -59,7 +59,7 @@ require (
 	github.com/labstack/echo/v4 v4.15.4
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/mattn/go-shellwords v1.0.15
-	github.com/mattn/go-zglob v0.0.6
+	github.com/mattn/go-zglob v0.0.8
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
@@ -106,7 +106,7 @@ require (
 	golang.org/x/term v0.46.0
 	golang.org/x/text v0.42.0
 	google.golang.org/api v0.298.0
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/ini.v1 v1.67.3
 	gopkg.in/yaml.v3 v3.0.1
