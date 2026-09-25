@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,6 +87,71 @@ terraform {
 
 	// Verify the parsed constraints default to OpenTofu registry and are normalized
 	assert.Equal(t, "~> 5.0.0", constraints["registry.opentofu.org/hashicorp/aws"])
+}
+
+// TestParseProviderConstraintsWithShorthand pins that a shorthand entry and an object
+// entry in the same block both reach the constraint map.
+func TestParseProviderConstraintsWithShorthand(t *testing.T) {
+	t.Parallel()
+
+	testDir := venvtest.Root("/module")
+	fsys := vfs.NewMemMapFS()
+
+	terraformContent := `
+terraform {
+  required_providers {
+    aws = ">= 5.0"
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
+  }
+}
+`
+
+	require.NoError(t, fsys.MkdirAll(testDir, 0o755))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(testDir, "main.tf"), []byte(terraformContent), 0o644))
+
+	constraints, err := getproviders.ParseProviderConstraints(fsys, map[string]string{}, tfimpl.Terraform, testDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, ">= 5.0.0", constraints["registry.terraform.io/hashicorp/aws"])
+	assert.Equal(t, "~> 4.0.0", constraints["registry.terraform.io/cloudflare/cloudflare"])
+
+	constraints, err = getproviders.ParseProviderConstraints(fsys, map[string]string{}, tfimpl.OpenTofu, testDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, ">= 5.0.0", constraints["registry.opentofu.org/hashicorp/aws"])
+	assert.Equal(t, "~> 4.0.0", constraints["registry.opentofu.org/cloudflare/cloudflare"])
+}
+
+// TestParseProviderConstraintsWithShorthandVariants pins the normalization of a
+// shorthand constraint.
+func TestParseProviderConstraintsWithShorthandVariants(t *testing.T) {
+	t.Parallel()
+
+	testDir := venvtest.Root("/module")
+	fsys := vfs.NewMemMapFS()
+
+	terraformContent := `
+terraform {
+  required_providers {
+    aws      = "= 5.100.0"
+    time     = "0.10"
+    external = ">= 2.0, < 3.0"
+  }
+}
+`
+
+	require.NoError(t, fsys.MkdirAll(testDir, 0o755))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(testDir, "main.tf"), []byte(terraformContent), 0o644))
+
+	constraints, err := getproviders.ParseProviderConstraints(fsys, map[string]string{}, tfimpl.OpenTofu, testDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, "5.100.0", constraints["registry.opentofu.org/hashicorp/aws"])
+	assert.Equal(t, "0.10.0", constraints["registry.opentofu.org/hashicorp/time"])
+	assert.Equal(t, ">= 2.0.0, < 3.0.0", constraints["registry.opentofu.org/hashicorp/external"])
 }
 
 func TestParseProviderConstraintsWithEnvironmentOverride(t *testing.T) {
