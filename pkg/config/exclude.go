@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -12,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -149,38 +147,37 @@ func evaluateExcludeBlocks(
 	return excludeConfig, nil
 }
 
-// validateExcludeDependencyReferences warns about an exclude block that reads a dependency, or rejects it under the exclude-dependency-outputs strict control; JSON configs are skipped.
+// validateExcludeDependencyReferences warns about an exclude block that reads a dependency, or rejects it under the exclude-dependency-outputs strict control.
 func validateExcludeDependencyReferences(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
 	file *hclparse.File,
 ) error {
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return nil
+	excludeBlocks, err := file.Blocks(MetadataExclude, true)
+	if err != nil {
+		return err
 	}
 
-	for _, block := range body.Blocks {
-		if block.Type != MetadataExclude {
+	for _, block := range excludeBlocks {
+		attrs, diags := block.Body.JustAttributes()
+		if diags.HasErrors() {
+			l.Debugf("Skipping the dependency check for the exclude block in %s because it is malformed; parsing reports the error: %v", file.ConfigPath, diags)
+
 			continue
 		}
 
-		for _, name := range slices.Sorted(maps.Keys(block.Body.Attributes)) {
-			if !expressionReferencesDependency(block.Body.Attributes[name].Expr) {
+		for _, name := range slices.Sorted(maps.Keys(attrs)) {
+			if !expressionReferencesDependency(attrs[name].Expr) {
 				continue
 			}
 
-			control := pctx.StrictControls.Find(controls.ExcludeDependencyOutputs)
-			if control == nil {
-				return errors.New("failed to find control " + controls.ExcludeDependencyOutputs)
-			}
-
-			if control.GetEnabled() {
+			excludeControls := pctx.StrictControls.FilterByNames(controls.ExcludeDependencyOutputs)
+			if len(excludeControls.FilterByEnabled()) > 0 {
 				return ExcludeReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: name}
 			}
 
-			return control.Evaluate(log.ContextWithLogger(ctx, l))
+			return excludeControls.Evaluate(log.ContextWithLogger(ctx, l))
 		}
 	}
 

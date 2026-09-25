@@ -1,0 +1,18 @@
+{
+  "terraform": {
+    "source": "."
+  },
+  "dependency": {
+    "dep": {
+      "config_path": "../dep",
+      "mock_outputs": {
+        "skip": true
+      }
+    }
+  },
+  "exclude": {
+    "if": "${dependency.dep.outputs.skip}",
+    "no_run": true,
+    "actions": ["plan"]
+  }
+}

@@ -1,0 +1,3 @@
+output "skip" {
+  value = true
+}

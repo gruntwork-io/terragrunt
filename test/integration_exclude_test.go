@@ -21,6 +21,7 @@ const (
 	testExcludeComprehensive         = "fixtures/exclude/comprehensive"
 	testExcludeNullOrUnknownString   = "fixtures/exclude/null-or-unknown-string"
 	testExcludeDependencyOutputNoRun = "fixtures/exclude/dependency-output-no-run"
+	testExcludeDependencyOutputJSON  = "fixtures/exclude/dependency-output-no-run-json"
 )
 
 // expectedResult defines the expected outcome for a unit in a test case.
@@ -475,41 +476,50 @@ func TestTFExcludeBlockNullOrUnknownStringRunAll(t *testing.T) {
 	}
 }
 
-// TestTFExcludeBlockDependencyOutputStrictControl tests that an exclude block reading a dependency output still runs by default and errors under the exclude-dependency-outputs strict control.
+// TestTFExcludeBlockDependencyOutputStrictControl tests that an exclude block reading a dependency output, in HCL or JSON, still runs by default and errors under the exclude-dependency-outputs strict control.
 func TestTFExcludeBlockDependencyOutputStrictControl(t *testing.T) {
 	t.Parallel()
 
-	const strict = "--strict-control exclude-dependency-outputs "
+	const (
+		strict   = "--strict-control exclude-dependency-outputs "
+		plan     = "plan --non-interactive --working-dir %s"
+		runAll   = "run --all --non-interactive --working-dir %s -- plan"
+		hclUnit  = "app/terragrunt.hcl"
+		jsonUnit = "app/terragrunt.hcl.json"
+	)
 
 	tests := []struct {
-		name    string
-		args    string
-		dir     string
-		wantErr bool
+		name      string
+		fixture   string
+		args      string
+		dir       string
+		errConfig string
 	}{
-		{name: "plan", args: "plan --non-interactive --working-dir %s", dir: "app"},
-		{name: "run all", args: "run --all --non-interactive --working-dir %s -- plan"},
-		{name: "plan strict", args: strict + "plan --non-interactive --working-dir %s", dir: "app", wantErr: true},
-		{name: "run all strict", args: strict + "run --all --non-interactive --working-dir %s -- plan", wantErr: true},
+		{name: "plan", fixture: testExcludeDependencyOutputNoRun, args: plan, dir: "app"},
+		{name: "run all", fixture: testExcludeDependencyOutputNoRun, args: runAll},
+		{name: "plan strict", fixture: testExcludeDependencyOutputNoRun, args: strict + plan, dir: "app", errConfig: hclUnit},
+		{name: "run all strict", fixture: testExcludeDependencyOutputNoRun, args: strict + runAll, errConfig: hclUnit},
+		{name: "plan json", fixture: testExcludeDependencyOutputJSON, args: plan, dir: "app"},
+		{name: "plan json strict", fixture: testExcludeDependencyOutputJSON, args: strict + plan, dir: "app", errConfig: jsonUnit},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testExcludeDependencyOutputNoRun)
-			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDependencyOutputNoRun)
-			rootPath := filepath.Join(tmpEnvPath, testExcludeDependencyOutputNoRun)
+			helpers.CleanupTerraformFolder(t, tt.fixture)
+			tmpEnvPath := helpers.CopyEnvironment(t, tt.fixture)
+			rootPath := filepath.Join(tmpEnvPath, tt.fixture)
 
 			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 				t,
 				"terragrunt "+fmt.Sprintf(tt.args, filepath.Join(rootPath, tt.dir)),
 			)
-			if tt.wantErr {
+			if tt.errConfig != "" {
 				require.ErrorContains(
 					t,
 					err,
-					"exclude.if in "+filepath.Join(rootPath, "app", "terragrunt.hcl")+" cannot reference dependency outputs",
+					"exclude.if in "+filepath.Join(rootPath, filepath.FromSlash(tt.errConfig))+" cannot reference dependency outputs",
 				)
 
 				return

@@ -448,6 +448,33 @@ inputs = {
 	assert.Equal(t, "dev", cfg.Inputs["env"])
 }
 
+// TestExternalParseConfigStringExcludeReadingDependency validates that an external consumer with zero options can parse an exclude block that reads a dependency.
+func TestExternalParseConfigStringExcludeReadingDependency(t *testing.T) {
+	t.Parallel()
+
+	l := createExternalLogger()
+
+	hclConfig := `
+dependency "dep" {
+  config_path  = "../dep"
+  skip_outputs = true
+  mock_outputs = { skip = true }
+}
+
+exclude {
+  if      = dependency.dep.outputs.skip
+  no_run  = true
+  actions = ["plan"]
+}
+`
+
+	ctx, pctx := config.NewParsingContext(t.Context(), l, venvtest.New())
+	cfg, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, hclConfig, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Exclude)
+	assert.True(t, cfg.Exclude.If)
+}
+
 // TestExternalParseStackConfigString validates that an external consumer can
 // parse a terragrunt.stack.hcl config using NewParsingContext with zero options
 // and no internal/ imports.

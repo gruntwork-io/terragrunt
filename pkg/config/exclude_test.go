@@ -297,6 +297,98 @@ exclude {
 	}
 }
 
+// TestExcludeReadingDependencyInJSON pins that a terragrunt.hcl.json exclude block reading a dependency warns by default and errors under the strict control.
+func TestExcludeReadingDependencyInJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		strict bool
+		full   bool
+	}{
+		{name: "discovery"},
+		{name: "discovery strict", strict: true},
+		{name: "full parse strict", strict: true, full: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/live")
+			cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntJSONConfigPath)
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				filepath.Join("dep", config.DefaultTerragruntConfigPath): "",
+				filepath.Join("unit", config.DefaultTerragruntJSONConfigPath): `{
+  "dependency": {"dep": {"config_path": "../dep"}},
+  "exclude": {"if": "${dependency.dep.outputs.flag}", "actions": ["plan"]}
+}`,
+			})
+
+			var logBuf bytes.Buffer
+
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(&logBuf))
+
+			ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
+			if tt.strict {
+				enableStrictControl(t, pctx, controls.ExcludeDependencyOutputs)
+			}
+
+			var err error
+			if tt.full {
+				_, err = config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+			} else {
+				pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
+				_, err = config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+			}
+
+			if tt.strict {
+				var typed config.ExcludeReferencesDependencyError
+				require.ErrorAs(t, err, &typed)
+				assert.Equal(t, config.ExcludeReferencesDependencyError{ConfigPath: cfgPath, Attribute: "if"}, typed)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Contains(t, logBuf.String(), "An `exclude` block reads dependency outputs.")
+		})
+	}
+}
+
+// TestMalformedExcludeReadingDependencyKeepsDecodeErrorWhenStrict pins that a malformed exclude block reports its HCL error, not the strict control error.
+func TestMalformedExcludeReadingDependencyKeepsDecodeErrorWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/live")
+	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		filepath.Join("dep", config.DefaultTerragruntConfigPath): "",
+		filepath.Join("unit", config.DefaultTerragruntConfigPath): `
+dependency "dep" {
+  config_path = "../dep"
+}
+
+exclude {
+  if      = dependency.dep.outputs.flag
+  actions = ["plan"]
+
+  nested {
+    x = 1
+  }
+}
+`,
+	})
+
+	ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
+	enableStrictControl(t, pctx, controls.ExcludeDependencyOutputs)
+
+	_, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	require.ErrorContains(t, err, "Unsupported block type")
+	assert.NotErrorAs(t, err, new(config.ExcludeReferencesDependencyError))
+}
+
 // TestExcludeReadingFeatureFlagAcceptedWhenStrict pins that the exclude-dependency-outputs strict control leaves an exclude block without dependency reads alone.
 func TestExcludeReadingFeatureFlagAcceptedWhenStrict(t *testing.T) {
 	t.Parallel()
