@@ -145,16 +145,22 @@ func ExtractErrorMessage(err error) string {
 	return strings.Join(strings.Fields(errorText), " ")
 }
 
-// MatchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns.
+// MatchesAnyRegexpPattern reports whether the input matches at least one positive pattern and no
+// negative pattern, whatever order the patterns are listed in.
 func MatchesAnyRegexpPattern(input string, patterns []*Pattern) bool {
-	for _, pattern := range patterns {
-		isNegative := pattern.Negative
-		matched := pattern.Pattern.MatchString(input)
+	matched := false
 
-		if matched {
-			return !isNegative
+	for _, pattern := range patterns {
+		if !pattern.Pattern.MatchString(input) {
+			continue
 		}
+
+		if pattern.Negative {
+			return false
+		}
+
+		matched = true
 	}
 
-	return false
+	return matched
 }
