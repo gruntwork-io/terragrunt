@@ -1,0 +1,17 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `find` and `list` honor `if` in `exclude` blocks
+
+Running `terragrunt find --queue-construct-as apply` or `terragrunt list --queue-construct-as apply` dropped every unit whose `exclude` block listed `apply`, even when the block's `if` was `false`:
+
+```hcl
+exclude {
+  if      = false
+  actions = ["plan", "apply", "destroy"]
+}
+```
+
+The [run queue](/features/stacks/run-queue) for `run --all apply` kept such a unit, so the two commands disagreed about what would run. Both commands now drop a unit only when its `exclude` block has `if = true` and lists the action.
