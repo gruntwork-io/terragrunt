@@ -21,7 +21,7 @@ const tfrResolverTimeout = 10 * time.Second
 
 // TFRResolver is a [cas.SourceResolver] for tfr:// URLs.
 //
-// Probe resolves the source via the Terraform/OpenTofu registry's module
+// Probe resolves the source via the OpenTofu/Terraform registry's module
 // download endpoint and returns the resolved X-Terraform-Get URL as a
 // content-addressed cache key. That URL encodes the immutable underlying
 // archive (a versioned tarball, a git commit SHA, etc.), so two identical

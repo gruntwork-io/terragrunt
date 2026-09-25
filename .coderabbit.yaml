@@ -119,6 +119,39 @@ reviews:
         helpers with no observable effect) do NOT require an entry; do not
         flag those.
 
+    - path: '**/*.go'
+      instructions: >-
+        IAC TOOL NAMING CHECK. Terragrunt runs OpenTofu/Terraform, and
+        stores the one it detected as a `tfimpl.Type` (usually a
+        `TofuImplementation` field). Flag at MEDIUM any added or changed
+        user-facing string (error message, log line, CLI help or usage text)
+        that names only one of the two tools when the other could be the one
+        running. If the string is about the binary that ran, ask for the name
+        from `tfimpl.Type.DisplayName()`. If it is about code, state, or
+        configuration that either tool reads, ask for "OpenTofu/Terraform".
+        Also flag code that works out which tool is running from the binary
+        path (for example, checking whether `TFPath` ends in `terraform`)
+        instead of from the detected `tfimpl.Type`.
+        Do not flag: the `terraform` HCL block and `terraform_*` attribute
+        names; identifiers, env vars, flags, and command names; the Terraform
+        Registry protocol (`X-Terraform-Get`, `registry.terraform.io`);
+        messages about features only OpenTofu has; the "OpenTofu shortcuts"
+        feature name; `_test.go` files; or anything under `internal/vendored/`.
+
+    - path: '**/*'
+      instructions: >-
+        IAC TOOL PAIR FORM CHECK. When added or changed text in code, comments,
+        docs, fixtures, or scripts names both tools to mean either one, it
+        must read "OpenTofu/Terraform" for the products, "tofu/terraform" for
+        the plain binary names, and "`tofu`/`terraform`" for backticked
+        binary names. Flag at LOW any other spelling of the pair, such as
+        "Terraform/OpenTofu", "OpenTofu or Terraform", "Terraform or
+        OpenTofu", "terraform/tofu", or "`tofu` or `terraform`". Text that
+        means both tools, such as "tests run with both OpenTofu and
+        Terraform", keeps "and" but names OpenTofu first. Do not flag
+        released entries under `docs/src/data/changelog/`, anything under
+        `internal/vendored/`, or this file.
+
     # Supply-chain guards. Added after PR #6190 (obfuscated loader in tailwind.config.mjs).
 
     # Tier 1 - universal: patterns with no legitimate use anywhere.

@@ -46,7 +46,6 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
@@ -965,15 +964,6 @@ func WrappedBinary(ctx context.Context) string {
 	})
 
 	return wrappedBinaryCached
-}
-
-// ExpectedWrongCommandErr returns the expected error message for a wrong command.
-func ExpectedWrongCommandErr(ctx context.Context, command string) error {
-	if WrappedBinary(ctx) == TofuBinary {
-		return run.WrongTofuCommand(command)
-	}
-
-	return run.WrongTerraformCommand(command)
 }
 
 // IsTerraform reports whether the wrapped binary is Terraform.

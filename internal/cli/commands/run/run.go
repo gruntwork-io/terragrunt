@@ -3,7 +3,6 @@ package run
 import (
 	"context"
 	"path/filepath"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -149,12 +148,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	return runErr
 }
 
-// isTerraformPath returns true if the TFPath ends with the default Terraform path.
-// This is used by help.go to determine whether to show "Terraform" or "OpenTofu" in help text.
-func isTerraformPath(opts *options.TerragruntOptions) bool {
-	return strings.HasSuffix(opts.TFPath, options.TerraformDefaultPath)
-}
-
 // runVersionCommand runs the version command. We do this instead of going through the normal run flow because
 // we can resolve `version` a lot more cheaply.
 func runVersionCommand(
@@ -232,14 +225,10 @@ func checkVersionConstraints(
 	opts.TerraformVersion = ver
 	opts.TofuImplementation = impl
 
-	terraformVersionConstraint := run.DefaultTerraformVersionConstraint
-	if partialTerragruntConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
-	}
-
 	if err := run.CheckTerraformVersionMeetsConstraint(
 		opts.TerraformVersion,
-		terraformVersionConstraint,
+		opts.TofuImplementation,
+		partialTerragruntConfig.TerraformVersionConstraint,
 	); err != nil {
 		return l, err
 	}

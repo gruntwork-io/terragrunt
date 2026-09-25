@@ -116,7 +116,7 @@ func (o *ShellOptions) WithEngine(
 	return o
 }
 
-// WithTFPath sets the path to the Terraform/OpenTofu binary.
+// WithTFPath sets the path to the OpenTofu/Terraform binary.
 func (o *ShellOptions) WithTFPath(path string) *ShellOptions {
 	o.TFPath = path
 

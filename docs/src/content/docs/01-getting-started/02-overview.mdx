@@ -147,7 +147,7 @@ terraform {
 }
 ```
 
-Right before running any OpenTofu/Terraform command that might store state, Terragrunt will ensure that the appropriate `backend.tf` file is present in the working directory where OpenTofu/Terraform will run, so that state is persisted appropriately when `tofu` or `terraform` are invoked.
+Right before running any OpenTofu/Terraform command that might store state, Terragrunt will ensure that the appropriate `backend.tf` file is present in the working directory where OpenTofu/Terraform will run, so that state is persisted appropriately when `tofu`/`terraform` is invoked.
 
 Note that while following the example above, you didn't need to manually create that `my-tofu-state` S3 bucket, the `my-lock-table` DynamoDB table, or run `tofu/terraform init` to perform initialization.
 
@@ -214,7 +214,7 @@ Any file that isn't part of the OpenTofu/Terraform module (like the `backend.tf`
 
 #### Inputs configuration
 
-The `inputs` block is used to indicate what variable values should be passed to OpenTofu/Terraform when running `tofu` or `terraform` commands.
+The `inputs` block is used to indicate what variable values should be passed to OpenTofu/Terraform when running `tofu`/`terraform` commands.
 
 In this example, Terragrunt is being configured to pass in a bunch of variables to the OpenTofu/Terraform module. These variables are used to configure the VPC module, such as the name of the VPC, the CIDR block, the availability zones, the subnets, and so on.
 

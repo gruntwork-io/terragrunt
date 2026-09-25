@@ -609,7 +609,8 @@ func TestTFLogWithRelPath(t *testing.T) {
 				assert.Contains(
 					t,
 					stderr,
-					"Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache",
+					"Downloading OpenTofu/Terraform configurations "+
+						"from .. into ./bbb/ccc/workspace/.terragrunt-cache",
 				)
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
 				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
@@ -4129,7 +4130,7 @@ func TestTFLogFailingDependencies(t *testing.T) {
 	)
 	require.Error(t, err)
 
-	// Check that the error output contains terraform/tofu error details
+	// Check that the error output contains tofu/terraform error details
 	assert.Contains(t, stderr, "Getting output of dependency ../dependency/terragrunt.hcl")
 	assert.Contains(t, stderr, "Error: Failed to download module")
 }
@@ -4921,7 +4922,7 @@ func TestTFLogFormatJSONOutput(t *testing.T) {
 	assert.Contains(
 		t,
 		strings.Join(msgs, ""),
-		"Downloading Terraform configurations from git::"+mirror.URL,
+		"Downloading OpenTofu/Terraform configurations from git::"+mirror.URL,
 	)
 	assert.Contains(t, strings.Join(msgs, ""), "ref=v0.83.2")
 }

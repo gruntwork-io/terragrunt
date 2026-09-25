@@ -61,7 +61,7 @@ func TestIsTFFile(t *testing.T) {
 			expected:    false,
 		},
 		{
-			description: "HCL file (not Terraform/OpenTofu)",
+			description: "HCL file (not OpenTofu/Terraform)",
 			path:        "terragrunt.hcl",
 			expected:    false,
 		},
