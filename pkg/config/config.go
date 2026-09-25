@@ -1666,6 +1666,7 @@ func ParseConfig(
 		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 	}
 
+	// The full parse decodes exclude with gohcl, not evaluateExcludeBlocks, so it checks dependency reads here.
 	if err := validateExcludeDependencyReferences(ctx, pctx, l, file); err != nil {
 		return nil, err
 	}

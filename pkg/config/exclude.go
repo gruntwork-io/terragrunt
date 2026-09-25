@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -154,32 +155,52 @@ func validateExcludeDependencyReferences(
 	l log.Logger,
 	file *hclparse.File,
 ) error {
-	excludeBlocks, err := file.Blocks(MetadataExclude, true)
+	attribute, err := excludeDependencyAttribute(l, file)
 	if err != nil {
 		return err
 	}
 
-	for _, block := range excludeBlocks {
-		attrs, diags := block.Body.JustAttributes()
-		if diags.HasErrors() {
-			l.Debugf("Skipping the dependency check for the exclude block in %s because it is malformed; parsing reports the error: %v", file.ConfigPath, diags)
+	if attribute == "" {
+		return nil
+	}
 
-			continue
-		}
+	excludeControls := pctx.StrictControls.FilterByNames(controls.ExcludeDependencyOutputs)
+	if len(excludeControls.FilterByEnabled()) > 0 {
+		return ExcludeReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: attribute}
+	}
 
-		for _, name := range slices.Sorted(maps.Keys(attrs)) {
-			if !expressionReferencesDependency(attrs[name].Expr) {
-				continue
-			}
+	return excludeControls.Evaluate(log.ContextWithLogger(ctx, l))
+}
 
-			excludeControls := pctx.StrictControls.FilterByNames(controls.ExcludeDependencyOutputs)
-			if len(excludeControls.FilterByEnabled()) > 0 {
-				return ExcludeReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: name}
-			}
+// excludeDependencyAttribute returns the first attribute that reads a dependency in the file's only exclude block, leaving malformed blocks to the parse.
+func excludeDependencyAttribute(l log.Logger, file *hclparse.File) (string, error) {
+	excludeBlocks, err := file.Blocks(MetadataExclude, true)
+	if err != nil {
+		return "", err
+	}
 
-			return excludeControls.Evaluate(log.ContextWithLogger(ctx, l))
+	if len(excludeBlocks) != 1 {
+		return "", nil
+	}
+
+	attrs, diags := excludeBlocks[0].Body.JustAttributes()
+	names := slices.Sorted(maps.Keys(attrs))
+
+	invalidName := slices.ContainsFunc(names, func(name string) bool {
+		return !hclsyntax.ValidIdentifier(name)
+	})
+
+	if diags.HasErrors() || invalidName {
+		l.Debugf("Skipping the dependency check for the malformed exclude block in %s; parsing reports the error", file.ConfigPath)
+
+		return "", nil
+	}
+
+	for _, name := range names {
+		if expressionReferencesDependency(attrs[name].Expr) {
+			return name, nil
 		}
 	}
 
-	return nil
+	return "", nil
 }

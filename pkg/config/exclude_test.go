@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -280,19 +281,14 @@ exclude {
 			})
 
 			ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
-			enableStrictControl(t, pctx, controls.ExcludeDependencyOutputs)
+			require.NoError(t, pctx.StrictControls.EnableControl(controls.ExcludeDependencyOutputs))
 
-			var err error
-			if tt.full {
-				_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
-			} else {
-				pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
-				_, err = config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
-			}
+			_, err := parseExcludeUnit(ctx, pctx, logger.CreateLogger(), cfgPath, tt.full)
 
 			var typed config.ExcludeReferencesDependencyError
 			require.ErrorAs(t, err, &typed)
 			assert.Equal(t, config.ExcludeReferencesDependencyError{ConfigPath: cfgPath, Attribute: tt.attribute}, typed)
+			assert.ErrorContains(t, err, "so set exclude."+tt.attribute+" from a feature flag instead")
 		})
 	}
 }
@@ -302,11 +298,13 @@ func TestExcludeReadingDependencyInJSON(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		want   *config.ExcludeConfig
 		name   string
 		strict bool
 		full   bool
 	}{
 		{name: "discovery"},
+		{name: "full parse", full: true, want: &config.ExcludeConfig{If: true, Actions: []string{"plan"}}},
 		{name: "discovery strict", strict: true},
 		{name: "full parse strict", strict: true, full: true},
 	}
@@ -320,7 +318,7 @@ func TestExcludeReadingDependencyInJSON(t *testing.T) {
 			fsys := venvtest.NewFS(t, root, map[string]string{
 				filepath.Join("dep", config.DefaultTerragruntConfigPath): "",
 				filepath.Join("unit", config.DefaultTerragruntJSONConfigPath): `{
-  "dependency": {"dep": {"config_path": "../dep"}},
+  "dependency": {"dep": {"config_path": "../dep", "skip_outputs": true, "mock_outputs": {"flag": true}}},
   "exclude": {"if": "${dependency.dep.outputs.flag}", "actions": ["plan"]}
 }`,
 			})
@@ -332,17 +330,10 @@ func TestExcludeReadingDependencyInJSON(t *testing.T) {
 
 			ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
 			if tt.strict {
-				enableStrictControl(t, pctx, controls.ExcludeDependencyOutputs)
+				require.NoError(t, pctx.StrictControls.EnableControl(controls.ExcludeDependencyOutputs))
 			}
 
-			var err error
-			if tt.full {
-				_, err = config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
-			} else {
-				pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
-				_, err = config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
-			}
-
+			parsed, err := parseExcludeUnit(ctx, pctx, l, cfgPath, tt.full)
 			if tt.strict {
 				var typed config.ExcludeReferencesDependencyError
 				require.ErrorAs(t, err, &typed)
@@ -352,6 +343,7 @@ func TestExcludeReadingDependencyInJSON(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+			assert.Equal(t, tt.want, parsed.Exclude)
 			assert.Contains(t, logBuf.String(), "An `exclude` block reads dependency outputs.")
 		})
 	}
@@ -361,32 +353,73 @@ func TestExcludeReadingDependencyInJSON(t *testing.T) {
 func TestMalformedExcludeReadingDependencyKeepsDecodeErrorWhenStrict(t *testing.T) {
 	t.Parallel()
 
-	root := venvtest.Root("/live")
-	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
-	fsys := venvtest.NewFS(t, root, map[string]string{
-		filepath.Join("dep", config.DefaultTerragruntConfigPath): "",
-		filepath.Join("unit", config.DefaultTerragruntConfigPath): `
-dependency "dep" {
-  config_path = "../dep"
-}
+	const (
+		hclDependency  = "dependency \"dep\" {\n  config_path = \"../dep\"\n  skip_outputs = true\n  mock_outputs = { flag = true }\n}\n"
+		jsonDependency = `"dependency": {"dep": {"config_path": "../dep", "skip_outputs": true, "mock_outputs": {"flag": true}}}`
+	)
 
-exclude {
-  if      = dependency.dep.outputs.flag
-  actions = ["plan"]
+	tests := []struct {
+		name    string
+		file    string
+		body    string
+		wantErr string
+		full    bool
+	}{
+		{
+			name:    "nested block",
+			file:    config.DefaultTerragruntConfigPath,
+			body:    hclDependency + "exclude {\n  if = dependency.dep.outputs.flag\n  actions = [\"plan\"]\n  nested {\n    x = 1\n  }\n}\n",
+			full:    true,
+			wantErr: "Unsupported block type",
+		},
+		{
+			name:    "two blocks",
+			file:    config.DefaultTerragruntConfigPath,
+			body:    hclDependency + "exclude {\n  if = dependency.dep.outputs.flag\n  actions = [\"plan\"]\n}\nexclude {\n  if = false\n  actions = [\"plan\"]\n}\n",
+			full:    true,
+			wantErr: "Duplicate exclude block",
+		},
+		{
+			name:    "two blocks in json",
+			file:    config.DefaultTerragruntJSONConfigPath,
+			body:    `{` + jsonDependency + `, "exclude": [{"if": "${dependency.dep.outputs.flag}", "actions": ["plan"]}, {"if": false, "actions": ["plan"]}]}`,
+			full:    true,
+			wantErr: "Duplicate exclude block",
+		},
+		{
+			name:    "invalid name in json",
+			file:    config.DefaultTerragruntJSONConfigPath,
+			body:    `{` + jsonDependency + `, "exclude": {"if": true, "if.bad": "${dependency.dep.outputs.flag}", "actions": ["plan"]}}`,
+			wantErr: "Invalid value name",
+		},
+		{
+			name:    "invalid name in json in a full parse",
+			file:    config.DefaultTerragruntJSONConfigPath,
+			body:    `{` + jsonDependency + `, "exclude": {"if": true, "if.bad": "${dependency.dep.outputs.flag}", "actions": ["plan"]}}`,
+			full:    true,
+			wantErr: "Extraneous JSON object property",
+		},
+	}
 
-  nested {
-    x = 1
-  }
-}
-`,
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
-	enableStrictControl(t, pctx, controls.ExcludeDependencyOutputs)
+			root := venvtest.Root("/live")
+			cfgPath := filepath.Join(root, "unit", tt.file)
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				filepath.Join("dep", config.DefaultTerragruntConfigPath): "",
+				filepath.Join("unit", tt.file):                           tt.body,
+			})
 
-	_, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
-	require.ErrorContains(t, err, "Unsupported block type")
-	assert.NotErrorAs(t, err, new(config.ExcludeReferencesDependencyError))
+			ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
+			require.NoError(t, pctx.StrictControls.EnableControl(controls.ExcludeDependencyOutputs))
+
+			_, err := parseExcludeUnit(ctx, pctx, logger.CreateLogger(), cfgPath, tt.full)
+			require.ErrorContains(t, err, tt.wantErr)
+			assert.NotErrorAs(t, err, new(config.ExcludeReferencesDependencyError))
+		})
+	}
 }
 
 // TestExcludeReadingFeatureFlagAcceptedWhenStrict pins that the exclude-dependency-outputs strict control leaves an exclude block without dependency reads alone.
@@ -414,7 +447,7 @@ exclude {
 	})
 
 	ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
-	enableStrictControl(t, pctx, controls.ExcludeDependencyOutputs)
+	require.NoError(t, pctx.StrictControls.EnableControl(controls.ExcludeDependencyOutputs))
 	pctx = pctx.WithDecodeList(
 		config.DependencyBlock,
 		config.FeatureFlagsBlock,
@@ -424,15 +457,6 @@ exclude {
 	parsed, err := config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, &config.ExcludeConfig{If: true, Actions: []string{"plan"}}, parsed.Exclude)
-}
-
-// enableStrictControl enables the named strict control on pctx.
-func enableStrictControl(tb testing.TB, pctx *config.ParsingContext, name string) {
-	tb.Helper()
-
-	control := pctx.StrictControls.Find(name)
-	require.NotNil(tb, control)
-	control.Enable()
 }
 
 // writeExcludeUnit writes body as a unit config beside an empty dependency
@@ -558,4 +582,21 @@ func TestExcludeConfig_ShouldPreventRun(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// parseExcludeUnit parses cfgPath in full, or the way discovery does.
+func parseExcludeUnit(
+	ctx context.Context,
+	pctx *config.ParsingContext,
+	l log.Logger,
+	cfgPath string,
+	full bool,
+) (*config.TerragruntConfig, error) {
+	if full {
+		return config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	}
+
+	pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
+
+	return config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
 }

@@ -143,9 +143,10 @@ type ExcludeReferencesDependencyError struct {
 
 func (err ExcludeReferencesDependencyError) Error() string {
 	return fmt.Sprintf(
-		"exclude.%s in %s cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so declare `feature \"skip\" { default = false }` and set `if = feature.skip.value` instead",
+		"exclude.%s in %s cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so set exclude.%s from a feature flag instead",
 		err.Attribute,
 		err.ConfigPath,
+		err.Attribute,
 	)
 }
 

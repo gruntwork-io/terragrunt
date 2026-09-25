@@ -25,7 +25,7 @@ terragrunt run --all --strict-control exclude-dependency-outputs -- plan
 ```
 
 ```text
-exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so declare `feature "skip" { default = false }` and set `if = feature.skip.value` instead
+exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so set exclude.if from a feature flag instead
 ```
 
 Read a [feature flag](/reference/hcl/blocks#feature) instead.

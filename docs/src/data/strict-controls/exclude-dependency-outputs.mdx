@@ -25,10 +25,10 @@ exclude {
 Terragrunt warns about this by default. Enabling the control turns it into an error that names the file and the attribute:
 
 ```text
-exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so declare `feature "skip" { default = false }` and set `if = feature.skip.value` instead
+exclude.if in /path/to/terragrunt.hcl cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so set exclude.if from a feature flag instead
 ```
 
-The error also stops commands on a single unit, such as `terragrunt plan`. Without the control, an `exclude` block there that reads a dependency output with `no_run = true` still skips the unit.
+The error also stops single-unit commands, such as `terragrunt plan`. Without the control, `no_run = true` still skips a unit whose `if` reads a dependency output, because Terragrunt reads the outputs before it runs the unit.
 
 Read a [feature flag](/reference/hcl/blocks#feature) instead:
 
