@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"errors"
@@ -27,7 +28,7 @@ const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Comman
 
    It wraps the ` + "`{{ tfCommand }}`" + ` command of the binary defined by ` + "`tf-path`" + `.
 
-{{ if isTerraformPath }}Terraform{{ else }}OpenTofu{{ end }} ` + "`{{ tfCommand }}`" + ` help:{{ $tfHelp := runTFHelp }}{{ if $tfHelp }}
+` + "`{{ tfBinary }} {{ tfCommand }}`" + ` help:{{ $tfHelp := runTFHelp }}{{ if $tfHelp }}
 
 {{ $tfHelp }}{{ end }}
 
@@ -44,8 +45,8 @@ func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) cli
 		}
 
 		clihelper.HelpPrinterCustom(cliCtx, TFCommandHelpTemplate, map[string]any{
-			"isTerraformPath": func() bool {
-				return isTerraformPath(opts)
+			"tfBinary": func() string {
+				return filepath.Base(opts.TFPath)
 			},
 			"runTFHelp": func() string {
 				return runTFHelp(ctx, cliCtx, l, v, opts)

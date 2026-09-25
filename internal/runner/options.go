@@ -1,41 +1,12 @@
 package runner
 
-import (
-	"github.com/gruntwork-io/terragrunt/internal/worktrees"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-)
+import "github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 // Option carries a setting from a command into discovery and execution. Each
 // consumer type-asserts for the accessor it reads, so this interface exists only
 // to keep unrelated values out.
 type Option interface {
 	runnerOption()
-}
-
-// parseOption carries HCL parser options through to discovery.
-type parseOption struct {
-	parserOptions []hclparse.Option
-}
-
-func (o parseOption) runnerOption() {}
-
-// ParseOptionsProvider exposes HCL parser options carried by an Option.
-type ParseOptionsProvider interface {
-	GetParseOptions() []hclparse.Option
-}
-
-// GetParseOptions returns the HCL parser options attached to the option, if any.
-func (o parseOption) GetParseOptions() []hclparse.Option {
-	if len(o.parserOptions) > 0 {
-		return o.parserOptions
-	}
-
-	return nil
-}
-
-// WithParseOptions provides custom HCL parser options to both discovery and stack execution.
-func WithParseOptions(parserOptions []hclparse.Option) Option {
-	return parseOption{parserOptions: parserOptions}
 }
 
 // WorktreeOption carries worktrees through the runner pipeline for git filter expressions.

@@ -275,6 +275,9 @@ type GitResolver struct {
 	Cache *ProbeCache
 	// Branch is the ref to query. Empty means HEAD.
 	Branch string
+	// fetchRef is the full ref name Probe matched, such as
+	// refs/tags/v1.2.3. It is empty when Probe answered without one.
+	fetchRef string
 	// MutableTTL is how long a persisted probe for a branch, HEAD, or a
 	// tag that is not a version is served without ls-remote. Zero means
 	// every process re-probes. See [ProbeTTL].
@@ -286,8 +289,9 @@ type GitResolver struct {
 // probeResult is what one probe flight delivers to every caller that
 // joined it.
 type probeResult struct {
-	key    string
-	origin probeOrigin
+	key      string
+	fetchRef string
+	origin   probeOrigin
 }
 
 // Scheme returns "git".
@@ -335,7 +339,19 @@ func (r *GitResolver) Probe(ctx context.Context, u redact.URL) (string, error) {
 
 	recordProbeOrigin(ctx, res.origin)
 
+	r.fetchRef = res.fetchRef
+
 	return res.key, nil
+}
+
+// fetchName returns the ref name to fetch for r.Branch. It is the full ref
+// Probe matched when Probe recorded one, and the short name otherwise.
+func (r *GitResolver) fetchName() string {
+	if r.fetchRef != "" {
+		return r.fetchRef
+	}
+
+	return probeRefName(r.Branch)
 }
 
 // storeProbe answers from the local bare repository when it already
@@ -393,7 +409,13 @@ func probeFlightKey(cacheRoot string, u redact.URL, ref string) string {
 // for later processes.
 func (r *GitResolver) probeUncoalesced(ctx context.Context, u redact.URL) (probeResult, error) {
 	if entry, ok := r.cachedProbe(u); ok {
-		return probeResult{key: entry.Key, origin: probeOriginProbeCache}, nil
+		res := probeResult{key: entry.Key, origin: probeOriginProbeCache}
+
+		if rule, ok := git.ParseFetchRule(entry.FetchRule); ok {
+			res.fetchRef = rule.Expand(probeRefName(r.Branch))
+		}
+
+		return res, nil
 	}
 
 	if r.Mode == ProbeModeOffline {
@@ -414,14 +436,14 @@ func (r *GitResolver) probeUncoalesced(ctx context.Context, u redact.URL) (probe
 		return probeResult{}, err
 	}
 
-	match, ok := git.FetchMatch(results, probeRefName(r.Branch))
+	match, rule, ok := git.FetchMatch(results, probeRefName(r.Branch))
 	if !ok {
 		return probeResult{}, ErrNoVersionMetadata
 	}
 
-	r.recordProbe(u, match)
+	r.recordProbe(u, match, rule)
 
-	return probeResult{key: match.Hash, origin: probeOriginLsRemote}, nil
+	return probeResult{key: match.Hash, fetchRef: match.Ref, origin: probeOriginLsRemote}, nil
 }
 
 // cachedProbe returns the persisted answer for u when the mode and
@@ -451,7 +473,7 @@ func (r *GitResolver) cachedProbe(u redact.URL) (ProbeEntry, bool) {
 // recordProbe persists a network answer. A failed write costs only the
 // next process a probe, so it is logged rather than failing a probe that
 // already succeeded.
-func (r *GitResolver) recordProbe(u redact.URL, res git.LsRemoteResult) {
+func (r *GitResolver) recordProbe(u redact.URL, res git.LsRemoteResult, rule git.FetchRule) {
 	if r.Cache == nil {
 		return
 	}
@@ -463,6 +485,7 @@ func (r *GitResolver) recordProbe(u redact.URL, res git.LsRemoteResult) {
 		ProbedAt:  time.Now(),
 		Key:       res.Hash,
 		Immutable: IsSemverTag(res.Ref),
+		FetchRule: string(rule),
 	}
 
 	if err := r.Cache.Store(r.Venv.FS, u, r.Branch, &entry); err != nil {
@@ -517,11 +540,13 @@ func (c *CAS) Clone(
 	clonedOpts := opts
 	clonedOpts.Dir = c.prepareTargetDirectory(opts.Dir, u)
 
+	resolver := c.newGitResolver(l, v, opts.Branch)
+
 	return c.FetchSource(ctx, l, v, &clonedOpts, SourceRequest{
 		Scheme:       gitScheme,
 		URL:          u,
-		Resolver:     c.newGitResolver(l, v, opts.Branch),
-		Fetch:        c.gitFetcher(u, &opts),
+		Resolver:     resolver,
+		Fetch:        c.gitFetcher(u, &opts, resolver),
 		Attrs:        map[string]any{"branch": opts.Branch},
 		ProbeCaching: ProbeCachedByResolver,
 	})
@@ -572,8 +597,8 @@ func (c *CAS) EnsureBlob(
 // path (cat-file + ls-tree). A non-empty suggestedKey is the canonical
 // commit SHA from ls-remote; empty means ls-remote produced no match and
 // rev-parse against the central GitStore canonicalizes the user ref after
-// fetching.
-func (c *CAS) gitFetcher(u redact.URL, opts *CloneOptions) SourceFetcher {
+// fetching. A fetch of a probed ref asks for the ref name resolver matched.
+func (c *CAS) gitFetcher(u redact.URL, opts *CloneOptions, resolver *GitResolver) SourceFetcher {
 	return func(
 		ctx context.Context,
 		l log.Logger,
@@ -583,7 +608,7 @@ func (c *CAS) gitFetcher(u redact.URL, opts *CloneOptions) SourceFetcher {
 	) (string, error) {
 		var ref resolvedRef
 		if suggestedKey != "" {
-			ref = &symbolicRef{URL: u, Branch: opts.Branch, Hash: suggestedKey}
+			ref = &symbolicRef{URL: u, Branch: opts.Branch, FetchRef: resolver.fetchName(), Hash: suggestedKey}
 		} else {
 			ref = &commitRef{URL: u, RawRef: opts.Branch}
 		}
@@ -674,8 +699,8 @@ func (c *CAS) ingestRef(
 
 // populateTreeFromSymbolicRef stores the tree and reachable blobs
 // for ref.Hash in the CAS. Tries the central [GitStore] first; on
-// any error from it, logs a warning and falls back to a bare clone
-// in a temporary directory.
+// any error from it, logs a warning and falls back to fetching
+// ref.FetchRef into a temporary bare repository.
 func (c *CAS) populateTreeFromSymbolicRef(
 	ctx context.Context,
 	l log.Logger,
@@ -691,7 +716,7 @@ func (c *CAS) populateTreeFromSymbolicRef(
 
 	depth := resolveCloneDepth(opts.Depth, c.cloneDepth)
 
-	repo, err := c.gitStore.EnsureRef(ctx, l, gv, ref.URL, ref.Branch, ref.Hash, depth)
+	repo, err := c.gitStore.EnsureRef(ctx, l, gv, ref.URL, ref.FetchRef, ref.Hash, depth)
 	if err == nil {
 		defer repo.Release(l)
 
@@ -716,7 +741,11 @@ func (c *CAS) populateTreeFromSymbolicRef(
 
 	runner := gv.runner.WithWorkDir(tempDir)
 
-	if err := runner.Clone(ctx, ref.URL.Reveal(), true, depth, ref.Branch); err != nil {
+	if err := runner.InitBare(ctx); err != nil {
+		return err
+	}
+
+	if err := runner.Fetch(ctx, ref.URL.Reveal(), ref.FetchRef, depth); err != nil {
 		return err
 	}
 
@@ -865,9 +894,10 @@ type resolvedRef interface {
 
 // symbolicRef carries an ls-remote-resolved branch, tag, or HEAD.
 type symbolicRef struct {
-	URL    redact.URL
-	Branch string // ref name, used for the per-ref fetch
-	Hash   string // canonical commit hash
+	URL      redact.URL
+	Branch   string // ref name the caller asked for
+	FetchRef string // ref name handed to git fetch
+	Hash     string // canonical commit hash
 }
 
 // CommitHash returns the canonical commit hash ls-remote resolved.
@@ -924,7 +954,9 @@ func (c *CAS) resolveReference(
 		}
 	}
 
-	key, err := c.newGitResolver(l, gv.v, branch).Probe(ctx, u)
+	resolver := c.newGitResolver(l, gv.v, branch)
+
+	key, err := resolver.Probe(ctx, u)
 	if err != nil {
 		if errors.Is(err, ErrNoVersionMetadata) {
 			return &commitRef{URL: u, RawRef: branch}, nil
@@ -933,7 +965,7 @@ func (c *CAS) resolveReference(
 		return nil, err
 	}
 
-	return &symbolicRef{URL: u, Branch: branch, Hash: key}, nil
+	return &symbolicRef{URL: u, Branch: branch, FetchRef: resolver.fetchName(), Hash: key}, nil
 }
 
 // looksLikeFullSHA reports whether s is exactly 40 or 64 hex characters,

@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -97,11 +96,8 @@ func ReadCatalogConfig(
 
 	pctx = pctx.Clone()
 	pctx.TerragruntConfigPath = cfgPath
-	pctx.ParserOptions = append(
-		pctx.ParserOptions,
-		hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}),
-	)
-	pctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
+	pctx.Parser.HaltOnErrorOnlyInBlocks = append(pctx.Parser.HaltOnErrorOnlyInBlocks, MetadataCatalog)
+	pctx.catalogOnly = true
 
 	config, err := ParseConfigString(parentCtx, pctx, l, cfgPath, configString, nil)
 	if err != nil {
@@ -188,7 +184,6 @@ func findCatalogConfig(
 }
 
 func convertToTerragruntCatalogConfig(
-	ctx context.Context,
 	pctx *ParsingContext,
 	cfgPath string,
 	cfgFromFile *terragruntConfigFile,

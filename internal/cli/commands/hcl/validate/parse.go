@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/hcl/v2"
@@ -25,11 +24,6 @@ type DiagnosticsCollector struct {
 // Diagnostics returns what the parses collected so far.
 func (c *DiagnosticsCollector) Diagnostics() diagnostic.Diagnostics {
 	return c.diags
-}
-
-// Option returns the [hclparse.Option] that feeds c.
-func (c *DiagnosticsCollector) Option() hclparse.Option {
-	return hclparse.WithDiagnosticsHandler(c.collect)
 }
 
 // collect keeps the diagnostics raised for the file being parsed. It reports
@@ -122,7 +116,7 @@ func (p ComponentParser) Unit(
 
 	_, pctx := configbridge.NewParsingContext(ctx, l, v, parseOpts)
 
-	_, err := config.ReadTerragruntConfig(ctx, l, pctx, p.parseOptions(pctx.ParserOptions))
+	_, err := config.ReadTerragruntConfig(ctx, l, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
 
 	return err
 }
@@ -151,12 +145,12 @@ func (p ComponentParser) Stack(
 		parseErrs = append(parseErrs, err)
 	}
 
-	parser = parser.WithParseOption(p.parseOptions(parser.ParserOptions))
+	parser = parser.WithParserSettings(p.parserSettings(parser.Parser))
 	if values != nil {
 		parser = parser.WithValues(values)
 	}
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(v.FS, stackFilePath)
+	file, err := parser.NewParser(l).ParseFromFile(v.FS, stackFilePath)
 	if err != nil {
 		return append(parseErrs, err)
 	}
@@ -180,17 +174,17 @@ func (p ComponentParser) Stack(
 	return parseErrs
 }
 
-func (p ComponentParser) parseOptions(defaults []hclparse.Option) []hclparse.Option {
+func (p ComponentParser) parserSettings(defaults config.ParserSettings) config.ParserSettings {
 	if p.Options != CollectorAndDefaults {
-		return []hclparse.Option{p.Collector.Option()}
+		return config.ParserSettings{
+			DiagnosticsHandler: p.Collector.collect,
+			SkipDefaults:       true,
+		}
 	}
 
-	// A fresh slice, since appending to the parsing context's own would write
-	// into whatever else shares its backing array.
-	opts := make([]hclparse.Option, 0, len(defaults)+1)
-	opts = append(opts, defaults...)
+	defaults.DiagnosticsHandler = p.Collector.collect
 
-	return append(opts, p.Collector.Option())
+	return defaults
 }
 
 // unitConfigFilename is the file name a unit parse looks for, which follows

@@ -19,10 +19,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/hashicorp/hcl/v2"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -391,24 +389,13 @@ func parseComponent(
 				config.TerragruntVersionConstraints,
 			).WithSkipOutputsResolution()
 
-			if len(discovery.parserOptions) > 0 {
-				parsingCtx = parsingCtx.WithParseOption(discovery.parserOptions)
-			}
-
 			if discovery.trackReads {
 				parsingCtx = parsingCtx.WithFileReadTracking()
 			}
 
 			if discovery.suppressParseErrors {
-				parserOpts := parsingCtx.ParserOptions
-				parserOpts = append(parserOpts, hclparse.WithDiagnosticsHandler(func(
-					file *hcl.File,
-					hclDiags hcl.Diagnostics,
-				) (hcl.Diagnostics, error) {
-					l.Debugf("Suppressed parsing errors %v", hclDiags)
-					return nil, nil
-				}))
-				parsingCtx = parsingCtx.WithParseOption(parserOpts)
+				parsingCtx = parsingCtx.Clone()
+				parsingCtx.Parser.IgnoreDiagnostics = true
 			}
 
 			cfg, err := config.PartialParseConfigFile(

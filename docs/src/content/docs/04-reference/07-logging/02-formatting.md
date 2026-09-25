@@ -172,7 +172,7 @@ Common options:
 
   * `preset` - Specifies to use preset colors. For example, each log level name has its own preset color.
 
-  * `disable` - Disables color, also removes colors set in terraform/tofu output.
+  * `disable` - Disables color, also removes colors set in tofu/terraform output.
 
 Specific options for placeholders:
 

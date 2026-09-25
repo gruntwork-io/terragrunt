@@ -274,10 +274,6 @@ func (d *Discovery) withParseSettingsFrom(parent *Discovery) *Discovery {
 		d = d.WithSuppressParseErrors()
 	}
 
-	if len(parent.parserOptions) > 0 {
-		d = d.WithParserOptions(parent.parserOptions)
-	}
-
 	if parent.trackReads {
 		d = d.WithTrackReads()
 	}

@@ -1,0 +1,12 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Shorthand `required_providers` entries are no longer ignored
+
+A provider declared with the shorthand form of `required_providers`, as in `aws = ">= 5.0"`, looked unconstrained to Terragrunt. Only the object form with `source` and `version` was read.
+
+With the [Provider Cache Server](/features/caching/provider-cache-server), the `constraints` line for such a provider in `.terraform.lock.hcl` was the resolved version rather than the declared range, so the lock file pinned the provider to one exact version.
+
+Terragrunt now reads the shorthand and records the declared constraint under `hashicorp/<name>` (e.g. `hashicorp/aws`), the same address it already uses for an object with a `version` and no `source`.

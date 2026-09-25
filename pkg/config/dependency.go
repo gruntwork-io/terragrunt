@@ -638,7 +638,7 @@ func decodeDependencies(
 			depCtx.IAMRoleOptions = iam.RoleOptions{}
 		}
 
-		depCtx = depCtx.WithDecodeList(TerragruntFlags).WithDiagnosticsSuppressed(l)
+		depCtx = depCtx.WithDecodeList(TerragruntFlags).WithDiagnosticsSuppressed()
 
 		depConfig, err := PartialParseConfigFile(ctx, depCtx, l, depPath, nil)
 		if err != nil {
@@ -838,7 +838,7 @@ func getDependencyBlockConfigPathsByFilepath(
 	// dependencies block.
 	tgConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(l),
+		pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(),
 		l,
 		cfgPath,
 		nil,
@@ -1733,6 +1733,8 @@ func resolveOutputJSON(
 		return nil, "", err
 	}
 
+	pctx.Venv = pctx.Venv.WithEnvCloned()
+
 	callerIsRenderCommand := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 
 	// Set dependency-specific fields
@@ -1766,7 +1768,7 @@ func resolveOutputJSON(
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		ctx,
 		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).
-			WithDiagnosticsSuppressed(l),
+			WithDiagnosticsSuppressed(),
 		l,
 		targetConfig,
 		nil,
@@ -1808,14 +1810,9 @@ func resolveOutputJSON(
 	// directly.
 
 	// we need to suspend logging diagnostic errors on this attempt
-	parseOptions := slices.Concat(
-		pctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(pctx.Venv, io.Discard, true)},
-	)
-
 	remoteStateTGConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithParseOption(parseOptions).WithDecodeList(
+		pctx.WithDiagnosticsDiscarded().WithDecodeList(
 			RemoteStateBlock,
 			TerragruntFlags,
 			EngineBlock,
@@ -2426,7 +2423,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// Clone pctx and discard init stdout so it doesn't leak into the caller's output buffer.
 	initPctx := pctx.Clone()
-	initPctx.Venv.Writers = initPctx.Venv.Writers.WithWriter(io.Discard)
+	initPctx.Venv = initPctx.Venv.WithWriter(io.Discard)
 
 	// First run init to setup the backend configuration so that we can run output.
 	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
@@ -2488,7 +2485,7 @@ func runTerragruntOutputJSON(
 	pctx = pctx.Clone()
 	pctx.ForwardTFStdout = false
 	pctx.JSONLogFormat = false
-	pctx.Venv.Writers = pctx.Venv.Writers.WithWriter(stdoutBufferWriter)
+	pctx.Venv = pctx.Venv.WithEnvCloned().WithWriter(stdoutBufferWriter)
 
 	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
@@ -2710,7 +2707,7 @@ func foldSiblingAutoIncludeDeps(
 
 	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
 
-	autoFile, err := parseAutoIncludeFileCached(ctx, pctx, autoIncludePath)
+	autoFile, err := parseAutoIncludeFileCached(ctx, l, pctx, autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
@@ -2764,6 +2761,7 @@ func foldSiblingAutoIncludeDeps(
 // parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file cache so repeated dependency-output decodes reuse one parse, rebinding the shared AST to a fresh parser per call.
 func parseAutoIncludeFileCached(
 	ctx context.Context,
+	l log.Logger,
 	pctx *ParsingContext,
 	autoIncludePath string,
 ) (*hclparse.File, error) {
@@ -2777,10 +2775,10 @@ func parseAutoIncludeFileCached(
 	cacheKey := fmt.Sprintf("autoinclude-%v-%v", autoIncludePath, fileInfo.ModTime().UnixMicro())
 
 	if cached, found := hclCache.Get(ctx, cacheKey); found {
-		return cached.Rebind(hclparse.NewParser(pctx.ParserOptions...)), nil
+		return cached.Rebind(pctx.NewParser(l)), nil
 	}
 
-	file, err := hclparse.NewParser(pctx.ParserOptions...).
+	file, err := pctx.NewParser(l).
 		ParseFromFile(pctx.Venv.FS, autoIncludePath)
 	if err != nil {
 		return nil, err
@@ -2804,7 +2802,7 @@ func decodeDependencyBlocksWithAutoIncludeOverrides(
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
 ) (Dependencies, error) {
-	overrides, err := siblingAutoIncludeDepOverrides(ctx, pctx)
+	overrides, err := siblingAutoIncludeDepOverrides(ctx, l, pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -2829,6 +2827,7 @@ func decodeDependencyBlocksWithAutoIncludeOverrides(
 // reports only the unexpanded names for that reason.
 func siblingAutoIncludeDepOverrides(
 	ctx context.Context,
+	l log.Logger,
 	pctx *ParsingContext,
 ) (map[string]struct{}, error) {
 	if !hasSiblingAutoInclude(pctx) {
@@ -2837,6 +2836,7 @@ func siblingAutoIncludeDepOverrides(
 
 	autoFile, err := parseAutoIncludeFileCached(
 		ctx,
+		l,
 		pctx,
 		pctx.TrackInclude.AutoIncludeOverride.Path,
 	)

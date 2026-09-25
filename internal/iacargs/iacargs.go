@@ -1,4 +1,4 @@
-// Package iacargs provides types and utilities for handling IaC (terraform/tofu) CLI arguments.
+// Package iacargs provides types and utilities for handling IaC (tofu/terraform) CLI arguments.
 package iacargs
 
 import (
@@ -58,7 +58,7 @@ func isFlag(s string) bool {
 	return strings.HasPrefix(s, "-")
 }
 
-// IacArgs represents parsed IaC (terraform/tofu) CLI arguments
+// IacArgs represents parsed IaC (tofu/terraform) CLI arguments
 // with separate command, flags, and arguments fields.
 // Provides a builder pattern for constructing CLI arguments.
 //
@@ -409,7 +409,7 @@ func (a *IacArgs) parse(args []string) {
 
 // knownSubCommands lists terraform subcommands that appear after the main command.
 // These should NOT be reordered to the end like plan files.
-// Maintainers: Add new Terraform/OpenTofu subcommands here as they are introduced.
+// Maintainers: Add new OpenTofu/Terraform subcommands here as they are introduced.
 var knownSubCommands = []string{
 	// providers subcommands
 	"lock", "mirror", "schema",

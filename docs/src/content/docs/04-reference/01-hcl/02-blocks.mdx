@@ -39,8 +39,9 @@ The `terraform` block supports the following arguments:
     you can provide the authentication to Terragrunt as an environment variable with the key `TG_TF_REGISTRY_TOKEN`.
     This token can be any registry API token.
   - The `tfr` protocol supports a shorthand notation where the `REGISTRY_HOST` can be omitted to default to the public
-    registry. The default registry depends on the wrapped executable: for Terraform, it is `registry.terraform.io`,
-    and for Opentofu, it is `registry.opentofu.org`. Additionally, if the environment variable `TG_TF_DEFAULT_REGISTRY_HOST`
+    registry. The default registry depends on the wrapped executable: for OpenTofu, it is `registry.opentofu.org`,
+    and for Terraform, it is `registry.terraform.io`.<Since version="v1.2.0"> When Terragrunt cannot tell which of the
+    two the executable is, it uses `registry.opentofu.org`.</Since> Additionally, if the environment variable `TG_TF_DEFAULT_REGISTRY_HOST`
     is set, this value will be used as the default registry host instead, overriding the standard defaults for the wrapped executable.
   - If you use `tfr:///` (note the three `/`). For example, the following will
     fetch the `terraform-aws-modules/vpc/aws` module from the public registry:
@@ -2428,7 +2429,8 @@ Evaluation Order:
 - **Retry Rules:** Once ignore rules are applied, the **retry** rules handle any remaining errors.
 
 > **Note:**
-> Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
+> Only one `ignore` or `retry` block handles an error, even when several of them match it.
+> Within a block, a matching negative pattern keeps the error from being ignored or retried, wherever that pattern sits in the list.
 
 #### Errors during source fetching
 

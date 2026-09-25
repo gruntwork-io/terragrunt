@@ -471,11 +471,11 @@ func PartialParseConfigFile(
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
+				file = cacheConfig.Rebind(pctx.NewParser(l))
 			} else {
 				var parseErr error
 
-				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).
+				file, parseErr = pctx.NewParser(l).
 					ParseFromFile(pctx.Venv.FS, cfgPath)
 				if parseErr != nil {
 					return parseErr
@@ -580,7 +580,7 @@ func PartialParseConfigString(
 	cfgPath, configString string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromString(configString, cfgPath)
+	file, err := pctx.NewParser(l).ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}
@@ -641,7 +641,7 @@ func PartialParseConfig(
 	}
 
 	// Set parsed Locals on the parsed config
-	output, err := convertToTerragruntConfig(ctx, pctx, file.ConfigPath, &terragruntConfigFile{})
+	output, err := convertToTerragruntConfig(pctx, file.ConfigPath, &terragruntConfigFile{})
 	if err != nil {
 		return nil, err
 	}

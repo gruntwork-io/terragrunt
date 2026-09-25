@@ -709,7 +709,7 @@ func createConfig(
 	// other than the version probe is a regression: fail loudly rather
 	// than silently absorb it.
 	versionExec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		// IdentifyDefaultWrappedExecutable resolves to either tofu or terraform
+		// IdentifyDefaultWrappedExecutable resolves to tofu/terraform
 		// depending on what's on the host PATH; accept both so the assertion
 		// stays host-independent.
 		if (inv.Name != "tofu" && inv.Name != "terraform") ||

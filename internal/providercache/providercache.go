@@ -374,7 +374,7 @@ func (pc *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
-	l.Infof("Caching terraform providers for %s", tfOpts.ShellOptions.WorkingDir)
+	l.Infof("Caching providers for %s", tfOpts.ShellOptions.WorkingDir)
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
@@ -741,7 +741,7 @@ func (pc *ProviderCache) runTerraformCommand(
 
 	err := util.DoWithRetry(
 		ctx,
-		"Running terraform providers lock",
+		fmt.Sprintf("Running %s providers lock", filepath.Base(shellOpts.TFPath)),
 		registryRetryMaxAttempts,
 		registryRetrySleepInterval,
 		l,
@@ -823,7 +823,8 @@ func (pc *ProviderCache) providerCacheEnvironment(
 	envs := make(map[string]string, len(env))
 	maps.Copy(envs, env)
 
-	// Filter registries based on OpenTofu or Terraform implementation to avoid setting env vars for unnecessary registries
+	// Filter registries based on the OpenTofu/Terraform implementation
+	// to avoid setting env vars for unnecessary registries
 	filteredRegistryNames := FilterRegistriesByImplementation(
 		pc.opts.RegistryNames,
 		implementation,
