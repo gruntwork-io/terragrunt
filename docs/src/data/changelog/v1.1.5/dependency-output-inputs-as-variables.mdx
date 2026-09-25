@@ -1,0 +1,12 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Dependency outputs resolve when the dependency encrypts its state with a variable
+
+OpenTofu resolves the `encryption` block before it reads state, so a key provider argument written as `var.something` needs a value even for `tofu output`. Terragrunt passes `inputs` as `TF_VAR_*` variables when it runs a unit, but the dependency optimization skipped that step when reading outputs from a dependency that was already initialized. The dependent unit failed on the variable that had no value, and `disable_dependency_optimization = true` on the dependency's `remote_state` block was the only workaround.
+
+That optimization now exports the dependency's own `inputs`, so these units resolve with it left on. A variable already set in the environment still wins, as it does on a normal run.
+
+The optimization reads `inputs` without resolving dependency outputs. A dependency that takes its key from another unit's output still needs `disable_dependency_optimization = true`.
