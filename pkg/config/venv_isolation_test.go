@@ -38,7 +38,7 @@ func TestRunCommandTraceParentLeavesCallerEnvWithRacing(t *testing.T) {
 		WithExec(recorder.exec())
 	want := maps.Clone(v.Env)
 
-	ctx, pctx := newTestParsingContext(t, v, venvtest.Root("/repo/unit/terragrunt.hcl"))
+	ctx, pctx := newTestParsingContext(t, venvtest.Root("/repo/unit/terragrunt.hcl"))
 	ctx = contextWithTraceParent(config.WithConfigValues(ctx))
 	l := logger.CreateLogger()
 
@@ -50,8 +50,9 @@ func TestRunCommandTraceParentLeavesCallerEnvWithRacing(t *testing.T) {
 		group.Go(func() error {
 			_, err := config.RunCommand(
 				groupCtx,
-				pctx.Clone(),
 				l,
+				v,
+				pctx.Clone(),
 				[]string{"--terragrunt-no-cache", isolationEchoCmd, strconv.Itoa(i)},
 			)
 
@@ -72,7 +73,7 @@ func TestDependencyOutputAuthAndExtraArgsEnvLeaveCallerEnv(t *testing.T) {
 	ctx, pctx, v, configPath := prepareIsolationFixture(t, recorder, 1)
 	want := maps.Clone(v.Env)
 
-	cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "from-native-output", cfg.Inputs["result0"])
 
@@ -97,7 +98,7 @@ func TestDependencyOutputsWithRunCmdLeaveCallerEnvWithRacing(t *testing.T) {
 	ctx = contextWithTraceParent(ctx)
 	want := maps.Clone(v.Env)
 
-	cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 	require.NoError(t, err)
 
 	for i := range producers {
@@ -227,7 +228,7 @@ terraform {
 `, isolationEchoCmd, dependencies.String(), inputs.String())
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
-	ctx, pctx := newTestParsingContext(t, v, consumerPath)
+	ctx, pctx := newTestParsingContext(t, consumerPath)
 	ctx = config.WithConfigValues(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.AuthProviderCmd = isolationAuthCmd

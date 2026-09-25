@@ -78,9 +78,9 @@ func Run(
 	srcV := v.WithEnvCloned()
 	dstV := v.WithEnvCloned()
 
-	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcV, srcOpts)
+	srcPctx := configbridge.NewParsingContext(srcOpts)
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcV, srcPctx)
 	if err != nil {
 		return err
 	}
@@ -94,9 +94,9 @@ func Run(
 	// configured. Propagate that back so pullState runs in the correct directory.
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
-	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstV, dstOpts)
+	dstPctx := configbridge.NewParsingContext(dstOpts)
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstV, dstPctx)
 	if err != nil {
 		return err
 	}

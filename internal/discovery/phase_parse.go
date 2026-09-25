@@ -376,7 +376,7 @@ func parseComponent(
 				}
 			}
 
-			ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseV, parseOpts)
+			parsingCtx := configbridge.NewParsingContext(parseOpts)
 			parsingCtx = parsingCtx.WithDecodeList(
 				config.TerraformSource,
 				config.DependenciesBlock,
@@ -400,8 +400,9 @@ func parseComponent(
 
 			cfg, err := config.PartialParseConfigFile(
 				ctx,
-				parsingCtx,
 				l,
+				parseV,
+				parsingCtx,
 				parseOpts.TerragruntConfigPath,
 				nil,
 			)

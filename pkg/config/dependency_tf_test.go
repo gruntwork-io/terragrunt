@@ -33,10 +33,11 @@ func TestTFExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venv.OSVenv(), childPath)
+	v := venv.OSVenv()
+	ctx, pctx := newTestParsingContext(t, childPath)
 	pctx.TFPath = helpers.WrappedBinary(ctx)
 
-	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), childPath, nil)
+	_, err = config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, childPath, nil)
 	require.Error(t, err)
 
 	var noOutputs config.TerragruntOutputTargetNoOutputs

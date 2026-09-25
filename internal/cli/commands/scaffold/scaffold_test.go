@@ -114,10 +114,12 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), opts)
+	v := venvtest.NewWithOSFS()
+	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
 		t.Context(),
 		l,
+		v,
 		pctx,
 	)
 	require.NoError(t, err)
@@ -220,10 +222,12 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), opts)
+	v := venvtest.NewWithOSFS()
+	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
 		t.Context(),
 		l,
+		v,
 		pctx,
 	)
 	require.NoError(t, err)
@@ -454,8 +458,9 @@ catalog {
 			l := logger.CreateLogger()
 
 			// First, verify catalog config parsing
-			_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, venvtest.NewWithOSFS(), opts)
-			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
+			v := venvtest.NewWithOSFS()
+			catalogPctx := configbridge.NewParsingContext(opts)
+			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
 			require.NoError(t, err)
 			require.NotNil(t, catalogCfg, tc.description)
 
@@ -548,8 +553,9 @@ catalog {
 	l := logger.CreateLogger()
 
 	// Parse the configuration
-	_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, venvtest.NewWithOSFS(), opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
+	v := venvtest.NewWithOSFS()
+	catalogPctx := configbridge.NewParsingContext(opts)
+	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
@@ -587,8 +593,9 @@ catalog {
 	l := logger.CreateLogger()
 
 	// Parse the configuration
-	_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, venvtest.NewWithOSFS(), opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
+	v := venvtest.NewWithOSFS()
+	catalogPctx := configbridge.NewParsingContext(opts)
+	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 

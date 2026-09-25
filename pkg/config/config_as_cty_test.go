@@ -308,15 +308,14 @@ func TestStackUnitCtyReading(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(
-		t,
-		venvtest.NewWithOSFS(),
-		config.DefaultTerragruntConfigPath,
-	)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		"../../test/fixtures/stacks/basic/live/terragrunt.stack.hcl",
 		nil,
 	)
@@ -343,11 +342,13 @@ func TestStackLocalsCtyReading(t *testing.T) {
 	configPath, err := filepath.Abs(config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), configPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, configPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		"../../test/fixtures/stacks/locals/live/terragrunt.stack.hcl",
 		nil,
 	)

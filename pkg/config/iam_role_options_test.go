@@ -33,9 +33,10 @@ func TestResolveIAMRoleOptionsIdenticalContentInTwoDirectories(t *testing.T) {
 		file, err := hclparse.NewParser().ParseFromString(content, cfgPath)
 		require.NoError(t, err)
 
-		ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
+		v := venvtest.NewWithOSFS()
+		ctx, pctx := newTestParsingContext(t, cfgPath)
 
-		opts, err := config.ResolveIAMRoleOptions(ctx, pctx, logger.CreateLogger(), file, nil)
+		opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, pctx, file, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "arn:aws:iam::123456789012:role/"+name, opts.RoleARN)
 	}

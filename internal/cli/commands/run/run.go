@@ -95,9 +95,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		return err
 	}
 
-	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
-	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx)
+	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
 		return err
 	}
@@ -251,7 +251,7 @@ func getTerragruntConfig(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (*config.TerragruntConfig, error) {
-	ctx, configCtx := configbridge.NewParsingContext(ctx, l, v, opts)
+	configCtx := configbridge.NewParsingContext(opts)
 	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,
 		config.FeatureFlagsBlock,
@@ -259,8 +259,9 @@ func getTerragruntConfig(
 
 	return config.PartialParseConfigFile(
 		ctx,
-		configCtx,
 		l,
+		v,
+		configCtx,
 		opts.TerragruntConfigPath,
 		nil,
 	)

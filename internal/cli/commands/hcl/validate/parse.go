@@ -114,9 +114,9 @@ func (p ComponentParser) Unit(
 	parseOpts.TerragruntConfigPath = filepath.Join(unitDir, unitConfigFilename(opts))
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-	_, pctx := configbridge.NewParsingContext(ctx, l, v, parseOpts)
+	pctx := configbridge.NewParsingContext(parseOpts)
 
-	_, err := config.ReadTerragruntConfig(ctx, l, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
+	_, err := config.ReadTerragruntConfig(ctx, l, v, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
 
 	return err
 }
@@ -136,11 +136,11 @@ func (p ComponentParser) Stack(
 	parseOpts.WorkingDir = stackDir
 	parseOpts.TerragruntConfigPath = stackFilePath
 
-	sctx, parser := configbridge.NewParsingContext(ctx, l, v, parseOpts)
+	parser := configbridge.NewParsingContext(parseOpts)
 
 	var parseErrs []error
 
-	values, err := config.ReadValues(sctx, parser, l, stackDir)
+	values, err := config.ReadValues(ctx, l, v, parser, stackDir)
 	if err != nil {
 		parseErrs = append(parseErrs, err)
 	}
@@ -150,12 +150,12 @@ func (p ComponentParser) Stack(
 		parser = parser.WithValues(values)
 	}
 
-	file, err := parser.NewParser(l).ParseFromFile(v.FS, stackFilePath)
+	file, err := parser.NewParser(l, v).ParseFromFile(v.FS, stackFilePath)
 	if err != nil {
 		return append(parseErrs, err)
 	}
 
-	stackCfg, err := config.ParseStackConfig(sctx, l, parser, file, values)
+	stackCfg, err := config.ParseStackConfig(ctx, l, v, parser, file, values)
 	if err != nil {
 		return append(parseErrs, err)
 	}
@@ -165,7 +165,7 @@ func (p ComponentParser) Stack(
 	// the stack-dependencies experiment is enabled and the config declares
 	// autoinclude.
 	autoIncludeErr := config.ValidateStackAutoIncludes(
-		sctx, l, parser, stackFilePath, stackCfg, values,
+		ctx, l, v, parser, stackFilePath, stackCfg, values,
 	)
 	if autoIncludeErr != nil {
 		parseErrs = append(parseErrs, autoIncludeErr)

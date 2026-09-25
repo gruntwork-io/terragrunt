@@ -17,6 +17,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -113,7 +114,7 @@ type gcsDirectStateReadSettings struct {
 // endpoint semantics are not yet mirrored by gcphelper on the native backend path.
 // This makes the experiment an optimization without changing which identity or host
 // OpenTofu/Terraform would use.
-func gcsDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
+func gcsDirectStateReadSupported(v *venv.Venv, pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
 	config := remoteState.BackendConfig
 	if !gcsBackendConfigKeysSupported(config) {
 		return false
@@ -128,15 +129,11 @@ func gcsDirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.
 		return false
 	}
 
-	if pctx.Venv == nil {
+	if !gcsDirectStateReadEnvSupported(v, pctx, settings) {
 		return false
 	}
 
-	if !gcsDirectStateReadEnvSupported(pctx, settings) {
-		return false
-	}
-
-	return gcsCredentialSourcesSupported(pctx, settings)
+	return gcsCredentialSourcesSupported(v, settings)
 }
 
 // gcsEncryptionKeyDirectStateReadSupported limits direct reads to encryption-key
@@ -156,12 +153,12 @@ func gcsEncryptionKeyDirectStateReadSupported(value string) bool {
 }
 
 // gcsCredentialFileDirectStateReadSupported retains credential files the direct reader resolves the same way the native backend does.
-func gcsCredentialFileDirectStateReadSupported(pctx *ParsingContext, filename string) bool {
+func gcsCredentialFileDirectStateReadSupported(v *venv.Venv, filename string) bool {
 	if filename == "" {
 		return true
 	}
 
-	file, err := pctx.Venv.FS.Open(filename)
+	file, err := v.FS.Open(filename)
 	if err != nil {
 		return false
 	}
@@ -226,6 +223,7 @@ func gcsBackendConfigKeyKnown(key string) bool {
 func getTerragruntOutputJSONFromRemoteStateGCS(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	remoteState *remotestate.RemoteState,
 	workspace string,
@@ -241,12 +239,12 @@ func getTerragruntOutputJSONFromRemoteStateGCS(
 	location := fmt.Sprintf("gs://%s/%s", bucket, key)
 
 	open := func(ctx context.Context, l log.Logger) (io.ReadCloser, error) {
-		client, err := gcsbackend.NewClient(ctx, pctx.Venv, extendedConfig, &backend.Options{})
+		client, err := gcsbackend.NewClient(ctx, v, extendedConfig, &backend.Options{})
 		if err != nil {
 			return nil, fmt.Errorf("building GCS client for %s: %w", location, err)
 		}
 
-		object, err := gcsObjectWithEncryptionKey(pctx, client.Bucket(bucket).Object(key), stateConfig.EncryptionKey)
+		object, err := gcsObjectWithEncryptionKey(v, pctx, client.Bucket(bucket).Object(key), stateConfig.EncryptionKey)
 		if err != nil {
 			return nil, errors.Join(fmt.Errorf("configuring GCS state object %s: %w", location, err), client.Close())
 		}
@@ -272,20 +270,21 @@ func gcsStateObjectKey(config *gcsbackend.RemoteStateConfigGCS, workspace string
 
 // gcsObjectWithEncryptionKey applies the GCS backend's optional customer-supplied encryption key.
 func gcsObjectWithEncryptionKey(
+	v *venv.Venv,
 	pctx *ParsingContext,
 	object *storage.ObjectHandle,
 	configuredKey string,
 ) (*storage.ObjectHandle, error) {
 	encodedKey := configuredKey
 	if encodedKey == "" {
-		encodedKey = pctx.Venv.Env["GOOGLE_ENCRYPTION_KEY"]
+		encodedKey = v.Env["GOOGLE_ENCRYPTION_KEY"]
 	}
 
 	if encodedKey == "" {
 		return object, nil
 	}
 
-	keyContents, err := gcsEncryptionKeyContents(pctx, encodedKey)
+	keyContents, err := gcsEncryptionKeyContents(v, pctx, encodedKey)
 	if err != nil {
 		return nil, err
 	}
@@ -307,13 +306,13 @@ func gcsObjectWithEncryptionKey(
 }
 
 // gcsEncryptionKeyContents resolves an encryption key as a dependency-relative file or literal data.
-func gcsEncryptionKeyContents(pctx *ParsingContext, value string) (string, error) {
+func gcsEncryptionKeyContents(v *venv.Venv, pctx *ParsingContext, value string) (string, error) {
 	filename := value
 	if !filepath.IsAbs(filename) {
 		filename = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), filename)
 	}
 
-	exists, err := vfs.FileExists(pctx.Venv.FS, filename)
+	exists, err := vfs.FileExists(v.FS, filename)
 	if err != nil {
 		return "", fmt.Errorf("checking encryption_key file %s: %w", filename, err)
 	}
@@ -322,11 +321,11 @@ func gcsEncryptionKeyContents(pctx *ParsingContext, value string) (string, error
 		return value, nil
 	}
 
-	if vfs.IsDir(pctx.Venv.FS, filename) {
+	if vfs.IsDir(v.FS, filename) {
 		return "", fmt.Errorf("encryption_key path %s is a directory", filename)
 	}
 
-	contents, err := vfs.ReadFile(pctx.Venv.FS, filename)
+	contents, err := vfs.ReadFile(v.FS, filename)
 	if err != nil {
 		return "", fmt.Errorf("reading encryption_key file %s: %w", filename, err)
 	}
@@ -399,8 +398,8 @@ func gcsConfiguredCredentialsSupported(settings gcsDirectStateReadSettings) bool
 }
 
 // gcsDirectStateReadEnvSupported rejects environments whose credential or encryption inputs the in-process client resolves differently.
-func gcsDirectStateReadEnvSupported(pctx *ParsingContext, settings gcsDirectStateReadSettings) bool {
-	env := pctx.Venv.Env
+func gcsDirectStateReadEnvSupported(v *venv.Venv, pctx *ParsingContext, settings gcsDirectStateReadSettings) bool {
+	env := v.Env
 
 	// The same CSEK and CMEK conflict is the native backend's to reject once its environment fallbacks are folded in.
 	if (settings.encryptionKey != "" || env["GOOGLE_ENCRYPTION_KEY"] != "") &&
@@ -467,12 +466,12 @@ func gcsEffectiveEncryptionKey(env map[string]string, settings gcsDirectStateRea
 }
 
 // gcsCredentialSourcesSupported rejects credential files and locations whose authentication the native backend performs differently.
-func gcsCredentialSourcesSupported(pctx *ParsingContext, settings gcsDirectStateReadSettings) bool {
-	env := pctx.Venv.Env
+func gcsCredentialSourcesSupported(v *venv.Venv, settings gcsDirectStateReadSettings) bool {
+	env := v.Env
 	applicationCredentials := env["GOOGLE_APPLICATION_CREDENTIALS"]
 
-	if !gcsCredentialFileDirectStateReadSupported(pctx, settings.credentials) ||
-		!gcsCredentialFileDirectStateReadSupported(pctx, applicationCredentials) {
+	if !gcsCredentialFileDirectStateReadSupported(v, settings.credentials) ||
+		!gcsCredentialFileDirectStateReadSupported(v, applicationCredentials) {
 		return false
 	}
 
