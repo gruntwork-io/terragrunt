@@ -159,7 +159,7 @@ func NewParsingContext(
 		opt(pctx)
 	}
 
-	pctx.Parser = DefaultParserSettings(ctx, pctx.StrictControls)
+	pctx.Parser = DefaultParserSettings(pctx.StrictControls)
 
 	return ctx, pctx
 }

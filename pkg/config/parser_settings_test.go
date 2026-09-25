@@ -236,12 +236,12 @@ func TestParserOptionsBareIncludeRewrite(t *testing.T) {
 func TestDefaultParserSettingsFollowsBareIncludeControl(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, config.DefaultParserSettings(t.Context(), controls.New()).RewriteBareInclude)
+	assert.True(t, config.DefaultParserSettings(controls.New()).RewriteBareInclude)
 
 	strictControls := controls.New()
 	require.NoError(t, strictControls.EnableControl(controls.BareInclude))
 
-	assert.False(t, config.DefaultParserSettings(t.Context(), strictControls).RewriteBareInclude)
+	assert.False(t, config.DefaultParserSettings(strictControls).RewriteBareInclude)
 }
 
 func TestCloneCopiesHaltOnErrorBlocks(t *testing.T) {

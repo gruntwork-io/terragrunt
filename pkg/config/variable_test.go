@@ -17,7 +17,6 @@ func TestScanVariables(t *testing.T) {
 	t.Parallel()
 
 	inputs, err := config.ParseVariables(
-		t.Context(),
 		logger.CreateLogger(),
 		venvtest.NewWithOSFS(),
 		controls.New(),
@@ -77,7 +76,6 @@ func TestParseVariablesIgnoresSubdirectories(t *testing.T) {
 	)
 
 	inputs, err := config.ParseVariables(
-		t.Context(),
 		logger.CreateLogger(),
 		venvtest.New().WithFS(fsys),
 		controls.New(),
@@ -93,7 +91,6 @@ func TestScanDefaultVariables(t *testing.T) {
 	t.Parallel()
 
 	inputs, err := config.ParseVariables(
-		t.Context(),
 		logger.CreateLogger(),
 		venvtest.NewWithOSFS(),
 		controls.New(),
