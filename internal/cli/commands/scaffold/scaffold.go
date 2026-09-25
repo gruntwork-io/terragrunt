@@ -302,7 +302,7 @@ func Prepare(
 	}
 
 	// extract variables from downloaded module
-	requiredVariables, optionalVariables, err := parseVariables(ctx, l, v, opts, tempDir)
+	requiredVariables, optionalVariables, err := parseVariables(l, v, opts, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -797,7 +797,6 @@ func prepareBoilerplateFiles(
 
 // parseVariables - parse variables from tf files.
 func parseVariables(
-	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,

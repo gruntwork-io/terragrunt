@@ -91,18 +91,18 @@ func TestTFBareIncludeStrictMode(t *testing.T) {
 	bareInclude := bareIncludeControl(t)
 
 	testCases := []struct {
-		expectedError  error
-		name           string
-		expectedStderr string
-		controls       []string
-		strictMode     bool
+		expectedError error
+		name          string
+		controls      []string
+		strictMode    bool
+		wantWarning   bool
 	}{
 		{
-			name:           "bare include with no strict mode or control",
-			controls:       []string{},
-			strictMode:     false,
-			expectedError:  nil,
-			expectedStderr: bareInclude.Warning,
+			name:          "bare include with no strict mode or control",
+			controls:      []string{},
+			strictMode:    false,
+			expectedError: nil,
+			wantWarning:   true,
 		},
 		{
 			name:          "bare include with bare-include strict control",
@@ -141,7 +141,12 @@ func TestTFBareIncludeStrictMode(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			assert.Contains(t, stderr, tc.expectedStderr)
+			if tc.wantWarning {
+				assert.Contains(t, stderr, bareInclude.Warning)
+				return
+			}
+
+			assert.NotContains(t, stderr, bareInclude.Warning)
 		})
 	}
 }
