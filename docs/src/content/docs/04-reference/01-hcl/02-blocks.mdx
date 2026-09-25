@@ -2429,7 +2429,8 @@ Evaluation Order:
 - **Retry Rules:** Once ignore rules are applied, the **retry** rules handle any remaining errors.
 
 > **Note:**
-> Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
+> Only one `ignore` or `retry` block handles an error, even when several of them match it.
+> Within a block, a matching negative pattern keeps the error from being ignored or retried, wherever that pattern sits in the list.
 
 #### Errors during source fetching
 
