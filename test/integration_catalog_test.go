@@ -35,7 +35,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const (
@@ -207,7 +206,6 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 		t.Context(),
 		l,
 		pctx,
-		config.DefaultParserOptions(l, venvtest.NewWithOSFS(), opts.StrictControls),
 	)
 	require.NoError(t, err)
 

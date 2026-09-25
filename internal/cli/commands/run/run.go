@@ -98,7 +98,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 
 	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
-	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
+	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx)
 	if err != nil {
 		return err
 	}

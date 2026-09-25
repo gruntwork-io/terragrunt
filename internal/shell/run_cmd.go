@@ -258,7 +258,8 @@ type RunCommandOptions struct {
 // runCommand contains the actual subprocess execution logic, separated to keep
 // RunCommandWithOutput focused on telemetry framing.
 //
-// Requires v.Env: the traceparent is written into it before the child forks.
+// Requires v.Env. The traceparent goes into a copy of it, so the caller's map
+// is never written.
 func runCommand(
 	ctx context.Context,
 	l log.Logger,
@@ -282,6 +283,8 @@ func runCommand(
 			traceParent,
 			fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args),
 		)
+
+		v = v.WithEnvCloned()
 		v.Env[telemetry.TraceParentEnv] = traceParent
 	}
 

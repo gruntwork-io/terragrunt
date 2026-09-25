@@ -167,7 +167,7 @@ func outputsFetchViaRun(
 
 	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, cv, opts)
 
-	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
+	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx)
 	if err != nil {
 		return getOutputsOutput{}, err
 	}
@@ -348,7 +348,7 @@ func outputsStateReadViable(
 ) (bool, string) {
 	probeCtx := pctx.
 		WithDecodeList(config.RemoteStateBlock, config.TerragruntFlags, config.EngineBlock).
-		WithDiagnosticsSuppressed(l)
+		WithDiagnosticsSuppressed()
 
 	cfg, err := config.PartialParseConfigFile(ctx, probeCtx, l, configPath, nil)
 	if err != nil {

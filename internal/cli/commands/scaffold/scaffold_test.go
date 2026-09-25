@@ -119,7 +119,6 @@ func TestDefaultTemplateVariables(t *testing.T) {
 		t.Context(),
 		l,
 		pctx,
-		config.DefaultParserOptions(l, pctx.Venv, opts.StrictControls),
 	)
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
@@ -226,7 +225,6 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 		t.Context(),
 		l,
 		pctx,
-		config.DefaultParserOptions(l, pctx.Venv, opts.StrictControls),
 	)
 	require.NoError(t, err)
 

@@ -19,16 +19,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
@@ -60,10 +57,6 @@ const (
 	iamRoleCacheName = "iamRoleCache"
 
 	logMsgSeparator = "\n"
-
-	// defaultParserOptionCount is what DefaultParserOptions can return: the
-	// diagnostics writer, the logger, and the bare-include file update.
-	defaultParserOptionCount = 3
 
 	DefaultEngineType                   = "rpc"
 	MetadataTerraform                   = "terraform"
@@ -101,37 +94,6 @@ var (
 	DefaultTerragruntConfigPaths = []string{
 		DefaultTerragruntJSONConfigPath,
 		DefaultTerragruntConfigPath,
-	}
-
-	DefaultParserOptions = func(l log.Logger, v *venv.Venv, strictControls strict.Controls) []hclparse.Option {
-		writer := writer.New(
-			writer.WithLogger(l),
-			writer.WithDefaultLevel(log.ErrorLevel),
-			writer.WithMsgSeparator(logMsgSeparator),
-		)
-
-		parseOpts := make([]hclparse.Option, 0, defaultParserOptionCount)
-		parseOpts = append(parseOpts,
-			hclparse.WithDiagnosticsWriter(v, writer, l.Formatter().DisabledColors()),
-			hclparse.WithLogger(l),
-		)
-
-		strictControl := strictControls.Find(controls.BareInclude)
-
-		// If we can't find the strict control, we're probably in a test
-		// where the option is being hand written. In that case,
-		// we'll assume we're not in strict mode.
-		if strictControl != nil {
-			strictControl.SuppressWarning()
-
-			if err := strictControl.Evaluate(context.Background()); err != nil {
-				return parseOpts
-			}
-		}
-
-		parseOpts = append(parseOpts, hclparse.WithFileUpdate(updateBareIncludeBlock))
-
-		return parseOpts
 	}
 
 	DefaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
@@ -1489,14 +1451,11 @@ func isTerragruntModuleDir(path string, tfDataDir string, downloadDir string) bo
 func ReadTerragruntConfig(ctx context.Context,
 	l log.Logger,
 	pctx *ParsingContext,
-	parserOptions []hclparse.Option,
 ) (*TerragruntConfig, error) {
 	l.Debugf(
 		"Reading Terragrunt config file at %s",
 		util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.LogShowAbsPaths),
 	)
-
-	pctx = pctx.WithParseOption(parserOptions)
 
 	return ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 }
@@ -1567,12 +1526,12 @@ func ParseConfigFile(
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(childCtx, cacheKey); found {
-				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
+				file = cacheConfig.Rebind(pctx.NewParser(l))
 			} else {
 				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 				var parseErr error
 
-				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).
+				file, parseErr = pctx.NewParser(l).
 					ParseFromFile(pctx.Venv.FS, cfgPath)
 				if parseErr != nil {
 					return parseErr
@@ -1606,7 +1565,7 @@ func ParseConfigString(
 	includeFromChild *IncludeConfig,
 ) (*TerragruntConfig, error) {
 	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromString(configString, cfgPath)
+	file, err := pctx.NewParser(l).ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1747,7 +1706,7 @@ func ParseConfig(
 		return nil, CouldNotResolveTerragruntConfigInFileError(file.ConfigPath)
 	}
 
-	config, err := convertToTerragruntConfig(ctx, pctx, file.ConfigPath, terragruntConfigFile)
+	config, err := convertToTerragruntConfig(pctx, file.ConfigPath, terragruntConfigFile)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -2104,15 +2063,14 @@ func remoteStateFromAttr(attr cty.Value) (*remotestate.RemoteState, error) {
 
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
 func convertToTerragruntConfig(
-	ctx context.Context,
 	pctx *ParsingContext,
 	cfgPath string,
 	cfgFromFile *terragruntConfigFile,
 ) (cfg *TerragruntConfig, err error) {
 	var errs []error
 
-	if pctx.ConvertToTerragruntConfigFunc != nil {
-		return pctx.ConvertToTerragruntConfigFunc(ctx, pctx, cfgPath, cfgFromFile)
+	if pctx.catalogOnly {
+		return convertToTerragruntCatalogConfig(pctx, cfgPath, cfgFromFile)
 	}
 
 	cfg = &TerragruntConfig{
@@ -2785,7 +2743,7 @@ func ParseRemoteState(
 			err,
 		)
 
-		cfg, err = ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
+		cfg, err = ReadTerragruntConfig(ctx, l, pctx)
 		if err != nil {
 			return nil, err
 		}
@@ -2808,7 +2766,7 @@ func readBackendConfig(
 ) (*TerragruntConfig, error) {
 	// The whole-config read decides whether this config is valid, so a failure here must not
 	// print diagnostics for a command that goes on to succeed.
-	quietCtx := pctx.WithDiagnosticsSuppressed(l)
+	quietCtx := pctx.WithDiagnosticsSuppressed()
 
 	iamRoleOptions := pctx.OriginalIAMRoleOptions
 

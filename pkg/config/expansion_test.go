@@ -1159,15 +1159,12 @@ func TestPartialParseKeepsParsingPastABrokenExpansion(t *testing.T) {
 
 	ctx, pctx := newTestParsingContext(t, venvtest.New(), config.DefaultTerragruntConfigPath)
 
-	forgiving := hclparse.WithDiagnosticsHandler(
-		func(_ *hcl.File, _ hcl.Diagnostics) (hcl.Diagnostics, error) {
-			return nil, nil
-		},
-	)
+	forgiving := pctx.Parser
+	forgiving.IgnoreDiagnostics = true
 
 	pctx = pctx.
 		WithDecodeList(config.DependencyBlock).
-		WithParseOption(append(pctx.ParserOptions, forgiving))
+		WithParserSettings(forgiving)
 
 	cfg, err := config.PartialParseConfigString(
 		ctx,

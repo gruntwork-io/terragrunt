@@ -30,7 +30,7 @@ func DiscoverSourceURLs(
 		return nil, err
 	}
 
-	sourcePctx := pctx.WithDecodeList(config.TerraformSource).WithDiagnosticsSuppressed(l)
+	sourcePctx := pctx.WithDecodeList(config.TerraformSource).WithDiagnosticsSuppressed()
 
 	var repoURLs []string
 

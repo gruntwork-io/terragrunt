@@ -379,7 +379,10 @@ func createTerragruntEvalContext(
 
 	maps.Copy(functions, tfFunctions)
 	maps.Copy(functions, terragruntFunctions)
-	maps.Copy(functions, pctx.PredefinedFunctions)
+
+	if pctx.stubWorkingDirFunc {
+		functions[FuncNameGetWorkingDir] = wrapVoidToEmptyStringAsFuncImpl()
+	}
 
 	evalCtx := &hcl.EvalContext{
 		Functions: functions,
@@ -942,12 +945,10 @@ func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (str
 	l.Debugf("Start processing get_working_dir built-in function")
 	defer l.Debugf("Complete processing get_working_dir built-in function")
 
-	// Initialize evaluation ctx extensions from base blocks.
-	pctx.PredefinedFunctions = map[string]function.Function{
-		FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
-	}
+	sourcePctx := pctx.Clone()
+	sourcePctx.stubWorkingDirFunc = true
 
-	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
+	cfg, err := ParseConfigFile(ctx, sourcePctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -1113,7 +1114,7 @@ func ParseTerragruntConfig(
 
 	pctx.ReadConfigChain = chain
 
-	pctx = pctx.WithDiagnosticsSuppressed(l)
+	pctx = pctx.WithDiagnosticsSuppressed()
 
 	// The parent's decoded dependencies are not the target config's. Reset so the
 	// target config decodes its own dependency blocks. Also reset SkipOutputsResolution
