@@ -112,9 +112,6 @@ const (
 	// DuplicateDependencyLabels is the control that prevents two `dependency` blocks in one
 	// configuration from addressing the same dependency, by label or by config_path.
 	DuplicateDependencyLabels = "duplicate-dependency-labels"
-
-	// ExcludeDependencyOutputs is the control that prevents `exclude` blocks from reading dependency outputs.
-	ExcludeDependencyOutputs = "exclude-dependency-outputs"
 )
 
 // LegacyGCSDeprecationWarning is the warning text emitted when a plain
@@ -283,15 +280,6 @@ func New() strict.Controls {
 				"Two `dependency` blocks address the same dependency, by sharing a label or a `config_path`. Declare each dependency once.",
 			),
 			Warning: "Two `dependency` blocks address the same dependency, by sharing a label or a `config_path`. Only the last block with a given label can be referenced, and two blocks for one `config_path` declare the same unit twice. Declare each dependency once. In a future version of Terragrunt, this will result in an error.",
-		},
-
-		&Control{
-			Name:        ExcludeDependencyOutputs,
-			Description: "Prevents `exclude` blocks from reading dependency outputs.",
-			Error: errors.New(
-				"An `exclude` block reads dependency outputs. Terragrunt builds the run queue before it reads them. Read a feature flag instead.",
-			),
-			Warning: "An `exclude` block reads dependency outputs. Terragrunt builds the run queue before it reads them, so `if` can't remove the unit from the `run --all` queue and `exclude_dependencies` has no effect. Read a feature flag instead. In a future version of Terragrunt, this will result in an error. For more information, see https://docs.terragrunt.com/reference/strict-controls/active#exclude-dependency-outputs",
 		},
 
 		&Control{

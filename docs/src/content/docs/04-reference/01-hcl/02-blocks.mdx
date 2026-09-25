@@ -2247,12 +2247,6 @@ Attributes:
 | `exclude_dependencies` | boolean      | Indicates whether the dependencies of the excluded unit should also be excluded (default: `false`).                     |
 | `no_run`               | boolean      | When `true` and `if` is `true`, prevents the unit from running entirely for single unit commands (e.g., `terragrunt run -- plan`), but only when the current action matches the `actions` list. This attribute is ignored for `run --all` commands. |
 
-<Since version="v1.2.0">
-
-Don't read dependency outputs in an `exclude` block. Terragrunt builds the run queue before it reads them, so `if` can't remove the unit from the `run --all` queue and `exclude_dependencies` has no effect. Read a [feature flag](#feature) instead. Terragrunt warns when an `exclude` block reads a dependency, and the [`exclude-dependency-outputs`](/reference/strict-controls/active#exclude-dependency-outputs) strict control turns the warning into an error.
-
-</Since>
-
 Examples:
 
 ```hcl

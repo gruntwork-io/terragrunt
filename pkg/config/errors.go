@@ -135,21 +135,6 @@ func (err InvalidExcludeBlockError) Unwrap() error {
 	return err.Err
 }
 
-// ExcludeReferencesDependencyError reports an exclude block attribute that reads a dependency.
-type ExcludeReferencesDependencyError struct {
-	ConfigPath string
-	Attribute  string
-}
-
-func (err ExcludeReferencesDependencyError) Error() string {
-	return fmt.Sprintf(
-		"exclude.%s in %s cannot reference dependency outputs under the exclude-dependency-outputs strict control; Terragrunt builds the run queue before it reads them, so set exclude.%s from a feature flag instead",
-		err.Attribute,
-		err.ConfigPath,
-		err.Attribute,
-	)
-}
-
 type TFVarFileNotFoundError struct {
 	File  string
 	Cause string
