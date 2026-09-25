@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Arguments ending in `-no-color` are no longer dropped
+
+After the first `--no-color`, Terragrunt discarded every later argument ending in `-no-color`. In `terragrunt run --no-color -- plan -out=plan-no-color`, the `-out` argument never reached OpenTofu, so no plan file was written and nothing in the output said why.
+
+Terragrunt now drops a duplicate only when the argument is the flag itself, `--no-color` with or without an `=value`. Everything after `--` passes through as written.
