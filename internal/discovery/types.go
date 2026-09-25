@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -136,6 +137,10 @@ type Discovery struct {
 	// boundaries and dependency paths name it. Discover fills it in before any
 	// phase runs.
 	resolvedWorkingDir string
+
+	// paths memoizes symlink resolution for one Discover call. Discover fills
+	// it in before any phase runs.
+	paths *vfs.PathResolver
 
 	// gitRoot is the detected git repository root: the default ceiling for the
 	// upstream dependent walk. It is detected lazily and only when needed, so
