@@ -722,12 +722,25 @@ func fetchScaffoldSource(ctx context.Context, l log.Logger, v *venv.Venv, dst, s
 		return err
 	}
 
-	err := v.FS.Remove(filepath.Join(dst, getter.SourceManifestName))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
+	return removeSourceManifests(v.FS, dst)
+}
 
-	return nil
+// removeSourceManifests deletes every source manifest under dir. Copying a
+// local source writes one into each directory it creates. A file of the same
+// name fetched by any other getter goes too: the name is Terragrunt's, and a
+// manifest committed by an earlier scaffold must not spread to another tree.
+func removeSourceManifests(fsys vfs.FS, dir string) error {
+	return vfs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() || d.Name() != getter.SourceManifestName {
+			return nil
+		}
+
+		return fsys.Remove(path)
+	})
 }
 
 // prepareBoilerplateFiles - prepare boilerplate files from provided template, tf module, or (custom) default template
