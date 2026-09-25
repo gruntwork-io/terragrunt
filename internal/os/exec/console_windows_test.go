@@ -115,9 +115,9 @@ func TestWindowsConsolePrepareStdinOnPipes(t *testing.T) {
 
 // TestWindowsConsoleVTProcessingOnCONOUT verifies that VT processing can be
 // toggled on a real console handle via raw API calls.
+//
+//nolint:paralleltest // subprocesses started by parallel tests change the shared console output mode
 func TestWindowsConsoleVTProcessingOnCONOUT(t *testing.T) {
-	t.Parallel()
-
 	conout := openConsoleOutput(t)
 	original := getMode(t, conout)
 
@@ -139,9 +139,9 @@ func TestWindowsConsoleVTProcessingOnCONOUT(t *testing.T) {
 // cycle using a real console handle from CONOUT$. This is the core regression
 // test: subprocesses like "terraform version" clear VT processing, and Restore
 // must bring it back.
+//
+//nolint:paralleltest // subprocesses started by parallel tests change the shared console output mode
 func TestWindowsConsoleSaveRestoreOnCONOUT(t *testing.T) {
-	t.Parallel()
-
 	conout := openConsoleOutput(t)
 	original := getMode(t, conout)
 
@@ -235,9 +235,9 @@ func TestWindowsConsoleRestoreClearsVirtualTerminalInput(
 // TestWindowsConsoleSubprocessSaveRestore is an integration test that runs a
 // real subprocess and verifies the save→subprocess→restore pattern preserves
 // console modes. Uses CONOUT$ for a real console handle.
+//
+//nolint:paralleltest // subprocesses started by parallel tests change the shared console output mode
 func TestWindowsConsoleSubprocessSaveRestore(t *testing.T) {
-	t.Parallel()
-
 	conout := openConsoleOutput(t)
 	original := getMode(t, conout)
 
