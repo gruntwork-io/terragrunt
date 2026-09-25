@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -34,7 +33,6 @@ type ParsedVariable struct {
 
 // ParseVariables - parse variables from tf files.
 func ParseVariables(
-	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	strictControls strict.Controls,
@@ -46,7 +44,7 @@ func ParseVariables(
 		return nil, err
 	}
 
-	parser := hclparse.NewParser(ParserOptions(l, v, DefaultParserSettings(ctx, strictControls))...)
+	parser := hclparse.NewParser(ParserOptions(l, v, DefaultParserSettings(strictControls))...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable

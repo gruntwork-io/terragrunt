@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"io"
 
 	"github.com/hashicorp/hcl/v2"
@@ -53,9 +52,9 @@ type ParserSettings struct {
 
 // DefaultParserSettings returns the settings a new [ParsingContext] starts with. The bare-include
 // rewrite is on unless the bare-include strict control is enabled.
-func DefaultParserSettings(ctx context.Context, strictControls strict.Controls) ParserSettings {
+func DefaultParserSettings(strictControls strict.Controls) ParserSettings {
 	return ParserSettings{
-		RewriteBareInclude: bareIncludeAllowed(ctx, strictControls),
+		RewriteBareInclude: bareIncludeAllowed(strictControls),
 	}
 }
 
@@ -127,13 +126,13 @@ func diagnosticsWriterOption(l log.Logger, v *venv.Venv, s ParserSettings) (hclp
 
 // bareIncludeAllowed reports whether strictControls allow bare includes, which they do unless
 // the bare-include control is enabled.
-func bareIncludeAllowed(ctx context.Context, strictControls strict.Controls) bool {
+func bareIncludeAllowed(strictControls strict.Controls) bool {
 	strictControl := strictControls.Find(controls.BareInclude)
 	if strictControl == nil {
 		return true
 	}
 
-	strictControl.SuppressWarning()
-
-	return strictControl.Evaluate(context.WithoutCancel(ctx)) == nil
+	// Evaluating the control here would spend its one-shot warning, or suppress it for good,
+	// before any file with a bare include is parsed.
+	return !strictControl.GetEnabled()
 }
