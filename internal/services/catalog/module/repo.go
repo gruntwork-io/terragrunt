@@ -35,7 +35,9 @@ const (
 	bitbucketHost         = "bitbucket.org"
 	gitlabSelfHostedRegex = `^(gitlab\.(.+))$`
 
-	cloneCompleteSentinel = ".catalog-clone-complete"
+	// CloneCompleteSentinel is the marker file the catalog writes into a clone
+	// directory once the clone finishes.
+	CloneCompleteSentinel = ".catalog-clone-complete"
 )
 
 // ErrRemoteCloneFSNotOS is returned when a remote clone is attempted through
@@ -46,7 +48,7 @@ var ErrRemoteCloneFSNotOS = errors.New("remote clone requires an OS-backed files
 
 var (
 	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
-	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+)[^/]*?(?:\.git)?$`)
+	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+?)(?:\.git)?(?:[?#].*)?$`)
 
 	modulesPaths = []string{"modules"}
 
@@ -362,7 +364,7 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	}
 
 	if repo.cloneCompleted(v.FS) {
-		l.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
+		l.Debugf("The repo dir exists and %q exists. Skipping cloning.", CloneCompleteSentinel)
 
 		return nil
 	}
@@ -408,7 +410,7 @@ func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
 	if repo.shouldCleanupIncompleteClone(fsys) {
 		l.Debugf(
 			"The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.",
-			cloneCompleteSentinel,
+			CloneCompleteSentinel,
 		)
 
 		if err := removeIncompleteClone(fsys, cloneRoot, repo.path); err != nil {
@@ -496,7 +498,7 @@ func (repo *Repo) shouldCleanupIncompleteClone(fsys vfs.FS) bool {
 }
 
 func (repo *Repo) cloneCompleted(fsys vfs.FS) bool {
-	exists, _ := vfs.FileExists(fsys, filepath.Join(repo.path, cloneCompleteSentinel))
+	exists, _ := vfs.FileExists(fsys, filepath.Join(repo.path, CloneCompleteSentinel))
 	return exists
 }
 
@@ -556,8 +558,7 @@ func (repo *Repo) performClone(
 		return err
 	}
 
-	// Create the sentinel file to indicate that the clone is complete
-	f, err := v.FS.Create(filepath.Join(repo.path, cloneCompleteSentinel))
+	f, err := v.FS.Create(filepath.Join(repo.path, CloneCompleteSentinel))
 	if err != nil {
 		return err
 	}
