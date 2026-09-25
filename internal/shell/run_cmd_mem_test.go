@@ -105,3 +105,17 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 	assert.Contains(t, merged.String(), "out-line")
 	assert.Contains(t, merged.String(), "err-line")
 }
+
+// TestRunCommandWithOutputPanicsOnNilShellOptions pins that a nil runOpts
+// panics with [shell.ErrShellOptionsNil] even when workingDir is set.
+func TestRunCommandWithOutputPanicsOnNilShellOptions(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venvtest.New()
+
+	assert.PanicsWithValue(t, shell.ErrShellOptionsNil, func() {
+		_, err := shell.RunCommandWithOutput(t.Context(), l, v, nil, "work", false, false, "tool")
+		t.Errorf("RunCommandWithOutput returned instead of panicking: %v", err)
+	})
+}
