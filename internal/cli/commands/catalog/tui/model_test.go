@@ -577,6 +577,88 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 	assert.Contains(t, exit, "TODO", "scaffold message should mention the TODO markers")
 }
 
+// TestModelScaffoldFinishedWithFilesListsGeneratedFiles verifies that a
+// scaffold finishing with an explicit file list names those files (and not a
+// hardcoded terragrunt.hcl) in the exit callout. It covers the singular
+// heading (top-level and nested, both relativized from the generation root),
+// the pluralized "files" heading, Windows-safe nested paths, and the
+// "... +N more" cap on long lists.
+func TestModelScaffoldFinishedWithFilesListsGeneratedFiles(t *testing.T) {
+	t.Parallel()
+
+	nested := filepath.Join("config", "common.hcl")
+	nestedHeading := "." + string(filepath.Separator) + nested + " scaffolded"
+
+	tests := []struct {
+		name        string
+		files       []string
+		wantContain []string
+		wantAbsent  []string
+	}{
+		{
+			name:        "singular names the file",
+			files:       []string{"root.hcl"},
+			wantContain: []string{"root.hcl scaffolded"},
+			wantAbsent:  []string{"files scaffolded", "terragrunt.hcl scaffolded", "... +"},
+		},
+		{
+			name:        "singular nested file is relativized from the generation root",
+			files:       []string{nested},
+			wantContain: []string{nestedHeading, nested},
+			wantAbsent:  []string{"files scaffolded", "terragrunt.hcl scaffolded", "... +"},
+		},
+		{
+			name:        "plural lists both files",
+			files:       []string{"root.hcl", nested},
+			wantContain: []string{"2 files scaffolded", "root.hcl", nested},
+			wantAbsent:  []string{"terragrunt.hcl scaffolded", "... +"},
+		},
+		{
+			name: "cap collapses overflow",
+			files: []string{
+				"a.hcl", "b.hcl", "c.hcl", "d.hcl", "e.hcl", "f.hcl", "g.hcl",
+			},
+			wantContain: []string{
+				"7 files scaffolded",
+				"a.hcl", "b.hcl", "c.hcl", "d.hcl", "e.hcl",
+				"... +2 more",
+			},
+			wantAbsent: []string{"f.hcl", "g.hcl"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
+
+			opts.ScaffoldOutputFolder = t.TempDir()
+
+			l := logger.CreateLogger()
+			components := makeComponents(t)
+
+			componentCh := make(chan *tui.ComponentEntry)
+			close(componentCh)
+
+			m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+
+			updated, _ := m.Update(tui.ScaffoldFinishedMsg{Files: tt.files})
+			finalModel := updated.(tui.Model)
+
+			exit := stripANSI(finalModel.ExitMessage())
+			for _, want := range tt.wantContain {
+				assert.Contains(t, exit, want)
+			}
+
+			for _, absent := range tt.wantAbsent {
+				assert.NotContains(t, exit, absent)
+			}
+		})
+	}
+}
+
 // TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage exercises the
 // early-return in formatScaffoldMessage when no output directory is known.
 func TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage(t *testing.T) {
