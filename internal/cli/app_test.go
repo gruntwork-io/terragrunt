@@ -716,6 +716,16 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			args:     []string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"},
 			expected: []string{tf.CommandNameDestroy, "-foo", "-bar", "plan"},
 		},
+		{
+			args:     []string{tf.CommandNamePlan, doubleDashed(global.NoColorFlagName)},
+			expected: []string{tf.CommandNamePlan, tf.FlagNameNoColor},
+		},
+		{
+			args: []string{
+				"run", "--all", doubleDashed(global.NoColorFlagName), "--", tf.CommandNameInit, tf.FlagNameNoColor,
+			},
+			expected: []string{tf.CommandNameInit, tf.FlagNameNoColor},
+		},
 	}
 
 	for i, tc := range testCases {
