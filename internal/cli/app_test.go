@@ -716,6 +716,16 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			args:     []string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"},
 			expected: []string{tf.CommandNameDestroy, "-foo", "-bar", "plan"},
 		},
+		{
+			args:     []string{tf.CommandNamePlan, doubleDashed(global.NoColorFlagName)},
+			expected: []string{tf.CommandNamePlan, tf.FlagNameNoColor},
+		},
+		{
+			args: []string{
+				"run", "--all", doubleDashed(global.NoColorFlagName), "--", tf.CommandNameInit, tf.FlagNameNoColor,
+			},
+			expected: []string{tf.CommandNameInit, tf.FlagNameNoColor},
+		},
 	}
 
 	for i, tc := range testCases {
@@ -1123,5 +1133,85 @@ func TestAutocomplete(t *testing.T) {
 		for _, expectedComplete := range tc.expectedCompletes {
 			assert.Contains(t, output.String(), expectedComplete)
 		}
+	}
+}
+
+func TestRemoveNoColorFlagDuplicates(t *testing.T) {
+	t.Parallel()
+
+	noColor := doubleDashed(global.NoColorFlagName)
+
+	testCases := []struct {
+		name     string
+		args     []string
+		expected []string
+	}{
+		{
+			name:     "repeated flag",
+			args:     []string{"terragrunt", noColor, "plan", noColor},
+			expected: []string{"terragrunt", noColor, "plan"},
+		},
+		{
+			name:     "single dash spelling",
+			args:     []string{"terragrunt", "-" + global.NoColorFlagName, noColor, "plan"},
+			expected: []string{"terragrunt", "-" + global.NoColorFlagName, "plan"},
+		},
+		{
+			name:     "duplicate carrying an explicit value",
+			args:     []string{"terragrunt", noColor, noColor + "=false", "plan"},
+			expected: []string{"terragrunt", noColor, "plan"},
+		},
+		{
+			name:     "flag value ending in the flag name is kept",
+			args:     []string{"terragrunt", "plan", noColor, "-out=plan-no-color"},
+			expected: []string{"terragrunt", "plan", noColor, "-out=plan-no-color"},
+		},
+		{
+			name:     "positional value ending in the flag name is kept",
+			args:     []string{"terragrunt", noColor, "plan", "stack-no-color"},
+			expected: []string{"terragrunt", noColor, "plan", "stack-no-color"},
+		},
+		{
+			name: "arguments after the terminator are untouched",
+			args: []string{
+				"terragrunt", noColor, "run", "--", "plan", tf.FlagNameNoColor, tf.FlagNameNoColor,
+			},
+			expected: []string{
+				"terragrunt", noColor, "run", "--", "plan", tf.FlagNameNoColor, tf.FlagNameNoColor,
+			},
+		},
+		{
+			name:     "bare dashes are kept",
+			args:     []string{"terragrunt", noColor, "run", "-", noColor, "--", "-"},
+			expected: []string{"terragrunt", noColor, "run", "-", "--", "-"},
+		},
+		{
+			name:     "another flag ending in the same suffix is kept",
+			args:     []string{"terragrunt", noColor, "--tf-no-color", "plan"},
+			expected: []string{"terragrunt", noColor, "--tf-no-color", "plan"},
+		},
+		{
+			name:     "retired terragrunt-prefixed spelling is left for the parser to reject",
+			args:     []string{"terragrunt", noColor, "--terragrunt-no-color", "plan"},
+			expected: []string{"terragrunt", noColor, "--terragrunt-no-color", "plan"},
+		},
+		{
+			name:     "three leading dashes are not the flag",
+			args:     []string{"terragrunt", noColor, "-" + noColor, "plan"},
+			expected: []string{"terragrunt", noColor, "-" + noColor, "plan"},
+		},
+		{
+			name:     "no flag at all",
+			args:     []string{"terragrunt", "plan"},
+			expected: []string{"terragrunt", "plan"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expected, cli.RemoveNoColorFlagDuplicates(tc.args))
+		})
 	}
 }
