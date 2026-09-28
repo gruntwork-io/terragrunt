@@ -61,7 +61,7 @@ type ExtendedRemoteStateConfigAzurerm struct {
 }
 
 // RemoteStateConfigAzurerm mirrors the configuration keys accepted by the
-// `azurerm` Terraform/OpenTofu backend. These are forwarded verbatim to
+// `azurerm` OpenTofu/Terraform backend. These are forwarded verbatim to
 // `tofu init -backend-config`.
 type RemoteStateConfigAzurerm struct {
 	// The auth toggles are pointers so an explicitly configured false is

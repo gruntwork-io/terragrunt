@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"errors"
-
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -124,10 +122,18 @@ func evaluateExcludeBlocks(
 		return nil, err
 	}
 
-	// convert cty map to ExcludeConfig
+	if !excludeAsCtyVal.IsWhollyKnown() {
+		l.Warnf(
+			"Ignoring the exclude block in %s because it reads values that are not known during discovery, such as dependency outputs.",
+			file.ConfigPath,
+		)
+
+		return nil, nil
+	}
+
 	excludeConfig := &ExcludeConfig{}
 	if err := CtyToStruct(excludeAsCtyVal, excludeConfig); err != nil {
-		return nil, errors.Unwrap(err)
+		return nil, InvalidExcludeBlockError{Err: err, ConfigPath: file.ConfigPath}
 	}
 
 	return excludeConfig, nil

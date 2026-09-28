@@ -10,7 +10,7 @@ An `oci://` source downloads a module from an OCI Distribution registry, such as
 ```hcl
 # terragrunt.hcl
 terraform {
-  source = "oci://ghcr.io/acme/terraform-modules/vpc?tag=1.0.0"
+  source = "oci://ghcr.io/acme/tofu-modules/vpc?tag=1.0.0"
 }
 ```
 
@@ -24,6 +24,6 @@ unit "vpc" {
 }
 ```
 
-Pin the artifact with `tag` or `digest`. Setting neither selects the `latest` tag, and a `//subdir` selector reaches a directory inside the module/unit/stack. Credentials come from OpenTofu's CLI config, from ambient Docker config, and from credential helpers such as `ecr-login`, so one source string resolves the same way under both `tofu` and Terragrunt.
+Pin the artifact with `tag` or `digest`. Setting neither selects the `latest` tag, and a `//subdir` selector reaches a directory inside the module, unit, or stack. Credentials come from OpenTofu's CLI config, from ambient Docker config, and from credential helpers such as `ecr-login`, so one source string resolves the same way under both `tofu` and Terragrunt.
 
-Existing configurations are unaffected, since Terragrunt rejected `oci://` sources without the experiment enabled. Previously gated behind the `oci` experiment, these sources no longer require `--experiment oci`. See [OCI registries](/features/units/oci) for the publishing contract and the full authentication order.
+Previously gated behind the `oci` experiment, these sources no longer require `--experiment oci`. See [OCI registries](/features/units/oci) for the publishing contract and the full authentication order.

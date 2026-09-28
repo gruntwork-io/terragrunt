@@ -3,6 +3,7 @@ package cas_test
 import (
 	"context"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -194,6 +195,45 @@ func TestCASClone_SemverTagProbePersistsAcrossInstancesUntilTTL(t *testing.T) {
 		assert.Equal(t, 2, rec.count("ls-remote"), "an expired entry must be re-probed")
 		assert.FileExists(t, filepath.Join(tempDir, "third", "main.tf"))
 	})
+}
+
+// TestCASClone_CachedProbeFetchesHexNamedBranch pins that a clone served
+// from a cached probe fetches the ref that probe matched. The test removes
+// everything in the store except the probe cache, so the second clone has
+// to fetch.
+func TestCASClone_CachedProbeFetchesHexNamedBranch(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# hex"), "init"))
+
+	const hexBranch = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.NoError(t, srv.Branch(t.Context(), hexBranch))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+	v, rec := newRecordedVenv(nil)
+
+	require.NoError(t, cloneInto(t.Context(), v, storePath, repoURL, hexBranch, filepath.Join(tempDir, "first"),
+		cas.WithProbeTTL(time.Hour)))
+
+	entries, err := os.ReadDir(storePath)
+	require.NoError(t, err)
+
+	for _, entry := range entries {
+		if entry.Name() != "probes" {
+			require.NoError(t, os.RemoveAll(filepath.Join(storePath, entry.Name())))
+		}
+	}
+
+	dst := filepath.Join(tempDir, "second")
+	require.NoError(t, cloneInto(t.Context(), v, storePath, repoURL, hexBranch, dst, cas.WithProbeTTL(time.Hour)))
+
+	assert.FileExists(t, filepath.Join(dst, "main.tf"))
+	assert.Equal(t, 1, rec.count("ls-remote"), "the second clone must be served from the cached probe")
 }
 
 // TestCASClone_OfflineServesCachedSourceWithoutNetwork pins the offline

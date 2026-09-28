@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -149,14 +148,17 @@ type Discovery struct {
 	// --discovery-boundary is set.
 	discoveryBoundary string
 
+	// discoveryBoundaryInput is --discovery-boundary as given, which Git targets resolve against their worktree root.
+	discoveryBoundaryInput string
+
+	// worktreeGitRoot is the Git root that absolute boundaries are mirrored from into worktrees.
+	worktreeGitRoot string
+
 	// graphTarget is the target path for graph filtering (prune to target + dependents).
 	graphTarget string
 
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
-
-	// parserOptions are custom HCL parser options to use when parsing during discovery.
-	parserOptions []hclparse.Option
 
 	// filters contains filter queries for component selection.
 	filters filter.Filters

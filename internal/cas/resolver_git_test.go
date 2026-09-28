@@ -76,6 +76,56 @@ func TestGitResolver_ProbeTag(t *testing.T) {
 	assert.Len(t, got, 40)
 }
 
+// TestGitResolver_ProbeTagShadowedByBranch pins the ref git fetch selects:
+// ls-remote also lists branches whose names end in the tag name, and lists
+// them first.
+func TestGitResolver_ProbeTagShadowedByBranch(t *testing.T) {
+	t.Parallel()
+
+	for _, branch := range []string{"release/v1.2.3", "v1.2.3"} {
+		t.Run(branch, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newEmptyTestServer(t)
+			require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("tagged"), "init"))
+			require.NoError(t, srv.Tag(t.Context(), "v1.2.3"))
+
+			tagHash, err := srv.Head(t.Context())
+			require.NoError(t, err)
+
+			require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("moved"), "move ahead"))
+			require.NoError(t, srv.Branch(t.Context(), branch))
+
+			url, err := srv.Start(t.Context())
+			require.NoError(t, err)
+
+			r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "v1.2.3"}
+
+			got, err := r.Probe(t.Context(), redact.NewURL(url))
+			require.NoError(t, err)
+			assert.Equal(t, tagHash, got)
+		})
+	}
+}
+
+// TestGitResolver_TailMatchOnlyReturnsErrNoVersionMetadata pins that a ref
+// git fetch cannot resolve is not answered by a branch ending in its name.
+func TestGitResolver_TailMatchOnlyReturnsErrNoVersionMetadata(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.Branch(t.Context(), "release/v1.2.3"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "v1.2.3"}
+
+	_, err = r.Probe(t.Context(), redact.NewURL(url))
+	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
+}
+
 func TestGitResolver_CommitFormRefReturnsErrNoVersionMetadata(t *testing.T) {
 	t.Parallel()
 

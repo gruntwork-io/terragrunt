@@ -1208,7 +1208,7 @@ dependency "upstream" {
 
 	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.TerraformExtraArgs).
-		WithDiagnosticsSuppressed(l)
+		WithDiagnosticsSuppressed()
 	terragruntConfig, err := config.PartialParseConfigString(
 		ctx,
 		pctx,

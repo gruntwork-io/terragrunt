@@ -1169,7 +1169,7 @@ func TestTFDownloadWithCASEnabled(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr.String(), "Downloading Terraform configurations")
+	assert.Contains(t, stderr.String(), "Downloading OpenTofu/Terraform configurations")
 }
 
 func TestTFDownloadWithCASCommitRef(t *testing.T) {

@@ -35,6 +35,11 @@ jobs:
         run: pwsh -File ./.github/scripts/setup/windows-setup.ps1
         shell: pwsh
 
+      - name: Windows Dev Drive
+        if: runner.os == 'Windows'
+        run: pwsh -File ./.github/scripts/setup/windows-dev-drive.ps1
+        shell: pwsh
+
       - name: Restore Go caches
         uses: $/.github/actions/go-cache-restore
         with:

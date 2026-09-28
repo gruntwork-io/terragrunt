@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -27,17 +28,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Known terraform commands that are explicitly not supported in run --all due to the nature of the command. This is
-// tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run --all.
+// Known tofu commands that are explicitly not supported in run --all due to the nature
+// of the command. This is tracked as a map that maps the tofu command to the reasoning
+// behind disallowing the command in run --all.
 var runAllDisabledCommands = map[string]string{
-	tf.CommandNameImport: "terraform import should only be run against a single" +
+	tf.CommandNameImport: "it should only be run against a single" +
 		" state representation to avoid injecting the wrong object" +
 		" in the wrong state representation.",
-	tf.CommandNameTaint: "terraform taint should only be run against a single" +
+	tf.CommandNameTaint: "it should only be run against a single" +
 		" state representation to avoid using the wrong state address.",
-	tf.CommandNameUntaint: "terraform untaint should only be run against a single" +
+	tf.CommandNameUntaint: "it should only be run against a single" +
 		" state representation to avoid using the wrong state address.",
-	tf.CommandNameConsole: "terraform console requires stdin, which is shared" +
+	tf.CommandNameConsole: "it requires stdin, which is shared" +
 		" across all instances of run --all when multiple modules" +
 		" run concurrently.",
 	tf.CommandNameForceUnlock: "lock IDs are unique per state representation" +
@@ -273,7 +275,7 @@ func RunAllOnStack(
 				// At this stage, we can't handle the error any further, so we just log it and return nil.
 				// After this point, we'll need to report on what happened, and we want that to happen
 				// after the error summary.
-				l.Errorf("Run failed: %v", err)
+				l.Errorf("Run failed: %s", errfmt.Format(err))
 
 				// Save error to potentially return after telemetry completes
 				runErr = err

@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 // addParseReason is idempotent so repeated option calls don't duplicate.
@@ -31,12 +30,6 @@ func (d *Discovery) WithWorktrees(w *worktrees.Worktrees) *Discovery {
 // WithConfigFilenames sets the config filenames to discover.
 func (d *Discovery) WithConfigFilenames(filenames []string) *Discovery {
 	d.configFilenames = filenames
-	return d
-}
-
-// WithParserOptions sets custom HCL parser options.
-func (d *Discovery) WithParserOptions(opts []hclparse.Option) *Discovery {
-	d.parserOptions = opts
 	return d
 }
 
@@ -187,26 +180,14 @@ func (d *Discovery) WithGraphTarget(target string) *Discovery {
 	return d
 }
 
-// WithOptions ingests runner options and applies any discovery-relevant settings.
-// Currently, it extracts HCL parser options provided via common.ParseOptionsProvider
-// and graph target options, and forwards them to discovery's configuration.
+// WithOptions applies the discovery settings that runner options carry: the graph target.
 func (d *Discovery) WithOptions(opts ...any) *Discovery {
-	var parserOptions []hclparse.Option
-
 	for _, opt := range opts {
-		if p, ok := opt.(interface{ GetParseOptions() []hclparse.Option }); ok {
-			parserOptions = append(parserOptions, p.GetParseOptions()...)
-		}
-
 		if g, ok := opt.(interface{ GraphTarget() string }); ok {
 			if target := g.GraphTarget(); target != "" {
 				d = d.WithGraphTarget(target)
 			}
 		}
-	}
-
-	if len(parserOptions) > 0 {
-		d = d.WithParserOptions(parserOptions)
 	}
 
 	return d

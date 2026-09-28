@@ -477,7 +477,8 @@ func AlreadyHaveLatestCode(
 
 	if !hasFiles {
 		l.Debugf(
-			"Working dir %s exists but contains no Terraform or OpenTofu files, so assuming code needs to be downloaded again.",
+			"Working dir %s exists but contains no OpenTofu/Terraform files, "+
+				"so assuming code needs to be downloaded again.",
 			terraformSource.WorkingDir,
 		)
 
@@ -538,7 +539,7 @@ func downloadSource(
 	)
 
 	l.Infof(
-		"Downloading Terraform configurations from %s into %s",
+		"Downloading OpenTofu/Terraform configurations from %s into %s",
 		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.LogShowAbsPaths),
 		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.LogShowAbsPaths))
 

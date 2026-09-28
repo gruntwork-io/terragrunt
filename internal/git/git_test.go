@@ -442,3 +442,158 @@ func newArgvCapturingRunner(t *testing.T, captured *[]string, stdout []byte) *gi
 
 	return r
 }
+
+func TestFetchMatch(t *testing.T) {
+	t.Parallel()
+
+	const (
+		tagHash     = "1111111111111111111111111111111111111111"
+		branchHash  = "2222222222222222222222222222222222222222"
+		releaseHash = "3333333333333333333333333333333333333333"
+	)
+
+	tests := []struct {
+		want     git.LsRemoteResult
+		name     string
+		ref      string
+		wantRule git.FetchRule
+		results  []git.LsRemoteResult
+		wantOK   bool
+	}{
+		{
+			name: "tag wins over branch ending in its name",
+			ref:  "v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: releaseHash, Ref: "refs/heads/release/v1.2.3"},
+				{Hash: tagHash, Ref: "refs/tags/v1.2.3"},
+			},
+			want:     git.LsRemoteResult{Hash: tagHash, Ref: "refs/tags/v1.2.3"},
+			wantRule: "refs/tags/%s",
+			wantOK:   true,
+		},
+		{
+			name: "tag wins over branch of the same name",
+			ref:  "v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: branchHash, Ref: "refs/heads/v1.2.3"},
+				{Hash: tagHash, Ref: "refs/tags/v1.2.3"},
+			},
+			want:     git.LsRemoteResult{Hash: tagHash, Ref: "refs/tags/v1.2.3"},
+			wantRule: "refs/tags/%s",
+			wantOK:   true,
+		},
+		{
+			name: "branch wins over branch ending in its name",
+			ref:  "main",
+			results: []git.LsRemoteResult{
+				{Hash: releaseHash, Ref: "refs/heads/feature/main"},
+				{Hash: branchHash, Ref: "refs/heads/main"},
+			},
+			want:     git.LsRemoteResult{Hash: branchHash, Ref: "refs/heads/main"},
+			wantRule: "refs/heads/%s",
+			wantOK:   true,
+		},
+		{
+			name: "hex branch name matches its branch",
+			ref:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			results: []git.LsRemoteResult{
+				{Hash: branchHash, Ref: "refs/heads/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			},
+			want:     git.LsRemoteResult{Hash: branchHash, Ref: "refs/heads/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			wantRule: "refs/heads/%s",
+			wantOK:   true,
+		},
+		{
+			name: "full ref name matches itself",
+			ref:  "refs/heads/v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: branchHash, Ref: "refs/heads/v1.2.3"},
+			},
+			want:     git.LsRemoteResult{Hash: branchHash, Ref: "refs/heads/v1.2.3"},
+			wantRule: "%s",
+			wantOK:   true,
+		},
+		{
+			name: "HEAD matches itself",
+			ref:  "HEAD",
+			results: []git.LsRemoteResult{
+				{Hash: branchHash, Ref: "HEAD"},
+			},
+			want:     git.LsRemoteResult{Hash: branchHash, Ref: "HEAD"},
+			wantRule: "%s",
+			wantOK:   true,
+		},
+		{
+			name: "tail match alone is not a match",
+			ref:  "v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: releaseHash, Ref: "refs/heads/release/v1.2.3"},
+			},
+		},
+		{
+			name: "peeled tag entry is not a match",
+			ref:  "v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: tagHash, Ref: "refs/tags/v1.2.3^{}"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, rule, ok := git.FetchMatch(tt.results, tt.ref)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantRule, rule)
+		})
+	}
+}
+
+func TestParseFetchRule(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  string
+		ref    string
+		want   string
+		wantOK bool
+	}{
+		{
+			name:   "tag rule expands to the tag",
+			input:  "refs/tags/%s",
+			ref:    "v1.2.3",
+			want:   "refs/tags/v1.2.3",
+			wantOK: true,
+		},
+		{
+			name:   "exact rule expands to the ref itself",
+			input:  "%s",
+			ref:    "HEAD",
+			want:   "HEAD",
+			wantOK: true,
+		},
+		{
+			name:  "pattern git fetch does not try is rejected",
+			input: "refs/%s/%s",
+		},
+		{
+			name: "empty rule is rejected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rule, ok := git.ParseFetchRule(tt.input)
+			require.Equal(t, tt.wantOK, ok)
+
+			if ok {
+				assert.Equal(t, tt.want, rule.Expand(tt.ref))
+			}
+		})
+	}
+}

@@ -138,86 +138,97 @@ func parseProvidersFromRequiredProvidersBlock(
 ) ProviderConstraints {
 	constraints := make(ProviderConstraints)
 
-	// Parse the attributes in the required_providers block
 	for name, attr := range block.Body.Attributes {
-		// Skip if not an object expression (should be provider configuration)
-		objExpr, ok := attr.Expr.(*hclsyntax.ObjectConsExpr)
-		if !ok {
+		source, version := parseProviderRequirement(attr.Expr)
+		if version == "" {
 			continue
 		}
 
-		var source, version string
-
-		// Extract source and version from the provider configuration
-		for _, item := range objExpr.Items {
-			keyExpr, ok := item.KeyExpr.(*hclsyntax.ObjectConsKeyExpr)
-			if !ok {
-				continue
-			}
-
-			// Get the key name
-			keyName := ""
-
-			if keyExpr.Wrapped != nil {
-				// Try different types of key expressions
-				switch expr := keyExpr.Wrapped.(type) {
-				case *hclsyntax.TemplateExpr:
-					if len(expr.Parts) == 1 {
-						if literal, ok := expr.Parts[0].(*hclsyntax.LiteralValueExpr); ok {
-							keyName = literal.Val.AsString()
-						}
-					}
-				case *hclsyntax.ScopeTraversalExpr:
-					// This handles bare identifiers like "source" or "version"
-					if len(expr.Traversal) == 1 {
-						if root, ok := expr.Traversal[0].(hcl.TraverseRoot); ok {
-							keyName = root.Name
-						}
-					}
-				case *hclsyntax.LiteralValueExpr:
-					// Direct literal value
-					if expr.Val.Type() == cty.String {
-						keyName = expr.Val.AsString()
-					}
-				}
-			}
-
-			// Get the value
-			var value string
-
-			if templateExpr, ok := item.ValueExpr.(*hclsyntax.TemplateExpr); ok {
-				if len(templateExpr.Parts) == 1 {
-					if literal, ok := templateExpr.Parts[0].(*hclsyntax.LiteralValueExpr); ok {
-						if literal.Val.Type() == cty.String {
-							value = literal.Val.AsString()
-						}
-					}
-				}
-			}
-
-			// Store source and version attributes
-			switch keyName {
-			case "source":
-				source = value
-			case "version":
-				version = value
-			}
+		// OpenTofu and Terraform imply the hashicorp namespace for an entry with no source.
+		if source == "" {
+			source = name
 		}
 
-		// If we have both source and version, create the constraint mapping
-		if source != "" && version != "" {
-			// Normalize the source address to full registry format
-			providerAddr := normalizeProviderAddress(env, impl, source)
-			constraints[providerAddr] = normalizeVersionConstraint(version)
-		} else if source == "" && version != "" {
-			// If only version is specified, assume it's a hashicorp provider
-			registryDomain := tfimpl.DefaultRegistryDomain(env, impl)
-			providerAddr := fmt.Sprintf("%s/hashicorp/%s", registryDomain, name)
-			constraints[providerAddr] = normalizeVersionConstraint(version)
-		}
+		constraints[normalizeProviderAddress(env, impl, source)] = normalizeVersionConstraint(version)
 	}
 
 	return constraints
+}
+
+// parseProviderRequirement extracts the source and version from one entry of a
+// required_providers block. An entry is usually an object with a source and a
+// version. OpenTofu and Terraform also accept a bare version constraint, the
+// shorthand from before provider source addresses existed.
+func parseProviderRequirement(expr hclsyntax.Expression) (string, string) {
+	objExpr, ok := expr.(*hclsyntax.ObjectConsExpr)
+	if !ok {
+		return "", stringLiteral(expr)
+	}
+
+	var source, version string
+
+	for _, item := range objExpr.Items {
+		value := stringLiteral(item.ValueExpr)
+
+		switch objectKeyName(item.KeyExpr) {
+		case "source":
+			source = value
+		case "version":
+			version = value
+		}
+	}
+
+	return source, version
+}
+
+// objectKeyName returns the name of an object key written as an unquoted
+// identifier or a plain string. Any other key yields the empty string.
+func objectKeyName(expr hclsyntax.Expression) string {
+	keyExpr, ok := expr.(*hclsyntax.ObjectConsKeyExpr)
+	if !ok {
+		return ""
+	}
+
+	switch wrapped := keyExpr.Wrapped.(type) {
+	case *hclsyntax.TemplateExpr:
+		return stringLiteral(wrapped)
+	case *hclsyntax.ScopeTraversalExpr:
+		if len(wrapped.Traversal) == 1 {
+			if root, ok := wrapped.Traversal[0].(hcl.TraverseRoot); ok {
+				return root.Name
+			}
+		}
+	case *hclsyntax.LiteralValueExpr:
+		if wrapped.Val.Type() == cty.String {
+			return wrapped.Val.AsString()
+		}
+	}
+
+	return ""
+}
+
+// stringLiteral returns the value of an expression that is a plain string literal.
+// An expression that needs evaluating, such as an interpolation, yields the empty string.
+func stringLiteral(expr hclsyntax.Expression) string {
+	templateExpr, ok := expr.(*hclsyntax.TemplateExpr)
+	if !ok {
+		return ""
+	}
+
+	if len(templateExpr.Parts) != 1 {
+		return ""
+	}
+
+	literal, ok := templateExpr.Parts[0].(*hclsyntax.LiteralValueExpr)
+	if !ok {
+		return ""
+	}
+
+	if literal.Val.Type() != cty.String {
+		return ""
+	}
+
+	return literal.Val.AsString()
 }
 
 // normalizeProviderAddress converts provider source to full registry format

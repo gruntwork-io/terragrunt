@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # - network reach beyond loopback
 # - writes outside the directories the run owns
-# - execution of a real OpenTofu or Terraform binary
+# - execution of a real OpenTofu/Terraform binary
 #
 # Written for `go test -exec`:
 #
@@ -108,7 +108,7 @@ check_tf_exec() {
 	binary="$(command -v tofu || command -v terraform || true)"
 
 	if [[ -z "$binary" ]]; then
-		echo "sandbox-exec.sh: no tofu or terraform on PATH, skipping the execution check"
+		echo "sandbox-exec.sh: no tofu/terraform on PATH, skipping the execution check"
 		return
 	fi
 

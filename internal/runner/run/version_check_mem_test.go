@@ -57,11 +57,9 @@ func TestGetTFVersionTerraform(t *testing.T) {
 	assert.Equal(t, "1.5.7", ver.String())
 }
 
-// TestGetTFVersionUnknownImplFallsBackToTerraform pins the
-// "fallback to terraform when impl line is unrecognized" branch in
-// GetTFVersion. The implementation is required to never surface
-// tfimpl.Unknown to callers.
-func TestGetTFVersionUnknownImplFallsBackToTerraform(t *testing.T) {
+// TestGetTFVersionUnknownImplReportsUnknown pins that GetTFVersion reports
+// tfimpl.Unknown, rather than guessing a tool, when the version output names neither.
+func TestGetTFVersionUnknownImplReportsUnknown(t *testing.T) {
 	t.Parallel()
 
 	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
@@ -75,12 +73,7 @@ func TestGetTFVersionUnknownImplFallsBackToTerraform(t *testing.T) {
 		newVersionTFOptions("custom-fork"),
 	)
 	require.NoError(t, err)
-	assert.Equal(
-		t,
-		tfimpl.Terraform,
-		impl,
-		"unknown impl must fall back to Terraform, not surface Unknown",
-	)
+	assert.Equal(t, tfimpl.Unknown, impl)
 	assert.Equal(t, "0.42.0", ver.String())
 }
 

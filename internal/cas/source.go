@@ -105,7 +105,7 @@ const (
 	// ProbeCachedByResolver leaves the resolver to it, which [CAS.Clone]
 	// asks for. The git probe answers a pinned commit from the local bare
 	// repository before the offline gate, files entries under the ref it
-	// probed, and reads immutability from the ref ls-remote matched. The
+	// probed, and reads immutability from the ref git fetch selects. The
 	// generic path supports none of those.
 	ProbeCachedByResolver
 )

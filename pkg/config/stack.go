@@ -372,7 +372,7 @@ func resolveStackAutoIncludes(
 		parseResult,
 		stackSourceDir,
 		prodEvalCtx,
-		scopedPctx.ParserOptions,
+		scopedPctx.ParserOptions(scopedLogger),
 	); pruneErr != nil {
 		return nil, nil, AutoIncludeParserStageError{
 			Stage: "autoinclude-override-prune",
@@ -1216,7 +1216,7 @@ func ReadStackConfigFile(
 	stackPctx.TerragruntConfigPath = filePath
 	stackPctx.OriginalTerragruntConfigPath = filePath
 
-	file, err := hclparse.NewParser(stackPctx.ParserOptions...).
+	file, err := stackPctx.NewParser(l).
 		ParseFromFile(stackPctx.Venv.FS, filePath)
 	if err != nil {
 		return nil, err
@@ -1238,7 +1238,7 @@ func ReadStackConfigString(
 		pctx = pctx.WithValues(values)
 	}
 
-	hclFile, err := hclparse.NewParser(pctx.ParserOptions...).
+	hclFile, err := pctx.NewParser(l).
 		ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
@@ -1272,6 +1272,8 @@ func ParseStackConfig(
 		return nil, err
 	}
 
+	parserOpts := parser.ParserOptions(l)
+
 	// Expose unit.<name>.path / stack.<name>.path so a unit or stack block's values
 	// can reference where sibling components generate to (e.g. to pass a unit path
 	// down to a child stack).
@@ -1281,7 +1283,7 @@ func ParseStackConfig(
 		file,
 		evalParsingContext,
 		filepath.Dir(file.ConfigPath),
-		parser.ParserOptions,
+		parserOpts,
 	); err != nil {
 		return nil, err
 	}
@@ -1305,7 +1307,7 @@ func ParseStackConfig(
 		config,
 		stackDir,
 		evalParsingContext,
-		parser.ParserOptions,
+		parserOpts,
 	); err != nil {
 		return nil, err
 	}
@@ -1318,7 +1320,7 @@ func ParseStackConfig(
 		stackDir,
 		filepath.Base(file.ConfigPath),
 		evalParsingContext,
-		parser.ParserOptions,
+		parserOpts,
 	); err != nil {
 		return nil, err
 	}
@@ -2088,7 +2090,7 @@ func ReadValues(
 
 	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
 
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(pctx.Venv.FS, filePath)
+	file, err := pctx.NewParser(l).ParseFromFile(pctx.Venv.FS, filePath)
 	if err != nil {
 		return nil, err
 	}

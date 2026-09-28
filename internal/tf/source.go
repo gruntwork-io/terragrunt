@@ -426,7 +426,8 @@ func SplitSourceURL(l log.Logger, fsys vfs.FS, sourceURL *url.URL) (*url.URL, st
 	if err != nil {
 		// log warning message to notify user that sourceUrl.Path may not work
 		l.Warnf(
-			"No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.",
+			"No double-slash (//) found in source URL %s. "+
+				"Relative paths in downloaded OpenTofu/Terraform code may not work.",
 			sourceURL.Path,
 		)
 	}

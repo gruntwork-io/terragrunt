@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -135,4 +136,28 @@ func TestNewParsingContextPanicsOnNilVenv(t *testing.T) {
 	require.PanicsWithValue(t, config.ErrParsingContextVenvNil, func() {
 		config.NewParsingContext(t.Context(), l, nil)
 	})
+}
+
+func TestCloneSharesVenvAndCopiesData(t *testing.T) {
+	t.Parallel()
+
+	_, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), venvtest.New())
+	pctx.SourceMap = map[string]string{"src": "original"}
+	pctx.EngineOptions = &engine.EngineOptions{LogLevel: "info"}
+	pctx.ProviderCacheOptions.RegistryNames = []string{"registry.opentofu.org"}
+	pctx.Parser.HaltOnErrorOnlyInBlocks = []string{config.MetadataCatalog}
+
+	clone := pctx.Clone()
+
+	assert.Same(t, pctx.Venv, clone.Venv)
+
+	clone.SourceMap["src"] = "changed"
+	clone.EngineOptions.LogLevel = "debug"
+	clone.ProviderCacheOptions.RegistryNames[0] = "example.com"
+	clone.Parser.HaltOnErrorOnlyInBlocks[0] = config.MetadataInclude
+
+	assert.Equal(t, map[string]string{"src": "original"}, pctx.SourceMap)
+	assert.Equal(t, "info", pctx.EngineOptions.LogLevel)
+	assert.Equal(t, []string{"registry.opentofu.org"}, pctx.ProviderCacheOptions.RegistryNames)
+	assert.Equal(t, []string{config.MetadataCatalog}, pctx.Parser.HaltOnErrorOnlyInBlocks)
 }

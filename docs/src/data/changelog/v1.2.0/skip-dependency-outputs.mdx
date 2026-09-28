@@ -10,13 +10,11 @@ import { Aside } from '@astrojs/starlight/components'
 The [`--no-dependency-outputs`](/reference/cli/commands/run#no-dependency-outputs) flag (env: `TG_NO_DEPENDENCY_OUTPUTS`) skips output resolution for every `dependency` block in a run, so Terragrunt does not call `tofu output` on dependencies that may not be applied yet:
 
 ```bash
-terragrunt run --all validate --no-dependency-outputs
+terragrunt run --all --no-dependency-outputs -- validate
 ```
 
 <Aside type="caution">
   Use this flag with commands that do not read dependency outputs, such as `init` and `validate`. While it is set, references to dependency outputs get no real value, so `plan` and `apply` can pass empty values to OpenTofu/Terraform in their place.
 </Aside>
-
-Commands that pass `--no-dependency-outputs` or set `TG_NO_DEPENDENCY_OUTPUTS=true` without the experiment enabled now skip dependency outputs, where they returned an error before. Commands that set neither resolve dependency outputs as before.
 
 Previously gated behind the `optional-dependency-outputs` experiment, the flag no longer requires `--experiment optional-dependency-outputs`.

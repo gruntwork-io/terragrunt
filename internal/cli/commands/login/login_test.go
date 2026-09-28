@@ -148,7 +148,7 @@ func TestRunSignsInAndKeepsTheCredential(t *testing.T) {
 
 		assert.Equal(t, approvalURL, opened)
 		assert.Contains(t, out.String(), userCode)
-		assert.Contains(t, out.String(), "Signed in as "+accountEmail+" — "+organizationName)
+		assert.Contains(t, out.String(), "Signed in as "+accountEmail+" ("+organizationName+")")
 
 		credentials, err := portal.LoadCredentials(logger.CreateLogger(), v, portalBaseURL)
 		require.NoError(t, err)
@@ -198,7 +198,7 @@ func TestRunNamesTheOrganizationWithoutAnAccount(t *testing.T) {
 
 		require.NoError(t, run(t, v))
 
-		assert.Contains(t, out.String(), "Signed in to "+organizationName)
+		assert.Contains(t, out.String(), "Signed in as "+organizationName)
 	})
 }
 
@@ -226,7 +226,7 @@ func TestRunLeavesAnUnexpiredLoginAlone(t *testing.T) {
 
 	require.NoError(t, run(t, v))
 
-	assert.Contains(t, out.String(), "Already signed in as "+accountEmail+" — "+organizationName)
+	assert.Contains(t, out.String(), "Already signed in as "+accountEmail+" ("+organizationName+")")
 	assert.Contains(t, out.String(), "--"+login.ForceFlagName)
 	assert.NotContains(t, out.String(), userCode)
 }
@@ -269,10 +269,10 @@ func TestRunReportsEveryCurrentLoginInOrder(t *testing.T) {
 	require.NoError(t, run(t, v))
 
 	assert.Equal(t, []string{
-		"Already signed in to org_zulu",
-		"Already signed in as a@example.com — " + organizationName,
-		"Already signed in as b@example.com — " + organizationName,
-		"Already signed in as z@example.com — Zenith",
+		"Already signed in as org_zulu",
+		"Already signed in as a@example.com (" + organizationName + ")",
+		"Already signed in as b@example.com (" + organizationName + ")",
+		"Already signed in as z@example.com (Zenith)",
 		"Run `" + login.Command(newOptions(portalBaseURL).Experiments) + " --" + login.ForceFlagName + "` to sign in again.",
 	}, strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n"))
 }
@@ -306,7 +306,7 @@ func TestRunForceReplacesAnUnexpiredCredential(t *testing.T) {
 
 		require.NoError(t, login.Run(t.Context(), logger.CreateLogger(), v, opts))
 
-		assert.Contains(t, out.String(), "Signed in as "+accountEmail+" — "+organizationName)
+		assert.Contains(t, out.String(), "Signed in as "+accountEmail+" ("+organizationName+")")
 
 		credentials, err := portal.LoadCredentials(logger.CreateLogger(), v, portalBaseURL)
 		require.NoError(t, err)
@@ -332,7 +332,7 @@ func TestRunCompletesWithoutABrowser(t *testing.T) {
 
 		assert.Contains(t, out.String(), userCode)
 		assert.Contains(t, out.String(), approvalURL)
-		assert.Contains(t, out.String(), "Signed in as "+accountEmail+" — "+organizationName)
+		assert.Contains(t, out.String(), "Signed in as "+accountEmail+" ("+organizationName+")")
 	})
 }
 

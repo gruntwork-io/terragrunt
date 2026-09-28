@@ -205,26 +205,25 @@ func (f Filters) UniqueGitFilters() GitExpressions {
 	return targets
 }
 
-// InlineGraphBoundaries collects the inline "(dir)" graph boundary paths from
-// all filter expressions. Stack generation uses them as walk-root candidates
-// when --discovery-boundary is not explicitly set.
-func (f Filters) InlineGraphBoundaries() []string {
+// InlineDependentBoundaries collects the dependent-side "(dir)..." boundaries of all non-negated expressions.
+// Dependency-side boundaries only bound traversal, so they never narrow where targets are found.
+func (f Filters) InlineDependentBoundaries() []string {
 	var boundaries []string
 
 	seen := make(map[string]struct{})
 
 	for _, flt := range f {
 		WalkExpressions(flt.expr, func(e Expression) bool {
+			if p, ok := e.(*PrefixExpression); ok && p.Operator == "!" {
+				return false
+			}
+
 			g, ok := e.(*GraphExpression)
 			if !ok {
 				return true
 			}
 
-			for _, b := range []string{g.Dependents.Boundary, g.Dependencies.Boundary} {
-				if b == "" {
-					continue
-				}
-
+			if b := g.Dependents.Boundary; b != "" {
 				if _, dup := seen[b]; !dup {
 					seen[b] = struct{}{}
 					boundaries = append(boundaries, b)

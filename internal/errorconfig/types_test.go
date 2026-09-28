@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -195,26 +196,164 @@ func TestErrorCleanPattern_PreservesCharacters(t *testing.T) {
 	}
 }
 
-func TestMatchesAnyRegexpPattern_NoMatch(t *testing.T) {
+func TestMatchesAnyRegexpPattern(t *testing.T) {
 	t.Parallel()
 
-	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
-	patterns := []*errorconfig.Pattern{
-		{Pattern: timeoutPattern},
+	safe := &errorconfig.Pattern{Pattern: regexp.MustCompile(`(?s).*safe to ignore.*`)}
+	critical := &errorconfig.Pattern{Pattern: regexp.MustCompile(`(?s).*critical.*`), Negative: true}
+
+	tests := []struct {
+		name     string
+		input    string
+		patterns []*errorconfig.Pattern
+		expected bool
+	}{
+		{
+			name:     "negative pattern listed before the positive one",
+			input:    "safe to ignore, but critical",
+			patterns: []*errorconfig.Pattern{critical, safe},
+			expected: false,
+		},
+		{
+			name:     "negative pattern listed after the positive one",
+			input:    "safe to ignore, but critical",
+			patterns: []*errorconfig.Pattern{safe, critical},
+			expected: false,
+		},
+		{
+			name:     "only the negative pattern matches",
+			input:    "critical",
+			patterns: []*errorconfig.Pattern{safe, critical},
+			expected: false,
+		},
+		{
+			name:     "only the positive pattern matches",
+			input:    "safe to ignore",
+			patterns: []*errorconfig.Pattern{safe, critical},
+			expected: true,
+		},
+		{
+			name:     "no pattern matches",
+			input:    "no match here",
+			patterns: []*errorconfig.Pattern{safe, critical},
+			expected: false,
+		},
 	}
 
-	matched := errorconfig.MatchesAnyRegexpPattern("no match here", patterns)
-	assert.False(t, matched)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, errorconfig.MatchesAnyRegexpPattern(tt.input, tt.patterns))
+		})
+	}
 }
 
-func TestMatchesAnyRegexpPattern_NegativePattern(t *testing.T) {
+func TestAttemptErrorRecoveryHonorsNegativePatterns(t *testing.T) {
 	t.Parallel()
 
-	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
-	patterns := []*errorconfig.Pattern{
-		{Pattern: timeoutPattern, Negative: true},
+	safe := &errorconfig.Pattern{Pattern: regexp.MustCompile(`(?s).*safe to ignore.*`)}
+	transient := &errorconfig.Pattern{Pattern: regexp.MustCompile(`(?s).*transient.*`)}
+	critical := &errorconfig.Pattern{Pattern: regexp.MustCompile(`(?s).*critical.*`), Negative: true}
+	retryCritical := &errorconfig.Pattern{Pattern: regexp.MustCompile(`(?s).*critical.*`)}
+
+	tests := []struct {
+		err          error
+		config       *errorconfig.Config
+		name         string
+		expectIgnore bool
+		expectRetry  bool
+	}{
+		{
+			name: "negative pattern blocks the ignore rule",
+			err:  errors.New("safe to ignore, but critical"),
+			config: &errorconfig.Config{
+				Ignore: map[string]*errorconfig.IgnoreConfig{
+					"known_safe_errors": {
+						Name:            "known_safe_errors",
+						IgnorableErrors: []*errorconfig.Pattern{safe, critical},
+					},
+				},
+			},
+		},
+		{
+			name: "ignore rule applies when no negative pattern matches",
+			err:  errors.New("safe to ignore"),
+			config: &errorconfig.Config{
+				Ignore: map[string]*errorconfig.IgnoreConfig{
+					"known_safe_errors": {
+						Name:            "known_safe_errors",
+						IgnorableErrors: []*errorconfig.Pattern{safe, critical},
+					},
+				},
+			},
+			expectIgnore: true,
+		},
+		{
+			name: "negative pattern blocks the retry rule",
+			err:  errors.New("transient, but critical"),
+			config: &errorconfig.Config{
+				Retry: map[string]*errorconfig.RetryConfig{
+					"transient_errors": {
+						Name:            "transient_errors",
+						RetryableErrors: []*errorconfig.Pattern{transient, critical},
+						MaxAttempts:     3,
+					},
+				},
+			},
+		},
+		{
+			name: "retry rule applies when no negative pattern matches",
+			err:  errors.New("transient"),
+			config: &errorconfig.Config{
+				Retry: map[string]*errorconfig.RetryConfig{
+					"transient_errors": {
+						Name:            "transient_errors",
+						RetryableErrors: []*errorconfig.Pattern{transient, critical},
+						MaxAttempts:     3,
+					},
+				},
+			},
+			expectRetry: true,
+		},
+		{
+			name: "negative pattern applies only to the block it is written in",
+			err:  errors.New("safe to ignore, but critical"),
+			config: &errorconfig.Config{
+				Ignore: map[string]*errorconfig.IgnoreConfig{
+					"known_safe_errors": {
+						Name:            "known_safe_errors",
+						IgnorableErrors: []*errorconfig.Pattern{safe, critical},
+					},
+				},
+				Retry: map[string]*errorconfig.RetryConfig{
+					"critical_errors": {
+						Name:            "critical_errors",
+						RetryableErrors: []*errorconfig.Pattern{retryCritical},
+						MaxAttempts:     3,
+					},
+				},
+			},
+			expectRetry: true,
+		},
 	}
 
-	matched := errorconfig.MatchesAnyRegexpPattern("timeout occurred", patterns)
-	assert.False(t, matched, "negative pattern should invert the match")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			action, err := tt.config.AttemptErrorRecovery(logger.CreateLogger(), tt.err, 1)
+			require.NoError(t, err)
+
+			if !tt.expectIgnore && !tt.expectRetry {
+				assert.Nil(t, action)
+
+				return
+			}
+
+			require.NotNil(t, action)
+			assert.Equal(t, tt.expectIgnore, action.ShouldIgnore)
+			assert.Equal(t, tt.expectRetry, action.ShouldRetry)
+		})
+	}
 }

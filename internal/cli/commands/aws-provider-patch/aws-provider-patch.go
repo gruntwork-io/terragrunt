@@ -179,8 +179,8 @@ type TerraformModule struct {
 // configuration. To be more specific, it only returns the source files downloaded for module "xxx" { ... } blocks into
 // the .terraform/modules folder; it does NOT return Terraform files for the top-level (AKA "root") module.
 //
-// NOTE: this method supports *.tf and *.tofu files. Terraform/OpenTofu code defined in *.json files is not currently
-// supported.
+// NOTE: this method supports *.tf and *.tofu files. OpenTofu/Terraform code defined
+// in *.json files is not currently supported.
 func findAllTerraformFilesInModules(
 	fsys vfs.FS,
 	env map[string]string,

@@ -101,7 +101,7 @@ func parseIncludedConfig(
 	// When included config has dependencies, suppress diagnostics during parsing.
 	parseCtx := pctx
 	if hasDependency {
-		parseCtx = pctx.WithDiagnosticsSuppressed(l)
+		parseCtx = pctx.WithDiagnosticsSuppressed()
 	}
 
 	config, err := ParseConfigFile(ctx, parseCtx, l, includePath, includedConfig)

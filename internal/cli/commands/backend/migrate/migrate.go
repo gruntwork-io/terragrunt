@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Run migrates Terraform/OpenTofu state from srcPath to dstPath. v is the
+// Run migrates OpenTofu/Terraform state from srcPath to dstPath. v is the
 // virtualized environment used to build the stack runner; the source and
 // destination each parse and run under their own Env clone of it so a
 // migration between two accounts of the same cloud can carry distinct

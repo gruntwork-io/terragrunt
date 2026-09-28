@@ -2063,7 +2063,6 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 				b.Context(),
 				l,
 				pctx,
-				config.DefaultParserOptions(l, pctx.Venv, pctx.StrictControls),
 			)
 			b.StopTimer()
 			require.NoError(b, err)

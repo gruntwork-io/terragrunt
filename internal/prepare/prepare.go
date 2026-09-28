@@ -60,7 +60,7 @@ func PrepareConfig(
 
 	ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
 
-	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, pctx)
 	if err != nil {
 		return nil, err
 	}

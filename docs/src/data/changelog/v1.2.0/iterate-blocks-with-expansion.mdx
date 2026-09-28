@@ -56,4 +56,4 @@ unit "canary" {
 
 Adding an `expansion` block to an existing block, or shrinking one, changes the addresses of the components it produces. Read the [`expansion` reference](/reference/hcl/blocks#expansion) before changing one that has already been applied.
 
-Existing configurations are unaffected, since Terragrunt rejected both without the experiment enabled. Previously gated behind the `block-iteration` experiment, `expansion` blocks and the `enabled` attribute no longer require `--experiment block-iteration`.
+Previously gated behind the `block-iteration` experiment, `expansion` blocks and the `enabled` attribute no longer require `--experiment block-iteration`.

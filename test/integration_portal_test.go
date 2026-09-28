@@ -71,7 +71,7 @@ func TestPortalLoginThenCatalog(t *testing.T) {
 			opened,
 		)
 		assert.Contains(t, out.String(), portalFirstUserCode)
-		assert.Contains(t, out.String(), "Signed in as "+portalAccountEmail+" — "+portalOrgName)
+		assert.Contains(t, out.String(), "Signed in as "+portalAccountEmail+" ("+portalOrgName+")")
 
 		credentials, err := portal.LoadCredentials(logger.CreateLogger(), v, portal.DefaultBaseURL)
 		require.NoError(t, err)
