@@ -210,7 +210,6 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					earlyExit++
 				case queue.StatusPending,
 					queue.StatusBlocked,
-					queue.StatusUnsorted,
 					queue.StatusReady,
 					queue.StatusRunning:
 					// Non-terminal states are not counted in the summary.

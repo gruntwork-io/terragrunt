@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/topo"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -304,10 +305,14 @@ func pathOnlyHeaders(
 	return headers, err == nil
 }
 
-// maxLocalsIterations bounds the fixed-point loop in evaluateLocals as a safeguard against pathological inputs.
-const maxLocalsIterations = 10000
-
-// evaluateLocals resolves locals via fixed-point iteration.
+// evaluateLocals evaluates the attributes of a locals block in dependency order and publishes them to evalCtx under
+// local. Each attribute evaluates once, after every sibling it references.
+//
+// A reference to local with no static attribute name, such as a bare local or local[expr], waits for every other
+// sibling.
+//
+// Returns [LocalEvalError] for the first local, by name, whose expression fails to evaluate. Returns
+// [LocalsCycleError] naming every local left unevaluated when the rest wait on one another in a cycle.
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	// In production the caller parses with hclsyntax.ParseConfig, so the body is always *hclsyntax.Body; surface the impossible-state assertion as an error rather than silently swallowing locals.
 	syntaxBody, ok := body.(*hclsyntax.Body)
@@ -319,98 +324,98 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	evaluated := make(map[string]cty.Value, len(attrs))
 	evalCtx.Variables[varLocal] = localObject(evaluated)
 
-	remaining := maps.Clone(attrs)
-
-	for range maxLocalsIterations {
-		if len(remaining) == 0 {
-			return nil
-		}
-
-		if !attemptEvaluateLocals(remaining, evaluated, evalCtx) {
-			return reportUnresolvedLocals(remaining, evalCtx)
-		}
+	graph := topo.New[string](len(attrs))
+	for name, attr := range attrs {
+		graph.Add(name, localDependencies(name, attr, attrs)...)
 	}
 
-	return LocalsCycleError{Names: slices.Sorted(maps.Keys(remaining))}
+	failures := map[string]hcl.Diagnostics{}
+
+	for ready := graph.Roots(); len(ready) > 0; {
+		slices.Sort(ready)
+
+		var next []string
+
+		for _, name := range ready {
+			val, diags := attrs[name].Expr.Value(evalCtx)
+			if diags.HasErrors() {
+				failures[name] = diags
+				continue
+			}
+
+			evaluated[name] = val
+			next = append(next, graph.Done(name)...)
+		}
+
+		evalCtx.Variables[varLocal] = localObject(evaluated)
+		ready = next
+	}
+
+	if len(failures) > 0 {
+		name := slices.Min(slices.Collect(maps.Keys(failures)))
+
+		return LocalEvalError{Name: name, Err: failures[name]}
+	}
+
+	if len(evaluated) < len(attrs) {
+		var remaining []string
+
+		for name := range attrs {
+			if _, ok := evaluated[name]; !ok {
+				remaining = append(remaining, name)
+			}
+		}
+
+		slices.Sort(remaining)
+
+		return LocalsCycleError{Names: remaining}
+	}
+
+	return nil
 }
 
-// attemptEvaluateLocals runs one fixed-point pass; returns true if at least one local was evaluated.
-func attemptEvaluateLocals(
-	remaining map[string]*hclsyntax.Attribute,
-	evaluated map[string]cty.Value,
-	evalCtx *hcl.EvalContext,
-) bool {
-	progress := false
+// localDependencies returns, sorted, the siblings in attrs that the attribute called name references. A reference to
+// a local absent from attrs is not a dependency, so evaluation reports it.
+func localDependencies(
+	name string,
+	attr *hclsyntax.Attribute,
+	attrs map[string]*hclsyntax.Attribute,
+) []string {
+	var deps []string
 
-	for _, name := range slices.Sorted(maps.Keys(remaining)) {
-		val, diags := remaining[name].Expr.Value(evalCtx)
-		if diags.HasErrors() {
+	for _, t := range attr.Expr.Variables() {
+		if t.RootName() != varLocal {
 			continue
 		}
 
-		evaluated[name] = val
-		evalCtx.Variables[varLocal] = localObject(evaluated)
+		dep, ok := localTraversalName(t)
+		if !ok {
+			return allSiblings(name, attrs)
+		}
 
-		delete(remaining, name)
-
-		progress = true
+		if _, sibling := attrs[dep]; sibling {
+			deps = append(deps, dep)
+		}
 	}
 
-	return progress
+	slices.Sort(deps)
+
+	return slices.Compact(deps)
 }
 
-// reportUnresolvedLocals classifies a stuck set of locals as either a cycle or a hard eval error.
-func reportUnresolvedLocals(
-	remaining map[string]*hclsyntax.Attribute,
-	evalCtx *hcl.EvalContext,
-) error {
-	sortedNames := slices.Sorted(maps.Keys(remaining))
+// allSiblings returns, sorted, every name in attrs other than name.
+func allSiblings(name string, attrs map[string]*hclsyntax.Attribute) []string {
+	siblings := make([]string, 0, len(attrs))
 
-	for _, name := range sortedNames {
-		_, diags := remaining[name].Expr.Value(evalCtx)
-		if !diagsAreLocalForwardRefOnly(diags, remaining) {
-			return LocalEvalError{Name: name, Err: diags}
+	for sibling := range attrs {
+		if sibling != name {
+			siblings = append(siblings, sibling)
 		}
 	}
 
-	return LocalsCycleError{Names: sortedNames}
-}
+	slices.Sort(siblings)
 
-// diagsAreLocalForwardRefOnly reports whether every diagnostic references only still-unresolved locals.
-func diagsAreLocalForwardRefOnly(
-	diags hcl.Diagnostics,
-	remaining map[string]*hclsyntax.Attribute,
-) bool {
-	for _, d := range diags {
-		if d.Expression == nil {
-			return false
-		}
-
-		hasForwardRef := false
-
-		for _, t := range d.Expression.Variables() {
-			if t.RootName() != varLocal {
-				return false
-			}
-
-			localName, ok := localTraversalName(t)
-			if !ok {
-				return false
-			}
-
-			if _, exists := remaining[localName]; !exists {
-				return false
-			}
-
-			hasForwardRef = true
-		}
-
-		if !hasForwardRef {
-			return false
-		}
-	}
-
-	return true
+	return siblings
 }
 
 func localTraversalName(t hcl.Traversal) (string, bool) {
