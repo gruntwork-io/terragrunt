@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"net/url"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -2908,11 +2910,16 @@ func IsValidConfigPath(v cty.Value) bool {
 }
 
 // MissingDependencyConfigs lists the enabled dependencies of the config at configPath without a unit or stack config.
-func MissingDependencyConfigs(fsys vfs.FS, cfg *TerragruntConfig, configPath string) []MissingDependencyConfigError {
+func MissingDependencyConfigs(
+	fsys vfs.FS,
+	cfg *TerragruntConfig,
+	configPath string,
+) ([]MissingDependencyConfigError, error) {
 	if cfg == nil {
-		return nil
+		return nil, nil
 	}
 
+	unitPath := filepath.Dir(configPath)
 	rawPaths := make([]string, 0, len(cfg.TerragruntDependencies))
 
 	for i := range cfg.TerragruntDependencies {
@@ -2925,44 +2932,65 @@ func MissingDependencyConfigs(fsys vfs.FS, cfg *TerragruntConfig, configPath str
 	}
 
 	if cfg.Dependencies != nil {
-		rawPaths = append(rawPaths, cfg.Dependencies.Paths...)
+		for _, rawPath := range cfg.Dependencies.Paths {
+			// Parsing already rejects a dependencies path that is not a directory.
+			if vfs.IsDir(fsys, resolveDependencyPath(unitPath, rawPath)) {
+				rawPaths = append(rawPaths, rawPath)
+			}
+		}
 	}
 
-	unitPath := filepath.Dir(configPath)
-	reported := make(map[string]struct{}, len(rawPaths))
+	checked := make(map[string]struct{}, len(rawPaths))
 
-	var missing []MissingDependencyConfigError
+	var (
+		missing []MissingDependencyConfigError
+		errs    []error
+	)
 
 	for _, rawPath := range rawPaths {
-		depPath := rawPath
-		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Join(unitPath, depPath)
-		}
-
-		depPath = filepath.Clean(depPath)
-
-		if _, ok := reported[depPath]; ok || dependencyConfigExists(fsys, rawPath, configPath) {
+		depPath := resolveDependencyPath(unitPath, rawPath)
+		if _, ok := checked[depPath]; ok {
 			continue
 		}
 
-		reported[depPath] = struct{}{}
+		checked[depPath] = struct{}{}
 
-		missing = append(missing, MissingDependencyConfigError{
-			UnitPath:       unitPath,
-			DependencyPath: depPath,
-		})
+		exists, err := dependencyConfigExists(fsys, rawPath, configPath)
+		if err != nil {
+			errs = append(errs, DependencyConfigCheckError{Err: err, UnitPath: unitPath, DependencyPath: depPath})
+
+			continue
+		}
+
+		if !exists {
+			missing = append(missing, MissingDependencyConfigError{UnitPath: unitPath, DependencyPath: depPath})
+		}
 	}
 
-	return missing
+	return missing, errors.Join(errs...)
+}
+
+// resolveDependencyPath returns rawPath as a clean absolute path, relative paths being taken from unitPath.
+func resolveDependencyPath(unitPath, rawPath string) string {
+	if !filepath.IsAbs(rawPath) {
+		rawPath = filepath.Join(unitPath, rawPath)
+	}
+
+	return filepath.Clean(rawPath)
 }
 
 // dependencyConfigExists reports whether rawConfigPath, resolved as when reading outputs, holds a unit or stack config.
-func dependencyConfigExists(fsys vfs.FS, rawConfigPath, configPath string) bool {
+func dependencyConfigExists(fsys vfs.FS, rawConfigPath, configPath string) (bool, error) {
 	targetConfigPath := getCleanedTargetConfigPath(fsys, rawConfigPath, configPath)
 
 	if stackFilePath, ok := resolveStackFilePath(rawConfigPath, targetConfigPath); ok && vfs.Exists(fsys, stackFilePath) {
-		return true
+		return true, nil
 	}
 
-	return vfs.Exists(fsys, targetConfigPath)
+	_, err := fsys.Stat(targetConfigPath)
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+		return false, nil
+	}
+
+	return err == nil, err
 }

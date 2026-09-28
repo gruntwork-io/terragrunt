@@ -124,11 +124,11 @@ func (p ComponentParser) Unit(
 	pctx := configbridge.NewParsingContext(parseOpts)
 
 	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
-	if err != nil || !p.CheckDependencies {
+	if !p.CheckDependencies || cfg == nil {
 		return err
 	}
 
-	return dependencyErrors(v.FS, p.Worktrees, cfg, parseOpts.TerragruntConfigPath)
+	return errors.Join(err, dependencyErrors(v.FS, p.Worktrees, cfg, parseOpts.TerragruntConfigPath))
 }
 
 // Stack parses the stack configuration in stackDir, returning every error the
@@ -215,8 +215,8 @@ func dependencyErrors(
 	cfg *config.TerragruntConfig,
 	configPath string,
 ) error {
-	missing := config.MissingDependencyConfigs(fsys, cfg, configPath)
-	errs := make([]error, 0, len(missing))
+	missing, err := config.MissingDependencyConfigs(fsys, cfg, configPath)
+	errs := make([]error, 0, len(missing)+1)
 
 	for _, depErr := range missing {
 		if w != nil {
@@ -227,5 +227,5 @@ func dependencyErrors(
 		errs = append(errs, depErr)
 	}
 
-	return errors.Join(errs...)
+	return errors.Join(append(errs, err)...)
 }

@@ -7,9 +7,9 @@ env:
 since: "v1.2.0"
 ---
 
-When enabled, Terragrunt checks that each unit's `dependency` blocks (except disabled ones) and `dependencies` paths point at a unit or stack configuration. It reports every one that does not, then exits with an error.
+When enabled, Terragrunt checks that each unit's `dependency` blocks (except disabled ones) and `dependencies` paths point at a unit or stack configuration. It reports each missing path once per unit, then exits with an error. A path that cannot be checked, for example because of a permission error, is reported with its cause.
 
-This catches references to units that were deleted or moved, which would otherwise fail only when the unit runs.
+This catches references to units that were deleted or moved, which would otherwise fail during a run.
 
 `hcl validate` does not generate stacks. If a dependency points at a unit that a stack generates, run `terragrunt stack generate` first.
 

@@ -352,6 +352,29 @@ func (err MissingDependencyConfigError) Unwrap() error {
 	return err.Err
 }
 
+// DependencyConfigCheckError reports a dependency whose configuration could not be checked, e.g. on a permission error.
+type DependencyConfigCheckError struct {
+	// Err is the underlying filesystem failure.
+	Err error
+	// UnitPath is the directory of the unit that declares the dependency.
+	UnitPath string
+	// DependencyPath is the path the dependency points at.
+	DependencyPath string
+}
+
+func (err DependencyConfigCheckError) Error() string {
+	return fmt.Sprintf(
+		"unit %q depends on %q, whose Terragrunt configuration could not be checked: %v",
+		err.UnitPath,
+		err.DependencyPath,
+		err.Err,
+	)
+}
+
+func (err DependencyConfigCheckError) Unwrap() error {
+	return err.Err
+}
+
 // DependencyStateReadError reports a failure while reading a dependency's remote state body.
 type DependencyStateReadError struct {
 	// Err is the underlying reader failure.

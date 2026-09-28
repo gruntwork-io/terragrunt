@@ -3,11 +3,13 @@ package validate_test
 import (
 	"bytes"
 	"errors"
+	"io/fs"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -97,6 +99,56 @@ func TestRunValidateCheckDependencies(t *testing.T) {
 			assert.ElementsMatch(t, tc.wantMissing, missingDependencies(err))
 		})
 	}
+}
+
+// TestRunValidateCheckDependenciesWithParseError pins that a parse error alongside a config does not hide missing dependencies.
+func TestRunValidateCheckDependenciesWithParseError(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{
+		"app/terragrunt.hcl": "dependency \"foo\" {\n  config_path = \"../foo\"\n}\n" +
+			"dependencies {\n  paths = [\"../bar\"]\n}\n",
+	}))
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(root, config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
+
+	opts.HCLValidateCheckDependencies = true
+
+	err = validate.RunValidate(t.Context(), logger.CreateLogger(), v, opts)
+	require.Error(t, err)
+
+	_, ok := errors.AsType[config.DependencyDirNotFoundError](err)
+	assert.True(t, ok, "the parser error for the missing dependencies path must be kept: %v", err)
+	assert.Equal(t, []string{missingEntry(root, "app", "foo")}, missingDependencies(err))
+}
+
+// TestRunValidateCheckDependenciesStatFailure pins that a dependency that cannot be checked is reported with its cause.
+func TestRunValidateCheckDependenciesStatFailure(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := &statFailFS{
+		FS: venvtest.NewFS(t, root, map[string]string{
+			"app/terragrunt.hcl": "dependency \"db\" {\n  config_path = \"../db\"\n}\n",
+			"db/terragrunt.hcl":  "",
+		}),
+		failPath: filepath.Join(root, "db", config.DefaultTerragruntConfigPath),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(root, "app", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
+
+	opts.HCLValidateCheckDependencies = true
+
+	err = validate.RunValidate(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), opts)
+	require.ErrorIs(t, err, fs.ErrPermission)
+	assert.Empty(t, missingDependencies(err))
+
+	checkErr, ok := errors.AsType[config.DependencyConfigCheckError](err)
+	require.True(t, ok, "unexpected error %v", err)
+	assert.Equal(t, filepath.Join(root, "db"), checkErr.DependencyPath)
 }
 
 func TestRunValidateInputsCheckDependencies(t *testing.T) {
@@ -275,4 +327,18 @@ func newTipLogger() (log.Logger, *bytes.Buffer) {
 		log.WithLevel(log.InfoLevel),
 		log.WithFormatter(format.NewFormatter(placeholders.Placeholders{placeholders.Message()})),
 	), output
+}
+
+// statFailFS fails Stat for failPath with a permission error.
+type statFailFS struct {
+	vfs.FS
+	failPath string
+}
+
+func (f *statFailFS) Stat(name string) (fs.FileInfo, error) {
+	if name == f.failPath {
+		return nil, fs.ErrPermission
+	}
+
+	return f.FS.Stat(name)
 }

@@ -38,7 +38,7 @@ const (
 	MissingDependencyConfigMessage = "A dependency points at a path without a Terragrunt configuration file. " +
 		"If that unit was deleted, update or remove the `dependency` blocks and `dependencies` paths " +
 		"that still point at it. " +
-		"`terragrunt hcl validate --check-dependencies` lists every such reference before a run. " +
+		"`terragrunt hcl validate --check-dependencies` lists each unit's missing dependency paths before a run. " +
 		"See https://docs.terragrunt.com/features/filter/git#deleted-dependencies"
 
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.

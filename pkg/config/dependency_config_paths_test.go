@@ -113,12 +113,18 @@ func TestMissingDependencyConfigs(t *testing.T) {
 					{Name: "unit", ConfigPath: cty.StringVal("../unit")},
 					{Name: "empty", ConfigPath: cty.StringVal("../empty")},
 				},
-				Dependencies: &config.ModuleDependencies{Paths: []string{"../gone"}},
+				Dependencies: &config.ModuleDependencies{Paths: []string{"../empty/.."}},
 			},
 			missing: []string{
 				filepath.Join(repo, "deleted"),
 				filepath.Join(repo, "empty"),
-				filepath.Join(repo, "gone"),
+				repo,
+			},
+		},
+		{
+			name: "dependencies path that is not a directory is left to parsing",
+			cfg: &config.TerragruntConfig{
+				Dependencies: &config.ModuleDependencies{Paths: []string{"../gone", "../app/terragrunt.hcl"}},
 			},
 		},
 	}
@@ -135,9 +141,12 @@ func TestMissingDependencyConfigs(t *testing.T) {
 				"empty/main.tf":                 "",
 			})
 
+			missing, err := config.MissingDependencyConfigs(fsys, tc.cfg, appConfig)
+			require.NoError(t, err)
+
 			var got []string
 
-			for _, depErr := range config.MissingDependencyConfigs(fsys, tc.cfg, appConfig) {
+			for _, depErr := range missing {
 				assert.Equal(t, filepath.Join(repo, "app"), depErr.UnitPath)
 				got = append(got, depErr.DependencyPath)
 			}
@@ -147,7 +156,7 @@ func TestMissingDependencyConfigs(t *testing.T) {
 	}
 }
 
-// TestMissingDependencyConfigsStatFailure pins that a Stat fault on the target is reported instead of passing silently.
+// TestMissingDependencyConfigsStatFailure pins that a Stat fault on the target is reported with its cause, not as missing.
 func TestMissingDependencyConfigsStatFailure(t *testing.T) {
 	t.Parallel()
 
@@ -160,14 +169,50 @@ func TestMissingDependencyConfigsStatFailure(t *testing.T) {
 		failPath: filepath.Join(repo, "unit"),
 	}
 
-	missing := config.MissingDependencyConfigs(
+	missing, err := config.MissingDependencyConfigs(
 		fsys,
 		dependencyConfig("../unit"),
 		filepath.Join(repo, "app", config.DefaultTerragruntConfigPath),
 	)
+	require.ErrorIs(t, err, fs.ErrPermission)
+	assert.Empty(t, missing)
 
+	checkErr, ok := errors.AsType[config.DependencyConfigCheckError](err)
+	require.True(t, ok, "unexpected error %v", err)
+	assert.Equal(t, filepath.Join(repo, "app"), checkErr.UnitPath)
+	assert.Equal(t, filepath.Join(repo, "unit"), checkErr.DependencyPath)
+	assert.Contains(t, checkErr.Error(), "could not be checked")
+}
+
+// TestMissingDependencyConfigsOSFiles pins custom config files and paths below a regular file on a real filesystem.
+func TestMissingDependencyConfigsOSFiles(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+
+	for path, contents := range map[string]string{
+		"app/terragrunt.hcl": "",
+		"custom/unit.hcl":    "",
+		"file.txt":           "",
+	} {
+		require.NoError(t, vfs.WriteFile(vfs.NewOSFS(), filepath.Join(repo, path), []byte(contents), 0o644))
+	}
+
+	cfg := &config.TerragruntConfig{
+		TerragruntDependencies: config.Dependencies{
+			{Name: "custom", ConfigPath: cty.StringVal("../custom/unit.hcl")},
+			{Name: "below-file", ConfigPath: cty.StringVal("../file.txt/unit")},
+		},
+	}
+
+	missing, err := config.MissingDependencyConfigs(
+		vfs.NewOSFS(),
+		cfg,
+		filepath.Join(repo, "app", config.DefaultTerragruntConfigPath),
+	)
+	require.NoError(t, err)
 	require.Len(t, missing, 1)
-	assert.Equal(t, filepath.Join(repo, "unit"), missing[0].DependencyPath)
+	assert.Equal(t, filepath.Join(repo, "file.txt", "unit"), missing[0].DependencyPath)
 }
 
 func TestMissingDependencyConfigError(t *testing.T) {
@@ -190,6 +235,23 @@ func TestMissingDependencyConfigError(t *testing.T) {
 	_, ok := errors.AsType[config.TerragruntConfigNotFoundError](err)
 	assert.True(t, ok)
 	require.NoError(t, config.MissingDependencyConfigError{}.Unwrap())
+}
+
+func TestDependencyConfigCheckError(t *testing.T) {
+	t.Parallel()
+
+	err := config.DependencyConfigCheckError{
+		Err:            fs.ErrPermission,
+		UnitPath:       "/repo/app",
+		DependencyPath: "/repo/db",
+	}
+
+	assert.Equal(
+		t,
+		`unit "/repo/app" depends on "/repo/db", whose Terragrunt configuration could not be checked: permission denied`,
+		err.Error(),
+	)
+	require.ErrorIs(t, err, fs.ErrPermission)
 }
 
 // statFailFS fails every Stat under failPath with a non-ENOENT error.
