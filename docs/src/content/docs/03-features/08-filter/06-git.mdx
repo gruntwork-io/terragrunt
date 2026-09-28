@@ -176,7 +176,7 @@ dependency "cache" {
 }
 ```
 
-Deleting `live/cache` without updating `live/app` leaves `live/app` depending on a path with no Terragrunt configuration. Its configuration in `HEAD` is invalid, so a run that includes `live/app` fails. Remove or update the `dependency` block in the same change that deletes the unit. Once the reference is gone, the deleted unit is planned for destruction as described in [Deleted units](#deleted-units).
+Deleting `live/cache` without updating `live/app` leaves `live/app` depending on a path with no Terragrunt configuration. Its configuration in `HEAD` is invalid, so any run that reads `live/app` from `HEAD` fails, for example `terragrunt run --all -- plan` without a filter. Remove or update the reference, a `dependency` block or a `dependencies` path, in the same change that deletes the unit. Once the reference is gone, the deleted unit is planned for destruction as described in [Deleted units](#deleted-units).
 
 `terragrunt find` and `terragrunt list` do not validate dependencies, so they can list `live/app` without reporting the missing dependency.
 

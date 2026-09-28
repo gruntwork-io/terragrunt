@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "tips-added"
+---
+
+#### Tip for dependencies that point at a deleted unit
+
+When a command fails because a `dependency` block or a `dependencies` path points at a path without a Terragrunt configuration, Terragrunt now shows the `missing-dependency-config` tip. It explains how to fix the reference and points at [`hcl validate --check-dependencies`](/reference/cli/commands/hcl/validate#check-dependencies), which lists every such reference before a run.
+
+Disable it with `--no-tip missing-dependency-config`, or disable all tips with `--no-tips`.
