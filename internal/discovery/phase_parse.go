@@ -387,6 +387,7 @@ func parseComponent(
 				config.ErrorsBlock,
 				config.RemoteStateBlock,
 				config.TerragruntVersionConstraints,
+				config.EngineBlock,
 			).WithSkipOutputsResolution()
 
 			if discovery.trackReads {

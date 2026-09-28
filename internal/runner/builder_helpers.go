@@ -228,6 +228,7 @@ func CheckUnitVersionConstraints(
 		pctx = pctx.WithDecodeList(
 			config.TerragruntVersionConstraints,
 			config.FeatureFlagsBlock,
+			config.EngineBlock,
 		)
 
 		var err error
@@ -252,6 +253,13 @@ func CheckUnitVersionConstraints(
 		l = unitLogger
 	}
 
+	engineConfig, err := unitConfig.EngineOptions()
+	if err != nil {
+		return fmt.Errorf("failed to read the engine block for unit %s: %w", unit.DisplayPath(), err)
+	}
+
+	unitOpts.EngineConfig = engineConfig
+
 	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, unitOpts),
 		WorkingDir:   unitOpts.WorkingDir,
@@ -269,6 +277,7 @@ func CheckUnitVersionConstraints(
 	unitOpts.TofuImplementation = impl
 
 	if err := run.CheckTerraformVersionMeetsConstraint(
+		l,
 		unitOpts.TerraformVersion,
 		unitOpts.TofuImplementation,
 		unitConfig.TerraformVersionConstraint,

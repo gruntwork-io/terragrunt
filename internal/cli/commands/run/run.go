@@ -196,6 +196,8 @@ func getTFPathFromConfig(
 // Note that as a side effect this will set the following settings on terragruntOptions:
 // - TerraformPath
 // - TerraformVersion
+// - TofuImplementation
+// - EngineConfig
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func checkVersionConstraints(
 	ctx context.Context,
@@ -213,6 +215,13 @@ func checkVersionConstraints(
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
+	engineConfig, err := partialTerragruntConfig.EngineOptions()
+	if err != nil {
+		return l, err
+	}
+
+	opts.EngineConfig = engineConfig
+
 	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
 		WorkingDir:   opts.WorkingDir,
@@ -226,6 +235,7 @@ func checkVersionConstraints(
 	opts.TofuImplementation = impl
 
 	if err := run.CheckTerraformVersionMeetsConstraint(
+		l,
 		opts.TerraformVersion,
 		opts.TofuImplementation,
 		partialTerragruntConfig.TerraformVersionConstraint,
@@ -255,6 +265,7 @@ func getTerragruntConfig(
 	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,
 		config.FeatureFlagsBlock,
+		config.EngineBlock,
 	)
 
 	return config.PartialParseConfigFile(
