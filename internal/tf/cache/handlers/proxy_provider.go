@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -60,33 +59,15 @@ func (handler *ProxyProviderHandler) String() string {
 	return "proxy"
 }
 
-// GetVersions implements ProviderHandler.GetVersions
-// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
-func (handler *ProxyProviderHandler) GetVersions(
-	ctx echo.Context,
-	provider *models.Provider,
-) error {
-	apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
-	if err != nil {
-		return err
-	}
-
-	reqURL := &url.URL{
-		Scheme: schemeHTTPS,
-		Host:   provider.RegistryName,
-		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, "versions"),
-	}
-
-	return handler.NewRequest(ctx, reqURL)
-}
-
-// GetPlatform implements ProviderHandler.GetPlatform
+// GetPlatform forwards a platform request to the provider's registry, rewriting
+// the download URLs in the answer to point at downloaderController.
 func (handler *ProxyProviderHandler) GetPlatform(
-	ctx echo.Context,
+	w router.ResponseWriter,
+	r *http.Request,
 	provider *models.Provider,
 	downloaderController router.Controller,
 ) error {
-	apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
+	apiURLs, err := handler.DiscoveryURL(r.Context(), provider.RegistryName)
 	if err != nil {
 		return err
 	}
@@ -109,14 +90,15 @@ func (handler *ProxyProviderHandler) GetPlatform(
 		WithModifyResponse(func(resp *http.Response) error {
 			return modifyDownloadURLsInJSONBody(resp, downloaderController)
 		}).
-		NewRequest(ctx, platformURL)
+		NewRequest(w, r, platformURL)
 }
 
-// Download implements ProviderHandler.Download
-func (handler *ProxyProviderHandler) Download(ctx echo.Context, provider *models.Provider) error {
-	// check if the URL contains http scheme, it may just be a filename and we need to build the URL
+// Download streams the provider archive from its registry. A bare file name
+// in the provider's download URL is resolved against the registry's providers
+// endpoint.
+func (handler *ProxyProviderHandler) Download(w router.ResponseWriter, r *http.Request, provider *models.Provider) error {
 	if !strings.Contains(provider.DownloadURL, "://") {
-		apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
+		apiURLs, err := handler.DiscoveryURL(r.Context(), provider.RegistryName)
 		if err != nil {
 			return err
 		}
@@ -133,7 +115,7 @@ func (handler *ProxyProviderHandler) Download(ctx echo.Context, provider *models
 			),
 		}
 
-		return handler.NewRequest(ctx, downloadURL)
+		return handler.NewRequest(w, r, downloadURL)
 	}
 
 	downloadURL, err := url.Parse(provider.DownloadURL)
@@ -141,7 +123,7 @@ func (handler *ProxyProviderHandler) Download(ctx echo.Context, provider *models
 		return err
 	}
 
-	return handler.NewRequest(ctx, downloadURL)
+	return handler.NewRequest(w, r, downloadURL)
 }
 
 // modifyDownloadURLsInJSONBody modifies the response to redirect the download URLs to the local server.

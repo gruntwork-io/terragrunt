@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -638,13 +639,17 @@ func (pc *ProviderCache) configureRegistryHosts(
 			return nil, err
 		}
 
+		providersV1, err := url.JoinPath(
+			pc.ProviderController.URL().String(),
+			cacheRequestID,
+			registryName+"/",
+		)
+		if err != nil {
+			return nil, err
+		}
+
 		hostServices := map[string]string{
-			serviceProvidersV1: fmt.Sprintf(
-				"%s/%s/%s/",
-				pc.ProviderController.URL(),
-				cacheRequestID,
-				registryName,
-			),
+			serviceProvidersV1: providersV1,
 		}
 
 		if hasModules {

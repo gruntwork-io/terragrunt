@@ -147,7 +147,7 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 		)
 		defer cancel()
 
-		if err := server.Shutdown(shutdownCtx); err != nil {
+		if err := server.Server.Shutdown(shutdownCtx); err != nil {
 			return err
 		}
 
