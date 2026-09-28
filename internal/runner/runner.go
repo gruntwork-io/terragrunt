@@ -531,18 +531,14 @@ func (rnr *Runner) Run(
 						"unit_name":              unitName,
 						"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 					}, func(readCtx context.Context, unitLogger log.Logger) error {
-						parseCtx, pctx := configbridge.NewParsingContext(
-							readCtx,
-							unitLogger,
-							unitV,
-							unitOpts,
-						)
+						pctx := configbridge.NewParsingContext(unitOpts)
 
 						var readErr error
 
 						cfg, readErr = config.ReadTerragruntConfig(
-							parseCtx,
+							readCtx,
 							unitLogger,
+							unitV,
 							pctx,
 						)
 

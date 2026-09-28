@@ -162,18 +162,19 @@ func (s *Stack) GeneratedPath(stackDir string) string {
 func GenerateStackFile(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	pool *worker.Pool,
 	stackFilePath string,
 ) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
-	values, err := ReadValues(ctx, pctx, l, stackSourceDir)
+	values, err := ReadValues(ctx, l, v, pctx, stackSourceDir)
 	if err != nil {
 		return fmt.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
 	}
 
-	stackFile, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, values)
+	stackFile, err := ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
 	if err != nil {
 		return fmt.Errorf(
 			"failed to read stack file %s in %s %w",
@@ -190,6 +191,7 @@ func GenerateStackFile(
 	autoIncludes, stackSrcBytes, err := resolveStackAutoIncludes(
 		ctx,
 		l,
+		v,
 		pctx,
 		stackFilePath,
 		stackFile,
@@ -216,7 +218,7 @@ func GenerateStackFile(
 		return nil
 	}
 
-	cs, err := setupCAS(l, pctx, casEnabled)
+	cs, err := setupCAS(l, v, pctx, casEnabled)
 	if err != nil {
 		return err
 	}
@@ -236,14 +238,14 @@ func GenerateStackFile(
 		casInstance:     cs.Instance,
 		strictControls:  pctx.StrictControls,
 		// One getter per stack, so every component shares its credential resolution.
-		ociGetter: getter.NewOCIGetter(l, pctx.Venv),
+		ociGetter: getter.NewOCIGetter(l, v),
 	}
 
-	if err := generateUnits(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, l, v, &genOpts, pool, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, l, pctx.Venv, &genOpts, pool, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, l, v, &genOpts, pool, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -264,12 +266,13 @@ func hasEnabledComponents(stackFile *StackConfig) bool {
 func ValidateStackAutoIncludes(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	stackFilePath string,
 	stackFile *StackConfig,
 	values *cty.Value,
 ) error {
-	_, _, err := resolveStackAutoIncludes(ctx, l, pctx, stackFilePath, stackFile, values)
+	_, _, err := resolveStackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackFile, values)
 
 	return err
 }
@@ -281,6 +284,7 @@ func ValidateStackAutoIncludes(
 func resolveStackAutoIncludes(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	stackFilePath string,
 	stackFile *StackConfig,
@@ -307,7 +311,7 @@ func resolveStackAutoIncludes(
 	}
 
 	// stackSrcBytes is read separately for the autoinclude parser, which slices expression byte ranges from the original file when generating terragrunt.autoinclude.hcl.
-	stackSrcBytes, err := vfs.ReadFile(pctx.Venv.FS, stackFilePath)
+	stackSrcBytes, err := vfs.ReadFile(v.FS, stackFilePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 	}
@@ -325,8 +329,9 @@ func resolveStackAutoIncludes(
 	// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
 	prodEvalCtx, evalCtxErr := createTerragruntEvalContext(
 		ctx,
-		scopedPctx,
 		scopedLogger,
+		v,
+		scopedPctx,
 		stackFilePath,
 	)
 	if evalCtxErr != nil {
@@ -344,7 +349,7 @@ func resolveStackAutoIncludes(
 
 	parseResult, parseErr := inthclparse.ParseStackFile(
 		ctx,
-		scopedPctx.Venv.FS,
+		v.FS,
 		&inthclparse.ParseStackFileInput{
 			Src:       stackSrcBytes,
 			Filename:  filepath.Base(stackFilePath),
@@ -368,11 +373,11 @@ func resolveStackAutoIncludes(
 	// terragrunt.autoinclude.stack.hcl overrides same-name components wholesale, so an overridden
 	// component must not inherit the base block's resolved unit-level autoinclude.
 	if pruneErr := pruneOverriddenStackAutoIncludes(
-		scopedPctx.Venv.FS,
+		v.FS,
 		parseResult,
 		stackSourceDir,
 		prodEvalCtx,
-		scopedPctx.ParserOptions(scopedLogger),
+		scopedPctx.ParserOptions(scopedLogger, v),
 	); pruneErr != nil {
 		return nil, nil, AutoIncludeParserStageError{
 			Stage: "autoinclude-override-prune",
@@ -468,7 +473,7 @@ type casSetup struct {
 // depth) and for a setup failure under --cas-offline; other transient
 // setup failures log a warning and return an Enabled=false bundle so the
 // caller falls through to the standard getter.
-func setupCAS(l log.Logger, pctx *ParsingContext, enabled bool) (casSetup, error) {
+func setupCAS(l log.Logger, v *venv.Venv, pctx *ParsingContext, enabled bool) (casSetup, error) {
 	if !enabled {
 		return casSetup{}, nil
 	}
@@ -493,8 +498,6 @@ func setupCAS(l log.Logger, pctx *ParsingContext, enabled bool) (casSetup, error
 	if pctx.CASRefresh {
 		casOpts = append(casOpts, cas.WithProbeRefresh())
 	}
-
-	v := pctx.Venv
 
 	c, err := cas.New(v, casOpts...)
 	if err != nil {
@@ -1163,10 +1166,11 @@ func isLocal(fsys vfs.FS, workingDir, src string) bool {
 func (u *Unit) ReadOutputs(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	unitDir string,
 ) (map[string]cty.Value, error) {
-	jsonBytes, err := u.ReadOutputsJSON(ctx, l, pctx, unitDir)
+	jsonBytes, err := u.ReadOutputsJSON(ctx, l, v, pctx, unitDir)
 	if err != nil {
 		return nil, err
 	}
@@ -1187,6 +1191,7 @@ func (u *Unit) ReadOutputs(
 func (u *Unit) ReadOutputsJSON(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	unitDir string,
 ) ([]byte, error) {
@@ -1194,8 +1199,9 @@ func (u *Unit) ReadOutputsJSON(
 
 	return getOutputJSONWithCaching(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		filepath.Join(unitDir, DefaultTerragruntConfigPath),
 	)
 }
@@ -1206,6 +1212,7 @@ func (u *Unit) ReadOutputsJSON(
 func ReadStackConfigFile(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	filePath string,
 	values *cty.Value,
@@ -1216,19 +1223,20 @@ func ReadStackConfigFile(
 	stackPctx.TerragruntConfigPath = filePath
 	stackPctx.OriginalTerragruntConfigPath = filePath
 
-	file, err := stackPctx.NewParser(l).
-		ParseFromFile(stackPctx.Venv.FS, filePath)
+	file, err := stackPctx.NewParser(l, v).
+		ParseFromFile(v.FS, filePath)
 	if err != nil {
 		return nil, err
 	}
 
-	return ParseStackConfig(ctx, l, stackPctx, file, values)
+	return ParseStackConfig(ctx, l, v, stackPctx, file, values)
 }
 
 // ReadStackConfigString reads and parses a Terragrunt stack configuration from a string.
 func ReadStackConfigString(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	cfgPath string,
 	configString string,
@@ -1238,19 +1246,20 @@ func ReadStackConfigString(
 		pctx = pctx.WithValues(values)
 	}
 
-	hclFile, err := pctx.NewParser(l).
+	hclFile, err := pctx.NewParser(l, v).
 		ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return ParseStackConfig(ctx, l, pctx, hclFile, values)
+	return ParseStackConfig(ctx, l, v, pctx, hclFile, values)
 }
 
 // ParseStackConfig parses the stack configuration from the given file and values.
 func ParseStackConfig(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	parser *ParsingContext,
 	file *hclparse.File,
 	values *cty.Value,
@@ -1263,23 +1272,23 @@ func ParseStackConfig(
 		return nil, err
 	}
 
-	if err := processLocals(ctx, l, parser, file); err != nil {
+	if err := processLocals(ctx, l, v, parser, file); err != nil {
 		return nil, err
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, l, v, parser, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	parserOpts := parser.ParserOptions(l)
+	parserOpts := parser.ParserOptions(l, v)
 
 	// Expose unit.<name>.path / stack.<name>.path so a unit or stack block's values
 	// can reference where sibling components generate to (e.g. to pass a unit path
 	// down to a child stack).
 	if err := injectStackComponentRefs(
 		ctx,
-		parser.Venv.FS,
+		v.FS,
 		file,
 		evalParsingContext,
 		filepath.Dir(file.ConfigPath),
@@ -1303,7 +1312,7 @@ func ParseStackConfig(
 
 	if err := processStackConfigIncludes(
 		ctx,
-		parser.Venv.FS,
+		v.FS,
 		config,
 		stackDir,
 		evalParsingContext,
@@ -1314,7 +1323,7 @@ func ParseStackConfig(
 
 	if err := mergeStackAutoIncludeFile(
 		ctx,
-		parser.Venv.FS,
+		v.FS,
 		l,
 		config,
 		stackDir,
@@ -2069,8 +2078,9 @@ func writeValues(l log.Logger, fsys vfs.FS, values *cty.Value, directory string)
 // ReadValues reads values from the terragrunt.values.hcl file in the specified directory.
 func ReadValues(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	directory string,
 ) (*cty.Value, error) {
 	if directory == "" {
@@ -2079,7 +2089,7 @@ func ReadValues(
 
 	filePath := filepath.Join(directory, valuesFile)
 
-	exists, err := vfs.FileExists(pctx.Venv.FS, filePath)
+	exists, err := vfs.FileExists(v.FS, filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -2090,12 +2100,12 @@ func ReadValues(
 
 	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
 
-	file, err := pctx.NewParser(l).ParseFromFile(pctx.Venv.FS, filePath)
+	file, err := pctx.NewParser(l, v).ParseFromFile(v.FS, filePath)
 	if err != nil {
 		return nil, err
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -2115,6 +2125,7 @@ func ReadValues(
 func processLocals(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	parser *ParsingContext,
 	file *hclparse.File,
 ) error {
@@ -2154,8 +2165,9 @@ func processLocals(
 
 		attrs, evaluatedLocals, evaluated, evalErr = attemptEvaluateLocals(
 			ctx,
-			parser,
 			l,
+			v,
+			parser,
 			file,
 			attrs,
 			evaluatedLocals,

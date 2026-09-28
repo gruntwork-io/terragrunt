@@ -75,10 +75,10 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) {
 		ctx := config.WithConfigValues(t.Context())
 		v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "fresh-token"})
 
-		_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
+		pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
 
-		result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
+		result, err := config.SopsDecryptFileWithDecrypter(ctx, l, v, pctx, secretFile, "json", authRequiringDecrypter)
 		require.NoError(t, err, "decrypt must succeed with credentials from the venv")
 		assert.Contains(t, result, `"value":"secret-from-unit-01"`)
 	})
@@ -90,10 +90,10 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) {
 		ctx := config.WithConfigValues(t.Context())
 		v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
-		_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
+		pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
 
-		_, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, secretFile, "json", authRequiringDecrypter)
+		_, err := config.SopsDecryptFileWithDecrypter(ctx, l, v, pctx, secretFile, "json", authRequiringDecrypter)
 		require.Error(t, err,
 			"decrypt must fail without auth credentials, reproducing original issue #5515")
 	})
@@ -116,10 +116,10 @@ func TestSOPSDecryptLeavesProcessEnvAlone(t *testing.T) { // t.Setenv bars t.Par
 	ctx := config.WithConfigValues(t.Context())
 	v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: "venv-token"})
 
-	_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
+	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.WorkingDir = filepath.Dir(secretFile)
 
-	_, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, secretFile, "json", d)
+	_, err := config.SopsDecryptFileWithDecrypter(ctx, l, v, pctx, secretFile, "json", d)
 	require.NoError(t, err)
 
 	assert.Equal(t, "real-ci-token", os.Getenv(authKey))

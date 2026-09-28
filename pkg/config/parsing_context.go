@@ -1,8 +1,6 @@
 package config
 
 import (
-	"context"
-	"errors"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -31,20 +29,10 @@ const (
 	MaxParseDepth = 1000
 )
 
-// ErrParsingContextVenvNil is the panic value [NewParsingContext] raises when
-// its venv argument is nil. Every caller is handed the bundle main.go built,
-// so a nil points at a caller bug rather than a runtime condition.
-var ErrParsingContextVenvNil = errors.New("config.NewParsingContext: venv must not be nil")
-
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	// Venv is the virtualized environment used by HCL helper functions
-	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
-	// It also carries the shell environment and stdout/stderr writers.
-	Venv *venv.Venv
-
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
@@ -133,26 +121,15 @@ type ParsingContext struct {
 	stubWorkingDirFunc bool
 }
 
-// NewParsingContext builds a parsing context whose file reads, subprocesses,
-// and decryption all travel on v.
+// NewParsingContext builds a parsing context from opts.
 //
 // The returned context keeps no record of the files it reads. Recording them
 // costs a walk of every local module a config sources, and only a caller that
 // surfaces the record has any use for it, so those call
 // [ParsingContext.WithFileReadTracking] and the rest pay nothing.
-func NewParsingContext(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	opts ...Option,
-) (context.Context, *ParsingContext) {
-	if v == nil {
-		panic(ErrParsingContextVenvNil)
-	}
-
+func NewParsingContext(opts ...Option) *ParsingContext {
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
-		Venv:             v,
 	}
 
 	for _, opt := range opts {
@@ -161,13 +138,11 @@ func NewParsingContext(
 
 	pctx.Parser = DefaultParserSettings(pctx.StrictControls)
 
-	return ctx, pctx
+	return pctx
 }
 
 // Clone returns a copy of the ParsingContext. Its maps and slices are
-// deep-copied. The clone shares the original's Venv, so code that changes the
-// env or writers for one context assigns it a new Venv, such as one from
-// [venv.Venv.WithEnvCloned] or [venv.Venv.WithWriter].
+// deep-copied.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
 
@@ -255,13 +230,13 @@ func (ctx *ParsingContext) WithDiagnosticsDiscarded() *ParsingContext {
 }
 
 // ParserOptions returns the [hclparse.Option] list for this context's parser settings.
-func (ctx *ParsingContext) ParserOptions(l log.Logger) []hclparse.Option {
-	return ParserOptions(l, ctx.Venv, ctx.Parser)
+func (ctx *ParsingContext) ParserOptions(l log.Logger, v *venv.Venv) []hclparse.Option {
+	return ParserOptions(l, v, ctx.Parser)
 }
 
 // NewParser returns an HCL parser configured by this context's parser settings.
-func (ctx *ParsingContext) NewParser(l log.Logger) *hclparse.Parser {
-	return hclparse.NewParser(ctx.ParserOptions(l)...)
+func (ctx *ParsingContext) NewParser(l log.Logger, v *venv.Venv) *hclparse.Parser {
+	return hclparse.NewParser(ctx.ParserOptions(l, v)...)
 }
 
 // WithFileReadTracking returns a copy that records every file it reads, so that

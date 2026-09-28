@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
@@ -57,8 +58,9 @@ func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 // evaluateExcludeBlocks evaluates the exclude block in the parsed file.
 func evaluateExcludeBlocks(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 ) (*ExcludeConfig, error) {
 	excludeBlock, err := file.Blocks(MetadataExclude, false)
@@ -85,7 +87,7 @@ func evaluateExcludeBlocks(
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		l.Errorf("Failed to create eval context %s", file.ConfigPath)
 		return nil, err

@@ -379,18 +379,15 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(
-		t.Context(),
-		l,
-		venv.OSVenv(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
-	)
+	ctx := t.Context()
+	v := venv.OSVenv()
+	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		ctx,
 		vfs.NewOSFS(),
 		stackDir,
-		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, pctx)},
+		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx)},
 	)
 	require.NoError(t, err)
 	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
@@ -428,18 +425,15 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(
-		t.Context(),
-		l,
-		venv.OSVenv(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
-	)
+	ctx := t.Context()
+	v := venv.OSVenv()
+	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		ctx,
 		vfs.NewOSFS(),
 		root,
-		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, pctx)},
+		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx)},
 	)
 	require.NoError(t, err)
 
@@ -460,18 +454,15 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 	root := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(
-		t.Context(),
-		l,
-		venv.OSVenv(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
-	)
+	ctx := t.Context()
+	v := venv.OSVenv()
+	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		ctx,
 		vfs.NewOSFS(),
 		root,
-		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, pctx)},
+		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx)},
 	)
 	require.NoError(t, err)
 	assert.Empty(t, unitPaths, "a directory without a stack file expands to no unit paths")
@@ -1366,9 +1357,9 @@ func TestStackDepsAutoIncludeArbitraryRetryBlock(t *testing.T) {
 	// sibling autoinclude merges in. The injected errors/retry block must appear in the unit's
 	// effective merged config, not merely as text in the standalone generated autoinclude file.
 	l := logger.CreateLogger()
-	ctx, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
+	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, unitConfigPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, unitConfigPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -1421,9 +1412,9 @@ func TestStackDepsAutoIncludeFeatureBlock(t *testing.T) {
 	// sibling autoinclude merges in. The injected feature block must appear in the unit's
 	// effective merged config with the exact value.
 	l := logger.CreateLogger()
-	ctx, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
+	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, unitConfigPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, unitConfigPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -1480,9 +1471,9 @@ func TestStackDepsAutoIncludeIgnoreBlock(t *testing.T) {
 	// sibling autoinclude merges in. The injected errors/ignore block must appear in the unit's
 	// effective merged config with the exact values.
 	l := logger.CreateLogger()
-	ctx, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
+	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, unitConfigPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, unitConfigPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -1949,14 +1940,14 @@ func newStackDepsParsingContext(
 	t *testing.T,
 	l log.Logger,
 	configPath string,
-) (context.Context, *config.ParsingContext) {
+) (context.Context, *venv.Venv, *config.ParsingContext) {
 	t.Helper()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.StackDependencies))
 	opts.TerragruntConfigPath = configPath
 
-	return configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), opts)
+	return t.Context(), venv.OSVenv(), configbridge.NewParsingContext(opts)
 }
 
 // partialParseDiscovery partial parses a unit config the way discovery does, with the
@@ -1965,11 +1956,11 @@ func newStackDepsParsingContext(
 func partialParseDiscovery(t *testing.T, l log.Logger, configPath string) *config.TerragruntConfig {
 	t.Helper()
 
-	ctx, pctx := newStackDepsParsingContext(t, l, configPath)
+	ctx, v, pctx := newStackDepsParsingContext(t, l, configPath)
 	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ErrorsBlock).
 		WithSkipOutputsResolution()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
 	require.NoError(t, err, "discovery-style partial parse of the merged unit config must succeed")
 
 	return parsed
@@ -1979,10 +1970,11 @@ func partialParseDiscovery(t *testing.T, l log.Logger, configPath string) *confi
 func stackDepsFuncsFor(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *config.ParsingContext,
 ) inthclparse.StackFuncFactory {
 	return func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, dir, pctx)
+		return config.EarlyStackParseFunctions(ctx, l, v, pctx, dir)
 	}
 }
 
