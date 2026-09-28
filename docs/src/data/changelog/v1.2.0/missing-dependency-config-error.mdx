@@ -1,0 +1,16 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Clearer error when a dependency points at a deleted unit
+
+When a `dependency` block pointed at a directory without a Terragrunt configuration, for example a unit deleted in the same change, `run --all` failed with `You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file`. The error named the missing dependency instead of the unit that references it, and with Git-based filters it could show a temporary worktree path.
+
+The error now names both the unit and the dependency, using paths in your repository:
+
+```text
+unit "/repo/live/app" depends on "/repo/live/cache", where no Terragrunt configuration was found
+```
+
+The run still fails, as that configuration is invalid. A new `missing-dependency-config` tip explains how to fix it. When several units depend on the deleted unit, the run names the first one it finds; use the new [`hcl validate --check-dependencies`](/reference/cli/commands/hcl/validate#check-dependencies) flag to list all of them.
