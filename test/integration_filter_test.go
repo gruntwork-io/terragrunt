@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1497,8 +1498,8 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, tmpDir)
 
-	wantErr := `unit "` + filepath.Join(tmpDir, "consumer") + `" depends on "` + filepath.Join(tmpDir, "dep") +
-		`", where no Terragrunt configuration was found`
+	wantErr := "unit " + strconv.Quote(filepath.Join(tmpDir, "consumer")) +
+		" depends on " + strconv.Quote(filepath.Join(tmpDir, "dep")) + ", where no Terragrunt configuration was found"
 	filterArgs := " --no-color --working-dir " + tmpDir + " --filter '...[HEAD~1...HEAD]... | ./**'"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -1564,7 +1565,8 @@ func TestFilterFlagWithHCLValidateCheckDependenciesGitFilter(t *testing.T) {
 	assert.Contains(
 		t,
 		err.Error(),
-		`unit "`+filepath.Join(tmpDir, "live", "app")+`" depends on "`+filepath.Join(tmpDir, "live", "cache")+`"`,
+		"unit "+strconv.Quote(filepath.Join(tmpDir, "live", "app"))+
+			" depends on "+strconv.Quote(filepath.Join(tmpDir, "live", "cache")),
 	)
 	assert.NotContains(t, err.Error(), "terragrunt-worktree")
 }

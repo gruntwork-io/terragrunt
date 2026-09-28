@@ -202,7 +202,7 @@ func TestDiscovery_GitFilterDeletedDependency(t *testing.T) {
 			wantErr:   true,
 		},
 		{
-			name:  "Git filter alone plans the dependent from the from worktree",
+			name:  "Git filter alone discovers the dependent without failing",
 			query: "...[HEAD~1...HEAD]...",
 		},
 		{
@@ -235,9 +235,17 @@ func TestDiscovery_GitFilterDeletedDependency(t *testing.T) {
 
 			commitChanges(t, runner, "Delete dep")
 
-			_, err := discoverWithGitFilter(t, tmpDir, tc.query)
+			components, err := discoverWithGitFilter(t, tmpDir, tc.query)
 			if !tc.wantErr {
 				require.NoError(t, err)
+
+				names := make([]string, 0, len(components))
+				for _, c := range components {
+					names = append(names, filepath.Base(c.Path()))
+				}
+
+				assert.Contains(t, names, "consumer")
+				assert.Contains(t, names, "dep")
 
 				return
 			}
