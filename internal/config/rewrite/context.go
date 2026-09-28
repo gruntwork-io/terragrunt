@@ -29,7 +29,7 @@ type fileScope struct {
 	features *cty.Value
 	// locals is the file's evaluated locals.
 	locals *cty.Value
-	// decodedDeps is the resolved dependencies, nil until resolved.
+	// decodedDeps is the `dependency` value the run supplied, nil when the parse resolves it.
 	decodedDeps *cty.Value
 	// iamRole overrides the run's IAM role options when set.
 	iamRole *iam.RoleOptions
@@ -39,6 +39,8 @@ type fileScope struct {
 	depth int
 	// skipAutoIncludeMerge skips merging the file's autoinclude.
 	skipAutoIncludeMerge bool
+	// inheritsDependencies marks an included file whose `dependency` value the including file resolves in ToV1.
+	inheritsDependencies bool
 }
 
 // NewParseContext returns a ParseContext for run, with the file state starting from run's values.
@@ -59,11 +61,12 @@ func NewParseContext(run *pkgconfig.ParsingContext) *ParseContext {
 }
 
 // withInclude returns a copy of pc for the file include pulls in, which has no include blocks until its base
-// blocks decode.
+// blocks decode. The file reads the `dependency` value of the including file unless the run supplied one.
 func (pc *ParseContext) withInclude(include *pkgconfig.IncludeConfig) *ParseContext {
 	c := *pc
 	c.file.include = include
 	c.file.includes = nil
+	c.file.inheritsDependencies = c.file.decodedDeps == nil
 
 	return &c
 }
@@ -74,6 +77,7 @@ func (pc *ParseContext) forAutoInclude() *ParseContext {
 	c := *pc
 	c.file.include = nil
 	c.file.decodedDeps = nil
+	c.file.inheritsDependencies = false
 	c.file.skipAutoIncludeMerge = true
 
 	return &c
@@ -97,7 +101,7 @@ func (pc *ParseContext) withValues(values *cty.Value) *ParseContext {
 	return &c
 }
 
-// withDecodedDependencies returns a copy of pc with the file's resolved dependencies.
+// withDecodedDependencies returns a copy of pc with the file's `dependency` value.
 func (pc *ParseContext) withDecodedDependencies(decodedDeps *cty.Value) *ParseContext {
 	c := *pc
 	c.file.decodedDeps = decodedDeps
