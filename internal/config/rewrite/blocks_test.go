@@ -37,7 +37,10 @@ func TestSchemaCoverage(t *testing.T) {
 	root := venvtest.Root("/fixture")
 
 	assertParity(t, parityCase{
-		newFS:     memFS(root, map[string]string{pkgconfig.DefaultTerragruntConfigPath: body.String()}),
+		newFS: memFS(
+			root,
+			map[string]string{pkgconfig.DefaultTerragruntConfigPath: body.String()},
+		),
 		cfgPath:   filepath.Join(root, pkgconfig.DefaultTerragruntConfigPath),
 		configure: func(*pkgconfig.ParsingContext) {},
 	})
@@ -53,104 +56,106 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			block:  "",
 			v1:     reflect.TypeFor[pkgconfig.TerragruntConfigFile](),
 			header: reflect.TypeFor[config.UnitConfig](),
-			body:   reflect.TypeFor[config.UnitBody](),
+			bodies: []reflect.Type{reflect.TypeFor[config.QueueBodies](), reflect.TypeFor[config.RunBodies]()},
 		},
 		{
 			block:  pkgconfig.MetadataTerraform,
 			v1:     reflect.TypeFor[pkgconfig.TerraformConfig](),
-			header: reflect.TypeFor[config.Terraform](),
+			header: reflect.TypeFor[config.TerraformHCL](),
 		},
 		{
 			block:  "before_hook",
 			v1:     reflect.TypeFor[pkgconfig.Hook](),
-			header: reflect.TypeFor[config.Hook](),
-			body:   reflect.TypeFor[config.HookBody](),
+			header: reflect.TypeFor[config.HookHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.HookBody]()},
 		},
 		{
 			block:  "after_hook",
 			v1:     reflect.TypeFor[pkgconfig.Hook](),
-			header: reflect.TypeFor[config.Hook](),
-			body:   reflect.TypeFor[config.HookBody](),
+			header: reflect.TypeFor[config.HookHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.HookBody]()},
 		},
 		{
 			block:  "error_hook",
 			v1:     reflect.TypeFor[pkgconfig.ErrorHook](),
-			header: reflect.TypeFor[config.ErrorHook](),
-			body:   reflect.TypeFor[config.ErrorHookBody](),
+			header: reflect.TypeFor[config.ErrorHookHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.ErrorHookBody]()},
 		},
 		{
 			block:  "extra_arguments",
 			v1:     reflect.TypeFor[pkgconfig.TerraformExtraArguments](),
-			header: reflect.TypeFor[config.ExtraArguments](),
-			body:   reflect.TypeFor[config.ExtraArgumentsBody](),
+			header: reflect.TypeFor[config.ExtraArgumentsHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.ExtraArgumentsBody]()},
 		},
 		{
 			block:  pkgconfig.MetadataRemoteState,
 			v1:     reflect.TypeFor[remotestate.ConfigFile](),
-			header: reflect.TypeFor[config.RemoteState](),
-			body:   reflect.TypeFor[config.RemoteStateBody](),
+			header: reflect.TypeFor[config.RemoteStateHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.RemoteStateBody]()},
 		},
 		{
 			block:  pkgconfig.MetadataEngine,
 			v1:     reflect.TypeFor[pkgconfig.EngineConfig](),
-			header: reflect.TypeFor[config.Engine](),
-			body:   reflect.TypeFor[config.EngineBody](),
+			header: reflect.TypeFor[config.EngineHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.EngineBody]()},
 		},
 		{
 			block:  pkgconfig.MetadataErrors,
 			v1:     reflect.TypeFor[pkgconfig.ErrorsConfig](),
-			header: reflect.TypeFor[config.Errors](),
+			header: reflect.TypeFor[config.ErrorsHCL](),
 		},
 		{
 			block:  pkgconfig.MetadataRetry,
 			v1:     reflect.TypeFor[pkgconfig.RetryBlock](),
-			header: reflect.TypeFor[config.Retry](),
-			body:   reflect.TypeFor[config.RetryBody](),
+			header: reflect.TypeFor[config.RetryHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.RetryBody]()},
 		},
 		{
 			block:  pkgconfig.MetadataIgnore,
 			v1:     reflect.TypeFor[pkgconfig.IgnoreBlock](),
-			header: reflect.TypeFor[config.Ignore](),
-			body:   reflect.TypeFor[config.IgnoreBody](),
+			header: reflect.TypeFor[config.IgnoreHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.IgnoreBody]()},
 		},
 		{
 			block:  pkgconfig.MetadataGenerateConfigs,
 			v1:     reflect.TypeFor[pkgconfig.TerragruntGenerateBlock](),
-			header: reflect.TypeFor[config.Generate](),
+			header: reflect.TypeFor[config.GenerateHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.GenerateBody]()},
 		},
 		{
 			block:  pkgconfig.MetadataCatalog,
 			v1:     reflect.TypeFor[pkgconfig.CatalogConfig](),
-			header: reflect.TypeFor[config.Catalog](),
+			header: reflect.TypeFor[config.CatalogHCL](),
 		},
 		{
 			block:  pkgconfig.MetadataExclude,
 			v1:     reflect.TypeFor[pkgconfig.ExcludeConfig](),
-			header: reflect.TypeFor[config.Exclude](),
+			header: reflect.TypeFor[config.ExcludeHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.ExcludeBody]()},
 		},
 		{
 			block:  pkgconfig.MetadataFeatureFlag,
 			v1:     reflect.TypeFor[pkgconfig.FeatureFlag](),
-			header: reflect.TypeFor[config.FeatureFlag](),
+			header: reflect.TypeFor[config.FeatureFlagHCL](),
 		},
 		{
 			block:  pkgconfig.MetadataDependencies,
 			v1:     reflect.TypeFor[pkgconfig.ModuleDependencies](),
-			header: reflect.TypeFor[config.ModuleDependencies](),
+			header: reflect.TypeFor[config.ModuleDependenciesHCL](),
 		},
 		{
 			block:      pkgconfig.MetadataDependency,
-			header:     reflect.TypeFor[config.Dependency](),
+			header:     reflect.TypeFor[config.DependencyHCL](),
 			labelsOnly: true,
 		},
 		{
 			block:      pkgconfig.MetadataInclude,
-			header:     reflect.TypeFor[config.Include](),
+			header:     reflect.TypeFor[config.IncludeHCL](),
 			labelsOnly: true,
 		},
 		{
 			block:      pkgconfig.MetadataLocals,
-			header:     reflect.TypeFor[config.Locals](),
+			header:     reflect.TypeFor[config.LocalsHCL](),
 			labelsOnly: true,
 		},
 	}
@@ -172,7 +177,13 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 					func(b hcl.BlockHeaderSchema) bool { return b.Type == row.block },
 				)
 				require.GreaterOrEqual(t, idx, 0, "pkg/config has no %s block", row.block)
-				assert.Equal(t, topLevel.Blocks[idx].LabelNames, labelNames(row.header), "labels of %s", row.block)
+				assert.Equal(
+					t,
+					topLevel.Blocks[idx].LabelNames,
+					labelNames(row.header),
+					"labels of %s",
+					row.block,
+				)
 
 				return
 			}
@@ -180,11 +191,18 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			header := impliedSchema(row.header)
 			body := &hcl.BodySchema{}
 
-			if row.body != nil {
-				body = impliedSchema(row.body)
+			for _, ty := range row.bodies {
+				schema := impliedSchema(ty)
+				body.Attributes = append(body.Attributes, schema.Attributes...)
+				body.Blocks = append(body.Blocks, schema.Blocks...)
 			}
 
-			assert.Empty(t, overlap(header, body), "names in both the header and the body of %s", row.block)
+			assert.Empty(
+				t,
+				overlap(header, body),
+				"names in both the header and the body of %s",
+				row.block,
+			)
 
 			v1 := impliedSchema(row.v1)
 			assert.Equal(
@@ -194,26 +212,38 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 				"attributes of %s",
 				row.block,
 			)
-			assert.Equal(t, sortedBlocks(v1.Blocks), sortedBlocks(slices.Concat(header.Blocks, body.Blocks)),
-				"block types of %s", row.block)
+			assert.Equal(
+				t,
+				sortedBlocks(v1.Blocks),
+				sortedBlocks(slices.Concat(header.Blocks, body.Blocks)),
+				"block types of %s",
+				row.block,
+			)
 			assert.Equal(t, labelNames(row.v1), labelNames(row.header), "labels of %s", row.block)
 			assert.Equal(
 				t,
-				attributeTypes(row.v1, nil),
-				attributeTypes(row.header, row.body),
+				attributeTypes(row.v1),
+				attributeTypes(row.header, row.bodies...),
 				"attribute types of %s",
 				row.block,
 			)
 
 			for _, block := range v1.Blocks {
-				assert.Contains(t, rowBlocks, block.Type, "no row compares the %s block of %s", block.Type, row.block)
+				assert.Contains(
+					t,
+					rowBlocks,
+					block.Type,
+					"no row compares the %s block of %s",
+					block.Type,
+					row.block,
+				)
 			}
 		})
 	}
 }
 
 // TestToV1LeavesDecodedBlocksUnchanged pins that repeated ToV1 calls on one parse return equal configs, although
-// include merges mutate what they merge.
+// include merges mutate what they merge and ToV1 decodes the run parts.
 func TestToV1LeavesDecodedBlocksUnchanged(t *testing.T) {
 	t.Parallel()
 
@@ -222,6 +252,7 @@ func TestToV1LeavesDecodedBlocksUnchanged(t *testing.T) {
 		"root-dep/terragrunt.hcl": ``,
 		"mid-dep/terragrunt.hcl":  ``,
 		"unit-dep/terragrunt.hcl": ``,
+		"unit-dep/main.tf":        ``,
 		"auto-dep/terragrunt.hcl": ``,
 		"root.hcl": `
 terraform {
@@ -337,6 +368,10 @@ dependencies {
   paths = ["../unit-dep"]
 }
 
+dependency "unit_dep" {
+  config_path = "../unit-dep"
+}
+
 errors {
   retry "default" {
     retryable_errors   = ["unit"]
@@ -369,7 +404,8 @@ engine {
 }
 
 inputs = {
-  tags = { unit = "yes" }
+  tags   = { unit = "yes" }
+  dep_id = dependency.unit_dep.outputs.id
 }
 `,
 		"unit/terragrunt.autoinclude.hcl": `
@@ -398,12 +434,20 @@ inputs = {
 		configure: func(*pkgconfig.ParsingContext) {},
 	})
 
-	v := venvtest.New().WithFS(memFS(root, files)(t))
+	stub := &tofuStub{}
+	v := venvtest.New().WithFS(memFS(root, files)(t)).WithHandler(stub.handler())
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, &hclparse.Store{}, config.NewParseContext(pctx), cfgPath)
+	parsed, err := config.ParseConfigFile(
+		ctx,
+		l,
+		v,
+		&hclparse.Store{},
+		config.NewParseContext(pctx),
+		cfgPath,
+	)
 	require.NoError(t, err)
 
 	first, err := parsed.ToV1(ctx, l, v)
@@ -414,6 +458,7 @@ inputs = {
 
 	assert.Equal(t, first, second)
 	assert.Len(t, first.Dependencies.Paths, 4)
+	assert.Equal(t, "id-from-state", first.Inputs["dep_id"])
 }
 
 // writeSchemaBody writes a null attribute for every attribute of ty and a labeled block for every block type,
@@ -479,10 +524,10 @@ type schemaRow struct {
 	v1 reflect.Type
 	// header decodes first.
 	header reflect.Type
-	// body decodes from header's Remain, or is nil when header decodes the whole body.
-	body reflect.Type
 	// block is the block type, empty for the top level.
 	block string
+	// bodies decode from header's Remain, or are none when header decodes the whole body.
+	bodies []reflect.Type
 	// labelsOnly compares only labels, for a block whose body pkg/config decodes elsewhere.
 	labelsOnly bool
 }
@@ -510,14 +555,10 @@ func labelNames(ty reflect.Type) []string {
 
 // attributeTypes maps each attribute of header and body to its field type. A header [hcl.Attribute] field takes the
 // type of body's field of the same name.
-func attributeTypes(header, body reflect.Type) map[string]string {
+func attributeTypes(header reflect.Type, bodies ...reflect.Type) map[string]string {
 	types := map[string]string{}
 
-	for _, ty := range []reflect.Type{header, body} {
-		if ty == nil {
-			continue
-		}
-
+	for _, ty := range slices.Concat([]reflect.Type{header}, bodies) {
 		for field := range ty.Fields() {
 			tag := field.Tag.Get("hcl")
 			if tag == "" {
@@ -531,12 +572,14 @@ func attributeTypes(header, body reflect.Type) map[string]string {
 
 			types[name] = field.Type.String()
 
-			if body == nil || field.Type != reflect.TypeFor[*hcl.Attribute]() {
+			if field.Type != reflect.TypeFor[*hcl.Attribute]() {
 				continue
 			}
 
-			if bodyField, ok := body.FieldByName(field.Name); ok {
-				types[name] = bodyField.Type.String()
+			for _, body := range bodies {
+				if bodyField, ok := body.FieldByName(field.Name); ok {
+					types[name] = bodyField.Type.String()
+				}
 			}
 		}
 	}
