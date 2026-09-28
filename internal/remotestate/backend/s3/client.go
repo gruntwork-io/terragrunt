@@ -26,18 +26,18 @@ import (
 const (
 	SidRootPolicy        = "RootAccess"
 	SidEnforcedTLSPolicy = "EnforcedTLS"
+	SidAccessLogDelivery = "AccessLogDelivery"
 
-	s3TimeBetweenRetries  = 5 * time.Second
 	s3MaxRetries          = 3
 	s3SleepBetweenRetries = 10 * time.Second
 
 	maxRetriesWaitingForS3Bucket          = 12
 	sleepBetweenRetriesWaitingForS3Bucket = 5 * time.Second
 
-	// To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery Group,
-	// which is represented by the following URI. For more info, see:
-	// https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
-	s3LogDeliveryGranteeURI = "http://acs.amazonaws.com/groups/s3/LogDelivery"
+	// S3 delivers server access logs as this service principal, which needs `s3:PutObject` on the
+	// logs bucket. For more info, see:
+	// https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html
+	s3LogDeliveryServicePrincipal = "logging.s3.amazonaws.com"
 
 	// DynamoDB only allows 10 table creates/deletes simultaneously. To ensure we don't hit this error, especially when
 	// running many automated tests in parallel, we use a counting semaphore
@@ -68,6 +68,33 @@ const (
 	maxRetriesWaitingForEncryption          = 30
 )
 
+// LogsBucketOrigin records whether the access logging bucket predates the current run.
+type LogsBucketOrigin int
+
+const (
+	// LogsBucketPreexisting means the access logging bucket was already there, so it belongs to
+	// whoever set it up and Terragrunt leaves its policy alone.
+	LogsBucketPreexisting LogsBucketOrigin = iota
+
+	// LogsBucketCreated means Terragrunt created the access logging bucket during this run.
+	LogsBucketCreated
+)
+
+// AccessLogDeliveryAction is what Terragrunt does about the access log delivery grant on the
+// logs bucket.
+type AccessLogDeliveryAction int
+
+const (
+	// GrantAccessLogDelivery writes the delivery policy onto the logs bucket.
+	GrantAccessLogDelivery AccessLogDeliveryAction = iota
+
+	// LeavePreexistingLogsBucketPolicy leaves a logs bucket that predates the run untouched.
+	LeavePreexistingLogsBucketPolicy
+
+	// SkipAccessLogDeliveryByConfig honors `skip_accesslogging_bucket_policy`.
+	SkipAccessLogDeliveryByConfig
+)
+
 var tableCreateDeleteSemaphore = NewCountingSemaphore(dynamoParallelOperations)
 
 type Client struct {
@@ -83,7 +110,7 @@ type Client struct {
 func NewClient(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	config *ExtendedRemoteStateConfigS3,
 	opts *backend.Options,
 ) (*Client, error) {
@@ -91,10 +118,9 @@ func NewClient(
 
 	builder := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsConfig).
-		WithEnv(v.Env).
 		WithIAMRoleOptions(opts.IAMRoleOptions)
 
-	cfg, err := builder.Build(ctx, l)
+	cfg, err := builder.Build(ctx, l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +131,7 @@ func NewClient(
 		}
 	}
 
-	s3Client, err := builder.BuildS3Client(ctx, l)
+	s3Client, err := builder.BuildS3Client(ctx, l, v)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +159,7 @@ func NewClient(
 func (client *Client) CreateS3BucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	bucketName string,
 	opts *backend.Options,
 ) error {
@@ -156,18 +182,16 @@ func (client *Client) CreateS3BucketIfNecessary(
 		return backend.BucketCreationNotAllowed(bucketName)
 	}
 
+	if _, err := BucketNamespace(bucketName, client.awsConfig.Region); err != nil {
+		return err
+	}
+
 	prompt := fmt.Sprintf(
 		"Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?",
 		bucketName,
 	)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}
@@ -214,7 +238,7 @@ func (client *Client) CreateS3BucketIfNecessary(
 func (client *Client) UpdateS3BucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	bucketName string,
 	opts *backend.Options,
 ) error {
@@ -239,13 +263,7 @@ func (client *Client) UpdateS3BucketIfNecessary(
 		bucketName,
 	)
 
-	shouldUpdateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}
@@ -267,7 +285,9 @@ func (client *Client) UpdateS3BucketIfNecessary(
 
 	if bucketUpdatesRequired.SSEEncryption {
 		msg := fmt.Sprintf(
-			"Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!",
+			"Encryption is not enabled on the S3 remote state bucket %s. "+
+				"OpenTofu/Terraform state files may contain secrets, "+
+				"so we STRONGLY recommend enabling encryption!",
 			bucketName,
 		)
 
@@ -310,12 +330,7 @@ func (client *Client) UpdateS3BucketIfNecessary(
 	}
 
 	if bucketUpdatesRequired.RootAccess {
-		if client.SkipBucketRootAccess {
-			l.Debugf(
-				"Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.",
-				bucketName,
-			)
-		} else if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
+		if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
 			return err
 		}
 	}
@@ -369,7 +384,7 @@ func (client *Client) UpdateS3BucketIfNecessary(
 func (client *Client) configureAccessLogBucket(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *backend.Options,
 ) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
@@ -384,13 +399,14 @@ func (client *Client) configureAccessLogBucket(
 		client.AccessLoggingBucketName,
 	)
 
-	if err := client.CreateLogsS3BucketIfNecessary(
+	logsBucketOrigin, err := client.CreateLogsS3BucketIfNecessary(
 		ctx,
 		l,
 		v,
 		client.AccessLoggingBucketName,
 		opts,
-	); err != nil {
+	)
+	if err != nil {
 		l.Errorf(
 			"Could not create logs bucket %s for AWS S3 bucket %s\n%s",
 			client.AccessLoggingBucketName,
@@ -417,7 +433,7 @@ func (client *Client) configureAccessLogBucket(
 		}
 	}
 
-	if err := client.EnableAccessLoggingForS3BucketWide(ctx, l); err != nil {
+	if err := client.EnableAccessLoggingForS3BucketWide(ctx, l, logsBucketOrigin); err != nil {
 		l.Errorf("Could not enable access logging on %s\n%s", cfg.Bucket, err.Error())
 
 		return err
@@ -513,7 +529,7 @@ func (client *Client) checkIfS3BucketNeedsUpdate(
 		}
 	}
 
-	if !client.SkipBucketRootAccess {
+	if client.EnableBucketRootAccess {
 		enabled, err := client.checkIfBucketRootAccess(ctx, l, bucketName)
 		if err != nil {
 			return false, toUpdate, err
@@ -619,7 +635,7 @@ func (client *Client) CheckIfVersioningEnabled(
 func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *backend.Options,
 ) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
@@ -652,13 +668,10 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
 		return err
 	}
 
-	if client.SkipBucketRootAccess {
-		l.Debugf(
-			"Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.",
-			cfg.Bucket,
-		)
-	} else if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
-		return err
+	if client.EnableBucketRootAccess {
+		if err := client.EnableRootAccesstoS3Bucket(ctx, l); err != nil {
+			return err
+		}
 	}
 
 	if client.SkipBucketEnforcedTLS {
@@ -727,21 +740,25 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
 func (client *Client) CreateLogsS3BucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	logsBucketName string,
 	opts *backend.Options,
-) error {
+) (LogsBucketOrigin, error) {
 	if exists, err := client.DoesS3BucketExistWithLogging(
 		ctx,
 		l,
 		logsBucketName,
 	); err != nil ||
 		exists {
-		return err
+		return LogsBucketPreexisting, err
 	}
 
 	if client.failIfBucketCreationRequired {
-		return backend.BucketCreationNotAllowed(logsBucketName)
+		return LogsBucketPreexisting, backend.BucketCreationNotAllowed(logsBucketName)
+	}
+
+	if _, err := BucketNamespace(logsBucketName, client.awsConfig.Region); err != nil {
+		return LogsBucketPreexisting, err
 	}
 
 	prompt := fmt.Sprintf(
@@ -749,27 +766,25 @@ func (client *Client) CreateLogsS3BucketIfNecessary(
 		logsBucketName,
 	)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
+	if err != nil {
+		return LogsBucketPreexisting, err
+	}
+
+	if !shouldCreateBucket {
+		return LogsBucketPreexisting, nil
+	}
+
+	if err := client.CreateS3BucketWithRetry(
 		ctx,
 		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
-	if err != nil {
-		return err
+		logsBucketName,
+		CreateS3BucketOpts{Tags: client.AccessLoggingBucketTags},
+	); err != nil {
+		return LogsBucketPreexisting, err
 	}
 
-	if shouldCreateBucket {
-		return client.CreateS3BucketWithRetry(
-			ctx,
-			l,
-			logsBucketName,
-			CreateS3BucketOpts{Tags: client.AccessLoggingBucketTags},
-		)
-	}
-
-	return nil
+	return LogsBucketCreated, nil
 }
 
 func (client *Client) TagS3BucketAccessLogging(ctx context.Context, l log.Logger) error {
@@ -920,14 +935,21 @@ func (client *Client) CreateS3Bucket(
 
 	l.Debugf("Creating S3 bucket %s", bucket)
 
+	region := client.awsConfig.Region
+
+	namespace, err := BucketNamespace(bucket, region)
+	if err != nil {
+		return err
+	}
+
 	input := &s3.CreateBucketInput{
 		Bucket:          aws.String(bucket),
-		ObjectOwnership: types.ObjectOwnershipObjectWriter,
+		BucketNamespace: namespace,
+		ObjectOwnership: types.ObjectOwnershipBucketOwnerEnforced,
 	}
 
 	// For regions other than us-east-1, we need to specify the location constraint
 	// to avoid IllegalLocationConstraintException
-	region := client.awsConfig.Region
 	if region != "us-east-1" && region != "" {
 		l.Debugf("Creating S3 bucket %s in region %s", bucket, region)
 		input.CreateBucketConfiguration = &types.CreateBucketConfiguration{
@@ -947,8 +969,7 @@ func (client *Client) CreateS3Bucket(
 		input.CreateBucketConfiguration.Tags = sdkTags
 	}
 
-	_, err := client.s3Client.CreateBucket(ctx, input)
-	if err != nil {
+	if _, err := client.s3Client.CreateBucket(ctx, input); err != nil {
 		return err
 	}
 
@@ -1002,8 +1023,7 @@ func (client *Client) CreateS3BucketWithRetry(
 
 // or is in progress. This usually happens when running many tests in parallel or xxx-all commands.
 func isBucketAlreadyOwnedByYouError(err error) bool {
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 		return apiErr.ErrorCode() == "BucketAlreadyOwnedByYou" ||
 			apiErr.ErrorCode() == "OperationAborted"
 	}
@@ -1013,8 +1033,7 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 
 // isBucketErrorRetriable returns true if the error is temporary and can be retried.
 func isBucketErrorRetriable(l log.Logger, err error) bool {
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 		unrecoverable := apiErr.ErrorCode() == "InternalError" ||
 			apiErr.ErrorCode() == "OperationAborted" ||
 			apiErr.ErrorCode() == "InvalidParameter"
@@ -1278,7 +1297,11 @@ func (client *Client) EnablePublicAccessBlockingForS3Bucket(
 	return nil
 }
 
-func (client *Client) EnableAccessLoggingForS3BucketWide(ctx context.Context, l log.Logger) error {
+func (client *Client) EnableAccessLoggingForS3BucketWide(
+	ctx context.Context,
+	l log.Logger,
+	logsBucketOrigin LogsBucketOrigin,
+) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
 		return errors.New(
 			"client configuration is nil - cannot enable access logging for S3 bucket",
@@ -1297,11 +1320,23 @@ func (client *Client) EnableAccessLoggingForS3BucketWide(ctx context.Context, l 
 		)
 	}
 
-	if !client.SkipAccessLoggingBucketACL {
-		if err := client.configureBucketAccessLoggingACL(ctx, l, logsBucket); err != nil {
+	switch DecideAccessLogDelivery(logsBucketOrigin, cfg) {
+	case LeavePreexistingLogsBucketPolicy:
+		l.Debugf(
+			"Logs bucket %s already existed, so its bucket policy is left as it is. Grant s3:PutObject to %s there if access logs are not delivered.",
+			logsBucket,
+			s3LogDeliveryServicePrincipal,
+		)
+	case SkipAccessLogDeliveryByConfig:
+		l.Debugf(
+			"Access log delivery is not granted on logs bucket %s using 'skip_accesslogging_bucket_policy' config.",
+			logsBucket,
+		)
+	case GrantAccessLogDelivery:
+		if err := client.enableAccessLoggingDeliveryForS3Bucket(ctx, l, logsBucket); err != nil {
 			return fmt.Errorf(
-				"error configuring bucket access logging ACL on S3 bucket %s: %w",
-				cfg.RemoteStateConfigS3.Bucket,
+				"error configuring access log delivery on S3 bucket %s: %w",
+				logsBucket,
 				err,
 			)
 		}
@@ -1329,83 +1364,122 @@ func (client *Client) EnableAccessLoggingForS3BucketWide(ctx context.Context, l 
 	return nil
 }
 
-func (client *Client) configureBucketAccessLoggingACL(
-	ctx context.Context,
-	l log.Logger,
-	bucketName string,
-) error {
-	l.Debugf(
-		"Granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s. This is required for access logging.",
-		s3LogDeliveryGranteeURI,
-		bucketName,
-	)
-
-	uri := "uri=" + s3LogDeliveryGranteeURI
-	aclInput := s3.PutBucketAclInput{
-		Bucket:       aws.String(bucketName),
-		GrantWrite:   aws.String(uri),
-		GrantReadACP: aws.String(uri),
+// DecideAccessLogDelivery reports what to do about the access log delivery grant on the logs
+// bucket.
+//
+// The deprecated `skip_accesslogging_bucket_acl` is deliberately not consulted. It opted out of a
+// bucket ACL, and the usual reason to have set it was a logs bucket with ACLs disabled rejecting
+// the grant with AccessControlListNotSupported. Those buckets need the policy, so carrying the
+// attribute over would deny the grant to exactly the configs it was added to rescue, and quietly:
+// PutBucketLogging succeeds against such a bucket whether or not delivery is permitted.
+func DecideAccessLogDelivery(
+	origin LogsBucketOrigin,
+	cfg *ExtendedRemoteStateConfigS3,
+) AccessLogDeliveryAction {
+	if origin == LogsBucketPreexisting {
+		return LeavePreexistingLogsBucketPolicy
 	}
 
-	if _, err := client.s3Client.PutBucketAcl(ctx, &aclInput); err != nil {
+	if cfg.SkipAccessLoggingBucketPolicy {
+		return SkipAccessLogDeliveryByConfig
+	}
+
+	return GrantAccessLogDelivery
+}
+
+// enableAccessLoggingDeliveryForS3Bucket grants the S3 server access logging service principal
+// permission to write log objects into the given logs bucket.
+func (client *Client) enableAccessLoggingDeliveryForS3Bucket(
+	ctx context.Context,
+	l log.Logger,
+	logsBucket string,
+) error {
+	l.Debugf(
+		"Granting s3:PutObject to S3 Log Delivery (%s) for bucket %s. This is required for access logging.",
+		s3LogDeliveryServicePrincipal,
+		logsBucket,
+	)
+
+	accountID, err := awshelper.GetAWSAccountID(ctx, &client.awsConfig)
+	if err != nil {
 		return fmt.Errorf(
-			"error granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s: %w",
-			s3LogDeliveryGranteeURI,
-			bucketName,
+			"error getting AWS account ID for bucket %s: %w",
+			logsBucket,
 			err,
 		)
 	}
 
-	return client.waitUntilBucketHasAccessLoggingACL(ctx, l, bucketName)
-}
-
-func (client *Client) waitUntilBucketHasAccessLoggingACL(
-	ctx context.Context,
-	l log.Logger,
-	bucketName string,
-) error {
-	l.Debugf("Waiting for ACL bucket %s to have the updated ACL for access logging.", bucketName)
-
-	maxRetries := 10
-
-	for range maxRetries {
-		res, err := client.s3Client.GetBucketAcl(
-			ctx,
-			&s3.GetBucketAclInput{Bucket: aws.String(bucketName)},
+	if accountID == "" {
+		return fmt.Errorf(
+			"AWS account ID is empty - cannot grant access log delivery to S3 bucket %s",
+			logsBucket,
 		)
-		if err != nil {
-			return fmt.Errorf("error getting ACL for bucket %s: %w", bucketName, err)
-		}
-
-		hasReadAcp := false
-		hasWrite := false
-
-		for _, grant := range res.Grants {
-			if aws.ToString(grant.Grantee.URI) == s3LogDeliveryGranteeURI {
-				if string(grant.Permission) == "READ_ACP" {
-					hasReadAcp = true
-				}
-
-				if string(grant.Permission) == "WRITE" {
-					hasWrite = true
-				}
-			}
-		}
-
-		if hasReadAcp && hasWrite {
-			l.Debugf("Bucket %s now has the proper ACL permissions for access logging!", bucketName)
-			return nil
-		}
-
-		l.Debugf(
-			"Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.",
-			bucketName,
-			s3TimeBetweenRetries,
-		)
-		time.Sleep(s3TimeBetweenRetries)
 	}
 
-	return MaxRetriesWaitingForS3ACLExceeded(bucketName)
+	partition, err := awshelper.GetAWSPartition(ctx, &client.awsConfig)
+	if err != nil {
+		return fmt.Errorf(
+			"error getting AWS partition for bucket %s: %w",
+			logsBucket,
+			err,
+		)
+	}
+
+	if partition == "" {
+		return fmt.Errorf(
+			"AWS partition is empty - cannot grant access log delivery to S3 bucket %s",
+			logsBucket,
+		)
+	}
+
+	policy, err := awshelper.MarshalPolicy(AccessLogDeliveryPolicy(partition, accountID, logsBucket))
+	if err != nil {
+		return fmt.Errorf("error marshalling policy for bucket %s: %w", logsBucket, err)
+	}
+
+	// The bucket was created moments ago and carries no policy of its own, so this writes the
+	// document whole rather than merging into what is already there.
+	if _, err := client.s3Client.PutBucketPolicy(ctx, &s3.PutBucketPolicyInput{
+		Bucket: aws.String(logsBucket),
+		Policy: aws.String(string(policy)),
+	}); err != nil {
+		return fmt.Errorf(
+			"error granting s3:PutObject to S3 Log Delivery (%s) for bucket %s: %w",
+			s3LogDeliveryServicePrincipal,
+			logsBucket,
+			err,
+		)
+	}
+
+	return nil
+}
+
+// AccessLogDeliveryPolicy builds the logs bucket policy that lets S3 deliver server access logs
+// into it on behalf of any bucket in the given account. AWS documents this policy, and recommends
+// it over the log delivery group ACL, at:
+// https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-bucket-policy
+//
+// The account condition is what blocks a caller in another account from steering its logs here.
+// AWS pairs it with an `aws:SourceArn` condition naming the source bucket, which is left out here:
+// that would pin the policy to the single state bucket that happened to trigger the logs bucket's
+// creation, and Terragrunt writes this policy only once, so every other state bucket pointed at
+// the same logs bucket would go undelivered.
+func AccessLogDeliveryPolicy(partition, accountID, logsBucket string) awshelper.Policy {
+	return awshelper.Policy{
+		Version: "2012-10-17",
+		Statement: []awshelper.Statement{
+			{
+				Sid:       SidAccessLogDelivery,
+				Effect:    "Allow",
+				Action:    "s3:PutObject",
+				Resource:  "arn:" + partition + ":s3:::" + logsBucket + "/*",
+				Principal: map[string]string{"Service": s3LogDeliveryServicePrincipal},
+				Condition: &map[string]any{
+					"StringEquals": map[string]any{"aws:SourceAccount": accountID},
+				},
+			},
+		},
+	}
 }
 
 // checkBucketAccess checks if the current user has the ability to access the S3 bucket keys.

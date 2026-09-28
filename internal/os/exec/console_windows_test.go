@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
@@ -114,9 +115,9 @@ func TestWindowsConsolePrepareStdinOnPipes(t *testing.T) {
 
 // TestWindowsConsoleVTProcessingOnCONOUT verifies that VT processing can be
 // toggled on a real console handle via raw API calls.
+//
+//nolint:paralleltest // subprocesses started by parallel tests change the shared console output mode
 func TestWindowsConsoleVTProcessingOnCONOUT(t *testing.T) {
-	t.Parallel()
-
 	conout := openConsoleOutput(t)
 	original := getMode(t, conout)
 
@@ -138,9 +139,9 @@ func TestWindowsConsoleVTProcessingOnCONOUT(t *testing.T) {
 // cycle using a real console handle from CONOUT$. This is the core regression
 // test: subprocesses like "terraform version" clear VT processing, and Restore
 // must bring it back.
+//
+//nolint:paralleltest // subprocesses started by parallel tests change the shared console output mode
 func TestWindowsConsoleSaveRestoreOnCONOUT(t *testing.T) {
-	t.Parallel()
-
 	conout := openConsoleOutput(t)
 	original := getMode(t, conout)
 
@@ -169,9 +170,9 @@ func TestWindowsConsoleSaveRestoreOnCONOUT(t *testing.T) {
 
 // TestWindowsConsoleStdinFlagsOnCONIN verifies stdin prompt flags can be
 // cleared and restored via raw API on a real console input handle.
+//
+//nolint:paralleltest // subprocesses started by parallel tests change the shared console input mode
 func TestWindowsConsoleStdinFlagsOnCONIN(t *testing.T) {
-	t.Parallel()
-
 	conin := openConsoleInput(t)
 	original := getMode(t, conin)
 
@@ -180,15 +181,14 @@ func TestWindowsConsoleStdinFlagsOnCONIN(t *testing.T) {
 	required := uint32(
 		windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT,
 	)
+	withRequired := original | required
 
-	assert.Equal(t, required, original&required,
-		"a default console input handle should have LINE_INPUT, ECHO_INPUT, PROCESSED_INPUT")
-
-	setMode(t, conin, original&^required)
+	setMode(t, conin, withRequired)
+	setMode(t, conin, withRequired&^required)
 	assert.Equal(t, uint32(0), getMode(t, conin)&required,
 		"required flags should be cleared after corruption")
 
-	setMode(t, conin, original)
+	setMode(t, conin, withRequired)
 	assert.Equal(t, required, getMode(t, conin)&required,
 		"required flags should be restored")
 }
@@ -235,9 +235,9 @@ func TestWindowsConsoleRestoreClearsVirtualTerminalInput(
 // TestWindowsConsoleSubprocessSaveRestore is an integration test that runs a
 // real subprocess and verifies the save→subprocess→restore pattern preserves
 // console modes. Uses CONOUT$ for a real console handle.
+//
+//nolint:paralleltest // subprocesses started by parallel tests change the shared console output mode
 func TestWindowsConsoleSubprocessSaveRestore(t *testing.T) {
-	t.Parallel()
-
 	conout := openConsoleOutput(t)
 	original := getMode(t, conout)
 
@@ -248,7 +248,7 @@ func TestWindowsConsoleSubprocessSaveRestore(t *testing.T) {
 
 	before := getMode(t, conout)
 
-	cmd := exec.Command(t.Context(), vexec.NewOSExec(), "cmd.exe", "/C", "echo hello")
+	cmd := exec.Command(t.Context(), venvtest.New().WithExec(vexec.NewOSExec()), "cmd.exe", "/C", "echo hello")
 	cmd.SetStdout(nil)
 	cmd.SetStderr(nil)
 

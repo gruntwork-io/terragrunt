@@ -2,6 +2,8 @@ package getter
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
 // SourceResolver is re-exported so callers configuring CASGetter only
@@ -16,37 +18,60 @@ type SourceResolver = cas.SourceResolver
 // The tfr resolver is always registered. CASGetter only claims tfr:// URLs
 // when the matching fetcher is registered (gated on [WithTFRConfig], since
 // [RegistryGetter] requires a logger at construction), so an unused tfr
-// resolver entry is harmless. Pass [WithTFRConfig] to align its logger and
-// tofu implementation with the fetcher so the probe and the fetch resolve
-// against the same registry host.
-func DefaultSourceResolvers(opts ...GenericFetcherOption) map[string]SourceResolver {
+// resolver entry is harmless. Pass [WithDispatchLogger], [WithDispatchFS], and
+// [WithTFRConfig] to align its logger and tofu implementation with the fetcher
+// so the probe and the fetch resolve against the same registry host, and
+// [WithDispatchVenv] so the probe carries the same registry credentials.
+//
+// Every resolver rides v: the http, https, and tfr probes go over its client
+// and the hg resolver spawns `hg` through its executor. A caller overriding the
+// probe client passes a venv carrying it ([venv.Venv.WithHTTP]), which is what
+// [WithDefaultGenericDispatch] does.
+func DefaultSourceResolvers(
+	v *venv.Venv,
+	opts ...GenericFetcherOption,
+) map[string]SourceResolver {
+	v.RequireExec()
+	v.RequireHTTP()
+
 	var cfg genericFetcherConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	tfr := NewTFRResolver()
-	if cfg.tfrLogger != nil {
-		tfr.WithLogger(cfg.tfrLogger)
+	tfr := NewTFRResolver().
+		WithHTTPClient(vhttp.WithTimeout(v.HTTP, tfrResolverTimeout)).
+		WithAuth(NewRegistryAuth(dispatchVenv(v, &cfg)))
+
+	if cfg.tfrEnabled {
+		requireLoggerFS(&cfg, SchemeTFR)
+		tfr.WithLogger(cfg.logger)
 	}
 
 	if cfg.tfrImpl != "" {
 		tfr.WithTofuImplementation(cfg.tfrImpl)
 	}
 
+	probeClient := vhttp.WithTimeout(v.HTTP, httpResolverTimeout)
+
+	httpRes := NewHTTPResolver()
+	httpRes.Client = probeClient
+
+	httpsRes := NewHTTPSResolver()
+	httpsRes.Client = probeClient
+
 	resolvers := map[string]SourceResolver{
-		SchemeHTTP:  NewHTTPResolver(),
-		SchemeHTTPS: NewHTTPSResolver(),
-		SchemeS3:    NewS3Resolver(),
-		SchemeGCS:   NewGCSResolver(),
-		SchemeHg:    NewHgResolver(),
+		SchemeHTTP:  httpRes,
+		SchemeHTTPS: httpsRes,
+		SchemeS3:    NewS3Resolver(v),
+		SchemeGCS:   NewGCSResolver(v),
+		SchemeHg:    NewHgResolver(v.Exec),
 		SchemeTFR:   tfr,
 	}
 
-	// Registered only alongside the oci fetcher, sharing its store seam so
-	// probe and fetch use one credential discovery and auth cache.
-	if cfg.ociLogger != nil {
-		resolvers[SchemeOCI] = NewOCIResolver(cfg.ociNewStore)
+	if cfg.ociHolder != nil {
+		requireLoggerFS(&cfg, SchemeOCI)
+		resolvers[SchemeOCI] = NewOCIResolver(cfg.logger, cfg.ociHolder.store(cfg.logger))
 	}
 
 	return resolvers

@@ -34,14 +34,13 @@ type Client struct {
 // NewClient inits GCS client.
 func NewClient(
 	ctx context.Context,
-	v venv.Venv,
+	v *venv.Venv,
 	config *ExtendedRemoteStateConfigGCS,
 	opts *backend.Options,
 ) (*Client, error) {
 	gcsClient, err := gcphelper.NewGCPConfigBuilder().
 		WithSessionConfig(config.GetGCPSessionConfig()).
-		WithEnv(v.Env).
-		BuildGCSClient(ctx)
+		BuildGCSClient(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +58,7 @@ func NewClient(
 func (client *Client) CreateGCSBucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	bucketName string,
 	opts *backend.Options,
 ) error {
@@ -88,13 +87,7 @@ func (client *Client) CreateGCSBucketIfNecessary(
 		bucketName,
 	)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 	if err != nil {
 		return err
 	}

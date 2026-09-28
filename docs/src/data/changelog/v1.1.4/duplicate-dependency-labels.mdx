@@ -1,0 +1,35 @@
+---
+version: "v1.1.4"
+category: "new-features"
+---
+
+#### `duplicate-dependency-labels` strict control
+
+Declaring two `dependency` blocks with the same label in one `terragrunt.hcl` configuration file parsed without error, and then quietly resolved every reference to that label to whichever block came last. The blocks before it were silently overridden:
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc-us-east-1"
+}
+
+dependency "vpc" {
+  config_path = "../vpc-us-west-2"
+}
+
+inputs = {
+  # Reads ../vpc-us-west-2.
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+Terragrunt now warns when it finds this. With the new [`duplicate-dependency-labels`](/reference/strict-controls/active#duplicate-dependency-labels) strict control enabled, the warning becomes an error naming the address the blocks share:
+
+```bash
+terragrunt run plan --strict-control duplicate-dependency-labels
+```
+
+```text
+/path/to/terragrunt.hcl: dependency vpc is declared more than once; every dependency needs an address of its own
+```
+
+Give each block a label of its own. A configuration that was relying on the shadowing to pick the last block should keep only that block.

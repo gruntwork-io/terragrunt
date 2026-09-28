@@ -42,7 +42,7 @@ func TestBoolFlagApply(t *testing.T) {
 		{
 			flag:          clihelper.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
 			args:          nil,
-			envs:          nil,
+			envs:          map[string]string{},
 			expectedValue: false,
 			expectedErr:   nil,
 		},
@@ -60,14 +60,14 @@ func TestBoolFlagApply(t *testing.T) {
 		{
 			flag:          clihelper.BoolFlag{Name: "foo", Destination: new(true)},
 			args:          nil,
-			envs:          nil,
+			envs:          map[string]string{},
 			expectedValue: true,
 			expectedErr:   nil,
 		},
 		{
 			flag:          clihelper.BoolFlag{Name: "foo", Destination: new(true), Negative: true},
 			args:          []string{"--foo"},
-			envs:          nil,
+			envs:          map[string]string{},
 			expectedValue: false,
 			expectedErr:   nil,
 		},
@@ -98,7 +98,7 @@ func TestBoolFlagApply(t *testing.T) {
 		{
 			flag:          clihelper.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
 			args:          []string{"--foo", "--foo"},
-			envs:          nil,
+			envs:          map[string]string{},
 			expectedValue: false,
 			expectedErr:   errors.New(`invalid boolean flag foo: setting the flag multiple times`),
 		},
@@ -150,22 +150,10 @@ func testBoolFlagApply(
 
 	expectedDefaultValue = strconv.FormatBool(*flag.Destination)
 
-	flag.LookupEnvFunc = func(key string) []string {
-		if envs == nil {
-			return nil
-		}
-
-		if val, ok := envs[key]; ok {
-			return []string{val}
-		}
-
-		return nil
-	}
-
 	flagSet := libflag.NewFlagSet("test-cmd", libflag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	err := flag.Apply(flagSet)
+	err := flag.Apply(flagSet, envs)
 	if err == nil {
 		err = flagSet.Parse(args)
 	}

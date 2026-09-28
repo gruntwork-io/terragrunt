@@ -31,7 +31,7 @@ func TestWindowsFilterNativeSeparators(t *testing.T) {
 			c := component.NewUnit("apps/app1")
 
 			l := logger.CreateLogger()
-			result, err := filter.Evaluate(l, expr, []component.Component{c})
+			result, err := filter.Evaluate(l, filter.EvaluationContext{}, expr, []component.Component{c})
 			require.NoError(t, err)
 			assert.Len(t, result, 1)
 		},
@@ -44,7 +44,7 @@ func TestWindowsFilterNativeSeparators(t *testing.T) {
 		expr := mustAttr(t, "reading", "shared/config.hcl")
 
 		l := logger.CreateLogger()
-		result, err := filter.Evaluate(l, expr, []component.Component{c})
+		result, err := filter.Evaluate(l, filter.EvaluationContext{}, expr, []component.Component{c})
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 	})
@@ -62,7 +62,7 @@ func TestWindowsFilterNativeSeparators(t *testing.T) {
 		expr := mustAttr(t, "source", "**/IaC/modules/sns")
 
 		l := logger.CreateLogger()
-		result, err := filter.Evaluate(l, expr, []component.Component{c})
+		result, err := filter.Evaluate(l, filter.EvaluationContext{}, expr, []component.Component{c})
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 	})

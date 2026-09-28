@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -112,7 +111,7 @@ type PhaseInput struct {
 type Phase interface {
 	Name() string
 	Kind() PhaseKind
-	Run(ctx context.Context, l log.Logger, v venv.Venv, input *PhaseInput) (*PhaseResults, error)
+	Run(ctx context.Context, l log.Logger, v *venv.Venv, input *PhaseInput) (*PhaseResults, error)
 }
 
 // Discovery is the main configuration for discovery.
@@ -123,20 +122,43 @@ type Discovery struct {
 	// worktrees is the worktrees created for Git-based filters.
 	worktrees *worktrees.Worktrees
 
-	// workingDir is the directory to search for Terragrunt configurations.
+	// workingDir is the logical working directory for filter evaluation and display paths.
 	workingDir string
 
-	// gitRoot is the git repository root, used as boundary for dependent discovery.
+	// walkRoot overrides the filesystem walk root when set. The filesystem
+	// phase walks walkRoot instead of workingDir, while workingDir stays the
+	// logical base for relative path filters and display paths. Empty means
+	// the walk starts at workingDir.
+	walkRoot string
+
+	// resolvedWorkingDir is workingDir with symlinks resolved, which is how
+	// boundaries and dependency paths name it. Discover fills it in before any
+	// phase runs.
+	resolvedWorkingDir string
+
+	// gitRoot is the detected git repository root: the default ceiling for the
+	// upstream dependent walk. It is detected lazily and only when needed, so
+	// it stays empty when a discoveryBoundary is set (see
+	// [Discovery.dependentWalkBoundary]).
 	gitRoot string
+
+	// discoveryBoundary is the user-supplied --discovery-boundary enclosure (resolved
+	// to an absolute path). When set, it caps the dependent walk in place of
+	// gitRoot and prunes dependencies that resolve outside it. Empty unless
+	// --discovery-boundary is set.
+	discoveryBoundary string
+
+	// discoveryBoundaryInput is --discovery-boundary as given, which Git targets resolve against their worktree root.
+	discoveryBoundaryInput string
+
+	// worktreeGitRoot is the Git root that absolute boundaries are mirrored from into worktrees.
+	worktreeGitRoot string
 
 	// graphTarget is the target path for graph filtering (prune to target + dependents).
 	graphTarget string
 
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string
-
-	// parserOptions are custom HCL parser options to use when parsing during discovery.
-	parserOptions []hclparse.Option
 
 	// filters contains filter queries for component selection.
 	filters filter.Filters
@@ -168,6 +190,14 @@ type Discovery struct {
 
 	// readFiles determines whether to parse for reading files.
 	readFiles bool
+
+	// trackReads determines whether parsing records the files each component
+	// reads. Recording them costs a walk of every local module source, so it
+	// stays off until something asks to see them.
+	trackReads bool
+
+	// parseStackConfigs determines whether to parse discovered stack config files.
+	parseStackConfigs bool
 
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool

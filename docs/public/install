@@ -51,6 +51,8 @@ readonly GITHUB_REPO="gruntwork-io/terragrunt"
 readonly GPG_KEY_URL="https://gruntwork.io/.well-known/pgp-key.txt"
 readonly DEFAULT_INSTALL_DIR="${HOME}/.terragrunt/bin"
 readonly BINARY_NAME="terragrunt"
+CURL_OPTS=(--proto '=https' --tlsv1.2 --connect-timeout 10 --retry 3 --retry-delay 1 --speed-limit 1024 --speed-time 30)
+
 # Minimum version that has signed release assets (GPG and Cosign)
 readonly MIN_SIGNED_VERSION="0.98.0"
 # Minimum version published as an immutable release with a release attestation
@@ -249,7 +251,7 @@ get_latest_version() {
     # Method 1: Use redirect URL (higher rate limits than API)
     # GitHub redirects /releases/latest to /releases/tag/vX.Y.Z
     local redirect_url
-    if redirect_url=$(curl -fsI "https://github.com/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep -i '^location:' | tr -d '\r'); then
+    if redirect_url=$(curl "${CURL_OPTS[@]}" -fsI "https://github.com/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep -i '^location:' | tr -d '\r'); then
         version=$(echo "$redirect_url" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
         if [[ -n "$version" ]]; then
             echo "$version"
@@ -258,7 +260,7 @@ get_latest_version() {
     fi
 
     # Method 2: Fallback to GitHub API (may hit rate limits: 60 req/hour unauthenticated)
-    if version=$(curl -fsL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4); then
+    if version=$(curl "${CURL_OPTS[@]}" -fsL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4); then
         if [[ -n "$version" ]]; then
             echo "$version"
             return 0
@@ -268,6 +270,14 @@ get_latest_version() {
     abort "Could not determine latest version.
 This may be due to GitHub API rate limits (60 requests/hour).
 Specify a version manually with -v, e.g.: -v v0.72.5"
+}
+
+init_curl_opts() {
+    if curl --help all 2>/dev/null | grep -q -- '--retry-all-errors'; then
+        CURL_OPTS+=(--retry-all-errors)
+    fi
+
+    readonly CURL_OPTS
 }
 
 validate_version() {
@@ -284,7 +294,7 @@ download_file() {
     local description="$3"
 
     info "Downloading $description..."
-    if ! curl -sL --fail "$url" -o "$output" 2>/dev/null; then
+    if ! curl "${CURL_OPTS[@]}" -sL --fail "$url" -o "$output" 2>/dev/null; then
         abort "Failed to download $description from: $url"
     fi
 }
@@ -452,7 +462,7 @@ verify_gpg() {
     if [[ ! -f "$sig_path" ]]; then
         local sig_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.gpgsig"
         info "Downloading GPG signature..."
-        if ! curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null; then
+        if ! curl "${CURL_OPTS[@]}" -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null; then
             warn "Failed to download GPG signature file"
             return 1
         fi
@@ -463,7 +473,7 @@ verify_gpg() {
     chmod 700 "$gnupg_home"
 
     info "Importing Gruntwork GPG key..."
-    if ! curl -sL "$GPG_KEY_URL" | GNUPGHOME="$gnupg_home" gpg --import 2>/dev/null; then
+    if ! curl "${CURL_OPTS[@]}" -sL --fail "$GPG_KEY_URL" | GNUPGHOME="$gnupg_home" gpg --import 2>/dev/null; then
         warn "Failed to import GPG key"
         return 1
     fi
@@ -486,7 +496,7 @@ verify_cosign() {
     # Download bundle if not already present (tip/test builds pre-download it)
     if [[ ! -f "$bundle_path" ]]; then
         local bundle_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.sigstore.json"
-        curl -sL --fail "$bundle_url" -o "$bundle_path" 2>/dev/null || true
+        curl "${CURL_OPTS[@]}" -sL --fail "$bundle_url" -o "$bundle_path" 2>/dev/null || true
     fi
 
     if [[ -f "$bundle_path" ]]; then
@@ -505,11 +515,11 @@ verify_cosign() {
     local cert_path="${tmpdir}/SHA256SUMS.pem"
 
     info "Downloading Cosign signature files..."
-    curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null || {
+    curl "${CURL_OPTS[@]}" -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null || {
         warn "Failed to download Cosign signature file"
         return 1
     }
-    curl -sL --fail "$cert_url" -o "$cert_path" 2>/dev/null || {
+    curl "${CURL_OPTS[@]}" -sL --fail "$cert_url" -o "$cert_path" 2>/dev/null || {
         warn "Failed to download Cosign certificate file"
         return 1
     }
@@ -752,6 +762,8 @@ Commit SHA must be 7-40 hexadecimal characters"
 check_dependencies() {
     command -v curl &>/dev/null || abort "curl is required but not installed.
 Please install curl and try again."
+
+    init_curl_opts
 
     [[ "$VERIFY_SHA" == true ]] && ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null &&
         abort "Neither sha256sum nor shasum found.

@@ -9,8 +9,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -20,20 +20,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Run executes the configured terraform command against the dependency
 // graph of the unit in the working directory.
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
-	// Get credentials BEFORE config parsing — sops_decrypt_file() and
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+	// Get credentials BEFORE config parsing: sops_decrypt_file() and
 	// get_aws_account_id() in locals need auth-provider credentials
 	// available in v.Env during HCL evaluation.
 	// *Getter discarded: graph.Run only needs creds in v.Env for initial config parse.
-	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
+	// Per-unit creds are re-fetched by the runner's unit task (intentional: each unit may have
 	// different opts after clone).
-	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
+	shellOpts := configbridge.ShellRunOptsFromOpts(v.Env, opts)
 	if _, err := creds.ObtainCredsForParsing(
 		ctx,
 		l,
@@ -44,10 +43,9 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 		return err
 	}
 
-	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	pctx := configbridge.NewParsingContext(opts)
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
+	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
 		return err
 	}
@@ -65,7 +63,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, v, opts.WorkingDir)
+		gitRoot, gitRootErr := git.GoRepoRoot(ctx, v, opts.WorkingDir)
 		if gitRootErr != nil {
 			return gitRootErr
 		}
@@ -78,11 +76,9 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 	graphOpts := opts.Clone()
 	graphOpts.RootWorkingDir = rootDir
 
-	runnerOpts := make([]common.Option, 0, 1)
-
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+	if !stdout.ShouldColor(l, v) {
 		r.WithDisableColor()
 	}
 
@@ -132,7 +128,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 		}()
 	}
 
-	rnr, err := runner.NewStackRunner(ctx, l, v, graphOpts, runnerOpts...)
+	rnr, err := runner.New(ctx, l, v, graphOpts)
 	if err != nil {
 		return err
 	}

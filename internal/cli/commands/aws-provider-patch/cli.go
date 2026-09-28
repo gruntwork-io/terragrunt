@@ -68,12 +68,12 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	}
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	control := controls.NewDeprecatedCommand(CommandName)
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).
 		AddSubcontrols(control)
 
-	cmdFlags := append(runcmd.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...)
+	cmdFlags := append(runcmd.NewFlags(l, opts, v, nil), NewFlags(l, opts, nil)...)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))
 
 	cmd := &clihelper.Command{

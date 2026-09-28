@@ -1,0 +1,325 @@
+package azurerm_test
+
+import (
+	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestExtendedAzurermConfig_ParsesFields(t *testing.T) {
+	t.Parallel()
+
+	ext, err := fullConfig().ExtendedAzurermConfig()
+	require.NoError(t, err)
+
+	rs := ext.RemoteStateConfigAzurerm
+	assert.Equal(t, "tfstate1234", rs.StorageAccountName)
+	assert.Equal(t, "tfstate", rs.ContainerName)
+	assert.Equal(t, "prod/terraform.tfstate", rs.Key)
+	assert.Equal(t, "rg-state", rs.ResourceGroupName)
+	require.NotNil(t, rs.UseAzureADAuth)
+	assert.True(t, *rs.UseAzureADAuth)
+
+	assert.Equal(t, "eastus", ext.Location)
+	assert.Equal(t, "Standard", ext.AccountTier)
+	assert.Equal(t, "LRS", ext.AccountReplicationType)
+	assert.Equal(t, "TLS1_3", ext.MinimumTLSVersion)
+	assert.True(t, ext.EnableSoftDelete)
+	assert.Equal(t, 14, ext.SoftDeleteRetentionDays)
+	assert.Equal(t, map[string]string{"team": "platform"}, ext.Tags)
+}
+
+func TestExtendedAzurermConfig_Validation(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		mutate    func(azurerm.Config)
+		name      string
+		wantError bool
+	}{
+		{name: "valid", mutate: func(azurerm.Config) {}, wantError: false},
+		{
+			name:      "missing storage_account_name",
+			mutate:    func(c azurerm.Config) { delete(c, "storage_account_name") },
+			wantError: true,
+		},
+		{
+			name:      "missing container_name",
+			mutate:    func(c azurerm.Config) { delete(c, "container_name") },
+			wantError: true,
+		},
+		{name: "missing key", mutate: func(c azurerm.Config) { delete(c, "key") }, wantError: true},
+		{
+			name: "missing resource_group is fine when skipping account creation",
+			mutate: func(c azurerm.Config) {
+				delete(c, "resource_group_name")
+				c["skip_storage_account_creation"] = true
+			},
+			wantError: false,
+		},
+		// resource_group_name is not required at validation time; it is enforced
+		// at the ARM call site, so a data-plane (SAS/access-key) config without it
+		// still parses cleanly.
+		{
+			name:      "missing resource_group is allowed at validation",
+			mutate:    func(c azurerm.Config) { delete(c, "resource_group_name") },
+			wantError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := fullConfig()
+			tc.mutate(cfg)
+
+			_, err := cfg.ExtendedAzurermConfig()
+			if tc.wantError {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestGetTFInitArgs_StripsTerragruntOnlyKeys(t *testing.T) {
+	t.Parallel()
+
+	args := fullConfig().GetTFInitArgs()
+
+	// Backend keys are forwarded.
+	assert.Equal(t, "tfstate1234", args["storage_account_name"])
+	assert.Equal(t, "tfstate", args["container_name"])
+	assert.Equal(t, "prod/terraform.tfstate", args["key"])
+	assert.Equal(t, "rg-state", args["resource_group_name"])
+
+	// Terragrunt-only bootstrap keys are stripped (the azurerm backend rejects them).
+	for _, k := range []string{
+		"location", "account_tier", "account_replication_type", "account_kind",
+		"access_tier", "minimum_tls_version", "tags", "skip_resource_group_creation", "skip_storage_account_creation",
+		"skip_container_creation", "skip_versioning", "enable_soft_delete",
+		"soft_delete_retention_days", "allow_blob_public_access",
+		"assign_blob_data_role", "principal_id",
+	} {
+		_, ok := args[k]
+		assert.Falsef(t, ok, "terragrunt-only key %q must not be forwarded to tofu init", k)
+	}
+}
+
+func TestGetAzureSessionConfig_Mapping(t *testing.T) {
+	t.Parallel()
+
+	ext, err := fullConfig().ExtendedAzurermConfig()
+	require.NoError(t, err)
+
+	sess := ext.GetAzureSessionConfig()
+	assert.Equal(t, "tfstate1234", sess.StorageAccountName)
+	assert.Equal(t, "rg-state", sess.ResourceGroupName)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000000", sess.SubscriptionID)
+	require.NotNil(t, sess.UseAzureADAuth)
+	assert.True(t, *sess.UseAzureADAuth)
+}
+
+func TestStorageAccountConfig_MapsMinimumTLSVersion(t *testing.T) {
+	t.Parallel()
+
+	ext, err := fullConfig().ExtendedAzurermConfig()
+	require.NoError(t, err)
+
+	sa := ext.StorageAccountConfig()
+	assert.Equal(t, "TLS1_3", sa.MinimumTLSVersion, "minimum_tls_version must reach the storage account config")
+}
+
+func TestGetTFInitArgs_EmptyConfig(t *testing.T) {
+	t.Parallel()
+
+	args := azurerm.Config(backend.Config{}).GetTFInitArgs()
+	assert.Empty(t, args)
+}
+
+func TestGetTFInitArgs_NormalizesSnapshotBool(t *testing.T) {
+	t.Parallel()
+
+	cfg := fullConfig()
+	cfg["snapshot"] = "true"
+
+	args := cfg.GetTFInitArgs()
+
+	v, ok := args["snapshot"].(bool)
+	require.True(t, ok, "snapshot must be coerced to a bool before tofu init")
+	assert.True(t, v)
+}
+
+func TestRemoteStateConfigCacheKey(t *testing.T) {
+	t.Parallel()
+
+	keyFor := func(environment string) string {
+		raw := fullConfig()
+		if environment != "" {
+			raw["environment"] = environment
+		}
+
+		ext, err := raw.ExtendedAzurermConfig()
+		require.NoError(t, err)
+
+		return ext.RemoteStateConfigAzurerm.CacheKey()
+	}
+
+	// The account and container must both appear, so distinct containers in one
+	// account never collide.
+	assert.Contains(t, keyFor(""), "tfstate1234")
+	assert.Contains(t, keyFor(""), "tfstate")
+
+	// Aliases of one cloud share a key.
+	assert.Equal(t, keyFor(""), keyFor("public"))
+	assert.Equal(t, keyFor("public"), keyFor("AzurePublicCloud"))
+
+	// Different sovereign clouds must NOT share a key, or the second unit would
+	// skip its initialization checks against a different account entirely.
+	assert.NotEqual(t, keyFor("public"), keyFor("usgovernment"))
+	assert.NotEqual(t, keyFor("public"), keyFor("china"))
+}
+func fullConfig() azurerm.Config {
+	return azurerm.Config{
+		"storage_account_name": "tfstate1234",
+		"container_name":       "tfstate",
+		"key":                  "prod/terraform.tfstate",
+		"resource_group_name":  "rg-state",
+		"subscription_id":      "00000000-0000-0000-0000-000000000000",
+		"use_azuread_auth":     true,
+		// Terragrunt-only bootstrap keys (must NOT be forwarded to tofu):
+		"location":                   "eastus",
+		"account_tier":               "Standard",
+		"account_replication_type":   "LRS",
+		"minimum_tls_version":        "TLS1_3",
+		"skip_versioning":            false,
+		"enable_soft_delete":         true,
+		"soft_delete_retention_days": 14,
+		"tags":                       map[string]string{"team": "platform"},
+		"assign_blob_data_role":      true,
+		"principal_id":               "11111111-2222-3333-4444-555555555555",
+	}
+}
+
+// TestParseExtendedAzurermConfig_TrimsWhitespace pins that config values are
+// normalized at parse time. azurehelper trims the values it resolves, so an
+// untrimmed value here would validate and then fail downstream on a mismatch
+// against the trimmed value the Azure clients are bound to.
+func TestParseExtendedAzurermConfig_TrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
+	cfg := azurerm.Config{
+		"storage_account_name": "  tfstate1234\n",
+		"container_name":       " tfstate ",
+		"key":                  " unit/terraform.tfstate ",
+		"resource_group_name":  "\trg\t",
+		"location":             " eastus ",
+		"minimum_tls_version":  " TLS1_2 ",
+	}
+
+	ext, err := cfg.ParseExtendedAzurermConfig()
+	require.NoError(t, err)
+
+	rs := ext.RemoteStateConfigAzurerm
+	assert.Equal(t, "tfstate1234", rs.StorageAccountName)
+	assert.Equal(t, "tfstate", rs.ContainerName)
+	assert.Equal(t, "unit/terraform.tfstate", rs.Key)
+	assert.Equal(t, "rg", rs.ResourceGroupName)
+	assert.Equal(t, "eastus", ext.Location)
+	assert.Equal(t, "TLS1_2", ext.MinimumTLSVersion)
+}
+
+// TestValidate_RejectsWhitespaceOnlyRequiredKeys pins that a whitespace-only
+// required value is a validation error, not a downstream panic.
+func TestValidate_RejectsWhitespaceOnlyRequiredKeys(t *testing.T) {
+	t.Parallel()
+
+	cfg := azurerm.Config{
+		"storage_account_name": "   ",
+		"container_name":       "tfstate",
+		"key":                  "unit/terraform.tfstate",
+	}
+
+	ext, err := cfg.ParseExtendedAzurermConfig()
+	require.NoError(t, err)
+	require.Error(t, ext.Validate(), "a whitespace-only storage_account_name must be rejected")
+}
+
+// TestExtendedCacheKey_IsPolicyAware pins that the bootstrap cache identity
+// covers the policies bootstrap converges. Without this, two units naming the
+// same container with conflicting versioning or soft-delete settings would
+// share one "already initialized" entry and the second would silently inherit
+// the first unit's convergence instead of applying its own.
+func TestExtendedCacheKey_IsPolicyAware(t *testing.T) {
+	t.Parallel()
+
+	keyFor := func(mutate func(azurerm.Config)) string {
+		raw := fullConfig()
+		mutate(raw)
+
+		ext, err := raw.ExtendedAzurermConfig()
+		require.NoError(t, err)
+
+		return ext.CacheKey()
+	}
+
+	base := keyFor(func(azurerm.Config) {})
+
+	// Same config resolves to the same identity.
+	assert.Equal(t, base, keyFor(func(azurerm.Config) {}))
+
+	// Each converged policy must change the identity.
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["skip_versioning"] = true }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["enable_soft_delete"] = false }))
+	assert.NotEqual(
+		t,
+		base,
+		keyFor(func(c azurerm.Config) { c["soft_delete_retention_days"] = 30 }),
+	)
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["skip_container_creation"] = true }))
+
+	// The container identity is still part of it.
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["container_name"] = "other" }))
+	assert.NotEqual(t, base, keyFor(func(c azurerm.Config) { c["environment"] = "usgovernment" }))
+
+	// minimum_tls_version is a create-only property, not a policy that bootstrap
+	// converges on an existing account, so it must NOT change the cache identity
+	// (mirrors account_kind, account_tier, and access_tier).
+	assert.Equal(t, base, keyFor(func(c azurerm.Config) { c["minimum_tls_version"] = "TLS1_2" }))
+}
+
+// TestCacheKey_DistinguishesRoleAssignment pins that a unit asking for the
+// blob data role does not inherit the "already initialized" entry of a unit
+// that did not, which would silently skip the assignment.
+func TestCacheKey_DistinguishesRoleAssignment(t *testing.T) {
+	t.Parallel()
+
+	base := fullConfig()
+	base["assign_blob_data_role"] = false
+	delete(base, "principal_id")
+
+	withRole := fullConfig()
+	withRole["assign_blob_data_role"] = true
+	delete(withRole, "principal_id")
+
+	otherPrincipal := fullConfig()
+	otherPrincipal["assign_blob_data_role"] = true
+	otherPrincipal["principal_id"] = "99999999-8888-7777-6666-555555555555"
+
+	keyOf := func(c azurerm.Config) string {
+		ext, err := c.ExtendedAzurermConfig()
+		require.NoError(t, err)
+
+		return ext.CacheKey()
+	}
+
+	assert.NotEqual(t, keyOf(base), keyOf(withRole))
+	assert.NotEqual(t, keyOf(withRole), keyOf(otherPrincipal))
+}

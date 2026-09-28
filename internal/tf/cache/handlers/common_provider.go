@@ -3,28 +3,33 @@ package handlers
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/puzpuzpuz/xsync/v4"
 )
 
 type CommonProviderHandler struct {
-	logger log.Logger
+	logger     log.Logger
+	httpClient vhttp.Client
 
 	// discoveryURLCache stores discovered registry URLs
-	// We use [xsync.Map](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
-	// instead of standard `sync.Map` since it's faster and has generic types.
-	discoveryURLCache *xsync.Map[string, *RegistryURLs]
+	discoveryURLCache map[string]*RegistryURLs
 
 	// includeProviders and excludeProviders are sets of provider matching patterns that together define which providers are eligible to be potentially installed from the corresponding Source.
 	includeProviders models.Providers
 	excludeProviders models.Providers
+
+	discoveryURLCacheMu sync.Mutex
 }
 
 // NewCommonProviderHandler returns a new `CommonProviderHandler` instance with the defined values.
+// c is used for service-discovery requests; pass [vhttp.NewOSClient]
+// in production or a [vhttp.NewMemClient] in tests.
 func NewCommonProviderHandler(
-	logger log.Logger,
+	l log.Logger,
+	c vhttp.Client,
 	includes, excludes *[]string,
 ) *CommonProviderHandler {
 	var includeProviders, excludeProviders models.Providers
@@ -38,10 +43,11 @@ func NewCommonProviderHandler(
 	}
 
 	return &CommonProviderHandler{
-		logger:            logger,
+		logger:            l,
+		httpClient:        c,
 		includeProviders:  includeProviders,
 		excludeProviders:  excludeProviders,
-		discoveryURLCache: xsync.NewMap[string, *RegistryURLs](),
+		discoveryURLCache: make(map[string]*RegistryURLs),
 	}
 }
 
@@ -62,7 +68,10 @@ func (handler *CommonProviderHandler) SetDiscoveryURLCache(
 	registryName string,
 	urls *RegistryURLs,
 ) {
-	handler.discoveryURLCache.Store(registryName, urls)
+	handler.discoveryURLCacheMu.Lock()
+	defer handler.discoveryURLCacheMu.Unlock()
+
+	handler.discoveryURLCache[registryName] = urls
 }
 
 // DiscoveryURL implements ProviderHandler.DiscoveryURL.
@@ -70,11 +79,15 @@ func (handler *CommonProviderHandler) DiscoveryURL(
 	ctx context.Context,
 	registryName string,
 ) (*RegistryURLs, error) {
-	if urls, ok := handler.discoveryURLCache.Load(registryName); ok {
+	handler.discoveryURLCacheMu.Lock()
+	urls, ok := handler.discoveryURLCache[registryName]
+	handler.discoveryURLCacheMu.Unlock()
+
+	if ok {
 		return urls, nil
 	}
 
-	urls, err := DiscoveryURL(ctx, registryName)
+	urls, err := DiscoveryURL(ctx, handler.httpClient, registryName)
 	if err != nil {
 		if !IsOfflineError(err) {
 			return nil, err
@@ -91,7 +104,7 @@ func (handler *CommonProviderHandler) DiscoveryURL(
 		handler.logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)
 	}
 
-	handler.discoveryURLCache.Store(registryName, urls)
+	handler.SetDiscoveryURLCache(registryName, urls)
 
 	return urls, nil
 }

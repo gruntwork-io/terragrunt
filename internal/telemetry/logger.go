@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/log"
 
 	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 )
 
 const (
@@ -31,7 +31,12 @@ type Logger struct {
 
 // NewLogger creates and configures the logs collection. It returns nil when no
 // logs exporter is configured, matching the behaviour of [NewMeter] and [NewTracer].
-func NewLogger(ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options) (*Logger, error) {
+func NewLogger(
+	ctx context.Context,
+	appName, appVersion string,
+	writer io.Writer,
+	opts *Options,
+) (*Logger, error) {
 	exporter, err := NewLogsExporter(ctx, writer, opts)
 	if err != nil {
 		return nil, err
@@ -55,10 +60,8 @@ func NewLogger(ctx context.Context, appName, appVersion string, writer io.Writer
 }
 
 // NewLogsExporter creates a new logs exporter based on the telemetry options.
-// The structure mirrors NewMetricsExporter and NewTraceExporter; the per-signal
-// OTLP option types prevent sharing a single implementation.
 //
-//nolint:dupl
+//nolint:dupl // the per-signal OTLP option types prevent sharing one implementation
 func NewLogsExporter(ctx context.Context, writer io.Writer, opts *Options) (log.Exporter, error) {
 	exporterType := logsExporterType(opts.LogsExporter)
 	if exporterType == "" {
@@ -90,7 +93,11 @@ func NewLogsExporter(ctx context.Context, writer io.Writer, opts *Options) (log.
 }
 
 // newLogsProvider creates a new logs provider with the terragrunt resource attributes.
-func newLogsProvider(ctx context.Context, exp log.Exporter, appName, appVersion string) (*log.LoggerProvider, error) {
+func newLogsProvider(
+	ctx context.Context,
+	exp log.Exporter,
+	appName, appVersion string,
+) (*log.LoggerProvider, error) {
 	r, err := resource.New(ctx,
 		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithAttributes(

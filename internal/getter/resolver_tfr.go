@@ -2,14 +2,15 @@ package getter
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-cleanhttp"
 )
 
 // tfrResolverTimeout caps the registry probe so a slow registry can't
@@ -20,38 +21,44 @@ const tfrResolverTimeout = 10 * time.Second
 
 // TFRResolver is a [cas.SourceResolver] for tfr:// URLs.
 //
-// Probe resolves the source via the Terraform/OpenTofu registry's module
+// Probe resolves the source via the OpenTofu/Terraform registry's module
 // download endpoint and returns the resolved X-Terraform-Get URL as a
 // content-addressed cache key. That URL encodes the immutable underlying
 // archive (a versioned tarball, a git commit SHA, etc.), so two identical
 // tfr:// requests share one CAS entry while a republish under the same
 // version pins to a new key.
 type TFRResolver struct {
-	HTTPClient         *http.Client
+	HTTPClient         vhttp.Client
 	Logger             log.Logger
+	Auth               RegistryAuth
 	TofuImplementation tfimpl.Type
 }
 
 // NewTFRResolver returns a [TFRResolver] with sensible defaults: a
-// [github.com/hashicorp/go-cleanhttp.DefaultClient] capped at
-// [tfrResolverTimeout], [log.Default] for diagnostic output, and
-// [tfimpl.OpenTofu] as the default implementation.
+// [vhttp.NewOSClientWithTimeout] capped at [tfrResolverTimeout],
+// [log.Default] for diagnostic output, and [tfimpl.OpenTofu] as the
+// default implementation.
 func NewTFRResolver() *TFRResolver {
-	client := cleanhttp.DefaultClient()
-	client.Timeout = tfrResolverTimeout
-
 	return &TFRResolver{
-		HTTPClient:         client,
+		HTTPClient:         vhttp.NewOSClientWithTimeout(tfrResolverTimeout),
 		Logger:             log.Default(),
 		TofuImplementation: tfimpl.OpenTofu,
 	}
 }
 
 // WithHTTPClient overrides the HTTP client used for registry-protocol
-// requests. Intended for tests routing through a
-// [net/http/httptest.Server].
-func (r *TFRResolver) WithHTTPClient(c *http.Client) *TFRResolver {
+// requests. Intended for tests that swap in a [vhttp.NewMemClient]
+// handler to synthesize registry responses.
+func (r *TFRResolver) WithHTTPClient(c vhttp.Client) *TFRResolver {
 	r.HTTPClient = c
+	return r
+}
+
+// WithAuth sets the credentials the registry probe authenticates with.
+// Without it the probe sends no Authorization header at all, so a private
+// registry answers 401 and the fetch falls back to content hashing.
+func (r *TFRResolver) WithAuth(auth RegistryAuth) *TFRResolver {
+	r.Auth = auth
 	return r
 }
 
@@ -62,7 +69,8 @@ func (r *TFRResolver) WithLogger(l log.Logger) *TFRResolver {
 }
 
 // WithTofuImplementation selects which default registry domain is used
-// when a tfr:// URL omits its host. See [tfimpl.DefaultRegistryDomain].
+// when a tfr:// URL omits its host, and which implementation's CLI config
+// files supply registry credentials. See [tfimpl.DefaultRegistryDomain] and [RegistryAuth.Impl].
 func (r *TFRResolver) WithTofuImplementation(impl tfimpl.Type) *TFRResolver {
 	r.TofuImplementation = impl
 	return r
@@ -71,23 +79,49 @@ func (r *TFRResolver) WithTofuImplementation(impl tfimpl.Type) *TFRResolver {
 // Scheme returns "tfr".
 func (r *TFRResolver) Scheme() string { return SchemeTFR }
 
+// Pinned reports whether source names one exact module version, which a
+// registry publishes once. A constraint can start matching a newer
+// release.
+func (r *TFRResolver) Pinned(source redact.URL) bool {
+	u, err := url.Parse(source.Reveal())
+	if err != nil {
+		return false
+	}
+
+	versions, ok := u.Query()[versionQueryKey]
+	if !ok || len(versions) != 1 {
+		return false
+	}
+
+	return semver.IsExact(versions[0])
+}
+
+// resolverAuth returns r.Auth carrying the resolver's implementation, so credential
+// lookup reads the same implementation's CLI config files as registry-domain selection.
+func (r *TFRResolver) resolverAuth() RegistryAuth {
+	auth := r.Auth
+	auth.Impl = r.TofuImplementation
+
+	return auth
+}
+
 // Probe runs the registry's service-discovery + module-download protocol
-// against rawURL and returns the resolved X-Terraform-Get URL as a
+// against source and returns the resolved X-Terraform-Get URL as a
 // content-addressed cache key.
 //
 // Any failure — malformed URL, missing version query, registry error —
 // returns [cas.ErrNoVersionMetadata] so the fetch falls through to the
 // download-then-content-hash path. The underlying error surfaces on the
 // real fetch attempt.
-func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	srcURL, err := url.Parse(rawURL)
+func (r *TFRResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
+	srcURL, err := url.Parse(source.Reveal())
 	if err != nil || srcURL.Scheme != SchemeTFR {
 		return "", cas.ErrNoVersionMetadata
 	}
 
 	registryDomain := srcURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(r.TofuImplementation)
+		registryDomain = tfimpl.DefaultRegistryDomain(r.Auth.registryEnv(), r.TofuImplementation)
 	}
 
 	versionList, hasVersion := srcURL.Query()[versionQueryKey]
@@ -109,6 +143,7 @@ func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		ctx,
 		r.Logger,
 		r.HTTPClient,
+		r.resolverAuth(),
 		registryDomain,
 	)
 	if err != nil {
@@ -120,7 +155,7 @@ func (r *TFRResolver) Probe(ctx context.Context, rawURL string) (string, error) 
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.HTTPClient, moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, r.Logger, r.HTTPClient, r.resolverAuth(), moduleURL)
 	if err != nil {
 		return "", cas.ErrNoVersionMetadata
 	}

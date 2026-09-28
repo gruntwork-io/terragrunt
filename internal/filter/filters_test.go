@@ -1,6 +1,7 @@
 package filter_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -136,7 +137,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, components, result)
 	})
@@ -148,7 +149,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -173,7 +174,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -197,7 +198,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -224,7 +225,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -251,7 +252,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -274,7 +275,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -304,7 +305,7 @@ func TestFilters_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 
 		l := log.New()
-		result, err := filters.Evaluate(l, components)
+		result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
 		require.NoError(t, err)
 
 		expected := component.Components{
@@ -321,6 +322,155 @@ func TestFilters_Evaluate(t *testing.T) {
 
 		assert.ElementsMatch(t, expected, result)
 	})
+}
+
+// TestFilters_EvaluateCompoundNegation pins compound filters to the left-to-right intersection
+// documented for "|", so that a leading negation narrows the filter instead of turning the whole
+// query into a bare exclusion that lets unrelated components through.
+func TestFilters_EvaluateCompoundNegation(t *testing.T) {
+	t.Parallel()
+
+	newComponents := func() component.Components {
+		components := component.Components{
+			component.NewUnit("./apps/app1"),
+			component.NewUnit("./apps/app2"),
+			component.NewUnit("./apps/legacy"),
+			component.NewUnit("./libs/db"),
+			component.NewUnit("./libs/api"),
+		}
+
+		for _, c := range components {
+			c.SetDiscoveryContext(&component.DiscoveryContext{WorkingDir: "."})
+		}
+
+		return components
+	}
+
+	tests := []struct {
+		name     string
+		filters  []string
+		expected []string
+	}{
+		{
+			name:     "negation on the left still narrows to the right operand",
+			filters:  []string{"!name=app1 | ./apps/*"},
+			expected: []string{"./apps/app2", "./apps/legacy"},
+		},
+		{
+			name:     "operands that share no components select nothing",
+			filters:  []string{"!./apps/* | name=app1"},
+			expected: []string{},
+		},
+		{
+			name:     "negation on the right",
+			filters:  []string{"./apps/* | !name=legacy"},
+			expected: []string{"./apps/app1", "./apps/app2"},
+		},
+		{
+			name:     "negation on both operands",
+			filters:  []string{"!name=app1 | !name=app2"},
+			expected: []string{"./apps/legacy", "./libs/db", "./libs/api"},
+		},
+		{
+			name:     "three operands chained left to right",
+			filters:  []string{"!name=app1 | ./apps/* | !name=legacy"},
+			expected: []string{"./apps/app2"},
+		},
+		{
+			name:     "compound filter unions with another compound filter",
+			filters:  []string{"!name=app1 | ./apps/*", "!name=db | ./libs/*"},
+			expected: []string{"./apps/app2", "./apps/legacy", "./libs/api"},
+		},
+		{
+			name:     "bare negation subtracts from a compound filter's selection",
+			filters:  []string{"!name=app1 | ./apps/*", "!name=legacy"},
+			expected: []string{"./apps/app2"},
+		},
+		{
+			name:     "bare negation alone still starts from every component",
+			filters:  []string{"!name=app1"},
+			expected: []string{"./apps/app2", "./apps/legacy", "./libs/db", "./libs/api"},
+		},
+		{
+			name:     "chained negations subtract from another filter's selection",
+			filters:  []string{"./apps/*", "!name=legacy | !name=app2"},
+			expected: []string{"./apps/app1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := testLogger()
+
+			filters, err := filter.ParseFilterQueries(l, tt.filters)
+			require.NoError(t, err)
+
+			result, err := filters.Evaluate(l, filter.EvaluationContext{}, newComponents())
+			require.NoError(t, err)
+
+			assert.ElementsMatch(t, tt.expected, paths(result))
+
+			if len(tt.filters) != 1 {
+				return
+			}
+
+			// A single filter has no union or subtraction to arrange, so Filters.Evaluate owes
+			// the same answer as walking the filter's own AST.
+			direct, err := filters[0].Evaluate(l, filter.EvaluationContext{}, newComponents())
+			require.NoError(t, err)
+
+			assert.ElementsMatch(t, paths(direct), paths(result))
+		})
+	}
+}
+
+// TestFilters_EvaluateNegationsAreOrderIndependent pins that two filters that only exclude reach
+// the same result whichever order they arrive in. A negated graph expression can only find the
+// dependents to remove while its target is still in the set, so measuring each negation against
+// the leftovers of the last one would let the order of the flags change the answer.
+func TestFilters_EvaluateNegationsAreOrderIndependent(t *testing.T) {
+	t.Parallel()
+
+	orders := [][]string{
+		{"!name=db", "!...name=db"},
+		{"!...name=db", "!name=db"},
+	}
+
+	for _, order := range orders {
+		t.Run(strings.Join(order, " then "), func(t *testing.T) {
+			t.Parallel()
+
+			l := testLogger()
+
+			db := component.NewUnit("./libs/db")
+			app := component.NewUnit("./apps/app")
+			app.AddDependency(db)
+
+			components := component.Components{db, app}
+			for _, c := range components {
+				c.SetDiscoveryContext(&component.DiscoveryContext{WorkingDir: "."})
+			}
+
+			filters, err := filter.ParseFilterQueries(l, order)
+			require.NoError(t, err)
+
+			result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
+			require.NoError(t, err)
+
+			assert.Empty(t, paths(result), "excluding db and its dependents leaves nothing")
+		})
+	}
+}
+
+func paths(components component.Components) []string {
+	result := make([]string, 0, len(components))
+	for _, c := range components {
+		result = append(result, c.Path())
+	}
+
+	return result
 }
 
 func TestFilters_HasPositiveFilter(t *testing.T) {
@@ -1093,4 +1243,107 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 
 		assert.True(t, filters.HasPositiveFilter(), "Git-graph expression is a positive filter")
 	})
+}
+
+func TestFilters_RequiresReading(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		queries []string
+		want    bool
+	}{
+		{
+			name:    "no filters",
+			queries: nil,
+			want:    false,
+		},
+		{
+			name:    "path and name filters",
+			queries: []string{"./apps/*", "name=db"},
+			want:    false,
+		},
+		{
+			name:    "source filter parses but reads nothing",
+			queries: []string{"source=../modules/vpc"},
+			want:    false,
+		},
+		{
+			name:    "bare reading filter",
+			queries: []string{"reading=shared.hcl"},
+			want:    true,
+		},
+		{
+			name:    "negated reading filter",
+			queries: []string{"!reading=shared.hcl"},
+			want:    true,
+		},
+		{
+			name:    "reading filter as one operand",
+			queries: []string{"name=db | reading=shared.hcl"},
+			want:    true,
+		},
+		{
+			name:    "reading filter as a graph target",
+			queries: []string{"reading=shared.hcl..."},
+			want:    true,
+		},
+		{
+			name:    "reading filter alongside unrelated ones",
+			queries: []string{"./apps/*", "reading=shared.hcl"},
+			want:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			filters, err := filter.ParseFilterQueries(testLogger(), tc.queries)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, filters.RequiresReading())
+		})
+	}
+}
+
+func TestFilters_InlineDependentBoundaries(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		queries  []string
+		expected []string
+	}{
+		{name: "no boundary", queries: []string{"...{./app}"}},
+		{name: "dependent boundary", queries: []string{"(./live)...{./app}"}, expected: []string{"./live"}},
+		{name: "dependency boundary is skipped", queries: []string{"{./app}...(./live)"}},
+		{
+			name:     "dependent boundary of a two-way expression",
+			queries:  []string{"(./live)...{./app}...(./shared)"},
+			expected: []string{"./live"},
+		},
+		{
+			name:     "deduplicated across filters",
+			queries:  []string{"(./live)...{./app}", "(./live)...{./db}"},
+			expected: []string{"./live"},
+		},
+		{name: "negated boundary is skipped", queries: []string{"!(./live)...{./app}"}},
+		{
+			name:     "negated operand of an intersection is skipped",
+			queries:  []string{"(./live)...{./app} | !(./catalog)...{./db}"},
+			expected: []string{"./live"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			filters, err := filter.ParseFilterQueries(testLogger(), tc.queries)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected, filters.InlineDependentBoundaries())
+		})
+	}
 }

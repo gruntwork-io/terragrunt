@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -16,31 +16,50 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
-
-	"github.com/google/shlex"
-	"github.com/hashicorp/hcl/v2"
 
 	"maps"
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/view"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const splitCount = 2
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+	if opts.HCLValidateCheckDependencies {
+		if opts.HCLValidateShowConfigPath {
+			return fmt.Errorf(
+				"specifying both -%s and -%s is invalid",
+				ShowConfigPathFlagName,
+				CheckDependenciesFlagName,
+			)
+		}
+
+		if opts.HCLValidateJSONOutput {
+			return fmt.Errorf(
+				"specifying both -%s and -%s is invalid",
+				JSONFlagName,
+				CheckDependenciesFlagName,
+			)
+		}
+
+		// This command already reports every missing dependency, so the tip pointing at it would be redundant.
+		if tip := opts.Tips.Find(tips.MissingDependencyConfig); tip != nil {
+			tip.Disable()
+		}
+	}
+
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf(
@@ -71,46 +90,22 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 func RunValidate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
-	var diags diagnostic.Diagnostics
-
-	// Diagnostics handler to collect validation errors
-	diagnosticsHandler := hclparse.WithDiagnosticsHandler(
-		func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			for _, hclDiag := range hclDiags {
-				// Only report diagnostics that are actually in the file being parsed,
-				// not errors from dependencies or other files
-				if hclDiag.Subject != nil && file != nil {
-					fileFilename := file.Body.MissingItemRange().Filename
-
-					diagFilename := hclDiag.Subject.Filename
-					if diagFilename != fileFilename {
-						continue
-					}
-				}
-
-				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
-				if !diags.Contains(newDiag) {
-					diags = append(diags, newDiag)
-				}
-			}
-
-			return nil, nil
-		},
-	)
+	collector := &DiagnosticsCollector{}
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
 	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
 	})
 	if err != nil {
-		return processDiagnostics(l, v, opts, diags, err)
+		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
 	}
 
 	// We do worktree generation here instead of in the discovery constructor
@@ -120,6 +115,7 @@ func RunValidate(
 	worktrees, parseErr := worktrees.NewWorktrees(
 		ctx,
 		l,
+		v,
 		worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
@@ -131,7 +127,7 @@ func RunValidate(
 	}
 
 	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l)
+		cleanupErr := worktrees.Cleanup(ctx, l, v)
 		if cleanupErr != nil {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
@@ -141,80 +137,30 @@ func RunValidate(
 
 	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
-		return processDiagnostics(l, v, opts, diags, err)
+		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
 	}
 
-	parseOptions := []hclparse.Option{diagnosticsHandler}
+	parser := ComponentParser{
+		Collector:         collector,
+		Worktrees:         worktrees,
+		Options:           CollectorOnly,
+		CheckDependencies: opts.HCLValidateCheckDependencies,
+	}
 
 	parseErrs := []error{}
 
 	for _, c := range components {
-		parseOpts := opts.Clone()
-		parseOpts.WorkingDir = c.Path()
-
 		// Parsing can write obtained credentials into the env, so each
 		// component gets its own clone to keep them from leaking to siblings.
 		componentV := v.WithEnvCloned()
 
 		if _, ok := c.(*component.Stack); ok {
-			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
-			parseOpts.TerragruntConfigPath = stackFilePath
-
-			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parser = parser.WithVenv(componentV)
-
-			values, err := config.ReadValues(ctx, parser, l, c.Path())
-			if err != nil {
-				parseErrs = append(parseErrs, err)
-			}
-
-			parser = parser.WithParseOption(parseOptions)
-			if values != nil {
-				parser = parser.WithValues(values)
-			}
-
-			file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(stackFilePath)
-			if err != nil {
-				parseErrs = append(parseErrs, err)
-				continue
-			}
-
-			stackCfg, err := config.ParseStackConfig(ctx, l, parser, file, values)
-			if err != nil {
-				parseErrs = append(parseErrs, err)
-				continue
-			}
-
-			// The lenient stack decode above leaves autoinclude blocks unvalidated, so run the
-			// strict autoinclude parse `stack generate` uses. It no-ops unless the
-			// stack-dependencies experiment is enabled and the config declares autoinclude.
-			if err := config.ValidateStackAutoIncludes(
-				ctx,
-				l,
-				parser,
-				stackFilePath,
-				stackCfg,
-				values,
-			); err != nil {
-				parseErrs = append(parseErrs, err)
-			}
+			parseErrs = append(parseErrs, parser.Stack(ctx, l, componentV, opts, c.Path())...)
 
 			continue
 		}
 
-		// Determine which config filename to use for a full parse
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
-		}
-
-		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
-		parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
-
-		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
-		pctx = pctx.WithVenv(componentV)
-
-		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
+		if err := parser.Unit(ctx, l, componentV, opts, c.Path()); err != nil {
 			parseErrs = append(parseErrs, err)
 		}
 	}
@@ -224,12 +170,12 @@ func RunValidate(
 		combinedErr = errors.Join(parseErrs...)
 	}
 
-	return processDiagnostics(l, v, opts, diags, combinedErr)
+	return processDiagnostics(l, v, opts, collector.Diagnostics(), combinedErr)
 }
 
 func processDiagnostics(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	diags diagnostic.Diagnostics,
 	callErr error,
@@ -270,11 +216,11 @@ func processDiagnostics(
 
 func writeDiagnostics(
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	diags diagnostic.Diagnostics,
 ) error {
-	render := view.NewHumanRender(l.Formatter().DisabledColors())
+	render := view.NewHumanRender(v, l.Formatter().DisabledColors())
 	if opts.HCLValidateJSONOutput {
 		render = view.NewJSONRender()
 	}
@@ -291,7 +237,7 @@ func writeDiagnostics(
 func RunValidateInputs(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
 	opts = opts.Clone()
@@ -299,9 +245,10 @@ func RunValidateInputs(
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
 	})
 	if err != nil {
 		return err
@@ -314,6 +261,7 @@ func RunValidateInputs(
 	worktrees, worktreeErr := worktrees.NewWorktrees(
 		ctx,
 		l,
+		v,
 		worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
@@ -325,7 +273,7 @@ func RunValidateInputs(
 	}
 
 	defer func() {
-		cleanupErr := worktrees.Cleanup(ctx, l)
+		cleanupErr := worktrees.Cleanup(ctx, l, v)
 		if cleanupErr != nil {
 			l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 		}
@@ -370,6 +318,17 @@ func RunValidateInputs(
 			continue
 		}
 
+		if opts.HCLValidateCheckDependencies {
+			if depErr := dependencyErrors(
+				unitV.FS,
+				worktrees,
+				prepared.Cfg,
+				unitOpts.TerragruntConfigPath,
+			); depErr != nil {
+				errs = append(errs, depErr)
+			}
+		}
+
 		// Download source
 		updatedOpts, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
@@ -379,16 +338,17 @@ func RunValidateInputs(
 
 		// Generate config
 		if err := prepare.PrepareGenerate(
+			ctx,
 			l,
 			unitV,
 			updatedOpts,
-			prepared.Cfg.ToRunConfig(l),
+			prepared.Cfg.ToRunConfig(l, unitV.FS),
 		); err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		if err := runValidateInputs(l, unitV.Env, updatedOpts, prepared.Cfg); err != nil {
+		if err := runValidateInputs(l, unitV, updatedOpts, prepared.Cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -402,18 +362,16 @@ func RunValidateInputs(
 
 func runValidateInputs(
 	l log.Logger,
-	env map[string]string,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) error {
-	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
+	declared, err := tf.ModuleVariables(v.FS, opts.WorkingDir)
 	if err != nil {
 		return err
 	}
 
-	allVars := slices.Concat(required, optional)
-
-	allInputs, err := getDefinedTerragruntInputs(l, env, opts, cfg)
+	allInputs, err := getDefinedTerragruntInputs(l, v, opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -422,7 +380,7 @@ func runValidateInputs(
 	unusedVars := []string{}
 
 	for _, varName := range allInputs {
-		if !slices.Contains(allVars, varName) {
+		if _, ok := declared[varName]; !ok {
 			unusedVars = append(unusedVars, varName)
 		}
 	}
@@ -430,8 +388,8 @@ func runValidateInputs(
 	// Missing variables are those that are required by the terraform config, but not defined in terragrunt.
 	missingVars := []string{}
 
-	for _, varName := range required {
-		if !slices.Contains(allInputs, varName) {
+	for _, varName := range slices.Sorted(maps.Keys(declared)) {
+		if !declared[varName].HasDefault && !slices.Contains(allInputs, varName) {
 			missingVars = append(missingVars, varName)
 		}
 	}
@@ -489,24 +447,24 @@ func runValidateInputs(
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
 func getDefinedTerragruntInputs(
 	l log.Logger,
-	env map[string]string,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) ([]string, error) {
-	envVarTFVars := getTerraformInputNamesFromEnvVar(env, cfg)
+	envVarTFVars := getTerraformInputNamesFromEnvVar(v.Env, cfg)
 	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
 
-	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, cfg)
+	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, v.FS, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(l, opts, cfg)
+	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(l, v.FS, opts, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(l, opts)
+	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(l, v.FS, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -593,6 +551,7 @@ func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig)
 // extra_arguments block required_var_files and optional_var_files settings of the given terragrunt config.
 func getTerraformInputNamesFromVarFiles(
 	l log.Logger,
+	fsys vfs.FS,
 	terragruntConfig *config.TerragruntConfig,
 ) ([]string, error) {
 	if terragruntConfig.Terraform == nil {
@@ -601,10 +560,10 @@ func getTerraformInputNamesFromVarFiles(
 
 	varFiles := []string{}
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		varFiles = append(varFiles, arg.GetVarFiles(l)...)
+		varFiles = append(varFiles, arg.GetVarFiles(l, fsys)...)
 	}
 
-	return getVarNamesFromVarFiles(l, varFiles)
+	return getVarNamesFromVarFiles(l, fsys, varFiles)
 }
 
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
@@ -612,6 +571,7 @@ func getTerraformInputNamesFromVarFiles(
 // config and those that are directly passed in via the CLI.
 func getTerraformInputNamesFromCLIArgs(
 	l log.Logger,
+	fsys vfs.FS,
 	opts *options.TerragruntOptions,
 	terragruntConfig *config.TerragruntConfig,
 ) ([]string, error) {
@@ -634,7 +594,7 @@ func getTerraformInputNamesFromCLIArgs(
 		}
 	}
 
-	fileVars, err := getVarNamesFromVarFiles(l, varFiles)
+	fileVars, err := getVarNamesFromVarFiles(l, fsys, varFiles)
 	if err != nil {
 		return inputNames, err
 	}
@@ -647,45 +607,43 @@ func getTerraformInputNamesFromCLIArgs(
 // getTerraformInputNamesFromAutomaticVarFiles returns all the variables names
 func getTerraformInputNamesFromAutomaticVarFiles(
 	l log.Logger,
+	fsys vfs.FS,
 	opts *options.TerragruntOptions,
 ) ([]string, error) {
 	base := opts.WorkingDir
-	automaticVarFiles := []string{}
 
-	tfTFVarsFile := filepath.Join(base, "terraform.tfvars")
-	if util.FileExists(tfTFVarsFile) {
-		automaticVarFiles = append(automaticVarFiles, tfTFVarsFile)
-	}
-
-	tfTFVarsJSONFile := filepath.Join(base, "terraform.tfvars.json")
-	if util.FileExists(tfTFVarsJSONFile) {
-		automaticVarFiles = append(automaticVarFiles, tfTFVarsJSONFile)
-	}
-
-	varFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars"))
-	if err != nil {
+	entries, err := vfs.ReadDir(fsys, base)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 
-	automaticVarFiles = append(automaticVarFiles, varFiles...)
+	automaticVarFiles := make([]string, 0, len(entries))
 
-	jsonVarFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars.json"))
-	if err != nil {
-		return nil, err
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+
+		named := name == "terraform.tfvars" || name == "terraform.tfvars.json"
+		automatic := strings.HasSuffix(name, ".auto.tfvars") || strings.HasSuffix(name, ".auto.tfvars.json")
+
+		if named || automatic {
+			automaticVarFiles = append(automaticVarFiles, filepath.Join(base, name))
+		}
 	}
 
-	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
-
-	return getVarNamesFromVarFiles(l, automaticVarFiles)
+	return getVarNamesFromVarFiles(l, fsys, automaticVarFiles)
 }
 
 // getVarNamesFromVarFiles will parse all the given var files and returns a list of names of variables that are
 // configured in all of them combined together.
-func getVarNamesFromVarFiles(l log.Logger, varFiles []string) ([]string, error) {
+func getVarNamesFromVarFiles(l log.Logger, fsys vfs.FS, varFiles []string) ([]string, error) {
 	inputNames := []string{}
 
 	for _, varFile := range varFiles {
-		fileVars, err := getVarNamesFromVarFile(l, varFile)
+		fileVars, err := getVarNamesFromVarFile(l, fsys, varFile)
 		if err != nil {
 			return inputNames, err
 		}
@@ -698,8 +656,8 @@ func getVarNamesFromVarFiles(l log.Logger, varFiles []string) ([]string, error) 
 
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
 // configured in that var file.
-func getVarNamesFromVarFile(l log.Logger, varFile string) ([]string, error) {
-	fileContents, err := os.ReadFile(varFile)
+func getVarNamesFromVarFile(l log.Logger, fsys vfs.FS, varFile string) ([]string, error) {
+	fileContents, err := vfs.ReadFile(fsys, varFile)
 	if err != nil {
 		return nil, err
 	}
@@ -730,22 +688,9 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 	varFiles := []string{}
 
 	for _, arg := range argList {
-		// Use shlex to handle shell style quoting rules. This will reduce quoted args to remove quoting rules. For
-		// example, the string:
-		// -var="'"foo"'"='bar'
-		// becomes:
-		// -var='foo'=bar
-		shlexedArgSlice, err := shlex.Split(arg)
-		if err != nil {
-			return vars, varFiles, err
-		}
-		// Since we expect each element in extra_args.arguments to correspond to a single arg for terraform, we join
-		// back the shlex split slice even if it thinks there are multiple.
-		shlexedArg := strings.Join(shlexedArgSlice, " ")
-
-		if strings.HasPrefix(shlexedArg, "-var=") {
+		if strings.HasPrefix(arg, "-var=") {
 			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
-			splitArg := strings.Split(shlexedArg, "=")
+			splitArg := strings.Split(arg, "=")
 			if len(splitArg) < splitCount {
 				return vars, varFiles, fmt.Errorf(
 					"unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s",
@@ -756,7 +701,7 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 			vars = append(vars, splitArg[1])
 		}
 
-		if after, ok := strings.CutPrefix(shlexedArg, "-var-file="); ok {
+		if after, ok := strings.CutPrefix(arg, "-var-file="); ok {
 			varFiles = append(varFiles, after)
 		}
 	}

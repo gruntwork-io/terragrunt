@@ -1,8 +1,10 @@
 package getter_test
 
 import (
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,10 +15,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestWithCASRegistersCASGetter pins the wiring: WithCAS adds a CASGetter
@@ -25,12 +28,15 @@ import (
 func TestWithCASRegistersCASGetter(t *testing.T) {
 	t.Parallel()
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
-	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
+	client := getter.NewClient(logger.CreateLogger(), v,
+		getter.WithCAS(c, &cas.CloneOptions{}),
+		getter.WithHTTP(vhttp.NewNoNetworkClient()),
+	)
 
 	assert.True(t, hasGetter[*getter.CASGetter](client.Getters), "WithCAS must register CASGetter")
 	assert.True(
@@ -47,12 +53,15 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 	t.Parallel()
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
-	client := getter.NewClient(getter.WithCAS(c, v, &cas.CloneOptions{}))
+	client := getter.NewClient(logger.CreateLogger(), v,
+		getter.WithCAS(c, &cas.CloneOptions{}),
+		getter.WithHTTP(vhttp.NewNoNetworkClient()),
+	)
 
 	req := &getter.Request{Src: "cas::sha1:0000000000000000000000000000000000000000"}
 
@@ -75,7 +84,7 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 		return
 	}
 
-	t.Fatal("no getter matched cas:: source")
+	require.Fail(t, "no getter matched cas:: source")
 }
 
 // TestWithHTTPSAuthHeaderReachesServer verifies WithHTTPSAuth wires its
@@ -94,7 +103,7 @@ func TestWithHTTPSAuthHeaderReachesServer(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := getter.NewClient(
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithHTTPSAuth(http.Header{"Authorization": {want}}),
 		getter.WithCustomGettersPrepended(&gogetter.HttpGetter{
 			Client: server.Client(),
@@ -123,7 +132,7 @@ func TestHTTPSchemeRoutingChoosesAuthSlot(t *testing.T) {
 	httpsHeader := http.Header{"X-Auth": {"https-token"}}
 	httpHeader := http.Header{"X-Auth": {"http-token"}}
 
-	client := getter.NewClient(
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithHTTPSAuth(httpsHeader),
 		getter.WithHTTPAuth(httpHeader),
 	)
@@ -180,7 +189,8 @@ func TestWithHTTPSAuthSetsBuilderField(t *testing.T) {
 	t.Parallel()
 
 	header := http.Header{"X-Test": {"yes"}}
-	client := getter.NewClient(getter.WithHTTPSAuth(header))
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
+		getter.WithHTTPSAuth(header))
 
 	httpGetters := allHTTPGetters(client.Getters)
 	require.Len(t, httpGetters, 2, "client must register both http and https getters")
@@ -208,10 +218,11 @@ func TestFileCopyGetIncludeExcludeFiltersHonor(t *testing.T) {
 		WithLogger(logger.CreateLogger()).
 		WithExcludeFromCopy("*.txt")
 
-	client := getter.NewClient(getter.WithFileCopy(fcg))
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
+		getter.WithFileCopy(fcg))
 
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + src,
+		Src:     helpers.FileURL(src),
 		Dst:     dst,
 		GetMode: getter.ModeDir,
 	})
@@ -228,9 +239,11 @@ func TestFileCopyGetMissingPath(t *testing.T) {
 
 	missing := filepath.Join(helpers.TmpDirWOSymlinks(t), "does-not-exist")
 
-	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
+		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
+	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + missing,
+		Src:     helpers.FileURL(missing),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeDir,
 	})
@@ -246,14 +259,36 @@ func TestFileCopyGetSourceIsFile(t *testing.T) {
 	srcFile := filepath.Join(helpers.TmpDirWOSymlinks(t), "main.tf")
 	require.NoError(t, writeFile(srcFile, "# main\n"))
 
-	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
+		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
+	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcFile,
+		Src:     helpers.FileURL(srcFile),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeDir,
 	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, getter.ErrSourceNotADirectory)
+}
+
+// TestFileCopyGetFileSourceIsDir pins the mirror contract on the single-file
+// path: a directory source is rejected rather than half-copied.
+func TestFileCopyGetFileSourceIsDir(t *testing.T) {
+	t.Parallel()
+
+	srcDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, writeFile(filepath.Join(srcDir, "main.tf"), "# main\n"))
+
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
+		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
+	)
+	_, err := client.Get(t.Context(), &getter.Request{
+		Src:     helpers.FileURL(srcDir),
+		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
+		GetMode: getter.ModeFile,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, getter.ErrSourceNotAFile)
 }
 
 // TestFileCopyGetFileDelegates pins the GetFile passthrough so a future
@@ -267,9 +302,11 @@ func TestFileCopyGetFileDelegates(t *testing.T) {
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "out.tf")
 
-	client := getter.NewClient(getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())))
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
+		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
+	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcFile,
+		Src:     helpers.FileURL(srcFile),
 		Dst:     dst,
 		GetMode: getter.ModeFile,
 	})
@@ -305,25 +342,74 @@ func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
-// TestFileCopyGetterWithFSPanicsOnNonOSFS pins that WithFS rejects a non
-// OS-backed FS at construction time.
-func TestFileCopyGetterWithFSPanicsOnNonOSFS(t *testing.T) {
+// TestFileCopyGetterCopiesDirOnMemFS pins that a copy driven by an in-memory
+// filesystem lands entirely in that filesystem, never on the real disk.
+func TestFileCopyGetterCopiesDirOnMemFS(t *testing.T) {
 	t.Parallel()
 
-	assert.PanicsWithValue(t,
-		"getter.FileCopyGetter.WithFS: requires an OS-backed filesystem",
-		func() { getter.NewFileCopyGetter(vfs.NewOSFS()).WithFS(vfs.NewMemMapFS()) },
+	src := venvtest.Root("/src")
+	dst := venvtest.Root("/dst")
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll(src, 0o755))
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(src, "main.tf"), []byte("# module"), 0o644),
 	)
+
+	g := getter.NewFileCopyGetter(fsys).WithLogger(logger.CreateLogger())
+
+	req := &getter.Request{Src: src, Dst: dst, GetMode: getter.ModeDir}
+	_, err := (&getter.Client{Getters: []getter.Getter{g}}).Get(t.Context(), req)
+	require.NoError(t, err)
+
+	copied, err := vfs.ReadFile(fsys, filepath.Join(dst, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, "# module", string(copied))
+
+	_, err = os.Stat(filepath.Join(dst, "main.tf"))
+	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-// TestRegistryGetterWithFSPanicsOnNonOSFS pins the same invariant for
-// RegistryGetter.
-func TestRegistryGetterWithFSPanicsOnNonOSFS(t *testing.T) {
+// TestFileCopyGetterGetFileOnMemFS pins the single-file path, which no longer
+// delegates to go-getter's FileGetter and so has to create the destination's
+// parent directories itself.
+func TestFileCopyGetterGetFileOnMemFS(t *testing.T) {
 	t.Parallel()
 
-	assert.PanicsWithValue(
-		t,
-		"getter.RegistryGetter.WithFS: requires an OS-backed filesystem",
-		func() { getter.NewRegistryGetter(logger.CreateLogger(), vfs.NewOSFS()).WithFS(vfs.NewMemMapFS()) },
-	)
+	src := venvtest.Root("/src/main.tf")
+	dst := venvtest.Root("/nested/dst/main.tf")
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, src, []byte("# module"), 0o644))
+
+	g := getter.NewFileCopyGetter(fsys).WithLogger(logger.CreateLogger())
+
+	req := &getter.Request{Src: src, Dst: dst, GetMode: getter.ModeFile}
+	_, err := (&getter.Client{Getters: []getter.Getter{g}}).Get(t.Context(), req)
+	require.NoError(t, err)
+
+	copied, err := vfs.ReadFile(fsys, dst)
+	require.NoError(t, err)
+	assert.Equal(t, "# module", string(copied))
+}
+
+// TestFileCopyGetterModeReadsThroughFS pins that the directory/file probe
+// consults the filesystem the getter was built with rather than os.
+func TestFileCopyGetterModeReadsThroughFS(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll("/src", 0o755))
+	require.NoError(t, vfs.WriteFile(fsys, "/src/main.tf", []byte("# module"), 0o644))
+
+	g := getter.NewFileCopyGetter(fsys)
+
+	dirMode, err := g.Mode(t.Context(), &url.URL{Path: "/src"})
+	require.NoError(t, err)
+	assert.Equal(t, getter.ModeDir, dirMode)
+
+	fileMode, err := g.Mode(t.Context(), &url.URL{Path: "/src/main.tf"})
+	require.NoError(t, err)
+	assert.Equal(t, getter.ModeFile, fileMode)
 }

@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -16,7 +18,7 @@ const (
 	testFixtureGetTerragruntSourceHcl = "fixtures/get-terragrunt-source-hcl"
 )
 
-func TestTerragruntSourceMap(t *testing.T) {
+func TestTFTerragruntSourceMap(t *testing.T) {
 	t.Parallel()
 
 	fixtureSourceMapPath := filepath.Join("fixtures", "source-map")
@@ -81,7 +83,7 @@ func TestTerragruntSourceMap(t *testing.T) {
 	}
 }
 
-func TestGetTerragruntSourceHCL(t *testing.T) {
+func TestTFGetTerragruntSourceHCL(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetTerragruntSourceHcl)
@@ -114,7 +116,7 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 	assert.Equal(t, "HCL: "+terraformSource, outputs["terragrunt_source"].Value)
 }
 
-func TestGetTerragruntSourceCLI(t *testing.T) {
+func TestTFGetTerragruntSourceCLI(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetTerragruntSourceCli)

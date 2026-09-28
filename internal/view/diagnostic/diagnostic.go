@@ -8,9 +8,11 @@ import (
 
 type Diagnostics []*Diagnostic
 
+// Contains reports whether diags holds a diagnostic with the same source range as find.
+// A diagnostic without a range matches nothing, not even another one without a range.
 func (diags *Diagnostics) Contains(find *Diagnostic) bool {
 	for _, diag := range *diags {
-		if find.Range != nil && find.Range.String() == diag.Range.String() {
+		if find.Range != nil && diag.Range != nil && find.Range.String() == diag.Range.String() {
 			return true
 		}
 	}

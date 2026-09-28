@@ -118,6 +118,24 @@ inputs = {
 `,
 			expected: true,
 		},
+		{
+			name: "expanded dependency inputs detected",
+			config: `
+inputs = {
+  value = dependency.dep["web"].inputs.some_value
+}
+`,
+			expected: true,
+		},
+		{
+			name: "expanded dependency outputs not detected",
+			config: `
+inputs = {
+  value = dependency.dep["web"].outputs.some_value
+}
+`,
+			expected: false,
+		},
 	}
 
 	for _, tc := range testCases {

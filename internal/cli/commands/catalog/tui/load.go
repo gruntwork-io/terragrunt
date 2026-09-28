@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
@@ -15,12 +14,15 @@ import (
 )
 
 // CreateCatalogTempPath creates a fresh clone root under the resolved temp dir.
-// Resolving os.TempDir keeps filepath.Rel results inside the clone on systems
+// Resolving the temp dir keeps filepath.Rel results inside the clone on systems
 // where the temp dir itself is reported through a symlink.
-func CreateCatalogTempPath(fsys vfs.FS, repoURL string) (string, error) {
+func CreateCatalogTempPath(v *venv.Venv, repoURL string) (string, error) {
+	v.RequireFS()
+	v.RequireTempDir()
+
 	prefix := "catalog-" + util.EncodeBase64Sha1(repoURL) + "-"
 
-	return vfs.MkdirTemp(fsys, util.ResolvePath(os.TempDir()), prefix)
+	return vfs.MkdirTemp(v.FS, vfs.ResolveForCompare(v.FS, v.Platform.TempDir()), prefix)
 }
 
 // LoadURL clones repoURL via module.NewRepo, walks it with a
@@ -30,7 +32,7 @@ func CreateCatalogTempPath(fsys vfs.FS, repoURL string) (string, error) {
 func LoadURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	tempDirs *TempDirTracker,
 	repoURL string,
@@ -45,7 +47,7 @@ func LoadURL(
 	allowCAS := !opts.NoCAS
 	slowReporting := opts.Experiments.Evaluate(experiment.SlowTaskReporting)
 
-	tempPath, err := CreateCatalogTempPath(v.FS, repoURL)
+	tempPath, err := CreateCatalogTempPath(v, repoURL)
 	if err != nil {
 		return fmt.Errorf("failed to create catalog temporary directory for %s: %w", repoURL, err)
 	}
@@ -80,6 +82,10 @@ func LoadURL(
 		WalkWithSymlinks: walkWithSymlinks,
 		AllowCAS:         allowCAS,
 		CASCloneDepth:    opts.CASCloneDepth,
+		CASProbeTTL:      opts.CASProbeTTL,
+		CASOffline:       opts.CASOffline,
+		CASRefresh:       opts.CASRefresh,
+		CASProbeCache:    opts.Experiments.Evaluate(experiment.OfflineCAS),
 		SlowReporting:    slowReporting,
 		RootWorkingDir:   opts.RootWorkingDir,
 	})
@@ -87,12 +93,12 @@ func LoadURL(
 		return fmt.Errorf("failed to initialize repository %s: %w", repoURL, err)
 	}
 
-	discovery := NewComponentDiscovery().WithFS(v.FS).WithExtraIgnoreFile(opts.CatalogIgnoreFile)
+	discovery := NewComponentDiscovery().WithExtraIgnoreFile(opts.CatalogIgnoreFile)
 	if walkWithSymlinks {
 		discovery = discovery.WithWalkWithSymlinks()
 	}
 
-	components, err := discovery.Discover(repo)
+	components, err := discovery.Discover(v.FS, repo)
 	if err != nil {
 		return fmt.Errorf("failed to discover components in repository %s: %w", repoURL, err)
 	}
@@ -106,7 +112,7 @@ func LoadURL(
 
 	// Resolve the latest release tag once per repo. All components from the
 	// same repo share the Repo, so the tag is set for everyone.
-	repo.ResolveLatestTag(ctx, l, v.Exec)
+	repo.ResolveLatestTag(ctx, l, v)
 
 	source := ExtractRepoURL(repo.SourceURL())
 

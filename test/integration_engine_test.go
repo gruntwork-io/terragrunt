@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -42,13 +44,14 @@ var (
 	)
 )
 
-//nolint:paralleltest
 func TestEngineLocalPlan(t *testing.T) {
+	t.Parallel()
+
 	rootPath := setupLocalEngine(t)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --log-level debug --non-interactive --tf-forward-stdout --working-dir "+
+		"terragrunt run --experiment iac-engine --log-level debug --non-interactive --tf-forward-stdout --working-dir "+
 			rootPath+" -- plan",
 	)
 	require.NoError(t, err)
@@ -60,13 +63,14 @@ func TestEngineLocalPlan(t *testing.T) {
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
 
-//nolint:paralleltest
 func TestEngineLocalApply(t *testing.T) {
+	t.Parallel()
+
 	rootPath := setupLocalEngine(t)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --non-interactive --log-level debug --tf-forward-stdout --working-dir "+
+		"terragrunt run --experiment iac-engine --non-interactive --log-level debug --tf-forward-stdout --working-dir "+
 			rootPath+" -- apply -auto-approve",
 	)
 	require.NoError(t, err)
@@ -388,7 +392,6 @@ func TestEngineTelemetry(t *testing.T) {
 	helpers.ValidateHookTraceParent(t, "hook_print_traceparent", str)
 }
 
-//nolint:paralleltest
 func TestEngineDisabledByNoEngineFlag(t *testing.T) {
 	t.Skip("no-engine OpenTofu engine integration is not reliably exercised in CI")
 	t.Setenv(envVarExperimental, "1")
@@ -419,9 +422,9 @@ func TestEngineDisabledByNoEngineFlag(t *testing.T) {
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
 
-//nolint:paralleltest
 func TestEngineDisabledByNoEngineFlagWithExperiment(t *testing.T) {
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuEngine)
+	t.Parallel()
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuEngine)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuEngine)
 
@@ -447,7 +450,6 @@ func TestEngineDisabledByNoEngineFlagWithExperiment(t *testing.T) {
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
 
-//nolint:paralleltest
 func TestEngineDisabledByNoEngineFlagWithRunAll(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
@@ -500,9 +502,6 @@ func setupEngineCache(t *testing.T) (string, string) {
 func setupLocalEngine(t *testing.T) string {
 	t.Helper()
 
-	t.Setenv(envVarExperimental, "1")
-
-	helpers.CleanupTerraformFolder(t, testFixtureLocalEngine)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalEngine)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalEngine)
 
@@ -512,7 +511,7 @@ func setupLocalEngine(t *testing.T) string {
 		require.NoError(t, err)
 	}
 
-	_, err := getter.GetAny(t.Context(), engineDir, downloadURL)
+	_, err := getter.GetAny(t.Context(), logger.CreateLogger(), venv.OSVenv(), engineDir, downloadURL)
 	require.NoError(t, err)
 
 	helpers.CopyAndFillMapPlaceholders(

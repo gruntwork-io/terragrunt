@@ -2,12 +2,10 @@
 package render
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"errors"
@@ -16,15 +14,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
@@ -38,10 +36,10 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
 		return err
 	}
 
-	return runRender(l, v.Writers.Writer, opts, prepared.Cfg)
+	return runRender(l, v, opts, prepared.Cfg)
 }
 
-func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error {
+func runAll(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v, opts.TerragruntOptions)
@@ -66,18 +64,15 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
-		prepared, err := prepare.PrepareConfig(
-			ctx,
-			l,
-			v.WithEnvCloned(),
-			unitOpts.TerragruntOptions,
-		)
+		unitV := v.WithEnvCloned()
+
+		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts.TerragruntOptions)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		if err := runRender(l, v.Writers.Writer, unitOpts, prepared.Cfg); err != nil {
+		if err := runRender(l, v, unitOpts, prepared.Cfg); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -100,7 +95,7 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *Options) error
 	return nil
 }
 
-func runRender(l log.Logger, w io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
+func runRender(l log.Logger, v *venv.Venv, opts *Options, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
 		return errors.New(
 			"terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl",
@@ -109,29 +104,26 @@ func runRender(l log.Logger, w io.Writer, opts *Options, cfg *config.TerragruntC
 
 	switch opts.Format {
 	case FormatJSON:
-		return renderJSON(l, w, opts, cfg)
+		return renderJSON(l, v, opts, cfg)
 	case FormatHCL:
-		return renderHCL(l, w, opts, cfg)
+		return renderHCL(l, v, opts, cfg)
 	default:
 		return fmt.Errorf("unsupported render format: %s", opts.Format)
 	}
 }
 
-func renderHCL(l log.Logger, w io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
+func renderHCL(l log.Logger, v *venv.Venv, opts *Options, cfg *config.TerragruntConfig) error {
 	if opts.Write {
-		buf := new(bytes.Buffer)
+		return writeRendered(l, v.FS, opts, func(w io.Writer) error {
+			_, err := cfg.WriteTo(w)
 
-		_, err := cfg.WriteTo(buf)
-		if err != nil {
 			return err
-		}
-
-		return writeRendered(l, opts, buf.Bytes())
+		})
 	}
 
 	l.Debugf("Rendering config %s", opts.TerragruntConfigPath)
 
-	_, err := cfg.WriteTo(w)
+	_, err := cfg.WriteTo(v.Writers.Writer)
 	if err != nil {
 		return err
 	}
@@ -139,7 +131,7 @@ func renderHCL(l log.Logger, w io.Writer, opts *Options, cfg *config.TerragruntC
 	return nil
 }
 
-func renderJSON(l log.Logger, w io.Writer, opts *Options, cfg *config.TerragruntConfig) error {
+func renderJSON(l log.Logger, v *venv.Venv, opts *Options, cfg *config.TerragruntConfig) error {
 	var terragruntConfigCty cty.Value
 
 	if opts.RenderMetadata {
@@ -164,12 +156,16 @@ func renderJSON(l log.Logger, w io.Writer, opts *Options, cfg *config.Terragrunt
 	}
 
 	if opts.Write {
-		return writeRendered(l, opts, jsonBytes)
+		return writeRendered(l, v.FS, opts, func(w io.Writer) error {
+			_, err := w.Write(jsonBytes)
+
+			return err
+		})
 	}
 
 	l.Debugf("Rendering config %s", opts.TerragruntConfigPath)
 
-	_, err = w.Write(jsonBytes)
+	_, err = v.Writers.Writer.Write(jsonBytes)
 	if err != nil {
 		return err
 	}
@@ -177,25 +173,27 @@ func renderJSON(l log.Logger, w io.Writer, opts *Options, cfg *config.Terragrunt
 	return nil
 }
 
-func writeRendered(l log.Logger, opts *Options, data []byte) error {
+func writeRendered(
+	l log.Logger,
+	fsys vfs.FS,
+	opts *Options,
+	render func(w io.Writer) error,
+) error {
 	outPath := opts.OutputPath
 	if !filepath.IsAbs(outPath) {
 		terragruntConfigDir := filepath.Dir(opts.TerragruntConfigPath)
 		outPath = filepath.Join(terragruntConfigDir, outPath)
 	}
 
-	if err := util.EnsureDirectory(filepath.Dir(outPath)); err != nil {
+	if err := vfs.EnsureDirectory(fsys, filepath.Dir(outPath)); err != nil {
 		return err
 	}
 
 	l.Debugf("Rendering config %s to %s", opts.TerragruntConfigPath, outPath)
 
-	const ownerWriteGlobalReadPerms = 0644
-	if err := os.WriteFile(outPath, data, ownerWriteGlobalReadPerms); err != nil {
-		return err
-	}
+	const ownerReadWritePerms = 0o600
 
-	return nil
+	return vfs.StreamFileAtomic(fsys, outPath, ownerReadWritePerms, render)
 }
 
 // marshalCtyValueJSONWithoutType marshals the given cty.Value object into a JSON object that does not have the type.
@@ -203,6 +201,10 @@ func writeRendered(l log.Logger, opts *Options, data []byte) error {
 // just the "value".
 // NOTE: We have to do two marshalling passes so that we can extract just the value.
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
+	if err := ctyhelper.ValidateNumberRanges(ctyVal); err != nil {
+		return nil, err
+	}
+
 	jsonBytesIntermediate, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
 	if err != nil {
 		return nil, err

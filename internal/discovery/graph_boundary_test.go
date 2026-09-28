@@ -1,0 +1,382 @@
+package discovery_test
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+)
+
+// graphBoundaryFixture is a monorepo layout with sibling environments. The
+// working directory is environments/staging, and the graph crosses out of it in
+// both directions:
+//
+//	environments/staging/vpc          (dependent-direction target)
+//	environments/staging/app          depends on ../vpc
+//	environments/staging/edge         depends on ../../production/external
+//	environments/production/consumer  depends on ../../staging/vpc
+//	environments/production/external  (dependency-direction target's external dep)
+type graphBoundaryFixture struct {
+	stagingDir  string
+	vpcDir      string
+	appDir      string
+	edgeDir     string
+	consumerDir string
+	externalDir string
+}
+
+func newGraphBoundaryFixture(t *testing.T) (graphBoundaryFixture, *venv.Venv) {
+	t.Helper()
+
+	repoRoot := venvtest.Root("/repo")
+
+	v := memRepoRootVenv(t, repoRoot)
+
+	f := graphBoundaryFixture{
+		stagingDir:  filepath.Join(repoRoot, "environments", "staging"),
+		vpcDir:      filepath.Join(repoRoot, "environments", "staging", "vpc"),
+		appDir:      filepath.Join(repoRoot, "environments", "staging", "app"),
+		edgeDir:     filepath.Join(repoRoot, "environments", "staging", "edge"),
+		consumerDir: filepath.Join(repoRoot, "environments", "production", "consumer"),
+		externalDir: filepath.Join(repoRoot, "environments", "production", "external"),
+	}
+
+	writeUnits(t, v.FS, map[string]string{
+		f.vpcDir:      ``,
+		f.externalDir: ``,
+		f.appDir: `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`,
+		f.consumerDir: `
+dependency "vpc" {
+  config_path = "../../staging/vpc"
+}
+`,
+		f.edgeDir: `
+dependency "external" {
+  config_path = "../../production/external"
+}
+`,
+	})
+
+	return f, v
+}
+
+func (f *graphBoundaryFixture) discover(
+	t *testing.T,
+	v *venv.Venv,
+	query string,
+) component.Components {
+	t.Helper()
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = f.stagingDir
+	opts.RootWorkingDir = f.stagingDir
+
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
+	require.NoError(t, err)
+
+	configs, err := discovery.NewDiscovery(f.stagingDir).
+		WithFilters(filters).
+		Discover(t.Context(), logger.CreateLogger(), v, opts)
+	require.NoError(t, err)
+
+	return configs
+}
+
+// Test that an inline "(dir)" boundary encloses graph discovery in both
+// directions, while the default (git root) crosses out of the working
+// directory. The dependent direction reaches a dependent in a sibling
+// environment; the dependency direction reaches an external dependency in a
+// sibling environment. Both are confined by the inline boundary.
+func TestDiscoveryGraphBoundary_EnclosesGraphDiscovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("dependent direction", func(t *testing.T) {
+		t.Parallel()
+
+		f, v := newGraphBoundaryFixture(t)
+
+		unbounded := f.discover(t, v, "...{"+f.vpcDir+"}")
+		assert.ElementsMatch(t,
+			[]string{f.vpcDir, f.appDir, f.consumerDir},
+			unbounded.Filter(component.UnitKind).Paths(),
+		)
+
+		bounded := f.discover(t, v, "("+f.stagingDir+")...{"+f.vpcDir+"}")
+		assert.ElementsMatch(t,
+			[]string{f.vpcDir, f.appDir},
+			bounded.Filter(component.UnitKind).Paths(),
+		)
+	})
+
+	t.Run("dependency direction", func(t *testing.T) {
+		t.Parallel()
+
+		f, v := newGraphBoundaryFixture(t)
+
+		unbounded := f.discover(t, v, "{"+f.edgeDir+"}...")
+		assert.ElementsMatch(t,
+			[]string{f.edgeDir, f.externalDir},
+			unbounded.Filter(component.UnitKind).Paths(),
+		)
+
+		bounded := f.discover(t, v, "{"+f.edgeDir+"}...("+f.stagingDir+")")
+		assert.ElementsMatch(t,
+			[]string{f.edgeDir},
+			bounded.Filter(component.UnitKind).Paths(),
+		)
+	})
+}
+
+// Test that an invalid inline boundary surfaces a typed error from Discover.
+func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
+	t.Parallel()
+
+	f, v := newGraphBoundaryFixture(t)
+
+	testCases := []struct {
+		errAs any
+		name  string
+		query string
+	}{
+		{
+			name:  "nonexistent boundary",
+			query: "(" + filepath.Join(f.stagingDir, "does-not-exist") + ")...{" + f.vpcDir + "}",
+			errAs: &discovery.DiscoveryBoundaryDirError{},
+		},
+		{
+			name:  "boundary does not contain working directory",
+			query: "(" + f.consumerDir + ")...{" + f.vpcDir + "}",
+			errAs: &discovery.DiscoveryBoundaryScopeError{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = f.stagingDir
+			opts.RootWorkingDir = f.stagingDir
+
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{tc.query})
+			require.NoError(t, err)
+
+			_, err = discovery.NewDiscovery(f.stagingDir).
+				WithFilters(filters).
+				Discover(t.Context(), logger.CreateLogger(), v, opts)
+			require.ErrorAs(t, err, tc.errAs)
+		})
+	}
+}
+
+// Test that a unit whose directory name contains literal parentheses can be
+// targeted by wrapping the path in braces, including alongside a parenthesized
+// boundary in the same expression. The braces keep the parens as part of the
+// path; the boundary parens stay a delimiter.
+func TestDiscoveryGraphBoundary_PathWithLiteralParens(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := venvtest.Root("/repo")
+
+	v := memRepoRootVenv(t, repoRoot)
+
+	// vpc(prod) has literal parentheses in its directory name; app depends on it.
+	vpcDir := filepath.Join(repoRoot, "vpc(prod)")
+	appDir := filepath.Join(repoRoot, "app")
+
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		appDir: `
+dependency "vpc" {
+  config_path = "../vpc(prod)"
+}
+`,
+	})
+
+	discover := func(query string) component.Components {
+		t.Helper()
+
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts.WorkingDir = repoRoot
+		opts.RootWorkingDir = repoRoot
+
+		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
+		require.NoError(t, err)
+
+		configs, err := discovery.NewDiscovery(repoRoot).
+			WithFilters(filters).
+			Discover(t.Context(), logger.CreateLogger(), v, opts)
+		require.NoError(t, err)
+
+		return configs
+	}
+
+	t.Run("braced path matches the parens-named unit", func(t *testing.T) {
+		t.Parallel()
+
+		configs := discover("{" + vpcDir + "}")
+		assert.ElementsMatch(t, []string{vpcDir}, configs.Filter(component.UnitKind).Paths())
+	})
+
+	t.Run("braced parens path as a graph target", func(t *testing.T) {
+		t.Parallel()
+
+		configs := discover("...{" + vpcDir + "}")
+		assert.ElementsMatch(
+			t,
+			[]string{vpcDir, appDir},
+			configs.Filter(component.UnitKind).Paths(),
+		)
+	})
+
+	t.Run("parens boundary alongside a braced parens target", func(t *testing.T) {
+		t.Parallel()
+
+		// Boundary parens are a delimiter; the braced target parens are literal.
+		configs := discover("(" + repoRoot + ")...{" + vpcDir + "}")
+		assert.ElementsMatch(
+			t,
+			[]string{vpcDir, appDir},
+			configs.Filter(component.UnitKind).Paths(),
+		)
+	})
+}
+
+// Test that dependent discovery skips parsing units outside every dependent boundary.
+func TestDiscoveryGraphBoundary_SkipsParsingOutsideDependentBoundary(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := venvtest.Root("/repo")
+	liveDir := filepath.Join(repoRoot, "live")
+	accountDir := filepath.Join(liveDir, "account")
+	rolesDir := filepath.Join(liveDir, "roles")
+	missingDir := filepath.Join(liveDir, "missing")
+	catalogDir := filepath.Join(repoRoot, "catalog", "units", "roles")
+	elsewhereDir := venvtest.Root("/elsewhere")
+
+	testCases := []struct {
+		errAs    any
+		name     string
+		query    string
+		boundary string
+		errText  string
+		expected []string
+	}{
+		{
+			name:  "inline boundary",
+			query: "(" + liveDir + ")...{" + missingDir + "}",
+		},
+		{
+			name:  "relative inline boundary",
+			query: "(./live/)...{./live/missing}",
+		},
+		{
+			name:     "inline boundary overrides wider flag",
+			query:    "(" + liveDir + ")...{" + missingDir + "}",
+			boundary: repoRoot,
+		},
+		{
+			name:  "nested inline boundaries",
+			query: "(" + accountDir + ")...{" + missingDir + "} | (" + liveDir + ")...{" + missingDir + "}",
+		},
+		{
+			name:    "intersection targeting outside the boundary still parses the catalog",
+			query:   "(" + liveDir + ")...{" + catalogDir + "} | reading=roles.yml",
+			errText: "roles.yml",
+		},
+		{
+			name:    "unbounded query still parses the catalog",
+			query:   "...{" + missingDir + "}",
+			errText: "roles.yml",
+		},
+		{
+			name:    "one unbounded dependent expression parses the catalog",
+			query:   "(" + liveDir + ")...{" + missingDir + "} | ...{" + rolesDir + "}",
+			errText: "roles.yml",
+		},
+		{
+			name:    "wider boundary still parses the catalog",
+			query:   "(" + repoRoot + ")...{" + missingDir + "}",
+			errText: "roles.yml",
+		},
+		{
+			name:     "inline boundary inside the working directory walks from the boundary",
+			query:    "(" + liveDir + ")...{" + accountDir + "}",
+			expected: []string{accountDir, rolesDir},
+		},
+		{
+			name:     "flag boundary inside the working directory walks from the boundary",
+			query:    "...{" + accountDir + "}",
+			boundary: liveDir,
+			expected: []string{accountDir, rolesDir},
+		},
+		{
+			name:  "boundary outside the working directory is rejected",
+			query: "(" + elsewhereDir + ")...{" + accountDir + "}",
+			errAs: &discovery.DiscoveryBoundaryScopeError{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := memRepoRootVenv(t, repoRoot)
+
+			writeUnits(t, v.FS, map[string]string{
+				accountDir: ``,
+				rolesDir: `
+dependency "account" {
+  config_path = "../account"
+}
+`,
+				catalogDir: `
+locals {
+  roles = find_in_parent_folders("roles.yml")
+}
+`,
+			})
+			require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(elsewhereDir, ".keep"), nil, 0o644))
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = repoRoot
+			opts.RootWorkingDir = repoRoot
+
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{tc.query})
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(repoRoot).WithFilters(filters)
+
+			if tc.boundary != "" {
+				d = d.WithDiscoveryBoundary(tc.boundary)
+			}
+
+			configs, err := d.Discover(t.Context(), logger.CreateLogger(), v, opts)
+
+			switch {
+			case tc.errAs != nil:
+				require.ErrorAs(t, err, tc.errAs)
+			case tc.errText != "":
+				require.ErrorContains(t, err, tc.errText)
+			default:
+				require.NoError(t, err)
+				assert.ElementsMatch(t, tc.expected, configs.Filter(component.UnitKind).Paths())
+			}
+		})
+	}
+}

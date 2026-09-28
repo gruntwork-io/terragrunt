@@ -17,8 +17,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/md"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -66,7 +69,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 			switch {
 			case key.Matches(msg, m.delegateKeys.Choose):
-				tagsStyle := ResolveTagsDetailStyle()
+				tagsStyle := ResolveTagsDetailStyle(m.venv.Env)
 				tags := selectedComponent.Tags()
 
 				var (
@@ -145,11 +148,13 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 					}
 				}
 			default:
-				m.logger.Warnf("Unknown button pressed: %s", currentAction)
+				cmds = append(cmds, m.toasts.Push(fmt.Sprintf("Unknown button pressed: %s", currentAction)))
 			}
 
 		case key.Matches(msg, m.pagerKeys.ScaffoldInteractive):
 			return enterFormState(m, m.selectedComponent, PagerState)
+		case key.Matches(msg, m.pagerKeys.ScaffoldImmediate):
+			return startPlaceholderScaffold(m, m.selectedComponent)
 		case key.Matches(msg, m.pagerKeys.ToggleWrap):
 			m.softWrap = !m.softWrap
 			m.mdRenderer = nil
@@ -157,7 +162,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			if m.selectedComponent != nil {
 				updated, content, err := m.renderComponentContent(
 					m.selectedComponent,
-					ResolveTagsDetailStyle(),
+					ResolveTagsDetailStyle(m.venv.Env),
 					m.selectedComponent.Tags(),
 				)
 				if err != nil {
@@ -210,6 +215,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
+	case viewtui.Warning:
+		return m, tea.Batch(m.toasts.Push(msg.Message), viewtui.ListenForWarnings(m.warnCh))
+	case viewtui.ToastExpired:
+		m.toasts.Drop(msg.ID)
+
+		return m, nil
 	case tea.BackgroundColorMsg:
 		dark := msg.IsDark()
 		if dark != m.hasDarkBG {
@@ -233,6 +244,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.width = msg.Width
 		m.height = msg.Height
+
+		// Without a width the help line overflows and the terminal clips
+		// it mid-entry; with one, help truncates whole entries with "…".
+		m.pagerKeys.HelpModel.SetWidth(msg.Width - h)
 
 		viewportHeight := msg.Height - v - lipgloss.Height(m.footerView())
 
@@ -274,10 +289,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, tea.Quit
 
-	case FormSubmitMsg:
+	case form.SubmitMsg:
 		return m.handleFormSubmit(msg.Values)
 
-	case FormCancelMsg:
+	case form.CancelMsg:
 		m.abandonForm()
 
 		m.State = m.priorState
@@ -331,14 +346,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // renderComponentContent prepares the pager body, prepending tag pills
 // when configured. Markdown components run through the model's cached
-// glamour renderer, which may itself be (re)allocated.
+// renderer, which may itself be (re)allocated. Content comes from a cloned
+// repository, so it is sanitized before it is rendered.
 func (m Model) renderComponentContent(
 	c *Component,
 	tagsStyle TagsDetailStyle,
 	tags []string,
 ) (Model, string, error) {
 	if !c.IsMarkDown() {
-		content := c.Content(true)
+		content := viewtui.SanitizeText(c.Content(true))
 		if pills := RenderDetailTagPills(tags); pills != "" {
 			content = pills + "\n\n" + content
 		}
@@ -356,21 +372,21 @@ func (m Model) renderComponentContent(
 		body += TagsMarkdownSection(tags)
 	}
 
-	md, err := renderer.Render(body)
+	rendered, err := renderer.Render(viewtui.SanitizeText(body))
 	if err != nil {
 		return m, "", err
 	}
 
 	if tagsStyle == TagsDetailStylePills {
 		if pills := RenderDetailTagPills(tags); pills != "" {
-			md = lipgloss.NewStyle().PaddingLeft(glamourDocumentMargin).Render(pills) + "\n\n" + md
+			rendered = lipgloss.NewStyle().PaddingLeft(md.DocumentMargin).Render(pills) + "\n\n" + rendered
 		}
 	}
 
-	return m, md, nil
+	return m, rendered, nil
 }
 
-// RendererErrMsg signals that the glamour markdown renderer failed to
+// RendererErrMsg signals that the Markdown renderer failed to
 // build or render a component's content.
 type RendererErrMsg struct{ Err error }
 
@@ -391,7 +407,7 @@ type ScaffoldFinishedMsg struct {
 // Interactive distinguishes the form-submit path from the placeholder path.
 type CopyFinishedMsg struct {
 	Err         error
-	Result      CopyResult
+	Result      component.Result
 	Interactive bool
 }
 
@@ -448,10 +464,12 @@ func formatSourceFailureNotice(err error, accent string) string {
 		for _, f := range srcErr.Failures {
 			rows = append(rows,
 				"",
-				valuesBoxPathStyle.Render(f.URL),
-				valuesBoxMuteStyle.Render(f.Err.Error()),
+				valuesBoxPathStyle.Render(viewtui.SanitizeLabel(f.URL)),
+				valuesBoxMuteStyle.Render(viewtui.SanitizeLabel(f.Err.Error())),
 			)
 		}
+
+		rows = append(rows, "", valuesBoxMuteStyle.Render(SourceAccessHint))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
@@ -469,12 +487,12 @@ func formatSourceFailureNotice(err error, accent string) string {
 // screen, so the box lands in the user's scrollback. interactive controls
 // the body copy: the form path tells the user which lines they still need
 // to revisit, while the placeholder path describes the full TODO flow.
-func formatCopyValuesMessage(r CopyResult, interactive bool) string {
+func formatCopyValuesMessage(r component.Result, interactive bool) string {
 	if r.References.IsEmpty() {
 		return ""
 	}
 
-	path := displayPath(r.WorkingDir, filepath.Join(r.WorkingDir, valuesFileName))
+	path := displayPath(r.Dir, filepath.Join(r.Dir, component.ValuesFileName))
 
 	switch {
 	case r.ValuesWritten:
@@ -511,7 +529,7 @@ func formatCopyValuesMessage(r CopyResult, interactive bool) string {
 			Bold(true).
 			Render("terragrunt.values.hcl left untouched")
 
-		summary := "Referenced values.* keys: " + strings.Join(r.References.allNames(), ", ")
+		summary := "Referenced values.* keys: " + strings.Join(r.References.AllNames(), ", ")
 
 		body := "An existing file was found at the destination, so no stub was written.\n" +
 			"Make sure each referenced key above has a real value before running terragrunt."
@@ -620,13 +638,13 @@ func displayPath(baseDir, abs string) string {
 	return "." + string(filepath.Separator) + rel
 }
 
-// formReadyMsg is delivered once discovery has built a populated FormModel
+// formReadyMsg is delivered once discovery has built a populated form.Model
 // and (for module/template) the prepared scaffold.Plan, or (for unit/stack)
-// the captured ValuesReferences.
+// the captured component.ValuesReferences.
 type formReadyMsg struct {
-	form *FormModel
+	form *form.Model
 	plan *scaffold.Plan
-	refs *ValuesReferences
+	refs *component.ValuesReferences
 }
 
 // formDiscoveryErrMsg signals that the pre-form discovery step failed
@@ -652,19 +670,19 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 // discoverFormCmd runs the kind-appropriate variable discovery off the UI
 // thread. For module/template that means downloading the source and
 // parsing variables via scaffold.Prepare; for unit/stack it means reading
-// the source HCL and walking it via CollectValuesReferences. ctx is the
+// the source HCL and walking it via component.CollectValuesReferences. ctx is the
 // model's cancellable context so a Ctrl+C during discovery aborts the
 // download instead of running it to completion.
 func discoverFormCmd(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	c *Component,
 ) tea.Cmd {
 	return func() tea.Msg {
 		if c.Kind.IsCopyable() {
-			return discoverValuesFields(c)
+			return discoverValuesFields(v, c)
 		}
 
 		return discoverModuleFields(ctx, l, v, opts, c)
@@ -684,7 +702,7 @@ func discoverFormCmd(
 func discoverModuleFields(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	c *Component,
 ) tea.Msg {
@@ -695,10 +713,10 @@ func discoverModuleFields(
 		return formDiscoveryErrMsg{err: err}
 	}
 
-	fields := FieldsFromParsedVariables(plan.Required, plan.Optional)
+	fields := form.FieldsFromParsedVariables(plan.Required, plan.Optional)
 
 	return formReadyMsg{
-		form: NewFormModel(c, fields),
+		form: form.NewModel(viewtui.SanitizeLabel(c.Title()), fields),
 		plan: plan,
 	}
 }
@@ -706,33 +724,33 @@ func discoverModuleFields(
 // discoverValuesFields walks the unit/stack's HCL for `values.*` refs and
 // returns a formReadyMsg. CollectValuesReferences operates on the already
 // cloned local copy, so there's no download.
-func discoverValuesFields(c *Component) tea.Msg {
-	configName := configFileForKind(c.Kind)
+func discoverValuesFields(v *venv.Venv, c *Component) tea.Msg {
+	configName := c.Kind.ConfigFile()
 	if configName == "" {
 		return formDiscoveryErrMsg{
 			err: fmt.Errorf("component kind %q has no associated HCL file", c.Kind),
 		}
 	}
 
-	refs, err := CollectValuesReferences(
-		vfs.NewOSFS(),
+	refs, err := component.CollectValuesReferences(
+		v.FS,
 		filepath.Join(c.Repo.Path(), c.Dir, configName),
 	)
 	if err != nil {
 		return formDiscoveryErrMsg{err: err}
 	}
 
-	fields := FieldsFromValuesReferences(refs)
+	fields := form.FieldsFromValuesReferences(refs)
 
 	return formReadyMsg{
-		form: NewFormModel(c, fields),
+		form: form.NewModel(viewtui.SanitizeLabel(c.Title()), fields),
 		refs: &refs,
 	}
 }
 
 // updateForm routes messages while the form is on screen. It delegates
-// keypresses (and any other input) to the embedded FormModel, which may
-// in turn emit FormSubmitMsg or FormCancelMsg for the outer Update.
+// keypresses (and any other input) to the embedded form.Model, which may
+// in turn emit form.SubmitMsg or form.CancelMsg for the outer Update.
 func updateForm(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	if m.form == nil {
 		// Discovery is still in flight. Swallow input until the
@@ -769,12 +787,45 @@ func (m Model) handleFormSubmit(values map[string]string) (tea.Model, tea.Cmd) {
 // the temp dir Prepare allocated.
 func (m *Model) abandonForm() {
 	if m.scaffoldPlan != nil {
-		m.scaffoldPlan.Cleanup()
+		m.scaffoldPlan.Cleanup(m.venv.FS)
 		m.scaffoldPlan = nil
 	}
 
 	m.form = nil
 	m.valuesRefs = nil
+}
+
+// startPlaceholderScaffold transitions straight from the pager to
+// ScaffoldState, skipping the form: module and template inputs all land as
+// `# TODO` lines, and unit/stack values stubs get the full TODO treatment.
+func startPlaceholderScaffold(m Model, c *Component) (tea.Model, tea.Cmd) {
+	m.State = ScaffoldState
+
+	if c.Kind.IsCopyable() {
+		return m, copyComponentPlaceholderCmd(m.logger, m, c)
+	}
+
+	return m, scaffoldComponentPlaceholderCmd(m.logger, m, c)
+}
+
+// scaffoldComponentPlaceholderCmd schedules a planless scaffold run, which
+// downloads the source itself and emits TODO placeholders for every input.
+func scaffoldComponentPlaceholderCmd(l log.Logger, m Model, c *Component) tea.Cmd {
+	cmd := newScaffoldCmd(l, m.venv, m.terragruntOptions, c)
+
+	return tea.Exec(cmd, func(err error) tea.Msg {
+		return ScaffoldFinishedMsg{Err: err, Interactive: false}
+	})
+}
+
+// copyComponentPlaceholderCmd schedules the unit/stack copy without any
+// user-supplied values, so the values stub falls back to TODO placeholders.
+func copyComponentPlaceholderCmd(l log.Logger, m Model, c *Component) tea.Cmd {
+	cmd := NewCopyCmd(l, m.terragruntOptions, c)
+
+	return tea.Exec(cmd, func(err error) tea.Msg {
+		return CopyFinishedMsg{Err: err, Result: cmd.Result(), Interactive: false}
+	})
 }
 
 // scaffoldComponentWithPlanCmd schedules the prepared plan's Generate
@@ -803,7 +854,7 @@ func copyComponentWithValuesCmd(
 	c *Component,
 	values map[string]string,
 ) tea.Cmd {
-	cmd := NewCopyCmd(l, m.terragruntOptions, c).WithValues(values)
+	cmd := NewCopyCmd(l, m.terragruntOptions, c).WithFS(m.venv.FS).WithValues(values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
 		return CopyFinishedMsg{Err: err, Result: cmd.Result(), Interactive: true}

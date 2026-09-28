@@ -10,9 +10,9 @@ import (
 
 type Flags []Flag
 
-func (flags Flags) Parse(args Args) error {
+func (flags Flags) Parse(args Args, env map[string]string) error {
 	for _, flag := range flags {
-		if err := flag.Parse(args); err != nil {
+		if err := flag.Parse(args, env); err != nil {
 			return err
 		}
 	}
@@ -22,19 +22,24 @@ func (flags Flags) Parse(args Args) error {
 
 func (flags Flags) NewFlagSet(
 	cmdName string,
+	env map[string]string,
 	errHandler func(err error) error,
 ) (*libflag.FlagSet, error) {
 	flagSet := libflag.NewFlagSet(cmdName, libflag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	err := flags.Apply(flagSet, errHandler)
+	err := flags.Apply(flagSet, env, errHandler)
 
 	return flagSet, err
 }
 
-func (flags Flags) Apply(flagSet *libflag.FlagSet, errHandler func(err error) error) error {
+func (flags Flags) Apply(
+	flagSet *libflag.FlagSet,
+	env map[string]string,
+	errHandler func(err error) error,
+) error {
 	for _, flag := range flags {
-		if err := flag.Apply(flagSet); err != nil {
+		if err := flag.Apply(flagSet, env); err != nil {
 			if err = errHandler(err); err != nil {
 				return err
 			}

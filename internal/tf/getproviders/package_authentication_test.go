@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -139,21 +140,20 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 			t.Parallel()
 
 			auth := getproviders.NewArchiveChecksumAuthentication(tc.wantSHA256Sum)
-			actualResult, actualErr := auth.Authenticate(tc.path)
+			actualResult, actualErr := auth.Authenticate(vfs.NewOSFS(), tc.path)
 
 			if tc.expectedErr != nil {
-				if actualErr == nil {
-					t.Fatalf("expected error %v but got no error", tc.expectedErr)
-				}
+				require.Error(t, actualErr, "expected error %v but got no error", tc.expectedErr)
+
 				// For file not found errors, just check if it contains the expected text
 				if strings.Contains(tc.expectedErr.Error(), "file not found") {
-					if !strings.Contains(actualErr.Error(), "no such file") &&
-						!strings.Contains(actualErr.Error(), "cannot find the file") {
-						t.Errorf(
-							"expected error containing 'file not found' but got: %v",
-							actualErr,
-						)
-					}
+					assert.True(
+						t,
+						strings.Contains(actualErr.Error(), "no such file") ||
+							strings.Contains(actualErr.Error(), "cannot find the file"),
+						"expected error containing 'file not found' but got: %v",
+						actualErr,
+					)
 				} else {
 					require.EqualError(t, actualErr, tc.expectedErr.Error())
 				}
@@ -234,7 +234,7 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 				tc.filename,
 				tc.wantSHA256Sum,
 			)
-			_, actualErr := auth.Authenticate(tc.path)
+			_, actualErr := auth.Authenticate(vfs.NewOSFS(), tc.path)
 
 			if tc.expectedErr != nil {
 				require.EqualError(t, actualErr, tc.expectedErr.Error())
@@ -365,7 +365,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			require.NoError(t, err)
 
 			auth := getproviders.NewSignatureAuthentication(tc.document, signature, tc.keys)
-			actualResult, actualErr := auth.Authenticate(tc.path)
+			actualResult, actualErr := auth.Authenticate(vfs.NewOSFS(), tc.path)
 
 			if tc.expectedErr != nil {
 				require.EqualError(t, actualErr, tc.expectedErr.Error())

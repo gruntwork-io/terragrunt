@@ -3,15 +3,16 @@ package run_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 // TestModuleVersionResolverSharedPerRunWithRacing pins the contract behind
@@ -28,40 +29,49 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 	l := logger.CreateLogger()
 
-	ctx := run.WithModuleVersionResolver(t.Context())
-	run.ModuleVersionResolverFromContext(ctx).WithHTTPClient(server.Client())
+	v := venvtest.NewOSWithEmptyEnv().WithHTTP(server.Client())
+	ctx := run.WithModuleVersionResolver(t.Context(), v)
 
-	var wg sync.WaitGroup
+	const concurrency = 10
 
-	for range 10 {
-		wg.Add(1)
+	var g errgroup.Group
 
-		go func() {
-			defer wg.Done()
+	pins := make(chan string, concurrency)
 
+	for range concurrency {
+		g.Go(func() error {
 			// Fetch the handle from the context on every use, the way the
 			// download path does. If lookups stopped returning the one shared
 			// resolver, the fresh fallback would not trust the test server's
 			// certificate and Pin would fail.
-			pinned, err := run.ModuleVersionResolverFromContext(ctx).Pin(
+			pinned, err := run.ModuleVersionResolverFromContext(ctx, v).Pin(
 				ctx, l, tfimpl.OpenTofu, source, "~> 3.0",
 			)
-			assert.NoError(t, err)
-			assert.Equal(t, source+"?version=3.3.0", pinned)
-		}()
+			if err != nil {
+				return err
+			}
+
+			pins <- pinned
+
+			return nil
+		})
 	}
 
-	wg.Wait()
+	require.NoError(t, g.Wait())
+	close(pins)
+
+	for pinned := range pins {
+		assert.Equal(t, source+"?version=3.3.0", pinned)
+	}
 
 	assert.Equal(t, int64(1), versionsHits.Load())
 
 	// A second installed resolver stands in for a second run: its cache must
 	// start cold, proving memoization lives on the run's context rather than
 	// in package-level state.
-	otherCtx := run.WithModuleVersionResolver(t.Context())
-	run.ModuleVersionResolverFromContext(otherCtx).WithHTTPClient(server.Client())
+	otherCtx := run.WithModuleVersionResolver(t.Context(), v)
 
-	pinned, err := run.ModuleVersionResolverFromContext(otherCtx).Pin(
+	pinned, err := run.ModuleVersionResolverFromContext(otherCtx, v).Pin(
 		otherCtx, l, tfimpl.OpenTofu, source, "~> 3.0",
 	)
 	require.NoError(t, err)
@@ -82,7 +92,9 @@ func TestModuleVersionResolverFromContextFallback(t *testing.T) {
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 	l := logger.CreateLogger()
 
-	first := run.ModuleVersionResolverFromContext(t.Context()).WithHTTPClient(server.Client())
+	v := venvtest.NewOSWithEmptyEnv().WithHTTP(server.Client())
+
+	first := run.ModuleVersionResolverFromContext(t.Context(), v)
 
 	for range 2 {
 		pinned, err := first.Pin(t.Context(), l, tfimpl.OpenTofu, source, "~> 3.0")
@@ -92,7 +104,7 @@ func TestModuleVersionResolverFromContextFallback(t *testing.T) {
 
 	assert.Equal(t, int64(1), versionsHits.Load())
 
-	second := run.ModuleVersionResolverFromContext(t.Context()).WithHTTPClient(server.Client())
+	second := run.ModuleVersionResolverFromContext(t.Context(), v)
 
 	pinned, err := second.Pin(t.Context(), l, tfimpl.OpenTofu, source, "~> 3.0")
 	require.NoError(t, err)

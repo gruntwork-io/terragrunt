@@ -1,24 +1,11 @@
 package exec
 
 import (
-	"fmt"
-	"slices"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
-
-const envVarsListFormat = "%s=%s"
-
-// envMapToSortedSlice formats env as "KEY=VALUE" strings sorted alphabetically.
-func envMapToSortedSlice(env map[string]string) []string {
-	out := make([]string, 0, len(env))
-	for k, v := range env {
-		out = append(out, fmt.Sprintf(envVarsListFormat, k, v))
-	}
-
-	slices.Sort(out)
-
-	return out
-}
 
 // Option is type for passing options to the Cmd.
 type Option func(*Cmd)
@@ -30,10 +17,10 @@ func WithUsePTY(state bool) Option {
 	}
 }
 
-// WithEnv sets envs to the Cmd.
+// WithEnv overrides the environment [Command] took from the venv.
 func WithEnv(env map[string]string) Option {
 	return func(cmd *Cmd) {
-		cmd.SetEnv(envMapToSortedSlice(env))
+		cmd.SetEnv(venv.Environ(env))
 	}
 }
 
@@ -41,6 +28,14 @@ func WithEnv(env map[string]string) Option {
 func WithForwardSignalDelay(delay time.Duration) Option {
 	return func(cmd *Cmd) {
 		cmd.forwardSignalDelay = delay
+	}
+}
+
+// WithSignalNotifier sets the source [Cmd.ForwardSignal] watches for a repeat of the
+// signal it is holding. The default watches the OS.
+func WithSignalNotifier(notifier signal.NotifierFunc) Option {
+	return func(cmd *Cmd) {
+		cmd.notifier = notifier
 	}
 }
 

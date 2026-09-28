@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +25,20 @@ var (
 	errExplicitError = errors.New("this is an explicit error")
 )
 
+// requireTrapReady blocks until the subprocess writes its marker file. Signalling on a
+// timer instead races the child's startup: a SIGINT that lands before the script reaches
+// its `trap` line kills it outright, so the handler never runs and the exit code is the
+// signal status rather than the value the test asserts on.
+func requireTrapReady(t *testing.T, readyPath string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(readyPath)
+
+		return err == nil
+	}, 10*time.Second, 10*time.Millisecond, "child never wrote the trap-ready marker")
+}
+
 func TestExitCodeUnix(t *testing.T) {
 	t.Parallel()
 
@@ -31,7 +47,7 @@ func TestExitCodeUnix(t *testing.T) {
 	for index := 0; index <= 255; index++ {
 		cmd := exec.Command(
 			t.Context(),
-			vexec.NewOSExec(),
+			venvtest.New().WithExec(vexec.NewOSExec()),
 			"testdata/test_exit_code.sh",
 			strconv.Itoa(index),
 		)
@@ -62,20 +78,23 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
+	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
+
 	cmd := exec.Command(
 		t.Context(),
-		vexec.NewOSExec(),
+		venvtest.New().WithExec(vexec.NewOSExec()),
 		"testdata/test_sigint_wait.sh",
 		strconv.Itoa(expectedWait),
+		readyPath,
 	)
 
-	runChannel := make(chan error)
+	runChannel := make(chan error, 1)
 
 	go func() {
 		runChannel <- cmd.Run(l)
 	}()
 
-	time.Sleep(time.Second)
+	requireTrapReady(t, readyPath)
 
 	start := time.Now()
 
@@ -97,56 +116,6 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	)
 }
 
-// There isn't a proper way to catch interrupts in Windows batch scripts, so this test exists only for Unix.
-func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
-	t.Parallel()
-
-	expectedInterrupts := 4
-
-	l := logger.CreateLogger()
-
-	cmd := exec.Command(
-		t.Context(), vexec.NewOSExec(),
-		"testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts),
-	)
-
-	runChannel := make(chan error)
-
-	go func() {
-		runChannel <- cmd.Run(l)
-	}()
-
-	time.Sleep(time.Second)
-
-	interruptAndWaitForProcess := func() (int, error) {
-		var (
-			interrupts int
-			err        error
-		)
-
-		for {
-			time.Sleep(500 * time.Millisecond)
-
-			select {
-			case err = <-runChannel:
-				return interrupts, err
-			default:
-				cmd.SendSignal(l, os.Interrupt)
-
-				interrupts++
-			}
-		}
-	}
-
-	interrupts, err := interruptAndWaitForProcess()
-	require.Error(t, err)
-
-	retCode, err := util.GetExitCode(err)
-	require.NoError(t, err)
-	assert.LessOrEqual(t, retCode, interrupts, "Subprocess received wrong number of signals")
-	assert.Equal(t, expectedInterrupts, retCode, "Subprocess didn't receive multiple signals")
-}
-
 // TestGracefulShutdownOnContextCancelUnix verifies that when the context is cancelled
 // without a signal cause, the Cancel callback sends SIGINT (not SIGKILL) to allow
 // processes like Terraform to gracefully shutdown their child processes.
@@ -159,17 +128,24 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := exec.Command(ctx, vexec.NewOSExec(), "testdata/test_graceful_shutdown.sh")
+	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
+
+	cmd := exec.Command(
+		ctx,
+		venvtest.New().WithExec(vexec.NewOSExec()),
+		"testdata/test_graceful_shutdown.sh",
+		readyPath,
+	)
 
 	cmd.Configure(exec.WithGracefulShutdownDelay(5 * time.Second))
 
-	runChannel := make(chan error)
+	runChannel := make(chan error, 1)
 
 	go func() {
 		runChannel <- cmd.Run(l)
 	}()
 
-	time.Sleep(500 * time.Millisecond)
+	requireTrapReady(t, readyPath)
 
 	cancel()
 

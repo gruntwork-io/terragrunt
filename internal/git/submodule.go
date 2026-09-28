@@ -110,13 +110,13 @@ func ResolveSubmoduleURL(parentURL, url string) string {
 
 		url = rest
 
-		if i := strings.LastIndexByte(base, '/'); i >= 0 {
-			base = base[:i]
+		if parent, _, ok := strings.CutLast(base, "/"); ok {
+			base = parent
 			continue
 		}
 
-		if i := strings.LastIndexByte(base, ':'); i >= 0 {
-			base = base[:i]
+		if parent, _, ok := strings.CutLast(base, ":"); ok {
+			base = parent
 			colonsep = true
 
 			continue

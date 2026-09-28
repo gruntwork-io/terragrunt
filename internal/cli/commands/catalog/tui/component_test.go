@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
@@ -20,7 +21,7 @@ name: VPC App
 # Heading
 `
 	withDoc := tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		"github.com/acme/repo",
 		"modules/vpc",
 		readme,
@@ -28,7 +29,7 @@ name: VPC App
 	assert.Equal(t, "VPC App", withDoc.Title(), "front-matter name wins")
 
 	noDocTitle := tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		"github.com/acme/repo",
 		"modules/vpc",
 		"",
@@ -46,14 +47,14 @@ description: A VPC for application workloads.
 # VPC App
 `
 	withDesc := tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		"github.com/acme/repo",
 		"vpc",
 		readme,
 	)
 	assert.Equal(t, "A VPC for application workloads.", withDesc.Description())
 
-	noDesc := tui.NewComponentForTest(tui.ComponentKindModule, "github.com/acme/repo", "vpc", "")
+	noDesc := tui.NewComponentForTest(component.KindModule, "github.com/acme/repo", "vpc", "")
 	assert.Equal(t, "(no description found)", noDesc.Description())
 }
 
@@ -67,7 +68,7 @@ tags: [networking, aws]
 # VPC App
 Use ` + "`terragrunt`" + ` to apply.
 `
-	c := tui.NewComponentForTest(tui.ComponentKindModule, "github.com/acme/repo", "vpc", readme)
+	c := tui.NewComponentForTest(component.KindModule, "github.com/acme/repo", "vpc", readme)
 
 	assert.Equal(t, []string{"networking", "aws"}, c.Tags())
 	assert.True(t, c.IsMarkDown(), "NewComponentForTest builds a Markdown doc")

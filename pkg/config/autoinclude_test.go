@@ -2,7 +2,6 @@ package config_test
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -10,10 +9,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // tfInitCommand is the terraform command these autoinclude tests resolve dependency mock outputs against.
@@ -23,22 +25,21 @@ const tfInitCommand = "init"
 func TestMergeAutoInclude_MalformedSiblingDoesNotPanic(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	// The parent lives in a subdirectory so the sibling autoinclude does not also apply to it.
 	parentDir := filepath.Join(tmpDir, "parent")
-	require.NoError(t, os.MkdirAll(parentDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(parentDir, "root.hcl"), []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(parentDir, "root.hcl"), []byte(`
 inputs = {
   parent = "from-root"
 }
 `), 0644))
 
 	// A unit with a resolvable include so TrackInclude is set and the post-merge handleInclude branch dereferences config on a shallow merge.
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 include "root" {
-  path           = "`+filepath.Join(parentDir, "root.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(parentDir, "root.hcl"))+`"
   merge_strategy = "shallow"
 }
 
@@ -49,7 +50,7 @@ inputs = {
 
 	// An autoinclude that references an undefined local so its parse fails and mergeAutoIncludeIfPresent returns (nil, err).
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 inputs = {
   broken = local.does_not_exist
 }
@@ -62,7 +63,7 @@ inputs = {
 
 	// The call must return the parse error, never panic on a nil config.
 	require.NotPanics(t, func() {
-		_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+		_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 		require.Error(t, err, "a malformed sibling autoinclude must surface as an error")
 	})
 }
@@ -72,14 +73,13 @@ inputs = {
 func TestFoldSiblingAutoIncludeDeps_UsesAutoIncludeOwnLocals(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	// The valid dependency target named by the autoinclude's own local.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
 	require.NoError(
 		t,
-		os.WriteFile(
+		vfs.WriteFile(v.FS,
 			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
 			[]byte(``),
 			0644,
@@ -89,7 +89,7 @@ func TestFoldSiblingAutoIncludeDeps_UsesAutoIncludeOwnLocals(t *testing.T) {
 	const marker = "autoinclude-local-marker"
 
 	// The unit defines NO target local and reads a dependency output the autoinclude wires in.
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 remote_state {
   backend = "local"
   generate = {
@@ -104,7 +104,7 @@ remote_state {
 
 	// The autoinclude declares its own local that names the real target dir and feeds config_path.
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 locals {
   target = "./foo"
 }
@@ -125,7 +125,7 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -146,14 +146,13 @@ dependency "foo" {
 func TestFoldSiblingAutoIncludeDeps_FoldsIncludeInheritedDeps(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	// The dependency target dir.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
 	require.NoError(
 		t,
-		os.WriteFile(
+		vfs.WriteFile(v.FS,
 			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
 			[]byte(``),
 			0644,
@@ -163,7 +162,7 @@ func TestFoldSiblingAutoIncludeDeps_FoldsIncludeInheritedDeps(t *testing.T) {
 	const marker = "include-inherited-dep-marker"
 
 	// The unit reads a dependency output but declares no dependency itself.
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 remote_state {
   backend = "local"
   generate = {
@@ -178,10 +177,9 @@ remote_state {
 
 	// The included base lives in its OWN dir (not beside the autoinclude) and declares the dependency
 	// the unit relies on. config_path is absolute so it resolves the same regardless of parse dir.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "base"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "base", "base.hcl"), []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, "base", "base.hcl"), []byte(`
 dependency "foo" {
-  config_path  = "`+filepath.Join(tmpDir, "foo")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "foo"))+`"
   skip_outputs = true
   mock_outputs = {
     val = "`+marker+`"
@@ -192,9 +190,9 @@ dependency "foo" {
 
 	// The autoinclude declares NO dependency of its own; it inherits "foo" through a deep include.
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 include "base" {
-  path           = "`+filepath.Join(tmpDir, "base", "base.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "base", "base.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
@@ -205,7 +203,7 @@ include "base" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -225,17 +223,17 @@ include "base" {
 func TestMergeAutoInclude_SameDirIncludeDoesNotRecurse(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = {
   from_unit = "unit-value"
 }
 `), 0644))
 
 	// A sibling file in the SAME directory as the autoinclude.
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "common.hcl"), []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, "common.hcl"), []byte(`
 inputs = {
   from_common = "common-value"
 }
@@ -243,9 +241,9 @@ inputs = {
 
 	// The autoinclude includes that same-dir sibling, the shape that previously recursed forever.
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 include "common" {
-  path           = "`+filepath.Join(tmpDir, "common.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "common.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
@@ -256,7 +254,7 @@ include "common" {
 	l := logger.CreateLogger()
 
 	require.NotPanics(t, func() {
-		parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+		parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 		require.NoError(t, err, "a same-dir autoinclude include must terminate, not recurse")
 		require.NotNil(t, parsed)
 		// The included sibling's inputs still flow through the autoinclude into the unit.
@@ -278,14 +276,13 @@ include "common" {
 func TestFoldSiblingAutoIncludeDeps_PulledInFileDoesNotFoldForeignAutoInclude(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 
 	// Dependency targets for the wanted and foreign dependencies.
 	for _, name := range []string{"wanted-target", "leak-target"} {
-		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0755))
 		require.NoError(
 			t,
-			os.WriteFile(
+			vfs.WriteFile(v.FS,
 				filepath.Join(tmpDir, name, config.DefaultTerragruntConfigPath),
 				[]byte(``),
 				0644,
@@ -294,36 +291,35 @@ func TestFoldSiblingAutoIncludeDeps_PulledInFileDoesNotFoldForeignAutoInclude(t 
 	}
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = { from_unit = "a" }
 `), 0644))
 
 	// A's autoinclude declares a WANTED dependency and deep-includes a base file in a different dir.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "b"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
 dependency "wanted" {
-  config_path  = "`+filepath.Join(tmpDir, "wanted-target")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "wanted-target"))+`"
   skip_outputs = true
   mock_outputs = { val = "wanted" }
   mock_outputs_allowed_terraform_commands = ["init"]
 }
 
 include "base" {
-  path           = "`+filepath.Join(tmpDir, "b", "base.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "b", "base.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
 
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "b", "base.hcl"), []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, "b", "base.hcl"), []byte(`
 inputs = { from_base = "b" }
 `), 0644))
 
 	// The base directory has its OWN sibling autoinclude declaring a foreign dependency that must not leak.
 	require.NoError(
 		t,
-		os.WriteFile(filepath.Join(tmpDir, "b", config.DefaultAutoIncludeFile), []byte(`
+		vfs.WriteFile(v.FS, filepath.Join(tmpDir, "b", config.DefaultAutoIncludeFile), []byte(`
 dependency "leak" {
-  config_path  = "`+filepath.Join(tmpDir, "leak-target")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "leak-target"))+`"
   skip_outputs = true
   mock_outputs = { val = "leaked" }
   mock_outputs_allowed_terraform_commands = ["init"]
@@ -335,7 +331,7 @@ dependency "leak" {
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -362,11 +358,11 @@ dependency "leak" {
 func TestMergeAutoInclude_ExcludeAutoIncludeWinsBothParsePaths(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	// The unit declares an exclude with one action set.
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 exclude {
   if      = true
   actions = ["plan"]
@@ -375,7 +371,7 @@ exclude {
 
 	// The autoinclude declares a different exclude that must win.
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 exclude {
   if      = true
   actions = ["apply"]
@@ -387,7 +383,7 @@ exclude {
 	ctxFull, pctxFull := newTestParsingContext(t, cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
+	parsedFull, err := config.ParseConfigFile(ctxFull, l, v, pctxFull, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
 	require.NotNil(t, parsedFull.Exclude)
@@ -402,7 +398,7 @@ exclude {
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
 
-	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, pctxPartial, l, cfgPath, nil)
+	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, l, v, pctxPartial, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Exclude)
@@ -418,10 +414,10 @@ func TestMergeAutoInclude_NoFile(t *testing.T) {
 	t.Parallel()
 
 	// When there is no terragrunt.autoinclude.hcl, parsing should work normally.
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 terraform {
   source = "."
 }
@@ -435,7 +431,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -446,11 +442,11 @@ inputs = {
 func TestMergeAutoInclude_WithFile(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	// Unit config with some inputs
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 terraform {
   source = "."
 }
@@ -461,9 +457,9 @@ inputs = {
 }
 `), 0644))
 
-	// Autoinclude with overlapping inputs — should win on conflicts
+	// Autoinclude with overlapping inputs, which should win on conflicts
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 inputs = {
   name = "from-autoinclude"
   extra = "autoinclude-value"
@@ -474,7 +470,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -490,10 +486,10 @@ inputs = {
 func TestMergeAutoInclude_StackLevelFilenameNotMergedIntoUnit(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 terraform {
   source = "."
 }
@@ -505,7 +501,7 @@ inputs = {
 
 	// A sibling terragrunt.autoinclude.stack.hcl must be ignored by the unit-level merge path.
 	stackAutoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeStackFile)
-	require.NoError(t, os.WriteFile(stackAutoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, stackAutoIncludePath, []byte(`
 inputs = {
   name = "from-stack-autoinclude-must-not-merge"
 }
@@ -515,7 +511,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -531,11 +527,11 @@ inputs = {
 func TestPartialParseAutoIncludeRemoteStateDependencyPlaceholder(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	// Unit references a dependency output but declares no dependency block itself.
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 remote_state {
   backend = "local"
   generate = {
@@ -550,7 +546,7 @@ remote_state {
 
 	// The dependency lives only in the sibling autoinclude.
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 dependency "foo" {
   config_path = "../foo"
   mock_outputs = {
@@ -566,7 +562,7 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	_, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	_, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 }
 
@@ -574,14 +570,13 @@ dependency "foo" {
 func TestParseConfigAutoIncludeRemoteStateFoldsDependencyMockOutput(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	// A sibling target directory so the dependency config_path is valid.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
 	require.NoError(
 		t,
-		os.WriteFile(
+		vfs.WriteFile(v.FS,
 			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
 			[]byte(``),
 			0644,
@@ -591,7 +586,7 @@ func TestParseConfigAutoIncludeRemoteStateFoldsDependencyMockOutput(t *testing.T
 	const marker = "autoinclude-mock-marker"
 
 	// Unit remote_state config references a dependency output but has no dependency block.
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 remote_state {
   backend = "local"
   generate = {
@@ -606,7 +601,7 @@ remote_state {
 
 	// The dependency lives only in the sibling autoinclude with a mock output.
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 dependency "foo" {
   config_path = "./foo"
   skip_outputs = true
@@ -623,7 +618,7 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 	require.NotNil(t, parsed.RemoteState)
@@ -635,13 +630,12 @@ dependency "foo" {
 func TestParseConfigAutoIncludeFileDirectlyDoesNotRecurse(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 
 	// A sibling target directory so the dependency config_path is valid.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
 	require.NoError(
 		t,
-		os.WriteFile(
+		vfs.WriteFile(v.FS,
 			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
 			[]byte(``),
 			0644,
@@ -650,7 +644,7 @@ func TestParseConfigAutoIncludeFileDirectlyDoesNotRecurse(t *testing.T) {
 
 	// Parse the autoinclude file directly.
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 dependency "foo" {
   config_path = "./foo"
   skip_outputs = true
@@ -667,7 +661,7 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, autoIncludePath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 }
@@ -679,10 +673,10 @@ dependency "foo" {
 func TestMergeAutoIncludeShallowInputMerge(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = {
   tags      = { a = "1" }
   unit_only = "u"
@@ -690,7 +684,7 @@ inputs = {
 `), 0644))
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 inputs = {
   tags    = { b = "2" }
   ai_only = "x"
@@ -702,7 +696,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -731,10 +725,10 @@ inputs = {
 func TestMergeAutoIncludeDirectionAutoIncludeWins(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 terraform {
   source = "from-unit"
 }
@@ -745,7 +739,7 @@ inputs = {
 `), 0644))
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 terraform {
   source = "from-autoinclude"
 }
@@ -760,7 +754,7 @@ inputs = {
 	ctxFull, pctxFull := newTestParsingContext(t, cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
+	parsedFull, err := config.ParseConfigFile(ctxFull, l, v, pctxFull, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
 	assert.Equal(
@@ -782,7 +776,7 @@ inputs = {
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
 
-	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, pctxPartial, l, cfgPath, nil)
+	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, l, v, pctxPartial, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Terraform)
@@ -799,18 +793,18 @@ inputs = {
 func TestPartialParseAutoIncludeEffectiveMerge(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	// Unit declares none of the blocks under test.
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = {
   name = "from-unit"
 }
 `), 0644))
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 remote_state {
   backend = "local"
   generate = {
@@ -846,7 +840,7 @@ errors {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -874,20 +868,19 @@ errors {
 func TestPartialParseAutoIncludeDependencyNoDoubleCount(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
 	require.NoError(
 		t,
-		os.WriteFile(
+		vfs.WriteFile(v.FS,
 			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
 			[]byte(``),
 			0644,
 		),
 	)
 
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 dependency "foo" {
   config_path  = "./foo"
   skip_outputs = true
@@ -895,7 +888,7 @@ dependency "foo" {
 `), 0644))
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 dependency "foo" {
   config_path  = "./foo"
   skip_outputs = true
@@ -908,7 +901,7 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -942,13 +935,12 @@ dependency "foo" {
 func TestPartialParseConfigAutoIncludeFileDirectlyDoesNotRecurse(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 
 	// A sibling target directory so the dependency config_path is valid.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755))
 	require.NoError(
 		t,
-		os.WriteFile(
+		vfs.WriteFile(v.FS,
 			filepath.Join(tmpDir, "foo", config.DefaultTerragruntConfigPath),
 			[]byte(``),
 			0644,
@@ -956,7 +948,7 @@ func TestPartialParseConfigAutoIncludeFileDirectlyDoesNotRecurse(t *testing.T) {
 	)
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 dependency "foo" {
   config_path = "./foo"
   skip_outputs = true
@@ -975,7 +967,7 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, autoIncludePath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 }
@@ -985,14 +977,13 @@ dependency "foo" {
 func TestPartialParseAutoIncludeCacheNotStaleOnCreate(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
 	// A sibling target directory so the autoinclude dependency config_path is valid.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "producer"), 0755))
 	require.NoError(
 		t,
-		os.WriteFile(
+		vfs.WriteFile(v.FS,
 			filepath.Join(tmpDir, "producer", config.DefaultTerragruntConfigPath),
 			[]byte(``),
 			0644,
@@ -1000,7 +991,7 @@ func TestPartialParseAutoIncludeCacheNotStaleOnCreate(t *testing.T) {
 	)
 
 	// The unit declares none of the blocks under test; the autoinclude supplies them.
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = {
   name = "from-unit"
 }
@@ -1021,7 +1012,7 @@ inputs = {
 	l := logger.CreateLogger()
 
 	// First parse populates the cache while no autoinclude exists.
-	before, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	before, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, before)
 	assert.Nil(t, before.RemoteState, "no autoinclude yet: no remote_state should be merged")
@@ -1029,7 +1020,7 @@ inputs = {
 	// Create the autoinclude AFTER the cache was populated: a dependency plus a remote_state that
 	// references that dependency (the real generated unit-level autoinclude shape).
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 dependency "producer" {
   config_path  = "./producer"
   skip_outputs = true
@@ -1048,7 +1039,7 @@ remote_state {
 `), 0644))
 
 	// Second parse must reflect the freshly created autoinclude, not the stale pre-autoinclude entry.
-	after, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	after, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	require.NotNil(
@@ -1074,17 +1065,17 @@ remote_state {
 func TestPartialParseAutoIncludeCacheNotStaleOnEdit(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = {
   name = "from-unit"
 }
 `), 0644))
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 remote_state {
   backend = "local"
   generate = {
@@ -1110,14 +1101,14 @@ remote_state {
 
 	l := logger.CreateLogger()
 
-	first, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	first, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, first)
 	require.NotNil(t, first.RemoteState)
 	assert.Equal(t, "first", first.RemoteState.BackendConfig["path"])
 
 	// Edit the autoinclude in-process; the changed content must change the cache key.
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 remote_state {
   backend = "local"
   generate = {
@@ -1130,7 +1121,7 @@ remote_state {
 }
 `), 0644))
 
-	second, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	second, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, second)
 	require.NotNil(t, second.RemoteState)
@@ -1149,12 +1140,11 @@ remote_state {
 func TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 	for _, name := range []string{"foo", "bar"} {
-		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, name), 0755))
 		require.NoError(
 			t,
-			os.WriteFile(
+			vfs.WriteFile(v.FS,
 				filepath.Join(tmpDir, name, config.DefaultTerragruntConfigPath),
 				[]byte(``),
 				0644,
@@ -1163,7 +1153,7 @@ func TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap
 	}
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	require.NoError(t, os.WriteFile(cfgPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 dependencies {
   paths = ["./foo"]
 }
@@ -1175,7 +1165,7 @@ dependency "foo" {
 `), 0644))
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 dependency "bar" {
   config_path = "./bar"
 }
@@ -1188,7 +1178,7 @@ dependency "bar" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed.Dependencies)
 	assert.Contains(
@@ -1206,14 +1196,13 @@ dependency "bar" {
 func TestParseTerragruntConfig_ReadsStackAutoIncludeFile(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 
 	// The generated stack-level autoinclude lives beside a nested stack's terragrunt.stack.hcl.
 	stackDir := filepath.Join(tmpDir, "stack")
-	require.NoError(t, os.MkdirAll(stackDir, 0755))
 
 	autoIncludePath := filepath.Join(stackDir, config.DefaultAutoIncludeStackFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 unit "db" {
   source = "../catalog/units/db"
   path   = "db"
@@ -1231,7 +1220,7 @@ stack "networking" {
 
 	l := logger.CreateLogger()
 
-	cfgCty, err := config.ParseTerragruntConfig(ctx, pctx, l, autoIncludePath, nil)
+	cfgCty, err := config.ParseTerragruntConfig(ctx, l, v, pctx, autoIncludePath, nil)
 	require.NoError(
 		t,
 		err,
@@ -1264,13 +1253,12 @@ stack "networking" {
 func TestParseTerragruntConfig_ReadsUnitAutoIncludeFile(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 
 	// The dependency target the autoinclude's dependency block points at.
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "vpc"), 0755))
 	require.NoError(
 		t,
-		os.WriteFile(
+		vfs.WriteFile(v.FS,
 			filepath.Join(tmpDir, "vpc", config.DefaultTerragruntConfigPath),
 			[]byte(``),
 			0644,
@@ -1278,7 +1266,7 @@ func TestParseTerragruntConfig_ReadsUnitAutoIncludeFile(t *testing.T) {
 	)
 
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, os.WriteFile(autoIncludePath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 dependency "vpc" {
   config_path  = "./vpc"
   skip_outputs = true
@@ -1300,7 +1288,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	cfgCty, err := config.ParseTerragruntConfig(ctx, pctx, l, autoIncludePath, nil)
+	cfgCty, err := config.ParseTerragruntConfig(ctx, l, v, pctx, autoIncludePath, nil)
 	require.NoError(t, err, "a unit-level autoinclude file must read through the unit-config path")
 
 	cfgMap, err := ctyhelper.ParseCtyValueToMap(cfgCty)
@@ -1324,10 +1312,10 @@ inputs = {
 func TestValidateStackAutoIncludes_ReportsMalformedAutoInclude(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	v, tmpDir := newMemTestDir(t)
 
 	stackPath := filepath.Join(tmpDir, config.DefaultStackFile)
-	require.NoError(t, os.WriteFile(stackPath, []byte(`
+	require.NoError(t, vfs.WriteFile(v.FS, stackPath, []byte(`
 unit "app" {
   source = "./units/app"
   path   = "app"
@@ -1345,14 +1333,14 @@ unit "app" {
 
 	l := logger.CreateLogger()
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackPath, nil)
 	require.NoError(
 		t,
 		err,
 		"the lenient stack decode must keep accepting the malformed autoinclude block",
 	)
 
-	err = config.ValidateStackAutoIncludes(ctx, l, pctx, stackPath, stackCfg, nil)
+	err = config.ValidateStackAutoIncludes(ctx, l, v, pctx, stackPath, stackCfg, nil)
 	require.Error(t, err, "the strict autoinclude parse must report the locals block")
 
 	var stageErr config.AutoIncludeParserStageError
@@ -1361,4 +1349,442 @@ unit "app" {
 	var localsErr inthclparse.AutoIncludeLocalsBlockError
 	require.ErrorAs(t, err, &localsErr)
 	assert.Equal(t, "app", localsErr.Component)
+}
+
+// Autoinclude inputs that override a unit input referencing a values.* key not present in the values file must not fail.
+func TestMergeAutoInclude_ValuesPlaceholderForOverriddenInputs(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// Unit references values.vpc_id (not in values file) and values.cidr (in values file).
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+inputs = {
+  vpc_id = values.vpc_id
+  cidr   = values.cidr
+}
+`), 0644))
+
+	// Values file defines only cidr, not vpc_id.
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, "terragrunt.values.hcl"), []byte(`
+cidr = "10.0.0.0/16"
+`), 0644))
+
+	// Autoinclude overrides vpc_id with a literal (in real usage this would be dependency.*.outputs.*).
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
+inputs = {
+  vpc_id = "from-autoinclude"
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	require.NoError(t, err, "parsing must not fail on values.vpc_id when autoinclude overrides vpc_id")
+	require.NotNil(t, parsed)
+
+	assert.Equal(t, "from-autoinclude", parsed.Inputs["vpc_id"], "autoinclude must win for vpc_id")
+	assert.Equal(t, "10.0.0.0/16", parsed.Inputs["cidr"], "original values.cidr must survive")
+}
+
+// When a unit source references values.vpc_path in a dependency config_path and the autoinclude overrides that entire dependency, the parse must succeed even though values.vpc_path is absent.
+func TestFoldSiblingAutoIncludeDeps_OverridesConfigPathFromValues(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// Dependency target referenced by the autoinclude override.
+	require.NoError(t, vfs.WriteFile(v.FS,
+		filepath.Join(tmpDir, "vpc", config.DefaultTerragruntConfigPath),
+		[]byte(``), 0644,
+	))
+
+	const marker = "autoinclude-overrides-values-config-path"
+
+	// Unit references values.vpc_path, which does NOT exist in the values.
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = values.vpc_path
+  skip_outputs = true
+  mock_outputs = {
+    id = "from-unit"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.id
+}
+`), 0644))
+
+	// Autoinclude overrides the dependency with a valid config_path.
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
+dependency "vpc" {
+  config_path  = "./vpc"
+  skip_outputs = true
+  mock_outputs = {
+    id = "`+marker+`"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	// Values that intentionally omit vpc_path.
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, "terragrunt.values.hcl"), []byte(`
+region = "us-east-1"
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	require.NoError(t, err, "autoinclude dependency override must suppress the unresolvable values.vpc_path")
+	require.NotNil(t, parsed)
+	assert.Equal(t, marker, parsed.Inputs["vpc_id"], "autoinclude's mock output must win")
+}
+
+// A unit with two deps—one overridden by autoinclude and one valid—must resolve both.
+func TestFoldSiblingAutoIncludeDeps_OverridesConfigPathMixedDeps(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	for _, sub := range []string{"vpc", "db"} {
+		require.NoError(t, vfs.WriteFile(v.FS,
+			filepath.Join(tmpDir, sub, config.DefaultTerragruntConfigPath),
+			[]byte(``), 0644,
+		))
+	}
+
+	// "vpc" references an absent values.vpc_path; "db" has a valid literal path.
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = values.vpc_path
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+dependency "db" {
+  config_path  = "./db"
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-db"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.id
+  db_id  = dependency.db.outputs.id
+}
+`), 0644))
+
+	// Autoinclude overrides only "vpc".
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
+dependency "vpc" {
+  config_path  = "./vpc"
+  skip_outputs = true
+  mock_outputs = {
+    id = "autoinclude-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	require.NoError(t, err, "mixed deps must resolve when autoinclude overrides the unresolvable one")
+	require.NotNil(t, parsed)
+	assert.Equal(t, "autoinclude-vpc", parsed.Inputs["vpc_id"], "autoinclude must win for vpc")
+	assert.Equal(t, "unit-db", parsed.Inputs["db_id"], "unit's own db dep must survive")
+}
+
+// When an autoinclude overrides a different dep than the one that fails, the parse must still fail.
+func TestFoldSiblingAutoIncludeDeps_NonOverriddenFailureStillErrors(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(v.FS,
+		filepath.Join(tmpDir, "other", config.DefaultTerragruntConfigPath),
+		[]byte(``), 0644,
+	))
+
+	// "vpc" references an absent values.vpc_path; no autoinclude overrides it.
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = values.vpc_path
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	// Autoinclude overrides only "other", not "vpc".
+	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
+dependency "other" {
+  config_path  = "./other"
+  skip_outputs = true
+  mock_outputs = {
+    id = "autoinclude-other"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	require.Error(t, err, "a non-overridden dep with unresolvable config_path must still fail")
+}
+
+// Without any autoinclude file, a dependency referencing an absent values attribute must still fail with the original error pointing at the values attribute, not a downstream dependency.vpc error.
+func TestFoldSiblingAutoIncludeDeps_MissingValuesPathWithoutAutoIncludeStillErrors(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// No autoinclude file at all.
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = values.vpc_path
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.id
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	require.Error(t, err, "without autoinclude the values.vpc_path error must not be swallowed")
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	require.NotEmpty(t, diags)
+	require.NotNil(t, diags[0].Subject)
+	assert.Equal(t, cfgPath, diags[0].Subject.Filename)
+	// The config_path expression, not a downstream dependency.vpc reference.
+	assert.Equal(t, 3, diags[0].Subject.Start.Line)
+}
+
+// A dependency block the autoinclude replaces wholesale contributes nothing to the merged
+// config, so the parse never evaluates it and never reports its contents.
+func TestFoldSiblingAutoIncludeDeps_OverriddenBlockIsNeverEvaluated(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(v.FS,
+		filepath.Join(tmpDir, "vpc", config.DefaultTerragruntConfigPath),
+		[]byte(``), 0644,
+	))
+
+	// config_path resolves fine; mock_outputs_allowed_terraform_commands has the wrong type.
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+dependency "vpc" {
+  config_path  = "./vpc"
+  skip_outputs = true
+  mock_outputs = {
+    id = "from-unit"
+  }
+  mock_outputs_allowed_terraform_commands = "init"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.id
+}
+`), 0644))
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path  = "./vpc"
+  skip_outputs = true
+  mock_outputs = {
+    id = "from-autoinclude"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	l := logger.CreateLogger()
+
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	assert.Equal(t, "from-autoinclude", parsed.Inputs["vpc_id"])
+}
+
+// An expanded unit dependency is decoded even when the autoinclude declares the same name.
+// Expansion keys instances separately from the bare label, so WithSkipLabels leaves the unit
+// block alone. Encoding then rejects the bare autoinclude label sitting beside those instances.
+func TestFoldSiblingAutoIncludeDeps_ExpandedUnitDepConflictsWithUnexpandedOverride(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	for _, sub := range []string{"vpc", "vpc-api", "vpc-web"} {
+		require.NoError(t, vfs.WriteFile(v.FS,
+			filepath.Join(tmpDir, sub, config.DefaultTerragruntConfigPath),
+			[]byte(``), 0644,
+		))
+	}
+
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+locals {
+  services = toset(["api", "web"])
+}
+
+dependency "vpc" {
+  expansion {
+    for_each = local.services
+  }
+
+  config_path  = "./vpc-${each.value}"
+  skip_outputs = true
+  mock_outputs = {
+    id = "unit-${each.value}"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path  = "./vpc"
+  skip_outputs = true
+  mock_outputs = {
+    id = "from-autoinclude"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	l := logger.CreateLogger()
+
+	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+
+	var collision config.DependencyLabelCollisionError
+	require.ErrorAs(t, err, &collision)
+	assert.Equal(t, "vpc", collision.Name)
+}
+
+// An expanded unit dependency the autoinclude does not replace must still report an
+// unresolvable for_each, rather than vanishing behind the same-name autoinclude block.
+func TestFoldSiblingAutoIncludeDeps_ExpandedUnitDepStillErrors(t *testing.T) {
+	t.Parallel()
+
+	v, tmpDir := newMemTestDir(t)
+	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(v.FS,
+		filepath.Join(tmpDir, "vpc", config.DefaultTerragruntConfigPath),
+		[]byte(``), 0644,
+	))
+
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+dependency "vpc" {
+  expansion {
+    for_each = values.regions
+  }
+
+  config_path  = "./vpc-${each.value}"
+  skip_outputs = true
+}
+`), 0644))
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path  = "./vpc"
+  skip_outputs = true
+  mock_outputs = {
+    id = "from-autoinclude"
+  }
+  mock_outputs_allowed_terraform_commands = ["init"]
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+	pctx.OriginalTerraformCommand = tfInitCommand
+
+	values := cty.ObjectVal(map[string]cty.Value{
+		"region": cty.StringVal("us-east-1"),
+	})
+	pctx.Values = &values
+
+	l := logger.CreateLogger()
+
+	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	require.Error(t, err)
 }

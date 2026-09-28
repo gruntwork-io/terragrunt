@@ -31,7 +31,7 @@ Specifies where Terragrunt writes native OpenTofu/Terraform plan files for each 
 `--out-dir` controls **where** Terragrunt reads and writes per-unit plan files, but it does **not** restrict which units `run --all apply` discovers. If your plan was scoped with `--filter`, you must reuse the same `--filter` on
 `apply` — otherwise Terragrunt will discover unfiltered units, fail to find their plan files in `--out-dir`, and error out.
 
-See [Saving OpenTofu/Terraform plan output](https://docs.terragrunt.com/features/stacks/stack-operations/#saving-opentofuterraform-plan-output) for the full plan-then-apply pattern.
+See [Saving OpenTofu/Terraform plan output](/features/stacks/run-queue#saving-opentofuterraform-plan-output) for the full plan-then-apply pattern.
 
 </Aside>
 
@@ -45,6 +45,6 @@ terragrunt run --all plan --out-dir /tmp/tfplan
 terragrunt run --all apply --out-dir /tmp/tfplan
 ```
 
-See the [Stacks](/features/stacks/stack-operations#saving-opentofuterraform-plan-output) docs for more usage examples.
+See the [Run Queue](/features/stacks/run-queue#saving-opentofuterraform-plan-output) docs for more usage examples.
 
 

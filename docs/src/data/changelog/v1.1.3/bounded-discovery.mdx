@@ -1,0 +1,33 @@
+---
+version: "v1.1.3"
+category: "experiments-added"
+---
+
+#### `bounded-discovery` — Added a directory boundary for graph traversal
+
+Filter expressions that traverse the dependency graph reach beyond the working directory: dependents (`--filter '...{unit}'`) by walking up to the Git repository root, dependencies (`--filter '{unit}...'`) by following declared paths. Either way, Terragrunt reads and parses every configuration it touches. In monorepos with isolated environments, that traversal can fail or do wasted work reading sibling environments.
+
+Enable the new [`bounded-discovery`](/reference/experiments/active#bounded-discovery) experiment to set a boundary for that traversal. The `--discovery-boundary` flag (env: `TG_DISCOVERY_BOUNDARY`) replaces the Git repository root as the enclosure for a whole run:
+
+```bash
+cd environments/staging
+terragrunt run --all plan --experiment bounded-discovery --filter '...{vpc}' --discovery-boundary .
+```
+
+The experiment also unlocks an inline `(dir)` boundary operand, which bounds a single expression and overrides the flag. It occupies the same slot as a traversal depth, so it bounds discovery by location the way a number bounds it by graph hops:
+
+```bash
+cd environments/staging
+terragrunt run --all plan --experiment bounded-discovery --filter '(.)...{vpc}'
+```
+
+Any configuration that resolves outside the boundary, whether a dependent or a dependency, is not read, parsed, or returned: `find` does not list it and `run --all` does not run it. Configurations inside the boundary are discovered as usual.
+
+The boundary must be an existing directory, and relative paths are resolved against the working directory. Dependent traversal searches upward from the working directory, so filters that use it also need the boundary to be the working directory or one of its parents. Dependency traversal follows declared paths from the units a filter matched, so dependency-only filters accept any directory, including one below the working directory:
+
+```bash
+# From the repository root, follow app's dependencies but keep them within prod
+terragrunt find --experiment bounded-discovery --filter '{./prod/app}...' --discovery-boundary ./prod
+```
+
+Reserving `(` and `)` for the boundary operand changes how `--filter` reads those characters everywhere, not only when the experiment is enabled. An expression such as `--filter '1...(foo | bar)'` previously matched a unit literally named `(foo` or `bar)`; it is now rejected as a malformed boundary. Wrap a name or path containing parentheses in braces (e.g. `--filter '{./weird(name)}'`) to keep it literal.

@@ -1,0 +1,66 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package funcs
+
+import (
+	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/marks"
+	"github.com/zclconf/go-cty/cty"
+)
+
+func TestRedactIfSensitive(t *testing.T) {
+	testCases := map[string]struct {
+		value any
+		marks []cty.ValueMarks
+		want  string
+	}{
+		"sensitive string": {
+			value: "foo",
+			marks: []cty.ValueMarks{cty.NewValueMarks(marks.Sensitive)},
+			want:  "(sensitive value)",
+		},
+		"marked non-sensitive string": {
+			value: "foo",
+			marks: []cty.ValueMarks{cty.NewValueMarks("boop")},
+			want:  `"foo"`,
+		},
+		"sensitive string with other marks": {
+			value: "foo",
+			marks: []cty.ValueMarks{cty.NewValueMarks("boop"), cty.NewValueMarks(marks.Sensitive)},
+			want:  "(sensitive value)",
+		},
+		"sensitive number": {
+			value: 12345,
+			marks: []cty.ValueMarks{cty.NewValueMarks(marks.Sensitive)},
+			want:  "(sensitive value)",
+		},
+		"non-sensitive number": {
+			value: 12345,
+			marks: []cty.ValueMarks{},
+			want:  "12345",
+		},
+		"ephemeral string": {
+			value: "foo",
+			marks: []cty.ValueMarks{cty.NewValueMarks(marks.Ephemeral)},
+			want:  "(ephemeral value)",
+		},
+		"ephemeral and sensitive string": {
+			value: "foo",
+			marks: []cty.ValueMarks{cty.NewValueMarks(marks.Ephemeral, marks.Sensitive)},
+			want:  "(ephemeral sensitive value)",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			got := redactIfSensitiveOrEphemeral(tc.value, tc.marks...)
+			if got != tc.want {
+				t.Errorf("wrong result, got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

@@ -145,7 +145,8 @@ func (osExec) LookPath(file string) (string, error) {
 }
 
 type osCmd struct {
-	cmd *exec.Cmd
+	cmd     *exec.Cmd
+	startMu sync.Mutex
 }
 
 func (c *osCmd) SetStdin(r io.Reader)  { c.cmd.Stdin = r }
@@ -158,16 +159,36 @@ func (c *osCmd) SetWaitDelay(d time.Duration) { c.cmd.WaitDelay = d }
 
 func (c *osCmd) SetCancel(fn func() error) { c.cmd.Cancel = fn }
 
+// Signal is documented to tolerate racing startup, so it may run on another
+// goroutine while Start is still populating the process handle. Reading that
+// handle under the same lock Start holds is what makes the race benign.
 func (c *osCmd) Signal(sig os.Signal) error {
-	if c.cmd.Process == nil {
+	c.startMu.Lock()
+	proc := c.cmd.Process
+	c.startMu.Unlock()
+
+	if proc == nil {
 		return ErrProcessNotStarted
 	}
 
-	return c.cmd.Process.Signal(sig)
+	return proc.Signal(sig)
 }
 
-func (c *osCmd) Run() error                      { return c.cmd.Run() }
-func (c *osCmd) Start() error                    { return c.cmd.Start() }
+func (c *osCmd) Run() error {
+	if err := c.Start(); err != nil {
+		return err
+	}
+
+	return c.cmd.Wait()
+}
+
+func (c *osCmd) Start() error {
+	c.startMu.Lock()
+	defer c.startMu.Unlock()
+
+	return c.cmd.Start()
+}
+
 func (c *osCmd) Wait() error                     { return c.cmd.Wait() }
 func (c *osCmd) Output() ([]byte, error)         { return c.cmd.Output() }
 func (c *osCmd) CombinedOutput() ([]byte, error) { return c.cmd.CombinedOutput() }

@@ -1,27 +1,849 @@
-// Package azurerm represents the Azure Storage (azurerm) backend for interacting
-// with remote state.
-//
-// This is a stub registration: it makes Terragrunt recognize backend = "azurerm"
-// and routes configuration through the common backend abstraction. Bootstrap,
-// delete, migrate and other lifecycle operations currently fall through to
-// CommonBackend defaults (no-op). Experiment gating and functional lifecycle
-// behavior for the Azure backend will be added in follow-up PRs.
+// Package azurerm implements the Azure Storage (azurerm) backend for
+// interacting with remote state. It bootstraps the resource group, storage
+// account, and blob container backing a unit's OpenTofu/Terraform state, and
+// supports delete and migrate lifecycle operations via internal/azurehelper.
 package azurerm
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
+	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const BackendName = "azurerm"
+const (
+	BackendName = "azurerm"
+
+	// defaultSoftDeleteRetentionDays is applied when enable_soft_delete is set
+	// but soft_delete_retention_days is left unset (0).
+	defaultSoftDeleteRetentionDays = 7
+)
 
 var _ backend.Backend = new(Backend)
 
+// Backend implements the azurerm remote-state backend.
 type Backend struct {
 	*backend.CommonBackend
 }
 
+// NewBackend returns a new azurerm backend.
 func NewBackend() *Backend {
 	return &Backend{
 		CommonBackend: backend.NewCommonBackend(BackendName),
 	}
+}
+
+// resolveConfig parses, validates, and resolves the azure session config for
+// the given raw backend config, returning the parsed config and the resolved
+// azurehelper.AzureConfig (credentials + cloud).
+func resolveConfig(
+	l log.Logger,
+	v *venv.Venv,
+	backendConfig backend.Config,
+) (*ExtendedRemoteStateConfigAzurerm, *azurehelper.AzureConfig, error) {
+	extCfg, err := Config(backendConfig).ExtendedAzurermConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(extCfg.GetAzureSessionConfig()).
+		Build(l, v)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return extCfg, cfg, nil
+}
+
+// armCapable reports whether the resolved auth method can reach the ARM control
+// plane (resource group / storage account management). SAS-token and access-key
+// auth are data-plane only, so those callers must pre-create the account.
+func armCapable(cfg *azurehelper.AzureConfig) bool {
+	return cfg.Method != azurehelper.AuthMethodSasToken && cfg.Method != azurehelper.AuthMethodAccessKey
+}
+
+// armWorkRequested reports whether the config asks for any ARM control-plane
+// work; a user-managed account with no policy convergence requires none.
+func armWorkRequested(extCfg *ExtendedRemoteStateConfigAzurerm) bool {
+	return !extCfg.SkipStorageAccountCreation || !extCfg.SkipVersioning || extCfg.EnableSoftDelete ||
+		extCfg.AssignBlobDataRole
+}
+
+// warnArmWorkSkipped logs that account creation, versioning/soft-delete
+// convergence, or role assignment was requested but cannot run under data-plane-only auth.
+func warnArmWorkSkipped(l log.Logger, name string, method azurehelper.AuthMethod) {
+	l.Warnf(
+		"Cannot manage the storage account for %s backend with %s authentication; skipping account creation, versioning/soft-delete convergence, and role assignment.",
+		name,
+		method,
+	)
+}
+
+// cloudName describes a cloud for an error message. The configured value is
+// preferred, falling back to the resolved AAD authority host so a cloud that
+// came from ARM_ENVIRONMENT is still named instead of rendering empty.
+func cloudName(configured, authorityHost string) string {
+	if configured != "" {
+		return configured
+	}
+
+	return authorityHost
+}
+
+// newBlobClient builds the data-plane client used by Azure lifecycle operations.
+// It prefers the native backend's shared-key authorization when possible, so an
+// identity that may list account keys but lacks a blob data-plane role still
+// works without requiring use_azuread_auth.
+//
+// The key lookup is best effort: when it fails (for example the identity may
+// read blobs but not list keys) the token credential is used instead, so this
+// only ever adds a way to authorize, never removes one.
+func newBlobClient(ctx context.Context, l log.Logger, cfg *azurehelper.AzureConfig) (*azurehelper.BlobClient, error) {
+	if !armCapable(cfg) || cfg.UseAzureADAuth || cfg.ResourceGroup == "" || cfg.SubscriptionID == "" {
+		return azurehelper.NewBlobClient(cfg)
+	}
+
+	keyed, err := sharedKeyConfig(ctx, cfg)
+	if err != nil {
+		l.Debugf("%s: storage account key lookup failed, using token authorization for blob access: %v", BackendName, err)
+
+		return azurehelper.NewBlobClient(cfg)
+	}
+
+	l.Debugf("%s: using shared-key blob authorization (set use_azuread_auth to authorize with Microsoft Entra instead)", BackendName)
+
+	return azurehelper.NewBlobClient(keyed)
+}
+
+// NewStateBlobClient builds the data-plane client used for a direct state read.
+// Unless use_azuread_auth is enabled, it strictly follows the native azurerm
+// backend by resolving a storage-account key through ARM; lookup errors are not
+// replaced with bearer authorization. It panics with
+// [azurehelper.ErrAzureConfigRequired] when cfg is nil.
+func NewStateBlobClient(
+	ctx context.Context,
+	l log.Logger,
+	cfg *azurehelper.AzureConfig,
+) (*azurehelper.BlobClient, error) {
+	if cfg == nil {
+		panic(azurehelper.ErrAzureConfigRequired)
+	}
+
+	if !armCapable(cfg) || cfg.UseAzureADAuth {
+		return azurehelper.NewBlobClient(cfg)
+	}
+
+	keyed, err := cachedSharedKeyConfig(ctx, cfg)
+	if err != nil {
+		// Only a response that implicates the config or permissions earns the guidance.
+		if coordinateStateClientFailure(err) {
+			err = &StateClientCoordinatesError{Err: err}
+		}
+
+		return nil, &StateClientSetupError{Err: err}
+	}
+
+	l.Debugf("%s: using shared-key authorization for direct state access", BackendName)
+
+	return azurehelper.NewBlobClient(keyed)
+}
+
+// cachedSharedKeyConfig resolves the account key once per run.
+func cachedSharedKeyConfig(
+	ctx context.Context,
+	cfg *azurehelper.AzureConfig,
+) (*azurehelper.AzureConfig, error) {
+	keyCache, err := stateClientCacheFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheKey := sharedKeyCacheKey(cfg)
+	if cached, found := keyCache.configs.Get(ctx, cacheKey); found {
+		return cached, nil
+	}
+
+	value, err, _ := keyCache.flight.Do(cacheKey, func() (any, error) {
+		if cached, found := keyCache.configs.Get(ctx, cacheKey); found {
+			return cached, nil
+		}
+
+		keyed, err := sharedKeyConfig(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		keyCache.configs.Put(ctx, cacheKey, keyed)
+
+		return keyed, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return value.(*azurehelper.AzureConfig), nil
+}
+
+// coordinateStateClientFailure reports whether a client-setup failure points at
+// the configured coordinates or the identity's permissions. Only responses that
+// support that conclusion qualify: an unrecognized cause, a transport failure, or
+// a transient service condition must not send users to edit a valid config.
+func coordinateStateClientFailure(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+
+	switch respErr.StatusCode {
+	case http.StatusBadRequest,
+		http.StatusUnauthorized,
+		http.StatusForbidden,
+		http.StatusNotFound:
+		return true
+	}
+
+	return false
+}
+
+// OpenStateBlob opens the configured state blob using the native azurerm
+// backend's authorization policy. The caller owns the returned reader and must
+// close it.
+func OpenStateBlob(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	backendConfig backend.Config,
+) (io.ReadCloser, error) {
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	state := &extCfg.RemoteStateConfigAzurerm
+
+	blobClient, err := NewStateBlobClient(ctx, l, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := blobClient.Container(state.ContainerName).GetBlob(ctx, state.Key)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"opening azurerm state blob %s/%s in storage account %s: %w",
+			state.ContainerName,
+			state.Key,
+			state.StorageAccountName,
+			err,
+		)
+	}
+
+	return body, nil
+}
+
+// sharedKeyConfig returns a copy of cfg switched to access-key authentication
+// using the first non-empty account key.
+func sharedKeyConfig(ctx context.Context, cfg *azurehelper.AzureConfig) (*azurehelper.AzureConfig, error) {
+	saClient, err := azurehelper.NewStorageAccountClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	keys, err := saClient.GetKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	keyed := *cfg
+	keyed.Method = azurehelper.AuthMethodAccessKey
+	keyed.AccessKey = keys[0]
+
+	return &keyed, nil
+}
+
+// NeedsBootstrap returns true if the storage account or container backing the
+// state does not yet exist, or (when reachable) blob versioning or soft-delete
+// configuration has drifted from what the config requests.
+func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
+	if err != nil {
+		return false, err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+
+	if armWorkRequested(extCfg) && !armCapable(cfg) {
+		if extCfg.AssignBlobDataRole {
+			return false, &AssignBlobDataRoleRequiresARMError{Method: cfg.Method}
+		}
+
+		warnArmWorkSkipped(l, b.Name(), cfg.Method)
+	}
+
+	if armCapable(cfg) && armWorkRequested(extCfg) {
+		needs, err := accountNeedsBootstrap(ctx, cfg, extCfg)
+		if err != nil {
+			return false, err
+		}
+
+		if needs {
+			return true, nil
+		}
+	}
+
+	if !extCfg.SkipContainerCreation {
+		blobClient, err := newBlobClient(ctx, l, cfg)
+		if err != nil {
+			return false, err
+		}
+
+		exists, err := blobClient.Container(rs.ContainerName).Exists(ctx)
+		if err != nil {
+			return false, err
+		}
+
+		if !exists {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// accountNeedsBootstrap reports whether the storage account is missing (and
+// creatable) or has versioning / soft-delete drift to converge.
+func accountNeedsBootstrap(
+	ctx context.Context,
+	cfg *azurehelper.AzureConfig,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+) (bool, error) {
+	saClient, err := azurehelper.NewStorageAccountClient(cfg)
+	if err != nil {
+		return false, err
+	}
+
+	exists, err := saClient.Exists(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// A missing account needs bootstrap only when we are allowed to create
+	// it; under skip_storage_account_creation the user manages the account.
+	if !exists {
+		return !extCfg.SkipStorageAccountCreation, nil
+	}
+
+	// An existing account is checked for versioning / soft-delete / role drift even
+	// under skip_storage_account_creation, since those policies are converged
+	// on pre-created accounts too.
+	return accountPolicyDrift(ctx, saClient, cfg, extCfg)
+}
+
+// Bootstrap creates (if necessary) the resource group, storage account, and
+// blob container backing the state, and ensures blob versioning / soft delete.
+func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
+	if err != nil {
+		return err
+	}
+
+	// Resolve the auto principal before the inited short-circuit so CacheKey
+	// includes the identity that AssignRoleIfMissing will target. Without this,
+	// two callers sharing assign_blob_data_role=true and an empty principal_id
+	// would share one "already initialized" entry and the second would skip the grant.
+	if err := resolveAssignBlobDataPrincipal(ctx, extCfg, cfg); err != nil {
+		return err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+
+	// Only one goroutine bootstraps a given account/container at a time.
+	mu := b.GetBucketMutex(rs.CacheKey())
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if b.IsConfigInited(extCfg) {
+		l.Debugf("%s container %s has already been confirmed to be initialized, skipping initialization checks", b.Name(), rs.CacheKey())
+
+		return nil
+	}
+
+	if extCfg.AssignBlobDataRole && !armCapable(cfg) {
+		return &AssignBlobDataRoleRequiresARMError{Method: cfg.Method}
+	}
+
+	if armWorkRequested(extCfg) && !armCapable(cfg) {
+		warnArmWorkSkipped(l, b.Name(), cfg.Method)
+	}
+
+	if armCapable(cfg) {
+		if err := b.bootstrapAccount(ctx, l, extCfg, cfg, opts); err != nil {
+			return err
+		}
+	}
+
+	if err := ensureContainer(ctx, l, cfg, extCfg, opts); err != nil {
+		return err
+	}
+
+	b.MarkConfigInited(extCfg)
+
+	return nil
+}
+
+// ensureContainer creates the state container when it is missing and creation
+// is neither skipped nor forbidden.
+func ensureContainer(ctx context.Context, l log.Logger, cfg *azurehelper.AzureConfig, extCfg *ExtendedRemoteStateConfigAzurerm, opts *backend.Options) error {
+	if extCfg.SkipContainerCreation {
+		return nil
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+
+	blobClient, err := newBlobClient(ctx, l, cfg)
+	if err != nil {
+		return err
+	}
+
+	exists, err := blobClient.Container(rs.ContainerName).Exists(ctx)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		return nil
+	}
+
+	// The blob container is the true analog of a GCS/S3 bucket and the
+	// only creation step reachable by data-plane-only (SAS/access-key)
+	// auth, so the fail-if-creation-required gate must live here too.
+	if opts.FailIfBucketCreationRequired {
+		return backend.BucketCreationNotAllowed(rs.ContainerName)
+	}
+
+	return blobClient.Container(rs.ContainerName).Create(ctx)
+}
+
+// bootstrapAccount ensures the resource group and storage account exist and are
+// configured with versioning / soft delete. Only called for ARM-capable auth.
+func (b *Backend) bootstrapAccount(
+	ctx context.Context,
+	l log.Logger,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	cfg *azurehelper.AzureConfig,
+	opts *backend.Options,
+) error {
+	// A user-managed account with no policy work needs nothing from ARM.
+	if !armWorkRequested(extCfg) {
+		return nil
+	}
+
+	// Blob versioning and soft delete are account-scoped, but the caller's
+	// mutex is keyed per container (account/container), so units sharing an
+	// account through different containers would race this read-modify-write.
+	// Serialize account-plane convergence per storage account. The lock order
+	// is always container-key then account-key, so this cannot deadlock.
+	accountMu := b.GetBucketMutex(extCfg.RemoteStateConfigAzurerm.StorageAccountName)
+
+	accountMu.Lock()
+	defer accountMu.Unlock()
+
+	saClient, err := azurehelper.NewStorageAccountClient(cfg)
+	if err != nil {
+		return err
+	}
+
+	exists, err := saClient.Exists(ctx)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		// The account is the user's responsibility under
+		// skip_storage_account_creation; there is nothing to converge until it
+		// exists, so return without touching versioning / soft delete.
+		if extCfg.SkipStorageAccountCreation {
+			return nil
+		}
+
+		if err := createAccount(ctx, l, saClient, extCfg, cfg, opts); err != nil {
+			return err
+		}
+	}
+
+	// Converge versioning / soft delete on both new and pre-existing accounts
+	// (including under skip_storage_account_creation). EnableVersioning and
+	// EnableSoftDelete are read-modify-writes, so they do not clobber each other.
+	if !extCfg.SkipVersioning {
+		if err := saClient.EnableVersioning(ctx, l); err != nil {
+			return err
+		}
+	}
+
+	if extCfg.EnableSoftDelete {
+		if err := saClient.EnableSoftDelete(ctx, l, int(effectiveSoftDeleteDays(extCfg))); err != nil {
+			return err
+		}
+	}
+
+	return ensureBlobDataRole(ctx, l, extCfg, cfg)
+}
+
+// ensureBlobDataRole grants data-plane access, which creating the account does not convey.
+func ensureBlobDataRole(
+	ctx context.Context,
+	l log.Logger,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	cfg *azurehelper.AzureConfig,
+) error {
+	if !extCfg.AssignBlobDataRole {
+		return nil
+	}
+
+	// A configured or pre-resolved principal is left untyped so Azure infers it.
+	principal := azurehelper.Principal{ID: extCfg.PrincipalID}
+
+	if principal.ID == "" {
+		resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
+		if err != nil {
+			return err
+		}
+
+		principal = resolved
+	}
+
+	rbacClient, err := azurehelper.NewRBACClient(cfg)
+	if err != nil {
+		return err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+
+	return rbacClient.AssignRoleIfMissing(ctx, l, azurehelper.AssignRoleInput{
+		Scope:            azurehelper.StorageAccountScope(cfg.SubscriptionID, cfg.ResourceGroup, rs.StorageAccountName),
+		PrincipalID:      principal.ID,
+		PrincipalType:    principal.Type,
+		RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor,
+	})
+}
+
+// resolveAssignBlobDataPrincipal fills PrincipalID from the caller's token when
+// assign_blob_data_role is set and principal_id was left empty, so CacheKey
+// distinguishes identities before the bootstrap short-circuit.
+func resolveAssignBlobDataPrincipal(
+	ctx context.Context,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	cfg *azurehelper.AzureConfig,
+) error {
+	if !extCfg.AssignBlobDataRole || extCfg.PrincipalID != "" || !armCapable(cfg) {
+		return nil
+	}
+
+	resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	extCfg.PrincipalID = resolved.ID
+
+	return nil
+}
+
+// createAccount provisions the resource group (when allowed) and the storage
+// account, honoring the fail-if-creation-required gate.
+func createAccount(
+	ctx context.Context,
+	l log.Logger,
+	saClient *azurehelper.StorageAccountClient,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	cfg *azurehelper.AzureConfig,
+	opts *backend.Options,
+) error {
+	// Refuse to provision anything (resource group or account) when the
+	// caller forbids creation.
+	if opts.FailIfBucketCreationRequired {
+		return backend.BucketCreationNotAllowed(extCfg.RemoteStateConfigAzurerm.StorageAccountName)
+	}
+
+	// The resource group must exist before the account; only create it when
+	// we are actually creating the account (an existing account already has
+	// its resource group). cfg.ResourceGroup carries the env-resolved value
+	// the storage account client is bound to, so gate and create on it.
+	if !extCfg.SkipResourceGroupCreation && cfg.ResourceGroup != "" {
+		rgClient, err := azurehelper.NewResourceGroupClient(cfg)
+		if err != nil {
+			return err
+		}
+
+		if err := rgClient.EnsureResourceGroup(ctx, l, cfg.ResourceGroup, extCfg.Location); err != nil {
+			return err
+		}
+	}
+
+	return saClient.Create(ctx, l, extCfg.StorageAccountConfig())
+}
+
+// accountPolicyDrift reports whether the existing account's blob versioning,
+// soft-delete, or blob-data role configuration differs from what the config requests.
+func accountPolicyDrift(
+	ctx context.Context,
+	saClient *azurehelper.StorageAccountClient,
+	cfg *azurehelper.AzureConfig,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+) (bool, error) {
+	if !extCfg.SkipVersioning {
+		enabled, err := saClient.IsVersioningEnabled(ctx)
+		if err != nil {
+			return false, err
+		}
+
+		if !enabled {
+			return true, nil
+		}
+	}
+
+	if extCfg.EnableSoftDelete {
+		blobDays, containerDays, err := saClient.SoftDeleteRetention(ctx)
+		if err != nil {
+			return false, err
+		}
+
+		// Drift when soft delete is off (0 days) or either policy's retention
+		// differs from what bootstrap would apply, so a changed
+		// soft_delete_retention_days is reconciled instead of silently skipped.
+		desired := effectiveSoftDeleteDays(extCfg)
+		if blobDays != desired || containerDays != desired {
+			return true, nil
+		}
+	}
+
+	missing, err := blobDataRoleMissing(ctx, cfg, extCfg)
+	if err != nil {
+		return false, err
+	}
+
+	return missing, nil
+}
+
+// blobDataRoleMissing reports whether assign_blob_data_role is set and the
+// target principal does not yet hold Storage Blob Data Contributor. Without
+// this check, --backend-bootstrap skips ensureBlobDataRole on an otherwise
+// healthy account and OpenTofu/Terraform then fails data-plane auth.
+func blobDataRoleMissing(
+	ctx context.Context,
+	cfg *azurehelper.AzureConfig,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+) (bool, error) {
+	if !extCfg.AssignBlobDataRole {
+		return false, nil
+	}
+
+	principalID := extCfg.PrincipalID
+	if principalID == "" {
+		resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
+		if err != nil {
+			return false, err
+		}
+
+		principalID = resolved.ID
+	}
+
+	rbacClient, err := azurehelper.NewRBACClient(cfg)
+	if err != nil {
+		return false, err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+	scope := azurehelper.StorageAccountScope(cfg.SubscriptionID, cfg.ResourceGroup, rs.StorageAccountName)
+
+	has, err := rbacClient.HasRoleAssignment(ctx, scope, principalID, azurehelper.RoleStorageBlobDataContributor)
+	if err != nil {
+		return false, err
+	}
+
+	return !has, nil
+}
+
+// effectiveSoftDeleteDays returns the retention that bootstrap actually applies
+// for the requested count: unset (0) and out-of-range values collapse to
+// defaultSoftDeleteRetentionDays, mirroring StorageAccountClient.EnableSoftDelete.
+func effectiveSoftDeleteDays(extCfg *ExtendedRemoteStateConfigAzurerm) int32 {
+	days := extCfg.SoftDeleteRetentionDays
+	if days < 1 || days > 365 {
+		return int32(defaultSoftDeleteRetentionDays)
+	}
+
+	return int32(days)
+}
+
+// IsVersionControlEnabled returns true if blob versioning is enabled on the
+// storage account. Data-plane-only auth (SAS / access key) cannot query this
+// via ARM and returns false.
+func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+	_, cfg, err := resolveConfig(l, v, backendConfig)
+	if err != nil {
+		return false, err
+	}
+
+	if !armCapable(cfg) {
+		l.Warnf("Cannot check blob versioning for %s backend with %s authentication; skipping.", b.Name(), cfg.Method)
+
+		return false, nil
+	}
+
+	// Versioning is an ARM management-plane property, unreachable without a
+	// resource group; degrade the same way as data-plane-only auth.
+	if cfg.ResourceGroup == "" {
+		l.Warnf("Cannot check blob versioning for %s backend without resource_group_name; skipping.", b.Name())
+
+		return false, nil
+	}
+
+	saClient, err := azurehelper.NewStorageAccountClient(cfg)
+	if err != nil {
+		return false, err
+	}
+
+	return saClient.IsVersioningEnabled(ctx)
+}
+
+// Migrate copies the state blob from the source backend config to the
+// destination backend config within the same storage account.
+func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
+	srcExtCfg, cfg, err := resolveConfig(l, srcV, srcBackendConfig)
+	if err != nil {
+		return err
+	}
+
+	// Resolve from dstV because its ARM_ENVIRONMENT or AZURE_ENVIRONMENT may select a different cloud than srcV.
+	dstExtCfg, dstCfg, err := resolveConfig(l, dstV, dstBackendConfig)
+	if err != nil {
+		return err
+	}
+
+	src := &srcExtCfg.RemoteStateConfigAzurerm
+	dst := &dstExtCfg.RemoteStateConfigAzurerm
+
+	// A storage account name identifies a different account in each Azure
+	// cloud, and the blob client below is built from the source config, so a
+	// cross-cloud destination would be written into the source account and the
+	// source key then deleted.
+
+	if dstCfg.CloudConfig.ActiveDirectoryAuthorityHost != cfg.CloudConfig.ActiveDirectoryAuthorityHost {
+		return &CrossCloudMigrationError{
+			StorageAccount: src.StorageAccountName,
+			SrcEnvironment: cloudName(src.Environment, cfg.CloudConfig.ActiveDirectoryAuthorityHost),
+			DstEnvironment: cloudName(dst.Environment, dstCfg.CloudConfig.ActiveDirectoryAuthorityHost),
+		}
+	}
+
+	// Only the source backend config is resolved into credentials here, so the
+	// single client below can reach the source account. ContainerClient.CopyBlob
+	// itself writes through the destination's own account, but this backend has
+	// no destination credentials to build that client from, so refuse a
+	// cross-account migration rather than silently writing into the source
+	// account. This same-backend Migrate has no automatic pull/push fallback;
+	// the user must migrate cross-account state manually (init/pull/push).
+	if !strings.EqualFold(src.StorageAccountName, dst.StorageAccountName) {
+		return &CrossAccountMigrationError{
+			SrcStorageAccount: src.StorageAccountName,
+			DstStorageAccount: dst.StorageAccountName,
+		}
+	}
+
+	blobClient, err := newBlobClient(ctx, l, cfg)
+	if err != nil {
+		return err
+	}
+
+	// Move (copy + delete source), mirroring the S3 and GCS backends: refuse to
+	// overwrite an existing destination and leave no stale state at the old key.
+	return blobClient.Container(src.ContainerName).
+		MoveBlobIfNecessary(ctx, l, src.Key, blobClient.Container(dst.ContainerName), dst.Key)
+}
+
+// Delete deletes the Terraform state blob (config "key") from its container.
+func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
+	if err != nil {
+		return err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+
+	blobClient, err := newBlobClient(ctx, l, cfg)
+	if err != nil {
+		return err
+	}
+
+	prompt := fmt.Sprintf(
+		"The OpenTofu/Terraform state blob %q in container %q (storage account %q) "+
+			"will be deleted. Do you want to continue?",
+		rs.Key,
+		rs.ContainerName,
+		rs.StorageAccountName,
+	)
+
+	yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
+	if err != nil {
+		return err
+	}
+
+	if !yes {
+		return nil
+	}
+
+	return blobClient.Container(rs.ContainerName).EnsureBlobDeleted(ctx, rs.Key)
+}
+
+// DeleteBucket deletes the entire blob container backing the state.
+func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
+	if err != nil {
+		return err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+
+	blobClient, err := newBlobClient(ctx, l, cfg)
+	if err != nil {
+		return err
+	}
+
+	prompt := fmt.Sprintf(
+		"The blob container %q in storage account %q will be completely deleted. Do you want to continue?",
+		rs.ContainerName,
+		rs.StorageAccountName,
+	)
+
+	yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
+	if err != nil {
+		return err
+	}
+
+	if !yes {
+		return nil
+	}
+
+	return blobClient.Container(rs.ContainerName).EnsureDeleted(ctx)
+}
+
+// GetTFInitArgs returns the subset of config forwarded to `tofu init -backend-config`.
+func (b *Backend) GetTFInitArgs(config backend.Config) map[string]any {
+	return Config(config).GetTFInitArgs()
 }

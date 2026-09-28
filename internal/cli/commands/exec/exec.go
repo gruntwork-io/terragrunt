@@ -19,7 +19,7 @@ import (
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cmdOpts *Options,
 	args clihelper.Args,
@@ -37,10 +37,10 @@ func Run(
 		return err
 	}
 
-	runCfg := prepared.Cfg.ToRunConfig(l)
+	runCfg := prepared.Cfg.ToRunConfig(l, v.FS)
 
 	// Generate config
-	if err := prepare.PrepareGenerate(l, v, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, runCfg); err != nil {
 		return err
 	}
 
@@ -64,7 +64,7 @@ func Run(
 func runTargetCommand(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
@@ -96,7 +96,7 @@ func runTargetCommand(
 				ctx,
 				l,
 				v,
-				configbridge.ShellRunOptsFromOpts(opts),
+				configbridge.ShellRunOptsFromOpts(v.Env, opts),
 				dir,
 				false,
 				false,

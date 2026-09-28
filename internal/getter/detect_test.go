@@ -14,11 +14,10 @@ import (
 // TestDetectCanonicalizesShorthand pins the host-shorthand canonicalization
 // from each upstream detector so a v1->v2 protocol drift would surface here.
 //
-// The s3, gcs, and absolute-path rows specifically exercise the prefixedDetector
-// and fileSchemeDetector wrappers in defaultDetectors(): v2 dropped v1's
-// inline "s3::"/"gcs::" forced-getter prefix and "file://" scheme on raw
-// detector output, so the wrappers reattach them to preserve v1 textual
-// conventions that downstream parseSourceURL / IsLocalSource depend on.
+// The s3 and gcs rows specifically exercise the prefixedDetector wrapper in
+// defaultDetectors(): v2 dropped v1's inline "s3::"/"gcs::" forced-getter
+// prefix on raw detector output, so the wrapper reattaches it to preserve the
+// v1 textual convention that downstream parseSourceURL depends on.
 func TestDetectCanonicalizesShorthand(t *testing.T) {
 	t.Parallel()
 
@@ -56,11 +55,6 @@ func TestDetectCanonicalizesShorthand(t *testing.T) {
 			name:   "gcs shorthand reattaches gcs:: prefix",
 			src:    "www.googleapis.com/storage/v1/bucket/object",
 			expect: "gcs::https://www.googleapis.com/storage/v1/bucket/object",
-		},
-		{
-			name:   "absolute path gets file:// scheme reattached",
-			src:    "/abs/path/to/module",
-			expect: "file:///abs/path/to/module",
 		},
 	}
 

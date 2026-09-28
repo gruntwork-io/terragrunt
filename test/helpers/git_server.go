@@ -17,7 +17,7 @@ import (
 
 	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/stretchr/testify/require"
 )
 
@@ -351,8 +351,8 @@ func (s *GitServer) RequireSSH() {
 	require.NoError(s.t, os.WriteFile(keyPath, keyPEM, sshKeyFilePerm), "write ssh key")
 
 	s.t.Setenv("GIT_SSH_COMMAND", fmt.Sprintf(
-		"ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes",
-		keyPath,
+		"ssh -i %q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes",
+		filepath.ToSlash(keyPath),
 	))
 }
 
@@ -560,7 +560,7 @@ func commitDirs(
 func InitTestGitRunner(t *testing.T, tmpDir string) *git.GitRunner {
 	t.Helper()
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)

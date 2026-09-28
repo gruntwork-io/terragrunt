@@ -14,15 +14,14 @@ import (
 	logformat "github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkFormat(b *testing.B) {
 	sourceFile := "../../../../../test/fixtures/hcl-filter/fmt/needs-formatting/nested/api/terragrunt.hcl"
 
 	pristineContent, err := os.ReadFile(sourceFile)
-	if err != nil {
-		b.Fatalf("Failed to read source file: %v", err)
-	}
+	require.NoError(b, err, "Failed to read source file")
 
 	fileCounts := []int{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 
@@ -36,13 +35,11 @@ func BenchmarkFormat(b *testing.B) {
 			}
 
 			tgOptions, err := options.NewTerragruntOptionsForTest("")
-			if err != nil {
-				b.Fatalf("Failed to create options: %v", err)
-			}
+			require.NoError(b, err, "Failed to create options")
 
 			tgOptions.WorkingDir = tmpBase
 			tgOptions.HclExclude = excludeList
-			v := venvtest.New()
+			v := venvtest.NewWithOSFS()
 
 			formatter := logformat.NewFormatter(logformat.NewKeyValueFormatPlaceholders())
 			formatter.SetDisabledColors(true)
@@ -53,20 +50,14 @@ func BenchmarkFormat(b *testing.B) {
 			)
 			ctx := context.Background()
 
-			b.ResetTimer()
-
 			for b.Loop() {
 				b.StopTimer()
 
-				if err := createFiles(tmpBase, pristineContent, fileCount); err != nil {
-					b.Fatalf("Failed to create files: %v", err)
-				}
+				require.NoError(b, createFiles(tmpBase, pristineContent, fileCount), "Failed to create files")
 
 				b.StartTimer()
 
-				if err := format.Run(ctx, l, v, tgOptions); err != nil {
-					b.Fatalf("format.Run failed: %v", err)
-				}
+				require.NoError(b, format.Run(ctx, l, v, tgOptions), "format.Run failed")
 			}
 		})
 	}

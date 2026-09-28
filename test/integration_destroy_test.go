@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -12,7 +14,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +30,7 @@ const (
 	testFixtureDestroyDependentModuleErrors = "fixtures/destroy-dependent-module-errors"
 )
 
-func TestTerragruntDestroyOrder(t *testing.T) {
+func TestTFTerragruntDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
@@ -52,7 +55,7 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse the report file to verify dependency order
-	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err)
 
 	// Verify all modules are in the report
@@ -83,7 +86,7 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 	)
 }
 
-func TestTerragruntApplyDestroyOrder(t *testing.T) {
+func TestTFTerragruntApplyDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
@@ -108,7 +111,7 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse the report file to verify dependency order
-	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err)
 
 	runA := runs.FindByName("module-a")
@@ -138,11 +141,11 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 	)
 }
 
-// TestTerragruntDestroyOrderWithQueueIgnoreErrors tests that --queue-ignore-errors still respects dependency order.
+// TestTFTerragruntDestroyOrderWithQueueIgnoreErrors tests that --queue-ignore-errors still respects dependency order.
 // This is a regression test for issue #4947.
 // Note: This test verifies the behavior is the same with and without --queue-ignore-errors for successful runs.
 // The unit tests in internal/queue/queue_test.go provide comprehensive coverage of the ordering logic.
-func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
+func TestTFTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
@@ -169,7 +172,7 @@ func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse the report file to verify dependency order
-	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err)
 
 	// Verify all modules are in the report
@@ -200,7 +203,7 @@ func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 	)
 }
 
-func TestPreventDestroyOverride(t *testing.T) {
+func TestTFPreventDestroyOverride(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/prevent-destroy-override")
@@ -227,7 +230,7 @@ func TestPreventDestroyOverride(t *testing.T) {
 	)
 }
 
-func TestPreventDestroyNotSet(t *testing.T) {
+func TestTFPreventDestroyNotSet(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/prevent-destroy-not-set")
@@ -256,7 +259,7 @@ func TestPreventDestroyNotSet(t *testing.T) {
 	}
 }
 
-func TestDestroyDependentModule(t *testing.T) {
+func TestTFDestroyDependentModule(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyDependentModule)
@@ -265,7 +268,7 @@ func TestDestroyDependentModule(t *testing.T) {
 	)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyDependentModule)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -308,7 +311,7 @@ func TestDestroyDependentModule(t *testing.T) {
 	assert.Contains(t, stderr, "\"value\": \"module-a.txt\"", stderr)
 }
 
-func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
+func TestTFShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, testFixtureDestroyWarning)
@@ -356,7 +359,7 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(output, appV2Path))
 }
 
-func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
+func TestTFNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	t.Parallel()
 
 	rootPath := helpers.CopyEnvironment(t, testFixtureDestroyWarning)
@@ -404,7 +407,7 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	assert.Equal(t, 0, strings.Count(output, appV2Path))
 }
 
-func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
+func TestTFPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
@@ -444,12 +447,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
-	if err != nil {
-		t.Fatalf(
-			"run --all apply in TestPreventDestroyDependenciesIncludedConfig failed with error: %v. Full std",
-			err,
-		)
-	}
+	require.NoError(t, err, "run --all apply in TestTFPreventDestroyDependenciesIncludedConfig failed")
 
 	var (
 		destroyAllStdout bytes.Buffer
@@ -498,7 +496,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	}
 }
 
-func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
+func TestTFTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	// This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
 	// We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
 	if helpers.IsTerragruntProviderCacheEnabled(t) {
@@ -511,7 +509,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)
@@ -560,7 +558,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	assert.NotContains(t, captured, tmp)
 }
 
-func TestStorePlanFilesRunAllDestroy(t *testing.T) {
+func TestTFStorePlanFilesRunAllDestroy(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -640,7 +638,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
+func TestTFStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -720,7 +718,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDestroyDependentModuleParseErrors(t *testing.T) {
+func TestTFDestroyDependentModuleParseErrors(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyDependentModuleErrors)

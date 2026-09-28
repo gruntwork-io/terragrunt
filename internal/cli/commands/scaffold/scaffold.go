@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -14,10 +13,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -145,8 +146,6 @@ func NewBoilerplateOptions(
 // HCL fragments via the values argument, and Cleanup removes the temporary
 // directories Prepare allocated. Callers must invoke Cleanup exactly once,
 // typically via defer.
-//
-//nolint:govet // field order chosen for readability over alignment
 type Plan struct {
 	logger            log.Logger
 	Required          []*config.ParsedVariable
@@ -157,13 +156,27 @@ type Plan struct {
 	originalModuleURL string
 	resolvedModuleURL string
 	outputDir         string
+	sourceDir         string
+	values            component.ValuesReferences
+	kind              component.Kind
+}
+
+// FormFields returns what a user is asked to fill in before this plan is
+// generated: the variables of a module or template, or the `values.*`
+// references a unit or stack makes. Empty when the source asks for nothing.
+func (p *Plan) FormFields() []form.Field {
+	if p.kind.IsCopyable() {
+		return form.FieldsFromValuesReferences(p.values)
+	}
+
+	return form.FieldsFromParsedVariables(p.Required, p.Optional)
 }
 
 // Cleanup removes the temporary directories allocated during Prepare.
 // Safe to call more than once; subsequent calls are no-ops.
-func (p *Plan) Cleanup() {
+func (p *Plan) Cleanup(fsys vfs.FS) {
 	for _, dir := range p.tempDirs {
-		if err := os.RemoveAll(dir); err != nil {
+		if err := fsys.RemoveAll(dir); err != nil {
 			p.logger.Warnf("Failed to clean up dir %s: %v", dir, err)
 		}
 	}
@@ -172,15 +185,14 @@ func (p *Plan) Cleanup() {
 }
 
 // Prepare downloads the source module and template, parses the module's
-// variable blocks, and returns a Plan ready for rendering. The caller is
-// responsible for invoking Plan.Cleanup() (typically via defer) once it has
-// either rendered the result via Generate or decided to abandon the work.
-// v is the virtualized environment threaded through the module download and
-// boilerplate preparation.
+// variable blocks, and returns a [Plan] ready for rendering. The caller is
+// responsible for invoking [Plan.Cleanup] (typically via defer) once it has
+// either rendered the result via [Plan.Generate] or decided to abandon the
+// work.
 func Prepare(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) (*Plan, error) {
@@ -193,7 +205,7 @@ func Prepare(
 	}
 
 	// scaffold only in empty directories
-	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
+	if empty, err := vfs.IsDirectoryEmpty(v.FS, opts.WorkingDir); !empty || err != nil {
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +221,7 @@ func Prepare(
 	templateURL = tf.RewriteLegacyGCSPublicSource(ctx, l, templateURL, opts.StrictControls)
 
 	// create temporary directory where to download module
-	tempDir, err := os.MkdirTemp("", "scaffold")
+	tempDir, err := vfs.MkdirTemp(v.FS, v.Platform.TempDir(), "scaffold")
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +238,7 @@ func Prepare(
 
 	defer func() {
 		if !success {
-			plan.Cleanup()
+			plan.Cleanup(v.FS)
 		}
 	}()
 
@@ -250,20 +262,47 @@ func Prepare(
 
 	l.Debugf("Scaffolding a new Terragrunt module %s to %s", resolvedURL, outputDir)
 
-	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "scaffold_get_module", map[string]any{
-		"module_url": resolvedURL,
-	}, func(ctx context.Context, l log.Logger) error {
-		if _, getErr := getter.GetAny(ctx, tempDir, resolvedURL); getErr != nil {
-			return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
-		}
+	if err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "scaffold_get_module", map[string]any{
+			"module_url": resolvedURL,
+		}, func(ctx context.Context, l log.Logger) error {
+			if getErr := fetchScaffoldSource(ctx, l, v, tempDir, resolvedURL); getErr != nil {
+				return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
+			}
 
-		return nil
-	}); err != nil {
+			return nil
+		}); err != nil {
 		return nil, err
 	}
 
+	markers, err := component.Inspect(v.FS, tempDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// A unit or a stack is already a Terragrunt configuration, so there is
+	// nothing to generate from it: rendering the module template would point
+	// terraform.source at a directory holding no .tf files at all. Its own
+	// files are what the user wants, which is what the catalog user interface
+	// gives them, so Generate copies them instead.
+	if kind, ok := markers.CopyKind(); ok {
+		warnUnusedScaffoldInputs(l, opts, templateURL, kind)
+
+		values, err := component.Values(v.FS, kind, tempDir)
+		if err != nil {
+			return nil, err
+		}
+
+		plan.kind = kind
+		plan.sourceDir = tempDir
+		plan.values = values
+		success = true
+
+		return plan, nil
+	}
+
 	// extract variables from downloaded module
-	requiredVariables, optionalVariables, err := parseVariables(l, v.FS, opts, tempDir)
+	requiredVariables, optionalVariables, err := parseVariables(l, v, opts, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -299,10 +338,17 @@ func Prepare(
 func (p *Plan) Generate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	values map[string]string,
 ) error {
+	// The zero kind is a module, so a plan whose source was never classified
+	// as copyable renders, which is every plan Prepare built before units and
+	// stacks could be scaffolded by copying.
+	if p.kind.IsCopyable() {
+		return p.copyComponent(l, v, values)
+	}
+
 	applyUserValues(p.Required, values)
 	applyUserValues(p.Optional, values)
 
@@ -363,6 +409,62 @@ func (p *Plan) Generate(
 	return nil
 }
 
+// copyComponent scaffolds a unit or stack into the output directory, alongside
+// a terragrunt.values.hcl for the `values.*` references its configuration
+// makes. It is the same work the catalog user interface does, so a component
+// lands identically whichever one the user reaches for.
+func (p *Plan) copyComponent(l log.Logger, v *venv.Venv, values map[string]string) error {
+	paths := component.Paths{Root: p.sourceDir, Src: p.sourceDir, Dst: p.outputDir}
+
+	result, err := component.Scaffold(v.FS, p.kind, paths, values)
+	if err != nil {
+		return err
+	}
+
+	l.Infof("Scaffolded %s into %s", p.kind, p.outputDir)
+
+	valuesPath := filepath.Join(p.outputDir, component.ValuesFileName)
+
+	if result.ValuesWritten {
+		l.Infof("Generated %s; fill in each TODO before running Terragrunt", valuesPath)
+	}
+
+	if result.ValuesSkipped {
+		l.Warnf(
+			"%s already exists and was left untouched; check that it sets %s",
+			valuesPath,
+			strings.Join(result.References.AllNames(), ", "),
+		)
+	}
+
+	return nil
+}
+
+// warnUnusedScaffoldInputs reports the inputs that only apply when generating
+// a configuration, so a user who passed them does not go looking for their
+// effect in a component that was copied verbatim.
+func warnUnusedScaffoldInputs(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	templateURL string,
+	kind component.Kind,
+) {
+	if templateURL != "" {
+		l.Warnf("A %s is copied as it is written, so the template argument is ignored.", kind)
+	}
+
+	if len(opts.ScaffoldVars) > 0 || len(opts.ScaffoldVarFiles) > 0 {
+		l.Warnf(
+			"A %s is copied as it is written, so --%s and --%s are ignored."+
+				" Set its values in %s instead.",
+			kind,
+			VarFlagName,
+			VarFileFlagName,
+			component.ValuesFileName,
+		)
+	}
+}
+
 // setVarDefault writes value to vars[key] when the key is absent; if
 // it's already set, it logs a warning that flagName will be ignored.
 func setVarDefault(l log.Logger, vars map[string]any, key string, value any, flagName string) {
@@ -405,7 +507,7 @@ func applyUserValues(vars []*config.ParsedVariable, values map[string]string) {
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) error {
@@ -414,7 +516,7 @@ func Run(
 		return err
 	}
 
-	defer plan.Cleanup()
+	defer plan.Cleanup(v.FS)
 
 	return plan.Generate(ctx, l, v, opts, nil)
 }
@@ -467,11 +569,9 @@ func ExtractQueryParam(rawURL, param string) string {
 // string. Go-getter URLs may contain "::" prefixes that prevent full URL
 // parsing, but the query string is always after the final "?".
 func splitURLQuery(rawURL string) (string, string) {
-	if idx := strings.LastIndex(rawURL, "?"); idx >= 0 {
-		return rawURL[:idx], rawURL[idx+1:]
-	}
+	base, query, _ := strings.CutLast(rawURL, "?")
 
-	return rawURL, ""
+	return base, query
 }
 
 // applyCatalogConfigToScaffold applies catalog configuration settings to scaffold options.
@@ -479,13 +579,12 @@ func splitURLQuery(rawURL string) (string, string) {
 func applyCatalogConfigToScaffold(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	pctx := configbridge.NewParsingContext(opts)
 
-	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
+	catalogCfg, err := config.ReadCatalogConfig(ctx, l, v, pctx)
 	if err != nil {
 		// Don't fail if catalog config can't be read - it's optional
 		l.Debugf("Could not read catalog config for scaffold: %v", err)
@@ -513,9 +612,10 @@ func applyCatalogConfigToScaffold(
 }
 
 // generateDefaultTemplate - write default template to provided dir
-func generateDefaultTemplate(boilerplateDir string) (string, error) {
+func generateDefaultTemplate(fsys vfs.FS, boilerplateDir string) (string, error) {
 	const ownerWriteGlobalReadPerms = 0o644
-	if err := os.WriteFile(
+	if err := vfs.WriteFile(
+		fsys,
 		filepath.Join(
 			boilerplateDir,
 			config.DefaultTerragruntConfigPath,
@@ -526,7 +626,8 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 		return "", err
 	}
 
-	if err := os.WriteFile(
+	if err := vfs.WriteFile(
+		fsys,
 		filepath.Join(
 			boilerplateDir,
 			"boilerplate.yml",
@@ -544,7 +645,7 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 func downloadTemplate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -555,14 +656,13 @@ func downloadTemplate(
 	}
 
 	// Split the processed URL to get the base URL and subfolder
-	baseURL, subFolder, err := tf.SplitSourceURL(l, parsedTemplateURL)
+	baseURL, subFolder, err := tf.SplitSourceURL(l, v.FS, parsedTemplateURL)
 	if err != nil {
 		return "", err
 	}
 
-	// Go-getter expects a pathspec or . for file paths
 	if baseURL.Scheme == "" || baseURL.Scheme == "file" {
-		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/")) + "//."
+		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/"))
 	}
 
 	baseURL, err = rewriteTemplateURL(ctx, l, v, opts, baseURL)
@@ -570,7 +670,7 @@ func downloadTemplate(
 		return "", err
 	}
 
-	templateDir, err := os.MkdirTemp(tempDir, "template")
+	templateDir, err := vfs.MkdirTemp(v.FS, tempDir, "template")
 	if err != nil {
 		return "", err
 	}
@@ -578,15 +678,20 @@ func downloadTemplate(
 	l.Debugf("Downloading template from %s into %s", baseURL.String(), templateDir)
 	// Downloading baseURL to support boilerplate dependencies and partials.
 	// Go-getter discards all but specified folder if one is provided.
-	if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "scaffold_get_template", map[string]any{
-		"template_url": baseURL.String(),
-	}, func(ctx context.Context, l log.Logger) error {
-		if _, getErr := getter.GetAny(ctx, templateDir, baseURL.String()); getErr != nil {
-			return fmt.Errorf("downloading scaffold template from %s: %w", baseURL.String(), getErr)
-		}
+	if err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "scaffold_get_template", map[string]any{
+			"template_url": baseURL.String(),
+		}, func(ctx context.Context, l log.Logger) error {
+			if getErr := fetchScaffoldSource(ctx, l, v, templateDir, baseURL.String()); getErr != nil {
+				return fmt.Errorf(
+					"downloading scaffold template from %s: %w",
+					baseURL.String(),
+					getErr,
+				)
+			}
 
-		return nil
-	}); err != nil {
+			return nil
+		}); err != nil {
 		return "", err
 	}
 
@@ -595,7 +700,7 @@ func downloadTemplate(
 		subFolder = strings.TrimPrefix(subFolder, "/")
 		templateDir = filepath.Join(templateDir, subFolder)
 		// Verify that subfolder exists
-		if _, err := os.Stat(templateDir); errors.Is(err, fs.ErrNotExist) {
+		if _, err := v.FS.Stat(templateDir); errors.Is(err, fs.ErrNotExist) {
 			return "", fmt.Errorf(
 				"subfolder \"//%s\" not found in downloaded template from %s",
 				subFolder,
@@ -607,11 +712,29 @@ func downloadTemplate(
 	return templateDir, nil
 }
 
+// fetchScaffoldSource downloads the module or template at src into dst.
+func fetchScaffoldSource(ctx context.Context, l log.Logger, v *venv.Venv, dst, src string) error {
+	fileCopy := getter.NewFileCopyGetter(v.FS).
+		WithLogger(l).
+		WithIncludeInCopy(".*", "**/.*")
+
+	if _, err := getter.GetAny(ctx, l, v, dst, src, getter.WithFileCopy(fileCopy)); err != nil {
+		return err
+	}
+
+	err := v.FS.Remove(filepath.Join(dst, getter.SourceManifestName))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	return nil
+}
+
 // prepareBoilerplateFiles - prepare boilerplate files from provided template, tf module, or (custom) default template
 func prepareBoilerplateFiles(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -630,11 +753,10 @@ func prepareBoilerplateFiles(
 	}
 
 	// if boilerplate dir is not found, create one with default template
-	if !util.IsDir(boilerplateDir) {
-		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-		pctx = pctx.WithVenv(v)
+	if !vfs.IsDir(v.FS, boilerplateDir) {
+		pctx := configbridge.NewParsingContext(opts)
 
-		config, err := config.ReadCatalogConfig(ctx, l, pctx)
+		config, err := config.ReadCatalogConfig(ctx, l, v, pctx)
 		if err != nil {
 			return "", err
 		}
@@ -656,14 +778,14 @@ func prepareBoilerplateFiles(
 
 			boilerplateDir = tempTemplateDir
 		} else {
-			defaultTempDir, err := os.MkdirTemp(tempDir, "boilerplate")
+			defaultTempDir, err := vfs.MkdirTemp(v.FS, tempDir, "boilerplate")
 			if err != nil {
 				return "", err
 			}
 
 			boilerplateDir = defaultTempDir
 
-			boilerplateDir, err = generateDefaultTemplate(boilerplateDir)
+			boilerplateDir, err = generateDefaultTemplate(v.FS, boilerplateDir)
 			if err != nil {
 				return "", err
 			}
@@ -676,11 +798,11 @@ func prepareBoilerplateFiles(
 // parseVariables - parse variables from tf files.
 func parseVariables(
 	l log.Logger,
-	fsys vfs.FS,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, fsys, opts.StrictControls, moduleDir)
+	inputs, err := config.ParseVariables(l, v, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -706,7 +828,7 @@ func parseVariables(
 func parseModuleURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	vars map[string]any,
 	moduleURL string,
@@ -790,7 +912,7 @@ func rewriteModuleURL(
 func rewriteTemplateURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedTemplateURL *url.URL,
 ) (*url.URL, error) {
@@ -801,7 +923,7 @@ func rewriteTemplateURL(
 
 	ref := templateParams.Get(refParam)
 	if ref == "" {
-		rootSourceURL, _, err := tf.SplitSourceURL(l, updatedTemplateURL)
+		rootSourceURL, _, err := tf.SplitSourceURL(l, v.FS, updatedTemplateURL)
 		if err != nil {
 			return nil, err
 		}
@@ -830,7 +952,7 @@ func rewriteTemplateURL(
 func addRefToModuleURL(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	parsedModuleURL *url.URL,
 	vars map[string]any,
@@ -850,7 +972,7 @@ func addRefToModuleURL(
 		// if ref is not passed, find last release tag
 		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs =>
 		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
-		rootSourceURL, _, err := tf.SplitSourceURL(l, moduleURL)
+		rootSourceURL, _, err := tf.SplitSourceURL(l, v.FS, moduleURL)
 		if err != nil {
 			return nil, err
 		}

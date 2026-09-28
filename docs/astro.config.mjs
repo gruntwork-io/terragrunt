@@ -1,4 +1,5 @@
 // @ts-check
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 import { unified } from "@astrojs/markdown-remark";
 
@@ -6,7 +7,6 @@ import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
 import vercel from "@astrojs/vercel";
 import node from "@astrojs/node";
-import partytown from "@astrojs/partytown";
 import tailwindcss from "@tailwindcss/vite";
 
 import starlightLinksValidator from "starlight-links-validator";
@@ -15,6 +15,7 @@ import d2 from "astro-d2";
 
 import { sidebar } from "./src/data/sidebar.ts";
 import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
+import { excludeLinks } from "./src/lib/unpublished-links.ts";
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
@@ -137,19 +138,15 @@ export default defineConfig({
       sidebar: sidebar,
       plugins: [
         starlightLinksValidator({
-          exclude: [
+          exclude: await excludeLinks(fileURLToPath(new URL("./src", import.meta.url)), [
             // Used in the docs for OpenTelemetry
             "http://localhost:16686/",
             "http://localhost:9090/",
 
-            // Unfortunately, these have to be ignored, as they're referencing content
-            // that is generated outside the contents of the markdown file.
-            "/reference/cli/commands/run#*",
-            "/reference/cli/commands/run/#*",
-            "/reference/cli/commands/list#*",
-            "/reference/cli/commands/list/#*",
-            "/reference/cli/commands/find#*",
-            "/reference/cli/commands/find/#*",
+            // Command pages are assembled by `src/pages/reference/cli/commands/[...slug].astro`
+            // from the `commands` and `flags` collections, so the validator never sees the
+            // headings these anchors point at. Page paths themselves are still validated.
+            "/reference/cli/commands/**/*#*",
 
             // Custom .astro pages — can't be validated statically
             "/reference/experiments/active",
@@ -164,7 +161,7 @@ export default defineConfig({
             // Used as redirects to the Terragrunt Discord server
             "/community/invite",
             "/tgs-discord",
-          ],
+          ]),
         }),
         starlightLlmsTxtWithoutIndex()
       ],
@@ -174,18 +171,6 @@ export default defineConfig({
       // and generate diagrams locally:
       // https://astro-d2.vercel.app/guides/how-astro-d2-works/#deployment
       skipGeneration: !!isVercel,
-    }),
-    partytown({
-      config: {
-        debug: false,
-        logCalls: false,
-        logGetters: false,
-        logSetters: false,
-        logImageRequests: false,
-        logScriptExecution: false,
-        logStackTraces: false,
-        forward: ['dataLayer.push'],
-      },
     }),
     sitemap({
       // changefreq/priority intentionally omitted: the Docusaurus/Astro
@@ -222,6 +207,8 @@ export default defineConfig({
     "/features/run-queue/": "/features/stacks/run-queue/",
     "/features/debugging/": "/troubleshooting/debugging/",
     "/upgrade/upgrading_to_terragrunt_0.19.x/": "/migrate/upgrading_to_terragrunt_0.19.x/",
+    "/reference/terragrunt-cache/": "/features/units/terragrunt-cache/",
+    "/reference/lock-files/": "/features/units/lock-files/",
 
     // Merged pages
     "/features/stacks/dependencies/": "/features/stacks/stack-operations/",
@@ -280,7 +267,7 @@ export default defineConfig({
     "/features/before-and-after-hooks/": "/features/units/hooks/",
     "/etting-started/configuration/": "/reference/hcl/", // typo in original URL
     "/features/log-formatting": "/reference/logging/formatting/",
-    "/reference/lock-file-handling/": "/reference/lock-files/",
+    "/reference/lock-file-handling/": "/features/units/lock-files/",
 
     // Restructured docs
     "/reference/cli/rules": "/process/cli-rules/",

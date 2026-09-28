@@ -1,8 +1,10 @@
-//nolint:testpackage // needs access to unexported bytesDiff
-package format
+package format_test
 
 import (
+	"path/filepath"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -41,7 +43,7 @@ func TestBytesDiff(t *testing.T) {
 		"path is prefixed with old/ and new/ labels": {
 			before: "a\n",
 			after:  "b\n",
-			path:   "nested/dir/file.hcl",
+			path:   filepath.Join("nested", "dir", "file.hcl"),
 			wantHeader: []string{
 				"--- old/nested/dir/file.hcl",
 				"+++ new/nested/dir/file.hcl",
@@ -61,7 +63,7 @@ func TestBytesDiff(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			got := string(bytesDiff([]byte(tc.before), []byte(tc.after), tc.path))
+			got := string(format.BytesDiff([]byte(tc.before), []byte(tc.after), tc.path))
 
 			if tc.wantEmpty {
 				assert.Empty(t, got, "expected no diff output for identical inputs")

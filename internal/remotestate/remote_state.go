@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -68,7 +69,7 @@ func (remote *RemoteState) String() string {
 func (remote *RemoteState) IsVersionControlEnabled(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) (bool, error) {
 	l.Debugf("Checking if version control is enabled for the %s backend", remote.BackendName)
@@ -80,7 +81,7 @@ func (remote *RemoteState) IsVersionControlEnabled(
 func (remote *RemoteState) Delete(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) error {
 	l.Debugf("Deleting remote state for the %s backend", remote.BackendName)
@@ -92,7 +93,7 @@ func (remote *RemoteState) Delete(
 func (remote *RemoteState) DeleteBucket(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) error {
 	l.Debugf("Deleting the entire bucket for the %s backend", remote.BackendName)
@@ -105,7 +106,7 @@ func (remote *RemoteState) DeleteBucket(
 func (remote *RemoteState) Bootstrap(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) error {
 	l.Debugf("Bootstrapping remote state for the %s backend", remote.BackendName)
@@ -124,7 +125,7 @@ func (remote *RemoteState) Bootstrap(
 func (remote *RemoteState) Migrate(
 	ctx context.Context,
 	l log.Logger,
-	srcV, dstV venv.Venv,
+	srcV, dstV *venv.Venv,
 	opts, dstOpts *Options,
 	dstRemote *RemoteState,
 ) error {
@@ -135,6 +136,7 @@ func (remote *RemoteState) Migrate(
 			ctx,
 			l,
 			srcV,
+			dstV,
 			remote.BackendConfig,
 			dstRemote.BackendConfig,
 			&opts.Options,
@@ -147,7 +149,7 @@ func (remote *RemoteState) Migrate(
 	}
 
 	defer func() {
-		if err := os.Remove(stateFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := srcV.FS.Remove(stateFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 			l.Warnf("Failed to remove temporary state file %s: %v", stateFile, err)
 		}
 	}()
@@ -164,7 +166,7 @@ func (remote *RemoteState) Migrate(
 func (remote *RemoteState) NeedsBootstrap(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *Options,
 ) (bool, error) {
 	if opts.DisableBucketUpdate {
@@ -218,18 +220,23 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 }
 
 // GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
-func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, workingDir string) error {
+func (remote *RemoteState) GenerateOpenTofuCode(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	workingDir string,
+) error {
 	backendConfig := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
-	return remote.Config.GenerateOpenTofuCode(l, workingDir, backendConfig)
+	return remote.Config.GenerateOpenTofuCode(ctx, l, v, workingDir, backendConfig)
 }
 
 func (remote *RemoteState) pullState(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
-) (string, error) {
+) (path string, err error) {
 	l.Debugf("Pulling state from %s backend", remote.BackendName)
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
@@ -241,13 +248,15 @@ func (remote *RemoteState) pullState(
 
 	l.Debugf("Creating temporary state file for migration")
 
-	file, err := os.CreateTemp("", "*.tfstate")
+	file, err := vfs.CreateTemp(v.FS, v.Platform.TempDir(), "*.tfstate")
 	if err != nil {
 		return "", err
 	}
 
 	defer func() {
-		file.Close() // nolint: errcheck
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
 	}()
 
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {
@@ -260,7 +269,7 @@ func (remote *RemoteState) pullState(
 func (remote *RemoteState) pushState(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	tfOpts *tf.TFOptions,
 	stateFile string,
 ) error {

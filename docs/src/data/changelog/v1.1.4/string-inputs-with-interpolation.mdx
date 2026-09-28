@@ -1,0 +1,16 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### String inputs reach modules with `${...}` intact
+
+Passing a string input that contains `${...}` to a variable declared with a type other than `string` used to fail with `Variables not allowed`, because OpenTofu/Terraform parse those values as HCL expressions and read `${...}` as an interpolation. Reading a JSON or YAML file into an input hit this whenever the file happened to contain that sequence:
+
+```hcl
+inputs = {
+  config = file("./config.json")
+}
+```
+
+Terragrunt now escapes interpolation sequences in string inputs when the module declares the variable with a type that makes the value parse as HCL, so `${...}` arrives as literal text instead of failing the run. Variables declared as `string`, and variables declared with no type at all, are read verbatim by OpenTofu/Terraform, and their values are still passed through untouched.

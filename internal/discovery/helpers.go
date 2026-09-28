@@ -4,18 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	iofs "io/fs"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -38,6 +40,30 @@ const (
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
+
+// walkDirFunc returns the tree walk the discovery phases use, bound to the
+// venv filesystem so discovery only sees what the venv exposes. The symlinks
+// experiment swaps in the walk that descends into symlinked directories.
+func walkDirFunc(
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) func(string, fs.WalkDirFunc) error {
+	v.RequireFS()
+
+	if opts == nil {
+		panic("discovery.walkDirFunc: opts is nil")
+	}
+
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		return func(root string, fn fs.WalkDirFunc) error {
+			return vfs.WalkDirWithSymlinks(v.FS, root, fn)
+		}
+	}
+
+	return func(root string, fn fs.WalkDirFunc) error {
+		return vfs.WalkDir(v.FS, root, fn)
+	}
+}
 
 // stringSet is a thread-safe set of strings using map and RWMutex.
 // This is more performant than sync.Map for string keys with simple bool values.
@@ -78,6 +104,23 @@ func (s *stringSet) Load(key string) bool {
 	return ok
 }
 
+// RelPathForComponent renders target through [RelPathOrAbs], relative to the
+// directory c was discovered under and to fallback when c names none. A
+// component matched by a git-range filter is discovered inside a worktree, so
+// its paths read against that worktree rather than the caller's working dir.
+func RelPathForComponent(
+	l log.Logger,
+	c component.Component,
+	fallback, target, desc string,
+) string {
+	base := fallback
+	if dctx := c.DiscoveryContext(); dctx != nil && dctx.WorkingDir != "" {
+		base = dctx.WorkingDir
+	}
+
+	return RelPathOrAbs(l, base, target, desc)
+}
+
 // RelPathOrAbs returns target made relative to base. On filepath.Rel failure (Windows cross-volume, etc.), it warns
 // and returns target unchanged so the entry still appears in output. The desc is included parenthetically in the
 // warning to identify which path failed.
@@ -101,71 +144,46 @@ func RelPathOrAbs(l log.Logger, base, target, desc string) string {
 // isExternal checks if a component path is outside the given working directory.
 // A path is considered external if it's not within or equal to the working directory.
 // We conservatively evaluate paths as external if we cannot determine their absolute path.
-func isExternal(workingDir string, componentPath string) bool {
+func isExternal(fsys vfs.FS, workingDir string, componentPath string) bool {
 	if workingDir == "" {
 		return true
 	}
 
-	workingDirClean := filepath.Clean(workingDir)
-	componentPathClean := filepath.Clean(componentPath)
-
-	workingDirResolved, err := filepath.EvalSymlinks(workingDirClean)
-	if err != nil {
-		workingDirResolved = workingDirClean
-	}
-
-	componentPathResolved, err := filepath.EvalSymlinks(componentPathClean)
-	if err != nil {
-		componentPathResolved = componentPathClean
-	}
-
-	relPath, err := filepath.Rel(workingDirResolved, componentPathResolved)
-	if err != nil {
-		return true
-	}
-
-	return relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator))
+	return !vfs.Within(fsys, workingDir, componentPath)
 }
 
-// inGitFilterContext reports whether this discovery evaluates Git filter expressions,
-// either directly or as a worktree sub-discovery (identified by a Git ref on its
-// discovery context).
-func (d *Discovery) inGitFilterContext() bool {
-	if len(d.gitExpressions) > 0 {
-		return true
+// missingDependencyConfigError names unit when dep's own config file is missing, showing worktree paths as repo paths.
+func (d *Discovery) missingDependencyConfigError(unit, dep component.Component, err error) error {
+	notFound, ok := errors.AsType[config.TerragruntConfigNotFoundError](err)
+	if !ok || notFound.Path != filepath.Join(dep.Path(), dep.ConfigFile()) {
+		return err
 	}
 
-	return d.discoveryContext != nil && d.discoveryContext.Ref != ""
-}
-
-// skipMissingDependencyConfig reports whether a parse failure for a dependency reached
-// during relationship or graph traversal should be skipped instead of failing discovery.
-// Only missing-config errors qualify, and only in a Git filter context: a diff
-// legitimately deletes unit directories that live units still reference, and find/list
-// already tolerate those. Without Git filters a dangling config_path keeps failing the
-// run, as it always has.
-func (d *Discovery) skipMissingDependencyConfig(err error) bool {
-	if !d.inGitFilterContext() {
-		return false
+	unitPath, depPath := unit.Path(), dep.Path()
+	if d.worktrees != nil {
+		unitPath, depPath = d.worktrees.DisplayPath(unitPath), d.worktrees.DisplayPath(depPath)
 	}
 
-	var notFoundErr config.TerragruntConfigNotFoundError
-
-	return errors.As(err, &notFoundErr)
+	return config.MissingDependencyConfigError{
+		Err:            err,
+		UnitPath:       unitPath,
+		DependencyPath: depPath,
+	}
 }
 
 // componentFromDependencyPath returns a component for a dependency path. If the path already
 // exists in the thread-safe components, it returns that. If the path contains a stack file,
 // it creates a stack. Otherwise, it creates a unit.
 func componentFromDependencyPath(
+	fsys vfs.FS,
 	path string,
 	components *component.ThreadSafeComponents,
 ) component.Component {
-	if existing := components.FindByPath(path); existing != nil {
+	if existing := components.FindByPath(fsys, path); existing != nil {
 		return existing
 	}
 
-	if _, err := os.Stat(filepath.Join(path, config.DefaultStackFile)); err == nil {
+	if _, err := fsys.Stat(filepath.Join(path, config.DefaultStackFile)); err == nil {
 		return component.NewStack(path)
 	}
 
@@ -273,8 +291,13 @@ func sanitizeReadFiles(files []string) []string {
 	return slices.Compact(files)
 }
 
-// extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.
-func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component) ([]string, error) {
+// extractDependencyPaths extracts all dependency paths from a Terragrunt
+// configuration, sorted and deduplicated.
+func extractDependencyPaths(
+	fsys vfs.FS,
+	cfg *config.TerragruntConfig,
+	c component.Component,
+) ([]string, error) {
 	if cfg == nil {
 		return nil, nil
 	}
@@ -284,7 +307,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 		maxDedupLen += len(cfg.Dependencies.Paths)
 	}
 
-	deduped := make(map[string]struct{}, maxDedupLen)
+	depPaths := make([]string, 0, maxDedupLen)
 
 	errs := make([]error, 0, maxDedupLen)
 
@@ -307,7 +330,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
 
-		deduped[util.ResolvePath(depPath)] = struct{}{}
+		depPaths = append(depPaths, vfs.ResolveForCompare(fsys, depPath))
 	}
 
 	if cfg.Dependencies != nil {
@@ -316,15 +339,13 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
 			}
 
-			deduped[util.ResolvePath(dependency)] = struct{}{}
+			depPaths = append(depPaths, vfs.ResolveForCompare(fsys, dependency))
 		}
 	}
 
-	depPaths := make([]string, 0, len(deduped))
+	slices.Sort(depPaths)
 
-	for depPath := range deduped {
-		depPaths = append(depPaths, depPath)
-	}
+	depPaths = slices.Compact(depPaths)
 
 	if len(errs) > 0 {
 		return depPaths, errors.Join(errs...)
@@ -333,23 +354,70 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	return depPaths, nil
 }
 
+// storeStackConfigs parses each discovered stack's config file and stores the
+// result on the stack component. The parse phase only stores unit configs, so
+// this runs as a separate pass over the final component set. Parsing is
+// best-effort: a stack that fails to parse is left without config and
+// consumers simply omit those details.
+func storeStackConfigs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	components component.Components,
+) {
+	for _, c := range components {
+		if ctx.Err() != nil {
+			return
+		}
+
+		stack, ok := c.(*component.Stack)
+		if !ok {
+			continue
+		}
+
+		stackDir := stack.Path()
+		stackFile := filepath.Join(stackDir, stack.ConfigFile())
+
+		// A fresh context per stack scopes it to that stack's file and values, so
+		// a config referencing values.* parses instead of failing on missing
+		// values (and shows its definitions in consumers like browse).
+		pctx := configbridge.NewParsingContext(opts)
+
+		values, err := config.ReadValues(ctx, l, v, pctx, stackDir)
+		if err != nil {
+			l.Debugf("Skipping stack config %s: %v", stackFile, err)
+
+			continue
+		}
+
+		cfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFile, values)
+		if err != nil {
+			l.Debugf("Skipping stack config %s: %v", stackFile, err)
+
+			continue
+		}
+
+		stack.StoreConfig(cfg)
+	}
+}
+
 // stackDependencyPaths expands stack directory dependency paths into their constituent unit paths.
 // Autoinclude-declared dependencies are already folded into the parsed config by the partial-parse
 // merge (which honors enabled/disabled and same-name override), so they arrive via depPaths here.
 func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-	pctx = pctx.WithVenv(v)
+	pctx := configbridge.NewParsingContext(opts)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(
 		func(stackDir string) (map[string]function.Function, error) {
-			return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+			return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
 		},
 	)
 
@@ -363,7 +431,7 @@ func stackDependencyPaths(
 		info, statErr := v.FS.Stat(depPath)
 		// Real I/O errors (permission denied, etc.) must surface so a malformed DAG isn't silently
 		// produced; only ENOENT is treated as "keep the raw path".
-		if statErr != nil && !errors.Is(statErr, iofs.ErrNotExist) {
+		if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
 			return nil, NewStackDependencyExpansionError(depPath, statErr)
 		}
 
@@ -372,7 +440,12 @@ func stackDependencyPaths(
 			continue
 		}
 
-		unitPaths, err := inthclparse.UnitPathsFromStackDir(v.FS, depPath, funcsFor)
+		unitPaths, err := inthclparse.UnitPathsFromStackDir(
+			ctx,
+			v.FS,
+			depPath,
+			&inthclparse.StackDirArgs{FuncsFor: funcsFor},
+		)
 		if err != nil {
 			return nil, NewStackDependencyExpansionError(depPath, err)
 		}
@@ -400,4 +473,246 @@ func stackDependencyPaths(
 	}
 
 	return result, nil
+}
+
+// dependentWalkBoundary returns where the upstream dependent walk must stop:
+// the user's discovery boundary when set, otherwise the detected git root. An
+// empty result means the walk is unbounded (no boundary could be determined).
+func (d *Discovery) dependentWalkBoundary() string {
+	if d.discoveryBoundary != "" {
+		return d.discoveryBoundary
+	}
+
+	return d.gitRoot
+}
+
+// dependentBoundaries returns each dependent expression's boundary, or nil when any is unbounded.
+func (d *Discovery) dependentBoundaries(l log.Logger, fsys vfs.FS) []string {
+	var boundaries []string
+
+	for _, expr := range d.classifier.GraphExpressions() {
+		if !expr.Dependents.Include {
+			continue
+		}
+
+		if expr.Dependents.Boundary == "" {
+			if d.discoveryBoundary == "" {
+				return nil
+			}
+
+			boundaries = append(boundaries, d.discoveryBoundary)
+
+			continue
+		}
+
+		resolved, err := resolveGraphBoundary(fsys, d.workingDir, expr.Dependents.Boundary)
+		if err != nil {
+			l.Debugf(
+				"Discovery: cannot resolve boundary %s (%v); parsing every potential dependent",
+				expr.Dependents.Boundary,
+				err,
+			)
+
+			return nil
+		}
+
+		boundaries = append(boundaries, resolved)
+	}
+
+	return boundaries
+}
+
+// potentialDependentsOutsideBoundary returns potential dependents no dependent traversal can reach.
+func (d *Discovery) potentialDependentsOutsideBoundary(
+	l log.Logger,
+	fsys vfs.FS,
+	candidates []DiscoveryResult,
+) map[string]struct{} {
+	boundaries := d.dependentBoundaries(l, fsys)
+	if len(boundaries) == 0 {
+		return nil
+	}
+
+	outside := make(map[string]struct{})
+
+	for _, candidate := range candidates {
+		if candidate.Reason != filter.CandidacyReasonPotentialDependent {
+			continue
+		}
+
+		c := candidate.Component
+
+		// Worktree components live outside the working tree by construction.
+		if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
+			continue
+		}
+
+		if slices.ContainsFunc(boundaries, func(boundary string) bool {
+			return !isExternal(fsys, boundary, c.Path())
+		}) {
+			continue
+		}
+
+		outside[c.Path()] = struct{}{}
+	}
+
+	return outside
+}
+
+// evaluationContext hands filter evaluation the settings its graph traversal
+// has to honor. Discover resolves the boundary and the working directory before
+// any phase runs, so this carries absolute paths rather than raw user input.
+func (d *Discovery) evaluationContext() filter.EvaluationContext {
+	return filter.EvaluationContext{
+		WorkingDir:         d.workingDir,
+		ResolvedWorkingDir: d.resolvedWorkingDir,
+		DiscoveryBoundary:  d.discoveryBoundary,
+		Worktree: &filter.WorktreeContext{
+			DiscoveryBoundaryInput: d.discoveryBoundaryInput,
+			GitRoot:                d.worktreeGitRoot,
+		},
+	}
+}
+
+// resolveDir canonicalizes dir through the discovery filesystem, so that the
+// paths a boundary is compared against are resolved by the same filesystem that
+// produced them rather than by the OS underneath it. Resolution fails on a
+// directory that cannot be walked to, so callers that do not require dir to
+// exist have to say what an unwalkable path means to them.
+func resolveDir(fsys vfs.FS, dir string) (string, error) {
+	resolved, err := vfs.EvalSymlinks(fsys, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Clean(resolved), nil
+}
+
+// validateBoundaryDir reports whether resolved names an existing directory.
+func validateBoundaryDir(fsys vfs.FS, resolved string) error {
+	info, err := fsys.Stat(resolved)
+	if err != nil {
+		return NewDiscoveryBoundaryDirError(resolved, err)
+	}
+
+	if !info.IsDir() {
+		return NewDiscoveryBoundaryDirError(resolved, errors.New("not a directory"))
+	}
+
+	return nil
+}
+
+// absBoundary canonicalizes a raw boundary value against the working directory.
+func absBoundary(workingDir, boundary string) string {
+	if filepath.IsAbs(boundary) {
+		return filepath.Clean(boundary)
+	}
+
+	return filepath.Clean(filepath.Join(workingDir, boundary))
+}
+
+// resolveGraphBoundary canonicalizes a raw "(dir)" boundary value against
+// the working directory and validates that it points at an existing directory.
+// Returns the resolved absolute path.
+func resolveGraphBoundary(fsys vfs.FS, workingDir, boundary string) (string, error) {
+	resolved := absBoundary(workingDir, boundary)
+
+	if err := validateBoundaryDir(fsys, resolved); err != nil {
+		return "", err
+	}
+
+	return resolved, nil
+}
+
+// boundaryEnclosure states whether a discovery boundary has to nest with the
+// working directory, containing it or sitting inside it, to be usable.
+type boundaryEnclosure int
+
+const (
+	boundaryEnclosureOptional boundaryEnclosure = iota
+	boundaryEnclosureRequired
+)
+
+// boundaryEnclosureFor reports what the given filters demand of a discovery
+// boundary. Only the dependent walk starts at the working directory, so only
+// it is defeated by a boundary that excludes the working directory. Dependency
+// traversal starts at the matched components and follows their declared
+// dependencies, so a boundary narrower than the working directory prunes that
+// walk exactly as the inline "(dir)" operand does.
+func boundaryEnclosureFor(filters filter.Filters) boundaryEnclosure {
+	if filters.HasDependents() {
+		return boundaryEnclosureRequired
+	}
+
+	return boundaryEnclosureOptional
+}
+
+// resolveDiscoveryBoundary canonicalizes a user-supplied discovery boundary against
+// the working directory and validates that it is an existing directory, requiring
+// it to contain the working directory only when enclosure demands it. Returns the
+// resolved absolute path.
+func resolveDiscoveryBoundary(
+	fsys vfs.FS,
+	workingDir, boundary string,
+	enclosure boundaryEnclosure,
+) (string, error) {
+	canonical, err := util.CanonicalPath(boundary, workingDir)
+	if err != nil {
+		return "", NewDiscoveryBoundaryDirError(boundary, err)
+	}
+
+	resolved, err := resolveDir(fsys, canonical)
+	if err != nil {
+		return "", NewDiscoveryBoundaryDirError(canonical, err)
+	}
+
+	if err := validateBoundaryDir(fsys, resolved); err != nil {
+		return "", err
+	}
+
+	if enclosure == boundaryEnclosureOptional {
+		return resolved, nil
+	}
+
+	// Enclosure asks where the working directory sits, not whether it exists,
+	// and discovery answers a working directory that holds nothing with an
+	// empty result rather than an error. A path that cannot be walked to keeps
+	// the spelling it was given.
+	resolvedWorkingDir, err := resolveDir(fsys, workingDir)
+	if err != nil {
+		resolvedWorkingDir = filepath.Clean(workingDir)
+	}
+
+	// A boundary inside the working directory starts the dependent walk there instead.
+	if isExternal(fsys, resolved, resolvedWorkingDir) && isExternal(fsys, resolvedWorkingDir, resolved) {
+		return "", NewDiscoveryBoundaryScopeError(resolved, workingDir)
+	}
+
+	return resolved, nil
+}
+
+// worktreeBoundary returns the boundary mirrored into each worktree, or "" when unbounded.
+func (d *Discovery) worktreeBoundary(ctx context.Context, l log.Logger, v *venv.Venv) string {
+	return WorktreeBoundary(ctx, l, v, StackGenerateOptions{
+		WorkingDir:        d.workingDir,
+		DiscoveryBoundary: d.discoveryBoundaryInput,
+		Filters:           d.filters,
+	})
+}
+
+// worktreeRootOf returns the root of the Git worktree holding path, or "" when path is in the working tree.
+func (d *Discovery) worktreeRootOf(fsys vfs.FS, path string) string {
+	if d.worktrees == nil {
+		return ""
+	}
+
+	for _, pair := range d.worktrees.WorktreePairs {
+		for _, wt := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			if wt.Path != "" && vfs.Within(fsys, wt.Path, path) {
+				return wt.Path
+			}
+		}
+	}
+
+	return ""
 }

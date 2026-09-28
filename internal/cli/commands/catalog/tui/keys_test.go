@@ -57,13 +57,10 @@ func TestKeyPagerKeyMapShortHelp(t *testing.T) {
 	want := []key.Binding{
 		km.Up,
 		km.Down,
-		km.PageUp,
-		km.PageDown,
 		km.Navigation,
-		km.NavigationBack,
 		km.Choose,
 		km.ScaffoldInteractive,
-		km.ToggleWrap,
+		km.ScaffoldImmediate,
 		km.Help,
 		km.Quit,
 	}
@@ -91,9 +88,9 @@ func TestKeyPagerKeyMapFullHelp(t *testing.T) {
 
 	require.Len(t, got[1], 4)
 	assert.Equal(t, km.Navigation, got[1][0])
-	assert.Equal(t, km.NavigationBack, got[1][1])
-	assert.Equal(t, km.Choose, got[1][2])
-	assert.Equal(t, km.ScaffoldInteractive, got[1][3])
+	assert.Equal(t, km.Choose, got[1][1])
+	assert.Equal(t, km.ScaffoldInteractive, got[1][2])
+	assert.Equal(t, km.ScaffoldImmediate, got[1][3])
 
 	require.Len(t, got[2], 4)
 	assert.Equal(t, km.ToggleWrap, got[2][0])
@@ -105,10 +102,11 @@ func TestKeyPagerKeyMapFullHelp(t *testing.T) {
 func TestKeyPagerScaffoldBoundToLowerS(t *testing.T) {
 	t.Parallel()
 
-	// Pager mirrors the list: only the lowercase scaffold entry point;
-	// skip-required lives inside the form on ctrl+d.
+	// The lowercase entry point opens the form; ctrl+d mirrors the form's
+	// force-submit by scaffolding immediately with placeholder values.
 	km := tui.NewPagerKeyMap()
 
 	assert.Equal(t, []string{"s"}, km.ScaffoldInteractive.Keys())
+	assert.Equal(t, []string{"ctrl+d"}, km.ScaffoldImmediate.Keys())
 	assert.Equal(t, []string{"w"}, km.ToggleWrap.Keys())
 }

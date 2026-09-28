@@ -7,8 +7,8 @@ terraform {
 
   required_providers {
     local = {
-      source  = "hashicorp/local"
-      version = ">= 2.1"
+      source  = "registry.opentofu.org/hashicorp/local"
+      version = "2.6.1"
     }
   }
 }

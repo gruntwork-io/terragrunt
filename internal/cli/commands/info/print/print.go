@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 
 	"errors"
 
@@ -16,34 +15,46 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+// jsonLayout is how one unit's info is written.
+type jsonLayout int
+
+const (
+	// prettyJSON indents a unit's info over several lines.
+	prettyJSON jsonLayout = iota
+	// lineJSON writes a unit's info on one line, so a run over several units
+	// reads as JSON Lines and a consumer can parse it a line at a time.
+	lineJSON
+)
+
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	// If --all flag is set, use discovery to find all units and print info for each one
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
 	}
 
-	return runPrint(ctx, l, v, opts)
+	return runPrint(ctx, l, v, opts, prettyJSON)
 }
 
 func runPrint(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
+	layout jsonLayout,
 ) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		if printErr := printTerragruntContext(l, v, opts); printErr != nil {
+		if printErr := printTerragruntContext(l, v, opts, layout); printErr != nil {
 			l.Errorf("Error printing info: %v", printErr)
 		}
 
@@ -63,17 +74,22 @@ func runPrint(
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		if printErr := printTerragruntContext(l, v, opts); printErr != nil {
+		if printErr := printTerragruntContext(l, v, opts, layout); printErr != nil {
 			l.Errorf("Error printing info: %v", printErr)
 		}
 
 		return nil
 	}
 
-	return printTerragruntContext(l, v, updatedOpts)
+	return printTerragruntContext(l, v, updatedOpts, layout)
 }
 
-func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runAll(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v, opts)
@@ -85,20 +101,24 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 
 	var errs []error
 
-	for _, unit := range units {
-		unitOpts := opts.Clone()
-		unitOpts.WorkingDir = unit.Path()
-
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
+	for _, c := range units {
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
 		}
 
-		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+		// The options a unit runs under come from the runner, so the context
+		// printed here is the one `run --all` gives that unit, down to the
+		// download directory it caches into.
+		unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
+		if err != nil {
+			return err
+		}
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
-		if err := runPrint(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
+		unitV := v.WithEnvCloned()
+		if err := runPrint(ctx, unitLogger, unitV, unitOpts, lineJSON); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -126,7 +146,12 @@ type InfoOutput struct {
 	WorkingDir       string `json:"working_dir"`
 }
 
-func printTerragruntContext(l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func printTerragruntContext(
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	layout jsonLayout,
+) error {
 	group := InfoOutput{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
@@ -136,7 +161,12 @@ func printTerragruntContext(l log.Logger, v venv.Venv, opts *options.TerragruntO
 		WorkingDir:       opts.WorkingDir,
 	}
 
-	b, err := json.MarshalIndent(group, "", "  ")
+	marshal := json.Marshal
+	if layout == prettyJSON {
+		marshal = func(v any) ([]byte, error) { return json.MarshalIndent(v, "", "  ") }
+	}
+
+	b, err := marshal(group)
 	if err != nil {
 		l.Errorf("JSON error marshalling info")
 		return err

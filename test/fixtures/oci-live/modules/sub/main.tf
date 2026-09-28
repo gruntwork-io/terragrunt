@@ -1,0 +1,3 @@
+output "sub" {
+  value = "sub"
+}

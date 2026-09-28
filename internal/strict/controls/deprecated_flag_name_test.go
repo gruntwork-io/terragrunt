@@ -49,22 +49,18 @@ func parseFlag[T clihelper.GenericType](
 ) {
 	t.Helper()
 
-	flag.LookupEnvFunc = func(key string) []string { return nil }
-
 	set := libflag.NewFlagSet("test", libflag.ContinueOnError)
 	set.SetOutput(io.Discard)
-	require.NoError(t, flag.Apply(set))
+	require.NoError(t, flag.Apply(set, map[string]string{}))
 	require.NoError(t, set.Parse(args))
 }
 
 func parseBoolFlag(t *testing.T, flag *clihelper.BoolFlag, args []string) {
 	t.Helper()
 
-	flag.LookupEnvFunc = func(key string) []string { return nil }
-
 	set := libflag.NewFlagSet("test", libflag.ContinueOnError)
 	set.SetOutput(io.Discard)
-	require.NoError(t, flag.Apply(set))
+	require.NoError(t, flag.Apply(set, map[string]string{}))
 	require.NoError(t, set.Parse(args))
 }
 

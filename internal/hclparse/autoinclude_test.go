@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ func TestAutoIncludeHCL_Resolve_Nil(t *testing.T) {
 
 	var a *hclparse.AutoIncludeHCL
 
-	result, diags := a.Resolve(nil)
+	result, diags := a.Resolve(t.Context(), nil)
 	assert.Nil(t, result)
 	assert.False(t, diags.HasErrors())
 }
@@ -50,12 +51,12 @@ dependency "vpc" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
 	assert.Equal(t, "vpc", result.Dependencies[0].Name)
-	assert.Equal(t, "../vpc", result.Dependencies[0].ConfigPath)
+	assert.Equal(t, hclparse.SingleConfigPath("../vpc"), result.Dependencies[0].ConfigPath)
 	assert.NotNil(t, result.Dependencies[0].Block)
 	assert.NotNil(t, result.RawBody)
 }
@@ -90,7 +91,7 @@ dependency "vpc" {
 				},
 			}
 
-			result, diags := autoInclude.Resolve(evalCtx)
+			result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 			require.True(t, diags.HasErrors(), "%s must surface as a diagnostic", tc.summary)
 			assert.Equal(t, tc.summary, diags[0].Summary)
 			require.NotNil(
@@ -116,7 +117,10 @@ dependency {
 
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
 
-	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
+	result, diags := autoInclude.Resolve(
+		t.Context(),
+		&hcl.EvalContext{Variables: map[string]cty.Value{}},
+	)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "exactly one label, got 0")
 	require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
@@ -135,7 +139,10 @@ dependency "vpc" "extra" {
 
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
 
-	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
+	result, diags := autoInclude.Resolve(
+		t.Context(),
+		&hcl.EvalContext{Variables: map[string]cty.Value{}},
+	)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "exactly one label, got 2")
 	require.NotNil(t, result, "best-effort: result is non-nil even when some deps fail")
@@ -174,14 +181,14 @@ dependency "db" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 2)
 	assert.Equal(t, "vpc", result.Dependencies[0].Name)
-	assert.Equal(t, "../vpc", result.Dependencies[0].ConfigPath)
+	assert.Equal(t, hclparse.SingleConfigPath("../vpc"), result.Dependencies[0].ConfigPath)
 	assert.Equal(t, "db", result.Dependencies[1].Name)
-	assert.Equal(t, "../database", result.Dependencies[1].ConfigPath)
+	assert.Equal(t, hclparse.SingleConfigPath("../database"), result.Dependencies[1].ConfigPath)
 }
 
 func TestAutoIncludeHCL_Resolve_StackRef(t *testing.T) {
@@ -209,12 +216,12 @@ dependency "networking" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
 	assert.Equal(t, "networking", result.Dependencies[0].Name)
-	assert.Equal(t, "../networking", result.Dependencies[0].ConfigPath)
+	assert.Equal(t, hclparse.SingleConfigPath("../networking"), result.Dependencies[0].ConfigPath)
 }
 
 func TestAutoIncludeHCL_Resolve_DependencyWithMockOutputs(t *testing.T) {
@@ -253,14 +260,18 @@ inputs = {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 
 	// Dependency config_path resolved
 	require.Len(t, result.Dependencies, 1)
 	assert.Equal(t, "vpc", result.Dependencies[0].Name)
-	assert.Equal(t, "/abs/path/to/.terragrunt-stack/vpc", result.Dependencies[0].ConfigPath)
+	assert.Equal(
+		t,
+		hclparse.SingleConfigPath("/abs/path/to/.terragrunt-stack/vpc"),
+		result.Dependencies[0].ConfigPath,
+	)
 
 	// RawBody preserved (contains inputs with dependency.vpc.outputs.val)
 	assert.NotNil(t, result.RawBody)
@@ -347,17 +358,19 @@ func TestAutoIncludeDependencyPaths_AbsolutePath(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
+	unitDir := venvtest.Root("/test")
+	target := venvtest.Root("/absolute/path/to/vpc")
 
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(unitDir, hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {
-  config_path = "/absolute/path/to/vpc"
+  config_path = "`+filepath.ToSlash(target)+`"
 }
 `), 0644))
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, unitDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
-	assert.Equal(t, "/absolute/path/to/vpc", paths[0])
+	assert.Equal(t, target, paths[0])
 }
 
 // Each malformed dependency block surfaces as a typed MalformedDependencyError naming the dependency: the contract is loud-fail, not silent skip.
@@ -523,7 +536,7 @@ unit "extra" {
 `
 	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
 
-	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, diags := bad.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.True(
 		t,
 		diags.HasErrors(),
@@ -552,7 +565,7 @@ unit "extra" {
 `
 	supported := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, okSrc)}
 
-	_, okDiags := supported.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, okDiags := supported.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.False(
 		t,
 		okDiags.HasErrors(),
@@ -573,7 +586,7 @@ inputs = {
 `
 	unitAutoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, unitSrc)}
 
-	_, unitDiags := unitAutoInclude.ResolveForKind(evalCtx, hclparse.KindUnit, "")
+	_, unitDiags := unitAutoInclude.ResolveForKind(t.Context(), evalCtx, hclparse.KindUnit, "")
 	require.False(
 		t,
 		unitDiags.HasErrors(),
@@ -616,7 +629,7 @@ unit "extra" {
 `
 	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
 
-	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, diags := bad.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.True(t, diags.HasErrors(), "the index traversal form must trip the typed error too")
 
 	extra, ok := diags[0].Extra.(error)
@@ -669,7 +682,7 @@ unit "extra" {
 `
 	bad := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, badSrc)}
 
-	_, diags := bad.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, diags := bad.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.True(t, diags.HasErrors(), "a dynamic dependency index must trip the typed error too")
 
 	extra, ok := diags[0].Extra.(error)
@@ -721,7 +734,7 @@ unit "extra" {
 `
 	autoInclude := &hclparse.AutoIncludeHCL{Remain: parseHCLBody(t, src)}
 
-	_, diags := autoInclude.ResolveForKind(evalCtx, hclparse.KindStack, "net")
+	_, diags := autoInclude.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "net")
 	require.True(
 		t,
 		diags.HasErrors(),

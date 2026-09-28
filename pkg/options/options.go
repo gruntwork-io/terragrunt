@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -21,18 +20,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/hashicorp/go-version"
-	"github.com/puzpuzpuz/xsync/v4"
 )
 
 const ContextKey ctxKey = iota
@@ -63,8 +63,6 @@ const (
 )
 
 var (
-	DefaultWrappedPath = identifyDefaultWrappedExecutable(context.Background())
-
 	defaultVersionManagerFileName = []string{
 		".terraform-version",
 		".tool-versions",
@@ -78,9 +76,9 @@ type ctxKey byte
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Version of terragrunt
-	TerragruntVersion *version.Version `clone:"shadowcopy"`
+	TerragruntVersion *semver.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
-	FeatureFlags *xsync.Map[string, string] `clone:"shadowcopy"`
+	FeatureFlags map[string]string `clone:"shadowcopy"`
 	// EngineConfig holds the resolved engine configuration from HCL.
 	EngineConfig *engine.EngineConfig
 	// EngineOptions groups CLI-supplied engine options.
@@ -90,7 +88,7 @@ type TerragruntOptions struct {
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
 	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *version.Version `clone:"shadowcopy"`
+	TerraformVersion *semver.Version `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
 	Errors *errorconfig.Config
 	// Map to replace terraform source locations.
@@ -150,10 +148,22 @@ type TerragruntOptions struct {
 	ReportFile string
 	// Path to a file containing filter queries, one per line. Default is .terragrunt-filters.
 	FiltersFile string
+	// DiscoveryBoundary encloses graph discovery for filters within the given
+	// directory instead of the git repository root: dependencies and dependents
+	// resolving outside it are not discovered.
+	DiscoveryBoundary string
 	// Report format.
 	ReportFormat report.Format
 	// Path to the report schema file.
 	ReportSchemaFile string
+	// ProfileDir is the directory to write profile files into when using profiling flags.
+	ProfileDir string
+	// ProfileCPU is the path for CPU profile output.
+	ProfileCPU string
+	// ProfileMem is the path for memory (heap) profile output.
+	ProfileMem string
+	// ProfileGoroutine is the path for goroutine profile output.
+	ProfileGoroutine string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs *iacargs.IacArgs
 	// Files with variables to be used in modules scaffolding.
@@ -182,6 +192,9 @@ type TerragruntOptions struct {
 	// repository. Defaults to 1 (see internal/cas.DefaultCASCloneDepth). Values must be
 	// positive (git rejects --depth 0) or negative (e.g. -1) for a full clone without --depth.
 	CASCloneDepth int
+	// CASProbeTTL is how long CAS trusts a persisted probe of a branch, HEAD, or
+	// non-version tag before querying the remote again. Zero re-queries on every run.
+	CASProbeTTL time.Duration
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 	// True if terragrunt should run in debug mode
@@ -244,6 +257,8 @@ type TerragruntOptions struct {
 	HCLValidateShowConfigPath bool
 	// HCLValidateJSONOutput outputs the hcl validate result as a JSON string.
 	HCLValidateJSONOutput bool
+	// HCLValidateCheckDependencies fails hcl validate on dependencies pointing at paths without a Terragrunt config.
+	HCLValidateCheckDependencies bool
 	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
 	DisableLogFormatting bool
 	// Headless is set when Terragrunt is running in headless mode.
@@ -254,6 +269,12 @@ type TerragruntOptions struct {
 	NoStackValidate bool
 	// NoCAS disables the CAS feature even when the experiment is enabled.
 	NoCAS bool
+	// CASOffline forbids CAS from contacting a Git remote; Git sources are
+	// answered from the local store and the persisted probe cache or fail.
+	// Other sources CAS handles, such as HTTP or S3, still reach their remote.
+	CASOffline bool
+	// CASRefresh makes CAS ignore its persisted probe cache for this run.
+	CASRefresh bool
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of
@@ -318,9 +339,9 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 
 // NewTerragruntOptions creates a new TerragruntOptions object with
 // reasonable defaults for real usage.
-func NewTerragruntOptions() *TerragruntOptions {
+func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                   DefaultWrappedPath,
+		TFPath:                   IdentifyDefaultWrappedExecutable(e),
 		ExcludesFile:             defaultExcludesFile,
 		FiltersFile:              defaultFiltersFile,
 		AutoInit:                 true,
@@ -336,7 +357,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		ProviderCacheOptions: pcoptions.ProviderCacheOptions{
 			RegistryNames: pcoptions.DefaultRegistryNames,
 		},
-		FeatureFlags:           xsync.NewMap[string, string](),
+		FeatureFlags:           map[string]string{},
 		Errors:                 defaultErrorsConfig(),
 		StrictControls:         controls.New(),
 		Experiments:            experiment.NewExperiments(),
@@ -348,8 +369,11 @@ func NewTerragruntOptions() *TerragruntOptions {
 	}
 }
 
-func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
-	opts := NewTerragruntOptions()
+func NewTerragruntOptionsWithConfigPath(
+	e vexec.Exec,
+	terragruntConfigPath string,
+) (*TerragruntOptions, error) {
+	opts := NewTerragruntOptions(e)
 
 	// Ensure config path is absolute so downstream code can rely on it.
 	// Skip resolution for empty paths (sentinel meaning "not set").
@@ -389,7 +413,7 @@ func NewTerragruntOptionsForTest(
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
 
-	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
+	opts, err := NewTerragruntOptionsWithConfigPath(venv.OSVenv().Exec, terragruntConfigPath)
 	if err != nil {
 		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).
 			Errorf("%v\n", err)
@@ -559,12 +583,17 @@ func (opts *TerragruntOptions) DataDir(env map[string]string) string {
 	return filepath.Join(opts.WorkingDir, tfDataDir)
 }
 
-// identifyDefaultWrappedExecutable returns default path used for wrapped executable.
-func identifyDefaultWrappedExecutable(ctx context.Context) string {
-	if util.IsCommandExecutable(vexec.NewOSExec(), ctx, TofuDefaultPath, "-version") {
+// IdentifyDefaultWrappedExecutable returns the IaC binary Terragrunt wraps by
+// default, preferring OpenTofu and falling back to Terraform.
+//
+// Every command resolves this during startup, so the choice comes from a PATH
+// lookup alone. Spawning the candidate to confirm it runs costs more than the
+// rest of startup combined, and commands that never wrap it would pay too.
+func IdentifyDefaultWrappedExecutable(e vexec.Exec) string {
+	if _, err := e.LookPath(TofuDefaultPath); err == nil {
 		return TofuDefaultPath
 	}
-	// fallback to Terraform if tofu is not available
+
 	return TerraformDefaultPath
 }
 
@@ -572,6 +601,7 @@ func identifyDefaultWrappedExecutable(ctx context.Context) string {
 func (opts *TerragruntOptions) RunWithErrorHandling(
 	ctx context.Context,
 	l log.Logger,
+	fsys vfs.FS,
 	r *report.Report,
 	operation func() error,
 ) error {
@@ -600,8 +630,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		// Process the error through our error handling configuration
 		action, recoveryErr := opts.Errors.AttemptErrorRecovery(l, err, currentAttempt)
 		if recoveryErr != nil {
-			var maxAttemptsReachedError *errorconfig.MaxAttemptsReachedError
-			if errors.As(recoveryErr, &maxAttemptsReachedError) {
+			if maxAttemptsReachedError, ok := errors.AsType[*errorconfig.MaxAttemptsReachedError](recoveryErr); ok {
 				return maxAttemptsReachedError
 			}
 
@@ -617,7 +646,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 
 			// Handle ignore signals if any are configured
 			if len(action.IgnoreSignals) > 0 {
-				if err := opts.handleIgnoreSignals(l, action.IgnoreSignals); err != nil {
+				if err := opts.handleIgnoreSignals(l, fsys, action.IgnoreSignals); err != nil {
 					return err
 				}
 			}
@@ -687,7 +716,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 	}
 }
 
-func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
+func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, fsys vfs.FS, signals map[string]any) error {
 	workingDir := opts.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
 
@@ -700,7 +729,7 @@ func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[str
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 
-	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
+	if err := vfs.WriteFile(fsys, signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
 

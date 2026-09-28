@@ -105,21 +105,29 @@ We should now have a file tree that looks like the following (we'll be getting r
 
 It's time to engage in our favorite solution for IaC refactoring, state manipulation!
 
-We're going to use the tools we've learned so far, and *pull* state from those two top-level units, then *push* them into the constituent units we've broken the megamodule down into. We expect to need to both move resource addresses in state, and forget particular resources to avoid accidentally destroying anything.
+We're going to *pull* state from those two top-level units, then *push* it into the constituent units we've broken the megamodule down into. These are two commands we haven't used yet: `terragrunt state pull` writes the current state of a unit to standard output, and `terragrunt state push` replaces the state of a unit with the contents of a file.
 
-<Code title="live/dev" lang="bash" frame="terminal" code={`terragrunt state pull > /tmp/tofu.tfstate
-cd ddb && terragrunt state push /tmp/tofu.tfstate
-cd ../iam && terragrunt state push /tmp/tofu.tfstate
-cd ../lambda && terragrunt state push /tmp/tofu.tfstate
-cd ../s3 && terragrunt state push /tmp/tofu.tfstate
+Each environment gets its own file so that the `dev` and `prod` pulls don't clobber each other.
+
+<Code title="live/dev" lang="bash" frame="terminal" code={`terragrunt state pull > /tmp/tofu-dev.tfstate
+cd ddb && terragrunt state push /tmp/tofu-dev.tfstate
+cd ../iam && terragrunt state push /tmp/tofu-dev.tfstate
+cd ../lambda && terragrunt state push /tmp/tofu-dev.tfstate
+cd ../s3 && terragrunt state push /tmp/tofu-dev.tfstate
 `} />
 
-<Code title="live/prod" lang="bash" frame="terminal" code={`terragrunt state pull > /tmp/tofu.tfstate
-cd ddb && terragrunt state push /tmp/tofu.tfstate
-cd ../iam && terragrunt state push /tmp/tofu.tfstate
-cd ../lambda && terragrunt state push /tmp/tofu.tfstate
-cd ../s3 && terragrunt state push /tmp/tofu.tfstate
+<Code title="live/prod" lang="bash" frame="terminal" code={`terragrunt state pull > /tmp/tofu-prod.tfstate
+cd ddb && terragrunt state push /tmp/tofu-prod.tfstate
+cd ../iam && terragrunt state push /tmp/tofu-prod.tfstate
+cd ../lambda && terragrunt state push /tmp/tofu-prod.tfstate
+cd ../s3 && terragrunt state push /tmp/tofu-prod.tfstate
 `} />
+
+Every unit now has a complete copy of its environment's state. We expect to need to both move resource addresses in state, and forget particular resources to avoid accidentally destroying anything.
+
+<Aside type="note">
+Those two files hold each environment's state as it was before the migration, so hold on to them until you've confirmed that the migration worked. Pushing one back into a unit rewinds that unit to the environment state you started with, which is how you'd retry if you get one of the moves or removes wrong. OpenTofu refuses to push a state file older than the one already in the backend, so you'll want to pass `-force` when you do.
+</Aside>
 
 We can now clean up the extraneous files mentioned earlier at the root of the environments.
 

@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -66,9 +66,20 @@ const (
 )
 
 const (
-	// Cap extraction so malformed archives fail before they can exhaust disk space.
+	// engineArchiveDecompressedSizeLimit caps the decompressed size of an
+	// engine archive so malformed archives fail before they can exhaust
+	// disk space.
 	engineArchiveDecompressedSizeLimit int64 = 512 << 20
-	engineArchiveFilesLimit                  = 20
+
+	// engineArchiveFilesLimit caps how many files are extracted from an
+	// engine archive, for the same reason as
+	// [engineArchiveDecompressedSizeLimit].
+	engineArchiveFilesLimit = 20
+
+	// engineReleaseLookupTimeout caps engine release-tag lookups against
+	// the GitHub API; the venv client carries no timeout, so this
+	// re-applies the cap the github package's default client would use.
+	engineReleaseLookupTimeout = 30 * time.Second
 )
 
 type (
@@ -99,7 +110,7 @@ type engineInstance struct {
 	execOptions  *ExecutionOptions
 	// v carries the env the plugin was started with so Shutdown can address
 	// the same environment long after Run returned.
-	v venv.Venv
+	v *venv.Venv
 }
 
 // engineEntry single-flights one cache dir's engine creation: the builder writes instance and
@@ -202,7 +213,7 @@ func (c *engineClients) takeUnit(unitDir string) *engineEntry {
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*util.CmdOutput, error) {
 	engineClients, err := engineClientsFromContext(ctx)
@@ -249,14 +260,14 @@ func Run(
 func createInstance(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*engineInstance, error) {
-	if err := downloadEngine(ctx, l, execOptions); err != nil {
+	if err := downloadEngine(ctx, l, v, execOptions); err != nil {
 		return nil, err
 	}
 
-	terragruntEngine, client, err := createEngine(ctx, l, v.Exec, execOptions)
+	terragruntEngine, client, err := createEngine(ctx, l, v, execOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -287,13 +298,18 @@ func WithEngineValues(ctx context.Context) context.Context {
 }
 
 // downloadEngine downloads the engine for the given options.
-func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOptions) error {
+func downloadEngine(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	execOptions *ExecutionOptions,
+) error {
 	e := execOptions.EngineConfig
 	if e == nil {
 		return nil
 	}
 
-	if util.FileExists(e.Source) {
+	if vfs.Exists(v.FS, e.Source) {
 		// if source is a file, no need to download, exit
 		return nil
 	}
@@ -313,7 +329,9 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		// identify engine version if not specified
 		if len(e.Version) == 0 {
 			if !isDirectURL(e.Source) {
-				tag, err := lastReleaseVersion(ctx, execOptions)
+				v.RequireHTTP()
+
+				tag, err := lastReleaseVersion(ctx, v, execOptions)
 				if err != nil {
 					return err
 				}
@@ -322,16 +340,16 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 			}
 		}
 
-		path, err := engineDir(execOptions)
+		path, err := engineDir(v, execOptions)
 		if err != nil {
 			return err
 		}
 
-		if ensureErr := util.EnsureDirectory(path); ensureErr != nil {
+		if ensureErr := vfs.EnsureDirectory(v.FS, path); ensureErr != nil {
 			return ensureErr
 		}
 
-		localEngineFile := filepath.Join(path, engineFileName(e))
+		localEngineFile := filepath.Join(path, engineFileName(v, e))
 
 		// lock downloading process for only one instance
 		locks, err := downloadLocksFromContext(ctx)
@@ -343,11 +361,11 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		locks.Lock(localEngineFile)
 		defer locks.Unlock(localEngineFile)
 
-		if util.FileExists(localEngineFile) {
+		if vfs.Exists(v.FS, localEngineFile) {
 			return nil
 		}
 
-		downloadFile := filepath.Join(path, enginePackageName(e))
+		downloadFile := filepath.Join(path, enginePackageName(v, e))
 
 		// Prepare download assets
 		assets := &github.ReleaseAssets{
@@ -367,9 +385,9 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 		}
 
 		// Create download client and download assets
-		downloadClient := github.NewGitHubReleasesDownloadClient(github.WithLogger(l))
+		downloadClient := github.NewGitHubReleasesDownloadClient(l)
 
-		result, err := downloadClient.DownloadReleaseAssets(ctx, assets)
+		result, err := downloadClient.DownloadReleaseAssets(ctx, v, assets)
 		if err != nil {
 			return fmt.Errorf("failed to download engine assets: %w", err)
 		}
@@ -383,14 +401,14 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 			checksumSigFile != "" {
 			l.Infof("Verifying checksum for %s", downloadFile)
 
-			if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
+			if err := verifyFile(v.FS, downloadFile, checksumFile, checksumSigFile); err != nil {
 				return err
 			}
 		} else {
 			l.Warnf("Skipping verification for %s", downloadFile)
 		}
 
-		if err := extractArchive(l, downloadFile, localEngineFile); err != nil {
+		if err := extractArchive(l, v.FS, downloadFile, localEngineFile); err != nil {
 			return err
 		}
 
@@ -400,7 +418,11 @@ func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOpt
 	})
 }
 
-func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, error) {
+func lastReleaseVersion(
+	ctx context.Context,
+	v *venv.Venv,
+	opts *ExecutionOptions,
+) (string, error) {
 	repository := strings.TrimPrefix(opts.EngineConfig.Source, defaultEngineRepoRoot)
 
 	versionCache, err := engineVersionsCacheFromContext(ctx)
@@ -413,7 +435,10 @@ func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, er
 		return val, nil
 	}
 
-	githubClient := github.NewGitHubAPIClient(github.WithGithubComDefaultAuth())
+	githubClient := github.NewGitHubAPIClient(
+		github.WithHTTPClient(vhttp.WithTimeout(v.HTTP, engineReleaseLookupTimeout)),
+		github.WithGithubComDefaultAuth(v.Env),
+	)
 
 	tag, err := githubClient.GetLatestReleaseTag(ctx, repository)
 	if err != nil {
@@ -425,9 +450,10 @@ func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, er
 	return tag, nil
 }
 
-func extractArchive(l log.Logger, downloadFile string, engineFile string) error {
+func extractArchive(l log.Logger, fsys vfs.FS, downloadFile string, engineFile string) error {
 	return extractArchiveWithLimits(
 		l,
+		fsys,
 		downloadFile,
 		engineFile,
 		engineArchiveDecompressedSizeLimit,
@@ -437,15 +463,16 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 
 func extractArchiveWithLimits(
 	l log.Logger,
+	fsys vfs.FS,
 	downloadFile string,
 	engineFile string,
 	decompressedSizeLimit int64,
 	filesLimit int,
 ) error {
-	if !isArchiveByHeader(l, downloadFile) {
+	if !isArchiveByHeader(l, fsys, downloadFile) {
 		l.Info("Downloaded file is not an archive, no extraction needed")
 		// move file directly if it is not an archive
-		if err := os.Rename(downloadFile, engineFile); err != nil {
+		if err := fsys.Rename(downloadFile, engineFile); err != nil {
 			return err
 		}
 
@@ -454,13 +481,13 @@ func extractArchiveWithLimits(
 	// extract package and process files
 	path := filepath.Dir(engineFile)
 
-	tempDir, err := os.MkdirTemp(path, "temp-")
+	tempDir, err := vfs.MkdirTemp(fsys, path, "temp-")
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		if err = os.RemoveAll(tempDir); err != nil {
+		if err = fsys.RemoveAll(tempDir); err != nil {
 			l.Warnf("Failed to clean temp dir %s: %v", tempDir, err)
 		}
 	}()
@@ -468,12 +495,12 @@ func extractArchiveWithLimits(
 	if err = vfs.NewZipDecompressor(
 		vfs.WithFileSizeLimit(decompressedSizeLimit),
 		vfs.WithFilesLimit(filesLimit),
-	).Unzip(l, vfs.NewOSFS(), tempDir, downloadFile, 0); err != nil {
+	).Unzip(l, fsys, tempDir, downloadFile, 0); err != nil {
 		return newArchiveExtractionError(downloadFile, err)
 	}
 
 	// process files
-	files, err := os.ReadDir(tempDir)
+	files, err := vfs.ReadDir(fsys, tempDir)
 	if err != nil {
 		return err
 	}
@@ -483,7 +510,7 @@ func extractArchiveWithLimits(
 	if len(files) == 1 && !files[0].IsDir() {
 		// handle case where archive contains a single file, most of the cases
 		singleFile := filepath.Join(tempDir, files[0].Name())
-		if err := os.Rename(singleFile, engineFile); err != nil {
+		if err := fsys.Rename(singleFile, engineFile); err != nil {
 			return err
 		}
 
@@ -495,7 +522,7 @@ func extractArchiveWithLimits(
 		srcPath := filepath.Join(tempDir, file.Name())
 
 		dstPath := filepath.Join(path, file.Name())
-		if err := os.Rename(srcPath, dstPath); err != nil {
+		if err := fsys.Rename(srcPath, dstPath); err != nil {
 			return err
 		}
 	}
@@ -504,14 +531,17 @@ func extractArchiveWithLimits(
 }
 
 // engineDir returns the directory path where engine files are stored.
-func engineDir(opts *ExecutionOptions) (string, error) {
+func engineDir(v *venv.Venv, opts *ExecutionOptions) (string, error) {
+	v.RequireGOOS()
+	v.RequireGOARCH()
+
 	engine := opts.EngineConfig
-	if util.FileExists(engine.Source) {
+	if vfs.Exists(v.FS, engine.Source) {
 		return filepath.Dir(engine.Source), nil
 	}
 
-	platform := runtime.GOOS
-	arch := runtime.GOARCH
+	platform := v.Platform.GOOS
+	arch := v.Platform.GOARCH
 
 	if cacheDir := opts.EngineOptions.CachePath; len(cacheDir) != 0 {
 		return filepath.Join(
@@ -526,7 +556,7 @@ func engineDir(opts *ExecutionOptions) (string, error) {
 		), nil
 	}
 
-	cacheDir, err := util.EnsureCacheDir()
+	cacheDir, err := util.EnsureCacheDir(v)
 	if err != nil {
 		return "", err
 	}
@@ -543,15 +573,18 @@ func engineDir(opts *ExecutionOptions) (string, error) {
 }
 
 // engineFileName returns the file name for the engine.
-func engineFileName(e *EngineConfig) string {
+func engineFileName(v *venv.Venv, e *EngineConfig) string {
+	v.RequireGOOS()
+	v.RequireGOARCH()
+
 	engineName := filepath.Base(e.Source)
-	if util.FileExists(e.Source) {
+	if vfs.Exists(v.FS, e.Source) {
 		// return file name if source is absolute path
 		return engineName
 	}
 
-	platform := runtime.GOOS
-	arch := runtime.GOARCH
+	platform := v.Platform.GOOS
+	arch := v.Platform.GOARCH
 	engineName = strings.TrimPrefix(engineName, prefixTrim)
 
 	return fmt.Sprintf(fileNameFormat, engineName, e.Type, e.Version, platform, arch)
@@ -572,8 +605,8 @@ func engineChecksumSigName(e *EngineConfig) string {
 }
 
 // enginePackageName returns the package name for the engine.
-func enginePackageName(e *EngineConfig) string {
-	return engineFileName(e) + ".zip"
+func enginePackageName(v *venv.Venv, e *EngineConfig) string {
+	return engineFileName(v, e) + ".zip"
 }
 
 func isDirectURL(source string) bool {
@@ -581,8 +614,8 @@ func isDirectURL(source string) bool {
 }
 
 // isArchiveByHeader checks if a file is an archive by examining its header.
-func isArchiveByHeader(l log.Logger, filePath string) bool {
-	archiveType, err := detectFileType(l, filePath)
+func isArchiveByHeader(l log.Logger, fsys vfs.FS, filePath string) bool {
+	archiveType, err := detectFileType(l, fsys, filePath)
 
 	return err == nil && archiveType != ""
 }
@@ -771,7 +804,7 @@ func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
 func createEngine(
 	ctx context.Context,
 	l log.Logger,
-	e vexec.Exec,
+	v *venv.Venv,
 	execOptions *ExecutionOptions,
 ) (*proto.EngineClient, *plugin.Client, error) {
 	if execOptions.EngineConfig == nil {
@@ -793,20 +826,21 @@ func createEngine(
 		"version":   execOptions.EngineConfig.Version,
 		"cache_dir": execOptions.CacheDir,
 	}, func(ctx context.Context, l log.Logger) error {
-		path, err := engineDir(execOptions)
+		path, err := engineDir(v, execOptions)
 		if err != nil {
 			return err
 		}
 
-		localEnginePath := filepath.Join(path, engineFileName(execOptions.EngineConfig))
+		localEnginePath := filepath.Join(path, engineFileName(v, execOptions.EngineConfig))
 		localChecksumFile := filepath.Join(path, engineChecksumName(execOptions.EngineConfig))
 		localChecksumSigFile := filepath.Join(path, engineChecksumSigName(execOptions.EngineConfig))
 
 		// validate engine before loading if verification is not disabled
 		skipCheck := execOptions.EngineOptions.SkipChecksumCheck
-		if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
-			util.FileExists(localChecksumSigFile) {
+		if !skipCheck && vfs.Exists(v.FS, localEnginePath) && vfs.Exists(v.FS, localChecksumFile) &&
+			vfs.Exists(v.FS, localChecksumSigFile) {
 			if err = verifyFile(
+				v.FS,
 				localEnginePath,
 				localChecksumFile,
 				localChecksumSigFile,
@@ -841,7 +875,7 @@ func createEngine(
 		// We use without cancel here to ensure that the plugin isn't killed when the main context is cancelled,
 		// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
 		// when the command is cancelled.
-		cmd := e.Command(context.WithoutCancel(ctx), localEnginePath)
+		cmd := v.Exec.Command(context.WithoutCancel(ctx), localEnginePath)
 		cmd.SetEnv([]string{fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel)})
 		cmd.SetCancel(func() error {
 			sig := signal.SignalFromContext(ctx)
@@ -863,12 +897,10 @@ func createEngine(
 		}
 
 		client := plugin.NewClient(&plugin.ClientConfig{
-			Logger: logger,
-			HandshakeConfig: plugin.HandshakeConfig{
-				ProtocolVersion:  engineVersion,
-				MagicCookieKey:   engineCookieKey,
-				MagicCookieValue: engineCookieValue,
-			},
+			Logger:           logger,
+			ProtocolVersion:  engineVersion,
+			MagicCookieKey:   engineCookieKey,
+			MagicCookieValue: engineCookieValue,
 			Plugins: map[string]plugin.Plugin{
 				"plugin": &engine.TerragruntGRPCEngine{},
 			},
@@ -910,7 +942,7 @@ func createEngine(
 func invoke(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOptions *ExecutionOptions,
 	client *proto.EngineClient,
 ) (*util.CmdOutput, error) {
@@ -1033,7 +1065,7 @@ func invoke(
 		l.Debugf("Engine execution done in %v", runOptions.CacheDir)
 
 		if resultCode != 0 {
-			err = util.ProcessExecutionError{
+			err = &util.ProcessExecutionError{
 				Err:             fmt.Errorf("command failed with exit code %d", resultCode),
 				Output:          output,
 				WorkingDir:      runOptions.CacheDir,
@@ -1092,7 +1124,7 @@ var ErrEngineInitFailed = errors.New("engine init failed")
 func initialize(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOptions *ExecutionOptions,
 	client *proto.EngineClient,
 ) error {
@@ -1171,7 +1203,7 @@ var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 func shutdown(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	runOptions *ExecutionOptions,
 	terragruntEngine *proto.EngineClient,
 ) error {
@@ -1257,7 +1289,7 @@ type outputFn func() (*OutputLine, error)
 
 // ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
 // use lambda function to read bytes from the stream
-func ReadEngineOutput(v venv.Venv, forceStdErr bool, output outputFn) error {
+func ReadEngineOutput(v *venv.Venv, forceStdErr bool, output outputFn) error {
 	cmdStdout := v.Writers.Writer
 	cmdStderr := v.Writers.ErrWriter
 
@@ -1290,8 +1322,8 @@ func ReadEngineOutput(v venv.Venv, forceStdErr bool, output outputFn) error {
 			}
 		}
 	}
-	// TODO: Why does this lint need to be ignored?
-	return nil //nolint:nilerr
+
+	return nil //nolint:nilerr // the loop breaks when the stream ends; only init and shutdown failures are errors
 }
 
 // ConvertMetaToProtobuf converts metadata map to protobuf map
@@ -1324,8 +1356,8 @@ func ConvertMetaToProtobuf(meta map[string]any) (map[string]*anypb.Any, error) {
 }
 
 // detectFileType determines the type of file based on its magic bytes.
-func detectFileType(l log.Logger, filePath string) (string, error) {
-	file, err := os.Open(filePath)
+func detectFileType(l log.Logger, fsys vfs.FS, filePath string) (string, error) {
+	file, err := fsys.Open(filePath)
 	if err != nil {
 		return "", err
 	}

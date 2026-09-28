@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"errors"
@@ -27,7 +28,7 @@ const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Comman
 
    It wraps the ` + "`{{ tfCommand }}`" + ` command of the binary defined by ` + "`tf-path`" + `.
 
-{{ if isTerraformPath }}Terraform{{ else }}OpenTofu{{ end }} ` + "`{{ tfCommand }}`" + ` help:{{ $tfHelp := runTFHelp }}{{ if $tfHelp }}
+` + "`{{ tfBinary }} {{ tfCommand }}`" + ` help:{{ $tfHelp := runTFHelp }}{{ if $tfHelp }}
 
 {{ $tfHelp }}{{ end }}
 
@@ -37,15 +38,15 @@ See also:
 `
 
 // ShowTFHelp prints TF help for the given `cliCtx.Command` command.
-func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) clihelper.HelpFunc {
+func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.HelpFunc {
 	return func(ctx context.Context, cliCtx *clihelper.Context) error {
-		if err := shared.NewTFPathFlag(opts).Parse(cliCtx.Args()); err != nil {
+		if err := shared.NewTFPathFlag(opts).Parse(cliCtx.Args(), v.Env); err != nil {
 			return err
 		}
 
 		clihelper.HelpPrinterCustom(cliCtx, TFCommandHelpTemplate, map[string]any{
-			"isTerraformPath": func() bool {
-				return isTerraformPath(opts)
+			"tfBinary": func() string {
+				return filepath.Base(opts.TFPath)
 			},
 			"runTFHelp": func() string {
 				return runTFHelp(ctx, cliCtx, l, v, opts)
@@ -63,7 +64,7 @@ func runTFHelp(
 	ctx context.Context,
 	cliCtx *clihelper.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) string {
 	helpV := v.WithWriter(io.Discard)
@@ -74,10 +75,10 @@ func runTFHelp(
 		ctx,
 		l,
 		helpV,
-		configbridge.TFRunOptsFromOpts(opts),
+		configbridge.TFRunOptsFromOpts(v.Env, opts),
 		terraformHelpCmd...)
 	if err != nil {
-		var processError util.ProcessExecutionError
+		var processError *util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {
 			err = processError.Err
 		}

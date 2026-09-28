@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,13 +25,14 @@ terraform {
 
 	l := logger.CreateLogger()
 
+	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
 	terragruntConfig, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -42,7 +43,7 @@ terraform {
 	require.NotNil(t, terragruntConfig.Terraform.Version)
 	assert.Equal(t, "~> 3.3", *terragruntConfig.Terraform.Version)
 
-	runConfig := terragruntConfig.ToRunConfig(l)
+	runConfig := terragruntConfig.ToRunConfig(l, vfs.NewOSFS())
 	require.NotNil(t, runConfig)
 	assert.Equal(t, "~> 3.3", runConfig.Terraform.Version)
 }
@@ -143,10 +144,10 @@ include "root" {
 
 			l := logger.CreateLogger()
 
+			v := venvtest.NewWithOSFS()
 			ctx, pctx := newTestParsingContext(t, childPath)
-			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VersionAttribute))
 
-			terragruntConfig, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			terragruntConfig, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 
 			if tc.expectedErr != nil {
 				require.ErrorAs(t, err, tc.expectedErr)
@@ -159,31 +160,6 @@ include "root" {
 			assert.Equal(t, tc.expectedVersion, *terragruntConfig.Terraform.Version)
 		})
 	}
-}
-
-// TestTerraformConfigValidateVersionRequiresExperiment pins that the version
-// attribute is rejected unless the version-attribute experiment is enabled.
-// TG_EXPERIMENT_MODE forces every experiment on, which defeats the
-// disabled-state assertion, so skip it there.
-func TestTerraformConfigValidateVersionRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces the version-attribute experiment on, so its disabled-state error can't be verified",
-		)
-	}
-
-	cfg := &config.TerraformConfig{
-		Source:  new("tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"),
-		Version: new("~> 3.3"),
-	}
-
-	err := cfg.ValidateVersion(experiment.NewExperiments(), "terragrunt.hcl")
-
-	var typed config.VersionAttributeRequiresExperimentError
-
-	require.ErrorAs(t, err, &typed)
 }
 
 func TestTerraformConfigValidateVersion(t *testing.T) {
@@ -236,10 +212,7 @@ func TestTerraformConfigValidateVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			experiments := experiment.NewExperiments()
-			require.NoError(t, experiments.EnableExperiment(experiment.VersionAttribute))
-
-			err := tc.cfg.ValidateVersion(experiments, "terragrunt.hcl")
+			err := tc.cfg.ValidateVersion("terragrunt.hcl")
 
 			if tc.expectedErr == nil {
 				require.NoError(t, err)

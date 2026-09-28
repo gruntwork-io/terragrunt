@@ -40,7 +40,7 @@ func NewBackend() *Backend {
 func (backend *Backend) NeedsBootstrap(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	backendConfig backend.Config,
 	opts *backend.Options,
 ) (bool, error) {
@@ -77,7 +77,7 @@ func (backend *Backend) NeedsBootstrap(
 func (backend *Backend) Bootstrap(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	backendConfig backend.Config,
 	opts *backend.Options,
 ) error {
@@ -140,7 +140,7 @@ func (backend *Backend) Bootstrap(
 func (backend *Backend) IsVersionControlEnabled(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	backendConfig backend.Config,
 	opts *backend.Options,
 ) (bool, error) {
@@ -162,7 +162,7 @@ func (backend *Backend) IsVersionControlEnabled(
 func (backend *Backend) Migrate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	srcV, _ *venv.Venv,
 	srcBackendConfig, dstBackendConfig backend.Config,
 	opts *backend.Options,
 ) error {
@@ -184,7 +184,7 @@ func (backend *Backend) Migrate(
 		dstBucketKey  = path.Join(dstExtGCSCfg.RemoteStateConfigGCS.Prefix, defaultTfState)
 	)
 
-	client, err := NewClient(ctx, v, srcExtGCSCfg, opts)
+	client, err := NewClient(ctx, srcV, srcExtGCSCfg, opts)
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (backend *Backend) Migrate(
 func (backend *Backend) Delete(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	backendConfig backend.Config,
 	opts *backend.Options,
 ) error {
@@ -227,13 +227,7 @@ func (backend *Backend) Delete(
 		bucketName,
 		prefix,
 	)
-	if yes, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteGCSObjectIfNecessary(ctx, l, bucketName, prefix)
@@ -246,7 +240,7 @@ func (backend *Backend) Delete(
 func (backend *Backend) DeleteBucket(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	backendConfig backend.Config,
 	opts *backend.Options,
 ) error {
@@ -266,13 +260,7 @@ func (backend *Backend) DeleteBucket(
 		"GCS bucket %s will be completely deleted. Do you want to continue?",
 		bucketName,
 	)
-	if yes, err := shell.PromptUserForYesNo(
-		ctx,
-		l,
-		prompt,
-		opts.NonInteractive,
-		v.Writers.ErrWriter,
-	); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteGCSBucketIfNecessary(ctx, l, bucketName)

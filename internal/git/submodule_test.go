@@ -1,11 +1,11 @@
 package git_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -147,49 +147,44 @@ func TestParseSubmoduleConfig(t *testing.T) {
 	}
 }
 
-// TestGitRunner_SubmoduleURLs exercises the `git config --blob` path
-// against a real repository: the .gitmodules blob committed by the test
-// server is located through ls-tree and parsed by git itself.
 func TestGitRunner_SubmoduleURLs(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	t.Run("parses blob config", func(t *testing.T) {
+		t.Parallel()
 
-	srv, err := git.NewServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = srv.Close() })
+		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			assert.Equal(t, []string{"config", "--blob", headHash, "--list", "-z"}, inv.Args)
+			assert.Equal(t, "/repo", inv.Dir)
 
-	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("# repo"), "add readme"))
+			return vexec.Result{Stdout: []byte(
+				"submodule.child.path\nmodules/child\x00" +
+					"submodule.child.url\nhttps://example.com/child.git\x00",
+			)}
+		}).WithWorkDir("/repo")
 
-	const pinnedHash = "0123456789abcdef0123456789abcdef01234567"
+		urls, err := runner.SubmoduleURLs(t.Context(), headHash)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"modules/child": "https://example.com/child.git",
+		}, urls)
+	})
 
-	require.NoError(t, srv.CommitSubmodule(
-		t.Context(), "modules/child", "https://example.com/child.git", pinnedHash, "add submodule",
-	))
+	t.Run("command failure", func(t *testing.T) {
+		t.Parallel()
 
-	url, err := srv.Start(ctx)
-	require.NoError(t, err)
+		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
-	require.NoError(t, err)
+		_, err := runner.SubmoduleURLs(t.Context(), headHash)
+		require.ErrorIs(t, err, git.ErrCommandSpawn)
+	})
 
-	runner = runner.WithWorkDir(helpers.TmpDirWOSymlinks(t))
-	require.NoError(t, runner.Clone(ctx, url, true, 0, ""))
+	t.Run("missing workdir", func(t *testing.T) {
+		t.Parallel()
 
-	tree, err := runner.LsTreeRecursive(ctx, "HEAD")
-	require.NoError(t, err)
+		runner := newMemRunner(t, failIfSpawned(t))
 
-	var gitmodulesHash string
-
-	for _, entry := range tree.Entries() {
-		if entry.Path == git.GitmodulesPath {
-			gitmodulesHash = entry.Hash
-		}
-	}
-
-	require.NotEmpty(t, gitmodulesHash, ".gitmodules entry not found in tree")
-
-	urls, err := runner.SubmoduleURLs(ctx, gitmodulesHash)
-	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"modules/child": "https://example.com/child.git"}, urls)
+		_, err := runner.SubmoduleURLs(t.Context(), headHash)
+		require.ErrorIs(t, err, git.ErrNoWorkDir)
+	})
 }

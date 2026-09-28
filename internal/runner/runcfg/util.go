@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -29,6 +30,7 @@ const DefaultEngineType = "rpc"
 // If any such file exists, this function will copy the lock file to the destination folder.
 func CopyLockFile(
 	l log.Logger,
+	fsys vfs.FS,
 	rootWorkingDir string,
 	logShowAbsPaths bool,
 	sourceFolder, destinationFolder string,
@@ -36,7 +38,12 @@ func CopyLockFile(
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 
-	if util.FileExists(sourceLockFilePath) {
+	exists, err := vfs.FileExists(fsys, sourceLockFilePath)
+	if err != nil {
+		return err
+	}
+
+	if exists {
 		l.Debugf(
 			"Copying lock file from %s to %s",
 			util.RelPathForLog(
@@ -51,7 +58,7 @@ func CopyLockFile(
 			),
 		)
 
-		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
+		return vfs.CopyFile(fsys, sourceLockFilePath, destinationLockFilePath)
 	}
 
 	return nil

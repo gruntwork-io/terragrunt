@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
@@ -28,30 +28,29 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Known terraform commands that are explicitly not supported in run --all due to the nature of the command. This is
-// tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run --all.
+// Known tofu commands that are explicitly not supported in run --all due to the nature
+// of the command. This is tracked as a map that maps the tofu command to the reasoning
+// behind disallowing the command in run --all.
 var runAllDisabledCommands = map[string]string{
-	tf.CommandNameImport: "terraform import should only be run against a single" +
+	tf.CommandNameImport: "it should only be run against a single" +
 		" state representation to avoid injecting the wrong object" +
 		" in the wrong state representation.",
-	tf.CommandNameTaint: "terraform taint should only be run against a single" +
+	tf.CommandNameTaint: "it should only be run against a single" +
 		" state representation to avoid using the wrong state address.",
-	tf.CommandNameUntaint: "terraform untaint should only be run against a single" +
+	tf.CommandNameUntaint: "it should only be run against a single" +
 		" state representation to avoid using the wrong state address.",
-	tf.CommandNameConsole: "terraform console requires stdin, which is shared" +
+	tf.CommandNameConsole: "it requires stdin, which is shared" +
 		" across all instances of run --all when multiple modules" +
 		" run concurrently.",
 	tf.CommandNameForceUnlock: "lock IDs are unique per state representation" +
 		" and thus should not be run with run --all.",
 }
 
-// Run executes the configured terraform command across every unit in the
-// stack. v is the virtualized environment threaded through the runner pool
-// into each unit's run pipeline.
+// Run executes the configured terraform command across every unit in the stack.
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (err error) {
 	// --filter sets RunAll, so the CLI layer dispatches here without going
@@ -71,11 +70,11 @@ func Run(
 		}
 	}
 
-	runnerOpts := []common.Option{}
+	runnerOpts := []runner.Option{}
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
-	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+	if !stdout.ShouldColor(l, v) {
 		r.WithDisableColor()
 	}
 
@@ -127,7 +126,7 @@ func Run(
 	// ErrUserCancelled.
 	var wts *worktrees.Worktrees
 	if len(gitFilters) > 0 {
-		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		wts, err = worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
 			WorkingDir:     opts.WorkingDir,
 			GitExpressions: gitFilters,
 			Experiments:    opts.Experiments,
@@ -137,7 +136,7 @@ func Run(
 		}
 
 		defer func() {
-			cleanupErr := wts.Cleanup(ctx, l)
+			cleanupErr := wts.Cleanup(ctx, l, v)
 			if cleanupErr != nil {
 				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 			}
@@ -160,7 +159,7 @@ func Run(
 						opts.WorkingDir,
 					)
 
-					return clean.CleanStacks(l, opts)
+					return clean.CleanStacks(l, v.FS, opts)
 				})
 			if errClean != nil {
 				return fmt.Errorf(
@@ -186,18 +185,26 @@ func Run(
 		}
 
 		// After generation, hint when a literal stack filter left nested stacks ungenerated.
-		funcsFor := configbridge.StackFuncFactory(ctx, l, opts)
-		tips.GiveStackNestedGenerateTip(l, v.FS, funcsFor, opts.WorkingDir, opts.Filters, opts.Tips)
+		funcsFor := configbridge.StackFuncFactory(ctx, l, v, opts)
+		tips.GiveStackNestedGenerateTip(
+			ctx,
+			l,
+			v.FS,
+			funcsFor,
+			opts.WorkingDir,
+			opts.Filters,
+			opts.Tips,
+		)
 	} else {
 		l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
 	}
 
 	// Pass worktrees to runner for git filter expressions
 	if wts != nil && len(wts.WorktreePairs) > 0 {
-		runnerOpts = append(runnerOpts, common.WithWorktrees(wts))
+		runnerOpts = append(runnerOpts, runner.WithWorktrees(wts))
 	}
 
-	rnr, err := runner.NewStackRunner(ctx, l, v, opts, runnerOpts...)
+	rnr, err := runner.New(ctx, l, v, opts, runnerOpts...)
 	if err != nil {
 		return err
 	}
@@ -205,19 +212,25 @@ func Run(
 	return RunAllOnStack(ctx, l, v, opts, rnr, r)
 }
 
-// RunAllOnStack drives the supplied [common.StackRunner] to completion.
+// RunAllOnStack drives the supplied [runner.Runner] to completion.
 func RunAllOnStack(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
-	rnr common.StackRunner,
+	rnr *runner.Runner,
 	r *report.Report,
 ) error {
 	l.Debugf("%s", rnr.GetStack().String())
 
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
-	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.LogShowAbsPaths, opts.Experiments); err != nil {
+	if err := rnr.LogUnitDeployOrder(
+		l,
+		v,
+		isDestroy,
+		opts.LogShowAbsPaths,
+		opts.Experiments,
+	); err != nil {
 		return err
 	}
 
@@ -236,13 +249,7 @@ func RunAllOnStack(
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(
-			ctx,
-			l,
-			prompt,
-			opts.NonInteractive,
-			v.Writers.ErrWriter,
-		)
+		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, v, prompt, opts.NonInteractive)
 		if err != nil {
 			return err
 		}
@@ -268,7 +275,7 @@ func RunAllOnStack(
 				// At this stage, we can't handle the error any further, so we just log it and return nil.
 				// After this point, we'll need to report on what happened, and we want that to happen
 				// after the error summary.
-				l.Errorf("Run failed: %v", err)
+				l.Errorf("Run failed: %s", errfmt.Format(err))
 
 				// Save error to potentially return after telemetry completes
 				runErr = err

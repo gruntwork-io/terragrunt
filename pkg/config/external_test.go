@@ -1,6 +1,6 @@
 // This file validates that the pkg/config package is usable by external consumers
 // as a public API. All tests here use only the external (black-box) package name
-// `config_test` and import only public packages — no `internal/` imports are allowed.
+// `config_test` and import only public packages: no `internal/` imports are allowed.
 
 package config_test
 
@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -392,7 +393,7 @@ func TestExternalGetDefaultConfigPath(t *testing.T) {
 
 	// When given a non-existent directory, GetDefaultConfigPath returns a path
 	// ending with the default config file name.
-	result := config.GetDefaultConfigPath("/some/nonexistent/path")
+	result := config.GetDefaultConfigPath(venvtest.New().FS, "/some/nonexistent/path")
 	assert.Contains(t, result, "terragrunt.hcl")
 }
 
@@ -433,11 +434,13 @@ inputs = {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 	cfg, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		hclConfig,
 		nil,
@@ -468,17 +471,19 @@ unit "db" {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
-	v := cty.ObjectVal(map[string]cty.Value{})
+	stackValues := cty.ObjectVal(map[string]cty.Value{})
 
 	sc, err := config.ReadStackConfigString(
 		ctx,
 		l,
+		v,
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
-		&v,
+		&stackValues,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
@@ -510,11 +515,13 @@ unit "db" {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
 	sc, err := config.ReadStackConfigString(
 		ctx,
 		l,
+		v,
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
@@ -550,19 +557,21 @@ unit "db" {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
-	v := cty.ObjectVal(map[string]cty.Value{
+	stackValues := cty.ObjectVal(map[string]cty.Value{
 		"app_path": cty.StringVal("foo"),
 	})
 
 	sc, err := config.ReadStackConfigString(
 		ctx,
 		l,
+		v,
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
-		&v,
+		&stackValues,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
@@ -576,7 +585,7 @@ unit "db" {
 
 // TestExternalReadValuesAndParseStackConfig validates that an external consumer
 // can read a terragrunt.values.hcl file from disk using ReadValues and feed the
-// result into ReadStackConfigString — no internal/ imports required.
+// result into ReadStackConfigString, with no internal/ imports required.
 func TestExternalReadValuesAndParseStackConfig(t *testing.T) {
 	t.Parallel()
 
@@ -594,10 +603,11 @@ region   = "us-west-2"
 	)
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
 	// Read values from the file on disk.
-	values, err := config.ReadValues(ctx, pctx, l, dir)
+	values, err := config.ReadValues(ctx, l, v, pctx, dir)
 	require.NoError(t, err)
 	require.NotNil(t, values)
 
@@ -608,7 +618,7 @@ unit "app" {
   path   = values.app_path
 }
 `
-	sc, err := config.ReadStackConfigString(ctx, l, pctx, config.DefaultStackFile, stackHCL, values)
+	sc, err := config.ReadStackConfigString(ctx, l, v, pctx, config.DefaultStackFile, stackHCL, values)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
 	require.Len(t, sc.Units, 1)
@@ -618,7 +628,7 @@ unit "app" {
 
 // TestExternalReadValuesAndParseConfig validates that an external consumer can
 // parse a regular terragrunt.hcl that references values.* when a
-// terragrunt.values.hcl file sits next to it — no internal/ imports required.
+// terragrunt.values.hcl file sits next to it, with no internal/ imports required.
 //
 // ParseConfig automatically calls ReadValues from the config file's directory,
 // so the configPath argument must point into the directory containing the
@@ -640,7 +650,8 @@ region = "eu-west-1"
 	)
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l)
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
 	// Use a configPath inside the temp dir so ParseConfig discovers the
 	// adjacent terragrunt.values.hcl automatically.
@@ -652,7 +663,7 @@ inputs = {
   region = values.region
 }
 `
-	cfg, err := config.ParseConfigString(ctx, pctx, l, configPath, hclConfig, nil)
+	cfg, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hclConfig, nil)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, "staging", cfg.Inputs["env"])

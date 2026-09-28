@@ -5,17 +5,22 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,35 +59,35 @@ func TestFileExists(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		setup    func(fs vfs.FS)
+		setup    func(fsys vfs.FS)
 		path     string
 		expected bool
 	}{
 		{
 			name: "file exists",
-			setup: func(fs vfs.FS) {
-				require.NoError(t, afero.WriteFile(fs, "/test.txt", []byte("content"), 0644))
+			setup: func(fsys vfs.FS) {
+				require.NoError(t, afero.WriteFile(fsys, "/test.txt", []byte("content"), 0644))
 			},
 			path:     "/test.txt",
 			expected: true,
 		},
 		{
 			name:     "file does not exist",
-			setup:    func(fs vfs.FS) {},
+			setup:    func(fsys vfs.FS) {},
 			path:     "/nonexistent.txt",
 			expected: false,
 		},
 		{
 			name: "directory exists",
-			setup: func(fs vfs.FS) {
-				require.NoError(t, fs.MkdirAll("/testdir", 0755))
+			setup: func(fsys vfs.FS) {
+				require.NoError(t, fsys.MkdirAll("/testdir", 0755))
 			},
 			path:     "/testdir",
 			expected: true,
 		},
 		{
 			name:     "parent does not exist",
-			setup:    func(fs vfs.FS) {},
+			setup:    func(fsys vfs.FS) {},
 			path:     "/nonexistent/file.txt",
 			expected: false,
 		},
@@ -182,6 +187,44 @@ func TestReadFile(t *testing.T) {
 	})
 }
 
+func TestReadFileLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads only the prefix of a longer file", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fs, "/test.txt", []byte("0123456789"), 0644))
+
+		data, err := vfs.ReadFileLimit(fs, "/test.txt", 4)
+
+		require.NoError(t, err)
+		assert.Equal(t, []byte("0123"), data)
+	})
+
+	t.Run("reads the whole file when it is under the limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fs, "/test.txt", []byte("short"), 0644))
+
+		data, err := vfs.ReadFileLimit(fs, "/test.txt", 4096)
+
+		require.NoError(t, err)
+		assert.Equal(t, []byte("short"), data)
+	})
+
+	t.Run("errors on a non-existent file", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+
+		_, err := vfs.ReadFileLimit(fs, "/nonexistent.txt", 4096)
+
+		require.Error(t, err)
+	})
+}
+
 func TestSymlink(t *testing.T) {
 	t.Parallel()
 
@@ -242,7 +285,7 @@ func TestEvalSymlinks(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fs, "/root/real/sub")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/real/sub", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/real/sub"), resolved)
 	})
 
 	t.Run("resolves parent symlink", func(t *testing.T) {
@@ -255,7 +298,7 @@ func TestEvalSymlinks(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fs, "/root/link/sub")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/real/sub", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/real/sub"), resolved)
 	})
 
 	t.Run("missing path returns error", func(t *testing.T) {
@@ -329,7 +372,11 @@ func TestParentPathHasSymlink(t *testing.T) {
 	t.Run("absolute relative path is unsafe", func(t *testing.T) {
 		t.Parallel()
 
-		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "/root/file.txt")
+		hasSymlink, err := vfs.ParentPathHasSymlink(
+			vfs.NewMemMapFS(),
+			"/root",
+			venvtest.Root("/root/file.txt"),
+		)
 
 		require.NoError(t, err)
 		assert.True(t, hasSymlink)
@@ -482,6 +529,10 @@ func TestUnzip(t *testing.T) {
 	t.Run("permissions preserved with umask 0", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
+
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
 		zipPath := filepath.Join(tempDir, "archive.zip")
@@ -501,6 +552,10 @@ func TestUnzip(t *testing.T) {
 
 	t.Run("permissions with umask applied", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
 
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
@@ -574,7 +629,8 @@ func TestUnzipSymlinkLimits(t *testing.T) {
 		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("x"), "link", "target.txt")
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(2)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(2)).
+			Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		var limitErr vfs.ZipDecompressedSizeLimitError
 		require.ErrorAs(t, err, &limitErr)
@@ -587,7 +643,13 @@ func TestUnzipSymlinkLimits(t *testing.T) {
 		t.Parallel()
 
 		fs := vfs.NewMemMapFS()
-		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("x"), "link", strings.Repeat("a", 5000))
+		zipData := createZipArchiveWithSymlink(
+			t,
+			"target.txt",
+			[]byte("x"),
+			"link",
+			strings.Repeat("a", 5000),
+		)
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
 		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
@@ -754,7 +816,7 @@ func TestUnzipFilesLimit(t *testing.T) {
 		assert.Contains(t, err.Error(), "exceeds limit")
 	})
 
-	t.Run("no limit when FilesLimit is zero", func(t *testing.T) {
+	t.Run("no limit when FilesLimit is explicitly zero", func(t *testing.T) {
 		t.Parallel()
 
 		fs := vfs.NewMemMapFS()
@@ -765,10 +827,21 @@ func TestUnzipFilesLimit(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFilesLimit(0)).Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 	})
+}
+
+// TestNewZipDecompressorBoundsByDefault pins that a decompressor built
+// without options still bounds what it extracts.
+func TestNewZipDecompressorBoundsByDefault(t *testing.T) {
+	t.Parallel()
+
+	z := vfs.NewZipDecompressor()
+
+	assert.Equal(t, vfs.DefaultZipFileSizeLimit, z.FileSizeLimit)
+	assert.Equal(t, vfs.DefaultZipFilesLimit, z.FilesLimit)
 }
 
 func TestUnzipFileSizeLimit(t *testing.T) {
@@ -917,7 +990,7 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 			"target.txt",
 			[]byte("target content"),
 			"evil_link.txt",
-			"/etc/passwd",
+			venvtest.Root("/abs/path"),
 		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
@@ -937,7 +1010,7 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 
 		// Create symlink pointing outside destination with ..
 		zipData := createZipArchiveWithSymlink(
-			t, "target.txt", []byte("target content"), "evil_link.txt", "../../../etc/passwd",
+			t, "target.txt", []byte("target content"), "evil_link.txt", "../../../outside",
 		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
@@ -995,13 +1068,18 @@ func TestWalkDir(t *testing.T) {
 	t.Run("walks nested directories", func(t *testing.T) {
 		t.Parallel()
 
+		root := filepath.FromSlash("/root")
+
 		memFs := vfs.NewMemMapFS()
-		require.NoError(t, vfs.WriteFile(memFs, "/root/dir/nested.txt", []byte("n"), 0644))
-		require.NoError(t, vfs.WriteFile(memFs, "/root/top.txt", []byte("t"), 0644))
+		require.NoError(
+			t,
+			vfs.WriteFile(memFs, filepath.Join(root, "dir", "nested.txt"), []byte("n"), 0644),
+		)
+		require.NoError(t, vfs.WriteFile(memFs, filepath.Join(root, "top.txt"), []byte("t"), 0644))
 
 		var paths []string
 
-		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+		err := vfs.WalkDir(memFs, root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -1014,7 +1092,12 @@ func TestWalkDir(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(
 			t,
-			[]string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"},
+			[]string{
+				root,
+				filepath.Join(root, "dir"),
+				filepath.Join(root, "dir", "nested.txt"),
+				filepath.Join(root, "top.txt"),
+			},
 			paths,
 		)
 	})
@@ -1044,13 +1127,21 @@ func TestWalkDir(t *testing.T) {
 	t.Run("SkipDir skips directory", func(t *testing.T) {
 		t.Parallel()
 
+		root := filepath.FromSlash("/root")
+
 		memFs := vfs.NewMemMapFS()
-		require.NoError(t, vfs.WriteFile(memFs, "/root/skip/hidden.txt", []byte("h"), 0644))
-		require.NoError(t, vfs.WriteFile(memFs, "/root/keep/visible.txt", []byte("v"), 0644))
+		require.NoError(
+			t,
+			vfs.WriteFile(memFs, filepath.Join(root, "skip", "hidden.txt"), []byte("h"), 0644),
+		)
+		require.NoError(
+			t,
+			vfs.WriteFile(memFs, filepath.Join(root, "keep", "visible.txt"), []byte("v"), 0644),
+		)
 
 		var paths []string
 
-		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+		err := vfs.WalkDir(memFs, root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -1065,7 +1156,11 @@ func TestWalkDir(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"/root", "/root/keep", "/root/keep/visible.txt"}, paths)
+		assert.Equal(
+			t,
+			[]string{root, filepath.Join(root, "keep"), filepath.Join(root, "keep", "visible.txt")},
+			paths,
+		)
 	})
 
 	t.Run("nonexistent root returns error to callback", func(t *testing.T) {
@@ -1146,7 +1241,245 @@ func TestWalkDir_OSFS(t *testing.T) {
 	assert.Equal(t, []string{".", "a.txt", "sub", filepath.Join("sub", "b.txt")}, paths)
 }
 
-func TestReadDirEntries(t *testing.T) {
+func TestWalkDirWithSymlinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("simple symlinks", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		for _, dir := range []string{"a", "d"} {
+			require.NoError(t, os.Mkdir(filepath.Join(root, dir), 0755))
+		}
+
+		require.NoError(t, os.WriteFile(filepath.Join(root, "a", "test.txt"), []byte("test"), 0644))
+
+		require.NoError(t, os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "b")))
+		require.NoError(t, os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "c")))
+		require.NoError(t, os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "d", "a")))
+
+		assert.ElementsMatch(t, []string{
+			".",
+			"a",
+			filepath.Join("a", "test.txt"),
+			"b",
+			filepath.Join("b", "test.txt"),
+			"c",
+			filepath.Join("c", "test.txt"),
+			"d",
+			filepath.Join("d", "a"),
+			filepath.Join("d", "a", "test.txt"),
+		}, walkSymlinkedPaths(t, root))
+	})
+
+	t.Run("circular symlinks", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		for _, dir := range []string{"a", "b", "c", "d"} {
+			require.NoError(t, os.Mkdir(filepath.Join(root, dir), 0755))
+		}
+
+		require.NoError(t, os.WriteFile(filepath.Join(root, "a", "test.txt"), []byte("test"), 0644))
+
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "b", "link-to-a")),
+		)
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "c", "another-link-to-a")),
+		)
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "d"), filepath.Join(root, "a", "link-to-d")),
+		)
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "d", "link-to-a")),
+		)
+
+		assert.ElementsMatch(t, []string{
+			".",
+			"a",
+			filepath.Join("a", "link-to-d"),
+			filepath.Join("a", "link-to-d", "link-to-a"),
+			filepath.Join("a", "link-to-d", "link-to-a", "link-to-d"),
+			filepath.Join("a", "link-to-d", "link-to-a", "test.txt"),
+			filepath.Join("a", "test.txt"),
+			"b",
+			filepath.Join("b", "link-to-a"),
+			filepath.Join("b", "link-to-a", "link-to-d"),
+			filepath.Join("b", "link-to-a", "test.txt"),
+			"c",
+			filepath.Join("c", "another-link-to-a"),
+			filepath.Join("c", "another-link-to-a", "link-to-d"),
+			filepath.Join("c", "another-link-to-a", "test.txt"),
+			"d",
+			filepath.Join("d", "link-to-a"),
+		}, walkSymlinkedPaths(t, root))
+	})
+
+	t.Run("root reached through a symlink", func(t *testing.T) {
+		t.Parallel()
+
+		base := evaledTempDir(t)
+		target := filepath.Join(base, "target")
+
+		require.NoError(t, os.Mkdir(target, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(target, "test.txt"), []byte("test"), 0644))
+
+		root := filepath.Join(base, "link")
+		require.NoError(t, os.Symlink(target, root))
+
+		var paths []string
+
+		require.NoError(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(path string, _ fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+
+				paths = append(paths, path)
+
+				return nil
+			},
+		))
+
+		assert.Equal(t, []string{root, filepath.Join(root, "test.txt")}, paths)
+	})
+
+	t.Run("missing root", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		require.Error(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			filepath.Join(root, "nonexistent"),
+			func(_ string, _ fs.DirEntry, err error) error { return err },
+		))
+	})
+
+	t.Run("broken symlink", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "nonexistent"), filepath.Join(root, "broken")),
+		)
+
+		require.Error(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(_ string, _ fs.DirEntry, err error) error { return err },
+		))
+	})
+
+	t.Run("missing root skipped by fn", func(t *testing.T) {
+		t.Parallel()
+
+		root := filepath.Join(evaledTempDir(t), "nonexistent")
+
+		var errPaths []string
+
+		require.NoError(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(path string, _ fs.DirEntry, err error) error {
+				if err != nil {
+					errPaths = append(errPaths, path)
+				}
+
+				return nil
+			},
+		))
+
+		assert.Equal(t, []string{root}, errPaths)
+	})
+
+	t.Run("broken symlink skipped by fn", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "nonexistent"), filepath.Join(root, "a-broken")),
+		)
+		require.NoError(t, os.WriteFile(filepath.Join(root, "b.txt"), []byte("test"), 0644))
+
+		var paths, errPaths []string
+
+		require.NoError(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(path string, _ fs.DirEntry, err error) error {
+				rel, relErr := filepath.Rel(root, path)
+				require.NoError(t, relErr)
+
+				switch {
+				case err != nil:
+					errPaths = append(errPaths, rel)
+				default:
+					paths = append(paths, rel)
+				}
+
+				return nil
+			},
+		))
+
+		assert.Equal(t, []string{"a-broken"}, errPaths)
+		assert.Equal(t, []string{".", "a-broken", "b.txt"}, paths)
+	})
+}
+
+// evaledTempDir returns a temp dir with symlinks resolved, so paths the walk
+// reports compare equal to the ones the test builds.
+func evaledTempDir(t *testing.T) string {
+	t.Helper()
+
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	return dir
+}
+
+// walkSymlinkedPaths walks root on the OS filesystem following symlinks, and
+// returns every visited path relative to root.
+func walkSymlinkedPaths(t *testing.T, root string) []string {
+	t.Helper()
+
+	var paths []string
+
+	err := vfs.WalkDirWithSymlinks(
+		vfs.NewOSFS(),
+		root,
+		func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			rel, relErr := filepath.Rel(root, path)
+			require.NoError(t, relErr)
+
+			paths = append(paths, rel)
+
+			return nil
+		},
+	)
+	require.NoError(t, err)
+
+	return paths
+}
+
+func TestReadDir(t *testing.T) {
 	t.Parallel()
 
 	t.Run("returns sorted entries from MemMapFS", func(t *testing.T) {
@@ -1158,7 +1491,7 @@ func TestReadDirEntries(t *testing.T) {
 		require.NoError(t, vfs.WriteFile(fsys, "/dir/bravo.txt", []byte("b"), 0644))
 		require.NoError(t, vfs.WriteFile(fsys, "/dir/sub/nested.txt", []byte("n"), 0644))
 
-		entries, err := vfs.ReadDirEntries(fsys, "/dir")
+		entries, err := vfs.ReadDir(fsys, "/dir")
 		require.NoError(t, err)
 
 		names := make([]string, len(entries))
@@ -1189,7 +1522,7 @@ func TestReadDirEntries(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0644))
 		require.NoError(t, os.Mkdir(filepath.Join(dir, "m"), 0755))
 
-		entries, err := vfs.ReadDirEntries(vfs.NewOSFS(), dir)
+		entries, err := vfs.ReadDir(vfs.NewOSFS(), dir)
 		require.NoError(t, err)
 
 		names := make([]string, len(entries))
@@ -1206,7 +1539,7 @@ func TestReadDirEntries(t *testing.T) {
 		fsys := vfs.NewMemMapFS()
 		require.NoError(t, fsys.Mkdir("/empty", 0755))
 
-		entries, err := vfs.ReadDirEntries(fsys, "/empty")
+		entries, err := vfs.ReadDir(fsys, "/empty")
 		require.NoError(t, err)
 		assert.Empty(t, entries)
 	})
@@ -1216,8 +1549,101 @@ func TestReadDirEntries(t *testing.T) {
 
 		fsys := vfs.NewMemMapFS()
 
-		_, err := vfs.ReadDirEntries(fsys, "/does-not-exist")
+		_, err := vfs.ReadDir(fsys, "/does-not-exist")
 		require.Error(t, err)
+	})
+
+	t.Run("reports a failed close", func(t *testing.T) {
+		t.Parallel()
+
+		mem := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(mem, "/dir/alpha.txt", []byte("a"), 0644))
+
+		_, err := vfs.ReadDir(&closeFailFS{FS: mem}, "/dir")
+		require.ErrorIs(t, err, errCloseFailed)
+	})
+}
+
+var errCloseFailed = errors.New("close failed")
+
+// closeFailFS hands out files whose Close fails, so a caller that drops the
+// error reads a directory it never finished with as a success.
+type closeFailFS struct {
+	vfs.FS
+}
+
+func (fsys *closeFailFS) Open(name string) (vfs.File, error) {
+	f, err := fsys.FS.Open(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return closeFailFile{File: f}, nil
+}
+
+type closeFailFile struct {
+	vfs.File
+}
+
+func (f closeFailFile) Close() error {
+	return errors.Join(f.File.Close(), errCloseFailed)
+}
+
+func TestListFilesWithSuffixes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns matching files joined to the directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/main.tf", []byte("t"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/vars.tofu", []byte("t"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/README.md", []byte("r"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/sub.tf/nested.tf", []byte("n"), 0644))
+
+		files, err := vfs.ListFilesWithSuffixes(fsys, "/dir", ".tf", ".tofu")
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{
+			filepath.Join("/dir", "main.tf"),
+			filepath.Join("/dir", "vars.tofu"),
+		}, files)
+	})
+
+	// A ".auto.tfvars.json" file does not end in ".auto.tfvars", so overlapping
+	// suffixes of this shape cannot collect the same file twice.
+	t.Run("returns each match once for overlapping suffixes", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/a.auto.tfvars", []byte("a"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/b.auto.tfvars.json", []byte("b"), 0644))
+
+		files, err := vfs.ListFilesWithSuffixes(fsys, "/dir", ".auto.tfvars", ".auto.tfvars.json")
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{
+			filepath.Join("/dir", "a.auto.tfvars"),
+			filepath.Join("/dir", "b.auto.tfvars.json"),
+		}, files)
+	})
+
+	t.Run("returns no files when no suffixes are given", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/main.tf", []byte("t"), 0644))
+
+		files, err := vfs.ListFilesWithSuffixes(fsys, "/dir")
+		require.NoError(t, err)
+		assert.Empty(t, files)
+	})
+
+	t.Run("returns error for missing directory", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := vfs.ListFilesWithSuffixes(vfs.NewMemMapFS(), "/does-not-exist", ".tf")
+		require.ErrorIs(t, err, fs.ErrNotExist)
 	})
 }
 
@@ -1673,6 +2099,44 @@ func TestWalkDirParallel(t *testing.T) {
 		assert.Contains(t, seen, filepath.Join(root, "keep", "a.txt"))
 		assert.NotContains(t, seen, filepath.Join(root, "skip", "b.txt"))
 	})
+
+	t.Run("WithWorkers(1) never overlaps two callbacks", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		osFs := vfs.NewOSFS()
+
+		for i := range 32 {
+			require.NoError(t, vfs.WriteFile(
+				osFs,
+				filepath.Join(root, fmt.Sprintf("d%02d", i), "f.txt"),
+				[]byte("x"),
+				0o644,
+			))
+		}
+
+		var inFlight, overlaps, visited atomic.Int32
+
+		err := vfs.WalkDirParallel(osFs, root, func(_ string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if inFlight.Add(1) > 1 {
+				overlaps.Add(1)
+			}
+
+			visited.Add(1)
+			inFlight.Add(-1)
+
+			return nil
+		}, vfs.WithWorkers(1))
+
+		require.NoError(t, err)
+		assert.Zero(t, overlaps.Load())
+		// root, 32 dirs, 32 files.
+		assert.Equal(t, int32(65), visited.Load())
+	})
 }
 
 func TestCreateTemp(t *testing.T) {
@@ -1750,4 +2214,244 @@ func TestMkdirTemp(t *testing.T) {
 	info, err := fs.Stat(got)
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
+}
+
+// TestValidateResolvedSymlinkTarget covers the cases that separate it from
+// [vfs.ValidateSymlinkTarget]: a chain leaving root through a link stored
+// outside the walked tree, a root reached through a symlink of its own, and a
+// chain that cannot be resolved.
+func TestValidateResolvedSymlinkTarget(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewOSFS()
+
+	setup := func(t *testing.T) (root, outside string) {
+		t.Helper()
+
+		base := helpers.TmpDirWOSymlinks(t)
+		root = filepath.Join(base, "root")
+		outside = filepath.Join(base, "outside.txt")
+
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
+		require.NoError(t, os.WriteFile(outside, []byte("secret\n"), 0o600))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(root, "sub", "real.txt"), []byte("ok\n"), 0o644),
+		)
+
+		return root, outside
+	}
+
+	t.Run("link staying inside root passes", func(t *testing.T) {
+		t.Parallel()
+
+		root, _ := setup(t)
+		link := filepath.Join(root, "sub", "link.txt")
+		require.NoError(t, os.Symlink("real.txt", link))
+
+		require.NoError(t, vfs.ValidateResolvedSymlinkTarget(fsys, root, link))
+	})
+
+	t.Run("chain leaving root through a link elsewhere is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		root, outside := setup(t)
+		mid := filepath.Join(root, "sub", "mid.txt")
+		link := filepath.Join(root, "link.txt")
+
+		require.NoError(t, os.Symlink(outside, mid))
+		require.NoError(t, os.Symlink(filepath.Join("sub", "mid.txt"), link))
+
+		// The stored target names a path inside root, so the lexical check
+		// alone lets this through.
+		require.NoError(t, vfs.ValidateSymlinkTarget(root, link, filepath.Join("sub", "mid.txt")))
+		require.Error(t, vfs.ValidateResolvedSymlinkTarget(fsys, root, link))
+	})
+
+	t.Run("root reached through a symlink is not an escape", func(t *testing.T) {
+		t.Parallel()
+
+		root, _ := setup(t)
+		link := filepath.Join(root, "sub", "link.txt")
+		require.NoError(t, os.Symlink("real.txt", link))
+
+		// Reach the same tree through a symlinked ancestor, as /var is on macOS.
+		aliasBase := helpers.TmpDirWOSymlinks(t)
+		alias := filepath.Join(aliasBase, "alias")
+		require.NoError(t, os.Symlink(root, alias))
+
+		require.NoError(t, vfs.ValidateResolvedSymlinkTarget(
+			fsys, alias, filepath.Join(alias, "sub", "link.txt")))
+	})
+
+	t.Run("dangling chain returns the resolution error", func(t *testing.T) {
+		t.Parallel()
+
+		root, _ := setup(t)
+		link := filepath.Join(root, "link.txt")
+		require.NoError(t, os.Symlink("/nonexistent/target", link))
+
+		err := vfs.ValidateResolvedSymlinkTarget(fsys, root, link)
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+}
+
+func TestMemMapFSFollowsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("through a linked file", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo/unit", 0o755))
+		require.NoError(t, vfs.WriteFile(fsys, "/repo/common.hcl", []byte("locals {}\n"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "../common.hcl", "/repo/unit/common.hcl"))
+
+		content, err := vfs.ReadFile(fsys, "/repo/unit/common.hcl")
+		require.NoError(t, err)
+		assert.Equal(t, "locals {}\n", string(content))
+
+		info, err := fsys.Stat("/repo/unit/common.hcl")
+		require.NoError(t, err)
+		assert.False(t, info.IsDir())
+	})
+
+	t.Run("through a linked directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo/real/unit", 0o755))
+		require.NoError(t, vfs.WriteFile(fsys, "/repo/real/unit/terragrunt.hcl", []byte("inputs = {}\n"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "real", "/repo/linked"))
+
+		content, err := vfs.ReadFile(fsys, "/repo/linked/unit/terragrunt.hcl")
+		require.NoError(t, err)
+		assert.Equal(t, "inputs = {}\n", string(content))
+	})
+
+	t.Run("writing under a linked directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo/real", 0o755))
+		require.NoError(t, vfs.Symlink(fsys, "real", "/repo/linked"))
+		require.NoError(t, vfs.WriteFile(fsys, "/repo/linked/generated.hcl", []byte("locals {}\n"), 0o644))
+
+		// The write lands where the link points, not beside it.
+		content, err := vfs.ReadFile(fsys, "/repo/real/generated.hcl")
+		require.NoError(t, err)
+		assert.Equal(t, "locals {}\n", string(content))
+	})
+
+	t.Run("the link itself is still reported", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo", 0o755))
+		require.NoError(t, vfs.WriteFile(fsys, "/repo/common.hcl", []byte("locals {}\n"), 0o644))
+		require.NoError(t, vfs.Symlink(fsys, "common.hcl", "/repo/link.hcl"))
+
+		info, err := vfs.Lstat(fsys, "/repo/link.hcl")
+		require.NoError(t, err)
+		assert.NotZero(t, info.Mode()&fs.ModeSymlink)
+
+		target, err := vfs.Readlink(fsys, "/repo/link.hcl")
+		require.NoError(t, err)
+		assert.Equal(t, "common.hcl", target)
+
+		// Removing a link leaves what it points at alone.
+		require.NoError(t, fsys.Remove("/repo/link.hcl"))
+
+		_, err = fsys.Stat("/repo/common.hcl")
+		require.NoError(t, err)
+	})
+
+	t.Run("a cycle does not hang", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo", 0o755))
+		require.NoError(t, vfs.Symlink(fsys, "b", "/repo/a"))
+		require.NoError(t, vfs.Symlink(fsys, "a", "/repo/b"))
+
+		_, err := vfs.ReadFile(fsys, "/repo/a")
+		require.Error(t, err)
+	})
+
+	t.Run("a dangling link reports the missing target", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		require.NoError(t, fsys.MkdirAll("/repo", 0o755))
+		require.NoError(t, vfs.Symlink(fsys, "missing.hcl", "/repo/link.hcl"))
+
+		_, err := vfs.ReadFile(fsys, "/repo/link.hcl")
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+}
+
+func TestAncestors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		path string
+		want []string
+	}{
+		{
+			name: "an absolute path",
+			path: filepath.Join(string(filepath.Separator), "wt", "live", "unit"),
+			want: []string{
+				filepath.Join(string(filepath.Separator), "wt", "live", "unit"),
+				filepath.Join(string(filepath.Separator), "wt", "live"),
+				filepath.Join(string(filepath.Separator), "wt"),
+				string(filepath.Separator),
+			},
+		},
+		{
+			name: "a relative path",
+			path: filepath.Join("live", "unit"),
+			want: []string{filepath.Join("live", "unit"), "live", "."},
+		},
+		{
+			name: "a root",
+			path: string(filepath.Separator),
+			want: []string{string(filepath.Separator)},
+		},
+		{
+			name: "an uncleaned path",
+			path: filepath.Join("live", "..", "live", "unit") + string(filepath.Separator),
+			want: []string{filepath.Join("live", "unit"), "live", "."},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, slices.Collect(vfs.Ancestors(tc.path)))
+		})
+	}
+}
+
+func TestAncestorsStopsEarly(t *testing.T) {
+	t.Parallel()
+
+	seen := []string{}
+
+	for current := range vfs.Ancestors(filepath.Join("a", "b", "c")) {
+		seen = append(seen, current)
+
+		if len(seen) == 2 {
+			break
+		}
+	}
+
+	assert.Equal(t, []string{filepath.Join("a", "b", "c"), filepath.Join("a", "b")}, seen)
 }

@@ -1,0 +1,10 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Fixed a race condition between concurrent Terragrunt runs downloading providers
+
+A race condition in the logic used to synchronize provider downloads meant that two Terragrunt runs on the same machine could interfere with each other while caching the same provider. Each run staged its downloads at the same path, so a run that finished first could delete an archive another run was still unpacking, failing that run with `failed to open zip archive`.
+
+That race condition is now fixed. Two runs can cache the same provider at the same time.

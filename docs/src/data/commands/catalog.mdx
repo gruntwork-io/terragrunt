@@ -15,13 +15,20 @@ examples:
     code: |
       terragrunt catalog --root-file-name root.hcl
 flags:
+  - catalog-format
   - catalog-no-include-root
   - catalog-root-file-name
   - catalog-no-shell
   - catalog-no-hooks
   - no-cas
   - cas-clone-depth
+  - cas-offline
+  - cas-refresh
+  - cas-probe-ttl
 ---
+
+import Since from '@components/Since.astro';
+import PortalCatalogBeta from '@components/PortalCatalogBeta.astro';
 
 ```bash
 terragrunt catalog [repo-url] [options]

@@ -18,7 +18,7 @@ const (
 )
 
 // sops decrypting for inputs
-func TestAwsSopsDecryptedKMSCorrectly(t *testing.T) {
+func TestAWSSOPSDecryptedKMSCorrectly(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureSopsKMS)

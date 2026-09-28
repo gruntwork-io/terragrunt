@@ -6,9 +6,15 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// schemeHTTPS is the scheme every upstream registry URL this package builds is fetched over.
+const schemeHTTPS = "https"
+
+//nolint:goconst // GOARCH values in a platform table are data, not constants.
 var availablePlatforms []*models.Platform = []*models.Platform{
 	{OS: "solaris", Arch: "amd64"},
 	{OS: "openbsd", Arch: "386"},
@@ -30,9 +36,16 @@ var availablePlatforms []*models.Platform = []*models.Platform{
 // ProviderHandlers is a slice of ProviderHandler.
 type ProviderHandlers []ProviderHandler
 
+// NewProviderHandlers constructs the slice of [ProviderHandler]s described by
+// cliCfg's provider_installation block. c is threaded into every
+// handler that issues outbound HTTP (direct, network mirror, proxy, and the
+// service-discovery cache shared by all of them).
 func NewProviderHandlers(
 	cliCfg *cliconfig.Config,
-	logger log.Logger,
+	l log.Logger,
+	c vhttp.Client,
+	fsys vfs.FS,
+	env map[string]string,
 	registryNames []string,
 ) (ProviderHandlers, error) {
 	var (
@@ -50,13 +63,14 @@ func NewProviderHandlers(
 		case *cliconfig.ProviderInstallationFilesystemMirror:
 			providerHandlers = append(
 				providerHandlers,
-				NewFilesystemMirrorProviderHandler(logger, method),
+				NewFilesystemMirrorProviderHandler(l, c, fsys, method),
 			)
 		case *cliconfig.ProviderInstallationNetworkMirror:
 			networkMirrorHandler, err := NewNetworkMirrorProviderHandler(
-				logger,
+				l,
+				c,
 				method,
-				cliCfg.CredentialsSource(),
+				cliCfg.CredentialsSource(env),
 			)
 			if err != nil {
 				return nil, err
@@ -66,7 +80,7 @@ func NewProviderHandlers(
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(
 				providerHandlers,
-				NewDirectProviderHandler(logger, method, cliCfg.CredentialsSource()),
+				NewDirectProviderHandler(l, c, method, cliCfg.CredentialsSource(env)),
 			)
 			directIsDefined = true
 		}
@@ -79,9 +93,10 @@ func NewProviderHandlers(
 		providerHandlers = append(
 			providerHandlers,
 			NewDirectProviderHandler(
-				logger,
+				l,
+				c,
 				new(cliconfig.ProviderInstallationDirect),
-				cliCfg.CredentialsSource(),
+				cliCfg.CredentialsSource(env),
 			),
 		)
 	}

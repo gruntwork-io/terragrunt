@@ -1,4 +1,6 @@
-//nolint:paralleltest,tparallel // Every test in this file calls RequireSSH, which uses t.Setenv and therefore can't run in parallel.
+//go:build tf
+
+//nolint:paralleltest // The module download runs git through go-getter, which spawns it with the process environment, so RequireSSH's key has to be set with t.Setenv.
 package test_test
 
 import (
@@ -11,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSSHSourceMapWithSlashInRef(t *testing.T) {
+func TestTFSSHSourceMapWithSlashInRef(t *testing.T) {
 	mirror := helpers.NewGitServer(t)
 	// The fixture's source is redirected to the server via --source-map
 	// (not a placeholder), so name the fixture it ends up cloning.
@@ -35,7 +37,7 @@ func TestSSHSourceMapWithSlashInRef(t *testing.T) {
 	require.NoError(t, helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr))
 }
 
-func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
+func TestTFSSHTerragruntNoWarningRemotePath(t *testing.T) {
 	mirror := helpers.NewGitServer(t)
 	mirror.RequireSSH()
 
@@ -58,7 +60,7 @@ func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
 	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
 
-func TestSSHDownloadSourceWithRef(t *testing.T) {
+func TestTFSSHDownloadSourceWithRef(t *testing.T) {
 	mirror := helpers.NewGitServer(t)
 	mirror.RequireSSH()
 

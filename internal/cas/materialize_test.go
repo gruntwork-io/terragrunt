@@ -10,9 +10,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestMaterializeTree_FromSynthStore(t *testing.T) {
@@ -28,7 +28,7 @@ func TestMaterializeTree_FromSynthStore(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -37,17 +37,17 @@ func TestMaterializeTree_FromSynthStore(t *testing.T) {
 	blobHash := "abc123"
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(l, v, blobHash, blobData))
+	require.NoError(t, blobContent.Store(l, v, blobHash, blobData, cas.StoredFilePerms))
 
 	// Store a synthetic tree that references the blob
 	treeData := []byte("100644 blob abc123\tREADME.md\n")
 	treeHash := "synth999"
 
 	synthContent := cas.NewContent(synthStore)
-	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
+	require.NoError(t, synthContent.Store(l, v, treeHash, treeData, cas.StoredFilePerms))
 
 	// Build a CAS instance using the same store paths
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -73,7 +73,7 @@ func TestMaterializeTree_FromGitTreeStore(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -81,16 +81,16 @@ func TestMaterializeTree_FromGitTreeStore(t *testing.T) {
 	blobHash := "blob111"
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(l, v, blobHash, blobData))
+	require.NoError(t, blobContent.Store(l, v, blobHash, blobData, cas.StoredFilePerms))
 
 	// Store a tree in the git tree store (not synth)
 	treeData := []byte("100644 blob blob111\tmain.tf\n")
 	treeHash := "tree222"
 
 	treeContent := cas.NewContent(treeStore)
-	require.NoError(t, treeContent.Store(l, v, treeHash, treeData))
+	require.NoError(t, treeContent.Store(l, v, treeHash, treeData, cas.StoredFilePerms))
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -108,10 +108,10 @@ func TestMaterializeTree_NotFound(t *testing.T) {
 
 	storeDir := helpers.TmpDirWOSymlinks(t)
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	destDir := helpers.TmpDirWOSymlinks(t)
 	l := logger.CreateLogger()
@@ -134,7 +134,7 @@ func TestMaterializeTree_SynthTakesPrecedence(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -142,20 +142,20 @@ func TestMaterializeTree_SynthTakesPrecedence(t *testing.T) {
 	blobB := []byte("git version\n")
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(l, v, "blobA", blobA))
-	require.NoError(t, blobContent.Store(l, v, "blobB", blobB))
+	require.NoError(t, blobContent.Store(l, v, "blobA", blobA, cas.StoredFilePerms))
+	require.NoError(t, blobContent.Store(l, v, "blobB", blobB, cas.StoredFilePerms))
 
 	hash := "samehash"
 
 	// Store in synth store (references blobA)
 	synthContent := cas.NewContent(synthStore)
-	require.NoError(t, synthContent.Store(l, v, hash, []byte("100644 blob blobA\tfile.txt\n")))
+	require.NoError(t, synthContent.Store(l, v, hash, []byte("100644 blob blobA\tfile.txt\n"), cas.StoredFilePerms))
 
 	// Store in git tree store (references blobB)
 	gitContent := cas.NewContent(treeStore)
-	require.NoError(t, gitContent.Store(l, v, hash, []byte("100644 blob blobB\tfile.txt\n")))
+	require.NoError(t, gitContent.Store(l, v, hash, []byte("100644 blob blobB\tfile.txt\n"), cas.StoredFilePerms))
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -202,7 +202,7 @@ func TestCASProtocolGetterGet(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -210,15 +210,15 @@ func TestCASProtocolGetterGet(t *testing.T) {
 	fileHash := cas.HashSHA1.Sum(fileContent)
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(l, v, fileHash, fileContent))
+	require.NoError(t, blobContent.Store(l, v, fileHash, fileContent, cas.StoredFilePerms))
 
 	treeData := []byte("100644 blob " + fileHash + "\tmain.tf\n")
 	treeHash := cas.HashSHA1.Sum(treeData)
 
 	synthContent := cas.NewContent(synthStore)
-	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
+	require.NoError(t, synthContent.Store(l, v, treeHash, treeData, cas.StoredFilePerms))
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	g := getter.NewCASProtocolGetter(l, c, v)
@@ -257,7 +257,7 @@ func TestCASProtocolGetterGet_Mutable(t *testing.T) {
 		require.NoError(t, os.MkdirAll(s.Path(), 0755))
 	}
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 
@@ -265,15 +265,15 @@ func TestCASProtocolGetterGet_Mutable(t *testing.T) {
 	fileHash := cas.HashSHA1.Sum(fileContent)
 
 	blobContent := cas.NewContent(blobStore)
-	require.NoError(t, blobContent.Store(l, v, fileHash, fileContent))
+	require.NoError(t, blobContent.Store(l, v, fileHash, fileContent, cas.StoredFilePerms))
 
 	treeData := []byte("100644 blob " + fileHash + "\tmain.tf\n")
 	treeHash := cas.HashSHA1.Sum(treeData)
 
 	synthContent := cas.NewContent(synthStore)
-	require.NoError(t, synthContent.Store(l, v, treeHash, treeData))
+	require.NoError(t, synthContent.Store(l, v, treeHash, treeData, cas.StoredFilePerms))
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	g := getter.NewCASProtocolGetter(l, c, v)
@@ -306,10 +306,10 @@ func TestCASProtocolGetterGet_InvalidRef(t *testing.T) {
 
 	storeDir := helpers.TmpDirWOSymlinks(t)
 
-	c, err := cas.New(cas.WithStorePath(storeDir))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	l := logger.CreateLogger()
 	g := getter.NewCASProtocolGetter(l, c, v)

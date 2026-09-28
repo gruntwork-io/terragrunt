@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,7 +13,7 @@ func TestTabKindMatches_TagPromotesAcrossTabs(t *testing.T) {
 	t.Parallel()
 
 	template := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindTemplate,
+		component.KindTemplate,
 		"github.com/example/repo",
 		"templates/svc",
 		`<!-- Frontmatter
@@ -38,7 +39,7 @@ func TestTabKindMatches_CaseInsensitive(t *testing.T) {
 	t.Parallel()
 
 	stack := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindStack,
+		component.KindStack,
 		"github.com/example/repo",
 		"stacks/svc",
 		`<!-- Frontmatter
@@ -56,7 +57,7 @@ func TestTabKindMatches_NoTagsOnlyKind(t *testing.T) {
 	t.Parallel()
 
 	module := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		"github.com/example/repo",
 		"modules/vpc",
 		"# VPC\nNo frontmatter here.",
@@ -124,7 +125,7 @@ func TestTabKindMatches_UnrelatedTagDoesNotPromote(t *testing.T) {
 	t.Parallel()
 
 	module := tui.NewComponentEntry(tui.NewComponentForTest(
-		tui.ComponentKindModule,
+		component.KindModule,
 		"github.com/example/repo",
 		"modules/vpc",
 		`<!-- Frontmatter

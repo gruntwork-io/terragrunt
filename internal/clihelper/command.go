@@ -195,13 +195,13 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 		return err
 	}
 
-	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, errHandler)
+	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, ctx.Env, errHandler)
 	if err != nil {
 		return nil, err
 	}
 
 	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().
-		NewFlagSet(cmd.Name, errHandler)
+		NewFlagSet(cmd.Name, ctx.Env, errHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func (cmd *Command) flagSetParse(
 
 		for i, arg := range args {
 			// `--var=input=from_env` trims to `var`
-			trimmed := strings.SplitN(strings.Trim(arg, "-"), "=", 2)[0] //nolint:mnd
+			trimmed, _, _ := strings.Cut(strings.Trim(arg, "-"), "=")
 			if trimmed == undefArg {
 				undefArgs = append(undefArgs, arg)
 				notFoundMatch = true

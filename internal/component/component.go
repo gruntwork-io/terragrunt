@@ -14,7 +14,7 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // Kind is the type of Terragrunt component.
@@ -241,8 +241,10 @@ func (c Components) CycleCheck() (Component, error) {
 
 // ThreadSafeComponents provides thread-safe access to a Components slice.
 // It uses an RWMutex to allow concurrent reads and serialized writes.
-// Resolved paths are cached to avoid repeated filepath.EvalSymlinks syscalls
-// and ensure consistent symlink-aware comparisons across all methods.
+// Resolved paths are cached to avoid repeated symlink resolution and to keep
+// symlink-aware comparisons consistent across all methods. Every method takes
+// the filesystem the cache was built against; resolving one component against
+// a different one would compare paths from two namespaces.
 type ThreadSafeComponents struct {
 	resolvedPaths map[string]string
 	components    Components
@@ -250,7 +252,7 @@ type ThreadSafeComponents struct {
 }
 
 // NewThreadSafeComponents creates a new ThreadSafeComponents instance with the given components.
-func NewThreadSafeComponents(components Components) *ThreadSafeComponents {
+func NewThreadSafeComponents(fsys vfs.FS, components Components) *ThreadSafeComponents {
 	tsc := &ThreadSafeComponents{
 		components:    components,
 		resolvedPaths: make(map[string]string, len(components)),
@@ -258,7 +260,7 @@ func NewThreadSafeComponents(components Components) *ThreadSafeComponents {
 
 	// Pre-populate resolved paths cache for initial components
 	for _, c := range components {
-		tsc.resolvedPaths[c.Path()] = util.ResolvePath(c.Path())
+		tsc.resolvedPaths[c.Path()] = vfs.ResolveForCompare(fsys, c.Path())
 	}
 
 	return tsc
@@ -267,12 +269,12 @@ func NewThreadSafeComponents(components Components) *ThreadSafeComponents {
 // resolvedPathFor returns the cached resolved path for a component path if present,
 // otherwise resolves the path on the fly without mutating the cache.
 // Caller must hold at least a read lock.
-func (tsc *ThreadSafeComponents) resolvedPathFor(path string) string {
+func (tsc *ThreadSafeComponents) resolvedPathFor(fsys vfs.FS, path string) string {
 	if resolved, ok := tsc.resolvedPaths[path]; ok {
 		return resolved
 	}
 
-	return util.ResolvePath(path)
+	return vfs.ResolveForCompare(fsys, path)
 }
 
 // EnsureComponent adds a component to the components list if it's not already present.
@@ -280,10 +282,10 @@ func (tsc *ThreadSafeComponents) resolvedPathFor(path string) string {
 // Path comparison uses resolved symlink paths for consistency.
 //
 // It returns the component if it was added, and a boolean indicating if it was added.
-func (tsc *ThreadSafeComponents) EnsureComponent(c Component) (Component, bool) {
-	found, ok := tsc.findComponent(c)
+func (tsc *ThreadSafeComponents) EnsureComponent(fsys vfs.FS, c Component) (Component, bool) {
+	found, ok := tsc.findComponent(fsys, c)
 	if !ok {
-		return tsc.addComponent(c)
+		return tsc.addComponent(fsys, c)
 	}
 
 	return found, false
@@ -292,14 +294,14 @@ func (tsc *ThreadSafeComponents) EnsureComponent(c Component) (Component, bool) 
 // findComponent checks if a component is in the components slice using resolved paths.
 // If it is, it returns the component and true.
 // If it is not, it returns nil and false.
-func (tsc *ThreadSafeComponents) findComponent(c Component) (Component, bool) {
+func (tsc *ThreadSafeComponents) findComponent(fsys vfs.FS, c Component) (Component, bool) {
 	tsc.mu.RLock()
 	defer tsc.mu.RUnlock()
 
-	searchResolved := util.ResolvePath(c.Path())
+	searchResolved := vfs.ResolveForCompare(fsys, c.Path())
 
 	idx := slices.IndexFunc(tsc.components, func(cc Component) bool {
-		return tsc.resolvedPathFor(cc.Path()) == searchResolved
+		return tsc.resolvedPathFor(fsys, cc.Path()) == searchResolved
 	})
 
 	if idx == -1 {
@@ -312,16 +314,16 @@ func (tsc *ThreadSafeComponents) findComponent(c Component) (Component, bool) {
 // addComponent adds a component to the components list, acquiring a write lock.
 // Uses a double-check pattern to avoid TOCTOU race conditions.
 // Caches the resolved path for the new component.
-func (tsc *ThreadSafeComponents) addComponent(c Component) (Component, bool) {
+func (tsc *ThreadSafeComponents) addComponent(fsys vfs.FS, c Component) (Component, bool) {
 	tsc.mu.Lock()
 	defer tsc.mu.Unlock()
 
-	searchResolved := util.ResolvePath(c.Path())
+	searchResolved := vfs.ResolveForCompare(fsys, c.Path())
 
 	// Do one last check to see if the component is already in the components list
 	// to avoid a TOCTOU race condition. Uses resolved paths for comparison.
 	idx := slices.IndexFunc(tsc.components, func(cc Component) bool {
-		return tsc.resolvedPathFor(cc.Path()) == searchResolved
+		return tsc.resolvedPathFor(fsys, cc.Path()) == searchResolved
 	})
 
 	if idx != -1 {
@@ -338,14 +340,14 @@ func (tsc *ThreadSafeComponents) addComponent(c Component) (Component, bool) {
 // FindByPath searches for a component by its path and returns it if found, otherwise returns nil.
 // Paths are resolved to handle symlinks consistently across platforms (e.g., macOS /var -> /private/var).
 // Uses cached resolved paths to avoid repeated syscalls.
-func (tsc *ThreadSafeComponents) FindByPath(path string) Component {
+func (tsc *ThreadSafeComponents) FindByPath(fsys vfs.FS, path string) Component {
 	tsc.mu.RLock()
 	defer tsc.mu.RUnlock()
 
-	resolvedSearchPath := util.ResolvePath(path)
+	resolvedSearchPath := vfs.ResolveForCompare(fsys, path)
 
 	for _, c := range tsc.components {
-		if tsc.resolvedPathFor(c.Path()) == resolvedSearchPath {
+		if tsc.resolvedPathFor(fsys, c.Path()) == resolvedSearchPath {
 			return c
 		}
 	}

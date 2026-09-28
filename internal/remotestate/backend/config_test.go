@@ -11,129 +11,129 @@ import (
 func TestConfig_IsEqual(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
-		name            string
+	testCases := []struct {
 		existingBackend backend.Config
 		cfg             backend.Config
+		name            string
 		expected        bool
 	}{
 		{
-			"both empty",
-			backend.Config{},
-			backend.Config{},
-			true,
+			name:            "both empty",
+			existingBackend: backend.Config{},
+			cfg:             backend.Config{},
+			expected:        true,
 		},
 		{
-			"identical S3 configs",
-			backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
-			backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
-			true,
+			name:            "identical S3 configs",
+			existingBackend: backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+			cfg:             backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+			expected:        true,
 		},
 		{
-			"identical GCS configs",
-			backend.Config{
+			name: "identical GCS configs",
+			existingBackend: backend.Config{
 				"project":  "foo-123456",
 				"location": "europe-west3",
 				"bucket":   "foo",
 				"prefix":   "bar",
 			},
-			backend.Config{
+			cfg: backend.Config{
 				"project":  "foo-123456",
 				"location": "europe-west3",
 				"bucket":   "foo",
 				"prefix":   "bar",
 			},
-			true,
+			expected: true,
 		},
 		{
-			"different s3 bucket values",
-			backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
-			backend.Config{"bucket": "different", "key": "bar", "region": "us-east-1"},
-			false,
+			name:            "different s3 bucket values",
+			existingBackend: backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+			cfg:             backend.Config{"bucket": "different", "key": "bar", "region": "us-east-1"},
+			expected:        false,
 		},
 		{
-			"different gcs bucket values",
-			backend.Config{
+			name: "different gcs bucket values",
+			existingBackend: backend.Config{
 				"project":  "foo-123456",
 				"location": "europe-west3",
 				"bucket":   "foo",
 				"prefix":   "bar",
 			},
-			backend.Config{
+			cfg: backend.Config{
 				"project":  "foo-123456",
 				"location": "europe-west3",
 				"bucket":   "different",
 				"prefix":   "bar",
 			},
-			false,
+			expected: false,
 		},
 		{
-			"different s3 key values",
-			backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
-			backend.Config{"bucket": "foo", "key": "different", "region": "us-east-1"},
-			false,
+			name:            "different s3 key values",
+			existingBackend: backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+			cfg:             backend.Config{"bucket": "foo", "key": "different", "region": "us-east-1"},
+			expected:        false,
 		},
 		{
-			"different gcs prefix values",
-			backend.Config{
+			name: "different gcs prefix values",
+			existingBackend: backend.Config{
 				"project":  "foo-123456",
 				"location": "europe-west3",
 				"bucket":   "foo",
 				"prefix":   "bar",
 			},
-			backend.Config{
+			cfg: backend.Config{
 				"project":  "foo-123456",
 				"location": "europe-west3",
 				"bucket":   "foo",
 				"prefix":   "different",
 			},
-			false,
+			expected: false,
 		},
 		{
-			"different s3 region values",
-			backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
-			backend.Config{"bucket": "foo", "key": "bar", "region": "different"},
-			false,
+			name:            "different s3 region values",
+			existingBackend: backend.Config{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+			cfg:             backend.Config{"bucket": "foo", "key": "bar", "region": "different"},
+			expected:        false,
 		},
 		{
-			"different gcs location values",
-			backend.Config{
+			name: "different gcs location values",
+			existingBackend: backend.Config{
 				"project":  "foo-123456",
 				"location": "europe-west3",
 				"bucket":   "foo",
 				"prefix":   "bar",
 			},
-			backend.Config{
+			cfg: backend.Config{
 				"project":  "foo-123456",
 				"location": "different",
 				"bucket":   "foo",
 				"prefix":   "bar",
 			},
-			false,
+			expected: false,
 		},
 		{
-			"different boolean values and boolean conversion",
-			backend.Config{"something": "true"},
-			backend.Config{"something": false},
-			false,
+			name:            "different boolean values and boolean conversion",
+			existingBackend: backend.Config{"something": "true"},
+			cfg:             backend.Config{"something": false},
+			expected:        false,
 		},
 		{
-			"different gcs boolean values and boolean conversion",
-			backend.Config{"something": "true"},
-			backend.Config{"something": false},
-			false,
+			name:            "different gcs boolean values and boolean conversion",
+			existingBackend: backend.Config{"something": "true"},
+			cfg:             backend.Config{"something": false},
+			expected:        false,
 		},
 		{
-			"null values ignored",
-			backend.Config{"something": "foo", "set-to-nil-should-be-ignored": nil},
-			backend.Config{"something": "foo"},
-			true,
+			name:            "null values ignored",
+			existingBackend: backend.Config{"something": "foo", "set-to-nil-should-be-ignored": nil},
+			cfg:             backend.Config{"something": "foo"},
+			expected:        true,
 		},
 		{
-			"gcs null values ignored",
-			backend.Config{"something": "foo", "set-to-nil-should-be-ignored": nil},
-			backend.Config{"something": "foo"},
-			true,
+			name:            "gcs null values ignored",
+			existingBackend: backend.Config{"something": "foo", "set-to-nil-should-be-ignored": nil},
+			cfg:             backend.Config{"something": "foo"},
+			expected:        true,
 		},
 	}
 

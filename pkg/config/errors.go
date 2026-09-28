@@ -1,8 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 // Custom error types
@@ -69,6 +72,20 @@ func (err InvalidMergeStrategyTypeError) Error() string {
 	)
 }
 
+// IncludeMergeStrategyNotSupportedError reports a merge strategy that parses but
+// applies only to dependency mock outputs, so an include block cannot use it.
+type IncludeMergeStrategyNotSupportedError string
+
+func (err IncludeMergeStrategyNotSupportedError) Error() string {
+	return fmt.Sprintf(
+		"Include merge strategy %s is not supported for include blocks. Valid strategies are: %s, %s, %s",
+		string(err),
+		NoMerge,
+		ShallowMerge,
+		DeepMerge,
+	)
+}
+
 type DependencyDirNotFoundError struct {
 	Dir []string
 }
@@ -87,6 +104,35 @@ func (err DuplicatedGenerateBlocksError) Error() string {
 	return fmt.Sprintf(
 		"Detected generate blocks with the same name: %v", err.BlockName,
 	)
+}
+
+// InvalidGenerateBlockError wraps a validation error with the generate block name.
+type InvalidGenerateBlockError struct {
+	Err       error
+	BlockName string
+}
+
+func (err InvalidGenerateBlockError) Error() string {
+	return fmt.Sprintf("generate block %q: %s", err.BlockName, err.Err)
+}
+
+func (err InvalidGenerateBlockError) Unwrap() error {
+	return err.Err
+}
+
+// InvalidExcludeBlockError reports an exclude block whose attributes do not
+// decode into [ExcludeConfig], such as a string where a list belongs.
+type InvalidExcludeBlockError struct {
+	Err        error
+	ConfigPath string
+}
+
+func (err InvalidExcludeBlockError) Error() string {
+	return fmt.Sprintf("exclude block in %s: %s", err.ConfigPath, err.Err)
+}
+
+func (err InvalidExcludeBlockError) Unwrap() error {
+	return err.Err
 }
 
 type TFVarFileNotFoundError struct {
@@ -266,12 +312,95 @@ func (err DependencyFileNotFoundError) Error() string {
 
 // Dependency Custom error types
 
+// DependencyConfigPathNotStringError reports a dependency whose config_path did not
+// evaluate to a known string, so there is no config to read outputs from.
+type DependencyConfigPathNotStringError struct {
+	Name string
+}
+
+func (err DependencyConfigPathNotStringError) Error() string {
+	return fmt.Sprintf("config_path of dependency %q did not evaluate to a string", err.Name)
+}
+
 type DependencyConfigNotFound struct {
 	Path string
 }
 
 func (err DependencyConfigNotFound) Error() string {
 	return err.Path + " does not exist"
+}
+
+// MissingDependencyConfigError reports a unit depending on a path without a Terragrunt configuration file.
+type MissingDependencyConfigError struct {
+	// Err is the underlying lookup failure, if any.
+	Err error
+	// UnitPath is the directory of the unit that declares the dependency.
+	UnitPath string
+	// DependencyPath is the path the dependency points at.
+	DependencyPath string
+}
+
+func (err MissingDependencyConfigError) Error() string {
+	return fmt.Sprintf(
+		"unit %q depends on %q, where no Terragrunt configuration was found",
+		err.UnitPath,
+		err.DependencyPath,
+	)
+}
+
+func (err MissingDependencyConfigError) Unwrap() error {
+	return err.Err
+}
+
+// DependencyStateReadError reports a failure while reading a dependency's remote state body.
+type DependencyStateReadError struct {
+	// Err is the underlying reader failure.
+	Err error
+	// Location identifies the remote state object that was being read.
+	Location string
+}
+
+func (err DependencyStateReadError) Error() string {
+	return "reading dependency state body from " + err.Location + ": " + err.Err.Error()
+}
+
+func (err DependencyStateReadError) Unwrap() error {
+	return err.Err
+}
+
+// DependencyStateParseError reports malformed dependency remote state JSON.
+type DependencyStateParseError struct {
+	// Err is the underlying JSON parsing failure.
+	Err error
+	// Location identifies the remote state object that could not be parsed.
+	Location string
+}
+
+func (err DependencyStateParseError) Error() string {
+	return "parsing dependency state JSON from " + err.Location + ": " + err.Err.Error()
+}
+
+func (err DependencyStateParseError) Unwrap() error {
+	return err.Err
+}
+
+// ErrDependencyStateEncrypted reports state that OpenTofu encrypted client-side, which a
+// direct backend read has no key material to decrypt.
+var ErrDependencyStateEncrypted = errors.New("dependency state is encrypted")
+
+// DependencyStateEncryptedError reports a dependency state protected by OpenTofu's
+// client-side state encryption, so its outputs have to come from OpenTofu itself.
+type DependencyStateEncryptedError struct {
+	// Location identifies the encrypted remote state object.
+	Location string
+}
+
+func (err DependencyStateEncryptedError) Error() string {
+	return ErrDependencyStateEncrypted.Error() + ": " + err.Location
+}
+
+func (err DependencyStateEncryptedError) Unwrap() error {
+	return ErrDependencyStateEncrypted
 }
 
 type TerragruntOutputParsingError struct {
@@ -297,6 +426,113 @@ func (err TerragruntOutputEncodingError) Error() string {
 		"Could not encode output from terragrunt config %s. Underlying error: %s",
 		err.Path,
 		err.Err,
+	)
+}
+
+// InvalidTFWorkspaceError is returned when TF_WORKSPACE cannot name a state object.
+type InvalidTFWorkspaceError struct {
+	Workspace string
+}
+
+func (err InvalidTFWorkspaceError) Error() string {
+	return fmt.Sprintf(
+		"determining dependency workspace: invalid TF_WORKSPACE value %q",
+		err.Workspace,
+	)
+}
+
+// StackUnitOutputFetchError is returned when a dependency on a stack cannot read a unit's outputs
+// and has no mock to stand in for them.
+type StackUnitOutputFetchError struct {
+	Err      error
+	UnitName string
+}
+
+func (err StackUnitOutputFetchError) Error() string {
+	return fmt.Sprintf("stack unit %s output fetch failed: %s", err.UnitName, err.Err)
+}
+
+func (err StackUnitOutputFetchError) Unwrap() error {
+	return err.Err
+}
+
+// StackMockOutputsTypeError is returned when a dependency on a stack declares mock_outputs, or a
+// nested stack's entry in it, that isn't keyed by name, so no unit can be matched against it.
+type StackMockOutputsTypeError struct {
+	DependencyName string
+	UnitName       string
+	Actual         string
+}
+
+func (err StackMockOutputsTypeError) Error() string {
+	return fmt.Sprintf(
+		"mock_outputs for dependency %s must be a map or object keyed by stack unit or nested stack name (e.g. { %s = { ... } }), but got %s",
+		err.DependencyName,
+		err.UnitName,
+		err.Actual,
+	)
+}
+
+// StackOutputAddressCollisionError is returned when a unit and a nested stack declared in one
+// stack file share a name. A dependency on that stack reads both at the same address, so keeping
+// either would drop the other's outputs.
+type StackOutputAddressCollisionError struct {
+	StackDir string
+	Name     string
+}
+
+func (err StackOutputAddressCollisionError) Error() string {
+	return fmt.Sprintf(
+		"a unit and a nested stack in %s are both named %q, so a dependency on the stack cannot address their outputs separately",
+		err.StackDir,
+		err.Name,
+	)
+}
+
+// DependencyLabelCollisionError is returned when one dependency label has to address both a
+// whole block and the instances of an expanded block.
+type DependencyLabelCollisionError struct {
+	Name string
+}
+
+func (err DependencyLabelCollisionError) Error() string {
+	return fmt.Sprintf(
+		"dependency %q is declared both with and without an expansion, so the block and its instances claim the same address; rename one of them",
+		err.Name,
+	)
+}
+
+// DuplicateDependencyError is returned when two dependency blocks in one config claim the
+// same address, which leaves no way to reference either but the last.
+type DuplicateDependencyError struct {
+	ConfigPath string
+	Address    string
+}
+
+func (err DuplicateDependencyError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependency %s is declared more than once; every dependency needs an address of its own",
+		err.ConfigPath,
+		err.Address,
+	)
+}
+
+// DuplicateDependencyConfigPathError is returned when two dependency blocks in one config
+// point at the same config_path under different addresses.
+type DuplicateDependencyConfigPathError struct {
+	ConfigPath     string
+	DependencyPath string
+	FirstAddress   string
+	SecondAddress  string
+}
+
+func (err DuplicateDependencyConfigPathError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependencies %s and %s both point at %s; declare that dependency once and reference it under one name",
+		err.ConfigPath,
+		err.FirstAddress,
+		err.SecondAddress,
+		err.DependencyPath,
 	)
 }
 
@@ -397,6 +633,18 @@ func (err MaxParseDepthError) Error() string {
 	)
 }
 
+// ReadTerragruntConfigCycleError is returned when read_terragrunt_config reads
+// a config that is already being read further up the chain.
+type ReadTerragruntConfigCycleError struct {
+	// Chain lists the configs being read, outermost first, ending with the
+	// config that closes the cycle.
+	Chain []string
+}
+
+func (err ReadTerragruntConfigCycleError) Error() string {
+	return "read_terragrunt_config cycle detected: " + strings.Join(err.Chain, " -> ")
+}
+
 // AutoIncludeParserStageError reports which stage of autoinclude parsing failed.
 type AutoIncludeParserStageError struct {
 	Err   error
@@ -425,15 +673,15 @@ func (err DeepMergeRequiresExperimentError) Error() string {
 	)
 }
 
-// VersionAttributeRequiresExperimentError is returned when the terraform block sets the
-// version attribute without the version-attribute experiment enabled.
-type VersionAttributeRequiresExperimentError struct {
+// Base64GzipCompatRequiresExperimentError is returned when the base64gzip_compat HCL function
+// is called without the base64gzip-compat experiment enabled.
+type Base64GzipCompatRequiresExperimentError struct {
 	ConfigPath string
 }
 
-func (err VersionAttributeRequiresExperimentError) Error() string {
+func (err Base64GzipCompatRequiresExperimentError) Error() string {
 	return fmt.Sprintf(
-		"the terraform block in %s sets the version attribute, which requires the 'version-attribute' experiment; enable it with --experiment version-attribute",
+		"base64gzip_compat in %s requires the 'base64gzip-compat' experiment; enable it with --experiment base64gzip-compat",
 		err.ConfigPath,
 	)
 }
@@ -463,4 +711,94 @@ func (err VersionAttributeSourceConstraintConflictError) Error() string {
 		"the terraform block in %s sets both the version attribute and an inline ?version= on its source; specify the version in only one place",
 		err.ConfigPath,
 	)
+}
+
+// MisspelledExpansionBlockError is returned when a dependency, unit, or stack block nests a
+// block whose name is a near miss of expansion.
+type MisspelledExpansionBlockError struct {
+	ConfigPath string
+	BlockType  string
+	BlockLabel string
+	BlockName  string
+}
+
+func (err MisspelledExpansionBlockError) Error() string {
+	block := err.BlockType
+	if err.BlockLabel != "" {
+		block = fmt.Sprintf("%s %q", err.BlockType, err.BlockLabel)
+	}
+
+	return fmt.Sprintf(
+		"the %s block in %s declares a %q block, which Terragrunt does not recognize; did you mean %q?",
+		block,
+		err.ConfigPath,
+		err.BlockName,
+		hclparse.ExpansionBlockName,
+	)
+}
+
+// ErrStackHasNoComponents is returned when a stack file declares no unit or stack block at
+// all. A file whose blocks resolve to no components is a different thing entirely and stays
+// valid: every block may be disabled, or expanded over an empty collection, leaving nothing
+// to generate.
+var ErrStackHasNoComponents = errors.New("stack config must contain at least one unit or stack")
+
+// ComponentKind is the kind of block a stack component was declared as. The values reach
+// users verbatim in validation messages.
+type ComponentKind string
+
+const (
+	ComponentKindUnit  ComponentKind = "unit"
+	ComponentKindStack ComponentKind = "stack"
+)
+
+// ComponentFieldEmptyError is returned when a unit or stack leaves a required attribute
+// empty.
+type ComponentFieldEmptyError struct {
+	Kind  ComponentKind
+	Field string
+	Name  string
+	Index int
+}
+
+func (err ComponentFieldEmptyError) Error() string {
+	// The label names a component in every other message, so one missing its label has to be
+	// identified by position.
+	if err.Name == "" {
+		return fmt.Sprintf("%s at index %d has empty %s", err.Kind, err.Index, err.Field)
+	}
+
+	return fmt.Sprintf("%s '%s' has empty %s", err.Kind, err.Name, err.Field)
+}
+
+// DuplicateComponentNameError is returned when two units or two stacks in one file claim the
+// same address, leaving no way to reference one of them.
+type DuplicateComponentNameError struct {
+	Kind ComponentKind
+	Name string
+}
+
+func (err DuplicateComponentNameError) Error() string {
+	return fmt.Sprintf("duplicate %s name found: '%s'", err.Kind, err.Name)
+}
+
+// DuplicateComponentPathError is returned when two units or two stacks generate into the
+// same directory.
+type DuplicateComponentPathError struct {
+	Kind ComponentKind
+	Path string
+}
+
+func (err DuplicateComponentPathError) Error() string {
+	return fmt.Sprintf("duplicate %s path found: '%s'", err.Kind, err.Path)
+}
+
+// ComponentPathCollisionError is returned when a unit and a stack generate into the same
+// directory.
+type ComponentPathCollisionError struct {
+	Path string
+}
+
+func (err ComponentPathCollisionError) Error() string {
+	return fmt.Sprintf("duplicate path found across unit and stack: '%s'", err.Path)
 }

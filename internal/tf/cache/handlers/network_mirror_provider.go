@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -25,7 +25,8 @@ type NetworkMirrorProviderHandler struct {
 }
 
 func NewNetworkMirrorProviderHandler(
-	logger log.Logger,
+	l log.Logger,
+	c vhttp.Client,
 	networkMirror *cliconfig.ProviderInstallationNetworkMirror,
 	credsSource *cliconfig.CredentialsSource,
 ) (*NetworkMirrorProviderHandler, error) {
@@ -36,11 +37,12 @@ func NewNetworkMirrorProviderHandler(
 
 	return &NetworkMirrorProviderHandler{
 		CommonProviderHandler: NewCommonProviderHandler(
-			logger,
+			l,
+			c,
 			networkMirror.Include,
 			networkMirror.Exclude,
 		),
-		client:           helpers.NewClient(credsSource),
+		client:           helpers.NewClient(c, credsSource),
 		networkMirrorURL: networkMirrorURL,
 	}, nil
 }
@@ -113,7 +115,7 @@ func (handler *NetworkMirrorProviderHandler) GetPlatform(
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
 		resp = (&models.ResponseBody{
-			Filename:    filepath.Base(archive.URL),
+			Filename:    models.FilenameFromURL(archive.URL),
 			DownloadURL: archive.URL,
 		}).ResolveRelativeReferences(handler.networkMirrorURL.ResolveReference(&url.URL{
 			Path: path.Join(handler.networkMirrorURL.Path, provider.Address()),

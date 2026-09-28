@@ -1,8 +1,6 @@
 package discovery_test
 
 import (
-	"context"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -14,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -31,23 +30,23 @@ func TestDiscoveryWithGraphTarget_RetainsTargetAndDependents(t *testing.T) {
 	dbDir := filepath.Join(tmpDir, "db")
 	appDir := filepath.Join(tmpDir, "app")
 
-	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, os.MkdirAll(dbDir, 0o755))
-	require.NoError(t, os.MkdirAll(appDir, 0o755))
+	v := memRepoRootVenv(t, tmpDir)
 
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(`
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		dbDir: `
 dependency "vpc" {
   config_path = "../vpc"
 }
-`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+`,
+		appDir: `
 dependency "db" {
   config_path = "../db"
 }
-`), 0o644))
+`,
+	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -61,7 +60,7 @@ dependency "db" {
 	configs, err := d.Discover(
 		t.Context(),
 		logger.CreateLogger(),
-		memGitTopLevelVenv(t, tmpDir),
+		v,
 		opts,
 	)
 	require.NoError(t, err)
@@ -81,23 +80,23 @@ func TestDiscoveryGraphTarget_ParityWithFilterQueries(t *testing.T) {
 	dbDir := filepath.Join(tmpDir, "db")
 	appDir := filepath.Join(tmpDir, "app")
 
-	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, os.MkdirAll(dbDir, 0o755))
-	require.NoError(t, os.MkdirAll(appDir, 0o755))
+	v := memRepoRootVenv(t, tmpDir)
 
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(`
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		dbDir: `
 dependency "vpc" {
   config_path = "../vpc"
 }
-`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+`,
+		appDir: `
 dependency "db" {
   config_path = "../db"
 }
-`), 0o644))
+`,
+	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -114,14 +113,14 @@ dependency "db" {
 	configsA, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithFilters(filters).
-		Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
+		Discover(t.Context(), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
-		Discover(t.Context(), logger.CreateLogger(), memGitTopLevelVenv(t, tmpDir), opts)
+		Discover(t.Context(), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(
@@ -142,15 +141,15 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 	dbDir := filepath.Join(tmpDir, "db")
 	appDir := filepath.Join(tmpDir, "app")
 
-	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, os.MkdirAll(dbDir, 0o755))
-	require.NoError(t, os.MkdirAll(appDir, 0o755))
+	v := memRepoRootVenv(t, tmpDir)
 
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(``), 0o644))
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		dbDir:  ``,
+		appDir: ``,
+	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -161,7 +160,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 	configs, err := d.Discover(
 		t.Context(),
 		logger.CreateLogger(),
-		memGitTopLevelVenv(t, tmpDir),
+		v,
 		opts,
 	)
 	require.NoError(t, err)
@@ -181,17 +180,18 @@ func TestDiscoveryWithOptions_GraphTarget(t *testing.T) {
 	vpcDir := filepath.Join(tmpDir, "vpc")
 	dbDir := filepath.Join(tmpDir, "db")
 
-	require.NoError(t, os.MkdirAll(vpcDir, 0o755))
-	require.NoError(t, os.MkdirAll(dbDir, 0o755))
+	v := memRepoRootVenv(t, tmpDir)
 
-	require.NoError(t, os.WriteFile(filepath.Join(vpcDir, "terragrunt.hcl"), []byte(``), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dbDir, "terragrunt.hcl"), []byte(`
+	writeUnits(t, v.FS, map[string]string{
+		vpcDir: ``,
+		dbDir: `
 dependency "vpc" {
   config_path = "../vpc"
 }
-`), 0o644))
+`,
+	})
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -205,7 +205,7 @@ dependency "vpc" {
 	configs, err := d.Discover(
 		t.Context(),
 		logger.CreateLogger(),
-		memGitTopLevelVenv(t, tmpDir),
+		v,
 		opts,
 	)
 	require.NoError(t, err)
@@ -214,25 +214,31 @@ dependency "vpc" {
 	assert.ElementsMatch(t, []string{vpcDir, dbDir}, paths)
 }
 
-// memGitTopLevelVenv returns a venv.Venv whose Exec answers
-// `git rev-parse --show-toplevel` with the supplied repoRoot. Any other
-// invocation fails the test so a regression that fires unexpected git
-// subcommands is caught here.
-func memGitTopLevelVenv(t *testing.T, repoRoot string) venv.Venv {
+// writeUnits writes a terragrunt.hcl carrying the given contents into each
+// unit directory, keyed by directory.
+func writeUnits(t *testing.T, fsys vfs.FS, units map[string]string) {
 	t.Helper()
 
-	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		if inv.Name == "git" && len(inv.Args) == 2 && inv.Args[0] == "rev-parse" &&
-			inv.Args[1] == "--show-toplevel" {
-			return vexec.Result{Stdout: []byte(repoRoot + "\n")}
-		}
+	for dir, contents := range units {
+		require.NoError(t, vfs.WriteFile(
+			fsys,
+			filepath.Join(dir, "terragrunt.hcl"),
+			[]byte(contents),
+			0o644,
+		))
+	}
+}
 
-		assert.Fail(t, "unexpected git invocation", "name=%q args=%v", inv.Name, inv.Args)
+// memRepoRootVenv returns a [venv.Venv] whose in-memory filesystem holds a
+// repository at repoRoot, so [git.GoRepoRoot]'s walk bounds traversal there
+// when no discovery boundary is configured. `.git` is written as a file, the
+// shape a submodule and a linked worktree both use.
+func memRepoRootVenv(t *testing.T, repoRoot string) *venv.Venv {
+	t.Helper()
 
-		return vexec.Result{ExitCode: 1}
-	})
-
-	return venvtest.New().WithExec(exec)
+	return venvtest.New().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
+		".git": "gitdir: /elsewhere/.git\n",
+	}))
 }
 
 // mockGraphTargetOption implements the GraphTarget() interface for testing.

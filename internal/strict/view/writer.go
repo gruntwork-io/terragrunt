@@ -32,9 +32,9 @@ func (writer *Writer) List(controls strict.Controls) error {
 	return writer.output(output)
 }
 
-// DetailControl renders the detailed information about the control, including its subcontrols.
-func (writer *Writer) DetailControl(control strict.Control) error {
-	output, err := writer.render.DetailControl(control)
+// DetailSubcontrols renders the given subcontrols of a single control.
+func (writer *Writer) DetailSubcontrols(subcontrols strict.Controls) error {
+	output, err := writer.render.DetailSubcontrols(subcontrols)
 	if err != nil {
 		return err
 	}

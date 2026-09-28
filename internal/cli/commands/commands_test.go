@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
@@ -12,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,13 +22,13 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 	cacheEnv := map[string]string{tf.EnvNameTFPluginCacheDir: "/some/cache/dir"}
 	emptyEnv := map[string]string{}
 
-	openTofuV1120 := version.Must(version.NewVersion("1.12.0"))
-	openTofuV1110 := version.Must(version.NewVersion("1.11.0"))
+	openTofuV1120 := semver.MustParse("1.12.0")
+	openTofuV1110 := semver.MustParse("1.11.0")
 
 	testCases := []struct {
 		fs                   vfs.FS
 		environ              map[string]string
-		tfVersion            *version.Version
+		tfVersion            *semver.Version
 		name                 string
 		goos                 string
 		tfImpl               tfimpl.Type

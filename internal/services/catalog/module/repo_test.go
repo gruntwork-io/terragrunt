@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -58,20 +58,27 @@ func TestFindModules(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.repoPath, func(t *testing.T) {
 			t.Parallel()
-			// Unfortunately, we are unable to commit the `.git` directory. We have to temporarily rename it while running the tests.
-			os.Rename(filepath.Join(tc.repoPath, "gitdir"), filepath.Join(tc.repoPath, ".git"))
-			defer os.Rename(
-				filepath.Join(tc.repoPath, ".git"),
-				filepath.Join(tc.repoPath, "gitdir"),
-			)
+
+			// The fixture carries its git metadata as `gitdir`, because a real
+			// `.git` directory cannot be committed. Copying first keeps that
+			// rename out of the checked-out tree.
+			repoDir := filepath.Join(t.TempDir(), "repo")
+			require.NoError(t, os.CopyFS(repoDir, os.DirFS(tc.repoPath)))
+			require.NoError(t, os.Rename(
+				filepath.Join(repoDir, "gitdir"),
+				filepath.Join(repoDir, ".git"),
+			))
 
 			ctx := t.Context()
+
+			v := venvtest.NewOSWithEmptyEnv()
+			v.HTTP = vhttp.NewNoNetworkClient()
 
 			repo, err := module.NewRepo(
 				ctx,
 				logger.CreateLogger(),
-				venv.OSVenv(),
-				&module.RepoOpts{CloneURL: tc.repoPath},
+				v,
+				&module.RepoOpts{CloneURL: repoDir},
 			)
 			require.NoError(t, err)
 
@@ -110,6 +117,116 @@ func TestNewRepoRemoteCloneRejectsNonOSFS(t *testing.T) {
 		},
 	)
 	require.ErrorIs(t, err, module.ErrRemoteCloneFSNotOS)
+}
+
+// TestNewRepoCloneDirectoryName pins the directory name the catalog derives
+// from a clone URL. The prepared directory carries the clone-complete marker,
+// so [module.NewRepo] reads the repo in place instead of cloning. Any other
+// derived name sends it down the clone path, which the in-memory filesystem
+// refuses.
+func TestNewRepoCloneDirectoryName(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		cloneURL string
+	}{
+		{
+			name:     "https",
+			cloneURL: "https://github.com/acme/terraform-aws-modules.git",
+		},
+		{
+			name:     "https without .git",
+			cloneURL: "https://github.com/acme/terraform-aws-modules",
+		},
+		{
+			name:     "ssh scp-style",
+			cloneURL: "git@github.com:acme/terraform-aws-modules.git",
+		},
+		{
+			name:     "forced git getter",
+			cloneURL: "git::https://github.com/acme/terraform-aws-modules.git",
+		},
+		{
+			name:     "ref query parameter",
+			cloneURL: "https://github.com/acme/terraform-aws-modules.git?ref=v1.2.3",
+		},
+		{
+			name:     "fragment",
+			cloneURL: "https://github.com/acme/terraform-aws-modules.git#v1.2.3",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New()
+			cloneRoot := venvtest.Root("/catalog")
+			clonePath := filepath.Join(cloneRoot, "terraform-aws-modules")
+
+			writeFakeRepo(t, v.FS, clonePath)
+			require.NoError(t, vfs.WriteFile(
+				v.FS,
+				filepath.Join(clonePath, module.CloneCompleteSentinel),
+				nil,
+				0o644,
+			))
+
+			repo, err := module.NewRepo(
+				t.Context(),
+				logger.CreateLogger(),
+				v,
+				&module.RepoOpts{
+					CloneURL: tc.cloneURL,
+					Path:     cloneRoot,
+				},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, clonePath, repo.Path())
+		})
+	}
+}
+
+// TestNewRepoLocalSourceKeepsPath pins that the catalog reads a local source
+// where it sits, whatever the directory is called.
+func TestNewRepoLocalSourceKeepsPath(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+	localPath := filepath.Join(venvtest.Root("/catalog"), "terraform-aws-modules.git")
+
+	writeFakeRepo(t, v.FS, localPath)
+
+	repo, err := module.NewRepo(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		&module.RepoOpts{CloneURL: localPath, Path: venvtest.Root("/clone-root")},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, localPath, repo.Path())
+}
+
+// writeFakeRepo writes the git metadata [module.NewRepo] parses, so it reads
+// the directory as a repo without running a clone.
+func writeFakeRepo(t *testing.T, fsys vfs.FS, path string) {
+	t.Helper()
+
+	const config = `[remote "origin"]
+	url = https://github.com/acme/terraform-aws-modules.git
+`
+
+	gitDir := filepath.Join(path, ".git")
+	require.NoError(t, fsys.MkdirAll(gitDir, 0o755))
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(gitDir, "config"), []byte(config), 0o644),
+	)
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644),
+	)
 }
 
 func TestModuleURL(t *testing.T) {

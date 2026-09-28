@@ -79,9 +79,9 @@ func TestParser_ComplexDepthExpressions(t *testing.T) {
 			expected: "1...^name=foo | name=bar...",
 		},
 		{
-			name:     "parentheses treated as part of identifier",
-			input:    "1...(foo | bar)",
-			expected: "1...name=(foo | name=bar)",
+			name:     "parenthesized boundary in prefix slot",
+			input:    "(./envs/prod)...foo",
+			expected: "(./envs/prod)...name=foo",
 		},
 	}
 

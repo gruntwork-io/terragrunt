@@ -3,7 +3,6 @@ package run
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -14,19 +13,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
-	NoAutoInitFlagName                       = "no-auto-init"
 	NoAutoRetryFlagName                      = "no-auto-retry"
 	NoAutoApproveFlagName                    = "no-auto-approve"
 	NoAutoProviderCacheDirFlagName           = "no-auto-provider-cache-dir"
 	NoEngineFlagName                         = "no-engine"
 	NoDependencyFetchOutputFromStateFlagName = "no-dependency-fetch-output-from-state"
 	NoHooksFlagName                          = "no-hooks"
+	NoDependencyOutputsFlagName              = "no-dependency-outputs"
 	TFForwardStdoutFlagName                  = "tf-forward-stdout"
 	UnitsThatIncludeFlagName                 = "units-that-include"
 	DependencyFetchOutputFromStateFlagName   = "dependency-fetch-output-from-state"
@@ -38,8 +37,6 @@ const (
 	NoDestroyDependenciesCheckFlagName = "no-destroy-dependencies-check"
 	DestroyDependenciesCheckFlagName   = "destroy-dependencies-check"
 
-	SourceFlagName       = "source"
-	SourceMapFlagName    = "source-map"
 	SourceUpdateFlagName = "source-update"
 
 	NoStackGenerate = "no-stack-generate"
@@ -78,6 +75,11 @@ const (
 	// Config and download flags - use shared package constants
 	ConfigFlagName = shared.ConfigFlagName
 
+	// Source and auto-init flags - use shared package constants
+	NoAutoInitFlagName = shared.NoAutoInitFlagName
+	SourceFlagName     = shared.SourceFlagName
+	SourceMapFlagName  = shared.SourceMapFlagName
+
 	// Auth and IAM flags - use shared package constants
 	InputsDebugFlagName                   = shared.InputsDebugFlagName
 	IAMAssumeRoleFlagName                 = shared.IAMAssumeRoleFlagName
@@ -86,12 +88,8 @@ const (
 	IAMAssumeRoleWebIdentityTokenFlagName = shared.IAMAssumeRoleWebIdentityTokenFlagName
 )
 
-var ErrNoHooksRequiresExperiment = errors.New(
-	"--no-hooks requires the 'optional-hooks' experiment to be enabled (e.g., --experiment=optional-hooks)",
-)
-
 // NewFlags creates and returns global flags.
-func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	cmdFlags := clihelper.Flags{
@@ -147,16 +145,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 		shared.NewTFPathFlag(opts),
 
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        NoAutoInitFlagName,
-			EnvVars:     tgPrefix.EnvVars(NoAutoInitFlagName),
-			Usage:       "Don't automatically run 'terraform/tofu init' during other terragrunt commands. You must run 'terragrunt init' manually.",
-			Negative:    true,
-			Destination: &opts.AutoInit,
-		},
-			flags.WithDeprecatedFlag(&clihelper.BoolFlag{
-				EnvVars: terragruntPrefix.EnvVars("auto-init"),
-			}, nil, opts.StrictControls)),
+		shared.NewNoAutoInitFlag(opts, prefix),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoAutoRetryFlagName,
@@ -191,29 +180,19 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Name:        NoHooksFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoHooksFlagName),
 			Destination: &opts.NoRunHooks,
-			Usage:       "Disable Terragrunt hooks during run. Requires the 'optional-hooks' experiment.",
-			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
-				if !value {
-					return nil
-				}
+			Usage:       "Disable Terragrunt hooks during run.",
+		}),
 
-				if opts.Experiments.Evaluate(experiment.OptionalHooks) {
-					return nil
-				}
-
-				return ErrNoHooksRequiresExperiment
-			},
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:        NoDependencyOutputsFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoDependencyOutputsFlagName),
+			Destination: &opts.SkipOutput,
+			Usage:       "Skip all dependency output resolution. Dependency blocks will not call tofu/terraform output.",
 		}),
 
 		shared.NewDownloadDirFlag(opts, prefix),
 
-		flags.NewFlag(&clihelper.GenericFlag[string]{
-			Name:        SourceFlagName,
-			EnvVars:     tgPrefix.EnvVars(SourceFlagName),
-			Destination: &opts.Source,
-			Usage:       "Download OpenTofu/Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
-		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source"), opts.StrictControls)),
+		shared.NewSourceFlag(opts, prefix),
 
 		flags.NewFlag(
 			&clihelper.BoolFlag{
@@ -228,19 +207,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			),
 		),
 
-		flags.NewFlag(
-			&clihelper.MapFlag[string, string]{
-				Name:        SourceMapFlagName,
-				EnvVars:     tgPrefix.EnvVars(SourceMapFlagName),
-				Destination: &opts.SourceMap,
-				Usage:       "Replace any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest.",
-				Splitter:    util.SplitUrls,
-			},
-			flags.WithDeprecatedEnvVars(
-				terragruntPrefix.EnvVars("source-map"),
-				opts.StrictControls,
-			),
-		),
+		shared.NewSourceMapFlag(opts, prefix),
 
 		// Assume IAM Role flags.
 		shared.NewInputsDebugFlag(opts, prefix),
@@ -269,12 +236,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			&clihelper.BoolFlag{
 				Name:    DependencyFetchOutputFromStateFlagName,
 				EnvVars: tgPrefix.EnvVars(DependencyFetchOutputFromStateFlagName),
-				Usage:   "Enable the dependency-fetch-output-from-state experiment to fetch dependency output directly from the state file instead of using tofu/terraform output.",
-				Action: func(_ context.Context, _ *clihelper.Context, val bool) error {
+				Usage:   "Read dependency outputs directly from the state file. Enabled by default; retained for backwards compatibility.",
+				Action: func(ctx context.Context, _ *clihelper.Context, val bool) error {
 					if val {
-						return opts.Experiments.EnableExperiment(
-							experiment.DependencyFetchOutputFromState,
-						)
+						return opts.StrictControls.FilterByNames(controls.DependencyFetchOutputFromState).
+							Evaluate(ctx)
 					}
 
 					return nil
@@ -290,8 +256,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Name:        NoDependencyFetchOutputFromStateFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoDependencyFetchOutputFromStateFlagName),
 			Destination: &opts.NoDependencyFetchOutputFromState,
-			Usage:       "Disable the dependency-fetch-output-from-state feature even when the experiment is enabled.",
-			Hidden:      true,
+			Usage:       "Read dependency outputs by running tofu/terraform output instead of reading the state file directly.",
 		}),
 
 		flags.NewFlag(
@@ -632,7 +597,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	cmdFlags = cmdFlags.Add(shared.NewFailFastFlag(opts))
 	cmdFlags = cmdFlags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix)...)
 	cmdFlags = cmdFlags.Add(shared.NewQueueFlags(opts, prefix)...)
-	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts, v)...)
 	cmdFlags = cmdFlags.Add(shared.NewParallelismFlag(opts))
 	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, prefix)...)
 

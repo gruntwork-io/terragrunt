@@ -6,10 +6,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/text/cases"
@@ -32,6 +34,7 @@ var ErrPTYRequiresOSBackend = errors.New("PTY allocation requires an OS-backed v
 type Cmd struct {
 	vc                         vexec.Cmd
 	interruptSignal            os.Signal
+	notifier                   signal.NotifierFunc
 	filename                   string
 	dir                        string
 	forwardSignalDelay         time.Duration
@@ -39,22 +42,31 @@ type Cmd struct {
 	gracefulShutdownRegistered atomic.Bool
 }
 
-// Command returns a `Cmd` configured to execute the named program with
-// the given arguments via the provided vexec.Exec. PTY allocation requires
-// an OS-backed Exec; non-OS backends are accepted but `WithUsePTY(true)`
-// will fail at Start with ErrPTYRequiresOSBackend.
-func Command(ctx context.Context, e vexec.Exec, name string, args ...string) *Cmd {
-	vc := e.Command(ctx, name, args...)
+// Command returns a `Cmd` configured to execute the named program with the
+// given arguments through v's executor, with the three standard streams wired
+// to v's console handles and the child's environment set from v.Env, which
+// [WithEnv] overrides.
+// PTY allocation requires an OS-backed Exec; non-OS backends are accepted but
+// `WithUsePTY(true)` will fail at Start with ErrPTYRequiresOSBackend.
+func Command(ctx context.Context, v *venv.Venv, name string, args ...string) *Cmd {
+	v.RequireExec()
+	v.RequireStdin()
+	v.RequireWriters()
+	v.RequireEnv()
+
+	vc := v.Exec.Command(ctx, name, args...)
 
 	cmd := &Cmd{
 		vc:              vc,
 		filename:        filepath.Base(name),
 		interruptSignal: signal.InterruptSignal,
+		notifier:        signal.NotifierWithContext,
 	}
 
-	cmd.SetStdin(os.Stdin)
-	cmd.SetStdout(os.Stdout)
-	cmd.SetStderr(os.Stderr)
+	cmd.SetStdin(v.Stdin)
+	cmd.SetStdout(v.Writers.Writer)
+	cmd.SetStderr(v.Writers.ErrWriter)
+	cmd.SetEnv(venv.Environ(v.Env))
 
 	vc.SetWaitDelay(DefaultGracefulShutdownDelay)
 
@@ -66,10 +78,6 @@ func Command(ctx context.Context, e vexec.Exec, name string, args ...string) *Cm
 		sig := signal.SignalFromContext(ctx)
 		if sig == nil {
 			sig = cmd.interruptSignal
-		}
-
-		if sig == nil {
-			sig = os.Kill
 		}
 
 		if err := vc.Signal(sig); err != nil && !errors.Is(err, vexec.ErrProcessNotStarted) {
@@ -182,12 +190,13 @@ func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context, l log.Logger) fu
 // ForwardSignal forwards a given `sig` with a delay if cmd.forwardSignalDelay is greater than 0,
 // and if the same signal is received again, it is forwarded immediately.
 func (cmd *Cmd) ForwardSignal(ctx context.Context, l log.Logger, sig os.Signal) {
-	ctxDelay, cancelDelay := context.WithCancel(ctx)
-	defer cancelDelay()
+	escalate := make(chan struct{})
+	stopWaiting := sync.OnceFunc(func() { close(escalate) })
 
-	signal.NotifierWithContext(ctx, func(_ os.Signal) {
-		cancelDelay()
-	}, sig)
+	notifyCtx, stopNotifying := context.WithCancel(ctx)
+	defer stopNotifying()
+
+	cmd.notifier(notifyCtx, func(os.Signal) { stopWaiting() }, sig)
 
 	if cmd.forwardSignalDelay > 0 {
 		l.Debugf("%s signal will be forwarded to %s with delay %s",
@@ -197,11 +206,14 @@ func (cmd *Cmd) ForwardSignal(ctx context.Context, l log.Logger, sig os.Signal) 
 		)
 	}
 
+	// escalate is a plain channel rather than a context derived from ctx. A derived one
+	// would leave two ready cases here when the caller cancels, and select would forward
+	// the signal about half the time.
 	select {
 	case <-ctx.Done():
 		return
 	case <-time.After(cmd.forwardSignalDelay):
-	case <-ctxDelay.Done():
+	case <-escalate:
 	}
 
 	cmd.SendSignal(l, sig)

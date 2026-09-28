@@ -347,3 +347,28 @@ func TestOSCmder(t *testing.T) {
 	_, ok = memCmd.(vexec.OSCmder)
 	assert.False(t, ok, "in-memory Cmd must NOT implement OSCmder")
 }
+
+func TestNewNoSpawnExec(t *testing.T) {
+	t.Parallel()
+
+	e := vexec.NewNoSpawnExec()
+
+	err := e.Command(t.Context(), "git", "rev-parse", "--show-toplevel").Run()
+	require.ErrorIs(t, err, vexec.ErrNoSpawn)
+	assert.Contains(t, err.Error(), "git", "the error must name the command that was refused")
+
+	out, err := e.Command(t.Context(), "tofu", "output").Output()
+	require.ErrorIs(t, err, vexec.ErrNoSpawn)
+	assert.Empty(t, out)
+}
+
+// TestNewNoSpawnExecResolvesLookPath pins that a path lookup still succeeds, so
+// a caller that only probes for a binary is unaffected. NoLookPathExec closes
+// that off for tests that need it.
+func TestNewNoSpawnExecResolvesLookPath(t *testing.T) {
+	t.Parallel()
+
+	path, err := vexec.NewNoSpawnExec().LookPath("tofu")
+	require.NoError(t, err)
+	assert.Equal(t, "tofu", path)
+}

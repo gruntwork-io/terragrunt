@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -21,7 +21,7 @@ func TestCAS_Clone(t *testing.T) {
 	l := logger.CreateLogger()
 	repoURL := startTestServer(t)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	t.Run("clone new repository", func(t *testing.T) {
 		t.Parallel()
@@ -29,10 +29,10 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+		err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 			cas.WithDepth(-1))
 		require.NoError(t, err)
 
@@ -51,10 +51,10 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+		err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 			cas.WithBranch("main"),
 			cas.WithDepth(-1))
 		require.NoError(t, err)
@@ -70,10 +70,10 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		c, err := cas.New(cas.WithStorePath(storePath))
+		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(targetPath),
+		err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 			cas.WithIncludedGitFiles([]string{"HEAD", "config"}),
 			cas.WithDepth(-1))
 		require.NoError(t, err)
@@ -102,15 +102,15 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 	gitStoreRoot := filepath.Join(storePath, "git")
 	require.NoError(t, os.MkdirAll(gitStoreRoot, 0o755))
 
-	entry := cas.EntryPathForURL(gitStoreRoot, repoURL)
+	entry := cas.EntryPathForURL(gitStoreRoot, repoURL, cas.HashSHA256)
 	require.NoError(t, os.WriteFile(entry, []byte("not a directory"), 0o644))
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 		cas.WithDepth(-1))
 	require.NoError(t, err)
 
@@ -122,6 +122,77 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 	info, err := os.Stat(entry)
 	require.NoError(t, err)
 	assert.False(t, info.IsDir(), "fallback should not have replaced the blocking file")
+}
+
+// TestCAS_CloneTagShadowedByReleaseBranch pins that a tag clones from the
+// store when a branch ending in the tag name has moved past it.
+func TestCAS_CloneTagShadowedByReleaseBranch(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("tagged"), "init"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.2.3"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("moved"), "move ahead"))
+	require.NoError(t, srv.Branch(t.Context(), "release/v1.2.3"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+	targetPath := filepath.Join(tempDir, "repo")
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
+		cas.WithBranch("v1.2.3"))
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(targetPath, "README.md"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("tagged"), data)
+}
+
+// TestCAS_CloneTagShadowedByBranchWithoutGitStore pins that the fallback
+// taken when the central git store is unavailable picks a tag over a branch
+// of the same name.
+func TestCAS_CloneTagShadowedByBranchWithoutGitStore(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("tagged"), "init"))
+	require.NoError(t, srv.Tag(t.Context(), "v1.2.3"))
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("moved"), "move ahead"))
+	require.NoError(t, srv.Branch(t.Context(), "v1.2.3"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+	targetPath := filepath.Join(tempDir, "repo")
+
+	gitStoreRoot := filepath.Join(storePath, "git")
+	require.NoError(t, os.MkdirAll(gitStoreRoot, 0o755))
+
+	entry := cas.EntryPathForURL(gitStoreRoot, repoURL, cas.HashSHA256)
+	require.NoError(t, os.WriteFile(entry, []byte("not a directory"), 0o644))
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
+		cas.WithBranch("v1.2.3"))
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(targetPath, "README.md"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("tagged"), data)
 }
 
 // TestCAS_CloneRepoWithSymlink pins the fix for the stored-blob permission
@@ -143,12 +214,12 @@ func TestCAS_CloneRepoWithSymlink(t *testing.T) {
 	storePath := filepath.Join(tempDir, "store")
 	targetPath := filepath.Join(tempDir, "repo")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, repoURL, cas.WithDir(targetPath),
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL(repoURL), cas.WithDir(targetPath),
 		cas.WithDepth(-1))
 	require.NoError(t, err)
 
@@ -184,12 +255,12 @@ func TestCASRejectsNonOSFilesystem(t *testing.T) {
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venvtest.New()
 
-	err = c.Clone(t.Context(), logger.CreateLogger(), v, "https://example.com/repo.git",
+	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL("https://example.com/repo.git"),
 		cas.WithDir(filepath.Join(helpers.TmpDirWOSymlinks(t), "repo")),
 		cas.WithDepth(-1))
 	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)

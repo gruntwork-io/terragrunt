@@ -2,6 +2,7 @@
 package hclparse
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -24,12 +25,16 @@ const (
 	blockDependency  = "dependency"
 	blockLocals      = "locals"
 	blockAutoInclude = "autoinclude"
+	blockUnit        = "unit"
+	blockStack       = "stack"
 	attrConfigPath   = "config_path"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
 	varValues     = "values"
 	varDependency = blockDependency
+	varEach       = "each"
+	varCount      = "count"
 )
 
 const (
@@ -67,8 +72,12 @@ type ParseResult struct {
 }
 
 // ParseStackFile runs the phase flow and returns partial results when decode partially succeeds.
-func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
-	validateParseStackFileInput(fs, input)
+func ParseStackFile(
+	ctx context.Context,
+	fsys vfs.FS,
+	input *ParseStackFileInput,
+) (*ParseResult, error) {
+	validateParseStackFileInput(fsys, input)
 
 	result := &ParseResult{AutoIncludes: map[string]*AutoIncludeResolved{}}
 
@@ -91,7 +100,13 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
 	// Phase 3 resolves include blocks and merges included Remain bodies.
-	mergedRemain, err := mergeIncludes(fs, parsedStackFile, input.StackDir, evalCtx, srcByFilename)
+	mergedRemain, err := mergeIncludes(
+		fsys,
+		parsedStackFile,
+		input.StackDir,
+		evalCtx,
+		srcByFilename,
+	)
 	if err != nil {
 		return result, err
 	}
@@ -99,26 +114,26 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	// Publish unit.<name>.path / stack.<name>.path from a path-only pre-decode so the
 	// phase-4 decode can evaluate values expressions that reference sibling component
 	// paths, matching the production parse (injectStackComponentRefs in pkg/config).
-	publishComponentRefs(mergedRemain, evalCtx, input.StackDir)
-
-	// Phase 4 decodes unit/stack blocks and resolves autoincludes.
-	decoded := &unitsAndStacksHCL{}
-	if diags := gohcl.DecodeBody(mergedRemain, evalCtx, decoded); diags.HasErrors() {
-		// Surface partial Units/Stacks before the error so LSP/IDE callers can inspect them.
-		result.Units = decoded.Units
-		result.Stacks = decoded.Stacks
-
-		return result, FileDecodeError{Name: input.Filename, Err: diags}
-	}
-
-	result.Units = decoded.Units
-	result.Stacks = decoded.Stacks
-
-	if err := validateUniqueNames(decoded); err != nil {
+	if err := publishComponentRefs(ctx, mergedRemain, evalCtx, input.StackDir); err != nil {
 		return result, err
 	}
 
-	autoIncludes, err := resolveAutoIncludes(decoded.Units, decoded.Stacks, evalCtx, srcByFilename)
+	// Phase 4 decodes unit/stack blocks once per expansion element and resolves autoincludes.
+	units, stacks, err := decodeComponents(ctx, mergedRemain, evalCtx)
+
+	// Surface partial Units/Stacks before the error so LSP/IDE callers can inspect them.
+	result.Units = units
+	result.Stacks = stacks
+
+	if err != nil {
+		return result, FileDecodeError{Name: input.Filename, Err: err}
+	}
+
+	if err := validateUniqueNames(units, stacks); err != nil {
+		return result, err
+	}
+
+	autoIncludes, err := resolveAutoIncludes(ctx, units, stacks, srcByFilename)
 	if err != nil {
 		return result, err
 	}
@@ -129,14 +144,14 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 }
 
 // validateParseStackFileInput panics on malformed parser input.
-func validateParseStackFileInput(fs vfs.FS, input *ParseStackFileInput) {
-	if fs == nil {
+func validateParseStackFileInput(fsys vfs.FS, input *ParseStackFileInput) {
+	if fsys == nil {
 		filename := ""
 		if input != nil {
 			filename = input.Filename
 		}
 
-		panic(fmt.Sprintf("hclparse.ParseStackFile: fs is nil (filename=%q)", filename))
+		panic(fmt.Sprintf("hclparse.ParseStackFile: fsys is nil (filename=%q)", filename))
 	}
 
 	if input == nil {
@@ -190,30 +205,57 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	return evalCtx
 }
 
-// validateUniqueNames reports duplicate unit and stack names.
-func validateUniqueNames(decoded *unitsAndStacksHCL) error {
+// decodeComponents decodes every unit and stack block in body once per expansion element. The
+// instances that decoded are returned even when others did not.
+func decodeComponents(
+	ctx context.Context,
+	body hcl.Body,
+	evalCtx *hcl.EvalContext,
+) ([]*UnitBlockHCL, []*StackBlockHCL, error) {
+	content, _, diags := body.PartialContent(componentBlocksSchema())
+	if diags.HasErrors() {
+		return nil, nil, diags
+	}
+
+	units, unitErr := expandComponentBlocks[UnitBlockHCL](
+		ctx,
+		content.Blocks.OfType(blockUnit),
+		evalCtx,
+	)
+	stacks, stackErr := expandComponentBlocks[StackBlockHCL](
+		ctx,
+		content.Blocks.OfType(blockStack),
+		evalCtx,
+	)
+
+	return units, stacks, errors.Join(unitErr, stackErr)
+}
+
+// validateUniqueNames reports duplicate unit and stack addresses. The elements of one expanded
+// block share its label but not its address.
+func validateUniqueNames(units []*UnitBlockHCL, stacks []*StackBlockHCL) error {
 	var errs []error
 
-	seenUnits := make(map[string]struct{}, len(decoded.Units))
+	seenUnits := make(map[string]struct{}, len(units))
 
-	for _, u := range decoded.Units {
-		if _, exists := seenUnits[u.Name]; exists {
+	for _, u := range units {
+		if _, exists := seenUnits[u.Address()]; exists {
 			errs = append(errs, DuplicateUnitNameError{Name: u.Name})
 			continue
 		}
 
-		seenUnits[u.Name] = struct{}{}
+		seenUnits[u.Address()] = struct{}{}
 	}
 
-	seenStacks := make(map[string]struct{}, len(decoded.Stacks))
+	seenStacks := make(map[string]struct{}, len(stacks))
 
-	for _, s := range decoded.Stacks {
-		if _, exists := seenStacks[s.Name]; exists {
+	for _, s := range stacks {
+		if _, exists := seenStacks[s.Address()]; exists {
 			errs = append(errs, DuplicateStackNameError{Name: s.Name})
 			continue
 		}
 
-		seenStacks[s.Name] = struct{}{}
+		seenStacks[s.Address()] = struct{}{}
 	}
 
 	return errors.Join(errs...)
@@ -223,22 +265,43 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 // from a path-only decode of body (the discovery shapes), leaving source, values, and
 // autoinclude content unevaluated. Running it before the phase-4 decode lets values
 // expressions reference sibling component paths, matching the production parse
-// (injectStackComponentRefs in pkg/config). A failed path-only decode publishes
-// nothing and reports no error: the phase-4 decode evaluates a superset of the same
-// attributes against the same context, so it surfaces the identical diagnostics
-// along with partial results.
-func publishComponentRefs(body hcl.Body, evalCtx *hcl.EvalContext, stackDir string) {
-	headers := &discoveryDecode{}
-	if diags := gohcl.DecodeBody(body, evalCtx, headers); diags.HasErrors() {
-		return
+// (injectStackComponentRefs in pkg/config).
+//
+// A failed path-only decode publishes nothing and reports no error: the phase-4 decode
+// evaluates a superset of the same attributes against the same context, so it surfaces
+// the identical diagnostics along with partial results.
+//
+// Returns [ComponentRefCollisionError] when a label names both an unexpanded and an expanded
+// block, which the phase-4 decode accepts.
+func publishComponentRefs(
+	ctx context.Context,
+	body hcl.Body,
+	evalCtx *hcl.EvalContext,
+	stackDir string,
+) error {
+	headers, decoded := pathOnlyHeaders(ctx, body, evalCtx)
+	if !decoded {
+		return nil
 	}
 
-	evalCtx.Variables[VarUnit] = BuildComponentRefMap(
-		buildDiscoveryUnitRefs(headers.Units, stackDir),
-	)
-	evalCtx.Variables[VarStack] = BuildComponentRefMap(
-		buildDiscoveryStackRefs(headers.Stacks, stackDir),
-	)
+	return setComponentRefVars(evalCtx, headers, stackDir)
+}
+
+// pathOnlyHeaders decodes the path-only shape of every unit and stack block in body, and reports
+// whether the whole decode succeeded.
+func pathOnlyHeaders(
+	ctx context.Context,
+	body hcl.Body,
+	evalCtx *hcl.EvalContext,
+) (*discoveryDecode, bool) {
+	content, _, diags := body.PartialContent(componentBlocksSchema())
+	if diags.HasErrors() {
+		return nil, false
+	}
+
+	headers, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
+
+	return headers, err == nil
 }
 
 // maxLocalsIterations bounds the fixed-point loop in evaluateLocals as a safeguard against pathological inputs.
@@ -391,7 +454,7 @@ type resolvedInclude struct {
 
 // mergeIncludes resolves include paths and merges included Remain bodies.
 func mergeIncludes(
-	fs vfs.FS,
+	fsys vfs.FS,
 	parsedFile *StackFileHCL,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
@@ -400,7 +463,7 @@ func mergeIncludes(
 	bodies := []hcl.Body{parsedFile.Remain}
 
 	for _, inc := range parsedFile.Includes {
-		resolved, err := mergeOneInclude(fs, inc, stackDir, evalCtx)
+		resolved, err := mergeOneInclude(fsys, inc, stackDir, evalCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -419,7 +482,7 @@ func mergeIncludes(
 
 // mergeOneInclude reads and parses one included file.
 func mergeOneInclude(
-	fs vfs.FS,
+	fsys vfs.FS,
 	inc *StackIncludeHCL,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
@@ -473,7 +536,7 @@ func mergeOneInclude(
 		includePath = filepath.Join(stackDir, includePath)
 	}
 
-	data, err := vfs.ReadFile(fs, includePath)
+	data, err := vfs.ReadFile(fsys, includePath)
 	if err != nil {
 		return resolvedInclude{}, FileReadError{FilePath: includePath, Err: err}
 	}
@@ -514,16 +577,20 @@ func autoIncludeSourceBytes(srcByFilename map[string][]byte, autoInclude *AutoIn
 	return srcByFilename[syntaxBody.Range().Filename]
 }
 
-// AutoIncludeKey returns the map key for an autoinclude entry, namespaced by component kind to prevent collisions between same-name units and stacks.
-func AutoIncludeKey(kind AutoIncludeKind, name string) string {
-	return string(kind) + ":" + name
+// AutoIncludeKey returns the map key for the autoinclude of the component at address (see
+// [UnitBlockHCL.Address]), namespaced by component kind to prevent collisions between same-name
+// units and stacks.
+func AutoIncludeKey(kind AutoIncludeKind, address string) string {
+	return string(kind) + ":" + address
 }
 
-// resolveAutoIncludes resolves autoinclude blocks for all units and stacks; keys are namespaced as "unit:name" and "stack:name".
+// resolveAutoIncludes resolves autoinclude blocks for all units and stacks, keyed by
+// [AutoIncludeKey]. Each autoinclude resolves in the eval context its component instance decoded
+// in, so it sees the same each.* or count.index as the rest of the block.
 func resolveAutoIncludes(
+	ctx context.Context,
 	units []*UnitBlockHCL,
 	stacks []*StackBlockHCL,
-	evalCtx *hcl.EvalContext,
 	srcByFilename map[string][]byte,
 ) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
@@ -534,8 +601,9 @@ func resolveAutoIncludes(
 		}
 
 		resolved, err := resolveAutoInclude(
+			ctx,
 			unit.AutoInclude,
-			evalCtx,
+			unit.evalCtx,
 			KindUnit,
 			unit.Name,
 			autoIncludeSourceBytes(srcByFilename, unit.AutoInclude),
@@ -545,7 +613,7 @@ func resolveAutoIncludes(
 		}
 
 		if resolved != nil {
-			autoIncludes[AutoIncludeKey(KindUnit, unit.Name)] = resolved
+			autoIncludes[AutoIncludeKey(KindUnit, unit.Address())] = resolved
 		}
 	}
 
@@ -555,8 +623,9 @@ func resolveAutoIncludes(
 		}
 
 		resolved, err := resolveAutoInclude(
+			ctx,
 			stack.AutoInclude,
-			evalCtx,
+			stack.evalCtx,
 			KindStack,
 			stack.Name,
 			autoIncludeSourceBytes(srcByFilename, stack.AutoInclude),
@@ -566,7 +635,7 @@ func resolveAutoIncludes(
 		}
 
 		if resolved != nil {
-			autoIncludes[AutoIncludeKey(KindStack, stack.Name)] = resolved
+			autoIncludes[AutoIncludeKey(KindStack, stack.Address())] = resolved
 		}
 	}
 
@@ -575,13 +644,14 @@ func resolveAutoIncludes(
 
 // resolveAutoInclude resolves a single autoinclude block, attaches the eval context, tags it with the component kind so the generator picks the right filename, and records the originating file's bytes for include-aware expression slicing.
 func resolveAutoInclude(
+	ctx context.Context,
 	autoInclude *AutoIncludeHCL,
 	evalCtx *hcl.EvalContext,
 	kind AutoIncludeKind,
 	name string,
 	sourceBytes []byte,
 ) (*AutoIncludeResolved, error) {
-	resolved, diags := autoInclude.ResolveForKind(evalCtx, kind, name)
+	resolved, diags := autoInclude.ResolveForKind(ctx, evalCtx, kind, name)
 	if diags.HasErrors() {
 		if typed := autoIncludeTypedErr(diags); typed != nil {
 			return nil, typed

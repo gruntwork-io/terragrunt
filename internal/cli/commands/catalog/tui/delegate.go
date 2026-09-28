@@ -9,6 +9,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // Pill and metadata color constants.
@@ -76,7 +79,7 @@ type catalogDelegate struct {
 	tagsLayout TagsListLayout
 }
 
-func newCatalogDelegate(keys *DelegateKeyMap) catalogDelegate {
+func newCatalogDelegate(env map[string]string, keys *DelegateKeyMap) catalogDelegate {
 	// Use the same default item styles as the production delegate, with our color overrides.
 	styles := list.NewDefaultItemStyles(true)
 
@@ -107,7 +110,7 @@ func newCatalogDelegate(keys *DelegateKeyMap) catalogDelegate {
 		fullHelp: func() [][]key.Binding {
 			return [][]key.Binding{help}
 		},
-		tagsLayout: ResolveTagsListLayout(),
+		tagsLayout: ResolveTagsListLayout(env),
 	}
 }
 
@@ -284,7 +287,7 @@ func styleMetaLine(
 }
 
 // metaPalette returns pill/text styles for the metadata row based on component kind and selection state.
-func metaPalette(kind ComponentKind, selected, dimmed bool) catalogMetaColors {
+func metaPalette(kind component.Kind, selected, dimmed bool) catalogMetaColors {
 	if dimmed {
 		muted := lipgloss.Color(metaMuted)
 
@@ -300,16 +303,16 @@ func metaPalette(kind ComponentKind, selected, dimmed bool) catalogMetaColors {
 	pillBgSel, pillFgSel := modulePillBgS, modulePillFgS
 
 	switch kind {
-	case ComponentKindTemplate:
+	case component.KindTemplate:
 		pillBg, pillFg = templatePillBg, templatePillFg
 		pillBgSel, pillFgSel = templatePillBgS, templatePillFgS
-	case ComponentKindUnit:
+	case component.KindUnit:
 		pillBg, pillFg = unitPillBg, unitPillFg
 		pillBgSel, pillFgSel = unitPillBgS, unitPillFgS
-	case ComponentKindStack:
+	case component.KindStack:
 		pillBg, pillFg = stackPillBg, stackPillFg
 		pillBgSel, pillFgSel = stackPillBgS, stackPillFgS
-	case ComponentKindModule:
+	case component.KindModule:
 		// Defaults already applied above.
 	}
 
@@ -344,9 +347,9 @@ func metaPalette(kind ComponentKind, selected, dimmed bool) catalogMetaColors {
 
 // Color constants from the production delegate, reused here for consistency.
 const (
-	selectedTitleForegroundColorDark       = "#63C5DA"
-	selectedTitleBorderForegroundColorDark = "#63C5DA"
+	selectedTitleForegroundColorDark       = viewtui.SelectionBlue
+	selectedTitleBorderForegroundColorDark = viewtui.SelectionBlue
 
 	selectedDescForegroundColorDark       = "#8AA3B5"
-	selectedDescBorderForegroundColorDark = "#63C5DA"
+	selectedDescBorderForegroundColorDark = viewtui.SelectionBlue
 )

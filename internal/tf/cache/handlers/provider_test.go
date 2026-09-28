@@ -10,6 +10,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/stretchr/testify/assert"
@@ -127,7 +129,14 @@ func TestProviderHandlers_DiscoveryURL_WithNetworkMirrorForBlockedRegistry(t *te
 		},
 	}
 
-	providerHandlers, err := handlers.NewProviderHandlers(cfg, log.New(), nil)
+	providerHandlers, err := handlers.NewProviderHandlers(
+		cfg,
+		log.New(),
+		vhttp.NewNoNetworkClient(),
+		vfs.NewMemMapFS(),
+		map[string]string{},
+		nil,
+	)
 	require.NoError(t, err)
 
 	urls, err := providerHandlers.DiscoveryURL(context.Background(), "blocked-registry.invalid")

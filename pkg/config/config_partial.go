@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
 
@@ -160,10 +161,12 @@ type TerragruntDependency struct {
 	Dependencies Dependencies `hcl:"dependency,block"`
 }
 
-// terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config
+// terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config.
+// It decodes remote_state written as either a block or an attribute, as [terragruntConfigFile] does.
 type terragruntRemoteState struct {
-	RemoteState *remotestate.ConfigFile `hcl:"remote_state,block"`
-	Remain      hcl.Body                `hcl:",remain"`
+	RemoteState     *remotestate.ConfigFile `hcl:"remote_state,block"`
+	RemoteStateAttr *cty.Value              `hcl:"remote_state,optional"`
+	Remain          hcl.Body                `hcl:",remain"`
 }
 
 // terragruntEngine is a struct that can only be used to decode the engine block.
@@ -180,14 +183,15 @@ type terragruntEngine struct {
 // - include
 func DecodeBaseBlocks(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
 ) (*DecodedBaseBlocks, error) {
 	var errs []error
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +210,7 @@ func DecodeBaseBlocks(
 		errs = append(errs, err)
 	}
 
-	registerSiblingAutoInclude(pctx, file.ConfigPath, trackInclude)
+	registerSiblingAutoInclude(v, pctx, file.ConfigPath, trackInclude)
 
 	// set feature flags
 	tgFlags := terragruntFeatureFlags{}
@@ -230,7 +234,22 @@ func DecodeBaseBlocks(
 
 	errs = append(errs, flagErrs...)
 
-	flagsAsCtyVal, err := flagsAsCty(pctx, tgFlags.FeatureFlags)
+	// Feature defaults from includes must be visible while decoding base blocks like
+	// locals and exclude, but they must remain local to this parse instead of being
+	// stored in shared command options.
+	mergedFeatureFlags, err := mergeIncludedFeatureFlags(
+		ctx,
+		l,
+		v,
+		pctx,
+		trackInclude,
+		tgFlags.FeatureFlags,
+	)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	flagsAsCtyVal, err := flagsAsCty(pctx, mergedFeatureFlags)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -239,8 +258,9 @@ func DecodeBaseBlocks(
 	// evaluation ctx.
 	locals, err := EvaluateLocalsBlock(
 		ctx,
-		pctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal),
 		l,
+		v,
+		pctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal),
 		file,
 	)
 	if err != nil {
@@ -259,6 +279,89 @@ func DecodeBaseBlocks(
 	}, errors.Join(errs...)
 }
 
+// mergeIncludedFeatureFlags merges feature defaults from included configs into the current parse.
+func mergeIncludedFeatureFlags(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	trackInclude *TrackInclude,
+	childFlags FeatureFlags,
+) (FeatureFlags, error) {
+	if trackInclude == nil || len(trackInclude.CurrentList) == 0 {
+		return childFlags, nil
+	}
+
+	baseConfig := &TerragruntConfig{FeatureFlags: childFlags}
+	includePctx := pctx.WithTrackInclude(trackInclude).WithDecodeList(FeatureFlagsBlock)
+
+	for _, includeConfig := range slices.Backward(trackInclude.CurrentList) {
+		mergeStrategy, err := includeConfig.GetMergeStrategy()
+		if err != nil {
+			return childFlags, err
+		}
+
+		if mergeStrategy == NoMerge {
+			continue
+		}
+
+		parsedIncludeConfig, err := partialParseIncludedConfig(ctx, l, v, includePctx, &includeConfig)
+		if err != nil {
+			return childFlags, err
+		}
+
+		mergedConfig, err := mergeFeatureFlagConfig(
+			l,
+			mergeStrategy,
+			baseConfig,
+			parsedIncludeConfig.FeatureFlags,
+		)
+		if err != nil {
+			return childFlags, err
+		}
+
+		baseConfig = mergedConfig
+	}
+
+	return baseConfig.FeatureFlags, nil
+}
+
+// mergeFeatureFlagConfig applies an include merge strategy to feature defaults only.
+func mergeFeatureFlagConfig(
+	l log.Logger,
+	mergeStrategy MergeStrategyType,
+	baseConfig *TerragruntConfig,
+	includeFlags FeatureFlags,
+) (*TerragruntConfig, error) {
+	includeOnlyConfig := &TerragruntConfig{FeatureFlags: includeFlags}
+
+	switch mergeStrategy {
+	case NoMerge:
+		return baseConfig, nil
+	case ShallowMerge:
+		if err := includeOnlyConfig.Merge(l, baseConfig); err != nil {
+			return nil, err
+		}
+	case DeepMerge:
+		if err := includeOnlyConfig.DeepMerge(l, baseConfig); err != nil {
+			return nil, err
+		}
+	case DeepMergeMapOnly:
+		return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
+	default:
+		return nil, fmt.Errorf(
+			"you reached an impossible condition. "+
+				"This is most likely a bug in terragrunt. "+
+				"Please open an issue at github.com/gruntwork-io/terragrunt "+
+				"with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s",
+			mergeStrategy,
+		)
+	}
+
+	return includeOnlyConfig, nil
+}
+
+// flagsAsCty converts feature flag defaults and CLI overrides into the evaluation context value.
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	// extract all flags in map by name
 	flagByName := map[string]*FeatureFlag{}
@@ -311,15 +414,9 @@ func cliFlagsToCty(
 	ctx *ParsingContext,
 	flagByName map[string]*FeatureFlag,
 ) (map[string]cty.Value, error) {
-	if ctx.FeatureFlags == nil {
-		return make(map[string]cty.Value), nil
-	}
-
 	evaluatedFlags := make(map[string]cty.Value)
 
-	var conversionErr error
-
-	ctx.FeatureFlags.Range(func(name, value string) bool {
+	for name, value := range ctx.FeatureFlags {
 		var flag cty.Value
 
 		var err error
@@ -331,42 +428,36 @@ func cliFlagsToCty(
 		}
 
 		if err != nil {
-			conversionErr = err
-
-			return false
+			return nil, err
 		}
 
 		evaluatedFlags[name] = flag
-
-		return true
-	})
-
-	if conversionErr != nil {
-		return nil, conversionErr
 	}
 
 	return evaluatedFlags, nil
 }
 
+// PartialParseConfigFile partially parses the Terragrunt config file at the given path.
 func PartialParseConfigFile(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
-	configPath string,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	cfgPath string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
-	fileInfo, err := os.Stat(configPath)
+	fileInfo, err := v.FS.Stat(cfgPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, TerragruntConfigNotFoundError{Path: configPath}
+			return nil, TerragruntConfigNotFoundError{Path: cfgPath}
 		}
 
 		return nil, err
 	}
 
-	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", cfgPath, fileInfo.ModTime().UnixMicro())
 
 	// Check cache hit status before tracing
 	_, cacheHit := hclCache.Get(ctx, cacheKey)
@@ -376,7 +467,7 @@ func PartialParseConfigFile(
 	err = TraceParseConfigFile(
 		ctx,
 		l,
-		configPath,
+		cfgPath,
 		pctx.WorkingDir,
 		true, // isPartial
 		pctx.PartialParseDecodeList,
@@ -386,11 +477,12 @@ func PartialParseConfigFile(
 			var file *hclparse.File
 
 			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-				file = cacheConfig.Rebind(hclparse.NewParser(pctx.ParserOptions...))
+				file = cacheConfig.Rebind(pctx.NewParser(l, v))
 			} else {
 				var parseErr error
 
-				file, parseErr = hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(configPath)
+				file, parseErr = pctx.NewParser(l, v).
+					ParseFromFile(v.FS, cfgPath)
 				if parseErr != nil {
 					return parseErr
 				}
@@ -400,7 +492,7 @@ func PartialParseConfigFile(
 
 			var parseErr error
 
-			config, parseErr = TerragruntConfigFromPartialConfig(ctx, pctx, l, file, include)
+			config, parseErr = TerragruntConfigFromPartialConfig(ctx, l, v, pctx, file, include)
 
 			return parseErr
 		})
@@ -413,11 +505,16 @@ func PartialParseConfigFile(
 // by getting the default value (%#v) through fmt.
 func TerragruntConfigFromPartialConfig(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
 ) (*TerragruntConfig, error) {
+	if !pctx.UsePartialParseConfigCache {
+		return PartialParseConfig(ctx, l, v, pctx, file, includeFromChild)
+	}
+
 	cacheKey := fmt.Sprintf(
 		"%#v-%#v-%#v-%#v-%#v",
 		file.ConfigPath,
@@ -428,41 +525,38 @@ func TerragruntConfigFromPartialConfig(
 	)
 
 	// Fold the sibling autoinclude existence and content into the key so an in-process create, remove, or edit cannot return a stale entry, with the merge experiment-gated so the experiment-off key is byte-for-byte unchanged.
-	cacheKey += autoIncludeCacheKeySuffix(ctx, pctx, file.ConfigPath)
+	cacheKey += autoIncludeCacheKeySuffix(ctx, v, pctx, file.ConfigPath)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](
 		ctx,
 		TerragruntConfigCacheContextKey,
 	)
-	if pctx.UsePartialParseConfigCache {
-		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
-			l.Debugf(
-				"Cache hit for '%s' (partial parsing), decodeList: '%v'.",
-				pctx.TerragruntConfigPath,
-				pctx.PartialParseDecodeList,
-			)
 
-			deepCopy := clone.Clone(config).(*TerragruntConfig)
-
-			return deepCopy, nil
-		}
-
+	if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
 		l.Debugf(
-			"Cache miss for '%s' (partial parsing), decodeList: '%v'.",
+			"Cache hit for '%s' (partial parsing), decodeList: '%v'.",
 			pctx.TerragruntConfigPath,
 			pctx.PartialParseDecodeList,
 		)
+
+		deepCopy := clone.Clone(config).(*TerragruntConfig)
+
+		return deepCopy, nil
 	}
 
-	config, err := PartialParseConfig(ctx, pctx, l, file, includeFromChild)
+	l.Debugf(
+		"Cache miss for '%s' (partial parsing), decodeList: '%v'.",
+		pctx.TerragruntConfigPath,
+		pctx.PartialParseDecodeList,
+	)
+
+	config, err := PartialParseConfig(ctx, l, v, pctx, file, includeFromChild)
 	if err != nil {
 		return config, err
 	}
 
-	if pctx.UsePartialParseConfigCache {
-		putConfig := clone.Clone(config).(*TerragruntConfig)
-		terragruntConfigCache.Put(ctx, cacheKey, putConfig)
-	}
+	putConfig := clone.Clone(config).(*TerragruntConfig)
+	terragruntConfigCache.Put(ctx, cacheKey, putConfig)
 
 	return config, nil
 }
@@ -488,23 +582,26 @@ func TerragruntConfigFromPartialConfig(
 // - inputs
 func PartialParseConfigString(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
-	configPath, configString string,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	cfgPath, configString string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
-	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromString(configString, configPath)
+	file, err := pctx.NewParser(l, v).ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return PartialParseConfig(ctx, pctx, l, file, include)
+	return PartialParseConfig(ctx, l, v, pctx, file, include)
 }
 
+// PartialParseConfig partially parses the requested sections from a parsed Terragrunt config file.
 func PartialParseConfig(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
 ) (*TerragruntConfig, error) {
@@ -518,6 +615,10 @@ func PartialParseConfig(
 		return nil, err
 	}
 
+	if err := ValidateExpansionSpelling(file); err != nil {
+		return nil, err
+	}
+
 	if includeFromChild != nil && includeFromChild.Path != "" &&
 		!filepath.IsAbs(includeFromChild.Path) {
 		includeFromChild.Path = filepath.Clean(
@@ -528,7 +629,7 @@ func PartialParseConfig(
 	pctx = pctx.WithTrackInclude(nil)
 
 	// read unit files and add to context
-	unitValues, err := ReadValues(ctx, pctx, l, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +638,7 @@ func PartialParseConfig(
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.
-	baseBlocks, err := DecodeBaseBlocks(ctx, pctx, l, file, includeFromChild)
+	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, pctx, file, includeFromChild)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -549,7 +650,7 @@ func PartialParseConfig(
 	}
 
 	// Set parsed Locals on the parsed config
-	output, err := convertToTerragruntConfig(ctx, pctx, file.ConfigPath, &terragruntConfigFile{})
+	output, err := convertToTerragruntConfig(v, pctx, file.ConfigPath, &terragruntConfigFile{})
 	if err != nil {
 		return nil, err
 	}
@@ -563,7 +664,7 @@ func PartialParseConfig(
 		pctx.DecodedDependencies = &dynamicVal
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -630,12 +731,19 @@ func PartialParseConfig(
 			}
 
 		case DependencyBlock:
-			decoded := TerragruntDependency{}
-
-			err := file.Decode(&decoded, evalParsingContext)
+			decodedDeps, err := decodeDependencyBlocksWithAutoIncludeOverrides(
+				ctx,
+				l,
+				v,
+				pctx,
+				file,
+				evalParsingContext,
+			)
 			if err != nil {
 				return nil, err
 			}
+
+			decoded := TerragruntDependency{Dependencies: decodedDeps}
 
 			// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()
@@ -716,6 +824,15 @@ func PartialParseConfig(
 
 				output.RemoteState = remotestate.New(config)
 			}
+
+			if decoded.RemoteStateAttr != nil {
+				remoteState, err := remoteStateFromAttr(*decoded.RemoteStateAttr)
+				if err != nil {
+					return nil, err
+				}
+
+				output.RemoteState = remoteState
+			}
 		case FeatureFlagsBlock:
 			decoded := terragruntFeatureFlags{}
 
@@ -766,7 +883,7 @@ func PartialParseConfig(
 	}
 
 	if output.Terraform != nil && output.Terraform.Source != nil {
-		markLocalModuleSourceAsRead(pctx, file.ConfigPath, *output.Terraform.Source)
+		markLocalModuleSourceAsRead(v, pctx, file.ConfigPath, *output.Terraform.Source)
 	}
 
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
@@ -775,7 +892,7 @@ func PartialParseConfig(
 	// default. Skip the merge in that case and let the error surface at the return below.
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 &&
 		!errsContainsIncludeErr {
-		config, err := handleInclude(ctx, pctx, l, output, true)
+		config, err := handleInclude(ctx, l, v, pctx, output, true)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -794,7 +911,7 @@ func PartialParseConfig(
 
 	// Materialize the current file's exclude after includes merge so included feature flags resolve, and before the autoinclude merge so the autoinclude wins on top.
 	if hasExcludeBlock {
-		excludeOutput, err := processExcludes(ctx, pctx, l, output, file)
+		excludeOutput, err := processExcludes(ctx, l, v, pctx, output, file)
 		if err != nil {
 			return nil, err
 		}
@@ -803,7 +920,7 @@ func PartialParseConfig(
 	}
 
 	// Merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
-	if err := mergeAutoIncludePartialIfPresent(ctx, pctx, l, output); err != nil {
+	if err := mergeAutoIncludePartialIfPresent(ctx, l, v, pctx, output); err != nil {
 		return nil, err
 	}
 
@@ -813,8 +930,9 @@ func PartialParseConfig(
 // processExcludes evaluate exclude blocks and merge them into the config.
 func processExcludes(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	config *TerragruntConfig,
 	file *hclparse.File,
 ) (*TerragruntConfig, error) {
@@ -823,7 +941,7 @@ func processExcludes(
 		return nil, err
 	}
 
-	excludeConfig, err := evaluateExcludeBlocks(ctx, pctx.WithFeatures(&flagsAsCtyVal), l, file)
+	excludeConfig, err := evaluateExcludeBlocks(ctx, l, v, pctx.WithFeatures(&flagsAsCtyVal), file)
 	if err != nil {
 		return nil, err
 	}
@@ -841,10 +959,12 @@ func processExcludes(
 	return config, nil
 }
 
+// partialParseIncludedConfig partially parses an included Terragrunt config.
 func partialParseIncludedConfig(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	includedConfig *IncludeConfig,
 ) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
@@ -855,15 +975,15 @@ func partialParseIncludedConfig(
 
 	config, err := PartialParseConfigFile(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		includePath,
 		includedConfig,
 	)
 	if err != nil {
 		// Convert generic config not found error to include-specific error
-		var configNotFoundError TerragruntConfigNotFoundError
-		if errors.As(err, &configNotFoundError) {
+		if _, ok := errors.AsType[TerragruntConfigNotFoundError](err); ok {
 			return nil, IncludeConfigNotFoundError{
 				IncludePath: includePath,
 				SourcePath:  pctx.TerragruntConfigPath,
@@ -876,8 +996,8 @@ func partialParseIncludedConfig(
 	return config, nil
 }
 
-// This decodes only the `include` blocks of a terragrunt config, so its value can be used while decoding the rest of
-// the config.
+// decodeAsTerragruntInclude decodes only the include blocks of a Terragrunt config, so its value can be used while
+// decoding the rest of the config.
 // For consistency, `include` in the call to `file.Decode` is always assumed to be nil. Either it really is nil (parsing
 // the child config), or it shouldn't be used anyway (the parent config shouldn't have an include block).
 func decodeAsTerragruntInclude(
@@ -894,20 +1014,21 @@ func decodeAsTerragruntInclude(
 
 // registerSiblingAutoInclude records the sibling terragrunt.autoinclude.hcl on trackInclude as a high-priority override when it is in scope and exists, so the merge consumers read one registered entry instead of recomputing the gate.
 func registerSiblingAutoInclude(
+	v *venv.Venv,
 	pctx *ParsingContext,
-	configPath string,
+	cfgPath string,
 	trackInclude *TrackInclude,
 ) {
 	if trackInclude == nil {
 		return
 	}
 
-	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, cfgPath)
 	if !ok {
 		return
 	}
 
-	if !util.FileExists(autoIncludePath) {
+	if !vfs.Exists(v.FS, autoIncludePath) {
 		return
 	}
 
@@ -917,8 +1038,9 @@ func registerSiblingAutoInclude(
 // mergeAutoIncludePartialIfPresent merges the registered sibling autoinclude override into a partial output using the same decode list, shallow, with the autoinclude winning, matching a regular include's default merge strategy.
 func mergeAutoIncludePartialIfPresent(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	output *TerragruntConfig,
 ) error {
 	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
@@ -933,7 +1055,7 @@ func mergeAutoIncludePartialIfPresent(
 	clonedPctx.skipAutoIncludeMerge = true
 	clonedPctx = clonedPctx.WithDecodeList(pctx.PartialParseDecodeList...)
 
-	autoIncludeConfig, err := PartialParseConfigFile(ctx, clonedPctx, l, autoIncludePath, nil)
+	autoIncludeConfig, err := PartialParseConfigFile(ctx, l, v, clonedPctx, autoIncludePath, nil)
 	if err != nil {
 		return fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
@@ -1026,10 +1148,11 @@ func reconcileAutoIncludeModulePaths(
 // autoIncludeCacheKeySuffix folds the sibling autoinclude existence and content into the partial-parse cache key when the StackDependencies experiment is on, returning the empty string with the experiment off so the existing key stays byte-for-byte unchanged.
 func autoIncludeCacheKeySuffix(
 	ctx context.Context,
+	v *venv.Venv,
 	pctx *ParsingContext,
-	configPath string,
+	cfgPath string,
 ) string {
-	autoIncludePath, ok := siblingAutoIncludePath(pctx, configPath)
+	autoIncludePath, ok := siblingAutoIncludePath(pctx, cfgPath)
 	if !ok {
 		return ""
 	}
@@ -1038,7 +1161,7 @@ func autoIncludeCacheKeySuffix(
 
 	// Fingerprint the sibling cheaply so a cache hit reuses the content based suffix without re-reading the file.
 	fingerprint := autoIncludePath
-	if info, statErr := os.Stat(autoIncludePath); statErr == nil {
+	if info, statErr := v.FS.Stat(autoIncludePath); statErr == nil {
 		fingerprint = fmt.Sprintf(
 			"%s-%d-%d",
 			autoIncludePath,
@@ -1051,19 +1174,19 @@ func autoIncludeCacheKeySuffix(
 		return suffix
 	}
 
-	suffix := autoIncludeContentSuffix(autoIncludePath)
+	suffix := autoIncludeContentSuffix(v.FS, autoIncludePath)
 	memo.Put(ctx, fingerprint, suffix)
 
 	return suffix
 }
 
 // autoIncludeContentSuffix folds the sibling autoinclude existence and content into the cache key, with distinct sentinels for absent and unreadable.
-func autoIncludeContentSuffix(autoIncludePath string) string {
-	if !util.FileExists(autoIncludePath) {
+func autoIncludeContentSuffix(fsys vfs.FS, autoIncludePath string) string {
+	if !vfs.Exists(fsys, autoIncludePath) {
 		return fmt.Sprintf("-autoinclude:%#v", false)
 	}
 
-	content, err := util.ReadFileAsString(autoIncludePath)
+	content, err := vfs.ReadFileAsString(fsys, autoIncludePath)
 	if err != nil {
 		// An unreadable autoinclude must not collide with the absent sentinel; key on the error text.
 		return fmt.Sprintf("-autoinclude:%#v-err:%#v", true, err.Error())
@@ -1078,6 +1201,7 @@ type InvalidPartialBlockName struct {
 	sectionCode PartialDecodeSectionType
 }
 
+// Error returns a formatted invalid partial block error message.
 func (err InvalidPartialBlockName) Error() string {
 	return fmt.Sprintf(
 		"Unrecognized partial block code %d. This is most likely an error in terragrunt. Please file a bug report on the project repository.",

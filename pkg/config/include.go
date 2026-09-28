@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -30,8 +31,9 @@ var fieldsCopyLocks = util.NewKeyLocks()
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	includedConfig *IncludeConfig,
 ) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
@@ -84,7 +86,7 @@ func parseIncludedConfig(
 	// NOTE: To make the logic easier to implement, we implement the inverse here, where we check whether the included
 	// config has a dependency block, and if we are in the middle of a partial parse, we perform a partial parse of the
 	// included config.
-	hasDependency, err := configFileHasDependencyBlock(includePath)
+	hasDependency, err := configFileHasDependencyBlock(v.FS, includePath)
 	if err != nil {
 		return nil, err
 	}
@@ -95,19 +97,18 @@ func parseIncludedConfig(
 			includePath,
 		)
 
-		return PartialParseConfigFile(ctx, pctx, l, includePath, includedConfig)
+		return PartialParseConfigFile(ctx, l, v, pctx, includePath, includedConfig)
 	}
 
 	// When included config has dependencies, suppress diagnostics during parsing.
 	parseCtx := pctx
 	if hasDependency {
-		parseCtx = pctx.WithDiagnosticsSuppressed(l)
+		parseCtx = pctx.WithDiagnosticsSuppressed()
 	}
 
-	config, err := ParseConfigFile(ctx, parseCtx, l, includePath, includedConfig)
+	config, err := ParseConfigFile(ctx, l, v, parseCtx, includePath, includedConfig)
 	if err != nil {
-		var configNotFoundError TerragruntConfigNotFoundError
-		if errors.As(err, &configNotFoundError) {
+		if _, ok := errors.AsType[TerragruntConfigNotFoundError](err); ok {
 			return nil, IncludeConfigNotFoundError{
 				IncludePath: includePath,
 				SourcePath:  pctx.TerragruntConfigPath,
@@ -124,8 +125,9 @@ func parseIncludedConfig(
 // user.
 func handleInclude(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	config *TerragruntConfig,
 	isPartial bool,
 ) (*TerragruntConfig, error) {
@@ -140,9 +142,7 @@ func handleInclude(
 	includeList := pctx.TrackInclude.CurrentList
 	baseConfig := config
 
-	for i := len(includeList) - 1; i >= 0; i-- {
-		includeConfig := includeList[i]
-
+	for _, includeConfig := range slices.Backward(includeList) {
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
 		if err != nil {
 			return config, err
@@ -156,18 +156,17 @@ func handleInclude(
 		pctx.FilesRead.Add(includeConfig.Path)
 
 		if isPartial {
-			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, pctx, l, &includeConfig)
+			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 			logPrefix = "[Partial] "
 		} else {
-			parsedIncludeConfig, err = parseIncludedConfig(ctx, pctx, l, &includeConfig)
+			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 		}
 
 		if err != nil {
 			return baseConfig, err
 		}
 
-		// TODO: Remove lint suppression
-		switch mergeStrategy { //nolint:exhaustive
+		switch mergeStrategy {
 		case NoMerge:
 			l.Debugf(
 				"%sIncluded config %s has strategy no merge: not merging config in.",
@@ -198,6 +197,8 @@ func handleInclude(
 			}
 
 			baseConfig = parsedIncludeConfig
+		case DeepMergeMapOnly:
+			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		default:
 			return nil, fmt.Errorf(
 				"you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s",
@@ -215,8 +216,9 @@ func handleInclude(
 // child.
 func handleIncludeForDependency(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	childDecodedDependency TerragruntDependency,
 ) (*TerragruntDependency, error) {
 	if pctx.TrackInclude == nil {
@@ -229,9 +231,7 @@ func handleIncludeForDependency(
 	includeList := pctx.TrackInclude.CurrentList
 	baseDependencyBlock := childDecodedDependency.Dependencies
 
-	for i := len(includeList) - 1; i >= 0; i-- {
-		includeConfig := includeList[i]
-
+	for _, includeConfig := range slices.Backward(includeList) {
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
 		if err != nil {
 			return nil, err
@@ -239,16 +239,16 @@ func handleIncludeForDependency(
 
 		includedPartialParse, err := partialParseIncludedConfig(
 			ctx,
-			pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock),
 			l,
+			v,
+			pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock),
 			&includeConfig,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		// TODO: Remove lint suppression
-		switch mergeStrategy { //nolint:exhaustive
+		switch mergeStrategy {
 		case NoMerge:
 			l.Debugf(
 				"Included config %s has strategy no merge: not merging config in for dependency.",
@@ -292,6 +292,8 @@ func handleIncludeForDependency(
 			}
 
 			baseDependencyBlock = mergedDependencyBlock
+		case DeepMergeMapOnly:
+			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		default:
 			return nil, fmt.Errorf(
 				"you reached an impossible condition. This is most likely a bug in terragrunt. "+
@@ -638,7 +640,9 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	return nil
 }
 
-// fetchDependencyPaths - return from configuration map with dependency_name: path
+// fetchDependencyPaths returns each dependency's config path, keyed the way include
+// merging matches dependencies up. A dependency whose config_path is not a known string
+// has no path to carry over, so it is left out, as [Dependency.DeepMerge] ignores it too.
 func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	var m = make(map[string]string)
 	if config == nil {
@@ -646,7 +650,9 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	}
 
 	for _, dependency := range config.TerragruntDependencies {
-		m[dependency.Name] = dependency.ConfigPath.AsString()
+		if configPath, ok := dependency.configPathString(); ok {
+			m[dependency.mergeKey()] = configPath
+		}
 	}
 
 	return m
@@ -697,17 +703,17 @@ func mergeDependencyBlocks(
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
-		dependencyBlocks[dep.Name] = dep
-		keys = append(keys, dep.Name)
+		dependencyBlocks[dep.mergeKey()] = dep
+		keys = append(keys, dep.mergeKey())
 	}
 
 	for _, dep := range sourceDependencies {
-		_, hasSameKey := dependencyBlocks[dep.Name]
+		_, hasSameKey := dependencyBlocks[dep.mergeKey()]
 		if !hasSameKey {
-			keys = append(keys, dep.Name)
+			keys = append(keys, dep.mergeKey())
 		}
 		// Regardless of what is in dependencyBlocks, we will always override the key with source
-		dependencyBlocks[dep.Name] = dep
+		dependencyBlocks[dep.mergeKey()] = dep
 	}
 	// Now convert the map to list and set target
 	combinedDeps := make([]Dependency, 0, len(keys))
@@ -731,22 +737,22 @@ func deepMergeDependencyBlocks(
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
-		dependencyBlocks[dep.Name] = dep
-		keys = append(keys, dep.Name)
+		dependencyBlocks[dep.mergeKey()] = dep
+		keys = append(keys, dep.mergeKey())
 	}
 
 	for _, dep := range sourceDependencies {
-		sameKeyDep, hasSameKey := dependencyBlocks[dep.Name]
+		sameKeyDep, hasSameKey := dependencyBlocks[dep.mergeKey()]
 		if hasSameKey {
 			sameKeyDepPtr := &sameKeyDep
 			if err := sameKeyDepPtr.DeepMerge(&dep); err != nil {
 				return nil, err
 			}
 
-			dependencyBlocks[dep.Name] = *sameKeyDepPtr
+			dependencyBlocks[dep.mergeKey()] = *sameKeyDepPtr
 		} else {
-			dependencyBlocks[dep.Name] = dep
-			keys = append(keys, dep.Name)
+			dependencyBlocks[dep.mergeKey()] = dep
+			keys = append(keys, dep.mergeKey())
 		}
 	}
 

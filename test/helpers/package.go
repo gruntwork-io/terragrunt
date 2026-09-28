@@ -33,10 +33,10 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/mattn/go-shellwords"
 
 	"errors"
 
@@ -46,11 +46,11 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	writerpkg "github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
@@ -83,6 +83,15 @@ const (
 
 	caKeyBits = 4096
 
+	// argsPerModulePath is the flag and value each module path adds to a command line.
+	argsPerModulePath = 2
+
+	// fakeProviderBinarySize is the size of the dummy binary FakeProvider packs into its archive.
+	fakeProviderBinarySize = 1e7
+
+	// certValidityYears is how long the test CA and its leaf certificate stay valid.
+	certValidityYears = 10
+
 	semverPartsLen = 3
 
 	// cleanupTimeout caps the runtime of a cleanup helper invoked
@@ -113,6 +122,13 @@ type TerraformOutput struct {
 	Sensitive bool `json:"Sensitive"`
 }
 
+// nestUnder joins path beneath root even when path is absolute. Callers pass an
+// already-copied fixture back in as an absolute path, and on Windows its drive
+// letter would otherwise land in the middle of the joined path ("root\C:\...").
+func nestUnder(root, path string) string {
+	return filepath.Join(root, strings.TrimPrefix(path, filepath.VolumeName(path)))
+}
+
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	t.Helper()
 
@@ -132,8 +148,9 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 		t,
 		util.CopyFolderContents(
 			logger.CreateLogger(),
+			vfs.NewOSFS(),
 			MustAbs(t, environmentPath),
-			filepath.Join(tmpDir, environmentPath),
+			nestUnder(tmpDir, environmentPath),
 			".terragrunt-test",
 			util.WithIncludeInCopy(includeInCopy...),
 			util.WithExcludeFromCopy(excludeFromCopy...),
@@ -176,9 +193,8 @@ func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileN
 
 	tmpTerragruntConfigFile := filepath.Join(tmpFolder, configFileName)
 
-	if err := os.WriteFile(tmpTerragruntConfigFile, []byte(contents), readPermissions); err != nil {
-		t.Fatalf("Error writing temp Terragrunt config to %s: %v", tmpTerragruntConfigFile, err)
-	}
+	err := os.WriteFile(tmpTerragruntConfigFile, []byte(contents), readPermissions)
+	require.NoError(t, err, "Error writing temp Terragrunt config to %s", tmpTerragruntConfigFile)
 
 	return tmpTerragruntConfigFile
 }
@@ -209,7 +225,7 @@ func CopyAndFillMapPlaceholders(
 ) {
 	t.Helper()
 
-	contents, err := util.ReadFileAsString(srcPath)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), srcPath)
 	require.NoError(t, err, "Error reading file at %s: %v", srcPath, err)
 
 	// iterate over placeholders and replace placeholders
@@ -259,7 +275,7 @@ func CreateS3ClientForTest(
 	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsConfig).
 		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
-		Build(t.Context(), logger.CreateLogger())
+		Build(t.Context(), logger.CreateLogger(), venv.OSVenv())
 	require.NoError(t, err, "Error creating S3 client")
 
 	return s3.NewFromConfig(cfg)
@@ -284,7 +300,7 @@ func CreateDynamoDBClientForTest(
 	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(sessionConfig).
 		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
-		Build(t.Context(), logger.CreateLogger())
+		Build(t.Context(), logger.CreateLogger(), venv.OSVenv())
 	require.NoError(t, err, "Error creating DynamoDB client")
 
 	return dynamodb.NewFromConfig(cfg)
@@ -346,7 +362,7 @@ func DeleteS3Bucket(
 				return nil
 			}
 
-			t.Errorf("Failed to delete S3 bucket %s: %v", bucketName, err)
+			assert.NoError(t, err, "Failed to delete S3 bucket %s", bucketName)
 
 			return err
 		}
@@ -471,13 +487,15 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := make([]string, 0, 9+2*len(includeModulePaths)) //nolint:mnd
-	cmdParts = append(cmdParts,
+	fixedArgs := []string{
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", rootModulePath,
-	)
+	}
+
+	cmdParts := make([]string, 0, len(fixedArgs)+argsPerModulePath*len(includeModulePaths))
+	cmdParts = append(cmdParts, fixedArgs...)
 
 	for _, module := range includeModulePaths {
 		cmdParts = append(cmdParts, "--queue-include-dir", module)
@@ -522,13 +540,15 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := make([]string, 0, 9+2*len(units)) //nolint:mnd
-	cmdParts = append(cmdParts,
+	fixedArgs := []string{
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", workDir,
-	)
+	}
+
+	cmdParts := make([]string, 0, len(fixedArgs)+argsPerModulePath*len(units))
+	cmdParts = append(cmdParts, fixedArgs...)
 
 	for _, unit := range units {
 		cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'{%s}...'", unit))
@@ -747,9 +767,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 		require.NoError(t, os.Remove(filepath.Join(providerDir, provider.filename())))
 	}()
 
-	// I wouldn't ignore this lint, but I actually don't know what
-	// the number is there for.
-	err = file.Truncate(1e7) //nolint:mnd
+	err = file.Truncate(fakeProviderBinarySize)
 	require.NoError(t, err)
 
 	err = file.Sync()
@@ -782,11 +800,11 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 func unmarshalFile(t *testing.T, filename string, dest any) {
 	t.Helper()
 
-	if !util.FileExists(filename) {
+	data, err := os.ReadFile(filename)
+	if errors.Is(err, os.ErrNotExist) {
 		return
 	}
 
-	data, err := os.ReadFile(filename)
 	require.NoError(t, err)
 	err = json.Unmarshal(data, dest)
 	require.NoError(t, err)
@@ -819,7 +837,7 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			PostalCode:    []string{"94016"},
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().AddDate(10, 0, 0), //nolint:mnd
+		NotAfter:  time.Now().AddDate(certValidityYears, 0, 0),
 		IsCA:      true,
 		ExtKeyUsage: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageClientAuth,
@@ -861,9 +879,9 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 			StreetAddress: []string{"Golden Gate Bridge"},
 			PostalCode:    []string{"94016"},
 		},
-		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback}, //nolint:mnd
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.IPv6loopback},
 		NotBefore:    time.Now(),
-		NotAfter:     time.Now().AddDate(10, 0, 0), //nolint:mnd
+		NotAfter:     time.Now().AddDate(certValidityYears, 0, 0),
 		SubjectKeyId: []byte{1, 2, 3, 4, 6},
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -946,15 +964,6 @@ func WrappedBinary(ctx context.Context) string {
 	})
 
 	return wrappedBinaryCached
-}
-
-// ExpectedWrongCommandErr returns the expected error message for a wrong command.
-func ExpectedWrongCommandErr(ctx context.Context, command string) error {
-	if WrappedBinary(ctx) == TofuBinary {
-		return run.WrongTofuCommand(command)
-	}
-
-	return run.WrongTerraformCommand(command)
 }
 
 // IsTerraform reports whether the wrapped binary is Terraform.
@@ -1135,17 +1144,27 @@ func CleanupTerragruntFolder(t *testing.T, templatesPath string) {
 func RemoveFile(t *testing.T, path string) {
 	t.Helper()
 
-	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("Error while removing %s: %v", path, err)
+	if err := os.Remove(path); !errors.Is(err, fs.ErrNotExist) {
+		require.NoError(t, err, "Error while removing %s", path)
 	}
 }
 
 func RemoveFolder(t *testing.T, path string) {
 	t.Helper()
 
-	if err := os.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("Error while removing %s: %v", path, err)
+	if err := os.RemoveAll(path); !errors.Is(err, fs.ErrNotExist) {
+		require.NoError(t, err, "Error while removing %s", path)
 	}
+}
+
+// RunVenv returns [venv.OSVenv] with the user configuration directory set to a
+// temporary directory of the test's own.
+func RunVenv(t *testing.T) *venv.Venv {
+	t.Helper()
+
+	configDir := t.TempDir()
+
+	return venv.OSVenv().WithUserConfigDir(func() (string, error) { return configDir, nil })
 }
 
 func RunTerragruntCommandWithContext(
@@ -1154,17 +1173,56 @@ func RunTerragruntCommandWithContext(
 	command string,
 	writer,
 	errwriter io.Writer,
-	extraArgs ...string,
 ) error {
 	t.Helper()
 
-	parser := shellwords.NewParser()
+	return runTerragruntCommand(t, ctx, version.GetVersion(), command, writer, errwriter)
+}
 
-	// Convert backslashes to forward slashes before parsing.
-	// shellwords treats backslashes as escape characters, corrupting Windows paths
-	// like C:\foo\bar into C:foobar. Forward slashes work fine since Terragrunt CLI
-	// normalizes paths internally (see cli/commands/commands.go).
-	args, err := parser.Parse(filepath.ToSlash(command))
+// runTerragruntCommand runs command through an app reporting itself as ver, so a
+// test can pin the Terragrunt version a run sees without touching the process.
+func runTerragruntCommand(
+	t *testing.T,
+	ctx context.Context,
+	ver string,
+	command string,
+	writer,
+	errwriter io.Writer,
+) error {
+	t.Helper()
+
+	v := RunVenv(t)
+	v.Writers = &writerpkg.Writers{Writer: writer, ErrWriter: errwriter}
+
+	return runTerragruntCommandWithVenv(t, ctx, ver, v, command)
+}
+
+// RunTerragruntCommandWithVenv runs command in-process against v, writing
+// through v.Writers. Tests swap a handle on v, such as the exec, to observe or
+// fake what the command reaches.
+func RunTerragruntCommandWithVenv(
+	t *testing.T,
+	ctx context.Context,
+	v *venv.Venv,
+	command string,
+) error {
+	t.Helper()
+
+	return runTerragruntCommandWithVenv(t, ctx, version.GetVersion(), v, command)
+}
+
+// runTerragruntCommandWithVenv runs command against v through an app reporting
+// itself as ver.
+func runTerragruntCommandWithVenv(
+	t *testing.T,
+	ctx context.Context,
+	ver string,
+	v *venv.Venv,
+	command string,
+) error {
+	t.Helper()
+
+	args, err := split.Command(command)
 	require.NoError(t, err)
 
 	if !strings.Contains(command, "-log-format") &&
@@ -1188,13 +1246,12 @@ func RunTerragruntCommandWithContext(
 
 	// Wrap writers with SyncWriter to prevent race conditions when multiple
 	// goroutines write concurrently (e.g., during "run --all" operations).
-	syncWriter := util.NewSyncWriter(writer)
-	syncErrWriter := util.NewSyncWriter(errwriter)
+	syncWriter := util.NewSyncWriter(v.Writers.Writer)
+	syncErrWriter := util.NewSyncWriter(v.Writers.ErrWriter)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-	v := venv.OSVenv()
-	v.Writers = &writerpkg.Writers{Writer: syncWriter, ErrWriter: syncErrWriter}
+	v = v.WithWriter(syncWriter).WithErrWriter(syncErrWriter)
 
 	l := log.New(
 		log.WithOutput(syncErrWriter),
@@ -1203,10 +1260,11 @@ func RunTerragruntCommandWithContext(
 	)
 
 	app := cli.NewApp(l, opts, v)
+	app.Version = ver
 
 	ctx = log.ContextWithLogger(ctx, l)
 
-	return app.RunContext(ctx, args)
+	return app.RunContext(ctx, l, v, args)
 }
 
 func RunTerragruntCommand(
@@ -1220,6 +1278,8 @@ func RunTerragruntCommand(
 	return RunTerragruntCommandWithContext(t, t.Context(), command, writer, errwriter)
 }
 
+// RunTerragruntVersionCommand runs command against an app that reports itself as
+// ver, which is what version constraints in the config are checked against.
 func RunTerragruntVersionCommand(
 	t *testing.T,
 	ver string,
@@ -1229,9 +1289,7 @@ func RunTerragruntVersionCommand(
 ) error {
 	t.Helper()
 
-	version.Version = ver
-
-	return RunTerragruntCommand(t, command, writer, errwriter)
+	return runTerragruntCommand(t, t.Context(), ver, command, writer, errwriter)
 }
 
 func RunTerragrunt(t *testing.T, command string) {
@@ -1272,6 +1330,25 @@ func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 	return RunTerragruntCommandWithOutputWithContext(t, t.Context(), command)
 }
 
+// RunTerragruntCommandWithOutputWithVenv runs command in-process against a copy
+// of v whose writers capture output, and returns its stdout and stderr.
+func RunTerragruntCommandWithOutputWithVenv(
+	t *testing.T,
+	v *venv.Venv,
+	command string,
+) (string, string, error) {
+	t.Helper()
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := RunTerragruntCommandWithVenv(t, t.Context(), v.WithWriter(&stdout).WithErrWriter(&stderr), command)
+	LogBufferContentsLineByLine(t, stdout, "stdout")
+	LogBufferContentsLineByLine(t, stderr, "stderr")
+
+	return stdout.String(), stderr.String(), err
+}
+
 func RunTerragruntRedirectOutput(
 	t *testing.T,
 	command string,
@@ -1291,10 +1368,11 @@ func RunTerragruntRedirectOutput(
 			stderr = stderrAsBuffer.String()
 		}
 
-		t.Fatalf(
-			"Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s",
+		require.NoError(
+			t,
+			err,
+			"Failed to run Terragrunt command '%s'\n\nStdout: %s\n\nStderr: %s",
 			command,
-			err.Error(),
 			stdout,
 			stderr,
 		)
@@ -1318,8 +1396,12 @@ func RunTerragruntValidateInputs(
 ) {
 	t.Helper()
 
+	// Terragrunt writes a .terragrunt-cache into whatever directory it runs in,
+	// so this runs against a copy rather than the fixture in the checked-out tree.
+	moduleDir = nestUnder(CopyEnvironment(t, moduleDir), moduleDir)
+
 	maybeNested := filepath.Join(moduleDir, "module")
-	if util.FileExists(maybeNested) {
+	if vfs.Exists(vfs.NewOSFS(), maybeNested) {
 		// Nested module test case with included file, so run terragrunt from the nested module.
 		moduleDir = maybeNested
 	}
@@ -1353,9 +1435,7 @@ func CreateTmpTerragruntConfigWithParentAndChild(
 
 	childDestPath := filepath.Join(tmpDir, childRelPath)
 
-	if err := os.MkdirAll(childDestPath, allPermissions); err != nil {
-		t.Fatalf("Failed to create temp dir %s due to error %v", childDestPath, err)
-	}
+	require.NoError(t, os.MkdirAll(childDestPath, allPermissions), "Failed to create temp dir %s", childDestPath)
 
 	parentTerragruntSrcPath := filepath.Join(parentPath, parentConfigFileName)
 	parentTerragruntDestPath := filepath.Join(tmpDir, parentConfigFileName)

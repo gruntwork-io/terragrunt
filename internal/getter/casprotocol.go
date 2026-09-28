@@ -18,7 +18,7 @@ import (
 type CASProtocolGetter struct {
 	CAS     *cas.CAS
 	Logger  log.Logger
-	Venv    venv.Venv
+	Venv    *venv.Venv
 	Mutable bool
 }
 
@@ -28,7 +28,7 @@ type CASProtocolGetter struct {
 // reads and links through v.FS. v.Exec is not consulted because
 // materialization is a pure FS operation. Panics with
 // [venv.ErrVenvFSUnset] when v.FS is nil.
-func NewCASProtocolGetter(l log.Logger, c *cas.CAS, v venv.Venv) *CASProtocolGetter {
+func NewCASProtocolGetter(l log.Logger, c *cas.CAS, v *venv.Venv) *CASProtocolGetter {
 	v.RequireFS()
 
 	return &CASProtocolGetter{
@@ -49,7 +49,7 @@ func (g *CASProtocolGetter) Get(ctx context.Context, req *getter.Request) error 
 
 	var linkOpts []cas.LinkTreeOption
 	if g.Mutable {
-		linkOpts = append(linkOpts, cas.WithForceCopy())
+		linkOpts = append(linkOpts, cas.WithMutableTree())
 	}
 
 	return g.CAS.MaterializeTree(ctx, g.Logger, g.Venv, hash, req.Dst, linkOpts...)

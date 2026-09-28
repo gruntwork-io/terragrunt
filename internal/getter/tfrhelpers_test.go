@@ -1,18 +1,25 @@
 package getter_test
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 // TestVersionResolverMemoizesWithRacing pins that concurrent and repeated
@@ -43,26 +50,36 @@ func TestVersionResolverMemoizesWithRacing(t *testing.T) {
 	server := httptest.NewTLSServer(mux)
 	t.Cleanup(server.Close)
 
-	resolver := getter.NewVersionResolver().WithHTTPClient(server.Client())
+	resolver := getter.NewVersionResolver(server.Client())
 	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
 
-	var wg sync.WaitGroup
+	const concurrency = 10
 
-	for range 10 {
-		wg.Add(1)
+	var g errgroup.Group
 
-		go func() {
-			defer wg.Done()
+	pins := make(chan string, concurrency)
 
+	for range concurrency {
+		g.Go(func() error {
 			pinned, err := resolver.Pin(
 				t.Context(), logger.CreateLogger(), tfimpl.OpenTofu, source, "~> 3.0",
 			)
-			assert.NoError(t, err)
-			assert.Equal(t, source+"?version=3.3.0", pinned)
-		}()
+			if err != nil {
+				return err
+			}
+
+			pins <- pinned
+
+			return nil
+		})
 	}
 
-	wg.Wait()
+	require.NoError(t, g.Wait())
+	close(pins)
+
+	for pinned := range pins {
+		assert.Equal(t, source+"?version=3.3.0", pinned)
+	}
 
 	assert.Equal(t, int64(1), versionsHits.Load())
 }
@@ -92,12 +109,34 @@ func TestPinModuleVersion(t *testing.T) {
 			source := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
 
 			pinned, err := getter.PinModuleVersion(
-				t.Context(), logger.CreateLogger(), server.Client(), tfimpl.OpenTofu, source, tc.constraint,
+				t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(), tfimpl.OpenTofu, source, tc.constraint,
 			)
 			require.NoError(t, err)
 			assert.Equal(t, source+"?version="+tc.want, pinned)
 		})
 	}
+}
+
+// TestPinModuleVersionBuildMetadata pins how a resolved version carrying
+// semver build metadata is written back into the source. The `+` is
+// percent-encoded so that re-parsing the pinned source yields the version the
+// registry published, rather than the `+`-as-space decoding a query string
+// would otherwise apply.
+func TestPinModuleVersionBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(t, buildMetadataVersionsBody)
+	source := "tfr://" + server.Listener.Addr().String() + "/foo/bar/baz"
+
+	pinned, err := getter.PinModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(), tfimpl.OpenTofu, source, "~> 1.8.24",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, source+"?version=1.8.26%2Bcss9.10.001", pinned)
+
+	pinnedURL, err := url.Parse(pinned)
+	require.NoError(t, err)
+	assert.Equal(t, "1.8.26+css9.10.001", pinnedURL.Query().Get("version"))
 }
 
 func TestSourceHasVersionConstraint(t *testing.T) {
@@ -128,6 +167,21 @@ func TestSourceHasVersionConstraint(t *testing.T) {
 			source: "git::https://github.com/foo/bar.git?ref=v1.0.0",
 			want:   false,
 		},
+		{
+			name:   "exact pin with build metadata",
+			source: "tfr://registry.opentofu.org/cloudstoragesec/cloud-storage-security/aws?version=1.8.26%2Bcss9.10.001",
+			want:   false,
+		},
+		{
+			// A literal `+` in a query decodes to a space, so this hand-written
+			// pin reaches the parser as "1.8.26 css9.10.001" and fails to parse
+			// as a version. Terragrunt rejects the source rather than resolving
+			// the wrong module version. Encode the `+` as %2B, or express the
+			// version through the terraform block's version attribute.
+			name:   "unencoded build metadata pin",
+			source: "tfr://registry.opentofu.org/cloudstoragesec/cloud-storage-security/aws?version=1.8.26+css9.10.001",
+			want:   true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -145,7 +199,7 @@ func TestGetModuleRegistryURLBasePath(t *testing.T) {
 	server := newRegistryTestServer(t)
 
 	basePath, err := getter.GetModuleRegistryURLBasePath(
-		t.Context(), logger.CreateLogger(), server.Client(), server.Listener.Addr().String(),
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(), server.Listener.Addr().String(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "/v1/modules/", basePath)
@@ -166,6 +220,7 @@ func TestGetTerraformGetHeader(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		server.Client(),
+		testRegistryAuth(),
 		&moduleURL,
 	)
 	require.NoError(t, err)
@@ -271,17 +326,78 @@ func TestBuildRequestURLRelativePath(t *testing.T) {
 	)
 }
 
+// TestBuildRequestURLBuildMetadata pins that a version carrying build metadata
+// keeps its `+` in the download path. A `+` is a literal in a path segment, and
+// the OpenTofu registry serves the endpoint either way.
+func TestBuildRequestURLBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	requestURL, err := getter.BuildRequestURL(
+		"registry.opentofu.org",
+		"/v1/modules/",
+		"/cloudstoragesec/cloud-storage-security/aws",
+		"1.8.26+css9.10.001",
+	)
+	require.NoError(t, err)
+	assert.Equal(t,
+		"https://registry.opentofu.org/v1/modules/cloudstoragesec/cloud-storage-security/aws/1.8.26+css9.10.001/download",
+		requestURL.String(),
+	)
+}
+
 func TestGetLatestModuleVersion(t *testing.T) {
 	t.Parallel()
 
 	server := newRegistryTestServer(t)
 
 	latestVersion, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(),
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "terraform-aws-modules/vpc/aws",
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "4.0.0", latestVersion)
+}
+
+// TestGetLatestModuleVersionRejectsOversizedResponse pins that a versions list
+// past the response bound surfaces as a typed error rather than as a parse
+// error on a silently truncated body.
+func TestGetLatestModuleVersionRejectsOversizedResponse(t *testing.T) {
+	t.Parallel()
+
+	const oversized = 32<<20 + 1
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(
+		"/v1/modules/terraform-aws-modules/vpc/aws/versions",
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", strconv.Itoa(oversized))
+
+			_, err := io.CopyN(w, zeroReader{}, oversized)
+			assert.NoError(t, err)
+		},
+	)
+
+	server := httptest.NewTLSServer(mux)
+	t.Cleanup(server.Close)
+
+	_, err := getter.GetLatestModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
+		server.Listener.Addr().String(), "/v1/modules/", "terraform-aws-modules/vpc/aws",
+	)
+
+	var tooLarge helpers.ResponseTooLargeError
+
+	require.ErrorAs(t, err, &tooLarge)
+}
+
+// zeroReader yields an endless stream of zero bytes.
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+
+	return len(p), nil
 }
 
 // TestGetLatestModuleVersionSkipsPrereleases pins the behavior of the
@@ -297,7 +413,7 @@ func TestGetLatestModuleVersionSkipsPrereleases(t *testing.T) {
 	)
 
 	latest, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(),
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
 	)
 	require.NoError(t, err)
@@ -317,7 +433,7 @@ func TestGetLatestModuleVersionAllPrereleases(t *testing.T) {
 	)
 
 	_, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(),
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
 	)
 	require.Error(t, err)
@@ -335,11 +451,97 @@ func TestGetLatestModuleVersionSkipsUnparsable(t *testing.T) {
 	)
 
 	latest, err := getter.GetLatestModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(),
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "1.0.0", latest)
+}
+
+// buildMetadataVersionsBody mirrors the list-versions response of
+// cloudstoragesec/cloud-storage-security/aws, a module whose every published
+// version carries semver build metadata. Requesting such a module without the
+// metadata is not an option: the registry serves 1.8.26+css9.10.001 and 404s
+// on 1.8.26.
+const buildMetadataVersionsBody = `{"modules":[{"versions":[` +
+	`{"version":"1.8.26+css9.10.001"},{"version":"1.8.25+css9.10.000"},` +
+	`{"version":"1.8.24+css9.09.002"}]}]}`
+
+// TestGetLatestModuleVersionBuildMetadata pins that the latest-version path
+// preserves build metadata, so a bare tfr:// source pointed at such a module
+// requests a version the registry actually publishes.
+func TestGetLatestModuleVersionBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(t, buildMetadataVersionsBody)
+
+	latest, err := getter.GetLatestModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "1.8.26+css9.10.001", latest)
+}
+
+// TestGetMatchingModuleVersionBuildMetadata pins constraint resolution against
+// versions carrying build metadata. Metadata does not affect precedence, so a
+// constraint written without it still selects the published version, and the
+// metadata survives into the result.
+func TestGetMatchingModuleVersionBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		constraint string
+		want       string
+	}{
+		{name: "exact without metadata", constraint: "1.8.25", want: "1.8.25+css9.10.000"},
+		{
+			name:       "exact with metadata",
+			constraint: "1.8.25+css9.10.000",
+			want:       "1.8.25+css9.10.000",
+		},
+		{name: "pessimistic patch", constraint: "~> 1.8.24", want: "1.8.26+css9.10.001"},
+		{name: "range", constraint: ">= 1.8.24, < 1.8.26", want: "1.8.25+css9.10.000"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newVersionsTestServer(t, buildMetadataVersionsBody)
+
+			got, err := getter.GetMatchingModuleVersion(
+				t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
+				server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", tc.constraint,
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestGetMatchingModuleVersionPrereleaseBuildMetadata pins the combination of
+// both suffixes, modeled on waveaccounting/chatbot-slack-configuration/aws,
+// which publishes prereleases tagged with a commit SHA as build metadata. The
+// prerelease opt-in rule reads the constraint's prerelease and ignores its
+// metadata, so an alpha pinned without the SHA resolves to the published tag.
+func TestGetMatchingModuleVersionPrereleaseBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	server := newVersionsTestServer(
+		t,
+		`{"modules":[{"versions":[{"version":"1.1.0"},{"version":"1.1.0-alpha.3"},`+
+			`{"version":"1.1.0-alpha.2+a88b844"},{"version":"1.0.0"},`+
+			`{"version":"1.0.0-alpha.3+46e44c9"}]}]}`,
+	)
+
+	got, err := getter.GetMatchingModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
+		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", "1.0.0-alpha.3",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0-alpha.3+46e44c9", got)
 }
 
 // matchVersionsBody is a list-versions response spanning several minor and
@@ -372,7 +574,7 @@ func TestGetMatchingModuleVersion(t *testing.T) {
 			server := newVersionsTestServer(t, matchVersionsBody)
 
 			got, err := getter.GetMatchingModuleVersion(
-				t.Context(), logger.CreateLogger(), server.Client(),
+				t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 				server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", tc.constraint,
 			)
 			require.NoError(t, err)
@@ -394,7 +596,7 @@ func TestGetMatchingModuleVersionPrereleaseOptIn(t *testing.T) {
 	)
 
 	got, err := getter.GetMatchingModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(),
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", ">= 4.0.0-rc1",
 	)
 	require.NoError(t, err)
@@ -412,7 +614,7 @@ func TestGetMatchingModuleVersionNoMatch(t *testing.T) {
 	)
 
 	_, err := getter.GetMatchingModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(),
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", ">= 9.0.0",
 	)
 	require.Error(t, err)
@@ -430,7 +632,7 @@ func TestGetMatchingModuleVersionUnparsableConstraint(t *testing.T) {
 	server := newVersionsTestServer(t, `{"modules":[{"versions":[{"version":"1.0.0"}]}]}`)
 
 	_, err := getter.GetMatchingModuleVersion(
-		t.Context(), logger.CreateLogger(), server.Client(),
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
 		server.Listener.Addr().String(), "/v1/modules/", "foo/bar/baz", "not a constraint",
 	)
 	require.Error(t, err)
@@ -448,11 +650,21 @@ func TestGetMatchingModuleVersionUnparsableConstraint(t *testing.T) {
 func newRegistryTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
+	return newRegistryTestServerWithRequestHook(t, func(*http.Request) {})
+}
+
+func newRegistryTestServerWithRequestHook(
+	t *testing.T,
+	requestHook func(*http.Request),
+) *httptest.Server {
+	t.Helper()
+
 	zipBody := buildModuleZip(t)
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
+		requestHook(r)
 		w.Header().Set("Content-Type", "application/json")
 		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
 		assert.NoError(t, err)
@@ -464,7 +676,8 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	// (TestPinModuleVersion).
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/versions",
-		func(w http.ResponseWriter, _ *http.Request) {
+		func(w http.ResponseWriter, r *http.Request) {
+			requestHook(r)
 			w.Header().Set("Content-Type", "application/json")
 			_, err := w.Write(
 				[]byte(
@@ -480,6 +693,7 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc(
 		"/v1/modules/terraform-aws-modules/vpc/aws/{version}/download",
 		func(w http.ResponseWriter, r *http.Request) {
+			requestHook(r)
 			// Resolve against the request host so the downloader hits the same
 			// test server we are about to shut down at end-of-test.
 			w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")
@@ -501,13 +715,19 @@ func newRegistryTestServer(t *testing.T) *httptest.Server {
 }
 
 // newVersionsTestServer stands up a TLS test server that responds to the
-// module list-versions endpoint with the supplied JSON body. Used by the
-// GetLatestModuleVersion tests that exercise prerelease filtering and the
-// unparsable-version skip path.
+// module list-versions endpoint with the supplied JSON body, plus the service
+// discovery endpoint so callers that resolve a source URL end to end can use it
+// too. Used by the GetLatestModuleVersion tests that exercise prerelease
+// filtering and the unparsable-version skip path.
 func newVersionsTestServer(t *testing.T, body string) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
+		assert.NoError(t, err)
+	})
 	mux.HandleFunc(
 		"/v1/modules/foo/bar/baz/versions",
 		func(w http.ResponseWriter, _ *http.Request) {
@@ -521,4 +741,166 @@ func newVersionsTestServer(t *testing.T, body string) *httptest.Server {
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+// testRegistryAuth returns credentials with no user CLI config and no registry token
+// reachable, which is the unauthenticated path these tests exercise.
+func testRegistryAuth() getter.RegistryAuth {
+	return getter.NewRegistryAuth(venvtest.New())
+}
+
+// TestPinModuleVersionCredentialsFollowImplementation pins that version-constraint
+// resolution reads the CLI config files of the implementation passed to it, even when
+// the RegistryAuth was constructed with the default OpenTofu implementation.
+func TestPinModuleVersionCredentialsFollowImplementation(t *testing.T) {
+	t.Parallel()
+
+	var sawAuth atomic.Bool
+
+	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
+		if r.Header.Get("Authorization") == "Bearer configured-token" {
+			sawAuth.Store(true)
+		}
+	})
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	const home = "/virtual/home"
+
+	v := venvtest.New().
+		WithGOOS("linux").
+		WithHTTP(server.Client()).
+		WithUserHomeDir(func() (string, error) { return home, nil })
+
+	require.NoError(t, v.FS.MkdirAll(home, 0o755))
+	// A credential-less ~/.tofurc shadows ~/.terraformrc under OpenTofu's search order.
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte("\n"), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".terraformrc"), []byte(`
+credentials "`+serverURL.Hostname()+`" {
+  token = "configured-token"
+}
+`), 0o600))
+
+	source := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
+
+	_, err = getter.PinModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(), getter.NewRegistryAuth(v), tfimpl.Terraform, source, "~> 3.0",
+	)
+	require.NoError(t, err)
+	assert.True(t, sawAuth.Load(), "the version-listing request must carry the ~/.terraformrc token")
+}
+
+// TestPinModuleVersionMixedImplementationsCredentials pins that one shared RegistryAuth
+// serves each implementation the credentials from its own CLI config files, whichever
+// implementation resolves first (https://github.com/gruntwork-io/terragrunt/issues/6787
+// review follow-up: the memo must be keyed by implementation, not first-wins).
+func TestPinModuleVersionMixedImplementationsCredentials(t *testing.T) {
+	t.Parallel()
+
+	t.Run("tofu first", func(t *testing.T) {
+		t.Parallel()
+
+		auth, source, seen, server := newMixedImplementationsFixture(t)
+
+		for _, impl := range []tfimpl.Type{tfimpl.OpenTofu, tfimpl.Terraform} {
+			_, err := getter.PinModuleVersion(
+				t.Context(), logger.CreateLogger(), server.Client(), auth, impl, source, mixedImplementationsConstraint,
+			)
+			require.NoError(t, err)
+		}
+
+		assertMixedImplementationTokensSeen(t, seen)
+	})
+
+	t.Run("terraform first", func(t *testing.T) {
+		t.Parallel()
+
+		auth, source, seen, server := newMixedImplementationsFixture(t)
+
+		for _, impl := range []tfimpl.Type{tfimpl.Terraform, tfimpl.OpenTofu} {
+			_, err := getter.PinModuleVersion(
+				t.Context(), logger.CreateLogger(), server.Client(), auth, impl, source, mixedImplementationsConstraint,
+			)
+			require.NoError(t, err)
+		}
+
+		assertMixedImplementationTokensSeen(t, seen)
+	})
+}
+
+// TestPinModuleVersionMixedImplementationsCredentialsWithRacing pins the same
+// per-implementation guarantee under concurrent access, and its name opts it into
+// the CI job that runs with the race detector.
+func TestPinModuleVersionMixedImplementationsCredentialsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	auth, source, seen, server := newMixedImplementationsFixture(t)
+
+	eg, ctx := errgroup.WithContext(t.Context())
+
+	for _, impl := range []tfimpl.Type{tfimpl.OpenTofu, tfimpl.Terraform} {
+		eg.Go(func() error {
+			_, err := getter.PinModuleVersion(
+				ctx, logger.CreateLogger(), server.Client(), auth, impl, source, mixedImplementationsConstraint,
+			)
+
+			return err
+		})
+	}
+
+	require.NoError(t, eg.Wait())
+	assertMixedImplementationTokensSeen(t, seen)
+}
+
+// mixedImplementationsConstraint is the version constraint the mixed-implementation credential tests resolve.
+const mixedImplementationsConstraint = "~> 3.0"
+
+// newMixedImplementationsFixture builds one shared RegistryAuth over a home holding a
+// distinct registry token per implementation, plus a registry recording Authorization headers.
+func newMixedImplementationsFixture(t *testing.T) (getter.RegistryAuth, string, *sync.Map, *httptest.Server) {
+	t.Helper()
+
+	const home = "/virtual/home"
+
+	var seen sync.Map
+
+	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
+		seen.Store(r.Header.Get("Authorization"), true)
+	})
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	v := venvtest.New().
+		WithGOOS("linux").
+		WithHTTP(server.Client()).
+		WithUserHomeDir(func() (string, error) { return home, nil })
+
+	require.NoError(t, v.FS.MkdirAll(home, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".tofurc"), []byte(`
+credentials "`+serverURL.Hostname()+`" {
+  token = "tofu-token"
+}
+`), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(home, ".terraformrc"), []byte(`
+credentials "`+serverURL.Hostname()+`" {
+  token = "terraform-token"
+}
+`), 0o600))
+
+	source := "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws"
+
+	return getter.NewRegistryAuth(v), source, &seen, server
+}
+
+// assertMixedImplementationTokensSeen asserts each implementation authenticated with its own file's token.
+func assertMixedImplementationTokensSeen(t *testing.T, seen *sync.Map) {
+	t.Helper()
+
+	_, sawTofu := seen.Load("Bearer tofu-token")
+	assert.True(t, sawTofu, "OpenTofu resolution must authenticate with the ~/.tofurc token")
+
+	_, sawTF := seen.Load("Bearer terraform-token")
+	assert.True(t, sawTF, "Terraform resolution must authenticate with the ~/.terraformrc token")
 }

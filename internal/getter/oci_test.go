@@ -15,11 +15,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/opencontainers/go-digest"
-	specs "github.com/opencontainers/image-spec/specs-go"
 	ociv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -161,13 +161,19 @@ func TestOCIGetterGetErrors(t *testing.T) {
 	goodManifest, goodDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
 	wrongTypeManifest, wrongTypeDesc := manifestFor(t, "application/vnd.example.other", layer)
 	noLayerManifest, noLayerDesc := manifestFor(t, getter.ArtifactTypeModulePkg)
-	twoLayerManifest, twoLayerDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer, secondLayer)
+	twoLayerManifest, twoLayerDesc := manifestFor(
+		t,
+		getter.ArtifactTypeModulePkg,
+		layer,
+		secondLayer,
+	)
 
 	testCases := []struct {
-		store     *fakeStore
-		wantErrIs error
-		name      string
-		src       string
+		store           *fakeStore
+		wantErrIs       error
+		name            string
+		src             string
+		wantErrContains string
 	}{
 		{
 			name:      "unsupported query parameter",
@@ -192,6 +198,26 @@ func TestOCIGetterGetErrors(t *testing.T) {
 			src:       "oci://127.0.0.1:5000?tag=1.0.0",
 			store:     newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
 			wantErrIs: getter.ErrOCIMissingRepositoryName,
+		},
+		{
+			name:            "colon tag suffix is rejected, never latest",
+			src:             "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0",
+			store:           newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs:       getter.ErrOCIInvalidRepositoryName,
+			wantErrContains: `"oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"`,
+		},
+		{
+			name:            "digest suffix is rejected",
+			src:             "oci://127.0.0.1:5000/terraform-modules/vpc@" + goodDesc.Digest.String(),
+			store:           newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs:       getter.ErrOCIInvalidRepositoryName,
+			wantErrContains: `"oci://127.0.0.1:5000/terraform-modules/vpc?digest=` + goodDesc.Digest.String() + `"`,
+		},
+		{
+			name:      "upper case repository is rejected",
+			src:       "oci://127.0.0.1:5000/Terraform-Modules/vpc?tag=1.0.0",
+			store:     newFakeStore(goodManifest, &goodDesc, zipBytes, &layer),
+			wantErrIs: getter.ErrOCIInvalidRepositoryName,
 		},
 		{
 			name:      "artifact type rejected",
@@ -226,7 +252,11 @@ func TestOCIGetterGetErrors(t *testing.T) {
 				GetMode: gogetter.ModeDir,
 			})
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tc.wantErrIs)
+			require.ErrorIs(t, err, tc.wantErrIs)
+
+			if tc.wantErrContains != "" {
+				assert.ErrorContains(t, err, tc.wantErrContains)
+			}
 		})
 	}
 }
@@ -350,6 +380,131 @@ func TestOCIGetterGetQueryValidation(t *testing.T) {
 	}
 }
 
+// TestOCIGetterGetEmbeddedReference: the typed error carries the exact query-form rewrite.
+func TestOCIGetterGetEmbeddedReference(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		wantErrIs error
+		name      string
+		src       string
+	}{
+		{
+			name: "docker-style tag suffix",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0",
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0",
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
+			},
+		},
+		{
+			name: "docker-style digest suffix",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc@" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc@" + manifestDesc.Digest.String(),
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + manifestDesc.Digest.String(),
+			},
+		},
+		{
+			name: "docker-style full form suggests the digest pin",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0@" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0@" + manifestDesc.Digest.String(),
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + manifestDesc.Digest.String(),
+			},
+		},
+		{
+			name: "tag suffix never downgrades an explicit digest pin",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0?digest=" + manifestDesc.Digest.String(),
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0",
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + manifestDesc.Digest.String(),
+			},
+		},
+		{
+			name: "explicit query tag wins over the suffix in the rewrite",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:1.0.0?tag=2.0.0",
+			wantErrIs: getter.OCIEmbeddedReferenceError{
+				RepositoryName:  "terraform-modules/vpc:1.0.0",
+				SuggestedSource: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=2.0.0",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     filepath.Join(t.TempDir(), "module"),
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, tc.wantErrIs)
+			assert.Empty(t, store.gotRefs, "validation must fail before any resolution")
+		})
+	}
+}
+
+// TestOCIGetterGetInvalidRepositoryNameNoRewrite: names with no recognizable suffix get no misleading rewrite.
+func TestOCIGetterGetInvalidRepositoryNameNoRewrite(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := moduleZipBytes(t, map[string]string{"main.tf": `output "root" {}`})
+	layer := zipLayerDesc(zipBytes)
+	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
+
+	testCases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "colon in a non-final segment",
+			src:  "oci://127.0.0.1:5000/team:x/vpc?tag=1.0.0",
+		},
+		{
+			name: "at-suffix that is not a digest",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc@garbage",
+		},
+		{
+			name: "colon suffix that is not a tag",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc:.invalid",
+		},
+		{
+			name: "tag suffix on an invalid leftover name",
+			src:  "oci://127.0.0.1:5000/team:x/vpc:1.0.0",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
+			g := newTestOCIGetter(staticStore(store))
+
+			_, err := newOCITestClient(g).Get(t.Context(), &gogetter.Request{
+				Src:     tc.src,
+				Dst:     filepath.Join(t.TempDir(), "module"),
+				GetMode: gogetter.ModeDir,
+			})
+			require.ErrorIs(t, err, getter.ErrOCIInvalidRepositoryName)
+
+			var embeddedErr getter.OCIEmbeddedReferenceError
+
+			require.NotErrorAs(t, err, &embeddedErr)
+			assert.Empty(t, store.gotRefs)
+		})
+	}
+}
+
 func TestOCIGetterGetInvalidRefValues(t *testing.T) {
 	t.Parallel()
 
@@ -434,11 +589,11 @@ func TestOCIGetterGetManifestHardening(t *testing.T) {
 	negativeSize.Size = -1
 
 	mismatchedManifest := ociv1.Manifest{
-		Versioned:    specs.Versioned{SchemaVersion: 2},
-		MediaType:    "application/vnd.example.other",
-		ArtifactType: getter.ArtifactTypeModulePkg,
-		Config:       ociv1.DescriptorEmptyJSON,
-		Layers:       []ociv1.Descriptor{layer},
+		SchemaVersion: 2,
+		MediaType:     "application/vnd.example.other",
+		ArtifactType:  getter.ArtifactTypeModulePkg,
+		Config:        ociv1.DescriptorEmptyJSON,
+		Layers:        []ociv1.Descriptor{layer},
 	}
 	mismatchedBytes, err := json.Marshal(mismatchedManifest)
 	require.NoError(t, err)
@@ -455,12 +610,13 @@ func TestOCIGetterGetManifestHardening(t *testing.T) {
 		name          string
 		manifestBytes []byte
 	}{
-
 		{
 			name:          "descriptor media type rejected before fetch",
 			manifestBytes: manifestBytes,
 			manifestDesc:  wrongDescMediaType,
-			wantErrIs:     getter.OCIManifestMediaTypeError{MediaType: "application/vnd.example.other"},
+			wantErrIs: getter.OCIManifestMediaTypeError{
+				MediaType: "application/vnd.example.other",
+			},
 		},
 		{
 			name:          "oversized manifest rejected before fetch",
@@ -478,7 +634,9 @@ func TestOCIGetterGetManifestHardening(t *testing.T) {
 			name:          "decoded media type must match the descriptor",
 			manifestBytes: mismatchedBytes,
 			manifestDesc:  mismatchedDesc,
-			wantErrIs:     getter.OCIManifestMediaTypeError{MediaType: "application/vnd.example.other"},
+			wantErrIs: getter.OCIManifestMediaTypeError{
+				MediaType: "application/vnd.example.other",
+			},
 		},
 	}
 
@@ -512,7 +670,9 @@ func TestOCIGetterGetRemovesStaleFiles(t *testing.T) {
 		manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
 		store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 
-		_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+		_, err := newOCITestClient(
+			newTestOCIGetter(staticStore(store)),
+		).Get(t.Context(), &gogetter.Request{
 			Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
 			Dst:     dst,
 			GetMode: gogetter.ModeDir,
@@ -527,9 +687,22 @@ func TestOCIGetterGetRemovesStaleFiles(t *testing.T) {
 
 	got, err := os.ReadFile(filepath.Join(dst, "main.tf"))
 	require.NoError(t, err)
-	assert.Equal(t, `output "v2" {}`, string(got), "the second version's content must replace the first")
-	assert.NoFileExists(t, filepath.Join(dst, "obsolete.tf"), "files removed between versions must not survive")
-	assert.NoFileExists(t, filepath.Join(dst, ".tgmanifest"), "the copy manifest must not leak into the destination")
+	assert.Equal(
+		t,
+		`output "v2" {}`,
+		string(got),
+		"the second version's content must replace the first",
+	)
+	assert.NoFileExists(
+		t,
+		filepath.Join(dst, "obsolete.tf"),
+		"files removed between versions must not survive",
+	)
+	assert.NoFileExists(
+		t,
+		filepath.Join(dst, ".tgmanifest"),
+		"the copy manifest must not leak into the destination",
+	)
 }
 
 func TestOCIGetterGetNoManifestLeak(t *testing.T) {
@@ -546,7 +719,9 @@ func TestOCIGetterGetNoManifestLeak(t *testing.T) {
 
 	dst := filepath.Join(t.TempDir(), "module")
 
-	_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+	_, err := newOCITestClient(
+		newTestOCIGetter(staticStore(store)),
+	).Get(t.Context(), &gogetter.Request{
 		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
 		Dst:     dst,
 		GetMode: gogetter.ModeDir,
@@ -561,7 +736,12 @@ func TestOCIGetterGetNoManifestLeak(t *testing.T) {
 			return err
 		}
 
-		assert.NotEqual(t, ".tgmanifest", d.Name(), "copy manifest must not leak into the module tree")
+		assert.NotEqual(
+			t,
+			".tgmanifest",
+			d.Name(),
+			"copy manifest must not leak into the module tree",
+		)
 
 		return nil
 	})
@@ -585,14 +765,20 @@ func TestOCIGetterGetFailedExtractionPreservesDestination(t *testing.T) {
 	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
 	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 
-	_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+	_, err := newOCITestClient(
+		newTestOCIGetter(staticStore(store)),
+	).Get(t.Context(), &gogetter.Request{
 		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0",
 		Dst:     dst,
 		GetMode: gogetter.ModeDir,
 	})
 	require.Error(t, err)
 	assert.FileExists(t, sentinel, "a failed extraction must not corrupt the destination")
-	assert.NoFileExists(t, filepath.Join(dst, "main.tf"), "a failed extraction must not leak partial contents")
+	assert.NoFileExists(
+		t,
+		filepath.Join(dst, "main.tf"),
+		"a failed extraction must not leak partial contents",
+	)
 }
 
 // TestOCIGetterGetRejectsTooManyFiles: a digest-valid archive must not exhaust inodes.
@@ -714,7 +900,9 @@ func TestOCIGetterGetKeepsBackupWhenRestoreFails(t *testing.T) {
 	require.ErrorAs(t, err, &restoreErr)
 	assert.NotEmpty(t, restoreErr.BackupPath)
 
-	backups, globErr := filepath.Glob(filepath.Join(parentDir, ".terragrunt-oci*", "previous", "old.tf"))
+	backups, globErr := filepath.Glob(
+		filepath.Join(parentDir, ".terragrunt-oci*", "previous", "old.tf"),
+	)
 	require.NoError(t, globErr)
 	require.Len(t, backups, 1, "the previous module must remain recoverable")
 }
@@ -722,6 +910,10 @@ func TestOCIGetterGetKeepsBackupWhenRestoreFails(t *testing.T) {
 // TestOCIGetterGetHonorsUmask: the promoted module root must respect the request umask.
 func TestOCIGetterGetHonorsUmask(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+	}
 
 	moduleFiles := map[string]string{
 		"main.tf":       `output "root" {}`,
@@ -736,7 +928,10 @@ func TestOCIGetterGetHonorsUmask(t *testing.T) {
 		src  string
 	}{
 		{name: "whole module", src: "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"},
-		{name: "subdir selector", src: "oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0"},
+		{
+			name: "subdir selector",
+			src:  "oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -746,7 +941,9 @@ func TestOCIGetterGetHonorsUmask(t *testing.T) {
 			store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 			dst := filepath.Join(t.TempDir(), "module")
 
-			_, err := newOCITestClient(newTestOCIGetter(staticStore(store))).Get(t.Context(), &gogetter.Request{
+			_, err := newOCITestClient(
+				newTestOCIGetter(staticStore(store)),
+			).Get(t.Context(), &gogetter.Request{
 				Src:     tc.src,
 				Dst:     dst,
 				GetMode: gogetter.ModeDir,
@@ -756,7 +953,12 @@ func TestOCIGetterGetHonorsUmask(t *testing.T) {
 
 			info, statErr := os.Stat(dst)
 			require.NoError(t, statErr)
-			assert.Equal(t, os.FileMode(0o700), info.Mode().Perm(), "module root must respect the umask")
+			assert.Equal(
+				t,
+				os.FileMode(0o700),
+				info.Mode().Perm(),
+				"module root must respect the umask",
+			)
 		})
 	}
 }
@@ -787,7 +989,11 @@ func TestOCIGetterGetRestoresDestinationWhenPromotionFails(t *testing.T) {
 	})
 	require.ErrorIs(t, err, errRenameFailed)
 	assert.FileExists(t, sentinel, "a failed promotion must restore the previous module")
-	assert.NoFileExists(t, filepath.Join(dst, "main.tf"), "a failed promotion must not leave the new module behind")
+	assert.NoFileExists(
+		t,
+		filepath.Join(dst, "main.tf"),
+		"a failed promotion must not leave the new module behind",
+	)
 }
 
 func TestNewClientWithOCIDetectOrdering(t *testing.T) {
@@ -798,8 +1004,7 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
 	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 
-	client := getter.NewClient(
-		getter.WithLogger(logger.CreateLogger()),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithOCI(newTestOCIGetter(staticStore(store))),
 	)
 
@@ -821,7 +1026,7 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient(getter.WithLogger(logger.CreateLogger()))
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS())
 	dst := filepath.Join(t.TempDir(), "module")
 
 	_, err := client.Get(t.Context(), &gogetter.Request{
@@ -838,11 +1043,17 @@ func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
 	t.Parallel()
 
-	_, found := getter.DefaultGenericFetchers()[getter.SchemeOCI]
+	v := venvtest.New()
+
+	_, found := getter.DefaultGenericFetchers(v)[getter.SchemeOCI]
 	assert.False(t, found, "oci fetcher must be absent without WithOCIConfig")
 
-	v := venvtest.New()
-	fetchers := getter.DefaultGenericFetchers(getter.WithOCIConfig(logger.CreateLogger(), v, v.FS))
+	fetchers := getter.DefaultGenericFetchers(
+		v,
+		getter.WithDispatchLogger(logger.CreateLogger()),
+		getter.WithDispatchFS(v.FS),
+		getter.WithOCIConfig(v),
+	)
 
 	g, found := fetchers[getter.SchemeOCI]
 	require.True(t, found, "oci fetcher must be present with WithOCIConfig")
@@ -946,7 +1157,8 @@ func newTestOCIGetter(newStore getter.OCINewStoreFunc) *getter.OCIGetter {
 }
 
 func newOCITestClient(g *getter.OCIGetter) *gogetter.Client {
-	return getter.NewClient(getter.WithCustomGettersPrepended(g))
+	return getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
+		getter.WithCustomGettersPrepended(g))
 }
 
 // moduleZipBytes builds an in-memory zip holding files keyed by relative path.
@@ -1008,15 +1220,19 @@ func zipLayerDesc(zipBytes []byte) ociv1.Descriptor {
 
 // manifestFor marshals an OCI image manifest with the given artifact type and
 // layers, returning the manifest bytes and their descriptor.
-func manifestFor(t *testing.T, artifactType string, layers ...ociv1.Descriptor) ([]byte, ociv1.Descriptor) {
+func manifestFor(
+	t *testing.T,
+	artifactType string,
+	layers ...ociv1.Descriptor,
+) ([]byte, ociv1.Descriptor) {
 	t.Helper()
 
 	manifest := ociv1.Manifest{
-		Versioned:    specs.Versioned{SchemaVersion: 2},
-		MediaType:    ociv1.MediaTypeImageManifest,
-		ArtifactType: artifactType,
-		Config:       ociv1.DescriptorEmptyJSON,
-		Layers:       layers,
+		SchemaVersion: 2,
+		MediaType:     ociv1.MediaTypeImageManifest,
+		ArtifactType:  artifactType,
+		Config:        ociv1.DescriptorEmptyJSON,
+		Layers:        layers,
 	}
 
 	manifestBytes, err := json.Marshal(manifest)

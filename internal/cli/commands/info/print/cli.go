@@ -15,8 +15,8 @@ const (
 	CommandName = "print"
 )
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
-	cmdFlags := runcmd.NewFlags(l, opts, nil)
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+	cmdFlags := runcmd.NewFlags(l, opts, v, nil)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))
 
 	cmd := &clihelper.Command{

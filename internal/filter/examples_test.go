@@ -34,7 +34,7 @@ func Example_basicPathFilter() {
 	}
 
 	l := log.New()
-	result, _ := filter.Apply(l, "./apps/*", components)
+	result, _ := filter.Apply(l, filter.EvaluationContext{}, "./apps/*", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -59,7 +59,7 @@ func Example_attributeFilter() {
 	}
 
 	l := log.New()
-	result, _ := filter.Apply(l, "name=api", components)
+	result, _ := filter.Apply(l, filter.EvaluationContext{}, "name=api", components)
 
 	for _, c := range result {
 		fmt.Println(c.Path())
@@ -83,7 +83,7 @@ func Example_exclusionFilter() {
 	}
 
 	l := log.New()
-	result, _ := filter.Apply(l, "!legacy", components)
+	result, _ := filter.Apply(l, filter.EvaluationContext{}, "!legacy", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -112,7 +112,7 @@ func Example_intersectionFilter() {
 
 	// Select components in ./apps/ that are named "frontend"
 	l := log.New()
-	result, _ := filter.Apply(l, "./apps/* | frontend", components)
+	result, _ := filter.Apply(l, filter.EvaluationContext{}, "./apps/* | frontend", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -143,7 +143,7 @@ func Example_complexQuery() {
 
 	// Select all services except worker
 	l := log.New()
-	result, _ := filter.Apply(l, "./services/* | !worker", components)
+	result, _ := filter.Apply(l, filter.EvaluationContext{}, "./services/* | !worker", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -172,7 +172,7 @@ func Example_parseAndEvaluate() {
 
 	// Evaluate multiple times with different config sets
 	l := log.New()
-	result1, _ := f.Evaluate(l, components)
+	result1, _ := f.Evaluate(l, filter.EvaluationContext{}, components)
 	fmt.Printf("Found %d components\n", len(result1))
 
 	// You can also inspect the original query
@@ -202,7 +202,7 @@ func Example_recursiveWildcard() {
 
 	// Match all infrastructure components at any depth
 	l := log.New()
-	result, _ := filter.Apply(l, "./infrastructure/**", components)
+	result, _ := filter.Apply(l, filter.EvaluationContext{}, "./infrastructure/**", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -256,7 +256,7 @@ func Example_multipleFilters() {
 		"./apps/*",
 		"name=db",
 	})
-	result, _ := filters.Evaluate(l, components)
+	result, _ := filters.Evaluate(l, filter.EvaluationContext{}, components)
 
 	// Sort for consistent output
 	names := make([]string, len(result))

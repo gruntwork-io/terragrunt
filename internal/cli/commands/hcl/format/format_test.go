@@ -1,8 +1,10 @@
 package format_test
 
 import (
-	"os"
+	"bytes"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,29 +13,44 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
+
+// readFixture reads a fixture-relative path out of the in-memory filesystem.
+func readFixture(t *testing.T, fsys vfs.FS, root string, elem ...string) string {
+	t.Helper()
+
+	contents, err := vfs.ReadFile(fsys, filepath.Join(append([]string{root}, elem...)...))
+	require.NoError(t, err)
+
+	return string(contents)
+}
+
+// onDisk reads a file straight from the repository, for the unformatted and
+// expected forms the fixtures ship with.
+func onDisk(t *testing.T, path string) string {
+	t.Helper()
+
+	contents, err := vfs.ReadFile(vfs.NewOSFS(), path)
+	require.NoError(t, err)
+
+	return string(contents)
+}
 
 func TestHCLFmt(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp(
-		helpers.MustAbs(t, "./testdata/fixtures"),
-		t.Name(),
-		func(path string) bool { return true },
-	)
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
-	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
-	})
+	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
+	original := onDisk(t, "./testdata/fixtures/terragrunt.hcl")
 
-	require.NoError(t, err)
-
-	expected, err := util.ReadFileAsString("./testdata/fixtures/expected.hcl")
-	require.NoError(t, err)
+	// .gitignore covers the cache directory, so a fixture cannot carry this file.
+	cached := filepath.Join(tmpPath, "ignored", util.TerragruntCacheDir, "terragrunt.hcl")
+	require.NoError(t, vfs.WriteFile(fsys, cached, []byte(original), 0o644))
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -41,7 +58,7 @@ func TestHCLFmt(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 	tgOptions.HclExclude = []string{".history"}
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -59,41 +76,25 @@ func TestHCLFmt(t *testing.T) {
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
-				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := util.ReadFileAsString(tgHclPath)
-				require.NoError(t, err)
-				assert.Equal(t, expected, actual)
+				assert.Equal(t, expected, readFixture(t, fsys, tmpPath, dir))
 			})
 		}
 
-		// check to make sure the file in the `.terragrunt-cache` folder was ignored and untouched
+		// Formatting a cached copy edits a file the next download overwrites.
 		t.Run("terragrunt-cache", func(t *testing.T) {
 			t.Parallel()
 
-			originalTgHclPath := "./testdata/fixtures/ignored/.terragrunt-cache/terragrunt.hcl"
-			original, err := util.ReadFileAsString(originalTgHclPath)
-			require.NoError(t, err)
-
-			tgHclPath := filepath.Join(tmpPath, "ignored/.terragrunt-cache/terragrunt.hcl")
-			actual, err := util.ReadFileAsString(tgHclPath)
-			require.NoError(t, err)
-
-			assert.Equal(t, original, actual)
+			assert.Equal(t, original,
+				readFixture(t, fsys, tmpPath, "ignored", util.TerragruntCacheDir, "terragrunt.hcl"))
 		})
 
 		// Finally, check to make sure the file in the `.history` folder was ignored and untouched
 		t.Run("history", func(t *testing.T) {
 			t.Parallel()
 
-			originalTgHclPath := "./testdata/fixtures/ignored/.history/terragrunt.hcl"
-			original, err := util.ReadFileAsString(originalTgHclPath)
-			require.NoError(t, err)
-
-			tgHclPath := filepath.Join(tmpPath, "ignored/.history/terragrunt.hcl")
-			actual, err := util.ReadFileAsString(tgHclPath)
-			require.NoError(t, err)
-
-			assert.Equal(t, original, actual)
+			assert.Equal(t,
+				onDisk(t, "./testdata/fixtures/ignored/.history/terragrunt.hcl"),
+				readFixture(t, fsys, tmpPath, "ignored/.history/terragrunt.hcl"))
 		})
 	})
 }
@@ -101,15 +102,7 @@ func TestHCLFmt(t *testing.T) {
 func TestHCLFmtErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp(
-		helpers.MustAbs(t, "../../../../../test/fixtures/hclfmt-errors"),
-		t.Name(),
-		func(path string) bool { return true },
-	)
-	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
-	})
-	require.NoError(t, err)
+	fsys, tmpPath := venvtest.LoadFS(t, "../../../../../test/fixtures/hclfmt-errors")
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -133,7 +126,7 @@ func TestHCLFmtErrors(t *testing.T) {
 
 			newTgOptions.WorkingDir = tgHclDir
 
-			err = format.Run(t.Context(), l, venv.OSVenv(), newTgOptions)
+			err = format.Run(t.Context(), l, venvtest.New().WithFS(fsys), newTgOptions)
 			require.Error(t, err)
 		})
 	}
@@ -142,20 +135,9 @@ func TestHCLFmtErrors(t *testing.T) {
 func TestHCLFmtCheck(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp(
-		helpers.MustAbs(t, "../../../../../test/fixtures/hclfmt-check"),
-		t.Name(),
-		func(path string) bool { return true },
-	)
+	fsys, tmpPath := venvtest.LoadFS(t, "../../../../../test/fixtures/hclfmt-check")
 
-	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
-	})
-
-	require.NoError(t, err)
-
-	expected, err := os.ReadFile("../../../../../test/fixtures/hclfmt-check/expected.hcl")
-	require.NoError(t, err)
+	expected := onDisk(t, "../../../../../test/fixtures/hclfmt-check/expected.hcl")
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -163,7 +145,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -179,10 +161,7 @@ func TestHCLFmtCheck(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
-			tgHclPath := filepath.Join(tmpPath, dir)
-			actual, err := os.ReadFile(tgHclPath)
-			require.NoError(t, err)
-			assert.Equal(t, expected, actual)
+			assert.Equal(t, expected, readFixture(t, fsys, tmpPath, dir))
 		})
 	}
 }
@@ -190,20 +169,9 @@ func TestHCLFmtCheck(t *testing.T) {
 func TestHCLFmtCheckErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp(
-		helpers.MustAbs(t, "../../../../../test/fixtures/hclfmt-check-errors"),
-		t.Name(),
-		func(path string) bool { return true },
-	)
+	fsys, tmpPath := venvtest.LoadFS(t, "../../../../../test/fixtures/hclfmt-check-errors")
 
-	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
-	})
-
-	require.NoError(t, err)
-
-	expected, err := os.ReadFile("../../../../../test/fixtures/hclfmt-check-errors/expected.hcl")
-	require.NoError(t, err)
+	expected := onDisk(t, "../../../../../test/fixtures/hclfmt-check-errors/expected.hcl")
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -211,7 +179,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -226,10 +194,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
-			tgHclPath := filepath.Join(tmpPath, dir)
-			actual, err := os.ReadFile(tgHclPath)
-			require.NoError(t, err)
-			assert.Equal(t, expected, actual)
+			assert.Equal(t, expected, readFixture(t, fsys, tmpPath, dir))
 		})
 	}
 }
@@ -237,20 +202,9 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 func TestHCLFmtFile(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp(
-		helpers.MustAbs(t, "./testdata/fixtures"),
-		t.Name(),
-		func(path string) bool { return true },
-	)
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
-	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
-	})
-
-	require.NoError(t, err)
-
-	expected, err := os.ReadFile("./testdata/fixtures/expected.hcl")
-	require.NoError(t, err)
+	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -258,7 +212,7 @@ func TestHCLFmtFile(t *testing.T) {
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
 	tgOptions.WorkingDir = tmpPath
-	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
@@ -266,10 +220,7 @@ func TestHCLFmtFile(t *testing.T) {
 		t.Run(tgOptions.HclFile, func(t *testing.T) {
 			t.Parallel()
 
-			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFile)
-			formatted, readErr := os.ReadFile(tgHclPath)
-			require.NoError(t, readErr)
-			assert.Equal(t, expected, formatted)
+			assert.Equal(t, expected, readFixture(t, fsys, tmpPath, tgOptions.HclFile))
 		})
 	})
 
@@ -278,8 +229,7 @@ func TestHCLFmtFile(t *testing.T) {
 		"a/b/c/terragrunt.hcl",
 	}
 
-	original, err := os.ReadFile("./testdata/fixtures/terragrunt.hcl")
-	require.NoError(t, err)
+	original := onDisk(t, "./testdata/fixtures/terragrunt.hcl")
 
 	// test that none of the other files were formatted
 	for _, dir := range dirs {
@@ -287,10 +237,7 @@ func TestHCLFmtFile(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
-			testingPath := filepath.Join(tmpPath, dir)
-			actual, err := os.ReadFile(testingPath)
-			require.NoError(t, err)
-			assert.Equal(t, original, actual)
+			assert.Equal(t, original, readFixture(t, fsys, tmpPath, dir))
 		})
 	}
 }
@@ -298,94 +245,120 @@ func TestHCLFmtFile(t *testing.T) {
 func TestHCLFmtStdin(t *testing.T) {
 	t.Parallel()
 
-	realStdin := os.Stdin
-	realStdout := os.Stdout
+	unformatted := onDisk(t, "../../../../../test/fixtures/hclfmt-stdin/terragrunt.hcl")
+	expected := onDisk(t, "../../../../../test/fixtures/hclfmt-stdin/expected.hcl")
 
-	tempStdoutFile, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "stdout.hcl")
+	tests := map[string]struct {
+		input               string
+		wantStdout          string
+		wantDiffLines       []string
+		check               bool
+		diff                bool
+		wantNeedsFormatting bool
+	}{
+		"formatted content goes to stdout": {
+			input:      unformatted,
+			wantStdout: expected,
+		},
+		"check reports unformatted input": {
+			input:               unformatted,
+			check:               true,
+			wantNeedsFormatting: true,
+		},
+		"check accepts formatted input": {
+			input: expected,
+			check: true,
+		},
+		"diff shows what would change": {
+			input:         unformatted,
+			diff:          true,
+			wantDiffLines: []string{"--- old/stdin", "+++ new/stdin", "+  foo = \"bar\""},
+		},
+		"diff is empty for formatted input": {
+			input: expected,
+			diff:  true,
+		},
+		"check and diff both apply": {
+			input:               unformatted,
+			check:               true,
+			diff:                true,
+			wantDiffLines:       []string{"--- old/stdin", "+++ new/stdin"},
+			wantNeedsFormatting: true,
+		},
+	}
 
-	defer func() {
-		_ = tempStdoutFile.Close()
-	}()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	require.NoError(t, err)
+			tgOptions, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
 
-	os.Stdout = tempStdoutFile
+			tgOptions.HclFromStdin = true
+			tgOptions.Check = tc.check
+			tgOptions.Diff = tc.diff
 
-	defer func() { os.Stdout = realStdout }()
+			var out bytes.Buffer
 
-	os.Stdin, err = os.Open("../../../../../test/fixtures/hclfmt-stdin/terragrunt.hcl")
+			v := venvtest.New().
+				WithStdin(strings.NewReader(tc.input)).
+				WithWriter(&out)
 
-	defer func() { os.Stdin = realStdin }()
+			err = format.Run(t.Context(), logger.CreateLogger(), v, tgOptions)
 
-	require.NoError(t, err)
+			stdout := out.String()
 
-	expected, err := os.ReadFile("../../../../../test/fixtures/hclfmt-stdin/expected.hcl")
-	require.NoError(t, err)
+			for _, want := range tc.wantDiffLines {
+				assert.Contains(t, stdout, want)
+			}
 
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+			if len(tc.wantDiffLines) > 0 {
+				assert.NotContains(t, stdout, expected, "--diff prints the diff instead of the formatted content")
+			}
 
-	// format hcl from stdin
-	tgOptions.HclFromStdin = true
-	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
-	require.NoError(t, err)
+			if len(tc.wantDiffLines) == 0 {
+				assert.Equal(t, tc.wantStdout, stdout)
+			}
 
-	formatted, err := os.ReadFile(tempStdoutFile.Name())
-	require.NoError(t, err)
-	assert.Equal(t, expected, formatted)
+			if !tc.wantNeedsFormatting {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var needsFormatting *format.FileNeedsFormattingError
+
+			require.ErrorAs(t, err, &needsFormatting)
+			assert.Equal(t, "stdin", needsFormatting.Path)
+		})
+	}
 }
 
 func TestHCLFmtHeredoc(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp(
-		helpers.MustAbs(t, "../../../../../test/fixtures/hclfmt-heredoc"),
-		t.Name(),
-		func(path string) bool { return true },
-	)
-	defer os.RemoveAll(tmpPath)
+	fsys, tmpPath := venvtest.LoadFS(t, "../../../../../test/fixtures/hclfmt-heredoc")
 
-	require.NoError(t, err)
-
-	expected, err := os.ReadFile("../../../../../test/fixtures/hclfmt-heredoc/expected.hcl")
-	require.NoError(t, err)
+	expected := onDisk(t, "../../../../../test/fixtures/hclfmt-heredoc/expected.hcl")
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
-	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")
-	actual, err := os.ReadFile(tgHclPath)
-	require.NoError(t, err)
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expected, readFixture(t, fsys, tmpPath, "terragrunt.hcl"))
 }
 
 func TestRunForFiles(t *testing.T) {
 	t.Parallel()
 
-	tmpPath := t.TempDir()
-	err := util.CopyFolderContentsWithFilter(
-		logger.CreateLogger(),
-		helpers.MustAbs(t, filepath.Join(".", "testdata", "fixtures")),
-		tmpPath,
-		".copymanifest",
-		func(path string) bool { return true },
-	)
-	require.NoError(t, err)
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
-	expected, err := util.ReadFileAsString(
-		filepath.Join(".", "testdata", "fixtures", "expected.hcl"),
-	)
-	require.NoError(t, err)
-
-	original, err := util.ReadFileAsString(
-		filepath.Join(".", "testdata", "fixtures", "terragrunt.hcl"),
-	)
-	require.NoError(t, err)
+	expected := onDisk(t, filepath.Join(".", "testdata", "fixtures", "expected.hcl"))
+	original := onDisk(t, filepath.Join(".", "testdata", "fixtures", "terragrunt.hcl"))
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -403,7 +376,7 @@ func TestRunForFiles(t *testing.T) {
 	err = format.RunForFiles(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.New().WithFS(fsys),
 		tgOptions,
 		tmpPath,
 		files,
@@ -417,17 +390,14 @@ func TestRunForFiles(t *testing.T) {
 		filepath.Join("a", "b", "c", "d", "services.hcl"),
 		filepath.Join("a", "terragrunt.hcl"),
 	} {
-		actual, err := util.ReadFileAsString(filepath.Join(tmpPath, rel))
-		require.NoError(t, err)
-		assert.Equal(t, expected, actual, "File %s should be formatted", rel)
+		assert.Equal(t, expected, readFixture(t, fsys, tmpPath, rel),
+			"File %s should be formatted", rel)
 	}
 
 	// Verify file NOT in the list was left untouched
-	actual, err := util.ReadFileAsString(
-		filepath.Join(tmpPath, "a", "b", "c", "d", "e", "terragrunt.hcl"),
-	)
-	require.NoError(t, err)
-	assert.Equal(t, original, actual, "File a/b/c/d/e/terragrunt.hcl should NOT be formatted")
+	assert.Equal(t, original,
+		readFixture(t, fsys, tmpPath, "a", "b", "c", "d", "e", "terragrunt.hcl"),
+		"File a/b/c/d/e/terragrunt.hcl should NOT be formatted")
 }
 
 func TestRunForFilesEmptyList(t *testing.T) {
@@ -439,9 +409,9 @@ func TestRunForFilesEmptyList(t *testing.T) {
 	err = format.RunForFiles(
 		t.Context(),
 		logger.CreateLogger(),
-		venv.OSVenv(),
+		venvtest.New(),
 		tgOptions,
-		t.TempDir(),
+		"/empty",
 		nil,
 	)
 	require.NoError(t, err)
@@ -450,23 +420,11 @@ func TestRunForFilesEmptyList(t *testing.T) {
 func TestHCLFmtFilter(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp(
-		helpers.MustAbs(t, "./testdata/fixtures"),
-		t.Name(),
-		func(path string) bool { return true },
-	)
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
-	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
-	})
+	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
 
-	require.NoError(t, err)
-
-	expected, err := util.ReadFileAsString("./testdata/fixtures/expected.hcl")
-	require.NoError(t, err)
-
-	original, err := util.ReadFileAsString("./testdata/fixtures/terragrunt.hcl")
-	require.NoError(t, err)
+	original := onDisk(t, "./testdata/fixtures/terragrunt.hcl")
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -481,7 +439,7 @@ func TestHCLFmtFilter(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -496,10 +454,7 @@ func TestHCLFmtFilter(t *testing.T) {
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
-				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := util.ReadFileAsString(tgHclPath)
-				require.NoError(t, err)
-				assert.Equal(t, expected, actual, "File %s should be formatted", dir)
+				assert.Equal(t, expected, readFixture(t, fsys, tmpPath, dir), "File %s should be formatted", dir)
 			})
 		}
 
@@ -511,10 +466,7 @@ func TestHCLFmtFilter(t *testing.T) {
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
-				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := util.ReadFileAsString(tgHclPath)
-				require.NoError(t, err)
-				assert.Equal(t, original, actual, "File %s should NOT be formatted", dir)
+				assert.Equal(t, original, readFixture(t, fsys, tmpPath, dir), "File %s should NOT be formatted", dir)
 			})
 		}
 	})
@@ -523,23 +475,11 @@ func TestHCLFmtFilter(t *testing.T) {
 func TestHCLFmtFilterMultiple(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp(
-		helpers.MustAbs(t, "./testdata/fixtures"),
-		t.Name(),
-		func(path string) bool { return true },
-	)
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
-	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
-	})
+	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
 
-	require.NoError(t, err)
-
-	expected, err := util.ReadFileAsString("./testdata/fixtures/expected.hcl")
-	require.NoError(t, err)
-
-	original, err := util.ReadFileAsString("./testdata/fixtures/terragrunt.hcl")
-	require.NoError(t, err)
+	original := onDisk(t, "./testdata/fixtures/terragrunt.hcl")
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -550,14 +490,14 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 
 	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{
-		filepath.Join(tmpPath, "terragrunt.hcl"),
+		filepath.ToSlash(filepath.Join(tmpPath, "terragrunt.hcl")),
 		"./a/b/c/d/e/**",
 	})
 	require.NoError(t, parseErr)
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -571,10 +511,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
-				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := util.ReadFileAsString(tgHclPath)
-				require.NoError(t, err)
-				assert.Equal(t, expected, actual, "File %s should be formatted", dir)
+				assert.Equal(t, expected, readFixture(t, fsys, tmpPath, dir), "File %s should be formatted", dir)
 			})
 		}
 
@@ -587,10 +524,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
-				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := util.ReadFileAsString(tgHclPath)
-				require.NoError(t, err)
-				assert.Equal(t, original, actual, "File %s should NOT be formatted", dir)
+				assert.Equal(t, original, readFixture(t, fsys, tmpPath, dir), "File %s should NOT be formatted", dir)
 			})
 		}
 	})
@@ -599,23 +533,11 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 func TestHCLFmtFilterNegation(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := util.CopyFolderToTemp(
-		helpers.MustAbs(t, "./testdata/fixtures"),
-		t.Name(),
-		func(path string) bool { return true },
-	)
+	fsys, tmpPath := venvtest.LoadFS(t, "./testdata/fixtures")
 
-	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
-	})
+	expected := onDisk(t, "./testdata/fixtures/expected.hcl")
 
-	require.NoError(t, err)
-
-	expected, err := util.ReadFileAsString("./testdata/fixtures/expected.hcl")
-	require.NoError(t, err)
-
-	original, err := util.ReadFileAsString("./testdata/fixtures/terragrunt.hcl")
-	require.NoError(t, err)
+	original := onDisk(t, "./testdata/fixtures/terragrunt.hcl")
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -633,7 +555,7 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venv.OSVenv(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -647,10 +569,7 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
-				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := util.ReadFileAsString(tgHclPath)
-				require.NoError(t, err)
-				assert.Equal(t, expected, actual, "File %s should be formatted", dir)
+				assert.Equal(t, expected, readFixture(t, fsys, tmpPath, dir), "File %s should be formatted", dir)
 			})
 		}
 
@@ -663,11 +582,45 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
-				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := util.ReadFileAsString(tgHclPath)
-				require.NoError(t, err)
-				assert.Equal(t, original, actual, "File %s should NOT be formatted", dir)
+				assert.Equal(t, original, readFixture(t, fsys, tmpPath, dir), "File %s should NOT be formatted", dir)
 			})
 		}
 	})
+}
+
+// TestHCLFmtDiffFile pins what --diff prints for a file on the filesystem.
+// [TestHCLFmtStdin] covers the same flag for content arriving on standard
+// input, where the header names stdin instead of a path.
+//
+// The header names the path the file was found at, which the fixture root
+// supplies, so this compares the header too.
+func TestHCLFmtDiffFile(t *testing.T) {
+	t.Parallel()
+
+	const fixture = "../../../../../test/fixtures/hclfmt-diff"
+
+	fsys, root := venvtest.LoadFS(t, fixture)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = root
+	tgOptions.Diff = true
+
+	var out bytes.Buffer
+
+	require.NoError(t, format.Run(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.New().WithFS(fsys).WithWriter(&out),
+		tgOptions,
+	))
+
+	formatted := strings.TrimPrefix(filepath.ToSlash(filepath.Join(root, "terragrunt.hcl")), "/")
+	header := fmt.Sprintf(
+		"diff old/%[1]s new/%[1]s\n--- old/%[1]s\n+++ new/%[1]s\n",
+		formatted,
+	)
+
+	assert.Equal(t, header+onDisk(t, filepath.Join(fixture, "expected.diff")), out.String())
 }

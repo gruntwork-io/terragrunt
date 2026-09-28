@@ -8,10 +8,15 @@ env:
 ---
 
 import { Aside, Code } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 
 import authProviderCmdSchema from '../../../public/schemas/auth-provider-cmd/v2/schema.json?raw';
 
 The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command whenever it might need authentication. This includes HCL parsing, where it might be useful to authenticate with a cloud provider _before_ running HCL functions like [`get_aws_account_id`](/reference/hcl/functions#get_aws_account_id) where authentication has to already have taken place. It can also be useful for HCL functions like [`run_cmd`](/reference/hcl/functions#run_cmd) where it may be useful to be authenticated before calling the function.
+
+<Since version="v1.2.0">
+Terragrunt splits the value into a program and its arguments with shell quoting rules, then runs the program without a shell. An unquoted shell operator such as `|`, `;`, `&&`, or `>` is an error. To run a pipeline, put it in a script and pass the script.
+</Since>
 
 The output must be valid JSON of the following schema:
 

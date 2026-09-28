@@ -1,6 +1,7 @@
 package remotestate
 
 import (
+	"context"
 	"fmt"
 
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -61,7 +63,9 @@ func (cfg *Config) Validate() error {
 
 // GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
 func (cfg *Config) GenerateOpenTofuCode(
+	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	workingDir string,
 	backendConfig map[string]any,
 ) error {
@@ -104,7 +108,7 @@ func (cfg *Config) GenerateOpenTofuCode(
 		CommentPrefix: codegen.DefaultCommentPrefix,
 	}
 
-	return codegen.WriteToFile(l, workingDir, &codegenConfig)
+	return codegen.WriteToFile(ctx, l, v, workingDir, &codegenConfig)
 }
 
 type ConfigFileGenerate struct {

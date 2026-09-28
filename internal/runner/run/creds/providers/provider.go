@@ -23,5 +23,5 @@ type Provider interface {
 	// Name returns the name of the provider.
 	Name() string
 	// GetCredentials returns a set of credentials.
-	GetCredentials(ctx context.Context, l log.Logger, v venv.Venv) (*Credentials, error)
+	GetCredentials(ctx context.Context, l log.Logger, v *venv.Venv) (*Credentials, error)
 }

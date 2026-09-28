@@ -17,7 +17,7 @@ const (
 	testFixtureS3BackendMigrate = "fixtures/s3-backend-migrate"
 )
 
-func TestAwsGcpMigrateBetweenDifferentBackends(t *testing.T) {
+func TestAWSGCPMigrateBetweenDifferentBackends(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3BackendMigrate)

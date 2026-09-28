@@ -11,7 +11,7 @@ import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 ## Negated Expressions
 
-Negate filter expressions using the `!` prefix. Negated expressions are always evaluated after all positive expressions have been evaluated.
+Negate filter expressions using the `!` prefix. A query that does nothing but negate is always evaluated after every other filter has been evaluated.
 
 ```bash
 # Exclude by name
@@ -153,7 +153,7 @@ terragrunt find --filter stack2 --filter '!./envs/prod/**' --filter '!./envs/sta
 
 ### Unions of negated filters
 
-When a filter query starts with a negation (`!`), the result is applied after _all_ positive filters have been applied.
+When every expression in a filter query is negated, the query is applied after _all_ other filters, removing from their combined results.
 
 This means that if you have a filter query like this:
 
@@ -164,6 +164,13 @@ terragrunt find --filter '!type=unit' --filter 'name=unit1'
 The result will be the components that are not units _and_ are named `unit1`.
 
 This means that you should be able to expect negative filters to take effect regardless of how other positive filters may result in the addition of results.
+
+A query that mixes a negation with a positive expression, like `'!./prod/** | type=stack'`, is not one of these. The `|` operator refines from left to right, so the query selects the stacks outside `./prod/**`, and it unions with the other filters the same way any other query does.
+
+```bash
+# Stacks outside ./prod/**, plus everything named 'unit1'
+terragrunt find --filter '!./prod/** | type=stack' --filter 'name=unit1'
+```
 
 <Aside type="tip" title="Using Negated Expressions">
 If you have infrastructure that you _never_ want to run, you can consider leveraging the [`--filters-file`](/features/filter/filters-file) to automatically negate them.

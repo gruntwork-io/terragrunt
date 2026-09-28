@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
 // httpResolverTimeout caps the HEAD request so a slow remote can't stall
@@ -18,21 +20,32 @@ const httpResolverTimeout = 10 * time.Second
 
 // HTTPResolver is a [cas.SourceResolver] for HTTP and HTTPS URLs.
 type HTTPResolver struct {
-	// Client overrides the http.Client used for the HEAD probe.
-	// Nil means a copy of http.DefaultClient with httpResolverTimeout.
-	Client *http.Client
+	// Client performs the HEAD probe. The constructors set it to a
+	// [vhttp.NewOSClientWithTimeout] capped at httpResolverTimeout;
+	// tests may swap in a [vhttp.NewMemClient].
+	Client vhttp.Client
 	// scheme is what Scheme() reports; set by [NewHTTPResolver] and
 	// [NewHTTPSResolver].
 	scheme string
 }
 
 // NewHTTPResolver returns a resolver for the http scheme.
-func NewHTTPResolver() *HTTPResolver { return &HTTPResolver{scheme: "http"} }
+func NewHTTPResolver() *HTTPResolver {
+	return &HTTPResolver{
+		scheme: SchemeHTTP,
+		Client: vhttp.NewOSClientWithTimeout(httpResolverTimeout),
+	}
+}
 
 // NewHTTPSResolver returns a resolver for the https scheme. The same
 // type handles both; separate constructors keep the [SourceResolver]
 // Scheme() contract honest for each instance.
-func NewHTTPSResolver() *HTTPResolver { return &HTTPResolver{scheme: "https"} }
+func NewHTTPSResolver() *HTTPResolver {
+	return &HTTPResolver{
+		scheme: SchemeHTTPS,
+		Client: vhttp.NewOSClientWithTimeout(httpResolverTimeout),
+	}
+}
 
 // Scheme returns the URL scheme this resolver handles ("http" or
 // "https").
@@ -44,32 +57,31 @@ func (r *HTTPResolver) Scheme() string {
 	return r.scheme
 }
 
-// Probe HEADs rawURL and returns a URL-scoped opaque cache key derived
+// Pinned always reports false. A ?checksum= pin looks like it should
+// qualify, but the parameter is stripped before probing, so two URLs
+// pinning different checksums share one recorded answer keyed on the
+// ETag the endpoint currently serves.
+func (r *HTTPResolver) Pinned(_ redact.URL) bool { return false }
+
+// Probe HEADs source and returns a URL-scoped opaque cache key derived
 // from the ETag (preferred) or Last-Modified header.
 //
 // ETag is treated as opaque even when the server claims it is a strong
 // content hash: there is no portable way to distinguish content hashes
 // from server-assigned tokens. Network errors and non-2xx responses
 // surface as [cas.ErrNoVersionMetadata].
-func (r *HTTPResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	client := r.Client
-	if client == nil {
-		c := *http.DefaultClient
-		c.Timeout = httpResolverTimeout
-		client = &c
-	}
-
+func (r *HTTPResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
 	// The outer client strips these before invoking the HTTP getter,
 	// so probing with them attached would split cache entries that
 	// resolve to the same fetched bytes.
-	probeURL := stripHTTPMagicParams(rawURL)
+	probeURL := stripHTTPMagicParams(source.Reveal())
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, probeURL, http.NoBody)
 	if err != nil {
-		return "", fmt.Errorf("build HEAD request for %s: %w", rawURL, err)
+		return "", fmt.Errorf("build HEAD request for %s: %w", source, err)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := r.Client.Do(req)
 	if err != nil {
 		return "", cas.ErrNoVersionMetadata
 	}
@@ -87,7 +99,7 @@ func (r *HTTPResolver) Probe(ctx context.Context, rawURL string) (string, error)
 	}
 
 	if closeErr != nil {
-		return "", fmt.Errorf("close HTTP response body for %s: %w", rawURL, closeErr)
+		return "", fmt.Errorf("close HTTP response body for %s: %w", source, closeErr)
 	}
 
 	return key, nil

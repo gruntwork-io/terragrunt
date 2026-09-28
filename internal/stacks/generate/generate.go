@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -29,6 +30,9 @@ import (
 // that reaches it is treated as a cycle between stack files. Generous on
 // purpose: real stack trees stay far below it.
 const DefaultMaxLevel = 1024
+
+// worktreesPerPair is the number of worktrees in a comparison pair: the from worktree and the to worktree.
+const worktreesPerPair = 2
 
 // Generator owns the per-working-directory lock for in-process GenerateStacks calls.
 type Generator struct {
@@ -90,7 +94,7 @@ const (
 func WorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
@@ -111,7 +115,7 @@ func WorktreeStacks(
 func (g *Generator) GenerateStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
@@ -124,12 +128,12 @@ func (g *Generator) GenerateStacks(
 func (g *Generator) generateStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 	scope stackScope,
 ) error {
-	workingDir, err := util.CanonicalResolvedPath(opts.WorkingDir, opts.WorkingDir)
+	workingDir, err := util.CanonicalResolvedPath(v.FS, opts.WorkingDir, opts.WorkingDir)
 	if err != nil {
 		return &CanonicalizeWorkingDirError{Path: opts.WorkingDir, Err: err}
 	}
@@ -197,7 +201,7 @@ func (g *Generator) generateStacks(
 
 // warnOnRepeatedClaims logs a warning when a stack file is claimed by more than
 // one parent in the same invocation. All nodes here are stack files by
-// construction — ListStackFiles filters to *component.Stack only.
+// construction, since ListStackFiles filters to *component.Stack only.
 func warnOnRepeatedClaims(l log.Logger, levelNodes []*StackNode, claimedBy map[string]string) {
 	for _, node := range levelNodes {
 		parent := "root"
@@ -223,7 +227,7 @@ func warnOnRepeatedClaims(l log.Logger, levelNodes []*StackNode, claimedBy map[s
 func generateLevel(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	level int,
 	levelNodes []*StackNode,
@@ -242,20 +246,19 @@ func generateLevel(
 		generatedFiles[node.FilePath] = true
 
 		// Best-effort skip; GenerateStackFile surfaces ENOENT if the file is removed in the TOCTOU window.
-		if !util.FileExists(node.FilePath) {
+		if !vfs.Exists(v.FS, node.FilePath) {
 			continue
 		}
 
 		wp.Submit(func() error {
-			_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-			pctx = pctx.WithVenv(v)
+			pctx := configbridge.NewParsingContext(opts)
 
 			scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, node.FilePath)
 			if err != nil {
 				return err
 			}
 
-			return config.GenerateStackFile(ctx, scopedLogger, scopedPctx, wp, node.FilePath)
+			return config.GenerateStackFile(ctx, scopedLogger, v, scopedPctx, wp, node.FilePath)
 		})
 	}
 
@@ -269,7 +272,7 @@ func generateLevel(
 func discoverAndAddNewNodes(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 	workingDir string,
@@ -434,18 +437,21 @@ func addNewNodesToGraph(
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 	scope stackScope,
 ) ([]string, error) {
 	var discoveredComponents component.Components
 
+	stackOpts := discovery.StackGenerateOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	}
+
 	if scope != worktreeStacksOnly {
-		d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-			WorkingDir: opts.WorkingDir,
-			Filters:    opts.Filters,
-		})
+		d, err := discovery.NewForStackGenerate(l, v.FS, stackOpts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
 		}
@@ -456,19 +462,19 @@ func ListStackFiles(
 		}
 	}
 
-	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees)
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees, stackOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
 	}
 
 	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
 
-	foundFiles, err = appendStackFilePaths(foundFiles, discoveredComponents, opts.WorkingDir)
+	foundFiles, err = appendStackFilePaths(v.FS, foundFiles, discoveredComponents, opts.WorkingDir)
 	if err != nil {
 		return nil, err
 	}
 
-	foundFiles, err = appendStackFilePaths(foundFiles, worktreeStacks, opts.WorkingDir)
+	foundFiles, err = appendStackFilePaths(v.FS, foundFiles, worktreeStacks, opts.WorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -480,18 +486,21 @@ func ListStackFiles(
 // of unit paths that should be excluded from the current tofu/terraform command.
 // Both results come from a single discovery walk. Stack-file paths and
 // excludedPaths keys are canonical symlink-resolved absolute paths; exclusion
-// follows discovery's IsActionListed + If logic using opts.TerraformCommand.
+// follows [config.ExcludeConfig.Excludes] for opts.TerraformCommand.
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
-	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
-	})
+	stackOpts := discovery.StackGenerateOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	}
+
+	d, err := discovery.NewForStackGenerate(l, v.FS, stackOpts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
 	}
@@ -503,12 +512,13 @@ func ListStackFilesWithExcludes(
 		return nil, nil, fmt.Errorf("failed to discover stack files: %w", err)
 	}
 
-	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees)
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees, stackOpts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
 	}
 
 	foundFiles, excludedPaths, err := collectStackAndExcludedPaths(
+		v.FS,
 		discoveredComponents,
 		opts.WorkingDir,
 	)
@@ -516,7 +526,7 @@ func ListStackFilesWithExcludes(
 		return nil, nil, err
 	}
 
-	foundFiles, err = appendStackFilePaths(foundFiles, worktreeStacks, opts.WorkingDir)
+	foundFiles, err = appendStackFilePaths(v.FS, foundFiles, worktreeStacks, opts.WorkingDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -526,6 +536,7 @@ func ListStackFilesWithExcludes(
 
 // collectStackAndExcludedPaths splits discovered components into canonical stack-file paths and excluded unit paths.
 func collectStackAndExcludedPaths(
+	fsys vfs.FS,
 	components component.Components,
 	workingDir string,
 ) ([]string, map[string]struct{}, error) {
@@ -536,6 +547,7 @@ func collectStackAndExcludedPaths(
 		switch v := c.(type) {
 		case *component.Stack:
 			canonical, err := util.CanonicalResolvedPath(
+				fsys,
 				filepath.Join(c.Path(), config.DefaultStackFile),
 				workingDir,
 			)
@@ -549,7 +561,7 @@ func collectStackAndExcludedPaths(
 				continue
 			}
 
-			canonical, err := util.CanonicalResolvedPath(v.Path(), workingDir)
+			canonical, err := util.CanonicalResolvedPath(fsys, v.Path(), workingDir)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -564,6 +576,7 @@ func collectStackAndExcludedPaths(
 // appendStackFilePaths appends the canonical terragrunt.stack.hcl path of every stack component in
 // components to dst, resolving each against workingDir. Non-stack components are skipped.
 func appendStackFilePaths(
+	fsys vfs.FS,
 	dst []string,
 	components component.Components,
 	workingDir string,
@@ -574,6 +587,7 @@ func appendStackFilePaths(
 		}
 
 		canonical, err := util.CanonicalResolvedPath(
+			fsys,
 			filepath.Join(c.Path(), config.DefaultStackFile),
 			workingDir,
 		)
@@ -592,20 +606,28 @@ func appendStackFilePaths(
 // it also identifies which stacks are affected and records them on the Worktrees object so that the worktree
 // discovery phase can walk them for unit-level changes. A changed or added file is matched against the "to"
 // stacks; a deleted file is matched against the "from" stacks, since that is the only side where it still
-// exists.
+// exists. The stack walk boundary from stackOpts, mirrored into each worktree, restricts both sets of stacks.
 func worktreeStacksToGenerate(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	w *worktrees.Worktrees,
+	stackOpts discovery.StackGenerateOptions,
 ) (component.Components, error) {
 	// If worktrees is nil, there are no worktrees to process, return empty components.
 	if w == nil {
 		return component.Components{}, nil
 	}
 
-	stacksToGenerate := component.NewThreadSafeComponents(component.Components{})
+	boundary := discovery.WorktreeBoundary(ctx, l, v, stackOpts)
+
+	err := discovery.CheckWorktreeBoundaries(ctx, v, w, opts.Filters, opts.DiscoveryBoundary, opts.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	stacksToGenerate := component.NewThreadSafeComponents(v.FS, component.Components{})
 
 	// If we edit a stack in a worktree, we need to generate it, at the minimum.
 	stackDiff := w.Stacks()
@@ -620,7 +642,12 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, stack := range editedStacks {
-		stacksToGenerate.EnsureComponent(stack)
+		if !discovery.WithinWorktreeBoundary(v.FS, stack, boundary) {
+			l.Debugf("Skipping stack %s outside the discovery boundary", stack.Path())
+			continue
+		}
+
+		stacksToGenerate.EnsureComponent(v.FS, stack)
 	}
 
 	// When the expanded filter for a given Git expression requires parsing,
@@ -629,8 +656,7 @@ func worktreeStacksToGenerate(
 	// can walk them for unit-level changes.
 
 	g, ctx := errgroup.WithContext(ctx)
-	// Allow up to 2 generation tasks per worktree pair (at least 1), capped by available CPUs.
-	g.SetLimit(min(runtime.GOMAXPROCS(0), max(1, len(w.WorktreePairs)*2))) //nolint:mnd
+	g.SetLimit(min(runtime.GOMAXPROCS(0), max(1, len(w.WorktreePairs)*worktreesPerPair)))
 
 	var (
 		mu              sync.Mutex
@@ -669,10 +695,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters, err := pair.Expand()
-		if err != nil {
-			return nil, fmt.Errorf("failed to expand worktree pair: %w", err)
-		}
+		fromFilters, toFilters := pair.FromFilters, pair.ToFilters
 
 		// Evaluate every reading filter, not just the first: a stack matches one filter per file it reads.
 		// The from filters mix deleted-file reading filters with path filters for genuine removals, so the
@@ -700,6 +723,7 @@ func worktreeStacksToGenerate(
 				opts,
 				pair.FromWorktree,
 				len(deletedReadFilters) > 0,
+				boundary,
 			)
 			if err != nil {
 				recordErr(err)
@@ -714,6 +738,7 @@ func worktreeStacksToGenerate(
 				opts,
 				pair.ToWorktree,
 				len(toReadFilters) > 0,
+				boundary,
 			)
 			if err != nil {
 				recordErr(err)
@@ -722,11 +747,11 @@ func worktreeStacksToGenerate(
 			}
 
 			for _, c := range allFromStacks {
-				stacksToGenerate.EnsureComponent(c)
+				stacksToGenerate.EnsureComponent(v.FS, c)
 			}
 
 			for _, c := range allToStacks {
-				stacksToGenerate.EnsureComponent(c)
+				stacksToGenerate.EnsureComponent(v.FS, c)
 			}
 
 			matchedToStacks, err := stacksReadingFiles(l, toReadFilters, allToStacks)
@@ -791,23 +816,34 @@ func worktreeStacksToGenerate(
 }
 
 // discoverStacks discovers stacks in a worktree.
-// User-provided filters from opts.Filters are included (restricted to stacks) so that
-// explicit exclusions like --filter '!./land-mine | type=stack' are respected.
 // When readFiles is true, all discovered stacks are parsed to populate their Reading
-// attribute (used by reading-affected detection).
+// attribute (used by reading-affected detection). A non-empty boundary, relative to
+// the worktree root, narrows the walk to that directory.
 func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	readFiles bool,
+	boundary string,
 ) (component.Components, error) {
-	allFilters := slices.Concat(stackTypeFilter(), opts.Filters.RestrictToStacks())
-
 	d := discovery.NewDiscovery(wt.Path).
 		WithSuppressParseErrors().
-		WithFilters(allFilters)
+		WithFilters(StackDiscoveryFilters(opts.Filters))
+
+	if boundary != "" {
+		walkRoot, ok, err := discovery.WorktreeWalkRoot(v.FS, wt.Path, boundary)
+		if err != nil {
+			return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
+		}
+
+		if !ok {
+			return component.Components{}, nil
+		}
+
+		d = d.WithWalkRoot(walkRoot)
+	}
 
 	if readFiles {
 		d = d.WithReadFiles()
@@ -870,7 +906,7 @@ func stacksReadingFiles(
 	matched := make([]*component.Stack, 0, len(readingFilters))
 
 	for _, f := range readingFilters {
-		evaluated, err := filter.Evaluate(l, f.Expression(), components)
+		evaluated, err := filter.Evaluate(l, filter.EvaluationContext{}, f.Expression(), components)
 		if err != nil {
 			return nil, err
 		}
@@ -891,6 +927,52 @@ func stacksReadingFiles(
 	}
 
 	return matched, nil
+}
+
+// StackDiscoveryFilters returns the filters that select which stacks a generation run
+// discovers, so that explicit exclusions like --filter '!./land-mine | type=stack' are
+// respected.
+//
+// Generation stays permissive until the user aims a filter at stacks, because a stack can
+// generate its units anywhere, so narrowing by a filter that never mentions stacks would drop
+// stacks the user still needs. Once a stack-targeted filter is present, every other filter is
+// narrowed to the stacks it matches and joins the union, rather than being dropped, which
+// would lose the stacks only that filter selects. Filters union, so a blanket type=stack
+// alongside them would select every stack and undo the exclusions.
+//
+// Git expressions are left out: they match on a component's Git reference, which discovery
+// only stamps on afterwards, so folding them in here would select nothing.
+func StackDiscoveryFilters(filters filter.Filters) filter.Filters {
+	stackFilters := filters.RestrictToStacks()
+	if len(stackFilters) == 0 {
+		return stackTypeFilter()
+	}
+
+	result := make(filter.Filters, 0, len(filters))
+	result = append(result, stackFilters...)
+
+	for _, f := range filters.ExcludingGitFilters() {
+		expr := f.Expression()
+		if expr.IsRestrictedToStacks() {
+			continue
+		}
+
+		// A filter that only excludes already subtracts from the union, so narrowing it to
+		// stacks would turn it into a selector and hand back what it set out to remove.
+		if filter.IsPureNegation(expr) {
+			result = append(result, f)
+
+			continue
+		}
+
+		attrExpr := filter.NewTypeExpression(component.StackKind)
+		result = append(result, filter.NewFilter(
+			filter.NewInfixExpression(expr, "|", attrExpr),
+			f.String(),
+		))
+	}
+
+	return result
 }
 
 // stackTypeFilter returns a filter.Filters that restricts to stack components.

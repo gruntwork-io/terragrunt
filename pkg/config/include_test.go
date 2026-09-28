@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -522,6 +523,40 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 				},
 			},
 		},
+		// Deep merge a dependency that expands, where only the source declares expansion
+		{
+			name: "dependency expansion",
+			source: &config.TerragruntConfig{
+				TerragruntDependencies: config.Dependencies{
+					config.Dependency{
+						Name:       "vpc",
+						ConfigPath: cty.StringVal("../vpc"),
+						Expansion: &hclparse.ExpansionBlock{
+							ForEach: new(cty.SetVal([]cty.Value{cty.StringVal("web")})),
+						},
+					},
+				},
+			},
+			target: &config.TerragruntConfig{
+				TerragruntDependencies: config.Dependencies{
+					config.Dependency{
+						Name:       "vpc",
+						ConfigPath: cty.StringVal("../vpc"),
+					},
+				},
+			},
+			expected: &config.TerragruntConfig{
+				TerragruntDependencies: config.Dependencies{
+					config.Dependency{
+						Name:       "vpc",
+						ConfigPath: cty.StringVal("../vpc"),
+						Expansion: &hclparse.ExpansionBlock{
+							ForEach: new(cty.SetVal([]cty.Value{cty.StringVal("web")})),
+						},
+					},
+				},
+			},
+		},
 		// Deep merge retryable errors
 		// Deep merge inputs
 		{
@@ -645,9 +680,7 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	// Optionally, here you can add assertions to check the integrity of the targetConfig
 	// For example, checking if all keys and values have been copied correctly
 	expectedFields := len(sourceConfig.FieldsMetadata)
-	if len(targetConfig.FieldsMetadata) != expectedFields {
-		t.Errorf("Expected %d fields, got %d", expectedFields, len(targetConfig.FieldsMetadata))
-	}
+	assert.Len(t, targetConfig.FieldsMetadata, expectedFields)
 }
 
 func TestDependencyFileNotFoundError(t *testing.T) {

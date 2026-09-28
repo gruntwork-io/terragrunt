@@ -38,7 +38,7 @@ func TestErrorHandler(t *testing.T) {
 	// newRootCtx creates a context at the root (global) level,
 	// where ctx.Parent().Command is nil.
 	newRootCtx := func() *clihelper.Context {
-		app := clihelper.NewApp()
+		app := clihelper.NewApp(map[string]string{})
 		appCtx := clihelper.NewAppContext(app, nil)
 		rootCmd := &clihelper.Command{Name: "terragrunt", IsRoot: true}
 
@@ -48,7 +48,7 @@ func TestErrorHandler(t *testing.T) {
 	// newCommandCtx creates a context for a named subcommand,
 	// where ctx.Parent().Command is the root command (non-nil).
 	newCommandCtx := func(name string) *clihelper.Context {
-		app := clihelper.NewApp()
+		app := clihelper.NewApp(map[string]string{})
 		appCtx := clihelper.NewAppContext(app, nil)
 		rootCmd := &clihelper.Command{Name: "terragrunt", IsRoot: true}
 		rootCtx := appCtx.NewCommandContext(rootCmd, nil)
@@ -60,7 +60,7 @@ func TestErrorHandler(t *testing.T) {
 	// newRunSubcommandCtx creates a context for a subcommand of "run"
 	// (e.g., "providers" in "terragrunt run providers lock -platform ...").
 	newRunSubcommandCtx := func(name string) *clihelper.Context {
-		app := clihelper.NewApp()
+		app := clihelper.NewApp(map[string]string{})
 		appCtx := clihelper.NewAppContext(app, nil)
 		rootCmd := &clihelper.Command{Name: "terragrunt", IsRoot: true}
 		rootCtx := appCtx.NewCommandContext(rootCmd, nil)

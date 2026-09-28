@@ -81,6 +81,27 @@ func TestNew(t *testing.T) {
 			wantArgs:  nil,
 		},
 		{
+			name:      "platform with space-separated value",
+			input:     []string{"providers", "lock", "-platform", "linux_amd64", "-platform", "darwin_arm64"},
+			wantCmd:   "providers",
+			wantFlags: []string{"-platform", "linux_amd64", "-platform", "darwin_arm64"},
+			wantArgs:  nil,
+		},
+		{
+			name:      "fs-mirror with space-separated value",
+			input:     []string{"providers", "lock", "-fs-mirror", "/tmp/mirror"},
+			wantCmd:   "providers",
+			wantFlags: []string{"-fs-mirror", "/tmp/mirror"},
+			wantArgs:  nil,
+		},
+		{
+			name:      "net-mirror with space-separated value",
+			input:     []string{"providers", "lock", "-net-mirror", "https://mirror.example.com/"},
+			wantCmd:   "providers",
+			wantFlags: []string{"-net-mirror", "https://mirror.example.com/"},
+			wantArgs:  nil,
+		},
+		{
 			name:      "lock-timeout with space-separated value",
 			input:     []string{"apply", "-lock-timeout", "5m", "-auto-approve"},
 			wantCmd:   "apply",
@@ -256,6 +277,21 @@ func TestIacArgsRoundTrip(t *testing.T) {
 			name:  "providers lock subcommand preserves order",
 			input: []string{"providers", "lock", "-platform=linux_amd64", "-platform=darwin_arm64"},
 			want:  []string{"providers", "lock", "-platform=linux_amd64", "-platform=darwin_arm64"},
+		},
+		{
+			name:  "providers lock keeps platform values next to their flag",
+			input: []string{"providers", "lock", "-platform", "linux_amd64", "-platform", "darwin_arm64"},
+			want:  []string{"providers", "lock", "-platform", "linux_amd64", "-platform", "darwin_arm64"},
+		},
+		{
+			name:  "providers mirror keeps the target directory after the platform value",
+			input: []string{"providers", "mirror", "-platform", "linux_amd64", "./mirror"},
+			want:  []string{"providers", "mirror", "-platform", "linux_amd64", "./mirror"},
+		},
+		{
+			name:  "providers lock keeps the mirror source next to its flag",
+			input: []string{"providers", "lock", "-fs-mirror", "/tmp/mirror", "hashicorp/aws"},
+			want:  []string{"providers", "lock", "-fs-mirror", "/tmp/mirror", "hashicorp/aws"},
 		},
 		{
 			name:  "state mv subcommand preserves order",

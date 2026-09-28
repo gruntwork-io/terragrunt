@@ -3,7 +3,7 @@ title: clean
 description: Remove the auto-generated `.terragrunt-stack` directories created by `stack` commands.
 slug: reference/cli/commands/stack/clean
 sidebar:
-  order: 402
+  order: 403
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/reference/cli/commands/[...slug].astro -->

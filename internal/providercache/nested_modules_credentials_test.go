@@ -11,15 +11,17 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -72,9 +74,8 @@ func TestNestedModuleCredentials(t *testing.T) {
 		case "/v1/modules/private/lambda/aws/versions":
 			w.Header().Set("Content-Type", "application/json")
 
-			if _, err := io.WriteString(w, versionsBody); err != nil {
-				t.Errorf("upstream write failed: %v", err)
-			}
+			_, err := io.WriteString(w, versionsBody)
+			assert.NoError(t, err, "upstream write failed")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -89,7 +90,7 @@ func TestNestedModuleCredentials(t *testing.T) {
 			{Name: "127.0.0.1", Token: realUserToken},
 		},
 	}
-	credsSource := cliCfg.CredentialsSource()
+	credsSource := cliCfg.CredentialsSource(map[string]string{})
 
 	// The fake discoverer returns the upstream's full URL as modules.v1, so the
 	// proxy targets the httptest server (HTTP, not HTTPS) without DNS lookups.
@@ -101,10 +102,24 @@ func TestNestedModuleCredentials(t *testing.T) {
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
-	proxyProviderHandler := handlers.NewProxyProviderHandler(l, credsSource)
+	providerService := services.NewProviderService(
+		providerCacheDir,
+		pluginCacheDir,
+		nil,
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+	)
+	proxyProviderHandler := handlers.NewProxyProviderHandler(
+		l,
+		vhttp.NewNoNetworkClient(),
+		credsSource,
+	)
+	// The module proxy's data path rides the injected client's transport, so
+	// hand it the httptest server's client; the provider handler keeps the
+	// no-network client since this test never exercises provider traffic.
 	proxyModuleHandler := handlers.NewProxyModuleHandler(
 		l,
+		upstream.Client(),
 		credsSource,
 		discoverer,
 		[]string{registryName},
@@ -122,12 +137,12 @@ func TestNestedModuleCredentials(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	ln, err := server.Listen(ctx)
+	ln, err := server.Listen(ctx, venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("listener close failed: %v", err)
+		if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err, "listener close failed")
 		}
 	})
 

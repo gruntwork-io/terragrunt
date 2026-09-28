@@ -2,8 +2,11 @@
 package cliconfig
 
 import (
+	"io"
 	"maps"
+	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -32,30 +35,30 @@ type ConfigCredentialsHelper struct {
 type ConfigOption func(*Config) *Config
 
 // WithFS sets the filesystem for file operations.
-// If not set, defaults to the real OS filesystem.
-func WithFS(fs vfs.FS) ConfigOption {
+func WithFS(fsys vfs.FS) ConfigOption {
 	return func(cfg *Config) *Config {
-		cfg.fs = fs
+		cfg.fsys = fsys
 		return cfg
 	}
 }
 
-// NewConfig creates a new Config with default values.
-func NewConfig() *Config {
+// NewConfig creates a new Config that saves through fsys.
+func NewConfig(fsys vfs.FS) *Config {
 	return &Config{
-		fs: vfs.NewOSFS(),
+		fsys: fsys,
 	}
 }
 
 // Config provides methods to create a terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file).
 // The main purpose of which is to create a local config that will inherit the default user CLI config and adding new sections to force Terraform to send requests through the Terragrunt Cache server and use the provider cache directory.
+//
+// Every exported field is HCL-encoded into that file, so the filesystem the
+// config is written through stays unexported.
 type Config struct {
 	CredentialsHelpers   *ConfigCredentialsHelper `hcl:"credentials_helper,block"`
 	ProviderInstallation *ProviderInstallation    `hcl:"provider_installation,block"`
 
-	// fs is the filesystem for saving config. Unexported to skip HCL encoding.
-	// Defaults to vfs.NewOsFs() if nil.
-	fs vfs.FS
+	fsys vfs.FS
 
 	PluginCacheDir             string              `hcl:"plugin_cache_dir"`
 	Credentials                []ConfigCredentials `hcl:"credentials,block"`
@@ -75,7 +78,7 @@ func (cfg *Config) WithOptions(opts ...ConfigOption) *Config {
 
 // FS returns the configured filesystem.
 func (cfg *Config) FS() vfs.FS {
-	return cfg.fs
+	return cfg.fsys
 }
 
 // WithDisableCheckpoint sets DisableCheckpoint to true and returns the Config for chaining.
@@ -124,8 +127,12 @@ func (cfg *Config) Clone() *Config {
 	var providerInstallation *ProviderInstallation
 
 	hosts := make([]ConfigHost, 0, len(cfg.Hosts))
-
-	hosts = append(hosts, cfg.Hosts...)
+	for _, host := range cfg.Hosts {
+		hosts = append(hosts, ConfigHost{
+			Name:     host.Name,
+			Services: maps.Clone(host.Services),
+		})
+	}
 
 	if cfg.ProviderInstallation != nil {
 		providerInstallation = &ProviderInstallation{
@@ -133,15 +140,23 @@ func (cfg *Config) Clone() *Config {
 		}
 	}
 
+	var credentialsHelpers *ConfigCredentialsHelper
+	if cfg.CredentialsHelpers != nil {
+		credentialsHelpers = &ConfigCredentialsHelper{
+			Name: cfg.CredentialsHelpers.Name,
+			Args: slices.Clone(cfg.CredentialsHelpers.Args),
+		}
+	}
+
 	return &Config{
 		PluginCacheDir:             cfg.PluginCacheDir,
 		DisableCheckpoint:          cfg.DisableCheckpoint,
 		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
-		Credentials:                cfg.Credentials,
-		CredentialsHelpers:         cfg.CredentialsHelpers,
+		Credentials:                slices.Clone(cfg.Credentials),
+		CredentialsHelpers:         credentialsHelpers,
 		Hosts:                      hosts,
 		ProviderInstallation:       providerInstallation,
-		fs:                         cfg.fs,
+		fsys:                       cfg.fsys,
 	}
 }
 
@@ -200,21 +215,24 @@ func (cfg *Config) Save(configPath string) error {
 	file := hclwrite.NewEmptyFile()
 	gohcl.EncodeIntoBody(cfg, file.Body())
 
-	const ownerWriteGlobalReadPerms = 0644
-	if err := vfs.WriteFile(
+	const ownerReadWritePerms = 0o600
+
+	return vfs.StreamFileAtomic(
 		cfg.FS(),
 		configPath,
-		file.Bytes(),
-		ownerWriteGlobalReadPerms,
-	); err != nil {
-		return err
-	}
+		ownerReadWritePerms,
+		func(w io.Writer) error {
+			_, err := file.WriteTo(w)
 
-	return nil
+			return err
+		},
+	)
 }
 
 // CredentialsSource creates and returns a service credentials source whose behavior depends on which "credentials" if are present in the receiving config.
-func (cfg *Config) CredentialsSource() *CredentialsSource {
+func (cfg *Config) CredentialsSource(env map[string]string) *CredentialsSource {
+	venv.RequireEnvMap(env)
+
 	configured := make(map[svchost.Hostname]string)
 
 	for _, creds := range cfg.Credentials {
@@ -229,5 +247,6 @@ func (cfg *Config) CredentialsSource() *CredentialsSource {
 
 	return &CredentialsSource{
 		configured: configured,
+		env:        env,
 	}
 }

@@ -9,7 +9,7 @@ const (
 	LevelFormatTiny
 )
 
-var levelFormatList = NewMapValue(map[LevelFormatValue]string{ //nolint:gochecknoglobals
+var levelFormatList = NewMapValue(map[LevelFormatValue]string{
 	LevelFormatTiny:  "tiny",
 	LevelFormatShort: "short",
 	LevelFormatFull:  "full",

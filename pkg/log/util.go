@@ -4,7 +4,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"unicode/utf8"
+
+	"github.com/mattn/go-runewidth"
 )
 
 const (
@@ -42,42 +43,42 @@ func ResetASCISeq(str string) string {
 	return str
 }
 
-// VisibleLength returns the number of visible characters in str, counting runes
-// and ignoring ANSI escape sequences.
+// VisibleLength returns the number of terminal columns str fills, ignoring ANSI
+// escape sequences. A character that fills two columns, such as one in a CJK
+// script, counts as two, and each byte of invalid UTF-8 counts as one.
 func VisibleLength(str string) int {
-	if !hasANSI(str) {
-		return utf8.RuneCountInString(str)
+	if hasANSI(str) {
+		str = ansiReg.ReplaceAllString(str, "")
 	}
 
-	return utf8.RuneCountInString(ansiReg.ReplaceAllString(str, ""))
+	return runewidth.StringWidth(strings.ToValidUTF8(str, invalidByteReplacement))
 }
 
-// TruncateVisible returns the prefix of str that holds the first `width` visible
-// characters. ANSI escape sequences are copied verbatim and do not count toward
-// the width, and runes are never split mid-byte.
+// TruncateVisible returns the prefix of str that fills at most `width` terminal
+// columns. ANSI escape sequences are copied verbatim and do not count toward the
+// width. A character is never split, so a two-column character that would cross
+// the limit is left out. Each byte of invalid UTF-8 comes back as U+FFFD.
 func TruncateVisible(str string, width int) string {
 	if width <= 0 {
 		return ""
 	}
 
+	str = strings.ToValidUTF8(str, invalidByteReplacement)
+
 	var (
-		buf     strings.Builder
-		visible int
-		pos     int
+		buf       strings.Builder
+		remaining = width
+		pos       int
 	)
 
 	appendVisible := func(s string) bool {
-		for _, r := range s {
-			if visible == width {
-				return true
-			}
+		kept := runewidth.Truncate(s, remaining, "")
 
-			buf.WriteRune(r)
+		buf.WriteString(kept)
 
-			visible++
-		}
+		remaining -= runewidth.StringWidth(kept)
 
-		return false
+		return len(kept) < len(s)
 	}
 
 	// Share VisibleLength's escape-sequence model so both agree on what counts as
@@ -100,6 +101,11 @@ func TruncateVisible(str string, width int) string {
 
 	return buf.String()
 }
+
+// invalidByteReplacement stands in for each invalid UTF-8 byte before measuring,
+// because [runewidth.StringWidth] gives such a byte different widths depending on
+// the length of the string around it.
+const invalidByteReplacement = "\uFFFD"
 
 // hasANSI reports whether str may contain an ANSI escape sequence, i.e. an ESC
 // (U+001B) or CSI (U+009B) introducer that [ansiReg] could match.

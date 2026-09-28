@@ -8,13 +8,16 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+
 	// Imports pkg/log; pkg/log must never import internal/panicreport (would cycle via internal/vfs).
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -104,6 +107,8 @@ Stack trace:
 )
 
 // Reporter writes the crash banner and persists a crash log file on panic.
+// Every field is required; build one through [New] rather than by literal, so
+// a report cannot be assembled from a mix of supplied and real-OS details.
 type Reporter struct {
 	FS        vfs.FS
 	Now       func() time.Time
@@ -111,6 +116,8 @@ type Reporter struct {
 	GetPID    func() int
 	TempDir   func() string
 	BuildInfo func() (commit string, modified bool)
+	GOOS      string
+	GOARCH    string
 }
 
 // RecoveredError carries a panic recovered outside the main goroutine.
@@ -119,14 +126,24 @@ type RecoveredError struct {
 	stack []byte
 }
 
-// New returns a Reporter wired with production defaults.
-func New() *Reporter {
+// New returns a Reporter that writes its crash report through v's filesystem
+// and takes the process details it records from v's platform handles.
+func New(v *venv.Venv) *Reporter {
+	v.RequireFS()
+	v.RequireGOOS()
+	v.RequireGOARCH()
+
 	return &Reporter{
-		FS:        vfs.NewOSFS(),
+		FS:     v.FS,
+		Getwd:  v.Platform.Getwd,
+		GetPID: v.Platform.GetPID,
+		GOOS:   v.Platform.GOOS,
+		GOARCH: v.Platform.GOARCH,
+		// TempDir is where the report lands when the working directory is not
+		// writable, so it is the last place a crash can still be recorded.
+		TempDir: v.Platform.TempDir,
+		// The venv carries no clock yet, so the wall clock is read here.
 		Now:       time.Now,
-		Getwd:     os.Getwd,
-		GetPID:    os.Getpid,
-		TempDir:   os.TempDir,
 		BuildInfo: readBuildInfo,
 	}
 }
@@ -208,8 +225,7 @@ func PanicDetails(err error) (msg string, stack []byte) {
 		return "", nil
 	}
 
-	var ctyPanic function.PanicError
-	if stdErrors.As(err, &ctyPanic) {
+	if ctyPanic, ok := stdErrors.AsType[function.PanicError](err); ok {
 		return fmt.Sprintf("%v", ctyPanic.Value), ctyPanic.Stack
 	}
 
@@ -251,13 +267,11 @@ func IsPanic(err error) bool {
 		return false
 	}
 
-	var ctyPanic function.PanicError
-	if stdErrors.As(err, &ctyPanic) {
+	if _, ok := stdErrors.AsType[function.PanicError](err); ok {
 		return true
 	}
 
-	var runtimeErr runtime.Error
-	if stdErrors.As(err, &runtimeErr) {
+	if _, ok := stdErrors.AsType[runtime.Error](err); ok {
 		return true
 	}
 
@@ -275,13 +289,7 @@ func hasPanicStack(err error) bool {
 	}
 
 	if u, ok := err.(interface{ Unwrap() []error }); ok {
-		for _, e := range u.Unwrap() {
-			if hasPanicStack(e) {
-				return true
-			}
-		}
-
-		return false
+		return slices.ContainsFunc(u.Unwrap(), hasPanicStack)
 	}
 
 	return hasPanicStack(stdErrors.Unwrap(err))
@@ -334,8 +342,8 @@ func (r *Reporter) writeLog(
 	stack []byte,
 	args []string,
 ) (string, string, error) {
-	now := r.now()
-	pid := r.getPID()
+	now := r.Now()
+	pid := r.GetPID()
 	workingDir := r.workingDir()
 	content := r.formatLog(version, panicMsg, stack, args, now, workingDir, pid)
 	fileName := r.formatLogPath(now, pid)
@@ -347,7 +355,7 @@ func (r *Reporter) writeLog(
 	}
 
 	// Cwd write rejected; try TempDir before giving up.
-	tempDir := r.tempDir()
+	tempDir := r.TempDir()
 	if tempDir == "" || tempDir == workingDir {
 		return "", content, err
 	}
@@ -362,55 +370,18 @@ func (r *Reporter) writeLog(
 	return "", content, stdErrors.Join(err, tempErr)
 }
 
-// tempDir returns r.TempDir() when set, else os.TempDir.
-func (r *Reporter) tempDir() string {
-	if r.TempDir != nil {
-		return r.TempDir()
-	}
-
-	return os.TempDir()
-}
-
-// now returns r.Now() or time.Now if r.Now is nil.
-func (r *Reporter) now() time.Time {
-	if r.Now != nil {
-		return r.Now()
-	}
-
-	return time.Now()
-}
-
-// getPID returns r.GetPID() or os.Getpid if r.GetPID is nil.
-func (r *Reporter) getPID() int {
-	if r.GetPID != nil {
-		return r.GetPID()
-	}
-
-	return os.Getpid()
-}
-
-// writeFile writes through r.FS, falling back to a fresh OS FS when unset.
+// writeFile writes through r.FS.
 func (r *Reporter) writeFile(name string, data []byte, perm os.FileMode) error {
-	fs := r.FS
-	if fs == nil {
-		fs = vfs.NewOSFS()
-	}
-
-	return vfs.WriteFile(fs, name, data, perm)
+	return vfs.WriteFile(r.FS, name, data, perm)
 }
 
-// workingDir returns cwd, or TempDir if cwd is empty or errors.
+// workingDir returns cwd, or TempDir when cwd is empty or errors.
 func (r *Reporter) workingDir() string {
-	getwd := os.Getwd
-	if r.Getwd != nil {
-		getwd = r.Getwd
-	}
-
-	if wd, err := getwd(); err == nil && wd != "" {
+	if wd, err := r.Getwd(); err == nil && wd != "" {
 		return wd
 	}
 
-	return r.tempDir()
+	return r.TempDir()
 }
 
 // formatLog renders the crashLogTemplate with runtime context.
@@ -449,8 +420,8 @@ func (r *Reporter) formatLog(
 		commit,
 		modified,
 		runtime.Version(),
-		runtime.GOOS,
-		runtime.GOARCH,
+		r.GOOS,
+		r.GOARCH,
 		runtime.NumCPU(),
 		runtime.GOMAXPROCS(0),
 		runtime.NumGoroutine(),

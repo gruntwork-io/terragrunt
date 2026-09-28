@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -13,7 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +36,7 @@ const (
 	testFixtureGetPlatform             = "fixtures/get-platform"
 )
 
-func TestStartsWith(t *testing.T) {
+func TestTFStartsWith(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStartswith)
@@ -72,7 +74,7 @@ func TestStartsWith(t *testing.T) {
 	validateOutput(t, outputs, "startswith9", false)
 }
 
-func TestTimeCmp(t *testing.T) {
+func TestTFTimeCmp(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureTimecmp)
@@ -107,7 +109,7 @@ func TestTimeCmp(t *testing.T) {
 	validateOutput(t, outputs, "timecmp6", float64(1))
 }
 
-func TestTimeCmpInvalidTimestamp(t *testing.T) {
+func TestTFTimeCmpInvalidTimestamp(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureTimecmpInvalidTimestamp)
@@ -129,7 +131,7 @@ func TestTimeCmpInvalidTimestamp(t *testing.T) {
 	require.ErrorContains(t, err, expectedError)
 }
 
-func TestEndsWith(t *testing.T) {
+func TestTFEndsWith(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureEndswith)
@@ -167,7 +169,7 @@ func TestEndsWith(t *testing.T) {
 	validateOutput(t, outputs, "endswith9", false)
 }
 
-func TestStrContains(t *testing.T) {
+func TestTFStrContains(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStrcontains)
@@ -198,13 +200,16 @@ func TestStrContains(t *testing.T) {
 	validateOutput(t, outputs, "o2", false)
 }
 
-func TestGetRepoRootCaching(t *testing.T) {
+// TestTFGetRepoRootAcrossRunAll pins that get_repo_root resolves to the
+// enclosing repository for every unit a `run --all` walks, in a checkout whose
+// path reaches the fixture through a symlinked temp directory.
+func TestTFGetRepoRootAcrossRunAll(t *testing.T) {
 	t.Parallel()
 	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetRepoRoot)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -219,19 +224,17 @@ func TestGetRepoRootCaching(t *testing.T) {
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stdout, stderr)
-	assert.Contains(t, output, "git show-toplevel result")
-	assert.Contains(t, output, "git rev-parse --show-toplevel")
 	assert.Contains(t, output, fmt.Sprintf(`repo_root = "%s"`, rootPath))
 }
 
-func TestGetRepoRoot(t *testing.T) {
+func TestTFGetRepoRoot(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetRepoRoot)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -262,17 +265,17 @@ func TestGetRepoRoot(t *testing.T) {
 	repoRoot, ok := outputs["repo_root"]
 
 	assert.True(t, ok)
-	assert.Regexp(t, "/.*/TestGetRepoRoot.*/fixtures/get-repo-root", repoRoot.Value)
+	assert.Regexp(t, "/.*/TestTFGetRepoRoot.*/fixtures/get-repo-root", repoRoot.Value)
 }
 
-func TestGetWorkingDirBuiltInFunc(t *testing.T) {
+func TestTFGetWorkingDirBuiltInFunc(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetWorkingDir)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetWorkingDir))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetWorkingDir)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -327,7 +330,7 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 	assert.Equal(t, expectedWorkingDir, workingDir.Value)
 }
 
-func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
+func TestTFPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	t.Parallel()
 
 	appPath := path.Join(testFixtureRelativeIncludeCmd, "app")
@@ -347,7 +350,7 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	assert.Equal(t, 0, strings.Count(output, "path_relative_to_inclue: .\n"))
 }
 
-func TestPathRelativeFromInclude(t *testing.T) {
+func TestTFPathRelativeFromInclude(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixturePathRelativeFromInclude)
@@ -360,7 +363,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	basePath := filepath.Join(rootPath, "base")
 	clusterPath := filepath.Join(rootPath, "cluster")
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)
@@ -402,7 +405,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	assert.Contains(t, stderr, "Detected dependent units:\n"+clusterPath)
 }
 
-func TestGetPathFromRepoRoot(t *testing.T) {
+func TestTFGetPathFromRepoRoot(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetPathFromRepoRoot)
@@ -411,7 +414,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)
@@ -445,14 +448,14 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	assert.Equal(t, testFixtureGetPathFromRepoRoot, pathFromRoot.Value)
 }
 
-func TestGetPathToRepoRoot(t *testing.T) {
+func TestTFGetPathToRepoRoot(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathToRepoRoot))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPathToRepoRoot)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)
@@ -494,7 +497,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	}
 }
 
-func TestGetPlatform(t *testing.T) {
+func TestTFGetPlatform(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetPlatform)

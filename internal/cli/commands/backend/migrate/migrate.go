@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Run migrates Terraform/OpenTofu state from srcPath to dstPath. v is the
+// Run migrates OpenTofu/Terraform state from srcPath to dstPath. v is the
 // virtualized environment used to build the stack runner; the source and
 // destination each parse and run under their own Env clone of it so a
 // migration between two accounts of the same cloud can carry distinct
@@ -26,7 +26,7 @@ import (
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	srcPath, dstPath string,
 	opts *options.TerragruntOptions,
 ) error {
@@ -46,7 +46,7 @@ func Run(
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	rnr, err := runner.NewStackRunner(ctx, l, v, opts)
+	rnr, err := runner.New(ctx, l, v, opts)
 	if err != nil {
 		return err
 	}
@@ -78,10 +78,9 @@ func Run(
 	srcV := v.WithEnvCloned()
 	dstV := v.WithEnvCloned()
 
-	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
-	srcPctx = srcPctx.WithVenv(srcV)
+	srcPctx := configbridge.NewParsingContext(srcOpts)
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcV, srcPctx)
 	if err != nil {
 		return err
 	}
@@ -95,10 +94,9 @@ func Run(
 	// configured. Propagate that back so pullState runs in the correct directory.
 	srcOpts.WorkingDir = srcPctx.WorkingDir
 
-	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
-	dstPctx = dstPctx.WithVenv(dstV)
+	dstPctx := configbridge.NewParsingContext(dstOpts)
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstV, dstPctx)
 	if err != nil {
 		return err
 	}
@@ -115,7 +113,7 @@ func Run(
 			ctx,
 			l,
 			srcV,
-			configbridge.RemoteStateOptsFromOpts(srcOpts),
+			configbridge.RemoteStateOptsFromOpts(v.Env, srcOpts),
 		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
@@ -132,8 +130,8 @@ func Run(
 	return srcRemoteState.Migrate(
 		ctx, l,
 		srcV, dstV,
-		configbridge.RemoteStateOptsFromOpts(srcOpts),
-		configbridge.RemoteStateOptsFromOpts(dstOpts),
+		configbridge.RemoteStateOptsFromOpts(v.Env, srcOpts),
+		configbridge.RemoteStateOptsFromOpts(v.Env, dstOpts),
 		dstRemoteState,
 	)
 }

@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -7,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +37,7 @@ type excludeTestCase struct {
 	expectRuns      bool
 }
 
-func TestExcludeBlockBehavior(t *testing.T) {
+func TestTFExcludeBlockBehavior(t *testing.T) {
 	t.Parallel()
 
 	testCases := []*excludeTestCase{
@@ -214,7 +217,7 @@ func TestExcludeBlockBehavior(t *testing.T) {
 				return
 			}
 
-			runs, err := report.ParseJSONRunsFromFile(reportFile)
+			runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 			require.NoError(t, err, "Failed to parse report file")
 
 			for unitName, expected := range tc.expectedUnits {
@@ -269,7 +272,7 @@ func TestExcludeBlockBehavior(t *testing.T) {
 						run.Reason,
 					)
 				default:
-					t.Fatalf("Unexpected result %q for unit %s", expected.result, unitName)
+					require.FailNowf(t, "unexpected result", "Unexpected result %q for unit %s", expected.result, unitName)
 				}
 			}
 		})
@@ -314,11 +317,11 @@ func buildExcludeTestCommand(tc *excludeTestCase, rootPath, reportFile string) s
 	return cmd
 }
 
-// TestExcludeBlockFeatureFlagDefaultInDependency tests that when a dependency unit
+// TestTFExcludeBlockFeatureFlagDefaultInDependency tests that when a dependency unit
 // defines feature flags with defaults and uses them in an exclude block, the dependent
 // unit can still parse the dependency's config without errors.
 // This reproduces https://github.com/gruntwork-io/terragrunt/issues/4395
-func TestExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
+func TestTFExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
 	t.Parallel()
 
 	testFixturePath := "fixtures/exclude/dependency-feature-flags"
@@ -340,9 +343,9 @@ func TestExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
 	)
 }
 
-// TestExcludeBlockFeatureFlagDefaultRunAll tests the run-all scenario where
+// TestTFExcludeBlockFeatureFlagDefaultRunAll tests the run-all scenario where
 // all units are parsed and one has feature flags with defaults in exclude blocks.
-func TestExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
+func TestTFExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
 	t.Parallel()
 
 	testFixturePath := "fixtures/exclude/dependency-feature-flags"

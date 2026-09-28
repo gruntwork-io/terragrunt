@@ -180,40 +180,42 @@ To migrate state from the old unit paths to the new paths, we can run the follow
 
 <Code title="live" lang="bash" frame="terminal" code={`# Migrate dev state
 cd dev/ddb
-terragrunt state pull > /tmp/tofu.tfstate
+terragrunt state pull > /tmp/tofu-dev-ddb.tfstate
 cd ../.terragrunt-stack/ddb
-terragrunt state push /tmp/tofu.tfstate
+terragrunt state push /tmp/tofu-dev-ddb.tfstate
 cd ../../s3
-terragrunt state pull > /tmp/tofu.tfstate
+terragrunt state pull > /tmp/tofu-dev-s3.tfstate
 cd ../.terragrunt-stack/s3
-terragrunt state push /tmp/tofu.tfstate
+terragrunt state push /tmp/tofu-dev-s3.tfstate
 cd ../../iam
-terragrunt state pull > /tmp/tofu.tfstate
+terragrunt state pull > /tmp/tofu-dev-iam.tfstate
 cd ../.terragrunt-stack/iam
-terragrunt state push /tmp/tofu.tfstate
+terragrunt state push /tmp/tofu-dev-iam.tfstate
 cd ../../lambda
-terragrunt state pull > /tmp/tofu.tfstate
+terragrunt state pull > /tmp/tofu-dev-lambda.tfstate
 cd ../.terragrunt-stack/lambda
-terragrunt state push /tmp/tofu.tfstate
+terragrunt state push /tmp/tofu-dev-lambda.tfstate
 
 # Migrate prod state
 cd ../../../prod/ddb
-terragrunt state pull > /tmp/tofu.tfstate
+terragrunt state pull > /tmp/tofu-prod-ddb.tfstate
 cd ../.terragrunt-stack/ddb
-terragrunt state push /tmp/tofu.tfstate
+terragrunt state push /tmp/tofu-prod-ddb.tfstate
 cd ../../s3
-terragrunt state pull > /tmp/tofu.tfstate
+terragrunt state pull > /tmp/tofu-prod-s3.tfstate
 cd ../.terragrunt-stack/s3
-terragrunt state push /tmp/tofu.tfstate
+terragrunt state push /tmp/tofu-prod-s3.tfstate
 cd ../../iam
-terragrunt state pull > /tmp/tofu.tfstate
+terragrunt state pull > /tmp/tofu-prod-iam.tfstate
 cd ../.terragrunt-stack/iam
-terragrunt state push /tmp/tofu.tfstate
+terragrunt state push /tmp/tofu-prod-iam.tfstate
 cd ../../lambda
-terragrunt state pull > /tmp/tofu.tfstate
+terragrunt state pull > /tmp/tofu-prod-lambda.tfstate
 cd ../.terragrunt-stack/lambda
-terragrunt state push /tmp/tofu.tfstate
+terragrunt state push /tmp/tofu-prod-lambda.tfstate
 `} />
+
+Each unit's state goes to a file of its own, so you're left with a local copy of every unit's state from before the migration.
 
 We can now remove the `.gitignore` files, and prove to ourselves that state has migrated successfully!
 

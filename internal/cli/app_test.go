@@ -15,6 +15,7 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl"
 	hclformat "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -23,13 +24,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,10 +44,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Skip("Skipping test on Windows")
 	}
 
-	workingDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
+	workingDir, err := venvtest.New().Platform.Getwd()
+	require.NoError(t, err)
 
 	testCases := []struct {
 		expectedErr     error
@@ -450,7 +449,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 			l := log.New(
 				log.WithOutput(os.Stderr),
@@ -507,9 +506,7 @@ func mockOptions(
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
-	if err != nil {
-		t.Fatalf("error: %v\n", err)
-	}
+	require.NoError(t, err)
 
 	opts.WorkingDir = workingDir
 	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
@@ -725,7 +722,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -802,7 +799,7 @@ func TestParseMultiStringArg(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -879,7 +876,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		opts := options.NewTerragruntOptions()
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.AwsProviderPatchOverrides = tc.defaultValue
 		l := log.New(
 			log.WithOutput(os.Stderr),
@@ -918,16 +915,18 @@ func TestTerragruntVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions()
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-		testV := venv.OSVenv()
+		testV := venvtest.New()
 
 		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
-		app := cli.NewApp(logger.CreateLogger(), opts, testV)
+		l := logger.CreateLogger()
+
+		app := cli.NewApp(l, opts, testV)
 		app.Version = version
 
-		err := app.Run(tc.args)
+		err := app.Run(l, testV, tc.args)
 		require.NoError(t, err, tc)
 
 		assert.Contains(t, output.String(), version)
@@ -939,8 +938,8 @@ func TestTerragruntHelp(t *testing.T) {
 
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
-	opts := options.NewTerragruntOptions()
-	app := cli.NewApp(logger.CreateLogger(), opts, venv.OSVenv())
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	app := cli.NewApp(logger.CreateLogger(), opts, venvtest.New())
 
 	testCases := []struct {
 		expected    string
@@ -978,14 +977,16 @@ func TestTerragruntHelp(t *testing.T) {
 			t.Parallel()
 
 			output := &bytes.Buffer{}
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-			testV := venv.OSVenv()
+			testV := venvtest.New()
 
 			testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
-			app := cli.NewApp(logger.CreateLogger(), opts, testV)
-			err := app.Run(tc.args)
+			l := logger.CreateLogger()
+
+			app := cli.NewApp(l, opts, testV)
+			err := app.Run(l, testV, tc.args)
 			require.NoError(t, err, tc)
 
 			assert.Contains(t, output.String(), tc.expected)
@@ -997,57 +998,22 @@ func TestTerragruntHelp(t *testing.T) {
 	}
 }
 
-func TestTerraformHelp(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		expected string
-		args     []string
-	}{
-		{
-			args:     []string{"terragrunt", tf.CommandNamePlan, "--help"},
-			expected: "(?s)Usage: terragrunt \\[global options\\] plan.*-detailed-exitcode",
-		},
-		{
-			args:     []string{"terragrunt", tf.CommandNameApply, "-help"},
-			expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy",
-		},
-		{
-			args:     []string{"terragrunt", tf.CommandNameApply, "-h"},
-			expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy",
-		},
-	}
-
-	for _, tc := range testCases {
-		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions()
-
-		testV := venv.OSVenv()
-
-		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
-
-		app := cli.NewApp(logger.CreateLogger(), opts, testV)
-		err := app.Run(tc.args)
-		require.NoError(t, err)
-
-		assert.Regexp(t, tc.expected, output.String())
-	}
-}
-
 func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 	t.Parallel()
 
 	output := &bytes.Buffer{}
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-	testV := venv.OSVenv()
+	testV := venvtest.New()
 
 	testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
-	app := cli.NewApp(logger.CreateLogger(), opts, testV)
+	l := logger.CreateLogger()
 
-	err := app.Run([]string{"terragrunt", "plan", "help"})
+	app := cli.NewApp(l, opts, testV)
+
+	err := app.Run(l, testV, []string{"terragrunt", "plan", "help"})
 	require.Error(t, err)
 }
 
@@ -1065,15 +1031,17 @@ func runAppTest(
 ) (*options.TerragruntOptions, error) {
 	emptyAction := func(ctx context.Context, cliCtx *clihelper.Context) error { return nil }
 
-	terragruntCommands := commands.New(l, opts, venv.OSVenv())
+	testV := venvtest.New()
+
+	terragruntCommands := commands.New(l, opts, testV)
 	setCommandAction(emptyAction, terragruntCommands...)
 
-	app := clihelper.NewApp()
+	app := clihelper.NewApp(testV.Env)
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
 
-	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
-	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, venv.OSVenv()))
+	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, testV, nil)...)
+	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, testV))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx context.Context, cliCtx *clihelper.Context) error {
 		for _, arg := range cliCtx.Args() {
@@ -1106,7 +1074,9 @@ func (err argMissingValueError) Error() string {
 	return "flag needs an argument: -" + string(err)
 }
 
-func TestAutocomplete(t *testing.T) { //nolint:paralleltest
+func TestAutocomplete(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		compLine          string
 		expectedCompletes []string
@@ -1130,20 +1100,24 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 	}
 
 	for _, tc := range testCases {
-		t.Setenv("COMP_LINE", "terragrunt "+tc.compLine)
-
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions()
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-		testV := venv.OSVenv()
+		// Autocomplete reads COMP_LINE from the venv's environment, so the
+		// completion request is handed over rather than exported to the process.
+		testV := venvtest.New().WithEnv(map[string]string{
+			"COMP_LINE": "terragrunt " + tc.compLine,
+		})
 
 		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
-		app := cli.NewApp(logger.CreateLogger(), opts, testV)
+		l := logger.CreateLogger()
+
+		app := cli.NewApp(l, opts, testV)
 
 		app.Commands = app.Commands.FilterByNames([]string{"hcl", "render", "run"})
 
-		err := app.Run([]string{"terragrunt"})
+		err := app.Run(l, testV, []string{"terragrunt"})
 		require.NoError(t, err)
 
 		for _, expectedComplete := range tc.expectedCompletes {

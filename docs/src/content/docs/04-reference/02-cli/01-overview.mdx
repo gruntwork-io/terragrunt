@@ -7,8 +7,9 @@ sidebar:
 ---
 
 import { Aside, Badge, LinkCard } from '@astrojs/starlight/components';
-import { getCollection, getEntry } from 'astro:content';
-export const commands = await getCollection('commands');
+import { getEntry } from 'astro:content';
+import { getPublishedCommands } from '@lib/commands/published';
+export const commands = await getPublishedCommands();
 
 export const openTofuShortcutsEntry = commands.filter((command) => command.data.path === 'opentofu-shortcuts')[0];
 

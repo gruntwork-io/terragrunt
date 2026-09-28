@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,10 +33,12 @@ stack "projects" {
 }
 
 `
+	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	terragruntStackConfig, err := config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		config.DefaultStackFile,
 		cfg,
@@ -111,10 +114,12 @@ stack "network" {
     no_dot_terragrunt_stack = true
 }
 `
+	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	terragruntStackConfig, err := config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		config.DefaultStackFile,
 		cfg,
@@ -175,10 +180,12 @@ locals {
 	project = "my-project
 }
 `
+	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	_, err := config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		config.DefaultStackFile,
 		invalidCfg,
@@ -340,9 +347,7 @@ func verifyDeterministicSortedOutput(t *testing.T, generationContents []string) 
 	positions := make([]int, len(keys))
 	for i, key := range keys {
 		positions[i] = strings.Index(contentStr, key)
-		if positions[i] == -1 {
-			t.Fatalf("Key %s not found in generated content", key)
-		}
+		require.NotEqual(t, -1, positions[i], "Key %s not found in generated content", key)
 	}
 
 	// Check if positions are in ascending order (alphabetical)
@@ -463,14 +468,13 @@ terraform {
 		t,
 		"terragrunt stack generate --working-dir "+tmpDir,
 	)
-	if err == nil {
-		// If no error, that's a failure for this test
-		t.Fatalf(
-			"expected error when values is non-object, got none. stdout=%s stderr=%s",
-			stdout,
-			stderr,
-		)
-	}
+	require.Error(
+		t,
+		err,
+		"expected error when values is non-object, got none. stdout=%s stderr=%s",
+		stdout,
+		stderr,
+	)
 
 	combined := stdout + "\n" + stderr + "\n" + err.Error()
 	assert.Contains(t, combined, "expected object or map")

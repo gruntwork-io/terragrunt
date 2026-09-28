@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // ociResolverTimeout caps the registry probe so a slow registry cannot stall CAS dispatch.
@@ -22,41 +24,59 @@ const ociManifestKeyAlg = "oci-manifest"
 // manifest digest on every call; an unchanged tag therefore hits the same
 // entry while a re-pushed tag misses and re-fetches.
 type OCIResolver struct {
+	Logger   log.Logger
 	NewStore OCINewStoreFunc
 }
 
-// NewOCIResolver returns an [OCIResolver] probing through newStore, so
-// resolution shares the getter's credential path.
-func NewOCIResolver(newStore OCINewStoreFunc) *OCIResolver {
-	return &OCIResolver{NewStore: newStore}
+// NewOCIResolver returns an [OCIResolver] probing through newStore, so resolution shares the getter's credential path.
+func NewOCIResolver(l log.Logger, newStore OCINewStoreFunc) *OCIResolver {
+	if l == nil {
+		panic("getter: NewOCIResolver requires a non-nil logger")
+	}
+
+	return &OCIResolver{Logger: l, NewStore: newStore}
 }
 
 // Scheme returns "oci".
 func (r *OCIResolver) Scheme() string { return SchemeOCI }
 
-// Probe returns the manifest digest of rawURL as a content-addressed cache
+// Pinned reports whether source names a manifest digest, which addresses
+// the manifest content itself. A tag can be moved to another manifest.
+func (r *OCIResolver) Pinned(source redact.URL) bool {
+	u, err := url.Parse(source.Reveal())
+	if err != nil {
+		return false
+	}
+
+	return u.Query().Has(ociDigestQueryKey)
+}
+
+// Probe returns the manifest digest of source as a content-addressed cache
 // key. Any failure returns [cas.ErrNoVersionMetadata] so the fetch falls
 // through to the download-then-content-hash path, surfacing the underlying
 // error on the real fetch attempt.
-func (r *OCIResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	digestValue, err := r.ResolveDigest(ctx, rawURL)
+func (r *OCIResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
+	digestValue, err := r.ResolveDigest(ctx, source)
 	if err != nil {
+		// Bare sentinel so CAS content-hashes; debug-log the probe cause.
+		r.Logger.Debugf("OCI probe of %q fell back to content hashing: %v", source, err)
+
 		return "", cas.ErrNoVersionMetadata
 	}
 
 	return cas.ContentKey(ociManifestKeyAlg, digestValue), nil
 }
 
-// ResolveDigest returns the manifest digest rawURL points at right now: the
+// ResolveDigest returns the manifest digest source points at right now: the
 // pinned digest verbatim, or a fresh tag resolution through the store seam.
-func (r *OCIResolver) ResolveDigest(ctx context.Context, rawURL string) (string, error) {
-	srcURL, err := url.Parse(rawURL)
+func (r *OCIResolver) ResolveDigest(ctx context.Context, source redact.URL) (string, error) {
+	srcURL, err := url.Parse(source.Reveal())
 	if err != nil {
-		return "", fmt.Errorf("parsing oci source %q: %w", rawURL, err)
+		return "", fmt.Errorf("parsing oci source %q: %w", source, err)
 	}
 
 	if srcURL.Scheme != SchemeOCI {
-		return "", ErrOCIMissingRegistryDomain
+		return "", ErrOCIUnexpectedScheme
 	}
 
 	queryValues := srcURL.Query()
@@ -67,14 +87,14 @@ func (r *OCIResolver) ResolveDigest(ctx context.Context, rawURL string) (string,
 	// Discarding the subdir is safe: go-getter clients strip //subdir before
 	// dispatch, so the cached tree is always the full root and the client
 	// applies the selector after materialization.
-	registryDomain, repositoryName, _, ref, err := parseOCISource(srcURL)
+	coords, err := parseOCISource(srcURL)
 	if err != nil {
 		return "", err
 	}
 
 	// A digest pin already names the manifest content; no resolution needed.
 	if queryValues.Has(ociDigestQueryKey) {
-		return ref, nil
+		return coords.ref, nil
 	}
 
 	if r.NewStore == nil {
@@ -84,14 +104,14 @@ func (r *OCIResolver) ResolveDigest(ctx context.Context, rawURL string) (string,
 	ctx, cancel := context.WithTimeout(ctx, ociResolverTimeout)
 	defer cancel()
 
-	store, err := r.NewStore(ctx, registryDomain, repositoryName)
+	store, err := r.NewStore(ctx, coords.registryDomain, coords.repositoryName)
 	if err != nil {
 		return "", err
 	}
 
-	desc, err := store.Resolve(ctx, ref)
+	desc, err := store.Resolve(ctx, coords.ref)
 	if err != nil {
-		return "", fmt.Errorf("resolving OCI reference %q: %w", ref, err)
+		return "", OCIReferenceResolutionError{Ref: coords.ref, Err: err}
 	}
 
 	return desc.Digest.String(), nil

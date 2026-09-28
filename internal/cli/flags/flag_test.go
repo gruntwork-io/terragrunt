@@ -2,6 +2,7 @@ package flags_test
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -65,10 +66,101 @@ func TestFlag_TakesValue(t *testing.T) {
 
 			testFlag := flags.NewFlag(tc.flag)
 
-			err := testFlag.Apply(new(flag.FlagSet))
+			err := testFlag.Apply(new(flag.FlagSet), map[string]string{})
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expected, testFlag.TakesValue())
+		})
+	}
+}
+
+// newDeprecatedAliasFlag mirrors the shape of `--no-auto-init`: a negative bool flag
+// whose deprecated alias is a separate flag carrying the opposite sense.
+func newDeprecatedAliasFlag(dest *bool) *flags.Flag {
+	return flags.NewFlag(
+		&clihelper.BoolFlag{
+			Name:        "no-auto-init",
+			EnvVars:     []string{"TG_NO_AUTO_INIT"},
+			Negative:    true,
+			Destination: dest,
+		},
+		flags.WithDeprecatedFlag(&clihelper.BoolFlag{
+			Name:    "terragrunt-auto-init",
+			EnvVars: []string{"TERRAGRUNT_AUTO_INIT"},
+		}, nil, strict.Controls{}),
+	)
+}
+
+// TestFlag_ValueCarriesDeprecatedAlias pins that a value given only by a deprecated
+// alias reaches the flag, and that reading the flag repeatedly does not change it.
+func TestFlag_ValueCarriesDeprecatedAlias(t *testing.T) {
+	t.Parallel()
+
+	dest := new(true)
+	testFlag := newDeprecatedAliasFlag(dest)
+
+	require.NoError(t, testFlag.Parse(nil, map[string]string{"TERRAGRUNT_AUTO_INIT": "false"}))
+
+	assert.Equal(t, false, testFlag.Value().Get())
+	assert.Equal(t, false, testFlag.Value().Get(), "reading the flag again must not change its value")
+	assert.False(t, *dest)
+}
+
+// TestFlag_ValueKeepsExplicitOverDeprecatedAlias pins the precedence between a
+// flag's current name and its deprecated alias: a command-line argument beats an
+// environment variable under either name, and at the same level the current
+// name wins.
+func TestFlag_ValueKeepsExplicitOverDeprecatedAlias(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		env      map[string]string
+		name     string
+		args     []string
+		expected bool
+	}{
+		{
+			name:     "flag argument turns auto-init off, alias env turns it on",
+			args:     []string{"--no-auto-init"},
+			env:      map[string]string{"TERRAGRUNT_AUTO_INIT": "true"},
+			expected: false,
+		},
+		{
+			name:     "flag argument turns auto-init on, alias env turns it off",
+			args:     []string{"--no-auto-init=false"},
+			env:      map[string]string{"TERRAGRUNT_AUTO_INIT": "false"},
+			expected: true,
+		},
+		{
+			name:     "flag argument beats alias argument",
+			args:     []string{"--no-auto-init", "--terragrunt-auto-init=true"},
+			env:      map[string]string{},
+			expected: false,
+		},
+		{
+			name:     "alias argument beats flag env",
+			args:     []string{"--terragrunt-auto-init=true"},
+			env:      map[string]string{"TG_NO_AUTO_INIT": "true"},
+			expected: true,
+		},
+		{
+			name:     "flag env beats alias env",
+			env:      map[string]string{"TG_NO_AUTO_INIT": "true", "TERRAGRUNT_AUTO_INIT": "true"},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dest := new(true)
+			testFlag := newDeprecatedAliasFlag(dest)
+
+			require.NoError(t, testFlag.Parse(tc.args, tc.env))
+
+			assert.Equal(t, tc.expected, testFlag.Value().Get())
+			assert.Equal(t, tc.expected, *dest)
 		})
 	}
 }
@@ -145,7 +237,7 @@ func TestFlag_Evaluate(t *testing.T) {
 			ctx = log.ContextWithLogger(ctx, logger)
 
 			for _, testFlag := range tc.flags {
-				err := testFlag.flag.Apply(new(flag.FlagSet))
+				err := testFlag.flag.Apply(new(flag.FlagSet), map[string]string{})
 				require.NoError(t, err)
 
 				if testFlag.arg != "" {
@@ -164,6 +256,87 @@ func TestFlag_Evaluate(t *testing.T) {
 
 			outputLines := strings.Split(strings.TrimSpace(output.String()), "\n")
 			assert.Equal(t, tc.expectedOutput, outputLines)
+		})
+	}
+}
+
+func TestFlag_Parse(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		expected    string
+		args        clihelper.Args
+		expectedErr bool
+	}{
+		{
+			name:     "accepted value",
+			args:     clihelper.Args{"--level", "debug"},
+			expected: "debug",
+		},
+		{
+			name:        "value rejected by the flag setter",
+			args:        clihelper.Args{"--level", "bogus"},
+			expectedErr: true,
+		},
+		{
+			name:        "value missing",
+			args:        clihelper.Args{"--level"},
+			expectedErr: true,
+		},
+		{
+			name: "flag belonging to another parser",
+			args: clihelper.Args{"--some-other-flag"},
+		},
+		{
+			name:     "value after a flag belonging to another parser",
+			args:     clihelper.Args{"--some-other-flag", "--level", "debug"},
+			expected: "debug",
+		},
+		{
+			name:        "rejected value after a flag belonging to another parser",
+			args:        clihelper.Args{"--some-other-flag", "--level", "bogus"},
+			expectedErr: true,
+		},
+		{
+			name:     "value after --help",
+			args:     clihelper.Args{"--help", "--level", "debug"},
+			expected: "debug",
+		},
+		{
+			name: "-h alone",
+			args: clihelper.Args{"-h"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got string
+
+			testFlag := flags.NewFlag(&clihelper.GenericFlag[string]{
+				Name: "level",
+				Setter: func(val string) error {
+					if val == "bogus" {
+						return errors.New("unsupported level")
+					}
+
+					got = val
+
+					return nil
+				},
+			})
+
+			err := testFlag.Parse(tc.args, map[string]string{})
+
+			if tc.expectedErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
 		})
 	}
 }

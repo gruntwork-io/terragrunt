@@ -1,0 +1,10 @@
+---
+version: "v1.1.2"
+category: "bug-fixes"
+---
+
+#### Run report no longer mangles the names of paths that share a prefix with the working directory
+
+When a run's path shared a string prefix with the working directory without being nested under it, the run report shortened its name by shearing off the prefix mid-segment. A working directory of `/repo/project` alongside a run at `/repo/project-staging/unit` produced the name `-staging/unit`.
+
+The report now shortens a path only when it is genuinely nested under the working directory. Sibling paths keep their full name.

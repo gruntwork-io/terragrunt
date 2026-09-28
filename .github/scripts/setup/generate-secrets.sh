@@ -60,6 +60,34 @@ for SECRET in $SECRETS; do
 		printf "export AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_CHAIN_SOURCE_ROLE_ARN}" >>"$ENV_FILE"
 	elif [[ "$SECRET" == "AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN" && -n "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN}" ]]; then
 		printf "export AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AZURE_CLIENT_ID" && -n "${AZURE_CLIENT_ID:-}" ]]; then
+		printf "export AZURE_CLIENT_ID='%s'\n" "${AZURE_CLIENT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AZURE_CLIENT_SECRET" && -n "${AZURE_CLIENT_SECRET:-}" ]]; then
+		printf "export AZURE_CLIENT_SECRET='%s'\n" "${AZURE_CLIENT_SECRET}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "AZURE_TENANT_ID" && -n "${AZURE_TENANT_ID:-}" ]]; then
+		printf "export AZURE_TENANT_ID='%s'\n" "${AZURE_TENANT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_AZURE_TEST_STORAGE_ACCOUNT" && -n "${TG_AZURE_TEST_STORAGE_ACCOUNT:-}" ]]; then
+		printf "export TG_AZURE_TEST_STORAGE_ACCOUNT='%s'\n" "${TG_AZURE_TEST_STORAGE_ACCOUNT}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_AZURE_TEST_SUBSCRIPTION_ID" && -n "${TG_AZURE_TEST_SUBSCRIPTION_ID:-}" ]]; then
+		printf "export TG_AZURE_TEST_SUBSCRIPTION_ID='%s'\n" "${TG_AZURE_TEST_SUBSCRIPTION_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_AZURE_TEST_RESOURCE_GROUP" && -n "${TG_AZURE_TEST_RESOURCE_GROUP:-}" ]]; then
+		printf "export TG_AZURE_TEST_RESOURCE_GROUP='%s'\n" "${TG_AZURE_TEST_RESOURCE_GROUP}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_CLIENT_ID" && -n "${ARM_CLIENT_ID:-}" ]]; then
+		printf "export ARM_CLIENT_ID='%s'\n" "${ARM_CLIENT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_CLIENT_SECRET" && -n "${ARM_CLIENT_SECRET:-}" ]]; then
+		printf "export ARM_CLIENT_SECRET='%s'\n" "${ARM_CLIENT_SECRET}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_TENANT_ID" && -n "${ARM_TENANT_ID:-}" ]]; then
+		printf "export ARM_TENANT_ID='%s'\n" "${ARM_TENANT_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "ARM_SUBSCRIPTION_ID" && -n "${ARM_SUBSCRIPTION_ID:-}" ]]; then
+		printf "export ARM_SUBSCRIPTION_ID='%s'\n" "${ARM_SUBSCRIPTION_ID}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_ECR_REPOSITORY" && -n "${TG_OCI_TEST_ECR_REPOSITORY:-}" ]]; then
+		printf "export TG_OCI_TEST_ECR_REPOSITORY='%s'\n" "${TG_OCI_TEST_ECR_REPOSITORY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_REPOSITORY" && -n "${TG_OCI_TEST_GHCR_REPOSITORY:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_REPOSITORY='%s'\n" "${TG_OCI_TEST_GHCR_REPOSITORY}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_USERNAME" && -n "${TG_OCI_TEST_GHCR_USERNAME:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_USERNAME='%s'\n" "${TG_OCI_TEST_GHCR_USERNAME}" >>"$ENV_FILE"
+	elif [[ "$SECRET" == "TG_OCI_TEST_GHCR_TOKEN" && -n "${TG_OCI_TEST_GHCR_TOKEN:-}" ]]; then
+		printf "export TG_OCI_TEST_GHCR_TOKEN='%s'\n" "${TG_OCI_TEST_GHCR_TOKEN}" >>"$ENV_FILE"
 	fi
 done
 

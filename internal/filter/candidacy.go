@@ -30,13 +30,17 @@ func (d GraphDirection) String() string {
 	}
 }
 
-// IsNegated returns true if the expression starts with a negation operator.
-func IsNegated(expr Expression) bool {
+// IsPureNegation returns true if every operand of the expression is negated, meaning the
+// filter can only subtract components and never selects any of its own.
+//
+// A compound expression such as "!foo | bar" is not a pure negation. The "|" operator
+// intersects left to right, so the expression still selects the components matching "bar".
+func IsPureNegation(expr Expression) bool {
 	switch node := expr.(type) {
 	case *PrefixExpression:
 		return node.Operator == "!"
 	case *InfixExpression:
-		return IsNegated(node.Left)
+		return IsPureNegation(node.Left) && IsPureNegation(node.Right)
 	default:
 		return false
 	}

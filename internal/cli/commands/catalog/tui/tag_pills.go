@@ -6,20 +6,22 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
-// KindForTag returns the ComponentKind that tag names case-insensitively,
+// KindForTag returns the component.Kind that tag names case-insensitively,
 // and a bool reporting whether tag matched any known kind.
-func KindForTag(tag string) (ComponentKind, bool) {
+func KindForTag(tag string) (component.Kind, bool) {
 	switch strings.ToLower(strings.TrimSpace(tag)) {
 	case "module":
-		return ComponentKindModule, true
+		return component.KindModule, true
 	case "template":
-		return ComponentKindTemplate, true
+		return component.KindTemplate, true
 	case "unit":
-		return ComponentKindUnit, true
+		return component.KindUnit, true
 	case "stack":
-		return ComponentKindStack, true
+		return component.KindStack, true
 	}
 
 	return 0, false
@@ -50,27 +52,27 @@ func TagPillStyle(tag string, selected bool) lipgloss.Style {
 }
 
 // pillColorsForKind returns the (bg, fg) hex pair for a kind's pill.
-func pillColorsForKind(kind ComponentKind, selected bool) (string, string) {
+func pillColorsForKind(kind component.Kind, selected bool) (string, string) {
 	switch kind {
-	case ComponentKindTemplate:
+	case component.KindTemplate:
 		if selected {
 			return templatePillBgS, templatePillFgS
 		}
 
 		return templatePillBg, templatePillFg
-	case ComponentKindUnit:
+	case component.KindUnit:
 		if selected {
 			return unitPillBgS, unitPillFgS
 		}
 
 		return unitPillBg, unitPillFg
-	case ComponentKindStack:
+	case component.KindStack:
 		if selected {
 			return stackPillBgS, stackPillFgS
 		}
 
 		return stackPillBg, stackPillFg
-	case ComponentKindModule:
+	case component.KindModule:
 		if selected {
 			return modulePillBgS, modulePillFgS
 		}
@@ -114,7 +116,7 @@ func RenderTagPills(tags []string, maxWidth int, selected bool) string {
 		return ""
 	}
 
-	sorted := sortPrivilegedFirst(tags)
+	sorted := sortPrivilegedFirst(sanitizeTags(tags))
 
 	// Reserve against the widest possible +N so the indicator always fits.
 	worstOverflowText := fmt.Sprintf("+%d", len(sorted))
@@ -180,7 +182,7 @@ func RenderDetailTagPills(tags []string) string {
 		return ""
 	}
 
-	sorted := sortPrivilegedFirst(tags)
+	sorted := sortPrivilegedFirst(sanitizeTags(tags))
 	rendered := make([]string, 0, len(sorted))
 
 	for _, tag := range sorted {
@@ -210,6 +212,17 @@ func TagsMarkdownSection(tags []string) string {
 	}
 
 	return b.String()
+}
+
+// sanitizeTags returns tags ready to draw. A pill is measured before it is
+// placed, so the text is sanitized before any width is taken from it.
+func sanitizeTags(tags []string) []string {
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		out = append(out, viewtui.SanitizeLabel(tag))
+	}
+
+	return out
 }
 
 // sortPrivilegedFirst returns tags reordered so kind-matching ones come

@@ -8,6 +8,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/opencontainers/go-digest"
@@ -19,7 +21,7 @@ import (
 func TestOCIResolverScheme(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, getter.SchemeOCI, getter.NewOCIResolver(nil).Scheme())
+	assert.Equal(t, getter.SchemeOCI, getter.NewOCIResolver(discardLogger(), nil).Scheme())
 }
 
 // TestOCIResolverProbeDigestPinSkipsResolve: a digest pin is the key, no registry roundtrip.
@@ -27,9 +29,9 @@ func TestOCIResolverProbeDigestPinSkipsResolve(t *testing.T) {
 	t.Parallel()
 
 	pinned := digest.FromString("pinned-manifest").String()
-	r := getter.NewOCIResolver(failingNewStore())
+	r := getter.NewOCIResolver(discardLogger(), failingNewStore())
 
-	key, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?digest="+pinned)
+	key, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?digest="+pinned))
 	require.NoError(t, err, "a digest pin must not consult the store")
 	assert.Equal(t, cas.ContentKey("oci-manifest", pinned), key)
 }
@@ -39,12 +41,12 @@ func TestOCIResolverProbeTagResolvesEveryProbe(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 
-	first, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	first, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"))
 	require.NoError(t, err)
 
-	second, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	second, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"))
 	require.NoError(t, err)
 
 	assert.Equal(t, first, second, "an unchanged tag must produce the same key")
@@ -56,14 +58,14 @@ func TestOCIResolverProbeMovedTagChangesKey(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 
-	before, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	before, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"))
 	require.NoError(t, err)
 
 	store.manifestDesc.Digest = digest.FromString("re-pushed-manifest")
 
-	after, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	after, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"))
 	require.NoError(t, err)
 
 	assert.NotEqual(t, before, after, "a moved tag must produce a new key")
@@ -77,12 +79,12 @@ func TestOCIResolverProbeStripsSubdir(t *testing.T) {
 
 	var gotDomain, gotRepo string
 
-	r := getter.NewOCIResolver(recordingStore(store, &gotDomain, &gotRepo))
+	r := getter.NewOCIResolver(discardLogger(), recordingStore(store, &gotDomain, &gotRepo))
 
-	whole, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	whole, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"))
 	require.NoError(t, err)
 
-	subdir, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0")
+	subdir, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0"))
 	require.NoError(t, err)
 
 	assert.Equal(t, whole, subdir)
@@ -95,12 +97,15 @@ func TestOCIResolverProbeIgnoresArchiveMarker(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 
-	plain, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	plain, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"))
 	require.NoError(t, err)
 
-	marked, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?archive=false&tag=1.0.0")
+	marked, err := r.Probe(
+		t.Context(),
+		redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?archive=false&tag=1.0.0"),
+	)
 	require.NoError(t, err)
 
 	assert.Equal(t, plain, marked)
@@ -112,13 +117,13 @@ func TestOCIResolverProbeAppliesTimeout(t *testing.T) {
 
 	var sawDeadline bool
 
-	r := getter.NewOCIResolver(func(ctx context.Context, _, _ string) (getter.OCIRepositoryStore, error) {
+	r := getter.NewOCIResolver(discardLogger(), func(ctx context.Context, _, _ string) (getter.OCIRepositoryStore, error) {
 		_, sawDeadline = ctx.Deadline()
 
 		return nil, errUnknownBlob
 	})
 
-	_, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	_, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 	assert.True(t, sawDeadline, "the probe must bound registry calls with a deadline")
 }
@@ -128,14 +133,14 @@ func TestOCIResolverProbeTagAndDigestShareKey(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 
-	viaTag, err := r.Probe(t.Context(), "oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0")
+	viaTag, err := r.Probe(t.Context(), redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?tag=1.0.0"))
 	require.NoError(t, err)
 
 	viaDigest, err := r.Probe(
 		t.Context(),
-		"oci://127.0.0.1:5000/terraform-modules/vpc?digest="+store.manifestDesc.Digest.String(),
+		redact.NewURL("oci://127.0.0.1:5000/terraform-modules/vpc?digest="+store.manifestDesc.Digest.String()),
 	)
 	require.NoError(t, err)
 
@@ -155,6 +160,8 @@ func TestOCIResolverProbeErrors(t *testing.T) {
 		{name: "missing registry domain", rawURL: "oci:///terraform-modules/vpc?tag=1.0.0"},
 		{name: "missing repository name", rawURL: "oci://127.0.0.1:5000?tag=1.0.0"},
 		{name: "unsupported query parameter", rawURL: "oci://127.0.0.1:5000/vpc?tag=1.0.0&foo=bar"},
+		{name: "embedded tag reference", rawURL: "oci://127.0.0.1:5000/vpc:1.0.0"},
+		{name: "invalid repository name", rawURL: "oci://127.0.0.1:5000/VPC?tag=1.0.0"},
 		{name: "invalid digest value", rawURL: "oci://127.0.0.1:5000/vpc?digest=not-a-digest"},
 		{name: "nil store seam", rawURL: "oci://127.0.0.1:5000/vpc?tag=1.0.0"},
 		{
@@ -173,12 +180,38 @@ func TestOCIResolverProbeErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			r := getter.NewOCIResolver(tc.newStore)
+			r := getter.NewOCIResolver(discardLogger(), tc.newStore)
 
-			_, err := r.Probe(t.Context(), tc.rawURL)
+			_, err := r.Probe(t.Context(), redact.NewURL(tc.rawURL))
 			require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 		})
 	}
+}
+
+// TestOCIResolverResolveDigestWrongScheme: ResolveDigest surfaces a dedicated
+// scheme error for a non-oci source, not the unrelated missing-registry error.
+func TestOCIResolverResolveDigestWrongScheme(t *testing.T) {
+	t.Parallel()
+
+	r := getter.NewOCIResolver(discardLogger(), failingNewStore())
+
+	_, err := r.ResolveDigest(t.Context(), redact.NewURL("tfr://registry.example.com/module?version=1.0.0"))
+	require.ErrorIs(t, err, getter.ErrOCIUnexpectedScheme)
+}
+
+// TestOCIResolverResolveDigestEmbeddedReference: a docker-style suffix surfaces the typed rewrite, subdir kept.
+func TestOCIResolverResolveDigestEmbeddedReference(t *testing.T) {
+	t.Parallel()
+
+	r := getter.NewOCIResolver(discardLogger(), nil)
+
+	_, err := r.ResolveDigest(t.Context(), redact.NewURL("oci://127.0.0.1:5000/vpc:1.0.0//modules/sub"))
+	require.ErrorIs(t, err, getter.ErrOCIInvalidRepositoryName)
+
+	var embeddedErr getter.OCIEmbeddedReferenceError
+
+	require.ErrorAs(t, err, &embeddedErr)
+	assert.Equal(t, "oci://127.0.0.1:5000/vpc//modules/sub?tag=1.0.0", embeddedErr.SuggestedSource)
 }
 
 // TestOCIResolverProbeConcurrentWithRacing: concurrent probes of the same and
@@ -187,7 +220,7 @@ func TestOCIResolverProbeConcurrentWithRacing(t *testing.T) {
 	t.Parallel()
 
 	store := resolverFakeStore(t)
-	r := getter.NewOCIResolver(staticStore(store))
+	r := getter.NewOCIResolver(discardLogger(), staticStore(store))
 	pinned := store.manifestDesc.Digest.String()
 
 	const probesPerShape = 8
@@ -202,16 +235,12 @@ func TestOCIResolverProbeConcurrentWithRacing(t *testing.T) {
 			"oci://127.0.0.1:5000/terraform-modules/vpc//subdir?tag=1.0.0",
 			"oci://127.0.0.1:5000/terraform-modules/vpc?digest=" + pinned,
 		} {
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-
-				key, err := r.Probe(t.Context(), rawURL)
+			wg.Go(func() {
+				key, err := r.Probe(t.Context(), redact.NewURL(rawURL))
 				assert.NoError(t, err)
 
 				keys <- key
-			}()
+			})
 		}
 	}
 
@@ -229,11 +258,17 @@ func TestOCIResolverProbeConcurrentWithRacing(t *testing.T) {
 func TestDefaultSourceResolversOCIConfig(t *testing.T) {
 	t.Parallel()
 
-	_, found := getter.DefaultSourceResolvers()[getter.SchemeOCI]
+	v := venvtest.New()
+
+	_, found := getter.DefaultSourceResolvers(v)[getter.SchemeOCI]
 	assert.False(t, found, "oci resolver must be absent without WithOCIConfig")
 
-	v := venvtest.New()
-	resolvers := getter.DefaultSourceResolvers(getter.WithOCIConfig(logger.CreateLogger(), v, v.FS))
+	resolvers := getter.DefaultSourceResolvers(
+		v,
+		getter.WithDispatchLogger(logger.CreateLogger()),
+		getter.WithDispatchFS(v.FS),
+		getter.WithOCIConfig(v),
+	)
 
 	r, found := resolvers[getter.SchemeOCI]
 	require.True(t, found, "oci resolver must be present with WithOCIConfig")
@@ -278,4 +313,13 @@ func (failingResolveStore) Resolve(context.Context, string) (ociv1.Descriptor, e
 
 func (failingResolveStore) Fetch(context.Context, *ociv1.Descriptor) (io.ReadCloser, error) {
 	return nil, errUnknownBlob
+}
+
+// discardLogger returns a debug-level logger whose output is discarded, so the
+// resolver's probe-failure debug logs stay out of test output.
+func discardLogger() log.Logger {
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	return l
 }

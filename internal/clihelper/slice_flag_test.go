@@ -35,6 +35,7 @@ func TestSliceFlagStringApply(t *testing.T) {
 		},
 		{
 			flag: clihelper.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
+			envs: map[string]string{},
 		},
 		{
 			flag: clihelper.SliceFlag[string]{
@@ -51,6 +52,7 @@ func TestSliceFlagStringApply(t *testing.T) {
 				Name:        "foo",
 				Destination: new([]string{"default-value1", "default-value2"}),
 			},
+			envs:          map[string]string{},
 			expectedValue: []string{"default-value1", "default-value2"},
 		},
 	}
@@ -87,6 +89,7 @@ func TestSliceFlagIntApply(t *testing.T) {
 		},
 		{
 			flag:          clihelper.SliceFlag[int]{Name: "foo", Destination: new([]int{50, 51})},
+			envs:          map[string]string{},
 			expectedValue: []int{50, 51},
 		},
 	}
@@ -126,6 +129,7 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 				Name:        "foo",
 				Destination: new([]int64{50, 51}),
 			},
+			envs:          map[string]string{},
 			expectedValue: []int64{50, 51},
 		},
 	}
@@ -162,22 +166,10 @@ func testSliceFlagApply[T clihelper.SliceFlagType](
 		expectedDefaultValue = *flag.Destination
 	}
 
-	flag.LookupEnvFunc = func(key string) []string {
-		if envs == nil {
-			return nil
-		}
-
-		if val, ok := envs[key]; ok {
-			return flag.Splitter(val, flag.EnvVarSep)
-		}
-
-		return nil
-	}
-
 	flagSet := libflag.NewFlagSet("test-cmd", libflag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	err := flag.Apply(flagSet)
+	err := flag.Apply(flagSet, envs)
 	require.NoError(t, err)
 
 	err = flagSet.Parse(args)

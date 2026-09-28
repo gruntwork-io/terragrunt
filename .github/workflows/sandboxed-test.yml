@@ -1,0 +1,61 @@
+name: Sandboxed Tests
+
+on:
+  workflow_call:
+
+# Run the suite with every socket except loopback closed. Terragrunt virtualizes
+# its side effects through the venv bundle, so a test that reaches the network
+# either exercises an unvirtualized code path or is an integration test hiding in
+# the untagged suite. Both are worth catching here rather than as a flake on a day
+# the registry is slow.
+#
+# Only the network half applies here. The wrapper confines writes and toolchain
+# execution through a seatbelt profile, which runs only on macOS, so this job
+# does not check either.
+jobs:
+  test:
+    name: Sandboxed Test
+    runs-on: ubuntu-latest
+    env:
+      GOGC: "400"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        with:
+          fetch-depth: 1
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.12
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore Go caches
+        uses: $/.github/actions/go-cache-restore
+        with:
+          gocache-name: test
+
+      # Ubuntu 24.04 confines unprivileged user namespaces with AppArmor, which is
+      # what `unshare --map-root-user --net` needs. The check below is what
+      # actually gates the run, so a runner image that never restricted them is
+      # free to ignore this.
+      - name: Permit unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+        shell: bash
+
+      # `go test` compiles outside the sandbox, so warm the module cache first and
+      # keep the sandbox scoped to what the test binaries do.
+      - name: Warm build cache
+        run: go build ./... && go mod download
+        shell: bash
+
+      - name: Verify the sandbox is in force
+        run: ./.github/scripts/ci/sandbox-exec.sh --check
+        shell: bash
+
+      - name: Run Tests
+        run: ./.github/scripts/ci/sandbox-test.sh
+        shell: bash

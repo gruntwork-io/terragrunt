@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,9 @@ func TestMarkGlobAsRead(t *testing.T) {
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
+	v := venvtest.NewOSWithEmptyEnv()
 	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = dir
 
 	// Drive the HCL function via a locals block so we exercise the registered cty wrapper.
@@ -34,7 +37,7 @@ func TestMarkGlobAsRead(t *testing.T) {
 	// "**" does not collapse the surrounding separators.
 	hcl := `locals { matched = mark_glob_as_read("{*.tf,**/*.tf}") }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 
@@ -63,14 +66,16 @@ func TestMarkGlobAsReadEscapesMetacharacter(t *testing.T) {
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
+	v := venvtest.NewOSWithEmptyEnv()
 	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = dir
 
 	// The HCL string literal '"a\\*b.tf"' decodes to 'a\*b.tf', which the glob
 	// engine reads as a literal 'a*b.tf'.
 	hcl := `locals { matched = mark_glob_as_read("a\\*b.tf") }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 
@@ -95,12 +100,14 @@ func TestMarkGlobAsReadBoundaryFlag(t *testing.T) {
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
+	v := venvtest.NewOSWithEmptyEnv()
 	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = dir
 
 	hcl := `locals { matched = mark_glob_as_read("--terragrunt-boundary=.", "{*.yaml}") }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 
@@ -133,19 +140,26 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
 	t.Run("pattern above the repository root errors", func(t *testing.T) {
 		t.Parallel()
 
+		v := venvtest.NewOSWithEmptyEnv()
 		ctx, pctx := newTestParsingContext(t, configPath)
+		pctx = pctx.WithFileReadTracking()
 		pctx.WorkingDir = unitDir
 
-		hcl := `locals { matched = mark_glob_as_read("/{*.yaml}") }`
+		// The volume keeps the pattern rooted on Windows, where a bare "/" is relative to the drive.
+		hcl := `locals { matched = mark_glob_as_read("` + filepath.VolumeName(
+			root,
+		) + `/{*.yaml}") }`
 
-		_, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+		_, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 		require.Error(t, err)
 	})
 
 	t.Run("try wrapper recovers to empty", func(t *testing.T) {
 		t.Parallel()
 
+		v := venvtest.NewOSWithEmptyEnv()
 		ctx, pctx := newTestParsingContext(t, configPath)
+		pctx = pctx.WithFileReadTracking()
 		pctx.WorkingDir = unitDir
 
 		hcl := `locals {
@@ -153,16 +167,17 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
   matched = local.d != "" ? sort(try(mark_glob_as_read("${local.d}/{*.yaml}"), [])) : []
 }`
 
-		out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+		out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 		require.NoError(t, err)
 		require.NotNil(t, out)
 		assert.Empty(t, pctx.FilesRead.Paths())
 	})
 }
 
-// TestMarkManyAsReadMarksModuleSourceFilesByDefault pins the default behavior:
-// a full parse of a config with a local terraform source marks the module's
-// configuration files as read, with no experiment flag required.
+// TestMarkManyAsReadMarksModuleSourceFilesByDefault pins that a tracking parse of
+// a config with a local terraform source marks the module's configuration files
+// as read with no experiment flag required. The "default" is the absence of the
+// experiment, not of tracking, which [TestMarkManyAsReadUntrackedByDefault] covers.
 func TestMarkManyAsReadMarksModuleSourceFilesByDefault(t *testing.T) {
 	t.Parallel()
 
@@ -183,10 +198,12 @@ func TestMarkManyAsReadMarksModuleSourceFilesByDefault(t *testing.T) {
 	hcl := `terraform { source = "../../modules/foo" }`
 
 	l := logger.CreateLogger()
+	v := venvtest.NewOSWithEmptyEnv()
 	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = unitDir
 
-	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, pctx.FilesRead)
@@ -219,10 +236,12 @@ func TestMarkManyAsReadRelativeConfigPathAnchorsToWorkingDir(t *testing.T) {
 	hcl := `terraform { source = "../../modules/foo" }`
 
 	l := logger.CreateLogger()
+	v := venvtest.NewOSWithEmptyEnv()
 	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = unitDir
 
-	out, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, pctx.FilesRead)
@@ -250,11 +269,12 @@ func TestMarkManyAsReadPartialParseSource(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
+			v := venvtest.NewOSWithEmptyEnv()
 			ctx, pctx := newTestParsingContext(t, configPath)
 			pctx.WorkingDir = unitDir
-			pctx = pctx.WithDecodeList(decode)
+			pctx = pctx.WithDecodeList(decode).WithFileReadTracking()
 
-			out, err := config.PartialParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+			out, err := config.PartialParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 			require.NoError(t, err)
 			require.NotNil(t, out)
 			require.NotNil(t, pctx.FilesRead)
@@ -295,11 +315,12 @@ func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
+			v := venvtest.NewOSWithEmptyEnv()
 			ctx, pctx := newTestParsingContext(t, childPath)
 			pctx.WorkingDir = unitDir
-			pctx = pctx.WithDecodeList(decode)
+			pctx = pctx.WithDecodeList(decode).WithFileReadTracking()
 
-			out, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
+			out, err := config.PartialParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, out)
 			require.NotNil(t, pctx.FilesRead)
@@ -310,6 +331,39 @@ func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 			assert.NotContains(t, read, filepath.Join(moduleDir, "README.md"))
 		})
 	}
+}
+
+// TestMarkManyAsReadUntrackedByDefault pins the default: a parsing context nobody
+// asked to track reads keeps no record and leaves the local module source
+// unwalked, while the source itself decodes as it otherwise would.
+func TestMarkManyAsReadUntrackedByDefault(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "modules", "foo")
+	unitDir := filepath.Join(root, "units", "bar")
+
+	writeFile(t, filepath.Join(moduleDir, "main.tf"), "")
+
+	configPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	hcl := `terraform { source = "../../modules/foo" }`
+	writeFile(t, configPath, hcl)
+
+	l := logger.CreateLogger()
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx.WorkingDir = unitDir
+	pctx = pctx.WithDecodeList(config.TerraformSource)
+
+	out, err := config.PartialParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.NotNil(t, out.Terraform)
+	require.NotNil(t, out.Terraform.Source)
+	assert.Equal(t, "../../modules/foo", *out.Terraform.Source)
+
+	assert.False(t, pctx.FilesRead.Tracking())
+	assert.Empty(t, pctx.FilesRead.Paths())
 }
 
 func writeFile(t *testing.T, path, contents string) {

@@ -10,6 +10,11 @@ import (
 // NotifyFunc is a callback function for Notifier.
 type NotifyFunc func(sig os.Signal)
 
+// NotifierFunc is the shape of [NotifierWithContext]. Code that waits on a signal takes
+// one of these so a caller can drive the notifications itself, rather than reach the
+// process-global registry that every test in a binary shares.
+type NotifierFunc func(ctx context.Context, notifyFn NotifyFunc, trackSignals ...os.Signal)
+
 // Notifier registers a handler for receiving signals from the OS.
 // When signal is receiving, it calls the given callback func `notifyFn`.
 func Notifier(notifyFn NotifyFunc, trackSignals ...os.Signal) {

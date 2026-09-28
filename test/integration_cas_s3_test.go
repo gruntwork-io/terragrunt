@@ -13,14 +13,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
-// TestAwsCASS3ChecksumProbe exercises CASGetter end-to-end against a
+// TestAWSCASS3ChecksumProbe exercises CASGetter end-to-end against a
 // real S3 bucket. The PutObject sets a SHA-256 checksum so the
 // resolver's preferred content-addressed path runs; on a second
 // CASGetter request CAS materializes from the local store without
 // re-downloading the archive.
-func TestAwsCASS3ChecksumProbe(t *testing.T) {
+func TestAWSCASS3ChecksumProbe(t *testing.T) {
 	t.Parallel()
 
 	region := helpers.TerraformRemoteStateS3Region
@@ -28,7 +29,7 @@ func TestAwsCASS3ChecksumProbe(t *testing.T) {
 	bucket := provisionS3ModuleArchive(t, region, key)
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	v := venv.OSVenv()

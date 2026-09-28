@@ -11,9 +11,10 @@ import (
 
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/assert"
@@ -145,10 +146,10 @@ func TestCASGetterDoesNotClaimOCIWithoutFetcher(t *testing.T) {
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{})
 
@@ -215,7 +216,11 @@ func TestCASGetterOCISubdirSelectionSharesOneEntry(t *testing.T) {
 			assert.FileExists(t, filepath.Join(dstRoot, "main.tf"))
 			assert.FileExists(t, filepath.Join(dstRoot, "subdir", "sub.tf"))
 			assert.FileExists(t, filepath.Join(dstSub, "sub.tf"))
-			assert.NoFileExists(t, filepath.Join(dstSub, "main.tf"), "the root tree must not leak into a subdir request")
+			assert.NoFileExists(
+				t,
+				filepath.Join(dstSub, "main.tf"),
+				"the root tree must not leak into a subdir request",
+			)
 			assert.NoFileExists(t, filepath.Join(dstSub, "subdir"), "the selector must be applied, not the full tree")
 		})
 	}
@@ -265,10 +270,10 @@ func newOCICASHarness(
 
 	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
 
-	c, err := tgcas.New(tgcas.WithStorePath(storePath))
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithGenericFetchers(map[string]gogetter.Getter{
@@ -292,8 +297,10 @@ type movingTagResolver struct {
 
 func (r *movingTagResolver) Scheme() string { return getter.SchemeOCI }
 
-func (r *movingTagResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	digestValue, err := r.ResolveDigest(ctx, rawURL)
+func (r *movingTagResolver) Pinned(redact.URL) bool { return false }
+
+func (r *movingTagResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
+	digestValue, err := r.ResolveDigest(ctx, source)
 	if err != nil {
 		return "", tgcas.ErrNoVersionMetadata
 	}
@@ -301,8 +308,8 @@ func (r *movingTagResolver) Probe(ctx context.Context, rawURL string) (string, e
 	return tgcas.ContentKey("oci-manifest", digestValue), nil
 }
 
-func (r *movingTagResolver) ResolveDigest(_ context.Context, rawURL string) (string, error) {
-	u, err := url.Parse(rawURL)
+func (r *movingTagResolver) ResolveDigest(_ context.Context, source redact.URL) (string, error) {
+	u, err := url.Parse(source.Reveal())
 	if err != nil {
 		return "", err
 	}
@@ -373,7 +380,9 @@ type probeOnlyResolver struct {
 
 func (r *probeOnlyResolver) Scheme() string { return getter.SchemeOCI }
 
-func (r *probeOnlyResolver) Probe(context.Context, string) (string, error) {
+func (r *probeOnlyResolver) Pinned(redact.URL) bool { return false }
+
+func (r *probeOnlyResolver) Probe(context.Context, redact.URL) (string, error) {
 	return r.key, nil
 }
 

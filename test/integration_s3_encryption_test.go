@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -28,7 +28,7 @@ const (
 	s3SSEKMSFixturePath            = "fixtures/s3-encryption/sse-kms"
 )
 
-func TestAwsS3SSEAES(t *testing.T) {
+func TestAWSS3SSEAES(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEAESFixturePath)
@@ -64,7 +64,7 @@ func TestAwsS3SSEAES(t *testing.T) {
 	assert.Nil(t, sseRule.KMSMasterKeyID)
 }
 
-func TestAwsS3SSECustomKey(t *testing.T) {
+func TestAWSS3SSECustomKey(t *testing.T) {
 	t.Parallel()
 
 	// Note: This test requires a KMS key with alias 'alias/dedicated-test-key' to exist in the AWS account.
@@ -109,7 +109,7 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	// Replace the custom key with a new one, and check that the key is updated in s3
 	helpers.CleanupTerraformFolder(t, testPath)
 
-	contents, err := util.ReadFileAsString(tmpTerragruntConfigPath)
+	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpTerragruntConfigPath)
 	require.NoError(t, err)
 
 	err = os.Remove(tmpTerragruntConfigPath)
@@ -145,7 +145,7 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	)
 }
 
-func TestAwsS3SSEKeyNotReverted(t *testing.T) {
+func TestAWSS3SSEKeyNotReverted(t *testing.T) {
 	t.Parallel()
 
 	// Note: This test requires a KMS key with alias 'alias/dedicated-test-key' to exist in the AWS account.
@@ -219,7 +219,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	)
 }
 
-func TestAwsS3EncryptionWarning(t *testing.T) {
+func TestAWSS3EncryptionWarning(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEKMSFixturePath)
@@ -283,7 +283,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 	)
 }
 
-func TestAwsSkipBackend(t *testing.T) {
+func TestAWSSkipBackend(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEAESFixturePath)
@@ -309,9 +309,9 @@ func TestAwsSkipBackend(t *testing.T) {
 	require.Error(t, err)
 
 	dotTerraformDir := filepath.Join(testPath, ".terraform")
-	assert.False(
+	assert.NoDirExists(
 		t,
-		util.FileExists(dotTerraformDir),
+		dotTerraformDir,
 		".terraform directory %s exists",
 		dotTerraformDir,
 	)
@@ -325,9 +325,9 @@ func TestAwsSkipBackend(t *testing.T) {
 	// .terraform is created in the cache directory, not the original config directory
 	cacheDir := helpers.FindCacheWorkingDir(t, testPath)
 	cacheDotTerraformDir := filepath.Join(cacheDir, ".terraform")
-	assert.True(
+	assert.DirExists(
 		t,
-		util.FileExists(cacheDotTerraformDir),
+		cacheDotTerraformDir,
 		".terraform directory %s does not exist",
 		cacheDotTerraformDir,
 	)

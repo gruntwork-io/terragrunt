@@ -3,7 +3,6 @@ package scaffold
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -11,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -64,7 +64,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 	return scaffoldFlags
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	flags := NewFlags(opts, nil)
 	// Accept backend and feature flags for scaffold as well
 	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
@@ -86,15 +86,15 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *cli
 			}
 
 			if opts.ScaffoldRootFileName == "" {
-				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, opts)
+				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, v.FS, opts)
 			}
 
-			return Run(ctx, l, v, opts.OptionsFromContext(ctx), moduleURL, templateURL)
+			return RunInteractive(ctx, l, v, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}
 }
 
-func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions) string {
+func GetDefaultRootFileName(ctx context.Context, fsys vfs.FS, opts *options.TerragruntOptions) string {
 	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).
 		SuppressWarning().
 		Evaluate(ctx); err != nil {
@@ -109,7 +109,7 @@ func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions
 	for foldersToCheck := opts.MaxFoldersToCheck; dir != prevDir && dir != "" && foldersToCheck > 0; foldersToCheck-- {
 		prevDir = dir
 
-		_, err := os.Stat(filepath.Join(dir, config.RecommendedParentConfigName))
+		_, err := fsys.Stat(filepath.Join(dir, config.RecommendedParentConfigName))
 		if err == nil {
 			return config.RecommendedParentConfigName
 		}

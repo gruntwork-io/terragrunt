@@ -4,20 +4,24 @@ package externalcmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
-	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mattn/go-shellwords"
 )
+
+// ErrEmptyAuthProviderCmd is returned when parsing the auth provider command
+// yields no command to run, such as a value of only spaces.
+var ErrEmptyAuthProviderCmd = errors.New("auth provider command has no command to run")
 
 // Provider runs external command that returns a json string with credentials.
 type Provider struct {
@@ -48,7 +52,7 @@ func (provider *Provider) Name() string {
 func (provider *Provider) GetCredentials(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 ) (*providers.Credentials, error) {
 	if provider.authProviderCmd == "" {
 		return nil, nil
@@ -76,14 +80,15 @@ func (provider *Provider) GetCredentials(
 func (provider *Provider) fetchCredentials(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 ) (*providers.Credentials, error) {
-	parser := shellwords.NewParser()
-
-	// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
-	parts, err := parser.Parse(filepath.ToSlash(provider.authProviderCmd))
+	parts, err := split.Command(provider.authProviderCmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse auth provider command: %w", err)
+	}
+
+	if len(parts) == 0 {
+		return nil, ErrEmptyAuthProviderCmd
 	}
 
 	command := parts[0]
@@ -174,7 +179,7 @@ type AWSRole struct {
 func (role *AWSRole) Envs(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	authProviderCmd string,
 ) map[string]string {
 	if role.RoleARN == "" {
@@ -184,10 +189,8 @@ func (role *AWSRole) Envs(
 		return nil
 	}
 
+	// Left empty for AssumeIamRole to fill at call time; a per-fetch name would break the STS cache key.
 	sessionName := role.RoleSessionName
-	if sessionName == "" {
-		sessionName = iam.GetDefaultAssumeRoleSessionName()
-	}
 
 	duration := role.Duration
 	if duration == 0 {

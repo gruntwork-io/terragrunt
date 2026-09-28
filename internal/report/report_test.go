@@ -14,13 +14,17 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xeipuuv/gojsonschema"
 )
+
+var testWorkingDir = venvtest.Root("/repo")
 
 func TestNewReport(t *testing.T) {
 	t.Parallel()
@@ -34,7 +38,7 @@ func TestNewReport(t *testing.T) {
 func TestNewRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	path := filepath.Join(tmp, "test-run")
 	run := newRun(t, path)
@@ -50,7 +54,7 @@ func TestNewRun(t *testing.T) {
 func TestAddRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -70,7 +74,7 @@ func TestAddRun(t *testing.T) {
 func TestGetRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -112,7 +116,7 @@ func TestGetRun(t *testing.T) {
 func TestEnsureRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -201,7 +205,7 @@ func TestEnsureRun(t *testing.T) {
 func TestEndRun(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -293,7 +297,7 @@ func TestEndRun(t *testing.T) {
 func TestEndRunAlreadyEnded(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -381,7 +385,7 @@ func TestEndRunAlreadyEnded(t *testing.T) {
 func TestSummarize(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -528,35 +532,18 @@ func TestWriteCSV(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmp := helpers.TmpDirWOSymlinks(t)
+			tmp := testWorkingDir
 
 			l := logger.CreateLogger()
-
-			// Create a temporary file for the CSV
-			csvFile := filepath.Join(tmp, "report.csv")
-			file, err := os.Create(csvFile)
-			require.NoError(t, err)
-
-			defer file.Close()
 
 			// Setup and write the report
 			r := report.NewReport().WithWorkingDir(tmp)
 			tt.setup(l, tmp, r)
 
-			err = r.WriteCSV(file)
-			require.NoError(t, err)
+			var buf bytes.Buffer
+			require.NoError(t, r.WriteCSV(&buf))
 
-			// Close the file before reading
-			file.Close()
-
-			// Read the CSV file
-			file, err = os.Open(csvFile)
-			require.NoError(t, err)
-
-			defer file.Close()
-
-			reader := csv.NewReader(file)
-			records, err := reader.ReadAll()
+			records, err := csv.NewReader(&buf).ReadAll()
 			require.NoError(t, err)
 
 			// Verify the number of records
@@ -710,41 +697,21 @@ func TestWriteJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmp := helpers.TmpDirWOSymlinks(t)
-
-			// Create a temporary file for the JSON
-			jsonFile := filepath.Join(tmp, "report.json")
-			file, err := os.Create(jsonFile)
-			require.NoError(t, err)
-
-			defer file.Close()
+			tmp := testWorkingDir
 
 			// Setup and write the report
 			r := report.NewReport().WithWorkingDir(tmp)
 			tt.setup(l, tmp, r)
 
-			err = r.WriteJSON(file)
-			require.NoError(t, err)
-
-			// Close the file before reading
-			file.Close()
-
-			// Read the JSON file
-			file, err = os.Open(jsonFile)
-			require.NoError(t, err)
-
-			defer file.Close()
-
-			// Read the actual output
-			actualBytes, err := os.ReadFile(jsonFile)
-			require.NoError(t, err)
+			var buf bytes.Buffer
+			require.NoError(t, r.WriteJSON(&buf))
 
 			// Parse both expected and actual JSON to compare them
 			var expectedJSON, actualJSON []map[string]any
 
-			err = json.Unmarshal([]byte(tt.expected), &expectedJSON)
+			err := json.Unmarshal([]byte(tt.expected), &expectedJSON)
 			require.NoError(t, err)
-			err = json.Unmarshal(actualBytes, &actualJSON)
+			err = json.Unmarshal(buf.Bytes(), &actualJSON)
 			require.NoError(t, err)
 
 			// Verify the number of records
@@ -827,6 +794,40 @@ func TestWriteJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWriteJSONSiblingPrefixPath verifies that a run whose path merely shares a
+// string prefix with the working directory (a sibling like `<workingDir>-other`)
+// keeps its full path as its name, rather than having the working directory
+// sheared off mid-segment.
+func TestWriteJSONSiblingPrefixPath(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	workingDir := filepath.Join(testWorkingDir, "project")
+	siblingPath := filepath.Join(testWorkingDir, "project-staging", "unit")
+	subDirPath := filepath.Join(workingDir, "unit")
+
+	r := report.NewReport().WithWorkingDir(workingDir)
+
+	siblingRun := newRun(t, siblingPath)
+	require.NoError(t, r.AddRun(l, siblingRun))
+	require.NoError(t, r.EndRun(l, siblingRun.Path))
+
+	subRun := newRun(t, subDirPath)
+	require.NoError(t, r.AddRun(l, subRun))
+	require.NoError(t, r.EndRun(l, subRun.Path))
+
+	var buf bytes.Buffer
+	require.NoError(t, r.WriteJSON(&buf))
+
+	runs, err := report.ParseJSONRuns(buf.Bytes())
+	require.NoError(t, err)
+
+	names := runs.Names()
+	assert.Contains(t, names, siblingPath)
+	assert.Contains(t, names, "unit")
 }
 
 const ExpectedSchema = `{
@@ -991,7 +992,7 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 func TestWriteSummary(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -1091,7 +1092,7 @@ func TestWriteSummary(t *testing.T) {
 func TestSchemaIsValid(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -1150,37 +1151,16 @@ func TestSchemaIsValid(t *testing.T) {
 		report.WithCauseIgnoreBlock("ignore-block"),
 	)
 
-	// Write the report to a JSON file
-	reportFile := filepath.Join(tmp, "report.json")
-	file, err := os.Create(reportFile)
-	require.NoError(t, err)
+	var reportBuf bytes.Buffer
+	require.NoError(t, r.WriteJSON(&reportBuf))
 
-	defer file.Close()
+	var schemaBuf bytes.Buffer
+	require.NoError(t, report.WriteSchema(&schemaBuf))
 
-	err = r.WriteJSON(file)
-	require.NoError(t, err)
-	file.Close()
-
-	// Write the schema to a file
-	schemaFile := filepath.Join(tmp, "schema.json")
-	file, err = os.Create(schemaFile)
-	require.NoError(t, err)
-
-	defer file.Close()
-
-	err = report.WriteSchema(file)
-	require.NoError(t, err)
-	file.Close()
-
-	// Read the schema and report files
-	schemaBytes, err := os.ReadFile(schemaFile)
-	require.NoError(t, err)
-
-	reportBytes, err := os.ReadFile(reportFile)
-	require.NoError(t, err)
+	reportBytes := reportBuf.Bytes()
 
 	// Create a new schema loader
-	schemaLoader := gojsonschema.NewBytesLoader(schemaBytes)
+	schemaLoader := gojsonschema.NewBytesLoader(schemaBuf.Bytes())
 	documentLoader := gojsonschema.NewBytesLoader(reportBytes)
 
 	// Validate the report against the schema
@@ -1260,7 +1240,7 @@ func TestSchemaIsValid(t *testing.T) {
 func TestWriteUnitLevelSummary(t *testing.T) {
 	t.Parallel()
 
-	tmp := helpers.TmpDirWOSymlinks(t)
+	tmp := testWorkingDir
 
 	l := logger.CreateLogger()
 
@@ -1492,6 +1472,47 @@ func TestWriteUnitLevelSummary(t *testing.T) {
       this-is-a-very-long-name-3  x
 `,
 		},
+		{
+			name: "same unit name in English, French, and Japanese",
+			setup: func(l log.Logger, r *report.Report) {
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
+
+					english := newRun(t, filepath.Join(tmp, "database"))
+					r.AddRun(l, english)
+
+					time.Sleep(1 * time.Second)
+
+					french := newRun(t, filepath.Join(tmp, "base-de-données"))
+					r.AddRun(l, french)
+
+					time.Sleep(1 * time.Second)
+
+					japanese := newRun(t, filepath.Join(tmp, "データベース"))
+					r.AddRun(l, japanese)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, japanese.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, french.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, english.Path)
+				})
+			},
+			expected: `
+❯❯ Run Summary  3 units  x
+   ────────────────────────────
+   Succeeded (3)
+      database ......... x
+      base-de-données .. x
+      データベース ..... x
+`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1540,14 +1561,9 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 	// - Worktree path: /tmp/terragrunt-worktree-xxx/original/repo
 	// - Unit path in worktree: /tmp/terragrunt-worktree-xxx/original/repo/module/unit
 
-	// Create temp directories
-	originalRepoDir := helpers.TmpDirWOSymlinks(t)
-	worktreeDir := helpers.TmpDirWOSymlinks(t)
-
-	// Create the "unit" path in the worktree
+	originalRepoDir := venvtest.Root("/original-repo")
+	worktreeDir := venvtest.Root("/worktree")
 	unitPath := filepath.Join(worktreeDir, "module", "unit")
-	err := os.MkdirAll(unitPath, 0755)
-	require.NoError(t, err)
 
 	// Create a report with the original repo as working dir (simulating non-worktree scenario)
 	r := report.NewReport().WithWorkingDir(originalRepoDir)
@@ -1566,7 +1582,7 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 	// Write JSON and verify the name is relative to DiscoveryWorkingDir, not report.workingDir
 	var buf bytes.Buffer
 
-	err = r.WriteJSON(&buf)
+	err := r.WriteJSON(&buf)
 	require.NoError(t, err)
 
 	// Parse the JSON
@@ -1579,7 +1595,7 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 
 	// The name should be relative to the worktree dir, not the original repo dir
 	// Without the fix, this would be the full absolute path since unitPath doesn't start with originalRepoDir
-	assert.Equal(t, "module/unit", runs[0].Name,
+	assert.Equal(t, filepath.FromSlash("module/unit"), runs[0].Name,
 		"Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
 }
 
@@ -1589,14 +1605,9 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	// Create temp directories (simulating worktree scenario)
-	originalRepoDir := helpers.TmpDirWOSymlinks(t)
-	worktreeDir := helpers.TmpDirWOSymlinks(t)
-
-	// Create the "unit" path in the worktree
+	originalRepoDir := venvtest.Root("/original-repo")
+	worktreeDir := venvtest.Root("/worktree")
 	unitPath := filepath.Join(worktreeDir, "module", "unit")
-	err := os.MkdirAll(unitPath, 0755)
-	require.NoError(t, err)
 
 	// Create a report with the original repo as working dir
 	r := report.NewReport().WithWorkingDir(originalRepoDir)
@@ -1610,7 +1621,7 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 	// Write CSV
 	var buf bytes.Buffer
 
-	err = r.WriteCSV(&buf)
+	err := r.WriteCSV(&buf)
 	require.NoError(t, err)
 
 	// Parse the CSV
@@ -1621,8 +1632,41 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 	require.Len(t, records, 2) // header + 1 data row
 
 	// The name (first column) should be relative to worktree dir
-	assert.Equal(t, "module/unit", records[1][0],
+	assert.Equal(t, filepath.FromSlash("module/unit"), records[1][0],
 		"Run name should be relative to DiscoveryWorkingDir, not report.workingDir")
+}
+
+// TestWriteJSONWithRootWorkingDir verifies that a root working directory, which already
+// ends in a separator, still trims to a relative name rather than falling back to the
+// absolute path.
+func TestWriteJSONWithRootWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	rootDir := venvtest.Root("/")
+	unitPath := filepath.Join(rootDir, "module", "unit")
+
+	r := report.NewReport().WithWorkingDir(rootDir)
+
+	run := newRun(t, unitPath)
+	r.AddRun(l, run)
+	r.EndRun(l, unitPath, report.WithResult(report.ResultSucceeded))
+
+	var buf bytes.Buffer
+
+	err := r.WriteJSON(&buf)
+	require.NoError(t, err)
+
+	var runs []report.JSONRun
+
+	err = json.Unmarshal(buf.Bytes(), &runs)
+	require.NoError(t, err)
+
+	require.Len(t, runs, 1)
+
+	assert.Equal(t, filepath.FromSlash("module/unit"), runs[0].Name,
+		"Run name should be relative to the root working dir, not the absolute path")
 }
 
 // TestParseJSONRuns verifies that JSON report data can be parsed from bytes.
@@ -1723,7 +1767,7 @@ func TestParseJSONRunsFromFile(t *testing.T) {
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFile)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 		require.NoError(t, err)
 		require.Len(t, runs, 1)
 		assert.Equal(t, "test-unit", runs[0].Name)
@@ -1732,7 +1776,7 @@ func TestParseJSONRunsFromFile(t *testing.T) {
 	t.Run("non-existent file", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := report.ParseJSONRunsFromFile(filepath.Join(tmp, "does-not-exist.json"))
+		_, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), filepath.Join(tmp, "does-not-exist.json"))
 		require.Error(t, err)
 	})
 }
@@ -1930,7 +1974,7 @@ func TestParseCSVRunsFromFile(t *testing.T) {
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		runs, err := report.ParseCSVRunsFromFile(reportFile)
+		runs, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), reportFile)
 		require.NoError(t, err)
 		require.Len(t, runs, 1)
 		assert.Equal(t, "test-unit", runs[0].Name)
@@ -1939,7 +1983,7 @@ func TestParseCSVRunsFromFile(t *testing.T) {
 	t.Run("non-existent file", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := report.ParseCSVRunsFromFile(filepath.Join(tmp, "does-not-exist.csv"))
+		_, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), filepath.Join(tmp, "does-not-exist.csv"))
 		require.Error(t, err)
 	})
 }
@@ -2108,7 +2152,7 @@ func TestParseJSONRunsFromFileValidation(t *testing.T) {
 			err := os.WriteFile(reportFile, []byte(tt.input), 0644)
 			require.NoError(t, err)
 
-			_, err = report.ParseJSONRunsFromFile(reportFile)
+			_, err = report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -2127,7 +2171,7 @@ func TestParseJSONRunsFromFileValidation(t *testing.T) {
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		_, err = report.ParseJSONRunsFromFile(reportFile)
+		_, err = report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 		require.Error(t, err)
 
 		var schemaErr *report.SchemaValidationError

@@ -3,7 +3,6 @@ package filter
 import (
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 
 	"errors"
@@ -37,8 +36,7 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 	for i, filterString := range filterStrings {
 		filter, err := Parse(filterString)
 		if err != nil {
-			var parseErr ParseError
-			if errors.As(err, &parseErr) {
+			if parseErr, ok := errors.AsType[ParseError](err); ok {
 				diagnostics = append(diagnostics, FormatDiagnostic(&parseErr, i, useColor))
 
 				continue
@@ -61,10 +59,34 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 	return result, nil
 }
 
-// HasPositiveFilter returns true if the filters have any positive filters.
+// HasPositiveFilter returns true if any filter selects components, rather than only
+// subtracting them.
 func (f Filters) HasPositiveFilter() bool {
 	for _, filter := range f {
-		if !IsNegated(filter.expr) {
+		if !IsPureNegation(filter.expr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HasGraphBoundary reports whether any filter carries an inline "(dir)"
+// graph boundary operand.
+func (f Filters) HasGraphBoundary() bool {
+	for _, filter := range f {
+		if filter.HasGraphBoundary() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HasDependents reports whether any filter traverses the dependent direction.
+func (f Filters) HasDependents() bool {
+	for _, filter := range f {
+		if filter.HasDependents() {
 			return true
 		}
 	}
@@ -92,6 +114,18 @@ func (f Filters) RequiresParse() (Expression, bool) {
 	}
 
 	return nil, false
+}
+
+// RequiresReading returns true if any filter matches on what a component reads,
+// which is only knowable once parsing records the files each component read.
+func (f Filters) RequiresReading() bool {
+	for _, filter := range f {
+		if containsReadingExpression(filter.expr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // PartitionReadingFilters splits the filters by whether their top-level expression is a reading
@@ -171,6 +205,38 @@ func (f Filters) UniqueGitFilters() GitExpressions {
 	return targets
 }
 
+// InlineDependentBoundaries collects the dependent-side "(dir)..." boundaries of all non-negated expressions.
+// Dependency-side boundaries only bound traversal, so they never narrow where targets are found.
+func (f Filters) InlineDependentBoundaries() []string {
+	var boundaries []string
+
+	seen := make(map[string]struct{})
+
+	for _, flt := range f {
+		WalkExpressions(flt.expr, func(e Expression) bool {
+			if p, ok := e.(*PrefixExpression); ok && p.Operator == "!" {
+				return false
+			}
+
+			g, ok := e.(*GraphExpression)
+			if !ok {
+				return true
+			}
+
+			if b := g.Dependents.Boundary; b != "" {
+				if _, dup := seen[b]; !dup {
+					seen[b] = struct{}{}
+					boundaries = append(boundaries, b)
+				}
+			}
+
+			return true
+		})
+	}
+
+	return boundaries
+}
+
 // RestrictToStacks returns a new Filters object with only the filters that are restricted to stacks.
 func (f Filters) RestrictToStacks() Filters {
 	result := make(Filters, 0, len(f))
@@ -185,13 +251,19 @@ func (f Filters) RestrictToStacks() Filters {
 }
 
 // Evaluate applies all filters with union (OR) semantics in two phases:
-//  1. Positive filters (non-negated) are evaluated and their results are unioned
-//  2. Negative filters (starting with negation) are evaluated against the combined
-//     results and remove matching components
+//  1. Selecting filters are evaluated and their results are unioned
+//  2. Pure negations are evaluated against that union, keeping only what they don't reject
+//
+// A filter only subtracts when every one of its operands is negated, because such a filter
+// would otherwise swallow the union it is meant to narrow. A compound filter like "!foo | bar"
+// selects instead: "|" intersects left to right, so the expression still has to match "bar",
+// and subtracting it would drop that restriction and let components matching neither operand
+// through.
 //
 // If logger is provided, it will be used for logging warnings during evaluation.
 func (f Filters) Evaluate(
 	l log.Logger,
+	evalCtx EvaluationContext,
 	components component.Components,
 ) (component.Components, error) {
 	if len(f) == 0 {
@@ -204,7 +276,7 @@ func (f Filters) Evaluate(
 	)
 
 	for _, filter := range f {
-		if IsNegated(filter.expr) {
+		if IsPureNegation(filter.expr) {
 			negativeFilters = append(negativeFilters, filter)
 
 			continue
@@ -214,7 +286,7 @@ func (f Filters) Evaluate(
 	}
 
 	// Phase 1: Get initial set of components, which might need to be filtered further by negative filters
-	combined, err := initialComponents(l, positiveFilters, components)
+	combined, err := initialComponents(l, evalCtx, positiveFilters, components)
 	if err != nil {
 		return nil, err
 	}
@@ -223,33 +295,41 @@ func (f Filters) Evaluate(
 		return combined, nil
 	}
 
-	// Phase 2: Apply negative filters to find components to remove
-	toRemove := make(component.Components, 0, len(combined))
+	// Phase 2: Collect what the negations reject. Evaluating a negation returns what it keeps,
+	// so its rejects are the rest of the set, which spares us a complement of the filter that
+	// the language couldn't express for a chain like "!foo | !bar" anyway. Each negation is
+	// measured against the same initial set rather than against the previous one's leftovers,
+	// so that removing a component cannot rob a later negation of a graph traversal target.
+	rejected := make(map[string]struct{}, len(combined))
 
 	for _, filter := range negativeFilters {
-		removed, err := filter.Negated().Evaluate(l, combined)
+		kept, err := filter.Evaluate(l, evalCtx, combined)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, c := range removed {
-			if !slices.Contains(toRemove, c) {
-				toRemove = append(toRemove, c)
+		keptPaths := make(map[string]struct{}, len(kept))
+		for _, c := range kept {
+			keptPaths[c.Path()] = struct{}{}
+		}
+
+		for _, c := range combined {
+			if _, ok := keptPaths[c.Path()]; !ok {
+				rejected[c.Path()] = struct{}{}
 			}
 		}
 	}
 
-	if len(toRemove) == 0 {
+	if len(rejected) == 0 {
 		return combined, nil
 	}
 
-	// Phase 3: Remove components from the initial set
+	// We don't use slices.DeleteFunc here because we don't want the members of the original
+	// components slice to be zeroed.
+	results := make(component.Components, 0, len(combined)-len(rejected))
 
-	// We don't use slices.DeleteFunc here because we don't want the members of the original components slice to be
-	// zeroed.
-	results := make(component.Components, 0, len(combined)-len(toRemove))
 	for _, c := range combined {
-		if slices.Contains(toRemove, c) {
+		if _, ok := rejected[c.Path()]; ok {
 			continue
 		}
 
@@ -287,7 +367,7 @@ func (f Filters) EvaluateOnFiles(
 		return comps, nil
 	}
 
-	return f.Evaluate(l, comps)
+	return f.Evaluate(l, EvaluationContext{WorkingDir: workingDir}, comps)
 }
 
 // String returns a JSON array representation of all filter strings.
@@ -303,6 +383,23 @@ func (f Filters) String() string {
 	}
 
 	return string(jsonBytes)
+}
+
+// containsReadingExpression returns true if the expression tree contains a reading
+// attribute filter.
+func containsReadingExpression(expr Expression) bool {
+	found := false
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if attr, ok := e.(*AttributeExpression); ok && attr.Key == AttributeReading {
+			found = true
+			return false
+		}
+
+		return true
+	})
+
+	return found
 }
 
 // containsGitExpression returns true if the expression tree contains a GitExpression.
@@ -323,6 +420,7 @@ func containsGitExpression(expr Expression) bool {
 
 func initialComponents(
 	l log.Logger,
+	evalCtx EvaluationContext,
 	positiveFilters []*Filter,
 	components component.Components,
 ) (component.Components, error) {
@@ -333,7 +431,7 @@ func initialComponents(
 	seen := make(map[string]component.Component, len(components))
 
 	for _, filter := range positiveFilters {
-		result, err := filter.Evaluate(l, components)
+		result, err := filter.Evaluate(l, evalCtx, components)
 		if err != nil {
 			return nil, err
 		}
@@ -355,7 +453,7 @@ func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression
 	var targets []Expression
 
 	WalkExpressions(expr, func(e Expression) bool {
-		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependencies {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.Dependencies.Include {
 			targets = append(targets, graphExpr.Target)
 		}
 
@@ -369,7 +467,7 @@ func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 	var targets []Expression
 
 	WalkExpressions(expr, func(e Expression) bool {
-		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependents {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.Dependents.Include {
 			targets = append(targets, graphExpr.Target)
 		}
 

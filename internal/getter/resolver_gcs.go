@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
 // gcsResolverTimeout caps the Attrs call so a slow remote can't stall CAS
@@ -50,31 +52,38 @@ type GCSClient interface {
 // GCSResolver is a [cas.SourceResolver] for objects in Google Cloud
 // Storage.
 type GCSResolver struct {
-	// NewClient builds a GCS client per request. Nil means
-	// [storage.NewClient] with the ambient application default
-	// credentials.
+	// NewClient builds a GCS client per request. Nil means a client built
+	// from Venv.
 	NewClient func(ctx context.Context) (GCSClient, error)
+	// Venv carries the SDK's requests, credentials, and filesystem.
+	// Required when NewClient is nil; [NewGCSResolver] takes it from the
+	// caller.
+	Venv *venv.Venv
 }
 
-// NewGCSResolver returns a resolver wired to the ambient ADC.
-func NewGCSResolver() *GCSResolver { return &GCSResolver{} }
+// NewGCSResolver returns a resolver that reads object metadata through v.
+func NewGCSResolver(v *venv.Venv) *GCSResolver { return &GCSResolver{Venv: v} }
 
 // Scheme returns "gcs".
 func (r *GCSResolver) Scheme() string { return "gcs" }
+
+// Pinned always reports false: a GCS URL names an object without a
+// generation, so the probe describes whichever one is current.
+func (r *GCSResolver) Pinned(_ redact.URL) bool { return false }
 
 // Probe reads object metadata via ObjectHandle.Attrs and returns a
 // content-addressed cache key from MD5 (when present) or CRC32C
 // (always populated by GCS). Errors surface as
 // [cas.ErrNoVersionMetadata].
-func (r *GCSResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	u, err := url.Parse(rawURL)
+func (r *GCSResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
+	u, err := url.Parse(source.Reveal())
 	if err != nil {
-		return "", fmt.Errorf("parse GCS URL %s: %w", rawURL, err)
+		return "", fmt.Errorf("parse GCS URL %s: %w", source, err)
 	}
 
 	bucket, object, err := parseGCSURL(u)
 	if err != nil {
-		return "", fmt.Errorf("parse GCS URL %s: %w", rawURL, err)
+		return "", fmt.Errorf("parse GCS URL %s: %w", source, err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, gcsResolverTimeout)
@@ -125,7 +134,7 @@ func (r *GCSResolver) client(ctx context.Context) (GCSClient, error) {
 		return r.NewClient(ctx)
 	}
 
-	c, err := storage.NewClient(ctx)
+	c, err := gcphelper.NewGCPConfigBuilder().BuildGCSClient(ctx, r.Venv)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +186,7 @@ func parseGCSURL(u *url.URL) (bucket, object string, err error) {
 		}
 
 		return bucket, object, nil
-	case "http", "https":
+	case SchemeHTTP, SchemeHTTPS:
 		// Canonical: /storage/<version>/<bucket>/<object...>
 		parts := strings.SplitN(strings.TrimPrefix(u.Path, "/"), "/", gcsCanonicalPathSegments)
 		if len(parts) < gcsCanonicalPathSegments || parts[0] != "storage" {

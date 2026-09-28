@@ -1,4 +1,4 @@
-//nolint:paralleltest,tparallel // Every test in this file calls RequireSSH, which uses t.Setenv and therefore can't run in parallel.
+//nolint:paralleltest // The module download runs git through go-getter, which spawns it with the process environment, so RequireSSH's key has to be set with t.Setenv.
 package test_test
 
 import (
@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/stretchr/testify/assert"
@@ -169,7 +169,7 @@ EnableRootInclude: false
 	))
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpEnvPath+"/terragrunt.hcl")
 	require.NoError(t, err)
 	assert.NotContains(t, content, "find_in_parent_folders")
 }

@@ -6,6 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
 )
 
 const (
@@ -45,7 +47,7 @@ func (m Model) View() tea.View {
 		s = ""
 	}
 
-	v := tea.NewView(s)
+	v := tea.NewView(m.toasts.Overlay(s, m.width, m.height))
 	v.AltScreen = true
 
 	return v
@@ -60,7 +62,7 @@ func (m Model) listView() string {
 	// height math in the WindowSizeMsg handler stays unchanged.
 	notice := ""
 	if m.loadErr != nil {
-		notice = loadNoticeStyle.Render("⚠ " + m.loadErr.Error())
+		notice = loadNoticeStyle.Render("⚠ " + viewtui.SanitizeLabel(m.loadErr.Error()))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, bar, notice, active.View())
@@ -75,7 +77,7 @@ func (m Model) pagerView() string {
 // we render a loading hint so the user knows the TUI is working.
 func (m Model) formView() string {
 	if m.form == nil {
-		return formMetaStyle.Render("Discovering variables…")
+		return form.Meta("Discovering variables…")
 	}
 
 	return m.form.View()

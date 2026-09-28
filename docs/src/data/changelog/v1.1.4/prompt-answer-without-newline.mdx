@@ -1,0 +1,8 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Prompts accept a piped answer that has no trailing newline
+
+Piping an answer to a confirmation prompt, as in `printf yes | terragrunt run --all destroy`, failed with an `EOF` error because Terragrunt discarded a final answer that ended without a newline. Terragrunt now reads that final answer, and only a prompt that gets no input at all reports `EOF`.

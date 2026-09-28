@@ -154,6 +154,76 @@ func TestFilterValid(t *testing.T) {
 	}
 }
 
+func TestFilenameFromURL(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "plain filename",
+			input:    "terraform-provider-aws_5.0.0_linux_amd64.zip",
+			expected: "terraform-provider-aws_5.0.0_linux_amd64.zip",
+		},
+		{
+			name:     "URL without query string",
+			input:    "https://releases.hashicorp.com/terraform-provider-aws_5.0.0_linux_amd64.zip",
+			expected: "terraform-provider-aws_5.0.0_linux_amd64.zip",
+		},
+		{
+			name:     "signed S3 URL with query string",
+			input:    "https://s3.amazonaws.com/bucket/terraform-provider-aws_5.0.0_linux_amd64.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404",
+			expected: "terraform-provider-aws_5.0.0_linux_amd64.zip",
+		},
+		{
+			name:     "URL with fragment",
+			input:    "https://example.com/provider.zip#section",
+			expected: "provider.zip",
+		},
+		{
+			name:     "URL with query and fragment",
+			input:    "https://example.com/path/provider.zip?token=abc#section",
+			expected: "provider.zip",
+		},
+		{
+			name:     "relative URL with query string",
+			input:    "terraform-provider-aws_5.0.0_linux_amd64.zip?v=1",
+			expected: "terraform-provider-aws_5.0.0_linux_amd64.zip",
+		},
+		{
+			name:     "URL with deeply nested path",
+			input:    "https://registry.example.com/v1/providers/hashicorp/aws/5.0.0/download/linux/amd64/terraform-provider-aws.zip?signed=true",
+			expected: "terraform-provider-aws.zip",
+		},
+		{
+			name:     "Windows local mirror path",
+			input:    `C:\mirror\registry.example.com\hashicorp\aws\terraform-provider-aws_5.0.0_windows_amd64.zip`,
+			expected: "terraform-provider-aws_5.0.0_windows_amd64.zip",
+		},
+		{
+			name:     "Windows UNC mirror path",
+			input:    `\\server\share\mirror\terraform-provider-aws_5.0.0_windows_amd64.zip`,
+			expected: "terraform-provider-aws_5.0.0_windows_amd64.zip",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: ".",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := models.FilenameFromURL(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 func TestResolveRelativeReferences(t *testing.T) {
 	t.Parallel()
 
@@ -199,6 +269,30 @@ func TestResolveRelativeReferences(t *testing.T) {
 				DownloadURL:            "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider.zip",
 				SHA256SumsURL:          "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS",
 				SHA256SumsSignatureURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS.sig",
+			},
+		},
+		{
+			baseURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64",
+			body: models.ResponseBody{
+				DownloadURL:            "terraform-provider.zip?X-Amz-Signature=abc123&X-Amz-Expires=86400",
+				SHA256SumsURL:          "terraform-provider_SHA256SUMS?X-Amz-Signature=def456",
+				SHA256SumsSignatureURL: "terraform-provider_SHA256SUMS.sig#anchor",
+			},
+			expectedResolved: models.ResponseBody{
+				DownloadURL:            "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider.zip?X-Amz-Signature=abc123&X-Amz-Expires=86400",
+				SHA256SumsURL:          "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS?X-Amz-Signature=def456",
+				SHA256SumsSignatureURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS.sig#anchor",
+			},
+		},
+		{
+			baseURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64",
+			body: models.ResponseBody{
+				DownloadURL:   "/downloads/terraform-provider.zip?X-Amz-Signature=abc123",
+				SHA256SumsURL: "/downloads/terraform-provider_SHA256SUMS",
+			},
+			expectedResolved: models.ResponseBody{
+				DownloadURL:   "https://registry.company.com/downloads/terraform-provider.zip?X-Amz-Signature=abc123",
+				SHA256SumsURL: "https://registry.company.com/downloads/terraform-provider_SHA256SUMS",
 			},
 		},
 	}

@@ -12,11 +12,13 @@ import (
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,7 +105,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	err = templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 	require.Contains(t, content, "required_var_1")
 	require.Contains(t, content, "optional_var_2")
@@ -112,12 +114,13 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
+	v := venvtest.NewWithOSFS()
+	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
 		t.Context(),
 		l,
+		v,
 		pctx,
-		config.DefaultParserOptions(l, opts.StrictControls),
 	)
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
@@ -195,7 +198,7 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 	emptyDep := &variables.Dependency{}
 	require.NoError(t, templates.ProcessTemplate(l, boilerplateOpts, boilerplateOpts, emptyDep))
 
-	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	// Required field with a user value: HCL fragment emitted, no TODO line.
@@ -219,12 +222,13 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
+	v := venvtest.NewWithOSFS()
+	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
 		t.Context(),
 		l,
+		v,
 		pctx,
-		config.DefaultParserOptions(l, opts.StrictControls),
 	)
 	require.NoError(t, err)
 
@@ -433,7 +437,7 @@ catalog {
 			err = os.WriteFile(terragruntConfigPath, []byte(tc.terragruntConfig), 0644)
 			require.NoError(t, err)
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			// Set CLI flags if specified in test case
 			if tc.cliNoShell != nil {
 				opts.NoShell = *tc.cliNoShell
@@ -454,8 +458,9 @@ catalog {
 			l := logger.CreateLogger()
 
 			// First, verify catalog config parsing
-			_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, opts)
-			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
+			v := venvtest.NewWithOSFS()
+			catalogPctx := configbridge.NewParsingContext(opts)
+			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
 			require.NoError(t, err)
 			require.NotNil(t, catalogCfg, tc.description)
 
@@ -540,7 +545,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"
@@ -548,8 +553,9 @@ catalog {
 	l := logger.CreateLogger()
 
 	// Parse the configuration
-	_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
+	v := venvtest.NewWithOSFS()
+	catalogPctx := configbridge.NewParsingContext(opts)
+	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
@@ -579,7 +585,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"
@@ -587,8 +593,9 @@ catalog {
 	l := logger.CreateLogger()
 
 	// Parse the configuration
-	_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
+	v := venvtest.NewWithOSFS()
+	catalogPctx := configbridge.NewParsingContext(opts)
+	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
@@ -656,7 +663,7 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
-	content, err := util.ReadFileAsString(generatedFile)
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), generatedFile)
 	require.NoError(t, err)
 
 	// Verify that template variables were processed
@@ -730,7 +737,7 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
-	content, err := util.ReadFileAsString(generatedFile)
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), generatedFile)
 	require.NoError(t, err)
 
 	// Verify that template variables were processed
@@ -812,7 +819,7 @@ test_var = "{{ .TestVar }}"
 	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
-	content, err := util.ReadFileAsString(generatedFile)
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), generatedFile)
 	require.NoError(t, err)
 	assert.Contains(t, content, "test-value", "Template variable should be processed")
 
@@ -891,7 +898,7 @@ test_var = "{{ .TestVar }}"
 	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
-	content, err := util.ReadFileAsString(generatedFile)
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), generatedFile)
 	require.NoError(t, err)
 	assert.Contains(t, content, "test-value", "Template variable should be processed")
 
@@ -964,7 +971,7 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	generatedFile := filepath.Join(outputDir, "test.txt")
 	require.FileExists(t, generatedFile)
 
-	content, err := util.ReadFileAsString(generatedFile)
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), generatedFile)
 	require.NoError(t, err)
 
 	// Verify that template variables were processed

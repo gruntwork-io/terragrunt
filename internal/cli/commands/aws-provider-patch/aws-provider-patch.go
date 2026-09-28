@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -27,7 +27,7 @@ import (
 
 const defaultKeyParts = 2
 
-func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
 	}
@@ -38,7 +38,7 @@ func Run(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terragrun
 func runSingle(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
@@ -53,9 +53,9 @@ func runSingle(
 		return err
 	}
 
-	runCfg := prepared.Cfg.ToRunConfig(l)
+	runCfg := prepared.Cfg.ToRunConfig(l, v.FS)
 
-	if err := prepare.PrepareGenerate(l, v, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, runCfg); err != nil {
 		return err
 	}
 
@@ -63,10 +63,15 @@ func runSingle(
 		return err
 	}
 
-	return runAwsProviderPatch(l, v.Env, updatedOpts)
+	return runAwsProviderPatch(l, v.FS, v.Env, updatedOpts)
 }
 
-func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.TerragruntOptions) error {
+func runAll(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
 	components, err := d.Discover(ctx, l, v, opts)
@@ -91,7 +96,8 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
-		if err := runSingle(ctx, l, v.WithEnvCloned(), unitOpts); err != nil {
+		unitV := v.WithEnvCloned()
+		if err := runSingle(ctx, l, unitV, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -111,6 +117,7 @@ func runAll(ctx context.Context, l log.Logger, v venv.Venv, opts *options.Terrag
 
 func runAwsProviderPatch(
 	l log.Logger,
+	fsys vfs.FS,
 	env map[string]string,
 	opts *options.TerragruntOptions,
 ) error {
@@ -118,7 +125,7 @@ func runAwsProviderPatch(
 		return MissingOverrideAttrError(OverrideAttrFlagName)
 	}
 
-	terraformFilesInModules, err := findAllTerraformFilesInModules(env, opts)
+	terraformFilesInModules, err := findAllTerraformFilesInModules(fsys, env, opts)
 	if err != nil {
 		return err
 	}
@@ -126,13 +133,13 @@ func runAwsProviderPatch(
 	for _, terraformFile := range terraformFilesInModules {
 		l.Debugf("Looking at file %s", terraformFile)
 
-		originalTerraformFileContents, err := util.ReadFileAsString(terraformFile)
+		originalTerraformFileContents, err := vfs.ReadFile(fsys, terraformFile)
 		if err != nil {
 			return err
 		}
 
 		updatedTerraformFileContents, codeWasUpdated, err := PatchAwsProviderInTerraformCode(
-			originalTerraformFileContents,
+			string(originalTerraformFileContents),
 			terraformFile,
 			opts.AwsProviderPatchOverrides,
 		)
@@ -143,7 +150,8 @@ func runAwsProviderPatch(
 		if codeWasUpdated {
 			l.Debugf("Patching AWS provider in %s", terraformFile)
 
-			if err := util.WriteFileWithSamePermissions(
+			if err := vfs.WriteFileWithSamePermissions(
+				fsys,
 				terraformFile,
 				terraformFile,
 				bytes.NewBufferString(updatedTerraformFileContents),
@@ -171,19 +179,25 @@ type TerraformModule struct {
 // configuration. To be more specific, it only returns the source files downloaded for module "xxx" { ... } blocks into
 // the .terraform/modules folder; it does NOT return Terraform files for the top-level (AKA "root") module.
 //
-// NOTE: this method supports *.tf and *.tofu files. Terraform/OpenTofu code defined in *.json files is not currently
-// supported.
+// NOTE: this method supports *.tf and *.tofu files. OpenTofu/Terraform code defined
+// in *.json files is not currently supported.
 func findAllTerraformFilesInModules(
+	fsys vfs.FS,
 	env map[string]string,
 	opts *options.TerragruntOptions,
 ) ([]string, error) {
 	modulesJSONPath := filepath.Join(opts.DataDir(env), "modules", "modules.json")
 
-	if !util.FileExists(modulesJSONPath) {
+	exists, err := vfs.FileExists(fsys, modulesJSONPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
 		return nil, nil
 	}
 
-	modulesJSONContents, err := os.ReadFile(modulesJSONPath)
+	modulesJSONContents, err := vfs.ReadFile(fsys, modulesJSONPath)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +216,7 @@ func findAllTerraformFilesInModules(
 				moduleAbsPath = filepath.Join(opts.WorkingDir, moduleAbsPath)
 			}
 
-			moduleFiles, err := util.FindTFFiles(moduleAbsPath)
+			moduleFiles, err := util.FindTFFiles(fsys, moduleAbsPath)
 			if err != nil {
 				return nil, err
 			}

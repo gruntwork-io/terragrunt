@@ -1,0 +1,10 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Current flag names take precedence over deprecated ones
+
+A setting given under both its current name and a deprecated one took the deprecated value whatever the source of each, so `TERRAGRUNT_LOG_LEVEL=debug` in the environment overrode `TG_LOG_LEVEL=info` set beside it.
+
+A command-line argument now beats an environment variable under either name, and at the same level the current name beats the deprecated one. A `--terragrunt-*` argument still overrides a `TG_*` variable from the environment, so a script mixing the two keeps working.

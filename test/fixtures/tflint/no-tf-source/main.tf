@@ -1,7 +1,8 @@
 terraform {
   required_providers {
     random = {
-      version = ">= 3.4.0"
+      source  = "registry.opentofu.org/hashicorp/random"
+      version = "3.8.0"
     }
   }
 

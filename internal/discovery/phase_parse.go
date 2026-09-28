@@ -16,13 +16,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/hashicorp/hcl/v2"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -103,7 +101,7 @@ func parseDepthFromContext(ctx context.Context) int {
 func ensureParsed(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -160,7 +158,7 @@ func (p *ParsePhase) Kind() PhaseKind {
 func (p *ParsePhase) Run(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
@@ -212,7 +210,7 @@ func (p *ParsePhase) Run(
 
 				errMu.Unlock()
 				// Return nil to continue processing other components
-				return nil //nolint:nilerr
+				return nil
 			}
 
 			if result == nil {
@@ -247,7 +245,7 @@ func (p *ParsePhase) Run(
 func (p *ParsePhase) parseAndReclassify(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
 	candidate DiscoveryResult,
@@ -272,7 +270,7 @@ func (p *ParsePhase) parseAndReclassify(
 
 	if discovery.classifier != nil {
 		for _, expr := range discovery.classifier.ParseExpressions() {
-			matched, err := filter.Evaluate(l, expr, component.Components{c})
+			matched, err := filter.Evaluate(l, discovery.evaluationContext(), expr, component.Components{c})
 			if err != nil {
 				l.Debugf("Error evaluating parse expression for %s: %v", c.Path(), err)
 				continue
@@ -312,7 +310,7 @@ func (p *ParsePhase) parseAndReclassify(
 func parseComponent(
 	ctx context.Context,
 	l log.Logger,
-	v venv.Venv,
+	v *venv.Venv,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -334,7 +332,7 @@ func parseComponent(
 			componentPath := c.Path()
 			workingDir := componentPath
 
-			if util.FileExists(componentPath) && !util.IsDir(componentPath) {
+			if vfs.Exists(v.FS, componentPath) && !vfs.IsDir(v.FS, componentPath) {
 				workingDir = filepath.Dir(componentPath)
 			}
 
@@ -349,7 +347,7 @@ func parseComponent(
 					break
 				}
 
-				if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
+				if opts.TerragruntConfigPath != "" && !vfs.IsDir(v.FS, opts.TerragruntConfigPath) {
 					configFilename = filepath.Base(opts.TerragruntConfigPath)
 				}
 			}
@@ -364,7 +362,7 @@ func parseComponent(
 			// ObtainCredsForParsing writes auth-provider-cmd output into it.
 			parseV := v.WithEnvCloned().WithWriter(io.Discard).WithErrWriter(io.Discard)
 
-			shellOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
+			shellOpts := configbridge.ShellRunOptsFromOpts(v.Env, parseOpts)
 
 			if parseOpts.DiscoveryAuthProviderCmd {
 				if _, err := creds.ObtainCredsForParsing(
@@ -378,8 +376,8 @@ func parseComponent(
 				}
 			}
 
-			ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseOpts)
-			parsingCtx = parsingCtx.WithVenv(parseV).WithDecodeList(
+			parsingCtx := configbridge.NewParsingContext(parseOpts)
+			parsingCtx = parsingCtx.WithDecodeList(
 				config.TerraformSource,
 				config.DependenciesBlock,
 				config.DependencyBlock,
@@ -391,33 +389,26 @@ func parseComponent(
 				config.TerragruntVersionConstraints,
 			).WithSkipOutputsResolution()
 
-			if len(discovery.parserOptions) > 0 {
-				parsingCtx = parsingCtx.WithParseOption(discovery.parserOptions)
+			if discovery.trackReads {
+				parsingCtx = parsingCtx.WithFileReadTracking()
 			}
 
 			if discovery.suppressParseErrors {
-				parserOpts := parsingCtx.ParserOptions
-				parserOpts = append(parserOpts, hclparse.WithDiagnosticsHandler(func(
-					file *hcl.File,
-					hclDiags hcl.Diagnostics,
-				) (hcl.Diagnostics, error) {
-					l.Debugf("Suppressed parsing errors %v", hclDiags)
-					return nil, nil
-				}))
-				parsingCtx = parsingCtx.WithParseOption(parserOpts)
+				parsingCtx = parsingCtx.Clone()
+				parsingCtx.Parser.IgnoreDiagnostics = true
 			}
 
 			cfg, err := config.PartialParseConfigFile(
 				ctx,
-				parsingCtx,
 				l,
+				parseV,
+				parsingCtx,
 				parseOpts.TerragruntConfigPath,
 				nil,
 			)
 			if err != nil {
 				if discovery.suppressParseErrors {
-					var notFoundErr config.TerragruntConfigNotFoundError
-					if errors.As(err, &notFoundErr) {
+					if _, ok := errors.AsType[config.TerragruntConfigNotFoundError](err); ok {
 						l.Debugf(
 							"Skipping missing config during discovery: %s",
 							parseOpts.TerragruntConfigPath,
@@ -438,7 +429,7 @@ func parseComponent(
 				unit.StoreConfig(cfg)
 			}
 
-			if parsingCtx.FilesRead != nil {
+			if parsingCtx.FilesRead.Tracking() {
 				readFiles := sanitizeReadFiles(parsingCtx.FilesRead.Paths())
 				c.SetReading(readFiles...)
 			}

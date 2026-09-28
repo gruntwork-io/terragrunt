@@ -1,14 +1,17 @@
 // Package stdout provides utilities for working with stdout.
 package stdout
 
-import "os"
+import (
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+)
 
-// IsRedirected returns true if the stdout is redirected.
-func IsRedirected() bool {
-	stat, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
+// ShouldColor returns true if output written to stdout should be colored.
+// Anything other than a terminal on the other end, a pipe, a file, or a
+// character device such as /dev/null, reads escape sequences as text rather
+// than as color, so it gets none.
+func ShouldColor(l log.Logger, v *venv.Venv) bool {
+	v.RequireTerminal()
 
-	return (stat.Mode() & os.ModeCharDevice) == 0
+	return !l.Formatter().DisabledColors() && v.Terminal.StdoutIsTTY()
 }

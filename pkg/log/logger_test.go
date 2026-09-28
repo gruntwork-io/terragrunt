@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -152,6 +153,56 @@ func TestLoggerFormattedOutput(t *testing.T) {
 	logger.Infof("hello %s", "world")
 
 	assert.Contains(t, buf.String(), "hello world")
+}
+
+// countingHook counts how many times it fires, for asserting hook registry isolation.
+type countingHook struct {
+	fired int
+}
+
+func (h *countingHook) Levels() []logrus.Level { return logrus.AllLevels }
+
+func (h *countingHook) Fire(*logrus.Entry) error {
+	h.fired++
+
+	return nil
+}
+
+// TestWithOptionsHooksDoNotLeakToParent pins clone isolation: a hook added to a
+// derived logger must never fire for entries logged on the parent.
+func TestWithOptionsHooksDoNotLeakToParent(t *testing.T) {
+	t.Parallel()
+
+	parent, _ := newTestLogger(log.InfoLevel)
+
+	hook := &countingHook{}
+	child := parent.WithOptions(log.WithHooks(hook))
+
+	child.Warn("on the child")
+	require.Equal(t, 1, hook.fired)
+
+	parent.Warn("on the parent")
+	assert.Equal(t, 1, hook.fired, "a hook added to a clone must not fire on the parent")
+}
+
+// TestWithOptionsOutputDoesNotRedirectParent pins the other half of clone
+// isolation: redirecting a derived logger's output must leave the parent
+// writing to its own destination.
+func TestWithOptionsOutputDoesNotRedirectParent(t *testing.T) {
+	t.Parallel()
+
+	parent, buf := newTestLogger(log.InfoLevel)
+
+	childBuf := new(bytes.Buffer)
+	child := parent.WithOptions(log.WithOutput(childBuf))
+
+	child.Info("to the child")
+	parent.Info("to the parent")
+
+	assert.Contains(t, childBuf.String(), "to the child")
+	assert.NotContains(t, childBuf.String(), "to the parent")
+	assert.Contains(t, buf.String(), "to the parent")
+	assert.NotContains(t, buf.String(), "to the child")
 }
 
 // newTestLogger creates a logger that writes to a buffer using the default logrus text formatter.

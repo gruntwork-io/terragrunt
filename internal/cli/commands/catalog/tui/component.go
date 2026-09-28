@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 )
 
@@ -11,46 +12,6 @@ const (
 	defaultDescription   = "(no description found)"
 	maxDescriptionLength = 200
 )
-
-// ComponentKind classifies a Component. Modules and templates are scaffoldable
-// artifacts; units and stacks are terragrunt configurations that the user
-// copies into their working directory.
-type ComponentKind int
-
-const (
-	// ComponentKindModule is a directory containing .tf files.
-	ComponentKindModule ComponentKind = iota
-	// ComponentKindTemplate is a directory containing a `.boilerplate/`
-	// subdirectory or a top-level `boilerplate.yml`.
-	ComponentKindTemplate
-	// ComponentKindUnit is a directory containing a `terragrunt.hcl` file.
-	ComponentKindUnit
-	// ComponentKindStack is a directory containing a `terragrunt.stack.hcl`
-	// file.
-	ComponentKindStack
-)
-
-// String returns the user-visible kind label.
-func (k ComponentKind) String() string {
-	switch k {
-	case ComponentKindTemplate:
-		return "template"
-	case ComponentKindUnit:
-		return "unit"
-	case ComponentKindStack:
-		return "stack"
-	case ComponentKindModule:
-		return "module"
-	default:
-		return "module"
-	}
-}
-
-// IsCopyable reports whether a component of this kind is installed by copying
-// its directory tree into the working directory rather than by scaffolding.
-func (k ComponentKind) IsCopyable() bool {
-	return k == ComponentKindUnit || k == ComponentKindStack
-}
 
 // Component is the catalog TUI's representation of a scaffoldable directory
 // discovered inside a cloned repository. It is intentionally independent of
@@ -73,7 +34,7 @@ type Component struct {
 	repoPath string
 	url      string
 
-	Kind ComponentKind
+	Kind component.Kind
 }
 
 // Components is a slice of *Component for ergonomic return types.
@@ -96,15 +57,25 @@ func (c *Component) Title() string {
 	return filepath.Base(c.Dir)
 }
 
-// Description returns a short description for the list view.
+// Description returns a short description for the list view, falling back to
+// a placeholder that fills the row a list item always reserves for it.
 func (c *Component) Description() string {
-	if c.Doc != nil {
-		if desc := c.Doc.Description(maxDescriptionLength); desc != "" {
-			return desc
-		}
+	if desc := c.DocDescription(); desc != "" {
+		return desc
 	}
 
 	return defaultDescription
+}
+
+// DocDescription returns the component's README description, or an empty
+// string when it has none. Output formats that have no row to fill use this
+// rather than writing the list view's placeholder into a document.
+func (c *Component) DocDescription() string {
+	if c.Doc == nil {
+		return ""
+	}
+
+	return c.Doc.Description(maxDescriptionLength)
 }
 
 // FilterValue is what the list fuzzy-matches against when the user filters.
@@ -142,7 +113,7 @@ func (c *Component) TerraformSourcePath() string {
 }
 
 // IsMarkDown reports whether the component's README (if any) is Markdown,
-// which determines whether we render it through glamour.
+// which determines whether we render it as Markdown or as plain text.
 func (c *Component) IsMarkDown() bool {
 	if c.Doc == nil {
 		return false
@@ -163,7 +134,7 @@ func (c *Component) Content(stripTags bool) string {
 
 // NewComponentForTest constructs a Component for use in unit tests without
 // requiring a cloned repository on disk.
-func NewComponentForTest(kind ComponentKind, cloneURL, dir, readme string) *Component {
+func NewComponentForTest(kind component.Kind, cloneURL, dir, readme string) *Component {
 	doc := &ComponentDoc{}
 	if readme != "" {
 		doc = NewComponentDoc(readme, mdExt)
@@ -175,4 +146,13 @@ func NewComponentForTest(kind ComponentKind, cloneURL, dir, readme string) *Comp
 		Dir:      dir,
 		cloneURL: cloneURL,
 	}
+}
+
+// WithURL sets the URL [Component.URL] returns, which discovery derives from
+// the repository rather than from anything a test can pass to
+// [NewComponentForTest].
+func (c *Component) WithURL(url string) *Component {
+	c.url = url
+
+	return c
 }

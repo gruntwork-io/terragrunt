@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -23,6 +22,9 @@ const (
 	csvFieldCount = 9
 	// csvRowOffset accounts for: 0-indexed loop (i starts at 0) + skipped header row.
 	csvRowOffset = 2
+	// reportFilePerms keeps a report readable only by the user who ran the command,
+	// since it names every unit and why each one failed.
+	reportFilePerms = 0o600
 )
 
 // JSONRun represents a run in JSON format.
@@ -32,7 +34,7 @@ type JSONRun struct {
 	// Ended is the time when the run ended.
 	Ended time.Time `json:"Ended" jsonschema:"required"`
 	// Reason is the reason for the run result, if any.
-	//nolint:lll
+	//nolint:lll // the jsonschema enum list can't be wrapped
 	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=exclude block,enum=ancestor error"`
 	// Cause is the cause of the run result, if any.
 	Cause *string `json:"Cause,omitempty"`
@@ -65,8 +67,8 @@ func ParseJSONRuns(data []byte) (JSONRuns, error) {
 // ParseJSONRunsFromFile reads and parses a JSON report from a file.
 // Returns a slice of JSONRun entries or an error if reading, validation, or parsing fails.
 // The report is validated against the JSON schema before parsing.
-func ParseJSONRunsFromFile(path string) (JSONRuns, error) {
-	data, err := os.ReadFile(path)
+func ParseJSONRunsFromFile(fsys vfs.FS, path string) (JSONRuns, error) {
+	data, err := vfs.ReadFile(fsys, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report file %s: %w", path, err)
 	}
@@ -160,8 +162,8 @@ func ParseCSVRuns(data []byte) (CSVRuns, error) {
 
 // ParseCSVRunsFromFile reads and parses a CSV report from a file.
 // Returns a slice of CSVRun entries or an error if reading or parsing fails.
-func ParseCSVRunsFromFile(path string) (CSVRuns, error) {
-	data, err := os.ReadFile(path)
+func ParseCSVRunsFromFile(fsys vfs.FS, path string) (CSVRuns, error) {
+	data, err := vfs.ReadFile(fsys, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report file %s: %w", path, err)
 	}
@@ -250,7 +252,11 @@ func (r *Report) WriteToFile(fsys vfs.FS, path string) error {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	return writeFileAtomic(fsys, path, writeBody)
+	if err := vfs.StreamFileAtomic(fsys, path, reportFilePerms, writeBody); err != nil {
+		return fmt.Errorf("failed to write report: %w", err)
+	}
+
+	return nil
 }
 
 // WriteCSV writes the report to a writer in CSV format.
@@ -387,35 +393,8 @@ func (r *Report) WriteSchemaToFile(fsys vfs.FS, path string) error {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	return writeFileAtomic(fsys, path, WriteSchema)
-}
-
-// writeFileAtomic writes content produced by write into a temporary file in
-// path's directory and then renames it onto path, so a concurrent reader never
-// observes a partially written file and a failed write leaves no truncated one.
-// The temp file shares path's directory so the rename stays on one filesystem.
-func writeFileAtomic(fsys vfs.FS, path string, write func(w io.Writer) error) error {
-	tmpFile, err := vfs.CreateTemp(fsys, filepath.Dir(path), "terragrunt-report-")
-	if err != nil {
-		return err
-	}
-
-	tmpName := tmpFile.Name()
-
-	if err := write(tmpFile); err != nil {
-		return errors.Join(
-			fmt.Errorf("failed to write report: %w", err),
-			tmpFile.Close(),
-			fsys.Remove(tmpName),
-		)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		return errors.Join(fmt.Errorf("failed to close report file: %w", err), fsys.Remove(tmpName))
-	}
-
-	if err := fsys.Rename(tmpName, path); err != nil {
-		return errors.Join(err, fsys.Remove(tmpName))
+	if err := vfs.StreamFileAtomic(fsys, path, reportFilePerms, WriteSchema); err != nil {
+		return fmt.Errorf("failed to write report schema: %w", err)
 	}
 
 	return nil
@@ -448,22 +427,20 @@ func WriteSchema(w io.Writer) error {
 //
 //   - Otherwise, return the path relative to the working directory, with any leading slashes removed.
 func nameOfPath(path string, workingDir string) string {
-	// If the path is the same as the working directory,
-	// return the base name of the path.
 	if path == workingDir {
 		return filepath.Base(path)
 	}
 
-	// If the path is not a subdirectory of the working directory,
-	// return the path as is.
-	if !strings.HasPrefix(path, workingDir) {
+	prefix := workingDir
+	if !strings.HasSuffix(prefix, string(os.PathSeparator)) {
+		prefix += string(os.PathSeparator)
+	}
+
+	if !strings.HasPrefix(path, prefix) {
 		return path
 	}
 
-	path = strings.TrimPrefix(path, workingDir)
-	path = strings.TrimPrefix(path, string(os.PathSeparator))
-
-	return path
+	return strings.TrimPrefix(path, prefix)
 }
 
 // effectiveWorkingDir returns the working directory to use for path computation.

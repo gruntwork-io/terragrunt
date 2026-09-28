@@ -1,6 +1,7 @@
 package s3_test
 
 import (
+	"fmt"
 	"testing"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
@@ -14,111 +15,124 @@ import (
 func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct { //nolint: govet
-		name   string
+	testCases := []struct {
 		config s3backend.Config
 		check  func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3)
+		name   string
 	}{
 		{
-			"use-lockfile-string-true",
-			s3backend.Config{
+			name: "use-lockfile-string-true",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": "true",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
 		},
 		{
-			"use-lockfile-string-false",
-			s3backend.Config{
+			name: "use-lockfile-string-false",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": "false",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.False(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
 		},
 		{
-			"encrypt-string-true",
-			s3backend.Config{
+			name: "encrypt-string-true",
+			config: s3backend.Config{
 				"bucket":  "my-bucket",
 				"key":     "my-key",
 				"region":  "us-east-1",
 				"encrypt": "true",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.Encrypt)
 			},
 		},
 		{
-			"force-path-style-string-true",
-			s3backend.Config{
+			name: "force-path-style-string-true",
+			config: s3backend.Config{
 				"bucket":           "my-bucket",
 				"key":              "my-key",
 				"region":           "us-east-1",
 				"force_path_style": "true",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.S3ForcePathStyle)
 			},
 		},
 		{
-			"skip-bucket-versioning-string-true",
-			s3backend.Config{
+			name: "skip-bucket-versioning-string-true",
+			config: s3backend.Config{
 				"bucket":                 "my-bucket",
 				"key":                    "my-key",
 				"region":                 "us-east-1",
 				"skip_bucket_versioning": "true",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.SkipBucketVersioning)
 			},
 		},
 		{
-			"native-bool-still-works",
-			s3backend.Config{
+			name: "enable-bucket-root-access-string-true",
+			config: s3backend.Config{
+				"bucket":                    "my-bucket",
+				"key":                       "my-key",
+				"region":                    "us-east-1",
+				"enable_bucket_root_access": "true",
+			},
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+				t.Helper()
+				assert.True(t, cfg.EnableBucketRootAccess)
+			},
+		},
+		{
+			name: "native-bool-still-works",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": true,
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
 		},
 		{
-			"empty-string-coerces-to-false",
-			s3backend.Config{
+			name: "empty-string-coerces-to-false",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": "",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.False(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
 		},
 		{
-			"numeric-one-coerces-to-true",
-			s3backend.Config{
+			name: "numeric-one-coerces-to-true",
+			config: s3backend.Config{
 				"bucket":       "my-bucket",
 				"key":          "my-key",
 				"region":       "us-east-1",
 				"use_lockfile": "1",
 			},
-			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
 				t.Helper()
 				assert.True(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
@@ -133,6 +147,31 @@ func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 			require.NoError(t, err)
 
 			tc.check(t, extS3Cfg)
+		})
+	}
+}
+
+// TestParseExtendedS3Config_SkipBucketRootAccessIsInert verifies that `skip_bucket_root_access`
+// still parses but no longer decides whether the root access statement is written. `false` used to
+// mean "write the statement", so neither value may enable it now.
+func TestParseExtendedS3Config_SkipBucketRootAccessIsInert(t *testing.T) {
+	t.Parallel()
+
+	for _, skip := range []bool{true, false} {
+		t.Run(fmt.Sprintf("skip-%t", skip), func(t *testing.T) {
+			t.Parallel()
+
+			cfg := s3backend.Config{
+				"bucket":                  "my-bucket",
+				"key":                     "my-key",
+				"region":                  "us-east-1",
+				"skip_bucket_root_access": skip,
+			}
+
+			extS3Cfg, err := cfg.Normalize(logger.CreateLogger()).ParseExtendedS3Config()
+			require.NoError(t, err)
+
+			assert.False(t, extS3Cfg.EnableBucketRootAccess)
 		})
 	}
 }

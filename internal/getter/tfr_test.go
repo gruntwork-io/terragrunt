@@ -3,19 +3,23 @@ package getter_test
 import (
 	"archive/zip"
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +32,7 @@ func TestRegistryGetterRootDir(t *testing.T) {
 
 	dstPath := helpers.TmpDirWOSymlinks(t)
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.NoFileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 
 	src := "tfr://" + server.Listener.Addr().
 		String() +
@@ -41,7 +45,7 @@ func TestRegistryGetterRootDir(t *testing.T) {
 		GetMode: getter.ModeDir,
 	})
 	require.NoError(t, err)
-	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.FileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 }
 
 func TestRegistryGetterSubModule(t *testing.T) {
@@ -51,7 +55,7 @@ func TestRegistryGetterSubModule(t *testing.T) {
 
 	dstPath := helpers.TmpDirWOSymlinks(t)
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.NoFileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 
 	src := "tfr://" + server.Listener.Addr().
 		String() +
@@ -64,7 +68,7 @@ func TestRegistryGetterSubModule(t *testing.T) {
 		GetMode: getter.ModeDir,
 	})
 	require.NoError(t, err)
-	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.FileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 }
 
 // TestRegistryGetterSubdirInTerraformGetHeader pins the path where the
@@ -152,7 +156,7 @@ func TestRegistryGetterWithoutVersion(t *testing.T) {
 
 	dstPath := helpers.TmpDirWOSymlinks(t)
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	require.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.NoFileExists(t, filepath.Join(moduleDestPath, "main.tf"))
 
 	// With no ?version= query, the getter resolves the latest version (4.0.0)
 	// via the versions endpoint.
@@ -165,7 +169,37 @@ func TestRegistryGetterWithoutVersion(t *testing.T) {
 		GetMode: getter.ModeDir,
 	})
 	require.NoError(t, err)
-	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.FileExists(t, filepath.Join(moduleDestPath, "main.tf"))
+}
+
+// TestRegistryGetterBuildMetadataVersion pins the download path for a version
+// carrying semver build metadata. The `+` reaches the getter percent-encoded,
+// which is what the constraint resolver writes, and the registry must be asked
+// for the version as published rather than for a `+`-decoded variant.
+func TestRegistryGetterBuildMetadataVersion(t *testing.T) {
+	t.Parallel()
+
+	var requestedVersion string
+
+	server := newBuildMetadataRegistryTestServer(t, &requestedVersion)
+
+	dstPath := helpers.TmpDirWOSymlinks(t)
+	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
+	require.NoFileExists(t, filepath.Join(moduleDestPath, "main.tf"))
+
+	src := "tfr://" + server.Listener.Addr().
+		String() +
+		"/cloudstoragesec/cloud-storage-security/aws?version=1.8.26%2Bcss9.10.001"
+	client := newRegistryTestClient(t, server.Client(), tfimpl.OpenTofu)
+
+	_, err := client.Get(t.Context(), &getter.Request{
+		Src:     src,
+		Dst:     moduleDestPath,
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.FileExists(t, filepath.Join(moduleDestPath, "main.tf"))
+	assert.Equal(t, "1.8.26+css9.10.001", requestedVersion)
 }
 
 // TestRegistryGetterEmptyVersion pins the typed error returned when
@@ -187,6 +221,107 @@ func TestRegistryGetterEmptyVersion(t *testing.T) {
 	require.ErrorAs(t, err, &typed)
 }
 
+func TestRegistryGetterCachesCLIConfig(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "terraform.rc")
+
+	var requestCount atomic.Int32
+
+	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
+		assert.Equal(t, "Bearer configured-token", r.Header.Get("Authorization"))
+
+		if requestCount.Add(1) != 1 {
+			return
+		}
+
+		assert.NoError(t, os.WriteFile(configPath, []byte("invalid CLI config"), 0o600))
+	})
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(configPath, []byte(fmt.Sprintf(`
+credentials %q {
+  token = "configured-token"
+}
+`, serverURL.Hostname())), 0o600))
+
+	v := venvtest.NewWithOSFS().
+		WithHTTP(server.Client()).
+		WithEnv(map[string]string{cliconfig.EnvNameTFCLIConfigFile: configPath})
+	tfr := getter.NewRegistryGetter(logger.CreateLogger(), v).WithTofuImplementation(tfimpl.Terraform)
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
+		getter.WithCustomGettersPrepended(
+			tfr,
+			&gogetter.HttpGetter{Client: server.Client(), Netrc: true},
+		),
+	)
+
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=3.3.0",
+		Dst:     filepath.Join(t.TempDir(), "terraform-aws-vpc"),
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), requestCount.Load())
+}
+
+func TestRegistryGetterUsesInjectedVenvForCLIConfig(t *testing.T) {
+	t.Parallel()
+
+	const homeDir = "/virtual/home"
+
+	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
+		assert.Equal(t, "Bearer configured-token", r.Header.Get("Authorization"))
+	})
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	v := venvtest.New().
+		WithGOOS("linux").
+		WithHTTP(server.Client()).
+		WithUserHomeDir(func() (string, error) { return homeDir, nil })
+
+	require.NoError(t, v.FS.MkdirAll(homeDir, 0o755))
+	// A credential-less ~/.tofurc shadows ~/.terraformrc under OpenTofu's search order,
+	// so the assertion fails if the getter stops forwarding the Terraform implementation.
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(homeDir, ".tofurc"), []byte("\n"), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(homeDir, ".terraformrc"), []byte(fmt.Sprintf(`
+credentials %q {
+  token = "configured-token"
+}
+`, serverURL.Hostname())), 0o600))
+
+	client := newRegistryTestClientWithVenv(t, v, tfimpl.Terraform)
+
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=3.3.0",
+		Dst:     filepath.Join(t.TempDir(), "terraform-aws-vpc"),
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+}
+
+func TestRegistryGetterEmptyEnvSendsNoAuth(t *testing.T) {
+	t.Parallel()
+
+	server := newRegistryTestServerWithRequestHook(t, func(r *http.Request) {
+		assert.Empty(t, r.Header.Get("Authorization"))
+	})
+
+	v := venvtest.NewWithOSFS().WithHTTP(server.Client()).WithEnv(map[string]string{})
+
+	client := newRegistryTestClientWithVenv(t, v, tfimpl.Terraform)
+
+	_, err := client.Get(t.Context(), &getter.Request{
+		Src:     "tfr://" + server.Listener.Addr().String() + "/terraform-aws-modules/vpc/aws?version=3.3.0",
+		Dst:     filepath.Join(t.TempDir(), "terraform-aws-vpc"),
+		GetMode: getter.ModeDir,
+	})
+	require.NoError(t, err)
+}
+
 // newRegistryTestClient builds a Client wired to the supplied http.Client so
 // it trusts the test server's self-signed TLS certificate, both for the
 // registry-protocol calls (via RegistryGetter.HTTPClient) and for the module
@@ -195,18 +330,61 @@ func TestRegistryGetterEmptyVersion(t *testing.T) {
 func newRegistryTestClient(t *testing.T, httpClient *http.Client, impl tfimpl.Type) *getter.Client {
 	t.Helper()
 
+	return newRegistryTestClientWithVenv(t, venvtest.NewWithOSFS().WithHTTP(httpClient), impl)
+}
+
+func newRegistryTestClientWithVenv(t *testing.T, v *venv.Venv, impl tfimpl.Type) *getter.Client {
+	t.Helper()
+
 	l := logger.CreateLogger()
 
-	tfr := getter.NewRegistryGetter(l, vfs.NewOSFS()).
-		WithHTTPClient(httpClient).
-		WithTofuImplementation(impl)
+	tfr := getter.NewRegistryGetter(l, v).WithTofuImplementation(impl)
 
-	return getter.NewClient(
+	return getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithCustomGettersPrepended(
 			tfr,
-			&gogetter.HttpGetter{Client: httpClient, Netrc: true},
+			&gogetter.HttpGetter{Client: v.HTTP, Netrc: true},
 		),
 	)
+}
+
+// newBuildMetadataRegistryTestServer stands up a mock registry for a module
+// published only under versions carrying build metadata, recording the version
+// segment of the download request in requestedVersion.
+func newBuildMetadataRegistryTestServer(t *testing.T, requestedVersion *string) *httptest.Server {
+	t.Helper()
+
+	zipBody := buildModuleZip(t)
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"modules.v1":"/v1/modules/"}`))
+		assert.NoError(t, err)
+	})
+
+	mux.HandleFunc(
+		"/v1/modules/cloudstoragesec/cloud-storage-security/aws/{version}/download",
+		func(w http.ResponseWriter, r *http.Request) {
+			*requestedVersion = r.PathValue("version")
+
+			w.Header().Set("X-Terraform-Get", "https://"+r.Host+"/download/terraform-aws-vpc.zip")
+			w.WriteHeader(http.StatusNoContent)
+		},
+	)
+
+	mux.HandleFunc("/download/terraform-aws-vpc.zip", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+
+		_, err := w.Write(zipBody)
+		assert.NoError(t, err)
+	})
+
+	server := httptest.NewTLSServer(mux)
+	t.Cleanup(server.Close)
+
+	return server
 }
 
 // buildModuleZip builds an in-memory zip archive that mirrors the shape of a

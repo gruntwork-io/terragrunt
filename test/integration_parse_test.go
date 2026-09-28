@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -82,13 +83,12 @@ func TestParseAllFixtureFiles(t *testing.T) {
 
 			l := logger.CreateLogger()
 
-			ctx, pctx := configbridge.NewParsingContext(
-				context.TODO(), // Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
-				l,
-				opts,
-			)
+			// Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
+			ctx := context.TODO()
+			v := venv.OSVenv()
+			pctx := configbridge.NewParsingContext(opts)
 
-			cfg, _ := config.ParseConfigFile(ctx, pctx, l, file, nil)
+			cfg, _ := config.ParseConfigFile(ctx, l, v, pctx, file, nil)
 
 			assert.NotNil(t, cfg)
 

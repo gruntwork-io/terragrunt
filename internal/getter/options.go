@@ -5,16 +5,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Option mutates a Client builder.
 type Option func(*builder)
-
-// WithLogger sets a default logger used by getters that don't carry their own.
-func WithLogger(l log.Logger) Option {
-	return func(b *builder) { b.logger = l }
-}
 
 // WithFileCopy substitutes the default file-protocol getter with the supplied
 // FileCopyGetter, which copies directories instead of symlinking them. Use
@@ -35,14 +31,22 @@ func WithOCI(g *OCIGetter) Option {
 }
 
 // WithCAS registers CASGetter, which intercepts git/file sources and routes
-// them through Terragrunt's content-addressable storage. v supplies the
-// filesystem and process executor used by every CAS operation.
-func WithCAS(c *cas.CAS, v venv.Venv, cloneOpts *cas.CloneOptions) Option {
+// them through Terragrunt's content-addressable storage. Every CAS operation
+// uses the venv [NewClient] was given, including the client the dispatch
+// probes over HTTP with.
+func WithCAS(c *cas.CAS, cloneOpts *cas.CloneOptions) Option {
 	return func(b *builder) {
 		b.casStore = c
-		b.casVenv = v
 		b.casCloneOpts = cloneOpts
 	}
+}
+
+// WithHTTP overrides the outbound-HTTP client every fetch, CAS dispatch
+// resolver, and tfr fetcher rides on, which [NewClient] otherwise takes from
+// the venv. Unlike [WithHTTPAuth], it replaces the client instead of
+// attaching headers to the bare http getter.
+func WithHTTP(c vhttp.Client) Option {
+	return func(b *builder) { b.httpClient = c }
 }
 
 // WithHTTPSAuth substitutes the https getter with an HttpGetter that sends
@@ -93,7 +97,8 @@ type builder struct {
 	oci              *OCIGetter
 	casStore         *cas.CAS
 	casCloneOpts     *cas.CloneOptions
-	casVenv          venv.Venv
+	v                *venv.Venv
+	httpClient       vhttp.Client
 	httpExtraHeader  http.Header
 	httpsExtraHeader http.Header
 	decompressors    map[string]Decompressor

@@ -63,7 +63,9 @@ func TestOtelLogHookSeverities(t *testing.T) {
 			t.Parallel()
 
 			exporter := &recordingExporter{}
-			provider := sdklog.NewLoggerProvider(sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter)))
+			provider := sdklog.NewLoggerProvider(
+				sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter)),
+			)
 
 			t.Cleanup(func() {
 				require.NoError(t, provider.Shutdown(context.Background()))

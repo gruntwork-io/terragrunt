@@ -14,6 +14,6 @@ const listTemplate = `
    {{ template "rangeControlsTemplate" .controls }}
 `
 
-const detailControlTemplate = `
-   {{ template "rangeSubcontrolsTemplate" .control.GetSubcontrols.RemoveDuplicates }}
+const detailSubcontrolsTemplate = `
+   {{ template "rangeSubcontrolsTemplate" .subcontrols.RemoveDuplicates }}
 `

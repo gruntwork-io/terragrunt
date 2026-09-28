@@ -1,0 +1,58 @@
+---
+name: bounded-discovery
+since: "v1.1.3"
+completedSince: "v1.2.0"
+---
+
+Enclose graph traversal for a `--filter` expression within a directory using an inline `(dir)` operand, instead of the Git repository root.
+
+### `bounded-discovery` - What it does
+
+Graph-traversing filter expressions reach beyond the working directory. Dependent discovery (`...{unit}`) requires searching from the working directory of the given component up to the Git repository root (if the unit is within a Git repository). Dependency discovery (`{unit}...`) requires recursive parsing of dependencies to find the terminal dependency. Either way, Terragrunt has to read and parse every configuration it touches along the way for accuracy. In monorepos where sibling environments cannot be parsed independently of each other, that traversal fails or wastes work reaching into them.
+
+This experiment flag is no longer needed, as Terragrunt now accepts an inline `(dir)` boundary operand by default. It sits in the same operand slot as a traversal depth (e.g. `1...{vpc}`):
+
+```bash
+cd environments/staging
+terragrunt find --filter '(.)...{vpc}'
+```
+
+```text
+# dependents of vpc, enclosed within the current environment
+(.)...{vpc}
+
+# dependencies of vpc, enclosed within the current environment
+{vpc}...(.)
+
+# independent bounds per direction
+(../shared)...{vpc}...(.)
+```
+
+Any configuration that is discovered outside the boundary, whether a dependent or a dependency, is not read, parsed, or returned. The boundary must be an existing directory. Relative paths are resolved against the working directory, and a dependent-direction boundary must contain the working directory.
+
+A boundary bounds discovery traversal rather than filtering results, so an in-boundary unit reachable only by passing through an out-of-boundary unit is intentionally excluded. Given `a` --> `b` --> `c`, if `b` is outside the boundary, traversal from `a` cannot reach `c`, and vice-versa.
+
+Because the boundary operand claims `(` and `)`, those characters are not read as part of a unit name or path. Wrap a name or path that contains them in braces (e.g. `{./weird(name)}`) to keep it literal.
+
+The [`--discovery-boundary`](/reference/cli/commands/find#discovery-boundary) flag (env: `TG_DISCOVERY_BOUNDARY`) is also available by default. It applies one boundary to every `--filter` expression on the command, in both directions:
+
+```bash
+cd environments/staging
+terragrunt find --filter '...{vpc}' --discovery-boundary .
+```
+
+An inline `(dir)` operand overrides the flag for the expression that carries it. See the [`--discovery-boundary` reference](/reference/cli/commands/find#discovery-boundary) for how the boundary is resolved.
+
+### `bounded-discovery` - How to provide feedback
+
+Now that the `bounded-discovery` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+
+### `bounded-discovery` - Criteria for stabilization
+
+Criteria for moving `bounded-discovery` to a stable release:
+
+- [x] A single directory boundary covers per-environment directories, including units that include a shared parent configuration above the boundary and units that depend on components outside it.
+- [x] A boundary is a directory. Terragrunt does not expand a glob in the operand or the flag.
+- [x] Path-restricting filter intersections (e.g. `...{unit} | ./**`) do not narrow the boundary. Set one with a `(dir)` operand or `--discovery-boundary`.
+- [ ] Decide whether and how the boundary should apply to Git-based filter expressions (e.g. `[main...HEAD]`).
+- [x] Positive feedback from users relying on the operand and the flag in repositories with isolated environments.

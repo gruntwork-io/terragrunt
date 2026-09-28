@@ -31,6 +31,15 @@ const (
 	StackNestedStacksNotGeneratedMessage = "Filtering a stack with `| type=stack` generates only that stack, " +
 		"not the nested stacks it contains. To generate the nested stacks too, also add a recursive path filter."
 
+	// MissingDependencyConfig is the tip shown when a dependency points at a path without a Terragrunt configuration.
+	MissingDependencyConfig = "missing-dependency-config"
+
+	// MissingDependencyConfigMessage is the default message for the missing-dependency-config tip.
+	MissingDependencyConfigMessage = "A dependency points at a path without a Terragrunt configuration file. " +
+		"If that unit was deleted, update or delete the dependency blocks that still point at it. " +
+		"`terragrunt hcl validate --check-dependencies` lists every such reference before a run. " +
+		"See https://docs.terragrunt.com/features/filter/git#deleted-dependencies"
+
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
 		"instead of symlinking in OpenTofu/Terraform. " +
@@ -70,6 +79,10 @@ func NewTips() Tips {
 		{
 			Name:    StackNestedStacksNotGenerated,
 			Message: StackNestedStacksNotGeneratedMessage,
+		},
+		{
+			Name:    MissingDependencyConfig,
+			Message: MissingDependencyConfigMessage,
 		},
 	}
 }

@@ -8,23 +8,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
+
+// maxAPIResponseBytes bounds an API response. The one response read here
+// describes a single release.
+const maxAPIResponseBytes = 1 << 20
 
 // GitHubAPIClient represents a GitHub API client.
 type GitHubAPIClient struct {
 	baseURL        string
-	httpClient     *http.Client
+	httpClient     vhttp.Client
 	cache          *cache.ExpiringCache[string]
 	defaultHeaders http.Header
 }
@@ -40,9 +44,9 @@ type Release struct {
 type GitHubAPIClientOption func(*GitHubAPIClient)
 
 // WithHTTPClient sets the HTTP client for the GitHub client.
-func WithHTTPClient(httpClient *http.Client) GitHubAPIClientOption {
-	return func(c *GitHubAPIClient) {
-		c.httpClient = httpClient
+func WithHTTPClient(c vhttp.Client) GitHubAPIClientOption {
+	return func(gh *GitHubAPIClient) {
+		gh.httpClient = c
 	}
 }
 
@@ -63,34 +67,31 @@ func WithGithubToken(token string) GitHubAPIClientOption {
 // WithGithubComDefaultAuth sets the authentication header based on the assumption
 // we're talking to github.com, and using the same logic as the gh cli:
 // https://cli.github.com/manual/gh_help_environment
-func WithGithubComDefaultAuth() GitHubAPIClientOption {
+func WithGithubComDefaultAuth(env map[string]string) GitHubAPIClientOption {
 	return func(c *GitHubAPIClient) {
-		if tok := getGithubTokenFromEnv(); tok != "" {
+		if tok := githubToken(env); tok != "" {
 			c.defaultHeaders.Set("Authorization", "Bearer "+tok)
 		}
 	}
 }
 
-// getGithubTokenFromEnv retrieves the GitHub token from environment
-// variables using the same logic as the gh cli:
-// https://cli.github.com/manual/gh_help_environment
-func getGithubTokenFromEnv() string {
-	if tok := os.Getenv("GH_TOKEN"); tok != "" {
+// githubToken retrieves the GitHub token, using the same order of preference
+// as the gh cli: https://cli.github.com/manual/gh_help_environment
+func githubToken(env map[string]string) string {
+	venv.RequireEnvMap(env)
+
+	if tok := env["GH_TOKEN"]; tok != "" {
 		return tok
 	}
 
-	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
-		return tok
-	}
-
-	return ""
+	return env["GITHUB_TOKEN"]
 }
 
 // NewGitHubAPIClient creates a new GitHub API client with optional configuration.
 func NewGitHubAPIClient(opts ...GitHubAPIClientOption) *GitHubAPIClient {
 	client := &GitHubAPIClient{
 		baseURL:        "https://api.github.com",
-		httpClient:     &http.Client{Timeout: 30 * time.Second},
+		httpClient:     vhttp.NewOSClientWithTimeout(30 * time.Second),
 		cache:          cache.NewExpiringCache[string]("github_api"),
 		defaultHeaders: http.Header{},
 	}
@@ -151,7 +152,7 @@ func (c *GitHubAPIClient) GetLatestRelease(
 		)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -205,27 +206,9 @@ type DownloadResult struct {
 	ChecksumSigFile string
 }
 
-// GitHubReleasesDownloadClientOption is a function that configures a GitHubReleasesDownloadClient.
-type GitHubReleasesDownloadClientOption func(*GitHubReleasesDownloadClient)
-
-// WithLogger sets the logger for the download client.
-func WithLogger(logger log.Logger) GitHubReleasesDownloadClientOption {
-	return func(c *GitHubReleasesDownloadClient) {
-		c.logger = logger
-	}
-}
-
 // NewGitHubReleasesDownloadClient creates a new GitHub releases download client.
-func NewGitHubReleasesDownloadClient(
-	opts ...GitHubReleasesDownloadClientOption,
-) *GitHubReleasesDownloadClient {
-	client := &GitHubReleasesDownloadClient{}
-
-	for _, opt := range opts {
-		opt(client)
-	}
-
-	return client
+func NewGitHubReleasesDownloadClient(l log.Logger) *GitHubReleasesDownloadClient {
+	return &GitHubReleasesDownloadClient{logger: l}
 }
 
 // DownloadReleaseAssets downloads the specified release assets from a GitHub repository.
@@ -233,8 +216,11 @@ func NewGitHubReleasesDownloadClient(
 // from GitHub releases using the standard GitHub releases URL format.
 func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 	ctx context.Context,
+	v *venv.Venv,
 	assets *ReleaseAssets,
 ) (*DownloadResult, error) {
+	v.RequireHTTP()
+
 	if assets.Repository == "" {
 		return nil, errors.New("repository cannot be empty")
 	}
@@ -289,9 +275,7 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 
 	for url, localPath := range downloads {
 		g.Go(func() error {
-			if c.logger != nil {
-				c.logger.Infof("Downloading %s to %s", url, localPath)
-			}
+			c.logger.Infof("Downloading %s to %s", url, localPath)
 
 			opts := []getter.Option{
 				// Disable archive decompression: GitHub release assets are
@@ -299,22 +283,13 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 				getter.WithDecompressors(map[string]getter.Decompressor{}),
 			}
 
-			if tok := getGithubTokenFromEnv(); tok != "" {
-				header := http.Header{"Authorization": {"Bearer " + tok}}
-
-				if strings.HasPrefix(url, "https://") {
-					opts = append(opts, getter.WithHTTPSAuth(header))
-				}
-
-				// httptest.Server serves over plain HTTP, so tests need the
-				// header on the http getter too. In production we never send
-				// bearer tokens over plain HTTP.
-				if testing.Testing() {
-					opts = append(opts, getter.WithHTTPAuth(header))
-				}
+			// The token rides https only, so it cannot leak over an
+			// unencrypted redirect.
+			if tok := githubToken(v.Env); tok != "" && strings.HasPrefix(url, "https://") {
+				opts = append(opts, getter.WithHTTPSAuth(http.Header{"Authorization": {"Bearer " + tok}}))
 			}
 
-			if _, err := getter.GetFile(downloadCtx, localPath, url, opts...); err != nil {
+			if _, err := getter.GetFile(downloadCtx, c.logger, v, localPath, url, opts...); err != nil {
 				return fmt.Errorf("failed to download %s: %w", url, err)
 			}
 

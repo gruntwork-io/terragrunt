@@ -77,7 +77,7 @@ func TestFalgsRunActions(t *testing.T) {
 	flagSet.SetOutput(io.Discard)
 
 	for _, flag := range mockFlags {
-		err := flag.Apply(flagSet)
+		err := flag.Apply(flagSet, map[string]string{})
 		require.NoError(t, err)
 
 		err = flag.Value().Set("value")

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -32,7 +33,7 @@ const (
 	testFixtureAssumeRoleWebIdentityFile = "fixtures/assume-role-web-identity/file-path"
 )
 
-func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
+func TestAWSAssumeRoleWebIdentityFile(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 	token := fetchGitHubOIDCToken(t)
@@ -98,7 +99,7 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
-func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
+func TestAWSAssumeRoleWebIdentityFlag(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 	token := fetchGitHubOIDCToken(t)
@@ -127,31 +128,34 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	)
 }
 
-func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
-	// t.Parallel() cannot be used together with t.Setenv()
-	// t.Parallel()
+func TestAWSReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
+	t.Parallel()
+
 	token := fetchGitHubOIDCToken(t)
 
-	t.Setenv("OIDC_TOKEN", token)
+	v := venv.OSVenv()
+	v.Env["OIDC_TOKEN"] = token
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	oidcPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
 	helpers.CleanupTerraformFolder(t, oidcPath)
 	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, oidcPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, v, oidcPath, mockAuthCmd)
 
-	helpers.RunTerragrunt(
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
+		v,
 		fmt.Sprintf(
 			`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`,
 			oidcPath,
 			mockAuthCmd,
 		),
 	)
+	require.NoError(t, err)
 }
 
-func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 	token := fetchGitHubOIDCToken(t)
@@ -174,7 +178,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, remoteStateOIDCPath)
 	mockAuthCmd := filepath.Join(remoteStateOIDCPath, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, remoteStateOIDCPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), remoteStateOIDCPath, mockAuthCmd)
 
 	// Create a temporary terragrunt config with actual values
 	tmpTerragruntConfigFile := filepath.Join(remoteStateOIDCPath, "terragrunt.hcl")
@@ -214,7 +218,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestAwsReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole verifies chained role assumption
+// TestAWSReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole verifies chained role assumption
 // for the backend: --auth-provider-cmd returns a role assumed via OIDC web identity (the source
 // role), and the assume_role attribute of the remote_state block names a second role (the target
 // role) whose trust policy only allows the source role to assume it. Terragrunt must chain the
@@ -226,7 +230,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 //     permission to assume the target role, but no S3 permissions.
 //   - AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN: trusts the source role and has the S3 permissions
 //     required to bootstrap the backend.
-func TestAwsReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 	// t.Parallel()
 	if isTerraform(t.Context()) {
@@ -242,37 +246,33 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCChainedAssumeRole(t *testing.T)
 	targetRole := os.Getenv("AWS_TEST_OIDC_CHAIN_TARGET_ROLE_ARN")
 	require.NotEmpty(t, targetRole)
 
-	// These tests need to be run without the static key + secret
-	// used by most AWS tests here. Capture them first so the deferred
-	// bucket cleanup can use them: neither chain role can delete the
-	// bucket on its own (the source role has no S3 permissions and the
-	// target role is only reachable through the source role).
-	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-
-	t.Setenv("AWS_ACCESS_KEY_ID", "")
-	os.Unsetenv("AWS_ACCESS_KEY_ID")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
-	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
-
-	t.Setenv("OIDC_TOKEN", token)
-
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state-assume-role")
 	helpers.CleanupTerraformFolder(t, rootPath)
 	mockAuthCmd := filepath.Join(rootPath, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	// The script reads OIDC_TOKEN and exits non-zero without it, so it has to be
+	// set before the script is validated below.
+	t.Setenv("OIDC_TOKEN", token)
+
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	tmpTerragruntConfigFile := filepath.Join(rootPath, "terragrunt.hcl")
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
-	defer func() {
-		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)         //nolint: usetesting
-		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint: usetesting
-
+	// Registered before the credentials are cleared, so it runs after they are put
+	// back: neither chain role can delete the bucket on its own, since the source
+	// role has no S3 permissions and the target role is only reachable through it.
+	t.Cleanup(func() {
 		helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
-	}()
+	})
+
+	// The run has to reach AWS through the OIDC chain rather than the static key
+	// and secret most AWS tests here run with.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	helpers.CopyAndFillMapPlaceholders(
 		t,
@@ -345,27 +345,17 @@ func fetchGitHubOIDCToken(t *testing.T) string {
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			t.Fatalf(
-				"OIDC token request to %s failed with status %s. Additionally, failed to read response body: %v",
-				requestURL,
-				resp.Status,
-				readErr,
-			)
-		}
-
-		t.Fatalf(
-			"OIDC token request to %s failed with status %s. Response: %s",
-			requestURL,
-			resp.Status,
-			string(bodyBytes),
-		)
-	}
-
 	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err, "Failed to read OIDC token response body from %s", requestURL)
+	require.NoError(t, err, "Failed to read OIDC token response body from %s (status %s)", requestURL, resp.Status)
+	require.Equal(
+		t,
+		http.StatusOK,
+		resp.StatusCode,
+		"OIDC token request to %s failed with status %s. Response: %s",
+		requestURL,
+		resp.Status,
+		string(body),
+	)
 
 	var tokenResp oidcTokenResponse
 

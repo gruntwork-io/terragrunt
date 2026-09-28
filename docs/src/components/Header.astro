@@ -8,6 +8,7 @@ import HeadphonesIcon from '@assets/headset-icon.svg';
 import PipelineIcon from '@assets/pipelines.svg';
 import TerragruntLogo from '@assets/horizontal-logo-light.svg';
 import TerragruntIcon from '@assets/logo-dark-2.svg';
+import SearchTelemetry from '@components/SearchTelemetry.astro';
 import ThemeToggle from '@components/ThemeToggle.astro';
 import ButtonLink from '@components/ui/ButtonLink.astro';
 import { getGitHubRepo, formatStarCount } from '@lib/github';
@@ -58,10 +59,6 @@ if (!process.env.GITHUB_STARS) {
     --sl-color-gray-7: #0f1731;
     --sl-color-gray-8: #0f0934;
     --sl-color-white: #ffffff;
-  }
-
-  :global(body.has-banner) .navbar {
-    top: 2.5rem;
   }
 </style>
 
@@ -213,10 +210,22 @@ if (!process.env.GITHUB_STARS) {
   </div>
 </div>
 
-<!-- Google Tag Manager -->
-<script type="text/partytown">(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-5TTJJGTL');</script>
-<!-- End Google Tag Manager -->
+<SearchTelemetry />
+
+<!--
+  A plain synchronous tag on purpose: a web worker has no `localStorage`, so
+  Partytown proxies every synchronous browser API call the container makes
+  through a service worker, one unbatched HTTP round trip each.
+-->
+<script is:inline>
+  (function (w, d, s, l, i) {
+    w[l] = w[l] || [];
+    w[l].push({ "gtm.start": new Date().getTime(), event: "gtm.js" });
+    var f = d.getElementsByTagName(s)[0],
+      j = d.createElement(s),
+      dl = l != "dataLayer" ? "&l=" + l : "";
+    j.async = true;
+    j.src = "/mtag/gtm.js?id=" + i + dl;
+    f.parentNode.insertBefore(j, f);
+  })(window, document, "script", "dataLayer", "GTM-5TTJJGTL");
+</script>

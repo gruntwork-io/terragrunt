@@ -6,7 +6,7 @@ terraform {
   required_providers {
     external = {
       source  = "registry.opentofu.org/hashicorp/external"
-      version = "2.3.3"
+      version = "2.3.5"
     }
   }
 }

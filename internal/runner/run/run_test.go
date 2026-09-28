@@ -10,7 +10,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -25,6 +27,7 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 	testCases := []struct {
 		envVarsInOpts  map[string]string
 		inputsInConfig map[string]any
+		moduleFiles    map[string]string
 		expected       map[string]string
 		description    string
 	}{
@@ -95,6 +98,30 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 				"TF_VAR_map":  `{"a":"b"}`,
 			},
 		},
+		{
+			description:    "input with an interpolation pattern for a string variable",
+			inputsInConfig: map[string]any{"foo": `{"a": "${b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "${b}"}`},
+		},
+		{
+			description:    "input with an interpolation pattern for an untyped variable",
+			inputsInConfig: map[string]any{"foo": `{"a": "${b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" {}`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "${b}"}`},
+		},
+		{
+			description:    "input with an interpolation pattern for a variable of any type",
+			inputsInConfig: map[string]any{"foo": `{"a": "${b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = any }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "$${b}"}`},
+		},
+		{
+			description:    "input with an interpolation pattern for an unparseable module",
+			inputsInConfig: map[string]any{"foo": `{"a": "${b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" {`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "${b}"}`},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -110,8 +137,18 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 				env = map[string]string{}
 			}
 
+			fsys := vfs.NewMemMapFS()
+			moduleDir := "/module"
+
+			require.NoError(t, fsys.MkdirAll(moduleDir, 0755))
+
+			for filename, content := range tc.moduleFiles {
+				path := filepath.Join(moduleDir, filename)
+				require.NoError(t, vfs.WriteFile(fsys, path, []byte(content), 0644))
+			}
+
 			l := logger.CreateLogger()
-			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, env, cfg))
+			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, fsys, env, moduleDir, cfg))
 
 			assert.Equal(t, tc.expected, env)
 		})
@@ -141,7 +178,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			valid: true,
 		},
 		{
-			description: "Directory with plain Terraform and OpenTofu",
+			description: "Directory with plain OpenTofu and Terraform",
 			files: map[string]string{
 				"main.tf":   `# Terraform file`,
 				"main.tofu": `# OpenTofu file`,
@@ -163,7 +200,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			valid: true,
 		},
 		{
-			description: "Directory with JSON formatted Terraform and OpenTofu",
+			description: "Directory with JSON formatted OpenTofu and Terraform",
 			files: map[string]string{
 				"main.tf.json":   `{"terraform": {"backend": {"s3": {}}}}`,
 				"main.tofu.json": `{"terraform": {"backend": {"s3": {}}}}`,
@@ -171,7 +208,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			valid: true,
 		},
 		{
-			description: "Directory with no Terraform or OpenTofu",
+			description: "Directory with no OpenTofu/Terraform",
 			files: map[string]string{
 				"main.yaml": `# Not a terraform file`,
 			},
@@ -188,10 +225,14 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+			fsys := vfs.NewMemMapFS()
+			tmpDir := "/work"
+
+			require.NoError(t, fsys.MkdirAll(tmpDir, 0755))
+
 			for filename, content := range tc.files {
 				filePath := filepath.Join(tmpDir, filename)
-				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
+				require.NoError(t, vfs.WriteFile(fsys, filePath, []byte(content), 0644))
 			}
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
@@ -199,14 +240,13 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(configbridge.NewRunOptions(opts))
-			if (err != nil) && tc.valid {
-				t.Error("valid terraform returned error")
+			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts))
+			if tc.valid {
+				assert.NoError(t, err, "valid terraform returned error")
+				return
 			}
 
-			if (err == nil) && !tc.valid {
-				t.Error("invalid terraform did not return error")
-			}
+			assert.Error(t, err, "invalid terraform did not return error")
 		})
 	}
 }
@@ -218,6 +258,7 @@ func TestToTerraformEnvVars(t *testing.T) {
 
 	testCases := []struct {
 		vars        map[string]any
+		declared    map[string]tf.ModuleVariable
 		expected    map[string]string
 		description string
 	}{
@@ -281,8 +322,26 @@ func TestToTerraformEnvVars(t *testing.T) {
 			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test $${bar} test"}`},
 		},
 		{
-			description: "plain string with interpolation pattern not escaped",
+			description: "string with interpolation pattern for a literally read variable",
 			vars:        map[string]any{"mystr": "plain ${bar} string"},
+			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
+		},
+		{
+			description: "string with interpolation pattern for an HCL parsed variable",
+			vars:        map[string]any{"mystr": "plain ${bar} string"},
+			declared:    map[string]tf.ModuleVariable{"mystr": {ParsingMode: tf.VariableParseHCL}},
+			expected:    map[string]string{"TF_VAR_mystr": `plain $${bar} string`},
+		},
+		{
+			description: "already escaped string for an HCL parsed variable",
+			vars:        map[string]any{"mystr": "plain $${bar} string"},
+			declared:    map[string]tf.ModuleVariable{"mystr": {ParsingMode: tf.VariableParseHCL}},
+			expected:    map[string]string{"TF_VAR_mystr": `plain $${bar} string`},
+		},
+		{
+			description: "declarations of other variables leave a string alone",
+			vars:        map[string]any{"mystr": "plain ${bar} string"},
+			declared:    map[string]tf.ModuleVariable{"other": {ParsingMode: tf.VariableParseHCL}},
 			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
 		},
 		{
@@ -297,7 +356,7 @@ func TestToTerraformEnvVars(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			actual, err := run.ToTerraformEnvVars(l, tc.vars)
+			actual, err := run.ToTerraformEnvVars(l, tc.vars, tc.declared)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -509,7 +568,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			},
 		}
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, configbridge.NewRunOptions(tc.options), &config)
+		out := run.FilterTerraformExtraArgs(l, vfs.NewOSFS(), configbridge.NewRunOptions(tc.options), &config)
 		assert.Equal(t, tc.expectedArgs, out)
 	}
 }
@@ -557,7 +616,7 @@ func mockExtraArgs(
 	// Include OptionalVarFiles only if they exist
 	if len(optionalVarFiles) > 0 {
 		for _, file := range util.RemoveDuplicatesKeepLast(optionalVarFiles) {
-			if !util.FileExists(file) {
+			if !vfs.Exists(vfs.NewOSFS(), file) {
 				continue
 			}
 
@@ -592,9 +651,7 @@ func mockOptions(
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
-	if err != nil {
-		t.Fatalf("error: %v\n", err)
-	}
+	require.NoError(t, err)
 
 	opts.WorkingDir = workingDir
 	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
@@ -610,9 +667,8 @@ func createTempFile(t *testing.T) string {
 	t.Helper()
 
 	tmpFile, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
-	}
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
 
 	return tmpFile.Name()
 }

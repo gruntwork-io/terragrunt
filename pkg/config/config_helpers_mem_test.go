@@ -16,7 +16,7 @@ import (
 )
 
 // TestRunCommandMemExec exercises the run_cmd HCL helper end-to-end on a
-// mem-backed exec. The existing TestRunCommand skips on Windows because
+// mem-backed exec. The existing TestTFRunCommand skips on Windows because
 // it shells out to /bin/bash; this variant runs everywhere because the
 // subprocess is intercepted by the mem backend.
 func TestRunCommandMemExec(t *testing.T) {
@@ -30,11 +30,11 @@ func TestRunCommandMemExec(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 
-	out, err := config.RunCommand(ctx, pctx, l, []string{"echoer", "hello"})
+	out, err := config.RunCommand(ctx, l, v, pctx, []string{"echoer", "hello"})
 	require.NoError(t, err)
 	assert.Equal(t, "hello", out, "trailing newline must be trimmed from run_cmd output")
 }
@@ -55,14 +55,14 @@ func TestRunCommandCacheHitsCollapseSubprocessForks(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 
 	args := []string{"expensive-cmd", "--flag"}
 
 	for range 4 {
-		out, err := config.RunCommand(ctx, pctx, l, args)
+		out, err := config.RunCommand(ctx, l, v, pctx, args)
 		require.NoError(t, err)
 		assert.Equal(t, "computed", out)
 	}
@@ -88,12 +88,12 @@ func TestRunCommandNoCacheRefuses(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 
 	for range 3 {
-		_, err := config.RunCommand(ctx, pctx, l, []string{"--terragrunt-no-cache", "cmd"})
+		_, err := config.RunCommand(ctx, l, v, pctx, []string{"--terragrunt-no-cache", "cmd"})
 		require.NoError(t, err)
 	}
 
@@ -115,11 +115,11 @@ func TestRunCommandSurfacesSubprocessFailure(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 
-	_, err := config.RunCommand(ctx, pctx, l, []string{"failing-cmd"})
+	_, err := config.RunCommand(ctx, l, v, pctx, []string{"failing-cmd"})
 	require.Error(t, err)
 }
 
@@ -138,19 +138,19 @@ func TestRunCommandGlobalCacheSharesAcrossWorkingDirs(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
 	ctx, pctxA := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctxA.Venv = venvtest.New().WithExec(exec)
 
+	vB := venvtest.New().WithExec(exec)
 	_, pctxB := newTestParsingContext(t, t.TempDir())
-	pctxB.Venv = venvtest.New().WithExec(exec)
 
 	args := []string{"--terragrunt-global-cache", "cmd"}
 
-	_, err := config.RunCommand(ctx, pctxA, l, args)
+	_, err := config.RunCommand(ctx, l, v, pctxA, args)
 	require.NoError(t, err)
 
-	_, err = config.RunCommand(ctx, pctxB, l, args)
+	_, err = config.RunCommand(ctx, l, vB, pctxB, args)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -192,11 +192,11 @@ func TestRunCommandConflictingCacheFlags(t *testing.T) {
 			})
 
 			l := logger.CreateLogger()
+			v := venvtest.New().WithExec(exec)
 			ctx, pctx := newTestParsingContext(t, t.TempDir())
 			ctx = config.WithConfigValues(ctx)
-			pctx.Venv = venvtest.New().WithExec(exec)
 
-			_, err := config.RunCommand(ctx, pctx, l, tc.args)
+			_, err := config.RunCommand(ctx, l, v, pctx, tc.args)
 			require.Error(t, err)
 			require.ErrorAs(t, err, new(config.ConflictingRunCmdCacheOptionsError))
 		})
@@ -216,14 +216,14 @@ func TestRunCommandDoesNotMutateCallerArgs(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 
 	args := []string{"--terragrunt-quiet", "--terragrunt-global-cache", "cmd", "subarg"}
 	want := slices.Clone(args)
 
-	_, err := config.RunCommand(ctx, pctx, l, args)
+	_, err := config.RunCommand(ctx, l, v, pctx, args)
 	require.NoError(t, err)
 
 	assert.Equal(t, want, args, "RunCommand must not mutate the caller's args slice")
@@ -241,20 +241,20 @@ func TestRunCommandEmptyParamsErrors(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
 
-	_, err := config.RunCommand(ctx, pctx, l, nil)
+	_, err := config.RunCommand(ctx, l, v, pctx, nil)
 	require.Error(t, err)
 	require.ErrorAs(t, err, new(config.EmptyStringNotAllowedError))
 }
 
-// TestRunCommandReceivesPctxEnv pins that pctx.Venv.Env propagates into the
+// TestRunCommandReceivesVenvEnv pins that v.Env propagates into the
 // subprocess environment via shellRunOptsFromPctx. The mem backend
 // exposes the Env slice directly, so a regression that drops env
 // propagation is observable here.
-func TestRunCommandReceivesPctxEnv(t *testing.T) {
+func TestRunCommandReceivesVenvEnv(t *testing.T) {
 	t.Parallel()
 
 	var got atomic.Value // []string
@@ -265,12 +265,12 @@ func TestRunCommandReceivesPctxEnv(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
-	pctx.Venv = venvtest.New().WithExec(exec)
-	pctx.Venv.Env = map[string]string{"TG_TEST_TOKEN": "abc123"}
+	v.Env = map[string]string{"TG_TEST_TOKEN": "abc123"}
 
-	_, err := config.RunCommand(ctx, pctx, l, []string{"reader"})
+	_, err := config.RunCommand(ctx, l, v, pctx, []string{"reader"})
 	require.NoError(t, err)
 
 	env, _ := got.Load().([]string)
@@ -278,6 +278,6 @@ func TestRunCommandReceivesPctxEnv(t *testing.T) {
 		t,
 		env,
 		"TG_TEST_TOKEN=abc123",
-		"pctx.Venv.Env must propagate to the spawned subprocess environment",
+		"v.Env must propagate to the spawned subprocess environment",
 	)
 }

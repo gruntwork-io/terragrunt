@@ -35,6 +35,7 @@ func TestGenericFlagStringApply(t *testing.T) {
 		},
 		{
 			flag: clihelper.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
+			envs: map[string]string{},
 		},
 		{
 			flag: clihelper.GenericFlag[string]{
@@ -51,10 +52,12 @@ func TestGenericFlagStringApply(t *testing.T) {
 				Name:        "foo",
 				Destination: new("default-value"),
 			},
+			envs:          map[string]string{},
 			expectedValue: "default-value",
 		},
 		{
 			flag: clihelper.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
+			envs: map[string]string{},
 			args: []string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			expectedErr: errors.New(
 				`invalid value "arg-value2" for flag -foo: setting the flag multiple times`,
@@ -103,6 +106,7 @@ func TestGenericFlagIntApply(t *testing.T) {
 		},
 		{
 			flag:          clihelper.GenericFlag[int]{Name: "foo", Destination: new(55)},
+			envs:          map[string]string{},
 			expectedValue: 55,
 		},
 	}
@@ -148,6 +152,7 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 		},
 		{
 			flag:          clihelper.GenericFlag[int64]{Name: "foo", Destination: new(int64(55))},
+			envs:          map[string]string{},
 			expectedValue: 55,
 		},
 	}
@@ -182,22 +187,10 @@ func testGenericFlagApply[T clihelper.GenericType](
 
 	expectedDefaultValue = fmt.Sprintf("%v", *flag.Destination)
 
-	flag.LookupEnvFunc = func(key string) []string {
-		if envs == nil {
-			return nil
-		}
-
-		if val, ok := envs[key]; ok {
-			return []string{val}
-		}
-
-		return nil
-	}
-
 	flagSet := libflag.NewFlagSet("test-cmd", libflag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	err := flag.Apply(flagSet)
+	err := flag.Apply(flagSet, envs)
 	if err == nil {
 		err = flagSet.Parse(args)
 	}

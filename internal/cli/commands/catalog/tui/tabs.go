@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // TabKind identifies which catalog component type the active tab is
@@ -44,13 +46,13 @@ func (t TabKind) String() string {
 func (t TabKind) Matches(entry *ComponentEntry) bool {
 	switch t {
 	case TabModules:
-		return entry.Kind() == ComponentKindModule || entry.HasTagForKind(ComponentKindModule)
+		return entry.Kind() == component.KindModule || entry.HasTagForKind(component.KindModule)
 	case TabTemplates:
-		return entry.Kind() == ComponentKindTemplate || entry.HasTagForKind(ComponentKindTemplate)
+		return entry.Kind() == component.KindTemplate || entry.HasTagForKind(component.KindTemplate)
 	case TabUnits:
-		return entry.Kind() == ComponentKindUnit || entry.HasTagForKind(ComponentKindUnit)
+		return entry.Kind() == component.KindUnit || entry.HasTagForKind(component.KindUnit)
 	case TabStacks:
-		return entry.Kind() == ComponentKindStack || entry.HasTagForKind(ComponentKindStack)
+		return entry.Kind() == component.KindStack || entry.HasTagForKind(component.KindStack)
 	case TabAll, numTabs:
 	}
 
@@ -67,18 +69,18 @@ func (t TabKind) prev() TabKind {
 	return (t + numTabs - 1) % numTabs
 }
 
-// componentKind returns the ComponentKind this tab filters to. TabAll returns
+// componentKind returns the component.Kind this tab filters to. TabAll returns
 // false to signal "no kind filter".
-func (t TabKind) componentKind() (ComponentKind, bool) {
+func (t TabKind) componentKind() (component.Kind, bool) {
 	switch t {
 	case TabModules:
-		return ComponentKindModule, true
+		return component.KindModule, true
 	case TabTemplates:
-		return ComponentKindTemplate, true
+		return component.KindTemplate, true
 	case TabUnits:
-		return ComponentKindUnit, true
+		return component.KindUnit, true
 	case TabStacks:
-		return ComponentKindStack, true
+		return component.KindStack, true
 	case TabAll, numTabs:
 	}
 
@@ -96,8 +98,8 @@ func tabActiveStyle(t TabKind) lipgloss.Style {
 	kind, ok := t.componentKind()
 	if !ok {
 		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color(titleForegroundColor)).
-			Background(lipgloss.Color(titleBackgroundColor)).
+			Foreground(lipgloss.Color(viewtui.TitleForeground)).
+			Background(lipgloss.Color(viewtui.TitleBackground)).
 			Bold(true).
 			Padding(0, 1)
 	}

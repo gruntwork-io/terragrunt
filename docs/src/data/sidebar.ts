@@ -106,13 +106,11 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
         label: "Supported Versions",
         slug: "reference/supported-versions",
       },
-      { label: "Lock Files", slug: "reference/lock-files" },
       {
         label: "Logging",
         collapsed: true,
         items: [{ autogenerate: { directory: "04-reference/07-logging", collapsed: true } }],
       },
-      { label: "Terragrunt Cache", slug: "reference/terragrunt-cache" },
     ],
   },
   {

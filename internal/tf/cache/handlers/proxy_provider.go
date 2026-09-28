@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/labstack/echo/v4"
 )
@@ -41,12 +42,17 @@ type ProxyProviderHandler struct {
 }
 
 func NewProxyProviderHandler(
-	logger log.Logger,
+	l log.Logger,
+	c vhttp.Client,
 	credsSource *cliconfig.CredentialsSource,
 ) *ProxyProviderHandler {
 	return &ProxyProviderHandler{
-		CommonProviderHandler: NewCommonProviderHandler(logger, nil, nil),
-		ReverseProxy:          &helpers.ReverseProxy{CredsSource: credsSource, Logger: logger},
+		CommonProviderHandler: NewCommonProviderHandler(l, c, nil, nil),
+		ReverseProxy: &helpers.ReverseProxy{
+			CredsSource: credsSource,
+			Logger:      l,
+			Transport:   c.Transport,
+		},
 	}
 }
 
@@ -56,8 +62,6 @@ func (handler *ProxyProviderHandler) String() string {
 
 // GetVersions implements ProviderHandler.GetVersions
 // https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
-//
-//nolint:lll
 func (handler *ProxyProviderHandler) GetVersions(
 	ctx echo.Context,
 	provider *models.Provider,
@@ -68,7 +72,7 @@ func (handler *ProxyProviderHandler) GetVersions(
 	}
 
 	reqURL := &url.URL{
-		Scheme: "https",
+		Scheme: schemeHTTPS,
 		Host:   provider.RegistryName,
 		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, "versions"),
 	}
@@ -88,7 +92,7 @@ func (handler *ProxyProviderHandler) GetPlatform(
 	}
 
 	platformURL := &url.URL{
-		Scheme: "https",
+		Scheme: schemeHTTPS,
 		Host:   provider.RegistryName,
 		Path: path.Join(
 			apiURLs.ProvidersV1,
@@ -118,7 +122,7 @@ func (handler *ProxyProviderHandler) Download(ctx echo.Context, provider *models
 		}
 
 		downloadURL := &url.URL{
-			Scheme: "https",
+			Scheme: schemeHTTPS,
 			Host:   provider.RegistryName,
 			Path: filepath.Join(
 				apiURLs.ProvidersV1,

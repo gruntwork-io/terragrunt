@@ -1,0 +1,87 @@
+---
+question: "Why use Terragrunt instead of just OpenTofu/Terraform?"
+description: "They have different jobs. OpenTofu/Terraform turn configuration into infrastructure. Terragrunt orchestrates many of those runs and absorbs the operational mess around them: segmented state, dependencies, targeted runs, retries, hooks, authentication, and caching."
+order: 3
+---
+
+Terragrunt does not replace OpenTofu/Terraform. It orchestrates them, and extends what they do.
+
+The two tools have different jobs. OpenTofu/Terraform are deliberately narrow: they turn configuration into infrastructure, with as few side effects as possible. That restraint is why they are predictable, and it is also why they leave a set of problems unsolved. Terragrunt takes on the messier side of the work: networks are flaky, APIs return transient errors, credentials differ between environments, and operational procedures have to run somewhere.
+
+If you have one or two root modules and no dependencies between them, using OpenTofu/Terraform alone might be fine for you. The problems below show up as the number of units, environments, and people grows.
+
+## State segmentation, and the lock that comes with it
+
+Each Terragrunt [unit](/features/units/) has its own state, and a root configuration shared by every unit can derive each one's backend key from its path with [`path_relative_to_include()`](/reference/hcl/functions#path_relative_to_include). You get per-unit state without configuring a backend by hand for every root module.
+
+The obvious benefit is blast radius: your current working directory is what you can break. The less obvious one matters more on a team. One state file means one lock, so two engineers touching unrelated infrastructure still queue behind each other. Segmented state gives each unit its own lock, and unrelated work proceeds in parallel. A monolithic state file is an organizational bottleneck as much as a technical one, and it produces a [Terralith](/guides/terralith-to-terragrunt/): slow plans, risky changes, and diffs nobody wants to review.
+
+Per-unit state also makes least-privilege practical. Because each unit has its own state and its own run, you can scope credentials to that unit rather than granting one role broad enough to apply everything.
+
+## Making module reuse explicit
+
+A unit points at one module through its [`terraform` block](/reference/hcl/blocks#terraform) and supplies inputs. The fact that this is the lowest friction way to use Terragrunt is an advantage by design. There is a persistent temptation to write new infrastructure by hand, and to quietly bolt one more resource onto a root module that was supposed to be a clean instantiation of a shared pattern. When instantiating a module is the easiest thing to do, reuse is explicit, and drift from the pattern shows up in review.
+
+## Dependencies between units
+
+The [`dependency` block](/reference/hcl/blocks#dependency) passes outputs from one unit into another and places both in a DAG, so `run --all apply` visits them in the right order and destroys them in reverse. `mock_outputs` lets you plan a unit whose dependencies have not been applied yet. Wiring the same thing together in plain OpenTofu/Terraform means either a single large state file or manual coordination.
+
+## Running commands across many units
+
+`terragrunt run --all plan` runs the command across every unit in the [run queue](/features/stacks/run-queue/), in parallel where the DAG allows it, with per-unit prefixes on the output and a [summary](/features/stacks/run-report/) of what succeeded, failed, or was skipped.
+
+## Targeting the right subset
+
+Running everything is rarely what you want. The [`--filter` flag](/features/filter/) is a small query language for selecting components, and it composes:
+
+- By [name](/features/filter/name/) or [path](/features/filter/path/), with globs
+- By [attribute](/features/filter/attributes/), such as `type=unit` or `external=true`
+- By [dependency relationship](/features/filter/graph/), so you can pull in everything a unit depends on, or everything that depends on it
+- By [git diff](/features/filter/git/), so a CI run touches only the units a branch changed
+- [Combined](/features/filter/combining/) with negation, intersection, and union, or saved in a [filters file](/features/filter/filters-file/) for reuse
+
+```bash
+terragrunt run --all --filter-affected -- plan
+```
+
+## Shared configuration in one place
+
+Backend configuration, provider blocks, and common inputs live in a root configuration file that units pull in with an [`include` block](/features/units/includes/). [`generate` blocks](/reference/hcl/blocks#generate) write files into the module before a run, so you can inject a provider or backend into a module you do not control. You write these once rather than in every root module.
+
+## Rolling changes out without a pile of pull requests
+
+Promoting a change through environments usually means either applying it everywhere at once or opening a pull request per environment to bump versions one at a time. [Feature flags](/features/units/runtime-control/) offer a third option: codify both configurations, then control which one is active at runtime with the [`feature` block](/reference/hcl/blocks#feature) or the `--feature` flag. Shipping the change and turning it on become separate steps.
+
+## Self-service for people who are not IaC experts
+
+The [catalog](/features/catalog/) gives you a searchable [terminal UI](/features/catalog/tui/) over the modules in your repositories, and [scaffold](/features/catalog/scaffold/) generates a unit's `terragrunt.hcl` from a chosen module using [boilerplate](https://github.com/gruntwork-io/boilerplate) templates, with support for your own. A developer who is not fluent in IaC can provision from a pre-approved pattern without waiting on the platform team.
+
+## Surviving flaky infrastructure
+
+Large runs fail for boring reasons: rate limits, eventual consistency, an API having a bad minute. The [`errors` block](/reference/hcl/blocks#errors) makes that configuration rather than a shell retry loop. `retry` matches errors by regex and retries with a bounded attempt count and sleep interval; `ignore` lets known-safe errors through without failing the run.
+
+## Operational work that does not belong in a module
+
+[Before, after, and error hooks](/features/units/hooks/) run commands around an OpenTofu/Terraform invocation. Building and pushing a container image before applying the service that runs it, taking a database backup before a risky change, running smoke tests after: these have to happen somewhere, and putting them in the module makes the module less reusable. Hooks keep the generic infrastructure pattern generic and the implementation-specific steps next to the unit that needs them.
+
+## Authentication that differs by context
+
+Terragrunt can acquire credentials as part of a run rather than expecting them to already exist in the environment. It can [assume an IAM role](/features/units/authentication/) via `--iam-assume-role` or the `iam_role` attribute, including through OIDC. For anything more involved, [`--auth-provider-cmd`](/features/units/authentication/) runs a program of your choosing to produce credentials at runtime, which is how you give different units, accounts, and pipeline stages different roles: a read-only role on pull requests and a read-write role on merge, for example.
+
+## Caching
+
+At scale, most of a run is spent fetching things you already have. Terragrunt shares them:
+
+- [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir/) points OpenTofu at one shared provider cache, on by default with OpenTofu 1.10 and later.
+- The [Provider Cache Server](/features/caching/provider-cache-server/) serves providers from a single process, for Terraform, older OpenTofu, NFS-mounted caches, or scales where lock contention on a shared directory hurts.
+- The [Content Addressable Store](/features/caching/cas/) stores fetched content once and hard links it into each unit that needs it.
+
+## Running anything else
+
+The [`exec` command](/reference/cli/commands/exec/) runs an arbitrary program with the unit's inputs in scope as `TF_VAR_` environment variables, so tooling that needs the same configuration as your infrastructure code can read it from one place. [IaC engines](/features/units/engine/) go further and let you change how OpenTofu/Terraform is invoked at all.
+
+## Further reading
+
+- [Overview](/getting-started/overview/)
+- [Terragrunt: IaC collaboration at scale](https://www.gruntwork.io/blog/terragrunt-iac-collaboration-at-scale)
+- [Terragrunt and OpenTofu: better together](https://www.gruntwork.io/blog/terragrunt-opentofu-better-together)

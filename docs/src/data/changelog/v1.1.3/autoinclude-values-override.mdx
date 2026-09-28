@@ -1,0 +1,39 @@
+---
+version: "v1.1.3"
+category: "bug-fixes"
+---
+
+#### Fixed `Unsupported attribute` errors for `values.*` inputs that `autoinclude` overrides
+
+A unit input referencing a `values.*` key that the unit's values file doesn't define no longer fails with `Unsupported attribute` when an `autoinclude` block supplies that input. The autoinclude value is applied as intended.
+
+```hcl
+# stacks/terragrunt.stack.hcl
+unit "subnet" {
+  source = "../units/subnet"
+  path   = "subnet"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path  = unit.vpc.path
+      mock_outputs = { vpc_id = "mock" }
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+  }
+
+  values = {
+    cidr_block = "10.0.0.0/24"
+  }
+}
+```
+
+```hcl
+# units/subnet/terragrunt.hcl
+inputs = {
+  vpc_id     = values.vpc_id      # supplied by autoinclude, not the values file
+  cidr_block = values.cidr_block  # still resolves from values file
+}
+```

@@ -155,3 +155,68 @@ func (e StackDependencyExpansionError) Unwrap() error {
 func NewStackDependencyExpansionError(depPath string, err error) error {
 	return StackDependencyExpansionError{DepPath: depPath, Wrapped: err}
 }
+
+// DiscoveryBoundaryDirError indicates that the directory given as a graph
+// boundary (the "(dir)" operand of a filter expression, or the
+// --discovery-boundary flag) does not exist or is not a directory. Wraps the
+// underlying filesystem error, if any, so callers can extract typed details via
+// errors.As.
+type DiscoveryBoundaryDirError struct {
+	Wrapped  error
+	Boundary string
+}
+
+func (e DiscoveryBoundaryDirError) Error() string {
+	return fmt.Sprintf("discovery boundary %q is not a usable directory: %s", e.Boundary, e.Wrapped)
+}
+
+func (e DiscoveryBoundaryDirError) Unwrap() error {
+	return e.Wrapped
+}
+
+// NewDiscoveryBoundaryDirError wraps err with the boundary path that failed validation.
+func NewDiscoveryBoundaryDirError(boundary string, err error) error {
+	return DiscoveryBoundaryDirError{Boundary: boundary, Wrapped: err}
+}
+
+// DiscoveryBoundaryScopeError indicates that the boundary neither contains the
+// working directory nor sits inside it. Dependent discovery searches from the
+// working directory, so such a boundary can never take effect.
+type DiscoveryBoundaryScopeError struct {
+	Boundary   string
+	WorkingDir string
+}
+
+func (e DiscoveryBoundaryScopeError) Error() string {
+	return fmt.Sprintf(
+		"discovery boundary %q does not overlap the working directory %q. "+
+			"Filters that traverse dependents search from the working directory, "+
+			"so their boundary must be the working directory, one of its parent directories, "+
+			"or a directory inside it.",
+		e.Boundary, e.WorkingDir,
+	)
+}
+
+// NewDiscoveryBoundaryScopeError creates a new DiscoveryBoundaryScopeError for the given paths.
+func NewDiscoveryBoundaryScopeError(boundary, workingDir string) error {
+	return DiscoveryBoundaryScopeError{Boundary: boundary, WorkingDir: workingDir}
+}
+
+// EmptyQueueConstructAsError represents an error that occurs when the value
+// given for the --queue-construct-as flag contains no command.
+type EmptyQueueConstructAsError struct {
+	Value string
+}
+
+func (e EmptyQueueConstructAsError) Error() string {
+	return fmt.Sprintf(
+		"The --queue-construct-as value %q contains no command. "+
+			"Pass the command to construct the queue as, like 'plan' or 'apply -destroy'.",
+		e.Value,
+	)
+}
+
+// NewEmptyQueueConstructAsError creates a new [EmptyQueueConstructAsError] for the given flag value.
+func NewEmptyQueueConstructAsError(value string) error {
+	return EmptyQueueConstructAsError{Value: value}
+}

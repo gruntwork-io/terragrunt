@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    external = {
+      source  = "registry.opentofu.org/hashicorp/external"
+      version = "2.3.5"
+    }
+  }
+}
+
 data "external" "traceparent" {
   program = ["${path.module}/get_traceparent.sh"]
 

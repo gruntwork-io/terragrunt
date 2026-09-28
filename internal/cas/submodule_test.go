@@ -9,9 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // startSubmoduleServer commits the given files to a fresh test server,
@@ -57,12 +58,12 @@ func TestCAS_CloneRepoWithSubmodule(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	c, err := cas.New(cas.WithStorePath(storePath))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	assertClone := func(t *testing.T, targetPath string) {
@@ -85,14 +86,14 @@ func TestCAS_CloneRepoWithSubmodule(t *testing.T) {
 	}
 
 	firstTarget := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(firstTarget), cas.WithDepth(-1))
+	err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(firstTarget), cas.WithDepth(-1))
 	require.NoError(t, err)
 	assertClone(t, firstTarget)
 
 	// A second clone hits the tree store and materializes the submodule
 	// without refetching anything.
 	secondTarget := filepath.Join(tempDir, "repo-cached")
-	err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(secondTarget), cas.WithDepth(-1))
+	err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(secondTarget), cas.WithDepth(-1))
 	require.NoError(t, err)
 	assertClone(t, secondTarget)
 }
@@ -129,19 +130,19 @@ func TestCAS_CloneRepoWithNestedSubmodules(t *testing.T) {
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
 	err = c.Clone(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
-		repoURL,
+		redact.NewURL(repoURL),
 		cas.WithDir(targetPath),
 		cas.WithDepth(-1),
 	)
@@ -179,19 +180,19 @@ func TestCAS_CloneRepoWithUnregisteredGitlink(t *testing.T) {
 	repoURL, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
 	err = c.Clone(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
-		repoURL,
+		redact.NewURL(repoURL),
 		cas.WithDir(targetPath),
 		cas.WithDepth(-1),
 	)
@@ -250,19 +251,19 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 	// component for every request, so any path serves the main repo.
 	repoURL := srv.BaseURL() + "/parent.git"
 
-	v := venv.OSVenv()
+	v := venvtest.NewOSWithEmptyEnv()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	targetPath := filepath.Join(tempDir, "repo")
 
-	c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(tempDir, "store")))
 	require.NoError(t, err)
 
 	err = c.Clone(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
-		repoURL,
+		redact.NewURL(repoURL),
 		cas.WithDir(targetPath),
 		cas.WithDepth(-1),
 	)

@@ -3,6 +3,8 @@ package run
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +12,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -21,7 +25,7 @@ const defaultPermissions = int(0600)
 // that terragrunt invokes the module, so that users can debug issues with the terragrunt config.
 func WriteTerragruntDebugFile(
 	l log.Logger,
-	env map[string]string,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 ) error {
@@ -31,12 +35,12 @@ func WriteTerragruntDebugFile(
 		opts.CacheDir,
 	)
 
-	required, optional, err := tf.ModuleVariables(opts.CacheDir)
+	declared, err := tf.ModuleVariables(v.FS, opts.CacheDir)
 	if err != nil {
 		return err
 	}
 
-	variables := slices.Concat(required, optional)
+	variables := slices.Sorted(maps.Keys(declared))
 
 	tofuImpl := "tofu"
 	if opts.TofuImplementation != "" {
@@ -46,15 +50,17 @@ func WriteTerragruntDebugFile(
 	l.Debugf("The following variables were detected in the %s module:", tofuImpl)
 	l.Debugf("%v", variables)
 
-	fileContents, err := terragruntDebugFileContents(l, env, cfg, variables)
-	if err != nil {
-		return err
-	}
-
 	configFolder := filepath.Dir(opts.TerragruntConfigPath)
 
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
-	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
+	if err := vfs.StreamFileAtomic(
+		v.FS,
+		fileName,
+		os.FileMode(defaultPermissions),
+		func(w io.Writer) error {
+			return writeDebugVars(w, l, v.Env, cfg, variables)
+		},
+	); err != nil {
 		return err
 	}
 
@@ -74,12 +80,13 @@ func WriteTerragruntDebugFile(
 // terragruntDebugFileContents will return a tfvars file in json format of all the terragrunt rendered variables values
 // that should be set to invoke the tofu/terraform module in the same way as terragrunt. Note that this will only include the
 // values of variables that are actually defined in the module.
-func terragruntDebugFileContents(
+func writeDebugVars(
+	w io.Writer,
 	l log.Logger,
 	env map[string]string,
 	cfg *runcfg.RunConfig,
 	moduleVariables []string,
-) ([]byte, error) {
+) error {
 	envVars := map[string]string{}
 	if env != nil {
 		envVars = env
@@ -112,10 +119,8 @@ func terragruntDebugFileContents(
 		}
 	}
 
-	jsonContent, err := json.MarshalIndent(jsonValuesByKey, "", "  ")
-	if err != nil {
-		return nil, err
-	}
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
 
-	return jsonContent, nil
+	return encoder.Encode(jsonValuesByKey)
 }

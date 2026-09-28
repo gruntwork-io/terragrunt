@@ -12,6 +12,8 @@ import (
 	getter "github.com/hashicorp/go-getter/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/detect"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -28,7 +30,7 @@ type CASGetter struct {
 	CAS         *cas.CAS
 	Logger      log.Logger
 	Opts        *cas.CloneOptions
-	Venv        venv.Venv
+	Venv        *venv.Venv
 	fetchers    map[string]getter.Getter
 	resolvers   map[string]cas.SourceResolver
 	innerClient InnerClientBuilder
@@ -85,10 +87,27 @@ func WithInnerClientBuilder(b InnerClientBuilder) CASGetterOption {
 // [WithGenericFetchers]([DefaultGenericFetchers]) and [WithGenericResolvers]
 // ([DefaultSourceResolvers]). opts are forwarded to both helpers so HTTP
 // auth headers reach the fetcher and tfr config reaches both.
+//
+// Probes and tfr fetches go through the venv's HTTP client unless
+// [WithHTTPClient] overrides it; a venv with no HTTP handle panics with
+// [venv.ErrVenvHTTPUnset] at construction.
 func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 	return func(g *CASGetter) {
-		g.fetchers = DefaultGenericFetchers(opts...)
-		g.resolvers = DefaultSourceResolvers(opts...)
+		var cfg genericFetcherConfig
+		for _, opt := range opts {
+			opt(&cfg)
+		}
+
+		g.Venv.RequireExec()
+		g.Venv.RequireHTTP()
+
+		v := g.Venv
+		if cfg.httpClient != nil {
+			v = v.WithHTTP(cfg.httpClient)
+		}
+
+		g.fetchers = DefaultGenericFetchers(v, opts...)
+		g.resolvers = DefaultSourceResolvers(v, opts...)
 	}
 }
 
@@ -105,7 +124,7 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 func NewCASGetter(
 	l log.Logger,
 	c *cas.CAS,
-	v venv.Venv,
+	v *venv.Venv,
 	opts *cas.CloneOptions,
 	options ...CASGetterOption,
 ) *CASGetter {
@@ -120,7 +139,7 @@ func NewCASGetter(
 		Detectors: []Detector{
 			new(GitHubDetector),
 			new(GitDetector),
-			new(BitBucketDetector),
+			new(detect.BitBucket),
 			new(GitLabDetector),
 			new(FileDetector),
 		},
@@ -145,7 +164,7 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 		// Local directory.
 		var linkOpts []cas.LinkTreeOption
 		if g.Opts.Mutable {
-			linkOpts = append(linkOpts, cas.WithForceCopy())
+			linkOpts = append(linkOpts, cas.WithMutableTree())
 		}
 
 		return g.CAS.StoreLocalDirectory(ctx, g.Logger, g.Venv, req.Src, req.Dst, linkOpts...)
@@ -402,22 +421,12 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 	return clone.String()
 }
 
-// getGit clones via [cas.CAS.Clone] after lifting ?ref= out of the URL
-// into [cas.CloneOptions.Branch].
+// getGit clones via [cas.CAS.Clone] after lifting the go-getter ref and depth
+// query parameters out of the URL (see [cas.StripGitURLParams]).
 func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
-	ref := ""
+	u, ref := cas.StripGitURLParams(req.URL())
 
-	u := req.URL()
-
-	q := u.Query()
-	if len(q) > 0 {
-		ref = q.Get("ref")
-		q.Del("ref")
-
-		u.RawQuery = q.Encode()
-	}
-
-	return g.CAS.Clone(ctx, g.Logger, g.Venv, GitCloneURL(u.String()),
+	return g.CAS.Clone(ctx, g.Logger, g.Venv, redact.NewURL(GitCloneURL(u.String())),
 		cas.WithDir(req.Dst),
 		cas.WithBranch(ref),
 		cas.WithDepth(g.Opts.Depth),
@@ -440,10 +449,13 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 
 	bare := g.fetchers[scheme]
 
-	innerURL := innerArchiveURL(req.URL(), g.userDisabledArchive)
+	innerURL := redact.NewURL(innerArchiveURL(req.URL(), g.userDisabledArchive))
 
 	opts := *g.Opts
 	opts.Dir = req.Dst
+	// A non-git source has no git directory to draw the files from, and
+	// leaving the list set would make every probe hit look like a miss.
+	opts.IncludedGitFiles = nil
 
 	return g.CAS.FetchSource(ctx, g.Logger, g.Venv, &opts, cas.SourceRequest{
 		Scheme:   scheme,
@@ -453,7 +465,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	})
 }
 
-// buildInnerFetch returns a SourceFetcher that downloads urlStr into a
+// buildInnerFetch returns a SourceFetcher that downloads source into a
 // fresh temp directory through an inner [getter.Client] built by
 // [InnerClientBuilder] and ingests the result via
 // [cas.CAS.IngestDirectory]. The inner client uses the default
@@ -464,8 +476,18 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 // s3 and gcs getters reject `http://`/`gs://` URLs unless Forced matches
 // their validScheme; without this the inner client falls through with a
 // generic "error downloading".
-func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) cas.SourceFetcher {
-	return func(ctx context.Context, l log.Logger, v venv.Venv, suggestedKey string) (string, error) {
+//
+// The ingest mode is ignored: this shape downloads and re-ingests every
+// time it runs, and ingesting content already writes each object the
+// store lacks, so a repair pass needs nothing extra from it.
+func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme string, source redact.URL) cas.SourceFetcher {
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		suggestedKey string,
+		_ cas.IngestMode,
+	) (string, error) {
 		tempDir, cleanup, err := g.CAS.MakeFetchTempDir(l, v)
 		if err != nil {
 			return "", err
@@ -475,10 +497,10 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 
 		inner := g.innerClient(bare, scheme)
 
-		fetchURL, treeKey := g.pinOCIDigest(ctx, scheme, urlStr, suggestedKey)
+		fetchURL, treeKey := g.pinOCIDigest(ctx, scheme, source, suggestedKey)
 
 		if _, err := inner.Get(ctx, &getter.Request{
-			Src:     fetchURL,
+			Src:     fetchURL.Reveal(),
 			Dst:     tempDir,
 			Forced:  scheme,
 			GetMode: getter.ModeAny,
@@ -493,30 +515,37 @@ func (g *CASGetter) buildInnerFetch(bare getter.Getter, scheme, urlStr string) c
 // ociDigestResolver binds a mutable oci reference to the digest it resolves
 // to at download time.
 type ociDigestResolver interface {
-	ResolveDigest(ctx context.Context, rawURL string) (string, error)
+	ResolveDigest(ctx context.Context, source redact.URL) (string, error)
 }
 
 // pinOCIDigest rewrites a mutable oci reference to the digest it resolves to
 // right now, so the download and the cache key name one immutable manifest
 // and a tag moving mid-fetch can never be stored under a stale key.
-func (g *CASGetter) pinOCIDigest(ctx context.Context, scheme, rawURL, suggestedKey string) (string, string) {
+func (g *CASGetter) pinOCIDigest(
+	ctx context.Context,
+	scheme string,
+	source redact.URL,
+	suggestedKey string,
+) (redact.URL, string) {
 	if scheme != SchemeOCI {
-		return rawURL, suggestedKey
+		return source, suggestedKey
 	}
 
 	resolver, ok := g.resolvers[scheme].(ociDigestResolver)
 	if !ok {
 		// No digest contract: content-hash rather than trust a mutable probe key.
-		return rawURL, ""
+		return source, ""
 	}
 
-	digestValue, err := resolver.ResolveDigest(ctx, rawURL)
+	digestValue, err := resolver.ResolveDigest(ctx, source)
 	if err != nil {
 		// Unresolvable right now: content-hash instead of trusting the probe key.
-		return rawURL, ""
+		g.Logger.Debugf("OCI digest pin of %q failed, content-hashing instead: %v", source, err)
+
+		return source, ""
 	}
 
-	return pinnedOCIURL(rawURL, digestValue), cas.ContentKey(ociManifestKeyAlg, digestValue)
+	return redact.NewURL(pinnedOCIURL(source.Reveal(), digestValue)), cas.ContentKey(ociManifestKeyAlg, digestValue)
 }
 
 // pinnedOCIURL swaps a tag reference for the resolved digest pin.
@@ -540,8 +569,11 @@ func pinnedOCIURL(rawURL, digestValue string) string {
 // default protocol set is available for [RegistryGetter]'s delegated
 // archive download. Every other scheme uses a single-getter client.
 func defaultInnerClientBuilder(bare getter.Getter, scheme string) *getter.Client {
-	if scheme == SchemeTFR {
-		return NewClient(WithCustomGettersPrepended(bare))
+	// The bare tfr getter carries the logger and venv its delegated archive
+	// download needs; the fallback client builds s3 and gcs getters that
+	// require the venv.
+	if tfr, ok := bare.(*RegistryGetter); ok && scheme == SchemeTFR {
+		return NewClient(tfr.Logger, tfr.Venv, WithCustomGettersPrepended(bare))
 	}
 
 	return &getter.Client{Getters: []getter.Getter{bare}}

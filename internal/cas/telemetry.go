@@ -34,6 +34,11 @@ const (
 	// tree and re-downloaded the source.
 	FallbackReasonProbeFailure FallbackReason = "probe_failure"
 
+	// FallbackReasonStoreRepair reports that an object a stored tree
+	// names was missing from the store, so [CAS.FetchSource] re-ingested
+	// the source to restore it instead of trusting the cached tree.
+	FallbackReasonStoreRepair FallbackReason = "store_repair"
+
 	// FallbackReasonStackGenerationError reports that CAS-backed stack
 	// generation failed for a component, falling back to the standard
 	// copy or getter path.

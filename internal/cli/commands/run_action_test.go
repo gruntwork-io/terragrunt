@@ -8,9 +8,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,12 +35,12 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 		return nil
 	}
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.NoAutoProviderCacheDir = true
 
 	l := logger.CreateLogger()
 
-	require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, venv.OSVenv(), action))
+	require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, venvtest.New(), action))
 	assert.True(t, hasRunCmd, "RunCmdCacheContextKey missing from action context")
 	assert.True(t, hasRepoRoots, "RepoRootCacheContextKey missing from action context")
 }
@@ -51,10 +52,10 @@ func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
 		panic("action panic")
 	}
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.NoAutoProviderCacheDir = true
 
-	err := commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venv.OSVenv(), action)
+	err := commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venvtest.New(), action)
 	require.Error(t, err)
 	assert.True(t, panicreport.IsPanic(err), "returned error should be classified as a panic")
 

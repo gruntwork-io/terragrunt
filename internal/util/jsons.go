@@ -19,6 +19,10 @@ var interpolationEscaper = strings.NewReplacer("$${", "$${", "${", "$${")
 // env vars, we need to NOT wrap them in quotes, so this method adds special handling for that case.
 // For complex types (maps, lists, objects), string values containing ${...} patterns are escaped to $${...}
 // to prevent OpenTofu/Terraform's HCL parser from treating them as variable interpolations.
+//
+// A top-level string is returned as given. Whether its interpolation patterns need escaping depends
+// on the type constraint of the variable receiving it, so callers that know the constraint pass the
+// value through [EscapeInterpolationInString] first.
 func AsTerraformEnvVarJSONValue(value any) (string, error) {
 	switch val := value.(type) {
 	case string:

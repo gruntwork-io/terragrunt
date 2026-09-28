@@ -1,15 +1,14 @@
 ---
 import Command from '@components/Command.astro';
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
-import { getCollection } from 'astro:content';
 import { getHeadings } from '@lib/commands/headings';
+import { getPublishedCommands } from '@lib/commands/published';
 import { getSidebar } from '@lib/commands/sidebar';
-import { string } from 'astro:schema';
 
 export const prerender = true;
 
 export async function getStaticPaths() {
-	const commands = await getCollection('commands');
+	const commands = await getPublishedCommands();
 
 	const sidebar = await getSidebar(commands);
 

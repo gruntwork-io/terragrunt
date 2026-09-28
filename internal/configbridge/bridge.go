@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -19,15 +20,11 @@ import (
 )
 
 // NewParsingContext creates a config.ParsingContext populated from TerragruntOptions.
-func NewParsingContext(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-) (context.Context, *config.ParsingContext) {
-	ctx, pctx := config.NewParsingContext(ctx, l, config.WithStrictControls(opts.StrictControls))
+func NewParsingContext(opts *options.TerragruntOptions) *config.ParsingContext {
+	pctx := config.NewParsingContext(config.WithStrictControls(opts.StrictControls))
 	populateFromOpts(pctx, opts)
 
-	return ctx, pctx
+	return pctx
 }
 
 // StackFuncFactory returns a dir-scoped HCL function factory for early stack
@@ -36,12 +33,13 @@ func NewParsingContext(
 func StackFuncFactory(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) inthclparse.StackFuncFactory {
-	_, pctx := NewParsingContext(ctx, l, opts)
+	pctx := NewParsingContext(opts)
 
 	return func(stackDir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+		return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
 	}
 }
 
@@ -85,14 +83,17 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.NoStackValidate = opts.NoStackValidate
 	pctx.NoCAS = opts.NoCAS
 	pctx.CASCloneDepth = opts.CASCloneDepth
+	pctx.CASOffline = opts.CASOffline
+	pctx.CASRefresh = opts.CASRefresh
+	pctx.CASProbeTTL = opts.CASProbeTTL
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
 }
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
-func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	s := shell.NewShellOptions().
+func ShellRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *shell.ShellOptions {
+	s := shell.NewShellOptions(env).
 		WithWorkingDir(opts.WorkingDir).
 		WithTelemetry(opts.Telemetry).
 		WithEngine(opts.EngineConfig, opts.EngineOptions).
@@ -110,30 +111,32 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
 func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 	return &backend.Options{
+		Experiments:                  opts.Experiments,
 		IAMRoleOptions:               opts.IAMRoleOptions,
+		StrictControls:               opts.StrictControls,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 	}
 }
 
 // RemoteStateOptsFromOpts constructs remotestate.Options from TerragruntOptions.
-func RemoteStateOptsFromOpts(opts *options.TerragruntOptions) *remotestate.Options {
+func RemoteStateOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *remotestate.Options {
 	return &remotestate.Options{
 		Options:             *BackendOptsFromOpts(opts),
 		DisableBucketUpdate: opts.DisableBucketUpdate,
-		TFRunOpts:           TFRunOptsFromOpts(opts),
+		TFRunOpts:           TFRunOptsFromOpts(env, opts),
 	}
 }
 
 // TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions.
-func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
+func TFRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                opts.JSONLogFormat,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         opts.TerragruntConfigPath,
 		TofuImplementation:           opts.TofuImplementation,
 		TerraformCliArgs:             opts.TerraformCliArgs,
-		ShellOptions:                 ShellRunOptsFromOpts(opts),
+		ShellOptions:                 ShellRunOptsFromOpts(env, opts),
 	}
 }
 
@@ -148,6 +151,7 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.UnitDir = opts.WorkingDir
 	runOpts.CacheDir = opts.WorkingDir
 	runOpts.RootWorkingDir = opts.RootWorkingDir
+	runOpts.ProfileDir = opts.ProfileDir
 	runOpts.DownloadDir = opts.DownloadDir
 	runOpts.TerraformCommand = opts.TerraformCommand
 	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand
@@ -179,6 +183,9 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.DisableBucketUpdate = opts.DisableBucketUpdate
 	runOpts.SourceUpdate = opts.SourceUpdate
 	runOpts.CASCloneDepth = opts.CASCloneDepth
+	runOpts.CASOffline = opts.CASOffline
+	runOpts.CASRefresh = opts.CASRefresh
+	runOpts.CASProbeTTL = opts.CASProbeTTL
 	runOpts.NoCAS = opts.NoCAS
 	runOpts.NoHooks = opts.NoRunHooks
 

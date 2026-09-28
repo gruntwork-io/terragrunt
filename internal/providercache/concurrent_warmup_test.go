@@ -16,15 +16,17 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -33,6 +35,11 @@ import (
 const (
 	// concurrentWarmupRequests is how many clients must be answered while one download is in flight.
 	concurrentWarmupRequests = 20
+
+	// warmupRegistryName addresses the fake registry by a reserved name that never resolves, so the
+	// cache server reaches it only through the seeded discovery URLs. The registry name becomes a
+	// directory and file name in the cache, where the colon of an httptest host:port is invalid on Windows.
+	warmupRegistryName = "registry.test"
 
 	warmupProviderNamespace = "example"
 	warmupProviderName      = "tiny"
@@ -92,9 +99,8 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 				"http://"+r.Host+archiveURLPath,
 			)
 
-			if _, err := io.WriteString(w, body); err != nil {
-				t.Errorf("upstream platform response write failed: %v", err)
-			}
+			_, err := io.WriteString(w, body)
+			assert.NoError(t, err, "upstream platform response write failed")
 		case archiveURLPath:
 			archiveHitsMu.Lock()
 
@@ -104,31 +110,35 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 			<-releaseArchive
 
-			if _, err := w.Write(archive); err != nil {
-				t.Errorf("upstream archive write failed: %v", err)
-			}
+			_, err := w.Write(archive)
+			assert.NoError(t, err, "upstream archive write failed")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	t.Cleanup(upstream.Close)
 
-	registryName := strings.TrimPrefix(upstream.URL, "http://")
-
 	l := logger.CreateLogger()
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
-	providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, l)
+	providerService := services.NewProviderService(
+		providerCacheDir,
+		pluginCacheDir,
+		nil,
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+	)
 
 	// The pre-populated discovery cache points version and platform lookups at
 	// the fake upstream over plain HTTP, without DNS lookups.
 	directHandler := handlers.NewDirectProviderHandler(
 		l,
+		vhttp.NewOSClient(),
 		new(cliconfig.ProviderInstallationDirect),
 		nil,
 	)
-	directHandler.SetDiscoveryURLCache(registryName, &handlers.RegistryURLs{
+	directHandler.SetDiscoveryURLCache(warmupRegistryName, &handlers.RegistryURLs{
 		ProvidersV1: upstream.URL + "/v1/providers",
 	})
 
@@ -138,7 +148,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		cache.WithToken(token),
 		cache.WithProviderService(providerService),
 		cache.WithProviderHandlers(directHandler),
-		cache.WithProxyProviderHandler(handlers.NewProxyProviderHandler(l, nil)),
+		cache.WithProxyProviderHandler(handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil)),
 		cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode),
 		cache.WithLogger(l),
 	)
@@ -146,12 +156,12 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	ln, err := server.Listen(ctx)
+	ln, err := server.Listen(ctx, venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("listener close failed: %v", err)
+		if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err, "listener close failed")
 		}
 	})
 
@@ -163,7 +173,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	downloadURL := server.ProviderController.URL()
 	downloadURL.Path += "/" + strings.Join([]string{
 		requestID,
-		registryName,
+		warmupRegistryName,
 		warmupProviderNamespace,
 		warmupProviderName,
 		warmupProviderVersion,
@@ -223,7 +233,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	packageDir := filepath.Join(
 		providerCacheDir,
-		registryName,
+		warmupRegistryName,
 		warmupProviderNamespace,
 		warmupProviderName,
 		warmupProviderVersion,

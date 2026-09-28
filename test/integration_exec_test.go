@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -13,8 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExecCommand(t *testing.T) {
+func TestTFExecCommand(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 
 	testCases := []struct {
 		scriptPath string
@@ -69,8 +75,12 @@ func TestExecCommand(t *testing.T) {
 	}
 }
 
-func TestExecCommandTfPath(t *testing.T) {
+func TestTFExecCommandTfPath(t *testing.T) {
 	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 
 	testCases := []struct {
 		expected string

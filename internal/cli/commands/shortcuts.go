@@ -32,7 +32,7 @@ var (
 func NewShortcutsCommands(
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	v venv.Venv,
+	v *venv.Venv,
 ) clihelper.Commands {
 	var (
 		runCmd = run.NewCommand(l, opts, v)

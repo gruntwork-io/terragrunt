@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -9,8 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -34,32 +35,32 @@ const (
 	registryTestModuleSource = "tfr://registry.opentofu.org/yorinasub17/terragrunt-registry-test/null"
 )
 
-func TestTerraformRegistryFetchingRootModule(t *testing.T) {
+func TestTFTerraformRegistryFetchingRootModule(t *testing.T) {
 	t.Parallel()
 	testTerraformRegistryFetching(t, registryFixtureRootModulePath, "root_null_resource")
 }
 
-func TestRegistryFetchingRootShorthandModule(t *testing.T) {
+func TestTFRegistryFetchingRootShorthandModule(t *testing.T) {
 	t.Parallel()
 	testTerraformRegistryFetching(t, registryFixtureRootShorthandModulePath, "root_null_resource")
 }
 
-func TestTerraformRegistryFetchingSubdirModule(t *testing.T) {
+func TestTFTerraformRegistryFetchingSubdirModule(t *testing.T) {
 	t.Parallel()
 	testTerraformRegistryFetching(t, registryFixtureSubdirModulePath, "one_null_resource")
 }
 
-func TestTerraformRegistryFetchingSubdirWithReferenceModule(t *testing.T) {
+func TestTFTerraformRegistryFetchingSubdirWithReferenceModule(t *testing.T) {
 	t.Parallel()
 	testTerraformRegistryFetching(t, registryFixtureSubdirWithReferenceModulePath, "two")
 }
 
-// TestTerraformRegistryVersionConstraintPinsResolvedVersion runs a unit whose
+// TestTFTerraformRegistryVersionConstraintPinsResolvedVersion runs a unit whose
 // terraform block carries a bare tfr:// source plus a version constraint and
 // verifies the constraint end-to-end: the unit applies successfully, and the
 // download lands in the cache slot keyed by the exact ?version=0.0.2 pin the
 // resolver must have produced from "~> 0.0.1".
-func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
+func TestTFTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	t.Parallel()
 
 	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintModulePath)
@@ -69,14 +70,14 @@ func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt run --non-interactive --experiment version-attribute --working-dir "+rootPath+" -- apply -auto-approve",
+		"terragrunt run --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
 	)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(
 		t,
-		"terragrunt run --non-interactive --experiment version-attribute --working-dir "+rootPath+" -- output -no-color -json",
+		"terragrunt run --non-interactive --working-dir "+rootPath+" -- output -no-color -json",
 		&stdout,
 		&stderr,
 	)
@@ -94,6 +95,7 @@ func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 
 	pinned, err := tf.NewSource(
 		l,
+		vfs.NewOSFS(),
 		registryTestModuleSource+"?version=0.0.2",
 		filepath.Join(rootPath, ".terragrunt-cache"),
 		rootPath,
@@ -101,9 +103,9 @@ func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	assert.True(t, util.FileExists(filepath.Join(pinned.WorkingDir, "main.tf")))
+	assert.FileExists(t, filepath.Join(pinned.WorkingDir, "main.tf"))
 
-	wantVersion, err := pinned.EncodeSourceVersion(l)
+	wantVersion, err := pinned.EncodeSourceVersion(l, vfs.NewOSFS())
 	require.NoError(t, err)
 
 	// Guard against a vacuous comparison: the version encoding must
@@ -111,6 +113,7 @@ func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	// below could not tell 0.0.2 apart from 0.0.1.
 	otherPin, err := tf.NewSource(
 		l,
+		vfs.NewOSFS(),
 		registryTestModuleSource+"?version=0.0.1",
 		filepath.Join(rootPath, ".terragrunt-cache"),
 		rootPath,
@@ -118,21 +121,21 @@ func TestTerraformRegistryVersionConstraintPinsResolvedVersion(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	otherVersion, err := otherPin.EncodeSourceVersion(l)
+	otherVersion, err := otherPin.EncodeSourceVersion(l, vfs.NewOSFS())
 	require.NoError(t, err)
 	require.NotEqual(t, wantVersion, otherVersion)
 
-	gotVersion, err := util.ReadFileAsString(pinned.VersionFile)
+	gotVersion, err := vfs.ReadFileAsString(vfs.NewOSFS(), pinned.VersionFile)
 	require.NoError(t, err)
 	assert.Equal(t, wantVersion, gotVersion)
 }
 
-// TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing applies
+// TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing applies
 // several units sharing a module source and version constraint in a single
 // run --all, which resolves them concurrently through the run's shared
 // version resolver. The WithRacing suffix puts the shared resolver under the
 // race detector in CI; every unit must land on the same 0.0.2 pin.
-func TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testing.T) {
+func TestTFTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testing.T) {
 	t.Parallel()
 
 	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintMultiModulePath)
@@ -142,7 +145,7 @@ func TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testin
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt run --all --non-interactive --experiment version-attribute --working-dir "+rootPath+" -- apply -auto-approve",
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
 	)
 
 	l := logger.CreateLogger()
@@ -152,6 +155,7 @@ func TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testin
 
 		pinned, err := tf.NewSource(
 			l,
+			vfs.NewOSFS(),
 			registryTestModuleSource+"?version=0.0.2",
 			filepath.Join(unitPath, ".terragrunt-cache"),
 			unitPath,
@@ -159,26 +163,22 @@ func TestTerraformRegistryVersionConstraintSharedAcrossUnitsWithRacing(t *testin
 		)
 		require.NoError(t, err)
 
-		wantVersion, err := pinned.EncodeSourceVersion(l)
+		wantVersion, err := pinned.EncodeSourceVersion(l, vfs.NewOSFS())
 		require.NoError(t, err)
 
-		gotVersion, err := util.ReadFileAsString(pinned.VersionFile)
+		gotVersion, err := vfs.ReadFileAsString(vfs.NewOSFS(), pinned.VersionFile)
 		require.NoError(t, err)
 		assert.Equal(t, wantVersion, gotVersion, unit)
 	}
 }
 
-// TestTerraformRegistryVersionConstraintRequiresExperiment pins the typed
-// error returned when the terraform block sets the version attribute but the
-// version-attribute experiment is not enabled.
-func TestTerraformRegistryVersionConstraintRequiresExperiment(t *testing.T) {
+// TestTFTerraformRegistryVersionConstraintNoMatchingVersion pins the typed
+// error returned at download time when the registry publishes versions but
+// none satisfy the configured constraint.
+func TestTFTerraformRegistryVersionConstraintNoMatchingVersion(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, so the experiment-disabled error this test pins cannot occur")
-	}
-
-	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintModulePath)
+	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintNoMatchModulePath)
 	helpers.CleanupTerraformFolder(t, modPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, modPath)
 	rootPath := filepath.Join(tmpEnvPath, modPath)
@@ -193,42 +193,15 @@ func TestTerraformRegistryVersionConstraintRequiresExperiment(t *testing.T) {
 	)
 	require.Error(t, err)
 
-	var expectedErr config.VersionAttributeRequiresExperimentError
-
-	assert.ErrorAs(t, err, &expectedErr)
-}
-
-// TestTerraformRegistryVersionConstraintNoMatchingVersion pins the typed
-// error returned at download time when the registry publishes versions but
-// none satisfy the configured constraint.
-func TestTerraformRegistryVersionConstraintNoMatchingVersion(t *testing.T) {
-	t.Parallel()
-
-	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintNoMatchModulePath)
-	helpers.CleanupTerraformFolder(t, modPath)
-	tmpEnvPath := helpers.CopyEnvironment(t, modPath)
-	rootPath := filepath.Join(tmpEnvPath, modPath)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
-		t,
-		"terragrunt plan --non-interactive --experiment version-attribute --working-dir "+rootPath,
-		&stdout,
-		&stderr,
-	)
-	require.Error(t, err)
-
 	var expectedErr getter.NoMatchingVersionErr
 
 	assert.ErrorAs(t, err, &expectedErr)
 }
 
-// TestTerraformRegistryVersionConstraintInQueryRejected pins the typed error
+// TestTFTerraformRegistryVersionConstraintInQueryRejected pins the typed error
 // returned when a tfr:// source carries a version constraint in its ?version=
-// query, which accepts an exact version only. The guard is active without the
-// version-attribute experiment, since such a source was never valid.
-func TestTerraformRegistryVersionConstraintInQueryRejected(t *testing.T) {
+// query, which accepts an exact version only.
+func TestTFTerraformRegistryVersionConstraintInQueryRejected(t *testing.T) {
 	t.Parallel()
 
 	modPath := filepath.Join(registryFixturePath, registryFixtureVersionConstraintInQueryModulePath)

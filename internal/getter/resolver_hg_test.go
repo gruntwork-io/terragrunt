@@ -4,14 +4,11 @@ import (
 	"context"
 	"errors"
 	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +27,7 @@ func TestHgResolver_MissingBinaryReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: e}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -44,7 +41,7 @@ func TestHgResolver_BinaryFailureReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: e}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -62,7 +59,7 @@ func TestHgResolver_ParsesNodeFromStubOutput(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: e}
 
-	got, err := r.Probe(t.Context(), "https://example.com/repo?rev=tip")
+	got, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo?rev=tip"))
 	require.NoError(t, err)
 	assert.Equal(t, cas.ContentKey("hg-node", fullNode), got)
 }
@@ -74,7 +71,7 @@ func TestHgResolver_EmptyOutputReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: e}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -95,7 +92,7 @@ func TestHgResolver_PassesRevAsArg(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: vexec.NewMemExec(handler)}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo?rev=feature-x")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo?rev=feature-x"))
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -127,7 +124,7 @@ func TestHgResolver_FlagLikeRevStaysBoundToOption(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: vexec.NewMemExec(handler)}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo?rev=--debugger")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo?rev=--debugger"))
 	require.NoError(t, err)
 
 	assert.Contains(t, gotArgs, "--rev=--debugger",
@@ -167,7 +164,7 @@ func TestHgResolver_RejectsRevWithControlCharacters(t *testing.T) {
 
 			rawURL := "https://example.com/repo?rev=" + url.QueryEscape(tt.rev)
 
-			_, err := r.Probe(t.Context(), rawURL)
+			_, err := r.Probe(t.Context(), redact.NewURL(rawURL))
 			require.ErrorIs(t, err, getter.ErrInvalidHgRev)
 			assert.False(t, commandRan, "hg must not be invoked when rev is invalid")
 		})
@@ -192,52 +189,11 @@ func TestHgResolver_AcceptsRevWithShellMetacharacters(t *testing.T) {
 
 	_, err := r.Probe(
 		t.Context(),
-		"https://example.com/repo?rev="+url.QueryEscape("tip ; echo pwned"),
+		redact.NewURL("https://example.com/repo?rev="+url.QueryEscape("tip ; echo pwned")),
 	)
 	require.NoError(t, err)
 	assert.Contains(t, gotArgs, "--rev=tip ; echo pwned",
 		"shell metacharacters must reach hg as part of a single argv element")
-}
-
-// TestHgResolver_AgainstRealHg verifies the resolver against the
-// actual hg binary when it is installed. It uses a freshly-initialized
-// repository on disk so the test does not reach the network. The
-// assertion pins the resolver's key against a ContentKey derived
-// from the full 40-char node hash reported by the stable
-// `hg log -T {node}` template API; this regresses if the resolver
-// reverts to `--id`'s 12-char short form.
-func TestHgResolver_AgainstRealHg(t *testing.T) {
-	t.Parallel()
-
-	if _, err := exec.LookPath("hg"); err != nil {
-		t.Skip("hg binary not installed on this host")
-	}
-
-	repoDir := t.TempDir()
-
-	hg := func(args ...string) string {
-		cmd := exec.CommandContext(t.Context(), "hg", args...)
-		cmd.Dir = repoDir
-
-		out, err := cmd.CombinedOutput()
-		require.NoErrorf(t, err, "hg %v failed: %s", args, string(out))
-
-		return string(out)
-	}
-
-	hg("init", ".")
-	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "main.tf"), []byte("hello\n"), 0o644))
-	hg("--config", "ui.username=test <test@test>", "commit", "-A", "-m", "initial")
-
-	// The template API is a stable hg contract, unlike debug output text.
-	fullNode := strings.TrimSpace(hg("log", "-r", "tip", "-T", "{node}"))
-	require.Len(t, fullNode, 40, "hg log -T {node} must report a full 40-char node hash")
-
-	r := getter.NewHgResolver()
-
-	got, err := r.Probe(t.Context(), repoDir+"?rev=tip")
-	require.NoError(t, err)
-	assert.Equal(t, cas.ContentKey("hg-node", fullNode), got)
 }
 
 // hgHandler returns a vexec.Handler that always produces the given

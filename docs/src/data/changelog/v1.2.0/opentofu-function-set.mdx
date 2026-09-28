@@ -1,0 +1,29 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Call OpenTofu 1.13 built-in functions in Terragrunt configurations
+
+Terragrunt evaluates the built-in [functions](/reference/hcl/functions) in configurations using its own copy of the OpenTofu implementations, which tracks OpenTofu 1.13.
+
+These functions are now available:
+
+- [`assumeequal`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumelistlength`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumelistlengthmax`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumelistlengthmin`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumemaplength`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumemaplengthmax`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumemaplengthmin`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumenotnull`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumesetlength`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumesetlengthmax`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumesetlengthmin`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`assumestringprefix`](https://opentofu.org/docs/main/language/functions/assume_family/)
+- [`base64gunzip`](https://opentofu.org/docs/language/functions/base64gunzip/)
+- [`cidrcontains`](https://opentofu.org/docs/language/functions/cidrcontains/)
+- [`ephemeralasnull`](https://opentofu.org/docs/language/functions/ephemeralasnull/)
+- [`issensitive`](https://opentofu.org/docs/language/functions/issensitive/)
+- [`templatestring`](https://opentofu.org/docs/language/functions/templatestring/)
+- [`urldecode`](https://opentofu.org/docs/language/functions/urldecode/)

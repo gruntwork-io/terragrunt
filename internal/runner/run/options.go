@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/puzpuzpuz/xsync/v4"
-
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
@@ -18,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -36,12 +33,9 @@ const (
 	defaultSignalsFile = "error-signals.json"
 )
 
-// NewOptions returns an Options with FS defaulted to the OS-backed
-// filesystem. Callers must construct Options through this function (or copy
-// from another Options) so paths like DownloadTerraformSource, which require
-// an OS-backed FS, work without each caller having to remember to set it.
+// NewOptions returns an empty Options.
 func NewOptions() *Options {
-	return &Options{FS: vfs.NewOSFS()}
+	return &Options{}
 }
 
 // Options contains the configuration needed by run.Run and its helpers.
@@ -51,9 +45,8 @@ type Options struct {
 	EngineConfig                 *engine.EngineConfig
 	EngineOptions                *engine.EngineOptions
 	Errors                       *errorconfig.Config
-	FeatureFlags                 *xsync.Map[string, string]
+	FeatureFlags                 map[string]string
 	Telemetry                    *telemetry.Options
-	FS                           vfs.FS
 	SourceMap                    map[string]string
 	TFPath                       string
 	TerraformCommand             string
@@ -64,6 +57,7 @@ type Options struct {
 	CacheDir                     string
 	DownloadDir                  string
 	RootWorkingDir               string
+	ProfileDir                   string
 	OriginalTerraformCommand     string
 	Source                       string
 	AuthProviderCmd              string
@@ -73,8 +67,12 @@ type Options struct {
 	StrictControls               strict.Controls
 	MaxFoldersToCheck            int
 	CASCloneDepth                int
+	CASProbeTTL                  time.Duration
 	NoCAS                        bool
+	CASOffline                   bool
+	CASRefresh                   bool
 	NoHooks                      bool
+	TofuCPUProfileUserSet        bool
 	AutoRetry                    bool
 	Headless                     bool
 	NonInteractive               bool
@@ -197,8 +195,8 @@ func (o *Options) DataDir(env map[string]string) string {
 }
 
 // shellRunOptions builds a *shell.ShellOptions from this Options.
-func (o *Options) shellRunOptions() *shell.ShellOptions {
-	s := shell.NewShellOptions().
+func (o *Options) shellRunOptions(env map[string]string) *shell.ShellOptions {
+	s := shell.NewShellOptions(env).
 		WithWorkingDir(o.CacheDir).
 		WithUnitDir(o.UnitDir).
 		WithTelemetry(o.Telemetry).
@@ -215,34 +213,34 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 }
 
 // tfRunOptions builds a *tf.TFOptions from this Options.
-func (o *Options) tfRunOptions() *tf.TFOptions {
+func (o *Options) tfRunOptions(env map[string]string) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                o.JSONLogFormat,
 		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         o.TerragruntConfigPath,
 		TofuImplementation:           o.TofuImplementation,
 		TerraformCliArgs:             o.TerraformCliArgs,
-		ShellOptions:                 o.shellRunOptions(),
+		ShellOptions:                 o.shellRunOptions(env),
 	}
 }
 
 // remoteStateOpts builds a *remotestate.Options from this Options.
-func (o *Options) remoteStateOpts() *remotestate.Options {
+func (o *Options) remoteStateOpts(env map[string]string) *remotestate.Options {
 	return &remotestate.Options{
-		Options: backend.Options{
-			IAMRoleOptions:               o.IAMRoleOptions,
-			NonInteractive:               o.NonInteractive,
-			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
-		},
-		TFRunOpts:           o.tfRunOptions(),
-		DisableBucketUpdate: o.DisableBucketUpdate,
+		Experiments:                  o.Experiments,
+		IAMRoleOptions:               o.IAMRoleOptions,
+		StrictControls:               o.StrictControls,
+		NonInteractive:               o.NonInteractive,
+		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
+		TFRunOpts:                    o.tfRunOptions(env),
+		DisableBucketUpdate:          o.DisableBucketUpdate,
 	}
 }
 
 // tflintRunOptions builds a *tflint.TFLintOptions from this Options.
-func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
+func (o *Options) tflintRunOptions(env map[string]string) *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
-		ShellOptions:         o.shellRunOptions(),
+		ShellOptions:         o.shellRunOptions(env),
 		LogShowAbsPaths:      o.LogShowAbsPaths,
 		WorkingDir:           o.CacheDir,
 		RootWorkingDir:       o.RootWorkingDir,
@@ -255,6 +253,7 @@ func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
 func (o *Options) RunWithErrorHandling(
 	ctx context.Context,
 	l log.Logger,
+	fsys vfs.FS,
 	r *report.Report,
 	operation func() error,
 ) error {
@@ -279,8 +278,7 @@ func (o *Options) RunWithErrorHandling(
 
 		action, recoveryErr := o.Errors.AttemptErrorRecovery(l, err, currentAttempt)
 		if recoveryErr != nil {
-			var maxAttemptsReachedError *errorconfig.MaxAttemptsReachedError
-			if errors.As(recoveryErr, &maxAttemptsReachedError) {
+			if maxAttemptsReachedError, ok := errors.AsType[*errorconfig.MaxAttemptsReachedError](recoveryErr); ok {
 				return maxAttemptsReachedError
 			}
 
@@ -295,7 +293,7 @@ func (o *Options) RunWithErrorHandling(
 			l.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
 
 			if len(action.IgnoreSignals) > 0 {
-				if err := o.handleIgnoreSignals(l, action.IgnoreSignals); err != nil {
+				if err := o.handleIgnoreSignals(l, fsys, action.IgnoreSignals); err != nil {
 					return err
 				}
 			}
@@ -361,7 +359,7 @@ func (o *Options) RunWithErrorHandling(
 	}
 }
 
-func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
+func (o *Options) handleIgnoreSignals(l log.Logger, fsys vfs.FS, signals map[string]any) error {
 	signalsFile := filepath.Join(o.CacheDir, defaultSignalsFile)
 
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
@@ -373,7 +371,7 @@ func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) erro
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 
-	if err := vfs.WriteFile(o.FS, signalsFile, signalsJSON, ownerPerms); err != nil {
+	if err := vfs.WriteFile(fsys, signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
 

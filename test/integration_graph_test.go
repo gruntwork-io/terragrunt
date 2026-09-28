@@ -1,3 +1,5 @@
+//go:build tf
+
 package test_test
 
 import (
@@ -15,7 +17,7 @@ const (
 	testFixtureGraph = "fixtures/graph"
 )
 
-func TestTerragruntDestroyGraph(t *testing.T) {
+func TestTFTerragruntDestroyGraph(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -113,7 +115,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 	}
 }
 
-func TestTerragruntApplyGraph(t *testing.T) {
+func TestTFTerragruntApplyGraph(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {

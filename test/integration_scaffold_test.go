@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/stretchr/testify/assert"
@@ -16,9 +16,10 @@ import (
 const (
 	testScaffoldLocalModulePath     = "fixtures/scaffold/scaffold-module"
 	testScaffoldWithRootHCL         = "fixtures/scaffold/root-hcl"
-	testScaffold3rdPartyModulePath  = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
 	testScaffoldNoDependencyPrompt  = "fixtures/scaffold/dependency-prompt-template"
 	testScaffoldLocalTofuModulePath = "fixtures/scaffold/scaffold-module-tofu"
+	testScaffoldCopyableUnitPath    = "fixtures/scaffold/copyable/units/app"
+	testScaffoldCopyableStackPath   = "fixtures/scaffold/copyable/stacks/prod"
 )
 
 // scaffoldModuleURL returns the canonical scaffold-module source on the
@@ -27,6 +28,15 @@ func scaffoldModuleURL(m *helpers.GitServer) string {
 	m.AddFixtures("test/fixtures/scaffold/scaffold-module")
 
 	return m.SourceURL("/test/fixtures/scaffold/scaffold-module", "")
+}
+
+// scaffoldModulePinnedURL is scaffoldModuleURL carrying a "?ref=" query. The
+// server creates every tag in [helpers.TerragruntMirrorTags] at HEAD, so which
+// one it names does not matter.
+func scaffoldModulePinnedURL(m *helpers.GitServer) string {
+	m.AddFixtures("test/fixtures/scaffold/scaffold-module")
+
+	return m.SourceURL("/test/fixtures/scaffold/scaffold-module", "v0.99.1")
 }
 
 // scaffoldInputsURL returns the inputs fixture source on the local
@@ -72,7 +82,7 @@ func TestScaffoldModuleShortUrl(t *testing.T) {
 
 	require.NoError(t, err)
 	// check that find_in_parent_folders is generated in terragrunt.hcl
-	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpEnvPath+"/terragrunt.hcl")
 	require.NoError(t, err)
 	assert.Contains(t, content, "find_in_parent_folders")
 }
@@ -93,7 +103,7 @@ func TestScaffoldModuleShortUrlNoRootInclude(t *testing.T) {
 	)
 	require.NoError(t, err)
 	// check that find_in_parent_folders is NOT generated in  terragrunt.hcl
-	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpEnvPath+"/terragrunt.hcl")
 	require.NoError(t, err)
 	assert.NotContains(t, content, "find_in_parent_folders")
 }
@@ -115,7 +125,7 @@ func TestScaffoldModuleDifferentRevision(t *testing.T) {
 
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpEnvPath+"/terragrunt.hcl")
 	require.NoError(t, err)
 	assert.Contains(t, content, mirror.URL+"//test/fixtures/inputs?ref=v0.67.4")
 }
@@ -146,14 +156,14 @@ func TestScaffoldLocalTofuModule(t *testing.T) {
 		fmt.Sprintf(
 			"terragrunt scaffold --non-interactive --working-dir %s %s",
 			tmpEnvPath,
-			fmt.Sprintf("%s//%s", workingDir, testScaffoldLocalTofuModulePath),
+			helpers.FileURL(workingDir)+"//"+testScaffoldLocalTofuModulePath,
 		),
 	)
 	require.NoError(t, err)
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
 
 	// Verify variables from .tofu files were parsed and included in generated config
-	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), tmpEnvPath+"/terragrunt.hcl")
 	require.NoError(t, err)
 	assert.Contains(
 		t,
@@ -200,15 +210,119 @@ func TestScaffoldLocalModule(t *testing.T) {
 		fmt.Sprintf(
 			"terragrunt scaffold --non-interactive --working-dir %s %s",
 			tmpEnvPath,
-			fmt.Sprintf("%s//%s", workingDir, testScaffoldLocalModulePath),
+			helpers.FileURL(workingDir)+"//"+testScaffoldLocalModulePath,
 		),
 	)
 	require.NoError(t, err)
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
 }
 
-func TestScaffold3rdPartyModule(t *testing.T) {
+// TestScaffoldCopiesUnit covers a source that is a Terragrunt unit rather than
+// an OpenTofu/Terraform module: its own files are scaffolded, instead of a
+// generated configuration pointing at the directory they live in.
+func TestScaffoldCopiesUnit(t *testing.T) {
 	t.Parallel()
+
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			localScaffoldSource(t, testScaffoldCopyableUnitPath),
+		),
+	)
+	require.NoError(t, err)
+
+	got, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	want, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(testScaffoldCopyableUnitPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Equal(t, want, got, "the unit's own configuration is scaffolded as written")
+
+	assert.FileExists(t, filepath.Join(tmpEnvPath, "extra.hcl"))
+
+	values, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(tmpEnvPath, "terragrunt.values.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, values, `# === Required ===
+base_url = "TODO"
+name     = "TODO"
+ref      = "TODO"
+
+# === Optional (defaults from try() fallbacks) ===
+region = "us-east-1"
+`)
+}
+
+// TestScaffoldCopiesStack covers a stack source, whose supporting files are
+// part of what has to be scaffolded.
+func TestScaffoldCopiesStack(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			localScaffoldSource(t, testScaffoldCopyableStackPath),
+		),
+	)
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tmpEnvPath, "terragrunt.stack.hcl"))
+	assert.FileExists(t, filepath.Join(tmpEnvPath, "policy.json"))
+	assert.FileExists(t, filepath.Join(tmpEnvPath, "terragrunt.values.hcl"))
+	assert.NoFileExists(t, filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+}
+
+// TestScaffoldCopyRefusesToOverwrite covers a collision in the destination:
+// the component is not scaffolded, and the file already there is untouched.
+func TestScaffoldCopyRefusesToOverwrite(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
+
+	existing := filepath.Join(tmpEnvPath, "extra.hcl")
+	require.NoError(t, os.WriteFile(existing, []byte("# mine\n"), 0644))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			localScaffoldSource(t, testScaffoldCopyableUnitPath),
+		),
+	)
+	require.Error(t, err)
+
+	assert.NoFileExists(t, filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+
+	got, err := vfs.ReadFileAsString(vfs.NewOSFS(), existing)
+	require.NoError(t, err)
+	assert.Equal(t, "# mine\n", got)
+}
+
+// localScaffoldSource returns the go-getter source addressing a fixture
+// directory under the test tree.
+func localScaffoldSource(t *testing.T, fixturePath string) string {
+	t.Helper()
+
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	return helpers.FileURL(workingDir) + "//" + fixturePath
+}
+
+// TestScaffoldRemoteGitModuleAtRef scaffolds from a git source pinned with a
+// "?ref=" query, the shape that surfaced #3269.
+func TestScaffoldRemoteGitModuleAtRef(t *testing.T) {
+	t.Parallel()
+
+	mirror := helpers.NewGitServer(t)
 
 	tmpRoot := helpers.TmpDirWOSymlinks(t)
 
@@ -225,7 +339,7 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 		fmt.Sprintf(
 			"terragrunt scaffold --non-interactive --working-dir %s %s",
 			tmpEnvPath,
-			testScaffold3rdPartyModulePath,
+			scaffoldModulePinnedURL(mirror),
 		),
 	)
 	require.NoError(t, err)
@@ -237,6 +351,13 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 		"terragrunt hcl validate --non-interactive --working-dir "+tmpEnvPath,
 	)
 	require.NoError(t, err)
+
+	// Both halves of the heredoc description have to survive. Emitting them
+	// unescaped is what produced unparseable HCL.
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, content, "Port to be opened in the security group")
+	assert.Contains(t, content, "Can be a single port or a range")
 }
 
 func TestScaffoldOutputFolderFlag(t *testing.T) {
@@ -277,7 +398,7 @@ func TestScaffoldWithRootHCL(t *testing.T) {
 	assert.FileExists(t, filepath.Join(testPath, "unit", "terragrunt.hcl"))
 
 	// Read the file
-	content, err := util.ReadFileAsString(filepath.Join(testPath, "unit", "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(testPath, "unit", "terragrunt.hcl"))
 	require.NoError(t, err)
 	assert.Contains(t, content, `path = find_in_parent_folders("root.hcl")`)
 }
@@ -290,7 +411,9 @@ func TestScaffoldNoDependencyPrompt(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	localBoilerplateModuleDir := fmt.Sprintf("%s/%s//.", workingDir, testScaffoldNoDependencyPrompt)
+	localBoilerplateModuleDir := helpers.FileURL(
+		filepath.Join(workingDir, testScaffoldNoDependencyPrompt),
+	) + "//."
 
 	outputFolder := tmpEnvPath + "/foo/bar"
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -315,7 +438,7 @@ func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := workingDir + "//fixtures/scaffold/with-shell-commands"
+	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-shell-commands"
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -328,7 +451,7 @@ func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
 
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	assert.NotContains(t, content, "{{ shell", "Shell template should be processed")
@@ -343,7 +466,7 @@ func TestScaffoldWithShellCommandsDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := workingDir + "//fixtures/scaffold/with-shell-commands"
+	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-shell-commands"
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -356,7 +479,7 @@ func TestScaffoldWithShellCommandsDisabled(t *testing.T) {
 
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	assert.NotContains(
@@ -380,7 +503,7 @@ func TestScaffoldWithHooksEnabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := workingDir + "//fixtures/scaffold/with-hooks"
+	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-hooks"
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -393,7 +516,7 @@ func TestScaffoldWithHooksEnabled(t *testing.T) {
 
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
 	assert.Contains(t, content, "terraform {", "Generated file should be valid")
 }
@@ -405,7 +528,7 @@ func TestScaffoldWithHooksDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := workingDir + "//fixtures/scaffold/with-hooks"
+	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-hooks"
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -418,7 +541,7 @@ func TestScaffoldWithHooksDisabled(t *testing.T) {
 
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
 	assert.Contains(t, content, "terraform {", "Generated file should be valid")
 }
@@ -430,7 +553,7 @@ func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := workingDir + "//fixtures/scaffold/with-shell-and-hooks"
+	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-shell-and-hooks"
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -443,7 +566,7 @@ func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
 
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	assert.NotContains(t, content, "SHELL_OUTPUT_1", "Shell command should not have executed")
@@ -481,7 +604,7 @@ baz="qux"
 	assert.FileExists(t, filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 
 	// Verify the pre-existing file was not modified by scaffold's formatting step.
-	content, err := util.ReadFileAsString(preExistingFile)
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), preExistingFile)
 	require.NoError(t, err)
 	assert.Equal(
 		t,
@@ -501,10 +624,10 @@ func TestScaffoldCatalogConfigIntegration(t *testing.T) {
 		workingDir,
 		"fixtures/scaffold/catalog-config-test/terragrunt.hcl",
 	)
-	templatePath := workingDir + "//fixtures/scaffold/with-shell-and-hooks"
+	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-shell-and-hooks"
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
-	catalogContent, err := util.ReadFileAsString(catalogConfigPath)
+	catalogContent, err := vfs.ReadFileAsString(vfs.NewOSFS(), catalogConfigPath)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(tmpEnvPath, "terragrunt.hcl"), []byte(catalogContent), 0644)
@@ -526,7 +649,7 @@ func TestScaffoldCatalogConfigIntegration(t *testing.T) {
 
 	require.NoError(t, err)
 
-	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
+	content, err := vfs.ReadFileAsString(vfs.NewOSFS(), filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	assert.NotContains(t, content, "SHELL_OUTPUT_1", "Shell should be disabled by catalog config")

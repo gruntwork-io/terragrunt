@@ -1,16 +1,18 @@
 package dag_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // renderWithoutColor renders components the same way both production callers do
-// (runnerpool's logUnitDeployOrderDAG and list's renderTree): generate the tree,
+// (the runner's logUnitDeployOrderDAG and list's renderTree): generate the tree,
 // apply the styler, and stringify. Color is disabled so the output is stable.
 func renderWithoutColor(components dag.ListedComponents) string {
 	styler := dag.NewTreeStyler(false)
@@ -188,6 +190,37 @@ func TestGenerateDAGTreeDropsNodesWithUnknownDependencyPaths(t *testing.T) {
 
 	assert.Equal(t, expected, rendered)
 	assert.NotContains(t, rendered, "b")
+}
+
+func TestGenerateDAGTreeColoredMatchesPlainAfterStrippingANSI(t *testing.T) {
+	t.Parallel()
+
+	// A chain plus siblings at each level forces both indenter continuation
+	// bars ("│") and enumerator branches, so any spacing drift between the
+	// styled indenter and the default 4-cell column shows up as misalignment.
+	a := &dag.ListedComponent{Type: component.UnitKind, Path: "a"}
+	b := &dag.ListedComponent{Type: component.UnitKind, Path: "b", Dependencies: []*dag.ListedComponent{a}}
+	c := &dag.ListedComponent{Type: component.UnitKind, Path: "c", Dependencies: []*dag.ListedComponent{b}}
+	d := &dag.ListedComponent{Type: component.UnitKind, Path: "d", Dependencies: []*dag.ListedComponent{b}}
+	e := &dag.ListedComponent{Type: component.UnitKind, Path: "e", Dependencies: []*dag.ListedComponent{a}}
+
+	render := func(shouldColor bool) string {
+		styler := dag.NewTreeStyler(shouldColor)
+		tr := dag.GenerateDAGTree(dag.ListedComponents{a, b, c, d, e}, styler)
+
+		return styler.Style(tr).String()
+	}
+
+	colored := render(true)
+	plain := render(false)
+
+	// Guard against the parity check passing vacuously: if lipgloss ever
+	// stops emitting escapes in this environment, fail loudly instead.
+	require.Contains(t, colored, "\x1b[")
+
+	sgr := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+	assert.Equal(t, plain, sgr.ReplaceAllString(colored, ""))
 }
 
 func TestGenerateDAGTreeWithoutColorEmitsNoANSIEscapes(t *testing.T) {

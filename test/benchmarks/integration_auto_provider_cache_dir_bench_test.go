@@ -48,8 +48,6 @@ func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 
 		setup(tmpDir)
 
-		b.ResetTimer()
-
 		for b.Loop() {
 			helpers.RunTerragruntCommand(
 				b,
@@ -59,16 +57,12 @@ func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 				"--non-interactive",
 				"--working-dir", tmpDir)
 		}
-
-		b.StopTimer()
 	})
 
 	b.Run("init with auto provider cache dir", func(b *testing.B) {
 		tmpDir := b.TempDir()
 
 		setup(tmpDir)
-
-		b.ResetTimer()
 
 		for b.Loop() {
 			helpers.RunTerragruntCommand(
@@ -81,8 +75,6 @@ func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 				"--working-dir",
 				tmpDir)
 		}
-
-		b.StopTimer()
 	})
 }
 
@@ -180,16 +172,12 @@ func BenchmarkProviderCachingComparison(b *testing.B) {
 
 				args = append(args, cacheType.args...)
 
-				b.ResetTimer()
-
 				for b.Loop() {
 					helpers.RunTerragruntCommand(
 						b,
 						args...,
 					)
 				}
-
-				b.StopTimer()
 			})
 		}
 	}

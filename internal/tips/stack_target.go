@@ -20,7 +20,7 @@ import (
 // suggested rewrite can be pasted verbatim.
 func GiveStackTargetTip(
 	l log.Logger,
-	fs vfs.FS,
+	fsys vfs.FS,
 	workingDir string,
 	filters filter.Filters,
 	allTips Tips,
@@ -41,7 +41,7 @@ func GiveStackTargetTip(
 			continue
 		}
 
-		if filterTargetsStackDir(l, f, fs, workingDir) {
+		if filterTargetsStackDir(l, f, fsys, workingDir) {
 			offenders = append(offenders, f.String())
 		}
 	}
@@ -87,7 +87,7 @@ func filterMentionsTypeAttribute(f *filter.Filter) bool {
 	return found
 }
 
-func filterTargetsStackDir(l log.Logger, f *filter.Filter, fs vfs.FS, workingDir string) bool {
+func filterTargetsStackDir(l log.Logger, f *filter.Filter, fsys vfs.FS, workingDir string) bool {
 	var hit bool
 
 	filter.WalkExpressions(f.Expression(), func(e filter.Expression) bool {
@@ -107,7 +107,7 @@ func filterTargetsStackDir(l log.Logger, f *filter.Filter, fs vfs.FS, workingDir
 
 		stackFile := filepath.Join(candidate, config.DefaultStackFile)
 
-		exists, err := vfs.FileExists(fs, stackFile)
+		exists, err := vfs.FileExists(fsys, stackFile)
 		if err != nil {
 			l.Debugf("stack-target tip: skipping %q: %v", stackFile, err)
 			return true

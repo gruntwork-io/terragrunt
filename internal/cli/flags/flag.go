@@ -3,6 +3,7 @@ package flags
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"io"
 	"strconv"
@@ -20,6 +21,7 @@ type EvaluateWrapperFunc func(ctx context.Context, evalFn func(ctx context.Conte
 // Flag is a wrapper for `clihelper.Flag` that avoids displaying deprecated flags in help, but registers their flag names and environment variables.
 type Flag struct {
 	clihelper.Flag
+	deprecatedErr   error
 	evaluateWrapper EvaluateWrapperFunc
 	deprecatedFlags DeprecatedFlags
 }
@@ -72,51 +74,64 @@ func (newFlag *Flag) DeprecatedNames() []string {
 }
 
 // Value implements `clihelper.Flag` interface.
+//
+// A deprecated flag's value is carried over to this flag, so that reading this
+// flag is enough to see a value the user gave by an old name. Between the two
+// names, a command-line argument beats an environment variable, and at the
+// same level the current name beats the deprecated one.
 func (newFlag *Flag) Value() clihelper.FlagValue {
+	value := newFlag.Flag.Value()
+
 	for _, deprecatedFlag := range newFlag.deprecatedFlags {
-		if deprecatedFlag.Flag == newFlag.Flag {
+		if deprecatedFlag.Flag == newFlag.Flag || value.IsArgSet() {
 			continue
 		}
 
-		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue != nil &&
-			deprecatedFlagValue.IsSet() {
-			newValue := deprecatedFlagValue.String()
+		deprecatedFlagValue := deprecatedFlag.Value()
+		if deprecatedFlagValue == nil || !deprecatedFlagValue.IsSet() {
+			continue
+		}
 
-			if newFlag.Flag.Value().IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
-				if v, ok := deprecatedFlagValue.Get().(bool); ok {
-					newValue = strconv.FormatBool(!v)
-				}
+		if value.IsEnvSet() && !deprecatedFlagValue.IsArgSet() {
+			continue
+		}
+
+		newValue := deprecatedFlagValue.String()
+
+		if value.IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
+			if v, ok := deprecatedFlagValue.Get().(bool); ok {
+				newValue = strconv.FormatBool(!v)
 			}
+		}
 
-			if deprecatedFlag.newValueFn != nil {
-				newValue = deprecatedFlag.newValueFn(deprecatedFlagValue)
-			}
+		if deprecatedFlag.newValueFn != nil {
+			newValue = deprecatedFlag.newValueFn(deprecatedFlagValue)
+		}
 
-			newFlag.Flag.Value().
-				Getter(deprecatedFlagValue.GetName()).
-				Set(newValue) //nolint:errcheck
+		if err := value.Getter(deprecatedFlagValue.GetName()).Set(newValue); err != nil {
+			newFlag.deprecatedErr = errors.Join(newFlag.deprecatedErr, err)
 		}
 	}
 
-	return newFlag.Flag.Value()
+	return value
 }
 
 // Apply implements `clihelper.Flag` interface.
-func (newFlag *Flag) Apply(set *flag.FlagSet) error {
-	if err := newFlag.Flag.Apply(set); err != nil {
+func (newFlag *Flag) Apply(set *flag.FlagSet, env map[string]string) error {
+	if err := newFlag.Flag.Apply(set, env); err != nil {
 		return err
 	}
 
 	for _, deprecated := range newFlag.deprecatedFlags {
 		if deprecated.Flag == newFlag.Flag {
-			if err := clihelper.ApplyFlag(deprecated, set); err != nil {
+			if err := clihelper.ApplyFlag(deprecated, set, env); err != nil {
 				return err
 			}
 
 			continue
 		}
 
-		if err := deprecated.Apply(set); err != nil {
+		if err := deprecated.Apply(set, env); err != nil {
 			return err
 		}
 	}
@@ -126,6 +141,10 @@ func (newFlag *Flag) Apply(set *flag.FlagSet) error {
 
 // RunAction implements `clihelper.Flag` interface.
 func (newFlag *Flag) RunAction(ctx context.Context, cliCtx *clihelper.Context) error {
+	if newFlag.deprecatedErr != nil {
+		return newFlag.deprecatedErr
+	}
+
 	for _, deprecated := range newFlag.deprecatedFlags {
 		if err := newFlag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
 			return err
@@ -152,27 +171,32 @@ func (newFlag *Flag) RunAction(ctx context.Context, cliCtx *clihelper.Context) e
 	return newFlag.Flag.RunAction(ctx, cliCtx)
 }
 
-// Parse parses the given `args` for the flag value and env vars values specified in the flag.
+// Parse parses the given `args` for the flag value and the values of the env
+// vars specified in the flag, resolved against `env`.
 // The value will be assigned to the `Destination` field.
 // The value can also be retrieved using `flag.Value().Get()`.
-func (newFlag *Flag) Parse(args clihelper.Args) error {
+func (newFlag *Flag) Parse(args clihelper.Args, env map[string]string) error {
 	flagSet := flag.NewFlagSet("", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	if err := newFlag.Apply(flagSet); err != nil {
+	if err := newFlag.Apply(flagSet, env); err != nil {
 		return err
 	}
 
-	const maxFlagsParse = 1000 // Maximum flags parse
+	const maxFlagsParse = 1000
 
 	for range maxFlagsParse {
 		err := flagSet.Parse(args)
 		if err == nil {
-			break
+			return nil
 		}
 
-		if errStr := err.Error(); !strings.HasPrefix(errStr, clihelper.ErrMsgFlagUndefined) {
-			break
+		// The set holds only this flag, so the loop skips flags owned by other
+		// parsers instead of failing on them. That includes -h and --help, which
+		// arrive as [flag.ErrHelp] rather than as an undefined-flag error.
+		if !errors.Is(err, flag.ErrHelp) &&
+			!strings.HasPrefix(err.Error(), clihelper.ErrMsgFlagUndefined) {
+			return err
 		}
 
 		args = flagSet.Args()

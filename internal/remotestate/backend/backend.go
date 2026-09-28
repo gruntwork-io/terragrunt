@@ -4,7 +4,9 @@ package backend
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -12,7 +14,9 @@ import (
 // Options bundles the configuration the Backend interface needs at each call
 // site.
 type Options struct {
+	Experiments                  experiment.Experiments
 	IAMRoleOptions               iam.RoleOptions
+	StrictControls               strict.Controls
 	NonInteractive               bool
 	FailIfBucketCreationRequired bool
 }
@@ -38,7 +42,7 @@ type Backend interface {
 	IsVersionControlEnabled(
 		ctx context.Context,
 		l log.Logger,
-		v venv.Venv,
+		v *venv.Venv,
 		config Config,
 		opts *Options,
 	) (bool, error)
@@ -47,28 +51,36 @@ type Backend interface {
 	NeedsBootstrap(
 		ctx context.Context,
 		l log.Logger,
-		v venv.Venv,
+		v *venv.Venv,
 		config Config,
 		opts *Options,
 	) (bool, error)
 
 	// Bootstrap bootstraps the remote state.
-	Bootstrap(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) error
+	Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, config Config, opts *Options) error
 
 	// Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
+	//
+	// srcV and dstV are the source and destination environments used by backend-specific migration validation.
 	Migrate(
 		ctx context.Context,
 		l log.Logger,
-		v venv.Venv,
+		srcV, dstV *venv.Venv,
 		srcConfig, dstConfig Config,
 		opts *Options,
 	) error
 
 	// Delete deletes the remote state.
-	Delete(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) error
+	Delete(ctx context.Context, l log.Logger, v *venv.Venv, config Config, opts *Options) error
 
 	// DeleteBucket deletes the entire bucket.
-	DeleteBucket(ctx context.Context, l log.Logger, v venv.Venv, config Config, opts *Options) error
+	DeleteBucket(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		config Config,
+		opts *Options,
+	) error
 
 	// GetTFInitArgs returns the config that should be passed on to `tofu -backend-config` cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user.

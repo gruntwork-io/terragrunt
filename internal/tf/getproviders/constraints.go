@@ -2,15 +2,18 @@ package getproviders
 
 import (
 	"fmt"
+	"io/fs"
 	"maps"
-	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"errors"
 
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/hashicorp/go-version"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -20,39 +23,59 @@ import (
 type ProviderConstraints map[string]string
 
 // ParseProviderConstraints parses all .tf and .tofu files in the given directory and extracts required_providers constraints
-func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderConstraints, error) {
+func ParseProviderConstraints(
+	fsys vfs.FS,
+	env map[string]string,
+	impl tfimpl.Type,
+	workingDir string,
+) (ProviderConstraints, error) {
+	// Whether env is consulted at all depends on what the directory holds, so
+	// asserting at the first read would let a nil pass unnoticed until some
+	// unrelated unit happened to declare a provider.
+	venv.RequireEnvMap(env)
+
 	constraints := make(ProviderConstraints)
 
-	var allFiles []string
-
-	tfFiles, err := filepath.Glob(filepath.Join(workingDir, "*.tf"))
+	entries, err := vfs.ReadDir(fsys, workingDir)
 	if err != nil {
+		// A unit whose directory has not been materialized yet constrains
+		// nothing, which is the same answer an empty directory gives.
+		if errors.Is(err, fs.ErrNotExist) {
+			return constraints, nil
+		}
+
 		return nil, err
 	}
 
-	allFiles = append(allFiles, tfFiles...)
+	// A module directory holds mostly `.tf` files and rarely a `.tofu` file, so
+	// `tfFiles` is the only slice worth sizing up front.
+	tfFiles := make([]string, 0, len(entries))
 
-	tofuFiles, err := filepath.Glob(filepath.Join(workingDir, "*.tofu"))
-	if err != nil {
-		return nil, err
-	}
+	var tofuFiles []string
 
-	allFiles = append(allFiles, tofuFiles...)
-
-	// If no terraform files found, return empty constraints (not an error)
-	if len(allFiles) == 0 {
-		return constraints, nil
-	}
-
-	for _, file := range allFiles {
-		fileConstraints, err := parseProviderConstraintsFromFile(impl, file)
-		if err != nil {
-			// Log parsing errors but continue processing other files
-			// This allows partial success when some files have syntax errors
+	for _, entry := range entries {
+		if entry.IsDir() {
 			continue
 		}
 
-		// Merge constraints from this file
+		switch filepath.Ext(entry.Name()) {
+		case ".tf":
+			tfFiles = append(tfFiles, filepath.Join(workingDir, entry.Name()))
+		case ".tofu":
+			tofuFiles = append(tofuFiles, filepath.Join(workingDir, entry.Name()))
+		}
+	}
+
+	// A provider declared in both a .tf and a .tofu file takes the .tofu
+	// constraint, so the .tofu files are merged last.
+	for _, file := range slices.Concat(tfFiles, tofuFiles) {
+		fileConstraints, err := parseProviderConstraintsFromFile(fsys, env, impl, file)
+		if err != nil {
+			// One file that does not parse must not cost the constraints the
+			// rest of the directory declares.
+			continue
+		}
+
 		maps.Copy(constraints, fileConstraints)
 	}
 
@@ -61,12 +84,14 @@ func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderCons
 
 // parseProviderConstraintsFromFile parses a single .tf file and extracts required_providers constraints
 func parseProviderConstraintsFromFile(
+	fsys vfs.FS,
+	env map[string]string,
 	impl tfimpl.Type,
 	filename string,
 ) (ProviderConstraints, error) {
 	constraints := make(ProviderConstraints)
 
-	content, err := os.ReadFile(filename)
+	content, err := vfs.ReadFile(fsys, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +120,7 @@ func parseProviderConstraintsFromFile(
 			}
 
 			// Parse each provider in the required_providers block
-			providerConstraints := parseProvidersFromRequiredProvidersBlock(impl, nestedBlock)
+			providerConstraints := parseProvidersFromRequiredProvidersBlock(env, impl, nestedBlock)
 
 			// Merge constraints from this required_providers block
 			maps.Copy(constraints, providerConstraints)
@@ -107,97 +132,109 @@ func parseProviderConstraintsFromFile(
 
 // parseProvidersFromRequiredProvidersBlock extracts provider constraints from a required_providers block
 func parseProvidersFromRequiredProvidersBlock(
+	env map[string]string,
 	impl tfimpl.Type,
 	block *hclsyntax.Block,
 ) ProviderConstraints {
 	constraints := make(ProviderConstraints)
 
-	// Parse the attributes in the required_providers block
 	for name, attr := range block.Body.Attributes {
-		// Skip if not an object expression (should be provider configuration)
-		objExpr, ok := attr.Expr.(*hclsyntax.ObjectConsExpr)
-		if !ok {
+		source, version := parseProviderRequirement(attr.Expr)
+		if version == "" {
 			continue
 		}
 
-		var source, version string
-
-		// Extract source and version from the provider configuration
-		for _, item := range objExpr.Items {
-			keyExpr, ok := item.KeyExpr.(*hclsyntax.ObjectConsKeyExpr)
-			if !ok {
-				continue
-			}
-
-			// Get the key name
-			keyName := ""
-
-			if keyExpr.Wrapped != nil {
-				// Try different types of key expressions
-				switch expr := keyExpr.Wrapped.(type) {
-				case *hclsyntax.TemplateExpr:
-					if len(expr.Parts) == 1 {
-						if literal, ok := expr.Parts[0].(*hclsyntax.LiteralValueExpr); ok {
-							keyName = literal.Val.AsString()
-						}
-					}
-				case *hclsyntax.ScopeTraversalExpr:
-					// This handles bare identifiers like "source" or "version"
-					if len(expr.Traversal) == 1 {
-						if root, ok := expr.Traversal[0].(hcl.TraverseRoot); ok {
-							keyName = root.Name
-						}
-					}
-				case *hclsyntax.LiteralValueExpr:
-					// Direct literal value
-					if expr.Val.Type() == cty.String {
-						keyName = expr.Val.AsString()
-					}
-				}
-			}
-
-			// Get the value
-			var value string
-
-			if templateExpr, ok := item.ValueExpr.(*hclsyntax.TemplateExpr); ok {
-				if len(templateExpr.Parts) == 1 {
-					if literal, ok := templateExpr.Parts[0].(*hclsyntax.LiteralValueExpr); ok {
-						if literal.Val.Type() == cty.String {
-							value = literal.Val.AsString()
-						}
-					}
-				}
-			}
-
-			// Store source and version attributes
-			switch keyName {
-			case "source":
-				source = value
-			case "version":
-				version = value
-			}
+		// OpenTofu and Terraform imply the hashicorp namespace for an entry with no source.
+		if source == "" {
+			source = name
 		}
 
-		// If we have both source and version, create the constraint mapping
-		if source != "" && version != "" {
-			// Normalize the source address to full registry format
-			providerAddr := normalizeProviderAddress(impl, source)
-			constraints[providerAddr] = normalizeVersionConstraint(version)
-		} else if source == "" && version != "" {
-			// If only version is specified, assume it's a hashicorp provider
-			registryDomain := tfimpl.DefaultRegistryDomain(impl)
-			providerAddr := fmt.Sprintf("%s/hashicorp/%s", registryDomain, name)
-			constraints[providerAddr] = normalizeVersionConstraint(version)
-		}
+		constraints[normalizeProviderAddress(env, impl, source)] = normalizeVersionConstraint(version)
 	}
 
 	return constraints
 }
 
+// parseProviderRequirement extracts the source and version from one entry of a
+// required_providers block. An entry is usually an object with a source and a
+// version. OpenTofu and Terraform also accept a bare version constraint, the
+// shorthand from before provider source addresses existed.
+func parseProviderRequirement(expr hclsyntax.Expression) (string, string) {
+	objExpr, ok := expr.(*hclsyntax.ObjectConsExpr)
+	if !ok {
+		return "", stringLiteral(expr)
+	}
+
+	var source, version string
+
+	for _, item := range objExpr.Items {
+		value := stringLiteral(item.ValueExpr)
+
+		switch objectKeyName(item.KeyExpr) {
+		case "source":
+			source = value
+		case "version":
+			version = value
+		}
+	}
+
+	return source, version
+}
+
+// objectKeyName returns the name of an object key written as an unquoted
+// identifier or a plain string. Any other key yields the empty string.
+func objectKeyName(expr hclsyntax.Expression) string {
+	keyExpr, ok := expr.(*hclsyntax.ObjectConsKeyExpr)
+	if !ok {
+		return ""
+	}
+
+	switch wrapped := keyExpr.Wrapped.(type) {
+	case *hclsyntax.TemplateExpr:
+		return stringLiteral(wrapped)
+	case *hclsyntax.ScopeTraversalExpr:
+		if len(wrapped.Traversal) == 1 {
+			if root, ok := wrapped.Traversal[0].(hcl.TraverseRoot); ok {
+				return root.Name
+			}
+		}
+	case *hclsyntax.LiteralValueExpr:
+		if wrapped.Val.Type() == cty.String {
+			return wrapped.Val.AsString()
+		}
+	}
+
+	return ""
+}
+
+// stringLiteral returns the value of an expression that is a plain string literal.
+// An expression that needs evaluating, such as an interpolation, yields the empty string.
+func stringLiteral(expr hclsyntax.Expression) string {
+	templateExpr, ok := expr.(*hclsyntax.TemplateExpr)
+	if !ok {
+		return ""
+	}
+
+	if len(templateExpr.Parts) != 1 {
+		return ""
+	}
+
+	literal, ok := templateExpr.Parts[0].(*hclsyntax.LiteralValueExpr)
+	if !ok {
+		return ""
+	}
+
+	if literal.Val.Type() != cty.String {
+		return ""
+	}
+
+	return literal.Val.AsString()
+}
+
 // normalizeProviderAddress converts provider source to full registry format
-func normalizeProviderAddress(impl tfimpl.Type, source string) string {
+func normalizeProviderAddress(env map[string]string, impl tfimpl.Type, source string) string {
 	parts := strings.Split(source, "/")
-	registryDomain := tfimpl.DefaultRegistryDomain(impl)
+	registryDomain := tfimpl.DefaultRegistryDomain(env, impl)
 
 	const (
 		singlePart    = 1
@@ -250,7 +287,7 @@ func normalizeSingleConstraint(constraint string) string {
 
 	const justVersionParts = 1
 	if len(fields) == justVersionParts {
-		if v, err := version.NewVersion(fields[0]); err == nil {
+		if v, err := semver.Parse(fields[0]); err == nil {
 			return v.String()
 		}
 
@@ -262,7 +299,7 @@ func normalizeSingleConstraint(constraint string) string {
 		operator := fields[0]
 		versionStr := fields[1]
 
-		if v, err := version.NewVersion(versionStr); err == nil {
+		if v, err := semver.Parse(versionStr); err == nil {
 			return fmt.Sprintf("%s %s", operator, v.String())
 		}
 	}

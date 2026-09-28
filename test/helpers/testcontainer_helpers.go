@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/mattn/go-shellwords"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	tcexec "github.com/testcontainers/testcontainers-go/exec"
@@ -24,7 +24,7 @@ func ContExecNoOutput(
 	tb.Helper()
 	ctx := tb.Context()
 
-	args, err := shellwords.Parse(cmd)
+	args, err := split.Command(cmd)
 	require.NoError(tb, err)
 
 	c, output, err := container.Exec(ctx, args, options...)

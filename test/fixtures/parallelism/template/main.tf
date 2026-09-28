@@ -1,4 +1,15 @@
 terraform {
+  required_providers {
+    local = {
+      source  = "registry.opentofu.org/hashicorp/local"
+      version = "2.6.1"
+    }
+    null = {
+      source  = "registry.opentofu.org/hashicorp/null"
+      version = "3.2.4"
+    }
+  }
+
   backend "local" {}
 }
 

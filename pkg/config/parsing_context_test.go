@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -29,7 +30,9 @@ func TestWithDependencyConfigPath_CustomDownloadDir_Preserved(t *testing.T) {
 	customDownloadDir := filepath.Join(tmpDir, "custom-cache")
 
 	l := logger.CreateLogger()
-	_, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	pctx := config.NewParsingContext(
+
+		config.WithStrictControls(controls.New()))
 
 	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
 	pctx.TerragruntConfigPath = callerConfigPath
@@ -58,7 +61,9 @@ func TestWithDependencyConfigPath_DefaultDownloadDir_Updated(t *testing.T) {
 	depConfigPath := filepath.Join(tmpDir, "modules", "vpc", "terragrunt.hcl")
 
 	l := logger.CreateLogger()
-	_, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	pctx := config.NewParsingContext(
+
+		config.WithStrictControls(controls.New()))
 
 	// Set DownloadDir to the caller's default (no TG_DOWNLOAD_DIR override).
 	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
@@ -92,7 +97,9 @@ func TestWithDependencyConfigPath_CustomDownloadDir_NotDefaultForAnyModule(t *te
 	customDownloadDir := filepath.Join(tmpDir, ".terragrunt-cache")
 
 	l := logger.CreateLogger()
-	_, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	pctx := config.NewParsingContext(
+
+		config.WithStrictControls(controls.New()))
 
 	_, callerDefaultDir := util.DefaultWorkingAndDownloadDirs(callerConfigPath)
 	pctx.TerragruntConfigPath = callerConfigPath
@@ -106,4 +113,26 @@ func TestWithDependencyConfigPath_CustomDownloadDir_NotDefaultForAnyModule(t *te
 
 	assert.Equal(t, customDownloadDir, depCtx.DownloadDir,
 		"custom TG_DOWNLOAD_DIR must be preserved even when it shares the root tmpDir")
+}
+
+func TestCloneCopiesData(t *testing.T) {
+	t.Parallel()
+
+	pctx := config.NewParsingContext()
+	pctx.SourceMap = map[string]string{"src": "original"}
+	pctx.EngineOptions = &engine.EngineOptions{LogLevel: "info"}
+	pctx.ProviderCacheOptions.RegistryNames = []string{"registry.opentofu.org"}
+	pctx.Parser.HaltOnErrorOnlyInBlocks = []string{config.MetadataCatalog}
+
+	clone := pctx.Clone()
+
+	clone.SourceMap["src"] = "changed"
+	clone.EngineOptions.LogLevel = "debug"
+	clone.ProviderCacheOptions.RegistryNames[0] = "example.com"
+	clone.Parser.HaltOnErrorOnlyInBlocks[0] = config.MetadataInclude
+
+	assert.Equal(t, map[string]string{"src": "original"}, pctx.SourceMap)
+	assert.Equal(t, "info", pctx.EngineOptions.LogLevel)
+	assert.Equal(t, []string{"registry.opentofu.org"}, pctx.ProviderCacheOptions.RegistryNames)
+	assert.Equal(t, []string{config.MetadataCatalog}, pctx.Parser.HaltOnErrorOnlyInBlocks)
 }

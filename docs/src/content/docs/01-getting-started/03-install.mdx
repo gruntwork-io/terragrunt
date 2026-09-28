@@ -7,7 +7,6 @@ sidebar:
 ---
 
 import InstallTabs from '@components/InstallTabs.astro'
-import Before from '@components/Before.astro'
 import { Aside, Code, Tabs, TabItem } from '@astrojs/starlight/components'
 import { getLatestRelease } from '@lib/github';
 export const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
@@ -21,8 +20,22 @@ The quickest way to install Terragrunt on Linux or macOS:
 curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash
 ```
 
+The script installs the binary to `~/.terragrunt/bin` and prints the line to add to your shell configuration if that directory isn't already on your `PATH`:
+
+```bash
+echo 'export PATH="$HOME/.terragrunt/bin:$PATH"' >> ~/.bashrc
+```
+
+Use `~/.zshrc` for Zsh. On Fish, run `fish_add_path ~/.terragrunt/bin` instead. Open a new shell afterwards, then confirm the install with `terragrunt --version`.
+
 <Aside type="tip" title="Script options and inspecting the script">
   Run `curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --help` to see all options, or [read the script on GitHub](https://github.com/gruntwork-io/terragrunt/blob/main/docs/public/install).
+
+  To install straight to a directory already on your `PATH`, and skip the shell configuration above, pass `-d` (or set `TERRAGRUNT_INSTALL_DIR`):
+
+  ```bash
+  curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- -d /usr/local/bin
+  ```
 
   Piping a remote script directly into `bash` means executing code you haven't read. If you'd rather review the script before running it, download it to your local filesystem, read through it, and then run it:
 
@@ -89,12 +102,6 @@ cosign verify-blob SHA256SUMS \
 ```
 
 ### Verifying releases with the GitHub CLI
-
-<Before version="1.1.0">
-<Aside type="note" title="Coming in v1.1.0">
-  Terragrunt adopts immutable releases starting with `v1.1.0`. The verification below will be supported once `v1.1.0` is published.
-</Aside>
-</Before>
 
 Terragrunt releases starting with `v1.1.0` are published as [immutable releases](/process/releases#immutable-releases), and each one includes a release attestation: a signed record binding the release tag, commit SHA, and asset digests. The [GitHub CLI](https://cli.github.com/) (version 2.81.0 or later) can check a release and your downloaded files against that attestation.
 
@@ -394,6 +401,133 @@ terragrunt --install-autocomplete
 ```
 
 Once the autocomplete support is installed, you will need to restart your shell.
+
+## Terragrunt docs MCP server
+
+<Aside type="caution" title="Public beta">
+  The Terragrunt docs MCP server is in public beta. It has no availability guarantee and might change significantly in the future.
+</Aside>
+
+If you use an AI coding assistant that speaks MCP, the Terragrunt docs MCP server at [mcp.docs.terragrunt.com](https://mcp.docs.terragrunt.com) answers Terragrunt questions from the official docs, the CLI reference, a curated design-pattern library, and real example config. It is read-only, public, and needs no authentication.
+
+It indexes the docs at specific releases, and can answer questions in the context of a specific release from v0.80 onward, so an AI agent can answer questions based on the version you actually run.
+
+<Tabs>
+  <TabItem label="Claude Code">
+    Install it for every project you work on:
+
+    ```bash
+    claude mcp add -s user --transport http terragrunt-docs https://mcp.docs.terragrunt.com/mcp
+    ```
+
+    Drop `-s user` to install it for the current directory only, or use `-s project` to write a `.mcp.json` to the repo root that everyone who clones the repo gets.
+  </TabItem>
+  <TabItem label="Cursor and other MCP clients">
+    Add the server to your client's `mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "terragrunt-docs": { "url": "https://mcp.docs.terragrunt.com/mcp" }
+      }
+    }
+    ```
+
+    Cursor reads this from `.cursor/mcp.json` in the project or `~/.cursor/mcp.json` globally.
+  </TabItem>
+</Tabs>
+
+## Uninstall
+
+Terragrunt is a single binary with no background services, so removing it means deleting the binary and, optionally, the caches it wrote.
+
+Start by finding the copy your shell is using, then remove it the same way you installed it:
+
+```bash
+which terragrunt
+```
+
+Run `which terragrunt` again afterwards to confirm nothing is left. If a second copy turns up, you installed it more than one way and each one needs removing.
+
+### Uninstalling the install script or a downloaded binary
+
+Delete the binary along with the directory the install script created:
+
+```bash
+rm -rf ~/.terragrunt
+```
+
+If you installed elsewhere with `-d`, delete that binary instead:
+
+```bash
+rm /usr/local/bin/terragrunt
+```
+
+A binary you [built from source](#building-from-source) is removed the same way. `go install` places it in `$(go env GOPATH)/bin`.
+
+### Uninstalling from a package manager
+
+Use the package manager's own removal command:
+
+```bash
+brew uninstall terragrunt     # Homebrew (macOS/Linux)
+choco uninstall terragrunt    # Chocolatey (Windows)
+pacman -R terragrunt          # Arch Linux
+emerge -C app-admin/terragrunt-bin  # Gentoo
+pkg delete terragrunt         # FreeBSD
+```
+
+### Uninstalling from a tool manager
+
+Use the tool manager's uninstall command. Both remove a single version, so repeat for each version you installed:
+
+```bash
+mise uninstall terragrunt
+
+asdf uninstall terragrunt <version>
+asdf plugin remove terragrunt
+```
+
+Remove the `terragrunt` entry from any `.tool-versions` or `.mise.toml` files that pin it, or the tool manager will reinstall it the next time it runs.
+
+### Removing cached data
+
+Terragrunt writes caches outside your project directories. They are safe to leave in place and safe to delete.
+
+The provider cache and the Content Addressable Store both live under your user cache directory:
+
+| Platform | Location |
+| --- | --- |
+| Linux | `$XDG_CACHE_HOME/terragrunt`, or `~/.cache/terragrunt` |
+| macOS | `~/Library/Caches/terragrunt` |
+| Windows | `%LOCALAPPDATA%\terragrunt` |
+
+Each project also has its own [`.terragrunt-cache`](/features/units/terragrunt-cache/) directories. To remove both:
+
+<Tabs syncKey="operating-systems">
+  <TabItem label="Linux">
+    ```bash
+    rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/terragrunt"
+    find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
+    ```
+  </TabItem>
+  <TabItem label="macOS">
+    ```bash
+    rm -rf ~/Library/Caches/terragrunt
+    find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
+    ```
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    Remove-Item -Recurse -Force "$env:LOCALAPPDATA\terragrunt"
+    Get-ChildItem -Path . -Filter .terragrunt-cache -Recurse -Directory | Remove-Item -Recurse -Force
+    ```
+  </TabItem>
+</Tabs>
+
+If you enabled tab completion, `terragrunt --uninstall-autocomplete` removes it.
+
+Uninstalling Terragrunt does not touch your state. State lives in the backend configured for each unit, and the infrastructure it tracks keeps running.
 
 ## Gruntwork Pipelines
 

@@ -12,12 +12,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAwsSessionValidationFail(t *testing.T) {
+func TestAWSSessionValidationFail(t *testing.T) {
 	t.Skip("Skipping for now as we need to change the signature of CreateAwsConfig")
 	t.Parallel()
 
@@ -28,13 +31,13 @@ func TestAwsSessionValidationFail(t *testing.T) {
 			Region:        "not-existing-region",
 			CredsFilename: "/tmp/not-existing-file",
 		}).
-		Build(t.Context(), l)
+		Build(t.Context(), l, venvtest.NewWithOSFS())
 	assert.Error(t, err)
 }
 
 // Test to validate cases when is not possible to read all S3 configurations
 // https://github.com/gruntwork-io/terragrunt/issues/2109
-func TestAwsNegativePublicAccessResponse(t *testing.T) {
+func TestAWSNegativePublicAccessResponse(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -81,7 +84,7 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 	}
 }
 
-func TestAwsConfigWithAuthProviderEnv(t *testing.T) {
+func TestAWSConfigWithAuthProviderEnv(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -95,8 +98,7 @@ func TestAwsConfigWithAuthProviderEnv(t *testing.T) {
 	}
 
 	cfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(env).
-		Build(ctx, l)
+		Build(ctx, l, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	assert.Equal(t, "us-west-2", cfg.Region)
 
@@ -110,7 +112,7 @@ func TestAwsConfigWithAuthProviderEnv(t *testing.T) {
 	assert.Equal(t, "test-session-token", creds.SessionToken)
 }
 
-func TestAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
+func TestAWSConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -123,19 +125,18 @@ func TestAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 	}
 
 	cfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(env).
-		Build(ctx, l)
+		Build(ctx, l, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 	assert.Equal(t, "eu-west-1", cfg.Region)
 	assert.NotNil(t, cfg.Credentials)
 }
 
-// TestAwsConfigWithAuthProviderEnvChainsAssumeRole verifies that credentials provided via
+// TestAWSConfigWithAuthProviderEnvChainsAssumeRole verifies that credentials provided via
 // env (e.g. from --auth-provider-cmd) do not short-circuit role assumption: when a role ARN is
 // configured (e.g. via the assume_role attribute of the remote_state block), the resulting
 // identity must be the assumed role, with the env credentials serving only as the source
 // identity for the STS exchange.
-func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
+func TestAWSConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
 	t.Parallel()
 
 	roleARN := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
@@ -163,8 +164,7 @@ func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
 	l := logger.CreateLogger()
 
 	baseCfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(env).
-		Build(t.Context(), l)
+		Build(t.Context(), l, venv.OSVenv().WithEnv(env))
 	require.NoError(t, err)
 
 	baseARN, err := awshelper.GetAWSIdentityArn(t.Context(), &baseCfg)
@@ -173,12 +173,11 @@ func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
 	const sessionName = "terragrunt-chained-assume-role-test"
 
 	chainedCfg, err := awshelper.NewAWSConfigBuilder().
-		WithEnv(env).
 		WithSessionConfig(&awshelper.AwsSessionConfig{
 			RoleArn:     roleARN,
 			SessionName: sessionName,
 		}).
-		Build(t.Context(), l)
+		Build(t.Context(), l, venv.OSVenv().WithEnv(env))
 	require.NoError(t, err)
 
 	chainedARN, err := awshelper.GetAWSIdentityArn(t.Context(), &chainedCfg)
@@ -191,7 +190,144 @@ func TestAwsConfigWithAuthProviderEnvChainsAssumeRole(t *testing.T) {
 	assert.Contains(t, chainedARN, ":assumed-role/"+roleName+"/"+sessionName)
 }
 
-func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
+// credsExpectation names the credential resolution outcome a Build permutation must produce.
+type credsExpectation int
+
+const (
+	// wantEnvCredsVerbatim: resolution returns the env credentials as-is, with no role assumption.
+	wantEnvCredsVerbatim credsExpectation = iota
+	// wantAssumeAttempted: resolution performs an STS role assumption signed with the env credentials.
+	wantAssumeAttempted
+	// wantRoleProvider: a role-assuming provider is installed on top of the default credential chain.
+	wantRoleProvider
+	// wantDefaultChain: the default credential chain is left untouched.
+	wantDefaultChain
+)
+
+// TestAWSConfigRoleSourcePermutations covers every combination of ambient env credentials, merged
+// IAM role options (the iam_role attribute and the --iam-assume-role flag both arrive here), and
+// a backend role (the assume_role attribute of the remote_state block).
+//
+// When env credentials are present, IAM role options must be ignored: the amazonsts credentials
+// provider already applied them, so the env credentials are that role's session and re-assuming
+// would make the role assume itself. A backend role is never pre-applied, so it must always be
+// assumed, with present env credentials serving as the source identity for the exchange.
+func TestAWSConfigRoleSourcePermutations(t *testing.T) {
+	t.Parallel()
+
+	envCreds := map[string]string{
+		"AWS_ACCESS_KEY_ID":     "test-access-key",
+		"AWS_SECRET_ACCESS_KEY": "test-secret-key",
+		"AWS_SESSION_TOKEN":     "test-session-token",
+		"AWS_REGION":            "us-west-2",
+	}
+	iamRoleOpts := iam.RoleOptions{
+		RoleARN: "arn:aws:iam::111111111111:role/deploy-role",
+	}
+	backendRole := &awshelper.AwsSessionConfig{
+		RoleArn: "arn:aws:iam::111111111111:role/backend-role",
+	}
+
+	testCases := []struct {
+		name          string
+		env           map[string]string
+		sessionConfig *awshelper.AwsSessionConfig
+		iamRoleOpts   iam.RoleOptions
+		want          credsExpectation
+	}{
+		{
+			name: "no-creds-no-roles",
+			env:  map[string]string{},
+			want: wantDefaultChain,
+		},
+		{
+			name:        "iam-role-only",
+			env:         map[string]string{},
+			iamRoleOpts: iamRoleOpts,
+			want:        wantRoleProvider,
+		},
+		{
+			name:          "backend-role-only",
+			env:           map[string]string{},
+			sessionConfig: backendRole,
+			want:          wantRoleProvider,
+		},
+		{
+			name:          "iam-role-and-backend-role",
+			env:           map[string]string{},
+			iamRoleOpts:   iamRoleOpts,
+			sessionConfig: backendRole,
+			want:          wantRoleProvider,
+		},
+		{
+			name: "env-creds-only",
+			env:  envCreds,
+			want: wantEnvCredsVerbatim,
+		},
+		{
+			name:        "env-creds-and-iam-role",
+			env:         envCreds,
+			iamRoleOpts: iamRoleOpts,
+			want:        wantEnvCredsVerbatim,
+		},
+		{
+			name:          "env-creds-and-backend-role",
+			env:           envCreds,
+			sessionConfig: backendRole,
+			want:          wantAssumeAttempted,
+		},
+		{
+			name:          "env-creds-iam-role-and-backend-role",
+			env:           envCreds,
+			iamRoleOpts:   iamRoleOpts,
+			sessionConfig: backendRole,
+			want:          wantAssumeAttempted,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+
+			cfg, err := awshelper.NewAWSConfigBuilder().
+				WithSessionConfig(tc.sessionConfig).
+				WithIAMRoleOptions(tc.iamRoleOpts).
+				Build(t.Context(), l, venvtest.NewWithOSFS().WithEnv(tc.env))
+			require.NoError(t, err)
+			require.NotNil(t, cfg.Credentials)
+
+			switch tc.want {
+			case wantEnvCredsVerbatim:
+				creds, err := cfg.Credentials.Retrieve(t.Context())
+				require.NoError(t, err)
+				assert.Equal(t, "test-access-key", creds.AccessKeyID)
+				assert.Equal(t, "test-secret-key", creds.SecretAccessKey)
+				assert.Equal(t, "test-session-token", creds.SessionToken)
+			case wantAssumeAttempted:
+				// A canceled context makes the STS exchange fail before any network I/O: an error
+				// here proves resolution attempts the assumption instead of returning the env
+				// values verbatim.
+				ctx, cancel := context.WithCancel(t.Context())
+				cancel()
+
+				_, err := cfg.Credentials.Retrieve(ctx)
+				require.Error(t, err)
+			case wantRoleProvider:
+				// Build installs role-assuming providers as aws.CredentialsProviderFunc; the
+				// default chain resolves to a different provider type. Retrieval is not probed
+				// here because without env credentials it would consult the host environment.
+				assert.IsType(t, aws.CredentialsProviderFunc(nil), cfg.Credentials)
+			case wantDefaultChain:
+				_, isRoleProvider := cfg.Credentials.(aws.CredentialsProviderFunc)
+				assert.False(t, isRoleProvider)
+			}
+		})
+	}
+}
+
+func TestAWSConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -212,8 +348,7 @@ func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
 
 	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsCfg).
-		WithEnv(env).
-		Build(ctx, l)
+		Build(ctx, l, venvtest.NewWithOSFS().WithEnv(env))
 	require.NoError(t, err)
 
 	// Verify that the config uses the region from awsCfg, not from environment variables

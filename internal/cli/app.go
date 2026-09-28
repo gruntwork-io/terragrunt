@@ -42,17 +42,17 @@ func init() {
 type App struct {
 	*clihelper.App
 	opts *options.TerragruntOptions
-	l    log.Logger
 }
 
 // NewApp creates the Terragrunt CLI App. The supplied [venv.Venv] is the
 // root virtualized environment; it is threaded through to the command
 // constructors and captured by their Action closures rather than held on
-// the App, so virtualized handlers stay function parameters.
-func NewApp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *App {
+// the App, so virtualized handlers stay function parameters. Its environment
+// map is what env-var-backed flags resolve against.
+func NewApp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *App {
 	terragruntCommands := commands.New(l, opts, v)
 
-	app := clihelper.NewApp()
+	app := clihelper.NewApp(v.Env)
 	app.Name = AppName
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://docs.terragrunt.com/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
@@ -60,27 +60,34 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions, v venv.Venv) *App {
 	app.Writer = v.Writers.Writer
 	app.ErrWriter = v.Writers.ErrWriter
 	app.Flags = global.NewFlags(l, opts, nil)
-	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, v))
+	app.Commands = terragruntCommands.
+		WrapAction(commands.WrapWithTelemetry(l, opts, v)).
+		WrapAction(commands.WrapWithProfiling(l, opts, v))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
 	app.FlagErrHandler = flags.ErrorHandler(terragruntCommands)
 	app.Action = clihelper.ShowAppHelp
 
-	return &App{app, opts, l}
+	return &App{app, opts}
 }
 
-func (app *App) Run(args []string) error {
-	return app.RunContext(context.Background(), args)
+func (app *App) Run(l log.Logger, v *venv.Venv, args []string) error {
+	return app.RunContext(context.Background(), l, v, args)
 }
 
-func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
+func (app *App) registerGracefullyShutdown(ctx context.Context, l log.Logger, v *venv.Venv) context.Context {
+	v.RequireSignals()
+
 	ctx, cancel := context.WithCancelCause(ctx)
 
-	signal.NotifierWithContext(ctx, func(sig os.Signal) {
+	v.Signals(ctx, func(sig os.Signal) {
 		// Carriage return helps prevent "^C" from being printed
-		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
-		app.l.Infof(
+		if _, err := fmt.Fprint(app.Writer, "\r"); err != nil {
+			l.Debugf("Failed to write to the output on %s: %v", sig, err)
+		}
+
+		l.Infof(
 			"%s signal received. Gracefully shutting down...",
 			cases.Title(language.English).String(sig.String()),
 		)
@@ -91,18 +98,23 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 	return ctx
 }
 
-func (app *App) RunContext(ctx context.Context, args []string) error {
+func (app *App) RunContext(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	args []string,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ctx = app.registerGracefullyShutdown(ctx)
+	ctx = app.registerGracefullyShutdown(ctx, l, v)
 
 	ctx = config.WithConfigValues(ctx)
 	// configure engine context
 	ctx = engine.WithEngineValues(ctx)
 
 	ctx = run.WithRunVersionCache(ctx)
-	ctx = run.WithModuleVersionResolver(ctx)
+	ctx = run.WithModuleVersionResolver(ctx, v)
 
 	args = removeNoColorFlagDuplicates(args)
 
@@ -154,14 +166,8 @@ func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {
 		cmdName := cliCtx.Args().CommandName()
 		if cmdName != "" {
 			if cliCtx.Command == nil || cliCtx.Command.Subcommand(cmdName) == nil {
-				// Show a clear error pointing users to the explicit run form.
-				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
 				return clihelper.NewExitError(
-					fmt.Errorf(
-						"unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command",
-						cmdName,
-						cmdName,
-					),
+					UnknownCommandError(cmdName),
 					clihelper.ExitCodeGeneralError,
 				)
 			}
