@@ -44,7 +44,11 @@ func newDependencySet(
 // resolve fetches the outputs of every block and returns the value of the `dependency` variable.
 //
 // Returns [cty.DynamicVal] with the error when SkipOutput is set and resolution fails without a value.
-func (s *dependencySet) resolve(ctx context.Context, l log.Logger, v *venv.Venv) (*cty.Value, error) {
+func (s *dependencySet) resolve(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+) (*cty.Value, error) {
 	names := make([]string, 0, len(s.blocks))
 	for _, dep := range s.blocks {
 		names = append(names, dep.Name)
@@ -74,23 +78,39 @@ func (s *dependencySet) resolve(ctx context.Context, l log.Logger, v *venv.Venv)
 	return result, nil
 }
 
-// resolveDependencies decodes file's dependency blocks, fetches their outputs, and returns the `dependency` value
-// with the blocks.
-func resolveDependencies(
+// dependencyValue returns the `dependency` value ToV1 decodes c with: the run's when it supplied
+// one, and otherwise the outputs of c's dependency blocks, fetched now. An included file whose including file
+// resolved none decodes its own blocks first, as pkg/config does.
+//
+// Returns the value pkg/config falls back to with the error when the fetch fails. When the parse already reported
+// that the blocks failed to decode, it returns that value and no error.
+func (c *UnitConfig) dependencyValue(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pctx *pkgconfig.ParsingContext,
-	file *pkghclparse.File,
-) (*cty.Value, pkgconfig.Dependencies, error) {
-	set, err := newDependencySet(ctx, l, v, pctx, file)
-	if err != nil {
-		return skipOutputFallback(pctx, nil), nil, err
+) (*cty.Value, error) {
+	if c.pc.file.decodedDeps != nil {
+		return c.pc.file.decodedDeps, nil
 	}
 
-	value, err := set.resolve(ctx, l, v)
+	set := c.deps
 
-	return value, set.blocks, err
+	if c.pc.file.inheritsDependencies {
+		pctx := c.pc.parsingContext()
+
+		var err error
+
+		set, err = newDependencySet(ctx, l, v, pctx, c.file)
+		if err != nil {
+			return skipOutputFallback(pctx, nil), err
+		}
+	}
+
+	if set == nil {
+		return skipOutputFallback(c.pc.parsingContext(), nil), nil
+	}
+
+	return set.resolve(ctx, l, v)
 }
 
 // skipOutputFallback returns the value a failed resolution leaves in the `dependency` variable.

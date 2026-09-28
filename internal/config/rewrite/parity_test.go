@@ -690,19 +690,16 @@ func TestParityDecodeForms(t *testing.T) {
 		{
 			name:    "top level typo",
 			content: `iam_rol = "arn:aws:iam::123456789012:role/unit"`,
-			drift:   []drift{driftSplitBodySuggestion},
 		},
 		{
 			name:    "attribute named like a block",
 			content: `terraform = {}`,
-			drift:   []drift{driftSplitBodySuggestion},
 		},
 		{
 			name: "block named like an attribute",
 			content: `
 iam_role {}
 `,
-			drift: []drift{driftSplitBodySuggestion},
 		},
 		{
 			name: "remote state typo",
@@ -729,7 +726,6 @@ engine {
 			name:    "json typo",
 			file:    pkgconfig.DefaultTerragruntJSONConfigPath,
 			content: `{"iam_rol": "arn:aws:iam::123456789012:role/unit"}`,
-			drift:   []drift{driftSplitBodySuggestion},
 		},
 		{
 			name:    "json engine shape",
