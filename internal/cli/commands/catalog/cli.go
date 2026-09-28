@@ -4,15 +4,14 @@ package catalog
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -24,7 +23,7 @@ const (
 	FormatFlagName     = "format"
 )
 
-func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
+func NewFlags(fsys vfs.FS, opts *Options, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	catalogFlags := clihelper.Flags{
@@ -33,7 +32,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
 			Usage:       "Output format for the catalog. Valid values: tui, jsonl, md.",
-			DefaultText: FormatTUI,
+			DefaultText: FormatTUI + " in a terminal, " + FormatJSONL + " otherwise",
 		}),
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        IgnoreFileFlagName,
@@ -57,7 +56,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 					}
 				}
 
-				info, err := os.Stat(resolved)
+				info, err := fsys.Stat(resolved)
 				if err != nil {
 					return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 				}
@@ -87,21 +86,16 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	return &clihelper.Command{
 		Name:  CommandName,
 		Usage: "Launch the user interface for searching and managing your module catalog.",
-		Flags: NewFlags(cmdOpts, nil),
+		Flags: NewFlags(v.FS, cmdOpts, nil),
 		Before: func(_ context.Context, _ *clihelper.Context) error {
+			if cmdOpts.Format == "" {
+				v.RequireTerminal()
+
+				cmdOpts.Format = DefaultFormat(v.Terminal)
+			}
+
 			if err := cmdOpts.Validate(); err != nil {
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
-			}
-
-			if cmdOpts.Format == FormatTUI {
-				return nil
-			}
-
-			if !cmdOpts.Experiments.Evaluate(experiment.CatalogFormat) {
-				return clihelper.NewExitError(
-					ErrFormatRequiresExperiment,
-					clihelper.ExitCodeGeneralError,
-				)
 			}
 
 			return nil
@@ -114,7 +108,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			}
 
 			if opts.ScaffoldRootFileName == "" {
-				opts.ScaffoldRootFileName = scaffold.GetDefaultRootFileName(ctx, opts)
+				opts.ScaffoldRootFileName = scaffold.GetDefaultRootFileName(ctx, v.FS, opts)
 			}
 
 			runOpts := *cmdOpts

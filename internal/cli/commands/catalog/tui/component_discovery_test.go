@@ -20,9 +20,9 @@ import (
 // testRepoDir and testWorkingDir are stable in-memory paths used across the
 // redesign test suite. Both live under root so afero's MemMapFs can host
 // the fixture trees without colliding with real OS paths.
-const (
-	testRepoDir    = "/repo"
-	testWorkingDir = "/work"
+var (
+	testRepoDir    = venvtest.Root("/repo")
+	testWorkingDir = venvtest.Root("/work")
 )
 
 // TestDiscoverComponents_WithCustomFS proves discovery runs against an
@@ -360,7 +360,7 @@ func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 	writeFileFS(t, fsys, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
 		"examples\nexamples/**\nstash/**\n")
 
-	extraPath := "/extra/extra-ignore"
+	extraPath := venvtest.Root("/extra/extra-ignore")
 	writeFileFS(t, fsys, extraPath, "integration/**\n!stash/keep\n")
 
 	repo := newFakeRepo(t, fsys, repoDir)

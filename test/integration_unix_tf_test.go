@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,11 +46,7 @@ func TestTFLocalWithRelativeExtraArgsUnix(t *testing.T) {
 func TestTFSymlinksExperimentRunAllWithRacing(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces all experiments on, defeating the disabled-vs-enabled comparison this test pins",
-		)
-	}
+	helpers.SkipInExperimentMode(t, experiment.Symlinks)
 
 	t.Run("experiment disabled", func(t *testing.T) {
 		t.Parallel()

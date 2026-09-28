@@ -1,0 +1,39 @@
+---
+version: "v1.1.5"
+category: "experiments-updated"
+---
+
+#### `azure-backend` can assign the blob data role during bootstrap
+
+Creating an Azure storage account grants no access to the blobs inside it, so an identity
+using `use_azuread_auth` could bootstrap the backend and then fail to read state as
+unauthorized until someone granted the data-plane role by hand.
+
+With the `azure-backend` experiment enabled, `assign_blob_data_role = true` now has
+bootstrap grant **Storage Blob Data Contributor** on the storage account:
+
+```hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name  = "myterragruntstate"
+    container_name        = "tfstate"
+    key                   = "${path_relative_to_include()}/terraform.tfstate"
+    resource_group_name   = "terraform-rg"
+    use_azuread_auth      = true
+    assign_blob_data_role = true
+  }
+}
+```
+
+The role goes to the identity Terragrunt authenticated as, resolved from the access token
+it already holds rather than from a directory lookup, so it works for identities that
+cannot read Microsoft Entra. Set `principal_id` to grant the role to a different user,
+group, or service principal.
+
+Existing assignments are detected and left alone, so reruns need only read permission on
+role assignments.
+
+The setting is opt-in: creating a role assignment requires
+`Microsoft.Authorization/roleAssignments/write`, which Contributor does not include.
+Leaving it unset preserves the previous behavior of assigning nothing.

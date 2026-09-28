@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -309,7 +309,7 @@ func TestTFDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyEmptyConfigPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureDependencyEmptyConfigPath)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -325,14 +325,14 @@ func TestTFDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	)
 	require.Error(t, runErr)
 	// Accept match in either stderr or the returned error string
-	if !strings.Contains(stderr, "has invalid config_path") &&
-		!strings.Contains(runErr.Error(), "has invalid config_path") {
-		t.Fatalf(
-			"unexpected error; want invalid config_path message, got: %v\nstderr: %s",
-			runErr,
-			stderr,
-		)
-	}
+	require.True(
+		t,
+		strings.Contains(stderr, "has invalid config_path") ||
+			strings.Contains(runErr.Error(), "has invalid config_path"),
+		"unexpected error; want invalid config_path message, got: %v\nstderr: %s",
+		runErr,
+		stderr,
+	)
 }
 
 // TestTFSensitiveValues tests that sensitive values can be properly handled
@@ -479,9 +479,9 @@ func TestTFOutputFlushOnInterrupt(t *testing.T) {
 		)
 		cancel()
 	case <-cmdErr:
-		t.Fatal("Command finished before we could interrupt it")
+		require.FailNow(t, "Command finished before we could interrupt it")
 	case <-time.After(3 * time.Second):
-		t.Fatal("No output appeared before timeout")
+		require.FailNow(t, "No output appeared before timeout")
 	}
 
 	// Wait briefly for flush to occur after cancellation
@@ -1138,6 +1138,33 @@ func TestTFDependencyRemoteStateOutputResolution(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "argocd")
+}
+
+// TestTFDependencyRemoteStateFallbackPreservesExtraArgsEnvVars checks that the output fallback keeps
+// extra_arguments env_vars available while fully parsing the dependency config.
+func TestTFDependencyRemoteStateFallbackPreservesExtraArgsEnvVars(t *testing.T) {
+	t.Parallel()
+
+	const fixture = "fixtures/regressions/dependency-remote-state-fallback-extra-args-env"
+
+	tmpEnvPath := helpers.CopyEnvironment(t, fixture)
+	rootPath := filepath.Join(tmpEnvPath, fixture)
+
+	// module-a <- module-b (remote_state references module-a and output-time inputs
+	// read an extra_arguments env var) <- module-c
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply",
+	)
+	require.NoError(t, err)
+
+	moduleCPath := filepath.Join(rootPath, "module-c")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+moduleCPath+" -- output -raw echo",
+	)
+	require.NoError(t, err, "dependency output fallback must preserve extra_arguments env_vars: %s", stderr)
+	assert.Equal(t, "argocd", strings.TrimSpace(stdout))
 }
 
 // TestTFDependencyGenuineErrorSurfaces pins that the output-resolution fallback does not swallow a genuine

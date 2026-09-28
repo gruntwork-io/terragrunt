@@ -1,0 +1,16 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Dependencies on a stack skip its disabled units
+
+A `dependency` whose `config_path` pointed at a stack directory also depended on the units and stacks in that stack set to `enabled = false`. Stack generation never writes a disabled unit, so `run --all` failed on the missing directory:
+
+```text
+You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file. Please add a terragrunt.hcl file and try again.
+```
+
+`find --dependencies` and `dag graph` listed the same missing path as a dependency.
+
+The dependency now covers only enabled units. The units of a disabled stack are left out, including a tree generated before the stack was disabled.

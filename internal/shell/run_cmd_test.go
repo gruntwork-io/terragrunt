@@ -1,15 +1,11 @@
 package shell_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,50 +28,50 @@ func TestLastReleaseTag(t *testing.T) {
 	assert.Equal(t, "v20.1.2", lastTag)
 }
 
-// TestGitTopLevelDirPrefixHit asserts that a descendant query is served from
-// the cache. The seeded root is synthetic, so a non-cached answer would have
-// to come from `git rev-parse` and would not equal the seeded root.
-func TestGitTopLevelDirPrefixHit(t *testing.T) {
+func TestShellOptionsEngineEnabled(t *testing.T) {
 	t.Parallel()
 
-	root := helpers.TmpDirWOSymlinks(t)
-	subdir := filepath.Join(root, "a", "b", "c")
-	require.NoError(t, os.MkdirAll(subdir, 0o755))
+	enabled := experiment.NewExperiments()
+	require.NoError(t, enabled.EnableExperiment(experiment.IacEngine))
 
-	ctx := cache.ContextWithCache(t.Context())
-	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
-	c.Add(ctx, root)
+	testCases := []struct {
+		opts *shell.ShellOptions
+		name string
+		want bool
+	}{
+		{
+			name: "no engine block",
+			opts: shell.NewShellOptions(map[string]string{}).WithExperiments(enabled),
+			want: false,
+		},
+		{
+			name: "engine block with the experiment on",
+			opts: shell.NewShellOptions(map[string]string{}).
+				WithExperiments(enabled).
+				WithEngine(&engine.EngineConfig{Source: "github.com/example/engine"}, new(engine.EngineOptions)),
+			want: true,
+		},
+		{
+			name: "engine block with the experiment off",
+			opts: shell.NewShellOptions(map[string]string{}).
+				WithExperiments(experiment.NewExperiments()).
+				WithEngine(&engine.EngineConfig{Source: "github.com/example/engine"}, new(engine.EngineOptions)),
+			want: false,
+		},
+		{
+			name: "engine block disabled with --no-engine",
+			opts: shell.NewShellOptions(map[string]string{}).
+				WithExperiments(enabled).
+				WithEngine(&engine.EngineConfig{Source: "github.com/example/engine"}, &engine.EngineOptions{NoEngine: true}),
+			want: false,
+		},
+	}
 
-	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), subdir)
-	require.NoError(t, err)
-	assert.Equal(t, root, got)
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-// TestGitTopLevelDirNestedRepoBypass asserts that a `.git` entry between the
-// query path and the cached root forces a fallthrough to `git`. The synthetic
-// outer root is not a real repo, so the test passes whether `git` errors or
-// returns a different root, as long as the outer root is not returned.
-func TestGitTopLevelDirNestedRepoBypass(t *testing.T) {
-	t.Parallel()
-
-	root := helpers.TmpDirWOSymlinks(t)
-	nested := filepath.Join(root, "sub")
-	require.NoError(t, os.MkdirAll(filepath.Join(nested, ".git"), 0o755))
-
-	deep := filepath.Join(nested, "inner")
-	require.NoError(t, os.MkdirAll(deep, 0o755))
-
-	ctx := cache.ContextWithCache(t.Context())
-	c := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
-	c.Add(ctx, root)
-
-	got, err := shell.GitTopLevelDir(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), deep)
-	if err == nil {
-		assert.NotEqual(
-			t,
-			root,
-			got,
-			"guard should not return the outer root when a nested .git exists",
-		)
+			assert.Equal(t, tc.want, tc.opts.EngineEnabled())
+		})
 	}
 }

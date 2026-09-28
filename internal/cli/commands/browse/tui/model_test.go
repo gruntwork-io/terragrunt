@@ -18,14 +18,14 @@ func TestNewModelPanicsOnNilChannels(t *testing.T) {
 
 	l := logger.CreateLogger()
 	fs := vfs.NewMemMapFS()
-	root := tui.NewRoot("/repo")
+	root := tui.NewRoot(repoRoot)
 	resultCh := make(chan tui.DiscoveryResult)
 	warnCh := make(chan viewtui.Warning)
 
 	assert.PanicsWithValue(t, tui.ErrChannelsRequired, func() {
-		tui.NewModel(l, fs, root, tui.ColorDisabled, nil, warnCh)
+		tui.NewModel(l, fs, stubHomeDir, root, tui.ColorDisabled, nil, warnCh)
 	})
 	assert.PanicsWithValue(t, tui.ErrChannelsRequired, func() {
-		tui.NewModel(l, fs, root, tui.ColorDisabled, resultCh, nil)
+		tui.NewModel(l, fs, stubHomeDir, root, tui.ColorDisabled, resultCh, nil)
 	})
 }

@@ -3,17 +3,18 @@ package clean
 
 import (
 	"errors"
-	"os"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // CleanStacks removes stack directories within the specified working directory, unless the command is "destroy".
 // It returns an error if any issues occur during the deletion process, or nil if successful.
-func CleanStacks(l log.Logger, opts *options.TerragruntOptions) error {
+func CleanStacks(l log.Logger, fsys vfs.FS, opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == tf.CommandNameDestroy {
 		l.Debugf("Skipping stack clean for %s, as part of delete command", opts.WorkingDir)
 		return nil
@@ -21,7 +22,7 @@ func CleanStacks(l log.Logger, opts *options.TerragruntOptions) error {
 
 	var errs []error
 
-	walkFn := func(path string, d os.DirEntry, walkErr error) error {
+	walkFn := func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			l.Warnf("Error accessing path %s: %v", path, walkErr)
 
@@ -38,18 +39,18 @@ func CleanStacks(l log.Logger, opts *options.TerragruntOptions) error {
 
 			l.Infof("Deleting stack directory: %s", relPath)
 
-			if rmErr := os.RemoveAll(path); rmErr != nil {
+			if rmErr := fsys.RemoveAll(path); rmErr != nil {
 				l.Errorf("Failed to delete stack directory %s: %v", relPath, rmErr)
 
 				errs = append(errs, rmErr)
 			}
 
-			return filepath.SkipDir
+			return fs.SkipDir
 		}
 
 		return nil
 	}
-	if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil {
+	if walkErr := vfs.WalkDir(fsys, opts.WorkingDir, walkFn); walkErr != nil {
 		errs = append(errs, walkErr)
 	}
 

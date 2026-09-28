@@ -661,3 +661,101 @@ unit "app" {
 	require.NotNil(t, broken, "broken stack component should still be discovered")
 	assert.Nil(t, broken.Config(), "unparsable stack config should be skipped")
 }
+
+// TestDiscovery_TracksReadsOnlyWhenRequested pins read tracking to the callers that
+// consume it. Recording reads costs a walk of every local module source, so a
+// discovery that parses for an unrelated reason leaves the Reading field empty.
+func TestDiscovery_TracksReadsOnlyWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	appDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(appDir, 0755))
+
+	sharedHCL := filepath.Join(tmpDir, "shared.hcl")
+	require.NoError(t, os.WriteFile(sharedHCL, []byte(`
+		locals {
+			common_value = "test"
+		}
+	`), 0644))
+
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
+		locals {
+			shared_config = read_terragrunt_config("../shared.hcl")
+		}
+	`), 0644))
+
+	readingExpr, err := filter.NewAttributeExpression(filter.AttributeReading, "shared.hcl")
+	require.NoError(t, err)
+
+	readingFilters := filter.Filters{filter.NewFilter(readingExpr, readingExpr.String())}
+
+	testCases := []struct {
+		configure   func(*discovery.Discovery) *discovery.Discovery
+		name        string
+		wantTracked bool
+	}{
+		{
+			name: "parsed for an unrelated reason",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithRequiresParse().WithRelationships()
+			},
+			wantTracked: false,
+		},
+		{
+			name: "tracking requested outright",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithRequiresParse().WithRelationships().WithTrackReads()
+			},
+			wantTracked: true,
+		},
+		{
+			name: "reading filter asks for it",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithFilters(readingFilters)
+			},
+			wantTracked: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := &options.TerragruntOptions{
+				WorkingDir:     tmpDir,
+				RootWorkingDir: tmpDir,
+			}
+
+			d := tc.configure(discovery.NewDiscovery(tmpDir))
+
+			components, err := d.Discover(
+				t.Context(),
+				logger.CreateLogger(),
+				venvtest.NewOSWithEmptyEnv(),
+				opts,
+			)
+			require.NoError(t, err)
+
+			var app component.Component
+
+			for _, c := range components {
+				if c.Path() == appDir {
+					app = c
+
+					break
+				}
+			}
+
+			require.NotNil(t, app, "app unit should be discovered")
+
+			if !tc.wantTracked {
+				assert.Empty(t, app.Reading())
+
+				return
+			}
+
+			assert.Contains(t, app.Reading(), sharedHCL)
+		})
+	}
+}

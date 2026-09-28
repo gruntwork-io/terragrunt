@@ -3,9 +3,9 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -36,6 +36,10 @@ import (
 // second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
 
+// ErrShellOptionsNil is the panic value [RunCommandWithOutput] and [RunCommand]
+// raise when runOpts is nil.
+var ErrShellOptionsNil = errors.New("shell: runOpts must not be nil")
+
 // ShellOptions contains the per-invocation configuration needed to run shell
 // commands.
 type ShellOptions struct {
@@ -58,12 +62,14 @@ type ShellOptions struct {
 // NewShellOptions creates ShellOptions with sensible defaults. Telemetry is
 // always non-nil; TRACEPARENT is read from the environment when set. Use the
 // With* methods to override any field.
-func NewShellOptions() *ShellOptions {
+func NewShellOptions(env map[string]string) *ShellOptions {
+	venv.RequireEnvMap(env)
+
 	opts := &ShellOptions{
 		Telemetry: &telemetry.Options{},
 	}
 
-	if tp := os.Getenv(telemetry.TraceParentEnv); tp != "" {
+	if tp := env[telemetry.TraceParentEnv]; tp != "" {
 		opts.Telemetry.TraceParent = tp
 	}
 
@@ -115,7 +121,7 @@ func (o *ShellOptions) WithEngine(
 	return o
 }
 
-// WithTFPath sets the path to the Terraform/OpenTofu binary.
+// WithTFPath sets the path to the OpenTofu/Terraform binary.
 func (o *ShellOptions) WithTFPath(path string) *ShellOptions {
 	o.TFPath = path
 
@@ -157,11 +163,19 @@ func (o *ShellOptions) NoEngine() bool {
 	return o.EngineOptions != nil && o.EngineOptions.NoEngine
 }
 
+// EngineEnabled reports whether an engine is enabled for a run.
+//
+// Use this to drive logic where Terragrunt typically assumes it's running
+// OpenTofu/Terraform directly.
+func (o *ShellOptions) EngineEnabled() bool {
+	return o.EngineConfig != nil && o.Experiments.Evaluate(experiment.IacEngine) && !o.NoEngine()
+}
+
 // RunCommand runs the given shell command. The shell environment and process
 // executor come from v; tests can substitute a venv whose Exec is a
 // [vexec.NewMemExec] so external binaries like tofu/terraform are never forked.
 //
-// Requires a non-nil v.Env.
+// Panics with [ErrShellOptionsNil] when runOpts is nil. Requires a non-nil v.Env.
 func RunCommand(
 	ctx context.Context,
 	l log.Logger,
@@ -183,7 +197,7 @@ func RunCommand(
 // the currently running app. The command can be executed in a custom working directory by using the parameter
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
 //
-// Requires a non-nil v.Env.
+// Panics with [ErrShellOptionsNil] when runOpts is nil. Requires a non-nil v.Env.
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
@@ -195,6 +209,10 @@ func RunCommandWithOutput(
 	command string,
 	args ...string,
 ) (*util.CmdOutput, error) {
+	if runOpts == nil {
+		panic(ErrShellOptionsNil)
+	}
+
 	var (
 		output     = util.CmdOutput{}
 		commandDir = workingDir
@@ -257,7 +275,8 @@ type RunCommandOptions struct {
 // runCommand contains the actual subprocess execution logic, separated to keep
 // RunCommandWithOutput focused on telemetry framing.
 //
-// Requires v.Env: the traceparent is written into it before the child forks.
+// Requires v.Env. The traceparent goes into a copy of it, so the caller's map
+// is never written.
 func runCommand(
 	ctx context.Context,
 	l log.Logger,
@@ -281,6 +300,8 @@ func runCommand(
 			traceParent,
 			fmt.Sprintf("%s %v", cmdOpts.Command, cmdOpts.Args),
 		)
+
+		v = v.WithEnvCloned()
 		v.Env[telemetry.TraceParentEnv] = traceParent
 	}
 
@@ -292,8 +313,7 @@ func runCommand(
 
 	if cmdOpts.Command == runOpts.TFPath {
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) &&
-			!runOpts.NoEngine() {
+		if runOpts.EngineEnabled() {
 			l.Debugf(
 				"Using engine to run command: %s %s",
 				cmdOpts.Command,
@@ -341,7 +361,6 @@ func runCommand(
 	cmd.SetStderr(cmdStderr)
 	cmd.Configure(
 		exec.WithUsePTY(cmdOpts.NeedsPTY),
-		exec.WithEnv(v.Env),
 		exec.WithForwardSignalDelay(forwardSignalDelay),
 	)
 
@@ -351,7 +370,7 @@ func runCommand(
 
 	//nolint:contextcheck // context already passed to exec.Command
 	if err := cmd.Start(l); err != nil {
-		err = util.ProcessExecutionError{
+		err = &util.ProcessExecutionError{
 			Err:             err,
 			Args:            cmdOpts.Args,
 			Command:         cmdOpts.Command,
@@ -368,7 +387,7 @@ func runCommand(
 	defer cancelShutdown()
 
 	if err := cmd.Wait(); err != nil {
-		err = util.ProcessExecutionError{
+		err = &util.ProcessExecutionError{
 			Err:             err,
 			Args:            cmdOpts.Args,
 			Command:         cmdOpts.Command,

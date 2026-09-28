@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testFixtureQuickStart       = "fixtures/docs/01-quick-start"
+	testFixtureStacksLocalState = "fixtures/docs/03-stacks-with-local-state"
+)
+
 func TestTFDocsQuickStart(t *testing.T) {
 	t.Parallel()
 
@@ -38,7 +43,6 @@ func TestTFDocsQuickStart(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
-
 	})
 
 	t.Run("step-01.1", func(t *testing.T) {
@@ -224,6 +228,7 @@ func TestTFStacksWithLocalState(t *testing.T) {
 	fooPath := filepath.Join(stackPath, "foo")
 	barPath := filepath.Join(stackPath, "bar")
 	bazPath := filepath.Join(stackPath, "baz")
+
 	require.DirExists(t, fooPath)
 	require.DirExists(t, barPath)
 	require.DirExists(t, bazPath)

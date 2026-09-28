@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 
@@ -16,6 +17,9 @@ import (
 // unreachable afterwards: not to the next prompt, and not to a subprocess that
 // inherits the same stream. A prompt is a handful of bytes typed by a person,
 // so the syscall per byte costs nothing worth having.
+//
+// A final line that ends at EOF instead of a newline is returned as the answer,
+// so a piped `printf yes` reads the same as a typed one.
 func readLine(r io.Reader) (string, error) {
 	var line []byte
 
@@ -32,6 +36,10 @@ func readLine(r io.Reader) (string, error) {
 		}
 
 		if err != nil {
+			if errors.Is(err, io.EOF) && len(line) > 0 {
+				return string(line), nil
+			}
+
 			return "", err
 		}
 	}

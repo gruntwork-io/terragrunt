@@ -42,12 +42,15 @@ package glob
 import (
 	"errors"
 	"fmt"
-	iofs "io/fs"
+	"io/fs"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	gobwas "github.com/gobwas/glob"
+	"github.com/gobwas/glob/compiler"
+	"github.com/gobwas/glob/match"
+	"github.com/gobwas/glob/syntax"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/mattn/go-zglob"
 )
@@ -58,15 +61,69 @@ type Matcher interface {
 	Match(s string) bool
 }
 
-// Compile parses pattern as a '/'-separated glob and returns a [Matcher].
-// Intended for testing one pattern against many strings.
-func Compile(pattern string) (Matcher, error) {
-	return gobwas.Compile(pattern, '/')
+// ErrUnsupportedBraceGroup is returned by [Compile] for a pattern with a {}
+// group the underlying matcher accepts but cannot match correctly, e.g. an
+// unclosed group such as "a{" or a group of only empty options such as "a{,}".
+// Matching such a pattern either crashes or reports no match for a string it
+// should match.
+var ErrUnsupportedBraceGroup = errors.New("unsupported empty or unclosed {} group in glob pattern")
+
+// CompileOption configures a [Compile] call.
+type CompileOption func(*compileOptions)
+
+type compileOptions struct {
+	noSeparator bool
+}
+
+// WithoutSeparator makes [Compile] treat '/' as an ordinary character, so '*'
+// and '?' match it too. Use it for patterns matched against strings that are
+// not paths.
+func WithoutSeparator() CompileOption {
+	return func(o *compileOptions) {
+		o.noSeparator = true
+	}
+}
+
+// Compile parses pattern as a glob and returns a [Matcher]. Intended for
+// testing one pattern against many strings. The pattern is '/'-separated
+// unless [WithoutSeparator] is passed. A pattern with a {} group the matcher
+// cannot handle returns [ErrUnsupportedBraceGroup].
+func Compile(pattern string, opts ...CompileOption) (Matcher, error) {
+	var o compileOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	separators := []rune{'/'}
+	if o.noSeparator {
+		separators = nil
+	}
+
+	tree, err := syntax.Parse(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := compiler.Compile(tree, separators)
+	if err != nil {
+		return nil, err
+	}
+
+	if hasZeroLengthRowPart(m) {
+		return nil, ErrUnsupportedBraceGroup
+	}
+
+	return m, nil
 }
 
 // ErrOutsideBoundary reports that a pattern's walk root fell outside the
 // boundary supplied to [WithBoundary].
 var ErrOutsideBoundary = errors.New("glob pattern resolves outside the configured boundary")
+
+// ErrSymlinkedRootEscapes reports that a symlinked walk root, resolved under
+// [WithSymlinkedRoots], points at one of its own ancestors, so walking the
+// target would walk back through the link.
+var ErrSymlinkedRootEscapes = errors.New("symlinked glob root resolves to its own ancestor")
 
 // ExpandOption configures the behavior of [Expand]. See [WithFilesOnly] and
 // [WithBoundary].
@@ -121,7 +178,7 @@ func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error)
 	if !hasMeta {
 		info, err := fsys.Stat(root)
 		if err != nil {
-			if errors.Is(err, iofs.ErrNotExist) {
+			if errors.Is(err, fs.ErrNotExist) {
 				return nil, nil
 			}
 
@@ -142,10 +199,10 @@ func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error)
 
 	var matches []string
 
-	walkErr := vfs.WalkDir(fsys, root, func(entry string, d iofs.DirEntry, walkErr error) error {
+	walkErr := vfs.WalkDir(fsys, root, func(entry string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if d != nil && d.IsDir() {
-				return iofs.SkipDir
+				return fs.SkipDir
 			}
 
 			return nil
@@ -163,19 +220,156 @@ func Expand(fsys vfs.FS, pattern string, opts ...ExpandOption) ([]string, error)
 
 		return nil
 	})
-	if walkErr != nil && !errors.Is(walkErr, iofs.ErrNotExist) {
+	if walkErr != nil && !errors.Is(walkErr, fs.ErrNotExist) {
 		return nil, walkErr
 	}
 
 	return matches, nil
 }
 
-// LegacyExpand returns the paths that match pattern using zglob semantics.
-// Prefer [Expand] for new code. LegacyExpand exists only for call sites that
-// interpret patterns written by users in configuration surface where a
-// behavior change between zglob and gobwas would be a breaking change.
-func LegacyExpand(pattern string) ([]string, error) {
-	return zglob.Glob(pattern)
+// LegacyExpandOption configures a [LegacyExpand] call.
+type LegacyExpandOption func(*legacyExpandOptions)
+
+type legacyExpandOptions struct {
+	symlinkedRoots bool
+}
+
+// WithSymlinkedRoots makes [LegacyExpand] resolve a walk root that is itself a
+// symbolic link and expand through it, the way zglob's own walk does. A root
+// that resolves to one of its own ancestors returns [ErrSymlinkedRootEscapes]
+// instead of walking back through itself. Enabled behind the symlinks
+// experiment (issue #6791).
+func WithSymlinkedRoots() LegacyExpandOption {
+	return func(o *legacyExpandOptions) {
+		o.symlinkedRoots = true
+	}
+}
+
+// LegacyExpand returns the paths on fsys that match pattern using zglob
+// semantics. Prefer [Expand] for new code. LegacyExpand exists only for call
+// sites that interpret patterns written by users in configuration surface
+// where a behavior change between zglob and gobwas would be a breaking change.
+//
+// zglob offers no way to walk anything but the real filesystem, so the walk is
+// reproduced here over fsys. Deciding whether a path matches is still zglob's
+// own matcher, built from the pattern by [zglob.New], which keeps the grammar
+// identical; fsys supplies only the directory entries and, under
+// [WithSymlinkedRoots], the resolution of a symlinked walk root.
+// TestLegacyExpandMatchesZglob pins the two against each other over a corpus
+// of patterns.
+func LegacyExpand(fsys vfs.FS, pattern string, opts ...LegacyExpandOption) ([]string, error) {
+	var o legacyExpandOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	root, hasMeta := legacyRoot(pattern)
+
+	// A pattern with no metacharacters names one path, and zglob reports a
+	// missing one as fs.ErrNotExist rather than as an empty result. Callers
+	// distinguish the two, so the distinction is preserved.
+	if !hasMeta {
+		if _, err := fsys.Stat(pattern); err != nil {
+			return nil, fs.ErrNotExist
+		}
+
+		return []string{pattern}, nil
+	}
+
+	matcher, err := zglob.New(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	// zglob stats its walk root through symlinks, so a pattern rooted at a
+	// symlinked directory expands through the link. Walking the link target
+	// while reporting entries under the root's own spelling keeps that
+	// behavior (issue #6791). A failed Lstat is deliberately left to the walk
+	// below, which probes the same root and surfaces the same error. A
+	// dangling link reports not-exist as zglob does; a link that cannot be
+	// resolved for any other reason, such as a cycle, stays opaque and matches
+	// nothing rather than failing the caller.
+	walkRoot := root
+
+	if o.symlinkedRoots {
+		walkRoot, err = resolveSymlinkedRoot(fsys, root)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	matches := []string{}
+
+	// zglob surfaces a walk failure rather than treating it as an empty match,
+	// including the common case of a pattern rooted at a directory that does
+	// not exist, so the error is passed straight back here too.
+	walkErr := vfs.WalkDir(fsys, walkRoot, func(entry string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if walkRoot != root {
+			rel, relErr := filepath.Rel(walkRoot, entry)
+			if relErr != nil {
+				return relErr
+			}
+
+			entry = filepath.Join(root, rel)
+		}
+
+		if matcher.Match(filepath.ToSlash(entry)) {
+			matches = append(matches, entry)
+		}
+
+		return nil
+	})
+	if walkErr != nil {
+		return nil, walkErr
+	}
+
+	return matches, nil
+}
+
+// legacyRoot returns the deepest directory of pattern that zglob would start
+// its walk from, and reports whether pattern has anything to expand. It
+// reproduces zglob's rule, which treats only "*" and "{" as the markers that
+// end the literal prefix.
+//
+// zglob also expands a leading "~" and any whole segment of the form "$NAME"
+// from the process environment before choosing its root. That is not
+// reproduced here, so such a pattern roots its walk at a literal "$NAME"
+// directory and reports it missing, which the caller in internal/util already
+// reads as no matches. The matcher zglob builds still reads the environment,
+// so the walk root, not the grammar, is what keeps the expansion out.
+func legacyRoot(pattern string) (string, bool) {
+	var (
+		globmask string
+		root     string
+		found    bool
+	)
+
+	for segment := range strings.SplitSeq(filepath.ToSlash(pattern), "/") {
+		if !found && strings.ContainsAny(segment, "*{") {
+			found = true
+
+			root = globmask
+			if root == "" {
+				root = "."
+			}
+		}
+
+		globmask = path.Join(globmask, segment)
+
+		if globmask == "" {
+			globmask = "/"
+		}
+	}
+
+	if !found {
+		return "", false
+	}
+
+	return filepath.Clean(root), true
 }
 
 // splitRoot returns the longest leading directory of pattern that contains no
@@ -187,11 +381,8 @@ func splitRoot(pattern string) (string, bool) {
 		return filepath.FromSlash(pattern), false
 	}
 
-	prefix := pattern[:metaIdx]
-
-	if i := strings.LastIndex(prefix, "/"); i >= 0 {
-		prefix = prefix[:i]
-	} else {
+	prefix, _, ok := strings.CutLast(pattern[:metaIdx], "/")
+	if !ok {
 		prefix = "."
 	}
 
@@ -214,4 +405,63 @@ func (o expandOptions) checkBoundary(fsys vfs.FS, root string) error {
 	}
 
 	return nil
+}
+
+// resolveSymlinkedRoot returns the directory to walk for root: the resolved
+// target when root is a symbolic link, root itself otherwise or when the link
+// cannot be resolved. A dangling link returns [fs.ErrNotExist]; a link that
+// resolves to one of its own ancestors returns [ErrSymlinkedRootEscapes].
+func resolveSymlinkedRoot(fsys vfs.FS, root string) (string, error) {
+	info, err := vfs.Lstat(fsys, root)
+
+	isLink := err == nil && info.Mode()&fs.ModeSymlink != 0
+	if !isLink {
+		return root, nil
+	}
+
+	resolved, err := vfs.EvalSymlinks(fsys, root)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+
+	if err != nil {
+		return root, nil //nolint:nilerr // an unresolvable link, such as a cycle, is opaque and matches nothing
+	}
+
+	if vfs.Within(fsys, resolved, filepath.Dir(root)) {
+		return "", fmt.Errorf("%w: %q resolves to %q", ErrSymlinkedRootEscapes, root, resolved)
+	}
+
+	return resolved, nil
+}
+
+// hasZeroLengthRowPart reports whether m contains a match.Row with a part whose
+// length is not positive. match.Row assumes every part has a fixed positive
+// length. A part that does not either slices past the end of the input or
+// consumes the rest of it, and some empty or unclosed {} groups compile to
+// such a part.
+func hasZeroLengthRowPart(m match.Matcher) bool {
+	stack := []match.Matcher{m}
+
+	for len(stack) > 0 {
+		next := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		switch v := next.(type) {
+		case match.Row:
+			if slices.ContainsFunc(v.Matchers, func(part match.Matcher) bool { return part.Len() <= 0 }) {
+				return true
+			}
+
+			stack = append(stack, v.Matchers...)
+		case match.AnyOf:
+			stack = append(stack, v.Matchers...)
+		case match.EveryOf:
+			stack = append(stack, v.Matchers...)
+		case match.BTree:
+			stack = append(stack, v.Value, v.Left, v.Right)
+		}
+	}
+
+	return false
 }

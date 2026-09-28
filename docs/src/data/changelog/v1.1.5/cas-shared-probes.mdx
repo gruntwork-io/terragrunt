@@ -1,0 +1,35 @@
+---
+version: "v1.1.5"
+category: "performance-improvements"
+---
+
+#### Fewer remote probes for sources shared across units
+
+`run --all` asked the remote what a source resolved to once per unit, so a hundred units sharing one module made a hundred requests. Each of them then read the same commit out of the store for itself.
+
+Units that resolve the same source at the same time now share one probe, and units that need the same Git commit share the work of reading it into the [CAS](/features/caching/cas).
+
+Measured over 100 units pointing at one Git module, counting the Git commands a run spawns:
+
+| 100 units, one shared module | Before | After |
+| --- | --- | --- |
+| First run: `git ls-remote` | 100 | 1 |
+| First run: reading the commit into the store | 202 | 4 |
+| First run: Git commands in total | 304 | 7 |
+| Later run, source on a branch | 100 | 1 |
+| Later run, source on a version tag | 100 | 0 |
+
+The last row needs the `offline-cas` experiment described below; the rest apply to every run. Against a local Git server the first run went from roughly 5 seconds to 0.3, and a later run from 1 second to 0.1. A real remote makes each avoided `ls-remote` worth more, since it costs a network round trip rather than a local process.
+
+The new `offline-cas` experiment goes a step further and has the CAS record each probe answer in the store, so a later run can skip the request. How long it trusts an answer depends on the source:
+
+- A source pinned to a specific revision keeps its answer for 24 hours: a semantic version tag, an S3 object version, an OCI manifest digest, an exact registry module version, or a full Mercurial changeset node.
+- A source that can change upstream, such as a Git branch or an OCI tag, gets a fresh probe on every run, so a push or an upload shows up immediately.
+
+The experiment also unlocks three flags that change how the recorded answers are used:
+
+- `--cas-offline` never contacts a remote. Sources come from the local store and the recorded answers, and anything missing is an error rather than a fetch.
+- `--cas-refresh` ignores the recorded answers for one run and asks every remote again.
+- `--cas-probe-ttl` trusts a changeable source's answer for a duration you choose, such as `10m`.
+
+See [Recorded probes](/features/caching/cas#recorded-probes) and the [`offline-cas` experiment](/reference/experiments/active#offline-cas).

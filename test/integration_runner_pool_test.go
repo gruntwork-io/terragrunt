@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/require"
 )
@@ -193,7 +195,7 @@ func TestTFRunnerPoolFailFast(t *testing.T) {
 			reportFilePath := filepath.Join(testPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath)
 
-			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+			runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 			require.NoError(t, err)
 
 			// Verify expected units are in the report
@@ -422,5 +424,5 @@ func TestTFAuthProviderParallelExecution(t *testing.T) {
 		"Expected auth commands to detect at least 2 concurrent executions. "+
 			"Detected max concurrent: %d. This proves parallel execution.", maxConcurrent)
 
-	helpers.ValidateAuthProviderScript(t, testPath, authProviderScript)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), testPath, authProviderScript)
 }

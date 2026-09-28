@@ -8,6 +8,11 @@ import (
 // ErrNoHardLink is returned when a filesystem does not support hard links.
 var ErrNoHardLink = errors.New("hard link not supported")
 
+// ErrNoCloneFile is returned by [CloneFile] when the filesystem, the volume,
+// or the platform has no copy-on-write clone to offer. Match it with
+// errors.Is to fall back to linking or copying.
+var ErrNoCloneFile = errors.New("copy-on-write clone not supported")
+
 // ErrNoLock is returned when a filesystem does not support locking.
 var ErrNoLock = errors.New("locking not supported")
 

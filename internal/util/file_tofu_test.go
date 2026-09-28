@@ -61,7 +61,7 @@ func TestIsTFFile(t *testing.T) {
 			expected:    false,
 		},
 		{
-			description: "HCL file (not Terraform/OpenTofu)",
+			description: "HCL file (not OpenTofu/Terraform)",
 			path:        "terragrunt.hcl",
 			expected:    false,
 		},
@@ -639,7 +639,6 @@ func BenchmarkIsTFFile(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
 	for b.Loop() {
 		for _, path := range testPaths {
@@ -671,7 +670,6 @@ func BenchmarkDirContainsTFFiles(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
 	for b.Loop() {
 		result, err := util.DirContainsTFFiles(vfs.NewOSFS(), tmpDir)

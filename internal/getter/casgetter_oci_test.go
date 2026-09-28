@@ -11,6 +11,7 @@ import (
 
 	tgcas "github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -296,8 +297,10 @@ type movingTagResolver struct {
 
 func (r *movingTagResolver) Scheme() string { return getter.SchemeOCI }
 
-func (r *movingTagResolver) Probe(ctx context.Context, rawURL string) (string, error) {
-	digestValue, err := r.ResolveDigest(ctx, rawURL)
+func (r *movingTagResolver) Pinned(redact.URL) bool { return false }
+
+func (r *movingTagResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
+	digestValue, err := r.ResolveDigest(ctx, source)
 	if err != nil {
 		return "", tgcas.ErrNoVersionMetadata
 	}
@@ -305,8 +308,8 @@ func (r *movingTagResolver) Probe(ctx context.Context, rawURL string) (string, e
 	return tgcas.ContentKey("oci-manifest", digestValue), nil
 }
 
-func (r *movingTagResolver) ResolveDigest(_ context.Context, rawURL string) (string, error) {
-	u, err := url.Parse(rawURL)
+func (r *movingTagResolver) ResolveDigest(_ context.Context, source redact.URL) (string, error) {
+	u, err := url.Parse(source.Reveal())
 	if err != nil {
 		return "", err
 	}
@@ -377,7 +380,9 @@ type probeOnlyResolver struct {
 
 func (r *probeOnlyResolver) Scheme() string { return getter.SchemeOCI }
 
-func (r *probeOnlyResolver) Probe(context.Context, string) (string, error) {
+func (r *probeOnlyResolver) Pinned(redact.URL) bool { return false }
+
+func (r *probeOnlyResolver) Probe(context.Context, redact.URL) (string, error) {
 	return r.key, nil
 }
 

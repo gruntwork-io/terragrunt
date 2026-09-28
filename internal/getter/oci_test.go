@@ -15,11 +15,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
 	"github.com/opencontainers/go-digest"
-	specs "github.com/opencontainers/image-spec/specs-go"
 	ociv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -589,11 +589,11 @@ func TestOCIGetterGetManifestHardening(t *testing.T) {
 	negativeSize.Size = -1
 
 	mismatchedManifest := ociv1.Manifest{
-		Versioned:    specs.Versioned{SchemaVersion: 2},
-		MediaType:    "application/vnd.example.other",
-		ArtifactType: getter.ArtifactTypeModulePkg,
-		Config:       ociv1.DescriptorEmptyJSON,
-		Layers:       []ociv1.Descriptor{layer},
+		SchemaVersion: 2,
+		MediaType:     "application/vnd.example.other",
+		ArtifactType:  getter.ArtifactTypeModulePkg,
+		Config:        ociv1.DescriptorEmptyJSON,
+		Layers:        []ociv1.Descriptor{layer},
 	}
 	mismatchedBytes, err := json.Marshal(mismatchedManifest)
 	require.NoError(t, err)
@@ -911,6 +911,10 @@ func TestOCIGetterGetKeepsBackupWhenRestoreFails(t *testing.T) {
 func TestOCIGetterGetHonorsUmask(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsWindows() {
+		t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+	}
+
 	moduleFiles := map[string]string{
 		"main.tf":       `output "root" {}`,
 		"subdir/sub.tf": `output "sub" {}`,
@@ -1000,8 +1004,7 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 	manifestBytes, manifestDesc := manifestFor(t, getter.ArtifactTypeModulePkg, layer)
 	store := newFakeStore(manifestBytes, &manifestDesc, zipBytes, &layer)
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
-		getter.WithLogger(logger.CreateLogger()),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithOCI(newTestOCIGetter(staticStore(store))),
 	)
 
@@ -1023,8 +1026,7 @@ func TestNewClientWithOCIDetectOrdering(t *testing.T) {
 func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
-		getter.WithLogger(logger.CreateLogger()))
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS())
 	dst := filepath.Join(t.TempDir(), "module")
 
 	_, err := client.Get(t.Context(), &gogetter.Request{
@@ -1155,7 +1157,7 @@ func newTestOCIGetter(newStore getter.OCINewStoreFunc) *getter.OCIGetter {
 }
 
 func newOCITestClient(g *getter.OCIGetter) *gogetter.Client {
-	return getter.NewClient(venvtest.NewWithOSFS(),
+	return getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithCustomGettersPrepended(g))
 }
 
@@ -1226,11 +1228,11 @@ func manifestFor(
 	t.Helper()
 
 	manifest := ociv1.Manifest{
-		Versioned:    specs.Versioned{SchemaVersion: 2},
-		MediaType:    ociv1.MediaTypeImageManifest,
-		ArtifactType: artifactType,
-		Config:       ociv1.DescriptorEmptyJSON,
-		Layers:       layers,
+		SchemaVersion: 2,
+		MediaType:     ociv1.MediaTypeImageManifest,
+		ArtifactType:  artifactType,
+		Config:        ociv1.DescriptorEmptyJSON,
+		Layers:        layers,
 	}
 
 	manifestBytes, err := json.Marshal(manifest)

@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -113,12 +114,13 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), opts)
+	v := venvtest.NewWithOSFS()
+	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
 		t.Context(),
 		l,
+		v,
 		pctx,
-		config.DefaultParserOptions(l, pctx.Venv, opts.StrictControls),
 	)
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
@@ -220,12 +222,13 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), opts)
+	v := venvtest.NewWithOSFS()
+	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
 		t.Context(),
 		l,
+		v,
 		pctx,
-		config.DefaultParserOptions(l, pctx.Venv, opts.StrictControls),
 	)
 	require.NoError(t, err)
 
@@ -434,7 +437,7 @@ catalog {
 			err = os.WriteFile(terragruntConfigPath, []byte(tc.terragruntConfig), 0644)
 			require.NoError(t, err)
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			// Set CLI flags if specified in test case
 			if tc.cliNoShell != nil {
 				opts.NoShell = *tc.cliNoShell
@@ -455,8 +458,9 @@ catalog {
 			l := logger.CreateLogger()
 
 			// First, verify catalog config parsing
-			_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, venvtest.NewWithOSFS(), opts)
-			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
+			v := venvtest.NewWithOSFS()
+			catalogPctx := configbridge.NewParsingContext(opts)
+			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
 			require.NoError(t, err)
 			require.NotNil(t, catalogCfg, tc.description)
 
@@ -541,7 +545,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"
@@ -549,8 +553,9 @@ catalog {
 	l := logger.CreateLogger()
 
 	// Parse the configuration
-	_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, venvtest.NewWithOSFS(), opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
+	v := venvtest.NewWithOSFS()
+	catalogPctx := configbridge.NewParsingContext(opts)
+	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
@@ -580,7 +585,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"
@@ -588,8 +593,9 @@ catalog {
 	l := logger.CreateLogger()
 
 	// Parse the configuration
-	_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, venvtest.NewWithOSFS(), opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
+	v := venvtest.NewWithOSFS()
+	catalogPctx := configbridge.NewParsingContext(opts)
+	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 

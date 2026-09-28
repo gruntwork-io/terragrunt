@@ -3,8 +3,8 @@ version: "v1.1.4"
 category: "bug-fixes"
 ---
 
-#### Fixed Git sources that combine a `depth` query parameter with a `ref`
+#### Fixed Git sources with a `depth` query parameter
 
-A `terraform.source` (or stack source) URL carrying both the go-getter `depth` query parameter and a `ref`, such as `...vpc.git?depth=1&ref=v5.21.0`, failed to download since v1.1.0, when the CAS became the default path for Git sources. Terragrunt lifted `ref` out of the URL but left `depth` in place, so `git` received `...vpc.git?depth=1` and rejected it as an invalid repository name.
+A `terraform.source` (or stack source) URL carrying the go-getter `depth` query parameter, such as `...vpc.git?depth=1&ref=v5.21.0`, failed to download since v1.1.0, when the CAS became the default path for Git sources. Terragrunt lifted `ref` out of the URL but left `depth` in place, so `git` received `...vpc.git?depth=1` and rejected it as an invalid repository name. A URL with `depth` and no `ref` hit the same failure.
 
-Terragrunt now strips `depth` alongside `ref` before invoking `git`, so these sources download again. The clone depth itself always comes from [`--cas-clone-depth`](/reference/cli/commands/run#cas-clone-depth), which defaults to `1`; a `depth` on a source URL is never applied.
+Terragrunt now strips `depth`, with or without a `ref`, before invoking `git`, so these sources download again. The clone depth itself always comes from [`--cas-clone-depth`](/reference/cli/commands/run#cas-clone-depth), which defaults to `1`; a `depth` on a source URL is never applied for CAS clones.

@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `--auth-provider-cmd` and `--queue-construct-as` reject unquoted shell operators
+
+Terragrunt splits [`--auth-provider-cmd`](/reference/cli/commands/run#auth-provider-cmd) and [`--queue-construct-as`](/reference/cli/commands/list#queue-construct-as) values into words without running a shell. An unquoted shell operator such as `|`, `;`, `&&`, or `>` used to end the value, and Terragrunt used only the words before it, so `--auth-provider-cmd 'get-creds | jq .creds'` ran `get-creds` on its own.
+
+A value with an unquoted shell operator is now an error. Quote the operator to pass it as part of an argument. To run a pipeline as the auth provider, put it in a script and pass the script.

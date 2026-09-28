@@ -1244,3 +1244,106 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 		assert.True(t, filters.HasPositiveFilter(), "Git-graph expression is a positive filter")
 	})
 }
+
+func TestFilters_RequiresReading(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		queries []string
+		want    bool
+	}{
+		{
+			name:    "no filters",
+			queries: nil,
+			want:    false,
+		},
+		{
+			name:    "path and name filters",
+			queries: []string{"./apps/*", "name=db"},
+			want:    false,
+		},
+		{
+			name:    "source filter parses but reads nothing",
+			queries: []string{"source=../modules/vpc"},
+			want:    false,
+		},
+		{
+			name:    "bare reading filter",
+			queries: []string{"reading=shared.hcl"},
+			want:    true,
+		},
+		{
+			name:    "negated reading filter",
+			queries: []string{"!reading=shared.hcl"},
+			want:    true,
+		},
+		{
+			name:    "reading filter as one operand",
+			queries: []string{"name=db | reading=shared.hcl"},
+			want:    true,
+		},
+		{
+			name:    "reading filter as a graph target",
+			queries: []string{"reading=shared.hcl..."},
+			want:    true,
+		},
+		{
+			name:    "reading filter alongside unrelated ones",
+			queries: []string{"./apps/*", "reading=shared.hcl"},
+			want:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			filters, err := filter.ParseFilterQueries(testLogger(), tc.queries)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, filters.RequiresReading())
+		})
+	}
+}
+
+func TestFilters_InlineDependentBoundaries(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		queries  []string
+		expected []string
+	}{
+		{name: "no boundary", queries: []string{"...{./app}"}},
+		{name: "dependent boundary", queries: []string{"(./live)...{./app}"}, expected: []string{"./live"}},
+		{name: "dependency boundary is skipped", queries: []string{"{./app}...(./live)"}},
+		{
+			name:     "dependent boundary of a two-way expression",
+			queries:  []string{"(./live)...{./app}...(./shared)"},
+			expected: []string{"./live"},
+		},
+		{
+			name:     "deduplicated across filters",
+			queries:  []string{"(./live)...{./app}", "(./live)...{./db}"},
+			expected: []string{"./live"},
+		},
+		{name: "negated boundary is skipped", queries: []string{"!(./live)...{./app}"}},
+		{
+			name:     "negated operand of an intersection is skipped",
+			queries:  []string{"(./live)...{./app} | !(./catalog)...{./db}"},
+			expected: []string{"./live"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			filters, err := filter.ParseFilterQueries(testLogger(), tc.queries)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected, filters.InlineDependentBoundaries())
+		})
+	}
+}

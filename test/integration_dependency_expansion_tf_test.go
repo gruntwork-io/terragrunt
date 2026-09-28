@@ -23,7 +23,7 @@ func TestTFDependencyExpansionResolvesKeyedOutputs(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt run --all apply --experiment block-iteration --non-interactive --report-file "+
+		"terragrunt run --all apply --non-interactive --report-file "+
 			helpers.ReportFile+" --working-dir "+rootPath+" -- -auto-approve",
 	)
 
@@ -48,7 +48,7 @@ func TestTFDependencyExpansionResolvesKeyedOutputs(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt output -json --experiment block-iteration --non-interactive --working-dir "+appPath,
+		"terragrunt output -json --non-interactive --working-dir "+appPath,
 	)
 	require.NoError(t, err)
 
@@ -71,7 +71,7 @@ func TestTFDependencyExpansionResolvesPerInstanceMocks(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt apply --experiment block-iteration --non-interactive --report-file "+
+		"terragrunt apply --non-interactive --report-file "+
 			helpers.ReportFile+" --working-dir "+appPath+" -- -auto-approve",
 	)
 
@@ -85,7 +85,7 @@ func TestTFDependencyExpansionResolvesPerInstanceMocks(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt output -json --experiment block-iteration --non-interactive --working-dir "+appPath,
+		"terragrunt output -json --non-interactive --working-dir "+appPath,
 	)
 	require.NoError(t, err)
 

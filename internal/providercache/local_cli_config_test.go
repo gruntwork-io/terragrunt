@@ -51,6 +51,7 @@ host "` + registry + `" {
 	require.NoError(t, pc.Init(
 		logger.CreateLogger(),
 		v,
+		tfimpl.OpenTofu,
 		&pcoptions.ProviderCacheOptions{
 			Dir:           filepath.Join(rootDir, "providers"),
 			Token:         cacheToken,

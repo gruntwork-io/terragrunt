@@ -1,2 +1,2 @@
-# Ignore lock files to allow tests to run with both Terraform and OpenTofu
+# Ignore lock files to allow tests to run with both OpenTofu and Terraform
 .terraform.lock.hcl

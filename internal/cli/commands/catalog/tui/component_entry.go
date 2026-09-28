@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 )
 
 // ComponentEntry wraps a *Component with display-only metadata that the
@@ -41,13 +42,24 @@ func (e *ComponentEntry) WithSource(source string) *ComponentEntry {
 func (e *ComponentEntry) Kind() component.Kind { return e.Component.Kind }
 
 // FilterValue implements list.Item by delegating to the inner Component.
-func (e *ComponentEntry) FilterValue() string { return e.Component.FilterValue() }
+// Sanitized like [ComponentEntry.Title] so the match offsets the list computes
+// from it line up with the title the delegate draws.
+func (e *ComponentEntry) FilterValue() string {
+	return viewtui.SanitizeLabel(e.Component.FilterValue())
+}
 
 // Title implements list.DefaultItem by delegating to the inner Component.
-func (e *ComponentEntry) Title() string { return e.Component.Title() }
+// A title comes from a README in a cloned repository, so it is sanitized for
+// the terminal here. The inner Component keeps the text as written, for output
+// that never reaches a terminal.
+func (e *ComponentEntry) Title() string {
+	return viewtui.SanitizeLabel(e.Component.Title())
+}
 
 // Description implements list.DefaultItem by delegating to the inner Component.
-func (e *ComponentEntry) Description() string { return e.Component.Description() }
+func (e *ComponentEntry) Description() string {
+	return viewtui.SanitizeLabel(e.Component.Description())
+}
 
 // Tags returns the component's tags, cached on first call so the list
 // delegate doesn't re-parse the README on every render.

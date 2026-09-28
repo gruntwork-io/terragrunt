@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -24,7 +25,7 @@ func TestCollectEmitsSpanAndMetric(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.Telemetry.TraceExporter = consoleExporter
 	opts.Telemetry.MetricExporter = consoleExporter
 
@@ -52,7 +53,7 @@ func TestCollectEmitsSpanAndMetric(t *testing.T) {
 func TestCollectPropagatesError(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.Telemetry.TraceExporter = consoleExporter
 	opts.Telemetry.MetricExporter = consoleExporter
 
@@ -74,7 +75,7 @@ func TestCollectPropagatesError(t *testing.T) {
 func TestCollectWithLoggerBindsContext(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.Telemetry.TraceExporter = consoleExporter
 
 	l := logger.CreateLogger()
@@ -107,7 +108,7 @@ func TestCollectWithLoggerBindsContext(t *testing.T) {
 func TestShutdownIdempotent(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.Telemetry.TraceExporter = consoleExporter
 	opts.Telemetry.MetricExporter = consoleExporter
 
@@ -150,7 +151,7 @@ func TestTelemeterFromContextNoOp(t *testing.T) {
 func TestContextWithTelemeterRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.Telemetry.TraceExporter = consoleExporter
 
 	tlm, err := telemetry.NewTelemeter(
@@ -169,7 +170,7 @@ func TestTelemeterConsoleOutputValidJSON(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.Telemetry.TraceExporter = consoleExporter
 	opts.Telemetry.MetricExporter = consoleExporter
 
@@ -201,7 +202,7 @@ func TestTelemeterConsoleOutputValidJSON(t *testing.T) {
 func TestNewTelemeterNoExporters(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 	tlm, err := telemetry.NewTelemeter(
 		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry, false,

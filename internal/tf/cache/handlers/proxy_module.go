@@ -100,7 +100,7 @@ func buildModulesUpstreamURL(registryName, modulesV1, restPath string) (*url.URL
 	}
 
 	return &url.URL{
-		Scheme: "https",
+		Scheme: schemeHTTPS,
 		Host:   registryName,
 		Path:   joinPath(modulesV1, restPath),
 	}, nil

@@ -2,7 +2,7 @@ package format
 
 import "fmt"
 
-// FileNeedsFormattingError is an error that is returned when a file needs formatting.
+// FileNeedsFormattingError is returned when HCL input needs formatting.
 type FileNeedsFormattingError struct {
 	Path string
 }

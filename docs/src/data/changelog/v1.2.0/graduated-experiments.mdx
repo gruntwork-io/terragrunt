@@ -1,0 +1,26 @@
+---
+version: "v1.2.0"
+category: "experiments-updated"
+---
+
+#### Eleven experiments completed
+
+The following experiments graduated to general availability in this release, and the features they gated are now enabled by default:
+
+- `azure-backend`
+- `block-iteration`
+- `bounded-discovery`
+- `catalog-format`
+- `dependency-fetch-output-from-state`
+- `mutable-generate`
+- `oci`
+- `optional-dependency-outputs`
+- `optional-hooks`
+- `profiling`
+- `version-attribute`
+
+Each feature is described in the New Features section above.
+
+The corresponding `--experiment` flags (and `TG_EXPERIMENT` values) are no longer needed. Passing one still works, but emits a warning about the completed experiment, so you can drop it at your convenience.
+
+Thank you to everyone who ran these experiments early and filed the feedback that got them here.

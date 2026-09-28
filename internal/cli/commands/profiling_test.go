@@ -8,7 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -17,35 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWrapWithProfilingRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	v := venvtest.New()
-
-	opts := options.NewTerragruntOptions()
-	opts.ProfileCPU = filepath.Join(t.TempDir(), "cpu.prof")
-
-	called := false
-	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
-	err := wrapped(t.Context(), &clihelper.Context{}, func(_ context.Context, _ *clihelper.Context) error {
-		called = true
-
-		return nil
-	})
-
-	require.ErrorIs(t, err, commands.ErrProfilingRequiresExperiment)
-	assert.False(t, called, "the wrapped action must not run when the experiment gate fails")
-
-	_, statErr := v.FS.Stat(opts.ProfileCPU)
-	assert.True(t, os.IsNotExist(statErr), "profile file must not be created without the experiment")
-}
-
 func TestWrapWithProfilingNoFlagsRunsAction(t *testing.T) {
 	t.Parallel()
 
 	v := venvtest.New()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 	called := false
 	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
@@ -64,9 +41,8 @@ func TestWrapWithProfilingWritesProfile(t *testing.T) {
 
 	v := venvtest.New()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Profiling))
 
 	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
 	err := wrapped(t.Context(), &clihelper.Context{}, func(_ context.Context, _ *clihelper.Context) error {
@@ -85,9 +61,8 @@ func TestWrapWithProfilingTightensExistingFilePermissions(t *testing.T) {
 
 	v := venvtest.New()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Profiling))
 
 	require.NoError(t, vfs.WriteFile(v.FS, opts.ProfileGoroutine, []byte("stale"), 0o644))
 

@@ -2,6 +2,7 @@ package configbridge_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
@@ -26,12 +27,10 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	t.Parallel()
 
 	opts := optionsWithDistinctValues(t)
-	v := venvtest.New()
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 	require.NotNil(t, pctx)
 
-	assert.Same(t, v, pctx.Venv, "HCL helpers shell out and read files through the venv handed to the bridge")
 	assert.Equal(t, opts.TerragruntConfigPath, pctx.TerragruntConfigPath)
 	assert.Equal(t, opts.OriginalTerragruntConfigPath, pctx.OriginalTerragruntConfigPath)
 	assert.Equal(t, opts.WorkingDir, pctx.WorkingDir)
@@ -69,13 +68,14 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.True(t, pctx.NoStackValidate)
 	assert.True(t, pctx.NoCAS)
 	assert.Equal(t, opts.CASCloneDepth, pctx.CASCloneDepth)
+	assert.True(t, pctx.CASOffline)
+	assert.True(t, pctx.CASRefresh)
+	assert.Equal(t, opts.CASProbeTTL, pctx.CASProbeTTL)
 	assert.Equal(t, opts.ScaffoldRootFileName, pctx.ScaffoldRootFileName)
 	assert.Equal(t, opts.TerragruntStackConfigPath, pctx.TerragruntStackConfigPath)
 	assert.Equal(t, opts.ProviderCacheOptions, pctx.ProviderCacheOptions)
 
-	require.NotNil(t, pctx.FeatureFlags)
-
-	flag, ok := pctx.FeatureFlags.Load("region")
+	flag, ok := pctx.FeatureFlags["region"]
 	require.True(t, ok, "feature flags supplied on the CLI must reach config parsing")
 	assert.Equal(t, "us-east-1", flag)
 }
@@ -88,7 +88,7 @@ func TestNewParsingContextPropagatesStrictControls(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, opts.StrictControls.EnableControl(controls.BareInclude))
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), venvtest.New(), opts)
+	pctx := configbridge.NewParsingContext(opts)
 
 	ctrl := pctx.StrictControls.Find(controls.BareInclude)
 	require.NotNil(t, ctrl, "strict controls must reach the parsing context")
@@ -155,12 +155,13 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	assert.True(t, runOpts.DisableBucketUpdate)
 	assert.True(t, runOpts.SourceUpdate)
 	assert.Equal(t, opts.CASCloneDepth, runOpts.CASCloneDepth)
+	assert.True(t, runOpts.CASOffline)
+	assert.True(t, runOpts.CASRefresh)
+	assert.Equal(t, opts.CASProbeTTL, runOpts.CASProbeTTL)
 	assert.True(t, runOpts.NoCAS)
 	assert.True(t, runOpts.NoHooks, "NoHooks is fed by NoRunHooks, so before/after hooks stay disabled when asked")
 
-	require.NotNil(t, runOpts.FeatureFlags)
-
-	flag, ok := runOpts.FeatureFlags.Load("region")
+	flag, ok := runOpts.FeatureFlags["region"]
 	require.True(t, ok, "feature flags supplied on the CLI must reach the runner")
 	assert.Equal(t, "us-east-1", flag)
 }
@@ -183,7 +184,7 @@ func TestShellRunOptsFromOptsCopiesEveryOption(t *testing.T) {
 
 	opts := optionsWithDistinctValues(t)
 
-	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
+	shellOpts := configbridge.ShellRunOptsFromOpts(map[string]string{}, opts)
 	require.NotNil(t, shellOpts)
 
 	assert.Equal(t, opts.WorkingDir, shellOpts.WorkingDir, "commands run in the working dir of the unit")
@@ -205,7 +206,7 @@ func TestTFRunOptsFromOptsCopiesEveryOption(t *testing.T) {
 
 	opts := optionsWithDistinctValues(t)
 
-	tfOpts := configbridge.TFRunOptsFromOpts(opts)
+	tfOpts := configbridge.TFRunOptsFromOpts(map[string]string{}, opts)
 	require.NotNil(t, tfOpts)
 
 	assert.True(t, tfOpts.JSONLogFormat)
@@ -271,7 +272,7 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	require.NoError(t, err)
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Stacks))
 
-	opts.FeatureFlags.Store("region", "us-east-1")
+	opts.FeatureFlags["region"] = "us-east-1"
 
 	opts.TerragruntConfigPath = "/copy/unit/terragrunt.hcl"
 	opts.OriginalTerragruntConfigPath = "/copy/original/terragrunt.hcl"
@@ -290,6 +291,7 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	opts.TerragruntStackConfigPath = "/copy/unit/terragrunt.stack.hcl"
 	opts.MaxFoldersToCheck = 42
 	opts.CASCloneDepth = 7
+	opts.CASProbeTTL = 90 * time.Second
 	opts.IAMRoleOptions = iam.RoleOptions{
 		RoleARN:               "arn:aws:iam::111111111111:role/resolved",
 		AssumeRoleSessionName: "resolved-session",
@@ -337,6 +339,8 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	opts.CheckDependentUnits = true
 	opts.NoStackValidate = true
 	opts.NoCAS = true
+	opts.CASOffline = true
+	opts.CASRefresh = true
 
 	return opts
 }

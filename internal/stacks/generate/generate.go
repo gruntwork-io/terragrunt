@@ -31,6 +31,9 @@ import (
 // purpose: real stack trees stay far below it.
 const DefaultMaxLevel = 1024
 
+// worktreesPerPair is the number of worktrees in a comparison pair: the from worktree and the to worktree.
+const worktreesPerPair = 2
+
 // Generator owns the per-working-directory lock for in-process GenerateStacks calls.
 type Generator struct {
 	locks    *util.KeyLocks
@@ -248,14 +251,14 @@ func generateLevel(
 		}
 
 		wp.Submit(func() error {
-			_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+			pctx := configbridge.NewParsingContext(opts)
 
 			scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, node.FilePath)
 			if err != nil {
 				return err
 			}
 
-			return config.GenerateStackFile(ctx, scopedLogger, scopedPctx, wp, node.FilePath)
+			return config.GenerateStackFile(ctx, scopedLogger, v, scopedPctx, wp, node.FilePath)
 		})
 	}
 
@@ -441,11 +444,14 @@ func ListStackFiles(
 ) ([]string, error) {
 	var discoveredComponents component.Components
 
+	stackOpts := discovery.StackGenerateOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	}
+
 	if scope != worktreeStacksOnly {
-		d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-			WorkingDir: opts.WorkingDir,
-			Filters:    opts.Filters,
-		})
+		d, err := discovery.NewForStackGenerate(l, v.FS, stackOpts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
 		}
@@ -456,7 +462,7 @@ func ListStackFiles(
 		}
 	}
 
-	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees)
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees, stackOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
 	}
@@ -480,7 +486,7 @@ func ListStackFiles(
 // of unit paths that should be excluded from the current tofu/terraform command.
 // Both results come from a single discovery walk. Stack-file paths and
 // excludedPaths keys are canonical symlink-resolved absolute paths; exclusion
-// follows discovery's IsActionListed + If logic using opts.TerraformCommand.
+// follows [config.ExcludeConfig.Excludes] for opts.TerraformCommand.
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
@@ -488,10 +494,13 @@ func ListStackFilesWithExcludes(
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
-	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-		WorkingDir: opts.WorkingDir,
-		Filters:    opts.Filters,
-	})
+	stackOpts := discovery.StackGenerateOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	}
+
+	d, err := discovery.NewForStackGenerate(l, v.FS, stackOpts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create discovery for stack generate: %w", err)
 	}
@@ -503,7 +512,7 @@ func ListStackFilesWithExcludes(
 		return nil, nil, fmt.Errorf("failed to discover stack files: %w", err)
 	}
 
-	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees)
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, v, opts, worktrees, stackOpts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get worktree stacks to generate: %w", err)
 	}
@@ -597,17 +606,25 @@ func appendStackFilePaths(
 // it also identifies which stacks are affected and records them on the Worktrees object so that the worktree
 // discovery phase can walk them for unit-level changes. A changed or added file is matched against the "to"
 // stacks; a deleted file is matched against the "from" stacks, since that is the only side where it still
-// exists.
+// exists. The stack walk boundary from stackOpts, mirrored into each worktree, restricts both sets of stacks.
 func worktreeStacksToGenerate(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	w *worktrees.Worktrees,
+	stackOpts discovery.StackGenerateOptions,
 ) (component.Components, error) {
 	// If worktrees is nil, there are no worktrees to process, return empty components.
 	if w == nil {
 		return component.Components{}, nil
+	}
+
+	boundary := discovery.WorktreeBoundary(ctx, l, v, stackOpts)
+
+	err := discovery.CheckWorktreeBoundaries(ctx, v, w, opts.Filters, opts.DiscoveryBoundary, opts.WorkingDir)
+	if err != nil {
+		return nil, err
 	}
 
 	stacksToGenerate := component.NewThreadSafeComponents(v.FS, component.Components{})
@@ -625,6 +642,11 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, stack := range editedStacks {
+		if !discovery.WithinWorktreeBoundary(v.FS, stack, boundary) {
+			l.Debugf("Skipping stack %s outside the discovery boundary", stack.Path())
+			continue
+		}
+
 		stacksToGenerate.EnsureComponent(v.FS, stack)
 	}
 
@@ -634,8 +656,7 @@ func worktreeStacksToGenerate(
 	// can walk them for unit-level changes.
 
 	g, ctx := errgroup.WithContext(ctx)
-	// Allow up to 2 generation tasks per worktree pair (at least 1), capped by available CPUs.
-	g.SetLimit(min(runtime.GOMAXPROCS(0), max(1, len(w.WorktreePairs)*2))) //nolint:mnd
+	g.SetLimit(min(runtime.GOMAXPROCS(0), max(1, len(w.WorktreePairs)*worktreesPerPair)))
 
 	var (
 		mu              sync.Mutex
@@ -674,10 +695,7 @@ func worktreeStacksToGenerate(
 	}
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters, err := pair.Expand()
-		if err != nil {
-			return nil, fmt.Errorf("failed to expand worktree pair: %w", err)
-		}
+		fromFilters, toFilters := pair.FromFilters, pair.ToFilters
 
 		// Evaluate every reading filter, not just the first: a stack matches one filter per file it reads.
 		// The from filters mix deleted-file reading filters with path filters for genuine removals, so the
@@ -705,6 +723,7 @@ func worktreeStacksToGenerate(
 				opts,
 				pair.FromWorktree,
 				len(deletedReadFilters) > 0,
+				boundary,
 			)
 			if err != nil {
 				recordErr(err)
@@ -719,6 +738,7 @@ func worktreeStacksToGenerate(
 				opts,
 				pair.ToWorktree,
 				len(toReadFilters) > 0,
+				boundary,
 			)
 			if err != nil {
 				recordErr(err)
@@ -797,7 +817,8 @@ func worktreeStacksToGenerate(
 
 // discoverStacks discovers stacks in a worktree.
 // When readFiles is true, all discovered stacks are parsed to populate their Reading
-// attribute (used by reading-affected detection).
+// attribute (used by reading-affected detection). A non-empty boundary, relative to
+// the worktree root, narrows the walk to that directory.
 func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
@@ -805,10 +826,24 @@ func discoverStacks(
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	readFiles bool,
+	boundary string,
 ) (component.Components, error) {
 	d := discovery.NewDiscovery(wt.Path).
 		WithSuppressParseErrors().
 		WithFilters(StackDiscoveryFilters(opts.Filters))
+
+	if boundary != "" {
+		walkRoot, ok, err := discovery.WorktreeWalkRoot(v.FS, wt.Path, boundary)
+		if err != nil {
+			return nil, fmt.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
+		}
+
+		if !ok {
+			return component.Components{}, nil
+		}
+
+		d = d.WithWalkRoot(walkRoot)
+	}
 
 	if readFiles {
 		d = d.WithReadFiles()

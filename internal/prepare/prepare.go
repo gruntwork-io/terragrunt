@@ -16,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
@@ -50,16 +51,16 @@ func PrepareConfig(
 	provider := externalcmd.NewProvider(
 		l,
 		opts.AuthProviderCmd,
-		configbridge.ShellRunOptsFromOpts(opts),
+		configbridge.ShellRunOptsFromOpts(v.Env, opts),
 	)
 
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
 		return nil, err
 	}
 
-	ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
-	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +108,7 @@ func PrepareSource(
 
 	optsClone.TerraformCommand = run.CommandNameTerragruntReadConfig
 
-	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = optsClone.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return run.ProcessHooks(ctx, l, v, run.ProcessHooksParams{
 			Hooks:    runCfg.Terraform.AfterHooks,
 			Opts:     configbridge.NewRunOptions(optsClone),
@@ -127,7 +128,7 @@ func PrepareSource(
 
 	credsGetter := creds.NewGetter()
 
-	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		provider := amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env)
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider)
 	}); err != nil {
@@ -160,7 +161,7 @@ func PrepareSource(
 	// When no source is specified, sourceURL will be "." (current directory).
 	err = telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "download_terraform_source", map[string]any{
-			"sourceUrl": sourceURL,
+			"sourceUrl": redact.NewURL(sourceURL),
 		}, func(ctx context.Context, l log.Logger) error {
 			updatedRunOpts, err = run.DownloadTerraformSource(
 				ctx,

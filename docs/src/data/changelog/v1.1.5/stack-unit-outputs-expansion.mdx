@@ -1,0 +1,23 @@
+---
+version: "v1.1.5"
+category: "experiments-updated"
+---
+
+#### Expanded units keep their own outputs when a whole stack is a dependency
+
+With the [`block-iteration`](/reference/experiments/active#block-iteration) experiment enabled, a `dependency` pointing at a directory that holds a `terragrunt.stack.hcl` collected the outputs of an expanded `unit` under the block's bare label. Every element wrote to that one label, so only the last one survived, and reading it returned another element's outputs.
+
+Each element is now reachable under its own key, matching the address `terragrunt stack output` already gives it:
+
+```hcl
+dependency "networking" {
+  config_path = "../live"
+}
+
+inputs = {
+  web_id = dependency.networking.outputs.aurora["web"].id
+  api_id = dependency.networking.outputs.aurora["api"].id
+}
+```
+
+A unit that declares no `expansion` is still read as `dependency.networking.outputs.vpc.id`.

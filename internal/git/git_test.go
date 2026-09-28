@@ -7,9 +7,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 )
 
 const headHash = "deadbeefcafefacedeadbeefcafefacedeadbeef"
@@ -73,7 +73,7 @@ func TestGitRunner_Clone(t *testing.T) {
 		t.Parallel()
 
 		runner := newMemRunner(t, func(context.Context, vexec.Invocation) vexec.Result {
-			t.Error("git must not be spawned when no working directory is set")
+			assert.Fail(t, "git must not be spawned when no working directory is set")
 
 			return vexec.Result{}
 		})
@@ -94,7 +94,8 @@ func TestGitRunner_Clone(t *testing.T) {
 			Stderr:   []byte("fatal: repository not found"),
 		}))
 
-		err := runner.WithWorkDir(t.TempDir()).Clone(ctx, "https://example.com/nonexistent.git", false, 1, "")
+		err := runner.WithWorkDir(t.TempDir()).
+			Clone(ctx, "https://example.com/nonexistent.git", false, 1, "")
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -201,7 +202,7 @@ func TestCreateTempDir(t *testing.T) {
 
 	gitRunner := newMemRunner(t, staticResult(vexec.Result{}))
 
-	dir, cleanup, err := gitRunner.CreateTempDir()
+	dir, cleanup, err := gitRunner.CreateTempDir(venvtest.NewOSWithEmptyEnv())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, cleanup())
@@ -283,7 +284,10 @@ func TestGitRunner_FetchInsertsOptionTerminator(t *testing.T) {
 
 	require.NoError(t, runner.Fetch(t.Context(), "file:///repo", "somebranch", 1))
 	assert.Equal(t,
-		[]string{"fetch", "--depth", "1", "--no-tags", "--", "file:///repo", "somebranch"},
+		[]string{
+			"-c", "maintenance.auto=false", "-c", "gc.auto=0",
+			"fetch", "--depth", "1", "--no-tags", "--", "file:///repo", "somebranch",
+		},
 		got,
 	)
 }
@@ -357,14 +361,6 @@ func TestGitRunner_ArgvConstruction(t *testing.T) {
 			want: []string{"cat-file", "-e", headHash},
 		},
 		{
-			name: "repo root",
-			invoke: func(ctx context.Context, r *git.GitRunner) error {
-				_, err := r.GetRepoRoot(ctx)
-				return err
-			},
-			want: []string{"rev-parse", "--show-toplevel"},
-		},
-		{
 			name: "add",
 			invoke: func(ctx context.Context, r *git.GitRunner) error {
 				return r.Add(ctx, "a.txt", "b.txt")
@@ -415,44 +411,12 @@ func TestGitRunner_ArgvConstruction(t *testing.T) {
 	}
 }
 
-func TestGitRunner_WithWorkDirGetRepoRootWithRacing(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	runner := newMemRunner(t, staticResult(vexec.Result{Stdout: []byte(dir + "\n")}))
-	runner = runner.WithWorkDir(dir)
-
-	// GetRepoRoot memoizes on first success, so only that first call writes.
-	// Derive a fresh runner per round and race the memoizing call against a
-	// concurrent WithWorkDir copy of the same runner.
-	const rounds = 50
-
-	g, ctx := errgroup.WithContext(t.Context())
-
-	for range rounds {
-		fresh := runner.WithWorkDir(dir)
-
-		g.Go(func() error {
-			_, err := fresh.GetRepoRoot(ctx)
-
-			return err
-		})
-
-		g.Go(func() error {
-			return fresh.WithWorkDir(dir).RequiresWorkDir()
-		})
-	}
-
-	require.NoError(t, g.Wait())
-}
-
 // newMemRunner returns a runner backed by an in-memory exec dispatching every
 // git invocation to h.
 func newMemRunner(t *testing.T, h vexec.Handler) *git.GitRunner {
 	t.Helper()
 
-	r, err := git.NewGitRunner(vexec.NewMemExec(h))
+	r, err := git.NewGitRunner(venvtest.New().WithExec(vexec.NewMemExec(h)))
 	require.NoError(t, err)
 
 	return r
@@ -476,8 +440,163 @@ func newArgvCapturingRunner(t *testing.T, captured *[]string, stdout []byte) *gi
 		return vexec.Result{Stdout: stdout}
 	})
 
-	r, err := git.NewGitRunner(e)
+	r, err := git.NewGitRunner(venvtest.New().WithExec(e))
 	require.NoError(t, err)
 
 	return r
+}
+
+func TestFetchMatch(t *testing.T) {
+	t.Parallel()
+
+	const (
+		tagHash     = "1111111111111111111111111111111111111111"
+		branchHash  = "2222222222222222222222222222222222222222"
+		releaseHash = "3333333333333333333333333333333333333333"
+	)
+
+	tests := []struct {
+		want     git.LsRemoteResult
+		name     string
+		ref      string
+		wantRule git.FetchRule
+		results  []git.LsRemoteResult
+		wantOK   bool
+	}{
+		{
+			name: "tag wins over branch ending in its name",
+			ref:  "v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: releaseHash, Ref: "refs/heads/release/v1.2.3"},
+				{Hash: tagHash, Ref: "refs/tags/v1.2.3"},
+			},
+			want:     git.LsRemoteResult{Hash: tagHash, Ref: "refs/tags/v1.2.3"},
+			wantRule: "refs/tags/%s",
+			wantOK:   true,
+		},
+		{
+			name: "tag wins over branch of the same name",
+			ref:  "v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: branchHash, Ref: "refs/heads/v1.2.3"},
+				{Hash: tagHash, Ref: "refs/tags/v1.2.3"},
+			},
+			want:     git.LsRemoteResult{Hash: tagHash, Ref: "refs/tags/v1.2.3"},
+			wantRule: "refs/tags/%s",
+			wantOK:   true,
+		},
+		{
+			name: "branch wins over branch ending in its name",
+			ref:  "main",
+			results: []git.LsRemoteResult{
+				{Hash: releaseHash, Ref: "refs/heads/feature/main"},
+				{Hash: branchHash, Ref: "refs/heads/main"},
+			},
+			want:     git.LsRemoteResult{Hash: branchHash, Ref: "refs/heads/main"},
+			wantRule: "refs/heads/%s",
+			wantOK:   true,
+		},
+		{
+			name: "hex branch name matches its branch",
+			ref:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			results: []git.LsRemoteResult{
+				{Hash: branchHash, Ref: "refs/heads/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			},
+			want:     git.LsRemoteResult{Hash: branchHash, Ref: "refs/heads/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			wantRule: "refs/heads/%s",
+			wantOK:   true,
+		},
+		{
+			name: "full ref name matches itself",
+			ref:  "refs/heads/v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: branchHash, Ref: "refs/heads/v1.2.3"},
+			},
+			want:     git.LsRemoteResult{Hash: branchHash, Ref: "refs/heads/v1.2.3"},
+			wantRule: "%s",
+			wantOK:   true,
+		},
+		{
+			name: "HEAD matches itself",
+			ref:  "HEAD",
+			results: []git.LsRemoteResult{
+				{Hash: branchHash, Ref: "HEAD"},
+			},
+			want:     git.LsRemoteResult{Hash: branchHash, Ref: "HEAD"},
+			wantRule: "%s",
+			wantOK:   true,
+		},
+		{
+			name: "tail match alone is not a match",
+			ref:  "v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: releaseHash, Ref: "refs/heads/release/v1.2.3"},
+			},
+		},
+		{
+			name: "peeled tag entry is not a match",
+			ref:  "v1.2.3",
+			results: []git.LsRemoteResult{
+				{Hash: tagHash, Ref: "refs/tags/v1.2.3^{}"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, rule, ok := git.FetchMatch(tt.results, tt.ref)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantRule, rule)
+		})
+	}
+}
+
+func TestParseFetchRule(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  string
+		ref    string
+		want   string
+		wantOK bool
+	}{
+		{
+			name:   "tag rule expands to the tag",
+			input:  "refs/tags/%s",
+			ref:    "v1.2.3",
+			want:   "refs/tags/v1.2.3",
+			wantOK: true,
+		},
+		{
+			name:   "exact rule expands to the ref itself",
+			input:  "%s",
+			ref:    "HEAD",
+			want:   "HEAD",
+			wantOK: true,
+		},
+		{
+			name:  "pattern git fetch does not try is rejected",
+			input: "refs/%s/%s",
+		},
+		{
+			name: "empty rule is rejected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rule, ok := git.ParseFetchRule(tt.input)
+			require.Equal(t, tt.wantOK, ok)
+
+			if ok {
+				assert.Equal(t, tt.want, rule.Expand(tt.ref))
+			}
+		})
+	}
 }

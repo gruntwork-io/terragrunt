@@ -5,15 +5,10 @@
 
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
-import {
-	compareVersionsDesc,
-	entriesForVersion,
-	groupByCategory,
-	isReleased,
-	uniqueVersions,
-} from '@lib/changelog';
-import { getLatestRelease } from '@lib/github';
+import { entriesForVersion, groupByCategory, uniqueVersions } from '@lib/changelog';
+import { getLatestVersion } from '@lib/release';
 import { markdownDocument } from '@lib/page-to-markdown';
+import { compareVersionsDesc, isReleased } from '@lib/versions';
 
 export const prerender = true;
 
@@ -21,8 +16,7 @@ const RELEASES_URL = 'https://github.com/gruntwork-io/terragrunt/releases';
 
 export const GET: APIRoute = async () => {
 	const showUnreleased = import.meta.env.DEV;
-	const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
-	const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+	const latestVersion = await getLatestVersion();
 
 	const allEntries = await getCollection('changelog');
 	const versions = uniqueVersions(allEntries)

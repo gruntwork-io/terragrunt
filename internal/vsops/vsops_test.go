@@ -40,14 +40,14 @@ func TestFormatForPath(t *testing.T) {
 func TestMemDecrypterDispatchesToHandler(t *testing.T) {
 	t.Parallel()
 
-	d := vsops.NewMemDecrypter(func(path, format string) ([]byte, error) {
+	d := vsops.NewMemDecrypter(func(_ map[string]string, path, format string) ([]byte, error) {
 		assert.Equal(t, "secrets.env", path)
 		assert.Equal(t, "dotenv", format)
 
 		return []byte("value=cleartext"), nil
 	})
 
-	data, err := d.DecryptFile("secrets.env", "dotenv")
+	data, err := d.DecryptFile(map[string]string{}, "secrets.env", "dotenv")
 	require.NoError(t, err)
 	assert.Equal(t, "value=cleartext", string(data))
 }
@@ -57,11 +57,11 @@ func TestMemDecrypterReturnsHandlerError(t *testing.T) {
 
 	handlerErr := errors.New("no data key")
 
-	d := vsops.NewMemDecrypter(func(string, string) ([]byte, error) {
+	d := vsops.NewMemDecrypter(func(map[string]string, string, string) ([]byte, error) {
 		return nil, handlerErr
 	})
 
-	data, err := d.DecryptFile("secrets.json", "json")
+	data, err := d.DecryptFile(map[string]string{}, "secrets.json", "json")
 	require.ErrorIs(t, err, handlerErr)
 	assert.Nil(t, data)
 }
@@ -79,7 +79,7 @@ func TestOSDecrypterMissingFile(t *testing.T) {
 
 	d := vsops.NewOSDecrypter()
 
-	_, err := d.DecryptFile(filepath.Join(t.TempDir(), "missing.json"), "json")
+	_, err := d.DecryptFile(map[string]string{}, filepath.Join(t.TempDir(), "missing.json"), "json")
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
@@ -91,6 +91,6 @@ func TestOSDecrypterFileWithoutSopsMetadata(t *testing.T) {
 
 	d := vsops.NewOSDecrypter()
 
-	_, err := d.DecryptFile(path, "json")
+	_, err := d.DecryptFile(map[string]string{}, path, "json")
 	require.Error(t, err)
 }

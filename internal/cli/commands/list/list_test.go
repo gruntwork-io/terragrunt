@@ -10,7 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -56,12 +56,12 @@ func TestBasicDiscovery(t *testing.T) {
 
 	expectedPaths := []string{"unit1", "unit2", filepath.Join("nested", "unit4"), "stack1"}
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = tmpDir
 
 	// Create options
 	opts := list.NewOptions(tgOpts)
-	opts.Format = "text" //nolint: goconst
+	opts.Format = "text"
 	opts.Mode = "normal"
 	opts.NoHidden = true
 	opts.Dependencies = false
@@ -139,7 +139,7 @@ func TestHiddenDiscovery(t *testing.T) {
 		"stack1", filepath.Join(".hidden", "unit3"),
 	}
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -212,7 +212,7 @@ dependency "unit2" {
 
 	expectedPaths := []string{"unit1", "unit2", "unit3"}
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -221,7 +221,7 @@ dependency "unit2" {
 	// Create options
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text"
-	opts.Mode = "dag" //nolint: goconst
+	opts.Mode = "dag"
 	opts.Dependencies = true
 
 	// Create a pipe to capture output
@@ -287,7 +287,7 @@ dependency "unit3" {
 
 	expectedPaths := []string{"unit3", "unit2", "unit1"}
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -296,7 +296,7 @@ dependency "unit3" {
 	// Create options
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text"
-	opts.Mode = "dag" //nolint: goconst
+	opts.Mode = "dag"
 	opts.Dependencies = true
 
 	// Create a pipe to capture output
@@ -400,7 +400,7 @@ dependency "C" {
 
 	expectedPaths := []string{"A", "B", "C", "D", "E", "F"}
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -410,7 +410,7 @@ dependency "C" {
 	// Create options
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text"
-	opts.Mode = "dag" //nolint: goconst
+	opts.Mode = "dag"
 	opts.Dependencies = true
 
 	// Create a pipe to capture output
@@ -565,7 +565,7 @@ dependency "unit1" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -625,7 +625,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -698,7 +698,7 @@ dependency "unit2" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -776,7 +776,7 @@ dependency "unit2" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -847,7 +847,7 @@ dependency "unit1" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -914,9 +914,9 @@ exclude {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
-	expectedPaths := []string{filepath.Join("001", "unit1"), filepath.Join("001", "unit3")}
+	expectedPaths := []string{"001/unit1", "001/unit3"}
 
 	fields := strings.Fields(outputStr)
 
@@ -996,7 +996,7 @@ dependency "unit3" {
 	output, err := io.ReadAll(r)
 	require.NoError(t, err)
 
-	outputStr := string(output)
+	outputStr := filepath.ToSlash(string(output))
 
 	assert.Equal(
 		t,
@@ -1039,7 +1039,7 @@ func TestLongFormat(t *testing.T) {
 			t.Parallel()
 
 			root := "/list-long"
-			fsys := newUnitsFS(t, root, map[string]string{
+			fsys := venvtest.NewFS(t, root, map[string]string{
 				"alpha/terragrunt.hcl": `
 dependency "zulu" {
   config_path = "../zulu"
@@ -1048,7 +1048,7 @@ dependency "zulu" {
 				"zulu/terragrunt.hcl": "",
 			})
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1096,7 +1096,7 @@ func TestTreeFormat(t *testing.T) {
 			t.Parallel()
 
 			root := "/list-tree"
-			fsys := newUnitsFS(t, root, map[string]string{
+			fsys := venvtest.NewFS(t, root, map[string]string{
 				// The unit at the root of the walk has path ".", which the segment tree cannot hang.
 				"terragrunt.hcl": "",
 				"alpha/terragrunt.hcl": `
@@ -1107,7 +1107,7 @@ dependency "zulu" {
 				"nested/zulu/terragrunt.hcl": "",
 			})
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1131,12 +1131,12 @@ func TestTextFormatGivesAWidePathItsOwnLine(t *testing.T) {
 	t.Parallel()
 
 	root := "/list-wide"
-	fsys := newUnitsFS(t, root, map[string]string{
+	fsys := venvtest.NewFS(t, root, map[string]string{
 		filepath.Join(widePathPrefix, "one", "terragrunt.hcl"): "",
 		filepath.Join(widePathPrefix, "two", "terragrunt.hcl"): "",
 	})
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -1183,9 +1183,9 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 			t.Parallel()
 
 			root := "/list-invalid"
-			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1223,9 +1223,9 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			t.Parallel()
 
 			root := "/list-writer"
-			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1253,22 +1253,6 @@ func (failingWriter) Write([]byte) (int, error) {
 	return 0, errWriteFailed
 }
 
-// newUnitsFS returns an in-memory filesystem holding files, each path relative to root.
-func newUnitsFS(t *testing.T, root string, files map[string]string) vfs.FS {
-	t.Helper()
-
-	fsys := vfs.NewMemMapFS()
-
-	for path, content := range files {
-		require.NoError(
-			t,
-			vfs.WriteFile(fsys, filepath.Join(root, path), []byte(content), 0o644),
-		)
-	}
-
-	return fsys
-}
-
 // newTestLogger returns a logger with colors off, so output is comparable byte for byte.
 func newTestLogger(t *testing.T) log.Logger {
 	t.Helper()
@@ -1294,4 +1278,101 @@ func treeLabels(output string) []string {
 	}
 
 	return labels
+}
+
+// TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse pins that an exclude
+// block only drops a unit from the output when its `if` is true.
+func TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse(t *testing.T) {
+	t.Parallel()
+
+	root := "/list-exclude-if"
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"dropped/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"kept/terragrunt.hcl": `
+exclude {
+  if      = false
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"plain/terragrunt.hcl": "",
+	})
+
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	opts := list.NewOptions(tgOpts)
+	opts.Format = list.FormatText
+	opts.QueueConstructAs = "apply"
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+
+	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
+}
+
+// TestDotFormatOnlyColorsDependenciesWhoseExcludeIfIsTrue pins that a dependency
+// with a false `if` in its exclude block is drawn as a plain node.
+func TestDotFormatOnlyColorsDependenciesWhoseExcludeIfIsTrue(t *testing.T) {
+	t.Parallel()
+
+	root := "/list-exclude-if-dot"
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"app/terragrunt.hcl": `
+dependency "dropped" {
+  config_path = "../dropped"
+}
+
+dependency "kept" {
+  config_path = "../kept"
+}
+`,
+		"dropped/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["apply"]
+}
+`,
+		"kept/terragrunt.hcl": `
+exclude {
+  if      = false
+  actions = ["apply"]
+}
+`,
+	})
+
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	opts := list.NewOptions(tgOpts)
+	opts.Format = list.FormatDot
+	opts.Mode = list.ModeDAG
+	opts.Dependencies = true
+	opts.QueueConstructAs = "apply"
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+
+	assert.Equal(
+		t,
+		`digraph {
+	"app" ;
+	"app" -> "dropped";
+	"app" -> "kept";
+	"dropped" [color=red];
+	"kept" ;
+}
+`,
+		buf.String(),
+	)
 }

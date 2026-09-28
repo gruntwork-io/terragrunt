@@ -32,9 +32,9 @@ func runDelete(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) error {
-	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
-	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
 	if err != nil || remoteState == nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func runDelete(
 			ctx,
 			l,
 			v,
-			configbridge.RemoteStateOptsFromOpts(opts),
+			configbridge.RemoteStateOptsFromOpts(v.Env, opts),
 		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
@@ -63,7 +63,7 @@ func runDelete(
 		return fmt.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
-	return remoteState.Delete(ctx, l, v, configbridge.RemoteStateOptsFromOpts(opts))
+	return remoteState.Delete(ctx, l, v, configbridge.RemoteStateOptsFromOpts(v.Env, opts))
 }
 
 func runAll(

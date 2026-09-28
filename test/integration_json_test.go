@@ -1,7 +1,6 @@
 package test_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -412,30 +411,4 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
-}
-
-func TestTerragruntRenderJsonHelp(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackend)
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
-	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
-
-	showStdout := bytes.Buffer{}
-	showStderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(
-		t,
-		"terragrunt render --help --non-interactive --working-dir "+rootPath,
-		&showStdout,
-		&showStderr,
-	)
-	require.NoError(t, err)
-
-	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
-
-	output := showStdout.String()
-
-	assert.Contains(t, output, "terragrunt render")
-	assert.Contains(t, output, "--with-metadata")
 }

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -38,23 +37,6 @@ func requireTrapReady(t *testing.T, readyPath string) {
 
 		return err == nil
 	}, 10*time.Second, 10*time.Millisecond, "child never wrote the trap-ready marker")
-}
-
-// requireInterruptCount blocks until the subprocess records that its INT trap has run
-// want times.
-func requireInterruptCount(t *testing.T, readyPath string, want int) {
-	t.Helper()
-
-	require.Eventually(t, func() bool {
-		content, err := os.ReadFile(readyPath)
-		if err != nil {
-			return false
-		}
-
-		got, err := strconv.Atoi(strings.TrimSpace(string(content)))
-
-		return err == nil && got == want
-	}, 10*time.Second, 10*time.Millisecond, "child never acknowledged interrupt %d", want)
 }
 
 func TestExitCodeUnix(t *testing.T) {
@@ -106,7 +88,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 		readyPath,
 	)
 
-	runChannel := make(chan error)
+	runChannel := make(chan error, 1)
 
 	go func() {
 		runChannel <- cmd.Run(l)
@@ -134,46 +116,6 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	)
 }
 
-// There isn't a proper way to catch interrupts in Windows batch scripts, so this test exists only for Unix.
-func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
-	t.Parallel()
-
-	expectedInterrupts := 4
-
-	l := logger.CreateLogger()
-
-	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
-
-	cmd := exec.Command(
-		t.Context(), venvtest.New().WithExec(vexec.NewOSExec()),
-		"testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts), readyPath,
-	)
-
-	runChannel := make(chan error)
-
-	go func() {
-		runChannel <- cmd.Run(l)
-	}()
-
-	requireInterruptCount(t, readyPath, 0)
-
-	// Bash defers its trap until the running `sleep` returns, so two signals delivered within
-	// one sleep window collapse into a single handler run. Waiting for the child to
-	// acknowledge each interrupt before sending the next keeps the count exact.
-	for interrupts := 1; interrupts <= expectedInterrupts; interrupts++ {
-		cmd.SendSignal(l, os.Interrupt)
-
-		requireInterruptCount(t, readyPath, interrupts)
-	}
-
-	err := <-runChannel
-	require.Error(t, err)
-
-	retCode, err := util.GetExitCode(err)
-	require.NoError(t, err)
-	assert.Equal(t, expectedInterrupts, retCode, "Subprocess didn't receive multiple signals")
-}
-
 // TestGracefulShutdownOnContextCancelUnix verifies that when the context is cancelled
 // without a signal cause, the Cancel callback sends SIGINT (not SIGKILL) to allow
 // processes like Terraform to gracefully shutdown their child processes.
@@ -197,7 +139,7 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 
 	cmd.Configure(exec.WithGracefulShutdownDelay(5 * time.Second))
 
-	runChannel := make(chan error)
+	runChannel := make(chan error, 1)
 
 	go func() {
 		runChannel <- cmd.Run(l)

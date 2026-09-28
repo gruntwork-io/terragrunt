@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/puzpuzpuz/xsync/v4"
-
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
@@ -18,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -48,7 +45,7 @@ type Options struct {
 	EngineConfig                 *engine.EngineConfig
 	EngineOptions                *engine.EngineOptions
 	Errors                       *errorconfig.Config
-	FeatureFlags                 *xsync.Map[string, string]
+	FeatureFlags                 map[string]string
 	Telemetry                    *telemetry.Options
 	SourceMap                    map[string]string
 	TFPath                       string
@@ -70,7 +67,10 @@ type Options struct {
 	StrictControls               strict.Controls
 	MaxFoldersToCheck            int
 	CASCloneDepth                int
+	CASProbeTTL                  time.Duration
 	NoCAS                        bool
+	CASOffline                   bool
+	CASRefresh                   bool
 	NoHooks                      bool
 	TofuCPUProfileUserSet        bool
 	AutoRetry                    bool
@@ -112,7 +112,7 @@ func (o *Options) CloneWithConfigPath(
 
 	workingDir := filepath.Dir(configPath)
 
-	if workingDir != o.CacheDir {
+	if configPath != filepath.Clean(o.TerragruntConfigPath) {
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 	}
 
@@ -195,8 +195,8 @@ func (o *Options) DataDir(env map[string]string) string {
 }
 
 // shellRunOptions builds a *shell.ShellOptions from this Options.
-func (o *Options) shellRunOptions() *shell.ShellOptions {
-	s := shell.NewShellOptions().
+func (o *Options) shellRunOptions(env map[string]string) *shell.ShellOptions {
+	s := shell.NewShellOptions(env).
 		WithWorkingDir(o.CacheDir).
 		WithUnitDir(o.UnitDir).
 		WithTelemetry(o.Telemetry).
@@ -213,35 +213,34 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 }
 
 // tfRunOptions builds a *tf.TFOptions from this Options.
-func (o *Options) tfRunOptions() *tf.TFOptions {
+func (o *Options) tfRunOptions(env map[string]string) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                o.JSONLogFormat,
 		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         o.TerragruntConfigPath,
 		TofuImplementation:           o.TofuImplementation,
 		TerraformCliArgs:             o.TerraformCliArgs,
-		ShellOptions:                 o.shellRunOptions(),
+		ShellOptions:                 o.shellRunOptions(env),
 	}
 }
 
 // remoteStateOpts builds a *remotestate.Options from this Options.
-func (o *Options) remoteStateOpts() *remotestate.Options {
+func (o *Options) remoteStateOpts(env map[string]string) *remotestate.Options {
 	return &remotestate.Options{
-		Options: backend.Options{
-			Experiments:                  o.Experiments,
-			IAMRoleOptions:               o.IAMRoleOptions,
-			NonInteractive:               o.NonInteractive,
-			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
-		},
-		TFRunOpts:           o.tfRunOptions(),
-		DisableBucketUpdate: o.DisableBucketUpdate,
+		Experiments:                  o.Experiments,
+		IAMRoleOptions:               o.IAMRoleOptions,
+		StrictControls:               o.StrictControls,
+		NonInteractive:               o.NonInteractive,
+		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
+		TFRunOpts:                    o.tfRunOptions(env),
+		DisableBucketUpdate:          o.DisableBucketUpdate,
 	}
 }
 
 // tflintRunOptions builds a *tflint.TFLintOptions from this Options.
-func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
+func (o *Options) tflintRunOptions(env map[string]string) *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
-		ShellOptions:         o.shellRunOptions(),
+		ShellOptions:         o.shellRunOptions(env),
 		LogShowAbsPaths:      o.LogShowAbsPaths,
 		WorkingDir:           o.CacheDir,
 		RootWorkingDir:       o.RootWorkingDir,
@@ -279,8 +278,7 @@ func (o *Options) RunWithErrorHandling(
 
 		action, recoveryErr := o.Errors.AttemptErrorRecovery(l, err, currentAttempt)
 		if recoveryErr != nil {
-			var maxAttemptsReachedError *errorconfig.MaxAttemptsReachedError
-			if errors.As(recoveryErr, &maxAttemptsReachedError) {
+			if maxAttemptsReachedError, ok := errors.AsType[*errorconfig.MaxAttemptsReachedError](recoveryErr); ok {
 				return maxAttemptsReachedError
 			}
 

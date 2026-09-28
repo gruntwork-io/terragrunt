@@ -11,13 +11,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+	"uuid"
 
 	"maps"
 
 	"errors"
 
-	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
@@ -92,6 +93,9 @@ type ProviderCache struct {
 	opts            *pcoptions.ProviderCacheOptions
 	cliCfg          *cliconfig.Config
 	providerService *services.ProviderService
+	implementation  tfimpl.Type
+	configShared    bool
+	mismatchWarning sync.Once
 }
 
 // NewProviderCache creates an uninitialized ProviderCache; call
@@ -104,13 +108,16 @@ func NewProviderCache() *ProviderCache {
 // options. v supplies the filesystem and outbound HTTP client for all
 // cache-server traffic; there are no defaults, so a missed wiring fails
 // loudly instead of silently reaching the real network or filesystem.
+// impl selects which implementation's CLI config files the user config is read from.
 func (pc *ProviderCache) Init(
 	l log.Logger,
 	v *venv.Venv,
+	impl tfimpl.Type,
 	pcOpts *pcoptions.ProviderCacheOptions,
 	rootWorkingDir string,
 ) error {
 	pc.opts = pcOpts
+	pc.implementation = impl
 
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
@@ -137,13 +144,17 @@ func (pc *ProviderCache) Init(
 		pcOpts.Token = fmt.Sprintf("%s:%s", APIKeyAuth, pcOpts.Token)
 	}
 
-	// Pass filesystem to LoadUserConfig
-	cliCfg, err := cliconfig.LoadUserConfig(v.FS)
+	cliCfg, err := cliconfig.LoadUserConfig(v, impl)
 	if err != nil {
 		return err
 	}
 
-	userProviderDir, err := cliconfig.UserProviderDir()
+	userProviderDir, err := cliconfig.UserProviderDir(v, impl)
+	if err != nil {
+		return err
+	}
+
+	configShared, err := sharedUserConfig(v, impl)
 	if err != nil {
 		return err
 	}
@@ -153,11 +164,11 @@ func (pc *ProviderCache) Init(
 	providerService := services.NewProviderService(
 		pcOpts.Dir,
 		userProviderDir,
-		cliCfg.CredentialsSource(),
+		cliCfg.CredentialsSource(v.Env),
 		l,
 		v,
 	)
-	proxyProviderHandler := handlers.NewProxyProviderHandler(l, v.HTTP, cliCfg.CredentialsSource())
+	proxyProviderHandler := handlers.NewProxyProviderHandler(l, v.HTTP, cliCfg.CredentialsSource(v.Env))
 
 	// Custom hosts need handlers, but must not pollute pcOpts.RegistryNames — FilterRegistriesByImplementation
 	// relies on that slice containing only the standard registries to detect impl-based filtering.
@@ -168,6 +179,8 @@ func (pc *ProviderCache) Init(
 		cliCfg,
 		l,
 		v.HTTP,
+		v.FS,
+		v.Env,
 		registryNamesForHandlers,
 	)
 	if err != nil {
@@ -181,7 +194,7 @@ func (pc *ProviderCache) Init(
 	proxyModuleHandler := handlers.NewProxyModuleHandler(
 		l,
 		v.HTTP,
-		cliCfg.CredentialsSource(),
+		cliCfg.CredentialsSource(v.Env),
 		providerHandlers,
 		registryNamesForHandlers,
 	)
@@ -201,8 +214,45 @@ func (pc *ProviderCache) Init(
 	pc.Server = cacheServer
 	pc.cliCfg = cliCfg
 	pc.providerService = providerService
+	pc.configShared = configShared
 
 	return nil
+}
+
+// sharedUserConfig reports whether the implementation other than impl reads the
+// same CLI config files and provider directory, in which case a run under either
+// implementation can use the config Init loaded.
+func sharedUserConfig(v *venv.Venv, impl tfimpl.Type) (bool, error) {
+	other := tfimpl.Terraform
+	if impl == tfimpl.Terraform {
+		other = tfimpl.OpenTofu
+	}
+
+	paths, err := cliconfig.UserConfigPaths(v, impl)
+	if err != nil {
+		return false, err
+	}
+
+	otherPaths, err := cliconfig.UserConfigPaths(v, other)
+	if err != nil {
+		return false, err
+	}
+
+	if !slices.Equal(paths, otherPaths) {
+		return false, nil
+	}
+
+	providerDir, err := cliconfig.UserProviderDir(v, impl)
+	if err != nil {
+		return false, err
+	}
+
+	otherProviderDir, err := cliconfig.UserProviderDir(v, other)
+	if err != nil {
+		return false, err
+	}
+
+	return providerDir == otherProviderDir, nil
 }
 
 // InitServer creates and initializes a new ProviderCache backed by v's
@@ -210,11 +260,12 @@ func (pc *ProviderCache) Init(
 func InitServer(
 	l log.Logger,
 	v *venv.Venv,
+	impl tfimpl.Type,
 	pcOpts *pcoptions.ProviderCacheOptions,
 	rootWorkingDir string,
 ) (*ProviderCache, error) {
 	pc := NewProviderCache()
-	if err := pc.Init(l, v, pcOpts, rootWorkingDir); err != nil {
+	if err := pc.Init(l, v, impl, pcOpts, rootWorkingDir); err != nil {
 		return nil, err
 	}
 
@@ -259,6 +310,15 @@ func (pc *ProviderCache) TerraformCommandHook(
 	default:
 		// skip cache creation for all other commands
 		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
+	}
+
+	// A mismatched implementation must not consume the wrong CLI config, so run without the cache.
+	if !pc.configShared {
+		if warning := ImplementationMismatchWarning(pc.implementation, tfOpts.TofuImplementation); warning != "" {
+			pc.mismatchWarning.Do(func() { l.Warn(warning) })
+
+			return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
+		}
 	}
 
 	cacheEnvV := v.WithEnv(
@@ -314,7 +374,7 @@ func (pc *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
-	l.Infof("Caching terraform providers for %s", tfOpts.ShellOptions.WorkingDir)
+	l.Infof("Caching providers for %s", tfOpts.ShellOptions.WorkingDir)
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
@@ -331,6 +391,8 @@ func (pc *ProviderCache) warmUpCache(
 	}
 
 	providerConstraints, err := getproviders.ParseProviderConstraints(
+		v.FS,
+		v.Env,
 		tfOpts.TofuImplementation,
 		filepath.Dir(tfOpts.TerragruntConfigPath),
 	)
@@ -386,7 +448,7 @@ func (pc *ProviderCache) warmUpCache(
 		}
 	}
 
-	err = getproviders.UpdateLockfile(ctx, tfOpts.ShellOptions.WorkingDir, caches)
+	err = getproviders.UpdateLockfile(ctx, v.FS, tfOpts.ShellOptions.WorkingDir, caches)
 	if err != nil {
 		return nil, err
 	}
@@ -400,6 +462,7 @@ func (pc *ProviderCache) warmUpCache(
 
 		err = getproviders.UpdateLockfileConstraints(
 			ctx,
+			v.FS,
 			tfOpts.ShellOptions.WorkingDir,
 			providerConstraints,
 		)
@@ -678,7 +741,7 @@ func (pc *ProviderCache) runTerraformCommand(
 
 	err := util.DoWithRetry(
 		ctx,
-		"Running terraform providers lock",
+		fmt.Sprintf("Running %s providers lock", filepath.Base(shellOpts.TFPath)),
 		registryRetryMaxAttempts,
 		registryRetrySleepInterval,
 		l,
@@ -760,7 +823,8 @@ func (pc *ProviderCache) providerCacheEnvironment(
 	envs := make(map[string]string, len(env))
 	maps.Copy(envs, env)
 
-	// Filter registries based on OpenTofu or Terraform implementation to avoid setting env vars for unnecessary registries
+	// Filter registries based on the OpenTofu/Terraform implementation
+	// to avoid setting env vars for unnecessary registries
 	filteredRegistryNames := FilterRegistriesByImplementation(
 		pc.opts.RegistryNames,
 		implementation,
@@ -864,6 +928,39 @@ func StripProxiedCredentials(
 	}
 
 	return out
+}
+
+// ImplementationMismatchWarning returns the warning to log when a run's implementation reads
+// different CLI config files than the ones the cache server loaded at startup, or "" when the
+// two agree. Anything but Terraform reads OpenTofu's file locations, so only crossing that
+// boundary warrants a warning; the hook then bypasses the cache for that run, unless the two
+// implementations resolve to the same files on this machine.
+func ImplementationMismatchWarning(serverImpl, runImpl tfimpl.Type) string {
+	if runImpl == "" || runImpl == tfimpl.Unknown {
+		return ""
+	}
+
+	if (serverImpl == tfimpl.Terraform) == (runImpl == tfimpl.Terraform) {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"The Terragrunt provider cache server loaded the CLI config files %s reads, but this run uses %s, "+
+			"so the run skips the provider cache and uses its own CLI configuration. "+
+			"To cache providers for %s, set --tf-path or TG_TF_PATH to that binary, or align terraform_binary in your unit configuration.",
+		implementationFileOrder(serverImpl),
+		runImpl,
+		runImpl,
+	)
+}
+
+// implementationFileOrder names the CLI-config file set an implementation reads, for log messages.
+func implementationFileOrder(impl tfimpl.Type) string {
+	if impl == tfimpl.Terraform {
+		return string(tfimpl.Terraform)
+	}
+
+	return string(tfimpl.OpenTofu)
 }
 
 // AppendCustomHostRegistries adds custom host names from user config to the registry list

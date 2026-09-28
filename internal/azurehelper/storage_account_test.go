@@ -1,5 +1,3 @@
-//go:build azure
-
 package azurehelper_test
 
 import (
@@ -126,7 +124,11 @@ func TestStorageAccount_Delete_NotFoundIsNoop(t *testing.T) {
 	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
 	require.NoError(t, err, "setup")
 
-	require.NoError(t, sc.EnsureDeleted(t.Context(), log.New()), "delete on a missing account must be a no-op")
+	require.NoError(
+		t,
+		sc.EnsureDeleted(t.Context(), log.New()),
+		"delete on a missing account must be a no-op",
+	)
 }
 
 func TestStorageAccount_Create_RequiresLocation(t *testing.T) {
@@ -138,7 +140,11 @@ func TestStorageAccount_Create_RequiresLocation(t *testing.T) {
 	require.NoError(t, err, "setup")
 
 	// location is user supplied, so a missing value is a user error.
-	require.ErrorIs(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{}), azurehelper.ErrLocationRequired)
+	require.ErrorIs(
+		t,
+		sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{}),
+		azurehelper.ErrLocationRequired,
+	)
 }
 
 func TestStorageAccount_Create_NameMismatch(t *testing.T) {
@@ -188,6 +194,83 @@ func TestStorageAccount_Create_RejectsUnknownAccessTier(t *testing.T) {
 	assert.Equal(t, "Frozen", unknownTier.Tier)
 }
 
+func TestStorageAccount_Create_RejectsUnknownMinimumTLSVersion(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	// minimum_tls_version is user supplied, so an unknown value is a user error.
+	// TLS1_1 is deprecated on Azure and is not one of the accepted values.
+	err = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:              testAccount,
+		Location:          "eastus",
+		MinimumTLSVersion: "TLS1_1",
+	})
+
+	var unknownTLS *azurehelper.UnknownMinimumTLSVersionError
+	require.ErrorAs(t, err, &unknownTLS)
+	assert.Equal(t, "TLS1_1", unknownTLS.Version)
+}
+
+func TestStorageAccount_Create_DefaultsMinimumTLSVersion(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{"provisioningState": "Succeeded"},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	// An unset minimum_tls_version must default to TLS1_2, not Azure's implicit
+	// TLS1_0.
+	require.NoError(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:     testAccount,
+		Location: "eastus",
+	}))
+	assert.Contains(t, tr.lastPutBody(), `"minimumTlsVersion":"TLS1_2"`, "default minimum TLS version must reach the request")
+}
+
+func TestStorageAccount_Create_SetsMinimumTLSVersion(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{"provisioningState": "Succeeded"},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	require.NoError(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:              testAccount,
+		Location:          "eastus",
+		MinimumTLSVersion: "TLS1_3",
+	}))
+	assert.Contains(t, tr.lastPutBody(), `"minimumTlsVersion":"TLS1_3"`, "configured minimum TLS version must reach the request")
+}
+
+func TestStorageAccount_Create_SetsExplicitTLS12(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{"provisioningState": "Succeeded"},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	// An explicit TLS1_2 must reach the request, same as the default path.
+	require.NoError(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+		Name:              testAccount,
+		Location:          "eastus",
+		MinimumTLSVersion: "TLS1_2",
+	}))
+	assert.Contains(t, tr.lastPutBody(), `"minimumTlsVersion":"TLS1_2"`, "explicit minimum TLS version must reach the request")
+}
+
 func TestStorageAccount_GetKeys_FiltersEmptyValues(t *testing.T) {
 	t.Parallel()
 
@@ -215,7 +298,12 @@ func TestStorageAccount_EnableVersioning(t *testing.T) {
 	require.NoError(t, err, "setup")
 
 	require.NoError(t, sc.EnableVersioning(t.Context(), log.New()))
-	assert.Contains(t, tr.lastPutBody(), `"isVersioningEnabled":true`, "PUT body must enable versioning")
+	assert.Contains(
+		t,
+		tr.lastPutBody(),
+		`"isVersioningEnabled":true`,
+		"PUT body must enable versioning",
+	)
 }
 
 func TestStorageAccount_IsVersioningEnabled(t *testing.T) {
@@ -278,7 +366,12 @@ func TestStorageAccount_EnableSoftDelete_ClampsOutOfRange(t *testing.T) {
 	require.NoError(t, err, "setup")
 
 	require.NoError(t, sc.EnableSoftDelete(t.Context(), log.New(), 99999))
-	assert.Contains(t, tr.lastPutBody(), `"days":7`, "out-of-range retention must clamp to the default")
+	assert.Contains(
+		t,
+		tr.lastPutBody(),
+		`"days":7`,
+		"out-of-range retention must clamp to the default",
+	)
 
 	require.NoError(t, sc.EnableSoftDelete(t.Context(), log.New(), 30), "in-range retention")
 
@@ -293,7 +386,11 @@ func TestFindResourceGroupForAccount_BoundsPages(t *testing.T) {
 		"nextLink": "https://management.azure.com/next",
 	})}
 
-	_, err := azurehelper.FindResourceGroupForAccount(t.Context(), cfgWithTransport(tr), testAccount)
+	_, err := azurehelper.FindResourceGroupForAccount(
+		t.Context(),
+		cfgWithTransport(tr),
+		testAccount,
+	)
 
 	var tooMany *azurehelper.TooManyStorageAccountPagesError
 	require.ErrorAs(t, err, &tooMany)
@@ -365,7 +462,10 @@ func (s *stubTransport) lastPutBody() string {
 // fakeCredential satisfies azcore.TokenCredential without contacting AAD.
 type fakeCredential struct{}
 
-func (fakeCredential) GetToken(_ context.Context, _ policy.TokenRequestOptions) (azcore.AccessToken, error) {
+func (fakeCredential) GetToken(
+	_ context.Context,
+	_ policy.TokenRequestOptions,
+) (azcore.AccessToken, error) {
 	return azcore.AccessToken{Token: "fake", ExpiresOn: time.Now().Add(time.Hour)}, nil
 }
 

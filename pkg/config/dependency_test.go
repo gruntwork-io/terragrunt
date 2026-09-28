@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -128,12 +128,10 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), filename)
-	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
-	require.NoError(t, err)
-
-	pctx.Venv.Env = venvtest.NewOSWithEmptyEnv().Env
-	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, filename)
+	v.Env = venvtest.NewOSWithEmptyEnv().Env
+	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)
@@ -183,14 +181,16 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
 	terragruntConfig, err := config.PartialParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -224,11 +224,12 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), filename)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, filename)
 	pctx.OriginalTerragruntConfigPath = filename
 	pctx.SkipOutput = true
 
-	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
+	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, filename, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tfConfig)
 
@@ -247,13 +248,15 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctxB, pctxB := newTestParsingContext(t, venvtest.NewWithOSFS(), unitBFilename)
+	vB := venvtest.NewWithOSFS()
+	ctxB, pctxB := newTestParsingContext(t, unitBFilename)
 	pctxB.OriginalTerragruntConfigPath = unitBFilename
 
 	unitBConfig, err := config.ParseConfigFile(
 		ctxB,
-		pctxB,
 		logger.CreateLogger(),
+		vB,
+		pctxB,
 		unitBFilename,
 		nil,
 	)
@@ -278,14 +281,16 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation
 	terragruntConfig, err := config.PartialParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
 		nil,
@@ -358,4 +363,205 @@ func TestDependencyDeepMergeExpansion(t *testing.T) {
 			assert.Equal(t, tc.expected, dep.Expansion)
 		})
 	}
+}
+
+// parseDependencyStringStrict parses cfg with the duplicate-dependency-labels strict
+// control enabled.
+func parseDependencyStringStrict(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {
+	tb.Helper()
+
+	v := venvtest.New()
+	ctx, pctx := newTestParsingContext(tb, config.DefaultTerragruntConfigPath)
+
+	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
+	require.NotNil(tb, control)
+	control.Enable()
+
+	return config.PartialParseConfigString(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		pctx.WithDecodeList(config.DependencyBlock),
+		config.DefaultTerragruntConfigPath,
+		cfg,
+		nil,
+	)
+}
+
+const duplicateDependencyLabels = `
+dependency "foo" {
+  config_path = "../a"
+}
+
+dependency "foo" {
+  config_path = "../b"
+}
+`
+
+// TestDuplicateDependencyLabelsWarnByDefault pins that a config whose blocks shadow each
+// other still parses, since such configs have always run.
+func TestDuplicateDependencyLabelsWarnByDefault(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyString(t, duplicateDependencyLabels)
+
+	require.NoError(t, err)
+	assert.Len(t, cfg.TerragruntDependencies, 2)
+}
+
+// TestDuplicateDependencyLabelsRejectedWhenStrict pins that the strict control turns the
+// shadowing into a parse failure naming the address two blocks claim.
+func TestDuplicateDependencyLabelsRejectedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, duplicateDependencyLabels)
+
+	var typed config.DuplicateDependencyError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "foo", typed.Address)
+}
+
+// TestExpandedDependencyLabelsAccepted pins that the elements of one expanded block, which
+// all carry the label the block was written with, are not read as duplicates even under
+// the strict control.
+func TestExpandedDependencyLabelsAccepted(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyStringStrict(t, `
+dependency "foo" {
+  expansion {
+    for_each = toset(["a", "b"])
+  }
+
+  config_path = "../${each.key}"
+}
+`)
+
+	require.NoError(t, err)
+	assert.Len(t, cfg.TerragruntDependencies, 2)
+}
+
+// TestExpandedDependencyLabelCollisionRejectedWhenStrict pins that two expanded blocks
+// sharing a label collide on the elements whose keys they both produce.
+func TestExpandedDependencyLabelCollisionRejectedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, `
+dependency "foo" {
+  expansion {
+    for_each = toset(["a"])
+  }
+
+  config_path = "../first-${each.key}"
+}
+
+dependency "foo" {
+  expansion {
+    for_each = toset(["a"])
+  }
+
+  config_path = "../second-${each.key}"
+}
+`)
+
+	var typed config.DuplicateDependencyError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "foo[a]", typed.Address)
+}
+
+const duplicateDependencyConfigPaths = `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "network" {
+  config_path = "../vpc"
+}
+`
+
+// TestDuplicateDependencyConfigPathsWarnByDefault pins that two blocks pointing at one
+// config_path still parse, since such configs have always run.
+func TestDuplicateDependencyConfigPathsWarnByDefault(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyString(t, duplicateDependencyConfigPaths)
+
+	require.NoError(t, err)
+	assert.Len(t, cfg.TerragruntDependencies, 2)
+}
+
+// TestDuplicateDependencyConfigPathsRejectedWhenStrict pins that the strict control turns a
+// shared config_path into a parse failure naming both addresses and the path.
+func TestDuplicateDependencyConfigPathsRejectedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, duplicateDependencyConfigPaths)
+
+	var typed config.DuplicateDependencyConfigPathError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "vpc", typed.FirstAddress)
+	assert.Equal(t, "network", typed.SecondAddress)
+	assert.Equal(t, "../vpc", typed.DependencyPath)
+	assert.Equal(t, config.DefaultTerragruntConfigPath, typed.ConfigPath)
+}
+
+// TestDuplicateDependencyConfigPathsCompareResolvedPaths pins that two spellings of one
+// directory are read as the same config_path.
+func TestDuplicateDependencyConfigPathsCompareResolvedPaths(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "network" {
+  config_path = "./../vpc/"
+}
+`)
+
+	var typed config.DuplicateDependencyConfigPathError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "./../vpc/", typed.DependencyPath)
+}
+
+// TestDuplicateDependencyConfigPathsIgnoreDisabled pins that a disabled block does not
+// collide, since it reads nothing.
+func TestDuplicateDependencyConfigPathsIgnoreDisabled(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyStringStrict(t, `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "network" {
+  config_path = "../vpc"
+  enabled     = false
+}
+`)
+
+	require.NoError(t, err)
+	assert.Len(t, cfg.TerragruntDependencies, 2)
+}
+
+// TestExpandedDependencyConfigPathCollisionRejectedWhenStrict pins that the elements of one
+// expanded block collide when their config_path does not vary with the key.
+func TestExpandedDependencyConfigPathCollisionRejectedWhenStrict(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDependencyStringStrict(t, `
+dependency "vpc" {
+  expansion {
+    for_each = toset(["a", "b"])
+  }
+
+  config_path = "../vpc"
+}
+`)
+
+	var typed config.DuplicateDependencyConfigPathError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "vpc[a]", typed.FirstAddress)
+	assert.Equal(t, "vpc[b]", typed.SecondAddress)
 }

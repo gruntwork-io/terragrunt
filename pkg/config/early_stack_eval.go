@@ -8,6 +8,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -42,8 +43,9 @@ func StackParseFunctionsFrom(
 func EarlyStackParseFunctions(
 	ctx context.Context,
 	l log.Logger,
-	baseDir string,
+	v *venv.Venv,
 	pctx *ParsingContext,
+	baseDir string,
 ) (map[string]function.Function, error) {
 	stackFilePath := filepath.Join(baseDir, DefaultStackFile)
 
@@ -52,7 +54,7 @@ func EarlyStackParseFunctions(
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, scoped, l, stackFilePath)
+	evalCtx, err := createTerragruntEvalContext(ctx, l, v, scoped, stackFilePath)
 	if err != nil {
 		return nil, err
 	}

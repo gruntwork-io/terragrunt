@@ -48,8 +48,6 @@ func BenchmarkCASInit(b *testing.B) {
 
 		setup(tmpDir)
 
-		b.ResetTimer()
-
 		for b.Loop() {
 			helpers.RunTerragruntCommand(
 				b,
@@ -61,16 +59,12 @@ func BenchmarkCASInit(b *testing.B) {
 				"--source-update",
 				"--working-dir", tmpDir)
 		}
-
-		b.StopTimer()
 	})
 
 	b.Run("remote init with CAS", func(b *testing.B) {
 		tmpDir := b.TempDir()
 
 		setup(tmpDir)
-
-		b.ResetTimer()
 
 		for b.Loop() {
 			helpers.RunTerragruntCommand(
@@ -83,8 +77,6 @@ func BenchmarkCASInit(b *testing.B) {
 				"--working-dir",
 				tmpDir)
 		}
-
-		b.StopTimer()
 	})
 }
 
@@ -168,16 +160,12 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 					args = append(args, "--no-cas")
 				}
 
-				b.ResetTimer()
-
 				for b.Loop() {
 					helpers.RunTerragruntCommand(
 						b,
 						args...,
 					)
 				}
-
-				b.StopTimer()
 			})
 		}
 	}

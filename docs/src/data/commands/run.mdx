@@ -50,6 +50,8 @@ flags:
   - no-auto-init
   - no-auto-provider-cache-dir
   - no-auto-retry
+  - no-dependency-fetch-output-from-state
+  - no-dependency-outputs
   - no-hooks
   - destroy-dependencies-check
   - parallelism
@@ -83,6 +85,9 @@ flags:
   - version-manager-file-name
   - no-cas
   - cas-clone-depth
+  - cas-offline
+  - cas-refresh
+  - cas-probe-ttl
 ---
 
 import { Aside } from '@astrojs/starlight/components';

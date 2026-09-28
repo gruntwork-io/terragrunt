@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -85,14 +86,14 @@ func TestCAS_CloneRepoWithSubmodule(t *testing.T) {
 	}
 
 	firstTarget := filepath.Join(tempDir, "repo")
-	err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(firstTarget), cas.WithDepth(-1))
+	err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(firstTarget), cas.WithDepth(-1))
 	require.NoError(t, err)
 	assertClone(t, firstTarget)
 
 	// A second clone hits the tree store and materializes the submodule
 	// without refetching anything.
 	secondTarget := filepath.Join(tempDir, "repo-cached")
-	err = c.Clone(t.Context(), l, v, repoURL, cas.WithDir(secondTarget), cas.WithDepth(-1))
+	err = c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(secondTarget), cas.WithDepth(-1))
 	require.NoError(t, err)
 	assertClone(t, secondTarget)
 }
@@ -141,7 +142,7 @@ func TestCAS_CloneRepoWithNestedSubmodules(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		v,
-		repoURL,
+		redact.NewURL(repoURL),
 		cas.WithDir(targetPath),
 		cas.WithDepth(-1),
 	)
@@ -191,7 +192,7 @@ func TestCAS_CloneRepoWithUnregisteredGitlink(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		v,
-		repoURL,
+		redact.NewURL(repoURL),
 		cas.WithDir(targetPath),
 		cas.WithDepth(-1),
 	)
@@ -262,7 +263,7 @@ func TestCAS_CloneSubmoduleWithRelativeURL(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		v,
-		repoURL,
+		redact.NewURL(repoURL),
 		cas.WithDir(targetPath),
 		cas.WithDepth(-1),
 	)

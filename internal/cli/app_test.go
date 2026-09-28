@@ -15,6 +15,7 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl"
 	hclformat "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -43,10 +44,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Skip("Skipping test on Windows")
 	}
 
-	workingDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
+	workingDir, err := venvtest.New().Platform.Getwd()
+	require.NoError(t, err)
 
 	testCases := []struct {
 		expectedErr     error
@@ -450,7 +449,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 			l := log.New(
 				log.WithOutput(os.Stderr),
@@ -507,9 +506,7 @@ func mockOptions(
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
-	if err != nil {
-		t.Fatalf("error: %v\n", err)
-	}
+	require.NoError(t, err)
 
 	opts.WorkingDir = workingDir
 	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
@@ -725,7 +722,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -802,7 +799,7 @@ func TestParseMultiStringArg(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -879,7 +876,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		opts := options.NewTerragruntOptions()
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.AwsProviderPatchOverrides = tc.defaultValue
 		l := log.New(
 			log.WithOutput(os.Stderr),
@@ -918,7 +915,7 @@ func TestTerragruntVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions()
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 		testV := venvtest.New()
 
@@ -941,7 +938,7 @@ func TestTerragruntHelp(t *testing.T) {
 
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	app := cli.NewApp(logger.CreateLogger(), opts, venvtest.New())
 
 	testCases := []struct {
@@ -980,7 +977,7 @@ func TestTerragruntHelp(t *testing.T) {
 			t.Parallel()
 
 			output := &bytes.Buffer{}
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 			testV := venvtest.New()
 
@@ -1006,7 +1003,7 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 
 	output := &bytes.Buffer{}
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 	testV := venvtest.New()
 
@@ -1077,7 +1074,9 @@ func (err argMissingValueError) Error() string {
 	return "flag needs an argument: -" + string(err)
 }
 
-func TestAutocomplete(t *testing.T) { //nolint:paralleltest
+func TestAutocomplete(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		compLine          string
 		expectedCompletes []string
@@ -1102,7 +1101,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions()
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 		// Autocomplete reads COMP_LINE from the venv's environment, so the
 		// completion request is handed over rather than exported to the process.

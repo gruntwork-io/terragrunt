@@ -11,18 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"errors"
-
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
-	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
-	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +41,6 @@ const (
 	testFixtureDownload                       = "fixtures/download"
 	testFixtureEmptyState                     = "fixtures/empty-state/"
 	testFixtureEnvVarsBlockPath               = "fixtures/env-vars-block/"
-	testFixtureErrorPrint                     = "fixtures/error-print"
 	testFixtureExcludesFile                   = "fixtures/excludes-file"
 	testFixtureExternalDependence             = "fixtures/external-dependencies"
 	testFixtureExternalDependency             = "fixtures/external-dependency/"
@@ -59,8 +52,6 @@ const (
 	testFixtureGetTerragruntSourceCli         = "fixtures/get-terragrunt-source-cli"
 	testFixtureRunAllSource                   = "fixtures/get-output/run-all-source"
 	testFixtureGraphDependencies              = "fixtures/graph-dependencies"
-	testFixtureHclfmtDiff                     = "fixtures/hclfmt-diff"
-	testFixtureHclfmtStdin                    = "fixtures/hclfmt-stdin"
 	testFixtureHclvalidate                    = "fixtures/hclvalidate"
 	testFixtureIamRolesMultipleModules        = "fixtures/read-config/iam_roles_multiple_modules"
 	testFixtureIncludeParent                  = "fixtures/include-parent"
@@ -79,7 +70,6 @@ const (
 	testFixtureNoSubmodules                   = "fixtures/no-submodules/"
 	testFixtureNullValue                      = "fixtures/null-values"
 	testFixtureOutDir                         = "fixtures/out-dir"
-	testFixtureOutputAll                      = "fixtures/output-all"
 	testFixtureParallelRun                    = "fixtures/parallel-run"
 	testFixtureParallelStateInit              = "fixtures/parallel-state-init"
 	testFixtureParallelism                    = "fixtures/parallelism"
@@ -103,9 +93,7 @@ const (
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
 	testFixtureExecCmdTfPath                  = "fixtures/exec-cmd-tf-path"
 	testFixtureLogStreaming                   = "fixtures/streaming"
-	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
-	testFixtureTfPathBasic                    = "fixtures/tf-path/basic"
 	testFixtureTfPathTofuTerraform            = "fixtures/tf-path/tofu-terraform"
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
@@ -113,50 +101,6 @@ const (
 	testFixtureNoColorDependency              = "fixtures/no-color-dependency"
 	hiddenRunAllFixturePath                   = "fixtures/hidden-runall"
 )
-
-func TestCLIFlagHints(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		expectedError error
-		args          string
-	}{
-		{
-			expectedError: flags.NewGlobalFlagHintError("raw", "stack output", "raw"),
-			args:          "-raw init",
-		},
-		{
-			expectedError: flags.NewCommandFlagHintError(
-				"run",
-				"no-include-root",
-				"catalog",
-				"no-include-root",
-			),
-			args: "run --no-include-root",
-		},
-		{
-			expectedError: flags.NewPassthroughFlagHintError("platform"),
-			args:          "run --platform",
-		},
-	}
-
-	for i, tc := range testCases {
-		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
-			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, testFixtureCLIFlagHints)
-			rootPath := helpers.CopyEnvironment(t, testFixtureCLIFlagHints)
-			rootPath, err := filepath.EvalSymlinks(rootPath)
-			require.NoError(t, err)
-
-			_, _, err = helpers.RunTerragruntCommandWithOutput(
-				t,
-				"terragrunt "+tc.args+" --working-dir "+rootPath,
-			)
-			assert.EqualError(t, err, tc.expectedError.Error())
-		})
-	}
-}
 
 func TestHclvalidateValidConfig(t *testing.T) {
 	t.Parallel()
@@ -365,125 +309,6 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	}
 }
 
-// TestTerragruntFullLockfile asserts that a single `terragrunt init` (no
-// `providers lock -platform=...` and no preexisting lock file) populates
-// `.terraform.lock.hcl` with `h1:` hashes for multiple platforms, both with
-// and without the Terragrunt provider cache server enabled.
-//
-// The OpenTofu provider registry returns pre-computed `h1:` hashes for every
-// supported platform via the `packages` field on its per-platform download
-// endpoint. With the cache server enabled, the Terragrunt-side lockfile writer
-// (internal/tf/getproviders/lock.go) consumes that field via
-// ProviderCache.RegistryHashes(), so this subtest passes on any OpenTofu
-// version. Without the cache server, OpenTofu itself must read the field, and
-// only the 1.12 binary onward does so, hence the version gate below.
-func TestTerragruntFullLockfile(t *testing.T) {
-	t.Parallel()
-
-	if !helpers.IsOpenTofu112OrHigher(t) {
-		t.Skip("requires OpenTofu 1.12 or higher")
-		return
-	}
-
-	testCases := []struct {
-		name           string
-		providerSource string
-		minPlatforms   int
-		runWithCache   bool
-	}{
-		{
-			name:           "without provider cache",
-			providerSource: "registry.opentofu.org/hashicorp/null",
-			minPlatforms:   2,
-			runWithCache:   false,
-		},
-		{
-			name:           "with provider cache",
-			providerSource: "registry.opentofu.org/hashicorp/null",
-			minPlatforms:   2,
-			runWithCache:   true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, testFixtureProviderCacheFullLockfile)
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheFullLockfile)
-			rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheFullLockfile)
-
-			cmd := "terragrunt init --non-interactive --working-dir " + rootPath
-
-			if tc.runWithCache {
-				providerCacheDir := helpers.TmpDirWOSymlinks(t)
-				cmd = fmt.Sprintf(
-					"terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
-					providerCacheDir,
-					rootPath,
-				)
-			} else {
-				// Without the provider cache server, OpenTofu drives the install. If
-				// `~/.terraform.d/plugins` exists, OpenTofu treats it as an implicit
-				// filesystem mirror, skips the registry trust chain, and writes only
-				// a single-platform `h1:` hash, which defeats what this test asserts.
-				homeDir, err := os.UserHomeDir()
-				require.NoError(t, err)
-
-				userPluginDir := filepath.Join(homeDir, ".terraform.d", "plugins")
-				require.NoFileExists(
-					t,
-					userPluginDir,
-					"this subtest requires %s to not exist so OpenTofu uses the direct registry path; remove or rename it before running",
-					userPluginDir,
-				)
-			}
-
-			helpers.RunTerragrunt(t, cmd)
-
-			lockfilePath := filepath.Join(rootPath, ".terraform.lock.hcl")
-			require.FileExists(
-				t,
-				lockfilePath,
-				"expected lock file to exist at %s",
-				lockfilePath,
-			)
-
-			lockfileContent, err := os.ReadFile(lockfilePath)
-			require.NoError(t, err)
-
-			lockfile, diags := hclwrite.ParseConfig(
-				lockfileContent,
-				lockfilePath,
-				hcl.Pos{Line: 1, Column: 1},
-			)
-			require.False(t, diags.HasErrors(), "diagnostics: %s", diags.Error())
-			require.NotNil(t, lockfile)
-
-			providerBlock := lockfile.Body().
-				FirstMatchingBlock("provider", []string{tc.providerSource})
-			require.NotNil(
-				t,
-				providerBlock,
-				"lock file is missing block for %s; contents:\n%s",
-				tc.providerSource,
-				string(lockfileContent),
-			)
-
-			hashesAttr := providerBlock.Body().GetAttribute("hashes")
-			require.NotNil(t, hashesAttr, "provider block has no hashes attribute")
-
-			hashesText := string(hashesAttr.Expr().BuildTokens(nil).Bytes())
-			h1Count := strings.Count(hashesText, `"h1:`)
-
-			assert.GreaterOrEqualf(t, h1Count, tc.minPlatforms,
-				"expected at least %d h1 hashes (one per platform) but found %d in:\n%s",
-				tc.minPlatforms, h1Count, hashesText,
-			)
-		})
-	}
-}
-
 func TestTerragruntGraphDependenciesCommand(t *testing.T) {
 	t.Parallel()
 
@@ -601,88 +426,6 @@ inputs = {
 	assert.Contains(t, err.Error(), "use outputs")
 }
 
-func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStack)
-	appPath := filepath.Join(tmpEnvPath, testFixtureStack)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
-		t,
-		"terragrunt run --all --non-interactive --working-dir "+appPath,
-		&stdout,
-		&stderr,
-	)
-	require.Error(t, err)
-
-	var missingCommandError runall.MissingCommand
-
-	ok := errors.As(err, &missingCommandError)
-	assert.True(t, ok)
-}
-
-func TestHclFmtDiff(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureHclfmtDiff)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtDiff)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtDiff)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	require.NoError(
-		t,
-		helpers.RunTerragruntCommand(
-			t,
-			"terragrunt hcl fmt --diff --working-dir "+rootPath,
-			&stdout,
-			&stderr,
-		),
-	)
-
-	expectedDiff, err := os.ReadFile(filepath.Join(rootPath, "expected.diff"))
-	require.NoError(t, err)
-
-	helpers.LogBufferContentsLineByLine(t, stdout, "output")
-
-	// Drop the header lines that reference the temp-dir-qualified file path so
-	// the hunk body can be compared exactly against the fixture.
-	var hunk strings.Builder
-
-	for line := range strings.SplitSeq(strings.TrimRight(stdout.String(), "\n"), "\n") {
-		if strings.HasPrefix(line, "diff old/") || strings.HasPrefix(line, "--- old/") ||
-			strings.HasPrefix(line, "+++ new/") {
-			continue
-		}
-
-		hunk.WriteString(line)
-		hunk.WriteByte('\n')
-	}
-
-	assert.Equal(t, strings.TrimRight(string(expectedDiff), "\n")+"\n", hunk.String())
-}
-
-func TestHclFmtStdin(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureHclfmtStdin)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtStdin)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtStdin)
-
-	os.Stdin, _ = os.Open(filepath.Join(rootPath, "terragrunt.hcl"))
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl fmt --stdin")
-	require.NoError(t, err)
-
-	expectedDiff, err := os.ReadFile(filepath.Join(rootPath, "expected.hcl"))
-	require.NoError(t, err)
-
-	assert.Contains(t, stdout, string(expectedDiff))
-}
-
 func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 	t.Parallel()
 
@@ -739,79 +482,6 @@ func TestTerragruntInfoError(t *testing.T) {
 
 	err = json.Unmarshal(stdout.Bytes(), &output)
 	require.NoError(t, err)
-}
-
-func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
-	t.Parallel()
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --graph --all")
-	expectedErr := new(shared.AllGraphFlagsError)
-	require.ErrorAs(t, err, &expectedErr)
-}
-
-func TestErrorMessageIncludeInOutput(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorPrint)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := filepath.Join(tmpEnvPath, testFixtureErrorPrint)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt apply  --non-interactive --working-dir "+testPath+" --tf-path "+testPath+"/custom-tf-script.sh --log-level trace",
-	)
-	require.Error(t, err)
-
-	assert.Contains(t, err.Error(), "Custom error from script")
-}
-
-//nolint:paralleltest
-func TestTfPath(t *testing.T) {
-	// This test can't be parallelized because it explicitly unsets the TG_TF_PATH environment variable.
-	// t.Parallel()
-
-	// Test that the terragrunt run version command correctly identifies and uses
-	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
-	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
-	workingDir := filepath.Join(rootPath, testFixtureTfPathBasic)
-	workingDir, err := filepath.EvalSymlinks(workingDir)
-	require.NoError(t, err)
-
-	// If TG_TF_PATH is not set, we'll use the default tofu binary,
-	// we'll explicitly set the value so that the test can pass.
-	if tfPath := os.Getenv("TG_TF_PATH"); tfPath != "" {
-		// Unset after using t.Setenv so that it'll be reset after the test.
-		t.Setenv("TG_TF_PATH", "")
-		os.Unsetenv("TG_TF_PATH")
-	}
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run version --working-dir "+workingDir,
-	)
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "TF script used!")
-}
-
-func TestTfPathOverridesConfig(t *testing.T) {
-	t.Parallel()
-	// Test that the terragrunt run version command correctly identifies and uses
-	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
-	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
-	workingDir := filepath.Join(rootPath, testFixtureTfPathBasic)
-	workingDir, err := filepath.EvalSymlinks(workingDir)
-	require.NoError(t, err)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run version --tf-path ./other-tf.sh --working-dir "+workingDir,
-	)
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "Other TF script used!")
 }
 
 func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
@@ -873,24 +543,10 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 	}
 }
 
-// Test that default command forwarding is disabled and users are guided to use `run --`.
-func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixturePath)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt workspace list --non-interactive --working-dir "+rootPath,
-	)
-	require.Error(t, err, "expected error when invoking unknown top-level command without 'run'")
-}
-
 // TestTerragruntMutableGenerateBlock verifies that units generating identical
-// contents share one read-only file, and that a block asking to stay mutable
-// gets its own writable copy.
+// contents share one read-only file, that a block asking to stay mutable gets
+// its own writable copy, and that content the store is already holding is
+// shared on the permissions it was stored under.
 func TestTerragruntMutableGenerateBlock(t *testing.T) {
 	t.Parallel()
 
@@ -898,52 +554,102 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 		t.Skip("read-only permission bits are not meaningfully observable on Windows")
 	}
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "mutable-generate")
-
-	generated := map[string]os.FileInfo{}
-
-	for _, unit := range []string{"unit-a", "unit-b", "unit-mutable"} {
-		unitPath := filepath.Join(fixtureRoot, unit)
-		helpers.CleanupTerraformFolder(t, unitPath)
-		helpers.CleanupTerragruntFolder(t, unitPath)
-
-		_, _, err := helpers.RunTerragruntCommandWithOutput(
-			t,
-			"terragrunt exec --experiment mutable-generate --working-dir "+unitPath+" -- true",
-		)
-		require.NoError(t, err)
-
-		generated[unit] = statGeneratedFile(t, unitPath, "provider.tf")
+	testCases := []struct {
+		name       string
+		storedPerm os.FileMode
+		wantPerm   os.FileMode
+	}{
+		{
+			name:     "content the store has not seen",
+			wantPerm: 0400,
+		},
+		{
+			name:       "content an earlier version stored world-readable",
+			storedPerm: 0444,
+			wantPerm:   0444,
+		},
 	}
 
-	assert.True(t, os.SameFile(generated["unit-a"], generated["unit-b"]),
-		"units generating identical contents must share one file")
-	assert.Equal(t, os.FileMode(0444), generated["unit-a"].Mode().Perm(),
-		"deduplicated files must be read-only so an edit cannot reach the shared store")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.False(t, os.SameFile(generated["unit-a"], generated["unit-mutable"]),
-		"a mutable generate block must get its own file")
-	assert.NotZero(t, generated["unit-mutable"].Mode().Perm()&0200,
-		"a mutable generate block must stay writable")
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+			fixtureRoot := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "mutable-generate")
+
+			units := []string{"unit-a", "unit-b", "unit-mutable"}
+
+			// The store is the one on the machine running the suite, so the
+			// generated contents have to be unique to this run for the case
+			// starting without them to mean anything.
+			for _, unit := range units {
+				markGeneratedContents(t, filepath.Join(fixtureRoot, unit), tmpEnvPath)
+			}
+
+			if tc.storedPerm != 0 {
+				seedStoredContent(t, filepath.Join(fixtureRoot, "unit-a"), tc.storedPerm)
+			}
+
+			generated := map[string]os.FileInfo{}
+
+			for _, unit := range units {
+				unitPath := filepath.Join(fixtureRoot, unit)
+				runMutableGenerateUnit(t, unitPath)
+				generated[unit] = statGeneratedFile(t, unitPath, "provider.tf")
+			}
+
+			assert.True(t, os.SameFile(generated["unit-a"], generated["unit-b"]),
+				"units generating identical contents must share one file")
+			assert.Equal(t, tc.wantPerm, generated["unit-a"].Mode().Perm(),
+				"the shared file takes the mode the store holds the content under")
+
+			assert.False(t, os.SameFile(generated["unit-a"], generated["unit-mutable"]),
+				"a mutable generate block must get its own file")
+			assert.NotZero(t, generated["unit-mutable"].Mode().Perm()&0200,
+				"a mutable generate block must stay writable")
+		})
+	}
 }
 
-// TestTerragruntMutableGenerateBlockRequiresExperiment verifies that the mutable
-// attribute is rejected until the experiment gating it is enabled.
-func TestTerragruntMutableGenerateBlockRequiresExperiment(t *testing.T) {
-	t.Parallel()
+// markGeneratedContents rewrites a unit's generate block so what it produces is
+// unique to marker, keeping whatever the machine's store already holds from
+// deciding which path the test takes.
+func markGeneratedContents(t *testing.T, unitPath, marker string) {
+	t.Helper()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip("Skipping: TG_EXPERIMENT_MODE forces all experiments on, so the experiment-disabled error this test pins cannot occur")
-	}
+	path := filepath.Join(unitPath, "terragrunt.hcl")
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
-	unitPath := filepath.Join(
-		tmpEnvPath,
-		testFixtureCodegenPath,
-		"mutable-generate",
-		"unit-mutable",
+	body, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	const placeholder = "provider \"null\" {\n}"
+
+	marked := strings.Replace(
+		string(body),
+		placeholder,
+		"provider \"null\" {\n  # "+marker+"\n}",
+		1,
 	)
+	require.NotEqual(t, string(body), marked, "fixture no longer holds %q", placeholder)
+
+	require.NoError(t, os.WriteFile(path, []byte(marked), 0644))
+}
+
+// seedStoredContent leaves the store holding a unit's generated contents at
+// perm, standing in for a store filled before Terragrunt asked for a narrower
+// mode. The generated file shares the stored blob's inode, so widening it
+// through the link widens what every later unit links to.
+func seedStoredContent(t *testing.T, unitPath string, perm os.FileMode) {
+	t.Helper()
+
+	runMutableGenerateUnit(t, unitPath)
+
+	require.NoError(t, os.Chmod(generatedFilePath(t, unitPath, "provider.tf"), perm))
+}
+
+func runMutableGenerateUnit(t *testing.T, unitPath string) {
+	t.Helper()
+
 	helpers.CleanupTerraformFolder(t, unitPath)
 	helpers.CleanupTerragruntFolder(t, unitPath)
 
@@ -951,9 +657,7 @@ func TestTerragruntMutableGenerateBlockRequiresExperiment(t *testing.T) {
 		t,
 		"terragrunt exec --working-dir "+unitPath+" -- true",
 	)
-
-	var experimentErr config.MutableGenerateRequiresExperimentError
-	require.ErrorAs(t, err, &experimentErr)
+	require.NoError(t, err)
 }
 
 // statGeneratedFile locates a generated file inside the unit's cache dir, which
@@ -961,7 +665,19 @@ func TestTerragruntMutableGenerateBlockRequiresExperiment(t *testing.T) {
 func statGeneratedFile(t *testing.T, unitPath, name string) os.FileInfo {
 	t.Helper()
 
-	var found os.FileInfo
+	info, err := os.Stat(generatedFilePath(t, unitPath, name))
+	require.NoError(t, err)
+
+	return info
+}
+
+// generatedFilePath finds the file a generate block wrote under a unit's cache
+// directory, whose intermediate directory names are hashes the test cannot
+// predict.
+func generatedFilePath(t *testing.T, unitPath, name string) string {
+	t.Helper()
+
+	var found string
 
 	require.NoError(t, filepath.WalkDir(
 		filepath.Join(unitPath, util.TerragruntCacheDir),
@@ -974,58 +690,12 @@ func statGeneratedFile(t *testing.T, unitPath, name string) os.FileInfo {
 				return nil
 			}
 
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
-
-			found = info
+			found = path
 
 			return nil
 		},
 	))
-	require.NotNil(t, found, "expected %s to be generated under %s", name, unitPath)
+	require.NotEmpty(t, found, "expected %s to be generated under %s", name, unitPath)
 
 	return found
-}
-
-func TestDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-	noOutputPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration", "skip-dependency-outputs")
-
-	t.Run("plan without flag fails", func(t *testing.T) {
-		t.Parallel()
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+noOutputPath)
-		require.ErrorContains(t, err, "resolving dependency \"app1\" outputs")
-	})
-
-	t.Run("flag rejected without experiment", func(t *testing.T) {
-		t.Parallel()
-
-		if helpers.IsExperimentMode(t) {
-			t.Skip("Skipping: TG_EXPERIMENT_MODE forces the optional-dependency-outputs experiment on, so its disabled-state error can't be verified")
-		}
-
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
-		require.ErrorContains(t, err, "--no-dependency-outputs requires the 'optional-dependency-outputs' experiment")
-	})
-
-	for _, cmd := range []string{"init", "validate", "plan"} {
-		t.Run(cmd+" succeeds with flag", func(t *testing.T) {
-			t.Parallel()
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+cmd+" --experiment optional-dependency-outputs --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
-			require.NoError(t, err)
-		})
-	}
-
-	for _, cmd := range []string{"init", "validate", "plan"} {
-		t.Run("run --all "+cmd+" succeeds with flag", func(t *testing.T) {
-			t.Parallel()
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --experiment optional-dependency-outputs "+cmd+" --no-dependency-outputs --non-interactive --working-dir "+noOutputPath)
-			require.NoError(t, err)
-		})
-	}
 }

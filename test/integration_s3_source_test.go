@@ -15,14 +15,15 @@ import (
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
 
-// TestAwsS3SourceURLForms downloads a module archive through the default
+// TestAWSS3SourceURLForms downloads a module archive through the default
 // (non-CAS) client in each AWS S3 endpoint form a `source` URL can use.
 // The forms differ only in how the hostname encodes bucket and region;
 // all of them must fetch the same object.
-func TestAwsS3SourceURLForms(t *testing.T) {
+func TestAWSS3SourceURLForms(t *testing.T) {
 	t.Parallel()
 
 	region := helpers.TerraformRemoteStateS3Region
@@ -53,7 +54,7 @@ func TestAwsS3SourceURLForms(t *testing.T) {
 
 			dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "module")
 
-			_, err := tggetter.GetAny(t.Context(), venv.OSVenv(), dst, tt.src)
+			_, err := tggetter.GetAny(t.Context(), logger.CreateLogger(), venv.OSVenv(), dst, tt.src)
 			require.NoError(t, err)
 			require.FileExists(t, filepath.Join(dst, "main.tf"))
 		})

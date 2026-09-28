@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -132,6 +133,8 @@ func TestProviderHandlers_DiscoveryURL_WithNetworkMirrorForBlockedRegistry(t *te
 		cfg,
 		log.New(),
 		vhttp.NewNoNetworkClient(),
+		vfs.NewMemMapFS(),
+		map[string]string{},
 		nil,
 	)
 	require.NoError(t, err)

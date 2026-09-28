@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 
 	"github.com/gitsight/go-vcsurl"
 	"gopkg.in/ini.v1"
@@ -19,9 +20,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -34,7 +35,9 @@ const (
 	bitbucketHost         = "bitbucket.org"
 	gitlabSelfHostedRegex = `^(gitlab\.(.+))$`
 
-	cloneCompleteSentinel = ".catalog-clone-complete"
+	// CloneCompleteSentinel is the marker file the catalog writes into a clone
+	// directory once the clone finishes.
+	CloneCompleteSentinel = ".catalog-clone-complete"
 )
 
 // ErrRemoteCloneFSNotOS is returned when a remote clone is attempted through
@@ -45,7 +48,7 @@ var ErrRemoteCloneFSNotOS = errors.New("remote clone requires an OS-backed files
 
 var (
 	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
-	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+)[^/]*?(?:\.git)?$`)
+	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+?)(?:\.git)?(?:[?#].*)?$`)
 
 	modulesPaths = []string{"modules"}
 
@@ -63,9 +66,13 @@ type Repo struct {
 	LatestTag  string
 
 	casCloneDepth int
+	casProbeTTL   time.Duration
 
 	walkWithSymlinks bool
 	allowCAS         bool
+	casOffline       bool
+	casRefresh       bool
+	casProbeCache    bool
 	slowReporting    bool
 	isLocal          bool
 }
@@ -76,8 +83,12 @@ type RepoOpts struct {
 	Path             string
 	RootWorkingDir   string
 	CASCloneDepth    int
+	CASProbeTTL      time.Duration
 	WalkWithSymlinks bool
 	AllowCAS         bool
+	CASOffline       bool
+	CASRefresh       bool
+	CASProbeCache    bool
 	SlowReporting    bool
 }
 
@@ -100,6 +111,10 @@ func NewRepo(ctx context.Context, l log.Logger, v *venv.Venv, opts *RepoOpts) (*
 		walkWithSymlinks: opts.WalkWithSymlinks,
 		allowCAS:         opts.AllowCAS,
 		casCloneDepth:    opts.CASCloneDepth,
+		casProbeTTL:      opts.CASProbeTTL,
+		casOffline:       opts.CASOffline,
+		casRefresh:       opts.CASRefresh,
+		casProbeCache:    opts.CASProbeCache,
 		slowReporting:    opts.SlowReporting,
 		rootWorkingDir:   opts.RootWorkingDir,
 	}
@@ -125,7 +140,7 @@ func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (M
 	var modules Modules
 
 	// check if root repo path is a module dir
-	if module, err := NewModule(l, repo, ""); err != nil {
+	if module, err := NewModule(l, fsys, repo, ""); err != nil {
 		return nil, err
 	} else if module != nil {
 		modules = append(modules, module)
@@ -170,7 +185,7 @@ func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (M
 
 				moduleDir = filepath.ToSlash(moduleDir)
 
-				if module, err := NewModule(l, repo, moduleDir); err != nil {
+				if module, err := NewModule(l, fsys, repo, moduleDir); err != nil {
 					return err
 				} else if module != nil {
 					modules = append(modules, module)
@@ -279,36 +294,48 @@ func (repo *Repo) CloneURL() string {
 	return repo.cloneURL
 }
 
-// ResolveLatestTag looks up the latest semver release tag from the remote.
-// The result is stored in LatestTag. If the lookup fails or the repo has no
-// semver tags, LatestTag is left empty. Local catalog sources skip the
-// lookup entirely so a stale or unreachable origin URL in a local working
-// copy can't stall discovery.
-func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, exec vexec.Exec) {
+// ResolveLatestTag looks up the latest semver release tag and stores it in
+// LatestTag. If the lookup fails or the repo has no semver tags, LatestTag is
+// left empty. Local catalog sources skip the lookup entirely so a stale or
+// unreachable origin URL in a local working copy can't stall discovery.
+//
+// With CAS allowed, the tags the remote lists are recorded in the CAS store.
+// Under --cas-offline the tags come from that store instead of the remote.
+func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, v *venv.Venv) {
 	if repo.isLocal {
 		return
 	}
 
-	remote := repo.remoteForTagLookup()
-	if remote == "" {
+	remote := redact.NewURL(repo.remoteForTagLookup())
+	if remote.Reveal() == "" {
 		return
 	}
 
-	runner, err := gitpkg.NewGitRunner(exec)
+	if repo.allowCAS && repo.casOffline {
+		repo.resolveStoredLatestTag(ctx, l, v, remote)
+
+		return
+	}
+
+	runner, err := gitpkg.NewGitRunner(v)
 	if err != nil {
 		l.Debugf("catalog: skip tag lookup: %v", err)
 
 		return
 	}
 
-	tag, err := runner.LatestReleaseTag(ctx, remote)
+	refs, err := runner.LsRemoteTags(ctx, remote.Reveal())
 	if err != nil {
 		l.Debugf("catalog: failed to resolve latest tag for %q: %v", remote, err)
 
 		return
 	}
 
-	repo.LatestTag = tag
+	repo.LatestTag = gitpkg.LatestReleaseTag(refs)
+
+	if repo.allowCAS {
+		repo.recordTags(l, v, remote, refs)
+	}
 }
 
 type CloneOptions struct {
@@ -337,7 +364,7 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	}
 
 	if repo.cloneCompleted(v.FS) {
-		l.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
+		l.Debugf("The repo dir exists and %q exists. Skipping cloning.", CloneCompleteSentinel)
 
 		return nil
 	}
@@ -383,7 +410,7 @@ func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
 	if repo.shouldCleanupIncompleteClone(fsys) {
 		l.Debugf(
 			"The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.",
-			cloneCompleteSentinel,
+			CloneCompleteSentinel,
 		)
 
 		if err := removeIncompleteClone(fsys, cloneRoot, repo.path); err != nil {
@@ -471,7 +498,7 @@ func (repo *Repo) shouldCleanupIncompleteClone(fsys vfs.FS) bool {
 }
 
 func (repo *Repo) cloneCompleted(fsys vfs.FS) bool {
-	exists, _ := vfs.FileExists(fsys, filepath.Join(repo.path, cloneCompleteSentinel))
+	exists, _ := vfs.FileExists(fsys, filepath.Join(repo.path, CloneCompleteSentinel))
 	return exists
 }
 
@@ -485,48 +512,17 @@ func (repo *Repo) performClone(
 		return ErrRemoteCloneFSNotOS
 	}
 
-	clientOpts := []getter.Option{
-		getter.WithHTTP(v.HTTP),
+	client, err := repo.newCloneClient(l, v)
+	if err != nil {
+		return err
 	}
-
-	if repo.allowCAS {
-		cloneDepth := repo.casCloneDepth
-		if cloneDepth == 0 {
-			cloneDepth = cas.DefaultCASCloneDepth
-		}
-
-		if err := cas.ValidateCASCloneDepth(cloneDepth); err != nil {
-			return err
-		}
-
-		casStore, err := cas.New(v, cas.WithCloneDepth(cloneDepth))
-		if err != nil {
-			return err
-		}
-
-		if _, err := gitpkg.NewGitRunner(v.Exec); err != nil {
-			return err
-		}
-
-		cloneOpts := cas.CloneOptions{
-			Dir:              repo.path,
-			IncludedGitFiles: includedGitFiles,
-		}
-
-		clientOpts = append(
-			clientOpts,
-			getter.WithCAS(casStore, &cloneOpts),
-		)
-	}
-
-	client := getter.NewClient(v, clientOpts...)
 
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
 	if err != nil {
 		return err
 	}
 
-	repo.cloneURL = sourceURL.String()
+	repo.cloneURL = cloneURLString(sourceURL)
 	l.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
 	// Check first if the query param ref is already set
@@ -550,8 +546,8 @@ func (repo *Repo) performClone(
 	}
 
 	if repo.slowReporting {
-		err = util.NotifyIfSlow(ctx, l, util.SpinnerWriter(v), time.Second, util.SlowNotifyMsg{
-			Spinner: "Cloning repository " + repo.cloneURL + "...",
+		err = spinner.ShowAfter(ctx, l, spinner.Writer(v), time.Second, spinner.Messages{
+			Working: "Cloning repository " + repo.cloneURL + "...",
 			Done:    "Cloned repository " + repo.cloneURL,
 		}, cloneFunc)
 	} else {
@@ -562,8 +558,7 @@ func (repo *Repo) performClone(
 		return err
 	}
 
-	// Create the sentinel file to indicate that the clone is complete
-	f, err := v.FS.Create(filepath.Join(repo.path, cloneCompleteSentinel))
+	f, err := v.FS.Create(filepath.Join(repo.path, CloneCompleteSentinel))
 	if err != nil {
 		return err
 	}
@@ -573,6 +568,95 @@ func (repo *Repo) performClone(
 	}
 
 	return nil
+}
+
+// newCloneClient builds the getter client that performClone fetches the
+// repository with.
+func (repo *Repo) newCloneClient(l log.Logger, v *venv.Venv) (*getter.Client, error) {
+	if !repo.allowCAS {
+		return getter.NewClient(l, v), nil
+	}
+
+	casStore, err := repo.newCAS(v)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := gitpkg.NewGitRunner(v); err != nil {
+		return nil, err
+	}
+
+	cloneOpts := &cas.CloneOptions{
+		Dir:              repo.path,
+		IncludedGitFiles: includedGitFiles,
+	}
+
+	if repo.casOffline {
+		return &getter.Client{
+			Getters: []getter.Getter{
+				getter.NewCASGetter(l, casStore, v, cloneOpts, getter.WithDefaultGenericDispatch(
+					getter.WithDispatchLogger(l),
+					getter.WithDispatchFS(v.FS),
+					getter.WithDispatchVenv(v),
+				)),
+			},
+		}, nil
+	}
+
+	return getter.NewClient(l, v, getter.WithCAS(casStore, cloneOpts)), nil
+}
+
+// newCAS builds the CAS store with the repository's CAS settings.
+func (repo *Repo) newCAS(v *venv.Venv) (*cas.CAS, error) {
+	cloneDepth := repo.casCloneDepth
+	if cloneDepth == 0 {
+		cloneDepth = cas.DefaultCASCloneDepth
+	}
+
+	if err := cas.ValidateCASCloneDepth(cloneDepth); err != nil {
+		return nil, err
+	}
+
+	casOpts := []cas.Option{cas.WithCloneDepth(cloneDepth), cas.WithProbeTTL(repo.casProbeTTL)}
+
+	if repo.casProbeCache {
+		casOpts = append(casOpts, cas.WithProbeCache())
+	}
+
+	if repo.casOffline {
+		casOpts = append(casOpts, cas.WithOffline())
+	}
+
+	if repo.casRefresh {
+		casOpts = append(casOpts, cas.WithProbeRefresh())
+	}
+
+	return cas.New(v, casOpts...)
+}
+
+// resolveStoredLatestTag sets LatestTag from the tags of remote the CAS store
+// holds.
+func (repo *Repo) resolveStoredLatestTag(ctx context.Context, l log.Logger, v *venv.Venv, remote redact.URL) {
+	casStore, err := repo.newCAS(v)
+	if err != nil {
+		l.Debugf("catalog: skip tag lookup: %v", err)
+
+		return
+	}
+
+	repo.LatestTag = gitpkg.LatestReleaseTag(casStore.StoredTags(ctx, l, v, remote))
+}
+
+// recordTags records refs, the tags remote lists, in the CAS store.
+func (repo *Repo) recordTags(l log.Logger, v *venv.Venv, remote redact.URL, refs []gitpkg.LsRemoteResult) {
+	casStore, err := repo.newCAS(v)
+	if err != nil {
+		l.Debugf("catalog: skip recording tags for %q: %v", remote, err)
+
+		return
+	}
+
+	casStore.RecordTags(l, v, remote, refs)
 }
 
 // parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
@@ -684,4 +768,17 @@ func (repo *Repo) remoteForTagLookup() string {
 	parsed.Fragment = ""
 
 	return parsed.String()
+}
+
+// cloneURLString formats sourceURL keeping the slash ahead of a Windows drive
+// letter (file:///C:/repo), which parsing strips from the path.
+func cloneURLString(sourceURL *url.URL) string {
+	if sourceURL.Scheme != "file" || len(sourceURL.Path) < 2 || sourceURL.Path[1] != ':' {
+		return sourceURL.String()
+	}
+
+	u := *sourceURL
+	u.Path = "/" + u.Path
+
+	return u.String()
 }

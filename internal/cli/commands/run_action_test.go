@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -34,7 +35,7 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 		return nil
 	}
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.NoAutoProviderCacheDir = true
 
 	l := logger.CreateLogger()
@@ -51,7 +52,7 @@ func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
 		panic("action panic")
 	}
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.NoAutoProviderCacheDir = true
 
 	err := commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venvtest.New(), action)

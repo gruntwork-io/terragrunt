@@ -169,7 +169,7 @@ func TestOCIGetterAgainstLocalRegistryRepositoryNamedLikeAPIPath(t *testing.T) {
 
 // ociRegistryClient builds the production getter chain resolving through v.
 func ociRegistryClient(v *venv.Venv) *getter.Client {
-	return getter.NewClient(venvtest.NewWithOSFS(),
+	return getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithOCI(getter.NewOCIGetter(logger.CreateLogger(), v)),
 	)
 }

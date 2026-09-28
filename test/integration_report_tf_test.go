@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,6 +80,42 @@ func TestTFTerragruntReport(t *testing.T) {
    Early Exits  4
    Excluded     2
 `), strings.TrimSpace(stdoutStr))
+}
+
+// TestTFTerragruntReportRunErrorCause verifies that a unit that fails before
+// OpenTofu/Terraform runs still carries the failure text as its report cause.
+//
+// Only chain-b is put on the queue: its dependency chain-a is neither in the
+// queue (so there is no failed ancestor to blame) nor applied (so resolving its
+// outputs fails during config evaluation, before OpenTofu/Terraform runs).
+func TestTFTerragruntReportRunErrorCause(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+
+			" --queue-strict-include --queue-include-dir chain-b"+
+			" --report-file "+helpers.ReportFile+" -- apply",
+	)
+	require.Error(t, err)
+
+	reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+	assert.FileExists(t, reportFilePath)
+
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
+	require.NoError(t, err)
+
+	run := runs.FindByName("chain-b")
+	require.NotNil(t, run)
+	assert.Equal(t, "failed", run.Result)
+	require.NotNil(t, run.Reason)
+	assert.Equal(t, "run error", *run.Reason)
+	require.NotNil(t, run.Cause, "config evaluation failure must populate the run cause")
+	assert.Contains(t, *run.Cause, "detected no outputs")
 }
 
 func TestTFTerragruntReportSaveToFile(t *testing.T) {
@@ -654,7 +691,7 @@ func TestTFTerragruntReportWithGitFilter(t *testing.T) {
 
 			switch tc.reportFormat {
 			case "json":
-				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse JSON report")
 
 				runNames := runs.Names()
@@ -702,7 +739,7 @@ func TestTFTerragruntReportWithGitFilter(t *testing.T) {
 				}
 
 			case "csv":
-				runs, err := report.ParseCSVRunsFromFile(reportFilePath)
+				runs, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse CSV report")
 
 				runNames := runs.Names()
@@ -812,7 +849,7 @@ func TestTFTerragruntReportSingleUnit(t *testing.T) {
 
 			switch tc.reportFormat {
 			case "json":
-				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse JSON report")
 
 				require.Len(t, runs, 1, "Single unit run should have exactly one entry in report")
@@ -825,7 +862,7 @@ func TestTFTerragruntReportSingleUnit(t *testing.T) {
 				assert.False(t, run.Ended.IsZero(), "Ended timestamp should not be zero")
 
 			case "csv":
-				runs, err := report.ParseCSVRunsFromFile(reportFilePath)
+				runs, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse CSV report")
 
 				require.Len(t, runs, 1, "Single unit run should have exactly one entry in report")

@@ -1,6 +1,7 @@
 package getter
 
 import (
+	"errors"
 	"net/http"
 	"sync"
 
@@ -11,6 +12,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	getter "github.com/hashicorp/go-getter/v2"
 )
+
+// ErrNilVenv reports a nil venv handed to a constructor that authenticates through one.
+var ErrNilVenv = errors.New("getter: venv must not be nil")
 
 // Registry keys for the non-git fetcher and resolver maps. They match
 // the lowercased scheme strings CASGetter.Detect produces. Exported so
@@ -34,7 +38,7 @@ type GenericFetcherOption func(*genericFetcherConfig)
 type genericFetcherConfig struct {
 	logger     log.Logger
 	fsys       vfs.FS
-	env        map[string]string
+	venv       *venv.Venv
 	ociHolder  *ociStoreHolder
 	httpExtra  http.Header
 	httpsExtra http.Header
@@ -91,10 +95,25 @@ func WithDispatchFS(fsys vfs.FS) GenericFetcherOption {
 	}
 }
 
-// WithDispatchEnv sets the environment the tfr dispatch entries read their
-// registry auth token from.
-func WithDispatchEnv(env map[string]string) GenericFetcherOption {
-	return func(c *genericFetcherConfig) { c.env = env }
+// WithDispatchVenv sets the virtualized environment the tfr dispatch entries
+// authenticate through, so the fetcher and the resolver read the registry
+// token and the user's CLI config from the same handles.
+func WithDispatchVenv(v *venv.Venv) GenericFetcherOption {
+	if v == nil {
+		panic(ErrNilVenv)
+	}
+
+	return func(c *genericFetcherConfig) { c.venv = v }
+}
+
+// dispatchVenv returns the venv the tfr dispatch entries ride: the one
+// [WithDispatchVenv] persisted, or v when the caller left it unset.
+func dispatchVenv(v *venv.Venv, c *genericFetcherConfig) *venv.Venv {
+	if c.venv != nil {
+		return c.venv
+	}
+
+	return v
 }
 
 // WithOCIConfig enables oci:// registration; callers must also pass [WithDispatchLogger] and [WithDispatchFS].
@@ -107,11 +126,9 @@ func WithOCIConfig(v *venv.Venv) GenericFetcherOption {
 }
 
 // WithHTTPClient overrides the outbound-HTTP client the generic-dispatch
-// fetchers and resolvers probe and fetch through, replacing the venv
-// client [WithDefaultGenericDispatch] supplies. Required by
-// [DefaultGenericFetchers] when [WithTFRConfig] registers the tfr
-// fetcher; [DefaultSourceResolvers] takes its client as a parameter
-// instead.
+// fetchers probe and fetch through, which [DefaultGenericFetchers] otherwise
+// takes from the venv. [DefaultSourceResolvers] reads its client from its
+// venv argument instead.
 func WithHTTPClient(c vhttp.Client) GenericFetcherOption {
 	return func(cfg *genericFetcherConfig) { cfg.httpClient = c }
 }
@@ -142,7 +159,9 @@ func WithTFRConfig(impl tfimpl.Type) GenericFetcherOption {
 // CAS-only clients (the CAS-experiment path in
 // runner/run/download_source.go) share the fetcher set NewClient uses.
 func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[string]getter.Getter {
-	var cfg genericFetcherConfig
+	v.RequireHTTP()
+
+	cfg := genericFetcherConfig{httpClient: v.HTTP}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -159,14 +178,7 @@ func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[stri
 	if cfg.tfrEnabled {
 		requireLoggerFS(&cfg, SchemeTFR)
 
-		if cfg.httpClient == nil {
-			panic(
-				"getter.DefaultGenericFetchers: WithHTTPClient is required when WithTFRConfig registers the tfr fetcher",
-			)
-		}
-
-		m[SchemeTFR] = NewRegistryGetter(cfg.logger, v).
-			WithEnv(cfg.env).
+		m[SchemeTFR] = NewRegistryGetter(cfg.logger, dispatchVenv(v, &cfg)).
 			WithTofuImplementation(cfg.tfrImpl)
 	}
 
@@ -235,10 +247,6 @@ func buildGetters(b *builder) []Getter {
 	gcsGetter := NewGCSGetter(b.v)
 
 	if b.casStore != nil {
-		if b.httpClient == nil {
-			panic("getter: WithCAS requires WithHTTP; wire the venv client at construction")
-		}
-
 		fetchers := map[string]getter.Getter{
 			SchemeS3:    s3Getter,
 			SchemeGCS:   gcsGetter,
@@ -256,7 +264,7 @@ func buildGetters(b *builder) []Getter {
 				resolverOpts,
 				WithDispatchLogger(b.logger),
 				WithDispatchFS(b.tfRegistry.Venv.FS),
-				WithDispatchEnv(b.tfRegistry.Venv.Env),
+				WithDispatchVenv(b.tfRegistry.Venv),
 				WithTFRConfig(b.tfRegistry.TofuImplementation),
 			)
 		}

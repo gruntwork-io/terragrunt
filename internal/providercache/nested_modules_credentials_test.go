@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
@@ -74,9 +74,8 @@ func TestNestedModuleCredentials(t *testing.T) {
 		case "/v1/modules/private/lambda/aws/versions":
 			w.Header().Set("Content-Type", "application/json")
 
-			if _, err := io.WriteString(w, versionsBody); err != nil {
-				t.Errorf("upstream write failed: %v", err)
-			}
+			_, err := io.WriteString(w, versionsBody)
+			assert.NoError(t, err, "upstream write failed")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -91,7 +90,7 @@ func TestNestedModuleCredentials(t *testing.T) {
 			{Name: "127.0.0.1", Token: realUserToken},
 		},
 	}
-	credsSource := cliCfg.CredentialsSource()
+	credsSource := cliCfg.CredentialsSource(map[string]string{})
 
 	// The fake discoverer returns the upstream's full URL as modules.v1, so the
 	// proxy targets the httptest server (HTTP, not HTTPS) without DNS lookups.
@@ -142,8 +141,8 @@ func TestNestedModuleCredentials(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("listener close failed: %v", err)
+		if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err, "listener close failed")
 		}
 	})
 

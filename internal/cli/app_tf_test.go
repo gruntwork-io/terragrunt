@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -41,7 +42,7 @@ func TestTFTerraformHelp(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions()
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 		testV := venv.OSVenv()
 

@@ -17,6 +17,7 @@ var terragruntOnlyConfigs = []string{
 	"account_replication_type",
 	"account_kind",
 	"access_tier",
+	"minimum_tls_version",
 	"tags",
 	"skip_resource_group_creation",
 	"skip_storage_account_creation",
@@ -25,6 +26,8 @@ var terragruntOnlyConfigs = []string{
 	"enable_soft_delete",
 	"soft_delete_retention_days",
 	"allow_blob_public_access",
+	"assign_blob_data_role",
+	"principal_id",
 	// msi_resource_id is used by Terragrunt to select a user-assigned managed
 	// identity during bootstrap, but it is NOT a valid azurerm backend argument
 	// (the backend uses msi_endpoint), so it must not reach `tofu init`.
@@ -35,12 +38,15 @@ var terragruntOnlyConfigs = []string{
 // the Terragrunt-only bootstrap options (location, SKU, skip_* toggles) that
 // are stripped before the config is handed to `tofu init -backend-config`.
 type ExtendedRemoteStateConfigAzurerm struct {
-	Tags                     map[string]string        `mapstructure:"tags"`
-	Location                 string                   `mapstructure:"location"`
-	AccountTier              string                   `mapstructure:"account_tier"`
-	AccountReplicationType   string                   `mapstructure:"account_replication_type"`
-	AccountKind              string                   `mapstructure:"account_kind"`
-	AccessTier               string                   `mapstructure:"access_tier"`
+	Tags                   map[string]string `mapstructure:"tags"`
+	Location               string            `mapstructure:"location"`
+	AccountTier            string            `mapstructure:"account_tier"`
+	AccountReplicationType string            `mapstructure:"account_replication_type"`
+	AccountKind            string            `mapstructure:"account_kind"`
+	AccessTier             string            `mapstructure:"access_tier"`
+	MinimumTLSVersion      string            `mapstructure:"minimum_tls_version"`
+	// PrincipalID defaults to the identity Terragrunt authenticated as.
+	PrincipalID              string                   `mapstructure:"principal_id"`
 	RemoteStateConfigAzurerm RemoteStateConfigAzurerm `mapstructure:",squash"`
 	SoftDeleteRetentionDays  int                      `mapstructure:"soft_delete_retention_days"`
 
@@ -50,10 +56,12 @@ type ExtendedRemoteStateConfigAzurerm struct {
 	SkipVersioning             bool `mapstructure:"skip_versioning"`
 	EnableSoftDelete           bool `mapstructure:"enable_soft_delete"`
 	AllowBlobPublicAccess      bool `mapstructure:"allow_blob_public_access"`
+	// AssignBlobDataRole grants Storage Blob Data Contributor during bootstrap; opt-in because it needs roleAssignments/write.
+	AssignBlobDataRole bool `mapstructure:"assign_blob_data_role"`
 }
 
 // RemoteStateConfigAzurerm mirrors the configuration keys accepted by the
-// `azurerm` Terraform/OpenTofu backend. These are forwarded verbatim to
+// `azurerm` OpenTofu/Terraform backend. These are forwarded verbatim to
 // `tofu init -backend-config`.
 type RemoteStateConfigAzurerm struct {
 	// The auth toggles are pointers so an explicitly configured false is
@@ -136,6 +144,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) StorageAccountConfig() *azurehelper
 		AccountTier:           cfg.AccountTier,
 		ReplicationType:       cfg.AccountReplicationType,
 		AccessTier:            cfg.AccessTier,
+		MinimumTLSVersion:     cfg.MinimumTLSVersion,
 		Tags:                  cfg.Tags,
 		AllowBlobPublicAccess: cfg.AllowBlobPublicAccess,
 	}
@@ -155,6 +164,8 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) CacheKey() string {
 		strconv.FormatBool(cfg.SkipStorageAccountCreation),
 		strconv.FormatBool(cfg.SkipResourceGroupCreation),
 		strconv.FormatBool(cfg.SkipContainerCreation),
+		strconv.FormatBool(cfg.AssignBlobDataRole),
+		cfg.PrincipalID,
 	}, "|")
 }
 
@@ -172,7 +183,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) normalize() {
 		&rs.SasToken, &rs.AccessKey, &rs.Environment, &rs.MSIResourceID,
 		&rs.OIDCTokenFilePath,
 		&cfg.Location, &cfg.AccountTier, &cfg.AccountReplicationType,
-		&cfg.AccountKind, &cfg.AccessTier,
+		&cfg.AccountKind, &cfg.AccessTier, &cfg.MinimumTLSVersion, &cfg.PrincipalID,
 	} {
 		*field = strings.TrimSpace(*field)
 	}

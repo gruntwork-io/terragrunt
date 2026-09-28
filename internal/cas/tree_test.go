@@ -1,9 +1,14 @@
 package cas_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -183,13 +188,13 @@ func TestLinkTreeSymlinks(t *testing.T) {
 		{
 			name:         "absolute symlink target is rejected",
 			treeData:     []byte(`120000 blob 4444444444 escape.txt`),
-			storeTargets: map[string]string{"4444444444": "/etc/passwd"},
+			storeTargets: map[string]string{"4444444444": venvtest.Root("/abs/path")},
 			wantErr:      true,
 		},
 		{
 			name:         "relative symlink that escapes root is rejected",
 			treeData:     []byte(`120000 blob 5555555555 escape.txt`),
-			storeTargets: map[string]string{"5555555555": "../../../etc/passwd"},
+			storeTargets: map[string]string{"5555555555": "../../../outside"},
 			wantErr:      true,
 		},
 	}
@@ -215,10 +220,10 @@ func TestLinkTreeSymlinks(t *testing.T) {
 						target = tt.wantLinks[entry.Path]
 					}
 
-					require.NoError(t, content.Store(l, v, entry.Hash, []byte(target)))
+					require.NoError(t, content.Store(l, v, entry.Hash, []byte(target), cas.StoredFilePerms))
 				default:
 					if data, ok := tt.wantBlobs[entry.Path]; ok {
-						require.NoError(t, content.Store(l, v, entry.Hash, data))
+						require.NoError(t, content.Store(l, v, entry.Hash, data, cas.StoredFilePerms))
 					}
 				}
 			}
@@ -226,7 +231,7 @@ func TestLinkTreeSymlinks(t *testing.T) {
 			targetDir := "/target"
 			require.NoError(t, v.FS.MkdirAll(targetDir, 0o755))
 
-			err = cas.LinkTree(t.Context(), v, store, store, tree, targetDir)
+			err = cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -292,13 +297,13 @@ func TestLinkTree(t *testing.T) {
 				// Create test content
 				testData := []byte("test content")
 				testHash := "a1b2c3d4"
-				err := content.Store(l, v, testHash, testData)
+				err := content.Store(l, v, testHash, testData, cas.StoredFilePerms)
 				require.NoError(t, err)
 
 				// Create and store the src directory tree data
 				srcTreeData := `100644 blob a1b2c3d4 README.md`
 				srcTreeHash := "i9j0k1l2"
-				err = content.Store(l, v, srcTreeHash, []byte(srcTreeData))
+				err = content.Store(l, v, srcTreeHash, []byte(srcTreeData), cas.StoredFilePerms)
 				require.NoError(t, err)
 
 				return store, testHash
@@ -389,7 +394,7 @@ func TestLinkTree(t *testing.T) {
 			require.NoError(t, v.FS.MkdirAll(targetDir, 0755))
 
 			// Link the tree
-			err = cas.LinkTree(t.Context(), v, store, store, tree, targetDir)
+			err = cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -421,4 +426,202 @@ func TestLinkTree(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLinkTreeStopsAtNestingBound(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venvtest.New()
+
+	require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+	store := cas.NewStore("/store")
+	content := cas.NewContent(store)
+
+	const (
+		maxDepth = 3
+		depth    = maxDepth + 1
+	)
+
+	hashes := make([]string, depth)
+	for i := range hashes {
+		hashes[i] = fmt.Sprintf("%010d", i)
+	}
+
+	for i := range depth - 1 {
+		subtree := fmt.Sprintf("040000 tree %s sub", hashes[i+1])
+		require.NoError(t, content.Store(l, v, hashes[i], []byte(subtree), cas.StoredFilePerms))
+	}
+
+	require.NoError(t, content.Store(l, v, hashes[depth-1], []byte(""), cas.StoredFilePerms))
+
+	tree, err := git.ParseTree([]byte("040000 tree "+hashes[0]+" sub"), "deep-repo")
+	require.NoError(t, err)
+
+	require.NoError(t, v.FS.MkdirAll("/target", 0755))
+
+	err = cas.LinkTree(t.Context(), l, v, store, store, tree, "/target", cas.WithMaxTreeDepth(maxDepth))
+
+	var depthErr *cas.TreeDepthExceededError
+
+	require.ErrorAs(t, err, &depthErr)
+	assert.Equal(t, maxDepth, depthErr.MaxDepth, "the configured cap is the one enforced")
+}
+
+func TestLinkTreeAcceptsTreeAtNestingBound(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venvtest.New()
+
+	require.NoError(t, v.FS.MkdirAll("/store", 0755))
+
+	store := cas.NewStore("/store")
+	content := cas.NewContent(store)
+
+	const maxDepth = 3
+
+	hashes := make([]string, maxDepth)
+	for i := range hashes {
+		hashes[i] = fmt.Sprintf("%010d", i)
+	}
+
+	for i := range maxDepth - 1 {
+		subtree := fmt.Sprintf("040000 tree %s sub", hashes[i+1])
+		require.NoError(t, content.Store(l, v, hashes[i], []byte(subtree), cas.StoredFilePerms))
+	}
+
+	require.NoError(t, content.Store(
+		l, v, hashes[maxDepth-1], []byte("100644 blob deadbeef01 README.md"), cas.StoredFilePerms,
+	))
+	require.NoError(t, content.Store(l, v, "deadbeef01", []byte("hello"), cas.StoredFilePerms))
+
+	tree, err := git.ParseTree([]byte("040000 tree "+hashes[0]+" sub"), "deep-repo")
+	require.NoError(t, err)
+
+	require.NoError(t, v.FS.MkdirAll("/target", 0755))
+
+	require.NoError(t, cas.LinkTree(
+		t.Context(), l, v, store, store, tree, "/target", cas.WithMaxTreeDepth(maxDepth),
+	))
+
+	got, err := vfs.ReadFile(v.FS, filepath.Join("/target", "sub", "sub", "sub", "README.md"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hello"), got)
+}
+
+// countingFS counts how many per-entry filesystem operations a materialization
+// has in flight at once, and holds each one open long enough for the rest to
+// pile up behind it.
+type countingFS struct {
+	vfs.FS
+	mu       sync.Mutex
+	inFlight int
+	peak     int
+}
+
+// hold registers an operation as in flight, sleeps so concurrent operations
+// overlap, and returns the release. The sleep is [time.Sleep] rather than
+// [synctest.Sleep] because synctest forbids concurrent Wait calls, and every
+// worker reaches this at once.
+func (fs *countingFS) hold() func() {
+	fs.mu.Lock()
+	fs.inFlight++
+	fs.peak = max(fs.peak, fs.inFlight)
+	fs.mu.Unlock()
+
+	time.Sleep(time.Millisecond)
+
+	return func() {
+		fs.mu.Lock()
+		defer fs.mu.Unlock()
+
+		fs.inFlight--
+	}
+}
+
+func (fs *countingFS) Open(name string) (vfs.File, error) {
+	defer fs.hold()()
+
+	return fs.FS.Open(name)
+}
+
+func (fs *countingFS) LinkIfPossible(oldname, newname string) error {
+	defer fs.hold()()
+
+	return fs.FS.(vfs.HardLinker).LinkIfPossible(oldname, newname)
+}
+
+func (fs *countingFS) peakInFlight() int {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	return fs.peak
+}
+
+// TestLinkTreeBoundsConcurrencyAcrossNestingWithRacing pins the bound over a
+// whole materialization rather than over one level of it. Nesting used to
+// multiply the bound, and a deep enough repository ran the process out of file
+// descriptors.
+func TestLinkTreeBoundsConcurrencyAcrossNestingWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			depth         = 5
+			blobsPerLevel = 8
+		)
+
+		l := logger.CreateLogger()
+
+		fs := &countingFS{FS: vfs.NewMemMapFS()}
+		v := venvtest.New().WithFS(fs.FS)
+
+		require.NoError(t, v.FS.MkdirAll("/store", 0755))
+		require.NoError(t, v.FS.MkdirAll("/target", 0755))
+
+		store := cas.NewStore("/store")
+		content := cas.NewContent(store)
+
+		require.NoError(t, content.Store(l, v, "blob000000", []byte("hello"), cas.StoredFilePerms))
+
+		// Each level lists the same blob under distinct names plus the tree
+		// below it, so every level has more work than the bound allows.
+		treeHashes := make([]string, depth)
+		for i := range treeHashes {
+			treeHashes[i] = fmt.Sprintf("tree%06d", i)
+		}
+
+		for i := depth - 1; i >= 0; i-- {
+			entries := make([]string, 0, blobsPerLevel+1)
+
+			// The subtree is listed first so it descends while its siblings
+			// are still being written. Listed last, it would find the level
+			// already drained and never overlap with it.
+			if i < depth-1 {
+				entries = append(entries, "040000 tree "+treeHashes[i+1]+" sub")
+			}
+
+			for b := range blobsPerLevel {
+				entries = append(entries, fmt.Sprintf("100644 blob blob000000 file%d", b))
+			}
+
+			data := []byte(strings.Join(entries, "\n"))
+			require.NoError(t, content.Store(l, v, treeHashes[i], data, cas.StoredFilePerms))
+		}
+
+		tree, err := git.ParseTree([]byte("040000 tree "+treeHashes[0]+" sub"), "deep-repo")
+		require.NoError(t, err)
+
+		// Only the materialization runs through the counter. Seeding the store
+		// needs file locking, which the wrapper does not forward.
+		require.NoError(t, cas.LinkTree(t.Context(), l, v.WithFS(fs), store, store, tree, "/target"))
+
+		limit := vfs.FSWorkersFor(fs, "/target")
+
+		assert.LessOrEqual(t, fs.peakInFlight(), limit,
+			"materialization ran more file operations at once than the filesystem's bound allows")
+		assert.Positive(t, fs.peakInFlight(), "the counter saw no work at all")
+	})
 }

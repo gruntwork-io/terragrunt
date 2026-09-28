@@ -28,6 +28,28 @@ type fooOnly struct {
 	Foo string `hcl:"foo"`
 }
 
+// jsonWithInvalidIdentifier parses cleanly: JSON keys are arbitrary strings, so a
+// name that HCL's own syntax would reject only surfaces when the attributes are read.
+const jsonWithInvalidIdentifier = `{"foo bar": "baz"}`
+
+// TestJustAttributesRejectsInvalidIdentifier pins that a JSON attribute name that
+// isn't a valid HCL identifier fails the read rather than being read as valid.
+func TestJustAttributesRejectsInvalidIdentifier(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	parser := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), &buf, true))
+
+	file, err := parser.ParseFromString(jsonWithInvalidIdentifier, "/virtual/test.hcl.json")
+	require.NoError(t, err)
+
+	attrs, err := file.JustAttributes()
+
+	require.Error(t, err, "an attribute name that is not a valid identifier must fail the read")
+	assert.Nil(t, attrs)
+}
+
 // TestRebindRoutesDiagnosticsThroughNewWriter checks that Decode-time diagnostics
 // flow through the rebound parser's writer rather than the parser the file was
 // originally parsed with.

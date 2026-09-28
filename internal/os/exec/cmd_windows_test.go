@@ -81,7 +81,7 @@ func TestWindowsNewSignalsForwarderWait(t *testing.T) {
 		strconv.Itoa(expectedWait),
 	)
 
-	runChannel := make(chan error)
+	runChannel := make(chan error, 1)
 
 	go func() {
 		runChannel <- cmd.Run(l)

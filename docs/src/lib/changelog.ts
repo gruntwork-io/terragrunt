@@ -1,4 +1,5 @@
 import type { CollectionEntry } from "astro:content";
+import { compareVersionsDesc } from "./versions";
 
 export type ChangelogEntry = CollectionEntry<"changelog">;
 
@@ -28,20 +29,6 @@ const CATEGORY_INDEX = new Map(CHANGELOG_CATEGORIES.map((c, i) => [c.slug, i]));
 
 export function categoryLabel(slug: string): string {
   return CHANGELOG_CATEGORIES.find((c) => c.slug === slug)?.label ?? slug;
-}
-
-export function compareVersionsDesc(a: string, b: string): number {
-  const aIsVersion = a.startsWith("v");
-  const bIsVersion = b.startsWith("v");
-  if (!aIsVersion && bIsVersion) return -1;
-  if (aIsVersion && !bIsVersion) return 1;
-  return b.localeCompare(a, undefined, { numeric: true });
-}
-
-export function isReleased(version: string, latestVersion: string): boolean {
-  if (!version.startsWith("v")) return false;
-  const v = version.replace(/^v/, "");
-  return v.localeCompare(latestVersion, undefined, { numeric: true }) <= 0;
 }
 
 export interface CategoryGroup {
@@ -274,6 +261,46 @@ function attrValue(attrs: string, pattern: RegExp): string | null {
   return match ? match[1] : null;
 }
 
+/** Title of the note the `WithinGuarantees` component renders. */
+export const WITHIN_GUARANTEES_TITLE = "Within the 1.0 guarantees";
+
+/**
+ * Body of the note the `WithinGuarantees` component renders ahead of its slot,
+ * as Markdown. The component and the GitHub release notes both read it from
+ * here so the two stay identical.
+ */
+export const WITHIN_GUARANTEES_NOTE =
+  "The [1.0 guarantees](/process/1-0-guarantees) make promises about how Terragrunt remains backwards compatible. " +
+  "This change does not break those promises. It is listed under breaking changes so you are aware of it, in case it affects your workflows.";
+
+const WITHIN_GUARANTEES_BLOCK = /<WithinGuarantees\s*>([\s\S]*?)<\/WithinGuarantees>/g;
+
+// Removes the indentation MDX authors give a component's children, so the
+// alert rows below do not carry it.
+function dedent(text: string): string {
+  const lines = text.replace(/^\s*\n/, "").trimEnd().split("\n");
+  const indents = lines
+    .filter((line) => line.trim().length > 0)
+    .map((line) => line.match(/^[ \t]*/)?.[0].length ?? 0);
+  const indent = indents.length > 0 ? Math.min(...indents) : 0;
+  return lines.map((line) => line.slice(indent)).join("\n");
+}
+
+// Rewrites `<WithinGuarantees>` to the `<Aside>` it renders, with the shared
+// note ahead of the slot content, so the Aside transform below can turn it
+// into a GitHub alert.
+function transformWithinGuarantees(input: string): string {
+  return input.replace(WITHIN_GUARANTEES_BLOCK, (_match, content: string) =>
+    [
+      `<Aside type="note" title="${WITHIN_GUARANTEES_TITLE}">`,
+      WITHIN_GUARANTEES_NOTE,
+      "",
+      dedent(content),
+      "</Aside>",
+    ].join("\n"),
+  );
+}
+
 function transformAsidesToGitHubAlerts(input: string): string {
   return input.replace(ASIDE_BLOCK, (_match, attrs: string | undefined, content: string) => {
     const attrString = attrs ?? "";
@@ -296,6 +323,7 @@ export function prepareForGitHub(body: string, siteUrl: string): string {
 
   result = result.replace(MDX_IMPORT_LINE, "");
 
+  result = transformWithinGuarantees(result);
   result = transformAsidesToGitHubAlerts(result);
 
   result = result.replace(/\]\(\//g, `](${siteUrl}/`);

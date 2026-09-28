@@ -6,9 +6,12 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,5 +78,26 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			b.StopTimer()
 			require.NoError(b, err)
 		})
+	}
+}
+
+// TestNewCommandExposesTheQueueFlags pins the queue flags users pass to
+// `dag graph`. The command builds its flag set from the shared sets rather
+// than declaring one, so a set dropped from that list disappears from the
+// command without any signature changing.
+func TestNewCommandExposesTheQueueFlags(t *testing.T) {
+	t.Parallel()
+
+	cmd := graph.NewCommand(
+		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
+	)
+
+	assert.Equal(t, graph.CommandName, cmd.Name)
+
+	for _, name := range []string{
+		shared.QueueIgnoreDAGOrderFlagName,
+		shared.QueueIgnoreErrorsFlagName,
+	} {
+		assert.NotNil(t, cmd.Flags.Get(name), name)
 	}
 }

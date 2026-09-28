@@ -7,7 +7,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
 // notifyBrokenPipe makes a write to a closed standard output fail with EPIPE
@@ -25,10 +25,12 @@ import (
 // that cancellation and ends only when the caller stops it: cleanup writes
 // too, and by then the reader is already gone. Everything outside that
 // window, the TUI included, keeps the default disposition.
-func notifyBrokenPipe(ctx context.Context, cancel context.CancelFunc) context.CancelFunc {
+func notifyBrokenPipe(ctx context.Context, v *venv.Venv, cancel context.CancelFunc) context.CancelFunc {
+	v.RequireSignals()
+
 	notifyCtx, stop := context.WithCancel(ctx)
 
-	signal.NotifierWithContext(notifyCtx, func(_ os.Signal) { cancel() }, syscall.SIGPIPE)
+	v.Signals(notifyCtx, func(_ os.Signal) { cancel() }, syscall.SIGPIPE)
 
 	return stop
 }

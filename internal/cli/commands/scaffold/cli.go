@@ -3,7 +3,6 @@ package scaffold
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -11,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -86,7 +86,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			}
 
 			if opts.ScaffoldRootFileName == "" {
-				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, opts)
+				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, v.FS, opts)
 			}
 
 			return RunInteractive(ctx, l, v, opts.OptionsFromContext(ctx), moduleURL, templateURL)
@@ -94,7 +94,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	}
 }
 
-func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions) string {
+func GetDefaultRootFileName(ctx context.Context, fsys vfs.FS, opts *options.TerragruntOptions) string {
 	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).
 		SuppressWarning().
 		Evaluate(ctx); err != nil {
@@ -109,7 +109,7 @@ func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions
 	for foldersToCheck := opts.MaxFoldersToCheck; dir != prevDir && dir != "" && foldersToCheck > 0; foldersToCheck-- {
 		prevDir = dir
 
-		_, err := os.Stat(filepath.Join(dir, config.RecommendedParentConfigName))
+		_, err := fsys.Stat(filepath.Join(dir, config.RecommendedParentConfigName))
 		if err == nil {
 			return config.RecommendedParentConfigName
 		}

@@ -370,6 +370,21 @@ func TestParser_ErrorCases(t *testing.T) {
 			input:       "foo | bar |",
 			expectError: true,
 		},
+		{
+			name:        "empty operand between pipes",
+			input:       "foo | | bar",
+			expectError: true,
+		},
+		{
+			name:        "double pipe",
+			input:       "foo || bar",
+			expectError: true,
+		},
+		{
+			name:        "braced path with an unclosed brace group",
+			input:       "{./a{}",
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {

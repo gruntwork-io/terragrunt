@@ -2,7 +2,6 @@ package tui
 
 import (
 	"errors"
-	"os"
 	"slices"
 	"strings"
 
@@ -75,6 +74,7 @@ var ErrChannelsRequired = errors.New("browse: result and warning channels must n
 func NewModel(
 	l log.Logger,
 	fsys vfs.FS,
+	userHomeDir func() (string, error),
 	root *Node,
 	color ColorMode,
 	resultCh <-chan DiscoveryResult,
@@ -90,7 +90,7 @@ func NewModel(
 
 	// Resolve the home directory once; the path bar abbreviates against it on
 	// every render. An error leaves it empty, which disables abbreviation.
-	home, err := os.UserHomeDir()
+	home, err := userHomeDir()
 	if err != nil {
 		l.Debugf("Could not resolve home directory for path abbreviation: %v", err)
 	}

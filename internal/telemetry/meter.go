@@ -124,10 +124,8 @@ func (meter *Meter) Count(ctx context.Context, name string, value int64) {
 }
 
 // NewMetricsExporter - create a new exporter based on the telemetry options.
-// The structure mirrors NewLogsExporter and NewTraceExporter; the per-signal
-// OTLP option types prevent sharing a single implementation.
 //
-//nolint:dupl
+//nolint:dupl // the per-signal OTLP option types prevent sharing one implementation
 func NewMetricsExporter(
 	ctx context.Context,
 	writer io.Writer,
@@ -138,8 +136,7 @@ func NewMetricsExporter(
 		exporterType = noneMetricsExporterType
 	}
 
-	// TODO: Remove this lint suppression
-	switch exporterType { //nolint:exhaustive
+	switch exporterType {
 	case oltpHTTPMetricsExporterType:
 		var config []otlpmetrichttp.Option
 		if opts.MetricExporterInsecureEndpoint {
@@ -156,6 +153,8 @@ func NewMetricsExporter(
 		return otlpmetricgrpc.New(ctx, config...)
 	case consoleMetricsExporterType:
 		return stdoutmetric.New(stdoutmetric.WithWriter(writer))
+	case noneMetricsExporterType:
+		return nil, nil
 	default:
 		return nil, nil
 	}

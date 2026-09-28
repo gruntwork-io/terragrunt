@@ -9,6 +9,7 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -63,7 +64,7 @@ type MaxAttemptsReachedError struct {
 }
 
 func (e *MaxAttemptsReachedError) Error() string {
-	return fmt.Sprintf("max retry attempts (%d) reached for error: %v", e.MaxRetries, e.Err)
+	return fmt.Sprintf("max retry attempts (%d) reached for error: %s", e.MaxRetries, errfmt.Format(e.Err))
 }
 
 // AttemptErrorRecovery attempts to recover from an error by checking the ignore and retry rules.
@@ -132,11 +133,10 @@ func ExtractErrorMessage(err error) string {
 
 	// For ProcessExecutionError, match only against stderr and the underlying error,
 	// not the full command string with flags.
-	var processErr util.ProcessExecutionError
-	if errors.As(err, &processErr) {
+	if processErr, ok := errors.AsType[*util.ProcessExecutionError](err); ok {
 		errText = processErr.Output.Stderr.String() + "\n" + processErr.Err.Error()
 	} else {
-		errText = err.Error()
+		errText = errfmt.Format(err)
 	}
 
 	multilineText := log.RemoveAllASCISeq(errText)
@@ -145,16 +145,22 @@ func ExtractErrorMessage(err error) string {
 	return strings.Join(strings.Fields(errorText), " ")
 }
 
-// MatchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns.
+// MatchesAnyRegexpPattern reports whether the input matches at least one positive pattern and no
+// negative pattern, whatever order the patterns are listed in.
 func MatchesAnyRegexpPattern(input string, patterns []*Pattern) bool {
-	for _, pattern := range patterns {
-		isNegative := pattern.Negative
-		matched := pattern.Pattern.MatchString(input)
+	matched := false
 
-		if matched {
-			return !isNegative
+	for _, pattern := range patterns {
+		if !pattern.Pattern.MatchString(input) {
+			continue
 		}
+
+		if pattern.Negative {
+			return false
+		}
+
+		matched = true
 	}
 
-	return false
+	return matched
 }

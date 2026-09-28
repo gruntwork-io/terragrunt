@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   categorySlugSort,
-  compareVersionsDesc,
-  isReleased,
   parsePullRequests,
   prepareForGitHub,
   pullRequestsFromCommits,
   pullRequestsToMarkdown,
+  WITHIN_GUARANTEES_NOTE,
+  WITHIN_GUARANTEES_TITLE,
 } from "./changelog";
 
 function commit(message: string, login: string | null, name?: string) {
@@ -17,33 +17,6 @@ function commit(message: string, login: string | null, name?: string) {
 }
 
 const SITE = "https://terragrunt.gruntwork.io";
-
-describe("compareVersionsDesc", () => {
-  test("orders semver versions descending", () => {
-    const sorted = ["v1.0.10", "v1.0.2", "v1.0.0"].sort(compareVersionsDesc);
-    expect(sorted).toEqual(["v1.0.10", "v1.0.2", "v1.0.0"]);
-  });
-
-  test("non-version strings sort before semver versions", () => {
-    const sorted = ["v1.0.0", "draft", "v0.99.0"].sort(compareVersionsDesc);
-    expect(sorted[0]).toBe("draft");
-  });
-});
-
-describe("isReleased", () => {
-  test("returns true when version is at or below latest", () => {
-    expect(isReleased("v1.0.3", "1.0.3")).toBe(true);
-    expect(isReleased("v1.0.0", "1.0.3")).toBe(true);
-  });
-
-  test("returns false when version is newer than latest", () => {
-    expect(isReleased("v1.0.4", "1.0.3")).toBe(false);
-  });
-
-  test("returns false for non-semver tags", () => {
-    expect(isReleased("draft", "1.0.3")).toBe(false);
-  });
-});
 
 describe("categorySlugSort", () => {
   test("uses the canonical category order", () => {
@@ -191,6 +164,29 @@ describe("prepareForGitHub", () => {
       SITE,
     );
     expect(out).toBe(["## Title", "", "Body."].join("\n"));
+  });
+
+  test("renders WithinGuarantees as a NOTE alert with the shared note ahead of its slot", () => {
+    const out = prepareForGitHub(
+      [
+        "import WithinGuarantees from '@components/WithinGuarantees.astro';",
+        "",
+        "<WithinGuarantees>",
+        "  `f()` still returns valid content, but the value changes.",
+        "</WithinGuarantees>",
+      ].join("\n"),
+      SITE,
+    );
+    expect(out).toBe(
+      [
+        "> [!NOTE]",
+        `> **${WITHIN_GUARANTEES_TITLE}**`,
+        ">",
+        `> ${WITHIN_GUARANTEES_NOTE.replace("](/", `](${SITE}/`)}`,
+        ">",
+        "> `f()` still returns valid content, but the value changes.",
+      ].join("\n"),
+    );
   });
 
   test("converts a tip Aside with a title to a GitHub TIP alert", () => {

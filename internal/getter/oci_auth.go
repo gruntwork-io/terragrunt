@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	iofs "io/fs"
+	"io/fs"
 	"maps"
 	"net/http"
 	"path/filepath"
@@ -545,7 +545,7 @@ func loadOCIAmbientStores(l log.Logger, v *venv.Venv, tofu *ociTofuCredentials) 
 				return nil, OCIAmbientConfigFileError{Path: candidate, Err: err}
 			}
 
-			if !errors.Is(err, iofs.ErrNotExist) {
+			if !errors.Is(err, fs.ErrNotExist) {
 				l.Warnf("Skipping unparseable OCI credential file %s: %v", candidate, err)
 			}
 

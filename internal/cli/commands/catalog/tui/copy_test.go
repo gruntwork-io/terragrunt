@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -37,7 +38,7 @@ func TestCopyCmdScaffoldsDiscoveredComponent(t *testing.T) {
 	workingDir := testWorkingDir
 	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = workingDir
 
 	cmd := tui.NewCopyCmd(logger.CreateLogger(), opts, components[0])
@@ -57,19 +58,19 @@ func TestCopyCmdScaffoldsDiscoveredComponent(t *testing.T) {
 func TestCopyCmdPanicsWithoutFS(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = t.TempDir()
 
 	assert.Panics(t, func() {
 		err := tui.NewCopyCmd(logger.CreateLogger(), opts, nil).Run()
-		t.Errorf("Run returned %v instead of panicking", err)
+		assert.Fail(t, "Run returned instead of panicking", "err=%v", err)
 	})
 }
 
 func TestCopyCmdRejectsNilComponent(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = t.TempDir()
 
 	err := tui.NewCopyCmd(logger.CreateLogger(), opts, nil).WithFS(vfs.NewMemMapFS()).Run()
@@ -89,7 +90,7 @@ func TestCopyCmdRejectsEmptyWorkingDir(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = ""
 
 	err = tui.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run()
@@ -101,7 +102,7 @@ func TestCopyCmdRejectsEmptyWorkingDir(t *testing.T) {
 func TestCopyCmdResultZeroValueBeforeRun(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = t.TempDir()
 
 	cmd := tui.NewCopyCmd(logger.CreateLogger(), opts, nil)
@@ -120,7 +121,7 @@ func TestCopyCmdResultZeroValueBeforeRun(t *testing.T) {
 func TestCopyCmdStdioSettersAreNoops(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = t.TempDir()
 
 	cmd := tui.NewCopyCmd(logger.CreateLogger(), opts, nil)

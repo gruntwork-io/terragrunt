@@ -299,7 +299,7 @@ resource "aws_vpc" "main" {
 			expectValid: true,
 		},
 		{
-			description: "Directory with no Terraform/OpenTofu files",
+			description: "Directory with no OpenTofu/Terraform files",
 			files: map[string]string{
 				"main.yaml": `# Not a terraform file`,
 			},

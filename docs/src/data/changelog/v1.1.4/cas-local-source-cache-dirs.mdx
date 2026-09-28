@@ -3,8 +3,10 @@ version: "v1.1.4"
 category: "bug-fixes"
 ---
 
-#### CAS no longer falls back on sources that have been initialized
+#### CAS handles local sources that have already been initialized
 
-With CAS enabled, reading a local source that had already been initialized failed and fell back to the slower standard copy. Generating a stack from such a unit logged `CAS processing failed ... source escapes repository root`. Provider caching, whether through the [provider cache server](/features/caching/provider-cache-server) or the [automatic provider cache dir](/features/caching/auto-provider-cache-dir), leaves the plugins under `.terraform` pointing into a shared cache outside the source, and CAS read those links as the source reaching outside itself.
+With CAS enabled, reading a local source that had already been initialized failed and fell back to the slower standard copy. Generating a stack from such a unit logged `CAS processing failed ... source escapes repository root`.
 
-CAS now leaves `.terraform` and `.terragrunt-cache` out of local sources, keeping `.terraform.lock.hcl` and everything else. Both directories hold working state that OpenTofu, Terraform, and Terragrunt rebuild on demand, so units and stacks stop being handed a stale copy of either, and running `tofu init` in a source directory stops changing the CAS key of source that hasn't changed.
+Provider caching was the cause. Both the [Provider Cache Server](/features/caching/provider-cache-server) and the [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir) leave the plugins under `.terraform` pointing into a shared cache outside the source. CAS read those links as the source reaching outside itself and refused to copy the link for safety.
+
+CAS now leaves `.terraform` and `.terragrunt-cache` out of local sources, keeping `.terraform.lock.hcl` and everything else. OpenTofu, Terraform, and Terragrunt rebuild both directories on demand, so units and stacks no longer receive a stale copy of either. Running `tofu init` in a source directory no longer changes that source's CAS key.

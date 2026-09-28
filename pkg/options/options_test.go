@@ -82,7 +82,7 @@ func TestInsertTerraformCliArgsNilGuard(t *testing.T) {
 func TestNewTerragruntOptions_DefaultCASCloneDepth(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	assert.Equal(t, cas.DefaultCASCloneDepth, opts.CASCloneDepth)
 }
 

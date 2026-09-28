@@ -28,6 +28,16 @@ const paneBorderHeight = 2
 const panePadWidth = 2
 
 const (
+	// appPadHeight is the rows of padding above and below the app.
+	appPadHeight = 1
+	// appPadWidth is the columns of padding either side of the app.
+	appPadWidth = 2
+)
+
+// sidePaneDivisor gives each side column a quarter of the content width, leaving half for the preview.
+const sidePaneDivisor = 4
+
+const (
 	// itemColor renders unselected entries in bright white.
 	itemColor = "15"
 	// dimColor is used for borders, help text, and empty-state placeholders.
@@ -39,7 +49,7 @@ const (
 )
 
 var (
-	appStyle      = lipgloss.NewStyle().Padding(1, 2) //nolint:mnd
+	appStyle      = lipgloss.NewStyle().Padding(appPadHeight, appPadWidth)
 	itemStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(itemColor))
 	selectedStyle = lipgloss.NewStyle().Bold(true).
 			Foreground(lipgloss.Color(viewtui.SelectionText)).
@@ -108,7 +118,7 @@ func (m Model) paneSizes(header, footer string) (sideWidth, previewWidth, paneHe
 	_, frameV := appStyle.GetFrameSize()
 
 	content := m.contentWidth()
-	sideWidth = content / 4 //nolint:mnd
+	sideWidth = content / sidePaneDivisor
 	previewWidth = content - sideWidth*(columnCount-1)
 
 	paneHeight = max(m.height-frameV-lipgloss.Height(header)-lipgloss.Height(footer), 0)

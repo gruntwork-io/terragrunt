@@ -46,7 +46,7 @@ func (c *scaffoldCmd) WithPlan(plan *scaffold.Plan, values map[string]string) *s
 
 func (c *scaffoldCmd) Run() error {
 	if c.plan != nil {
-		defer c.plan.Cleanup()
+		defer c.plan.Cleanup(c.venv.FS)
 
 		c.logger.Debugf("Generating scaffolded component: %q", c.component.TerraformSourcePath())
 

@@ -10,9 +10,10 @@
 import type { APIRoute, GetStaticPaths } from 'astro';
 import { getCollection } from 'astro:content';
 import ReleaseEntries from '@components/ReleaseEntries.astro';
-import { entriesForVersion, isReleased, uniqueVersions } from '@lib/changelog';
-import { getLatestRelease } from '@lib/github';
+import { entriesForVersion, uniqueVersions } from '@lib/changelog';
+import { getLatestVersion } from '@lib/release';
 import { componentToSimpleMarkdown, markdownDocument } from '@lib/page-to-markdown';
+import { isReleased } from '@lib/versions';
 
 export const prerender = true;
 
@@ -20,8 +21,7 @@ export const getStaticPaths = (async () => {
 	// Mirror `[version].astro`: include only released versions in a production
 	// build (DEV additionally shows unreleased ones).
 	const showUnreleased = import.meta.env.DEV;
-	const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
-	const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+	const latestVersion = await getLatestVersion();
 
 	const entries = await getCollection('changelog');
 	const versions = uniqueVersions(entries).filter(

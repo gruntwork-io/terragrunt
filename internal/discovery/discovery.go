@@ -10,7 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -44,6 +44,10 @@ func (d *Discovery) Discover(
 
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
 
+	if d.discoveryBoundaryInput == "" {
+		d.discoveryBoundaryInput = d.discoveryBoundary
+	}
+
 	if d.discoveryBoundary != "" {
 		boundary, boundaryErr := resolveDiscoveryBoundary(
 			v.FS,
@@ -69,6 +73,18 @@ func (d *Discovery) Discover(
 	)
 
 	withWorktree := len(d.gitExpressions) > 0 && d.worktrees != nil
+
+	if withWorktree {
+		if gitRoot, gitErr := git.GoRepoRoot(ctx, v, d.workingDir); gitErr == nil {
+			d.worktreeGitRoot = gitRoot
+		}
+
+		// A boundary that exists at neither compared reference is a mistake, not an empty result.
+		err := CheckWorktreeBoundaries(ctx, v, d.worktrees, d.filters, d.discoveryBoundaryInput, d.workingDir)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	l.Debugf(
 		"Discovery: starting filesystem phase (workers=%d, with_worktree=%t)",
@@ -117,6 +133,7 @@ func (d *Discovery) Discover(
 				"parse_includes":    d.parseIncludes,
 				"parse_exclude":     d.parseExclude,
 				"read_files":        d.readFiles,
+				"track_reads":       d.trackReads,
 				"activation_reason": reasonsStr,
 			}, func(childCtx context.Context, l log.Logger) error {
 				var phaseErr error
@@ -137,7 +154,7 @@ func (d *Discovery) Discover(
 
 	if d.classifier.HasGraphFilters() {
 		if d.classifier.HasDependentFilters() && d.discoveryBoundary == "" && d.gitRoot == "" {
-			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, v, d.workingDir); gitErr == nil {
+			if gitRootPath, gitErr := git.GoRepoRoot(ctx, v, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
 				l.Debugf("Set dependent discovery boundary to git root: %s", d.gitRoot)
 			}
@@ -262,13 +279,14 @@ func (d *Discovery) Discover(
 	components = d.applyQueueFilters(opts, components)
 
 	if d.parseStackConfigs {
-		if err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "discovery_phase_stack_configs", map[string]any{
-			"components_in": len(components),
-		}, func(childCtx context.Context, childL log.Logger) error {
-			storeStackConfigs(childCtx, childL, v, opts, components)
+		if err := telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "discovery_phase_stack_configs", map[string]any{
+				"components_in": len(components),
+			}, func(childCtx context.Context, childL log.Logger) error {
+				storeStackConfigs(childCtx, childL, v, opts, components)
 
-			return nil
-		}); err != nil {
+				return nil
+			}); err != nil {
 			return components, err
 		}
 	}
@@ -471,34 +489,32 @@ func (d *Discovery) runGraphPhase(
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
 
-		var buildErrs []error
+		unparsed := d.potentialDependentsOutsideBoundary(l, v.FS, candidates)
 
-		telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
+		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
-				buildErrs = d.buildDependencyGraph(childCtx, l, v, opts, allComponents)
-				return errors.Join(buildErrs...)
+				return errors.Join(d.buildDependencyGraph(childCtx, l, v, opts, allComponents, unparsed)...)
 			})
 
-		if len(buildErrs) > 0 && !d.suppressParseErrors {
+		if buildErr != nil && !d.suppressParseErrors {
 			return &PhaseResults{
 				Discovered: discovered,
 				Candidates: candidates,
-			}, errors.Join(buildErrs...)
+			}, buildErr
 		}
 	}
 
 	phase := NewGraphPhase(d.numWorkers, d.maxDependencyDepth)
 
-	var (
-		result *PhaseResults
-		err    error
-	)
+	var result *PhaseResults
 
-	telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
+	err := telemetry.TelemeterFromContext(ctx).Collect(
 		ctx, l, "discover_dependencies", map[string]any{},
 		func(childCtx context.Context, l log.Logger) error {
-			result, err = phase.Run(childCtx, l, v, &PhaseInput{
+			var runErr error
+
+			result, runErr = phase.Run(childCtx, l, v, &PhaseInput{
 				Opts:       opts,
 				Components: resultsToComponents(discovered),
 				Candidates: candidates,
@@ -506,7 +522,7 @@ func (d *Discovery) runGraphPhase(
 				Discovery:  d,
 			})
 
-			return err
+			return runErr
 		})
 
 	allDiscovered := discovered
@@ -548,12 +564,14 @@ func (d *Discovery) runRelationshipPhase(
 // buildDependencyGraph parses all components and builds bidirectional dependency links.
 // This is called before the graph phase when dependent filters exist, to populate
 // the reverse links (dependents) that the graph phase needs for dependent traversal.
+// Components whose paths are in unparsed stay in the graph but are not parsed.
 func (d *Discovery) buildDependencyGraph(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	allComponents component.Components,
+	unparsed map[string]struct{},
 ) []error {
 	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
 
@@ -566,6 +584,11 @@ func (d *Discovery) buildDependencyGraph(
 	g.SetLimit(d.numWorkers)
 
 	for _, c := range allComponents {
+		if _, skip := unparsed[c.Path()]; skip {
+			l.Debugf("Discovery: %s is outside every dependent boundary; not parsing it", c.Path())
+			continue
+		}
+
 		g.Go(func() error {
 			err := d.buildComponentDependencies(ctx, l, v, opts, c, threadSafeComponents)
 			if err != nil {
@@ -681,7 +704,10 @@ func removeCycles(components component.Components) (component.Components, error)
 }
 
 // filterGraphTarget prunes components to the target path and its dependents.
-func (d *Discovery) filterGraphTarget(fsys vfs.FS, components component.Components) component.Components {
+func (d *Discovery) filterGraphTarget(
+	fsys vfs.FS,
+	components component.Components,
+) component.Components {
 	if d.graphTarget == "" {
 		return components
 	}
@@ -841,11 +867,22 @@ func (d *Discovery) dropOutsideBoundary(
 	kept := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		if reachedByTraversal(c) && isExternal(fsys, d.discoveryBoundary, c.Path()) {
+		if !reachedByTraversal(c) {
+			kept = append(kept, c)
+			continue
+		}
+
+		// A component found in a Git worktree is bounded by the flag resolved in that worktree.
+		boundary := d.discoveryBoundary
+		if root := d.worktreeRootOf(fsys, c.Path()); root != "" {
+			boundary = filter.WorktreeBoundaryPath(root, d.worktreeGitRoot, d.discoveryBoundaryInput)
+		}
+
+		if isExternal(fsys, boundary, c.Path()) {
 			l.Debugf(
 				"Discovery: %s was reached across discovery boundary %s; not returning it",
 				c.Path(),
-				d.discoveryBoundary,
+				boundary,
 			)
 
 			continue
@@ -867,7 +904,8 @@ func reachedByTraversal(c component.Component) bool {
 
 	origin := dctx.Origin()
 
-	return origin == component.OriginGraphDiscovery || origin == component.OriginRelationshipDiscovery
+	return origin == component.OriginGraphDiscovery ||
+		origin == component.OriginRelationshipDiscovery
 }
 
 // applyExcludeModules marks units (and optionally their dependencies) excluded via terragrunt exclude blocks.
@@ -886,23 +924,23 @@ func (d *Discovery) applyExcludeModules(
 			continue
 		}
 
-		if !cfg.Exclude.IsActionListed(opts.TerraformCommand) {
+		if !cfg.Exclude.Excludes(opts.TerraformCommand) {
 			continue
 		}
 
-		if cfg.Exclude.If {
-			unit.SetExcluded(true)
+		unit.SetExcluded(true)
 
-			if cfg.Exclude.ExcludeDependencies != nil && *cfg.Exclude.ExcludeDependencies {
-				for _, dep := range unit.Dependencies() {
-					depUnit, ok := dep.(*component.Unit)
-					if !ok {
-						continue
-					}
+		if cfg.Exclude.ExcludeDependencies == nil || !*cfg.Exclude.ExcludeDependencies {
+			continue
+		}
 
-					depUnit.SetExcluded(true)
-				}
+		for _, dep := range unit.Dependencies() {
+			depUnit, ok := dep.(*component.Unit)
+			if !ok {
+				continue
 			}
+
+			depUnit.SetExcluded(true)
 		}
 	}
 

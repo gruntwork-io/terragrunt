@@ -9,9 +9,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestGitResolver_ProbeHEAD(t *testing.T) {
@@ -26,10 +28,10 @@ func TestGitResolver_ProbeHEAD(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}}
+	r := &cas.GitResolver{Venv: venv.OSVenv()}
 
 	// Empty Branch → resolver queries HEAD.
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, headHash, got, "Probe(HEAD) must return the canonical commit SHA verbatim")
 }
@@ -47,9 +49,9 @@ func TestGitResolver_ProbeBranch(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}, Branch: "feature"}
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "feature"}
 
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, branchHash, got)
 }
@@ -64,14 +66,64 @@ func TestGitResolver_ProbeTag(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}, Branch: "v1.0.0"}
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "v1.0.0"}
 
 	// Annotated-tag ls-remote returns the tag object's hash, not the
 	// commit it points to. We just assert the resolver returns a
 	// SHA-shaped string; the specific value is whatever git computed.
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Len(t, got, 40)
+}
+
+// TestGitResolver_ProbeTagShadowedByBranch pins the ref git fetch selects:
+// ls-remote also lists branches whose names end in the tag name, and lists
+// them first.
+func TestGitResolver_ProbeTagShadowedByBranch(t *testing.T) {
+	t.Parallel()
+
+	for _, branch := range []string{"release/v1.2.3", "v1.2.3"} {
+		t.Run(branch, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newEmptyTestServer(t)
+			require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("tagged"), "init"))
+			require.NoError(t, srv.Tag(t.Context(), "v1.2.3"))
+
+			tagHash, err := srv.Head(t.Context())
+			require.NoError(t, err)
+
+			require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("moved"), "move ahead"))
+			require.NoError(t, srv.Branch(t.Context(), branch))
+
+			url, err := srv.Start(t.Context())
+			require.NoError(t, err)
+
+			r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "v1.2.3"}
+
+			got, err := r.Probe(t.Context(), redact.NewURL(url))
+			require.NoError(t, err)
+			assert.Equal(t, tagHash, got)
+		})
+	}
+}
+
+// TestGitResolver_TailMatchOnlyReturnsErrNoVersionMetadata pins that a ref
+// git fetch cannot resolve is not answered by a branch ending in its name.
+func TestGitResolver_TailMatchOnlyReturnsErrNoVersionMetadata(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.Branch(t.Context(), "release/v1.2.3"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "v1.2.3"}
+
+	_, err = r.Probe(t.Context(), redact.NewURL(url))
+	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
 func TestGitResolver_CommitFormRefReturnsErrNoVersionMetadata(t *testing.T) {
@@ -86,12 +138,12 @@ func TestGitResolver_CommitFormRefReturnsErrNoVersionMetadata(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}, Branch: commitSHA}
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: commitSHA}
 
 	// ls-remote does not resolve raw SHAs as refs; the caller passes
 	// a commit-form ref directly. Probe must surface this as
 	// ErrNoVersionMetadata so the fetcher canonicalizes via rev-parse.
-	_, err = r.Probe(t.Context(), url)
+	_, err = r.Probe(t.Context(), redact.NewURL(url))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -104,9 +156,9 @@ func TestGitResolver_UnknownRefReturnsErrNoVersionMetadata(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}, Branch: "does-not-exist"}
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "does-not-exist"}
 
-	_, err = r.Probe(t.Context(), url)
+	_, err = r.Probe(t.Context(), redact.NewURL(url))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -122,9 +174,9 @@ func TestGitResolver_TokenIsCacheKeyVerbatim(t *testing.T) {
 	url, err := srv.Start(t.Context())
 	require.NoError(t, err)
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: vexec.NewOSExec()}}
+	r := &cas.GitResolver{Venv: venv.OSVenv()}
 
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	// GitResolver returns the commit SHA itself; SourceCacheKey would
 	// be a no-op on top of this. Any future change that pre-hashes
@@ -153,7 +205,7 @@ func TestGitResolver_FullSHAHitsLocalCacheOffline(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(t.Context(), l, v, url, headHash, "")
+	repo, err := store.EnsureCommit(t.Context(), l, newTestGitStoreVenv(t, v), redact.NewURL(url), headHash, "")
 	require.NoError(t, err)
 	require.NoError(t, repo.Unlock())
 
@@ -161,9 +213,29 @@ func TestGitResolver_FullSHAHitsLocalCacheOffline(t *testing.T) {
 
 	r := &cas.GitResolver{Venv: v, Store: store, Branch: headHash}
 
-	got, err := r.Probe(t.Context(), url)
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err, "fast path must skip ls-remote when commit is cached")
 	assert.Equal(t, headHash, got)
+}
+
+// TestGitResolver_StoreRejectsNonOSFilesystem pins that a store probe from an
+// in-memory venv returns an error instead of running git against paths git
+// cannot see.
+func TestGitResolver_StoreRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubGitExec(func(context.Context, vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+
+	r := &cas.GitResolver{
+		Venv:   venvtest.New().WithExec(stub),
+		Store:  cas.NewGitStore(t.TempDir()),
+		Branch: "deadbeefcafefacedeadbeefcafefacedeadbeef",
+	}
+
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/org/repo.git"))
+	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }
 
 // TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs pins the
@@ -186,9 +258,9 @@ func TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs(t *testing.T) {
 		}
 	})
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: stub}, Branch: "main"}
+	r := &cas.GitResolver{Venv: venvtest.New().WithExec(stub), Branch: "main"}
 
-	_, err := r.Probe(t.Context(), "git@github.com:org/repo.git")
+	_, err := r.Probe(t.Context(), redact.NewURL("git@github.com:org/repo.git"))
 	require.NoError(t, err)
 	assert.Equal(t,
 		[]string{"ls-remote", "--", "git@github.com:org/repo.git", "main"},
@@ -214,9 +286,9 @@ func TestGitResolver_ProbeHTTPURLWithBranchUsesSeparateArgs(t *testing.T) {
 		}
 	})
 
-	r := &cas.GitResolver{Venv: &venv.Venv{Exec: stub}, Branch: "main"}
+	r := &cas.GitResolver{Venv: venvtest.New().WithExec(stub), Branch: "main"}
 
-	_, err := r.Probe(t.Context(), "https://example.com/org/repo.git")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/org/repo.git"))
 	require.NoError(t, err)
 	assert.Equal(t,
 		[]string{"ls-remote", "--", "https://example.com/org/repo.git", "main"},
@@ -231,7 +303,7 @@ func TestGitResolver_ProbeHTTPURLWithBranchUsesSeparateArgs(t *testing.T) {
 func newGitRunner(t *testing.T) *git.GitRunner {
 	t.Helper()
 
-	r, err := git.NewGitRunner(vexec.NewOSExec())
+	r, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	return r

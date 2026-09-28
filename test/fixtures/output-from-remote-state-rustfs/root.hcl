@@ -16,7 +16,6 @@ remote_state {
     skip_bucket_versioning             = true
     skip_bucket_ssencryption           = true
     skip_bucket_accesslogging          = true
-    skip_bucket_root_access            = true
     skip_bucket_enforced_tls           = true
     skip_bucket_public_access_blocking = true
   }

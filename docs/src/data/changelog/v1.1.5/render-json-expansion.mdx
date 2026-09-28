@@ -1,0 +1,54 @@
+---
+version: "v1.1.5"
+category: "experiments-updated"
+---
+
+#### `render` previews an expanded `dependency` block written in JSON
+
+With the [`block-iteration`](/reference/experiments/active#block-iteration) experiment enabled, a configuration written in JSON now renders the same way an HCL one does. It has no HCL to quote, so Terragrunt writes the block as the HCL that means the same thing and previews the elements underneath it:
+
+```bash
+$ cat terragrunt.hcl.json
+{"dependency": {"shard": {
+  "expansion": {"count": 2},
+  "config_path": "../shard-${count.index}"
+}}}
+
+$ terragrunt render --experiment block-iteration
+dependency "shard" {
+  expansion {
+    count = 2
+  }
+
+  config_path = "../shard-${count.index}"
+}
+
+# Expands to:
+#
+# dependency "shard" {
+#   config_path = "../shard-0"
+# }
+#
+# dependency "shard" {
+#   config_path = "../shard-1"
+# }
+```
+
+Previously the elements rendered as ordinary blocks, which repeated one label. Terragrunt warns about that and rejects it under the `duplicate-dependency-labels` [strict control](/reference/strict-controls/active#duplicate-dependency-labels), so the rendered file did not read back.
+
+`--format json` no longer drops the elements either. Its `dependency` map is keyed by label, which every element shares, so it kept whichever element came last. JSON has no comment to preview the elements in, so it now emits the block as it was written, references and all:
+
+```bash
+$ terragrunt render --format json --experiment block-iteration
+{
+  "dependency": {
+    "shard": {
+      "expansion": { "count": 2 },
+      "config_path": "../shard-${count.index}",
+      "skip_outputs": true
+    }
+  }
+}
+```
+
+Whichever syntax you write and whichever format you ask for, rendering the output again returns it unchanged.

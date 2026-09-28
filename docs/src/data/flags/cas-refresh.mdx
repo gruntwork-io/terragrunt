@@ -1,0 +1,24 @@
+---
+name: cas-refresh
+description: When using CAS, ignore recorded probe results and ask every remote again.
+type: bool
+env:
+  - TG_CAS_REFRESH
+since: "v1.1.5"
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`offline-cas`](/reference/experiments/active#offline-cas) experiment. Enable it with `--experiment=offline-cas` or `TG_EXPERIMENT=offline-cas`; otherwise setting `--cas-refresh` returns an error.
+</Aside>
+
+Skips the [probe cache](/features/caching/cas#recorded-probes) for this run, so every source is resolved with a fresh probe. Units that resolve the same source at the same time still share one probe; a unit that starts later asks the remote again. The fresh results are recorded for later runs.
+
+A source pinned to a specific revision, such as a semantic version tag or an S3 object version, is trusted for 24 hours by default, so a tag that has been moved keeps resolving to its previous revision until that window passes. This flag picks up the new one right away.
+
+```bash
+terragrunt run --all --cas-refresh -- plan
+```
+
+The flag has no effect when the CAS is disabled with `--no-cas`, and it cannot be combined with `--cas-offline`.

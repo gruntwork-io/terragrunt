@@ -134,7 +134,7 @@ func TestSplitSourceUrl(t *testing.T) {
 
 			l := logger.CreateLogger()
 
-			actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, sourceURL)
+			actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, vfs.NewOSFS(), sourceURL)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedSo, actualRootRepo.String())
@@ -303,7 +303,7 @@ func TestRegressionSupportForGitRemoteCodecommit(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, sourceURL)
+	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, vfs.NewOSFS(), sourceURL)
 	require.NoError(t, err)
 
 	require.Equal(t, "git::codecommit::ap-northeast-1://my_app_modules", actualRootRepo.String())
@@ -324,7 +324,7 @@ func TestRegressionCASRefPreservesSubdir(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, sourceURL)
+	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, vfs.NewOSFS(), sourceURL)
 	require.NoError(t, err)
 
 	require.Equal(t, "cas::sha1:"+hash, actualRootRepo.String())
@@ -342,7 +342,7 @@ func TestRegressionCASRefSubdirWorkingDir(t *testing.T) {
 	l := logger.CreateLogger()
 	downloadDir := t.TempDir()
 
-	src, err := tf.NewSource(l, "cas::sha1:"+hash+"//modules/vpc", downloadDir, t.TempDir(), false)
+	src, err := tf.NewSource(l, vfs.NewOSFS(), "cas::sha1:"+hash+"//modules/vpc", downloadDir, t.TempDir(), false)
 	require.NoError(t, err)
 
 	assert.Equal(t, "cas::sha1:"+hash, src.CanonicalSourceURL.String())
@@ -364,7 +364,7 @@ func TestRegressionCASRefNoSubdir(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, sourceURL)
+	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, vfs.NewOSFS(), sourceURL)
 	require.NoError(t, err)
 
 	require.Equal(t, "cas::sha1:"+hash, actualRootRepo.String())
@@ -372,7 +372,7 @@ func TestRegressionCASRefNoSubdir(t *testing.T) {
 
 	downloadDir := t.TempDir()
 
-	src, err := tf.NewSource(l, "cas::sha1:"+hash, downloadDir, t.TempDir(), false)
+	src, err := tf.NewSource(l, vfs.NewOSFS(), "cas::sha1:"+hash, downloadDir, t.TempDir(), false)
 	require.NoError(t, err)
 
 	assert.Equal(t, "cas::sha1:"+hash, src.CanonicalSourceURL.String())
@@ -476,7 +476,7 @@ func TestEncodeSourceVersionTracksOnlyCopiedFiles(t *testing.T) {
 					copyOpts = slices.Concat(copyOpts, []util.CopyOption{util.WithFastCopy()})
 				}
 
-				src, err := tf.NewSource(l, sourceDir, t.TempDir(), sourceDir, false)
+				src, err := tf.NewSource(l, vfs.NewOSFS(), sourceDir, t.TempDir(), sourceDir, false)
 				require.NoError(t, err)
 
 				before, err := src.EncodeSourceVersion(l, vfs.NewOSFS(), copyOpts...)
@@ -559,7 +559,7 @@ func memSource(t *testing.T, l log.Logger) (*tf.Source, vfs.FS, string) {
 	)
 	require.NoDirExists(t, sourceDir)
 
-	src, err := tf.NewSource(l, sourceDir, t.TempDir(), sourceDir, false)
+	src, err := tf.NewSource(l, vfs.NewOSFS(), sourceDir, t.TempDir(), sourceDir, false)
 	require.NoError(t, err)
 
 	return src, fsys, sourceDir

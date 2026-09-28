@@ -19,7 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -594,7 +594,7 @@ func TestTFNestedStackOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -647,7 +647,7 @@ func TestTFNestedStacksApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -678,7 +678,7 @@ func TestTFStackValuesApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -718,7 +718,7 @@ func TestTFStackValuesOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -887,12 +887,10 @@ func TestTFStackOutputWithDependency(t *testing.T) {
 	assert.Contains(t, result, "app3")
 
 	// check that result map under app-with-dependency contains result key with value "app1"
-	if appWithDependency, ok := result["app-with-dependency"].(map[string]any); ok {
-		assert.Contains(t, appWithDependency, "result")
-		assert.Equal(t, "app1", appWithDependency["result"])
-	} else {
-		t.Errorf("Expected result[\"app-with-dependency\"] to be a map, but it was not.")
-	}
+	appWithDependency, ok := result["app-with-dependency"].(map[string]any)
+	require.True(t, ok, "Expected result[\"app-with-dependency\"] to be a map, but it was not.")
+	assert.Contains(t, appWithDependency, "result")
+	assert.Equal(t, "app1", appWithDependency["result"])
 }
 
 func TestTFStackApplyStrictInclude(t *testing.T) {
@@ -1055,7 +1053,7 @@ func TestTFStacksApplyNoStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNoStack)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1080,7 +1078,7 @@ func TestTFStacksReadFiles(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureReadStack)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1199,7 +1197,9 @@ func TestTFStacksReadFiles(t *testing.T) {
 							len(expectedValues)+1,
 						)
 					} else {
-						t.Fatalf(
+						require.FailNowf(
+							t,
+							"dev-app-2 is not an object",
 							"Expected dev-app-2 to be an object type, got %s",
 							objVal.Type().FriendlyName(),
 						)
@@ -1207,7 +1207,12 @@ func TestTFStacksReadFiles(t *testing.T) {
 				}
 			}
 		} else {
-			t.Fatalf("Expected dev to be an object type, got %s", devObjVal.Type().FriendlyName())
+			require.FailNowf(
+				t,
+				"dev is not an object",
+				"Expected dev to be an object type, got %s",
+				devObjVal.Type().FriendlyName(),
+			)
 		}
 	}
 }
@@ -1236,7 +1241,7 @@ func TestTFStackNestedOutputs(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNestedOutputs)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackNestedOutputs)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1527,7 +1532,7 @@ func TestTFStackTerragruntDir(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTerragruntDir)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackTerragruntDir)
 
-	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	runner, err := git.NewGitRunner(venv.OSVenv())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1649,10 +1654,9 @@ func TestTFStackFindInParentFolders(t *testing.T) {
 }
 
 // TestTFStackVersionConstraints verifies that version constraints are respected in stack runs.
-// This test cannot be parallelized as it changes the global version.Version.
-//
-//nolint:paralleltest
 func TestTFStackVersionConstraints(t *testing.T) {
+	t.Parallel()
+
 	helpers.CleanupTerragruntFolder(t, testFixtureStackVersionConstraints)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackVersionConstraints)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackVersionConstraints, "live")

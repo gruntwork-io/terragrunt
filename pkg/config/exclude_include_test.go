@@ -57,16 +57,17 @@ exclude {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -127,7 +128,7 @@ exclude {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 
@@ -138,11 +139,12 @@ exclude {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -197,16 +199,17 @@ errors {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -256,16 +259,17 @@ engine {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -314,16 +318,17 @@ feature "from_parent" {
 			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 			require.NoError(t, os.WriteFile(childPath, []byte(`
 include "root" {
-  path = "`+parentPath+`"
+  path = "`+filepath.ToSlash(parentPath)+`"
   `+tt.includeBody+`
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 

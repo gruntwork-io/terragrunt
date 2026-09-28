@@ -35,11 +35,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const (
 	testFixtureCatalogLocalTemplate = "fixtures/catalog/local-template"
+	testFixtureLocalCatalog         = "fixtures/catalog/local-catalog"
 
 	// catalogPipeWorkDirEnv carries the working directory the catalog pipe
 	// child process renders, and marks the process as that child.
@@ -61,13 +61,14 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 	ctx := t.Context()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
 
 	_, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
 		venv.OSVenv(),
 		&module.RepoOpts{
-			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
+			CloneURL: cloneURL,
 			Path:     tempDir,
 		},
 	)
@@ -78,7 +79,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 		logger.CreateLogger(),
 		venv.OSVenv(),
 		&module.RepoOpts{
-			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
+			CloneURL: cloneURL,
 			Path:     tempDir,
 		},
 	)
@@ -91,13 +92,14 @@ func TestScaffoldGitRepo(t *testing.T) {
 	ctx := t.Context()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
 
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
 		venv.OSVenv(),
 		&module.RepoOpts{
-			CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git",
+			CloneURL: cloneURL,
 			Path:     tempDir,
 		},
 	)
@@ -114,13 +116,14 @@ func TestScaffoldGitModule(t *testing.T) {
 	ctx := t.Context()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
 
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
 		venv.OSVenv(),
 		&module.RepoOpts{
-			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules.git",
+			CloneURL: cloneURL,
 			Path:     tempDir,
 		},
 	)
@@ -129,15 +132,15 @@ func TestScaffoldGitModule(t *testing.T) {
 	modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
 	require.NoError(t, err)
 
-	var auroraModule *module.Module
+	var moduleWithVariables *module.Module
 
 	for _, m := range modules {
-		if m.Title() == "Terraform Fake AWS Aurora Module" {
-			auroraModule = m
+		if m.Title() == "Module With Variables" {
+			moduleWithVariables = m
 		}
 	}
 
-	assert.NotNil(t, auroraModule)
+	assert.NotNil(t, moduleWithVariables)
 
 	testPath := helpers.TmpDirWOSymlinks(t)
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
@@ -150,7 +153,7 @@ func TestScaffoldGitModule(t *testing.T) {
 		createLogger(),
 		venv.OSVenv(),
 		opts,
-		auroraModule.TerraformSourcePath(),
+		moduleWithVariables.TerraformSourcePath(),
 		"",
 	)
 	require.NoError(t, err)
@@ -158,13 +161,9 @@ func TestScaffoldGitModule(t *testing.T) {
 	cfg := readConfig(t, opts)
 	assert.NotEmpty(t, cfg.Inputs)
 	assert.Len(t, cfg.Inputs, 1)
-	_, found := cfg.Inputs["vpc_id"]
+	_, found := cfg.Inputs["required_input"]
 	assert.True(t, found)
-	assert.Contains(
-		t,
-		*cfg.Terraform.Source,
-		"git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora",
-	)
+	assert.Contains(t, *cfg.Terraform.Source, cloneURL+"//modules/with-variables")
 }
 
 func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
@@ -202,12 +201,13 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), opts)
+	v := venv.OSVenv()
+	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
 		t.Context(),
 		l,
+		v,
 		pctx,
-		config.DefaultParserOptions(l, venvtest.NewWithOSFS(), opts.StrictControls),
 	)
 	require.NoError(t, err)
 
@@ -361,9 +361,9 @@ func TestCatalogDiscoveryWithIgnoreFiles(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-// TestCatalogNonTTYFailsFast verifies that running the catalog command
-// without an interactive terminal exits with the friendly typed error
-// instead of bubbletea's raw TTY failure.
+// TestCatalogNonTTYFailsFast verifies that requesting the catalog TUI without
+// an interactive terminal exits with the friendly typed error instead of
+// bubbletea's raw TTY failure.
 //
 // The guard mirrors the command's own TTY probe: when the test environment
 // has a controlling terminal (a developer's shell), the command would
@@ -389,10 +389,37 @@ func TestCatalogNonTTYFailsFast(t *testing.T) {
 	workDir := t.TempDir()
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --working-dir "+workDir)
+		"terragrunt catalog --format tui --working-dir "+workDir)
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, viewtui.ErrNoTerminal)
+}
+
+// TestCatalogDefaultsToJSONLWithoutATerminal runs the catalog with no --format
+// and checks that it writes JSON Lines instead of opening the TUI. Where stdin
+// and stdout are both terminals, the command would launch the real TUI and
+// block, so the test only runs where one of them is not (e.g. CI runners).
+func TestCatalogDefaultsToJSONLWithoutATerminal(t *testing.T) {
+	t.Parallel()
+
+	if term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())) {
+		t.Skip("stdin and stdout are terminals; the catalog TUI would launch for real")
+	}
+
+	workDir := catalogFixture(t)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt catalog --working-dir "+workDir)
+	require.NoError(t, err)
+
+	byDir := parseCatalogJSONL(t, stdout)
+
+	dirs := make([]string, 0, len(byDir))
+	for dir := range byDir {
+		dirs = append(dirs, dir)
+	}
+
+	assert.ElementsMatch(t, []string{"modules/vpc", "templates/service", "units/app", "stacks/prod"}, dirs)
 }
 
 // TestCatalogJSONLFormat renders a catalog non-interactively, one JSON object
@@ -403,7 +430,7 @@ func TestCatalogJSONLFormat(t *testing.T) {
 	workDir := catalogFixture(t)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir)
+		"terragrunt catalog --format jsonl --working-dir "+workDir)
 	require.NoError(t, err)
 
 	byDir := parseCatalogJSONL(t, stdout)
@@ -445,13 +472,15 @@ func TestCatalogJSONLFormatWithoutTTY(t *testing.T) {
 		}
 
 		require.NoError(t, closeErr)
-		t.Skip("a controlling terminal is available; a regression would launch the catalog TUI for real")
+		t.Skip(
+			"a controlling terminal is available; a regression would launch the catalog TUI for real",
+		)
 	}
 
 	workDir := catalogFixture(t)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir)
+		"terragrunt catalog --format jsonl --working-dir "+workDir)
 	require.NoError(t, err)
 	assert.Len(t, parseCatalogJSONL(t, stdout), 4)
 }
@@ -464,10 +493,14 @@ func TestCatalogMDFormat(t *testing.T) {
 	workDir := catalogFixture(t)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format md --working-dir "+workDir)
+		"terragrunt catalog --format md --working-dir "+workDir)
 	require.NoError(t, err)
 
-	assert.True(t, strings.HasPrefix(stdout, "# Terragrunt Catalog\n"), "the header opens the document")
+	assert.True(
+		t,
+		strings.HasPrefix(stdout, "# Terragrunt Catalog\n"),
+		"the header opens the document",
+	)
 
 	for _, want := range []string{
 		backticks(`## VPC
@@ -508,38 +541,6 @@ Everything a VPC needs.
 		strings.HasSuffix(stdout, "\nDiscovered 4 components from 1 source.\n"),
 		"the count closes the document",
 	)
-}
-
-func TestCatalogJSONLFormatRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	if helpers.IsExperimentMode(t) {
-		t.Skip(
-			"Skipping: TG_EXPERIMENT_MODE forces all experiments on, opening the gate this test pins shut",
-		)
-	}
-
-	workDir := catalogFixture(t)
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --format jsonl --working-dir "+workDir)
-
-	require.ErrorIs(t, err, catalog.ErrFormatRequiresExperiment)
-	assert.Empty(t, stdout)
-}
-
-// TestCatalogUnknownFormat uses a format nothing plans to implement, so that
-// adding a renderer never turns this into a failure that has to be chased.
-func TestCatalogUnknownFormat(t *testing.T) {
-	t.Parallel()
-
-	workDir := catalogFixture(t)
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt catalog --experiment catalog-format --format pdf --working-dir "+workDir)
-
-	require.Error(t, err)
-	assert.Empty(t, stdout)
 }
 
 // TestCatalogJSONLFormatCleansUpOnEarlyExit covers `terragrunt catalog
@@ -621,7 +622,7 @@ func TestCatalogPipeHelper(t *testing.T) {
 	}
 
 	err := helpers.RunTerragruntCommand(t,
-		"terragrunt catalog --experiment catalog-format --format jsonl --working-dir "+workDir,
+		"terragrunt catalog --format jsonl --working-dir "+workDir,
 		os.Stdout, os.Stderr)
 
 	// Standard output is the broken pipe under test, so the marker goes to
@@ -741,7 +742,7 @@ func ignoreFileAction(
 ) clihelper.FlagActionFunc[string] {
 	t.Helper()
 
-	flagList := catalog.NewFlags(catalog.NewOptions(opts), nil)
+	flagList := catalog.NewFlags(vfs.NewOSFS(), catalog.NewOptions(opts), nil)
 
 	flag := flagList.Get(catalog.IgnoreFileFlagName)
 	require.NotNil(t, flag, "--%s flag not registered", catalog.IgnoreFileFlagName)

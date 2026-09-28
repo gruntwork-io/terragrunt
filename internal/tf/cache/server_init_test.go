@@ -58,6 +58,6 @@ func TestServerRunInitializesServicesBeforeServing(t *testing.T) {
 			"the server served on the listener before reporting the failure",
 		)
 	case <-time.After(serveTimeout):
-		t.Fatal("the server neither served nor reported the initialization failure")
+		require.FailNow(t, "the server neither served nor reported the initialization failure")
 	}
 }

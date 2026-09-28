@@ -2,10 +2,10 @@
 package render
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 
 	"errors"
@@ -114,14 +114,11 @@ func runRender(l log.Logger, v *venv.Venv, opts *Options, cfg *config.Terragrunt
 
 func renderHCL(l log.Logger, v *venv.Venv, opts *Options, cfg *config.TerragruntConfig) error {
 	if opts.Write {
-		buf := new(bytes.Buffer)
+		return writeRendered(l, v.FS, opts, func(w io.Writer) error {
+			_, err := cfg.WriteTo(w)
 
-		_, err := cfg.WriteTo(buf)
-		if err != nil {
 			return err
-		}
-
-		return writeRendered(l, v.FS, opts, buf.Bytes())
+		})
 	}
 
 	l.Debugf("Rendering config %s", opts.TerragruntConfigPath)
@@ -159,7 +156,11 @@ func renderJSON(l log.Logger, v *venv.Venv, opts *Options, cfg *config.Terragrun
 	}
 
 	if opts.Write {
-		return writeRendered(l, v.FS, opts, jsonBytes)
+		return writeRendered(l, v.FS, opts, func(w io.Writer) error {
+			_, err := w.Write(jsonBytes)
+
+			return err
+		})
 	}
 
 	l.Debugf("Rendering config %s", opts.TerragruntConfigPath)
@@ -172,7 +173,12 @@ func renderJSON(l log.Logger, v *venv.Venv, opts *Options, cfg *config.Terragrun
 	return nil
 }
 
-func writeRendered(l log.Logger, fsys vfs.FS, opts *Options, data []byte) error {
+func writeRendered(
+	l log.Logger,
+	fsys vfs.FS,
+	opts *Options,
+	render func(w io.Writer) error,
+) error {
 	outPath := opts.OutputPath
 	if !filepath.IsAbs(outPath) {
 		terragruntConfigDir := filepath.Dir(opts.TerragruntConfigPath)
@@ -185,12 +191,9 @@ func writeRendered(l log.Logger, fsys vfs.FS, opts *Options, data []byte) error 
 
 	l.Debugf("Rendering config %s to %s", opts.TerragruntConfigPath, outPath)
 
-	const ownerWriteGlobalReadPerms = 0644
-	if err := vfs.WriteFile(fsys, outPath, data, ownerWriteGlobalReadPerms); err != nil {
-		return err
-	}
+	const ownerReadWritePerms = 0o600
 
-	return nil
+	return vfs.StreamFileAtomic(fsys, outPath, ownerReadWritePerms, render)
 }
 
 // marshalCtyValueJSONWithoutType marshals the given cty.Value object into a JSON object that does not have the type.
@@ -198,6 +201,10 @@ func writeRendered(l log.Logger, fsys vfs.FS, opts *Options, data []byte) error 
 // just the "value".
 // NOTE: We have to do two marshalling passes so that we can extract just the value.
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
+	if err := ctyhelper.ValidateNumberRanges(ctyVal); err != nil {
+		return nil, err
+	}
+
 	jsonBytesIntermediate, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
 	if err != nil {
 		return nil, err

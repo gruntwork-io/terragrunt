@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -152,6 +153,68 @@ func TestTFLocalDownloadWithAllowedHiddenFiles(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, stderr, "output stderr")
 	require.NoError(t, err)
 	assert.Equal(t, "Hello world", stdout.String())
+}
+
+func TestTFLocalDownloadWithSymlinkedIncludeInCopy(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalWithSymlinkedInclude)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalWithSymlinkedInclude)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// include_in_copy must copy the contents of this symlinked directory (issue #6791).
+	targetDir := filepath.Join(rootPath, "important-target")
+	require.NoError(t, os.MkdirAll(targetDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(targetDir, "stuff1"), []byte("Hello world\n"), 0o600),
+	)
+
+	require.NoError(t, os.Symlink(
+		targetDir,
+		filepath.Join(rootPath, "modules", ".important_stuff"),
+	))
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --experiment symlinks --non-interactive --working-dir %s/live",
+			rootPath,
+		),
+	)
+
+	// Change the linked file and run again, so a stale copy of the link target cannot pass.
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(targetDir, "stuff1"), []byte("Hello again\n"), 0o600),
+	)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --experiment symlinks --non-interactive --working-dir %s/live",
+			rootPath,
+		),
+	)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(
+		t,
+		fmt.Sprintf(
+			"terragrunt output -raw text --experiment symlinks --non-interactive --working-dir %s/live",
+			rootPath,
+		),
+		&stdout,
+		&stderr,
+	)
+	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
+	helpers.LogBufferContentsLineByLine(t, stderr, "output stderr")
+	require.NoError(t, err)
+	assert.Equal(t, "Hello again", stdout.String())
 }
 
 func TestTFLocalDownloadWithRelativePath(t *testing.T) {
@@ -384,7 +447,7 @@ func TestTFCustomLockFile(t *testing.T) {
 
 	source := "../custom-lock-file-module"
 	downloadDir := filepath.Join(rootPath, helpers.TerragruntCache)
-	result, err := tf.NewSource(createLogger(), source, downloadDir, rootPath, false)
+	result, err := tf.NewSource(createLogger(), vfs.NewOSFS(), source, downloadDir, rootPath, false)
 	require.NoError(t, err)
 
 	lockFilePath := filepath.Join(result.WorkingDir, util.TerraformLockFile)
@@ -393,10 +456,7 @@ func TestTFCustomLockFile(t *testing.T) {
 	readFile, err := os.ReadFile(lockFilePath)
 	require.NoError(t, err)
 
-	// In our lock file, we intentionally have hashes for an older version of the AWS provider. If the lock file
-	// copying works, then Terraform will stick with this older version. If there is a bug, Terraform will end up
-	// installing a newer version (since the version is not pinned in the .tf code, only in the lock file).
-	assert.Contains(t, string(readFile), `version     = "5.23.0"`)
+	assert.Contains(t, string(readFile), `version     = "6.56.0"`)
 }
 
 func TestTFExcludeDirs(t *testing.T) {
@@ -899,9 +959,7 @@ func TestTFTerragruntExternalDependencies(t *testing.T) {
 
 	applyAllStdoutString := applyAllStdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	for _, module := range modules {
 		assert.Contains(t, applyAllStdoutString, "Hello World, "+module)
@@ -941,9 +999,7 @@ func TestTFTerragruntExternalDependenciesWithFilter(t *testing.T) {
 
 	applyAllStdoutString := applyAllStdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	for _, module := range modules {
 		assert.Contains(t, applyAllStdoutString, "Hello World, "+module)
@@ -1113,7 +1169,7 @@ func TestTFDownloadWithCASEnabled(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr.String(), "Downloading Terraform configurations")
+	assert.Contains(t, stderr.String(), "Downloading OpenTofu/Terraform configurations")
 }
 
 func TestTFDownloadWithCASCommitRef(t *testing.T) {

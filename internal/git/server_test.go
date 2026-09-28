@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func TestExecServer(t *testing.T) {
 		require.NoError(t, err)
 
 		cloneDir := helpers.TmpDirWOSymlinks(t)
-		runner, err := git.NewGitRunner(vexec.NewOSExec())
+		runner, err := git.NewGitRunner(venv.OSVenv())
 		require.NoError(t, err)
 
 		runner = runner.WithWorkDir(cloneDir)
@@ -62,7 +62,7 @@ func TestExecServer(t *testing.T) {
 		url, err := srv.Start(t.Context())
 		require.NoError(t, err)
 
-		runner, err := git.NewGitRunner(vexec.NewOSExec())
+		runner, err := git.NewGitRunner(venv.OSVenv())
 		require.NoError(t, err)
 
 		results, err := runner.LsRemote(t.Context(), url, "HEAD")
@@ -85,7 +85,7 @@ func TestExecServer(t *testing.T) {
 		require.NoError(t, err)
 
 		cloneDir := helpers.TmpDirWOSymlinks(t)
-		runner, err := git.NewGitRunner(vexec.NewOSExec())
+		runner, err := git.NewGitRunner(venv.OSVenv())
 		require.NoError(t, err)
 
 		runner = runner.WithWorkDir(cloneDir)
@@ -115,7 +115,7 @@ func TestExecServer(t *testing.T) {
 		require.NoError(t, err)
 
 		cloneDir := helpers.TmpDirWOSymlinks(t)
-		runner, err := git.NewGitRunner(vexec.NewOSExec())
+		runner, err := git.NewGitRunner(venv.OSVenv())
 		require.NoError(t, err)
 
 		runner = runner.WithWorkDir(cloneDir)

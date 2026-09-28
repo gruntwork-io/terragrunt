@@ -27,15 +27,6 @@ func (err MaxRetriesWaitingForS3BucketExceeded) Error() string {
 	)
 }
 
-type MaxRetriesWaitingForS3ACLExceeded string
-
-func (err MaxRetriesWaitingForS3ACLExceeded) Error() string {
-	return fmt.Sprintf(
-		"Exceeded max retries waiting for S3 bucket %s to have the proper ACL for access logging",
-		string(err),
-	)
-}
-
 type InvalidAccessLoggingBucketEncryption struct {
 	BucketSSEAlgorithm string
 }
@@ -83,5 +74,22 @@ func (err TableEncryptedRetriesExceeded) Error() string {
 		"Failed to confirm that DynamoDB table %s has encryption enabled after %d retries.",
 		err.TableName,
 		err.Retries,
+	)
+}
+
+type InvalidAccountRegionalBucketName struct {
+	Bucket string
+	Region string
+}
+
+func (err InvalidAccountRegionalBucketName) Error() string {
+	return fmt.Sprintf(
+		"S3 bucket name %s is formatted for an account regional namespace, but not for region %s, where the bucket would be created. Such names take the form <prefix>-<account-id>-%s%s, e.g. my-state-111122223333-%s%s",
+		err.Bucket,
+		err.Region,
+		err.Region,
+		accountRegionalSuffix,
+		err.Region,
+		accountRegionalSuffix,
 	)
 }

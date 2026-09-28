@@ -1,0 +1,8 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### `hcl validate` no longer crashes on errors that carry no source location
+
+`terragrunt hcl validate` crashed while formatting its output when one of the errors it found had no position in the configuration. Terragrunt now prints that error's summary and detail, without a location line.

@@ -303,22 +303,21 @@ func splitAPIPath(path string) (string, string, string, bool) {
 	}
 
 	// Neither a tag nor a digest holds a slash, so the last two segments are always the kind and the reference.
-	refAt := strings.LastIndex(rest, "/")
-	if refAt < 0 {
+	head, ref, ok := strings.CutLast(rest, "/")
+	if !ok {
 		return "", "", "", false
 	}
 
-	kindAt := strings.LastIndex(rest[:refAt], "/")
-	if kindAt < 0 {
+	name, kind, ok := strings.CutLast(head, "/")
+	if !ok {
 		return "", "", "", false
 	}
 
-	kind := rest[kindAt+1 : refAt]
 	if kind != pathManifests && kind != pathBlobs {
 		return "", "", "", false
 	}
 
-	return rest[:kindAt], kind, rest[refAt+1:], true
+	return name, kind, ref, true
 }
 
 // moduleZip builds the module package zip the registry serves as its single layer.

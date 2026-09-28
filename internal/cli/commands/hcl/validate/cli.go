@@ -59,9 +59,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 				Destination: &opts.HCLValidateShowConfigPath,
 			},
 			flags.WithDeprecatedEnvVars(
-				tgPrefix.EnvVars("hclvalidate-strict-validate"),
+				tgPrefix.EnvVars("hclvalidate-show-config-path"),
 				opts.StrictControls,
-			), // `TG_HCLVALIDATE_STRICT_VALIDATE`
+			), // `TG_HCLVALIDATE_SHOW_CONFIG_PATH`
 			flags.WithDeprecatedEnvVars(
 				terragruntPrefix.EnvVars("hclvalidate-show-config-path"),
 				opts.StrictControls,

@@ -12,8 +12,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // boundaryFixture is an in-memory monorepo whose graph crosses out of the
@@ -37,11 +40,11 @@ type boundaryFixture struct {
 func newBoundaryFixture(t *testing.T) (boundaryFixture, *venv.Venv) {
 	t.Helper()
 
-	repoRoot := string(filepath.Separator) + "repo"
+	repoRoot := venvtest.Root("/repo")
 
 	// The venv answers the git top-level probe with repoRoot, so traversal
 	// bounds to the repository root when no discovery boundary is configured.
-	v := memGitTopLevelVenv(t, repoRoot)
+	v := memRepoRootVenv(t, repoRoot)
 
 	f := boundaryFixture{
 		repoRoot:    repoRoot,
@@ -76,10 +79,14 @@ dependency "external" {
 	return f, v
 }
 
-func (f *boundaryFixture) discover(t *testing.T, v *venv.Venv, query, boundary string) (component.Components, error) {
+func (f *boundaryFixture) discover(
+	t *testing.T,
+	v *venv.Venv,
+	query, boundary string,
+) (component.Components, error) {
 	t.Helper()
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -177,7 +184,11 @@ func TestDiscoveryBoundary_EnclosesGraphDiscovery(t *testing.T) {
 			// assertion below is meaningful.
 			configs, err := f.discover(t, v, query, "")
 			require.NoError(t, err)
-			assert.ElementsMatch(t, resolve(tc.unbounded), configs.Filter(component.UnitKind).Paths())
+			assert.ElementsMatch(
+				t,
+				resolve(tc.unbounded),
+				configs.Filter(component.UnitKind).Paths(),
+			)
 
 			// "." resolves against the working directory (staging).
 			configs, err = f.discover(t, v, query, ".")
@@ -240,11 +251,15 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{query})
 		require.NoError(t, err)
 
-		return discovery.NewForDiscoveryCommand(logger.CreateLogger(), v.FS, &discovery.DiscoveryCommandOptions{
-			WorkingDir:        f.stagingDir,
-			DiscoveryBoundary: boundary,
-			Filters:           filters,
-		})
+		return discovery.NewForDiscoveryCommand(
+			logger.CreateLogger(),
+			v.FS,
+			&discovery.DiscoveryCommandOptions{
+				WorkingDir:        f.stagingDir,
+				DiscoveryBoundary: boundary,
+				Filters:           filters,
+			},
+		)
 	}
 
 	testCases := []struct {
@@ -284,13 +299,24 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 		require.NotNil(t, d)
 	})
 
-	t.Run("dependency direction accepts a boundary outside the working directory", func(t *testing.T) {
+	t.Run("dependent direction accepts a boundary inside the working directory", func(t *testing.T) {
 		t.Parallel()
 
-		d, err := newForDiscoveryCommand(t, "{"+f.edgeDir+"}...", f.consumerDir)
+		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", f.vpcDir)
 		require.NoError(t, err)
 		require.NotNil(t, d)
 	})
+
+	t.Run(
+		"dependency direction accepts a boundary outside the working directory",
+		func(t *testing.T) {
+			t.Parallel()
+
+			d, err := newForDiscoveryCommand(t, "{"+f.edgeDir+"}...", f.consumerDir)
+			require.NoError(t, err)
+			require.NotNil(t, d)
+		},
+	)
 }
 
 // Test that the boundary survives filter evaluation when relationships are
@@ -330,11 +356,14 @@ func TestDiscoveryBoundary_SurvivesFilterEvaluationWithRelationships(t *testing.
 				paths[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
-			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{" + f.edgeDir + "}..."})
+			filters, err := filter.ParseFilterQueries(
+				logger.CreateLogger(),
+				[]string{"{" + f.edgeDir + "}..."},
+			)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(f.stagingDir).WithFilters(filters).WithRelationships()
@@ -395,7 +424,7 @@ func TestDiscoveryBoundary_WithholdingAcrossFilterShapes(t *testing.T) {
 				paths[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -470,7 +499,7 @@ func TestDiscoveryBoundary_UnfilteredRunWithholdsOnlyWhatTraversalReached(t *tes
 
 	f, v := newBoundaryFixture(t)
 
-	opts := options.NewTerragruntOptions()
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -502,7 +531,12 @@ func TestDiscoveryBoundary_UnfilteredRunWithholdsOnlyWhatTraversalReached(t *tes
 		depPaths = append(depPaths, dep.Path())
 	}
 
-	assert.Equal(t, []string{f.externalDir}, depPaths, "the edge that orders edge against its dependency stands")
+	assert.Equal(
+		t,
+		[]string{f.externalDir},
+		depPaths,
+		"the edge that orders edge against its dependency stands",
+	)
 }
 
 // Test that a dependency the boundary excludes is still read and still linked.
@@ -547,7 +581,7 @@ func TestDiscoveryBoundary_ExcludedDependencyStaysLinked(t *testing.T) {
 				expected[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions()
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -586,6 +620,178 @@ func TestDiscoveryBoundary_ExcludedDependencyStaysLinked(t *testing.T) {
 				depPaths,
 				"the dependency stays linked whether or not the boundary returns it",
 			)
+		})
+	}
+}
+
+// TestNewForStackGenerate_BoundaryNarrowsWalk pins that a boundary never
+// widens the working-directory scope, that inline graph boundaries override the
+// flag (matching filter evaluation precedence), and that disjoint inline
+// boundaries do not silently drop targets.
+func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := venvtest.Root("/monorepo")
+	liveDir := filepath.Join(repoRoot, "live")
+	catalogDir := filepath.Join(repoRoot, "catalog", "stacks")
+	otherDir := filepath.Join(repoRoot, "other")
+	liveSubDir := filepath.Join(liveDir, "sub")
+
+	v := memRepoRootVenv(t, repoRoot)
+
+	for _, dir := range []string{liveDir, catalogDir, otherDir} {
+		require.NoError(t, vfs.WriteFile(
+			v.FS,
+			filepath.Join(dir, "terragrunt.stack.hcl"),
+			[]byte("# stack\n"),
+			0o644,
+		))
+	}
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(liveSubDir, ".keep"), nil, 0o644))
+
+	l := logger.CreateLogger()
+
+	parseFilters := func(queries ...string) filter.Filters {
+		filters, err := filter.ParseFilterQueries(l, queries)
+		require.NoError(t, err)
+
+		return filters
+	}
+
+	testCases := []struct {
+		name     string
+		workDir  string
+		boundary string
+		filters  filter.Filters
+		expected []string
+	}{
+		{
+			name:     "no boundary discovers all stacks",
+			workDir:  repoRoot,
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+		{
+			name:     "flag boundary restricts to child directory",
+			workDir:  repoRoot,
+			boundary: liveDir,
+			expected: []string{liveDir},
+		},
+		{
+			name:     "boundary equal to working dir discovers everything",
+			workDir:  repoRoot,
+			boundary: repoRoot,
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+		{
+			name:     "boundary wider than working dir keeps working dir scope",
+			workDir:  liveDir,
+			boundary: repoRoot,
+			expected: []string{liveDir},
+		},
+		{
+			name:     "inline graph boundary restricts without flag",
+			workDir:  repoRoot,
+			filters:  parseFilters("(" + liveDir + ")...[main...HEAD]"),
+			expected: []string{liveDir},
+		},
+		{
+			name:     "inline boundary overrides wider flag",
+			workDir:  repoRoot,
+			boundary: repoRoot,
+			filters:  parseFilters("(" + liveDir + ")...[main...HEAD]"),
+			expected: []string{liveDir},
+		},
+		{
+			name:    "nested inline boundaries narrow to the outermost",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveDir+")...[main...HEAD]",
+				"("+liveSubDir+")...[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:    "nested inline boundaries narrow to the outermost in child-first order",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveSubDir+")...[main...HEAD]",
+				"("+liveDir+")...[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:    "an unbounded filter does not narrow",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveDir+")...[main...HEAD]",
+				"[main...HEAD]",
+			),
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+		{
+			name:     "an unbounded filter narrows to the flag",
+			workDir:  repoRoot,
+			boundary: liveDir,
+			filters: parseFilters(
+				"("+liveSubDir+")...[main...HEAD]",
+				"[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:     "the flag narrows a dependents filter without an inline boundary",
+			workDir:  repoRoot,
+			boundary: liveDir,
+			filters: parseFilters(
+				"("+liveSubDir+")...[main...HEAD]",
+				"...[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:     "a negated boundary does not narrow",
+			workDir:  repoRoot,
+			filters:  parseFilters("!(" + liveDir + ")...{" + liveDir + "}"),
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+		{
+			name:     "a dependency-side boundary does not narrow",
+			workDir:  repoRoot,
+			filters:  parseFilters("[main...HEAD]...(" + liveDir + ")"),
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+		{
+			name:    "disjoint inline boundaries do not narrow",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveDir+")...[main...HEAD]",
+				"("+catalogDir+")...[main...HEAD]",
+			),
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			d, err := discovery.NewForStackGenerate(l, v.FS, discovery.StackGenerateOptions{
+				WorkingDir:        tc.workDir,
+				DiscoveryBoundary: tc.boundary,
+				Filters:           tc.filters,
+			})
+			require.NoError(t, err)
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = tc.workDir
+			opts.RootWorkingDir = tc.workDir
+
+			components, err := d.Discover(t.Context(), l, v, opts)
+			require.NoError(t, err)
+
+			stacks := components.Filter(component.StackKind).Paths()
+			assert.ElementsMatch(t, tc.expected, stacks)
 		})
 	}
 }

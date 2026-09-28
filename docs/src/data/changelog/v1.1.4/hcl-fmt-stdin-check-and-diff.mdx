@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### `hcl fmt --stdin` honors `--check` and `--diff`
+
+`terragrunt hcl fmt --stdin` ignored `--check` and `--diff`. It printed the reformatted HCL and exited 0 whether or not the input needed formatting.
+
+`--check` now exits with status code 1 when the input needs formatting, and `--diff` prints a unified diff labeled `old/stdin` and `new/stdin`. Neither flag prints the formatted content, so getting that content back means running `--stdin` without them.

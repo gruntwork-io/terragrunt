@@ -4,17 +4,17 @@ terraform {
   required_providers {
     cloudflare = {
       # Source is not fully qualified so the registry is resolved dynamically
-      # based on the Terraform/OpenTofu implementation, allowing the provider
+      # based on the OpenTofu/Terraform implementation, allowing the provider
       # cache to intercept requests.
       source  = "cloudflare/cloudflare"
       version = "~> 4.0"
     }
     time = {
       # Source is not fully qualified so the registry is resolved dynamically
-      # based on the Terraform/OpenTofu implementation, allowing the provider
+      # based on the OpenTofu/Terraform implementation, allowing the provider
       # cache to intercept requests.
       source  = "hashicorp/time"
-      version = ">= 0.10.0"
+      version = "0.14.2"
     }
   }
 }

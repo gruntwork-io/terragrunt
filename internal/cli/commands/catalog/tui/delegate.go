@@ -79,7 +79,7 @@ type catalogDelegate struct {
 	tagsLayout TagsListLayout
 }
 
-func newCatalogDelegate(keys *DelegateKeyMap) catalogDelegate {
+func newCatalogDelegate(env map[string]string, keys *DelegateKeyMap) catalogDelegate {
 	// Use the same default item styles as the production delegate, with our color overrides.
 	styles := list.NewDefaultItemStyles(true)
 
@@ -110,7 +110,7 @@ func newCatalogDelegate(keys *DelegateKeyMap) catalogDelegate {
 		fullHelp: func() [][]key.Binding {
 			return [][]key.Binding{help}
 		},
-		tagsLayout: ResolveTagsListLayout(),
+		tagsLayout: ResolveTagsListLayout(env),
 	}
 }
 

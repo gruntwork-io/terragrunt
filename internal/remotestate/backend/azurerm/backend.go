@@ -1,20 +1,20 @@
 // Package azurerm implements the Azure Storage (azurerm) backend for
 // interacting with remote state. It bootstraps the resource group, storage
-// account, and blob container backing a unit's Terraform/OpenTofu state, and
+// account, and blob container backing a unit's OpenTofu/Terraform state, and
 // supports delete and migrate lifecycle operations via internal/azurehelper.
-//
-// The backend is experimental: every lifecycle operation is gated behind the
-// `azure-backend` experiment and returns ErrAzureBackendExperimentRequired
-// when it is not enabled.
 package azurerm
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -41,23 +41,6 @@ func NewBackend() *Backend {
 	return &Backend{
 		CommonBackend: backend.NewCommonBackend(BackendName),
 	}
-}
-
-// experimentEnabled reports whether the azure-backend experiment is on. Every
-// lifecycle entry point is called with options built by the remote-state layer,
-// so a nil opts is a caller bug and panics with ErrBackendOptionsRequired.
-//
-// Callers treat a disabled experiment as "do nothing" rather than as an error.
-// Before this backend existed, an azurerm config inherited CommonBackend's
-// no-op behavior, so a globally applied --backend-bootstrap simply continued
-// into native backend init. Gating must stop the experimental implementation
-// from running without breaking that previously working path.
-func experimentEnabled(opts *backend.Options) bool {
-	if opts == nil {
-		panic(ErrBackendOptionsRequired)
-	}
-
-	return opts.Experiments.Evaluate(experiment.AzureBackend)
 }
 
 // resolveConfig parses, validates, and resolves the azure session config for
@@ -93,14 +76,15 @@ func armCapable(cfg *azurehelper.AzureConfig) bool {
 // armWorkRequested reports whether the config asks for any ARM control-plane
 // work; a user-managed account with no policy convergence requires none.
 func armWorkRequested(extCfg *ExtendedRemoteStateConfigAzurerm) bool {
-	return !extCfg.SkipStorageAccountCreation || !extCfg.SkipVersioning || extCfg.EnableSoftDelete
+	return !extCfg.SkipStorageAccountCreation || !extCfg.SkipVersioning || extCfg.EnableSoftDelete ||
+		extCfg.AssignBlobDataRole
 }
 
-// warnArmWorkSkipped logs that account creation or versioning/soft-delete
-// convergence was requested but cannot run under data-plane-only auth.
+// warnArmWorkSkipped logs that account creation, versioning/soft-delete
+// convergence, or role assignment was requested but cannot run under data-plane-only auth.
 func warnArmWorkSkipped(l log.Logger, name string, method azurehelper.AuthMethod) {
 	l.Warnf(
-		"Cannot manage the storage account for %s backend with %s authentication; skipping account creation and versioning/soft-delete convergence.",
+		"Cannot manage the storage account for %s backend with %s authentication; skipping account creation, versioning/soft-delete convergence, and role assignment.",
 		name,
 		method,
 	)
@@ -117,13 +101,10 @@ func cloudName(configured, authorityHost string) string {
 	return authorityHost
 }
 
-// newBlobClient builds the data-plane client, mirroring the native azurerm
-// backend's authorization choice. That backend uses direct Microsoft Entra
-// authorization for blob operations only when use_azuread_auth is true;
-// otherwise it authenticates to ARM, looks up a storage account key, and uses
-// shared-key authorization. Without this, an identity that may manage the
-// account and list its keys but holds no blob data-plane role would work in
-// OpenTofu/Terraform and get 403s under Terragrunt.
+// newBlobClient builds the data-plane client used by Azure lifecycle operations.
+// It prefers the native backend's shared-key authorization when possible, so an
+// identity that may list account keys but lacks a blob data-plane role still
+// works without requiring use_azuread_auth.
 //
 // The key lookup is best effort: when it fails (for example the identity may
 // read blobs but not list keys) the token credential is used instead, so this
@@ -143,6 +124,135 @@ func newBlobClient(ctx context.Context, l log.Logger, cfg *azurehelper.AzureConf
 	l.Debugf("%s: using shared-key blob authorization (set use_azuread_auth to authorize with Microsoft Entra instead)", BackendName)
 
 	return azurehelper.NewBlobClient(keyed)
+}
+
+// NewStateBlobClient builds the data-plane client used for a direct state read.
+// Unless use_azuread_auth is enabled, it strictly follows the native azurerm
+// backend by resolving a storage-account key through ARM; lookup errors are not
+// replaced with bearer authorization. It panics with
+// [azurehelper.ErrAzureConfigRequired] when cfg is nil.
+func NewStateBlobClient(
+	ctx context.Context,
+	l log.Logger,
+	cfg *azurehelper.AzureConfig,
+) (*azurehelper.BlobClient, error) {
+	if cfg == nil {
+		panic(azurehelper.ErrAzureConfigRequired)
+	}
+
+	if !armCapable(cfg) || cfg.UseAzureADAuth {
+		return azurehelper.NewBlobClient(cfg)
+	}
+
+	keyed, err := cachedSharedKeyConfig(ctx, cfg)
+	if err != nil {
+		// Only a response that implicates the config or permissions earns the guidance.
+		if coordinateStateClientFailure(err) {
+			err = &StateClientCoordinatesError{Err: err}
+		}
+
+		return nil, &StateClientSetupError{Err: err}
+	}
+
+	l.Debugf("%s: using shared-key authorization for direct state access", BackendName)
+
+	return azurehelper.NewBlobClient(keyed)
+}
+
+// cachedSharedKeyConfig resolves the account key once per run.
+func cachedSharedKeyConfig(
+	ctx context.Context,
+	cfg *azurehelper.AzureConfig,
+) (*azurehelper.AzureConfig, error) {
+	keyCache, err := stateClientCacheFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheKey := sharedKeyCacheKey(cfg)
+	if cached, found := keyCache.configs.Get(ctx, cacheKey); found {
+		return cached, nil
+	}
+
+	value, err, _ := keyCache.flight.Do(cacheKey, func() (any, error) {
+		if cached, found := keyCache.configs.Get(ctx, cacheKey); found {
+			return cached, nil
+		}
+
+		keyed, err := sharedKeyConfig(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		keyCache.configs.Put(ctx, cacheKey, keyed)
+
+		return keyed, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return value.(*azurehelper.AzureConfig), nil
+}
+
+// coordinateStateClientFailure reports whether a client-setup failure points at
+// the configured coordinates or the identity's permissions. Only responses that
+// support that conclusion qualify: an unrecognized cause, a transport failure, or
+// a transient service condition must not send users to edit a valid config.
+func coordinateStateClientFailure(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+
+	switch respErr.StatusCode {
+	case http.StatusBadRequest,
+		http.StatusUnauthorized,
+		http.StatusForbidden,
+		http.StatusNotFound:
+		return true
+	}
+
+	return false
+}
+
+// OpenStateBlob opens the configured state blob using the native azurerm
+// backend's authorization policy. The caller owns the returned reader and must
+// close it.
+func OpenStateBlob(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	backendConfig backend.Config,
+) (io.ReadCloser, error) {
+	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	state := &extCfg.RemoteStateConfigAzurerm
+
+	blobClient, err := NewStateBlobClient(ctx, l, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := blobClient.Container(state.ContainerName).GetBlob(ctx, state.Key)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"opening azurerm state blob %s/%s in storage account %s: %w",
+			state.ContainerName,
+			state.Key,
+			state.StorageAccountName,
+			err,
+		)
+	}
+
+	return body, nil
 }
 
 // sharedKeyConfig returns a copy of cfg switched to access-key authentication
@@ -169,10 +279,6 @@ func sharedKeyConfig(ctx context.Context, cfg *azurehelper.AzureConfig) (*azureh
 // state does not yet exist, or (when reachable) blob versioning or soft-delete
 // configuration has drifted from what the config requests.
 func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
-	if !experimentEnabled(opts) {
-		return false, nil
-	}
-
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return false, err
@@ -181,6 +287,10 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv
 	rs := &extCfg.RemoteStateConfigAzurerm
 
 	if armWorkRequested(extCfg) && !armCapable(cfg) {
+		if extCfg.AssignBlobDataRole {
+			return false, &AssignBlobDataRoleRequiresARMError{Method: cfg.Method}
+		}
+
 		warnArmWorkSkipped(l, b.Name(), cfg.Method)
 	}
 
@@ -237,21 +347,25 @@ func accountNeedsBootstrap(
 		return !extCfg.SkipStorageAccountCreation, nil
 	}
 
-	// An existing account is checked for versioning / soft-delete drift even
+	// An existing account is checked for versioning / soft-delete / role drift even
 	// under skip_storage_account_creation, since those policies are converged
 	// on pre-created accounts too.
-	return accountPolicyDrift(ctx, saClient, extCfg)
+	return accountPolicyDrift(ctx, saClient, cfg, extCfg)
 }
 
 // Bootstrap creates (if necessary) the resource group, storage account, and
 // blob container backing the state, and ensures blob versioning / soft delete.
 func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
-	if !experimentEnabled(opts) {
-		return nil
-	}
-
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
+		return err
+	}
+
+	// Resolve the auto principal before the inited short-circuit so CacheKey
+	// includes the identity that AssignRoleIfMissing will target. Without this,
+	// two callers sharing assign_blob_data_role=true and an empty principal_id
+	// would share one "already initialized" entry and the second would skip the grant.
+	if err := resolveAssignBlobDataPrincipal(ctx, extCfg, cfg); err != nil {
 		return err
 	}
 
@@ -267,6 +381,10 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 		l.Debugf("%s container %s has already been confirmed to be initialized, skipping initialization checks", b.Name(), rs.CacheKey())
 
 		return nil
+	}
+
+	if extCfg.AssignBlobDataRole && !armCapable(cfg) {
+		return &AssignBlobDataRoleRequiresARMError{Method: cfg.Method}
 	}
 
 	if armWorkRequested(extCfg) && !armCapable(cfg) {
@@ -383,6 +501,66 @@ func (b *Backend) bootstrapAccount(
 		}
 	}
 
+	return ensureBlobDataRole(ctx, l, extCfg, cfg)
+}
+
+// ensureBlobDataRole grants data-plane access, which creating the account does not convey.
+func ensureBlobDataRole(
+	ctx context.Context,
+	l log.Logger,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	cfg *azurehelper.AzureConfig,
+) error {
+	if !extCfg.AssignBlobDataRole {
+		return nil
+	}
+
+	// A configured or pre-resolved principal is left untyped so Azure infers it.
+	principal := azurehelper.Principal{ID: extCfg.PrincipalID}
+
+	if principal.ID == "" {
+		resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
+		if err != nil {
+			return err
+		}
+
+		principal = resolved
+	}
+
+	rbacClient, err := azurehelper.NewRBACClient(cfg)
+	if err != nil {
+		return err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+
+	return rbacClient.AssignRoleIfMissing(ctx, l, azurehelper.AssignRoleInput{
+		Scope:            azurehelper.StorageAccountScope(cfg.SubscriptionID, cfg.ResourceGroup, rs.StorageAccountName),
+		PrincipalID:      principal.ID,
+		PrincipalType:    principal.Type,
+		RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor,
+	})
+}
+
+// resolveAssignBlobDataPrincipal fills PrincipalID from the caller's token when
+// assign_blob_data_role is set and principal_id was left empty, so CacheKey
+// distinguishes identities before the bootstrap short-circuit.
+func resolveAssignBlobDataPrincipal(
+	ctx context.Context,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	cfg *azurehelper.AzureConfig,
+) error {
+	if !extCfg.AssignBlobDataRole || extCfg.PrincipalID != "" || !armCapable(cfg) {
+		return nil
+	}
+
+	resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	extCfg.PrincipalID = resolved.ID
+
 	return nil
 }
 
@@ -420,11 +598,12 @@ func createAccount(
 	return saClient.Create(ctx, l, extCfg.StorageAccountConfig())
 }
 
-// accountPolicyDrift reports whether the existing account's blob versioning or
-// soft-delete configuration differs from what the config requests.
+// accountPolicyDrift reports whether the existing account's blob versioning,
+// soft-delete, or blob-data role configuration differs from what the config requests.
 func accountPolicyDrift(
 	ctx context.Context,
 	saClient *azurehelper.StorageAccountClient,
+	cfg *azurehelper.AzureConfig,
 	extCfg *ExtendedRemoteStateConfigAzurerm,
 ) (bool, error) {
 	if !extCfg.SkipVersioning {
@@ -453,7 +632,51 @@ func accountPolicyDrift(
 		}
 	}
 
-	return false, nil
+	missing, err := blobDataRoleMissing(ctx, cfg, extCfg)
+	if err != nil {
+		return false, err
+	}
+
+	return missing, nil
+}
+
+// blobDataRoleMissing reports whether assign_blob_data_role is set and the
+// target principal does not yet hold Storage Blob Data Contributor. Without
+// this check, --backend-bootstrap skips ensureBlobDataRole on an otherwise
+// healthy account and OpenTofu/Terraform then fails data-plane auth.
+func blobDataRoleMissing(
+	ctx context.Context,
+	cfg *azurehelper.AzureConfig,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+) (bool, error) {
+	if !extCfg.AssignBlobDataRole {
+		return false, nil
+	}
+
+	principalID := extCfg.PrincipalID
+	if principalID == "" {
+		resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
+		if err != nil {
+			return false, err
+		}
+
+		principalID = resolved.ID
+	}
+
+	rbacClient, err := azurehelper.NewRBACClient(cfg)
+	if err != nil {
+		return false, err
+	}
+
+	rs := &extCfg.RemoteStateConfigAzurerm
+	scope := azurehelper.StorageAccountScope(cfg.SubscriptionID, cfg.ResourceGroup, rs.StorageAccountName)
+
+	has, err := rbacClient.HasRoleAssignment(ctx, scope, principalID, azurehelper.RoleStorageBlobDataContributor)
+	if err != nil {
+		return false, err
+	}
+
+	return !has, nil
 }
 
 // effectiveSoftDeleteDays returns the retention that bootstrap actually applies
@@ -472,10 +695,6 @@ func effectiveSoftDeleteDays(extCfg *ExtendedRemoteStateConfigAzurerm) int32 {
 // storage account. Data-plane-only auth (SAS / access key) cannot query this
 // via ARM and returns false.
 func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
-	if !experimentEnabled(opts) {
-		return false, nil
-	}
-
 	_, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return false, err
@@ -506,10 +725,6 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *
 // Migrate copies the state blob from the source backend config to the
 // destination backend config within the same storage account.
 func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
-	if !experimentEnabled(opts) {
-		return ErrAzureBackendExperimentRequired
-	}
-
 	srcExtCfg, cfg, err := resolveConfig(l, srcV, srcBackendConfig)
 	if err != nil {
 		return err
@@ -564,10 +779,6 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Ve
 
 // Delete deletes the Terraform state blob (config "key") from its container.
 func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
-	if !experimentEnabled(opts) {
-		return ErrAzureBackendExperimentRequired
-	}
-
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err
@@ -581,7 +792,8 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backen
 	}
 
 	prompt := fmt.Sprintf(
-		"The Terraform state blob %q in container %q (storage account %q) will be deleted. Do you want to continue?",
+		"The OpenTofu/Terraform state blob %q in container %q (storage account %q) "+
+			"will be deleted. Do you want to continue?",
 		rs.Key,
 		rs.ContainerName,
 		rs.StorageAccountName,
@@ -601,10 +813,6 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backen
 
 // DeleteBucket deletes the entire blob container backing the state.
 func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
-	if !experimentEnabled(opts) {
-		return ErrAzureBackendExperimentRequired
-	}
-
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err

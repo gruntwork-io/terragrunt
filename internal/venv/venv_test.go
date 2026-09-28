@@ -115,7 +115,9 @@ func TestWithEnvRejectsNil(t *testing.T) {
 func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	t.Parallel()
 
-	v := &venv.Venv{Env: map[string]string{"FOO": "bar"}}
+	v := &venv.Venv{
+		Env: map[string]string{"FOO": "bar"},
+	}
 
 	clone := v.WithEnvCloned()
 	clone.Env["AWS_ACCESS_KEY_ID"] = "leaked"
@@ -126,6 +128,7 @@ func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	v.Env["BAZ"] = "qux"
 
 	assert.NotContains(t, clone.Env, "BAZ")
+	assert.Equal(t, "changed", clone.Env["FOO"])
 }
 
 func TestOSVenvProvidesPlatformHandles(t *testing.T) {
@@ -135,7 +138,9 @@ func TestOSVenvProvidesPlatformHandles(t *testing.T) {
 
 	require.NotNil(t, v.Platform)
 	assert.Equal(t, runtime.GOOS, v.Platform.GOOS)
+	assert.Equal(t, runtime.GOARCH, v.Platform.GOARCH)
 	assert.NotNil(t, v.Platform.UserHomeDir)
+	assert.NotNil(t, v.Platform.UserConfigDir)
 }
 
 func TestVenvPlatformBuilders(t *testing.T) {
@@ -143,15 +148,21 @@ func TestVenvPlatformBuilders(t *testing.T) {
 
 	wantHomeErr := errors.New("home lookup failed")
 	homeDir := func() (string, error) { return "", wantHomeErr }
+	configDir := func() (string, error) { return "/tmp/config", nil }
 	original := venv.OSVenv()
 
-	got := original.WithGOOS("plan9").WithUserHomeDir(homeDir)
+	got := original.WithGOOS("plan9").WithGOARCH("mips").WithUserHomeDir(homeDir).WithUserConfigDir(configDir)
 
 	require.NotNil(t, got.Platform)
 	assert.Equal(t, "plan9", got.Platform.GOOS)
+	assert.Equal(t, "mips", got.Platform.GOARCH)
 	_, err := got.Platform.UserHomeDir()
 	require.ErrorIs(t, err, wantHomeErr)
+	gotConfigDir, err := got.Platform.UserConfigDir()
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/config", gotConfigDir)
 	assert.Equal(t, runtime.GOOS, original.Platform.GOOS)
+	assert.Equal(t, runtime.GOARCH, original.Platform.GOARCH)
 }
 
 func TestVenvWriterBuildersIsolateCopies(t *testing.T) {
@@ -176,11 +187,23 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvFSUnset, func() {
 		(&venv.Venv{}).RequireFS()
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvEnvUnset, func() {
+		venv.RequireEnvMap(nil)
+	})
+	assert.NotPanics(t, func() {
+		venv.RequireEnvMap(map[string]string{})
+	})
 	assert.PanicsWithValue(t, venv.ErrVenvGOOSUnset, func() {
 		(&venv.Venv{}).RequireGOOS()
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvGOARCHUnset, func() {
+		(&venv.Venv{}).RequireGOARCH()
+	})
 	assert.PanicsWithValue(t, venv.ErrVenvUserHomeDirUnset, func() {
 		(&venv.Venv{}).RequireUserHomeDir()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvUserConfigDirUnset, func() {
+		(&venv.Venv{}).RequireUserConfigDir()
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).RequirePlatform()
@@ -190,6 +213,9 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvListenUnset, func() {
 		(&venv.Venv{}).RequireListen()
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvSignalsUnset, func() {
+		(&venv.Venv{}).RequireSignals()
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvStdinUnset, func() {
 		(&venv.Venv{}).RequireStdin()
@@ -212,7 +238,13 @@ func TestVenvPlatformBuildersRequireAPlatform(t *testing.T) {
 		(&venv.Venv{}).WithGOOS("plan9")
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithGOARCH("mips")
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).WithUserHomeDir(func() (string, error) { return "", nil })
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithUserConfigDir(func() (string, error) { return "", nil })
 	})
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).WithTempDir(func() string { return "" })
@@ -261,14 +293,14 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 		{
 			name: "WithSops",
 			build: func(v *venv.Venv) *venv.Venv {
-				return v.WithSops(vsops.NewMemDecrypter(func(string, string) ([]byte, error) {
+				return v.WithSops(vsops.NewMemDecrypter(func(map[string]string, string, string) ([]byte, error) {
 					return nil, wantSopsErr
 				}))
 			},
 			verify: func(t *testing.T, got *venv.Venv) {
 				t.Helper()
 
-				_, err := got.Sops.DecryptFile("/secrets.yaml", "yaml")
+				_, err := got.Sops.DecryptFile(map[string]string{}, "/secrets.yaml", "yaml")
 				require.ErrorIs(t, err, wantSopsErr)
 			},
 		},

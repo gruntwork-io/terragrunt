@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### `info strict list <name>` now honors `--all`
+
+Passing a control name to [`info strict list`](/reference/cli/commands/info/strict) shows that control's subcontrols. Unlike the top-level listing, it ignored the `--all` flag and always included completed subcontrols.
+
+Terragrunt now applies the same rule when you name a control.

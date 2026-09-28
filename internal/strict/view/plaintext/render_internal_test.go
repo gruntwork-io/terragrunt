@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// panickyControl satisfies the strict.Control interface but panics when its
-// subcontrols are asked for. The text/template engine recovers the panic and
-// surfaces it as an Execute error, which lets us drive the error-wrapping
-// branches in List and DetailControl.
+// panickyControl satisfies [strict.Control] but panics from GetName and
+// GetSubcontrols. text/template recovers the panic and returns it as an
+// Execute error, which is how these tests reach the error paths in
+// [Render.List] and [Render.DetailSubcontrols].
 type panickyControl struct{}
 
 func (panickyControl) GetName() string                  { panic("boom") }
@@ -34,11 +34,11 @@ func TestRenderListExecuteError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRenderDetailControlExecuteError(t *testing.T) {
+func TestRenderDetailSubcontrolsExecuteError(t *testing.T) {
 	t.Parallel()
 
 	r := NewRender()
-	_, err := r.DetailControl(panickyControl{})
+	_, err := r.DetailSubcontrols(strict.Controls{panickyControl{}})
 	require.Error(t, err)
 }
 
@@ -49,22 +49,16 @@ type failingFlusher struct {
 
 func (f *failingFlusher) Flush() error { return f.err }
 
-// This test must run serially because it swaps the package-level newTabFlusher
-// seam to force a Flush failure path. Other tests read that variable
-// concurrently when running with t.Parallel().
-//
-//nolint:paralleltest // mutates package-level newTabFlusher.
 func TestRenderFormatOutputFlushError(t *testing.T) {
+	t.Parallel()
+
 	sentinel := errors.New("flush boom")
-	original := newTabFlusher
 
-	t.Cleanup(func() { newTabFlusher = original })
-
-	newTabFlusher = func(w io.Writer) tabFlusher {
+	r := NewRender()
+	r.newTabFlusher = func(w io.Writer) tabFlusher {
 		return &failingFlusher{Writer: w, err: sentinel}
 	}
 
-	r := NewRender()
 	_, err := r.List(strict.Controls{})
 	require.ErrorIs(t, err, sentinel)
 }

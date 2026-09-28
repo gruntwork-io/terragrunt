@@ -1,16 +1,12 @@
 package config
 
 import (
-	"context"
-	"errors"
-	"io"
 	"maps"
 	"path/filepath"
 	"slices"
+	"time"
 
-	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -33,27 +29,17 @@ const (
 	MaxParseDepth = 1000
 )
 
-// ErrParsingContextVenvNil is the panic value [NewParsingContext] raises when
-// its venv argument is nil. Every caller is handed the bundle main.go built,
-// so a nil points at a caller bug rather than a runtime condition.
-var ErrParsingContextVenvNil = errors.New("config.NewParsingContext: venv must not be nil")
-
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	// Venv is the virtualized environment used by HCL helper functions
-	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
-	// It also carries the shell environment and stdout/stderr writers.
-	Venv *venv.Venv
-
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
 
 	// FeatureFlags contains explicit feature flag overrides supplied by the user.
-	FeatureFlags *xsync.Map[string, string]
+	FeatureFlags map[string]string
 
 	FilesRead *FilesRead
 	Telemetry *telemetry.Options
@@ -63,10 +49,11 @@ type ParsingContext struct {
 	Features            *cty.Value
 	Locals              *cty.Value
 
-	SourceMap           map[string]string
-	PredefinedFunctions map[string]function.Function
-
-	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+	SourceMap map[string]string
+	// dependencyOutputEnvKeys records environment keys set for dependency output resolution through
+	// extra_arguments.env_vars. Inherited process values stay eligible for direct state reads until
+	// output-specific configuration overrides them.
+	dependencyOutputEnvKeys map[string]struct{}
 
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
@@ -88,13 +75,18 @@ type ParsingContext struct {
 	Experiments            experiment.Experiments
 	StrictControls         strict.Controls
 	PartialParseDecodeList []PartialDecodeSectionType
-	ParserOptions          []hclparse.Option
+
+	// Parser configures the HCL parsers this context builds.
+	Parser ParserSettings
+
+	ReadConfigChain []string
 
 	ProviderCacheOptions pcoptions.ProviderCacheOptions
 
 	MaxFoldersToCheck int
 	ParseDepth        int
 	CASCloneDepth     int
+	CASProbeTTL       time.Duration
 
 	TFPathExplicitlySet bool
 	SkipOutput          bool
@@ -111,6 +103,8 @@ type ParsingContext struct {
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
 	NoCAS                            bool
+	CASOffline                       bool
+	CASRefresh                       bool
 	LogShowAbsPaths                  bool
 	LogDisableErrorSummary           bool
 
@@ -118,55 +112,39 @@ type ParsingContext struct {
 	// own include blocks, so those files do not re-merge a sibling autoinclude. This bounds the merge to
 	// the unit being parsed and prevents an autoinclude that includes another file from recursing.
 	skipAutoIncludeMerge bool
+
+	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig].
+	catalogOnly bool
+
+	// stubWorkingDirFunc makes get_working_dir return an empty string, for the parse
+	// get_working_dir runs to find the terraform source.
+	stubWorkingDirFunc bool
 }
 
-// NewParsingContext builds a parsing context whose file reads, subprocesses,
-// and decryption all travel on v.
-func NewParsingContext(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	opts ...Option,
-) (context.Context, *ParsingContext) {
-	if v == nil {
-		panic(ErrParsingContextVenvNil)
-	}
-
+// NewParsingContext builds a parsing context from opts.
+//
+// The returned context keeps no record of the files it reads. Recording them
+// costs a walk of every local module a config sources, and only a caller that
+// surfaces the record has any use for it, so those call
+// [ParsingContext.WithFileReadTracking] and the rest pay nothing.
+func NewParsingContext(opts ...Option) *ParsingContext {
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
-		FilesRead:        NewFilesRead(),
-		Venv:             v,
 	}
 
 	for _, opt := range opts {
 		opt(pctx)
 	}
 
-	pctx.ParserOptions = DefaultParserOptions(l, v, pctx.StrictControls)
+	pctx.Parser = DefaultParserSettings(pctx.StrictControls)
 
-	return ctx, pctx
+	return pctx
 }
 
-// Clone returns a copy of the ParsingContext.
-// Maps and the embedded Venv (including its Writers pointer and Env map)
-// are deep-copied so that mutations on a clone (credential injection,
-// writer redirection, and so on) do not affect the original or other clones.
+// Clone returns a copy of the ParsingContext. Its maps and slices are
+// deep-copied.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
-
-	if ctx.Venv != nil {
-		v := *ctx.Venv
-		if v.Env != nil {
-			v.Env = maps.Clone(v.Env)
-		}
-
-		if v.Writers != nil {
-			w := *v.Writers
-			v.Writers = &w
-		}
-
-		clone.Venv = &v
-	}
 
 	if ctx.SourceMap != nil {
 		clone.SourceMap = maps.Clone(ctx.SourceMap)
@@ -177,7 +155,13 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 		clone.EngineOptions = &eo
 	}
 
+	clone.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(ctx.Parser.HaltOnErrorOnlyInBlocks)
+
 	clone.ProviderCacheOptions.RegistryNames = slices.Clone(ctx.ProviderCacheOptions.RegistryNames)
+
+	if ctx.dependencyOutputEnvKeys != nil {
+		clone.dependencyOutputEnvKeys = maps.Clone(ctx.dependencyOutputEnvKeys)
+	}
 
 	return &clone
 }
@@ -218,28 +202,49 @@ func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *Parsing
 	return c
 }
 
-func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
+// WithParserSettings returns a copy whose parsers use s.
+func (ctx *ParsingContext) WithParserSettings(s ParserSettings) *ParsingContext {
 	c := ctx.Clone()
-	c.ParserOptions = parserOptions
+	c.Parser = s
+	c.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(s.HaltOnErrorOnlyInBlocks)
 
 	return c
 }
 
-// WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
-// Diagnostics are written to stderr in debug mode for troubleshooting, otherwise discarded.
-// This avoids false positive "There is no variable named dependency" errors during parsing
-// when dependency outputs haven't been resolved yet.
-func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
-	var diagWriter = io.Discard
-	if l.Level() >= log.DebugLevel {
-		diagWriter = ctx.Venv.Writers.ErrWriter
-	}
-
+// WithDiagnosticsSuppressed returns a copy whose parsers write diagnostics to stderr at debug
+// level and discard them otherwise. This avoids false positive "There is no variable named
+// dependency" errors while dependency outputs are not yet resolved.
+func (ctx *ParsingContext) WithDiagnosticsSuppressed() *ParsingContext {
 	c := ctx.Clone()
-	c.ParserOptions = slices.Concat(
-		ctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(ctx.Venv, diagWriter, true)},
-	)
+	c.Parser.Diagnostics = DiagnosticsSuppressed
+
+	return c
+}
+
+// WithDiagnosticsDiscarded returns a copy whose parsers discard diagnostics.
+func (ctx *ParsingContext) WithDiagnosticsDiscarded() *ParsingContext {
+	c := ctx.Clone()
+	c.Parser.Diagnostics = DiagnosticsDiscarded
+
+	return c
+}
+
+// ParserOptions returns the [hclparse.Option] list for this context's parser settings.
+func (ctx *ParsingContext) ParserOptions(l log.Logger, v *venv.Venv) []hclparse.Option {
+	return ParserOptions(l, v, ctx.Parser)
+}
+
+// NewParser returns an HCL parser configured by this context's parser settings.
+func (ctx *ParsingContext) NewParser(l log.Logger, v *venv.Venv) *hclparse.Parser {
+	return hclparse.NewParser(ctx.ParserOptions(l, v)...)
+}
+
+// WithFileReadTracking returns a copy that records every file it reads, so that
+// the caller can read them back off [ParsingContext.FilesRead] once parsing is
+// done. Clones made from the returned context share the one record.
+func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
+	c := ctx.Clone()
+	c.FilesRead = NewFilesRead()
 
 	return c
 }
@@ -269,7 +274,7 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 
 // WithConfigPath returns a new ParsingContext targeting a different config file.
 //
-// It normalizes configPath to an absolute path, sets TerragruntConfigPath and
+// It normalizes cfgPath to an absolute path, sets TerragruntConfigPath and
 // WorkingDir accordingly, and updates the logger when the working directory changes.
 //
 // OriginalTerragruntConfigPath is preserved so that get_original_terragrunt_dir()
@@ -279,14 +284,14 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 // To parse a dependency as an independent unit, use [ParsingContext.WithDependencyConfigPath].
 func (ctx *ParsingContext) WithConfigPath(
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 ) (log.Logger, *ParsingContext, error) {
-	configPath = filepath.Clean(configPath)
-	if !filepath.IsAbs(configPath) {
-		configPath = filepath.Clean(filepath.Join(ctx.WorkingDir, configPath))
+	cfgPath = filepath.Clean(cfgPath)
+	if !filepath.IsAbs(cfgPath) {
+		cfgPath = filepath.Clean(filepath.Join(ctx.WorkingDir, cfgPath))
 	}
 
-	workingDir := filepath.Dir(configPath)
+	workingDir := filepath.Dir(cfgPath)
 
 	if workingDir != ctx.WorkingDir {
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
@@ -302,10 +307,10 @@ func (ctx *ParsingContext) WithConfigPath(
 	// dirs (which won't match any module's default) are preserved unchanged.
 	_, defaultDir := util.DefaultWorkingAndDownloadDirs(ctx.TerragruntConfigPath)
 	if filepath.Clean(c.DownloadDir) == filepath.Clean(defaultDir) {
-		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(configPath)
+		_, c.DownloadDir = util.DefaultWorkingAndDownloadDirs(cfgPath)
 	}
 
-	c.TerragruntConfigPath = configPath
+	c.TerragruntConfigPath = cfgPath
 	c.WorkingDir = workingDir
 
 	return l, c, nil
@@ -320,9 +325,9 @@ func (ctx *ParsingContext) WithConfigPath(
 // own directory rather than the caller's.
 func (ctx *ParsingContext) WithDependencyConfigPath(
 	l log.Logger,
-	configPath string,
+	cfgPath string,
 ) (log.Logger, *ParsingContext, error) {
-	l, c, err := ctx.WithConfigPath(l, configPath)
+	l, c, err := ctx.WithConfigPath(l, cfgPath)
 	if err != nil {
 		return l, nil, err
 	}

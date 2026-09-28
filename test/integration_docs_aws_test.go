@@ -16,7 +16,7 @@ const (
 	testFixtureOverview = "fixtures/docs/02-overview"
 )
 
-func TestAwsDocsOverview(t *testing.T) {
+func TestAWSDocsOverview(t *testing.T) {
 	t.Parallel()
 
 	// These docs examples specifically run here

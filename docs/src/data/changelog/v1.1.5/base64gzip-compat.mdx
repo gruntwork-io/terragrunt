@@ -1,0 +1,18 @@
+---
+version: "v1.1.5"
+category: "experiments-added"
+---
+
+#### `base64gzip-compat` experiment adds a `base64gzip_compat` HCL function
+
+Enable the new [`base64gzip-compat`](/reference/experiments/active#base64gzip-compat) experiment to use the `base64gzip_compat(str)` HCL function.
+
+`base64gzip_compat` returns the value `base64gzip` returned in Terragrunt v1.1.3 and earlier, and keeps returning it after Terragrunt 1.2 switches `base64gzip()` to the current Go encoder. Use it where the encoded value must stay stable across upgrades:
+
+```hcl
+inputs = {
+  user_data_base64 = base64gzip_compat(file("${get_terragrunt_dir()}/user-data.sh"))
+}
+```
+
+Calling `base64gzip_compat` without enabling the `base64gzip-compat` experiment returns an error. The name may still change to match OpenTofu.

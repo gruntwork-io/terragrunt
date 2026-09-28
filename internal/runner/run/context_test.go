@@ -3,7 +3,6 @@ package run_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 // TestModuleVersionResolverSharedPerRunWithRacing pins the contract behind
@@ -32,14 +32,14 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv().WithHTTP(server.Client())
 	ctx := run.WithModuleVersionResolver(t.Context(), v)
 
-	var wg sync.WaitGroup
+	const concurrency = 10
 
-	for range 10 {
-		wg.Add(1)
+	var g errgroup.Group
 
-		go func() {
-			defer wg.Done()
+	pins := make(chan string, concurrency)
 
+	for range concurrency {
+		g.Go(func() error {
 			// Fetch the handle from the context on every use, the way the
 			// download path does. If lookups stopped returning the one shared
 			// resolver, the fresh fallback would not trust the test server's
@@ -47,12 +47,22 @@ func TestModuleVersionResolverSharedPerRunWithRacing(t *testing.T) {
 			pinned, err := run.ModuleVersionResolverFromContext(ctx, v).Pin(
 				ctx, l, tfimpl.OpenTofu, source, "~> 3.0",
 			)
-			assert.NoError(t, err)
-			assert.Equal(t, source+"?version=3.3.0", pinned)
-		}()
+			if err != nil {
+				return err
+			}
+
+			pins <- pinned
+
+			return nil
+		})
 	}
 
-	wg.Wait()
+	require.NoError(t, g.Wait())
+	close(pins)
+
+	for pinned := range pins {
+		assert.Equal(t, source+"?version=3.3.0", pinned)
+	}
 
 	assert.Equal(t, int64(1), versionsHits.Load())
 

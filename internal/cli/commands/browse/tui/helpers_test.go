@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,13 +24,32 @@ const (
 // models are driven through Update directly and never call Init, so the required
 // channels are wired but never read; tests that stream discovery inject a
 // [tui.DiscoveryResult] as a message instead.
+// stubHomeDir pins the home directory the path bar abbreviates against, so a
+// rendered path does not change with whoever runs the suite.
+func stubHomeDir() (string, error) {
+	return venvtest.Root("/home/tester"), nil
+}
+
+// repoRoot and workRoot are the in-memory working directories the models under
+// test browse. Rooting them through venvtest keeps the tree a test writes and
+// the paths the model derives from it on the same drive on Windows.
+var (
+	repoRoot = venvtest.Root("/repo")
+	workRoot = venvtest.Root("/work")
+)
+
+// repoPath returns the absolute path of the slash-separated rel under repoRoot.
+func repoPath(rel string) string {
+	return filepath.Join(repoRoot, filepath.FromSlash(rel))
+}
+
 func newModel(t *testing.T, fsys vfs.FS, root *tui.Node, color tui.ColorMode, opts ...tui.Option) tui.Model {
 	t.Helper()
 
 	resultCh := make(chan tui.DiscoveryResult, 1)
 	warnCh := make(chan viewtui.Warning)
 
-	m := tui.NewModel(logger.CreateLogger(), fsys, root, color, resultCh, warnCh, opts...)
+	m := tui.NewModel(logger.CreateLogger(), fsys, stubHomeDir, root, color, resultCh, warnCh, opts...)
 
 	return update(t, m, tea.WindowSizeMsg{Width: testWidth, Height: testHeight})
 }

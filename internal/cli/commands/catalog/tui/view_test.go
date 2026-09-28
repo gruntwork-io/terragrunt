@@ -272,6 +272,44 @@ func TestComponentListView_PartialSourceFailureNotice(t *testing.T) {
 	assert.Contains(t, exit, "clone failed", "post-exit notice should include the cause")
 }
 
+// TestSourceFailuresPointAtGitAccess pins that both surfaces a source failure
+// reaches close with the same guidance.
+func TestSourceFailuresPointAtGitAccess(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	srcErr := &tui.SourceLoadError{
+		Failures:  []tui.SourceFailure{{URL: "github.com/acme/private", Err: errors.New("clone failed")}},
+		Attempted: 1,
+	}
+
+	hint, _, _ := strings.Cut(tui.SourceAccessHint, "\n")
+
+	welcome := tui.NewWelcomeModel(t.Context(), l, venvtest.New(), opts, blockingLoad)
+	welcome = updateModel(welcome, windowSize).(tui.WelcomeModel)
+	welcome = updateModel(welcome, tui.DiscoveryCompleteMsg{Err: srcErr}).(tui.WelcomeModel)
+
+	assert.Contains(t, stripANSI(welcome.View().Content), hint,
+		"the error screen should say how to reach the repositories it listed")
+
+	components := makeComponents(t)
+	require.NotEmpty(t, components)
+
+	list := tui.NewModelStreaming(
+		t.Context(), l, venvtest.New(), opts, components[0],
+		make(chan *tui.ComponentEntry, 1), nil,
+	)
+	list = updateModel(list, windowSize).(tui.Model)
+	list = updateModel(list, tui.DiscoveryCompleteMsg{Err: srcErr}).(tui.Model)
+
+	assert.Contains(t, stripANSI(list.ExitMessage()), hint,
+		"the post-exit notice should say how to reach the repositories it listed")
+}
+
 func TestComponentListView_MetadataRowRendered(t *testing.T) {
 	t.Parallel()
 
@@ -517,7 +555,7 @@ func runUntilQuiet(t *testing.T, m tea.Model, initialCmd tea.Cmd, budget time.Du
 			}
 		}
 
-		time.Sleep(50 * time.Millisecond)
+		synctest.Sleep(50 * time.Millisecond)
 	}
 
 	return m
@@ -607,7 +645,7 @@ func TestWelcomeStreamingFlow_LoadingIndicatorClearsAfterDiscoveryWithRacing(t *
 		// Repeatedly nudge time forward and drain. Each cycle gives any
 		// goroutines we've spawned a chance to finish and push onto msgCh.
 		for range 20 {
-			time.Sleep(100 * time.Millisecond)
+			synctest.Sleep(100 * time.Millisecond)
 			drainOnce()
 		}
 

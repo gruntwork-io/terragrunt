@@ -10,7 +10,7 @@ import (
 // NormalizeBoolValues converts string boolean values ("true"/"false") in the
 // config map back to native Go bools. HCL ternary type unification can convert
 // bools to strings, which causes generated backend blocks to contain quoted
-// literals that Terraform/OpenTofu rejects.
+// literals that OpenTofu/Terraform rejects.
 //
 // The target parameter should be a pointer to the config struct (e.g.
 // &ExtendedRemoteStateConfigS3{}); its mapstructure tags determine which

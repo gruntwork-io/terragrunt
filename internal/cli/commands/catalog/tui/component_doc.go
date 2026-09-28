@@ -132,7 +132,7 @@ func NewComponentDoc(rawContent, fileExt string) *ComponentDoc {
 // returns a populated ComponentDoc. Returns a zero-value *ComponentDoc
 // (non-nil) when no README is present.
 func FindComponentDoc(fsys vfs.FS, dir string) (*ComponentDoc, error) {
-	files, err := vfs.ReadDirEntries(fsys, dir)
+	files, err := vfs.ReadDir(fsys, dir)
 	if err != nil {
 		return nil, err
 	}

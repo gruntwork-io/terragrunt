@@ -14,15 +14,17 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xeipuuv/gojsonschema"
 )
 
-const testWorkingDir = "/repo"
+var testWorkingDir = venvtest.Root("/repo")
 
 func TestNewReport(t *testing.T) {
 	t.Parallel()
@@ -1470,6 +1472,47 @@ func TestWriteUnitLevelSummary(t *testing.T) {
       this-is-a-very-long-name-3  x
 `,
 		},
+		{
+			name: "same unit name in English, French, and Japanese",
+			setup: func(l log.Logger, r *report.Report) {
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
+
+					english := newRun(t, filepath.Join(tmp, "database"))
+					r.AddRun(l, english)
+
+					time.Sleep(1 * time.Second)
+
+					french := newRun(t, filepath.Join(tmp, "base-de-données"))
+					r.AddRun(l, french)
+
+					time.Sleep(1 * time.Second)
+
+					japanese := newRun(t, filepath.Join(tmp, "データベース"))
+					r.AddRun(l, japanese)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, japanese.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, french.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, english.Path)
+				})
+			},
+			expected: `
+❯❯ Run Summary  3 units  x
+   ────────────────────────────
+   Succeeded (3)
+      database ......... x
+      base-de-données .. x
+      データベース ..... x
+`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1518,8 +1561,8 @@ func TestWriteJSONWithDiscoveryWorkingDir(t *testing.T) {
 	// - Worktree path: /tmp/terragrunt-worktree-xxx/original/repo
 	// - Unit path in worktree: /tmp/terragrunt-worktree-xxx/original/repo/module/unit
 
-	originalRepoDir := filepath.FromSlash("/original-repo")
-	worktreeDir := filepath.FromSlash("/worktree")
+	originalRepoDir := venvtest.Root("/original-repo")
+	worktreeDir := venvtest.Root("/worktree")
 	unitPath := filepath.Join(worktreeDir, "module", "unit")
 
 	// Create a report with the original repo as working dir (simulating non-worktree scenario)
@@ -1562,8 +1605,8 @@ func TestWriteCSVWithDiscoveryWorkingDir(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	originalRepoDir := filepath.FromSlash("/original-repo")
-	worktreeDir := filepath.FromSlash("/worktree")
+	originalRepoDir := venvtest.Root("/original-repo")
+	worktreeDir := venvtest.Root("/worktree")
 	unitPath := filepath.Join(worktreeDir, "module", "unit")
 
 	// Create a report with the original repo as working dir
@@ -1601,7 +1644,7 @@ func TestWriteJSONWithRootWorkingDir(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	rootDir := string(os.PathSeparator)
+	rootDir := venvtest.Root("/")
 	unitPath := filepath.Join(rootDir, "module", "unit")
 
 	r := report.NewReport().WithWorkingDir(rootDir)
@@ -1724,7 +1767,7 @@ func TestParseJSONRunsFromFile(t *testing.T) {
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFile)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 		require.NoError(t, err)
 		require.Len(t, runs, 1)
 		assert.Equal(t, "test-unit", runs[0].Name)
@@ -1733,7 +1776,7 @@ func TestParseJSONRunsFromFile(t *testing.T) {
 	t.Run("non-existent file", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := report.ParseJSONRunsFromFile(filepath.Join(tmp, "does-not-exist.json"))
+		_, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), filepath.Join(tmp, "does-not-exist.json"))
 		require.Error(t, err)
 	})
 }
@@ -1931,7 +1974,7 @@ func TestParseCSVRunsFromFile(t *testing.T) {
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		runs, err := report.ParseCSVRunsFromFile(reportFile)
+		runs, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), reportFile)
 		require.NoError(t, err)
 		require.Len(t, runs, 1)
 		assert.Equal(t, "test-unit", runs[0].Name)
@@ -1940,7 +1983,7 @@ func TestParseCSVRunsFromFile(t *testing.T) {
 	t.Run("non-existent file", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := report.ParseCSVRunsFromFile(filepath.Join(tmp, "does-not-exist.csv"))
+		_, err := report.ParseCSVRunsFromFile(vfs.NewOSFS(), filepath.Join(tmp, "does-not-exist.csv"))
 		require.Error(t, err)
 	})
 }
@@ -2109,7 +2152,7 @@ func TestParseJSONRunsFromFileValidation(t *testing.T) {
 			err := os.WriteFile(reportFile, []byte(tt.input), 0644)
 			require.NoError(t, err)
 
-			_, err = report.ParseJSONRunsFromFile(reportFile)
+			_, err = report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -2128,7 +2171,7 @@ func TestParseJSONRunsFromFileValidation(t *testing.T) {
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		_, err = report.ParseJSONRunsFromFile(reportFile)
+		_, err = report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 		require.Error(t, err)
 
 		var schemaErr *report.SchemaValidationError

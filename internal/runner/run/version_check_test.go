@@ -1,19 +1,20 @@
-//nolint:unparam
 package run_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,6 +43,65 @@ func TestCheckTerraformVersionMeetsConstraintLessPatch(t *testing.T) {
 func TestCheckTerraformVersionMeetsConstraintLessMajor(t *testing.T) {
 	t.Parallel()
 	testCheckTerraformVersionMeetsConstraint(t, "v0.8.8", ">= v0.9.3", false)
+}
+
+func TestCheckTerraformVersionMeetsConstraintReportsImplementationAndSource(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name             string
+		version          string
+		impl             tfimpl.Type
+		configConstraint string
+		wantSource       run.ConstraintSource
+	}{
+		{
+			name:             "opentofu below config constraint",
+			version:          "1.10.6",
+			impl:             tfimpl.OpenTofu,
+			configConstraint: ">= 1.12.6, < 2.0.0",
+			wantSource:       run.ConfigConstraint,
+		},
+		{
+			name:             "terraform below config constraint",
+			version:          "1.5.7",
+			impl:             tfimpl.Terraform,
+			configConstraint: ">= 1.12.6, < 2.0.0",
+			wantSource:       run.ConfigConstraint,
+		},
+		{
+			name:       "opentofu below default constraint",
+			version:    "0.11.0",
+			impl:       tfimpl.OpenTofu,
+			wantSource: run.DefaultConstraint,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := run.CheckTerraformVersionMeetsConstraint(
+				logger.CreateLogger(),
+				semver.MustParse(tc.version),
+				tc.impl,
+				tc.configConstraint,
+			)
+
+			var target run.InvalidTerraformVersion
+
+			require.ErrorAs(t, err, &target)
+			assert.Equal(t, tc.impl, target.Implementation)
+			assert.Equal(t, tc.wantSource, target.ConstraintSource)
+		})
+	}
+}
+
+func TestCheckTerraformVersionMeetsConstraintEmptyConfigUsesDefault(t *testing.T) {
+	t.Parallel()
+
+	err := run.CheckTerraformVersionMeetsConstraint(logger.CreateLogger(), semver.MustParse("0.12.0"), tfimpl.OpenTofu, "")
+	require.NoError(t, err)
 }
 
 func TestParseOpenTofuVersionNormal(t *testing.T) {
@@ -117,12 +177,10 @@ func testCheckTerraformVersionMeetsConstraint(
 ) {
 	t.Helper()
 
-	current, err := version.NewVersion(currentVersion)
-	if err != nil {
-		t.Fatalf("Invalid current version specified in test: %v", err)
-	}
+	current, err := semver.Parse(currentVersion)
+	require.NoError(t, err, "Invalid current version specified in test")
 
-	err = run.CheckTerraformVersionMeetsConstraint(current, versionConstraint)
+	err = run.CheckTerraformVersionMeetsConstraint(logger.CreateLogger(), current, tfimpl.OpenTofu, versionConstraint)
 	if versionMeetsConstraint && err != nil {
 		assert.NoError(t, err,
 			"Expected Terraform version %s to meet constraint %s, but got error: %v",
@@ -145,10 +203,8 @@ func testParseTerraformVersion(
 	actualVersion, actualErr := run.ParseTerraformVersion(versionString)
 
 	if expectedErr == nil {
-		expected, err := version.NewVersion(expectedVersion)
-		if err != nil {
-			t.Fatalf("Invalid expected version specified in test: %v", err)
-		}
+		expected, err := semver.Parse(expectedVersion)
+		require.NoError(t, err, "Invalid expected version specified in test")
 
 		require.NoError(t, actualErr)
 		assert.Equal(t, expected, actualVersion)
@@ -190,6 +246,70 @@ func TestCheckTerragruntVersionMeetsConstraintPrerelease(t *testing.T) {
 	testCheckTerragruntVersionMeetsConstraint(t, "v0.23.18-alpha202409013", ">= v0.23.18", true)
 }
 
+func TestCheckTerraformVersionMeetsConstraintUnknownVersionPasses(t *testing.T) {
+	t.Parallel()
+
+	for _, constraint := range []string{"", ">= 99.0.0"} {
+		t.Run("constraint "+constraint, func(t *testing.T) {
+			t.Parallel()
+
+			require.NoError(t, run.CheckTerraformVersionMeetsConstraint(
+				logger.CreateLogger(),
+				nil,
+				tfimpl.Unknown,
+				constraint,
+			))
+		})
+	}
+}
+
+// TestPopulateTFVersionSkipsProbeWhenEngineEnabled pins that a unit an engine runs never spawns
+// a binary for its version: venvtest's fail-closed exec errors on any spawn, so success proves
+// no probe ran. Disabling the engine with --no-engine brings the probe back.
+func TestPopulateTFVersionSkipsProbeWhenEngineEnabled(t *testing.T) {
+	t.Parallel()
+
+	enabled := experiment.NewExperiments()
+	require.NoError(t, enabled.EnableExperiment(experiment.IacEngine))
+
+	tfOpts := func(engineOpts *engine.EngineOptions) *tf.TFOptions {
+		return &tf.TFOptions{
+			TerraformCliArgs: iacargs.New(),
+			ShellOptions: shell.NewShellOptions(map[string]string{}).
+				WithTFPath("tofu").
+				WithWorkingDir(t.TempDir()).
+				WithExperiments(enabled).
+				WithEngine(&engine.EngineConfig{Source: "github.com/example/engine"}, engineOpts),
+		}
+	}
+
+	t.Run("engine enabled reports an unknown version without a probe", func(t *testing.T) {
+		t.Parallel()
+
+		_, ver, impl, err := run.PopulateTFVersion(
+			run.WithRunVersionCache(t.Context()),
+			logger.CreateLogger(),
+			venvtest.New(),
+			run.PopulateTFVersionInput{TFOpts: tfOpts(new(engine.EngineOptions))},
+		)
+		require.NoError(t, err)
+		assert.Nil(t, ver)
+		assert.Equal(t, tfimpl.Unknown, impl)
+	})
+
+	t.Run("no-engine probes the binary", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, _, err := run.PopulateTFVersion(
+			run.WithRunVersionCache(t.Context()),
+			logger.CreateLogger(),
+			venvtest.New(),
+			run.PopulateTFVersionInput{TFOpts: tfOpts(&engine.EngineOptions{NoEngine: true})},
+		)
+		require.Error(t, err)
+	})
+}
+
 // TestPopulateTFVersionRespectsTFPath verifies that the run-scoped version
 // cache is keyed by the resolved binary path. Two calls with the same working
 // directory but different binaries must resolve independently: an early call
@@ -223,7 +343,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	tfOpts := func(binary string) *tf.TFOptions {
 		return &tf.TFOptions{
 			TerraformCliArgs: iacargs.New(),
-			ShellOptions: shell.NewShellOptions().
+			ShellOptions: shell.NewShellOptions(map[string]string{}).
 				WithTFPath(binary).
 				WithWorkingDir(t.TempDir()),
 		}
@@ -275,20 +395,19 @@ func testCheckTerragruntVersionMeetsConstraint(
 ) {
 	t.Helper()
 
-	current, err := version.NewVersion(currentVersion)
-	if err != nil {
-		t.Fatalf("Invalid current version specified in test: %v", err)
-	}
+	current, err := semver.Parse(currentVersion)
+	require.NoError(t, err, "Invalid current version specified in test")
 
 	err = run.CheckTerragruntVersionMeetsConstraint(current, versionConstraint)
-	if versionMeetsConstraint && err != nil {
-		t.Fatalf("Expected Terragrunt version %s to meet constraint %s, but got error: %v",
-			currentVersion, versionConstraint, err)
-	} else if !versionMeetsConstraint && err == nil {
-		t.Fatalf(
-			"Expected Terragrunt version %s to NOT meet constraint %s, but got back a nil error",
-			currentVersion,
-			versionConstraint,
-		)
+	if versionMeetsConstraint {
+		require.NoError(t, err,
+			"Expected Terragrunt version %s to meet constraint %s",
+			currentVersion, versionConstraint)
+
+		return
 	}
+
+	require.Error(t, err,
+		"Expected Terragrunt version %s to NOT meet constraint %s",
+		currentVersion, versionConstraint)
 }

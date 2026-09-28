@@ -22,8 +22,56 @@ var (
 	ErrLocationRequiredForRG        = errors.New("location is required to create resource group")
 	ErrLocationRequired             = errors.New("location is required")
 	ErrNoAccessKeysReturned         = errors.New("no access keys returned for storage account")
-	ErrAllAccessKeysEmpty           = errors.New("storage account returned keys but all values were empty")
+	ErrAllAccessKeysEmpty           = errors.New(
+		"storage account returned keys but all values were empty",
+	)
+	ErrScopePrincipalRoleArgs = errors.New(
+		"scope, principal id, and role definition id are required",
+	)
+	// ErrARMAudienceRequired is returned when the cloud config has no Resource
+	// Manager audience, so ResolvePrincipal cannot pick a sovereign-cloud scope.
+	ErrARMAudienceRequired = errors.New(
+		"azure cloud configuration is missing a Resource Manager audience; " +
+			"set remote_state.config.environment to public, usgovernment, or china",
+	)
+	// ErrPrincipalIDUnresolved is returned when the access token has no usable oid claim.
+	// Set remote_state.config.principal_id to the Microsoft Entra object id instead.
+	ErrPrincipalIDUnresolved = errors.New(
+		"principal id could not be resolved from the access token; " +
+			"set remote_state.config.principal_id to the Microsoft Entra object id to assign",
+	)
 )
+
+// InvalidPrincipalIDError is returned when a principal id is not a UUID, which
+// Azure requires for the object id of a user, group, or service principal.
+// Match with errors.As.
+type InvalidPrincipalIDError struct {
+	PrincipalID string
+}
+
+func (e *InvalidPrincipalIDError) Error() string {
+	return fmt.Sprintf("principal id %q is not a valid uuid", e.PrincipalID)
+}
+
+// InvalidRoleDefinitionIDError is returned when a role definition id is not a
+// UUID. Match with errors.As.
+type InvalidRoleDefinitionIDError struct {
+	RoleDefinitionID string
+}
+
+func (e *InvalidRoleDefinitionIDError) Error() string {
+	return fmt.Sprintf("role definition id %q is not a valid uuid", e.RoleDefinitionID)
+}
+
+// TooManyRoleAssignmentPagesError is returned when a role-assignment list exceeds the page bound.
+type TooManyRoleAssignmentPagesError struct {
+	Scope    string
+	MaxPages int
+}
+
+func (e *TooManyRoleAssignmentPagesError) Error() string {
+	return fmt.Sprintf("listing role assignments at %s exceeded %d pages", e.Scope, e.MaxPages)
+}
 
 // TooManyBlobPagesError is returned when a ListBlobs walk exceeds the page
 // bound, which indicates a container far larger than a state container
@@ -98,7 +146,11 @@ type StorageAccountNotFoundError struct {
 }
 
 func (e *StorageAccountNotFoundError) Error() string {
-	return fmt.Sprintf("storage account %q was not found in subscription %q", e.Account, e.SubscriptionID)
+	return fmt.Sprintf(
+		"storage account %q was not found in subscription %q",
+		e.Account,
+		e.SubscriptionID,
+	)
 }
 
 // UnparsableResourceIDError is returned when an ARM resource id does not carry
@@ -139,7 +191,11 @@ type UnsupportedAuthForOpError struct {
 }
 
 func (e *UnsupportedAuthForOpError) Error() string {
-	return fmt.Sprintf("%s require a token credential (auth method %q is not supported)", e.Operation, e.Method)
+	return fmt.Sprintf(
+		"%s require a token credential (auth method %q is not supported)",
+		e.Operation,
+		e.Method,
+	)
 }
 
 // MissingCopyBlobArgsError names every CopyBlob argument left empty.
@@ -169,7 +225,10 @@ type UnknownAuthorityHostError struct {
 }
 
 func (e *UnknownAuthorityHostError) Error() string {
-	return fmt.Sprintf("unknown Azure AD authority host %q; cannot derive a blob endpoint suffix", e.Host)
+	return fmt.Sprintf(
+		"unknown Azure AD authority host %q; cannot derive a blob endpoint suffix",
+		e.Host,
+	)
 }
 
 // UnknownCloudEnvironmentError is returned for an unrecognised CloudEnvironment string.
@@ -178,7 +237,10 @@ type UnknownCloudEnvironmentError struct {
 }
 
 func (e *UnknownCloudEnvironmentError) Error() string {
-	return fmt.Sprintf("unknown cloud environment %q (want one of: public, government, china)", e.Name)
+	return fmt.Sprintf(
+		"unknown cloud environment %q (want one of: public, government, china)",
+		e.Name,
+	)
 }
 
 // UnknownAccessTierError is returned for a StorageAccountConfig.AccessTier
@@ -189,6 +251,17 @@ type UnknownAccessTierError struct {
 
 func (e *UnknownAccessTierError) Error() string {
 	return fmt.Sprintf("unknown access tier %q (want Hot, Cool, Cold, or Premium)", e.Tier)
+}
+
+// UnknownMinimumTLSVersionError is returned for a
+// StorageAccountConfig.MinimumTLSVersion outside the supported set. TLS1_0 and
+// TLS1_1 are deprecated on Azure services and are not accepted.
+type UnknownMinimumTLSVersionError struct {
+	Version string
+}
+
+func (e *UnknownMinimumTLSVersionError) Error() string {
+	return fmt.Sprintf("unknown minimum TLS version %q (want TLS1_2 or TLS1_3)", e.Version)
 }
 
 // IsRetryable reports whether the error is one a caller may retry. Only

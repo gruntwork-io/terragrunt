@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -13,12 +12,13 @@ import (
 
 	"errors"
 
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	goversion "github.com/hashicorp/go-version"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"golang.org/x/sync/singleflight"
 )
@@ -26,6 +26,11 @@ import (
 const (
 	serviceDiscoveryPath = "/.well-known/terraform.json"
 	authTokenEnvName     = "TG_TF_REGISTRY_TOKEN"
+
+	// maxRegistryResponseBytes bounds a registry response. The largest of them
+	// lists a module's versions: the longest public lists run to several hundred
+	// KiB and grow with every release.
+	maxRegistryResponseBytes = 32 << 20
 )
 
 // RegistryServicePath is the modules service path returned by service discovery.
@@ -113,7 +118,7 @@ func GetModuleRegistryURLBasePath(
 	domain string,
 ) (string, error) {
 	sdURL := url.URL{
-		Scheme: "https",
+		Scheme: SchemeHTTPS,
 		Host:   domain,
 		Path:   serviceDiscoveryPath,
 	}
@@ -210,10 +215,10 @@ func BuildRequestURL(
 		return moduleURL, nil
 	}
 
-	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleFullPath}, nil
+	return &url.URL{Scheme: SchemeHTTPS, Host: registryDomain, Path: moduleFullPath}, nil
 }
 
-// GetLatestModuleVersion queries the OpenTofu or Terraform module registry to
+// GetLatestModuleVersion queries the OpenTofu/Terraform module registry to
 // list available versions for the given module and returns the latest stable
 // (non-prerelease) version. Prereleases are excluded to match OpenTofu and
 // Terraform's default behavior when resolving an unconstrained module
@@ -239,7 +244,7 @@ func GetLatestModuleVersion(
 		return "", err
 	}
 
-	stable := make([]*goversion.Version, 0, len(versions))
+	stable := make([]*semver.Version, 0, len(versions))
 
 	for _, v := range versions {
 		if v.Prerelease() != "" {
@@ -258,12 +263,12 @@ func GetLatestModuleVersion(
 		)
 	}
 
-	latest := slices.MaxFunc(stable, func(a, b *goversion.Version) int { return a.Compare(b) })
+	latest := slices.MaxFunc(stable, func(a, b *semver.Version) int { return a.Compare(b) })
 
 	return latest.Original(), nil
 }
 
-// GetMatchingModuleVersion queries the OpenTofu or Terraform module registry
+// GetMatchingModuleVersion queries the OpenTofu/Terraform module registry
 // and returns the highest published version of the module that satisfies
 // constraint (for example "~> 3.3" or ">= 1.0.0, < 2.0.0").
 //
@@ -278,7 +283,7 @@ func GetMatchingModuleVersion(
 	auth RegistryAuth,
 	registryDomain, moduleRegistryBasePath, modulePath, constraint string,
 ) (string, error) {
-	constraints, err := goversion.NewConstraint(constraint)
+	constraints, err := semver.ParseConstraint(constraint)
 	if err != nil {
 		return "", ConstraintParseErr{constraint: constraint, err: err}
 	}
@@ -296,7 +301,7 @@ func GetMatchingModuleVersion(
 		return "", err
 	}
 
-	matching := make([]*goversion.Version, 0, len(versions))
+	matching := make([]*semver.Version, 0, len(versions))
 
 	for _, v := range versions {
 		if constraints.Check(v) {
@@ -312,15 +317,16 @@ func GetMatchingModuleVersion(
 		}
 	}
 
-	match := slices.MaxFunc(matching, func(a, b *goversion.Version) int { return a.Compare(b) })
+	match := slices.MaxFunc(matching, func(a, b *semver.Version) int { return a.Compare(b) })
 
 	return match.Original(), nil
 }
 
-// PinModuleVersion resolves constraint against the OpenTofu or Terraform module
+// PinModuleVersion resolves constraint against the OpenTofu/Terraform module
 // registry addressed by the tfr:// source and returns the source URL rewritten
 // to pin the exact version that satisfies the constraint. tofuImpl selects the
-// default registry host when the source omits it.
+// default registry host when the source omits it, and which implementation's
+// CLI config files supply registry credentials. See [RegistryAuth.Impl].
 func PinModuleVersion(
 	ctx context.Context,
 	l log.Logger,
@@ -329,6 +335,9 @@ func PinModuleVersion(
 	tofuImpl tfimpl.Type,
 	source, constraint string,
 ) (string, error) {
+	// Credential lookup must read the same implementation's CLI config files as domain selection.
+	auth.Impl = tofuImpl
+
 	sourceURL, err := url.Parse(source)
 	if err != nil {
 		return "", err
@@ -336,7 +345,7 @@ func PinModuleVersion(
 
 	registryDomain := sourceURL.Host
 	if registryDomain == "" {
-		registryDomain = tfimpl.DefaultRegistryDomain(tofuImpl)
+		registryDomain = tfimpl.DefaultRegistryDomain(auth.registryEnv(), tofuImpl)
 	}
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, l, c, auth, registryDomain)
@@ -380,7 +389,7 @@ func SourceHasVersionConstraint(source string) bool {
 		return false
 	}
 
-	_, err = goversion.NewVersion(version)
+	_, err = semver.Parse(version)
 
 	return err != nil
 }
@@ -481,7 +490,7 @@ func listModuleVersions(
 	c vhttp.Client,
 	auth RegistryAuth,
 	registryDomain, moduleRegistryBasePath, modulePath string,
-) ([]*goversion.Version, error) {
+) ([]*semver.Version, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
 	modulePath = strings.TrimSuffix(modulePath, "/")
 	modulePath = strings.TrimPrefix(modulePath, "/")
@@ -496,7 +505,7 @@ func listModuleVersions(
 	// If the base path is relative (no scheme), construct the full URL using the registry domain.
 	if versionsURL.Scheme == "" {
 		versionsURL = &url.URL{
-			Scheme: "https",
+			Scheme: SchemeHTTPS,
 			Host:   registryDomain,
 			Path:   versionsPath,
 		}
@@ -524,10 +533,10 @@ func listModuleVersions(
 		)
 	}
 
-	parsed := make([]*goversion.Version, 0, len(versionsResp.Modules[0].Versions))
+	parsed := make([]*semver.Version, 0, len(versionsResp.Modules[0].Versions))
 
 	for _, v := range versionsResp.Modules[0].Versions {
-		pv, err := goversion.NewVersion(v.Version)
+		pv, err := semver.Parse(v.Version)
 		if err != nil {
 			l.Debugf("Skipping unparsable version %q for module %s: %v", v.Version, modulePath, err)
 			continue
@@ -554,37 +563,129 @@ type moduleVersion struct {
 	Version string `json:"version"`
 }
 
-// RegistryAuth carries everything the registry protocol needs to authenticate
-// a request, so nothing on the path reaches for process state of its own.
+// RegistryAuth carries the virtualized environment the registry protocol authenticates
+// through, so nothing on the path reaches for process state of its own. Build one with
+// [NewRegistryAuth]; the zero value carries no venv and cannot authenticate.
 type RegistryAuth struct {
-	Env            map[string]string
-	ReadUserConfig bool
+	Venv *venv.Venv
+
+	cache *registryAuthCache
+
+	// Impl selects which implementation's CLI config files supply credentials; the zero value reads OpenTofu's locations.
+	Impl tfimpl.Type
+}
+
+// NewRegistryAuth returns the credentials the registry protocol authenticates with, memoizing
+// the user's CLI config so a run parses it once rather than once per registry request.
+func NewRegistryAuth(v *venv.Venv) RegistryAuth {
+	if v == nil {
+		panic(ErrNilVenv)
+	}
+
+	return RegistryAuth{Venv: v, Impl: tfimpl.OpenTofu, cache: &registryAuthCache{}}
+}
+
+// registryAuthCache memoizes the user's CLI config per implementation for the lifetime of the
+// [RegistryAuth] holding it, so mixed OpenTofu/Terraform runs never share the wrong credentials.
+type registryAuthCache struct {
+	entries map[tfimpl.Type]*registryAuthCacheEntry
+	mu      sync.Mutex
+}
+
+// registryAuthCacheEntry is one implementation's parsed credentials source, or the error parsing produced.
+type registryAuthCacheEntry struct {
+	credentialsSource *cliconfig.CredentialsSource
+	err               error
 }
 
 // applyHostToken adds an Authorization header to req based on the user's
 // OpenTofu/Terraform CLI config or the TG_TF_REGISTRY_TOKEN env var.
 func applyHostToken(req *http.Request, auth RegistryAuth) (*http.Request, error) {
-	// The CLI config lives in the invoking user's home directory, off any
-	// virtual filesystem, so a run that is not on the real disk skips it and
-	// authenticates from the env alone.
-	if auth.ReadUserConfig {
-		cliCfg, err := cliconfig.LoadUserConfig(vfs.NewOSFS())
-		if err != nil {
-			return nil, err
-		}
+	credentialsSource, err := auth.loadCredentialsSource()
+	if err != nil {
+		return nil, err
+	}
 
-		if creds := cliCfg.CredentialsSource().
+	if credentialsSource != nil {
+		if creds := credentialsSource.
 			ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
 			creds.PrepareRequest(req)
 			return req, nil
 		}
 	}
 
-	if authToken := auth.Env[authTokenEnvName]; authToken != "" {
+	if authToken := auth.registryEnv()[authTokenEnvName]; authToken != "" {
 		req.Header.Add("Authorization", "Bearer "+authToken)
 	}
 
 	return req, nil
+}
+
+// loadCredentialsSource returns the memoized credentials source for auth.Impl, or nil
+// when no user CLI config is reachable.
+func (auth RegistryAuth) loadCredentialsSource() (*cliconfig.CredentialsSource, error) {
+	if !auth.canLoadUserConfig() {
+		return nil, nil
+	}
+
+	if auth.cache == nil {
+		return auth.readCredentialsSource()
+	}
+
+	// Every non-Terraform implementation reads the same tofu-order files, so share one entry.
+	impl := tfimpl.OpenTofu
+	if auth.Impl == tfimpl.Terraform {
+		impl = tfimpl.Terraform
+	}
+
+	auth.cache.mu.Lock()
+	defer auth.cache.mu.Unlock()
+
+	entry, ok := auth.cache.entries[impl]
+	if !ok {
+		entry = &registryAuthCacheEntry{}
+		entry.credentialsSource, entry.err = auth.readCredentialsSource()
+
+		if auth.cache.entries == nil {
+			auth.cache.entries = make(map[tfimpl.Type]*registryAuthCacheEntry)
+		}
+
+		auth.cache.entries[impl] = entry
+	}
+
+	return entry.credentialsSource, entry.err
+}
+
+// readCredentialsSource parses the user's CLI config through the injected venv.
+func (auth RegistryAuth) readCredentialsSource() (*cliconfig.CredentialsSource, error) {
+	cliCfg, err := cliconfig.LoadUserConfig(auth.Venv, auth.Impl)
+	if err != nil {
+		return nil, err
+	}
+
+	return cliCfg.CredentialsSource(auth.Venv.Env), nil
+}
+
+// registryEnv returns the environment the registry token is read from. The zero-value
+// RegistryAuth carries no venv, which is how [NewTFRResolver] spells an anonymous probe
+// before a caller supplies credentials, so it reads as an empty environment.
+func (auth RegistryAuth) registryEnv() map[string]string {
+	if auth.Venv == nil {
+		return nil
+	}
+
+	return auth.Venv.Env
+}
+
+// canLoadUserConfig reports whether the carried venv supplies every handle
+// [cliconfig.LoadUserConfig] asserts, so a venv missing one reads as "no user config"
+// rather than panicking deep inside a module download.
+func (auth RegistryAuth) canLoadUserConfig() bool {
+	return auth.Venv != nil &&
+		auth.Venv.Env != nil &&
+		auth.Venv.FS != nil &&
+		auth.Venv.Platform != nil &&
+		auth.Venv.Platform.UserHomeDir != nil
 }
 
 // httpGETAndGetResponse performs a GET against getURL and returns its body and headers.
@@ -624,7 +725,7 @@ func httpGETAndGetResponse(
 		return nil, nil, RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode}
 	}
 
-	bodyData, err := io.ReadAll(resp.Body)
+	bodyData, err := helpers.ReadBody(resp.Body, resp.ContentLength, maxRegistryResponseBytes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading registry response body from %s: %w", getURL, err)
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ func TestUpdateLockfileReplacesReadOnlyLockfile(t *testing.T) {
 	require.NoError(t, os.WriteFile(lockfilePath, []byte(readOnlyLockfileContents), 0644))
 	require.NoError(t, os.Chmod(lockfilePath, 0444))
 
-	require.NoError(t, getproviders.UpdateLockfile(t.Context(), workingDir, nil))
+	require.NoError(t, getproviders.UpdateLockfile(t.Context(), vfs.NewOSFS(), workingDir, nil))
 
 	content, err := os.ReadFile(lockfilePath)
 	require.NoError(t, err)
@@ -72,7 +73,7 @@ func TestUpdateLockfileDoesNotMutateHardlinkedStore(t *testing.T) {
 	storeInfoBefore, err := os.Stat(storePath)
 	require.NoError(t, err)
 
-	require.NoError(t, getproviders.UpdateLockfile(t.Context(), workingDir, nil))
+	require.NoError(t, getproviders.UpdateLockfile(t.Context(), vfs.NewOSFS(), workingDir, nil))
 
 	storeContent, err := os.ReadFile(storePath)
 	require.NoError(t, err)

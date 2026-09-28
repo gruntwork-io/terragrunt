@@ -107,7 +107,7 @@ func TestFilterFlagWithFindGraphExpressions(t *testing.T) {
 					if strings.Contains(lowerStderr, "error") &&
 						!strings.Contains(lowerStderr, "suppressed") &&
 						!strings.Contains(lowerStderr, "warning") {
-						t.Errorf("Unexpected error in stderr: %s", stderr)
+						assert.Failf(t, "unexpected error in stderr", "Unexpected error in stderr: %s", stderr)
 					}
 				}
 
@@ -287,7 +287,9 @@ func TestFilterFlagWithRunGraphExpressions(t *testing.T) {
 				if strings.Contains(output, "filter") {
 					if strings.Contains(output, "parse") || strings.Contains(output, "syntax") ||
 						strings.Contains(output, "invalid") {
-						t.Fatalf(
+						require.FailNowf(
+							t,
+							"filter parsing/evaluation error",
 							"Filter parsing/evaluation error detected in output: %s\nOutput: %s\nStderr: %s",
 							errStr,
 							stdout,
@@ -300,7 +302,9 @@ func TestFilterFlagWithRunGraphExpressions(t *testing.T) {
 				if err != nil {
 					if strings.Contains(errStr, "filter") &&
 						(strings.Contains(errStr, "parse") || strings.Contains(errStr, "syntax") || strings.Contains(errStr, "invalid")) {
-						t.Fatalf(
+						require.FailNowf(
+							t,
+							"filter parsing/evaluation error",
 							"Filter parsing/evaluation error: %v\nOutput: %s\nStderr: %s",
 							err,
 							stdout,

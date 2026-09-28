@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -332,7 +333,7 @@ func TestTFTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse the report file to verify the correct units ran
-	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err, "Should be able to parse JSON report")
 
 	runNames := runs.Names()

@@ -96,7 +96,7 @@ func runTargetCommand(
 				ctx,
 				l,
 				v,
-				configbridge.ShellRunOptsFromOpts(opts),
+				configbridge.ShellRunOptsFromOpts(v.Env, opts),
 				dir,
 				false,
 				false,

@@ -1,0 +1,31 @@
+---
+version: "v1.1.4"
+category: "experiments-updated"
+---
+
+#### `render` previews what an expanded `dependency` block expanded to
+
+With the [`block-iteration`](/reference/experiments/active#block-iteration) experiment enabled, a `dependency` block that carries an `expansion` block now renders as it was written, followed by the elements it expanded into, commented out and with their bodies resolved:
+
+```bash
+$ terragrunt render --experiment block-iteration
+dependency "aurora" {
+  expansion {
+    for_each = toset(["web", "api"])
+  }
+
+  config_path = "../aurora-${each.key}"
+}
+
+# Expands to:
+#
+# dependency "aurora" {
+#   config_path = "../aurora-api"
+# }
+#
+# dependency "aurora" {
+#   config_path = "../aurora-web"
+# }
+```
+
+The elements are comments because they aren't valid Terragrunt HCL configurations (you are not allowed to use the same dependency label twice in Terragrunt configurations), the previews are there to help you understand how expansion will resolve.

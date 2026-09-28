@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,7 +140,7 @@ func TestTFFilterFlagWithRunAllGitFilter(t *testing.T) {
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file
-				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse report JSON")
 
 				// Create a map of unit names to records for easier lookup
@@ -270,7 +271,7 @@ terraform {
 	)
 	require.NoError(t, err)
 
-	mainTF := `resource "null_resource" "test" {
+	mainTF := pinnedProvidersTF("hashicorp/null") + `resource "null_resource" "test" {
   triggers = {
     test = "value"
   }
@@ -556,7 +557,7 @@ unit "unit-to-be-created-2" {
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
 				// Read and parse the report file
-				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 				require.NoError(t, err, "Should be able to parse report JSON")
 
 				// Create a map of unit names to records for easier lookup
@@ -696,7 +697,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath, "Report file should exist")
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -735,7 +736,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -774,7 +775,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -811,7 +812,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -887,7 +888,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -938,7 +939,7 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		require.FileExists(t, reportFilePath)
 
-		runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+		runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 		require.NoError(t, err, "Should be able to parse report JSON")
 
 		names := runs.Names()
@@ -991,7 +992,7 @@ func TestTFFilterFlagAutoEnablesAll(t *testing.T) {
 			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath)
 
-			r, err := report.ParseJSONRunsFromFile(reportFilePath)
+			r, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 			require.NoError(t, err)
 
 			runs := r.Names()
@@ -1024,7 +1025,7 @@ func TestTFOutDirWithGitFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create main.tf with a simple null resource
-	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "test" {}
 `), 0644)
 	require.NoError(t, err)
@@ -1041,7 +1042,7 @@ resource "null_resource" "test" {}
 	err = os.WriteFile(filepath.Join(newUnitDir, "terragrunt.hcl"), []byte(`# New unit`), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(newUnitDir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(newUnitDir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "test" {}
 `), 0644)
 	require.NoError(t, err)
@@ -1103,7 +1104,7 @@ func TestTFDestroyWithOutDirGitFilter(t *testing.T) {
 	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Unit to destroy`), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "test" {}
 `), 0644)
 	require.NoError(t, err)
@@ -1186,7 +1187,7 @@ func TestTFDestroyWithOutDirGitFilterDependentsWithRacing(t *testing.T) {
 	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Unit to destroy`), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "test" {}
 `), 0644)
 	require.NoError(t, err)
@@ -1208,7 +1209,7 @@ dependency "b" {
 `), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(unitADir, "main.tf"), []byte(`
+	err = os.WriteFile(filepath.Join(unitADir, "main.tf"), []byte(pinnedProvidersTF("hashicorp/null")+`
 resource "null_resource" "unit_a" {}
 `), 0644)
 	require.NoError(t, err)
@@ -1416,7 +1417,7 @@ func TestTFRunAllGitFilterMarkGlobAsReadDeleted(t *testing.T) {
 
 			require.FileExists(t, reportFilePath, "Report file should exist at %s", reportFilePath)
 
-			runs, parseErr := report.ParseJSONRunsFromFile(reportFilePath)
+			runs, parseErr := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFilePath)
 			require.NoError(t, parseErr, "Should be able to parse report JSON")
 
 			var found bool

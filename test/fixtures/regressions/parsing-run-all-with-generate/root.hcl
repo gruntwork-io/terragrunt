@@ -1,5 +1,5 @@
 locals {
-  aws_provider_version = "6.15.0"
+  aws_provider_version = "6.56.0"
 }
 
 # Generate an AWS provider block
@@ -20,7 +20,7 @@ generate "versions_override" {
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
+      source  = "registry.opentofu.org/hashicorp/aws"
       version = "${local.aws_provider_version}"
     }
   }

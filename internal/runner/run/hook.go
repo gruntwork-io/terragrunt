@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/multierror"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -104,7 +104,7 @@ func ProcessHooks(ctx context.Context, l log.Logger, v *venv.Venv, p ProcessHook
 		}
 	}
 
-	return multierror.Join(allPreviousErrors[priorCount:]...)
+	return errors.Join(allPreviousErrors[priorCount:]...)
 }
 
 // ProcessErrorHooks runs error_hook blocks whose OnErrors regex matches one
@@ -133,10 +133,10 @@ func ProcessErrorHooks(
 
 	errorMessages := make([]string, 0, len(previousExecErrors))
 	for _, e := range previousExecErrors {
-		errorMessage := e.Error()
+		errorMessage := errfmt.Format(e)
 		// Process execution errors carry stdout that hook patterns need to match against.
 		// https://github.com/gruntwork-io/terragrunt/issues/2045
-		if processError, ok := errors.AsType[util.ProcessExecutionError](e); ok {
+		if processError, ok := errors.AsType[*util.ProcessExecutionError](e); ok {
 			errorMessage = fmt.Sprintf(
 				"%s\n%s",
 				processError.Error(),
@@ -173,7 +173,7 @@ func ProcessErrorHooks(
 						ctx,
 						l,
 						hookV,
-						opts.shellRunOptions(),
+						opts.shellRunOptions(env),
 						curHook.WorkingDir,
 						curHook.SuppressStdout,
 						false,
@@ -192,13 +192,13 @@ func ProcessErrorHooks(
 		}
 	}
 
-	return multierror.Join(errorsOccured...)
+	return errors.Join(errorsOccured...)
 }
 
 // hookErrorMessage extracts command, args and output from the error
 // so users see WHY a hook failed, not just the exit code.
 func hookErrorMessage(hookName string, err error) string {
-	var processErr util.ProcessExecutionError
+	var processErr *util.ProcessExecutionError
 	if !errors.As(err, &processErr) {
 		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
 	}
@@ -281,7 +281,7 @@ func runHook(
 		ctx,
 		l,
 		hookV,
-		opts.shellRunOptions(),
+		opts.shellRunOptions(env),
 		workingDir,
 		suppressStdout,
 		false,
@@ -310,7 +310,7 @@ func executeTFLint(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	err := tflint.RunTflintWithOpts(ctx, l, v, opts.tflintRunOptions(), cfg, curHook)
+	err := tflint.RunTflintWithOpts(ctx, l, v, opts.tflintRunOptions(v.Env), cfg, curHook)
 	if err != nil {
 		l.Errorf("%s", hookErrorMessage(curHook.Name, err))
 		return err

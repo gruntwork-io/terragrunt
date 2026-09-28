@@ -1,0 +1,16 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Numbers with extreme exponents fail fast instead of stalling
+
+A number literal such as `9E9999999` in `inputs`, `locals`, or a `dependency` block's `mock_outputs` used to cost over a minute of CPU on a single unit. Written out in decimal that number is ten million digits long, and `terragrunt render --format=json` produced every digit before failing with a ten megabyte error message.
+
+Terragrunt now rejects numbers larger than `1e4096`, and non-zero numbers smaller than `1e-4096`, before it tries to write them out, and names the attribute holding the value:
+
+```
+count: number is outside the supported range of 1e-4096 to 1e4096
+```
+
+Numbers inside that range are unaffected.

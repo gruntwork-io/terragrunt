@@ -475,14 +475,9 @@ func NewProfileFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 	}
 }
 
-// profileFlagUsage appends the experiment requirement to the usage text while the profiling experiment is ongoing.
+// profileFlagUsage keeps the experiment note on profiling flags until the experiment completes.
 func profileFlagUsage(opts *options.TerragruntOptions, usage string) string {
-	exp := opts.Experiments.Find(experiment.Profiling)
-	if exp == nil || exp.Status != experiment.StatusOngoing {
-		return usage
-	}
-
-	return usage + " Requires the 'profiling' experiment."
+	return flags.ExperimentUsage(opts.Experiments, experiment.Profiling, usage)
 }
 
 func NewLogLevelFlag(

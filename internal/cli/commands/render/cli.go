@@ -4,8 +4,6 @@ package render
 import (
 	"context"
 
-	"errors"
-
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
@@ -37,25 +35,9 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
-			Usage:       "The output format to render the config in. Currently supports: json",
+			Usage:       "The output format to render the config in. Supported values: hcl, json.",
 			Action: func(_ context.Context, _ *clihelper.Context, value string) error {
-				// Set the default output path based on the format.
-				switch value {
-				case FormatJSON:
-					if opts.OutputPath == "" {
-						opts.OutputPath = "terragrunt.rendered.json"
-					}
-
-					return nil
-				case FormatHCL:
-					if opts.OutputPath == "" {
-						opts.OutputPath = "terragrunt.rendered.hcl"
-					}
-
-					return nil
-				default:
-					return errors.New("invalid format: " + value)
-				}
+				return validateFormat(value)
 			},
 		}),
 
@@ -63,12 +45,8 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Name:    JSONFlagName,
 			EnvVars: tgPrefix.EnvVars(JSONFlagName),
 			Usage:   "Render the config in JSON format. Equivalent to --format=json.",
-			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
+			Action: func(_ context.Context, _ *clihelper.Context, _ bool) error {
 				opts.Format = FormatJSON
-
-				if opts.OutputPath == "" {
-					opts.OutputPath = "terragrunt.rendered.json"
-				}
 
 				return nil
 			},

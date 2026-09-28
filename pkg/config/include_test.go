@@ -680,9 +680,7 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	// Optionally, here you can add assertions to check the integrity of the targetConfig
 	// For example, checking if all keys and values have been copied correctly
 	expectedFields := len(sourceConfig.FieldsMetadata)
-	if len(targetConfig.FieldsMetadata) != expectedFields {
-		t.Errorf("Expected %d fields, got %d", expectedFields, len(targetConfig.FieldsMetadata))
-	}
+	assert.Len(t, targetConfig.FieldsMetadata, expectedFields)
 }
 
 func TestDependencyFileNotFoundError(t *testing.T) {

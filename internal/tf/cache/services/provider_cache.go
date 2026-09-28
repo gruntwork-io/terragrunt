@@ -48,6 +48,11 @@ const (
 
 	// DefaultProviderFilesLimit is the maximum number of files in a provider archive
 	DefaultProviderFilesLimit = 100
+
+	// maxProviderMetadataBytes bounds the checksum document and the signature
+	// that authenticate an archive. Both are read into memory, and both run to
+	// a few kilobytes.
+	maxProviderMetadataBytes = 1 << 20
 )
 
 type ProviderCaches []*ProviderCache
@@ -210,7 +215,7 @@ func (cache *ProviderCache) AuthenticatePackage(
 		)
 	}
 
-	return getproviders.PackageAuthenticationAll(checks...).Authenticate(cache.archivePath)
+	return getproviders.PackageAuthenticationAll(checks...).Authenticate(cache.ProviderService.FS(), cache.archivePath)
 }
 
 func (cache *ProviderCache) ArchivePath() string {
@@ -287,7 +292,7 @@ func (cache *ProviderCache) setDocumentSHA256Sums(ctx context.Context) ([]byte, 
 		return nil, err
 	}
 
-	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, documentSHA256Sums); err != nil {
+	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, documentSHA256Sums, maxProviderMetadataBytes); err != nil {
 		return nil, fmt.Errorf(
 			"failed to retrieve authentication checksums for provider %q: %w",
 			cache.Provider,
@@ -322,7 +327,7 @@ func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, signature); err != nil {
+	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, signature, maxProviderMetadataBytes); err != nil {
 		return nil, fmt.Errorf(
 			"failed to retrieve authentication signature for provider %q: %w",
 			cache.Provider,
@@ -363,9 +368,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return err
 	}
 
-	userProviderExists, err := vfs.FileExists(fsys, cache.userProviderDir)
-	if err != nil {
-		return err
+	userProviderExists := false
+
+	if cache.userProviderDir != "" {
+		userProviderExists, err = vfs.FileExists(fsys, cache.userProviderDir)
+		if err != nil {
+			return err
+		}
 	}
 
 	if userProviderExists {
@@ -405,13 +414,25 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 					return err
 				}
 
-				return helpers.FetchToFile(ctx, cache.HTTPClient(), req, cache.archivePath)
+				return helpers.FetchToFile(
+					ctx,
+					cache.HTTPClient(),
+					cache.ProviderService.FS(),
+					req,
+					cache.archivePath,
+					DefaultProviderFileSizeLimit,
+				)
 			},
 		); err != nil {
 			return err
 		}
 
 		cache.archiveCached = true
+	}
+
+	auth, err := cache.AuthenticatePackage(ctx)
+	if err != nil {
+		return err
 	}
 
 	cache.logger.Debugf("Unpack provider archive %s", cache.archivePath)
@@ -426,11 +447,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		cache.archivePath,
 		unzipFileMode,
 	); err != nil {
-		return err
-	}
-
-	auth, err := cache.AuthenticatePackage(ctx)
-	if err != nil {
 		return err
 	}
 
@@ -512,7 +528,7 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 		},
 	); err != nil {
 		return nil, fmt.Errorf(
-			"unable to acquire lock file %s (already locked?) try to remove the file manually: %w",
+			"unable to acquire lock file %s (held by another Terragrunt process?): %w",
 			cache.lockfilePath,
 			err,
 		)
@@ -683,12 +699,6 @@ func (service *ProviderService) CacheProvider(
 		Provider:        provider,
 		started:         make(chan struct{}, 1),
 
-		userProviderDir: filepath.Join(
-			service.userCacheDir,
-			provider.Address(),
-			provider.Version,
-			provider.Platform(),
-		),
 		packageDir: filepath.Join(
 			service.cacheDir,
 			provider.Address(),
@@ -697,6 +707,17 @@ func (service *ProviderService) CacheProvider(
 		),
 		lockfilePath: filepath.Join(service.tempDir, packageName+".lock"),
 		archivePath:  filepath.Join(service.archiveDir, packageName+path.Ext(provider.Filename)),
+	}
+
+	// An unset user cache dir means no user plugin directory resolved; joining onto it
+	// would produce a path relative to the unit's working directory.
+	if service.userCacheDir != "" {
+		cache.userProviderDir = filepath.Join(
+			service.userCacheDir,
+			provider.Address(),
+			provider.Version,
+			provider.Platform(),
+		)
 	}
 
 	service.logger.Debugf("Sending provider %s to warm up channel", provider)
@@ -858,7 +879,12 @@ func (service *ProviderService) startProviderCaching(
 		service.logger.Errorf("Failed to acquire lock file for %s: %v", cache.Provider, err)
 		return err
 	}
-	defer lockfile.Unlock() //nolint:errcheck
+
+	defer func() {
+		if unlockErr := lockfile.Unlock(); unlockErr != nil {
+			service.logger.Errorf("Failed to release lock file for %s: %v", cache.Provider, unlockErr)
+		}
+	}()
 
 	service.logger.Debugf("Acquired lock file for %s, starting warm up", cache.Provider)
 
@@ -867,8 +893,7 @@ func (service *ProviderService) startProviderCaching(
 
 		// UnexpectedProviderCachePathError signals that the path holds user
 		// content; RemoveAll here would silently override that contract.
-		var unexpectedPath *UnexpectedProviderCachePathError
-		if !errors.As(cache.err, &unexpectedPath) {
+		if _, ok := errors.AsType[*UnexpectedProviderCachePathError](cache.err); !ok {
 			if err := service.FS().RemoveAll(cache.packageDir); err != nil {
 				service.logger.Warnf("Failed to clean up package dir %q: %v", cache.packageDir, err)
 			}

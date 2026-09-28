@@ -33,7 +33,7 @@ func TestWithCASRegistersCASGetter(t *testing.T) {
 
 	v := venvtest.NewOSWithEmptyEnv()
 
-	client := getter.NewClient(v,
+	client := getter.NewClient(logger.CreateLogger(), v,
 		getter.WithCAS(c, &cas.CloneOptions{}),
 		getter.WithHTTP(vhttp.NewNoNetworkClient()),
 	)
@@ -58,7 +58,7 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 
 	v := venvtest.NewOSWithEmptyEnv()
 
-	client := getter.NewClient(v,
+	client := getter.NewClient(logger.CreateLogger(), v,
 		getter.WithCAS(c, &cas.CloneOptions{}),
 		getter.WithHTTP(vhttp.NewNoNetworkClient()),
 	)
@@ -84,7 +84,7 @@ func TestWithCASRoutesCASProtocolURLs(t *testing.T) {
 		return
 	}
 
-	t.Fatal("no getter matched cas:: source")
+	require.Fail(t, "no getter matched cas:: source")
 }
 
 // TestWithHTTPSAuthHeaderReachesServer verifies WithHTTPSAuth wires its
@@ -103,7 +103,7 @@ func TestWithHTTPSAuthHeaderReachesServer(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithHTTPSAuth(http.Header{"Authorization": {want}}),
 		getter.WithCustomGettersPrepended(&gogetter.HttpGetter{
 			Client: server.Client(),
@@ -132,7 +132,7 @@ func TestHTTPSchemeRoutingChoosesAuthSlot(t *testing.T) {
 	httpsHeader := http.Header{"X-Auth": {"https-token"}}
 	httpHeader := http.Header{"X-Auth": {"http-token"}}
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithHTTPSAuth(httpsHeader),
 		getter.WithHTTPAuth(httpHeader),
 	)
@@ -189,7 +189,7 @@ func TestWithHTTPSAuthSetsBuilderField(t *testing.T) {
 	t.Parallel()
 
 	header := http.Header{"X-Test": {"yes"}}
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithHTTPSAuth(header))
 
 	httpGetters := allHTTPGetters(client.Getters)
@@ -218,11 +218,11 @@ func TestFileCopyGetIncludeExcludeFiltersHonor(t *testing.T) {
 		WithLogger(logger.CreateLogger()).
 		WithExcludeFromCopy("*.txt")
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(fcg))
 
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + src,
+		Src:     helpers.FileURL(src),
 		Dst:     dst,
 		GetMode: getter.ModeDir,
 	})
@@ -239,11 +239,11 @@ func TestFileCopyGetMissingPath(t *testing.T) {
 
 	missing := filepath.Join(helpers.TmpDirWOSymlinks(t), "does-not-exist")
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + missing,
+		Src:     helpers.FileURL(missing),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeDir,
 	})
@@ -259,11 +259,11 @@ func TestFileCopyGetSourceIsFile(t *testing.T) {
 	srcFile := filepath.Join(helpers.TmpDirWOSymlinks(t), "main.tf")
 	require.NoError(t, writeFile(srcFile, "# main\n"))
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcFile,
+		Src:     helpers.FileURL(srcFile),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeDir,
 	})
@@ -279,11 +279,11 @@ func TestFileCopyGetFileSourceIsDir(t *testing.T) {
 	srcDir := helpers.TmpDirWOSymlinks(t)
 	require.NoError(t, writeFile(filepath.Join(srcDir, "main.tf"), "# main\n"))
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcDir,
+		Src:     helpers.FileURL(srcDir),
 		Dst:     filepath.Join(helpers.TmpDirWOSymlinks(t), "out"),
 		GetMode: getter.ModeFile,
 	})
@@ -302,11 +302,11 @@ func TestFileCopyGetFileDelegates(t *testing.T) {
 
 	dst := filepath.Join(helpers.TmpDirWOSymlinks(t), "out.tf")
 
-	client := getter.NewClient(venvtest.NewWithOSFS(),
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	_, err := client.Get(t.Context(), &getter.Request{
-		Src:     "file://" + srcFile,
+		Src:     helpers.FileURL(srcFile),
 		Dst:     dst,
 		GetMode: getter.ModeFile,
 	})
@@ -347,21 +347,27 @@ func writeFile(path, content string) error {
 func TestFileCopyGetterCopiesDirOnMemFS(t *testing.T) {
 	t.Parallel()
 
+	src := venvtest.Root("/src")
+	dst := venvtest.Root("/dst")
+
 	fsys := vfs.NewMemMapFS()
-	require.NoError(t, fsys.MkdirAll("/src", 0o755))
-	require.NoError(t, vfs.WriteFile(fsys, "/src/main.tf", []byte("# module"), 0o644))
+	require.NoError(t, fsys.MkdirAll(src, 0o755))
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(src, "main.tf"), []byte("# module"), 0o644),
+	)
 
 	g := getter.NewFileCopyGetter(fsys).WithLogger(logger.CreateLogger())
 
-	req := &getter.Request{Src: "/src", Dst: "/dst", GetMode: getter.ModeDir}
+	req := &getter.Request{Src: src, Dst: dst, GetMode: getter.ModeDir}
 	_, err := (&getter.Client{Getters: []getter.Getter{g}}).Get(t.Context(), req)
 	require.NoError(t, err)
 
-	copied, err := vfs.ReadFile(fsys, "/dst/main.tf")
+	copied, err := vfs.ReadFile(fsys, filepath.Join(dst, "main.tf"))
 	require.NoError(t, err)
 	assert.Equal(t, "# module", string(copied))
 
-	_, err = os.Stat("/dst/main.tf")
+	_, err = os.Stat(filepath.Join(dst, "main.tf"))
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
@@ -371,16 +377,19 @@ func TestFileCopyGetterCopiesDirOnMemFS(t *testing.T) {
 func TestFileCopyGetterGetFileOnMemFS(t *testing.T) {
 	t.Parallel()
 
+	src := venvtest.Root("/src/main.tf")
+	dst := venvtest.Root("/nested/dst/main.tf")
+
 	fsys := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fsys, "/src/main.tf", []byte("# module"), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, src, []byte("# module"), 0o644))
 
 	g := getter.NewFileCopyGetter(fsys).WithLogger(logger.CreateLogger())
 
-	req := &getter.Request{Src: "/src/main.tf", Dst: "/nested/dst/main.tf", GetMode: getter.ModeFile}
+	req := &getter.Request{Src: src, Dst: dst, GetMode: getter.ModeFile}
 	_, err := (&getter.Client{Getters: []getter.Getter{g}}).Get(t.Context(), req)
 	require.NoError(t, err)
 
-	copied, err := vfs.ReadFile(fsys, "/nested/dst/main.tf")
+	copied, err := vfs.ReadFile(fsys, dst)
 	require.NoError(t, err)
 	assert.Equal(t, "# module", string(copied))
 }

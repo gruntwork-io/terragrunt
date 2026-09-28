@@ -179,10 +179,9 @@ func NewDiscoveryBoundaryDirError(boundary string, err error) error {
 	return DiscoveryBoundaryDirError{Boundary: boundary, Wrapped: err}
 }
 
-// DiscoveryBoundaryScopeError indicates that the working directory is not
-// inside the directory given as the boundary. Dependent discovery walks up from
-// the working directory, so a boundary that does not contain it can never take
-// effect.
+// DiscoveryBoundaryScopeError indicates that the boundary neither contains the
+// working directory nor sits inside it. Dependent discovery searches from the
+// working directory, so such a boundary can never take effect.
 type DiscoveryBoundaryScopeError struct {
 	Boundary   string
 	WorkingDir string
@@ -190,9 +189,10 @@ type DiscoveryBoundaryScopeError struct {
 
 func (e DiscoveryBoundaryScopeError) Error() string {
 	return fmt.Sprintf(
-		"discovery boundary %q does not contain the working directory %q. "+
-			"Filters that traverse dependents search upward from the working directory, "+
-			"so their boundary must be the working directory or one of its parent directories.",
+		"discovery boundary %q does not overlap the working directory %q. "+
+			"Filters that traverse dependents search from the working directory, "+
+			"so their boundary must be the working directory, one of its parent directories, "+
+			"or a directory inside it.",
 		e.Boundary, e.WorkingDir,
 	)
 }
@@ -200,4 +200,23 @@ func (e DiscoveryBoundaryScopeError) Error() string {
 // NewDiscoveryBoundaryScopeError creates a new DiscoveryBoundaryScopeError for the given paths.
 func NewDiscoveryBoundaryScopeError(boundary, workingDir string) error {
 	return DiscoveryBoundaryScopeError{Boundary: boundary, WorkingDir: workingDir}
+}
+
+// EmptyQueueConstructAsError represents an error that occurs when the value
+// given for the --queue-construct-as flag contains no command.
+type EmptyQueueConstructAsError struct {
+	Value string
+}
+
+func (e EmptyQueueConstructAsError) Error() string {
+	return fmt.Sprintf(
+		"The --queue-construct-as value %q contains no command. "+
+			"Pass the command to construct the queue as, like 'plan' or 'apply -destroy'.",
+		e.Value,
+	)
+}
+
+// NewEmptyQueueConstructAsError creates a new [EmptyQueueConstructAsError] for the given flag value.
+func NewEmptyQueueConstructAsError(value string) error {
+	return EmptyQueueConstructAsError{Value: value}
 }

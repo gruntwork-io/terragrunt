@@ -83,12 +83,12 @@ func TestObjectDstRejectsEscapingKeys(t *testing.T) {
 		{
 			name:   "key climbs above the destination",
 			prefix: "modules/vpc",
-			key:    "modules/vpc/../../../etc/passwd",
+			key:    "modules/vpc/../../../outside",
 		},
 		{
 			name:   "key outside the prefix climbs from the whole key",
 			prefix: "modules/vpc",
-			key:    "../../etc/passwd",
+			key:    "../../outside",
 		},
 		{
 			name:   "single parent segment still escapes",

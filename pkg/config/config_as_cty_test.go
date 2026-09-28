@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"context"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -10,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -309,11 +308,14 @@ func TestStackUnitCtyReading(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		"../../test/fixtures/stacks/basic/live/terragrunt.stack.hcl",
 		nil,
 	)
@@ -335,21 +337,18 @@ func TestStackLocalsCtyReading(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	// The fixture calls get_repo_root, which shells out to git.
-	repoRoot, err := filepath.Abs("../..")
+	// The fixture calls get_repo_root, which walks the real filesystem from an
+	// absolute working directory, the way the CLI supplies it.
+	configPath, err := filepath.Abs(config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	v := venvtest.NewWithOSFS().WithHandler(
-		func(_ context.Context, _ vexec.Invocation) vexec.Result {
-			return vexec.Result{Stdout: []byte(repoRoot + "\n")}
-		},
-	)
-
-	ctx, pctx := newTestParsingContext(t, v, config.DefaultTerragruntConfigPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, configPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		"../../test/fixtures/stacks/locals/live/terragrunt.stack.hcl",
 		nil,
 	)
@@ -414,7 +413,7 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 	case "Errors":
 		return "errors", true
 	default:
-		t.Fatalf("Unknown struct property: %s", fieldName)
+		require.FailNow(t, "Unknown struct property: "+fieldName)
 		// This should not execute
 		return "", false
 	}
@@ -437,7 +436,7 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 	case "Encryption":
 		return "encryption", true
 	default:
-		t.Fatalf("Unknown struct property: %s", fieldName)
+		require.FailNow(t, "Unknown struct property: "+fieldName)
 		// This should not execute
 		return "", false
 	}
@@ -461,4 +460,22 @@ func structFieldNames(v any) []string {
 	}
 
 	return names
+}
+
+func TestTerragruntConfigAsCtyEngineWithoutMeta(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.TerragruntConfig{
+		Engine: &config.EngineConfig{Source: "github.com/gruntwork-io/terragrunt-engine-opentofu"},
+	}
+
+	ctyVal, err := config.TerragruntConfigAsCty(&cfg)
+	require.NoError(t, err)
+
+	meta := ctyVal.GetAttr(config.MetadataEngine).GetAttr("meta")
+	assert.True(t, meta.IsNull())
+
+	jsonBytes, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
+	require.NoError(t, err)
+	assert.Contains(t, string(jsonBytes), `"meta":null`)
 }

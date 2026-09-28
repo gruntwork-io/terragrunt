@@ -40,8 +40,6 @@ func (handler *DirectProviderHandler) String() string {
 
 // GetVersions implements ProviderHandler.GetVersions
 // https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
-//
-//nolint:lll
 func (handler *DirectProviderHandler) GetVersions(
 	ctx context.Context,
 	provider *models.Provider,
@@ -120,7 +118,7 @@ func ResolveProviderURL(providersV1, registryName string, pathParts ...string) (
 
 	// Relative path — build URL with registry host
 	return &url.URL{
-		Scheme: "https",
+		Scheme: schemeHTTPS,
 		Host:   registryName,
 		Path:   path.Join(providersV1, subPath),
 	}, nil

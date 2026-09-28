@@ -23,8 +23,9 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 		ParseFromString(LocalsTestConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
-	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file)
 	require.NoError(t, err)
 
 	var actualRegion string
@@ -66,8 +67,9 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 		ParseFromString(LocalsTestMultiDeepReferenceConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
-	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file)
 	require.NoError(t, err)
 
 	expected := "a"
@@ -103,14 +105,13 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 		ParseFromString(LocalsTestImpossibleConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
-	_, err = config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	_, err = config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file)
 	require.Error(t, err)
 
-	var target config.CouldNotEvaluateAllLocalsError
-	if !errors.As(err, &target) {
-		t.Fatalf("Did not get expected error: %s", err)
-	}
+	_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
+	require.True(t, ok, "Did not get expected error: %s", err)
 }
 
 func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
@@ -120,8 +121,9 @@ func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
 		ParseFromString(MultipleLocalsBlockConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
-	_, err = config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	_, err = config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file)
 	require.Error(t, err)
 }
 

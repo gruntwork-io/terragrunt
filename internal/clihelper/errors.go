@@ -75,10 +75,6 @@ func NewExitError(message any, exitCode ExitCode) ExitCoder {
 // handleExitCoder handles errors implementing ExitCoder by printing their
 // message and calling osExiter with the given exit code.
 //
-// If the given error instead implements MultiError, each error will be checked
-// for the ExitCoder interface, and osExiter will be called with the last exit
-// code found, or exit code 1 if no ExitCoder is found.
-//
 // This function is the default error-handling behavior for an App.
 func handleExitCoder(_ *Context, err error, osExiter func(code int)) error {
 	if err == nil {

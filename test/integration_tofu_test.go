@@ -28,7 +28,7 @@ const (
 	testFixtureTofuHTTPEncryption   = "fixtures/tofu-http-encryption"
 )
 
-func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
+func TestTofuAutoProviderCacheDirExperimentBasic(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
@@ -46,7 +46,7 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 	assert.Regexp(t, `(Reusing previous version|shared cache directory)`, stdout)
 }
 
-func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
+func TestTofuAutoProviderCacheDirExperimentRunAll(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
@@ -69,7 +69,7 @@ func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
 	assert.Regexp(t, `(Reusing previous version|shared cache directory)`, stdout)
 }
 
-func TestAutoProviderCacheDirDisabled(t *testing.T) {
+func TestTofuAutoProviderCacheDirDisabled(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
@@ -86,7 +86,7 @@ func TestAutoProviderCacheDirDisabled(t *testing.T) {
 	assert.NotRegexp(t, `Using hashicorp\/null [^ ]+ from the shared cache directory`, stdout)
 }
 
-func TestTfPathRespectedForDependencies(t *testing.T) {
+func TestTofuTfPathRespectedForDependencies(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureTfPathDependency)
@@ -113,9 +113,9 @@ func TestTfPathRespectedForDependencies(t *testing.T) {
 	assert.Regexp(t, `Custom TF script used in .*[/\\]dep.*!`, stderr)
 }
 
-// TestHTTPBackendEncryptionDependencyFails tests that OpenTofu state encryption
+// TestTofuHTTPBackendEncryptionDependencyFails tests that OpenTofu state encryption
 // with HTTP backend works correctly when reading dependency outputs.
-func TestHTTPBackendEncryptionDependencyFails(t *testing.T) {
+func TestTofuHTTPBackendEncryptionDependencyFails(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(t.Context())

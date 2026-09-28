@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -501,7 +501,7 @@ locals {
 			// Setup test directory
 			tmpDir := tt.setup(t)
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = tmpDir
 
 			l := logger.CreateLogger()
@@ -565,7 +565,7 @@ dependency "target" {
 		require.NoError(t, err)
 	}
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = tmpDir
 	tgOpts.RootWorkingDir = tmpDir
 
@@ -670,7 +670,7 @@ func TestRunJSONReportsExcludeAndInclude(t *testing.T) {
 	t.Parallel()
 
 	root := "/find-json"
-	fsys := newUnitsFS(t, root, map[string]string{
+	fsys := venvtest.NewFS(t, root, map[string]string{
 		"root.hcl": "",
 		"unit1/terragrunt.hcl": `
 include "root" {
@@ -684,7 +684,7 @@ exclude {
 `,
 	})
 
-	tgOpts := options.NewTerragruntOptions()
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -725,9 +725,9 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			t.Parallel()
 
 			root := "/find-writer"
-			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -765,9 +765,9 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 			t.Parallel()
 
 			root := "/find-invalid"
-			fsys := newUnitsFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
+			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions()
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -796,22 +796,6 @@ func (failingWriter) Write([]byte) (int, error) {
 	return 0, errWriteFailed
 }
 
-// newUnitsFS returns an in-memory filesystem holding files, each path relative to root.
-func newUnitsFS(t *testing.T, root string, files map[string]string) vfs.FS {
-	t.Helper()
-
-	fsys := vfs.NewMemMapFS()
-
-	for path, content := range files {
-		require.NoError(
-			t,
-			vfs.WriteFile(fsys, filepath.Join(root, path), []byte(content), 0o644),
-		)
-	}
-
-	return fsys
-}
-
 // newTestLogger returns a logger with colors off, so output is comparable byte for byte.
 func newTestLogger(t *testing.T) log.Logger {
 	t.Helper()
@@ -820,4 +804,42 @@ func newTestLogger(t *testing.T) log.Logger {
 	l.Formatter().SetDisabledColors(true)
 
 	return l
+}
+
+// TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse pins that an exclude
+// block only drops a unit from the output when its `if` is true.
+func TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse(t *testing.T) {
+	t.Parallel()
+
+	root := "/find-exclude-if"
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"dropped/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"kept/terragrunt.hcl": `
+exclude {
+  if      = false
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"plain/terragrunt.hcl": "",
+	})
+
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	opts := find.NewOptions(tgOpts)
+	opts.Format = find.FormatText
+	opts.QueueConstructAs = "apply"
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+
+	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
 }

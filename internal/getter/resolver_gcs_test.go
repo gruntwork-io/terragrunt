@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +47,7 @@ func TestGCSResolver_PrefersMD5(t *testing.T) {
 
 	r := newGCSResolverWith(client)
 
-	got, err := r.Probe(t.Context(), "gs://bucket/path/to/key.tgz")
+	got, err := r.Probe(t.Context(), redact.NewURL("gs://bucket/path/to/key.tgz"))
 	require.NoError(t, err)
 	assert.Equal(t, cas.ContentKey("md5", hex.EncodeToString(md5)), got)
 }
@@ -64,7 +65,7 @@ func TestGCSResolver_FallsThroughToCRC32CWhenMD5Absent(t *testing.T) {
 
 	r := newGCSResolverWith(client)
 
-	got, err := r.Probe(t.Context(), "gs://bucket/composite.tgz")
+	got, err := r.Probe(t.Context(), redact.NewURL("gs://bucket/composite.tgz"))
 	require.NoError(t, err)
 	assert.Equal(t, cas.ContentKey("crc32c", "deadbeef"), got)
 }
@@ -90,7 +91,7 @@ func TestGCSResolver_PrefersCRC32CEvenWhenZero(t *testing.T) {
 
 	r := newGCSResolverWith(client)
 
-	got, err := r.Probe(t.Context(), "gs://bucket/zero-crc.tgz")
+	got, err := r.Probe(t.Context(), redact.NewURL("gs://bucket/zero-crc.tgz"))
 	require.NoError(t, err)
 	assert.Equal(t, cas.ContentKey("crc32c", "0"), got,
 		"CRC32C=0 is a real checksum and must be preferred over the opaque ETag")
@@ -105,7 +106,7 @@ func TestGCSResolver_AttrsFailureSurfacesErrNoVersionMetadata(t *testing.T) {
 
 	r := newGCSResolverWith(client)
 
-	_, err := r.Probe(t.Context(), "gs://bucket/err.tgz")
+	_, err := r.Probe(t.Context(), redact.NewURL("gs://bucket/err.tgz"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -124,7 +125,7 @@ func TestGCSResolver_NilAttrsReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := newGCSResolverWith(client)
 
-	_, err := r.Probe(t.Context(), "gs://bucket/empty.tgz")
+	_, err := r.Probe(t.Context(), redact.NewURL("gs://bucket/empty.tgz"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -155,12 +156,12 @@ func TestGCSResolver_AcceptsCanonicalAndShortURLs(t *testing.T) {
 
 	r := newGCSResolverWith(client)
 
-	short, err := r.Probe(t.Context(), "gs://bucket/path/to/key.tgz")
+	short, err := r.Probe(t.Context(), redact.NewURL("gs://bucket/path/to/key.tgz"))
 	require.NoError(t, err)
 
 	canonical, err := r.Probe(
 		t.Context(),
-		"https://www.googleapis.com/storage/v1/bucket/path/to/key.tgz",
+		redact.NewURL("https://www.googleapis.com/storage/v1/bucket/path/to/key.tgz"),
 	)
 	require.NoError(t, err)
 
@@ -174,7 +175,7 @@ func TestGCSResolver_RejectsUnknownURLShape(t *testing.T) {
 
 	r := newGCSResolverWith(&fakeGCSClient{})
 
-	_, err := r.Probe(t.Context(), "ftp://bucket/key.tgz")
+	_, err := r.Probe(t.Context(), redact.NewURL("ftp://bucket/key.tgz"))
 	require.ErrorIs(t, err, getter.ErrGCSUnsupportedScheme)
 }
 
@@ -210,7 +211,7 @@ func TestGCSResolver_RejectsEmptyObject(t *testing.T) {
 				},
 			}})
 
-			_, err := r.Probe(t.Context(), tt.url)
+			_, err := r.Probe(t.Context(), redact.NewURL(tt.url))
 			require.ErrorIs(t, err, getter.ErrGCSMissingObject,
 				"parseGCSURL must reject %q with no object", tt.url)
 			require.NotErrorIs(
@@ -231,7 +232,7 @@ func TestGCSResolver_RejectsEmptyBucket(t *testing.T) {
 
 	r := newGCSResolverWith(&fakeGCSClient{})
 
-	_, err := r.Probe(t.Context(), "gs:///key.tgz")
+	_, err := r.Probe(t.Context(), redact.NewURL("gs:///key.tgz"))
 	require.ErrorIs(t, err, getter.ErrGCSMissingBucket)
 	require.NotErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
@@ -245,7 +246,7 @@ func TestGCSResolver_RejectsUnrecognizedCanonicalPath(t *testing.T) {
 
 	r := newGCSResolverWith(&fakeGCSClient{})
 
-	_, err := r.Probe(t.Context(), "https://www.googleapis.com/not-storage/v1/bucket/key.tgz")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://www.googleapis.com/not-storage/v1/bucket/key.tgz"))
 	require.ErrorIs(t, err, getter.ErrGCSUnrecognizedURL)
 	require.NotErrorIs(t, err, cas.ErrNoVersionMetadata)
 }

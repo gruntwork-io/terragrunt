@@ -8,13 +8,13 @@ import (
 	"hash"
 	"io/fs"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
+	"github.com/gruntwork-io/terragrunt/internal/detect"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -257,6 +257,7 @@ func (src Source) WriteVersionFile(
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
 func NewSource(
 	l log.Logger,
+	fsys vfs.FS,
 	source string,
 	downloadDir string,
 	workingDir string,
@@ -269,7 +270,7 @@ func NewSource(
 		return nil, err
 	}
 
-	rootSourceURL, modulePath, err := SplitSourceURL(l, canonicalSourceURL)
+	rootSourceURL, modulePath, err := SplitSourceURL(l, fsys, canonicalSourceURL)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +338,7 @@ func normalizeSourceURL(source string, workingDir string) (string, error) {
 		new(getter.GitHubDetector),
 		new(getter.GitLabDetector),
 		new(getter.GitDetector),
-		new(getter.BitBucketDetector),
+		new(detect.BitBucket),
 	}
 
 	for _, detector := range detectors {
@@ -394,41 +395,39 @@ func IsLocalSource(sourceURL *url.URL) bool {
 // A cas:: reference parses as an opaque URL (scheme "cas::sha1", opaque
 // "<hash>//modules/foo"), so the "//" is split out of the opaque component
 // rather than the path.
-func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) {
+func SplitSourceURL(l log.Logger, fsys vfs.FS, sourceURL *url.URL) (*url.URL, string, error) {
 	if sourceURL.Opaque != "" {
-		opaqueSplitOnDoubleSlash := strings.SplitN(sourceURL.Opaque, "//", 2) //nolint:mnd
-		if len(opaqueSplitOnDoubleSlash) > 1 {
+		if root, subDir, found := strings.Cut(sourceURL.Opaque, "//"); found {
 			rootSourceURL := *sourceURL
-			rootSourceURL.Opaque = opaqueSplitOnDoubleSlash[0]
+			rootSourceURL.Opaque = root
 
-			return &rootSourceURL, opaqueSplitOnDoubleSlash[1], nil
+			return &rootSourceURL, subDir, nil
 		}
 
 		return sourceURL, "", nil
 	}
 
-	pathSplitOnDoubleSlash := strings.SplitN(sourceURL.Path, "//", 2) //nolint:mnd
-
-	if len(pathSplitOnDoubleSlash) > 1 {
+	if root, subDir, found := strings.Cut(sourceURL.Path, "//"); found {
 		sourceURLModifiedPath, err := parseSourceURL(sourceURL.String())
 		if err != nil {
 			return nil, "", err
 		}
 
-		sourceURLModifiedPath.Path = pathSplitOnDoubleSlash[0]
+		sourceURLModifiedPath.Path = root
 
-		return sourceURLModifiedPath, pathSplitOnDoubleSlash[1], nil
+		return sourceURLModifiedPath, subDir, nil
 	}
 	// check if path is remote URL
 	if sourceURL.Scheme != "" {
 		return sourceURL, "", nil
 	}
 	// check if sourceUrl.Path is a local file path
-	_, err := os.Stat(sourceURL.Path)
+	_, err := fsys.Stat(sourceURL.Path)
 	if err != nil {
 		// log warning message to notify user that sourceUrl.Path may not work
 		l.Warnf(
-			"No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.",
+			"No double-slash (//) found in source URL %s. "+
+				"Relative paths in downloaded OpenTofu/Terraform code may not work.",
 			sourceURL.Path,
 		)
 	}

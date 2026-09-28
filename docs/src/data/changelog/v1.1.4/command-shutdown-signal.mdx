@@ -1,0 +1,10 @@
+---
+version: "v1.1.4"
+category: "bug-fixes"
+---
+
+#### Fixed the signal sent to a running command during shutdown
+
+On Windows, when a failure rather than Ctrl+C cancelled a run, Terragrunt crashed with a nil pointer panic instead of stopping the command it had started. It now terminates the command, which is the closest thing Windows offers to an interrupt.
+
+On every platform, when a command exited on its own during the grace period after Ctrl+C, Terragrunt could still send it the signal and then log a forwarding error against a process that was already gone.

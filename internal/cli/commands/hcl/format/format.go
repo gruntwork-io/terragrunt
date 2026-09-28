@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -22,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/rogpeppe/go-internal/diff"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"errors"
@@ -40,6 +41,25 @@ var excludePaths = []string{
 	config.StackDir,
 }
 
+// maxFormatWorkers caps the default format fan-out.
+//
+// Experimentally, a good ceiling for this was
+// determined to be 8 workers even on a 16 core machine.
+//
+// Might require additional tuning.
+const maxFormatWorkers = 8
+
+// formatWorkers bounds how many files are formatted at once. An
+// explicit --parallelism is honored as given; the default is the
+// smaller of the machine's cores and [maxFormatWorkers].
+func formatWorkers(parallelism int) int {
+	if parallelism != options.DefaultParallelism {
+		return parallelism
+	}
+
+	return min(runtime.GOMAXPROCS(0), maxFormatWorkers)
+}
+
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile
@@ -50,7 +70,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 			return errors.New("both stdin and path flags are specified")
 		}
 
-		return formatFromStdin(l, v)
+		return formatFromStdin(l, v, opts)
 	}
 
 	if targetFile != "" {
@@ -115,11 +135,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 	g, _ := errgroup.WithContext(ctx)
 
-	// Use user-specified parallelism, falling back to available CPUs.
-	limit := opts.Parallelism
-	if limit == options.DefaultParallelism {
-		limit = runtime.GOMAXPROCS(0)
-	}
+	limit := formatWorkers(opts.Parallelism)
 
 	g.SetLimit(limit)
 
@@ -156,11 +172,7 @@ func RunForFiles(
 ) error {
 	g, _ := errgroup.WithContext(ctx)
 
-	// Use user-specified parallelism, falling back to available CPUs.
-	limit := opts.Parallelism
-	if limit == options.DefaultParallelism {
-		limit = runtime.GOMAXPROCS(0)
-	}
+	limit := formatWorkers(opts.Parallelism)
 
 	g.SetLimit(limit)
 
@@ -195,7 +207,9 @@ func RunForFiles(
 	return errors.Join(errs...)
 }
 
-func formatFromStdin(l log.Logger, v *venv.Venv) error {
+func formatFromStdin(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+	const stdinPath = "stdin"
+
 	contents, err := io.ReadAll(v.Stdin)
 	if err != nil {
 		l.Errorf("Error reading from stdin: %s", err)
@@ -203,13 +217,31 @@ func formatFromStdin(l log.Logger, v *venv.Venv) error {
 		return fmt.Errorf("error reading from stdin: %w", err)
 	}
 
-	if err = checkErrors(l, v, contents, "stdin"); err != nil {
+	if err = checkErrors(l, v, contents, stdinPath); err != nil {
 		l.Errorf("Error parsing hcl from stdin")
 
 		return fmt.Errorf("error parsing hcl from stdin: %w", err)
 	}
 
 	newContents := hclwrite.Format(contents)
+
+	needsFormatting := !bytes.Equal(newContents, contents)
+
+	if opts.Diff && needsFormatting {
+		if _, err := v.Writers.Writer.Write(BytesDiff(contents, newContents, stdinPath)); err != nil {
+			l.Errorf("Failed to print diff for stdin")
+
+			return err
+		}
+	}
+
+	if opts.Check && needsFormatting {
+		return &FileNeedsFormattingError{Path: stdinPath}
+	}
+
+	if opts.Diff || opts.Check {
+		return nil
+	}
 
 	buf := bufio.NewWriter(v.Writers.Writer)
 
@@ -261,7 +293,7 @@ func formatTgHCL(
 	fileUpdated := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && fileUpdated {
-		if _, err := v.Writers.Writer.Write(bytesDiff(contents, newContents, tgHclFile)); err != nil {
+		if _, err := v.Writers.Writer.Write(BytesDiff(contents, newContents, tgHclFile)); err != nil {
 			l.Errorf("Failed to print diff for %s", tgHclFile)
 			return err
 		}
@@ -299,7 +331,11 @@ func checkErrors(l log.Logger, v *venv.Venv, contents []byte, tgHclFile string) 
 	return nil
 }
 
-// bytesDiff returns a unified diff between the original and formatted HCL contents.
-func bytesDiff(b1, b2 []byte, path string) []byte {
-	return diff.Diff(filepath.Join("old", path), b1, filepath.Join("new", path), b2)
+// BytesDiff returns a unified diff between the original and formatted HCL contents.
+func BytesDiff(b1, b2 []byte, name string) []byte {
+	// Diff labels are slash separated on every platform, so that consumers of the diff don't have to
+	// handle a Windows-specific spelling of the same label.
+	name = filepath.ToSlash(name)
+
+	return diff.Diff(path.Join("old", name), b1, path.Join("new", name), b2)
 }

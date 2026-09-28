@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func TestHgResolver_MissingBinaryReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: e}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -40,7 +41,7 @@ func TestHgResolver_BinaryFailureReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: e}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -58,7 +59,7 @@ func TestHgResolver_ParsesNodeFromStubOutput(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: e}
 
-	got, err := r.Probe(t.Context(), "https://example.com/repo?rev=tip")
+	got, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo?rev=tip"))
 	require.NoError(t, err)
 	assert.Equal(t, cas.ContentKey("hg-node", fullNode), got)
 }
@@ -70,7 +71,7 @@ func TestHgResolver_EmptyOutputReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: e}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -91,7 +92,7 @@ func TestHgResolver_PassesRevAsArg(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: vexec.NewMemExec(handler)}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo?rev=feature-x")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo?rev=feature-x"))
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -123,7 +124,7 @@ func TestHgResolver_FlagLikeRevStaysBoundToOption(t *testing.T) {
 
 	r := &getter.HgResolver{Exec: vexec.NewMemExec(handler)}
 
-	_, err := r.Probe(t.Context(), "https://example.com/repo?rev=--debugger")
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/repo?rev=--debugger"))
 	require.NoError(t, err)
 
 	assert.Contains(t, gotArgs, "--rev=--debugger",
@@ -163,7 +164,7 @@ func TestHgResolver_RejectsRevWithControlCharacters(t *testing.T) {
 
 			rawURL := "https://example.com/repo?rev=" + url.QueryEscape(tt.rev)
 
-			_, err := r.Probe(t.Context(), rawURL)
+			_, err := r.Probe(t.Context(), redact.NewURL(rawURL))
 			require.ErrorIs(t, err, getter.ErrInvalidHgRev)
 			assert.False(t, commandRan, "hg must not be invoked when rev is invalid")
 		})
@@ -188,7 +189,7 @@ func TestHgResolver_AcceptsRevWithShellMetacharacters(t *testing.T) {
 
 	_, err := r.Probe(
 		t.Context(),
-		"https://example.com/repo?rev="+url.QueryEscape("tip ; echo pwned"),
+		redact.NewURL("https://example.com/repo?rev="+url.QueryEscape("tip ; echo pwned")),
 	)
 	require.NoError(t, err)
 	assert.Contains(t, gotArgs, "--rev=tip ; echo pwned",

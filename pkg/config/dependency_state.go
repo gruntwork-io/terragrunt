@@ -1,0 +1,191 @@
+package config
+
+import (
+	"context"
+	"encoding/json/jsontext"
+	"errors"
+	"io"
+
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+)
+
+// openDependencyState opens a backend's state stream. The returned reader owns
+// every resource it needs, including the client that produced it.
+type openDependencyState func(ctx context.Context, l log.Logger) (io.ReadCloser, error)
+
+// readDependencyStateOutputs wraps the telemetry, read, and parse that every
+// backend shares around a backend-specific opener, so each reader only has to
+// say where its state lives and how to open it.
+func readDependencyStateOutputs(
+	ctx context.Context,
+	l log.Logger,
+	metric string,
+	attrs map[string]any,
+	location string,
+	open openDependencyState,
+) ([]byte, error) {
+	l.Debugf("Fetching outputs directly from %s", location)
+
+	var (
+		jsonOutputs []byte
+		encrypted   error
+	)
+
+	err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, metric, attrs, func(ctx context.Context, l log.Logger) error {
+			reader, err := open(ctx, l)
+			if err != nil {
+				return err
+			}
+
+			defer func() {
+				if err := reader.Close(); err != nil {
+					l.Warnf("Failed to close dependency state reader for %s: %v", location, err)
+				}
+			}()
+
+			jsonOutputs, err = stateOutputsJSON(reader, location)
+
+			// An encrypted state is an expected fallback rather than a failed read, so it is
+			// carried out of the callback to keep it off this metric's error counter.
+			if errors.Is(err, ErrDependencyStateEncrypted) {
+				encrypted = err
+
+				return nil
+			}
+
+			return err
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	if encrypted != nil {
+		return nil, encrypted
+	}
+
+	return jsonOutputs, nil
+}
+
+// encryptedStateKey is the top-level key OpenTofu writes when client-side state
+// encryption is on, in place of the plaintext document the outputs live in.
+const encryptedStateKey = "encrypted_data"
+
+// stateOutputsJSON returns the state's top-level outputs object, reading only as far
+// as it must. OpenTofu and Terraform write outputs ahead of resources, so a large
+// state normally costs one buffered read instead of a full download.
+func stateOutputsJSON(r io.Reader, location string) ([]byte, error) {
+	body := &stateBodyReader{r: r}
+	// jsontext rejects duplicate names and invalid UTF-8 by default, and the v1 decoder
+	// this replaced accepted both. A state that reads today would start failing as
+	// malformed.
+	d := jsontext.NewDecoder(
+		body,
+		jsontext.AllowDuplicateNames(true),
+		jsontext.AllowInvalidUTF8(true),
+	)
+
+	tok, err := d.ReadToken()
+	if err != nil {
+		return nil, stateReadError(body, location, err)
+	}
+
+	if tok.Kind() != '{' {
+		return nil, DependencyStateParseError{
+			Err:      errors.New("state is not a JSON object"),
+			Location: location,
+		}
+	}
+
+	// PeekKind reports an invalid kind after a read failure, which keeps this condition
+	// true so ReadToken returns the cached error instead of spinning here forever.
+	for d.PeekKind() != '}' {
+		name, err := d.ReadToken()
+		if err != nil {
+			return nil, stateReadError(body, location, err)
+		}
+
+		key := name.String()
+
+		if key == encryptedStateKey {
+			return nil, DependencyStateEncryptedError{Location: location}
+		}
+
+		if key != "outputs" {
+			if err := d.SkipValue(); err != nil {
+				return nil, stateReadError(body, location, err)
+			}
+
+			continue
+		}
+
+		outputs, err := d.ReadValue()
+		if err != nil {
+			return nil, stateReadError(body, location, err)
+		}
+
+		// ReadValue borrows the decoder's buffer, which the next decoder call invalidates.
+		return outputs.Clone(), nil
+	}
+
+	return []byte("null"), nil
+}
+
+// stateBodyReader records the last transport failure so a dropped connection is not
+// reported as malformed state.
+type stateBodyReader struct {
+	r   io.Reader
+	err error
+}
+
+func (r *stateBodyReader) Read(p []byte) (int, error) {
+	n, err := r.r.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		r.err = err
+	}
+
+	return n, err
+}
+
+func stateReadError(body *stateBodyReader, location string, err error) error {
+	if body.err != nil {
+		return DependencyStateReadError{
+			Err:      body.err,
+			Location: location,
+		}
+	}
+
+	return DependencyStateParseError{
+		Err:      err,
+		Location: location,
+	}
+}
+
+// stateStream pairs a state reader with the client that produced it, so closing
+// the stream releases both.
+type stateStream struct {
+	io.Reader
+	closers []io.Closer
+}
+
+// Close releases the stream and its client, reporting every failure.
+func (s stateStream) Close() error {
+	errs := make([]error, 0, len(s.closers))
+
+	for _, closer := range s.closers {
+		if closer == nil {
+			continue
+		}
+
+		errs = append(errs, closer.Close())
+	}
+
+	return errors.Join(errs...)
+}
+
+// closerFunc adapts a cleanup function to io.Closer.
+type closerFunc func() error
+
+// Close runs the cleanup function.
+func (f closerFunc) Close() error { return f() }

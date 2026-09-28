@@ -125,7 +125,7 @@ func TestStreamOnBrokenPipe(t *testing.T) {
 	select {
 	case <-loaderCancelled:
 	default:
-		t.Fatal("the loader kept running after the consumer went away")
+		require.Fail(t, "the loader kept running after the consumer went away")
 	}
 }
 

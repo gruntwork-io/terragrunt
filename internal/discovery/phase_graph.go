@@ -208,7 +208,10 @@ func (p *GraphPhase) processGraphTarget(
 		// An inline "(dir)" operand overrides --discovery-boundary for this expression.
 		boundary := state.discovery.discoveryBoundary
 
-		if graphExpr.Dependencies.Boundary != "" {
+		switch {
+		case isWorktreeComponent(c):
+			boundary = state.discovery.evaluationContext().TargetBoundary(graphExpr.Dependencies, c)
+		case graphExpr.Dependencies.Boundary != "":
 			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
 			if err != nil {
 				return err
@@ -234,6 +237,10 @@ func (p *GraphPhase) processGraphTarget(
 			return err
 		}
 
+		if isWorktreeComponent(c) {
+			return p.discoverWorktreeDependents(ctx, l, v, state, c, graphExpr, depth)
+		}
+
 		// The upstream dependent walk is capped by an explicit boundary when the
 		// expression carries one, otherwise by --discovery-boundary, otherwise by
 		// the detected git root.
@@ -246,7 +253,7 @@ func (p *GraphPhase) processGraphTarget(
 				return rerr
 			}
 
-			if isExternal(v.FS, resolved, startDir) {
+			if isExternal(v.FS, resolved, startDir) && isExternal(v.FS, startDir, resolved) {
 				return NewDiscoveryBoundaryScopeError(resolved, startDir)
 			}
 
@@ -262,6 +269,11 @@ func (p *GraphPhase) processGraphTarget(
 				startDir = dCtx.WorkingDir
 				boundaryRoot = dCtx.WorkingDir
 			}
+		}
+
+		// A boundary inside the working directory starts the walk at itself.
+		if boundaryRoot != "" && isExternal(v.FS, boundaryRoot, startDir) && !isExternal(v.FS, startDir, boundaryRoot) {
+			startDir = boundaryRoot
 		}
 
 		if boundaryRoot != "" {
@@ -291,6 +303,31 @@ func (p *GraphPhase) processGraphTarget(
 	}
 
 	return nil
+}
+
+// discoverWorktreeDependents searches a Git target's own worktree for dependents, within its boundary there.
+func (p *GraphPhase) discoverWorktreeDependents(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	state *graphTraversalState,
+	c component.Component,
+	graphExpr *filter.GraphExpressionInfo,
+	depth int,
+) error {
+	root := state.discovery.evaluationContext().TargetBoundary(graphExpr.Dependents, c)
+	if root == "" {
+		root = c.DiscoveryContext().WorkingDir
+	}
+
+	if _, ok, err := WorktreeWalkRoot(v.FS, root, ""); err != nil || !ok {
+		l.Debugf("Boundary %s is not a directory at %s; no dependents of %s there", root, c.DiscoveryContext().Ref, c.Path())
+		return err
+	}
+
+	l.Debugf("Starting worktree dependent discovery for %s within %s", c.Path(), root)
+
+	return p.discoverDependentsUpstream(ctx, l, v, state, c, newStringSet(), root, root, depth)
 }
 
 // discoverDependencies recursively discovers dependencies of a component.
@@ -695,7 +732,13 @@ func (p *GraphPhase) processUpstreamCandidate(
 	state *upstreamDiscoveryState,
 	candidate component.Component,
 ) component.Component {
-	if loaded := state.checkedForTarget.LoadOrStore(candidate.Path()); loaded {
+	unit, ok := candidate.(*component.Unit)
+	if !ok {
+		return nil
+	}
+
+	claim := filepath.Join(candidate.Path(), unit.ConfigFile())
+	if loaded := state.checkedForTarget.LoadOrStore(claim); loaded {
 		return nil
 	}
 
@@ -703,31 +746,25 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	if _, ok := candidate.(*component.Stack); ok {
-		return nil
-	}
-
 	if candidate.Path() == state.target.Path() {
-		return nil
-	}
-
-	unit, ok := candidate.(*component.Unit)
-	if !ok {
 		return nil
 	}
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
 	graphState := state.graphTraversalState
 
+	published := graphState.threadSafeComponents.FindByPath(v.FS, candidate.Path())
+	parseUnit := upstreamParseUnit(published, unit)
+
 	if err := ensureParsed(
 		ctx,
 		l,
 		v,
-		candidate,
+		parseUnit,
 		graphState.opts,
 		graphState.discovery,
 	); err != nil {
-		if !state.graphTraversalState.discovery.suppressParseErrors {
+		if !graphState.discovery.suppressParseErrors {
 			state.errMu.Lock()
 
 			*state.errs = append(*state.errs, err)
@@ -738,7 +775,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	cfg := unit.Config()
+	cfg := parseUnit.Config()
 
 	deps, err := extractDependencyPaths(v.FS, cfg, candidate)
 	if err != nil {
@@ -753,7 +790,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	var stackErr error
 
-	deps, stackErr = stackDependencyPaths(ctx, l, v, state.graphTraversalState.opts, deps)
+	deps, stackErr = stackDependencyPaths(ctx, l, v, graphState.opts, deps)
 	if stackErr != nil {
 		state.errMu.Lock()
 		*state.errs = append(*state.errs, stackErr)
@@ -773,7 +810,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 		candidate.SetDiscoveryContext(copiedCtx)
 	}
 
-	canonicalCandidate, _ := state.graphTraversalState.threadSafeComponents.EnsureComponent(
+	canonicalCandidate, _ := graphState.threadSafeComponents.EnsureComponent(
 		v.FS,
 		candidate,
 	)
@@ -832,6 +869,23 @@ func (p *GraphPhase) processUpstreamCandidate(
 	}
 
 	return nil
+}
+
+// upstreamParseUnit returns the unit to parse for candidate. It is the unit the
+// shared set already holds for candidate's path when parsing that unit reads the
+// same config file, and candidate itself otherwise.
+func upstreamParseUnit(published component.Component, candidate *component.Unit) *component.Unit {
+	publishedUnit, ok := published.(*component.Unit)
+	if !ok {
+		return candidate
+	}
+
+	if publishedUnit.Path() != candidate.Path() ||
+		publishedUnit.ConfigFile() != candidate.ConfigFile() {
+		return candidate
+	}
+
+	return publishedUnit
 }
 
 // resolveDependency resolves a dependency path to a component.
@@ -895,4 +949,11 @@ func assignGraphDiscoveryContext(
 			ext.SetExternal()
 		}
 	}
+}
+
+// isWorktreeComponent reports whether c was discovered in a Git worktree rather than the working tree.
+func isWorktreeComponent(c component.Component) bool {
+	dctx := c.DiscoveryContext()
+
+	return dctx != nil && dctx.Ref != "" && dctx.WorkingDir != ""
 }

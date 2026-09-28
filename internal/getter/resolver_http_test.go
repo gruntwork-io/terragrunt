@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,7 @@ func TestHTTPResolver_PrefersStrongETag(t *testing.T) {
 	r := getter.NewHTTPResolver()
 	url := srv.URL + "/mod.tgz"
 
-	key, err := r.Probe(t.Context(), url)
+	key, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, cas.OpaqueKey("http", url, "abc123"), key)
 }
@@ -43,7 +44,7 @@ func TestHTTPResolver_StripsWeakETagPrefix(t *testing.T) {
 	r := getter.NewHTTPResolver()
 	url := srv.URL + "/mod.tgz"
 
-	key, err := r.Probe(t.Context(), url)
+	key, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, cas.OpaqueKey("http", url, "weak-tag"), key)
 }
@@ -60,7 +61,7 @@ func TestHTTPResolver_FallsBackToLastModified(t *testing.T) {
 	r := getter.NewHTTPResolver()
 	url := srv.URL + "/mod.tgz"
 
-	key, err := r.Probe(t.Context(), url)
+	key, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, cas.OpaqueKey("http", url, "Mon, 01 Jan 2024 00:00:00 GMT"), key)
 }
@@ -75,7 +76,7 @@ func TestHTTPResolver_ReturnsErrNoVersionMetadata(t *testing.T) {
 
 	r := getter.NewHTTPResolver()
 
-	_, err := r.Probe(t.Context(), srv.URL+"/mod.tgz")
+	_, err := r.Probe(t.Context(), redact.NewURL(srv.URL+"/mod.tgz"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -89,7 +90,7 @@ func TestHTTPResolver_ReturnsErrOnNon2xx(t *testing.T) {
 
 	r := getter.NewHTTPResolver()
 
-	_, err := r.Probe(t.Context(), srv.URL+"/mod.tgz")
+	_, err := r.Probe(t.Context(), redact.NewURL(srv.URL+"/mod.tgz"))
 	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
 }
 
@@ -108,7 +109,7 @@ func TestHTTPResolver_LowercaseWeakETag(t *testing.T) {
 	r := getter.NewHTTPResolver()
 	url := srv.URL + "/mod.tgz"
 
-	key, err := r.Probe(t.Context(), url)
+	key, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, cas.OpaqueKey("http", url, "weak-tag"), key)
 }
@@ -142,11 +143,11 @@ func TestHTTPResolver_StripsOuterClientMagicParams(t *testing.T) {
 	r := getter.NewHTTPResolver()
 
 	plain := srv.URL + "/mod.tgz"
-	plainKey, err := r.Probe(t.Context(), plain)
+	plainKey, err := r.Probe(t.Context(), redact.NewURL(plain))
 	require.NoError(t, err)
 
 	withMagic := srv.URL + "/mod.tgz?archive=zip&checksum=sha256:deadbeef&filename=override.tgz"
-	magicKey, err := r.Probe(t.Context(), withMagic)
+	magicKey, err := r.Probe(t.Context(), redact.NewURL(withMagic))
 	require.NoError(t, err)
 
 	assert.Equal(t, plainKey, magicKey,
@@ -176,7 +177,7 @@ func TestHTTPResolver_PreservesNonMagicQueryParams(t *testing.T) {
 	r := getter.NewHTTPResolver()
 
 	withCustom := srv.URL + "/mod.tgz?token=secret&v=2"
-	_, err := r.Probe(t.Context(), withCustom)
+	_, err := r.Probe(t.Context(), redact.NewURL(withCustom))
 	require.NoError(t, err)
 
 	require.Len(t, seenQueries, 1)
