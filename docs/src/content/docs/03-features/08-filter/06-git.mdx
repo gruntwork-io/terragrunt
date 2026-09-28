@@ -164,32 +164,6 @@ git commit -m "Remove cache"
 
 </FileTree>
 
-### Deleted dependencies
-
-A unit can still reference a unit deleted in the same diff. For example, `live/app` depends on `live/cache`:
-
-```hcl
-# live/app/terragrunt.hcl
-
-dependency "cache" {
-  config_path = "../cache"
-}
-```
-
-If the diff deletes `live/cache` but keeps this reference, the configuration in `HEAD` is invalid, and a run that reads `live/app` from `HEAD` fails, for example `terragrunt run --all -- plan` without a filter. Remove or update the `dependency` block or `dependencies` path in the same change. The deleted unit can then be planned for destruction as described in [Deleted units](#deleted-units).
-
-`terragrunt find` and `terragrunt list` do not validate dependencies, so they can list `live/app` without reporting the missing dependency.
-
-<Since version="v1.2.0">
-
-The error names the unit that declares the dependency and the path it points at. When several units depend on the deleted unit, a run may name only one of them. To list each unit's missing dependency paths before running, use `terragrunt hcl validate --check-dependencies`:
-
-```bash
-terragrunt hcl validate --check-dependencies
-```
-
-</Since>
-
 ### Deleted stacks
 
 Deleting a `terragrunt.stack.hcl` orphans every component the stack generated. e.g. a commit that deletes the `live` stack:

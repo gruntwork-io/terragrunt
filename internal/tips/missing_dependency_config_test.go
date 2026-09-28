@@ -3,7 +3,6 @@ package tips_test
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tips"
@@ -15,57 +14,37 @@ import (
 func TestGiveMissingDependencyConfigTip(t *testing.T) {
 	t.Parallel()
 
-	missing := config.MissingDependencyConfigError{UnitPath: "/repo/app", DependencyPath: "/repo/cache"}
-
 	tcs := []struct {
-		err         error
-		name        string
-		disableTip  bool
-		expectShown bool
+		err        error
+		name       string
+		disableTip bool
+		wantShown  bool
 	}{
 		{
-			name:        "discovery error",
-			err:         missing,
-			expectShown: true,
+			name:      "dependency config not found during discovery",
+			err:       errors.Join(config.TerragruntConfigNotFoundError{Path: "/repo/dep/terragrunt.hcl"}),
+			wantShown: true,
 		},
 		{
-			name:        "wrapped discovery error",
-			err:         fmt.Errorf("discovering units: %w", missing),
-			expectShown: true,
-		},
-		{
-			name:        "joined discovery error",
-			err:         errors.Join(errors.New("other failure"), missing),
-			expectShown: true,
-		},
-		{
-			name: "dependency output error",
+			name: "dependency outputs of a missing unit",
 			err: fmt.Errorf(
 				"resolving dependency %q outputs: %w",
-				"cache",
-				config.DependencyConfigNotFound{Path: "/repo/cache"},
+				"dep",
+				config.DependencyConfigNotFound{Path: "/repo/dep"},
 			),
-			expectShown: true,
+			wantShown: true,
 		},
 		{
-			name:        "config not found outside a dependency",
-			err:         config.TerragruntConfigNotFoundError{Path: "/repo/app/terragrunt.hcl"},
-			expectShown: false,
+			name: "unrelated error",
+			err:  errors.New("boom"),
 		},
 		{
-			name:        "unrelated error",
-			err:         errors.New("boom"),
-			expectShown: false,
+			name: "no error",
 		},
 		{
-			name:        "no error",
-			expectShown: false,
-		},
-		{
-			name:        "tip disabled",
-			err:         missing,
-			disableTip:  true,
-			expectShown: false,
+			name:       "tip disabled",
+			err:        config.DependencyConfigNotFound{Path: "/repo/dep"},
+			disableTip: true,
 		},
 	}
 
@@ -82,9 +61,8 @@ func TestGiveMissingDependencyConfigTip(t *testing.T) {
 
 			tips.GiveMissingDependencyConfigTip(l, tc.err, allTips)
 
-			if tc.expectShown {
+			if tc.wantShown {
 				assert.Contains(t, output.String(), tips.MissingDependencyConfig)
-				assert.Contains(t, output.String(), "hcl validate --check-dependencies")
 
 				return
 			}
@@ -92,30 +70,4 @@ func TestGiveMissingDependencyConfigTip(t *testing.T) {
 			assert.NotContains(t, output.String(), tips.MissingDependencyConfig)
 		})
 	}
-}
-
-func TestGiveMissingDependencyConfigTipShownOnce(t *testing.T) {
-	t.Parallel()
-
-	allTips := tips.NewTips()
-	l, output := newTestLogger()
-	err := config.MissingDependencyConfigError{UnitPath: "/repo/app", DependencyPath: "/repo/cache"}
-
-	tips.GiveMissingDependencyConfigTip(l, err, allTips)
-	tips.GiveMissingDependencyConfigTip(l, err, allTips)
-
-	assert.Equal(t, 1, strings.Count(output.String(), tips.MissingDependencyConfig))
-}
-
-func TestGiveMissingDependencyConfigTipWithoutTips(t *testing.T) {
-	t.Parallel()
-
-	l, output := newTestLogger()
-	err := config.MissingDependencyConfigError{UnitPath: "/repo/app", DependencyPath: "/repo/cache"}
-
-	require.NotPanics(t, func() {
-		tips.GiveMissingDependencyConfigTip(l, err, nil)
-	})
-
-	assert.Empty(t, output.String())
 }

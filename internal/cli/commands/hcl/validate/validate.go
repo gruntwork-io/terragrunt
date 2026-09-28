@@ -26,7 +26,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/view"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -37,29 +36,6 @@ import (
 const splitCount = 2
 
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
-	if opts.HCLValidateCheckDependencies {
-		if opts.HCLValidateShowConfigPath {
-			return fmt.Errorf(
-				"specifying both -%s and -%s is invalid",
-				ShowConfigPathFlagName,
-				CheckDependenciesFlagName,
-			)
-		}
-
-		if opts.HCLValidateJSONOutput {
-			return fmt.Errorf(
-				"specifying both -%s and -%s is invalid",
-				JSONFlagName,
-				CheckDependenciesFlagName,
-			)
-		}
-
-		// This command already reports every missing dependency, so the tip pointing at it would be redundant.
-		if tip := opts.Tips.Find(tips.MissingDependencyConfig); tip != nil {
-			tip.Disable()
-		}
-	}
-
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf(
@@ -94,6 +70,11 @@ func RunValidate(
 	opts *options.TerragruntOptions,
 ) error {
 	collector := &DiagnosticsCollector{}
+	parser := ComponentParser{
+		Collector:         collector,
+		Options:           CollectorOnly,
+		CheckDependencies: opts.HCLValidateCheckDependencies,
+	}
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
@@ -138,13 +119,6 @@ func RunValidate(
 	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
 		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
-	}
-
-	parser := ComponentParser{
-		Collector:         collector,
-		Worktrees:         worktrees,
-		Options:           CollectorOnly,
-		CheckDependencies: opts.HCLValidateCheckDependencies,
 	}
 
 	parseErrs := []error{}
@@ -319,9 +293,8 @@ func RunValidateInputs(
 		}
 
 		if opts.HCLValidateCheckDependencies {
-			if depErr := dependencyErrors(
+			if depErr := config.ValidateDependencyConfigPaths(
 				unitV.FS,
-				worktrees,
 				prepared.Cfg,
 				unitOpts.TerragruntConfigPath,
 			); depErr != nil {

@@ -239,7 +239,7 @@ func (p *RelationshipPhase) discoverRelationships(
 			if err != nil {
 				errMu.Lock()
 
-				errs = append(errs, state.discovery.missingDependencyConfigError(c, dep, err))
+				errs = append(errs, err)
 
 				errMu.Unlock()
 			}

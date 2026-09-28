@@ -152,25 +152,6 @@ func isExternal(fsys vfs.FS, workingDir string, componentPath string) bool {
 	return !vfs.Within(fsys, workingDir, componentPath)
 }
 
-// missingDependencyConfigError names unit when dep's own config file is missing, showing worktree paths as repo paths.
-func (d *Discovery) missingDependencyConfigError(unit, dep component.Component, err error) error {
-	notFound, ok := errors.AsType[config.TerragruntConfigNotFoundError](err)
-	if !ok || notFound.Path != filepath.Join(dep.Path(), dep.ConfigFile()) {
-		return err
-	}
-
-	unitPath, depPath := unit.Path(), dep.Path()
-	if d.worktrees != nil {
-		unitPath, depPath = d.worktrees.DisplayPath(unitPath), d.worktrees.DisplayPath(depPath)
-	}
-
-	return config.MissingDependencyConfigError{
-		Err:            err,
-		UnitPath:       unitPath,
-		DependencyPath: depPath,
-	}
-}
-
 // componentFromDependencyPath returns a component for a dependency path. If the path already
 // exists in the thread-safe components, it returns that. If the path contains a stack file,
 // it creates a stack. Otherwise, it creates a unit.

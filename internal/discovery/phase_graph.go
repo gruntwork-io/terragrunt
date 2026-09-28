@@ -429,7 +429,7 @@ func (p *GraphPhase) discoverDependencies(
 				if err != nil {
 					errMu.Lock()
 
-					errs = append(errs, state.discovery.missingDependencyConfigError(c, depComponent, err))
+					errs = append(errs, err)
 
 					errMu.Unlock()
 				}

@@ -1,0 +1,14 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Find dependencies on deleted units with `hcl validate --check-dependencies`
+
+A `dependency` block that points at a deleted or moved unit makes `run --all` fail, while `find` and `list` still report the units as usual. The new [`--check-dependencies`](/reference/cli/commands/hcl/validate#check-dependencies) flag (env: `TG_CHECK_DEPENDENCIES`) makes `hcl validate` report every such `dependency` block, so the problem can be caught before a run:
+
+```bash
+terragrunt hcl validate --check-dependencies
+```
+
+When `run --all` fails because a configuration is missing, the new `missing-dependency-config` tip points at this check. `find`, `list`, and `hcl validate` without the flag behave as before.

@@ -1,19 +1,13 @@
 ---
 name: check-dependencies
-description: Check that every dependency points at a Terragrunt configuration.
+description: Check that every dependency block points at a Terragrunt configuration.
 type: bool
 env:
   - TG_CHECK_DEPENDENCIES
 since: "v1.2.0"
 ---
 
-When enabled, Terragrunt checks that each unit's `dependency` blocks (except disabled ones) and `dependencies` paths point at a unit or stack configuration. It reports each missing path once per unit, then exits with an error. A path that cannot be checked, for example because of a permission error, is reported with its cause.
-
-This catches references to units that were deleted or moved, which would otherwise fail during a run.
-
-`hcl validate` does not generate stacks. If a dependency points at a unit that a stack generates, run `terragrunt stack generate` first.
-
-This flag cannot be combined with `--json` or `--show-config-path`.
+When enabled, Terragrunt fails validation for each enabled `dependency` block whose `config_path` does not point at a unit or stack configuration, for example a unit that was deleted or moved.
 
 Example:
 

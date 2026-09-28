@@ -392,8 +392,6 @@ func TestTFStackDepsNestedUnitAutoIncludeDependency(t *testing.T) {
 	)
 	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl",
 		"the dependency path must include the nested .terragrunt-stack segment")
-	assert.NotContains(t, stderr, "where no Terragrunt configuration was found",
-		"the dependency path must include the nested .terragrunt-stack segment")
 }
 
 // TestTFStackDepsAutoIncludeOverridesUnitDependency covers the same-name dependency conflict case:
@@ -730,7 +728,6 @@ func TestTFStackDepsTransitiveStackDirDependency(t *testing.T) {
 		stderr,
 	)
 	assert.NotContains(t, stderr, "does not contain a terragrunt.hcl")
-	assert.NotContains(t, stderr, "where no Terragrunt configuration was found")
 }
 
 // TestTFStackDepsStackValuesInLocals pins that run-queue expansion of a stack-dir

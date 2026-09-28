@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -1498,8 +1497,6 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, tmpDir)
 
-	wantErr := "unit " + strconv.Quote(filepath.Join(tmpDir, "consumer")) +
-		" depends on " + strconv.Quote(filepath.Join(tmpDir, "dep")) + ", where no Terragrunt configuration was found"
 	filterArgs := " --no-color --working-dir " + tmpDir + " --filter '...[HEAD~1...HEAD]... | ./**'"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -1507,8 +1504,6 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 		"terragrunt run --all --non-interactive --filter-allow-destroy"+filterArgs+" -- plan",
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), wantErr)
-	assert.NotContains(t, err.Error(), "terragrunt-worktree")
 	assert.Contains(t, stderr, "TIP (missing-dependency-config)")
 
 	for _, cmd := range []string{"find", "list"} {
@@ -1517,56 +1512,14 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 		assert.ElementsMatch(t, []string{"consumer", "dep"}, strings.Fields(stdout), cmd)
 	}
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt hcl validate --no-color --working-dir "+tmpDir,
-	)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --no-color --working-dir "+tmpDir)
 	require.NoError(t, err, "hcl validate without the flag must keep passing\nstderr: %s", stderr)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt hcl validate --check-dependencies --no-color --working-dir "+tmpDir,
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), wantErr)
-	assert.NotContains(t, stderr, "TIP (missing-dependency-config)")
-}
-
-// TestFilterFlagWithHCLValidateCheckDependenciesGitFilter pins repository paths for units found in worktrees.
-func TestFilterFlagWithHCLValidateCheckDependenciesGitFilter(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	runner := helpers.InitTestGitRunner(t, tmpDir)
-
-	cacheDir := filepath.Join(tmpDir, "live", "cache")
-	createTestUnit(t, cacheDir, `# cache`)
-	appHCL := createTestUnit(t, filepath.Join(tmpDir, "live", "app"), `dependency "cache" {
-  config_path = "../cache"
-}`)
-
-	require.NoError(t, runner.Add(t.Context(), "."))
-	require.NoError(t, runner.Commit(t.Context(), "Baseline units"))
-
-	require.NoError(t, os.RemoveAll(cacheDir))
-	require.NoError(t, os.WriteFile(appHCL, []byte(`dependency "cache" {
-  config_path = "../cache"
-}
-# modified`), 0644))
-	require.NoError(t, runner.Add(t.Context(), "."))
-	require.NoError(t, runner.Commit(t.Context(), "Delete cache, keep its reference"))
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt hcl validate --check-dependencies --no-color --working-dir "+tmpDir+
-			" --filter '[HEAD~1...HEAD]'",
-	)
-	require.Error(t, err)
-	assert.Contains(
-		t,
-		err.Error(),
-		"unit "+strconv.Quote(filepath.Join(tmpDir, "live", "app"))+
-			" depends on "+strconv.Quote(filepath.Join(tmpDir, "live", "cache")),
-	)
-	assert.NotContains(t, err.Error(), "terragrunt-worktree")
+	assert.Contains(t, err.Error(), `dependency "dep"`)
+	assert.Contains(t, err.Error(), "does not exist")
 }

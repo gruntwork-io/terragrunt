@@ -91,7 +91,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 				Name:        CheckDependenciesFlagName,
 				EnvVars:     tgPrefix.EnvVars(CheckDependenciesFlagName),
 				Destination: &opts.HCLValidateCheckDependencies,
-				Usage:       "Checks that every dependency points at a Terragrunt configuration.",
+				Usage:       "Checks that every dependency block points at a Terragrunt configuration.",
 			},
 		),
 

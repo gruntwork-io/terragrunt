@@ -31,15 +31,13 @@ const (
 	StackNestedStacksNotGeneratedMessage = "Filtering a stack with `| type=stack` generates only that stack, " +
 		"not the nested stacks it contains. To generate the nested stacks too, also add a recursive path filter."
 
-	// MissingDependencyConfig is the tip shown when a dependency points at a path without a Terragrunt configuration.
+	// MissingDependencyConfig is the tip shown when run --all fails because a dependency has no Terragrunt config.
 	MissingDependencyConfig = "missing-dependency-config"
 
 	// MissingDependencyConfigMessage is the default message for the missing-dependency-config tip.
-	MissingDependencyConfigMessage = "A dependency points at a path without a Terragrunt configuration file. " +
-		"If that unit was deleted, update or remove the `dependency` blocks and `dependencies` paths " +
-		"that still point at it. " +
-		"`terragrunt hcl validate --check-dependencies` lists each unit's missing dependency paths before a run. " +
-		"See https://docs.terragrunt.com/features/filter/git#deleted-dependencies"
+	MissingDependencyConfigMessage = "If a `dependency` block points at a unit that was deleted or moved, " +
+		"update or remove that block. Run `terragrunt hcl validate --check-dependencies` to find such blocks. " +
+		"See https://docs.terragrunt.com/reference/cli/commands/hcl/validate#check-dependencies"
 
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +

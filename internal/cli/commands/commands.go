@@ -214,9 +214,7 @@ func WrapWithTelemetry(
 			}
 
 			if err := RunAction(childCtx, cliCtx, l, opts, v, action); err != nil {
-				tips.GiveMissingDependencyConfigTip(l, err, opts.Tips)
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
-
 				return err
 			}
 

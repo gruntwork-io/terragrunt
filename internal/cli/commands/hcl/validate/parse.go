@@ -2,15 +2,12 @@ package validate
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
-	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -101,10 +98,8 @@ const (
 // each reports into Collector.
 type ComponentParser struct {
 	Collector *DiagnosticsCollector
-	// Worktrees maps worktree paths in dependency errors back to repository paths.
-	Worktrees *worktrees.Worktrees
 	Options   ParserOptions
-	// CheckDependencies also fails a unit whose dependencies point at paths without a Terragrunt configuration.
+	// CheckDependencies also fails a unit whose dependency blocks point at a missing Terragrunt config.
 	CheckDependencies bool
 }
 
@@ -124,11 +119,11 @@ func (p ComponentParser) Unit(
 	pctx := configbridge.NewParsingContext(parseOpts)
 
 	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
-	if !p.CheckDependencies || cfg == nil {
+	if err != nil || !p.CheckDependencies {
 		return err
 	}
 
-	return errors.Join(err, dependencyErrors(v.FS, p.Worktrees, cfg, parseOpts.TerragruntConfigPath))
+	return config.ValidateDependencyConfigPaths(v.FS, cfg, parseOpts.TerragruntConfigPath)
 }
 
 // Stack parses the stack configuration in stackDir, returning every error the
@@ -206,26 +201,4 @@ func unitConfigFilename(opts *options.TerragruntOptions) string {
 	}
 
 	return config.DefaultTerragruntConfigPath
-}
-
-// dependencyErrors joins cfg's dependencies without a Terragrunt configuration, showing worktree paths as repo paths.
-func dependencyErrors(
-	fsys vfs.FS,
-	w *worktrees.Worktrees,
-	cfg *config.TerragruntConfig,
-	configPath string,
-) error {
-	missing, err := config.MissingDependencyConfigs(fsys, cfg, configPath)
-	errs := make([]error, 0, len(missing)+1)
-
-	for _, depErr := range missing {
-		if w != nil {
-			depErr.UnitPath = w.DisplayPath(depErr.UnitPath)
-			depErr.DependencyPath = w.DisplayPath(depErr.DependencyPath)
-		}
-
-		errs = append(errs, depErr)
-	}
-
-	return errors.Join(append(errs, err)...)
 }
