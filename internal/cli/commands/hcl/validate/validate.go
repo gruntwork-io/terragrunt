@@ -36,6 +36,24 @@ import (
 const splitCount = 2
 
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+	if opts.HCLValidateCheckDependencies {
+		if opts.HCLValidateShowConfigPath {
+			return fmt.Errorf(
+				"specifying both -%s and -%s is invalid",
+				ShowConfigPathFlagName,
+				CheckDependenciesFlagName,
+			)
+		}
+
+		if opts.HCLValidateJSONOutput {
+			return fmt.Errorf(
+				"specifying both -%s and -%s is invalid",
+				JSONFlagName,
+				CheckDependenciesFlagName,
+			)
+		}
+	}
+
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf(

@@ -9,6 +9,8 @@ since: "v1.2.0"
 
 When enabled, Terragrunt fails validation for each enabled `dependency` block whose `config_path` does not point at a unit or stack configuration, for example a unit that was deleted or moved.
 
+This flag cannot be combined with `--json` or `--show-config-path`.
+
 Example:
 
 ```bash

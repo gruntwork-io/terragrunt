@@ -51,3 +51,36 @@ func TestRunValidateCheckDependencies(t *testing.T) {
 		})
 	}
 }
+
+func TestRunCheckDependenciesFlagCombinations(t *testing.T) {
+	t.Parallel()
+
+	tcs := []struct {
+		name    string
+		wantErr string
+		json    bool
+		show    bool
+	}{
+		{name: "json output", json: true, wantErr: "specifying both -json and -check-dependencies is invalid"},
+		{
+			name:    "show config path",
+			show:    true,
+			wantErr: "specifying both -show-config-path and -check-dependencies is invalid",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := options.NewTerragruntOptionsForTest(filepath.Join(venvtest.Root("/repo"), "terragrunt.hcl"))
+			require.NoError(t, err)
+
+			opts.HCLValidateCheckDependencies = true
+			opts.HCLValidateJSONOutput = tc.json
+			opts.HCLValidateShowConfigPath = tc.show
+
+			require.EqualError(t, validate.Run(t.Context(), logger.CreateLogger(), venvtest.New(), opts), tc.wantErr)
+		})
+	}
+}
