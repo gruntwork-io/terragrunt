@@ -97,9 +97,8 @@ const (
 // ComponentParser parses discovered components one at a time, collecting what
 // each reports into Collector.
 type ComponentParser struct {
-	Collector *DiagnosticsCollector
-	Options   ParserOptions
-	// CheckDependencies also fails a unit whose dependency blocks point at a missing Terragrunt config.
+	Collector         *DiagnosticsCollector
+	Options           ParserOptions
 	CheckDependencies bool
 }
 

@@ -1473,7 +1473,6 @@ func TestFilterFlagWithGitFilterMarkGlobAsRead(t *testing.T) {
 		"units reading added or removed glob files should be selected; untouched unit should not")
 }
 
-// TestFilterFlagWithRunAllGitFilterDeletedDependency pins how a live unit depending on a deleted unit is reported.
 func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 	t.Parallel()
 
