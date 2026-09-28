@@ -1,0 +1,12 @@
+---
+version: "v1.2.0"
+category: "experiments-updated"
+---
+
+#### `iac-engine` — Engines no longer need a local OpenTofu/Terraform binary
+
+Before every run, Terragrunt probes the OpenTofu/Terraform binary installed on the host with `tofu -version` to learn the version and implementation of the tool it is going to orchestrate. With an engine configured, that probe still ran, so `run` and `run --all` failed unless `tofu` or `terraform` was also installed on `PATH`.
+
+Units with engines now skip the probe. Their version and implementation stay unknown, which does not affect the run, because the engine decides which binary executes the commands. A `terraform_version_constraint` on such a unit cannot be checked and is skipped with a warning; `terragrunt_version_constraint` is checked as before. Disabling the engine with `--no-engine` restores the probe.
+
+See the [IaC engines](/features/units/engine/) docs for details.
