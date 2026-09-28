@@ -217,36 +217,80 @@ func TestMarkManyAsReadMarksModuleSourceFilesByDefault(t *testing.T) {
 	assert.NotContains(t, read, filepath.Join(moduleDir, "README.md"))
 }
 
-// TestMarkManyAsReadRelativeConfigPathAnchorsToWorkingDir pins that a relative
-// config path resolves against the parsing context's working directory before
-// the module walk. The file detector roots relative paths at "/", so without
-// anchoring, a relative config path would send the walk to the filesystem root.
-func TestMarkManyAsReadRelativeConfigPathAnchorsToWorkingDir(t *testing.T) {
+// TestMarkManyAsReadIncludedRelativeSourceResolvesFromUnit pins that a relative
+// source declared in an included config resolves against the unit's directory,
+// where a run resolves it, rather than against the included file. The wrong
+// anchor lands on a directory that exists, so the decoy module must stay unread.
+func TestMarkManyAsReadIncludedRelativeSourceResolvesFromUnit(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	moduleDir := filepath.Join(root, "modules", "foo")
-	unitDir := filepath.Join(root, "units", "bar")
+	testCases := []struct {
+		name   string
+		source string
+	}{
+		{
+			name:   "path_relative_from_include",
+			source: "${path_relative_from_include()}/modules//foo",
+		},
+		{
+			name:   "plain relative path",
+			source: "../modules/foo",
+		},
+	}
 
-	writeFile(t, filepath.Join(moduleDir, "main.tf"), "")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	configPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
-	writeFile(t, configPath, "")
+			root := t.TempDir()
+			moduleDir := filepath.Join(root, "live", "modules", "foo")
+			decoyDir := filepath.Join(root, "modules", "foo")
+			unitDir := filepath.Join(root, "live", "unit")
 
-	hcl := `terraform { source = "../../modules/foo" }`
+			writeFile(t, filepath.Join(moduleDir, "main.tf"), "")
+			writeFile(t, filepath.Join(decoyDir, "main.tf"), "")
 
-	l := logger.CreateLogger()
-	v := venvtest.NewOSWithEmptyEnv()
-	ctx, pctx := newTestParsingContext(t, configPath)
-	pctx = pctx.WithFileReadTracking()
-	pctx.WorkingDir = unitDir
+			includePath := filepath.Join(root, "live", "root.hcl")
+			writeFile(t, includePath, fmt.Sprintf(`terraform { source = %q }`, tc.source))
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, hcl, nil)
-	require.NoError(t, err)
-	require.NotNil(t, out)
-	require.NotNil(t, pctx.FilesRead)
+			unitPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+			writeFile(t, unitPath, `include "root" { path = find_in_parent_folders("root.hcl") }`)
 
-	assert.Contains(t, pctx.FilesRead.Paths(), filepath.Join(moduleDir, "main.tf"))
+			t.Run("full parse", func(t *testing.T) {
+				t.Parallel()
+
+				l := logger.CreateLogger()
+				v := venvtest.NewOSWithEmptyEnv()
+				ctx, pctx := newTestParsingContext(t, unitPath)
+				pctx = pctx.WithFileReadTracking()
+
+				out, err := config.ParseConfigFile(ctx, l, v, pctx, unitPath, nil)
+				require.NoError(t, err)
+				require.NotNil(t, out)
+
+				read := pctx.FilesRead.Paths()
+				assert.Contains(t, read, filepath.Join(moduleDir, "main.tf"))
+				assert.NotContains(t, read, filepath.Join(decoyDir, "main.tf"))
+			})
+
+			t.Run("partial parse", func(t *testing.T) {
+				t.Parallel()
+
+				l := logger.CreateLogger()
+				v := venvtest.NewOSWithEmptyEnv()
+				ctx, pctx := newTestParsingContext(t, unitPath)
+				pctx = pctx.WithDecodeList(config.TerraformSource).WithFileReadTracking()
+
+				out, err := config.PartialParseConfigFile(ctx, l, v, pctx, unitPath, nil)
+				require.NoError(t, err)
+				require.NotNil(t, out)
+
+				read := pctx.FilesRead.Paths()
+				assert.Contains(t, read, filepath.Join(moduleDir, "main.tf"))
+				assert.NotContains(t, read, filepath.Join(decoyDir, "main.tf"))
+			})
+		})
+	}
 }
 
 func TestMarkManyAsReadPartialParseSource(t *testing.T) {
