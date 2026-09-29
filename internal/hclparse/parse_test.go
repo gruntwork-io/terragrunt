@@ -2636,6 +2636,62 @@ unit "app" {
 	assert.Equal(t, "z", result.Units[0].Path)
 }
 
+func TestParseStackFile_DynamicIndexWithDependent(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  key    = "a"
+  a      = "ok"
+  picked = local[local.key]
+  use    = "${local.picked}-app"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.use
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "ok-app", result.Units[0].Path)
+}
+
+func TestParseStackFile_DynamicIndexOfDynamicIndex(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  first_key  = "second"
+  second_key = "a"
+  a          = "ok"
+  first      = local[local.first_key]
+  second     = local[local.second_key]
+  use        = "${local.first}-app"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.use
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "ok-app", result.Units[0].Path)
+}
+
 func TestParseStackFile_LiteralIndexCycleIsReported(t *testing.T) {
 	t.Parallel()
 
@@ -2710,6 +2766,17 @@ locals {
 }
 `,
 			failed: "x",
+		},
+		{
+			name: "dynamic index of undefined local",
+			src: `
+locals {
+  key    = "missing"
+  picked = local[local.key]
+  use    = local.picked
+}
+`,
+			failed: "picked",
 		},
 	}
 

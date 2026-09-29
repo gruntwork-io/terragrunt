@@ -215,15 +215,10 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 // waits on its "down" dependents. Dependencies outside entries are not waited on.
 func entryGraph(entries Entries) *topo.Graph[*Entry] {
 	byPath := make(map[string]*Entry, len(entries))
-	byComponent := make(map[component.Component]*Entry, len(entries))
 
 	for _, entry := range entries {
 		if _, ok := byPath[entry.Component.Path()]; !ok {
 			byPath[entry.Component.Path()] = entry
-		}
-
-		if _, ok := byComponent[entry.Component]; !ok {
-			byComponent[entry.Component] = entry
 		}
 	}
 
@@ -235,7 +230,7 @@ func entryGraph(entries Entries) *topo.Graph[*Entry] {
 		}
 
 		for _, dep := range entry.Component.Dependencies() {
-			depEntry := byComponent[dep]
+			depEntry := byPath[dep.Path()]
 			if depEntry != nil && !depEntry.IsUp() {
 				downWaits[depEntry] = append(downWaits[depEntry], entry)
 			}
