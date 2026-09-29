@@ -1,12 +1,10 @@
 package controllers
 
 import (
+	"maps"
 	"net/http"
 
-	"maps"
-
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
-	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -33,12 +31,12 @@ func (controller *DiscoveryController) Register(router *router.Router) {
 	controller.GET("/terraform.json", controller.terraformAction)
 }
 
-func (controller *DiscoveryController) terraformAction(ctx echo.Context) error {
+func (controller *DiscoveryController) terraformAction(w router.ResponseWriter, _ *http.Request) error {
 	endpoints := make(map[string]any)
 
 	for _, endpointer := range controller.Endpointers {
 		maps.Copy(endpoints, endpointer.Endpoints())
 	}
 
-	return ctx.JSON(http.StatusOK, endpoints)
+	return router.JSON(w, http.StatusOK, endpoints)
 }

@@ -108,10 +108,10 @@ type ParsingContext struct {
 	LogShowAbsPaths                  bool
 	LogDisableErrorSummary           bool
 
-	// skipAutoIncludeMerge is set on contexts that parse the files an autoinclude pulls in through its
+	// SkipAutoIncludeMerge is set on contexts that parse the files an autoinclude pulls in through its
 	// own include blocks, so those files do not re-merge a sibling autoinclude. This bounds the merge to
 	// the unit being parsed and prevents an autoinclude that includes another file from recursing.
-	skipAutoIncludeMerge bool
+	SkipAutoIncludeMerge bool
 
 	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig].
 	catalogOnly bool

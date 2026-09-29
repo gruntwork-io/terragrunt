@@ -163,6 +163,14 @@ func (o *ShellOptions) NoEngine() bool {
 	return o.EngineOptions != nil && o.EngineOptions.NoEngine
 }
 
+// EngineEnabled reports whether an engine is enabled for a run.
+//
+// Use this to drive logic where Terragrunt typically assumes it's running
+// OpenTofu/Terraform directly.
+func (o *ShellOptions) EngineEnabled() bool {
+	return o.EngineConfig != nil && o.Experiments.Evaluate(experiment.IacEngine) && !o.NoEngine()
+}
+
 // RunCommand runs the given shell command. The shell environment and process
 // executor come from v; tests can substitute a venv whose Exec is a
 // [vexec.NewMemExec] so external binaries like tofu/terraform are never forked.
@@ -305,8 +313,7 @@ func runCommand(
 
 	if cmdOpts.Command == runOpts.TFPath {
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) &&
-			!runOpts.NoEngine() {
+		if runOpts.EngineEnabled() {
 			l.Debugf(
 				"Using engine to run command: %s %s",
 				cmdOpts.Command,

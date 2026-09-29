@@ -167,9 +167,10 @@ type TrackInclude struct {
 	CurrentList IncludeConfigs
 }
 
-// Create an EvalContext for the HCL2 parser. We can define functions and variables in this ctx that the HCL2 parser
-// will make available to the Terragrunt configuration during parsing. The functions reach the OS through v.
-func createTerragruntEvalContext(
+// CreateTerragruntEvalContext creates an EvalContext for the HCL2 parser. We can define functions and variables in this
+// ctx that the HCL2 parser will make available to the Terragrunt configuration during parsing. The functions reach the
+// OS through v.
+func CreateTerragruntEvalContext(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,

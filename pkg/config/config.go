@@ -860,9 +860,9 @@ func dependencyBlock(dep *Dependency) (*hclwrite.Block, error) {
 	return depBlock, nil
 }
 
-// terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
+// TerragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
-type terragruntConfigFile struct {
+type TerragruntConfigFile struct {
 	Catalog                     *CatalogConfig   `hcl:"catalog,block"`
 	Engine                      *EngineConfig    `hcl:"engine,block"`
 	Terraform                   *TerraformConfig `hcl:"terraform,block"`
@@ -916,7 +916,7 @@ type terragruntConfigFile struct {
 	//   }
 	// }
 	GenerateAttrs  *cty.Value                `hcl:"generate,optional"`
-	GenerateBlocks []terragruntGenerateBlock `hcl:"generate,block"`
+	GenerateBlocks []TerragruntGenerateBlock `hcl:"generate,block"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals and include are
 	// evaluated in a completely separate cycle, it should not be evaluated here. Otherwise, we can't support self
@@ -945,9 +945,9 @@ type terragruntIncludeIgnore struct {
 	Name   string   `hcl:"name,label"`
 }
 
-// Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
-// through the codegen routine.
-type terragruntGenerateBlock struct {
+// TerragruntGenerateBlock is a generate block as decoded from HCL. [ConvertToTerragruntConfig] converts it to a
+// [codegen.GenerateConfig] for the codegen routine.
+type TerragruntGenerateBlock struct {
 	IfDisabled       *string `hcl:"if_disabled,attr"       mapstructure:"if_disabled"`
 	CommentPrefix    *string `hcl:"comment_prefix,attr"    mapstructure:"comment_prefix"`
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
@@ -1627,7 +1627,7 @@ func ParseConfig(
 		return nil, err
 	}
 
-	if terraformSourceReferencesDependency(file) {
+	if TerraformSourceReferencesDependency(file) {
 		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 	}
 
@@ -1696,23 +1696,23 @@ func ParseConfig(
 		pctx.DecodedDependencies = retrievedOutputs
 	}
 
-	evalContext, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx, l, v, pctx, file, evalContext)
+	cfgFile, err := decodeAsTerragruntConfigFile(ctx, l, v, pctx, file, evalContext)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	if terragruntConfigFile == nil {
+	if cfgFile == nil {
 		return nil, CouldNotResolveTerragruntConfigInFileError(file.ConfigPath)
 	}
 
-	config, err := convertToTerragruntConfig(v, pctx, file.ConfigPath, terragruntConfigFile)
+	config, err := ConvertToTerragruntConfig(v, pctx, file.ConfigPath, cfgFile)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1953,27 +1953,33 @@ func ResolveIAMRoleOptions(
 	return iam.MergeRoleOptions(config, pctx.OriginalIAMRoleOptions), nil
 }
 
-func decodeAsTerragruntConfigFile(
+// CompleteTerragruntConfigFile finishes decoding file into cfgFile once its body has been decoded with evalContext.
+// decodeErr is the error from that body decode, or nil. It then decodes the dependency blocks with sibling
+// autoinclude overrides applied and replaces unknown values in the inputs.
+//
+// Returns cfgFile with decodeErr when the body decode failed, unless every diagnostic is an attribute access error
+// and a sibling autoinclude or a render command will replace the affected values.
+func CompleteTerragruntConfigFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
-) (*terragruntConfigFile, error) {
-	cfgFile := terragruntConfigFile{}
-
-	if err := file.Decode(&cfgFile, evalContext); err != nil {
+	cfgFile *TerragruntConfigFile,
+	decodeErr error,
+) (*TerragruntConfigFile, error) {
+	if decodeErr != nil {
 		var diagErr hcl.Diagnostics
 
-		ok := errors.As(err, &diagErr)
+		ok := errors.As(decodeErr, &diagErr)
 
 		// Suppress attribute access errors when a sibling autoinclude will merge on top, or during render-json/render commands; the autoinclude merge replaces the affected inputs.
 		canSuppress := ok && isAttributeAccessError(diagErr) &&
 			(isRenderJSONCommand(pctx) || isRenderCommand(pctx) || hasSiblingAutoInclude(pctx))
 
 		if !canSuppress {
-			return &cfgFile, err
+			return cfgFile, decodeErr
 		}
 
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
@@ -1988,7 +1994,7 @@ func decodeAsTerragruntConfigFile(
 		evalContext,
 	)
 	if err != nil {
-		return &cfgFile, err
+		return cfgFile, err
 	}
 
 	cfgFile.TerragruntDependencies = dependencies
@@ -2002,7 +2008,23 @@ func decodeAsTerragruntConfigFile(
 		cfgFile.Inputs = &inputs
 	}
 
-	return &cfgFile, nil
+	return cfgFile, nil
+}
+
+// decodeAsTerragruntConfigFile decodes file with evalContext into a [TerragruntConfigFile], then completes it with
+// [CompleteTerragruntConfigFile].
+func decodeAsTerragruntConfigFile(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	file *hclparse.File,
+	evalContext *hcl.EvalContext,
+) (*TerragruntConfigFile, error) {
+	cfgFile := &TerragruntConfigFile{}
+	err := file.Decode(cfgFile, evalContext)
+
+	return CompleteTerragruntConfigFile(ctx, l, v, pctx, file, evalContext, cfgFile, err)
 }
 
 // Returns the index of the Hook with the given name,
@@ -2071,12 +2093,13 @@ func remoteStateFromAttr(attr cty.Value) (*remotestate.RemoteState, error) {
 	return remotestate.New(config), nil
 }
 
-// Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
-func convertToTerragruntConfig(
+// ConvertToTerragruntConfig converts the contents of a fully resolved Terragrunt configuration to a
+// [TerragruntConfig]. For a context built by [ReadCatalogConfig], it converts only the catalog block.
+func ConvertToTerragruntConfig(
 	v *venv.Venv,
 	pctx *ParsingContext,
 	cfgPath string,
-	cfgFromFile *terragruntConfigFile,
+	cfgFromFile *TerragruntConfigFile,
 ) (cfg *TerragruntConfig, err error) {
 	var errs []error
 
@@ -2217,7 +2240,7 @@ func convertToTerragruntConfig(
 		cfg.SetFieldMetadata(MetadataErrors, defaultMetadata)
 	}
 
-	generateBlocks := []terragruntGenerateBlock{}
+	generateBlocks := []TerragruntGenerateBlock{}
 	generateBlocks = append(generateBlocks, cfgFromFile.GenerateBlocks...)
 
 	if cfgFromFile.GenerateAttrs != nil {
@@ -2227,7 +2250,7 @@ func convertToTerragruntConfig(
 		}
 
 		for name, block := range generateMap {
-			var generateBlock terragruntGenerateBlock
+			var generateBlock TerragruntGenerateBlock
 			if err := mapstructure.WeakDecode(block, &generateBlock); err != nil {
 				return nil, err
 			}
@@ -2460,7 +2483,7 @@ func validateDependencies(v *venv.Venv, ctx *ParsingContext, dependencies *Modul
 }
 
 // Iterate over generate blocks and detect duplicate names, return error with list of duplicated names
-func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
+func validateGenerateBlocks(blocks *[]TerragruntGenerateBlock) error {
 	var (
 		blockNames                   = map[string]struct{}{}
 		duplicatedGenerateBlockNames []string
@@ -2483,10 +2506,10 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 	return nil
 }
 
-// configFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
+// ConfigFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
-func configFileHasDependencyBlock(fsys vfs.FS, cfgPath string) (bool, error) {
+func ConfigFileHasDependencyBlock(fsys vfs.FS, cfgPath string) (bool, error) {
 	configBytes, err := vfs.ReadFile(fsys, cfgPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -2812,12 +2835,12 @@ func readBackendConfig(
 
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside cfgPath
 // and whether it is in scope: the context is not already parsing a file pulled in by an autoinclude
-// merge (skipAutoIncludeMerge, which would recurse and let a pulled-in file fold its own sibling
+// merge (SkipAutoIncludeMerge, which would recurse and let a pulled-in file fold its own sibling
 // autoinclude), and cfgPath is not itself an autoinclude file. The registration that records the
 // override on TrackInclude and the partial-parse cache key both route through here. Existence is left
 // to the caller so the cache-key path can distinguish absent from present.
 func siblingAutoIncludePath(pctx *ParsingContext, cfgPath string) (string, bool) {
-	if pctx.skipAutoIncludeMerge {
+	if pctx.SkipAutoIncludeMerge {
 		return "", false
 	}
 
@@ -2853,7 +2876,7 @@ func mergeAutoIncludeIfPresent(
 	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass.
 	clonedPctx := pctx.Clone()
 	clonedPctx.DecodedDependencies = nil
-	clonedPctx.skipAutoIncludeMerge = true
+	clonedPctx.SkipAutoIncludeMerge = true
 
 	autoIncludeConfig, err := ParseConfigFile(ctx, l, v, clonedPctx, autoIncludePath, nil)
 	if err != nil {
