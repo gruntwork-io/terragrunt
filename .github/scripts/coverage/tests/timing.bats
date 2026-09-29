@@ -164,3 +164,18 @@ EOF2
 	run jq -e '.total_sec == 2.1' "$REPORT"
 	[ "$status" -eq 0 ]
 }
+
+@test "timing rounds times to hundredths" {
+	EVENTS="${BATS_TEST_TMPDIR}/events.ndjson"
+
+	cat >"$EVENTS" <<'EOF2'
+{"Action":"pass","Package":"example.com/a","Test":"TestA","Elapsed":2.1390000000000002}
+{"Action":"pass","Package":"example.com/a","Elapsed":6.7059999999999995}
+EOF2
+
+	run "$SCRIPT" timing "$EVENTS" "$REPORT"
+	[ "$status" -eq 0 ]
+
+	run jq -r '[.packages["example.com/a"].wall_sec, .packages["example.com/a"].tests.TestA, .total_sec] | @tsv' "$REPORT"
+	[ "$output" = $'6.71\t2.14\t6.71' ]
+}
