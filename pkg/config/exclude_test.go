@@ -185,10 +185,11 @@ exclude {
 			l := logger.CreateLogger()
 			l.SetOptions(log.WithOutput(&logBuf))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
+			v := venvtest.New().WithFS(fsys)
+			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
 
-			parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+			parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 			if tt.wantErrAs != nil {
 				require.ErrorAs(t, err, tt.wantErrAs)
 				return
@@ -226,9 +227,10 @@ include "root" {
 `,
 	})
 
-	ctx, pctx := newTestParsingContext(t, venvtest.New().WithFS(fsys), cfgPath)
+	v := venvtest.New().WithFS(fsys)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	_, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
 	require.ErrorContains(t, err, "null value is not allowed")
 	assert.ErrorContains(t, err, filepath.Join(root, "root.hcl"))
 }
