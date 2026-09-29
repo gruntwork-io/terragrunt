@@ -84,7 +84,7 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 		return nil
 	}
 
-	interTransientComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
+	interTransientComponents := component.NewThreadSafeComponents(discovery.paths, component.Components{})
 
 	state := &relationshipTraversalState{
 		opts:                     input.Opts,
@@ -172,7 +172,7 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	cfg := unit.Config()
 
-	paths, err := extractDependencyPaths(v.FS, cfg, c)
+	paths, err := extractDependencyPaths(state.discovery.paths, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func (p *RelationshipPhase) dependencyToDiscover(
 
 	newUnit := component.NewUnit(path)
 
-	dep, created := interTransientComponents.EnsureComponent(fsys, newUnit)
+	dep, created := interTransientComponents.EnsureComponent(newUnit)
 
 	if created && discovery.discoveryContext != nil {
 		discoveryCtx := discovery.discoveryContext.Copy()

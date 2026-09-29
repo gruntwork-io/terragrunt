@@ -31,6 +31,7 @@ func (d *Discovery) Discover(
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
+	d.paths = vfs.NewPathResolver(v.FS)
 
 	// A working directory that cannot be walked to discovers nothing, which is
 	// reported as an empty result rather than an error, so it keeps the
@@ -573,7 +574,7 @@ func (d *Discovery) buildDependencyGraph(
 	allComponents component.Components,
 	unparsed map[string]struct{},
 ) []error {
-	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
+	threadSafeComponents := component.NewThreadSafeComponents(d.paths, allComponents)
 
 	var (
 		errs []error
@@ -638,7 +639,7 @@ func (d *Discovery) buildComponentDependencies(
 
 	cfg := unit.Config()
 
-	depPaths, err := extractDependencyPaths(v.FS, cfg, c)
+	depPaths, err := extractDependencyPaths(d.paths, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -672,7 +673,7 @@ func (d *Discovery) buildComponentDependencies(
 			}
 		}
 
-		addedComponent, _ := threadSafeComponents.EnsureComponent(v.FS, depComponent)
+		addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
 
 		c.AddDependency(addedComponent)
 	}
@@ -714,12 +715,12 @@ func (d *Discovery) filterGraphTarget(
 
 	targetPath := canonicalizeGraphTarget(fsys, d.workingDir, d.graphTarget)
 
-	dependentUnits := buildDependentsIndex(fsys, components)
+	dependentUnits := buildDependentsIndex(d.paths, components)
 	propagateTransitiveDependents(dependentUnits)
 
 	allowed := buildAllowSet(targetPath, dependentUnits)
 
-	return filterByAllowSet(fsys, components, allowed)
+	return filterByAllowSet(d.paths, components, allowed)
 }
 
 // canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path with symlinks resolved.
@@ -748,14 +749,17 @@ func canonicalizeGraphTarget(fsys vfs.FS, baseDir, target string) string {
 // buildDependentsIndex builds an index mapping each unit path to the list of units
 // that directly depend on it. Duplicate entries are removed.
 // Paths are resolved to handle symlinks consistently across platforms.
-func buildDependentsIndex(fsys vfs.FS, components component.Components) map[string][]string {
+func buildDependentsIndex(
+	paths *vfs.PathResolver,
+	components component.Components,
+) map[string][]string {
 	dependentUnits := make(map[string][]string)
 
 	for _, c := range components {
-		cPath := vfs.ResolveForCompare(fsys, c.Path())
+		cPath := paths.Resolve(c.Path())
 
 		for _, dep := range c.Dependencies() {
-			depPath := vfs.ResolveForCompare(fsys, dep.Path())
+			depPath := paths.Resolve(dep.Path())
 			dependentUnits[depPath] = util.RemoveDuplicates(append(dependentUnits[depPath], cPath))
 		}
 	}
@@ -815,14 +819,14 @@ func buildAllowSet(targetPath string, dependentUnits map[string][]string) map[st
 // Paths are resolved to handle symlinks consistently across platforms.
 // The output order matches the input order (no sorting is performed here).
 func filterByAllowSet(
-	fsys vfs.FS,
+	paths *vfs.PathResolver,
 	components component.Components,
 	allowed map[string]struct{},
 ) component.Components {
 	filtered := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		resolvedPath := vfs.ResolveForCompare(fsys, c.Path())
+		resolvedPath := paths.Resolve(c.Path())
 		if _, ok := allowed[resolvedPath]; ok {
 			filtered = append(filtered, c)
 		}
