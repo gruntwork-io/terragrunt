@@ -142,9 +142,6 @@ EOF
 @test "timing omits packages that ran no tests" {
 	EVENTS="${BATS_TEST_TMPDIR}/events.ndjson"
 
-	# Under -cover, a package with no test files still gets a package-level pass
-	# whose Elapsed is build time (6.6s here for a main package), and without
-	# -cover it gets a [no test files] skip. Neither is test runtime.
 	cat >"$EVENTS" <<'EOF2'
 {"Action":"start","Package":"example.com/root"}
 {"Action":"output","Package":"example.com/root","Output":"\texample.com/root\t\tcoverage: 0.0% of statements\n"}
