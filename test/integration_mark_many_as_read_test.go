@@ -31,7 +31,7 @@ func TestMarkManyAsReadIncludedRelativeSource(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err, "stderr: %s", stderr)
 
-	assert.ElementsMatch(t, []string{"live/unit"}, strings.Fields(stdout))
+	assert.ElementsMatch(t, []string{filepath.FromSlash("live/unit")}, strings.Fields(stdout))
 }
 
 // TestMarkGlobAsReadReadingFilter exercises mark_glob_as_read() end-to-end:
