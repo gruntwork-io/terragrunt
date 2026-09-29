@@ -308,8 +308,8 @@ func pathOnlyHeaders(
 // evaluateLocals evaluates the attributes of a locals block in dependency order and publishes them to evalCtx under
 // local. Each attribute evaluates once, after every sibling it references.
 //
-// A reference to local with no static attribute name, such as a bare local or local[expr], waits for every other
-// sibling.
+// A reference to local that names no local statically, such as a bare local or local[local.key], waits for every
+// other sibling.
 //
 // Returns [LocalEvalError] for the first local, by name, whose expression fails to evaluate. Returns
 // [LocalsCycleError] naming every local left unevaluated when the rest wait on one another in a cycle.
@@ -418,18 +418,24 @@ func allSiblings(name string, attrs map[string]*hclsyntax.Attribute) []string {
 	return siblings
 }
 
+// localTraversalName returns the name of the local that t reads, when its first step names one statically, as in
+// local.name or local["name"].
 func localTraversalName(t hcl.Traversal) (string, bool) {
 	parts := t.SimpleSplit()
 	if len(parts.Rel) == 0 {
 		return "", false
 	}
 
-	attr, ok := parts.Rel[0].(hcl.TraverseAttr)
-	if !ok {
-		return "", false
+	switch step := parts.Rel[0].(type) {
+	case hcl.TraverseAttr:
+		return step.Name, true
+	case hcl.TraverseIndex:
+		if step.Key.Type() == cty.String {
+			return step.Key.AsString(), true
+		}
 	}
 
-	return attr.Name, true
+	return "", false
 }
 
 // diagAt builds a single-diagnostic slice anchored at rng so callers using errors.As(err, &hcl.Diagnostics{}) get the offending expression's source position.
