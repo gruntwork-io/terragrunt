@@ -550,6 +550,10 @@ cmd_timing() {
 				)
 			end
 		)
+		# A package that ran no tests only reports build time: under -cover a
+		# package with no test files (e.g. the root main package) still gets a
+		# package-level pass, so keep only packages with test events.
+		| .packages |= with_entries(select(.value.tests | length > 0))
 		| .total_sec = ([.packages[].wall_sec] | add // 0)
 		| . + {generated_at: $ts, commit: $commit, ref: $ref}
 	' "$events" >"$output"

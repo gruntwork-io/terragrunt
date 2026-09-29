@@ -138,3 +138,32 @@ EOF
   ]' "$REPORT"
 	[ "$status" -eq 0 ]
 }
+
+@test "timing omits packages that ran no tests" {
+	EVENTS="${BATS_TEST_TMPDIR}/events.ndjson"
+
+	# Under -cover, a package with no test files still gets a package-level pass
+	# whose Elapsed is build time (6.6s here for a main package), and without
+	# -cover it gets a [no test files] skip. Neither is test runtime.
+	cat >"$EVENTS" <<'EOF2'
+{"Action":"start","Package":"example.com/root"}
+{"Action":"output","Package":"example.com/root","Output":"\texample.com/root\t\tcoverage: 0.0% of statements\n"}
+{"Action":"pass","Package":"example.com/root","Elapsed":6.6}
+{"Action":"skip","Package":"example.com/notests","Elapsed":0.2}
+{"Action":"run","Package":"example.com/a","Test":"TestA"}
+{"Action":"pass","Package":"example.com/a","Test":"TestA","Elapsed":1.5}
+{"Action":"pass","Package":"example.com/a","Elapsed":2}
+{"Action":"run","Package":"example.com/skipped","Test":"TestSkipped"}
+{"Action":"skip","Package":"example.com/skipped","Test":"TestSkipped","Elapsed":0}
+{"Action":"pass","Package":"example.com/skipped","Elapsed":0.1}
+EOF2
+
+	run "$SCRIPT" timing "$EVENTS" "$REPORT"
+	[ "$status" -eq 0 ]
+
+	run jq -e '.packages | keys == ["example.com/a", "example.com/skipped"]' "$REPORT"
+	[ "$status" -eq 0 ]
+
+	run jq -e '.total_sec == 2.1' "$REPORT"
+	[ "$status" -eq 0 ]
+}
