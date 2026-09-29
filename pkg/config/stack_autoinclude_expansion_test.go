@@ -247,10 +247,10 @@ func TestGenerateStackExpandsAutoIncludeDependencyInGeneratedUnit(t *testing.T) 
 			unitDir := filepath.Join(gen.dir, "consumer")
 			cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
 
-			ctx, pctx := newTestParsingContext(t, gen.v, cfgPath)
+			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx.OriginalTerraformCommand = tfInitCommand
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, logger.CreateLogger(), gen.v, pctx, cfgPath, nil)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.names, parsed.Inputs["names"])

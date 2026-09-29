@@ -29,10 +29,11 @@ exclude {
 }
 `)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx = pctx.WithDecodeList(config.ExcludeBlock)
 
-	_, err := config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
 	require.ErrorAs(t, err, new(config.InvalidExcludeBlockError))
 }
 
@@ -54,11 +55,12 @@ exclude {
 }
 `)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock)
 	pctx.SkipOutputsResolution = true
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	assert.Nil(t, parsed.Exclude)
 	assert.Len(t, parsed.TerragruntDependencies, 1)

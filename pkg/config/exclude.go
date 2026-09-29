@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
@@ -25,6 +26,12 @@ type ExcludeConfig struct {
 // IsActionListed checks if the action is listed in the exclude block.
 func (e *ExcludeConfig) IsActionListed(action string) bool {
 	return runcfg.IsActionListedInExclude(e.Actions, action)
+}
+
+// Excludes reports whether the block excludes its unit from action. A block
+// with a false `if` excludes nothing, whatever actions it lists.
+func (e *ExcludeConfig) Excludes(action string) bool {
+	return e.If && e.IsActionListed(action)
 }
 
 // ShouldPreventRun checks if the unit should be prevented from running based on the no_run attribute and current action.
@@ -57,8 +64,9 @@ func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 // evaluateExcludeBlocks evaluates the exclude block in the parsed file.
 func evaluateExcludeBlocks(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 ) (*ExcludeConfig, error) {
 	excludeBlock, err := file.Blocks(MetadataExclude, false)
@@ -85,7 +93,7 @@ func evaluateExcludeBlocks(
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		l.Errorf("Failed to create eval context %s", file.ConfigPath)
 		return nil, err

@@ -924,23 +924,23 @@ func (d *Discovery) applyExcludeModules(
 			continue
 		}
 
-		if !cfg.Exclude.IsActionListed(opts.TerraformCommand) {
+		if !cfg.Exclude.Excludes(opts.TerraformCommand) {
 			continue
 		}
 
-		if cfg.Exclude.If {
-			unit.SetExcluded(true)
+		unit.SetExcluded(true)
 
-			if cfg.Exclude.ExcludeDependencies != nil && *cfg.Exclude.ExcludeDependencies {
-				for _, dep := range unit.Dependencies() {
-					depUnit, ok := dep.(*component.Unit)
-					if !ok {
-						continue
-					}
+		if cfg.Exclude.ExcludeDependencies == nil || !*cfg.Exclude.ExcludeDependencies {
+			continue
+		}
 
-					depUnit.SetExcluded(true)
-				}
+		for _, dep := range unit.Dependencies() {
+			depUnit, ok := dep.(*component.Unit)
+			if !ok {
+				continue
 			}
+
+			depUnit.SetExcluded(true)
 		}
 	}
 

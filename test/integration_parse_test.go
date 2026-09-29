@@ -83,14 +83,12 @@ func TestParseAllFixtureFiles(t *testing.T) {
 
 			l := logger.CreateLogger()
 
-			ctx, pctx := configbridge.NewParsingContext(
-				context.TODO(), // Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
-				l,
-				venv.OSVenv(),
-				opts,
-			)
+			// Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
+			ctx := context.TODO()
+			v := venv.OSVenv()
+			pctx := configbridge.NewParsingContext(opts)
 
-			cfg, _ := config.ParseConfigFile(ctx, pctx, l, file, nil)
+			cfg, _ := config.ParseConfigFile(ctx, l, v, pctx, file, nil)
 
 			assert.NotNil(t, cfg)
 

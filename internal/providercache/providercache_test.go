@@ -135,7 +135,7 @@ func testProviderCache(t *testing.T, c vhttp.Client) {
 		},
 		{
 			opts:               opts,
-			relURLPath:         "//registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			relURLPath:         "/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
 			expectedStatusCode: http.StatusOK,
 			expectedDownloadPath: "/releases.hashicorp.com/terraform-provider-aws/5.36.0/" +
 				"terraform-provider-aws_5.36.0_darwin_arm64.zip",

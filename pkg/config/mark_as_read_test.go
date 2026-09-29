@@ -27,7 +27,8 @@ func TestMarkGlobAsRead(t *testing.T) {
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = dir
 
@@ -36,7 +37,7 @@ func TestMarkGlobAsRead(t *testing.T) {
 	// "**" does not collapse the surrounding separators.
 	hcl := `locals { matched = mark_glob_as_read("{*.tf,**/*.tf}") }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 
@@ -65,7 +66,8 @@ func TestMarkGlobAsReadEscapesMetacharacter(t *testing.T) {
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = dir
 
@@ -73,7 +75,7 @@ func TestMarkGlobAsReadEscapesMetacharacter(t *testing.T) {
 	// engine reads as a literal 'a*b.tf'.
 	hcl := `locals { matched = mark_glob_as_read("a\\*b.tf") }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 
@@ -98,13 +100,14 @@ func TestMarkGlobAsReadBoundaryFlag(t *testing.T) {
 
 	l := logger.CreateLogger()
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = dir
 
 	hcl := `locals { matched = mark_glob_as_read("--terragrunt-boundary=.", "{*.yaml}") }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 
@@ -137,7 +140,8 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
 	t.Run("pattern above the repository root errors", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+		v := venvtest.NewOSWithEmptyEnv()
+		ctx, pctx := newTestParsingContext(t, configPath)
 		pctx = pctx.WithFileReadTracking()
 		pctx.WorkingDir = unitDir
 
@@ -146,14 +150,15 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
 			root,
 		) + `/{*.yaml}") }`
 
-		_, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+		_, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 		require.Error(t, err)
 	})
 
 	t.Run("try wrapper recovers to empty", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+		v := venvtest.NewOSWithEmptyEnv()
+		ctx, pctx := newTestParsingContext(t, configPath)
 		pctx = pctx.WithFileReadTracking()
 		pctx.WorkingDir = unitDir
 
@@ -162,7 +167,7 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
   matched = local.d != "" ? sort(try(mark_glob_as_read("${local.d}/{*.yaml}"), [])) : []
 }`
 
-		out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+		out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 		require.NoError(t, err)
 		require.NotNil(t, out)
 		assert.Empty(t, pctx.FilesRead.Paths())
@@ -193,11 +198,12 @@ func TestMarkManyAsReadMarksModuleSourceFilesByDefault(t *testing.T) {
 	hcl := `terraform { source = "../../modules/foo" }`
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = unitDir
 
-	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, pctx.FilesRead)
@@ -230,11 +236,12 @@ func TestMarkManyAsReadRelativeConfigPathAnchorsToWorkingDir(t *testing.T) {
 	hcl := `terraform { source = "../../modules/foo" }`
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = unitDir
 
-	out, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, pctx.FilesRead)
@@ -262,11 +269,12 @@ func TestMarkManyAsReadPartialParseSource(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+			v := venvtest.NewOSWithEmptyEnv()
+			ctx, pctx := newTestParsingContext(t, configPath)
 			pctx.WorkingDir = unitDir
 			pctx = pctx.WithDecodeList(decode).WithFileReadTracking()
 
-			out, err := config.PartialParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+			out, err := config.PartialParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 			require.NoError(t, err)
 			require.NotNil(t, out)
 			require.NotNil(t, pctx.FilesRead)
@@ -307,11 +315,12 @@ func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), childPath)
+			v := venvtest.NewOSWithEmptyEnv()
+			ctx, pctx := newTestParsingContext(t, childPath)
 			pctx.WorkingDir = unitDir
 			pctx = pctx.WithDecodeList(decode).WithFileReadTracking()
 
-			out, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
+			out, err := config.PartialParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, out)
 			require.NotNil(t, pctx.FilesRead)
@@ -341,11 +350,12 @@ func TestMarkManyAsReadUntrackedByDefault(t *testing.T) {
 	writeFile(t, configPath, hcl)
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, venvtest.NewOSWithEmptyEnv(), configPath)
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx.WorkingDir = unitDir
 	pctx = pctx.WithDecodeList(config.TerraformSource)
 
-	out, err := config.PartialParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	out, err := config.PartialParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, out.Terraform)

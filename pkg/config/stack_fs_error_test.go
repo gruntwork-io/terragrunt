@@ -32,12 +32,13 @@ unit "app" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS().WithFS(statErrorFS{
+	v := venvtest.NewWithOSFS().WithFS(statErrorFS{
 		FS:       vfs.NewOSFS(),
 		failPath: filepath.Join(tmpDir, inthclparse.AutoIncludeStackFile),
-	}), stackPath)
+	})
+	ctx, pctx := newTestParsingContext(t, stackPath)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackPath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackPath, nil)
 	require.ErrorIs(t, err, errStatFailed)
 }
 
@@ -50,16 +51,13 @@ func TestReadValuesPropagatesStatError(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	ctx, pctx := newTestParsingContext(
-		t,
-		venvtest.NewWithOSFS().WithFS(statErrorFS{
-			FS:       vfs.NewOSFS(),
-			failPath: filepath.Join(tmpDir, "terragrunt.values.hcl"),
-		}),
-		filepath.Join(tmpDir, config.DefaultTerragruntConfigPath),
-	)
+	v := venvtest.NewWithOSFS().WithFS(statErrorFS{
+		FS:       vfs.NewOSFS(),
+		failPath: filepath.Join(tmpDir, "terragrunt.values.hcl"),
+	})
+	ctx, pctx := newTestParsingContext(t, filepath.Join(tmpDir, config.DefaultTerragruntConfigPath))
 
-	values, err := config.ReadValues(ctx, pctx, logger.CreateLogger(), tmpDir)
+	values, err := config.ReadValues(ctx, logger.CreateLogger(), v, pctx, tmpDir)
 	require.ErrorIs(t, err, errStatFailed)
 	assert.Nil(t, values)
 }

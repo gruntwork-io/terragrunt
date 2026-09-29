@@ -281,12 +281,12 @@ unit "shard" {
 
 			stackPath := filepath.Join(dir, config.DefaultStackFile)
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, v, stackPath)
+			ctx, pctx := newTestParsingContext(t, stackPath)
 
-			values, err := config.ReadValues(ctx, pctx, l, dir)
+			values, err := config.ReadValues(ctx, l, v, pctx, dir)
 			require.NoError(t, err)
 
-			stack, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, values)
+			stack, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackPath, values)
 			require.NoError(t, err)
 
 			unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(
@@ -294,7 +294,7 @@ unit "shard" {
 				v.FS,
 				dir,
 				func(stackDir string) (map[string]function.Function, error) {
-					return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+					return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
 				},
 			)
 			require.NoError(t, err)
@@ -306,7 +306,7 @@ unit "shard" {
 			src, err := vfs.ReadFile(v.FS, stackPath)
 			require.NoError(t, err)
 
-			funcs, err := config.EarlyStackParseFunctions(ctx, l, dir, pctx)
+			funcs, err := config.EarlyStackParseFunctions(ctx, l, v, pctx, dir)
 			require.NoError(t, err)
 
 			parsed, err := inthclparse.ParseStackFile(ctx, v.FS, &inthclparse.ParseStackFileInput{

@@ -112,7 +112,7 @@ func (o *Options) CloneWithConfigPath(
 
 	workingDir := filepath.Dir(configPath)
 
-	if workingDir != o.CacheDir {
+	if configPath != filepath.Clean(o.TerragruntConfigPath) {
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 	}
 

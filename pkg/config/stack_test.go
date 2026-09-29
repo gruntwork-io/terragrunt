@@ -33,10 +33,12 @@ stack "projects" {
 }
 
 `
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	terragruntStackConfig, err := config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		config.DefaultStackFile,
 		cfg,
@@ -112,10 +114,12 @@ stack "network" {
     no_dot_terragrunt_stack = true
 }
 `
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	terragruntStackConfig, err := config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		config.DefaultStackFile,
 		cfg,
@@ -176,10 +180,12 @@ locals {
 	project = "my-project
 }
 `
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), config.DefaultTerragruntConfigPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	_, err := config.ReadStackConfigString(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		config.DefaultStackFile,
 		invalidCfg,

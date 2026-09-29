@@ -40,14 +40,14 @@ func TestHCLResolvesAVendoredOnlyFunction(t *testing.T) {
 
 	l := logger.CreateLogger()
 	v := venvtest.New().WithFS(memUnitFS(t, nil))
-	ctx, pctx := newTestParsingContext(t, v, memConfigPath)
+	ctx, pctx := newTestParsingContext(t, memConfigPath)
 	ctx = config.WithConfigValues(ctx)
 
 	const hcl = `locals {
   encoded = urlencode("foo/bar")
 }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, memConfigPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "foo%2Fbar", out.Locals["encoded"])
@@ -60,14 +60,14 @@ func TestHCLFileReadsThroughTheVenv(t *testing.T) {
 	v := venvtest.New().WithFS(memUnitFS(t, map[string]string{
 		"data.txt": "from the in-memory filesystem\n",
 	}))
-	ctx, pctx := newTestParsingContext(t, v, memConfigPath)
+	ctx, pctx := newTestParsingContext(t, memConfigPath)
 	ctx = config.WithConfigValues(ctx)
 
 	const hcl = `locals {
   data = file("data.txt")
 }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, memConfigPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "from the in-memory filesystem\n", out.Locals["data"])
@@ -80,14 +80,14 @@ func TestHCLTemplateFileReadsThroughTheVenv(t *testing.T) {
 	v := venvtest.New().WithFS(memUnitFS(t, map[string]string{
 		"greeting.tmpl": "Hello, ${name}! ${urlencode(\"a/b\")}",
 	}))
-	ctx, pctx := newTestParsingContext(t, v, memConfigPath)
+	ctx, pctx := newTestParsingContext(t, memConfigPath)
 	ctx = config.WithConfigValues(ctx)
 
 	const hcl = `locals {
   greeting = templatefile("greeting.tmpl", { name = "world" })
 }`
 
-	out, err := config.ParseConfigString(ctx, pctx, l, memConfigPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "Hello, world! a%2Fb", out.Locals["greeting"])
@@ -98,7 +98,7 @@ func TestHCLBase64GzipUsesTheCurrentEncoder(t *testing.T) {
 
 	l := logger.CreateLogger()
 	v := venvtest.New().WithFS(memUnitFS(t, nil))
-	ctx, pctx := newTestParsingContext(t, v, memConfigPath)
+	ctx, pctx := newTestParsingContext(t, memConfigPath)
 	ctx = config.WithConfigValues(ctx)
 
 	const hcl = `locals {
@@ -110,7 +110,7 @@ func TestHCLBase64GzipUsesTheCurrentEncoder(t *testing.T) {
 	expected, err := funcs.Base64Gzip(cty.StringVal("test"))
 	require.NoError(t, err)
 
-	out, err := config.ParseConfigString(ctx, pctx, l, memConfigPath, hcl, nil)
+	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, expected.AsString(), out.Locals["encoded"])

@@ -484,12 +484,12 @@ inputs = {
 	require.NoError(t, vfs.WriteFile(v.FS, producerPath, []byte(producer), 0o600))
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
-	ctx, pctx := newTestParsingContext(t, v, consumerPath)
+	ctx, pctx := newTestParsingContext(t, consumerPath)
 	ctx = config.WithConfigValues(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.NoDependencyFetchOutputFromState = testCase.optOut
 
-	return config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), consumerPath, nil)
+	return config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, consumerPath, nil)
 }
 
 func eligibilityS3Config() map[string]string {

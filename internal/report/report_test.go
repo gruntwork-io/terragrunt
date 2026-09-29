@@ -1472,6 +1472,47 @@ func TestWriteUnitLevelSummary(t *testing.T) {
       this-is-a-very-long-name-3  x
 `,
 		},
+		{
+			name: "same unit name in English, French, and Japanese",
+			setup: func(l log.Logger, r *report.Report) {
+				synctest.Test(t, func(t *testing.T) {
+					t.Helper()
+
+					english := newRun(t, filepath.Join(tmp, "database"))
+					r.AddRun(l, english)
+
+					time.Sleep(1 * time.Second)
+
+					french := newRun(t, filepath.Join(tmp, "base-de-données"))
+					r.AddRun(l, french)
+
+					time.Sleep(1 * time.Second)
+
+					japanese := newRun(t, filepath.Join(tmp, "データベース"))
+					r.AddRun(l, japanese)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, japanese.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, french.Path)
+
+					time.Sleep(1 * time.Second)
+
+					r.EndRun(l, english.Path)
+				})
+			},
+			expected: `
+❯❯ Run Summary  3 units  x
+   ────────────────────────────
+   Succeeded (3)
+      database ......... x
+      base-de-données .. x
+      データベース ..... x
+`,
+		},
 	}
 
 	for _, tt := range tests {

@@ -251,14 +251,14 @@ func generateLevel(
 		}
 
 		wp.Submit(func() error {
-			_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+			pctx := configbridge.NewParsingContext(opts)
 
 			scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, node.FilePath)
 			if err != nil {
 				return err
 			}
 
-			return config.GenerateStackFile(ctx, scopedLogger, scopedPctx, wp, node.FilePath)
+			return config.GenerateStackFile(ctx, scopedLogger, v, scopedPctx, wp, node.FilePath)
 		})
 	}
 
@@ -486,7 +486,7 @@ func ListStackFiles(
 // of unit paths that should be excluded from the current tofu/terraform command.
 // Both results come from a single discovery walk. Stack-file paths and
 // excludedPaths keys are canonical symlink-resolved absolute paths; exclusion
-// follows discovery's IsActionListed + If logic using opts.TerraformCommand.
+// follows [config.ExcludeConfig.Excludes] for opts.TerraformCommand.
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,

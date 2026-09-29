@@ -165,9 +165,9 @@ func outputsFetchViaRun(
 		return getOutputsOutput{}, err
 	}
 
-	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, cv, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
-	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx)
+	cfg, err := config.ReadTerragruntConfig(ctx, l, cv, pctx)
 	if err != nil {
 		return getOutputsOutput{}, err
 	}
@@ -175,7 +175,7 @@ func outputsFetchViaRun(
 	runCfg := cfg.ToRunConfig(l, cv.FS)
 
 	if err := run.Run(
-		parseCtx,
+		ctx,
 		l,
 		cv,
 		configbridge.NewRunOptions(opts),
@@ -294,9 +294,9 @@ func outputsFetchViaStateRead(
 
 	ctx = freshCallContext(ctx)
 
-	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, cv, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
-	viable, reason := outputsStateReadViable(parseCtx, l, pctx, opts.TerragruntConfigPath)
+	viable, reason := outputsStateReadViable(ctx, l, cv, pctx, opts.TerragruntConfigPath)
 	if !viable {
 		out.Degraded = append(d.rec.notes(), fmt.Sprintf(
 			"outputs not fetched: %s; restart the MCP server with --allow=exec for real outputs, or use render_config on dependent units to see their mock_outputs",
@@ -308,7 +308,7 @@ func outputsFetchViaStateRead(
 
 	unit := &config.Unit{Name: filepath.Base(dir), Path: dir}
 
-	raw, err := unit.ReadOutputsJSON(parseCtx, l, pctx, dir)
+	raw, err := unit.ReadOutputsJSON(ctx, l, cv, pctx, dir)
 	if err != nil {
 		// A denied subprocess means the machinery gave up on the in-process
 		// path (e.g. a nested dependency needed a real fetch); degrade
@@ -343,6 +343,7 @@ func outputsFetchViaStateRead(
 func outputsStateReadViable(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *config.ParsingContext,
 	configPath string,
 ) (bool, string) {
@@ -350,7 +351,7 @@ func outputsStateReadViable(
 		WithDecodeList(config.RemoteStateBlock, config.TerragruntFlags, config.EngineBlock).
 		WithDiagnosticsSuppressed()
 
-	cfg, err := config.PartialParseConfigFile(ctx, probeCtx, l, configPath, nil)
+	cfg, err := config.PartialParseConfigFile(ctx, l, v, probeCtx, configPath, nil)
 	if err != nil {
 		// A remote_state block that references dependency outputs cannot be
 		// parsed standalone, which also rules out the direct state read.
@@ -369,7 +370,7 @@ func outputsStateReadViable(
 		return false, "the unit's remote_state block sets disable_dependency_optimization"
 	}
 
-	if !config.ShouldFetchDependencyOutputFromState(pctx, remoteState) {
+	if !config.ShouldFetchDependencyOutputFromState(v, pctx, remoteState) {
 		return false, fmt.Sprintf(
 			"no in-process read path for a %q remote_state block configured this way",
 			remoteState.BackendName,
