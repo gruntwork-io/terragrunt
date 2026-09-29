@@ -1511,13 +1511,7 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 		assert.ElementsMatch(t, []string{"consumer", "dep"}, strings.Fields(stdout), cmd)
 	}
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --no-color --working-dir "+tmpDir)
-	require.NoError(t, err, "hcl validate without the flag must keep passing\nstderr: %s", stderr)
-
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt hcl validate --check-dependencies --no-color --working-dir "+tmpDir,
-	)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --no-color --working-dir "+tmpDir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `dependency "dep"`)
 	assert.Contains(t, err.Error(), "does not exist")

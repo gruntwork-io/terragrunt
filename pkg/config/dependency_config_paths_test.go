@@ -35,6 +35,7 @@ func TestValidateDependencyConfigPaths(t *testing.T) {
 			wantMissing: filepath.Join(repo, "empty", config.DefaultTerragruntConfigPath),
 		},
 		{name: "disabled dependency on a deleted unit", configPath: "../deleted", enabled: &disabled},
+		{name: "stack-generated unit not generated yet", configPath: "../net/.terragrunt-stack/vpc"},
 	}
 
 	for _, tc := range tcs {

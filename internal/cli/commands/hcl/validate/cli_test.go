@@ -15,17 +15,16 @@ import (
 
 // TestNewFlagsMapsEachEnvVarToOneFlag pins every env var of the command's own
 // flags, current and deprecated, to the single flag it sets. Each case checks
-// all five destinations, so an env var wired to a second flag fails here.
+// all four destinations, so an env var wired to a second flag fails here.
 func TestNewFlagsMapsEachEnvVarToOneFlag(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		envVar                string
-		wantStrict            bool
-		wantInputs            bool
-		wantShowConfigPath    bool
-		wantJSONOutput        bool
-		wantCheckDependencies bool
+		envVar             string
+		wantStrict         bool
+		wantInputs         bool
+		wantShowConfigPath bool
+		wantJSONOutput     bool
 	}{
 		{
 			envVar:     "TG_STRICT",
@@ -71,10 +70,6 @@ func TestNewFlagsMapsEachEnvVarToOneFlag(t *testing.T) {
 			envVar:         "TERRAGRUNT_HCLVALIDATE_JSON",
 			wantJSONOutput: true,
 		},
-		{
-			envVar:                "TG_CHECK_DEPENDENCIES",
-			wantCheckDependencies: true,
-		},
 	}
 
 	for _, tc := range testCases {
@@ -90,7 +85,6 @@ func TestNewFlagsMapsEachEnvVarToOneFlag(t *testing.T) {
 			assert.Equal(t, tc.wantInputs, opts.HCLValidateInputs, validate.InputsFlagName)
 			assert.Equal(t, tc.wantShowConfigPath, opts.HCLValidateShowConfigPath, validate.ShowConfigPathFlagName)
 			assert.Equal(t, tc.wantJSONOutput, opts.HCLValidateJSONOutput, validate.JSONFlagName)
-			assert.Equal(t, tc.wantCheckDependencies, opts.HCLValidateCheckDependencies, validate.CheckDependenciesFlagName)
 		})
 	}
 }

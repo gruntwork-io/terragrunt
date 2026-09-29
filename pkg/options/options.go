@@ -257,8 +257,6 @@ type TerragruntOptions struct {
 	HCLValidateShowConfigPath bool
 	// HCLValidateJSONOutput outputs the hcl validate result as a JSON string.
 	HCLValidateJSONOutput bool
-	// HCLValidateCheckDependencies fails hcl validate on dependency blocks pointing at a missing Terragrunt config.
-	HCLValidateCheckDependencies bool
 	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
 	DisableLogFormatting bool
 	// Headless is set when Terragrunt is running in headless mode.

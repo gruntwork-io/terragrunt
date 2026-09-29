@@ -97,9 +97,8 @@ const (
 // ComponentParser parses discovered components one at a time, collecting what
 // each reports into Collector.
 type ComponentParser struct {
-	Collector         *DiagnosticsCollector
-	Options           ParserOptions
-	CheckDependencies bool
+	Collector *DiagnosticsCollector
+	Options   ParserOptions
 }
 
 // Unit parses the unit configuration in unitDir.
@@ -118,7 +117,7 @@ func (p ComponentParser) Unit(
 	pctx := configbridge.NewParsingContext(parseOpts)
 
 	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
-	if err != nil || !p.CheckDependencies {
+	if err != nil {
 		return err
 	}
 

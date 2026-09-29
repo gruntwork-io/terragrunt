@@ -2924,6 +2924,11 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 		rawPath := dep.ConfigPath.AsString()
 		targetConfigPath := getCleanedTargetConfigPath(fsys, rawPath, configPath)
 
+		// Stack-generated units only exist after `stack generate`, which hcl validate does not run.
+		if slices.Contains(strings.Split(filepath.ToSlash(targetConfigPath), "/"), inthclparse.StackDir) {
+			continue
+		}
+
 		if stackFilePath, ok := resolveStackFilePath(rawPath, targetConfigPath); ok && vfs.Exists(fsys, stackFilePath) {
 			continue
 		}

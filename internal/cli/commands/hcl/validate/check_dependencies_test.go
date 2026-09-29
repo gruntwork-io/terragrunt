@@ -13,16 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunValidateCheckDependencies(t *testing.T) {
+func TestRunValidateDependencyConfigPaths(t *testing.T) {
 	t.Parallel()
 
 	tcs := []struct {
-		name    string
-		check   bool
-		wantErr bool
+		name       string
+		configPath string
+		wantErr    bool
 	}{
-		{name: "without the flag"},
-		{name: "with the flag", check: true, wantErr: true},
+		{name: "existing dependency", configPath: "../db"},
+		{name: "deleted dependency", configPath: "../deleted", wantErr: true},
+		{name: "stack-generated dependency", configPath: "../net/.terragrunt-stack/vpc"},
 	}
 
 	for _, tc := range tcs {
@@ -31,13 +32,12 @@ func TestRunValidateCheckDependencies(t *testing.T) {
 
 			root := venvtest.Root("/repo")
 			v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{
-				"app/terragrunt.hcl": "dependency \"deleted\" {\n  config_path = \"../deleted\"\n}\n",
+				"app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"" + tc.configPath + "\"\n}\n",
+				"db/terragrunt.hcl":  "",
 			}))
 
 			opts, err := options.NewTerragruntOptionsForTest(filepath.Join(root, config.DefaultTerragruntConfigPath))
 			require.NoError(t, err)
-
-			opts.HCLValidateCheckDependencies = tc.check
 
 			err = validate.RunValidate(t.Context(), logger.CreateLogger(), v, opts)
 			if !tc.wantErr {
@@ -48,39 +48,6 @@ func TestRunValidateCheckDependencies(t *testing.T) {
 
 			_, ok := errors.AsType[config.DependencyConfigNotFound](err)
 			require.True(t, ok, "unexpected error %v", err)
-		})
-	}
-}
-
-func TestRunCheckDependenciesFlagCombinations(t *testing.T) {
-	t.Parallel()
-
-	tcs := []struct {
-		name    string
-		wantErr string
-		json    bool
-		show    bool
-	}{
-		{name: "json output", json: true, wantErr: "specifying both -json and -check-dependencies is invalid"},
-		{
-			name:    "show config path",
-			show:    true,
-			wantErr: "specifying both -show-config-path and -check-dependencies is invalid",
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			opts, err := options.NewTerragruntOptionsForTest(filepath.Join(venvtest.Root("/repo"), "terragrunt.hcl"))
-			require.NoError(t, err)
-
-			opts.HCLValidateCheckDependencies = true
-			opts.HCLValidateJSONOutput = tc.json
-			opts.HCLValidateShowConfigPath = tc.show
-
-			require.EqualError(t, validate.Run(t.Context(), logger.CreateLogger(), venvtest.New(), opts), tc.wantErr)
 		})
 	}
 }

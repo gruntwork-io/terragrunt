@@ -36,24 +36,6 @@ import (
 const splitCount = 2
 
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
-	if opts.HCLValidateCheckDependencies {
-		if opts.HCLValidateShowConfigPath {
-			return fmt.Errorf(
-				"specifying both -%s and -%s is invalid",
-				ShowConfigPathFlagName,
-				CheckDependenciesFlagName,
-			)
-		}
-
-		if opts.HCLValidateJSONOutput {
-			return fmt.Errorf(
-				"specifying both -%s and -%s is invalid",
-				JSONFlagName,
-				CheckDependenciesFlagName,
-			)
-		}
-	}
-
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf(
@@ -88,11 +70,7 @@ func RunValidate(
 	opts *options.TerragruntOptions,
 ) error {
 	collector := &DiagnosticsCollector{}
-	parser := ComponentParser{
-		Collector:         collector,
-		Options:           CollectorOnly,
-		CheckDependencies: opts.HCLValidateCheckDependencies,
-	}
+	parser := ComponentParser{Collector: collector, Options: CollectorOnly}
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
@@ -308,16 +286,6 @@ func RunValidateInputs(
 		if err != nil {
 			errs = append(errs, err)
 			continue
-		}
-
-		if opts.HCLValidateCheckDependencies {
-			if depErr := config.ValidateDependencyConfigPaths(
-				unitV.FS,
-				prepared.Cfg,
-				unitOpts.TerragruntConfigPath,
-			); depErr != nil {
-				errs = append(errs, depErr)
-			}
 		}
 
 		// Download source

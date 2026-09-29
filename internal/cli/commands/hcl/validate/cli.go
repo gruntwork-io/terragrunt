@@ -14,11 +14,10 @@ import (
 const (
 	CommandName = "validate"
 
-	StrictFlagName            = "strict"
-	InputsFlagName            = "inputs"
-	ShowConfigPathFlagName    = "show-config-path"
-	JSONFlagName              = "json"
-	CheckDependenciesFlagName = "check-dependencies"
+	StrictFlagName         = "strict"
+	InputsFlagName         = "inputs"
+	ShowConfigPathFlagName = "show-config-path"
+	JSONFlagName           = "json"
 )
 
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
@@ -84,15 +83,6 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 				terragruntPrefix.EnvVars("hclvalidate-json"),
 				opts.StrictControls,
 			), // `TERRAGRUNT_HCLVALIDATE_JSON`
-		),
-
-		flags.NewFlag(
-			&clihelper.BoolFlag{
-				Name:        CheckDependenciesFlagName,
-				EnvVars:     tgPrefix.EnvVars(CheckDependenciesFlagName),
-				Destination: &opts.HCLValidateCheckDependencies,
-				Usage:       "Checks that every dependency block points at a Terragrunt configuration.",
-			},
 		),
 
 		shared.NewTFPathFlag(opts),
