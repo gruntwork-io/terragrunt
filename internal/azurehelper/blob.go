@@ -406,11 +406,14 @@ func assertCopyBlobArgs(srcKey string, dst *ContainerClient, dstKey string) {
 // CredentialMissingError and UnsupportedAuthMethodError respectively)
 // rather than returning an error, since Build resolves both fields.
 func newAzblobClient(cfg *AzureConfig, suffix string) (*azblob.Client, error) {
-	const errCreatingBlobClient = "creating blob client: %w"
-
 	host := fmt.Sprintf("%s.blob.%s", cfg.AccountName, suffix)
 	serviceURL := (&url.URL{Scheme: "https", Host: host}).String()
 	clientOpts := &azblob.ClientOptions{ClientOptions: cfg.ClientOptions}
+
+	var (
+		client *azblob.Client
+		err    error
+	)
 
 	switch cfg.Method {
 	case AuthMethodSasToken:
@@ -420,38 +423,29 @@ func newAzblobClient(cfg *AzureConfig, suffix string) (*azblob.Client, error) {
 			RawQuery: strings.TrimPrefix(cfg.SasToken, "?"),
 		}).String()
 
-		client, err := azblob.NewClientWithNoCredential(sasURL, clientOpts)
-		if err != nil {
-			return nil, fmt.Errorf(errCreatingBlobClient, err)
-		}
-
-		return client, nil
+		client, err = azblob.NewClientWithNoCredential(sasURL, clientOpts)
 	case AuthMethodAccessKey:
-		cred, err := azblob.NewSharedKeyCredential(cfg.AccountName, cfg.AccessKey)
-		if err != nil {
-			return nil, fmt.Errorf("creating shared key credential: %w", err)
-		}
+		var cred *azblob.SharedKeyCredential
 
-		client, err := azblob.NewClientWithSharedKeyCredential(serviceURL, cred, clientOpts)
-		if err != nil {
-			return nil, fmt.Errorf(errCreatingBlobClient, err)
+		cred, err = azblob.NewSharedKeyCredential(cfg.AccountName, cfg.AccessKey)
+		if err == nil {
+			client, err = azblob.NewClientWithSharedKeyCredential(serviceURL, cred, clientOpts)
 		}
-
-		return client, nil
 	case AuthMethodServicePrincipal, AuthMethodOIDC, AuthMethodMSI, AuthMethodAzureAD:
 		if cfg.Credential == nil {
 			panic(&CredentialMissingError{Method: cfg.Method})
 		}
 
-		client, err := azblob.NewClient(serviceURL, cfg.Credential, clientOpts)
-		if err != nil {
-			return nil, fmt.Errorf(errCreatingBlobClient, err)
-		}
-
-		return client, nil
+		client, err = azblob.NewClient(serviceURL, cfg.Credential, clientOpts)
 	default:
 		panic(&UnsupportedAuthMethodError{Method: cfg.Method})
 	}
+
+	if err != nil {
+		return nil, fmt.Errorf("creating blob client for %s auth: %w", cfg.Method, err)
+	}
+
+	return client, nil
 }
 
 // endpointSuffixForCloud returns the blob endpoint host suffix for the cloud

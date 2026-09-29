@@ -1,6 +1,8 @@
 package azurehelper_test
 
 import (
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"slices"
@@ -8,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -236,9 +239,240 @@ func TestBlobClient_EnsureContainer_CreatesWhenMissing(t *testing.T) {
 	assert.Less(t, probeIdx, createIdx, "probe must precede the create")
 }
 
+// TestContainerClient_WrapsServiceFailures verifies every operation surfaces an
+// unexpected service answer as a wrapped error that still carries the Azure
+// error code, so callers can match it with errors.As.
+func TestContainerClient_WrapsServiceFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		call func(ctx context.Context, cc *azurehelper.ContainerClient) error
+		name string
+		want string
+	}{
+		{
+			name: "exists",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error {
+				_, err := cc.Exists(ctx)
+				return err
+			},
+			want: "checking container existence",
+		},
+		{
+			name: "create",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error { return cc.Create(ctx) },
+			want: "creating container denied",
+		},
+		{
+			name: "ensure propagates the existence check",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error { return cc.Ensure(ctx) },
+			want: "checking container existence",
+		},
+		{
+			name: "ensure deleted",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error { return cc.EnsureDeleted(ctx) },
+			want: "deleting container denied",
+		},
+		{
+			name: "put blob",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error {
+				return cc.PutBlob(ctx, "a.tfstate", []byte("state"))
+			},
+			want: "uploading blob denied/a.tfstate",
+		},
+		{
+			name: "put blob from reader",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error {
+				return cc.PutBlobFromReader(ctx, "a.tfstate", strings.NewReader("state"))
+			},
+			want: "uploading blob denied/a.tfstate",
+		},
+		{
+			name: "ensure blob deleted",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error {
+				return cc.EnsureBlobDeleted(ctx, "a.tfstate")
+			},
+			want: "deleting blob denied/a.tfstate",
+		},
+		{
+			name: "blob exists",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error {
+				_, err := cc.BlobExists(ctx, "a.tfstate")
+				return err
+			},
+			want: "checking blob denied/a.tfstate",
+		},
+		{
+			name: "move propagates the source existence check",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error {
+				return cc.MoveBlobIfNecessary(ctx, log.New(), "a.tfstate", cc, "b.tfstate")
+			},
+			want: "checking blob denied/a.tfstate",
+		},
+		{
+			name: "list blobs",
+			call: func(ctx context.Context, cc *azurehelper.ContainerClient) error {
+				_, err := cc.ListBlobs(ctx, log.New())
+				return err
+			},
+			want: "listing blobs in denied",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// 403 is terminal for the SDK retry policy, so each call fails fast.
+			rt := &routeTransport{routes: []stubRoute{
+				{status: http.StatusForbidden, code: "AuthorizationFailure"},
+			}}
+			c := newRoutedBlobClient(t, rt)
+
+			err := tc.call(t.Context(), c.Container("denied"))
+			require.ErrorContains(t, err, tc.want)
+
+			var respErr *azcore.ResponseError
+			require.ErrorAs(t, err, &respErr)
+			assert.Equal(t, "AuthorizationFailure", respErr.ErrorCode)
+		})
+	}
+}
+
+func TestContainerClient_EnsureDeleted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		code   string
+		status int
+	}{
+		{name: "deleted", status: http.StatusAccepted},
+		{name: "already gone", status: http.StatusNotFound, code: "ContainerNotFound"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rt := &routeTransport{routes: []stubRoute{
+				{method: http.MethodDelete, pathSub: "/oldc", status: tc.status, code: tc.code},
+			}}
+			c := newRoutedBlobClient(t, rt)
+
+			require.NoError(t, c.Container("oldc").EnsureDeleted(t.Context()))
+			assert.True(t, rt.sawMethodOnPath(http.MethodDelete, "/oldc"))
+		})
+	}
+}
+
+func TestContainerClient_EnsureSkipsCreateWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	rt := &routeTransport{routes: []stubRoute{
+		{method: http.MethodGet, pathSub: "/somec", status: http.StatusOK},
+	}}
+	c := newRoutedBlobClient(t, rt)
+
+	require.NoError(t, c.Container("somec").Ensure(t.Context()))
+	assert.False(t, rt.sawMethodOnPath(http.MethodPut, ""), "an existing container must not be re-created")
+}
+
+func TestContainerClient_PutBlob(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		put  func(ctx context.Context, cc *azurehelper.ContainerClient) error
+		name string
+	}{
+		{
+			name: "from buffer",
+			put: func(ctx context.Context, cc *azurehelper.ContainerClient) error {
+				return cc.PutBlob(ctx, "a.tfstate", []byte("state-bytes"))
+			},
+		},
+		{
+			name: "from reader",
+			put: func(ctx context.Context, cc *azurehelper.ContainerClient) error {
+				return cc.PutBlobFromReader(ctx, "a.tfstate", strings.NewReader("state-bytes"))
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rt := &routeTransport{routes: []stubRoute{
+				{method: http.MethodPut, pathSub: "/statec/a.tfstate", status: http.StatusCreated},
+			}}
+			c := newRoutedBlobClient(t, rt)
+
+			require.NoError(t, tc.put(t.Context(), c.Container("statec")))
+			assert.True(t, rt.sawBodyOnPath(http.MethodPut, "/statec/a.tfstate", "state-bytes"), "upload must carry the payload")
+		})
+	}
+}
+
+// TestBlobClient_CopyBlob_ToleratesSourceCloseFailure pins that closing the
+// already-drained source is best effort: the copy has been written by then.
+func TestBlobClient_CopyBlob_ToleratesSourceCloseFailure(t *testing.T) {
+	t.Parallel()
+
+	rt := &routeTransport{routes: []stubRoute{
+		{method: http.MethodGet, pathSub: "/srcc/src.tfstate", status: http.StatusOK, body: "state-bytes"},
+		{method: http.MethodPut, pathSub: "/dstc/dst.tfstate", status: http.StatusCreated},
+	}}
+
+	c, err := azurehelper.NewBlobClient(cfgWithTransport(closeErrOnGetTransport{routeTransport: rt}))
+	require.NoError(t, err)
+
+	require.NoError(t, c.Container("srcc").CopyBlob(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
+	assert.True(t, rt.sawBodyOnPath(http.MethodPut, "/dstc/dst.tfstate", "state-bytes"))
+}
+
+// TestBlobClient_ListBlobs_SkipsMalformedEntries verifies a page without a
+// segment and an item without a name are skipped instead of failing the list.
+func TestBlobClient_ListBlobs_SkipsMalformedEntries(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		page string
+		want []string
+	}{
+		{
+			name: "page without segment",
+			page: `<?xml version="1.0" encoding="utf-8"?><EnumerationResults><NextMarker /></EnumerationResults>`,
+		},
+		{
+			name: "item without name",
+			page: `<?xml version="1.0" encoding="utf-8"?>` +
+				`<EnumerationResults><Blobs><Blob></Blob><Blob><Name>a.tfstate</Name></Blob></Blobs><NextMarker /></EnumerationResults>`,
+			want: []string{"a.tfstate"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rt := &routeTransport{routes: []stubRoute{
+				{method: http.MethodGet, pathSub: "/listc", status: http.StatusOK, body: tc.page},
+			}}
+			c := newRoutedBlobClient(t, rt)
+
+			names, err := c.Container("listc").ListBlobs(t.Context(), log.New())
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, names)
+		})
+	}
+}
+
 // stubRoute describes one stubbed response, matched by method and URL path
-// substring; empty fields match anything.
+// substring; empty fields match anything. headers are added to the response.
 type stubRoute struct {
+	headers map[string]string
 	method  string
 	pathSub string
 	code    string
@@ -286,11 +520,11 @@ func (rt *routeTransport) Do(req *http.Request) (*http.Response, error) {
 			continue
 		}
 
-		return stubResponse(req, r), nil
+		return stubResponse(req, &r), nil
 	}
 
 	// 400 is terminal for the SDK retry policy, so unmatched requests fail fast.
-	return stubResponse(req, stubRoute{status: http.StatusBadRequest, code: "UnmatchedTestRequest"}), nil
+	return stubResponse(req, &stubRoute{status: http.StatusBadRequest, code: "UnmatchedTestRequest"}), nil
 }
 
 // requests returns a snapshot of the recorded requests.
@@ -337,10 +571,14 @@ func readRequestBody(req *http.Request) string {
 	return string(b)
 }
 
-func stubResponse(req *http.Request, r stubRoute) *http.Response {
+func stubResponse(req *http.Request, r *stubRoute) *http.Response {
 	header := http.Header{"Content-Type": []string{"application/json"}}
 	if r.code != "" {
 		header.Set("x-ms-error-code", r.code)
+	}
+
+	for k, v := range r.headers {
+		header.Set(k, v)
 	}
 
 	return &http.Response{
@@ -359,6 +597,30 @@ func newRoutedBlobClient(t *testing.T, rt *routeTransport) *azurehelper.BlobClie
 	require.NoError(t, err, "NewBlobClient")
 
 	return c
+}
+
+// closeErrOnGetTransport answers through routeTransport but makes every GET
+// response body fail to close, standing in for a dropped download stream.
+type closeErrOnGetTransport struct {
+	*routeTransport
+}
+
+func (t closeErrOnGetTransport) Do(req *http.Request) (*http.Response, error) {
+	resp, err := t.routeTransport.Do(req)
+	if err == nil && req.Method == http.MethodGet {
+		resp.Body = closeErrBody{ReadCloser: resp.Body}
+	}
+
+	return resp, err
+}
+
+// closeErrBody reads normally but reports an error from Close.
+type closeErrBody struct {
+	io.ReadCloser
+}
+
+func (closeErrBody) Close() error {
+	return errors.New("connection reset while closing")
 }
 
 // TestBlobClient_ListBlobs_BoundsPages verifies the pager walk is bounded. The
