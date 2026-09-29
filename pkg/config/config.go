@@ -107,6 +107,18 @@ type DecodedBaseBlocks struct {
 	FeatureFlags *cty.Value
 }
 
+// IncludeParse selects how [DecodeBaseBlocks] parses the included configs it reads feature defaults from.
+type IncludeParse int
+
+const (
+	// IncludeParseFeatureFlags decodes only the feature blocks of each included config.
+	IncludeParseFeatureFlags IncludeParse = iota
+	// IncludeParseForMerge decodes the sections the parsing context's decode list names, when that list has the
+	// feature blocks, and keeps the parsed configs so a partial parse merges them without parsing them again. With
+	// any other decode list it behaves as IncludeParseFeatureFlags.
+	IncludeParseForMerge
+)
+
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
@@ -147,6 +159,8 @@ func (cfg *TerragruntConfig) GetRemoteState(
 
 		return nil, nil
 	}
+
+	markNotShareable(ctx)
 
 	sourceURL, err := GetTerraformSourceURL(
 		pctx.Source,
@@ -1660,7 +1674,7 @@ func ParseConfig(
 	pctx = pctx.WithValues(unitValues)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, pctx, file, includeFromChild)
+	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, pctx, file, includeFromChild, IncludeParseFeatureFlags)
 	if err != nil {
 		// Surface the error here so it reaches stderr; the multi-error returned at
 		// the function end is not always rendered to the user by the CLI's final
