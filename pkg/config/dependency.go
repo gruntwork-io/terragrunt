@@ -2759,7 +2759,7 @@ func foldSiblingAutoIncludeDeps(
 	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
 	autoPctx.skipAutoIncludeMerge = true
 
-	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, autoPctx, autoFile, nil)
+	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, autoPctx, autoFile, nil, IncludeParseFeatureFlags)
 	if err != nil {
 		return nil, err
 	}
