@@ -85,13 +85,13 @@ type terraformConfigSourceOnly struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// terraformSourceReferencesDependency reports whether the terraform block's `source` attribute references the
+// TerraformSourceReferencesDependency reports whether the terraform block's `source` attribute references the
 // `dependency` namespace anywhere. The module source is consumed during discovery, `--filter 'source='` matching,
 // and queue construction, so a source that names a dependency
 // can never be satisfied there and is rejected outright.
 //
 // Returns false for JSON configs, whose body is not hclsyntax.
-func terraformSourceReferencesDependency(file *hclparse.File) bool {
+func TerraformSourceReferencesDependency(file *hclparse.File) bool {
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
 		return false
@@ -162,7 +162,7 @@ type TerragruntDependency struct {
 }
 
 // terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config.
-// It decodes remote_state written as either a block or an attribute, as [terragruntConfigFile] does.
+// It decodes remote_state written as either a block or an attribute, as [TerragruntConfigFile] does.
 type terragruntRemoteState struct {
 	RemoteState     *remotestate.ConfigFile `hcl:"remote_state,block"`
 	RemoteStateAttr *cty.Value              `hcl:"remote_state,optional"`
@@ -191,7 +191,7 @@ func DecodeBaseBlocks(
 ) (*DecodedBaseBlocks, error) {
 	var errs []error
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -650,7 +650,7 @@ func PartialParseConfig(
 	}
 
 	// Set parsed Locals on the parsed config
-	output, err := convertToTerragruntConfig(v, pctx, file.ConfigPath, &terragruntConfigFile{})
+	output, err := ConvertToTerragruntConfig(v, pctx, file.ConfigPath, &TerragruntConfigFile{})
 	if err != nil {
 		return nil, err
 	}
@@ -664,7 +664,7 @@ func PartialParseConfig(
 		pctx.DecodedDependencies = &dynamicVal
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -701,7 +701,7 @@ func PartialParseConfig(
 			output.Terraform = decoded.Terraform
 
 		case TerraformSource:
-			if terraformSourceReferencesDependency(file) {
+			if TerraformSourceReferencesDependency(file) {
 				return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 			}
 
@@ -1052,7 +1052,7 @@ func mergeAutoIncludePartialIfPresent(
 	// Reset DecodedDependencies so the autoinclude file gets its own dependency resolution pass; reuse the same decode list.
 	clonedPctx := pctx.Clone()
 	clonedPctx.DecodedDependencies = nil
-	clonedPctx.skipAutoIncludeMerge = true
+	clonedPctx.SkipAutoIncludeMerge = true
 	clonedPctx = clonedPctx.WithDecodeList(pctx.PartialParseDecodeList...)
 
 	autoIncludeConfig, err := PartialParseConfigFile(ctx, l, v, clonedPctx, autoIncludePath, nil)

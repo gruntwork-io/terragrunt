@@ -185,7 +185,7 @@ func convertToTerragruntCatalogConfig(
 	v *venv.Venv,
 	pctx *ParsingContext,
 	cfgPath string,
-	cfgFromFile *terragruntConfigFile,
+	cfgFromFile *TerragruntConfigFile,
 ) (cfg *TerragruntConfig, err error) {
 	cfg = &TerragruntConfig{}
 	defaultMetadata := map[string]any{FoundInFile: cfgPath}
