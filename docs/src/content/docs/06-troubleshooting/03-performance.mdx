@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 import { Aside, Card } from '@astrojs/starlight/components';
 
 ## Easy Wins
@@ -161,7 +162,17 @@ locals {
 
 ### Static Configuration as JSON or YAML
 
+<Before version="v1.2.1">
+
 The [`read_terragrunt_config`](/reference/hcl/functions/#read_terragrunt_config) HCL function evaluates the target file as HCL each time it's called, including any function calls the file makes. When that file is included by many units, the whole evaluation repeats for each one.
+
+</Before>
+
+<Since version="v1.2.1">
+
+The [`read_terragrunt_config`](/reference/hcl/functions/#read_terragrunt_config) HCL function evaluates the target file as HCL, including any function calls the file makes. Terragrunt does this once per command, no matter how many units read the file. A file whose result depends on the unit reading it, like one that calls `get_original_terragrunt_dir()`, is still evaluated for every unit.
+
+</Since>
 
 That cost buys you dynamic behavior, and shared configuration often doesn't need any: region names, tag maps, account IDs, and similar values are just static data. Storing static data as JSON or YAML and decoding it is cheaper than evaluating it as HCL:
 

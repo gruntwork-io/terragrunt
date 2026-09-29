@@ -123,6 +123,9 @@ func parseIncludedConfig(
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
+//
+// A partial merge uses an include's config from pctx.TrackInclude when [DecodeBaseBlocks] already parsed it, instead of
+// parsing that include again.
 func handleInclude(
 	ctx context.Context,
 	l log.Logger,
@@ -156,8 +159,14 @@ func handleInclude(
 		pctx.FilesRead.Add(includeConfig.Path)
 
 		if isPartial {
-			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 			logPrefix = "[Partial] "
+
+			var parsed bool
+
+			parsedIncludeConfig, parsed = pctx.TrackInclude.parsedForMerge[includeConfig.Name]
+			if !parsed {
+				parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, pctx, &includeConfig)
+			}
 		} else {
 			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 		}

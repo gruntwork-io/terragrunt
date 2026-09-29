@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -1572,6 +1573,87 @@ exclude {
 			require.NoError(t, err)
 			require.NotNil(t, terragruntConfig.Exclude)
 			assert.Equal(t, tc.expected, terragruntConfig.Exclude.If)
+		})
+	}
+}
+
+func TestPartialParseEvaluatesEachIncludeOnce(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		decodeList []config.PartialDecodeSectionType
+		wantOpens  int
+	}{
+		{
+			name:       "decode list with feature blocks",
+			decodeList: []config.PartialDecodeSectionType{config.FeatureFlagsBlock, config.DependencyBlock, config.ExcludeBlock},
+			wantOpens:  1,
+		},
+		{
+			name:       "decode list without feature blocks",
+			decodeList: []config.PartialDecodeSectionType{config.DependencyBlock},
+			wantOpens:  2,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, rootDir := newMemTestDir(t)
+
+			files := map[string]string{
+				"accounts.yml": "dev: \"111111111111\"\n",
+				"root.hcl": `
+locals {
+  accounts = yamldecode(file("accounts.yml"))
+}
+
+feature "skip" {
+  default = true
+}
+
+dependency "vpc" {
+  config_path = "${get_terragrunt_dir()}/../vpc"
+}
+`,
+				filepath.Join("unit", "terragrunt.hcl"): `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+exclude {
+  if      = feature.skip.value
+  actions = ["all"]
+}
+`,
+			}
+
+			for name, contents := range files {
+				path := filepath.Join(rootDir, name)
+				require.NoError(t, v.FS.MkdirAll(filepath.Dir(path), 0o755))
+				require.NoError(t, vfs.WriteFile(v.FS, path, []byte(contents), 0o644))
+			}
+
+			fsys := &countingFS{FS: v.FS, opens: map[string]int{}}
+			v = v.WithFS(fsys)
+
+			unitPath := filepath.Join(rootDir, "unit", config.DefaultTerragruntConfigPath)
+			ctx, pctx := newTestParsingContext(t, unitPath)
+			pctx = pctx.WithDecodeList(tc.decodeList...).WithSkipOutputsResolution()
+
+			cfg, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, unitPath, nil)
+			require.NoError(t, err)
+
+			require.Len(t, cfg.TerragruntDependencies, 1)
+			assert.Equal(t, "vpc", cfg.TerragruntDependencies[0].Name)
+			assert.Equal(t, tc.wantOpens, fsys.opensOf(filepath.Join(rootDir, "accounts.yml")))
+
+			if slices.Contains(tc.decodeList, config.ExcludeBlock) {
+				require.NotNil(t, cfg.Exclude)
+				assert.True(t, cfg.Exclude.If)
+			}
 		})
 	}
 }
