@@ -140,6 +140,16 @@ linters:
           deny:
             - pkg: github.com/gobwas/glob
               desc: use github.com/gruntwork-io/terragrunt/internal/glob instead
+        no-config-rewrite-in-pkg-config:
+          # The config parsing rewrite in internal/config/rewrite imports
+          # pkg/config, never the reverse, so the rewrite can be deleted or
+          # merged without touching pkg/config or its subpackages.
+          list-mode: lax
+          files:
+            - "**/pkg/config/**"
+          deny:
+            - pkg: github.com/gruntwork-io/terragrunt/internal/config/rewrite
+              desc: pkg/config must not import the config parsing rewrite
     dupl:
       threshold: 120
     # Terragrunt routes every side effect through the virtualized environment
