@@ -37,12 +37,12 @@ import (
 
 	"errors"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-	"github.com/mitchellh/mapstructure"
 )
 
 const (
