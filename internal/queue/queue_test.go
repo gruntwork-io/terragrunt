@@ -889,6 +889,25 @@ func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
 	assert.Equal(t, "A", entries[2].Component.Path())
 }
 
+func TestDestroyCommandQueueOrderMatchesDependenciesByPath(t *testing.T) {
+	t.Parallel()
+
+	// B depends on a separate component instance at A's path, not on the discovered A.
+	cfgA := component.NewUnit("A")
+	cfgB := component.NewUnit("B")
+	cfgB.AddDependency(component.NewUnit("A"))
+
+	cfgA.SetDiscoveryContext(&component.DiscoveryContext{Cmd: "destroy"})
+	cfgB.SetDiscoveryContext(&component.DiscoveryContext{Cmd: "destroy"})
+
+	q, err := queue.NewQueue(component.Components{cfgA, cfgB})
+	require.NoError(t, err)
+
+	require.Len(t, q.Entries, 2)
+	assert.Equal(t, "B", q.Entries[0].Component.Path())
+	assert.Equal(t, "A", q.Entries[1].Component.Path())
+}
+
 func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
 	t.Parallel()
 

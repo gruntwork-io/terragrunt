@@ -3,29 +3,26 @@ package config
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"maps"
-
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/topo"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// MaxIter is the maximum number of depth we support in recursively evaluating locals.
-const MaxIter = 1000
-
 // EvaluateLocalsBlock is a routine to evaluate the locals block in a way to allow references to other locals. This
 // will:
 //   - Extract a reference to the locals block from the parsed file
-//   - Continuously evaluate the block until all references are evaluated, deferring evaluation of anything that references
-//     other locals until those references are evaluated.
+//   - Evaluate each local once, after every local it references has been evaluated
 //
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
@@ -55,50 +52,31 @@ func EvaluateLocalsBlock(
 		return nil, err
 	}
 
-	// Continuously attempt to evaluate the locals until there are no more locals to evaluate, or we can't evaluate
-	// further.
-	evaluatedLocals := map[string]cty.Value{}
-	evaluated := true
-
-	for iterations := 0; len(attrs) > 0 && evaluated; iterations++ {
-		if iterations > MaxIter {
-			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
-			// short an return an error.
-			return nil, MaxIterError{}
-		}
-
-		var err error
-
-		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
-			ctx,
-			l,
-			v,
-			pctx,
-			file,
-			attrs,
-			evaluatedLocals,
+	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, pctx, file, attrs)
+	if err != nil {
+		l.Debugf(
+			"Encountered error while evaluating locals in file %s",
+			util.RelPathForLog(
+				pctx.RootWorkingDir,
+				pctx.TerragruntConfigPath,
+				pctx.LogShowAbsPaths,
+			),
 		)
-		if err != nil {
-			l.Debugf(
-				"Encountered error while evaluating locals in file %s",
-				util.RelPathForLog(
-					pctx.RootWorkingDir,
-					pctx.TerragruntConfigPath,
-					pctx.LogShowAbsPaths,
-				),
-			)
 
-			return evaluatedLocals, err
-		}
+		return evaluatedLocals, err
 	}
 
-	if len(attrs) > 0 {
+	if len(evaluatedLocals) < len(attrs) {
 		// This is an error because we couldn't evaluate all locals
 		l.Debugf("Not all locals could be evaluated:")
 
 		var errs []error
 
 		for _, attr := range attrs {
+			if _, ok := evaluatedLocals[attr.Name]; ok {
+				continue
+			}
+
 			diags := canEvaluateLocals(attr.Expr, evaluatedLocals)
 			if err := file.HandleDiagnostics(diags); err != nil {
 				errs = append(errs, err)
@@ -113,32 +91,31 @@ func EvaluateLocalsBlock(
 	return evaluatedLocals, nil
 }
 
-// attemptEvaluateLocals attempts to evaluate the locals block given the map of already evaluated locals, replacing
-// references to locals with the previously evaluated values. This will return:
-// - the list of remaining locals that were unevaluated in this attempt
-// - the updated map of evaluated locals after this attempt
-// - whether or not any locals were evaluated in this attempt
-// - any errors from the evaluation
-func attemptEvaluateLocals(
+// evaluateLocalsInOrder evaluates attrs in layers of a topological sort over their references to one another. A layer
+// holds every attribute whose referenced locals were all evaluated in earlier layers, and each layer evaluates against
+// the locals of the layers before it.
+//
+// An attribute that can never be evaluated is left out of the result, along with every attribute that references it.
+// That covers cycles, references to locals the block does not define, and references to variables other than
+// `local`, `include`, `feature` and `values`.
+//
+// Returns the locals evaluated so far and the joined errors of the first layer in which an attribute fails to
+// evaluate.
+func evaluateLocalsInOrder(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	attrs hclparse.Attributes,
-	evaluatedLocals map[string]cty.Value,
-) (unevaluatedAttrs hclparse.Attributes, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
-	localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
-	if err != nil {
-		l.Errorf(
-			"Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s",
-			file.ConfigPath,
-		)
+) (map[string]cty.Value, error) {
+	graph, byName := localsGraph(attrs)
+	ready := graph.Roots()
+	evaluatedLocals := make(map[string]cty.Value, len(attrs))
 
-		return nil, evaluatedLocals, false, err
+	if len(ready) == 0 {
+		return evaluatedLocals, nil
 	}
-
-	pctx.Locals = &localsAsCtyVal
 
 	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
@@ -147,98 +124,134 @@ func attemptEvaluateLocals(
 			file.ConfigPath,
 		)
 
-		return nil, evaluatedLocals, false, err
+		return evaluatedLocals, err
 	}
 
-	// Track the locals that were evaluated for logging purposes
-	newlyEvaluatedLocalNames := []string{}
+	for len(ready) > 0 {
+		localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
+		if err != nil {
+			l.Errorf(
+				"Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s",
+				file.ConfigPath,
+			)
 
-	unevaluatedAttrs = hclparse.Attributes{}
-	evaluated = false
+			return evaluatedLocals, err
+		}
 
-	newEvaluatedLocals = make(map[string]cty.Value, len(evaluatedLocals))
-	maps.Copy(newEvaluatedLocals, evaluatedLocals)
+		pctx.Locals = &localsAsCtyVal
+		evalCtx.Variables[MetadataLocal] = localsAsCtyVal
 
-	var errs []error
+		var (
+			next                     []string
+			newlyEvaluatedLocalNames []string
+			errs                     []error
+		)
 
-	for _, attr := range attrs {
-		if diags := canEvaluateLocals(attr.Expr, evaluatedLocals); !diags.HasErrors() {
-			evaluatedVal, err := attr.Value(evalCtx)
+		for _, name := range ready {
+			evaluatedVal, err := byName[name].Value(evalCtx)
 			if err != nil {
 				errs = append(errs, err)
 				continue
 			}
 
-			newEvaluatedLocals[attr.Name] = evaluatedVal
-
-			newlyEvaluatedLocalNames = append(newlyEvaluatedLocalNames, attr.Name)
-			evaluated = true
-		} else {
-			unevaluatedAttrs = append(unevaluatedAttrs, attr)
+			evaluatedLocals[name] = evaluatedVal
+			newlyEvaluatedLocalNames = append(newlyEvaluatedLocalNames, name)
+			next = append(next, graph.Done(name)...)
 		}
+
+		l.Debugf(
+			"Evaluated %d locals (remaining %d): %s",
+			len(newlyEvaluatedLocalNames),
+			len(attrs)-len(evaluatedLocals),
+			strings.Join(newlyEvaluatedLocalNames, ", "),
+		)
+
+		if err := errors.Join(errs...); err != nil {
+			return evaluatedLocals, err
+		}
+
+		ready = next
 	}
 
-	l.Debugf(
-		"Evaluated %d locals (remaining %d): %s",
-		len(newlyEvaluatedLocalNames),
-		len(unevaluatedAttrs),
-		strings.Join(newlyEvaluatedLocalNames, ", "),
-	)
+	return evaluatedLocals, nil
+}
 
-	return unevaluatedAttrs, newEvaluatedLocals, evaluated, errors.Join(errs...)
+// localsGraph returns a graph over the names of attrs, in which each local waits on the locals it references, along
+// with attrs indexed by name. A local that can never be evaluated is left out of the graph, so neither it nor any
+// local waiting on it becomes ready.
+func localsGraph(attrs hclparse.Attributes) (*topo.Graph[string], map[string]*hclparse.Attribute) {
+	byName := make(map[string]*hclparse.Attribute, len(attrs))
+	for _, attr := range attrs {
+		byName[attr.Name] = attr
+	}
+
+	graph := topo.New[string](len(attrs))
+
+	for _, attr := range attrs {
+		deps, ok := localDependencies(attr.Expr, byName)
+		if !ok {
+			continue
+		}
+
+		graph.Add(attr.Name, slices.Sorted(maps.Keys(deps))...)
+	}
+
+	return graph, byName
+}
+
+// localDependencies returns the set of locals in attrs that expression references.
+//
+// Returns false when expression can never be evaluated inside the locals block, because it references a local absent
+// from attrs or a variable that locals cannot see.
+func localDependencies(
+	expression hcl.Expression,
+	attrs map[string]*hclparse.Attribute,
+) (map[string]struct{}, bool) {
+	var deps map[string]struct{}
+
+	for _, localVar := range expression.Variables() {
+		localName, detail := localReference(localVar)
+		if detail != "" {
+			return nil, false
+		}
+
+		if localName == "" {
+			continue
+		}
+
+		if _, ok := attrs[localName]; !ok {
+			return nil, false
+		}
+
+		if deps == nil {
+			deps = map[string]struct{}{}
+		}
+
+		deps[localName] = struct{}{}
+	}
+
+	return deps, true
 }
 
 // canEvaluateLocals determines if the local expression can be evaluated. An expression can be evaluated if one of the
 // following is true:
 // - It has no references to other locals.
 // - It has references to other locals that have already been evaluated.
-// Note that the second return value is a human friendly reason for why the expression can not be evaluated, and is
-// useful for error reporting.
+// The returned diagnostics carry a human friendly reason for why the expression cannot be evaluated, and are useful
+// for error reporting.
 func canEvaluateLocals(
 	expression hcl.Expression,
 	evaluatedLocals map[string]cty.Value,
 ) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
-	localVars := expression.Variables()
+	for _, localVar := range expression.Variables() {
+		localName, detail := localReference(localVar)
 
-	for _, localVar := range localVars {
-		var (
-			rootName        = localVar.RootName()
-			localName       = getLocalName(localVar)
-			_, hasEvaluated = evaluatedLocals[localName]
-			detail          string
-		)
-
-		switch {
-		case localVar.IsRelative():
-			// This should never happen, but if it does, we can't evaluate this expression.
-			detail = "This caused an impossible condition, tnis is almost certainly a bug in Terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl file that caused this."
-
-		case rootName == MetadataInclude:
-			// If the variable is `include`, then we can evaluate it now
-
-		case rootName == MetadataFeatureFlag:
-			// If the variable is `feature`
-
-		case rootName == MetadataValues:
-			// If the variable is `values`
-
-		case rootName != "local":
-			// We can't evaluate any variable other than `local`
+		if _, hasEvaluated := evaluatedLocals[localName]; detail == "" && localName != "" && !hasEvaluated {
 			detail = fmt.Sprintf(
-				"You can only reference to other local variables here, but it looks like you're referencing something else (%q is not defined)",
-				rootName,
-			)
-
-		case localName == "":
-			// If we can't get any local name, we can't evaluate it.
-			detail = "This local var name can not be determined."
-
-		case !hasEvaluated:
-			// If the referenced local isn't evaluated, we can't evaluate this expression.
-			detail = fmt.Sprintf(
-				"The local reference '%s' is not evaluated. Either it is not ready yet in the current pass, or there was an error evaluating it in an earlier stage.",
+				"The local %q could not be evaluated. It is either undefined, part of a reference cycle, "+
+					"or depends on a value that locals cannot reference.",
 				localName,
 			)
 		}
@@ -256,18 +269,39 @@ func canEvaluateLocals(
 	return diags
 }
 
+// localsRoots lists the variables a locals block can reference.
+var localsRoots = []string{MetadataLocal, MetadataInclude, MetadataFeatureFlag, MetadataValues}
+
+// localReference classifies a variable referenced from a locals block. It returns the name of the local the reference
+// reads, or an empty name when the reference reads a variable locals can see without other locals. The detail is
+// non-empty when a locals block can never resolve the reference, and says why.
+func localReference(localVar hcl.Traversal) (localName, detail string) {
+	rootName := localVar.RootName()
+
+	if !slices.Contains(localsRoots, rootName) {
+		return "", fmt.Sprintf(
+			"Locals can only reference these variables: %s. This expression references %q.",
+			strings.Join(localsRoots, ", "),
+			rootName,
+		)
+	}
+
+	if rootName != MetadataLocal {
+		return "", ""
+	}
+
+	localName = getLocalName(localVar)
+	if localName == "" {
+		return "", "The name of the referenced local cannot be determined."
+	}
+
+	return localName, ""
+}
+
 // getLocalName takes a variable reference encoded as a HCL tree traversal that is rooted at the name `local` and
 // returns the underlying variable lookup on the local map. If it is not a local name lookup, this will return empty
 // string.
 func getLocalName(traversal hcl.Traversal) string {
-	if traversal.IsRelative() {
-		return ""
-	}
-
-	if traversal.RootName() != "local" {
-		return ""
-	}
-
 	split := traversal.SimpleSplit()
 	for _, relRaw := range split.Rel {
 		switch rel := relRaw.(type) {
@@ -297,10 +331,4 @@ func (err CouldNotEvaluateAllLocalsError) Error() string {
 
 func (err CouldNotEvaluateAllLocalsError) Unwrap() error {
 	return err.Err
-}
-
-type MaxIterError struct{}
-
-func (err MaxIterError) Error() string {
-	return "Maximum iterations reached in attempting to evaluate locals. This is most likely a bug in Terragrunt. Please file an issue on the project: https://github.com/gruntwork-io/terragrunt/issues"
 }

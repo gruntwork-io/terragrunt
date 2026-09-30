@@ -709,7 +709,7 @@ func (rnr *Runner) Run(
 					if endErr := r.EndRun(l, run.Path, endOpts...); endErr != nil {
 						l.Errorf("Error ending run for failed unit %s: %v", unitPath, endErr)
 					}
-				case queue.StatusPending, queue.StatusBlocked, queue.StatusUnsorted,
+				case queue.StatusPending, queue.StatusBlocked,
 					queue.StatusReady, queue.StatusRunning, queue.StatusSucceeded:
 				}
 			}

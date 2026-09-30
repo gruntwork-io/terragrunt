@@ -2151,35 +2151,14 @@ func processLocals(
 		return err
 	}
 
-	evaluatedLocals := map[string]cty.Value{}
-	evaluated := true
-
-	for iterations := 0; len(attrs) > 0 && evaluated; iterations++ {
-		if iterations > MaxIter {
-			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
-			// short and return an error.
-			return MaxIterError{}
-		}
-
-		var evalErr error
-
-		attrs, evaluatedLocals, evaluated, evalErr = attemptEvaluateLocals(
-			ctx,
-			l,
-			v,
-			parser,
-			file,
-			attrs,
-			evaluatedLocals,
+	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, parser, file, attrs)
+	if err != nil {
+		l.Debugf(
+			"Encountered error while evaluating locals in file %s",
+			util.RelPathForLog(parser.RootWorkingDir, file.ConfigPath, parser.LogShowAbsPaths),
 		)
-		if evalErr != nil {
-			l.Debugf(
-				"Encountered error while evaluating locals in file %s",
-				util.RelPathForLog(parser.RootWorkingDir, file.ConfigPath, parser.LogShowAbsPaths),
-			)
 
-			return evalErr
-		}
+		return err
 	}
 
 	localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)

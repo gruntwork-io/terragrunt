@@ -2483,6 +2483,328 @@ unit "vpc" {
 	}
 }
 
+func TestParseStackFile_LocalsEvaluateInDependencyOrder(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  joined = "${local.left}+${local.right}"
+  left   = "${local.root}/left"
+  right  = "${local.root}/right"
+  root   = "root"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+  values = {
+    joined = local.joined
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	require.NotNil(t, result.Units[0].Values)
+	assert.Equal(t, cty.StringVal("root/left+root/right"), result.Units[0].Values.GetAttr("joined"))
+}
+
+func TestParseStackFile_LocalWaitingOnSiblingEvaluatedOnce(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	onceFn := function.New(&function.Spec{
+		Type: function.StaticReturnType(cty.String),
+		Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
+			calls.Add(1)
+			return cty.StringVal("once"), nil
+		},
+	})
+
+	src := `
+locals {
+  a = [once(), local.z]
+  z = "z"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+		Functions: map[string]function.Function{
+			"once": onceFn,
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), calls.Load())
+}
+
+func TestParseStackFile_BareLocalSeesEverySibling(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  all = local
+  z   = "z"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+  values = {
+    all = local.all
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	require.NotNil(t, result.Units[0].Values)
+
+	all := result.Units[0].Values.GetAttr("all")
+	require.True(t, all.Type().IsObjectType())
+	require.True(t, all.Type().HasAttribute("z"))
+	assert.Equal(t, cty.StringVal("z"), all.GetAttr("z"))
+}
+
+func TestParseStackFile_LiteralIndexWaitsOnlyOnNamedLocal(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  name   = "demo"
+  prefix = local["name"]
+  label  = "${local.prefix}-app"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.label
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "demo-app", result.Units[0].Path)
+}
+
+func TestParseStackFile_DynamicIndexSeesEverySibling(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  key    = "z"
+  picked = local[local.key]
+  z      = "z"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.picked
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "z", result.Units[0].Path)
+}
+
+func TestParseStackFile_DynamicIndexWithDependent(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  key    = "a"
+  a      = "ok"
+  picked = local[local.key]
+  use    = "${local.picked}-app"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.use
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "ok-app", result.Units[0].Path)
+}
+
+func TestParseStackFile_DynamicIndexOfDynamicIndex(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  first_key  = "second"
+  second_key = "a"
+  a          = "ok"
+  first      = local[local.first_key]
+  second     = local[local.second_key]
+  use        = "${local.first}-app"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.use
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "ok-app", result.Units[0].Path)
+}
+
+func TestParseStackFile_LiteralIndexCycleIsReported(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  a = local["b"]
+  b = local.a
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+`
+
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+
+	var cycleErr hclparse.LocalsCycleError
+	require.ErrorAs(t, err, &cycleErr)
+	assert.Equal(t, []string{"a", "b"}, cycleErr.Names)
+}
+
+func TestParseStackFile_LocalEvalErrorNamesFailingLocal(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		src    string
+		failed string
+	}{
+		{
+			name: "undefined local",
+			src: `
+locals {
+  a = local.missing
+}
+`,
+			failed: "a",
+		},
+		{
+			name: "dependent of failing local",
+			src: `
+locals {
+  a = local.b
+  b = unit.vpc.path
+}
+`,
+			failed: "b",
+		},
+		{
+			name: "failure alongside cycle",
+			src: `
+locals {
+  a = local.b
+  b = local.a
+  c = unit.vpc.path
+}
+`,
+			failed: "c",
+		},
+		{
+			name: "first failure by name",
+			src: `
+locals {
+  root = "root"
+  y    = "${local.root}${unit.vpc.path}"
+  x    = unit.vpc.path
+}
+`,
+			failed: "x",
+		},
+		{
+			name: "dynamic index of undefined local",
+			src: `
+locals {
+  key    = "missing"
+  picked = local[local.key]
+  use    = local.picked
+}
+`,
+			failed: "picked",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := tc.src + `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+			_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src:      []byte(src),
+				Filename: "terragrunt.stack.hcl",
+				StackDir: testStackDir,
+			})
+
+			var localErr hclparse.LocalEvalError
+
+			require.ErrorAs(t, err, &localErr)
+			assert.Equal(t, tc.failed, localErr.Name)
+		})
+	}
+}
+
 func TestParseStackFile_IncludePathNullCarriesSourcePosition(t *testing.T) {
 	t.Parallel()
 
