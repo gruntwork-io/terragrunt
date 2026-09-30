@@ -79,8 +79,8 @@ const (
 	// driftDiagnosticOrder is diagnostic order, which already varies between pkg/config runs. It applies to every
 	// case.
 	driftDiagnosticOrder drift = "diagnostic order"
-	// driftSplitBodySuggestion is the "Did you mean" suggestion in the top level, remote_state, and engine bodies,
-	// which the rewrite decodes in two stages. The second stage suggests only from its own schema.
+	// driftSplitBodySuggestion is the "Did you mean" suggestion in the remote_state and engine bodies, which the
+	// rewrite decodes in two stages. The second stage suggests only from its own schema.
 	driftSplitBodySuggestion drift = "split body suggestion"
 	// driftJSONShapeRepeated is a JSON shape diagnostic that each decode stage reports again.
 	driftJSONShapeRepeated drift = "repeated JSON shape diagnostic"
@@ -93,19 +93,22 @@ var splitBodySuggestion = regexp.MustCompile(
 		`to define argument "[^"]*"\? If so, use the equals sign to assign it a value\.|"[^"]*"\?)`,
 )
 
-// tofuStub answers tofu invocations and counts the ones ToV1 makes.
+// tofuStub answers tofu invocations and counts them, keeping the ones ToV1 makes apart.
 type tofuStub struct {
-	outputs   map[string]string
-	toV1Execs atomic.Int64
-	inToV1    atomic.Bool
+	outputs    map[string]string
+	parseExecs atomic.Int64
+	toV1Execs  atomic.Int64
+	inToV1     atomic.Bool
 }
 
-// handler counts invocations during ToV1 and answers `output` with the outputs of the target whose cache directory
-// it runs in. Other commands succeed with no output.
+// handler counts invocations and answers `output` with the outputs of the target whose cache directory it runs in.
+// Other commands succeed with no output.
 func (s *tofuStub) handler() vexec.Handler {
 	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if s.inToV1.Load() {
 			s.toV1Execs.Add(1)
+		} else {
+			s.parseExecs.Add(1)
 		}
 
 		if len(inv.Args) == 0 || inv.Args[0] != "output" {
@@ -121,10 +124,25 @@ func (s *tofuStub) handler() vexec.Handler {
 	}
 }
 
+// parityResult is what assertParity observed of the rewrite.
+type parityResult struct {
+	// parsed is the parsed config, nil when the parse produced none.
+	parsed *config.UnitConfig
+	// parseErr is the error of the parse.
+	parseErr error
+	// toV1Err is the error of ToV1, or parseErr when the parse produced no config.
+	toV1Err error
+	// parseExecs is the tofu invocations the parse made.
+	parseExecs int64
+	// toV1Execs is the tofu invocations ToV1 made.
+	toV1Execs int64
+}
+
 // assertParity parses tc with pkg/config and the rewrite on separate venvs, contexts, and caches, and asserts that
-// ToV1 matches pkg/config's config, errors, and files read, that the parse returns ToV1's error, and that ToV1
-// runs no tofu. When the rewrite's parse returns no config, its error stands in for ToV1's.
-func assertParity(t *testing.T, tc parityCase) {
+// ToV1 matches pkg/config's config, errors, and files read, that the parse and ToV1 together run tofu as often as
+// pkg/config does, and that ToV1 returns every error type and diagnostic the parse returns. When the rewrite's parse
+// returns no config, its error stands in for ToV1's.
+func assertParity(t *testing.T, tc parityCase) parityResult {
 	t.Helper()
 
 	l := logger.CreateLogger()
@@ -146,7 +164,14 @@ func assertParity(t *testing.T, tc parityCase) {
 		t.Logf("pkg/config returned an error: %v", wantErr)
 	}
 
-	parsed, parseErr := config.ParseConfigFile(ctx, l, v, &hclparse.Store{}, config.NewParseContext(pctx), tc.cfgPath)
+	parsed, parseErr := config.ParseConfigFile(
+		ctx,
+		l,
+		v,
+		&hclparse.Store{},
+		config.NewParseContext(pctx),
+		tc.cfgPath,
+	)
 
 	stub.inToV1.Store(true)
 
@@ -156,13 +181,38 @@ func assertParity(t *testing.T, tc parityCase) {
 
 	if parsed != nil {
 		gotCfg, gotErr = parsed.ToV1(ctx, l, v)
-		assertSameErrors(t, gotErr, parseErr, nil)
+		assertErrorsWithin(t, parseErr, gotErr)
 	}
 
 	assert.Equal(t, wantCfg, gotCfg)
 	assertSameErrors(t, wantErr, gotErr, tc.drift)
 	assert.Equal(t, v1Pctx.FilesRead.Paths(), pctx.FilesRead.Paths())
-	assert.Zero(t, stub.toV1Execs.Load(), "ToV1 ran tofu")
+	assert.Equal(
+		t,
+		v1Stub.parseExecs.Load(),
+		stub.parseExecs.Load()+stub.toV1Execs.Load(),
+		"tofu runs",
+	)
+
+	return parityResult{
+		parsed:     parsed,
+		parseErr:   parseErr,
+		toV1Err:    gotErr,
+		parseExecs: stub.parseExecs.Load(),
+		toV1Execs:  stub.toV1Execs.Load(),
+	}
+}
+
+// assertErrorsWithin asserts that outer holds every error type and diagnostic of inner.
+func assertErrorsWithin(t *testing.T, inner, outer error) {
+	t.Helper()
+
+	innerTree := walkErrors(t, inner)
+	outerTree := walkErrors(t, outer)
+	drifts := map[drift]struct{}{driftDiagnosticOrder: {}}
+
+	assert.Subset(t, outerTree.types(), innerTree.types())
+	assert.Subset(t, outerTree.diagnostics(drifts), innerTree.diagnostics(drifts))
 }
 
 // assertSameErrors asserts matching error types, diagnostics, and text after normalizing drifts. It fails when a
@@ -237,7 +287,13 @@ func walkErrors(t *testing.T, err error) errorTree {
 	}
 
 	for len(queue) > 0 {
-		require.Less(t, len(tree.nodes), maxErrorTreeNodes, "error tree exceeds %d nodes", maxErrorTreeNodes)
+		require.Less(
+			t,
+			len(tree.nodes),
+			maxErrorTreeNodes,
+			"error tree exceeds %d nodes",
+			maxErrorTreeNodes,
+		)
 
 		current := queue[0]
 		queue = queue[1:]
@@ -342,7 +398,13 @@ func diagnosticTexts(diags hcl.Diagnostics) []string {
 	for _, diag := range diags {
 		texts = append(
 			texts,
-			fmt.Sprintf("%d|%s|%s|%s", diag.Severity, diag.Error(), diag.Detail, rangeText(diag.Subject)),
+			fmt.Sprintf(
+				"%d|%s|%s|%s",
+				diag.Severity,
+				diag.Error(),
+				diag.Detail,
+				rangeText(diag.Subject),
+			),
 		)
 	}
 
@@ -363,7 +425,10 @@ func outputsJSON(outputs map[string]string) string {
 	fields := make([]string, 0, len(outputs))
 
 	for _, name := range slices.Sorted(maps.Keys(outputs)) {
-		fields = append(fields, fmt.Sprintf(`%q:{"sensitive":false,"type":"string","value":%q}`, name, outputs[name]))
+		fields = append(
+			fields,
+			fmt.Sprintf(`%q:{"sensitive":false,"type":"string","value":%q}`, name, outputs[name]),
+		)
 	}
 
 	return "{" + strings.Join(fields, ",") + "}"
@@ -380,7 +445,12 @@ func memFS(root string, files map[string]string) func(t *testing.T) vfs.FS {
 			content = strings.ReplaceAll(content, "{{root}}", filepath.ToSlash(root))
 			require.NoError(
 				t,
-				vfs.WriteFile(fsys, filepath.Join(root, filepath.FromSlash(name)), []byte(content), 0o644),
+				vfs.WriteFile(
+					fsys,
+					filepath.Join(root, filepath.FromSlash(name)),
+					[]byte(content),
+					0o644,
+				),
 			)
 		}
 
@@ -489,7 +559,10 @@ func (s *fixtureSet) newFS(t *testing.T) vfs.FS {
 }
 
 // newTestParsingContext mirrors pkg/config's test helper of the same name, with its own caches.
-func newTestParsingContext(t *testing.T, cfgPath string) (context.Context, *pkgconfig.ParsingContext) {
+func newTestParsingContext(
+	t *testing.T,
+	cfgPath string,
+) (context.Context, *pkgconfig.ParsingContext) {
 	t.Helper()
 
 	ctx := pkgconfig.WithConfigValues(t.Context())
