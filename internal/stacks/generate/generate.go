@@ -824,10 +824,7 @@ func worktreeStacksToGenerate(
 	return stacksToGenerate.ToComponents(), nil
 }
 
-// nestedWorktreeStacks discovers stack files under an edited worktree stack's generated
-// directory, so nested stacks materialized by a previous generation level join the next one;
-// the git diff alone never lists them. Before the stack's first generation the directory does
-// not exist yet and the walk is skipped by [discovery.WorktreeWalkRoot].
+// nestedWorktreeStacks discovers nested stacks under an edited stack's generated dir, which the git diff never lists.
 func nestedWorktreeStacks(
 	ctx context.Context,
 	l log.Logger,

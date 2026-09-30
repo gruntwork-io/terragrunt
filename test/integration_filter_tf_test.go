@@ -666,10 +666,7 @@ unit "unit-to-be-created-2" {
 	}
 }
 
-// TestTFFilterGitAddedNestedStackRunsUnits reproduces #7051: a brand-new top-level stack whose
-// only content is a `stack` block referencing a nested stack. `find --filter` reported the
-// generated nested stack, but running with the same filter discovered no units because nested
-// stacks were never generated inside worktrees.
+// TestTFFilterGitAddedNestedStackRunsUnits checks a git filter plans an added stack's nested units.
 func TestTFFilterGitAddedNestedStackRunsUnits(t *testing.T) {
 	t.Parallel()
 

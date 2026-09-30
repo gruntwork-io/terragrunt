@@ -949,11 +949,7 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 		"to-ref stack should generate its unit from the to-worktree's catalog/units/new-app")
 }
 
-// TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits reproduces #7051: a brand-new
-// top-level stack whose only content is a `stack` block referencing a nested stack. Worktree
-// generation must recurse into the generated nested stack so its units exist in the to-worktree,
-// and worktree discovery must return those units; otherwise `find` reports the nested stack while
-// `stack run` with the same filter discovers no units at all.
+// TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits checks an added stack's nested stack yields units.
 func TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits(t *testing.T) {
 	t.Parallel()
 
@@ -1049,10 +1045,7 @@ func TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits(t *testing.T) 
 		"the nested stack's unit must be discovered so the same filter can run against it")
 }
 
-// TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits covers the removal half of
-// #7051 with a bare git filter: deleting a top-level stack that references a nested stack must
-// still generate the nested stack's units in the from-worktree so they are discovered for
-// destroy planning.
+// TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits checks a removed nested stack plans for destroy.
 func TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits(t *testing.T) {
 	t.Parallel()
 
