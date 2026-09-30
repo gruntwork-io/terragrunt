@@ -1894,7 +1894,7 @@ func TestAWSAssumeRoleDuration(t *testing.T) {
 	output = fmt.Sprintf("%s %s", stderr.String(), stdout.String())
 	assert.NotContains(t, output, "Initializing the backend...")
 	assert.NotContains(t, output, "has been successfully initialized!")
-	assert.Contains(t, output, "no changes are needed.")
+	assert.Contains(t, output, "Your infrastructure matches the configuration.")
 }
 
 // TestAWSIAMRoleAttrWithAmbientCredentials runs a unit whose role comes from the iam_role
