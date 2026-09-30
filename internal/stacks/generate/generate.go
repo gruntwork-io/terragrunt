@@ -648,6 +648,15 @@ func worktreeStacksToGenerate(
 		}
 
 		stacksToGenerate.EnsureComponent(v.FS, stack)
+
+		nested, err := nestedWorktreeStacks(ctx, l, v, opts, stack)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, c := range nested {
+			stacksToGenerate.EnsureComponent(v.FS, c)
+		}
 	}
 
 	// When the expanded filter for a given Git expression requires parsing,
@@ -813,6 +822,39 @@ func worktreeStacksToGenerate(
 	}
 
 	return stacksToGenerate.ToComponents(), nil
+}
+
+// nestedWorktreeStacks discovers stack files under an edited worktree stack's generated
+// directory, so nested stacks materialized by a previous generation level join the next one;
+// the git diff alone never lists them. Before the stack's first generation the directory does
+// not exist yet and the walk is skipped by [discovery.WorktreeWalkRoot].
+func nestedWorktreeStacks(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	stack *component.Stack,
+) (component.Components, error) {
+	dc := stack.DiscoveryContext()
+	if dc == nil || dc.WorkingDir == "" {
+		l.Debugf("Skipping nested stack discovery for %s: no worktree discovery context", stack.Path())
+		return nil, nil
+	}
+
+	generatedDir := filepath.Join(stack.Path(), config.StackDir)
+
+	walkBoundary, err := filepath.Rel(dc.WorkingDir, generatedDir)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to resolve generated stack directory for %s: %w",
+			stack.Path(),
+			err,
+		)
+	}
+
+	wt := worktrees.Worktree{Ref: dc.Ref, Path: dc.WorkingDir}
+
+	return discoverStacks(ctx, l, v, opts, wt, false, walkBoundary)
 }
 
 // discoverStacks discovers stacks in a worktree.

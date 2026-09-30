@@ -666,6 +666,86 @@ unit "unit-to-be-created-2" {
 	}
 }
 
+// TestTFFilterGitAddedNestedStackRunsUnits reproduces #7051: a brand-new top-level stack whose
+// only content is a `stack` block referencing a nested stack. `find --filter` reported the
+// generated nested stack, but running with the same filter discovered no units because nested
+// stacks were never generated inside worktrees.
+func TestTFFilterGitAddedNestedStackRunsUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	appUnitDir := filepath.Join(tmpDir, "catalog", "units", "app")
+	_ = createTestUnit(t, appUnitDir, `# App unit`)
+
+	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
+	require.NoError(t, os.MkdirAll(childStackDir, 0755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "app" {
+	source = "${get_repo_root()}/catalog/units/app"
+	path   = "app"
+}
+`),
+		0644,
+	))
+
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "base: catalog only, no live-env stack yet"))
+
+	liveEnvDir := filepath.Join(tmpDir, "live-env")
+	require.NoError(t, os.MkdirAll(liveEnvDir, 0755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(liveEnvDir, "terragrunt.stack.hcl"),
+		[]byte(`stack "child" {
+	source = "${get_repo_root()}/catalog/stacks/child"
+	path   = "child"
+}
+`),
+		0644,
+	))
+
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(
+		t,
+		runner.Commit(t.Context(), "add: live-env top-level stack referencing nested child stack"),
+	)
+
+	cmd := "terragrunt run --all --no-color --experiment-mode --non-interactive --working-dir " +
+		tmpDir + " --filter '[HEAD~1...HEAD] | ./live-env/**' --report-file " +
+		helpers.ReportFile + " -- plan"
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
+
+	assert.NotContains(t, stderr, "No units discovered",
+		"the filter that finds the nested stack must also run its units")
+
+	runs, err := report.ParseJSONRunsFromFile(
+		vfs.NewOSFS(),
+		filepath.Join(tmpDir, helpers.ReportFile),
+	)
+	require.NoError(t, err)
+
+	nestedUnitSuffix := "live-env/.terragrunt-stack/child/.terragrunt-stack/app"
+	found := false
+
+	for i := range runs {
+		if !strings.HasSuffix(filepath.ToSlash(runs[i].Name), nestedUnitSuffix) {
+			continue
+		}
+
+		found = true
+
+		assert.Equal(t, string(report.ResultSucceeded), runs[i].Result,
+			"the nested stack's unit should plan successfully")
+	}
+
+	require.True(t, found,
+		"the nested stack's unit should be in the run report; got: %v", runs)
+}
+
 func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 	t.Parallel()
 

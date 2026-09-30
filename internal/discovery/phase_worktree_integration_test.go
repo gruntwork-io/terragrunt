@@ -949,6 +949,217 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 		"to-ref stack should generate its unit from the to-worktree's catalog/units/new-app")
 }
 
+// TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits reproduces #7051: a brand-new
+// top-level stack whose only content is a `stack` block referencing a nested stack. Worktree
+// generation must recurse into the generated nested stack so its units exist in the to-worktree,
+// and worktree discovery must return those units; otherwise `find` reports the nested stack while
+// `stack run` with the same filter discovers no units at all.
+func TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	appUnitDir := filepath.Join(tmpDir, "catalog", "units", "app")
+	require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
+	)
+
+	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
+	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "app" {
+	source = "${get_repo_root()}/catalog/units/app"
+	path   = "app"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "base: catalog only, no live-env stack yet")
+
+	liveEnvDir := filepath.Join(tmpDir, "live-env")
+	require.NoError(t, os.MkdirAll(liveEnvDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(liveEnvDir, "terragrunt.stack.hcl"),
+		[]byte(`stack "child" {
+	source = "${get_repo_root()}/catalog/stacks/child"
+	path   = "child"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "add: live-env top-level stack referencing nested child stack")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD] | ./live-env/**"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+
+	err = generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
+	require.NoError(t, err)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	nestedUnitPath := filepath.Join(
+		pair.ToWorktree.Path,
+		"live-env", ".terragrunt-stack", "child", ".terragrunt-stack", "app",
+	)
+	assert.DirExists(t, nestedUnitPath,
+		"nested stack generation in the to-worktree should recurse and materialize the app unit")
+
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+		Cmd:        "plan",
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w).
+		WithFilters(parsedFilters)
+
+	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	unitPaths := components.Filter(component.UnitKind).Paths()
+	assert.Contains(t, unitPaths, nestedUnitPath,
+		"the nested stack's unit must be discovered so the same filter can run against it")
+}
+
+// TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits covers the removal half of
+// #7051 with a bare git filter: deleting a top-level stack that references a nested stack must
+// still generate the nested stack's units in the from-worktree so they are discovered for
+// destroy planning.
+func TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	appUnitDir := filepath.Join(tmpDir, "catalog", "units", "app")
+	require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
+	)
+
+	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
+	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "app" {
+	source = "${get_repo_root()}/catalog/units/app"
+	path   = "app"
+}
+`),
+		0o644,
+	))
+
+	liveEnvDir := filepath.Join(tmpDir, "live-env")
+	require.NoError(t, os.MkdirAll(liveEnvDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(liveEnvDir, "terragrunt.stack.hcl"),
+		[]byte(`stack "child" {
+	source = "${get_repo_root()}/catalog/stacks/child"
+	path   = "child"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "base: live-env top-level stack referencing nested child stack")
+
+	require.NoError(t, os.RemoveAll(liveEnvDir))
+	commitChanges(t, runner, "remove: live-env stack")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+
+	err = generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
+	require.NoError(t, err)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	nestedUnitPath := filepath.Join(
+		pair.FromWorktree.Path,
+		"live-env", ".terragrunt-stack", "child", ".terragrunt-stack", "app",
+	)
+	assert.DirExists(t, nestedUnitPath,
+		"nested stack generation in the from-worktree should recurse and materialize the app unit")
+
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+		Cmd:        "plan",
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w).
+		WithFilters(parsedFilters)
+
+	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	units := components.Filter(component.UnitKind)
+	require.Contains(t, units.Paths(), nestedUnitPath,
+		"the removed nested stack's unit must be discovered for destroy planning")
+
+	for _, c := range units {
+		if c.Path() != nestedUnitPath {
+			continue
+		}
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD~1", dc.Ref, "removed unit should carry the from-worktree ref")
+		assert.Contains(t, dc.Args, "-destroy", "removed unit should be planned with -destroy")
+	}
+}
+
 // TestWorktreePhase_Integration_FileRename tests that file renames are detected.
 func TestWorktreePhase_Integration_FileRename(t *testing.T) {
 	t.Parallel()
