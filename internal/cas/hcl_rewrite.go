@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 )
 
 // RewriteTerraformSource rewrites the `source` attribute inside a `terraform {}` block.
@@ -233,14 +234,28 @@ func nonLiteralKind(tokens hclwrite.Tokens) string {
 }
 
 // extractBoolLiteral extracts a boolean value from an hclwrite attribute.
-// Returns false if the attribute is not a simple boolean literal.
+// The expression is evaluated without an evaluation context, so constant
+// expressions such as `!false`, `"true"` or `true && false` resolve to the
+// same value the full HCL parser decodes. Returns false for a null value and
+// for expressions that need a context, such as references like local.foo or
+// function calls, since this raw-token reader cannot evaluate them.
 func extractBoolLiteral(attr *hclwrite.Attribute) bool {
-	tokens := attr.Expr().BuildTokens(nil)
-	for _, tok := range tokens {
-		if tok.Type == hclsyntax.TokenIdent {
-			return string(tok.Bytes) == "true"
-		}
+	src := attr.Expr().BuildTokens(nil).Bytes()
+
+	expr, diags := hclsyntax.ParseExpression(src, "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return false
 	}
 
-	return false
+	val, diags := expr.Value(nil)
+	if diags.HasErrors() {
+		return false
+	}
+
+	val, err := convert.Convert(val, cty.Bool)
+	if err != nil || val.IsNull() || !val.IsKnown() {
+		return false
+	}
+
+	return val.True()
 }

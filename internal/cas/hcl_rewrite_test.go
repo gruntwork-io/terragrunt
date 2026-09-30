@@ -330,3 +330,79 @@ func TestReadTerraformSourceInfo_NonLiteralSourceWithoutCAS(t *testing.T) {
 		})
 	}
 }
+
+// updateSourceWithCASCases enumerates update_source_with_cas expressions and
+// the value the full HCL parser decodes for each. Expressions that need an
+// evaluation context cannot be read from raw tokens and resolve to false.
+var updateSourceWithCASCases = []struct {
+	name     string
+	expr     string
+	expected bool
+}{
+	{name: "true", expr: `true`, expected: true},
+	{name: "false", expr: `false`, expected: false},
+	{name: "negated false", expr: `!false`, expected: true},
+	{name: "negated true", expr: `!true`, expected: false},
+	{name: "double negation", expr: `!!true`, expected: true},
+	{name: "parenthesized", expr: `(true)`, expected: true},
+	{name: "negated parenthesized", expr: `!(false)`, expected: true},
+	{name: "string true", expr: `"true"`, expected: true},
+	{name: "string false", expr: `"false"`, expected: false},
+	{name: "logical and", expr: `true && false`, expected: false},
+	{name: "logical or", expr: `false || true`, expected: true},
+	{name: "conditional", expr: `true ? false : true`, expected: false},
+	{name: "comparison", expr: `1 == 1`, expected: true},
+	{name: "null", expr: `null`, expected: false},
+	{name: "reference", expr: `local.use_cas`, expected: false},
+	{name: "function call", expr: `tobool("true")`, expected: false},
+}
+
+func TestReadTerraformSourceInfo_UpdateSourceWithCASExpressions(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range updateSourceWithCASCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := []byte(`terraform {
+  source = "../modules/service"
+  update_source_with_cas = ` + tc.expr + `
+}
+`)
+
+			source, updateWithCAS, err := cas.ReadTerraformSourceInfo(input)
+			require.NoError(t, err)
+			assert.Equal(t, "../modules/service", source)
+			assert.Equal(t, tc.expected, updateWithCAS)
+		})
+	}
+}
+
+func TestReadStackBlocks_UpdateSourceWithCASExpressions(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range updateSourceWithCASCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := []byte(`unit "service" {
+  source = "../units/service"
+  update_source_with_cas = ` + tc.expr + `
+  path = "service"
+}
+
+stack "nested" {
+  source = "../stacks/nested"
+  update_source_with_cas = ` + tc.expr + `
+  path = "nested"
+}
+`)
+
+			blocks, err := cas.ReadStackBlocks(input)
+			require.NoError(t, err)
+			require.Len(t, blocks, 2)
+			assert.Equal(t, tc.expected, blocks[0].UpdateSourceWithCAS)
+			assert.Equal(t, tc.expected, blocks[1].UpdateSourceWithCAS)
+		})
+	}
+}
