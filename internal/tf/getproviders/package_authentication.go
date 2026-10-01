@@ -115,6 +115,17 @@ func (checks packageAuthenticationAll) AcceptableHashes() []Hash {
 	return nil
 }
 
+// ArchiveChecksumMismatchError is returned when a provider archive does not
+// hash to the checksum published for it.
+type ArchiveChecksumMismatchError struct {
+	Got  Hash
+	Want Hash
+}
+
+func (e *ArchiveChecksumMismatchError) Error() string {
+	return fmt.Sprintf("archive has incorrect checksum %s (expected %s)", e.Got, e.Want)
+}
+
 type archiveHashAuthentication struct {
 	WantSHA256Sum [sha256.Size]byte
 }
@@ -141,7 +152,7 @@ func (auth archiveHashAuthentication) Authenticate(
 
 	wantHash := HashLegacyZipSHAFromSHA(auth.WantSHA256Sum)
 	if gotHash != wantHash {
-		return nil, fmt.Errorf("archive has incorrect checksum %s (expected %s)", gotHash, wantHash)
+		return nil, &ArchiveChecksumMismatchError{Got: gotHash, Want: wantHash}
 	}
 
 	return new(VerifiedChecksum), nil

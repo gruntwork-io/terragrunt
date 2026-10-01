@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -91,16 +92,14 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		case platformJSONPath:
 			w.Header().Set("Content-Type", "application/json")
 
-			body := fmt.Sprintf(
-				`{"os":%q,"arch":%q,"filename":%q,"download_url":%q}`,
-				providerOS,
-				providerArch,
-				archiveName,
-				"http://"+r.Host+archiveURLPath,
+			_, err := io.WriteString(
+				w,
+				warmupPlatformResponse(archiveName, "http://"+r.Host, archiveURLPath, archive),
 			)
-
-			_, err := io.WriteString(w, body)
 			assert.NoError(t, err, "upstream platform response write failed")
+		case warmupShasumsPath:
+			_, err := io.WriteString(w, warmupShasums(archiveName, archive))
+			assert.NoError(t, err, "upstream checksum document write failed")
 		case archiveURLPath:
 			archiveHitsMu.Lock()
 
@@ -148,7 +147,9 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		cache.WithToken(token),
 		cache.WithProviderService(providerService),
 		cache.WithProviderHandlers(directHandler),
-		cache.WithProxyProviderHandler(handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil)),
+		cache.WithProxyProviderHandler(
+			handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil),
+		),
 		cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode),
 		cache.WithLogger(l),
 	)
@@ -248,8 +249,12 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	archiveHitsMu.Unlock()
 
-	assert.Equal(t, 1, hits,
-		"concurrent warm-up requests for the same provider platform must share a single upstream archive download")
+	assert.Equal(
+		t,
+		1,
+		hits,
+		"concurrent warm-up requests for the same provider platform must share a single upstream archive download",
+	)
 
 	cancel()
 	require.NoError(t, srvGroup.Wait())
@@ -257,6 +262,31 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 // buildWarmupProviderArchive returns an in-memory zip archive holding a single
 // fake provider binary, small enough to make warm-up nearly instant.
+// warmupShasumsPath is where the fake registries serve the checksum document
+// for the warm-up provider.
+const warmupShasumsPath = "/archives/SHA256SUMS"
+
+// warmupPlatformResponse builds a fake registry's download response for the
+// warm-up provider on the running platform. baseURL is the registry's own
+// address, which also serves the archive and its checksum document.
+func warmupPlatformResponse(archiveName, baseURL, archiveURLPath string, archive []byte) string {
+	return fmt.Sprintf(
+		`{"os":%q,"arch":%q,"filename":%q,"download_url":%q,"shasums_url":%q,"shasum":"%x"}`,
+		runtime.GOOS,
+		runtime.GOARCH,
+		archiveName,
+		baseURL+archiveURLPath,
+		baseURL+warmupShasumsPath,
+		sha256.Sum256(archive),
+	)
+}
+
+// warmupShasums builds the checksum document listing the warm-up provider's
+// archive.
+func warmupShasums(archiveName string, archive []byte) string {
+	return fmt.Sprintf("%x  %s\n", sha256.Sum256(archive), archiveName)
+}
+
 func buildWarmupProviderArchive(t *testing.T) []byte {
 	t.Helper()
 

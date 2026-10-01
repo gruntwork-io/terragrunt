@@ -90,16 +90,14 @@ func startFakeProviderRegistry(t *testing.T) string {
 		case platformJSONPath:
 			w.Header().Set("Content-Type", "application/json")
 
-			body := fmt.Sprintf(
-				`{"os":%q,"arch":%q,"filename":%q,"download_url":%q}`,
-				providerOS,
-				providerArch,
-				archiveName,
-				"http://"+r.Host+archiveURLPath,
+			_, err := io.WriteString(
+				w,
+				warmupPlatformResponse(archiveName, "http://"+r.Host, archiveURLPath, archive),
 			)
-
-			_, err := io.WriteString(w, body)
 			assert.NoError(t, err, "upstream platform response write failed")
+		case warmupShasumsPath:
+			_, err := io.WriteString(w, warmupShasums(archiveName, archive))
+			assert.NoError(t, err, "upstream checksum document write failed")
 		case archiveURLPath:
 			_, err := w.Write(archive)
 			assert.NoError(t, err, "upstream archive write failed")
@@ -152,7 +150,9 @@ func startProviderCacheRun(t *testing.T, upstreamURL string) *providerCacheRun {
 		cache.WithToken(token),
 		cache.WithProviderService(service),
 		cache.WithProviderHandlers(directHandler),
-		cache.WithProxyProviderHandler(handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil)),
+		cache.WithProxyProviderHandler(
+			handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil),
+		),
 		cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode),
 		cache.WithLogger(l),
 	)
