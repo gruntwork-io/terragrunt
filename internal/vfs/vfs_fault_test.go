@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"syscall"
 	"testing"
 
@@ -331,13 +332,7 @@ type faultFile struct {
 }
 
 func (f *faultFile) failing(op string) bool {
-	for _, fault := range f.faults {
-		if fault == op {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(f.faults, op)
 }
 
 func (f *faultFile) Close() error {
