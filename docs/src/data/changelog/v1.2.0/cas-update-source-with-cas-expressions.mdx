@@ -3,8 +3,6 @@ version: "v1.2.0"
 category: "bug-fixes"
 ---
 
-#### The CAS evaluates `update_source_with_cas` instead of reading its first word
+#### `update_source_with_cas = !false` now counts as `true`
 
-The [CAS](/features/caching/cas) read `update_source_with_cas` from the first identifier in the expression, so `!false` counted as false and `true && false` counted as true. With the CAS on, `!false` left a relative source unrewritten and `!true` rewrote one. With `--no-cas`, `terragrunt stack generate` accepted a unit that set `update_source_with_cas = !false`, and that unit's relative `source` could not resolve.
-
-The CAS now evaluates the attribute using literals and the locals in the same file, so `!false` and `local.use_cas` work as written. A function call, or a local that calls one, now fails stack generation with an error. Terragrunt used to guess a value from the first word.
+Terragrunt now evaluates the `update_source_with_cas` expression instead of reading it as a literal value.

@@ -90,7 +90,7 @@ When authoring stacks in a catalog, you can use the `update_source_with_cas` att
 
 <Since version="v1.2.0">
 
-Terragrunt reads `update_source_with_cas` before it evaluates the rest of the file. The value must be `true`, `false`, or an expression that uses only literals and locals from the same file, such as `!false` or `local.use_cas`. Stack generation fails if the value calls a function, references an `include`, or reads a local that calls a function.
+`update_source_with_cas` accepts `true`, `false`, or an expression of literals and locals from the same file, such as `!false` or `local.use_cas`. Stack generation fails if the expression calls a function, directly or through a local.
 
 </Since>
 
