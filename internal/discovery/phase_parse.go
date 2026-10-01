@@ -385,7 +385,6 @@ func parseComponent(
 				config.FeatureFlagsBlock,
 				config.ExcludeBlock,
 				config.ErrorsBlock,
-				config.RemoteStateBlock,
 				config.TerragruntVersionConstraints,
 				config.EngineBlock,
 			).WithSkipOutputsResolution()
