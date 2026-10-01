@@ -548,22 +548,85 @@ locals {
 func TestReadTerragruntConfigRereadsFileChangedDuringCommand(t *testing.T) {
 	t.Parallel()
 
+	testCases := []struct {
+		extra           map[string]string
+		name            string
+		commonHCL       string
+		changedFile     string
+		changedContents string
+		wantBefore      string
+		wantAfter       string
+	}{
+		{
+			name:            "target",
+			commonHCL:       `locals { value = "before" }`,
+			changedFile:     "common.hcl",
+			changedContents: `locals { value = "after" }`,
+			wantBefore:      "before",
+			wantAfter:       "after",
+		},
+		{
+			name:            "file the target reads",
+			commonHCL:       `locals { value = yamldecode(file("accounts.yml"))["dev"] }`,
+			changedFile:     "accounts.yml",
+			changedContents: "dev: \"222222222222\"\n",
+			wantBefore:      "111111111111",
+			wantAfter:       "222222222222",
+		},
+		{
+			name:            "file a nested read reads",
+			commonHCL:       `locals { value = read_terragrunt_config("inner.hcl").locals.value }`,
+			extra:           map[string]string{"inner.hcl": `locals { value = "before" }`},
+			changedFile:     "inner.hcl",
+			changedContents: `locals { value = "after" }`,
+			wantBefore:      "before",
+			wantAfter:       "after",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, rootDir := newMemTestDir(t)
+			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, tc.extra)
+
+			ctx := config.WithConfigValues(t.Context())
+
+			before, _ := parseUnitInput(ctx, t, v, units[0])
+			assert.Equal(t, tc.wantBefore, before)
+
+			changedPath := filepath.Join(rootDir, tc.changedFile)
+			require.NoError(t, vfs.WriteFile(v.FS, changedPath, []byte(tc.changedContents), 0o644))
+
+			later := time.Now().Add(time.Hour)
+			require.NoError(t, v.FS.Chtimes(changedPath, later, later))
+
+			after, _ := parseUnitInput(ctx, t, v, units[1])
+			assert.Equal(t, tc.wantAfter, after)
+		})
+	}
+}
+
+func TestReadTerragruntConfigKeepsSimilarCliArgsApart(t *testing.T) {
+	t.Parallel()
+
 	v, rootDir := newMemTestDir(t)
-	units := writeReadConfigFixture(t, v, rootDir, `locals { value = "before" }`, nil)
+	units := writeReadConfigFixture(t, v, rootDir, `locals { value = join("|", get_terraform_cli_args()) }`, nil)
 
 	ctx := config.WithConfigValues(t.Context())
 
-	before, _ := parseUnitInput(ctx, t, v, units[0])
-	assert.Equal(t, "before", before)
+	withFlags := func(flags ...string) func(*config.ParsingContext) {
+		return func(pctx *config.ParsingContext) {
+			pctx.TerraformCliArgs = &iacargs.IacArgs{Command: "plan", Flags: flags}
+		}
+	}
 
-	commonPath := filepath.Join(rootDir, "common.hcl")
-	require.NoError(t, vfs.WriteFile(v.FS, commonPath, []byte(`locals { value = "after" }`), 0o644))
+	split, _ := parseUnitInput(ctx, t, v, units[0], withFlags("-var", "a=1"))
+	assert.Equal(t, "plan|-var|a=1", split)
 
-	later := time.Now().Add(time.Hour)
-	require.NoError(t, v.FS.Chtimes(commonPath, later, later))
-
-	after, _ := parseUnitInput(ctx, t, v, units[1])
-	assert.Equal(t, "after", after)
+	joined, _ := parseUnitInput(ctx, t, v, units[1], withFlags("-var a=1"))
+	assert.Equal(t, "plan|-var a=1", joined)
 }
 
 func TestReadTerragruntConfigConcurrentReadsWithRacing(t *testing.T) {

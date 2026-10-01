@@ -181,9 +181,13 @@ func parseCtyValueToMapWithJSON(value cty.Value) (map[string]any, error) {
 
 // mappingToGo converts an unmarked object or map to the result parseCtyValueToMapWithJSON would give for it.
 //
-// Reports false when the value holds anything that conversion would change or reject: an unknown value, an
+// Reports false when the value is or holds anything that conversion would change or reject: an unknown value, an
 // infinity, a number outside [MaxNumberDecimalExponent], a string that is not valid UTF-8, or a capsule.
 func mappingToGo(val cty.Value) (map[string]any, bool) {
+	if !val.IsKnown() {
+		return nil, false
+	}
+
 	out := make(map[string]any, val.LengthInt())
 
 	for it := val.ElementIterator(); it.Next(); {
