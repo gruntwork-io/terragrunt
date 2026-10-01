@@ -284,7 +284,7 @@ func DecodeBaseBlocks(
 // mergeIncludedFeatureFlags merges feature defaults from included configs into the current parse.
 //
 // With [IncludeParseForMerge], it also records the included configs it parsed on trackInclude, unmodified by the
-// feature merge.
+// feature merge and holding only the sections pctx's decode list names.
 func mergeIncludedFeatureFlags(
 	ctx context.Context,
 	l log.Logger,
@@ -298,12 +298,16 @@ func mergeIncludedFeatureFlags(
 		return childFlags, nil
 	}
 
-	keepConfigs := includeParse == IncludeParseForMerge &&
-		slices.Contains(pctx.PartialParseDecodeList, FeatureFlagsBlock)
+	keepConfigs := includeParse == IncludeParseForMerge
+	decodesFeatureFlags := slices.Contains(pctx.PartialParseDecodeList, FeatureFlagsBlock)
 
 	includePctx := pctx.WithTrackInclude(trackInclude)
-	if !keepConfigs {
+
+	switch {
+	case !keepConfigs:
 		includePctx = includePctx.WithDecodeList(FeatureFlagsBlock)
+	case !decodesFeatureFlags:
+		includePctx = includePctx.WithDecodeList(append(slices.Clone(pctx.PartialParseDecodeList), FeatureFlagsBlock)...)
 	}
 
 	baseConfig := &TerragruntConfig{FeatureFlags: childFlags}
@@ -323,14 +327,6 @@ func mergeIncludedFeatureFlags(
 			return childFlags, err
 		}
 
-		if keepConfigs {
-			if trackInclude.parsedForMerge == nil {
-				trackInclude.parsedForMerge = map[string]*TerragruntConfig{}
-			}
-
-			trackInclude.parsedForMerge[includeConfig.Name] = parsedIncludeConfig
-		}
-
 		mergedConfig, err := mergeFeatureFlagConfig(
 			l,
 			mergeStrategy,
@@ -342,6 +338,20 @@ func mergeIncludedFeatureFlags(
 		}
 
 		baseConfig = mergedConfig
+
+		if !keepConfigs {
+			continue
+		}
+
+		if !decodesFeatureFlags {
+			parsedIncludeConfig.FeatureFlags = nil
+		}
+
+		if trackInclude.parsedForMerge == nil {
+			trackInclude.parsedForMerge = map[string]*TerragruntConfig{}
+		}
+
+		trackInclude.parsedForMerge[includeConfig.Name] = parsedIncludeConfig
 	}
 
 	return baseConfig.FeatureFlags, nil

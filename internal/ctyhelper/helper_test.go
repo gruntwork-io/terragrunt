@@ -283,6 +283,14 @@ func TestParseCtyValueToMapMatchesJSONRoundTrip(t *testing.T) {
 			}),
 		},
 		{
+			name:  "unknown object at the top level",
+			value: cty.UnknownVal(cty.Object(map[string]cty.Type{"enabled": cty.Bool})),
+		},
+		{
+			name:  "unknown map at the top level",
+			value: cty.UnknownVal(cty.Map(cty.String)),
+		},
+		{
 			name: "nested marks",
 			value: cty.ObjectVal(map[string]cty.Value{
 				"secret": cty.StringVal("hunter2").Mark("sensitive"),
