@@ -170,7 +170,7 @@ The [`read_terragrunt_config`](/reference/hcl/functions/#read_terragrunt_config)
 
 <Since version="v1.2.1">
 
-The [`read_terragrunt_config`](/reference/hcl/functions/#read_terragrunt_config) HCL function evaluates the target file as HCL, including any function calls the file makes. Terragrunt does this once per command, no matter how many units read the file. A file whose result depends on the unit reading it, like one that calls `get_original_terragrunt_dir()`, is still evaluated for every unit.
+The [`read_terragrunt_config`](/reference/hcl/functions/#read_terragrunt_config) HCL function evaluates the target file as HCL, including any function calls the file makes. Terragrunt does this once, no matter how many units read the file, and once more in `run --all` when the run starts after discovery. A file whose result depends on the unit reading it, like one that calls `get_original_terragrunt_dir()`, is still evaluated for every unit.
 
 </Since>
 

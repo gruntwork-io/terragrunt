@@ -23,7 +23,6 @@ var keyedParsingContextFields = map[string]func(*config.ParsingContext){
 	"FeatureFlags": func(pctx *config.ParsingContext) {
 		pctx.FeatureFlags = map[string]string{"flag": "on"}
 	},
-	"FilesRead": func(pctx *config.ParsingContext) { pctx.FilesRead = config.NewFilesRead() },
 	"TerragruntConfigPath": func(pctx *config.ParsingContext) {
 		pctx.TerragruntConfigPath = filepath.Join("other", config.DefaultTerragruntConfigPath)
 	},
@@ -81,6 +80,7 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"SkipOutputsResolution":        clearedByRead,
 	"Locals":                       clearedByRead,
 	"Features":                     clearedByRead,
+	"FilesRead":                    "the read records the files its parse reads whether or not the reading config does",
 	"Values":                       "ParseConfig replaces it with the file's own values before evaluating anything",
 	"WorkingDir":                   "the read sets it from the file's path, which is in the key",
 	"OriginalTerragruntConfigPath": "every function that reads it stops the result being shared",
@@ -172,8 +172,8 @@ func TestReadTerragruntConfigKeyChangesWithEachKeyedField(t *testing.T) {
 
 			assert.NotEqual(
 				t,
-				config.NewReadTerragruntConfigKey(v, base, 0),
-				config.NewReadTerragruntConfigKey(v, changed, 0),
+				config.NewReadTerragruntConfigKey(v, base),
+				config.NewReadTerragruntConfigKey(v, changed),
 			)
 		})
 	}

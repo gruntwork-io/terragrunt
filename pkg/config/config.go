@@ -113,9 +113,8 @@ type IncludeParse int
 const (
 	// IncludeParseFeatureFlags decodes only the feature blocks of each included config.
 	IncludeParseFeatureFlags IncludeParse = iota
-	// IncludeParseForMerge decodes the sections the parsing context's decode list names, when that list has the
-	// feature blocks, and keeps the parsed configs so a partial parse merges them without parsing them again. With
-	// any other decode list it behaves as IncludeParseFeatureFlags.
+	// IncludeParseForMerge decodes the sections the parsing context's decode list names along with the feature
+	// blocks, and keeps the parsed configs so a partial parse merges them without parsing them again.
 	IncludeParseForMerge
 )
 

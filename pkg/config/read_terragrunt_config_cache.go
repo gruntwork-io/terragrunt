@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"sync/atomic"
+	"time"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -15,21 +16,59 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // readTerragruntConfigResult is a read_terragrunt_config result shared by every config that reads the same target
-// with the same [ReadTerragruntConfigKey].
+// with the same [ReadTerragruntConfigKey], as long as none of the files the parse read has changed since.
 type readTerragruntConfigResult struct {
-	value     cty.Value
-	filesRead []string
+	value cty.Value
+	// files holds every file the parse read, including the target and the files its includes and nested reads
+	// read, with what a stat of each said right after the parse.
+	files map[string]fileStamp
+}
+
+// fileStamp is what a stat of a file said about it. Two stamps that differ mean the file changed in between.
+type fileStamp struct {
+	modTime time.Time
+	size    int64
+	exists  bool
+}
+
+// stampFile stats path. A file that is missing or unreadable gets the zero stamp.
+func stampFile(fsys vfs.FS, path string) fileStamp {
+	info, err := fsys.Stat(path)
+	if err != nil {
+		return fileStamp{}
+	}
+
+	return fileStamp{modTime: info.ModTime(), size: info.Size(), exists: true}
+}
+
+// current reports whether every file the parse read still has the stamp it had right after the parse.
+func (r *readTerragruntConfigResult) current(fsys vfs.FS) bool {
+	for path, stamp := range r.files {
+		now := stampFile(fsys, path)
+		if now.exists != stamp.exists || now.size != stamp.size || !now.modTime.Equal(stamp.modTime) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// filesRead returns the paths of the files the parse read, in lexical order.
+func (r *readTerragruntConfigResult) filesRead() []string {
+	return slices.Sorted(maps.Keys(r.files))
 }
 
 // ReadTerragruntConfigKey identifies a read_terragrunt_config target and the inputs its parse takes from the reading
 // config's context. Reads with equal keys in one command share one result.
 //
 // [ParseTerragruntConfig] resets the fields the target has to compute for itself, and the functions that read the
-// reading config's path stop the result being shared, so neither appears here.
+// reading config's path stop the result being shared, so neither appears here. The files the parse reads are not
+// inputs either: the result records their stamps, and a read checks them before reusing it.
 type ReadTerragruntConfigKey struct {
 	TerragruntStackConfigPath string
 	ConfigPath                string
@@ -43,12 +82,10 @@ type ReadTerragruntConfigKey struct {
 	TerraformCliArgs          []string
 	FeatureFlags              []string
 	DecodeList                []PartialDecodeSectionType
-	ConfigModTime             int64
 	EnvHash                   uint64
 	MaxFoldersToCheck         int
 	Diagnostics               DiagnosticsOutput
 	DiscardOutput             bool
-	TrackFilesRead            bool
 	SkipOutput                bool
 	TFPathExplicitlySet       bool
 	RewriteBareInclude        bool
@@ -68,9 +105,10 @@ var perCallFunctionNames = []string{"bcrypt", "timestamp", "uuid"}
 // envHashSeed seeds the environment hash in [ReadTerragruntConfigKey]. The hash only has to agree within one process.
 var envHashSeed = maphash.MakeSeed()
 
-// NewReadTerragruntConfigKey builds the cache key for reading the target at pctx.TerragruntConfigPath, last modified
-// at modTime.
-func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext, modTime int64) ReadTerragruntConfigKey {
+// NewReadTerragruntConfigKey builds the cache key for reading the target at pctx.TerragruntConfigPath.
+func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext) ReadTerragruntConfigKey {
+	// TerragruntOptions allows a nil TerraformCliArgs (see InsertTerraformCliArgs), configbridge passes it through,
+	// and get_terraform_cli_args returns nothing for it.
 	var cliArgs []string
 	if pctx.TerraformCliArgs != nil {
 		cliArgs = pctx.TerraformCliArgs.Slice()
@@ -85,7 +123,6 @@ func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext, modTime int6
 		IAMRoleOptions:            pctx.IAMRoleOptions,
 		OriginalIAMRoleOptions:    pctx.OriginalIAMRoleOptions,
 		ConfigPath:                pctx.TerragruntConfigPath,
-		ConfigModTime:             modTime,
 		TerraformCommand:          pctx.TerraformCommand,
 		OriginalTerraformCommand:  pctx.OriginalTerraformCommand,
 		Source:                    pctx.Source,
@@ -99,7 +136,6 @@ func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext, modTime int6
 		MaxFoldersToCheck:         pctx.MaxFoldersToCheck,
 		Diagnostics:               pctx.Parser.Diagnostics,
 		DiscardOutput:             v.Writers.Writer == io.Discard,
-		TrackFilesRead:            pctx.FilesRead.Tracking(),
 		SkipOutput:                pctx.SkipOutput,
 		TFPathExplicitlySet:       pctx.TFPathExplicitlySet,
 		RewriteBareInclude:        pctx.Parser.RewriteBareInclude,
@@ -112,11 +148,15 @@ func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext, modTime int6
 }
 
 // readTerragruntConfigCached parses the read_terragrunt_config target at pctx.TerragruntConfigPath and converts it to
-// a cty value, reusing the value an earlier read produced with the same key in this command.
+// a cty value, reusing the value an earlier read produced with the same key in this command while every file that
+// parse read is unchanged.
 //
 // A parse whose value another read with the same key could not reuse marks itself and every parse in flight around it
 // as not shareable, and its value is not shared. That covers reading the reading config's path, a target with
 // dependency blocks, run_cmd with --terragrunt-no-cache, and the functions in perCallFunctionNames.
+//
+// The parse records the files it reads whether or not pctx does, so the result knows which files to check. A file
+// rewritten within the resolution of the filesystem's timestamps, to the same size, is not seen as changed.
 func readTerragruntConfigCached(
 	ctx context.Context,
 	l log.Logger,
@@ -127,16 +167,11 @@ func readTerragruntConfigCached(
 		return parseTerragruntConfigAsCty(ctx, l, v, pctx)
 	}
 
-	fileInfo, err := v.FS.Stat(pctx.TerragruntConfigPath)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	key := fmt.Sprintf("%+v", NewReadTerragruntConfigKey(v, pctx, fileInfo.ModTime().UnixMicro()))
+	key := fmt.Sprintf("%#v", NewReadTerragruntConfigKey(v, pctx))
 	results := cache.ContextCache[*readTerragruntConfigResult](ctx, ReadTerragruntConfigCacheContextKey)
 
-	if result, found := results.Get(ctx, key); found {
-		for _, path := range result.filesRead {
+	if result, found := results.Get(ctx, key); found && result.current(v.FS) {
+		for _, path := range result.filesRead() {
 			pctx.FilesRead.Add(path)
 		}
 
@@ -145,17 +180,17 @@ func readTerragruntConfigCached(
 
 	parseCtx, notShareable := withShareabilityFlag(ctx)
 
-	parsePctx := pctx
-	if pctx.FilesRead.Tracking() {
-		parsePctx = pctx.Clone()
-		parsePctx.FilesRead = NewFilesRead()
-	}
+	parsePctx := pctx.Clone()
+	parsePctx.FilesRead = NewFilesRead()
 
 	value, err := parseTerragruntConfigAsCty(parseCtx, l, v, parsePctx)
 
-	filesRead := parsePctx.FilesRead.Paths()
-	for _, path := range filesRead {
+	files := map[string]fileStamp{pctx.TerragruntConfigPath: stampFile(v.FS, pctx.TerragruntConfigPath)}
+
+	for _, path := range parsePctx.FilesRead.Paths() {
 		pctx.FilesRead.Add(path)
+
+		files[path] = stampFile(v.FS, path)
 	}
 
 	if err != nil {
@@ -163,7 +198,7 @@ func readTerragruntConfigCached(
 	}
 
 	if !notShareable.Load() {
-		results.Put(ctx, key, &readTerragruntConfigResult{value: value, filesRead: filesRead})
+		results.Put(ctx, key, &readTerragruntConfigResult{value: value, files: files})
 	}
 
 	return value, nil
