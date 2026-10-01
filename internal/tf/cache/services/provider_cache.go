@@ -192,14 +192,12 @@ func (cache *ProviderCache) AuthenticatePackage(
 		return nil, err
 	}
 
-	checks := []getproviders.PackageAuthentication{
-		getproviders.NewMatchingChecksumAuthentication(
-			documentSHA256Sums,
-			cache.Filename,
-			checksum,
-		),
-		getproviders.NewArchiveChecksumAuthentication(checksum),
-	}
+	documentCheck := getproviders.NewMatchingChecksumAuthentication(
+		documentSHA256Sums,
+		cache.Filename,
+		checksum,
+	)
+	archiveCheck := getproviders.NewArchiveChecksumAuthentication(checksum)
 
 	keys := cache.SigningKeys.Keys()
 	if len(keys) == 0 {
@@ -209,7 +207,7 @@ func (cache *ProviderCache) AuthenticatePackage(
 			cache.Provider,
 		)
 
-		return getproviders.PackageAuthenticationAll(checks...).
+		return getproviders.PackageAuthenticationAll(documentCheck, archiveCheck).
 			Authenticate(cache.ProviderService.FS(), cache.archivePath)
 	}
 
@@ -225,13 +223,11 @@ func (cache *ProviderCache) AuthenticatePackage(
 		return nil, err
 	}
 
-	checks = append(
-		checks,
+	return getproviders.PackageAuthenticationAll(
+		documentCheck,
+		archiveCheck,
 		getproviders.NewSignatureAuthentication(documentSHA256Sums, signature, keys),
-	)
-
-	return getproviders.PackageAuthenticationAll(checks...).
-		Authenticate(cache.ProviderService.FS(), cache.archivePath)
+	).Authenticate(cache.ProviderService.FS(), cache.archivePath)
 }
 
 func (cache *ProviderCache) ArchivePath() string {
