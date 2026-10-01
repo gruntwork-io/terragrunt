@@ -3,11 +3,8 @@ version: "v1.2.0"
 category: "bug-fixes"
 ---
 
-#### `update_source_with_cas` reads negated and other constant expressions correctly
+#### The CAS evaluates `update_source_with_cas` instead of reading its first word
 
-The [CAS](/features/caching/cas) read `update_source_with_cas` from the raw tokens of the attribute and used the first identifier it found, so `!false` read as `false` and `!true` read as `true`. Other constant expressions, such as `"true"`, `true && false` or `1 == 1`, were misread the same way. As a result:
+The [CAS](/features/caching/cas) read `update_source_with_cas` from the first identifier in the expression, so `!false` counted as false and `true && false` counted as true. With the CAS on, `!false` left a relative source unrewritten and `!true` rewrote one. With `--no-cas`, `terragrunt stack generate` accepted a unit that set `update_source_with_cas = !false`, and that unit's relative `source` could not resolve.
 
-- `terragrunt stack generate --no-cas` did not reject a unit whose `terraform` block set `update_source_with_cas = !false`, and emitted the unit with a relative `source` that could not resolve.
-- With the CAS enabled, a `unit`, `stack` or `terraform` source was left unrewritten when the attribute evaluated to `true`, and rewritten when it evaluated to `false`.
-
-The CAS now evaluates constant expressions the same way the HCL parser does. Expressions that need an evaluation context, such as `local.use_cas`, are still treated as unset when the CAS rewrites sources.
+The CAS now evaluates the attribute using literals and the locals in the same file, so `!false` and `local.use_cas` work as written. A function call, or a local that calls one, now fails stack generation with an error. Terragrunt used to guess a value from the first word.

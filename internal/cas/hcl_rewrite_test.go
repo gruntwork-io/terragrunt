@@ -331,13 +331,26 @@ func TestReadTerraformSourceInfo_NonLiteralSourceWithoutCAS(t *testing.T) {
 	}
 }
 
-// updateSourceWithCASCases enumerates update_source_with_cas expressions and
-// the value the full HCL parser decodes for each. Expressions that need an
-// evaluation context cannot be read from raw tokens and resolve to false.
+// updateSourceWithCASLocals starts every updateSourceWithCASCases input. It
+// defines a plain local, a local read from another, a local that calls a
+// function, and two locals that read each other.
+const updateSourceWithCASLocals = `locals {
+  use_cas = true
+  no_cas  = !local.use_cas
+  env_cas = get_env("USE_CAS", "true")
+  cycle_a = local.cycle_b
+  cycle_b = local.cycle_a
+}
+`
+
+// updateSourceWithCASCases lists update_source_with_cas expressions with the
+// value the full HCL parser decodes for each. Expressions the CAS reader
+// cannot evaluate expect ErrUpdateSourceWithCASNotConstant instead.
 var updateSourceWithCASCases = []struct {
-	name     string
-	expr     string
-	expected bool
+	expectedErr error
+	name        string
+	expr        string
+	expected    bool
 }{
 	{name: "true", expr: `true`, expected: true},
 	{name: "false", expr: `false`, expected: false},
@@ -353,8 +366,17 @@ var updateSourceWithCASCases = []struct {
 	{name: "conditional", expr: `true ? false : true`, expected: false},
 	{name: "comparison", expr: `1 == 1`, expected: true},
 	{name: "null", expr: `null`, expected: false},
-	{name: "reference", expr: `local.use_cas`, expected: false},
-	{name: "function call", expr: `tobool("true")`, expected: false},
+	{name: "local", expr: `local.use_cas`, expected: true},
+	{name: "chained local", expr: `local.no_cas`, expected: false},
+	{name: "literal and local", expr: `true && local.use_cas`, expected: true},
+	{name: "literal and false local", expr: `true && local.no_cas`, expected: false},
+	{name: "function call", expr: `tobool("true")`, expectedErr: cas.ErrUpdateSourceWithCASNotConstant},
+	{name: "literal and function", expr: `true && tobool("true")`, expectedErr: cas.ErrUpdateSourceWithCASNotConstant},
+	{name: "local calls function", expr: `local.env_cas == "true"`, expectedErr: cas.ErrUpdateSourceWithCASNotConstant},
+	{name: "cyclic local", expr: `local.cycle_a`, expectedErr: cas.ErrUpdateSourceWithCASNotConstant},
+	{name: "undefined local", expr: `local.missing`, expectedErr: cas.ErrUpdateSourceWithCASNotConstant},
+	{name: "include reference", expr: `include.root.locals.use_cas`, expectedErr: cas.ErrUpdateSourceWithCASNotConstant},
+	{name: "not a bool", expr: `"yes"`, expectedErr: cas.ErrUpdateSourceWithCASNotConstant},
 }
 
 func TestReadTerraformSourceInfo_UpdateSourceWithCASExpressions(t *testing.T) {
@@ -364,13 +386,25 @@ func TestReadTerraformSourceInfo_UpdateSourceWithCASExpressions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			input := []byte(`terraform {
+			input := []byte(updateSourceWithCASLocals + `
+terraform {
   source = "../modules/service"
   update_source_with_cas = ` + tc.expr + `
 }
 `)
 
 			source, updateWithCAS, err := cas.ReadTerraformSourceInfo(input)
+			if tc.expectedErr != nil {
+				require.ErrorIs(t, err, tc.expectedErr)
+
+				var wrapped *cas.WrappedError
+
+				require.ErrorAs(t, err, &wrapped)
+				assert.Equal(t, "terraform", wrapped.Op)
+
+				return
+			}
+
 			require.NoError(t, err)
 			assert.Equal(t, "../modules/service", source)
 			assert.Equal(t, tc.expected, updateWithCAS)
@@ -385,7 +419,8 @@ func TestReadStackBlocks_UpdateSourceWithCASExpressions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			input := []byte(`unit "service" {
+			input := []byte(updateSourceWithCASLocals + `
+unit "service" {
   source = "../units/service"
   update_source_with_cas = ` + tc.expr + `
   path = "service"
@@ -399,6 +434,18 @@ stack "nested" {
 `)
 
 			blocks, err := cas.ReadStackBlocks(input)
+			if tc.expectedErr != nil {
+				require.ErrorIs(t, err, tc.expectedErr)
+
+				var wrapped *cas.WrappedError
+
+				require.ErrorAs(t, err, &wrapped)
+				assert.Equal(t, "unit", wrapped.Op)
+				assert.Equal(t, "service", wrapped.Context)
+
+				return
+			}
+
 			require.NoError(t, err)
 			require.Len(t, blocks, 2)
 			assert.Equal(t, tc.expected, blocks[0].UpdateSourceWithCAS)

@@ -929,12 +929,16 @@ func fetchComponentSource(
 			return nil
 		}
 
-		// Two failures must not fall back. A non-literal source on an
+		// Three failures must not fall back. A non-literal source on an
 		// update_source_with_cas block can never be rewritten by CAS, so the
 		// fallback would silently skip the rewrite the configuration asked
-		// for. An offline miss would be filled by the standard getter over
-		// the network --cas-offline forbids.
-		if errors.Is(casErr, cas.ErrSourceNotLiteral) || errors.Is(casErr, cas.ErrCASOffline) {
+		// for. CAS has the same problem when it cannot evaluate
+		// update_source_with_cas, since it cannot tell whether a rewrite was
+		// asked for. An offline miss would be filled by the standard getter
+		// over the network --cas-offline forbids.
+		if errors.Is(casErr, cas.ErrSourceNotLiteral) ||
+			errors.Is(casErr, cas.ErrUpdateSourceWithCASNotConstant) ||
+			errors.Is(casErr, cas.ErrCASOffline) {
 			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
 		}
 

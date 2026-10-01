@@ -77,7 +77,8 @@ type stackBlockInfo struct {
 // extracting the source and update_source_with_cas attributes. Blocks that set
 // update_source_with_cas = true must use a literal source string; a
 // non-literal source returns [ErrSourceNotLiteral] wrapped with the block
-// type and name.
+// type and name. An update_source_with_cas value that [extractBool] cannot
+// evaluate returns [ErrUpdateSourceWithCASNotConstant], wrapped the same way.
 func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.stack.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
@@ -85,6 +86,8 @@ func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 	}
 
 	var blocks []stackBlockInfo
+
+	evalCtx := constantLocals(f.Body())
 
 	for _, block := range f.Body().Blocks() {
 		bt := block.Type()
@@ -109,7 +112,16 @@ func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 		}
 
 		if attr := block.Body().GetAttribute("update_source_with_cas"); attr != nil {
-			info.UpdateSourceWithCAS = extractBoolLiteral(attr)
+			updateWithCAS, err := extractBool(attr, evalCtx)
+			if err != nil {
+				return nil, &WrappedError{
+					Op:      bt,
+					Context: info.Name,
+					Err:     err,
+				}
+			}
+
+			info.UpdateSourceWithCAS = updateWithCAS
 		}
 
 		// A non-literal source only matters for blocks CAS will rewrite;
@@ -131,7 +143,9 @@ func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 
 // ReadTerraformSourceInfo reads the source and update_source_with_cas from a
 // terraform block. When update_source_with_cas = true, the source must be a
-// literal string; a non-literal source returns [ErrSourceNotLiteral].
+// literal string; a non-literal source returns [ErrSourceNotLiteral]. An
+// update_source_with_cas value that [extractBool] cannot evaluate returns
+// [ErrUpdateSourceWithCASNotConstant].
 func ReadTerraformSourceInfo(content []byte) (source string, updateWithCAS bool, err error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
@@ -150,7 +164,13 @@ func ReadTerraformSourceInfo(content []byte) (source string, updateWithCAS bool,
 		}
 
 		if attr := block.Body().GetAttribute("update_source_with_cas"); attr != nil {
-			updateWithCAS = extractBoolLiteral(attr)
+			updateWithCAS, err = extractBool(attr, constantLocals(f.Body()))
+			if err != nil {
+				return "", false, &WrappedError{
+					Op:  "terraform",
+					Err: err,
+				}
+			}
 		}
 
 		// Without the rewrite opt-in the raw source is never consumed, so a
@@ -233,29 +253,89 @@ func nonLiteralKind(tokens hclwrite.Tokens) string {
 	return "non-literal expression"
 }
 
-// extractBoolLiteral extracts a boolean value from an hclwrite attribute.
-// The expression is evaluated without an evaluation context, so constant
-// expressions such as `!false`, `"true"` or `true && false` resolve to the
-// same value the full HCL parser decodes. Returns false for a null value and
-// for expressions that need a context, such as references like local.foo or
-// function calls, since this raw-token reader cannot evaluate them.
-func extractBoolLiteral(attr *hclwrite.Attribute) bool {
-	src := attr.Expr().BuildTokens(nil).Bytes()
-
-	expr, diags := hclsyntax.ParseExpression(src, "", hcl.InitialPos)
+// extractBool evaluates a bool attribute with the locals from [constantLocals].
+// `!false`, `true && false` and `local.use_cas` get the value the full HCL
+// parser decodes. A null value counts as false, like an unset attribute. A
+// function call, or a local that calls one, returns
+// [ErrUpdateSourceWithCASNotConstant], because this reader runs before the
+// full parser and has no functions to call.
+func extractBool(attr *hclwrite.Attribute, evalCtx *hcl.EvalContext) (bool, error) {
+	expr, diags := parseAttrExpr(attr)
 	if diags.HasErrors() {
-		return false
+		return false, ErrUpdateSourceWithCASNotConstant
 	}
 
-	val, diags := expr.Value(nil)
+	val, diags := expr.Value(evalCtx)
 	if diags.HasErrors() {
-		return false
+		return false, ErrUpdateSourceWithCASNotConstant
 	}
 
 	val, err := convert.Convert(val, cty.Bool)
-	if err != nil || val.IsNull() || !val.IsKnown() {
-		return false
+	if err != nil {
+		return false, ErrUpdateSourceWithCASNotConstant
 	}
 
-	return val.True()
+	if val.IsNull() {
+		return false, nil
+	}
+
+	return val.True(), nil
+}
+
+// constantLocals returns an evaluation context that sets local.<name> for
+// each local in body that evaluates without functions or variables other
+// than local. It skips a local that calls a function or reads one that does,
+// so a reference to that local fails to evaluate.
+func constantLocals(body *hclwrite.Body) *hcl.EvalContext {
+	exprs := map[string]hclsyntax.Expression{}
+
+	for _, block := range body.Blocks() {
+		if block.Type() != "locals" {
+			continue
+		}
+
+		for name, attr := range block.Body().Attributes() {
+			expr, diags := parseAttrExpr(attr)
+			if diags.HasErrors() {
+				continue
+			}
+
+			exprs[name] = expr
+		}
+	}
+
+	locals := map[string]cty.Value{}
+
+	// A pass that resolves nothing ends the loop, so len(exprs) passes cover
+	// the longest chain of locals.
+	for range len(exprs) {
+		evalCtx := &hcl.EvalContext{Variables: map[string]cty.Value{"local": cty.ObjectVal(locals)}}
+		resolved := false
+
+		for name, expr := range exprs {
+			if _, ok := locals[name]; ok {
+				continue
+			}
+
+			val, diags := expr.Value(evalCtx)
+			if diags.HasErrors() || !val.IsWhollyKnown() {
+				continue
+			}
+
+			locals[name] = val
+			resolved = true
+		}
+
+		if !resolved {
+			break
+		}
+	}
+
+	return &hcl.EvalContext{Variables: map[string]cty.Value{"local": cty.ObjectVal(locals)}}
+}
+
+// parseAttrExpr parses the expression of an hclwrite attribute so it can be
+// evaluated.
+func parseAttrExpr(attr *hclwrite.Attribute) (hclsyntax.Expression, hcl.Diagnostics) {
+	return hclsyntax.ParseExpression(attr.Expr().BuildTokens(nil).Bytes(), "", hcl.InitialPos)
 }

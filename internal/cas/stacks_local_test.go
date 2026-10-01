@@ -114,6 +114,132 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 	)
 }
 
+func TestProcessStackComponent_LocalSource_UpdateSourceWithCASExpressions(t *testing.T) {
+	t.Parallel()
+
+	const casRefPrefix = "cas::sha256:"
+
+	testCases := []struct {
+		expectedErr   error
+		name          string
+		stackExpr     string
+		unitExpr      string
+		stackContains string
+		unitContains  string
+	}{
+		{
+			name:          "negated false",
+			stackExpr:     `!false`,
+			unitExpr:      `!false`,
+			stackContains: casRefPrefix,
+			unitContains:  casRefPrefix,
+		},
+		{
+			name:          "negated true on terraform block",
+			stackExpr:     `true`,
+			unitExpr:      `!true`,
+			stackContains: casRefPrefix,
+			unitContains:  `"../..//modules/vpc"`,
+		},
+		{
+			name:          "negated true on unit block",
+			stackExpr:     `!true`,
+			unitExpr:      `true`,
+			stackContains: `"../..//units/my-service"`,
+			unitContains:  `"../..//modules/vpc"`,
+		},
+		{
+			name:          "literal and local",
+			stackExpr:     `true && local.use_cas`,
+			unitExpr:      `true && local.use_cas`,
+			stackContains: casRefPrefix,
+			unitContains:  casRefPrefix,
+		},
+		{
+			name:        "function call on terraform block",
+			stackExpr:   `true`,
+			unitExpr:    `tobool("true")`,
+			expectedErr: cas.ErrUpdateSourceWithCASNotConstant,
+		},
+		{
+			name:        "function call on unit block",
+			stackExpr:   `tobool("true")`,
+			unitExpr:    `true`,
+			expectedErr: cas.ErrUpdateSourceWithCASNotConstant,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := buildLocalStackFixture(t)
+
+			require.NoError(t, os.WriteFile(
+				filepath.Join(root, "stacks", "my-stack", "terragrunt.stack.hcl"),
+				[]byte(`locals {
+  use_cas = true
+}
+
+unit "service" {
+  source = "../..//units/my-service"
+
+  update_source_with_cas = `+tc.stackExpr+`
+
+  path = "service"
+}
+`),
+				0o644,
+			))
+			require.NoError(t, os.WriteFile(
+				filepath.Join(root, "units", "my-service", "terragrunt.hcl"),
+				[]byte(`locals {
+  use_cas = true
+}
+
+terraform {
+  source = "../..//modules/vpc"
+
+  update_source_with_cas = `+tc.unitExpr+`
+}
+`),
+				0o644,
+			))
+
+			l := logger.CreateLogger()
+
+			storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+			require.NoError(t, err)
+
+			v := venvtest.NewOSWithEmptyEnv()
+
+			result, err := c.ProcessStackComponent(t.Context(), l, v, root+"//stacks/my-stack", "stack")
+			if tc.expectedErr != nil {
+				require.ErrorIs(t, err, tc.expectedErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			defer result.Cleanup()
+
+			stackContent, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+			require.NoError(t, err)
+
+			// contentDir = <tmp>/repo/stacks/my-stack, so repo root is two dirs up.
+			repoCopy := filepath.Dir(filepath.Dir(result.ContentDir))
+
+			unitContent, err := os.ReadFile(filepath.Join(repoCopy, "units", "my-service", "terragrunt.hcl"))
+			require.NoError(t, err)
+
+			assert.Contains(t, string(stackContent), tc.stackContains)
+			assert.Contains(t, string(unitContent), tc.unitContains)
+		})
+	}
+}
+
 func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {
 	t.Parallel()
 
