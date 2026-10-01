@@ -225,12 +225,7 @@ func linkTree(
 }
 
 // planTree creates the directories t's entries need and returns the work each
-// entry represents at t's own nesting depth.
-//
-// Every entry is checked before anything is created or written: see
-// [treeEntryGuard.confine] for where an entry may land, and
-// [rejectEntriesUnderSymlink] for entries a symlink listed beside them would
-// swallow.
+// entry represents at t's own nesting depth. Every entry is checked before anything is created.
 func planTree(v *venv.Venv, t *git.Tree, rootDir, targetDir string, depth int) ([]treeWork, error) {
 	dirsToCreate := make(map[string]struct{}, len(t.Entries()))
 	work := make([]treeWork, 0, len(t.Entries()))
@@ -277,9 +272,7 @@ func planTree(v *venv.Venv, t *git.Tree, rootDir, targetDir string, depth int) (
 	return work, nil
 }
 
-// treeEntryGuard decides where the entries of one tree listing may land. It
-// resolves the root once and each parent directory once, so a listing of many
-// files in one directory pays for one symlink walk rather than one per file.
+// treeEntryGuard confines one listing's entries to the root, resolving the root and each parent directory once.
 type treeEntryGuard struct {
 	fsys         vfs.FS
 	resolvedDirs map[string]string
@@ -294,19 +287,7 @@ func newTreeEntryGuard(fsys vfs.FS, rootDir string) *treeEntryGuard {
 	}
 }
 
-// confine returns the path entry is written to under targetDir, or
-// [ErrTreeEntryEscapesDir] when the entry may not be written at all.
-//
-// Lexically, entry.Path has to stay inside targetDir: an absolute path, one
-// that climbs out with "..", or one that names targetDir itself is refused.
-// Git never writes such a name into a tree, so only a hand-crafted repository
-// carries one. Keeping every entry inside its own listing's directory is also
-// what keeps the check below stable: nothing a sibling listing creates
-// concurrently can become a parent of this entry.
-//
-// On disk, the path is then followed through every symlink that already
-// exists, and has to land strictly inside the root. A link inside the root is
-// followed; one that leaves it is refused, however local the path looked.
+// confine returns where entry lands under targetDir, or ErrTreeEntryEscapesDir when it leaves targetDir or the root.
 func (g *treeEntryGuard) confine(targetDir string, entry git.TreeEntry) (string, error) {
 	rel := filepath.FromSlash(entry.Path)
 	if !filepath.IsLocal(rel) || filepath.Clean(rel) == "." {
@@ -327,10 +308,7 @@ func (g *treeEntryGuard) confine(targetDir string, entry git.TreeEntry) (string,
 	return entryPath, nil
 }
 
-// resolve returns path with the symlinks already on disk followed, the way
-// [vfs.ResolveForCompare] does, but resolving each parent directory only once.
-// A path that is itself a link is followed whole, since a subtree or
-// submodule entry is written into, not replaced.
+// resolve follows the symlinks already on disk like vfs.ResolveForCompare, resolving each parent directory once.
 func (g *treeEntryGuard) resolve(path string) (string, error) {
 	info, err := vfs.Lstat(g.fsys, path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -352,9 +330,7 @@ func (g *treeEntryGuard) resolve(path string) (string, error) {
 	return filepath.Join(resolvedDir, filepath.Base(path)), nil
 }
 
-// strictlyInside reports whether path is a descendant of root, both already
-// resolved. The root itself does not count, so no entry can stand for the
-// download directory and be removed or replaced in its place.
+// strictlyInside reports whether path is a descendant of root, both resolved; the root itself does not count.
 func strictlyInside(root, path string) bool {
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
@@ -364,17 +340,13 @@ func strictlyInside(root, path string) bool {
 	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// rejectEntriesUnderSymlink refuses any entry whose path is, or lies beneath,
-// the path of a symlink entry in the same listing. The level's entries are
-// materialized concurrently, so such an entry could be written through the
-// link once it exists, somewhere the plan never looked. A tree git writes
-// never has both: a name is either a link or a directory, never each.
+// rejectEntriesUnderSymlink refuses an entry at or beneath a symlink entry of the same listing.
 func rejectEntriesUnderSymlink(work []treeWork, targetDir string) error {
 	symlinks := make(map[string]string)
 
-	for i := range work {
-		if work[i].kind == entrySymlink {
-			symlinks[work[i].path] = work[i].entry.Path
+	for _, w := range work {
+		if w.kind == entrySymlink {
+			symlinks[w.path] = w.entry.Path
 		}
 	}
 
@@ -384,27 +356,21 @@ func rejectEntriesUnderSymlink(work []treeWork, targetDir string) error {
 
 	targetDir = filepath.Clean(targetDir)
 
-	for i := range work {
-		w := &work[i]
-
-		// A link is only checked against its ancestors, so one listed twice
-		// is not reported as nested under itself.
-		path := w.path
+	for _, w := range work {
+		// A link is checked against its ancestors only, so one listed twice is not nested under itself.
+		start := w.path
 		if w.kind == entrySymlink {
-			path = filepath.Dir(path)
+			start = filepath.Dir(start)
 		}
 
-		for path != targetDir {
-			if linkPath, ok := symlinks[path]; ok {
-				return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryEscapesDir, w.entry.Path, linkPath)
-			}
-
-			parent := filepath.Dir(path)
-			if parent == path {
+		for ancestor := range vfs.Ancestors(start) {
+			if ancestor == targetDir {
 				break
 			}
 
-			path = parent
+			if linkPath, ok := symlinks[ancestor]; ok {
+				return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryEscapesDir, w.entry.Path, linkPath)
+			}
 		}
 	}
 

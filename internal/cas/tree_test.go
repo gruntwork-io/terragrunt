@@ -291,6 +291,16 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 			escaped:    "../../../../escape.txt",
 		},
 		{
+			name:       "blob entry named dot",
+			treeData:   []byte(`100644 blob 2323232323 .`),
+			storeBlobs: map[string][]byte{"2323232323": []byte("pwned")},
+		},
+		{
+			name:       "blob entry with absolute path equal to the target directory",
+			treeData:   []byte("100644 blob 4545454545 " + venvtest.Root("/target")),
+			storeBlobs: map[string][]byte{"4545454545": []byte("pwned")},
+		},
+		{
 			name:       "blob entry with absolute path",
 			treeData:   []byte("100644 blob 2222222222 " + venvtest.Root("/abs/escape.txt")),
 			storeBlobs: map[string][]byte{"2222222222": []byte("pwned")},
@@ -353,8 +363,7 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 			},
 		},
 		{
-			// The symlink and the blob beneath it are materialized concurrently, so the blob could be written
-			// through the link once it exists; with a pre-existing link behind it, outside the root.
+			// The blob and the symlink above it are written concurrently, so the blob could go through the link.
 			name: "blob entry nested under a symlink entry of the same listing",
 			treeData: []byte(`120000 blob 6666666666 link
 100644 blob 7777777777 link/x.txt`),
@@ -372,8 +381,7 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 			},
 		},
 		{
-			// A subtree's children are planned while the sibling symlink is still being created, so a child
-			// climbing into it would pass a disk check and be written through the link afterwards.
+			// A child is planned while the sibling symlink is still being created, so a disk check alone would pass it.
 			name: "subtree entry climbing into a sibling symlink entry",
 			treeData: []byte(`120000 blob 8888888888 link
 040000 tree 9999999999 sub`),
@@ -500,6 +508,12 @@ func TestLinkTreeAllowsPathsInsideRoot(t *testing.T) {
 			name:      "dot-dot that stays inside its own listing",
 			entryPath: "a/../inside.txt",
 			blobHash:  "6666666666",
+			blobData:  []byte("inside"),
+		},
+		{
+			name:      "dot-slash prefix stays inside its own listing",
+			entryPath: "./inside.txt",
+			blobHash:  "8989898989",
 			blobData:  []byte("inside"),
 		},
 		{
