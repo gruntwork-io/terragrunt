@@ -17,6 +17,7 @@ func TestTypeDisplayName(t *testing.T) {
 		{impl: tfimpl.OpenTofu, want: "OpenTofu"},
 		{impl: tfimpl.Terraform, want: "Terraform"},
 		{impl: tfimpl.Unknown, want: "OpenTofu/Terraform"},
+		{impl: tfimpl.Type("custom"), want: "OpenTofu/Terraform"},
 	}
 
 	for _, tc := range testCases {
