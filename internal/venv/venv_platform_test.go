@@ -14,10 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
-// TestVenvCacheTempAndEnvironBuilders pins the builder contract for the
-// platform handles the other builder tests leave out: the copy carries the
-// new handle, the rest of the platform is kept, and the receiver's platform
-// is untouched.
+// TestVenvCacheTempAndEnvironBuilders checks each builder sets its handle on a copy, not the original.
 func TestVenvCacheTempAndEnvironBuilders(t *testing.T) {
 	t.Parallel()
 
@@ -45,9 +42,7 @@ func TestVenvCacheTempAndEnvironBuilders(t *testing.T) {
 	assert.Nil(t, original.Platform.ReplaceEnviron)
 }
 
-// TestVenvRequireHandles pins the Require contracts not covered elsewhere: a
-// missing handle panics with its sentinel, including a platform that is set
-// but lacks the one handle asked for, and a populated handle passes.
+// TestVenvRequireHandles checks each Require method panics when its handle is missing and passes when set.
 func TestVenvRequireHandles(t *testing.T) {
 	t.Parallel()
 
@@ -114,9 +109,7 @@ func TestVenvRequireHandles(t *testing.T) {
 	}
 }
 
-// TestEnviron pins that Environ renders KEY=VALUE entries in sorted order, so
-// the result does not vary with map iteration, and that it inverts
-// ParseEnviron.
+// TestEnviron checks Environ returns sorted KEY=VALUE entries and is the inverse of ParseEnviron.
 func TestEnviron(t *testing.T) {
 	t.Parallel()
 
@@ -159,17 +152,13 @@ func TestEnviron(t *testing.T) {
 	}
 }
 
-// TestOSVenvReplaceEnviron pins the production ReplaceEnviron: it clears the
-// process environment before setting the new one, and reports a variable the
-// OS refuses. It replaces the real process environment, so it runs alone and
-// puts the original environment back when it is done.
+// TestOSVenvReplaceEnviron replaces the process environment, so it is not parallel and restores it on cleanup.
 func TestOSVenvReplaceEnviron(t *testing.T) {
 	replace := venv.OSVenv().Platform.ReplaceEnviron
 	original := venv.ParseEnviron(os.Environ())
 
 	t.Cleanup(func() {
-		// The Windows per-drive working-directory variables ("=C:") are
-		// maintained by the OS, not set through the environment API.
+		// Windows manages the per-drive "=C:" variables itself, so they are not restored.
 		restore := make(map[string]string, len(original))
 
 		for name, value := range original {
@@ -196,10 +185,7 @@ func TestOSVenvReplaceEnviron(t *testing.T) {
 	assert.ErrorContains(t, err, "in the process environment")
 }
 
-// TestOSVenvTerminalWithoutTerminal pins the production Terminal handles when
-// no stream is a terminal, as in a pipe, a file, or a CI log: every probe
-// reports false and the width is 0. It swaps the process-wide standard
-// streams, so it runs alone.
+// TestOSVenvTerminalWithoutTerminal checks every terminal probe reports false when the std streams are files.
 //
 //nolint:paralleltest // swaps the process-wide os.Stdin, os.Stdout and os.Stderr
 func TestOSVenvTerminalWithoutTerminal(t *testing.T) {
@@ -215,8 +201,7 @@ func TestOSVenvTerminalWithoutTerminal(t *testing.T) {
 	assert.Zero(t, terminal.Width())
 }
 
-// createStreamFile returns a regular file, which no terminal probe accepts,
-// closed when the test ends.
+// createStreamFile returns a regular file for the std streams, closed when the test ends.
 func createStreamFile(t *testing.T) *os.File {
 	t.Helper()
 
@@ -228,8 +213,7 @@ func createStreamFile(t *testing.T) *os.File {
 	return file
 }
 
-// swapStdStreams points os.Stdin, os.Stdout and os.Stderr at the given files
-// until the test ends, then restores the originals.
+// swapStdStreams points os.Stdin, os.Stdout and os.Stderr at the given files until the test ends.
 func swapStdStreams(t *testing.T, stdin, stdout, stderr *os.File) {
 	t.Helper()
 

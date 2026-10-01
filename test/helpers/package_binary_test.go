@@ -38,17 +38,13 @@ func TestWrappedBinary(t *testing.T) {
 func TestIsOpenTofuInstalled(t *testing.T) {
 	t.Parallel()
 
-	_, err := exec.LookPath(helpers.TofuBinary)
-
-	assert.Equal(t, err == nil, helpers.IsOpenTofuInstalled(t.Context()))
+	assert.Equal(t, pkgTRuns(t, helpers.TofuBinary), helpers.IsOpenTofuInstalled(t.Context()))
 }
 
 func TestIsTerraformInstalled(t *testing.T) {
 	t.Parallel()
 
-	_, err := exec.LookPath(helpers.TerraformBinary)
-
-	assert.Equal(t, err == nil, helpers.IsTerraformInstalled(t.Context()))
+	assert.Equal(t, pkgTRuns(t, helpers.TerraformBinary), helpers.IsTerraformInstalled(t.Context()))
 }
 
 func TestIsTerraform110OrHigher(t *testing.T) {
@@ -103,17 +99,23 @@ func TestIsNativeS3LockingSupported(t *testing.T) {
 	assert.Equal(t, pkgTAtLeast(major, minor, 1, 10), helpers.IsNativeS3LockingSupported(t))
 }
 
-// pkgTRequireOnPath skips the test when bin is not on PATH.
+// pkgTRequireOnPath skips the test when bin cannot run `-version`.
 func pkgTRequireOnPath(t *testing.T, bin string) {
 	t.Helper()
 
-	if _, err := exec.LookPath(bin); err != nil {
+	if !pkgTRuns(t, bin) {
 		t.Skipf("%s is not installed", bin)
 	}
 }
 
-// pkgTBinaryVersion runs `bin -version` and returns the major and minor
-// version it reports for product.
+// pkgTRuns reports whether bin -version succeeds, since a shim can be on PATH while its version is not installed.
+func pkgTRuns(t *testing.T, bin string) bool {
+	t.Helper()
+
+	return exec.CommandContext(t.Context(), bin, "-version").Run() == nil
+}
+
+// pkgTBinaryVersion runs bin -version and returns the major and minor version reported for product.
 func pkgTBinaryVersion(t *testing.T, bin, product string) (int, int) {
 	t.Helper()
 

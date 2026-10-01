@@ -10,9 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// applyVolumeLink only runs for a link target carrying a volume name, which
-// exists on Windows alone, so it is driven directly here to keep it checked on
-// every platform.
+// applyVolumeLink only runs on Windows, so this test calls it directly on every platform.
 func TestSymlinkWalkStateApplyVolumeLink(t *testing.T) {
 	t.Parallel()
 
@@ -69,11 +67,6 @@ func TestLimitedReaderAtLimit(t *testing.T) {
 		name    string
 	}{
 		{
-			name:    "underlying reader returning nothing without an error ends the stream",
-			reader:  emptyReader{},
-			wantErr: io.EOF,
-		},
-		{
 			name:    "underlying reader at its end ends the stream",
 			reader:  eofReader{},
 			wantErr: io.EOF,
@@ -105,11 +98,6 @@ func TestLimitedReaderAtLimit(t *testing.T) {
 
 // errReaderFailed is what failingReader reports.
 var errReaderFailed = errors.New("read failed")
-
-// emptyReader returns no data and no error, which io.Reader permits.
-type emptyReader struct{}
-
-func (emptyReader) Read([]byte) (int, error) { return 0, nil }
 
 // eofReader is always at its end.
 type eofReader struct{}

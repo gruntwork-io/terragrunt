@@ -122,8 +122,7 @@ func TestRunTerragruntCommandPassesArgsAfterDoubleDash(t *testing.T) {
 	dir := t.TempDir()
 	pkgTWriteFiles(t, dir, map[string]string{"terragrunt.hcl": ""})
 
-	// The key-value log format flag is inserted before "--", so the wrapped
-	// binary receives only "version".
+	// The log format flag goes before "--", so the wrapped binary receives only "version".
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --non-interactive --working-dir "+dir+" -- version",
@@ -176,8 +175,7 @@ func TestRunTerragruntValidateInputs(t *testing.T) {
 func TestRunTerragruntValidateInputsRunsFromNestedModule(t *testing.T) {
 	t.Parallel()
 
-	// The outer unit is missing its input, so only a run from the nested
-	// "module" directory passes.
+	// The outer unit lacks its input, so only a run from the nested "module" directory passes.
 	dir := pkgTInputsUnit(t, "")
 	pkgTWriteFiles(t, dir, map[string]string{
 		filepath.Join("module", "main.tf"):        pkgTInputsModule,
@@ -233,8 +231,7 @@ func TestRunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(t *test
 
 const pkgTInputsModule = "variable \"input\" {}\n"
 
-// pkgTInputsUnit writes a unit whose module requires one input, with inputs
-// as the body of its terragrunt.hcl inputs block, and returns its directory.
+// pkgTInputsUnit writes a unit whose module requires one input, using inputs as the inputs block body.
 func pkgTInputsUnit(t *testing.T, inputs string) string {
 	t.Helper()
 
@@ -247,8 +244,7 @@ func pkgTInputsUnit(t *testing.T, inputs string) string {
 	return dir
 }
 
-// pkgTStackFixture writes three provider-free units, app depending on db, and
-// returns the stack root.
+// pkgTStackFixture writes three units without providers, app depending on db, and returns the stack root.
 func pkgTStackFixture(t *testing.T) string {
 	t.Helper()
 

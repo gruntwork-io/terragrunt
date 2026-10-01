@@ -86,8 +86,7 @@ func TestToastStackPushSchedulesExpiry(t *testing.T) {
 		require.NotNil(t, s.Push("second"))
 		require.NotNil(t, expireFirst)
 
-		// The command fires once the toast's TTL elapses and names the toast
-		// it was scheduled for.
+		// The command fires after the TTL and names the toast it belongs to.
 		msg := expireFirst()
 
 		assert.Equal(t, 5*time.Second, time.Since(start))
@@ -123,8 +122,7 @@ func TestListenForWarnings(t *testing.T) {
 		cmd := viewtui.ListenForWarnings(ch)
 		require.NotNil(t, cmd)
 
-		// Each call delivers one warning, so the handler re-arms the same
-		// command to receive the next.
+		// Each call delivers one warning, so the handler calls the command again for the next.
 		assert.Equal(t, viewtui.Warning{Message: "one"}, cmd())
 		assert.Equal(t, viewtui.Warning{Message: "two"}, cmd())
 	})

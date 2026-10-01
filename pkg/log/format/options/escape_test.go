@@ -52,8 +52,7 @@ func TestEscapeOptionFormat(t *testing.T) {
 	}
 }
 
-// TestEscapeOptionFormatUnmarshalable pins that a value JSON cannot encode
-// surfaces the encoder error instead of writing a broken log line.
+// TestEscapeOptionFormatUnmarshalable checks a value JSON cannot encode returns the encoder error.
 func TestEscapeOptionFormatUnmarshalable(t *testing.T) {
 	t.Parallel()
 

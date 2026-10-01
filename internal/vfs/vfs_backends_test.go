@@ -102,8 +102,7 @@ func TestFSWorkersForGivesUpPastProbeBound(t *testing.T) {
 		t.Skip("Skipping on Windows: a missing path is answered by its drive")
 	}
 
-	// Deeper than the ancestors FSWorkersFor is willing to climb, and none of
-	// them exist, so no probe answers before the climb gives up.
+	// None of these ancestors exist, and there are more of them than FSWorkersFor will probe.
 	missing := filepath.Join(t.TempDir(), strings.Repeat("missing"+string(filepath.Separator), 70))
 
 	assert.Equal(t, vfs.DefaultFSWorkers, vfs.FSWorkersFor(vfs.NewOSFS(), missing))

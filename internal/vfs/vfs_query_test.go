@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"testing"
 
@@ -317,19 +316,18 @@ func TestWithin(t *testing.T) {
 	t.Run("relative path cannot be placed against an absolute directory", func(t *testing.T) {
 		t.Parallel()
 
-		if runtime.GOOS == "windows" {
-			t.Skip("Skipping on Windows: a rooted path without a drive is not absolute there")
-		}
+		// filepath.Abs adds a drive letter on Windows, where "/work/app" is not absolute.
+		dir, err := filepath.Abs(filepath.Join("work", "app"))
+		require.NoError(t, err)
 
-		assert.False(t, vfs.Within(fsys, "/work/app", "relative/file"))
+		assert.False(t, vfs.Within(fsys, dir, filepath.Join("relative", "file")))
 	})
 }
 
 // errUnresolvable is what unresolvableFS reports for every path.
 var errUnresolvable = errors.New("cannot resolve")
 
-// unresolvableFS resolves no path at all, as a filesystem whose symlink
-// evaluation fails everywhere would.
+// unresolvableFS fails symlink evaluation for every path.
 type unresolvableFS struct {
 	vfs.FS
 }

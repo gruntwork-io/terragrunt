@@ -14,12 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// unsupportedZipMethod is a compression method archive/zip has no
-// decompressor for.
+// unsupportedZipMethod is a compression method archive/zip cannot decompress.
 const unsupportedZipMethod = 99
 
-// corruptDeflate is not a deflate stream: its first block declares the
-// reserved block type.
+// corruptDeflate is not a valid deflate stream because its first block uses the reserved type.
 var corruptDeflate = []byte{0xff, 0xff, 0xff, 0xff}
 
 func TestUnzipEntryFailures(t *testing.T) {
@@ -210,9 +208,7 @@ func TestUnzipFileSizeLimitExactlyReached(t *testing.T) {
 	assert.Equal(t, content, got)
 }
 
-// rawZipEntry is an archive entry written without compressing data, so a test
-// can declare a compression method nothing reads or data that does not
-// decompress.
+// rawZipEntry is stored as given, so a test can set any compression method or invalid data.
 type rawZipEntry struct {
 	name   string
 	data   []byte

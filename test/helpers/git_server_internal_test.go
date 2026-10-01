@@ -103,8 +103,7 @@ func TestWalkFixturesRooted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Paths are relative to root; state, debug, cache and linked files are
-	// skipped; the SHA placeholder is left for render time.
+	// Paths are relative to root, state, debug, cache and linked files are skipped, and the SHA placeholder stays.
 	assert.Equal(t, map[string]string{
 		"test/fixtures/a/main.tf":   thTHTTPURL + " " + thTSSHURL + " __MIRROR_SHA__",
 		"test/fixtures/a/notes.txt": "__MIRROR_URL__",
@@ -144,8 +143,7 @@ func TestMirrorRefsInTree(t *testing.T) {
 	refs, err := mirrorRefsInTree(dir)
 	require.NoError(t, err)
 
-	// Relative sources resolve inside the rendered copy, so only the mirror
-	// references count; the link to terragrunt.hcl is not read twice.
+	// Relative sources resolve inside the copy, so only mirror references count and the link is read once.
 	assert.ElementsMatch(t, []string{"test/fixtures/a", "test/fixtures/b"}, refs)
 
 	_, err = mirrorRefsInTree(filepath.Join(dir, "missing"))
@@ -174,8 +172,7 @@ func TestMirrorExpandClosure(t *testing.T) {
 
 	fixturesDir := thTFakeFixtures(t)
 
-	// Duplicate seeds are walked once, a missing seed is dropped, and a seed
-	// nested under another is folded into its parent.
+	// Duplicate seeds are walked once, missing seeds dropped, and nested seeds folded into their parent.
 	dirs, err := mirrorExpandClosure(fixturesDir, []string{
 		"test/fixtures/a",
 		"test/fixtures/a",
@@ -345,8 +342,7 @@ func TestHandleGitSSHSession(t *testing.T) {
 		},
 	}
 
-	// The cases share one server, and the last removes its repository, so
-	// they run in order.
+	// The cases share one server and the last one removes its repository, so they run in order.
 	for _, tc := range testCases {
 		if tc.removeRepo {
 			require.NoError(t, os.RemoveAll(m.bareDir))
@@ -361,9 +357,7 @@ func TestHandleGitSSHSession(t *testing.T) {
 	}
 }
 
-// thTFakeFixtures builds a repo root holding test/fixtures/{a,b,c} and returns
-// its fixtures directory. a references b relatively and c through the mirror;
-// b references c through a boilerplate template-url.
+// thTFakeFixtures builds test/fixtures/{a,b,c}: a uses b by path and c by mirror, b uses c by template-url.
 func thTFakeFixtures(t *testing.T) string {
 	t.Helper()
 
@@ -379,8 +373,7 @@ func thTFakeFixtures(t *testing.T) string {
 	return fixturesDir
 }
 
-// thTUnreadableFixtures builds a fixtures directory whose fixture u holds a
-// file nobody can read, skipping where permission bits don't stop a read.
+// thTUnreadableFixtures builds fixture u with an unreadable file, skipping where permissions do not block reads.
 func thTUnreadableFixtures(t *testing.T) string {
 	t.Helper()
 
@@ -440,8 +433,7 @@ func thTDialSSH(t *testing.T, m *sshMirror) *cryptossh.Client {
 	return client
 }
 
-// thTRunSSH runs command in a new session, or asks for a shell when command
-// is empty, and returns what the server wrote to stderr.
+// thTRunSSH runs command in a new session, or a shell if command is empty, and returns the server's stderr.
 func thTRunSSH(t *testing.T, client *cryptossh.Client, command string) (string, error) {
 	t.Helper()
 
@@ -465,8 +457,7 @@ func thTRunSSH(t *testing.T, client *cryptossh.Client, command string) (string, 
 	return stderr.String(), err
 }
 
-// thTSymlinkIfPossible links link to target, logging instead of failing where
-// the platform refuses symlinks.
+// thTSymlinkIfPossible links link to target, logging instead of failing where symlinks are not allowed.
 func thTSymlinkIfPossible(t *testing.T, target, link string) {
 	t.Helper()
 

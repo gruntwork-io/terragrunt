@@ -183,8 +183,7 @@ func TestReadDirWithoutReadDirFile(t *testing.T) {
 		require.NoError(t, vfs.WriteFile(base, filepath.Join("/dir", name), []byte(name), 0o644))
 	}
 
-	// faultFS hands out files that only offer Readdir, so ReadDir takes its
-	// fallback path.
+	// faultFS files offer Readdir but not ReadDir, so ReadDir takes its fallback path.
 	fsys := &faultFS{FS: base}
 
 	t.Run("entries come back sorted by name", func(t *testing.T) {
@@ -237,13 +236,7 @@ const (
 	faultRead     = "read"
 )
 
-// faultFS wraps a filesystem and fails the operations named in faults, each
-// for the one path it maps to, or for every path when that is empty. Every
-// file it opens is a faultFile failing the operations in fileFaults.
-//
-// It embeds only vfs.FS, so the optional interfaces of the wrapped filesystem
-// (Lstat, symlinks, hard links, clones, locks) are hidden and callers take
-// their fallback paths.
+// faultFS fails the operations in faults and fileFaults and hides the wrapped filesystem's optional interfaces.
 type faultFS struct {
 	vfs.FS
 	faults     map[string]string
@@ -323,9 +316,7 @@ func (fsys *faultFS) Remove(name string) error {
 	return fsys.FS.Remove(name)
 }
 
-// faultFile wraps a file and fails the operations named in faults. A close
-// still closes the wrapped file before failing. It offers Readdir but not
-// ReadDir, as a file from an older filesystem backing would.
+// faultFile fails the operations in faults and offers Readdir but not ReadDir.
 type faultFile struct {
 	vfs.File
 	faults []string
@@ -363,8 +354,7 @@ func (f *faultFile) Stat() (os.FileInfo, error) {
 	return f.File.Stat()
 }
 
-// infoFailFS hands out directories whose entries cannot describe themselves,
-// as entries removed between the listing and the stat would.
+// infoFailFS returns directory entries whose Info call fails.
 type infoFailFS struct {
 	vfs.FS
 }

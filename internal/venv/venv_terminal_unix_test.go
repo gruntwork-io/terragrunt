@@ -13,10 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
-// TestOSVenvTerminalProbesOwnStream pins the production Terminal handles
-// against a real pseudo-terminal: each probe reports on its own stream alone,
-// and the width is the terminal's column count only when stdout is the
-// terminal. It swaps the process-wide standard streams, so it runs alone.
+// TestOSVenvTerminalProbesOwnStream checks each probe reports only its own stream, using a pseudo-terminal.
 //
 //nolint:paralleltest // swaps the process-wide os.Stdin, os.Stdout and os.Stderr
 func TestOSVenvTerminalProbesOwnStream(t *testing.T) {
@@ -69,8 +66,7 @@ func TestOSVenvTerminalProbesOwnStream(t *testing.T) {
 	}
 }
 
-// openPTY opens a pseudo-terminal sized to columns and returns its terminal
-// end, closing both ends when the test ends.
+// openPTY opens a pseudo-terminal with the given width and returns its terminal end.
 func openPTY(t *testing.T, columns uint16) *os.File {
 	t.Helper()
 

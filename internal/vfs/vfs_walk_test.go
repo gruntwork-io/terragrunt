@@ -345,8 +345,7 @@ func TestValidateResolvedSymlinkTargetUnresolvableRoot(t *testing.T) {
 	require.NotErrorIs(t, err, vfs.ErrSymlinkEscapes)
 }
 
-// newWalkTree returns an in-memory tree holding /root/a.txt,
-// /root/sub/inner.txt and /root/z.txt, which walk in that order.
+// newWalkTree returns a memory tree with /root/a.txt, /root/sub/inner.txt and /root/z.txt, in walk order.
 func newWalkTree(t *testing.T) vfs.FS {
 	t.Helper()
 
@@ -358,8 +357,7 @@ func newWalkTree(t *testing.T) vfs.FS {
 	return fsys
 }
 
-// evalFaultFS is a faultFS that resolves symlinks natively, so a walk can
-// reach a link's target without describing it through the faulty Stat.
+// evalFaultFS is a faultFS that resolves symlinks itself, so walks reach link targets despite a failing Stat.
 type evalFaultFS struct {
 	*faultFS
 }

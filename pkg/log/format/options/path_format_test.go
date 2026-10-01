@@ -175,8 +175,7 @@ func TestPathFormatOptionFormat(t *testing.T) {
 	}
 }
 
-// TestPathFormatAllowedValues pins that a placeholder which lists its allowed
-// path formats rejects the others.
+// TestPathFormatAllowedValues checks a placeholder rejects path formats outside its allowed list.
 func TestPathFormatAllowedValues(t *testing.T) {
 	t.Parallel()
 

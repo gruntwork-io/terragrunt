@@ -122,8 +122,7 @@ func TestCertSetup(t *testing.T) {
 	leaf, err := x509.ParseCertificate(serverConf.Certificates[0].Certificate[0])
 	require.NoError(t, err)
 
-	// The leaf is signed by the CA the client trusts and is valid for the
-	// loopback address the mirror server listens on.
+	// The leaf is signed by the CA the client trusts and is valid for the mirror's loopback address.
 	_, err = leaf.Verify(x509.VerifyOptions{
 		Roots:     clientConf.RootCAs,
 		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},

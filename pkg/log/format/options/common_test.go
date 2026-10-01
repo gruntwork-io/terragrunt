@@ -24,8 +24,7 @@ func TestCommonOption(t *testing.T) {
 	assert.Equal(t, "updated", opt.String())
 }
 
-// TestCommonOptionStringOfEmbeddingOption pins that an option built on
-// CommonOption prints its current value through the promoted String method.
+// TestCommonOptionStringOfEmbeddingOption checks an option embedding CommonOption prints its value via String.
 func TestCommonOptionStringOfEmbeddingOption(t *testing.T) {
 	t.Parallel()
 

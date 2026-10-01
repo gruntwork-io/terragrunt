@@ -10,9 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The AWS client constructors read the real process environment, so these
-// tests point the shared config and credentials files at paths that do not
-// exist. Building a client resolves no credentials and makes no request.
+// The AWS client constructors read the process environment, so these tests point config files at missing paths.
 
 //nolint:paralleltest // pkgTIsolateAWSConfig calls t.Setenv on the process environment.
 func TestCreateS3ClientForTest(t *testing.T) {
@@ -60,9 +58,7 @@ func TestCreateDynamoDBClientForTest(t *testing.T) {
 	}
 }
 
-// pkgTIsolateAWSConfig points the AWS SDK at config and credentials files that
-// do not exist and clears the profile, so a developer's own AWS setup cannot
-// change the result.
+// pkgTIsolateAWSConfig points the AWS SDK at missing config files and clears the profile, so local setup is ignored.
 func pkgTIsolateAWSConfig(t *testing.T) {
 	t.Helper()
 

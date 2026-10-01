@@ -17,8 +17,7 @@ func TestTLoggerPrintf(t *testing.T) {
 	assert.Equal(t, "pulled alpine in 12 ms", logged.message)
 }
 
-// thTRecordingTB is a testing.TB that records the last message logged
-// through it. Only Helper and Logf are implemented; tLogger calls nothing else.
+// thTRecordingTB records the last message logged through it and implements only Helper and Logf.
 type thTRecordingTB struct {
 	testing.TB
 

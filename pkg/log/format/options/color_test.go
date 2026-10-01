@@ -192,9 +192,7 @@ func TestColorOptionFormatSpecialValues(t *testing.T) {
 	}
 }
 
-// TestColorOptionFormatGradient pins that gradient gives each distinct text its
-// own color from a rotating list, keeps that color on repeats, and wraps once
-// the list runs out.
+// TestColorOptionFormatGradient checks each new text gets the next color, repeats keep theirs, and the list wraps.
 func TestColorOptionFormatGradient(t *testing.T) {
 	t.Parallel()
 

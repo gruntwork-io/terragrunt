@@ -81,8 +81,7 @@ func TestGitServerRequireSSHSkipsWithoutTools(t *testing.T) {
 	}
 }
 
-// thTWriteFakeBinary writes an executable stub named name into dir, with the
-// .exe spelling Windows looks up as well.
+// thTWriteFakeBinary writes an executable stub named name into dir, plus a .exe copy for Windows.
 func thTWriteFakeBinary(t *testing.T, dir, name string) {
 	t.Helper()
 

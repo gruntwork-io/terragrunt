@@ -116,7 +116,7 @@ func TestExecWithMiseAndCaptureOutput(t *testing.T) {
 	assert.True(t, strings.HasPrefix(stdout, "go version "), "stdout: %q", stdout)
 }
 
-// thTRequireGit skips the test when the git binary is not on PATH.
+// thTRequireGit skips the test without git on PATH, and every CI job has git, so CI still runs these tests.
 func thTRequireGit(t *testing.T) {
 	t.Helper()
 
@@ -125,8 +125,7 @@ func thTRequireGit(t *testing.T) {
 	}
 }
 
-// thTRequireMiseGo returns the repository root, skipping the test unless mise
-// resolves go there without installing anything.
+// thTRequireMiseGo returns the repo root, skipping the test unless mise resolves go there without installing it.
 func thTRequireMiseGo(t *testing.T) string {
 	t.Helper()
 

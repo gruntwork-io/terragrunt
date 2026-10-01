@@ -212,8 +212,7 @@ func TestValidateAuthProviderScript(t *testing.T) {
 
 	helpers.ValidateAuthProviderScript(t, v, "/work", "./auth-provider.sh")
 
-	// The script runs through the venv's executor, in dir, with the venv's
-	// environment.
+	// The script runs through the venv's executor, in dir, with the venv's environment.
 	assert.Equal(t, "./auth-provider.sh", got.Name)
 	assert.Equal(t, "/work", got.Dir)
 	assert.Equal(t, []string{"TG_TEST_ENV=value"}, got.Env)

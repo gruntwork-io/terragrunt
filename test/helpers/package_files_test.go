@@ -17,6 +17,16 @@ import (
 func TestCleanupContextOutlivesTestContext(t *testing.T) {
 	t.Parallel()
 
+	// t.Context() is canceled when cleanups run, but a new cleanup context must still work.
+	t.Cleanup(func() {
+		require.Error(t, t.Context().Err())
+
+		cleanupCtx, cleanupCancel := helpers.CleanupContext(t)
+		defer cleanupCancel()
+
+		require.NoError(t, cleanupCtx.Err())
+	})
+
 	ctx, cancel := helpers.CleanupContext(t)
 	defer cancel()
 
@@ -64,8 +74,7 @@ func TestCopyEnvironment(t *testing.T) {
 
 			tmpDir := helpers.CopyEnvironment(t, src, tc.include...)
 
-			// The fixture lands beneath the returned directory at its own
-			// (volume-stripped) absolute path.
+			// The fixture lands under the returned directory at its absolute path, minus the volume.
 			dst := filepath.Join(tmpDir, pkgTStripVolume(src))
 
 			assert.FileExists(t, filepath.Join(dst, "main.tf"))
