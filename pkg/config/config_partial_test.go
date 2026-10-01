@@ -1577,6 +1577,61 @@ exclude {
 	}
 }
 
+func TestPartialParseDeepMergesIncludedFeatureDefaultsOnce(t *testing.T) {
+	t.Parallel()
+
+	v, rootDir := newMemTestDir(t)
+
+	files := map[string]string{
+		"root.hcl": `
+feature "tags" {
+  default = {
+    names = ["root"]
+  }
+}
+`,
+		filepath.Join("unit", "terragrunt.hcl"): `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+feature "tags" {
+  default = {
+    names = ["unit"]
+  }
+}
+`,
+	}
+
+	for name, contents := range files {
+		path := filepath.Join(rootDir, name)
+		require.NoError(t, v.FS.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, vfs.WriteFile(v.FS, path, []byte(contents), 0o644))
+	}
+
+	unitPath := filepath.Join(rootDir, "unit", config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, unitPath)
+	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.DependencyBlock)
+
+	cfg, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, unitPath, nil)
+	require.NoError(t, err)
+
+	require.Len(t, cfg.FeatureFlags, 1)
+	require.NotNil(t, cfg.FeatureFlags[0].Default)
+
+	names := cfg.FeatureFlags[0].Default.GetAttr("names")
+
+	var got []string
+
+	for it := names.ElementIterator(); it.Next(); {
+		_, name := it.Element()
+		got = append(got, name.AsString())
+	}
+
+	assert.Equal(t, []string{"root", "unit"}, got)
+}
+
 func TestPartialParseEvaluatesEachIncludeOnce(t *testing.T) {
 	t.Parallel()
 

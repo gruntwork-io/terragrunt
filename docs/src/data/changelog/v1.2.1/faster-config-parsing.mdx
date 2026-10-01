@@ -11,13 +11,15 @@ Repositories where every unit includes a `root.hcl` that loads shared files with
 - Since v1.1.2, discovery parsed every included configuration twice, once for its feature flag defaults and once to merge it. It parses each include once again.
 - Locals and inputs went through a JSON encoding round trip on their way into Terragrunt. Terragrunt now converts them directly.
 
-Timing `find --dependencies` on an Apple M3 Max, over a generated repository whose units read a 48 KB YAML file through `read_terragrunt_config` (median of five runs):
+In [benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/discovery/benchmark_shared_config_test.go) on an Apple M3 Max, discovering units and their dependencies in a generated repository whose units read a 48 KB YAML file through `read_terragrunt_config`:
 
 | units | before | after |
 | --- | --- | --- |
-| 100 | 1.22s | 0.11s |
-| 500 | 4.24s | 0.26s |
-| 1,000 | 8.47s | 0.45s |
-| 5,000 | 39.2s | 2.04s |
+| 100 | 819ms | 59ms |
+| 500 | 3.60s | 201ms |
+| 1,000 | 7.01s | 379ms |
+| 5,000 | 34.2s | 1.88s |
+
+Memory allocated during discovery dropped by about 95%.
 
 Files read with `read_terragrunt_config` no longer see the reading unit's locals and feature flags in their `include` and `feature` blocks.
