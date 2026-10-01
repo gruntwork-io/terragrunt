@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -129,6 +130,9 @@ type treeWork struct {
 //
 // The whole tree, subtrees included, is reported as one cas_link_tree span
 // with the requested mode and how many files each mode served.
+//
+// An entry that leaves targetDir, would be written through a symbolic link, or names a path another entry names
+// refuses the whole call with ErrTreeEntryEscapesDir, ErrTreeEntryCrossesSymlink, or ErrTreeEntryCollides.
 func LinkTree(
 	ctx context.Context,
 	l log.Logger,
@@ -150,11 +154,28 @@ func LinkTree(
 
 	mode := resolveLinkMode(o.mode, o.mutable)
 
+	// An empty tree writes nothing, so the root is neither created nor probed and stays as the caller left it.
+	var folding vfs.NameFolding
+
+	if len(t.Entries()) > 0 {
+		// The root is created here so its filesystem can be probed; planTree would create it anyway.
+		if err := v.FS.MkdirAll(targetDir, DefaultDirPerms); err != nil {
+			return fmt.Errorf("mkdir %s: %w", targetDir, err)
+		}
+
+		var err error
+
+		// Probed at the root: a nested mount with other folding rules inside the download directory is not repository state.
+		if folding, err = vfs.DetectNameFolding(v.FS, targetDir); err != nil {
+			return fmt.Errorf("probe name folding of %s: %w", targetDir, err)
+		}
+	}
+
 	linker := &treeLinker{
 		blobContent: NewContent(blobStore),
 		treeContent: NewContent(treeStore),
 		treeStore:   treeStore,
-		entries:     newTreeEntryRegistry(targetDir),
+		entries:     newTreeEntryRegistry(targetDir, folding),
 		rootDir:     targetDir,
 		maxDepth:    o.maxTreeDepth(),
 		mode:        mode,
@@ -250,7 +271,7 @@ func (tl *treeLinker) planTree(v *venv.Venv, t *git.Tree, targetDir string, dept
 
 		kind, ok := treeEntryKindOf(entry)
 
-		if err := tl.entries.register(entryPath, kind, entry); err != nil {
+		if err := tl.entries.register(entryPath, kind); err != nil {
 			return nil, err
 		}
 
@@ -297,7 +318,7 @@ func newTreeEntryGuard(fsys vfs.FS, rootDir string) *treeEntryGuard {
 	}
 }
 
-// confine returns where entry lands, or ErrTreeEntryEscapesDir when it leaves the root or crosses an existing link.
+// confine returns where entry lands, ErrTreeEntryEscapesDir when it leaves the root, or ErrTreeEntryCrossesSymlink.
 func (g *treeEntryGuard) confine(targetDir string, entry git.TreeEntry) (string, error) {
 	entryPath := filepath.Join(targetDir, filepath.FromSlash(entry.Path))
 
@@ -320,13 +341,13 @@ func (g *treeEntryGuard) confine(targetDir string, entry git.TreeEntry) (string,
 	}
 
 	if viaLink {
-		return "", fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
+		return "", fmt.Errorf("%w: %q", ErrTreeEntryCrossesSymlink, entry.Path)
 	}
 
 	return entryPath, nil
 }
 
-// rejectSymlinkAt returns ErrTreeEntryEscapesDir when path already exists as a symlink; an absent path passes.
+// rejectSymlinkAt returns ErrTreeEntryCrossesSymlink when path already exists as a symlink; an absent path passes.
 func rejectSymlinkAt(fsys vfs.FS, path string, entry git.TreeEntry) error {
 	info, err := vfs.Lstat(fsys, path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -338,41 +359,52 @@ func rejectSymlinkAt(fsys vfs.FS, path string, entry git.TreeEntry) error {
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
+		return fmt.Errorf("%w: %q", ErrTreeEntryCrossesSymlink, entry.Path)
 	}
 
 	return nil
 }
 
-// treeEntryRegistry refuses an entry at or beneath a symlink entry anywhere in the tree, whichever is planned second.
+// treeEntryRegistry refuses two entries that name one path, and an entry at or beneath a symlink entry of the tree.
 type treeEntryRegistry struct {
+	leaves  map[string]string
 	links   map[string]string
 	dirs    map[string]string
 	rootDir string
 	mu      sync.Mutex
+	folding vfs.NameFolding
 }
 
-func newTreeEntryRegistry(rootDir string) *treeEntryRegistry {
+func newTreeEntryRegistry(rootDir string, folding vfs.NameFolding) *treeEntryRegistry {
 	return &treeEntryRegistry{
+		leaves:  make(map[string]string),
 		links:   make(map[string]string),
 		dirs:    make(map[string]string),
 		rootDir: filepath.Clean(rootDir),
+		folding: folding,
 	}
 }
 
-// register records entry at path, or returns ErrTreeEntryEscapesDir when a symlink entry and a directory collide.
-func (r *treeEntryRegistry) register(path string, kind treeEntryKind, entry git.TreeEntry) error {
+// register records an entry of kind at path, or returns the typed error for the entry it collides with.
+func (r *treeEntryRegistry) register(path string, kind treeEntryKind) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if kind == entrySymlink {
-		key := foldPath(path)
+	rel := r.relative(path)
+	key := r.key(path)
 
+	if prior, ok := r.leaves[key]; ok {
+		return fmt.Errorf("%w: %q and %q", ErrTreeEntryCollides, prior, rel)
+	}
+
+	r.leaves[key] = rel
+
+	if kind == entrySymlink {
 		if below, ok := r.dirs[key]; ok {
-			return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryEscapesDir, below, entry.Path)
+			return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryCrossesSymlink, below, rel)
 		}
 
-		r.links[key] = entry.Path
+		r.links[key] = rel
 	}
 
 	// A subtree or submodule is written into, so its own path counts as a directory too.
@@ -386,21 +418,67 @@ func (r *treeEntryRegistry) register(path string, kind treeEntryKind, entry git.
 			break
 		}
 
-		key := foldPath(dir)
+		dirKey := r.key(dir)
 
-		if linkPath, ok := r.links[key]; ok {
-			return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryEscapesDir, entry.Path, linkPath)
+		if linkPath, ok := r.links[dirKey]; ok {
+			return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryCrossesSymlink, rel, linkPath)
 		}
 
-		r.dirs[key] = entry.Path
+		r.dirs[dirKey] = rel
 	}
 
 	return nil
 }
 
-// foldPath is the comparison key for two paths that a case- or normalization-insensitive filesystem treats as one.
-func foldPath(path string) string {
-	return strings.ToLower(norm.NFC.String(path))
+// relative names path relative to the root for messages; confine already placed it inside, so Rel cannot fail.
+func (r *treeEntryRegistry) relative(path string) string {
+	rel, err := filepath.Rel(r.rootDir, path)
+	if err != nil {
+		return path
+	}
+
+	return rel
+}
+
+// key folds path exactly as far as the target filesystem does, so distinct names stay distinct where they are on disk.
+func (r *treeEntryRegistry) key(path string) string {
+	if r.folding.Unicode {
+		path = norm.NFC.String(path)
+	}
+
+	if r.folding.Case {
+		path = foldCase(path)
+	}
+
+	return path
+}
+
+// maxCaseFoldOrbit bounds the walk over one rune's simple case-fold orbit; Unicode keeps it at four members or fewer.
+const maxCaseFoldOrbit = 4
+
+// foldCase maps each rune to the smallest member of its simple case-fold orbit, as filesystems fold per character.
+func foldCase(path string) string {
+	var b strings.Builder
+
+	b.Grow(len(path))
+
+	for _, r := range path {
+		smallest := r
+
+		next := unicode.SimpleFold(r)
+		for range maxCaseFoldOrbit {
+			if next == r {
+				break
+			}
+
+			smallest = min(smallest, next)
+			next = unicode.SimpleFold(next)
+		}
+
+		b.WriteRune(smallest)
+	}
+
+	return b.String()
 }
 
 // treeEntryKindOf reports how to materialize entry, and false for an entry
