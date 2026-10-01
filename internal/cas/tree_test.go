@@ -267,6 +267,89 @@ func TestLinkTreeSymlinks(t *testing.T) {
 	}
 }
 
+// TestLinkTreeRejectsPathTraversal pins the containment contract: an entry
+// whose path escapes the target directory is refused before any filesystem
+// work, so an untrusted module cannot write, link, or delete outside its
+// download directory (GHSA-pvc5-w6c6-wx73).
+func TestLinkTreeRejectsPathTraversal(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	tests := []struct {
+		storeBlobs map[string][]byte // hash -> content, stored before linking
+		storeTrees map[string][]byte // hash -> tree data, stored before linking
+		escaped    string            // path, relative to targetDir, that must not exist afterwards
+		name       string
+		treeData   []byte
+	}{
+		{
+			// The CVE's primary shape: git ls-tree -r flattens the crafted
+			// nesting into one blob entry carrying the whole traversal.
+			name:       "blob entry escapes via dot-dot",
+			treeData:   []byte(`100644 blob 1111111111 ../../../../escape.txt`),
+			storeBlobs: map[string][]byte{"1111111111": []byte("pwned")},
+			escaped:    "../../../../escape.txt",
+		},
+		{
+			name:       "blob entry with absolute path",
+			treeData:   []byte("100644 blob 2222222222 " + venvtest.Root("/abs/escape.txt")),
+			storeBlobs: map[string][]byte{"2222222222": []byte("pwned")},
+		},
+		{
+			// A symlink entry reaches RemoveAll on work.path; the link path
+			// itself must be confined, not only the stored target.
+			name:       "symlink entry path escapes via dot-dot",
+			treeData:   []byte(`120000 blob 3333333333 ../../escape.link`),
+			storeBlobs: map[string][]byte{"3333333333": []byte("whatever")},
+			escaped:    "../../escape.link",
+		},
+		{
+			// A subtree object is read non-recursively, so a crafted ".."
+			// component survives to the per-level planTree call.
+			name:       "subtree entry named dot-dot",
+			treeData:   []byte(`040000 tree aaaaaaaaaa sub`),
+			storeTrees: map[string][]byte{"aaaaaaaaaa": []byte(`100644 blob bbbbbbbbbb ..`)},
+			storeBlobs: map[string][]byte{"bbbbbbbbbb": []byte("pwned")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New()
+			require.NoError(t, v.FS.MkdirAll("/store", 0o755))
+
+			store := cas.NewStore("/store")
+			content := cas.NewContent(store)
+
+			for hash, data := range tt.storeBlobs {
+				require.NoError(t, content.Store(l, v, hash, data, cas.StoredFilePerms))
+			}
+
+			for hash, data := range tt.storeTrees {
+				require.NoError(t, content.Store(l, v, hash, data, cas.StoredFilePerms))
+			}
+
+			tree, err := git.ParseTree(tt.treeData, "test-repo")
+			require.NoError(t, err)
+
+			targetDir := "/target"
+			require.NoError(t, v.FS.MkdirAll(targetDir, 0o755))
+
+			err = cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir)
+			require.ErrorIs(t, err, cas.ErrTreeEntryEscapesDir)
+
+			// The guard must run before any write, so nothing lands outside targetDir.
+			if tt.escaped != "" {
+				_, statErr := v.FS.Stat(filepath.Join(targetDir, tt.escaped))
+				assert.ErrorIs(t, statErr, os.ErrNotExist)
+			}
+		})
+	}
+}
+
 func TestLinkTree(t *testing.T) {
 	t.Parallel()
 

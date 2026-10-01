@@ -228,6 +228,13 @@ func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWor
 	work := make([]treeWork, 0, len(t.Entries()))
 
 	for _, entry := range t.Entries() {
+		// entry.Path is untrusted git data; a path escaping targetDir would let
+		// the code below write or RemoveAll outside the root. targetDir stays
+		// within the root, so IsLocal suffices. FromSlash: git uses forward slashes.
+		if !filepath.IsLocal(filepath.FromSlash(entry.Path)) {
+			return nil, fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
+		}
+
 		entryPath := filepath.Join(targetDir, entry.Path)
 		dirPath := filepath.Dir(entryPath)
 
@@ -361,6 +368,7 @@ func (tl *treeLinker) symlink(v *venv.Venv, work *treeWork) error {
 		return err
 	}
 
+	// planTree keeps work.path within the root, so RemoveAll cannot escape; only the target needed the check above.
 	if err := v.FS.RemoveAll(work.path); err != nil {
 		return fmt.Errorf("clear existing entry before symlink %s: %w", work.path, err)
 	}
