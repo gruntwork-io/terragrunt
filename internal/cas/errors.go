@@ -49,8 +49,7 @@ const (
 	ErrSourceNotLiteral Error = "update_source_with_cas requires a literal source string"
 	// ErrNotADirectory is returned when a path expected to be a directory is not.
 	ErrNotADirectory Error = "not a directory"
-	// ErrTreeEntryEscapesDir is returned when an untrusted git tree entry's path
-	// resolves outside the directory it is materialized into
+	// ErrTreeEntryEscapesDir is returned when an untrusted git tree entry escapes its destination directory
 	ErrTreeEntryEscapesDir Error = "tree entry path escapes the destination directory"
 	// ErrIncludedGitFileIsDir is returned when a name in [CloneOptions.IncludedGitFiles]
 	// resolves to a directory in the source repository's git directory

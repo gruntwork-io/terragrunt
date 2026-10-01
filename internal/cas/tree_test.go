@@ -267,25 +267,24 @@ func TestLinkTreeSymlinks(t *testing.T) {
 	}
 }
 
-// TestLinkTreeRejectsPathTraversal pins the containment contract: an entry
-// whose path escapes the target directory is refused before any filesystem
-// work, so an untrusted module cannot write, link, or delete outside its
-// download directory (GHSA-pvc5-w6c6-wx73).
+// TestLinkTreeRejectsPathTraversal pins that no untrusted tree entry can write, link, or delete outside the target dir.
 func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	tests := []struct {
+		// setup adds destination state before linking; verify asserts after the rejection.
+		setup      func(t *testing.T, v *venv.Venv, targetDir string)
+		verify     func(t *testing.T, v *venv.Venv, targetDir string)
 		storeBlobs map[string][]byte // hash -> content, stored before linking
 		storeTrees map[string][]byte // hash -> tree data, stored before linking
-		escaped    string            // path, relative to targetDir, that must not exist afterwards
+		escaped    string            // relative path that must not exist afterwards
 		name       string
 		treeData   []byte
 	}{
 		{
-			// The CVE's primary shape: git ls-tree -r flattens the crafted
-			// nesting into one blob entry carrying the whole traversal.
+			// git ls-tree -r flattens the crafted nesting into one blob entry carrying the whole traversal.
 			name:       "blob entry escapes via dot-dot",
 			treeData:   []byte(`100644 blob 1111111111 ../../../../escape.txt`),
 			storeBlobs: map[string][]byte{"1111111111": []byte("pwned")},
@@ -297,20 +296,61 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 			storeBlobs: map[string][]byte{"2222222222": []byte("pwned")},
 		},
 		{
-			// A symlink entry reaches RemoveAll on work.path; the link path
-			// itself must be confined, not only the stored target.
+			// A symlink entry reaches RemoveAll on work.path, so the link path must be confined too.
 			name:       "symlink entry path escapes via dot-dot",
 			treeData:   []byte(`120000 blob 3333333333 ../../escape.link`),
 			storeBlobs: map[string][]byte{"3333333333": []byte("whatever")},
 			escaped:    "../../escape.link",
 		},
 		{
-			// A subtree object is read non-recursively, so a crafted ".."
-			// component survives to the per-level planTree call.
+			// A subtree is read non-recursively, so a crafted ".." survives to the per-level planTree call.
 			name:       "subtree entry named dot-dot",
 			treeData:   []byte(`040000 tree aaaaaaaaaa sub`),
 			storeTrees: map[string][]byte{"aaaaaaaaaa": []byte(`100644 blob bbbbbbbbbb ..`)},
 			storeBlobs: map[string][]byte{"bbbbbbbbbb": []byte("pwned")},
+		},
+		{
+			// "sub/.." cleans to the target root itself, so a symlink entry would RemoveAll the whole directory.
+			name:       "symlink entry resolving to the target root",
+			treeData:   []byte(`120000 blob 4444444444 sub/..`),
+			storeBlobs: map[string][]byte{"4444444444": []byte("target")},
+			setup: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+				require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(targetDir, "keep.hcl"), []byte("keep"), 0o644))
+			},
+			verify: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+
+				got, err := vfs.ReadFile(v.FS, filepath.Join(targetDir, "keep.hcl"))
+				require.NoError(t, err)
+				assert.Equal(t, []byte("keep"), got)
+
+				info, err := vfs.Lstat(v.FS, targetDir)
+				require.NoError(t, err)
+				assert.True(t, info.IsDir(), "target directory must survive as a directory")
+			},
+		},
+		{
+			// A local-looking path can still escape through a parent that already exists as a symlink.
+			name:       "blob entry written through a pre-existing symlinked parent",
+			treeData:   []byte(`100644 blob 5555555555 link/result.txt`),
+			storeBlobs: map[string][]byte{"5555555555": []byte("payload")},
+			setup: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+				require.NoError(t, v.FS.MkdirAll("/outside", 0o755))
+				require.NoError(t, vfs.WriteFile(v.FS, "/outside/keep.txt", []byte("keep"), 0o644))
+				require.NoError(t, vfs.Symlink(v.FS, "/outside", filepath.Join(targetDir, "link")))
+			},
+			verify: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+
+				_, err := v.FS.Stat("/outside/result.txt")
+				require.ErrorIs(t, err, os.ErrNotExist, "must not write through the symlinked parent")
+
+				got, err := vfs.ReadFile(v.FS, "/outside/keep.txt")
+				require.NoError(t, err)
+				assert.Equal(t, []byte("keep"), got)
+			},
 		},
 	}
 
@@ -338,13 +378,21 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 			targetDir := "/target"
 			require.NoError(t, v.FS.MkdirAll(targetDir, 0o755))
 
+			if tt.setup != nil {
+				tt.setup(t, v, targetDir)
+			}
+
 			err = cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir)
 			require.ErrorIs(t, err, cas.ErrTreeEntryEscapesDir)
 
-			// The guard must run before any write, so nothing lands outside targetDir.
+			// The entry is rejected before its own path is used, so nothing is created at the escaped path.
 			if tt.escaped != "" {
 				_, statErr := v.FS.Stat(filepath.Join(targetDir, tt.escaped))
-				assert.ErrorIs(t, statErr, os.ErrNotExist)
+				require.ErrorIs(t, statErr, os.ErrNotExist)
+			}
+
+			if tt.verify != nil {
+				tt.verify(t, v, targetDir)
 			}
 		})
 	}

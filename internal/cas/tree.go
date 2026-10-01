@@ -227,11 +227,31 @@ func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWor
 	dirsToCreate := make(map[string]struct{}, len(t.Entries()))
 	work := make([]treeWork, 0, len(t.Entries()))
 
+	// Memoizes the symlinked-parent walk per parent dir, so many files in one dir cost one walk.
+	symlinkParent := make(map[string]bool)
+
 	for _, entry := range t.Entries() {
-		// entry.Path is untrusted git data; a path escaping targetDir would let
-		// the code below write or RemoveAll outside the root. targetDir stays
-		// within the root, so IsLocal suffices. FromSlash: git uses forward slashes.
-		if !filepath.IsLocal(filepath.FromSlash(entry.Path)) {
+		rel := filepath.FromSlash(entry.Path)
+
+		// Reject untrusted entry.Path that is absolute, climbs out with "..", or resolves to targetDir itself.
+		if !filepath.IsLocal(rel) || filepath.Clean(rel) == "." {
+			return nil, fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
+		}
+
+		// A local-looking path can still escape through a parent that already exists as a symlink.
+		parent := filepath.Dir(rel)
+		hasSymlink, seen := symlinkParent[parent]
+
+		if !seen {
+			var err error
+			if hasSymlink, err = vfs.ParentPathHasSymlink(v.FS, targetDir, rel); err != nil {
+				return nil, fmt.Errorf("check parents of tree entry %q: %w", entry.Path, err)
+			}
+
+			symlinkParent[parent] = hasSymlink
+		}
+
+		if hasSymlink {
 			return nil, fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
 		}
 
@@ -368,7 +388,7 @@ func (tl *treeLinker) symlink(v *venv.Venv, work *treeWork) error {
 		return err
 	}
 
-	// planTree keeps work.path within the root, so RemoveAll cannot escape; only the target needed the check above.
+	// planTree already confined work.path strictly inside the root, so this RemoveAll cannot escape.
 	if err := v.FS.RemoveAll(work.path); err != nil {
 		return fmt.Errorf("clear existing entry before symlink %s: %w", work.path, err)
 	}
