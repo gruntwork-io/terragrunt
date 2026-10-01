@@ -296,16 +296,6 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 			storeBlobs: map[string][]byte{"2323232323": []byte("pwned")},
 		},
 		{
-			name:       "blob entry with absolute path equal to the target directory",
-			treeData:   []byte("100644 blob 4545454545 " + venvtest.Root("/target")),
-			storeBlobs: map[string][]byte{"4545454545": []byte("pwned")},
-		},
-		{
-			name:       "blob entry with absolute path",
-			treeData:   []byte("100644 blob 2222222222 " + venvtest.Root("/abs/escape.txt")),
-			storeBlobs: map[string][]byte{"2222222222": []byte("pwned")},
-		},
-		{
 			// A symlink entry reaches RemoveAll on work.path, so the link path must be confined too.
 			name:       "symlink entry path escapes via dot-dot",
 			treeData:   []byte(`120000 blob 3333333333 ../../escape.link`),
@@ -413,6 +403,28 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 			treeData:   []byte("120000 blob 4646464646 fa\u00e7ade\n040000 tree 5757575757 fac\u0327ade"),
 			storeTrees: map[string][]byte{"5757575757": []byte(`100644 blob 6868686868 main.tf`)},
 			storeBlobs: map[string][]byte{"4646464646": []byte("real"), "6868686868": []byte("payload")},
+		},
+		{
+			// Two listings are planned concurrently; the registry refuses the pair whichever side registers second.
+			name: "entry in one listing climbing into a symlink entry of another listing",
+			treeData: []byte(`040000 tree 7979797979 a
+040000 tree 8080808080 b`),
+			storeTrees: map[string][]byte{
+				"7979797979": []byte(`120000 blob 9191919191 link`),
+				"8080808080": []byte(`100644 blob 9292929292 ../a/link/x.txt`),
+			},
+			storeBlobs: map[string][]byte{"9191919191": []byte("pre"), "9292929292": []byte("pwned")},
+			setup: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+				require.NoError(t, v.FS.MkdirAll("/outside", 0o755))
+				require.NoError(t, vfs.Symlink(v.FS, "/outside", filepath.Join(targetDir, "a", "pre")))
+			},
+			verify: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+
+				_, err := v.FS.Stat("/outside/x.txt")
+				require.ErrorIs(t, err, os.ErrNotExist, "must not write through the symlink entry")
+			},
 		},
 		{
 			// A name listed as both a link and a tree would have the tree's children written through the link.
@@ -538,29 +550,40 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 	}
 }
 
-// TestLinkTreeAllowsPathsInsideListing pins that a "." or ".." component which never leaves the listing is accepted.
-func TestLinkTreeAllowsPathsInsideListing(t *testing.T) {
+// TestLinkTreeAllowsPathsInsideRoot pins that an entry path landing inside the root is materialized, however spelled.
+func TestLinkTreeAllowsPathsInsideRoot(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	tests := []struct {
-		name      string
-		entryPath string
-		blobHash  string
-		blobData  []byte
+		storeTrees map[string][]byte // hash -> tree data, stored before linking
+		wantFiles  map[string][]byte // relative path -> content expected after linking
+		name       string
+		treeData   []byte
 	}{
 		{
 			name:      "dot-dot that stays inside its own listing",
-			entryPath: "a/../inside.txt",
-			blobHash:  "6666666666",
-			blobData:  []byte("inside"),
+			treeData:  []byte(`100644 blob 6666666666 a/../inside.txt`),
+			wantFiles: map[string][]byte{"inside.txt": []byte("blob 6666666666")},
 		},
 		{
-			name:      "dot-slash prefix stays inside its own listing",
-			entryPath: "./inside.txt",
-			blobHash:  "8989898989",
-			blobData:  []byte("inside"),
+			name:      "dot-slash prefix",
+			treeData:  []byte(`100644 blob 8989898989 ./inside.txt`),
+			wantFiles: map[string][]byte{"inside.txt": []byte("blob 8989898989")},
+		},
+		{
+			// An absolute entry.Path joins under the listing's directory, which is odd but not an escape.
+			name:      "absolute entry path joins under the root",
+			treeData:  []byte(`100644 blob 1010101010 /abs/inside.txt`),
+			wantFiles: map[string][]byte{"abs/inside.txt": []byte("blob 1010101010")},
+		},
+		{
+			// A nested listing may climb above its own directory as long as it stays inside the root.
+			name:       "nested entry climbing to a sibling directory inside the root",
+			treeData:   []byte(`040000 tree 2020202020 sub`),
+			storeTrees: map[string][]byte{"2020202020": []byte(`100644 blob 3030303030 ../sibling.txt`)},
+			wantFiles:  map[string][]byte{"sibling.txt": []byte("blob 3030303030")},
 		},
 	}
 
@@ -573,9 +596,17 @@ func TestLinkTreeAllowsPathsInsideListing(t *testing.T) {
 
 			store := cas.NewStore("/store")
 			content := cas.NewContent(store)
-			require.NoError(t, content.Store(l, v, tt.blobHash, tt.blobData, cas.StoredFilePerms))
 
-			tree, err := git.ParseTree([]byte("100644 blob "+tt.blobHash+" "+tt.entryPath), "test-repo")
+			for hash, data := range tt.storeTrees {
+				require.NoError(t, content.Store(l, v, hash, data, cas.StoredFilePerms))
+			}
+
+			for _, data := range tt.wantFiles {
+				hash := string(data[len("blob "):])
+				require.NoError(t, content.Store(l, v, hash, data, cas.StoredFilePerms))
+			}
+
+			tree, err := git.ParseTree(tt.treeData, "test-repo")
 			require.NoError(t, err)
 
 			targetDir := "/target"
@@ -583,9 +614,11 @@ func TestLinkTreeAllowsPathsInsideListing(t *testing.T) {
 
 			require.NoError(t, cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir))
 
-			got, err := vfs.ReadFile(v.FS, filepath.Join(targetDir, tt.entryPath))
-			require.NoError(t, err)
-			assert.Equal(t, tt.blobData, got)
+			for path, want := range tt.wantFiles {
+				got, err := vfs.ReadFile(v.FS, filepath.Join(targetDir, path))
+				require.NoError(t, err, path)
+				assert.Equal(t, want, got, path)
+			}
 		})
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -153,6 +154,7 @@ func LinkTree(
 		blobContent: NewContent(blobStore),
 		treeContent: NewContent(treeStore),
 		treeStore:   treeStore,
+		entries:     newTreeEntryRegistry(targetDir),
 		rootDir:     targetDir,
 		maxDepth:    o.maxTreeDepth(),
 		mode:        mode,
@@ -181,7 +183,7 @@ func linkTree(
 	targetDir string,
 	fsWorkers int,
 ) error {
-	level, err := planTree(v, t, targetDir, 0)
+	level, err := linker.planTree(v, t, targetDir, 0)
 	if err != nil {
 		return err
 	}
@@ -226,13 +228,13 @@ func linkTree(
 
 // planTree creates the directories t's entries need and returns the work each
 // entry represents at t's own nesting depth. Every entry is checked before anything is created.
-func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWork, error) {
+func (tl *treeLinker) planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWork, error) {
 	dirsToCreate := make(map[string]struct{}, len(t.Entries()))
 	work := make([]treeWork, 0, len(t.Entries()))
-	guard := newTreeEntryGuard(v.FS, targetDir)
+	guard := newTreeEntryGuard(v.FS, tl.rootDir)
 
 	for _, entry := range t.Entries() {
-		entryPath, err := guard.confine(entry)
+		entryPath, err := guard.confine(targetDir, entry)
 		if err != nil {
 			return nil, err
 		}
@@ -247,6 +249,11 @@ func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWor
 		delete(dirsToCreate, filepath.Dir(dirPath))
 
 		kind, ok := treeEntryKindOf(entry)
+
+		if err := tl.entries.register(entryPath, kind, entry); err != nil {
+			return nil, err
+		}
+
 		if !ok {
 			continue
 		}
@@ -266,10 +273,6 @@ func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWor
 		})
 	}
 
-	if err := rejectEntriesUnderSymlink(work, targetDir); err != nil {
-		return nil, err
-	}
-
 	for dirPath := range dirsToCreate {
 		if err := v.FS.MkdirAll(dirPath, DefaultDirPerms); err != nil {
 			return nil, fmt.Errorf("mkdir %s: %w", dirPath, err)
@@ -279,25 +282,28 @@ func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWor
 	return work, nil
 }
 
-// treeEntryGuard confines one listing's entries to targetDir, walking each parent directory for symlinks once.
+// treeEntryGuard confines one listing's entries to the root, walking each parent directory for symlinks once.
 type treeEntryGuard struct {
 	fsys        vfs.FS
 	linkParents map[string]bool
-	targetDir   string
+	rootDir     string
 }
 
-func newTreeEntryGuard(fsys vfs.FS, targetDir string) *treeEntryGuard {
+func newTreeEntryGuard(fsys vfs.FS, rootDir string) *treeEntryGuard {
 	return &treeEntryGuard{
 		fsys:        fsys,
 		linkParents: make(map[string]bool),
-		targetDir:   targetDir,
+		rootDir:     rootDir,
 	}
 }
 
-// confine returns where entry lands under targetDir, or ErrTreeEntryEscapesDir when it leaves it or crosses a symlink.
-func (g *treeEntryGuard) confine(entry git.TreeEntry) (string, error) {
-	rel := filepath.FromSlash(entry.Path)
-	if !filepath.IsLocal(rel) || filepath.Clean(rel) == "." {
+// confine returns where entry lands, or ErrTreeEntryEscapesDir when it leaves the root or crosses an existing link.
+func (g *treeEntryGuard) confine(targetDir string, entry git.TreeEntry) (string, error) {
+	entryPath := filepath.Join(targetDir, filepath.FromSlash(entry.Path))
+
+	// A ".." or an absolute entry.Path is fine as long as it lands inside the root and is not the root itself.
+	rel, err := filepath.Rel(g.rootDir, entryPath)
+	if err != nil || !filepath.IsLocal(rel) || rel == "." {
 		return "", fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
 	}
 
@@ -305,9 +311,7 @@ func (g *treeEntryGuard) confine(entry git.TreeEntry) (string, error) {
 
 	viaLink, seen := g.linkParents[parent]
 	if !seen {
-		var err error
-
-		viaLink, err = vfs.ParentPathHasSymlink(g.fsys, g.targetDir, rel)
+		viaLink, err = vfs.ParentPathHasSymlink(g.fsys, g.rootDir, rel)
 		if err != nil {
 			return "", fmt.Errorf("check parents of tree entry %q: %w", entry.Path, err)
 		}
@@ -319,7 +323,7 @@ func (g *treeEntryGuard) confine(entry git.TreeEntry) (string, error) {
 		return "", fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
 	}
 
-	return filepath.Join(g.targetDir, rel), nil
+	return entryPath, nil
 }
 
 // rejectSymlinkAt returns ErrTreeEntryEscapesDir when path already exists as a symlink; an absent path passes.
@@ -340,38 +344,55 @@ func rejectSymlinkAt(fsys vfs.FS, path string, entry git.TreeEntry) error {
 	return nil
 }
 
-// rejectEntriesUnderSymlink refuses an entry at or beneath a symlink entry of the same listing.
-func rejectEntriesUnderSymlink(work []treeWork, targetDir string) error {
-	symlinks := make(map[string]string)
+// treeEntryRegistry refuses an entry at or beneath a symlink entry anywhere in the tree, whichever is planned second.
+type treeEntryRegistry struct {
+	links   map[string]string
+	dirs    map[string]string
+	rootDir string
+	mu      sync.Mutex
+}
 
-	for _, w := range work {
-		if w.kind == entrySymlink {
-			symlinks[foldPath(w.path)] = w.entry.Path
+func newTreeEntryRegistry(rootDir string) *treeEntryRegistry {
+	return &treeEntryRegistry{
+		links:   make(map[string]string),
+		dirs:    make(map[string]string),
+		rootDir: filepath.Clean(rootDir),
+	}
+}
+
+// register records entry at path, or returns ErrTreeEntryEscapesDir when a symlink entry and a directory collide.
+func (r *treeEntryRegistry) register(path string, kind treeEntryKind, entry git.TreeEntry) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if kind == entrySymlink {
+		key := foldPath(path)
+
+		if below, ok := r.dirs[key]; ok {
+			return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryEscapesDir, below, entry.Path)
 		}
+
+		r.links[key] = entry.Path
 	}
 
-	if len(symlinks) == 0 {
-		return nil
+	// A subtree or submodule is written into, so its own path counts as a directory too.
+	start := filepath.Dir(path)
+	if kind == entrySubtree || kind == entrySubmodule {
+		start = path
 	}
 
-	targetDir = filepath.Clean(targetDir)
-
-	for _, w := range work {
-		// A link is checked against its ancestors only, so one listed twice is not nested under itself.
-		start := w.path
-		if w.kind == entrySymlink {
-			start = filepath.Dir(start)
+	for dir := range vfs.Ancestors(start) {
+		if dir == r.rootDir {
+			break
 		}
 
-		for ancestor := range vfs.Ancestors(start) {
-			if ancestor == targetDir {
-				break
-			}
+		key := foldPath(dir)
 
-			if linkPath, ok := symlinks[foldPath(ancestor)]; ok {
-				return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryEscapesDir, w.entry.Path, linkPath)
-			}
+		if linkPath, ok := r.links[key]; ok {
+			return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryEscapesDir, entry.Path, linkPath)
 		}
+
+		r.dirs[key] = entry.Path
 	}
 
 	return nil
@@ -410,6 +431,7 @@ type treeLinker struct {
 	blobContent      *Content
 	treeContent      *Content
 	treeStore        *Store
+	entries          *treeEntryRegistry
 	rootDir          string
 	maxDepth         int
 	linked           atomic.Int64
@@ -511,7 +533,7 @@ func (tl *treeLinker) subtree(v *venv.Venv, work *treeWork) ([]treeWork, error) 
 		return nil, fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
 	}
 
-	children, err := planTree(v, subTree, work.path, depth)
+	children, err := tl.planTree(v, subTree, work.path, depth)
 	if err != nil {
 		return nil, fmt.Errorf("link subtree %s: %w", work.path, err)
 	}
@@ -553,7 +575,7 @@ func (tl *treeLinker) submodule(v *venv.Venv, work *treeWork) ([]treeWork, error
 		return nil, fmt.Errorf("parse submodule tree %s: %w", work.entry.Hash, err)
 	}
 
-	children, err := planTree(v, subTree, work.path, depth)
+	children, err := tl.planTree(v, subTree, work.path, depth)
 	if err != nil {
 		return nil, fmt.Errorf("link submodule %s: %w", work.path, err)
 	}
