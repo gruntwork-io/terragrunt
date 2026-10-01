@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -344,7 +346,7 @@ func rejectEntriesUnderSymlink(work []treeWork, targetDir string) error {
 
 	for _, w := range work {
 		if w.kind == entrySymlink {
-			symlinks[w.path] = w.entry.Path
+			symlinks[foldPath(w.path)] = w.entry.Path
 		}
 	}
 
@@ -366,13 +368,18 @@ func rejectEntriesUnderSymlink(work []treeWork, targetDir string) error {
 				break
 			}
 
-			if linkPath, ok := symlinks[ancestor]; ok {
+			if linkPath, ok := symlinks[foldPath(ancestor)]; ok {
 				return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryEscapesDir, w.entry.Path, linkPath)
 			}
 		}
 	}
 
 	return nil
+}
+
+// foldPath is the comparison key for two paths that a case- or normalization-insensitive filesystem treats as one.
+func foldPath(path string) string {
+	return strings.ToLower(norm.NFC.String(path))
 }
 
 // treeEntryKindOf reports how to materialize entry, and false for an entry

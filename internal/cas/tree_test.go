@@ -400,6 +400,21 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 			},
 		},
 		{
+			// A case-insensitive filesystem treats "Link" and "link" as one path, so the alias is refused everywhere.
+			name: "subtree entry aliased by a symlink entry differing in case",
+			treeData: []byte(`120000 blob 1313131313 Link
+040000 tree 2424242424 link`),
+			storeTrees: map[string][]byte{"2424242424": []byte(`100644 blob 3535353535 main.tf`)},
+			storeBlobs: map[string][]byte{"1313131313": []byte("real"), "3535353535": []byte("payload")},
+		},
+		{
+			// A normalization-insensitive filesystem treats the composed and decomposed spellings as one path.
+			name:       "subtree entry aliased by a symlink entry differing in unicode normalization",
+			treeData:   []byte("120000 blob 4646464646 fa\u00e7ade\n040000 tree 5757575757 fac\u0327ade"),
+			storeTrees: map[string][]byte{"5757575757": []byte(`100644 blob 6868686868 main.tf`)},
+			storeBlobs: map[string][]byte{"4646464646": []byte("real"), "6868686868": []byte("payload")},
+		},
+		{
 			// A name listed as both a link and a tree would have the tree's children written through the link.
 			name: "subtree entry sharing its path with a symlink entry",
 			treeData: []byte(`120000 blob 3434343434 sub
