@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
-	"strings"
 	"sync/atomic"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -181,7 +179,7 @@ func linkTree(
 	targetDir string,
 	fsWorkers int,
 ) error {
-	level, err := planTree(v, t, linker.rootDir, targetDir, 0)
+	level, err := planTree(v, t, targetDir, 0)
 	if err != nil {
 		return err
 	}
@@ -226,13 +224,13 @@ func linkTree(
 
 // planTree creates the directories t's entries need and returns the work each
 // entry represents at t's own nesting depth. Every entry is checked before anything is created.
-func planTree(v *venv.Venv, t *git.Tree, rootDir, targetDir string, depth int) ([]treeWork, error) {
+func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWork, error) {
 	dirsToCreate := make(map[string]struct{}, len(t.Entries()))
 	work := make([]treeWork, 0, len(t.Entries()))
-	guard := newTreeEntryGuard(v.FS, rootDir)
+	guard := newTreeEntryGuard(v.FS, targetDir)
 
 	for _, entry := range t.Entries() {
-		entryPath, err := guard.confine(targetDir, entry)
+		entryPath, err := guard.confine(entry)
 		if err != nil {
 			return nil, err
 		}
@@ -249,6 +247,13 @@ func planTree(v *venv.Venv, t *git.Tree, rootDir, targetDir string, depth int) (
 		kind, ok := treeEntryKindOf(entry)
 		if !ok {
 			continue
+		}
+
+		// A subtree or submodule is written into, so its own path must not already be a symlink.
+		if kind == entrySubtree || kind == entrySubmodule {
+			if err := rejectSymlinkAt(v.FS, entryPath, entry); err != nil {
+				return nil, err
+			}
 		}
 
 		work = append(work, treeWork{
@@ -272,72 +277,65 @@ func planTree(v *venv.Venv, t *git.Tree, rootDir, targetDir string, depth int) (
 	return work, nil
 }
 
-// treeEntryGuard confines one listing's entries to the root, resolving the root and each parent directory once.
+// treeEntryGuard confines one listing's entries to targetDir, walking each parent directory for symlinks once.
 type treeEntryGuard struct {
-	fsys         vfs.FS
-	resolvedDirs map[string]string
-	resolvedRoot string
+	fsys        vfs.FS
+	linkParents map[string]bool
+	targetDir   string
 }
 
-func newTreeEntryGuard(fsys vfs.FS, rootDir string) *treeEntryGuard {
+func newTreeEntryGuard(fsys vfs.FS, targetDir string) *treeEntryGuard {
 	return &treeEntryGuard{
-		fsys:         fsys,
-		resolvedDirs: make(map[string]string),
-		resolvedRoot: vfs.ResolveForCompare(fsys, rootDir),
+		fsys:        fsys,
+		linkParents: make(map[string]bool),
+		targetDir:   targetDir,
 	}
 }
 
-// confine returns where entry lands under targetDir, or ErrTreeEntryEscapesDir when it leaves targetDir or the root.
-func (g *treeEntryGuard) confine(targetDir string, entry git.TreeEntry) (string, error) {
+// confine returns where entry lands under targetDir, or ErrTreeEntryEscapesDir when it leaves it or crosses a symlink.
+func (g *treeEntryGuard) confine(entry git.TreeEntry) (string, error) {
 	rel := filepath.FromSlash(entry.Path)
 	if !filepath.IsLocal(rel) || filepath.Clean(rel) == "." {
 		return "", fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
 	}
 
-	entryPath := filepath.Join(targetDir, rel)
+	parent := filepath.Dir(rel)
 
-	resolved, err := g.resolve(entryPath)
-	if err != nil {
-		return "", fmt.Errorf("check tree entry %q: %w", entry.Path, err)
+	viaLink, seen := g.linkParents[parent]
+	if !seen {
+		var err error
+
+		viaLink, err = vfs.ParentPathHasSymlink(g.fsys, g.targetDir, rel)
+		if err != nil {
+			return "", fmt.Errorf("check parents of tree entry %q: %w", entry.Path, err)
+		}
+
+		g.linkParents[parent] = viaLink
 	}
 
-	if !strictlyInside(g.resolvedRoot, resolved) {
+	if viaLink {
 		return "", fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
 	}
 
-	return entryPath, nil
+	return filepath.Join(g.targetDir, rel), nil
 }
 
-// resolve follows the symlinks already on disk like vfs.ResolveForCompare, resolving each parent directory once.
-func (g *treeEntryGuard) resolve(path string) (string, error) {
-	info, err := vfs.Lstat(g.fsys, path)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return "", err
+// rejectSymlinkAt returns ErrTreeEntryEscapesDir when path already exists as a symlink; an absent path passes.
+func rejectSymlinkAt(fsys vfs.FS, path string, entry git.TreeEntry) error {
+	info, err := vfs.Lstat(fsys, path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
 	}
 
-	if err == nil && info.Mode()&os.ModeSymlink != 0 {
-		return vfs.ResolveForCompare(g.fsys, path), nil
-	}
-
-	dir := filepath.Dir(path)
-
-	resolvedDir, ok := g.resolvedDirs[dir]
-	if !ok {
-		resolvedDir = vfs.ResolveForCompare(g.fsys, dir)
-		g.resolvedDirs[dir] = resolvedDir
-	}
-
-	return filepath.Join(resolvedDir, filepath.Base(path)), nil
-}
-
-// strictlyInside reports whether path is a descendant of root, both resolved; the root itself does not count.
-func strictlyInside(root, path string) bool {
-	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return false
+		return fmt.Errorf("check tree entry %q: %w", entry.Path, err)
 	}
 
-	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
+	}
+
+	return nil
 }
 
 // rejectEntriesUnderSymlink refuses an entry at or beneath a symlink entry of the same listing.
@@ -506,7 +504,7 @@ func (tl *treeLinker) subtree(v *venv.Venv, work *treeWork) ([]treeWork, error) 
 		return nil, fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
 	}
 
-	children, err := planTree(v, subTree, tl.rootDir, work.path, depth)
+	children, err := planTree(v, subTree, work.path, depth)
 	if err != nil {
 		return nil, fmt.Errorf("link subtree %s: %w", work.path, err)
 	}
@@ -548,7 +546,7 @@ func (tl *treeLinker) submodule(v *venv.Venv, work *treeWork) ([]treeWork, error
 		return nil, fmt.Errorf("parse submodule tree %s: %w", work.entry.Hash, err)
 	}
 
-	children, err := planTree(v, subTree, tl.rootDir, work.path, depth)
+	children, err := planTree(v, subTree, work.path, depth)
 	if err != nil {
 		return nil, fmt.Errorf("link submodule %s: %w", work.path, err)
 	}

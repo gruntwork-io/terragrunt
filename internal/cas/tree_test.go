@@ -408,6 +408,40 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 			storeBlobs: map[string][]byte{"3434343434": []byte("real"), "7878787878": []byte("payload")},
 		},
 		{
+			// A link already in the download directory decides where a write lands, so it is never followed.
+			name:       "blob entry written through a pre-existing in-root symlinked parent",
+			treeData:   []byte(`100644 blob 2121212121 link/main.tf`),
+			storeBlobs: map[string][]byte{"2121212121": []byte("payload")},
+			setup: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+				require.NoError(t, v.FS.MkdirAll(filepath.Join(targetDir, "real"), 0o755))
+				require.NoError(t, vfs.Symlink(v.FS, filepath.Join(targetDir, "real"), filepath.Join(targetDir, "link")))
+			},
+			escaped: "real/main.tf",
+		},
+		{
+			// An alias of a sibling symlink entry's path would route this entry through the link once it is swapped in.
+			name: "symlink entry nested under a pre-existing alias of a sibling symlink entry",
+			treeData: []byte(`120000 blob 4343434343 dir
+120000 blob 6565656565 alias/x`),
+			storeBlobs: map[string][]byte{"4343434343": []byte("pre"), "6565656565": []byte("y")},
+			setup: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+				require.NoError(t, v.FS.MkdirAll("/outside/x", 0o755))
+				require.NoError(t, vfs.WriteFile(v.FS, "/outside/x/keep.txt", []byte("keep"), 0o644))
+				require.NoError(t, v.FS.MkdirAll(filepath.Join(targetDir, "dir"), 0o755))
+				require.NoError(t, vfs.Symlink(v.FS, "/outside", filepath.Join(targetDir, "pre")))
+				require.NoError(t, vfs.Symlink(v.FS, filepath.Join(targetDir, "dir"), filepath.Join(targetDir, "alias")))
+			},
+			verify: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+
+				got, err := vfs.ReadFile(v.FS, "/outside/x/keep.txt")
+				require.NoError(t, err, "must not remove anything outside the root")
+				assert.Equal(t, []byte("keep"), got)
+			},
+		},
+		{
 			// A subtree is written into, so its own path being a pre-existing symlink must be rejected, not followed.
 			name:       "subtree entry at a pre-existing symlinked path",
 			treeData:   []byte(`040000 tree cccccccccc sub`),
@@ -489,22 +523,19 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 	}
 }
 
-// TestLinkTreeAllowsPathsInsideRoot pins the other half of the rule: a path that stays inside its own listing
-// is materialized even when it carries a ".." or reaches its destination through an in-root symlink.
-func TestLinkTreeAllowsPathsInsideRoot(t *testing.T) {
+// TestLinkTreeAllowsPathsInsideListing pins that a "." or ".." component which never leaves the listing is accepted.
+func TestLinkTreeAllowsPathsInsideListing(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	tests := []struct {
-		setup     func(t *testing.T, v *venv.Venv, targetDir string) // destination state before linking
 		name      string
-		entryPath string // the entry's path field, which must land inside the root
+		entryPath string
 		blobHash  string
 		blobData  []byte
 	}{
 		{
-			// A ".." that never leaves the listing's directory cleans away, so it is odd but not an escape.
 			name:      "dot-dot that stays inside its own listing",
 			entryPath: "a/../inside.txt",
 			blobHash:  "6666666666",
@@ -515,18 +546,6 @@ func TestLinkTreeAllowsPathsInsideRoot(t *testing.T) {
 			entryPath: "./inside.txt",
 			blobHash:  "8989898989",
 			blobData:  []byte("inside"),
-		},
-		{
-			// A parent that is a symlink staying inside the root must be followed, not refused.
-			name:      "blob written through an in-root symlinked parent",
-			entryPath: "link/main.tf",
-			blobHash:  "7777777777",
-			blobData:  []byte("payload"),
-			setup: func(t *testing.T, v *venv.Venv, targetDir string) {
-				t.Helper()
-				require.NoError(t, v.FS.MkdirAll(filepath.Join(targetDir, "real"), 0o755))
-				require.NoError(t, vfs.Symlink(v.FS, filepath.Join(targetDir, "real"), filepath.Join(targetDir, "link")))
-			},
 		},
 	}
 
@@ -546,10 +565,6 @@ func TestLinkTreeAllowsPathsInsideRoot(t *testing.T) {
 
 			targetDir := "/target"
 			require.NoError(t, v.FS.MkdirAll(targetDir, 0o755))
-
-			if tt.setup != nil {
-				tt.setup(t, v, targetDir)
-			}
 
 			require.NoError(t, cas.LinkTree(t.Context(), l, v, store, store, tree, targetDir))
 

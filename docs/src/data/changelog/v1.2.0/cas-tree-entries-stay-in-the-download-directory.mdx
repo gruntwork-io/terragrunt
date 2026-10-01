@@ -7,4 +7,4 @@ category: "bug-fixes"
 
 A repository with a hand-edited git tree can list a file at a path git would never write, such as `../../x.tf`, an absolute path, or a path under a symbolic link in the same tree. The [CAS](/features/caching/cas) wrote the file where the path pointed, which could be outside the module's download directory.
 
-Terragrunt now checks every path before it writes anything and refuses the whole tree if one escapes. A path that stays inside the download directory still works, including one that passes through a symbolic link inside it.
+Terragrunt now checks each path before writing to it and refuses the tree when one escapes. A path that passes through a symbolic link already present in the download directory is refused too, because the link decides where the write lands.
