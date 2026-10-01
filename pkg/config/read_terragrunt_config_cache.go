@@ -19,18 +19,18 @@ import (
 )
 
 // readTerragruntConfigResult is a read_terragrunt_config result shared by every config that reads the same target
-// with the same readTerragruntConfigKey.
+// with the same [ReadTerragruntConfigKey].
 type readTerragruntConfigResult struct {
 	value     cty.Value
 	filesRead []string
 }
 
-// readTerragruntConfigKey identifies a read_terragrunt_config target and the inputs its parse takes from the reading
-// config's context.
+// ReadTerragruntConfigKey identifies a read_terragrunt_config target and the inputs its parse takes from the reading
+// config's context. Reads with equal keys in one command share one result.
 //
 // [ParseTerragruntConfig] resets the fields the target has to compute for itself, and the functions that read the
-// reading config's path call markNotShareable, so neither appears here.
-type readTerragruntConfigKey struct {
+// reading config's path stop the result being shared, so neither appears here.
+type ReadTerragruntConfigKey struct {
 	TerragruntStackConfigPath string
 	ConfigPath                string
 	TerraformCommand          string
@@ -45,6 +45,7 @@ type readTerragruntConfigKey struct {
 	DecodeList                []PartialDecodeSectionType
 	ConfigModTime             int64
 	EnvHash                   uint64
+	MaxFoldersToCheck         int
 	Diagnostics               DiagnosticsOutput
 	DiscardOutput             bool
 	TrackFilesRead            bool
@@ -64,8 +65,51 @@ type shareabilityKey struct{}
 // perCallFunctionNames lists the OpenTofu functions that return a new value on every call.
 var perCallFunctionNames = []string{"bcrypt", "timestamp", "uuid"}
 
-// envHashSeed seeds the environment hash in readTerragruntConfigKey. The hash only has to agree within one process.
+// envHashSeed seeds the environment hash in [ReadTerragruntConfigKey]. The hash only has to agree within one process.
 var envHashSeed = maphash.MakeSeed()
+
+// NewReadTerragruntConfigKey builds the cache key for reading the target at pctx.TerragruntConfigPath, last modified
+// at modTime.
+func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext, modTime int64) ReadTerragruntConfigKey {
+	var cliArgs []string
+	if pctx.TerraformCliArgs != nil {
+		cliArgs = pctx.TerraformCliArgs.Slice()
+	}
+
+	featureFlags := make([]string, 0, len(pctx.FeatureFlags))
+	for _, name := range slices.Sorted(maps.Keys(pctx.FeatureFlags)) {
+		featureFlags = append(featureFlags, name+"="+pctx.FeatureFlags[name])
+	}
+
+	return ReadTerragruntConfigKey{
+		IAMRoleOptions:            pctx.IAMRoleOptions,
+		OriginalIAMRoleOptions:    pctx.OriginalIAMRoleOptions,
+		ConfigPath:                pctx.TerragruntConfigPath,
+		ConfigModTime:             modTime,
+		TerraformCommand:          pctx.TerraformCommand,
+		OriginalTerraformCommand:  pctx.OriginalTerraformCommand,
+		Source:                    pctx.Source,
+		DownloadDir:               pctx.DownloadDir,
+		TerragruntStackConfigPath: pctx.TerragruntStackConfigPath,
+		TerraformCliArgs:          cliArgs,
+		FeatureFlags:              featureFlags,
+		DecodeList:                pctx.PartialParseDecodeList,
+		HaltOnErrorOnlyInBlocks:   pctx.Parser.HaltOnErrorOnlyInBlocks,
+		EnvHash:                   hashEnv(v.Env),
+		MaxFoldersToCheck:         pctx.MaxFoldersToCheck,
+		Diagnostics:               pctx.Parser.Diagnostics,
+		DiscardOutput:             v.Writers.Writer == io.Discard,
+		TrackFilesRead:            pctx.FilesRead.Tracking(),
+		SkipOutput:                pctx.SkipOutput,
+		TFPathExplicitlySet:       pctx.TFPathExplicitlySet,
+		RewriteBareInclude:        pctx.Parser.RewriteBareInclude,
+		IgnoreDiagnostics:         pctx.Parser.IgnoreDiagnostics,
+		SkipDefaults:              pctx.Parser.SkipDefaults,
+		StubWorkingDirFunc:        pctx.stubWorkingDirFunc,
+		CatalogOnly:               pctx.catalogOnly,
+		SkipAutoIncludeMerge:      pctx.SkipAutoIncludeMerge,
+	}
+}
 
 // readTerragruntConfigCached parses the read_terragrunt_config target at pctx.TerragruntConfigPath and converts it to
 // a cty value, reusing the value an earlier read produced with the same key in this command.
@@ -88,7 +132,7 @@ func readTerragruntConfigCached(
 		return cty.NilVal, err
 	}
 
-	key := fmt.Sprintf("%+v", newReadTerragruntConfigKey(v, pctx, fileInfo.ModTime().UnixMicro()))
+	key := fmt.Sprintf("%+v", NewReadTerragruntConfigKey(v, pctx, fileInfo.ModTime().UnixMicro()))
 	results := cache.ContextCache[*readTerragruntConfigResult](ctx, ReadTerragruntConfigCacheContextKey)
 
 	if result, found := results.Get(ctx, key); found {
@@ -155,48 +199,6 @@ func parseTerragruntConfigAsCty(
 	}
 
 	return TerragruntConfigAsCty(config)
-}
-
-// newReadTerragruntConfigKey builds the cache key for reading the target at pctx.TerragruntConfigPath, last modified
-// at modTime.
-func newReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext, modTime int64) readTerragruntConfigKey {
-	var cliArgs []string
-	if pctx.TerraformCliArgs != nil {
-		cliArgs = pctx.TerraformCliArgs.Slice()
-	}
-
-	featureFlags := make([]string, 0, len(pctx.FeatureFlags))
-	for _, name := range slices.Sorted(maps.Keys(pctx.FeatureFlags)) {
-		featureFlags = append(featureFlags, name+"="+pctx.FeatureFlags[name])
-	}
-
-	return readTerragruntConfigKey{
-		IAMRoleOptions:            pctx.IAMRoleOptions,
-		OriginalIAMRoleOptions:    pctx.OriginalIAMRoleOptions,
-		ConfigPath:                pctx.TerragruntConfigPath,
-		ConfigModTime:             modTime,
-		TerraformCommand:          pctx.TerraformCommand,
-		OriginalTerraformCommand:  pctx.OriginalTerraformCommand,
-		Source:                    pctx.Source,
-		DownloadDir:               pctx.DownloadDir,
-		TerragruntStackConfigPath: pctx.TerragruntStackConfigPath,
-		TerraformCliArgs:          cliArgs,
-		FeatureFlags:              featureFlags,
-		DecodeList:                pctx.PartialParseDecodeList,
-		HaltOnErrorOnlyInBlocks:   pctx.Parser.HaltOnErrorOnlyInBlocks,
-		EnvHash:                   hashEnv(v.Env),
-		Diagnostics:               pctx.Parser.Diagnostics,
-		DiscardOutput:             v.Writers.Writer == io.Discard,
-		TrackFilesRead:            pctx.FilesRead.Tracking(),
-		SkipOutput:                pctx.SkipOutput,
-		TFPathExplicitlySet:       pctx.TFPathExplicitlySet,
-		RewriteBareInclude:        pctx.Parser.RewriteBareInclude,
-		IgnoreDiagnostics:         pctx.Parser.IgnoreDiagnostics,
-		SkipDefaults:              pctx.Parser.SkipDefaults,
-		StubWorkingDirFunc:        pctx.stubWorkingDirFunc,
-		CatalogOnly:               pctx.catalogOnly,
-		SkipAutoIncludeMerge:      pctx.SkipAutoIncludeMerge,
-	}
 }
 
 // hashEnv hashes env independently of its iteration order.

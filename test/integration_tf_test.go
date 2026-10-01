@@ -3957,6 +3957,45 @@ func TestTFReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
 	assert.Equal(t, "from-auth-provider", outputs["secret"].Value)
 }
 
+// TestTFReadTerragruntAuthProviderCmdPerUnitReadConfigRunAll pins that a file every unit reads with
+// read_terragrunt_config gets each unit's own auth provider credentials during run --all.
+func TestTFReadTerragruntAuthProviderCmdPerUnitReadConfigRunAll(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "per-unit-read-config")
+	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
+
+	// With one unit at a time, the second unit reads common.hcl after the first has finished reading it.
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --parallelism 1 --working-dir %s --auth-provider-cmd %s -- "+
+				"apply -auto-approve",
+			rootPath,
+			authProviderCmd,
+		),
+	)
+
+	for _, unit := range []string{"unit-a", "unit-b"} {
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			fmt.Sprintf(
+				"terragrunt run --non-interactive --working-dir %s --auth-provider-cmd %s -- output -json",
+				filepath.Join(rootPath, unit),
+				authProviderCmd,
+			),
+		)
+		require.NoError(t, err)
+
+		outputs := map[string]helpers.TerraformOutput{}
+		require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+		assert.Equal(t, unit, outputs["secret"].Value)
+	}
+}
+
 func TestTFReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
 	t.Parallel()
 
