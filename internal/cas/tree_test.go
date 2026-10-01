@@ -352,6 +352,42 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 				assert.Equal(t, []byte("keep"), got)
 			},
 		},
+		{
+			// A subtree is written into, so its own path being a pre-existing symlink must be rejected, not followed.
+			name:       "subtree entry at a pre-existing symlinked path",
+			treeData:   []byte(`040000 tree cccccccccc sub`),
+			storeTrees: map[string][]byte{"cccccccccc": []byte(`100644 blob dddddddddd main.tf`)},
+			storeBlobs: map[string][]byte{"dddddddddd": []byte("payload")},
+			setup: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+				require.NoError(t, v.FS.MkdirAll("/outside", 0o755))
+				require.NoError(t, vfs.Symlink(v.FS, "/outside", filepath.Join(targetDir, "sub")))
+			},
+			verify: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+
+				_, err := v.FS.Stat("/outside/main.tf")
+				require.ErrorIs(t, err, os.ErrNotExist, "must not write into the symlinked subtree path")
+			},
+		},
+		{
+			// A submodule directory is written into the same way, through its own MkdirAll.
+			name:       "submodule entry at a pre-existing symlinked path",
+			treeData:   []byte(`160000 commit eeeeeeeeee mod`),
+			storeTrees: map[string][]byte{"eeeeeeeeee": []byte(`100644 blob ffffffffff main.tf`)},
+			storeBlobs: map[string][]byte{"ffffffffff": []byte("payload")},
+			setup: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+				require.NoError(t, v.FS.MkdirAll("/outside", 0o755))
+				require.NoError(t, vfs.Symlink(v.FS, "/outside", filepath.Join(targetDir, "mod")))
+			},
+			verify: func(t *testing.T, v *venv.Venv, targetDir string) {
+				t.Helper()
+
+				_, err := v.FS.Stat("/outside/main.tf")
+				require.ErrorIs(t, err, os.ErrNotExist, "must not write into the symlinked submodule path")
+			},
+		},
 	}
 
 	for _, tt := range tests {

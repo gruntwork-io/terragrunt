@@ -2,6 +2,7 @@ package cas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -268,6 +269,18 @@ func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWor
 		kind, ok := treeEntryKindOf(entry)
 		if !ok {
 			continue
+		}
+
+		// A subtree or submodule is written into, so its own path must not already be a symlink.
+		if kind == entrySubtree || kind == entrySubmodule {
+			islink, err := pathIsSymlink(v.FS, entryPath)
+			if err != nil {
+				return nil, fmt.Errorf("check tree entry %q: %w", entry.Path, err)
+			}
+
+			if islink {
+				return nil, fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
+			}
 		}
 
 		work = append(work, treeWork{
@@ -573,4 +586,18 @@ func gitEntryIsSymlink(mode string) bool {
 	}
 
 	return n&gitTypeMask == gitTypeSymlink
+}
+
+// pathIsSymlink reports whether path exists and is a symbolic link; a path that is absent is not one.
+func pathIsSymlink(fsys vfs.FS, path string) (bool, error) {
+	info, err := vfs.Lstat(fsys, path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return info.Mode()&os.ModeSymlink != 0, nil
 }
