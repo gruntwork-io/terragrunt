@@ -270,13 +270,13 @@ func (tl *treeLinker) planTree(v *venv.Venv, t *git.Tree, targetDir string, dept
 		delete(dirsToCreate, filepath.Dir(dirPath))
 
 		kind, ok := treeEntryKindOf(entry)
-
-		if err := tl.entries.register(entryPath, kind); err != nil {
-			return nil, err
-		}
-
 		if !ok {
 			continue
+		}
+
+		// Only an entry that is written claims its path; a skipped kind never collides with anything.
+		if err := tl.entries.register(entryPath, kind); err != nil {
+			return nil, err
 		}
 
 		// A subtree or submodule is written into, so its own path must not already be a symlink.
