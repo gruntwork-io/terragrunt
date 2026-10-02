@@ -1192,12 +1192,13 @@ func TestWorktreePhase_Integration_NestedStackReadingDiffedFileIsReadingAffected
 		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
 	)
 
+	// The child stack is three levels deep in the catalog and once generated, so one relative glob reaches shared/.
 	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
 	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
 		[]byte(`locals {
-  config_files = mark_glob_as_read("${get_repo_root()}/shared/*.yml")
+  config_files = mark_glob_as_read("../../../shared/*.yml")
 }
 
 unit "app" {
@@ -1281,12 +1282,13 @@ func TestWorktreePhase_Integration_NestedStackReadingAffectedAcrossLevels(t *tes
 		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
 	)
 
+	// The child stack is three levels deep in the catalog and once generated, so one relative glob reaches shared/.
 	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
 	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
 		[]byte(`locals {
-  config_files = mark_glob_as_read("${get_repo_root()}/shared/*.yml")
+  config_files = mark_glob_as_read("../../../shared/*.yml")
 }
 
 unit "app" {
@@ -1381,12 +1383,13 @@ func TestWorktreePhase_Integration_NestedStackReadingAffectedInSharedWorktree(t 
 		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
 	)
 
+	// The child stack is three levels deep in the catalog and once generated, so one relative glob reaches shared/.
 	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
 	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
 		[]byte(`locals {
-  config_files = mark_glob_as_read("${get_repo_root()}/shared/*.yml")
+  config_files = mark_glob_as_read("../../../shared/*.yml")
 }
 
 unit "app" {
