@@ -283,3 +283,5 @@ Additionally, there's a flag `--check`. `terragrunt hcl fmt --check` will only v
 You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hcl fmt --exclude-dir=qa/services`.
 
 If you want to format a single file, you can use the `--file` flag. For example, `terragrunt hcl fmt --file qa/services/services.hcl`.
+
+If you want to enforce formatting in CI alongside other linters, [MegaLinter](https://megalinter.io) runs `terragrunt hcl fmt --check` on your HCL files out of the box. See its [Terragrunt descriptor](https://megalinter.io/latest/descriptors/terraform_terragrunt/) for configuration details.
