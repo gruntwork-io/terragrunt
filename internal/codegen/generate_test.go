@@ -102,6 +102,21 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 }
 `)
 
+	expectedS3WithAssumeRoleQuotedKeys := []byte(`terraform {
+  backend "s3" {
+    assume_role = {
+      policy   = "{\"Resource\":\"arn:aws:s3:::b/$${aws:username}/*\"}"
+      role_arn = "arn:aws:iam::123456789012:role/MyRole"
+      tags = {
+        "Cost Center" = "42"
+        "team:name"   = "core"
+      }
+    }
+    bucket = "mybucket"
+  }
+}
+`)
+
 	testCases := []struct {
 		name       string
 		backend    string
@@ -171,6 +186,19 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 			},
 			map[string]any{},
 			expectedS3WithAssumeRole,
+			false,
+		},
+		{
+			"s3-backend-with-assume-role-quoted-keys-and-policy-variable",
+			"s3",
+			map[string]any{
+				"bucket": "mybucket",
+				"assume_role": `{policy="{\"Resource\":\"arn:aws:s3:::b/$${aws:username}/*\"}",` +
+					`role_arn="arn:aws:iam::123456789012:role/MyRole",` +
+					`tags={"Cost Center"="42","team:name"="core"}}`,
+			},
+			map[string]any{},
+			expectedS3WithAssumeRoleQuotedKeys,
 			false,
 		},
 		{
