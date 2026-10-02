@@ -209,6 +209,10 @@ func TestProviderServiceVerifiesRegistryPackages(t *testing.T) {
 	otherSum := sha256.Sum256([]byte("a different archive"))
 	otherShasum := hex.EncodeToString(otherSum[:])
 
+	shasumsListing := func(sum, name string) string {
+		return fmt.Sprintf("%s  %s\n", sum, name)
+	}
+
 	missingField := func(field services.ChecksumField) func(t *testing.T, err error) {
 		return func(t *testing.T, err error) {
 			t.Helper()
@@ -236,6 +240,7 @@ func TestProviderServiceVerifiesRegistryPackages(t *testing.T) {
 	testCases := []struct {
 		assertErr  func(t *testing.T, err error)
 		name       string
+		shasums    string
 		body       models.ResponseBody
 		wantCached bool
 	}{
@@ -245,6 +250,7 @@ func TestProviderServiceVerifiesRegistryPackages(t *testing.T) {
 				SHA256Sum:     shasum,
 				SHA256SumsURL: releasesURL + shasumsPath,
 			},
+			shasums:    shasumsListing(shasum, filename),
 			assertErr:  noError,
 			wantCached: true,
 		},
@@ -275,6 +281,7 @@ func TestProviderServiceVerifiesRegistryPackages(t *testing.T) {
 					GPGPublicKeys: []*models.SigningKey{{ASCIIArmor: "signing key"}},
 				},
 			},
+			shasums:   shasumsListing(shasum, filename),
 			assertErr: missingField(services.FieldSHA256SumsSignatureURL),
 		},
 		{
@@ -299,12 +306,43 @@ func TestProviderServiceVerifiesRegistryPackages(t *testing.T) {
 				SHA256Sum:     otherShasum,
 				SHA256SumsURL: releasesURL + shasumsPath,
 			},
+			shasums: shasumsListing(otherShasum, filename),
 			assertErr: func(t *testing.T, err error) {
 				t.Helper()
 
 				var mismatch *getproviders.ArchiveChecksumMismatchError
 
 				require.ErrorAs(t, err, &mismatch)
+			},
+		},
+		{
+			name: "registry response whose checksum document lists a different shasum",
+			body: models.ResponseBody{
+				SHA256Sum:     shasum,
+				SHA256SumsURL: releasesURL + shasumsPath,
+			},
+			shasums: shasumsListing(otherShasum, filename),
+			assertErr: func(t *testing.T, err error) {
+				t.Helper()
+
+				var mismatch *getproviders.ChecksumListMismatchError
+
+				require.ErrorAs(t, err, &mismatch)
+			},
+		},
+		{
+			name: "registry response whose checksum document does not list the archive",
+			body: models.ResponseBody{
+				SHA256Sum:     shasum,
+				SHA256SumsURL: releasesURL + shasumsPath,
+			},
+			shasums: shasumsListing(shasum, "terraform-provider-example_1.0.0_darwin_arm64.zip"),
+			assertErr: func(t *testing.T, err error) {
+				t.Helper()
+
+				var missing *getproviders.ChecksumListMissingEntryError
+
+				require.ErrorAs(t, err, &missing)
 			},
 		},
 		{
@@ -331,11 +369,7 @@ func TestProviderServiceVerifiesRegistryPackages(t *testing.T) {
 					case archivePath:
 						return vhttp.Respond(http.StatusOK, archive, nil), nil
 					case shasumsPath:
-						return vhttp.Respond(
-							http.StatusOK,
-							fmt.Appendf(nil, "%s  %s\n", body.SHA256Sum, filename),
-							nil,
-						), nil
+						return vhttp.Respond(http.StatusOK, []byte(tc.shasums), nil), nil
 					}
 
 					return vhttp.Respond(http.StatusNotFound, nil, nil), nil

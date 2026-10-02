@@ -162,6 +162,31 @@ func (auth archiveHashAuthentication) AcceptableHashes() []Hash {
 	return []Hash{HashLegacyZipSHAFromSHA(auth.WantSHA256Sum)}
 }
 
+// ChecksumListMissingEntryError is returned when a checksum document lists no
+// SHA-256 hash for a provider archive's filename.
+type ChecksumListMissingEntryError struct {
+	Filename string
+}
+
+func (e *ChecksumListMissingEntryError) Error() string {
+	return fmt.Sprintf("checksum list has no SHA-256 hash for %q", e.Filename)
+}
+
+// ChecksumListMismatchError is returned when the hash a checksum document
+// lists for a provider archive differs from the checksum published for it.
+type ChecksumListMismatchError struct {
+	Got  [sha256.Size]byte
+	Want [sha256.Size]byte
+}
+
+func (e *ChecksumListMismatchError) Error() string {
+	return fmt.Sprintf(
+		"checksum list has unexpected SHA-256 hash %x (expected %x)",
+		e.Got,
+		e.Want,
+	)
+}
+
 type matchingChecksumAuthentication struct {
 	Filename      string
 	Document      []byte
@@ -191,7 +216,7 @@ func (auth matchingChecksumAuthentication) Authenticate(
 
 	checksum := util.MatchSha256Checksum(auth.Document, filename)
 	if checksum == nil {
-		return nil, fmt.Errorf("checksum list has no SHA-256 hash for %q", auth.Filename)
+		return nil, &ChecksumListMissingEntryError{Filename: auth.Filename}
 	}
 
 	// Decode the ASCII checksum into a byte array for comparison.
@@ -206,11 +231,7 @@ func (auth matchingChecksumAuthentication) Authenticate(
 
 	// If the checksums don't match, authentication fails.
 	if !bytes.Equal(gotSHA256Sum[:], auth.WantSHA256Sum[:]) {
-		return nil, fmt.Errorf(
-			"checksum list has unexpected SHA-256 hash %x (expected %x)",
-			gotSHA256Sum,
-			auth.WantSHA256Sum[:],
-		)
+		return nil, &ChecksumListMismatchError{Got: gotSHA256Sum, Want: auth.WantSHA256Sum}
 	}
 
 	return nil, nil
