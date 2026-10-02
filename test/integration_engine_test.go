@@ -174,7 +174,7 @@ func TestEngineDownloadOverHttp(t *testing.T) {
 			config.DefaultTerragruntConfigPath,
 		), map[string]string{
 			"__hardcoded_url__": fmt.Sprintf(
-				"https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.1.0/terragrunt-iac-engine-opentofu_rpc_v0.1.0_%s_%s.zip",
+				"https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.1.1/terragrunt-iac-engine-opentofu_rpc_v0.1.1_%s_%s.zip",
 				platform,
 				arch,
 			),
@@ -209,7 +209,7 @@ func TestEngineChecksumVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	// change the checksum of the package file
-	version := "v0.1.0"
+	version := "v0.1.1"
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
 	executablePath := fmt.Sprintf(
@@ -615,7 +615,7 @@ func setupLocalEngine(t *testing.T) string {
 func testEngineVersion() string {
 	value, found := os.LookupEnv("TOFU_ENGINE_VERSION")
 	if !found {
-		return "v0.1.0"
+		return "v0.1.1"
 	}
 
 	return value
