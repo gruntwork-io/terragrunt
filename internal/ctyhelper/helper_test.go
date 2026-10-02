@@ -69,6 +69,34 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 			cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.String)}),
 			cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("")}),
 		},
+		{
+			cty.ObjectVal(map[string]cty.Value{"key": cty.DynamicVal}),
+			cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("")}),
+		},
+		{
+			cty.ObjectVal(map[string]cty.Value{
+				"set":    cty.UnknownVal(cty.Set(cty.DynamicPseudoType)),
+				"number": cty.UnknownVal(cty.Number),
+				"bool":   cty.UnknownVal(cty.Bool),
+			}),
+			cty.ObjectVal(map[string]cty.Value{
+				"set":    cty.NullVal(cty.Set(cty.DynamicPseudoType)),
+				"number": cty.NullVal(cty.Number),
+				"bool":   cty.NullVal(cty.Bool),
+			}),
+		},
+		{
+			cty.ListVal([]cty.Value{cty.NumberIntVal(1), cty.UnknownVal(cty.Number)}),
+			cty.ListVal([]cty.Value{cty.NumberIntVal(1), cty.NullVal(cty.Number)}),
+		},
+		{
+			cty.SetVal([]cty.Value{cty.StringVal("a"), cty.UnknownVal(cty.String)}),
+			cty.SetVal([]cty.Value{cty.StringVal("a"), cty.StringVal("")}),
+		},
+		{
+			cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.Number).Mark("sensitive")}),
+			cty.ObjectVal(map[string]cty.Value{"key": cty.NullVal(cty.Number).Mark("sensitive")}),
+		},
 	}
 
 	for i, tc := range testCases {

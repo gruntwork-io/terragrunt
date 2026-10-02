@@ -1,0 +1,12 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `hcl validate` no longer fails on typed expressions over dependency outputs
+
+`terragrunt hcl validate` failed with "Could not find Terragrunt configuration settings" when an input passed a dependency output without `mock_outputs` through a function or an operator, such as `toset(dependency.vpc.outputs.subnets)`, `length(dependency.vpc.outputs.subnets)` or `dependency.vpc.outputs.id != null`.
+
+During validation, dependency outputs are unknown, and Terragrunt replaced every unknown input with an empty string. That does not fit an input known to be a set, a number or a bool. Such inputs now become a null of their type, while unknown strings and values of unknown type still become an empty string.
+
+When a configuration cannot be decoded, Terragrunt now reports the underlying error alongside "Could not find Terragrunt configuration settings".
