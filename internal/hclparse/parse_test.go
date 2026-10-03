@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -1723,6 +1724,257 @@ unit "vpc" {
 		resolved.SourceBytes,
 		"SourceBytes must not be the root file's bytes",
 	)
+}
+
+func TestParseStackFile_OverrideReplacesUnitAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  region = "eu"
+}
+
+unit "queue" {
+  source = "../catalog/units/queue"
+  path   = "queue"
+}
+
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "function-${each.key}"
+
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+
+  autoinclude {
+    inputs = {
+      leaked = true
+    }
+  }
+}
+
+unit "logs" {
+  source = "../catalog/units/logs"
+  path   = "logs"
+
+  autoinclude {
+    dependency "function" {
+      config_path = unit.function.path
+    }
+  }
+}
+`
+	overrideSrc := `
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "handler-${local.region}"
+
+  autoinclude {
+    dependency "queue" {
+      config_path = unit.queue.path
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.NoError(t, err)
+	require.Len(t, result.AutoIncludes, 2, "the base autoinclude of every overridden instance must be dropped")
+
+	function, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "function")]
+	require.True(t, ok, "the override's own autoinclude must resolve")
+	require.Len(t, function.Dependencies, 1)
+	assert.Equal(
+		t,
+		hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "queue")),
+		function.Dependencies[0].ConfigPath,
+	)
+	assert.Equal(t, []byte(overrideSrc), function.SourceBytes)
+
+	logs, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "logs")]
+	require.True(t, ok, "a sibling that is not overridden must keep its autoinclude")
+	require.Len(t, logs.Dependencies, 1)
+	assert.Equal(
+		t,
+		hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "handler-eu")),
+		logs.Dependencies[0].ConfigPath,
+		"a reference to an overridden unit must resolve to the override's path",
+	)
+	assert.Equal(t, []byte(src), logs.SourceBytes)
+}
+
+func TestParseStackFile_OverrideReplacesStackAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+
+stack "inner" {
+  source = "../catalog/stacks/inner"
+  path   = "inner"
+
+  autoinclude {
+    unit "base" {
+      source = "../catalog/units/base"
+      path   = "base"
+    }
+  }
+}
+`
+	overrideSrc := `
+stack "inner" {
+  source = "../catalog/stacks/inner"
+  path   = "inner"
+
+  autoinclude {
+    unit "injected" {
+      source = "../catalog/units/injected"
+      path   = "injected"
+    }
+  }
+}
+
+unit "worker" {
+  source = "../catalog/units/worker"
+  path   = "worker-${each.key}"
+
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+
+  autoinclude {
+    dependency "app" {
+      config_path = unit.app.path
+    }
+
+    inputs = {
+      name = each.key
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.NoError(t, err)
+	require.Len(t, result.AutoIncludes, 3)
+
+	inner, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindStack, "inner")]
+	require.True(t, ok)
+	assert.Equal(t, hclparse.KindStack, inner.Kind)
+	assert.Equal(t, []byte(overrideSrc), inner.SourceBytes)
+
+	body, ok := inner.RawBody.(*hclsyntax.Body)
+	require.True(t, ok)
+	assert.NotNil(t, hclparse.FindBlock(body, "unit", "injected"))
+	assert.Nil(t, hclparse.FindBlock(body, "unit", "base"), "the base stack autoinclude must be dropped")
+
+	for _, address := range []string{"worker[a]", "worker[b]"} {
+		worker, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, address)]
+		require.True(t, ok, address)
+		require.Len(t, worker.Dependencies, 1)
+		assert.Equal(
+			t,
+			hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "app")),
+			worker.Dependencies[0].ConfigPath,
+		)
+	}
+}
+
+func TestParseStackFile_OverrideSkipsOverriddenBaseAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "function"
+
+  autoinclude {
+    dependency "missing" {
+      config_path = unit.missing.path
+    }
+  }
+}
+`
+	overrideSrc := `
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "function"
+}
+`
+
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.NoError(t, err, "the autoinclude of an overridden base block must not be resolved")
+	assert.Empty(t, result.AutoIncludes)
+}
+
+func TestParseStackFile_OverrideDuplicateUnits(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+	overrideSrc := `
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+
+unit "app" {
+  source = "../catalog/units/app2"
+  path   = "app2"
+}
+`
+
+	_, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate unit name")
 }
 
 // Benchmarks
