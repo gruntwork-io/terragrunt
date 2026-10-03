@@ -58,6 +58,10 @@ func Run(
 	// underlying sync.Once dedupes if both paths fire.
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
+	defer func() {
+		tips.GiveMissingDependencyConfigTip(l, err, opts.Tips)
+	}()
+
 	if opts.TerraformCommand == "" {
 		return MissingCommand{}
 	}

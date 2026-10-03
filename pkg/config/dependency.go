@@ -2923,3 +2923,42 @@ func IsValidConfigPath(v cty.Value) bool {
 
 	return true
 }
+
+// ValidateDependencyConfigPaths reports each enabled dependency block whose config_path has no Terragrunt config.
+func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPath string) error {
+	if cfg == nil {
+		return nil
+	}
+
+	var errs []error
+
+	for i := range cfg.TerragruntDependencies {
+		dep := &cfg.TerragruntDependencies[i]
+		if !dep.isEnabled() || !IsValidConfigPath(dep.ConfigPath) {
+			continue
+		}
+
+		rawPath := dep.ConfigPath.AsString()
+		targetConfigPath := getCleanedTargetConfigPath(fsys, rawPath, configPath)
+
+		// Stack-generated units only exist after `stack generate`, which hcl validate does not run.
+		if slices.Contains(strings.Split(filepath.ToSlash(targetConfigPath), "/"), inthclparse.StackDir) {
+			continue
+		}
+
+		if stackFilePath, ok := resolveStackFilePath(rawPath, targetConfigPath); ok && vfs.Exists(fsys, stackFilePath) {
+			continue
+		}
+
+		if !vfs.Exists(fsys, targetConfigPath) {
+			errs = append(errs, fmt.Errorf(
+				"dependency %q in %s: %w",
+				dep.Name,
+				configPath,
+				DependencyConfigNotFound{Path: targetConfigPath},
+			))
+		}
+	}
+
+	return errors.Join(errs...)
+}
