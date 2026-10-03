@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/topo"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -61,8 +62,13 @@ type ParseStackFileInput struct {
 	Filename string
 	// StackDir is used to resolve include paths.
 	StackDir string
+	// OverrideFilename names OverrideSrc for diagnostics and expression slicing.
+	OverrideFilename string
 	// Src is the raw stack file bytes.
 	Src []byte
+	// OverrideSrc is the optional sibling terragrunt.autoinclude.stack.hcl. Its unit and stack blocks
+	// replace same-name base blocks wholesale, including their paths and autoinclude blocks.
+	OverrideSrc []byte
 }
 
 // ParseResult holds the output of ParseStackFile.
@@ -112,10 +118,22 @@ func ParseStackFile(
 		return result, err
 	}
 
+	var overrideRemain hcl.Body
+
+	if input.OverrideSrc != nil {
+		override, err := parseStackFileRoot(input.OverrideSrc, input.OverrideFilename)
+		if err != nil {
+			return result, err
+		}
+
+		srcByFilename[input.OverrideFilename] = input.OverrideSrc
+		overrideRemain = override.Remain
+	}
+
 	// Publish unit.<name>.path / stack.<name>.path from a path-only pre-decode so the
 	// phase-4 decode can evaluate values expressions that reference sibling component
 	// paths, matching the production parse (injectStackComponentRefs in pkg/config).
-	if err := publishComponentRefs(ctx, mergedRemain, evalCtx, input.StackDir); err != nil {
+	if err := publishComponentRefs(ctx, mergedRemain, overrideRemain, evalCtx, input.StackDir); err != nil {
 		return result, err
 	}
 
@@ -139,9 +157,46 @@ func ParseStackFile(
 		return result, err
 	}
 
+	if overrideRemain != nil {
+		overrideUnits, overrideStacks, err := decodeComponents(ctx, overrideRemain, evalCtx)
+		if err != nil {
+			return result, FileDecodeError{Name: input.OverrideFilename, Err: err}
+		}
+
+		overrideAutoIncludes, err := resolveAutoIncludes(ctx, overrideUnits, overrideStacks, srcByFilename)
+		if err != nil {
+			return result, err
+		}
+
+		dropOverriddenAutoIncludes(autoIncludes, units, stacks, overrideUnits, overrideStacks)
+		maps.Copy(autoIncludes, overrideAutoIncludes)
+	}
+
 	result.AutoIncludes = autoIncludes
 
 	return result, nil
+}
+
+// dropOverriddenAutoIncludes deletes the autoinclude of every instance of a base unit or stack that an
+// override block replaces by name. The override is wholesale, so the base autoinclude must not leak into it.
+func dropOverriddenAutoIncludes(
+	autoIncludes map[string]*AutoIncludeResolved,
+	units []*UnitBlockHCL,
+	stacks []*StackBlockHCL,
+	overrideUnits []*UnitBlockHCL,
+	overrideStacks []*StackBlockHCL,
+) {
+	for _, unit := range units {
+		if slices.ContainsFunc(overrideUnits, func(o *UnitBlockHCL) bool { return o.Name == unit.Name }) {
+			delete(autoIncludes, AutoIncludeKey(KindUnit, unit.Address()))
+		}
+	}
+
+	for _, stack := range stacks {
+		if slices.ContainsFunc(overrideStacks, func(o *StackBlockHCL) bool { return o.Name == stack.Name }) {
+			delete(autoIncludes, AutoIncludeKey(KindStack, stack.Address()))
+		}
+	}
 }
 
 // validateParseStackFileInput panics on malformed parser input.
@@ -266,7 +321,8 @@ func validateUniqueNames(units []*UnitBlockHCL, stacks []*StackBlockHCL) error {
 // from a path-only decode of body (the discovery shapes), leaving source, values, and
 // autoinclude content unevaluated. Running it before the phase-4 decode lets values
 // expressions reference sibling component paths, matching the production parse
-// (injectStackComponentRefs in pkg/config).
+// (injectStackComponentRefs in pkg/config). Blocks of the optional override body replace
+// same-name base blocks, so an overridden component's ref reflects the override's path.
 //
 // A failed path-only decode publishes nothing and reports no error: the phase-4 decode
 // evaluates a superset of the same attributes against the same context, so it surfaces
@@ -276,7 +332,7 @@ func validateUniqueNames(units []*UnitBlockHCL, stacks []*StackBlockHCL) error {
 // block, which the phase-4 decode accepts.
 func publishComponentRefs(
 	ctx context.Context,
-	body hcl.Body,
+	body, override hcl.Body,
 	evalCtx *hcl.EvalContext,
 	stackDir string,
 ) error {
@@ -284,6 +340,23 @@ func publishComponentRefs(
 	if !decoded {
 		return nil
 	}
+
+	// Publish the base refs first so an override path referencing a base component resolves.
+	if err := setComponentRefVars(evalCtx, headers, stackDir); err != nil {
+		return err
+	}
+
+	if override == nil {
+		return nil
+	}
+
+	overrideHeaders, decoded := pathOnlyHeaders(ctx, override, evalCtx)
+	if !decoded {
+		return nil
+	}
+
+	headers.Units = util.MergeNamed(headers.Units, overrideHeaders.Units, unitPathName)
+	headers.Stacks = util.MergeNamed(headers.Stacks, overrideHeaders.Stacks, stackPathName)
 
 	return setComponentRefVars(evalCtx, headers, stackDir)
 }

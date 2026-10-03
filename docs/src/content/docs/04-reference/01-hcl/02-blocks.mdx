@@ -3251,7 +3251,7 @@ Here the `network` stack contains a unit named `vpc` with a `vpc_id` output, so 
 
 ### Stack-level autoinclude
 
-An `autoinclude` on a `stack` block generates `terragrunt.autoinclude.stack.hcl` next to the nested stack's `terragrunt.stack.hcl`. Its body may declare only `unit` and `stack` blocks, which are injected into the generated stack. An injected block whose name matches an existing `unit` or `stack` overrides that block wholesale; a new name adds a component.
+An `autoinclude` on a `stack` block generates `terragrunt.autoinclude.stack.hcl` next to the nested stack's `terragrunt.stack.hcl`. Its body may declare only `unit` and `stack` blocks, which are injected into the generated stack. An injected block whose name matches an existing `unit` or `stack` overrides that block wholesale, including its `path` and `autoinclude`; a new name adds a component.
 
 ```hcl
 # terragrunt.stack.hcl
@@ -3274,5 +3274,5 @@ A `dependency` block is rejected in a stack-level autoinclude, because stacks th
 ### Limitations
 
 - Stacks are opaque dependency boundaries. `unit.<name>.path` and `stack.<name>.path` only see components declared in the same stack file, so an autoinclude cannot target a unit inside another stack. Depend on the whole stack instead, or pass a component's path down to the child stack through `values`.
-- An `autoinclude` block cannot contain another `autoinclude` block. A `unit` or `stack` block injected by a stack-level autoinclude may declare its own `autoinclude`; it resolves during the next generation pass.
+- An `autoinclude` block cannot contain another `autoinclude` block. A `unit` or `stack` block injected by a stack-level autoinclude may declare its own `autoinclude`; it resolves during the next generation pass. Its `unit.<name>.path` and `stack.<name>.path` references resolve in the stack file that declares it.
 - Only HCL stack files support `autoinclude`. A stack file written as JSON fails generation if it declares one.

@@ -347,16 +347,35 @@ func resolveStackAutoIncludes(
 	// re-parsing it as a regular config.
 	earlyFuncs := StackParseFunctionsFrom(prodEvalCtx.Functions, stackSourceDir)
 
+	overridePath := filepath.Join(stackSourceDir, inthclparse.AutoIncludeStackFile)
+
+	var overrideSrc []byte
+
+	if filepath.Base(stackFilePath) != inthclparse.AutoIncludeStackFile {
+		exists, existsErr := vfs.FileExists(v.FS, overridePath)
+		if existsErr != nil {
+			return nil, nil, fmt.Errorf("failed to stat stack autoinclude %s: %w", overridePath, existsErr)
+		}
+
+		if exists {
+			if overrideSrc, err = vfs.ReadFile(v.FS, overridePath); err != nil {
+				return nil, nil, fmt.Errorf("failed to read stack autoinclude %s: %w", overridePath, err)
+			}
+		}
+	}
+
 	parseResult, parseErr := inthclparse.ParseStackFile(
 		ctx,
 		v.FS,
 		&inthclparse.ParseStackFileInput{
-			Src:       stackSrcBytes,
-			Filename:  filepath.Base(stackFilePath),
-			StackDir:  stackSourceDir,
-			Values:    values,
-			Variables: prodEvalCtx.Variables,
-			Functions: earlyFuncs,
+			Src:              stackSrcBytes,
+			Filename:         filepath.Base(stackFilePath),
+			StackDir:         stackSourceDir,
+			Values:           values,
+			Variables:        prodEvalCtx.Variables,
+			Functions:        earlyFuncs,
+			OverrideSrc:      overrideSrc,
+			OverrideFilename: overridePath,
 		},
 	)
 	if parseErr != nil {
@@ -368,23 +387,6 @@ func resolveStackAutoIncludes(
 	}
 
 	autoIncludes := parseResult.AutoIncludes
-
-	// The phased parser resolves autoincludes from the base stack file only. A sibling
-	// terragrunt.autoinclude.stack.hcl overrides same-name components wholesale, so an overridden
-	// component must not inherit the base block's resolved unit-level autoinclude.
-	if pruneErr := pruneOverriddenStackAutoIncludes(
-		v.FS,
-		parseResult,
-		stackSourceDir,
-		prodEvalCtx,
-		scopedPctx.ParserOptions(scopedLogger, v),
-	); pruneErr != nil {
-		return nil, nil, AutoIncludeParserStageError{
-			Stage: "autoinclude-override-prune",
-			File:  stackFilePath,
-			Err:   pruneErr,
-		}
-	}
 
 	return autoIncludes, stackSrcBytes, nil
 }
@@ -1575,121 +1577,6 @@ func componentHeaderName(h *stackComponentHeader) string {
 	return h.Name
 }
 
-// stackComponentLabel captures only a unit or stack block label, leaving every attribute (including path)
-// in Remain so the block name can be read without evaluating any expression.
-type stackComponentLabel struct {
-	Remain hcl.Body `hcl:",remain"`
-	Name   string   `hcl:",label"`
-}
-
-// stackComponentLabels is the label-only shape of a stack file's unit and stack blocks.
-type stackComponentLabels struct {
-	Remain hcl.Body               `hcl:",remain"`
-	Stacks []*stackComponentLabel `hcl:"stack,block"`
-	Units  []*stackComponentLabel `hcl:"unit,block"`
-}
-
-// stackAutoIncludeComponentNames returns the unit and stack block names declared by a sibling
-// terragrunt.autoinclude.stack.hcl without evaluating their path expressions, so callers that only need
-// names do not depend on local.*/unit.*/stack.* being populated in the eval context. It returns nil slices
-// when no autoinclude file exists.
-func stackAutoIncludeComponentNames(
-	fsys vfs.FS,
-	stackDir string,
-	evalCtx *hcl.EvalContext,
-	parserOpts []hclparse.Option,
-) (unitNames, stackNames []string, err error) {
-	autoIncludePath := filepath.Join(stackDir, inthclparse.AutoIncludeStackFile)
-
-	exists, err := vfs.FileExists(fsys, autoIncludePath)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if !exists {
-		return nil, nil, nil
-	}
-
-	incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(fsys, autoIncludePath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read stack autoinclude %q: %w", autoIncludePath, err)
-	}
-
-	labels := &stackComponentLabels{}
-	if decodeErr := incFile.Decode(labels, evalCtx); decodeErr != nil {
-		return nil, nil, fmt.Errorf(
-			"failed to decode stack autoinclude labels %q: %w",
-			autoIncludePath,
-			decodeErr,
-		)
-	}
-
-	for _, u := range labels.Units {
-		if u == nil {
-			continue
-		}
-
-		unitNames = append(unitNames, u.Name)
-	}
-
-	for _, s := range labels.Stacks {
-		if s == nil {
-			continue
-		}
-
-		stackNames = append(stackNames, s.Name)
-	}
-
-	return unitNames, stackNames, nil
-}
-
-// pruneOverriddenStackAutoIncludes drops the base-resolved unit-level autoinclude of every instance of a
-// component the sibling terragrunt.autoinclude.stack.hcl overrides by name, so an overridden component does
-// not inherit the base block's autoinclude (the override is wholesale, replacing every element of an
-// expanded block). A newly injected name has no base entry, so pruning it is a no-op. It reads only block
-// names so it never evaluates an injected path expression that the generate-path eval context cannot resolve.
-func pruneOverriddenStackAutoIncludes(
-	fsys vfs.FS,
-	parsed *inthclparse.ParseResult,
-	stackDir string,
-	evalCtx *hcl.EvalContext,
-	parserOpts []hclparse.Option,
-) error {
-	if len(parsed.AutoIncludes) == 0 {
-		return nil
-	}
-
-	unitNames, stackNames, err := stackAutoIncludeComponentNames(
-		fsys,
-		stackDir,
-		evalCtx,
-		parserOpts,
-	)
-	if err != nil {
-		return err
-	}
-
-	for _, unit := range parsed.Units {
-		if slices.Contains(unitNames, unit.Name) {
-			delete(
-				parsed.AutoIncludes,
-				inthclparse.AutoIncludeKey(inthclparse.KindUnit, unit.Address()),
-			)
-		}
-	}
-
-	for _, stack := range parsed.Stacks {
-		if slices.Contains(stackNames, stack.Name) {
-			delete(
-				parsed.AutoIncludes,
-				inthclparse.AutoIncludeKey(inthclparse.KindStack, stack.Address()),
-			)
-		}
-	}
-
-	return nil
-}
-
 // componentAddress identifies one instance of a unit or stack block. Every instance of an
 // expanded block carries its label, so the label alone would fold a whole set into one entry.
 func componentAddress(name string, expansion *hclparse.ExpansionBlock) string {
@@ -2297,13 +2184,6 @@ func logStackAutoIncludeMergeNotes(l log.Logger, config, included *StackConfigFi
 				unit.Name,
 			)
 		}
-
-		if bodyHasBlock(unit.Remain) {
-			l.Debugf(
-				"Stack autoinclude unit %q declares a nested autoinclude block; nested autoinclude is not propagated into the injected component",
-				unit.Name,
-			)
-		}
 	}
 
 	for _, stack := range included.Stacks {
@@ -2314,13 +2194,6 @@ func logStackAutoIncludeMergeNotes(l log.Logger, config, included *StackConfigFi
 		if _, clash := existingStacks[stack.Name]; clash {
 			l.Debugf(
 				"Stack autoinclude stack %q overrides the same-name stack in the target stack config",
-				stack.Name,
-			)
-		}
-
-		if bodyHasBlock(stack.Remain) {
-			l.Debugf(
-				"Stack autoinclude stack %q declares a nested autoinclude block; nested autoinclude is not propagated into the injected component",
 				stack.Name,
 			)
 		}
