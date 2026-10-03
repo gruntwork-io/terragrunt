@@ -484,6 +484,15 @@ For the `s3` backend, the following additional properties are supported in the `
 - `enable_bucket_root_access`: When `true`, Terragrunt adds a bucket policy statement granting `s3:*` on the bucket and its objects to `arn:aws:iam::<account-id>:root`. Despite that ARN's name, a resource policy naming it grants access to the AWS account as a whole, not only to its root user. Terragrunt does not add this statement by default, and adds it to buckets that already exist as well as to ones it creates.
 - `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `skip_bucket_public_access_blocking`: When `true`, the S3 bucket that is created will not have public access blocking enabled.
+
+<Since version="v1.2.0">
+
+- `skip_object_ownership`: When `true`, Terragrunt does not set `ObjectOwnership` when it creates the S3 bucket. Use this for S3-compatible object stores that do not implement object ownership controls, such as Cloudflare R2.
+- `skip_location_constraint`: When `true`, Terragrunt does not set `LocationConstraint` when it creates the S3 bucket, even when `region` is not `us-east-1`. Use this for S3-compatible object stores that reject the configured `region` as a location constraint, such as Cloudflare R2 with `region = "auto"`.
+- `skip_bucket_tagging`: When `true`, Terragrunt does not tag the S3 state bucket or the access logging bucket, either when it creates them or afterward. `s3_bucket_tags` and `accesslogging_bucket_tags` are ignored. Use this for S3-compatible object stores that do not implement bucket tagging, such as Cloudflare R2.
+
+</Since>
+
 - `disable_bucket_update`: When `true`, disable update S3 bucket if not equal configured in config block
 - `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will be configured with server-side encryption.
 - `s3_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket.
