@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -40,6 +41,7 @@ const (
 	ExcludeBlock
 	ErrorsBlock
 	TerraformExtraArgs
+	InputsBlock
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -64,6 +66,12 @@ type terragruntFeatureFlags struct {
 type terragruntErrors struct {
 	Errors *ErrorsConfig `hcl:"errors,block"`
 	Remain hcl.Body      `hcl:",remain"`
+}
+
+// terragruntInputs is a struct that can be used to only decode the inputs attribute.
+type terragruntInputs struct {
+	Inputs *cty.Value `hcl:"inputs,attr"`
+	Remain hcl.Body   `hcl:",remain"`
 }
 
 // terragruntTerraform is a struct that can be used to only decode the terraform block.
@@ -574,12 +582,11 @@ func TerragruntConfigFromPartialConfig(
 //   - FeatureFlagsBlock: Parses the `feature` block in the config
 //   - EngineBlock: Parses the `engine` block in the config
 //   - ExcludeBlock : Parses the `exclude` block in the config
+//   - InputsBlock: Parses the `inputs` attribute in the config
 //
 // Note that the following blocks are always decoded:
 // - locals
 // - include
-// Note also that the following blocks are never decoded in a partial parse:
-// - inputs
 func PartialParseConfigString(
 	ctx context.Context,
 	l log.Logger,
@@ -867,6 +874,23 @@ func PartialParseConfig(
 				output.Errors.Merge(decoded.Errors)
 			} else {
 				output.Errors = decoded.Errors
+			}
+
+		case InputsBlock:
+			decoded := terragruntInputs{}
+
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+
+			if decoded.Inputs != nil {
+				inputs, err := ctyhelper.ParseCtyValueToMap(*decoded.Inputs)
+				if err != nil {
+					return nil, err
+				}
+
+				output.Inputs = inputs
 			}
 
 		default:
