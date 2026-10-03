@@ -1,0 +1,23 @@
+---
+version: "v1.2.1"
+category: "performance-improvements"
+---
+
+#### Faster parsing of shared configuration
+
+Repositories where every unit includes a `root.hcl` that loads shared files with [`read_terragrunt_config`](/reference/hcl/functions#read_terragrunt_config) now parse much faster.
+
+- Each unit used to parse those shared files itself, so a `common.hcl` that runs `yamldecode(file(...))` on a large YAML file decoded it once per unit. Terragrunt now parses each file once and gives every unit the same result, and parses it again only when the file, or a file it reads, changes during the command. `run --all` parses it a second time when the run starts, after discovering units. A file whose result can differ between units, like one that calls `get_original_terragrunt_dir()` or has `dependency` blocks, is still parsed per unit. The [function reference](/reference/hcl/functions#read_terragrunt_config) lists every case.
+- Since v1.1.2, discovery parsed every included configuration twice, once for its feature flag defaults and once to merge it. It parses each include once again, and skips includes with `merge_strategy = "no_merge"` that it would only have thrown away.
+- Locals and inputs went through a JSON encoding round trip on their way into Terragrunt. Terragrunt now converts them directly.
+
+In [benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/discovery/benchmark_shared_config_test.go) on an Apple M3 Max, discovering units and their dependencies in a generated repository whose units read a 48 KB YAML file through `read_terragrunt_config`:
+
+| units | before | after |
+| --- | --- | --- |
+| 100 | 819ms | 59ms |
+| 500 | 3.60s | 201ms |
+| 1,000 | 7.01s | 379ms |
+| 5,000 | 34.2s | 1.88s |
+
+Memory allocated during discovery dropped by about 95%.

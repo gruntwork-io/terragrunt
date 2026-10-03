@@ -6,11 +6,13 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -1572,6 +1574,201 @@ exclude {
 			require.NoError(t, err)
 			require.NotNil(t, terragruntConfig.Exclude)
 			assert.Equal(t, tc.expected, terragruntConfig.Exclude.If)
+		})
+	}
+}
+
+func TestPartialParseDeepMergesIncludedFeatureDefaultsOnce(t *testing.T) {
+	t.Parallel()
+
+	v, rootDir := newMemTestDir(t)
+
+	files := map[string]string{
+		"root.hcl": `
+feature "tags" {
+  default = {
+    names = ["root"]
+  }
+}
+`,
+		filepath.Join("unit", "terragrunt.hcl"): `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+feature "tags" {
+  default = {
+    names = ["unit"]
+  }
+}
+`,
+	}
+
+	for name, contents := range files {
+		path := filepath.Join(rootDir, name)
+		require.NoError(t, v.FS.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, vfs.WriteFile(v.FS, path, []byte(contents), 0o644))
+	}
+
+	unitPath := filepath.Join(rootDir, "unit", config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, unitPath)
+	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.DependencyBlock)
+
+	cfg, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, unitPath, nil)
+	require.NoError(t, err)
+
+	require.Len(t, cfg.FeatureFlags, 1)
+	require.NotNil(t, cfg.FeatureFlags[0].Default)
+
+	names := cfg.FeatureFlags[0].Default.GetAttr("names")
+
+	var got []string
+
+	for it := names.ElementIterator(); it.Next(); {
+		_, name := it.Element()
+		got = append(got, name.AsString())
+	}
+
+	assert.Equal(t, []string{"root", "unit"}, got)
+}
+
+func TestPartialParseEvaluatesEachIncludeOnce(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		decodeList []config.PartialDecodeSectionType
+		wantOpens  int
+	}{
+		{
+			name:       "decode list with feature blocks",
+			decodeList: []config.PartialDecodeSectionType{config.FeatureFlagsBlock, config.DependencyBlock, config.ExcludeBlock},
+			wantOpens:  1,
+		},
+		{
+			name:       "decode list without feature blocks",
+			decodeList: []config.PartialDecodeSectionType{config.DependencyBlock},
+			wantOpens:  1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, rootDir := newMemTestDir(t)
+
+			files := map[string]string{
+				"accounts.yml": "dev: \"111111111111\"\n",
+				"root.hcl": `
+locals {
+  accounts = yamldecode(file("accounts.yml"))
+}
+
+feature "skip" {
+  default = true
+}
+
+dependency "vpc" {
+  config_path = "${get_terragrunt_dir()}/../vpc"
+}
+`,
+				filepath.Join("unit", "terragrunt.hcl"): `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+exclude {
+  if      = feature.skip.value
+  actions = ["all"]
+}
+`,
+			}
+
+			for name, contents := range files {
+				path := filepath.Join(rootDir, name)
+				require.NoError(t, v.FS.MkdirAll(filepath.Dir(path), 0o755))
+				require.NoError(t, vfs.WriteFile(v.FS, path, []byte(contents), 0o644))
+			}
+
+			fsys := &countingFS{FS: v.FS, opens: map[string]int{}}
+			v = v.WithFS(fsys)
+
+			unitPath := filepath.Join(rootDir, "unit", config.DefaultTerragruntConfigPath)
+			ctx, pctx := newTestParsingContext(t, unitPath)
+			pctx = pctx.WithDecodeList(tc.decodeList...).WithSkipOutputsResolution()
+
+			cfg, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, unitPath, nil)
+			require.NoError(t, err)
+
+			require.Len(t, cfg.TerragruntDependencies, 1)
+			assert.Equal(t, "vpc", cfg.TerragruntDependencies[0].Name)
+			assert.Equal(t, tc.wantOpens, fsys.opensOf(filepath.Join(rootDir, "accounts.yml")))
+
+			if slices.Contains(tc.decodeList, config.ExcludeBlock) {
+				require.NotNil(t, cfg.Exclude)
+				assert.True(t, cfg.Exclude.If)
+			}
+		})
+	}
+}
+
+func TestParseDoesNotParseNoMergeInclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		parse func(ctx context.Context, v *venv.Venv, pctx *config.ParsingContext, path string) (*config.TerragruntConfig, error)
+		name  string
+	}{
+		{
+			name: "full parse",
+			parse: func(ctx context.Context, v *venv.Venv, pctx *config.ParsingContext, path string) (*config.TerragruntConfig, error) {
+				return config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, path, nil)
+			},
+		},
+		{
+			name: "partial parse",
+			parse: func(ctx context.Context, v *venv.Venv, pctx *config.ParsingContext, path string) (*config.TerragruntConfig, error) {
+				pctx = pctx.WithDecodeList(config.DependencyBlock, config.FeatureFlagsBlock)
+
+				return config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, path, nil)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, rootDir := newMemTestDir(t)
+
+			files := map[string]string{
+				"root.hcl": `locals { value = "root" }`,
+				filepath.Join("unit", "terragrunt.hcl"): `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "no_merge"
+}
+`,
+			}
+
+			for name, contents := range files {
+				path := filepath.Join(rootDir, name)
+				require.NoError(t, v.FS.MkdirAll(filepath.Dir(path), 0o755))
+				require.NoError(t, vfs.WriteFile(v.FS, path, []byte(contents), 0o644))
+			}
+
+			fsys := &countingFS{FS: v.FS, opens: map[string]int{}}
+			v = v.WithFS(fsys)
+
+			unitPath := filepath.Join(rootDir, "unit", config.DefaultTerragruntConfigPath)
+			ctx, pctx := newTestParsingContext(t, unitPath)
+
+			_, err := tc.parse(ctx, v, pctx, unitPath)
+			require.NoError(t, err)
+
+			assert.Equal(t, 0, fsys.opensOf(filepath.Join(rootDir, "root.hcl")))
 		})
 	}
 }

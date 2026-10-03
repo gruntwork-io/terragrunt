@@ -123,6 +123,9 @@ func parseIncludedConfig(
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
+//
+// A partial merge uses an include's config from pctx.TrackInclude when [DecodeBaseBlocks] already parsed it, instead of
+// parsing that include again. An include with the no_merge strategy is not parsed at all.
 func handleInclude(
 	ctx context.Context,
 	l log.Logger,
@@ -148,23 +151,13 @@ func handleInclude(
 			return config, err
 		}
 
-		var (
-			parsedIncludeConfig *TerragruntConfig
-			logPrefix           string
-		)
-
-		pctx.FilesRead.Add(includeConfig.Path)
+		var logPrefix string
 
 		if isPartial {
-			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 			logPrefix = "[Partial] "
-		} else {
-			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 		}
 
-		if err != nil {
-			return baseConfig, err
-		}
+		pctx.FilesRead.Add(includeConfig.Path)
 
 		switch mergeStrategy {
 		case NoMerge:
@@ -173,30 +166,20 @@ func handleInclude(
 				logPrefix,
 				includeConfig.Path,
 			)
+
+			continue
 		case ShallowMerge:
 			l.Debugf(
 				"%sIncluded config %s has strategy shallow merge: merging config in (shallow).",
 				logPrefix,
 				includeConfig.Path,
 			)
-
-			if err := parsedIncludeConfig.Merge(l, baseConfig); err != nil {
-				return nil, err
-			}
-
-			baseConfig = parsedIncludeConfig
 		case DeepMerge:
 			l.Debugf(
 				"%sIncluded config %s has strategy deep merge: merging config in (deep).",
 				logPrefix,
 				includeConfig.Path,
 			)
-
-			if err := parsedIncludeConfig.DeepMerge(l, baseConfig); err != nil {
-				return nil, err
-			}
-
-			baseConfig = parsedIncludeConfig
 		case DeepMergeMapOnly:
 			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		default:
@@ -205,9 +188,41 @@ func handleInclude(
 				mergeStrategy,
 			)
 		}
+
+		var parsedIncludeConfig *TerragruntConfig
+
+		if isPartial {
+			var parsed bool
+
+			parsedIncludeConfig, parsed = pctx.TrackInclude.parsedForMerge[includeConfig.Name]
+			if !parsed {
+				parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, pctx, &includeConfig)
+			}
+		} else {
+			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
+		}
+
+		if err != nil {
+			return baseConfig, err
+		}
+
+		if err := mergeIncludedConfig(l, mergeStrategy, parsedIncludeConfig, baseConfig); err != nil {
+			return nil, err
+		}
+
+		baseConfig = parsedIncludeConfig
 	}
 
 	return baseConfig, nil
+}
+
+// mergeIncludedConfig merges base into included with mergeStrategy, which is ShallowMerge or DeepMerge.
+func mergeIncludedConfig(l log.Logger, mergeStrategy MergeStrategyType, included, base *TerragruntConfig) error {
+	if mergeStrategy == ShallowMerge {
+		return included.Merge(l, base)
+	}
+
+	return included.DeepMerge(l, base)
 }
 
 // handleIncludeForDependency is a partial merge of the included config to handle dependencies. This only merges the
@@ -237,6 +252,34 @@ func handleIncludeForDependency(
 			return nil, err
 		}
 
+		includePath := util.RelPathForLog(pctx.RootWorkingDir, includeConfig.Path, pctx.LogShowAbsPaths)
+
+		switch mergeStrategy {
+		case NoMerge:
+			l.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includePath)
+
+			continue
+		case ShallowMerge:
+			l.Debugf(
+				"Included config %s has strategy shallow merge: merging config in (shallow) for dependency.",
+				includePath,
+			)
+		case DeepMerge:
+			l.Debugf(
+				"Included config %s has strategy deep merge: merging config in (deep) for dependency.",
+				includePath,
+			)
+		case DeepMergeMapOnly:
+			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
+		default:
+			return nil, fmt.Errorf(
+				"you reached an impossible condition. This is most likely a bug in terragrunt. "+
+					"Please open an issue at github.com/gruntwork-io/terragrunt with this error message. "+
+					"Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY",
+				mergeStrategy,
+			)
+		}
+
 		includedPartialParse, err := partialParseIncludedConfig(
 			ctx,
 			l,
@@ -248,60 +291,21 @@ func handleIncludeForDependency(
 			return nil, err
 		}
 
-		switch mergeStrategy {
-		case NoMerge:
-			l.Debugf(
-				"Included config %s has strategy no merge: not merging config in for dependency.",
-				util.RelPathForLog(
-					pctx.RootWorkingDir,
-					includeConfig.Path,
-					pctx.LogShowAbsPaths,
-				),
-			)
-		case ShallowMerge:
-			l.Debugf(
-				"Included config %s has strategy shallow merge: merging config in (shallow) for dependency.",
-				util.RelPathForLog(
-					pctx.RootWorkingDir,
-					includeConfig.Path,
-					pctx.LogShowAbsPaths,
-				),
-			)
+		if mergeStrategy == ShallowMerge {
+			baseDependencyBlock = mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
 
-			mergedDependencyBlock := mergeDependencyBlocks(
-				includedPartialParse.TerragruntDependencies,
-				baseDependencyBlock,
-			)
-			baseDependencyBlock = mergedDependencyBlock
-		case DeepMerge:
-			l.Debugf(
-				"Included config %s has strategy deep merge: merging config in (deep) for dependency.",
-				util.RelPathForLog(
-					pctx.RootWorkingDir,
-					includeConfig.Path,
-					pctx.LogShowAbsPaths,
-				),
-			)
-
-			mergedDependencyBlock, err := deepMergeDependencyBlocks(
-				includedPartialParse.TerragruntDependencies,
-				baseDependencyBlock,
-			)
-			if err != nil {
-				return nil, err
-			}
-
-			baseDependencyBlock = mergedDependencyBlock
-		case DeepMergeMapOnly:
-			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
-		default:
-			return nil, fmt.Errorf(
-				"you reached an impossible condition. This is most likely a bug in terragrunt. "+
-					"Please open an issue at github.com/gruntwork-io/terragrunt with this error message. "+
-					"Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY",
-				mergeStrategy,
-			)
+			continue
 		}
+
+		mergedDependencyBlock, err := deepMergeDependencyBlocks(
+			includedPartialParse.TerragruntDependencies,
+			baseDependencyBlock,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		baseDependencyBlock = mergedDependencyBlock
 	}
 
 	return &TerragruntDependency{Dependencies: baseDependencyBlock}, nil
