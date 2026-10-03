@@ -160,6 +160,10 @@ func ParseStackFile(
 			return result, FileDecodeError{Name: input.OverrideFilename, Err: err}
 		}
 
+		if err := validateUniqueNames(overrideUnits, overrideStacks); err != nil {
+			return result, err
+		}
+
 		// The override is wholesale, so an overridden base block's autoinclude is never resolved.
 		resolveUnits = replaceByName(units, overrideUnits, func(u *UnitBlockHCL) string { return u.Name })
 		resolveStacks = replaceByName(stacks, overrideStacks, func(s *StackBlockHCL) string { return s.Name })

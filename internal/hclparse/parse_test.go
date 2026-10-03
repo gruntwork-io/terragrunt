@@ -1941,6 +1941,42 @@ unit "function" {
 	assert.Empty(t, result.AutoIncludes)
 }
 
+func TestParseStackFile_OverrideDuplicateUnits(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+	overrideSrc := `
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+
+unit "app" {
+  source = "../catalog/units/app2"
+  path   = "app2"
+}
+`
+
+	_, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate unit name")
+}
+
 // Benchmarks
 
 func BenchmarkParseStackFile_Simple(b *testing.B) {
