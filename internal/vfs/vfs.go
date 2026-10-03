@@ -25,6 +25,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/spf13/afero"
+	"golang.org/x/text/unicode/norm"
 )
 
 // FS is the filesystem interface used throughout the codebase.
@@ -531,6 +532,74 @@ func ParentPathHasSymlink(fsys FS, rootDir, rel string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// NameFolding records which spellings of one file name a directory treats as the same file.
+type NameFolding struct {
+	// Case is set when names differing only in letter case alias each other, as on APFS and NTFS by default.
+	Case bool
+	// Unicode is set when composed and decomposed spellings alias each other, as on APFS and HFS+.
+	Unicode bool
+}
+
+// DetectNameFolding creates and removes one probe file in dir to learn which spellings of a name it treats as one.
+func DetectNameFolding(fsys FS, dir string) (NameFolding, error) {
+	probe, err := CreateTemp(fsys, dir, ".terragrunt-folding-\u00e9-*")
+	if err != nil {
+		return NameFolding{}, err
+	}
+
+	name := probe.Name()
+
+	if err := probe.Close(); err != nil {
+		return NameFolding{}, errors.Join(err, fsys.Remove(name))
+	}
+
+	base := filepath.Base(name)
+	parent := filepath.Dir(name)
+
+	var folding NameFolding
+
+	folding.Case, err = nameExists(fsys, filepath.Join(parent, upperASCII(base)))
+	if err != nil {
+		return NameFolding{}, errors.Join(err, fsys.Remove(name))
+	}
+
+	folding.Unicode, err = nameExists(fsys, filepath.Join(parent, norm.NFD.String(base)))
+	if err != nil {
+		return NameFolding{}, errors.Join(err, fsys.Remove(name))
+	}
+
+	if err := fsys.Remove(name); err != nil {
+		return NameFolding{}, err
+	}
+
+	return folding, nil
+}
+
+// upperASCII upper-cases only ASCII letters, so the case probe does not hinge on how a filesystem folds accented ones.
+func upperASCII(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' {
+			return r - 'a' + 'A'
+		}
+
+		return r
+	}, s)
+}
+
+// nameExists reports whether path exists without following a final symlink; only a missing path is not an error.
+func nameExists(fsys FS, path string) (bool, error) {
+	_, err := Lstat(fsys, path)
+	if err == nil {
+		return true, nil
+	}
+
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+
+	return false, err
 }
 
 // MkdirTemp creates a temporary directory on the given filesystem. Unlike
