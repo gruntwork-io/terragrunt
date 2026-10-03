@@ -612,10 +612,12 @@ func (err MaxParseDepthError) Error() string {
 }
 
 // ReadTerragruntConfigCycleError is returned when read_terragrunt_config reads
-// a config that is already being read further up the chain.
+// a config that is already being parsed further up the chain, either by an
+// outer read_terragrunt_config call or through a dependency block.
 type ReadTerragruntConfigCycleError struct {
-	// Chain lists the configs being read, outermost first, ending with the
-	// config that closes the cycle.
+	// Chain lists the configs being parsed, outermost first, including configs
+	// reached through a dependency block, ending with the config that closes
+	// the cycle.
 	Chain []string
 }
 
