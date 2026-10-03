@@ -1765,7 +1765,7 @@ func TestStackDepsStackLevelAutoIncludeNestedAutoInclude(t *testing.T) {
 			helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
 
 			stackDir := filepath.Join(append([]string{rootPath, inthclparse.StackDir}, tc.stackDir...)...)
-			functionDir := filepath.Join(stackDir, inthclparse.StackDir, "function")
+			functionDir := filepath.Join(stackDir, inthclparse.StackDir, "handler")
 			logsDir := filepath.Join(stackDir, inthclparse.StackDir, "logs")
 
 			autoInclude, err := os.ReadFile(filepath.Join(functionDir, inthclparse.AutoIncludeFile))

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -352,14 +353,12 @@ func resolveStackAutoIncludes(
 	var overrideSrc []byte
 
 	if filepath.Base(stackFilePath) != inthclparse.AutoIncludeStackFile {
-		exists, existsErr := vfs.FileExists(v.FS, overridePath)
-		if existsErr != nil {
-			return nil, nil, fmt.Errorf("failed to stat stack autoinclude %s: %w", overridePath, existsErr)
-		}
-
-		if exists {
-			if overrideSrc, err = vfs.ReadFile(v.FS, overridePath); err != nil {
-				return nil, nil, fmt.Errorf("failed to read stack autoinclude %s: %w", overridePath, err)
+		overrideSrc, err = vfs.ReadFile(v.FS, overridePath)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, AutoIncludeParserStageError{
+				Stage: "autoinclude-override-read",
+				File:  overridePath,
+				Err:   err,
 			}
 		}
 	}
@@ -2168,7 +2167,7 @@ func bodyHasBlock(body hcl.Body) bool {
 	return len(content.Blocks) > 0
 }
 
-// logStackAutoIncludeMergeNotes records when an injected unit/stack name overrides an existing one and when a nested autoinclude block is dropped. A same-name injected block replaces the base block wholesale, matching unit autoinclude override semantics.
+// logStackAutoIncludeMergeNotes records when an injected unit/stack name overrides an existing one. A same-name injected block replaces the base block wholesale, matching unit autoinclude override semantics.
 func logStackAutoIncludeMergeNotes(l log.Logger, config, included *StackConfigFile) {
 	existingUnits := unitNameSet(config.Units)
 	existingStacks := stackNameSet(config.Stacks)

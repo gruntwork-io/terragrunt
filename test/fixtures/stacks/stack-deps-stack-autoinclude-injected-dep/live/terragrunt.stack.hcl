@@ -1,5 +1,6 @@
 # The stack-level autoinclude overrides the catalog stack's "function" unit with one that declares its
-# own autoinclude, wiring it to the "queue" unit of this stack.
+# own autoinclude, wiring it to the "queue" unit of this stack. The override moves the unit to "handler", so the
+# catalog's "logs" wiring must follow the override's path.
 unit "queue" {
   source = "${get_repo_root()}/units/echo"
   path   = "queue"
@@ -16,7 +17,7 @@ stack "fn" {
   autoinclude {
     unit "function" {
       source = "${get_repo_root()}/units/echo"
-      path   = "function"
+      path   = "handler"
 
       autoinclude {
         dependency "queue" {

@@ -152,10 +152,7 @@ func ParseStackFile(
 		return result, err
 	}
 
-	autoIncludes, err := resolveAutoIncludes(ctx, units, stacks, srcByFilename)
-	if err != nil {
-		return result, err
-	}
+	resolveUnits, resolveStacks := units, stacks
 
 	if overrideRemain != nil {
 		overrideUnits, overrideStacks, err := decodeComponents(ctx, overrideRemain, evalCtx)
@@ -163,13 +160,14 @@ func ParseStackFile(
 			return result, FileDecodeError{Name: input.OverrideFilename, Err: err}
 		}
 
-		overrideAutoIncludes, err := resolveAutoIncludes(ctx, overrideUnits, overrideStacks, srcByFilename)
-		if err != nil {
-			return result, err
-		}
+		// The override is wholesale, so an overridden base block's autoinclude is never resolved.
+		resolveUnits = replaceByName(units, overrideUnits, func(u *UnitBlockHCL) string { return u.Name })
+		resolveStacks = replaceByName(stacks, overrideStacks, func(s *StackBlockHCL) string { return s.Name })
+	}
 
-		dropOverriddenAutoIncludes(autoIncludes, units, stacks, overrideUnits, overrideStacks)
-		maps.Copy(autoIncludes, overrideAutoIncludes)
+	autoIncludes, err := resolveAutoIncludes(ctx, resolveUnits, resolveStacks, srcByFilename)
+	if err != nil {
+		return result, err
 	}
 
 	result.AutoIncludes = autoIncludes
@@ -177,26 +175,20 @@ func ParseStackFile(
 	return result, nil
 }
 
-// dropOverriddenAutoIncludes deletes the autoinclude of every instance of a base unit or stack that an
-// override block replaces by name. The override is wholesale, so the base autoinclude must not leak into it.
-func dropOverriddenAutoIncludes(
-	autoIncludes map[string]*AutoIncludeResolved,
-	units []*UnitBlockHCL,
-	stacks []*StackBlockHCL,
-	overrideUnits []*UnitBlockHCL,
-	overrideStacks []*StackBlockHCL,
-) {
-	for _, unit := range units {
-		if slices.ContainsFunc(overrideUnits, func(o *UnitBlockHCL) bool { return o.Name == unit.Name }) {
-			delete(autoIncludes, AutoIncludeKey(KindUnit, unit.Address()))
-		}
+// replaceByName drops every base entry whose block name an override entry declares, then appends the
+// overrides, so an override replaces every instance of an expanded base block.
+func replaceByName[T any](base, override []T, name func(T) string) []T {
+	overridden := make(map[string]struct{}, len(override))
+	for _, o := range override {
+		overridden[name(o)] = struct{}{}
 	}
 
-	for _, stack := range stacks {
-		if slices.ContainsFunc(overrideStacks, func(o *StackBlockHCL) bool { return o.Name == stack.Name }) {
-			delete(autoIncludes, AutoIncludeKey(KindStack, stack.Address()))
-		}
-	}
+	merged := slices.DeleteFunc(slices.Clone(base), func(b T) bool {
+		_, ok := overridden[name(b)]
+		return ok
+	})
+
+	return append(merged, override...)
 }
 
 // validateParseStackFileInput panics on malformed parser input.

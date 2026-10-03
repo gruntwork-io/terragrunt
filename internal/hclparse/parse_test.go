@@ -1904,6 +1904,43 @@ unit "worker" {
 	}
 }
 
+func TestParseStackFile_OverrideSkipsOverriddenBaseAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "function"
+
+  autoinclude {
+    dependency "missing" {
+      config_path = unit.missing.path
+    }
+  }
+}
+`
+	overrideSrc := `
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "function"
+}
+`
+
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.NoError(t, err, "the autoinclude of an overridden base block must not be resolved")
+	assert.Empty(t, result.AutoIncludes)
+}
+
 // Benchmarks
 
 func BenchmarkParseStackFile_Simple(b *testing.B) {

@@ -21,7 +21,7 @@ stack "wrap" {
       autoinclude {
         unit "function" {
           source = "${get_repo_root()}/units/echo"
-          path   = "function"
+          path   = "handler"
 
           autoinclude {
             dependency "queue" {
