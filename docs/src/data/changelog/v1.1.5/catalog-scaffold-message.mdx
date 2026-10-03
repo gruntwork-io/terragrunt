@@ -1,0 +1,10 @@
+---
+version: "v1.1.5"
+category: "bug-fixes"
+---
+
+#### Catalog scaffold reports the files it actually generated
+
+The [`catalog`](/reference/cli/commands/catalog) interface's post-scaffold message always reported that `terragrunt.hcl` had been scaffolded, even when a boilerplate template generated different files (for example `root.hcl`, or files under `config/`).
+
+The message now lists the files that were actually written, so it no longer points you at a file that does not exist.
