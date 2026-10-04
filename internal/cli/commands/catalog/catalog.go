@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/portal"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -136,8 +137,11 @@ func newLoadFunc(
 	return func(
 		ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 	) error {
+		// Loaders run while the TUI or the entry stream owns the terminal, so their progress is logged, never drawn.
+		ctx = spinner.ContextWithLogOnly(ctx)
+
 		if repoURL != "" {
-			status("Loading " + repoURL + "...")
+			status("Loading " + tui.DisplayURL(repoURL) + "...")
 
 			return tui.LoadURL(ctx, l, v, opts.TerragruntOptions, tempDirs, repoURL, componentCh)
 		}
@@ -217,7 +221,7 @@ func discoverAndLoad(
 			failuresMu.Lock()
 			defer failuresMu.Unlock()
 
-			failures = append(failures, tui.SourceFailure{URL: repoURL, Err: err})
+			failures = append(failures, tui.SourceFailure{URL: tui.DisplayURL(repoURL), Err: err})
 
 			return nil
 		})

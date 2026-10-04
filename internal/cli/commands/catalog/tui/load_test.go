@@ -172,3 +172,52 @@ func catalogTempDirs(t *testing.T, tempRoot string) []string {
 
 	return dirs
 }
+
+func TestDisplayURL(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		repoURL string
+		want    string
+	}{
+		{
+			name:    "URL with a user and a password",
+			repoURL: "https://alice:s3cret@example.com/acme/modules.git",
+			want:    "https://example.com/acme/modules.git",
+		},
+		{
+			name:    "forced getter keeps its prefix and its revision",
+			repoURL: "git::https://alice:s3cret@example.com/acme/modules.git?ref=v1.2.3",
+			want:    "git::https://example.com/acme/modules.git?ref=v1.2.3",
+		},
+		{
+			name:    "URL without credentials",
+			repoURL: "https://example.com/acme/modules.git",
+			want:    "https://example.com/acme/modules.git",
+		},
+		{
+			name:    "local path with a space",
+			repoURL: "/home/me/my modules",
+			want:    "/home/me/my modules",
+		},
+		{
+			name:    "relative local path",
+			repoURL: "../modules",
+			want:    "../modules",
+		},
+		{
+			name:    "SCP-style address",
+			repoURL: "git@example.com:acme/modules.git",
+			want:    "git@example.com:acme/modules.git",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, tui.DisplayURL(tc.repoURL))
+		})
+	}
+}

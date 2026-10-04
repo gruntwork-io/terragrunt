@@ -33,6 +33,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -1008,6 +1009,74 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	cachedContent, err := os.ReadFile(cachedMainTf)
 	require.NoError(t, err)
 	assert.Equal(t, mainTfContent, string(cachedContent), "File contents should match")
+}
+
+// TestDownloadTerraformSourceReportsDownloadDirLockWait pins that only a run with a reporter reports the lock wait.
+func TestDownloadTerraformSourceReportsDownloadDirLockWait(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		unitDir  string
+		reported bool
+	}{
+		{name: "run with a reporter", unitDir: "/virtual/reported", reported: true},
+		{name: "run without a reporter", unitDir: "/virtual/unreported", reported: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New()
+
+			require.NoError(t, v.FS.MkdirAll(tc.unitDir, 0o755))
+			require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tc.unitDir, "main.tf"), []byte("# unit\n"), 0o644))
+
+			opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tc.unitDir, "terragrunt.hcl"))
+			require.NoError(t, err)
+
+			opts.DownloadDir = filepath.Join(tc.unitDir, ".terragrunt-cache")
+			opts.LogShowAbsPaths = true
+
+			ctx := t.Context()
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+			}
+
+			logs := new(bytes.Buffer)
+
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
+
+			updatedOpts, err := run.DownloadTerraformSource(
+				ctx,
+				l,
+				v,
+				".",
+				configbridge.NewRunOptions(opts),
+				&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+				report.NewReport(),
+			)
+			require.NoError(t, err)
+			require.True(t, strings.HasPrefix(updatedOpts.CacheDir, opts.DownloadDir), updatedOpts.CacheDir)
+			assert.True(t, vfs.Exists(v.FS, filepath.Join(updatedOpts.CacheDir, "main.tf")))
+
+			// A source with no module subdirectory is downloaded straight into the locked directory.
+			working := "Waiting for the lock on " + updatedOpts.CacheDir + "..."
+			done := "Got the lock on " + updatedOpts.CacheDir
+
+			if !tc.reported {
+				assert.NotContains(t, logs.String(), working)
+				assert.NotContains(t, logs.String(), done)
+
+				return
+			}
+
+			assert.Contains(t, logs.String(), working)
+			assert.Contains(t, logs.String(), done)
+		})
+	}
 }
 
 // TestDownloadSourceWithCASExperimentDisabled tests that CAS is not used when the experiment is disabled

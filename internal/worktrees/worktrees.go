@@ -760,7 +760,18 @@ func NewWorktrees(
 		func(ctx context.Context) error {
 			// The survey decides which references get a worktree and how much
 			// of each one is checked out, so it runs before any of them are.
-			survey, err := surveyGitExpressions(ctx, v, gitRunner, gitExpressions, gitRefs, repoRemote)
+			var survey *gitSurvey
+
+			err := spinner.ShowAfter(ctx, l, spinner.Messages{
+				Working: "Comparing Git references for filters...",
+				Done:    "Compared Git references for filters",
+			}, func() error {
+				var surveyErr error
+
+				survey, surveyErr = surveyGitExpressions(ctx, v, gitRunner, gitExpressions, gitRefs, repoRemote)
+
+				return surveyErr
+			})
 			if err != nil {
 				worktrees = newEmptyWorktrees(workingDir)
 				outerErr = err
@@ -784,7 +795,6 @@ func NewWorktrees(
 				repoRemote,
 				repoBranch,
 				repoCommit,
-				experiments,
 				pathspecs,
 			)
 
@@ -949,7 +959,6 @@ func createGitWorktrees(
 	gitRunner *git.GitRunner,
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
-	experiments experiment.Experiments,
 	pathspecs map[string][]string,
 ) (map[string]string, error) {
 	refsToPaths := make(map[string]string, len(gitRefs))
@@ -998,26 +1007,19 @@ func createGitWorktrees(
 			})
 		}
 
-		return g.Wait()
-	}
-
-	if experiments.Evaluate(experiment.SlowTaskReporting) {
-		if err := spinner.ShowAfter(
-			ctx,
-			l,
-			spinner.Writer(v),
-			time.Second,
-			slowWorktreeMsg(gitRefs),
-			create,
-		); err != nil {
+		if err := g.Wait(); err != nil {
 			errs = append(errs, err)
 		}
-	} else if err := create(); err != nil {
-		errs = append(errs, err)
+
+		if len(errs) == 0 {
+			return nil
+		}
+
+		return errors.Join(errs...)
 	}
 
-	if len(errs) > 0 {
-		return refsToPaths, errors.Join(errs...)
+	if err := spinner.ShowAfter(ctx, l, slowWorktreeMsg(gitRefs), create); err != nil {
+		return refsToPaths, err
 	}
 
 	return refsToPaths, nil

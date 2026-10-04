@@ -1,0 +1,24 @@
+---
+version: "v1.2.0"
+category: "experiments-updated"
+---
+
+#### `slow-task-reporting` - One progress line that fits the terminal, and log lines everywhere else
+
+The `slow-task-reporting` experiment drew a spinner for each slow operation straight onto the terminal. A message wider than the terminal left a stale row behind on every frame, output from other units of a `run --all` was appended to the spinner text, and the spinner drew over the `terragrunt catalog` TUI. On CI systems that give a job a pseudo-terminal, the spinner animated into the job log.
+
+The experiment now draws a single progress line that is shared by every operation in flight, is cut to the width of the terminal, and steps out of the way of log lines:
+
+```text
+| Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
+```
+
+Terragrunt writes INFO log lines instead of drawing when it detects a CI environment, when `TERM` is `dumb`, when logs are in the `json` format, and for the units of a `run --all` and the repositories of `terragrunt catalog`. The animation falls back to ASCII characters on terminals without a UTF-8 locale and on Windows consoles other than Windows Terminal.
+
+More operations are reported: unit discovery, fetching the outputs of `dependency` blocks, provider caching, waiting for new remote state resources, `stack generate` fetches, and lock waits.
+
+Creating a Git worktree no longer logs that it succeeded when it failed.
+
+The wait for approval in `terragrunt login` is drawn the same way, with or without this experiment: the line shows the elapsed time, and it becomes a log line in a CI environment, with `TERM=dumb`, and with `json` logs.
+
+To learn more, see the [experiment documentation](/reference/experiments/active#slow-task-reporting).

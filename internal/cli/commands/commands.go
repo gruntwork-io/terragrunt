@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -319,6 +320,13 @@ func RunAction(
 	// [github.com/gruntwork-io/terragrunt/internal/git.GoRepoRoot] and
 	// the version probes below share state across the whole action.
 	actionCtx := cache.ContextWithCache(ctx)
+
+	if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
+		reporter := newProgressReporter(l, opts, v)
+		actionCtx = spinner.ContextWithReporter(actionCtx, reporter)
+
+		defer guardTerminal(l, v, reporter)()
+	}
 
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
@@ -700,4 +708,36 @@ func initialSetup(
 	}
 
 	return nil
+}
+
+// newProgressReporter returns the reporter that slow operations of the run
+// are reported through.
+func newProgressReporter(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *spinner.Reporter {
+	reporterOpts := spinner.TerminalOptions(v, l)
+	reporterOpts.LogsForHumans = reporterOpts.LogsForHumans && !opts.JSONLogFormat
+
+	return spinner.New(reporterOpts)
+}
+
+// guardTerminal makes the log output and the standard streams of the run step
+// around the progress line `reporter` draws, and returns the function that
+// undoes it. A reporter that draws no progress line changes nothing.
+func guardTerminal(l log.Logger, v *venv.Venv, reporter *spinner.Reporter) func() {
+	if !reporter.Animated() {
+		return func() {}
+	}
+
+	writers := v.Writers
+	restoreLogger := reporter.GuardLogger(l)
+
+	v.Writers = writers.WithErrWriter(reporter.Guard(writers.ErrWriter))
+	if v.Terminal.StdoutIsTTY() {
+		v.Writers = v.Writers.WithWriter(reporter.Guard(writers.Writer))
+	}
+
+	return func() {
+		v.Writers = writers
+
+		restoreLogger()
+	}
 }
