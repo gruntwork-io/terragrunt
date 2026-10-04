@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `--backend-bootstrap` updates existing S3 buckets that are missing managed settings
+
+With `--backend-bootstrap`, an existing S3 state bucket that was missing a setting Terragrunt manages, such as the enforced-TLS bucket policy, versioning, encryption or public access blocking, was never updated. Terragrunt only checked that the bucket and lock table existed, so only `terragrunt backend bootstrap` applied the missing settings.
+
+Terragrunt now checks those settings when deciding whether to bootstrap an existing bucket and applies the ones that are missing. Set `disable_bucket_update = true` in the [S3 backend](/features/units/state-backend#s3-backend) config to keep the old behavior. If the credentials in use cannot read the bucket settings, the check is skipped.
