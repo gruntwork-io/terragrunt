@@ -470,12 +470,15 @@ func (p *WorktreePhase) walkChangedStack(
 		errs = make([]error, 0, fromToTasks)
 	)
 
-	parentFilters := discovery.filters.ExcludingGitFilters()
+	// Changed stacks are already identified by the git diff, so the sub-discoveries
+	// that walk their generated units must not inherit unrelated parent filters. A
+	// parent filter like "./other" would cause exclude-by-default to drop every unit
+	// inside the stack that does not match it. The main discovery's final filter
+	// evaluation applies the overall filter logic after all phases complete.
 
 	discoveryGroup.Go(func() error {
 		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
-			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers).
 			withParseSettingsFrom(discovery)
 
@@ -504,7 +507,6 @@ func (p *WorktreePhase) walkChangedStack(
 	discoveryGroup.Go(func() error {
 		toDiscovery := NewDiscovery(toStack.Path()).
 			WithDiscoveryContext(toDiscoveryContext).
-			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers).
 			withParseSettingsFrom(discovery)
 

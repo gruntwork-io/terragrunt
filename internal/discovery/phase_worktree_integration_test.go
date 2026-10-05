@@ -2743,6 +2743,125 @@ unit "myapp" {
 		"Land-mine stack was parsed (marker file created) despite being excluded by filter")
 }
 
+// TestWorktreePhase_Integration_StackWithMultipleFilters reproduces issue #7081:
+// a git filter that matches a changed terragrunt.stack.hcl combined with another
+// filter (path, reading=, etc.) caused the stack's generated units to be dropped
+// because walkChangedStack propagated the unrelated parent filter to its
+// sub-discoveries, where exclude-by-default discarded everything.
+func TestWorktreePhase_Integration_StackWithMultipleFilters(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create two catalog sources so the generated unit changes between refs.
+	for _, name := range []string{"legacy", "modern"} {
+		dir := filepath.Join(tmpDir, "catalog", "units", name)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, "terragrunt.hcl"), []byte("# "+name), 0o644,
+		))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, "main.tf"), []byte("# "+name+" tf"), 0o644,
+		))
+	}
+
+	// Create a stack in live/one referencing the legacy source.
+	stackDir := filepath.Join(tmpDir, "live", "one")
+	require.NoError(t, os.MkdirAll(stackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "thing" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "thing"
+}
+`),
+		0o644,
+	))
+
+	// Create a plain unit in live/other.
+	createUnit(t, filepath.Join(tmpDir, "live"), "other", `# other unit`)
+
+	commitChanges(t, runner, "Initial layout")
+
+	// Switch the stack to the modern source so the generated unit differs.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "thing" {
+  source = "${get_repo_root()}/catalog/units/modern"
+  path   = "thing"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "Switch stack source")
+
+	// Run discovery with BOTH a git filter and a path filter.
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Parse the two filters: the git expression and a path filter for another unit.
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{
+		"[HEAD~1...HEAD]",
+		"./live/other",
+	})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
+
+	// Generate stacks inside the worktrees so the units exist on disk.
+	require.NoError(t, generate.NewGenerator().GenerateStacks(
+		t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w,
+	))
+
+	// Build the discovery with both filters.
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+	}
+
+	disc := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w).
+		WithFilters(parsedFilters)
+
+	components, err := disc.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	componentPaths := components.Paths()
+
+	// The plain unit must be present (matched by the path filter).
+	assert.Contains(t, componentPaths, filepath.Join(tmpDir, "live", "other"),
+		"Path-filtered unit should be discovered; got: %v", componentPaths)
+
+	// The stack's generated unit must also be present (matched by the git filter).
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotNil(t, pair)
+	toWorktree := pair.ToWorktree.Path
+
+	expectedUnit := filepath.Join(toWorktree, "live", "one", ".terragrunt-stack", "thing")
+	assert.Contains(t, componentPaths, expectedUnit,
+		"Changed stack's generated unit should be discovered when a path filter is also given; got: %v",
+		componentPaths)
+}
+
 // runWorktreeDiscovery runs discovery with worktree phase enabled.
 func runWorktreeDiscovery(
 	t *testing.T,
