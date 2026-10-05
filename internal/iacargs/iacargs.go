@@ -14,6 +14,9 @@ const (
 
 	// CommandNameDestroy is the terraform destroy command name
 	CommandNameDestroy = "destroy"
+
+	// CommandNameApply is the terraform apply command name
+	CommandNameApply = "apply"
 )
 
 const (
@@ -391,6 +394,12 @@ func (a *IacArgs) IsDestroyCommand(cmd string) bool {
 
 		return err == nil && isDestroy
 	})
+}
+
+// IsDestroyOrAlias returns true for the destroy command and for its alias, `apply` with the destroy flag.
+// Unlike IsDestroyCommand, it is false for `plan` with the destroy flag, which only plans the destruction.
+func (a *IacArgs) IsDestroyOrAlias(cmd string) bool {
+	return cmd == CommandNameDestroy || (cmd == CommandNameApply && a != nil && a.IsDestroyCommand(cmd))
 }
 
 // parse parses raw args into Command/SubCommand/Flags/Arguments.

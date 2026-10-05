@@ -27,7 +27,7 @@ import (
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) error {
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
-	if opts.TerraformCommand == tf.CommandNameDestroy {
+	if opts.TerraformCliArgs.IsDestroyOrAlias(opts.TerraformCommand) {
 		opts.CheckDependentUnits = opts.DestroyDependenciesCheck
 	}
 
