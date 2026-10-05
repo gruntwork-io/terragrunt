@@ -2149,7 +2149,7 @@ func ConvertToTerragruntConfig(
 		// FilesRead, so this hook is how files read via read_terragrunt_config of
 		// a config with a local module source reach reading= filters.
 		if cfg.Terraform.Source != nil {
-			markLocalModuleSourceAsRead(v, pctx, cfgPath, *cfg.Terraform.Source)
+			markLocalModuleSourceAsRead(v, pctx, *cfg.Terraform.Source)
 		}
 	}
 
@@ -2375,25 +2375,21 @@ var moduleSourceReadExtensions = map[string]struct{}{
 // best-effort annotation: non-local sources are skipped and walk errors are
 // swallowed, since a genuinely broken source will surface during download.
 //
+// A relative source resolves against pctx.WorkingDir, the unit's directory,
+// which is where a run resolves it. The file that declares the source may be an
+// included config in another directory; that directory plays no part.
+//
 // A pctx that keeps no record of its reads gets no walk. The walk feeds nothing
 // but that record, and is the most expensive thing a parse does for it, so this
 // is where the cost of tracking goes when nobody is asking.
-func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, cfgPath, rawSource string) {
+func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, rawSource string) {
 	if !pctx.FilesRead.Tracking() {
 		return
 	}
 
 	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
 
-	// Anchor a relative config path to the working directory before deriving
-	// the detector pwd. The file detector roots relative output at "/", so a
-	// relative pwd would resolve a relative source to the filesystem root and
-	// walk all of it.
-	if !filepath.IsAbs(cfgPath) {
-		cfgPath = filepath.Join(pctx.WorkingDir, cfgPath)
-	}
-
-	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, filepath.Dir(cfgPath))
+	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, pctx.WorkingDir)
 	if err != nil || !tf.IsLocalSource(sourceURL) {
 		return
 	}
