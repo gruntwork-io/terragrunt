@@ -470,12 +470,7 @@ func (p *WorktreePhase) walkChangedStack(
 		errs = make([]error, 0, fromToTasks)
 	)
 
-	// Changed stacks are already identified by the git diff, so the sub-discoveries
-	// that walk their generated units must not inherit unrelated parent filters. A
-	// parent filter like "./other" would cause exclude-by-default to drop every unit
-	// inside the stack that does not match it. The main discovery's final filter
-	// evaluation applies the overall filter logic after all phases complete.
-
+	// Parent non-git filters are not passed here; the final Filters.Evaluate handles them.
 	discoveryGroup.Go(func() error {
 		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
