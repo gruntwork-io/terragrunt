@@ -602,6 +602,36 @@ func TestIacArgsIsDestroyCommand(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "plan with -destroy=true flag",
+			args:     iacargs.New("plan", "-destroy=true"),
+			cmd:      "plan",
+			expected: true,
+		},
+		{
+			name:     "apply with -destroy=1 flag",
+			args:     iacargs.New("apply", "-destroy=1", "tfplan"),
+			cmd:      "apply",
+			expected: true,
+		},
+		{
+			name:     "plan with -destroy=false flag",
+			args:     iacargs.New("plan", "-destroy=false"),
+			cmd:      "plan",
+			expected: false,
+		},
+		{
+			name:     "plan with -destroy=0 flag",
+			args:     iacargs.New("plan", "-destroy=0"),
+			cmd:      "plan",
+			expected: false,
+		},
+		{
+			name:     "plan with a -destroy value that is not a boolean",
+			args:     iacargs.New("plan", "-destroy=maybe"),
+			cmd:      "plan",
+			expected: false,
+		},
+		{
 			name:     "regular apply",
 			args:     iacargs.New("apply", "-auto-approve"),
 			cmd:      "apply",

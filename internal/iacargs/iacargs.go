@@ -4,6 +4,7 @@ package iacargs
 import (
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -364,9 +365,24 @@ func (a *IacArgs) Normalize(acts ...NormalizeActsType) *IacArgs {
 }
 
 // IsDestroyCommand returns true if this represents a destroy operation.
-// It checks both the command name and the -destroy flag.
+// It checks both the command name and the -destroy flag, including the
+// `-destroy=<value>` form: `-destroy=true` is a destroy, `-destroy=false` is not.
+// The value is parsed with `strconv.ParseBool`, as Go's `flag` package does for boolean flags.
 func (a *IacArgs) IsDestroyCommand(cmd string) bool {
-	return cmd == CommandNameDestroy || a.Contains("-"+CommandNameDestroy)
+	if cmd == CommandNameDestroy || a.Contains("-"+CommandNameDestroy) {
+		return true
+	}
+
+	return slices.ContainsFunc(a.Flags, func(flag string) bool {
+		value, ok := strings.CutPrefix(flag, "-"+CommandNameDestroy+"=")
+		if !ok {
+			return false
+		}
+
+		isDestroy, err := strconv.ParseBool(value)
+
+		return err == nil && isDestroy
+	})
 }
 
 // parse parses raw args into Command/SubCommand/Flags/Arguments.

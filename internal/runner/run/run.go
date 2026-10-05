@@ -947,16 +947,7 @@ func runTerraformInitRunCfg(
 
 // checkProtectedModuleRunCfg checks if module is protected using runcfg types.
 func checkProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
-	var destroyFlag = false
-	if opts.TerraformCliArgs.First() == tf.CommandNameDestroy {
-		destroyFlag = true
-	}
-
-	if opts.TerraformCliArgs.Contains("-" + tf.CommandNameDestroy) {
-		destroyFlag = true
-	}
-
-	if !destroyFlag {
+	if !opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCliArgs.First()) {
 		return nil
 	}
 
