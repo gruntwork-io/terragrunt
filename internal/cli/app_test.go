@@ -726,6 +726,30 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			},
 			expected: []string{tf.CommandNameInit, tf.FlagNameNoColor},
 		},
+		{
+			args:     []string{tf.CommandNameApply, tf.FlagNameDestroy},
+			expected: []string{tf.CommandNameDestroy},
+		},
+		{
+			args:     []string{tf.CommandNameApply, tf.FlagNameDestroy + "=true"},
+			expected: []string{tf.CommandNameDestroy},
+		},
+		{
+			args:     []string{tf.CommandNamePlan, tf.FlagNameDestroy + "=true"},
+			expected: []string{tf.CommandNamePlan, tf.FlagNameDestroy},
+		},
+		{
+			args:     []string{tf.CommandNamePlan, tf.FlagNameDestroy + "=false"},
+			expected: []string{tf.CommandNamePlan, tf.FlagNameDestroy + "=false"},
+		},
+		{
+			args:     []string{tf.CommandNamePlan, tf.FlagNameDestroy + "=1"},
+			expected: []string{tf.CommandNamePlan, tf.FlagNameDestroy},
+		},
+		{
+			args:     []string{tf.CommandNamePlan, tf.FlagNameDestroy + "=0"},
+			expected: []string{tf.CommandNamePlan, tf.FlagNameDestroy + "=0"},
+		},
 	}
 
 	for i, tc := range testCases {

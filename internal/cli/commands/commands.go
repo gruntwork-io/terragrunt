@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
@@ -543,6 +544,18 @@ func initialSetup(
 
 	if !isRunCommand {
 		args = append([]string{cmdName}, args...)
+	}
+
+	// `-destroy=true` is the same as `-destroy` for OpenTofu/Terraform. Use the short form,
+	// which is the one the alias resolution below and the `prevent_destroy` check look for.
+	// The value is parsed with `strconv.ParseBool`, as Go's `flag` package does for boolean flags,
+	// and a false value is left as it is.
+	for i, arg := range args {
+		if value, ok := strings.CutPrefix(arg, tf.FlagNameDestroy+"="); ok {
+			if isDestroy, err := strconv.ParseBool(value); err == nil && isDestroy {
+				args[i] = tf.FlagNameDestroy
+			}
+		}
 	}
 
 	// `terraform apply -destroy` is an alias for `terraform destroy`.
