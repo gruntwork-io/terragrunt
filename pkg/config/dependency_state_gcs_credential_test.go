@@ -427,6 +427,21 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 	}
 }
 
+func TestDependencyStateEligibilityEmptyImpersonationReadsWithoutImpersonating(t *testing.T) {
+	t.Parallel()
+
+	cfg, recorder, _ := parseGCSImpersonationFixture(
+		t,
+		map[string]string{"impersonate_service_account": `""`},
+		map[string]string{"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT": "env@example.com"},
+	)
+
+	assert.Equal(t, "from-direct", cfg.Inputs["result"])
+	assert.Empty(t, recorder.invocations(), "a direct read must not run the native output command")
+	require.Equal(t, []string{gcsStatePath}, recorder.requestPaths(), "an empty configured account suppresses the environment one")
+	assert.Equal(t, "Bearer test-token", recorder.requestHeaders()[0].Get("Authorization"))
+}
+
 // gcsGenerateAccessTokenRequest is the IAM Credentials request body the impersonation chain sends.
 type gcsGenerateAccessTokenRequest struct {
 	decodeErr error

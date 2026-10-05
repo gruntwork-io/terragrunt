@@ -158,12 +158,6 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			env: map[string]string{"GOOGLE_OAUTH_ACCESS_TOKEN": "environment-token"},
 		},
 		{
-			name:          "GCS empty impersonation suppresses environment service account",
-			backend:       "gcs",
-			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"impersonate_service_account": `""`}),
-			env:           map[string]string{"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT": "state@example.com"},
-		},
-		{
 			name:          "GCS invalid impersonation service account type falls back",
 			backend:       "gcs",
 			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"impersonate_service_account": "42"}),
