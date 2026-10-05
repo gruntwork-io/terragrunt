@@ -965,7 +965,17 @@ func (g *GitRunner) GetDefaultBranchRemote(ctx context.Context) (string, error) 
 		return "", err
 	}
 
-	cmd := g.prepareCommand(ctx, "ls-remote", "--symref", "origin", "HEAD")
+	return g.LsRemoteDefaultBranch(ctx, "origin")
+}
+
+// LsRemoteDefaultBranch asks remote for the branch its HEAD points at, using
+// `git ls-remote --symref`. remote is a URL or the name of a remote in the
+// working-directory repository.
+//
+// Returns [ErrCommandSpawn] when git fails, and [ErrNoMatchingReference] when
+// remote does not advertise HEAD as a symbolic ref to a branch.
+func (g *GitRunner) LsRemoteDefaultBranch(ctx context.Context, remote string) (string, error) {
+	cmd := g.prepareCommand(ctx, "ls-remote", "--symref", "--", remote, "HEAD")
 
 	var stdout, stderr bytes.Buffer
 

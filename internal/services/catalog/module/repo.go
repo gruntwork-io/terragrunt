@@ -38,6 +38,8 @@ const (
 	// CloneCompleteSentinel is the marker file the catalog writes into a clone
 	// directory once the clone finishes.
 	CloneCompleteSentinel = ".catalog-clone-complete"
+
+	headRef = "HEAD"
 )
 
 // ErrRemoteCloneFSNotOS is returned when a remote clone is attempted through
@@ -51,8 +53,6 @@ var (
 	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+?)(?:\.git)?(?:[?#].*)?$`)
 
 	modulesPaths = []string{"modules"}
-
-	includedGitFiles = []string{"HEAD", "config"}
 )
 
 type Repo struct {
@@ -92,13 +92,15 @@ type RepoOpts struct {
 	SlowReporting    bool
 }
 
-// NewRepo constructs a Repo, cloning if needed and parsing .git metadata via
-// v.FS. Thread the root [venv.Venv] for normal operation; tests that
-// pre-populate a fake repo (with .git/config and .git/HEAD) in memory may
-// pass an in-memory bundle. Note that performing an actual remote clone
-// (i.e. CloneURL is a URL, not a local path) requires the OS filesystem
-// because the underlying go-getter writes through the real OS; such a
-// clone returns [ErrRemoteCloneFSNotOS] on any other filesystem.
+// NewRepo constructs a Repo, cloning if needed.
+//
+// A repository cloned through CAS gets its [Repo.RemoteURL] from the clone
+// URL. Its [Repo.BranchName] is the ref the URL asks for, or the remote's
+// default branch when the URL asks for none. Any other repository gets both
+// from its .git metadata, read through v.FS.
+//
+// Returns [ErrRemoteCloneFSNotOS] when the clone has to fetch a remote and
+// v.FS is not the OS filesystem.
 func NewRepo(ctx context.Context, l log.Logger, v *venv.Venv, opts *RepoOpts) (*Repo, error) {
 	if opts == nil {
 		opts = &RepoOpts{}
@@ -121,6 +123,13 @@ func NewRepo(ctx context.Context, l log.Logger, v *venv.Venv, opts *RepoOpts) (*
 
 	if err := repo.clone(ctx, l, v); err != nil {
 		return nil, err
+	}
+
+	if repo.materializedFromCAS() {
+		repo.RemoteURL = repo.sourceRemoteURL()
+		repo.BranchName = repo.sourceBranchName(ctx, l, v)
+
+		return repo, nil
 	}
 
 	if err := repo.parseRemoteURL(l, v.FS); err != nil {
@@ -530,7 +539,7 @@ func (repo *Repo) performClone(
 
 	ref := q.Get("ref")
 	if ref == "" {
-		q.Set("ref", "HEAD")
+		q.Set("ref", headRef)
 	}
 
 	sourceURL.RawQuery = q.Encode()
@@ -586,10 +595,7 @@ func (repo *Repo) newCloneClient(l log.Logger, v *venv.Venv) (*getter.Client, er
 		return nil, err
 	}
 
-	cloneOpts := &cas.CloneOptions{
-		Dir:              repo.path,
-		IncludedGitFiles: includedGitFiles,
-	}
+	cloneOpts := &cas.CloneOptions{Dir: repo.path}
 
 	if repo.casOffline {
 		return &getter.Client{
@@ -736,30 +742,32 @@ func isDir(fsys vfs.FS, p string) bool {
 	return info.IsDir()
 }
 
-// remoteForTagLookup returns a URL suitable for git ls-remote.
-// It prefers RemoteURL (parsed from .git/config) since that's what git
-// originally used to clone. Falls back to cloneURL with go-getter
-// prefixes, subdirectory paths, and query params stripped.
+// remoteForTagLookup returns a URL suitable for git ls-remote. It returns
+// RemoteURL when set, and otherwise the clone URL with go-getter prefixes,
+// subdirectory paths, and query params stripped.
 func (repo *Repo) remoteForTagLookup() string {
 	if repo.RemoteURL != "" {
 		return repo.RemoteURL
 	}
 
-	u := repo.cloneURL
-	if u == "" {
+	return repo.sourceRemoteURL()
+}
+
+// materializedFromCAS reports whether the repository's files came out of the
+// CAS store. Such a clone directory has no .git metadata to read the remote
+// URL and branch from.
+func (repo *Repo) materializedFromCAS() bool {
+	return repo.allowCAS && !repo.isLocal
+}
+
+// sourceRemoteURL returns cloneURL with go-getter prefixes, subdirectory
+// paths, and query params stripped.
+func (repo *Repo) sourceRemoteURL() string {
+	if repo.cloneURL == "" {
 		return ""
 	}
 
-	// Strip forced getter prefix (e.g. "git::", "s3::")
-	if _, after, ok := strings.Cut(u, "::"); ok {
-		u = after
-	}
-
-	// Strip //subdir suffix that go-getter uses to select a subdirectory.
-	u, _ = getter.SourceDirSubdir(u)
-
-	// Parse the URL so we can cleanly remove query parameters (e.g. "?ref=HEAD").
-	parsed, err := getter.URLParse(u)
+	u, parsed, err := repo.parseCloneURL()
 	if err != nil {
 		return u
 	}
@@ -768,6 +776,65 @@ func (repo *Repo) remoteForTagLookup() string {
 	parsed.Fragment = ""
 
 	return parsed.String()
+}
+
+// sourceBranchName returns the ref the clone URL asks for. When the URL asks
+// for none, or for HEAD, it returns the branch the remote's HEAD points at.
+// It returns HEAD under --cas-offline and when the remote does not answer.
+func (repo *Repo) sourceBranchName(ctx context.Context, l log.Logger, v *venv.Venv) string {
+	if ref := repo.requestedRef(); ref != "" && ref != headRef {
+		return ref
+	}
+
+	if repo.casOffline {
+		return headRef
+	}
+
+	remote := redact.NewURL(repo.RemoteURL)
+
+	runner, err := gitpkg.NewGitRunner(v)
+	if err != nil {
+		l.Debugf("catalog: skip default branch lookup for %q: %v", remote, err)
+
+		return headRef
+	}
+
+	branch, err := runner.LsRemoteDefaultBranch(ctx, remote.Reveal())
+	if err != nil {
+		l.Debugf("catalog: failed to resolve the default branch of %q: %v", remote, err)
+
+		return headRef
+	}
+
+	return branch
+}
+
+// requestedRef returns the ref query parameter of cloneURL, empty when it has
+// none.
+func (repo *Repo) requestedRef() string {
+	_, parsed, err := repo.parseCloneURL()
+	if err != nil {
+		return ""
+	}
+
+	return parsed.Query().Get("ref")
+}
+
+// parseCloneURL parses cloneURL with the forced getter prefix (e.g. "git::")
+// and the //subdir suffix stripped. It also returns that stripped URL
+// unparsed, for callers to fall back on when parsing fails.
+func (repo *Repo) parseCloneURL() (string, *url.URL, error) {
+	u := repo.cloneURL
+
+	if _, after, ok := strings.Cut(u, "::"); ok {
+		u = after
+	}
+
+	u, _ = getter.SourceDirSubdir(u)
+
+	parsed, err := getter.URLParse(u)
+
+	return u, parsed, err
 }
 
 // cloneURLString formats sourceURL keeping the slash ahead of a Windows drive

@@ -1,0 +1,16 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Catalog components link to their repository when cloned through the CAS
+
+When the [catalog](/features/catalog) cloned a repository through the [CAS](/features/caching/cas), it linked each component to a path inside the temporary clone directory instead of to the repository. `terragrunt catalog --format=jsonl` showed that path in the `url` field:
+
+```json
+{"kind":"module","title":"VPC","url":"/tmp/catalog-7USjxQ-804451847/infrastructure-modules/modules/vpc"}
+```
+
+The catalog read the remote and branch from the clone's git metadata, which under the CAS describes the CAS store's own bare repository. That repository records no remote, and its branch is the store's default rather than the source's.
+
+Terragrunt now takes the remote from the clone URL, and the branch from the `ref` the URL asks for or from the branch the remote's `HEAD` points at. Under `--cas-offline` the link uses `HEAD`, which GitHub and GitLab resolve to the default branch.
