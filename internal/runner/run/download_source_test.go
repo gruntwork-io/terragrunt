@@ -1020,8 +1020,8 @@ func TestDownloadTerraformSourceReportsDownloadDirLockWait(t *testing.T) {
 		unitDir  string
 		reported bool
 	}{
-		{name: "run with a reporter", unitDir: "/virtual/reported", reported: true},
-		{name: "run without a reporter", unitDir: "/virtual/unreported", reported: false},
+		{name: "run with a reporter", unitDir: venvtest.Root("/virtual/reported"), reported: true},
+		{name: "run without a reporter", unitDir: venvtest.Root("/virtual/unreported"), reported: false},
 	}
 
 	for _, tc := range testCases {
