@@ -632,6 +632,24 @@ func TestIacArgsIsDestroyCommand(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:     "apply with --destroy flag",
+			args:     iacargs.New("apply", "--destroy"),
+			cmd:      "apply",
+			expected: true,
+		},
+		{
+			name:     "apply with --destroy=true flag",
+			args:     iacargs.New("apply", "--destroy=true"),
+			cmd:      "apply",
+			expected: true,
+		},
+		{
+			name:     "apply with --destroy=false flag",
+			args:     iacargs.New("apply", "--destroy=false"),
+			cmd:      "apply",
+			expected: false,
+		},
+		{
 			name:     "regular apply",
 			args:     iacargs.New("apply", "-auto-approve"),
 			cmd:      "apply",

@@ -45,6 +45,24 @@ func TestCheckProtectedModuleRunCfg(t *testing.T) {
 			protected: true,
 		},
 		{
+			name:      "apply with --destroy from extra_arguments",
+			args:      []string{"apply"},
+			extraArgs: []string{"--destroy"},
+			protected: true,
+		},
+		{
+			name:      "apply with --destroy=true from extra_arguments",
+			args:      []string{"apply"},
+			extraArgs: []string{"--destroy=true"},
+			protected: true,
+		},
+		{
+			name:      "apply with --destroy=false from extra_arguments",
+			args:      []string{"apply"},
+			extraArgs: []string{"--destroy=false"},
+			protected: false,
+		},
+		{
 			name:      "plan",
 			args:      []string{"plan"},
 			protected: false,

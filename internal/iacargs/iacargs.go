@@ -365,8 +365,8 @@ func (a *IacArgs) Normalize(acts ...NormalizeActsType) *IacArgs {
 }
 
 // IsDestroyCommand returns true if this represents a destroy operation.
-// It checks both the command name and the -destroy flag, including the
-// `-destroy=<value>` form: `-destroy=true` is a destroy, `-destroy=false` is not.
+// It checks both the command name and the destroy flag, with one dash or two,
+// including the `-destroy=<value>` form: `-destroy=true` is a destroy, `-destroy=false` is not.
 // The value is parsed with `strconv.ParseBool`, as Go's `flag` package does for boolean flags.
 func (a *IacArgs) IsDestroyCommand(cmd string) bool {
 	if cmd == CommandNameDestroy || a.Contains("-"+CommandNameDestroy) {
@@ -374,9 +374,17 @@ func (a *IacArgs) IsDestroyCommand(cmd string) bool {
 	}
 
 	return slices.ContainsFunc(a.Flags, func(flag string) bool {
-		value, ok := strings.CutPrefix(flag, "-"+CommandNameDestroy+"=")
-		if !ok {
+		if !isFlag(flag) {
 			return false
+		}
+
+		name, value, hasValue := strings.Cut(normalizeFlag(flag), "=")
+		if name != CommandNameDestroy {
+			return false
+		}
+
+		if !hasValue {
+			return true
 		}
 
 		isDestroy, err := strconv.ParseBool(value)
