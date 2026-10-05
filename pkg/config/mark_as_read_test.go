@@ -293,6 +293,60 @@ func TestMarkManyAsReadIncludedRelativeSourceResolvesFromUnit(t *testing.T) {
 	}
 }
 
+// TestMarkManyAsReadReadConfigRelativeSourceResolvesFromReadFile pins that a
+// relative source in a config loaded with read_terragrunt_config resolves
+// against the read file's directory. The unit's directory resolves the same
+// source to a directory that exists, so the decoy module must stay unread.
+func TestMarkManyAsReadReadConfigRelativeSourceResolvesFromReadFile(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "modules", "foo")
+	decoyDir := filepath.Join(root, "live", "modules", "foo")
+	unitDir := filepath.Join(root, "live", "unit")
+
+	writeFile(t, filepath.Join(moduleDir, "main.tf"), "")
+	writeFile(t, filepath.Join(decoyDir, "main.tf"), "")
+	writeFile(t, filepath.Join(root, "shared", "shared.hcl"), `terraform { source = "../modules/foo" }`)
+
+	unitPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	writeFile(t, unitPath, `locals { shared = read_terragrunt_config("../../shared/shared.hcl") }`)
+
+	t.Run("full parse", func(t *testing.T) {
+		t.Parallel()
+
+		l := logger.CreateLogger()
+		v := venvtest.NewOSWithEmptyEnv()
+		ctx, pctx := newTestParsingContext(t, unitPath)
+		pctx = pctx.WithFileReadTracking()
+
+		out, err := config.ParseConfigFile(ctx, l, v, pctx, unitPath, nil)
+		require.NoError(t, err)
+		require.NotNil(t, out)
+
+		read := pctx.FilesRead.Paths()
+		assert.Contains(t, read, filepath.Join(moduleDir, "main.tf"))
+		assert.NotContains(t, read, filepath.Join(decoyDir, "main.tf"))
+	})
+
+	t.Run("partial parse", func(t *testing.T) {
+		t.Parallel()
+
+		l := logger.CreateLogger()
+		v := venvtest.NewOSWithEmptyEnv()
+		ctx, pctx := newTestParsingContext(t, unitPath)
+		pctx = pctx.WithDecodeList(config.TerraformSource).WithFileReadTracking()
+
+		out, err := config.PartialParseConfigFile(ctx, l, v, pctx, unitPath, nil)
+		require.NoError(t, err)
+		require.NotNil(t, out)
+
+		read := pctx.FilesRead.Paths()
+		assert.Contains(t, read, filepath.Join(moduleDir, "main.tf"))
+		assert.NotContains(t, read, filepath.Join(decoyDir, "main.tf"))
+	})
+}
+
 func TestMarkManyAsReadPartialParseSource(t *testing.T) {
 	t.Parallel()
 
