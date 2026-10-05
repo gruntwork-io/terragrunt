@@ -775,7 +775,7 @@ func (repo *Repo) sourceRemoteURL() string {
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 
-	return parsed.String()
+	return cloneURLString(parsed)
 }
 
 // sourceBranchName returns the ref the clone URL asks for. When the URL asks

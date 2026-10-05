@@ -3,7 +3,6 @@ package module_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,14 +31,14 @@ func TestNewRepoThroughCASReportsSourceRemoteAndDefaultBranch(t *testing.T) {
 	helpers.InitGitRepoOnBranch(t, sourceDir, sourceDefaultBranch)
 
 	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), casVenv(tmpDir), &module.RepoOpts{
-		CloneURL:      "git::" + fileURL(sourceDir),
+		CloneURL:      "git::" + helpers.FileURL(sourceDir),
 		Path:          filepath.Join(tmpDir, "clone"),
 		AllowCAS:      true,
 		CASCloneDepth: 1,
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, fileURL(sourceDir), repo.RemoteURL)
+	assert.Equal(t, helpers.FileURL(sourceDir), repo.RemoteURL)
 	assert.Equal(t, sourceDefaultBranch, repo.BranchName)
 }
 
@@ -53,14 +52,14 @@ func TestNewRepoThroughCASReportsRequestedRef(t *testing.T) {
 	helpers.InitGitRepoWithBranchRef(t, sourceDir, "release")
 
 	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), casVenv(tmpDir), &module.RepoOpts{
-		CloneURL:      "git::" + fileURL(sourceDir) + "?ref=release",
+		CloneURL:      "git::" + helpers.FileURL(sourceDir) + "?ref=release",
 		Path:          filepath.Join(tmpDir, "clone"),
 		AllowCAS:      true,
 		CASCloneDepth: 1,
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, fileURL(sourceDir), repo.RemoteURL)
+	assert.Equal(t, helpers.FileURL(sourceDir), repo.RemoteURL)
 	assert.Equal(t, "release", repo.BranchName)
 }
 
@@ -75,7 +74,7 @@ func TestNewRepoThroughCASOfflineReportsHead(t *testing.T) {
 
 	v := casVenv(tmpDir)
 	opts := module.RepoOpts{
-		CloneURL:      "git::" + fileURL(sourceDir),
+		CloneURL:      "git::" + helpers.FileURL(sourceDir),
 		AllowCAS:      true,
 		CASCloneDepth: 1,
 		CASProbeCache: true,
@@ -115,10 +114,4 @@ func writeCatalogSource(t *testing.T, dir string) string {
 func casVenv(dir string) *venv.Venv {
 	return venvtest.NewOSWithEmptyEnv().
 		WithUserCacheDir(func() (string, error) { return filepath.Join(dir, "cache"), nil })
-}
-
-// fileURL returns the file:// URL of path, with the slash a Windows drive
-// letter needs ahead of it.
-func fileURL(path string) string {
-	return "file:///" + strings.TrimPrefix(filepath.ToSlash(path), "/")
 }
