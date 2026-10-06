@@ -5,12 +5,14 @@ category: "bug-fixes"
 
 #### `hcl validate` reports dependencies on deleted units
 
-A `dependency` block that points at a deleted or moved unit made `run --all` fail, while `find`, `list` and `hcl validate` still passed. `hcl validate` now fails for each enabled `dependency` block whose `config_path` does not point at a unit or stack configuration, so the problem is caught before a run:
+When a `dependency` block pointed at a deleted or moved unit, `run --all` failed, but `find`, `list` and `hcl validate` passed. `hcl validate` now fails for every enabled `dependency` block whose `config_path` has no unit or stack configuration, so you can catch the problem before a run.
 
-```bash
-terragrunt hcl validate
+`hcl validate` does not generate stacks. A `dependency` block that points at a unit inside a `.terragrunt-stack` directory fails until you run `terragrunt stack generate`. A block that points at the stack directory passes when that directory has a `terragrunt.stack.hcl`.
+
+`run --all` with a Git-based filter, such as `--filter '[main...HEAD]'`, still fails when a `dependency` block points at a unit or stack that the diff deleted. The error now names the deleted path and the Git reference that still has it:
+
+```text
+a dependency points at dep, which exists at main but was deleted or moved in the Git diff
 ```
 
-`hcl validate` does not generate stacks, so a `dependency` block that points at a unit inside a `.terragrunt-stack` directory fails until you run `terragrunt stack generate`. A `dependency` block that points at the stack directory itself is checked against its `terragrunt.stack.hcl`.
-
-If `run --all` with a Git-based filter such as `--filter '[main...HEAD]'` fails because a `dependency` block points at a unit or stack deleted in that diff, the error now names it and the reference it still exists at, and the new `missing-dependency-config` tip suggests `hcl validate`. `find` and `list` behave as before.
+The new `missing-dependency-config` tip also suggests running `hcl validate`. `find` and `list` behave as before.
