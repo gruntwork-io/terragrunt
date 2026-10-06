@@ -949,6 +949,526 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 		"to-ref stack should generate its unit from the to-worktree's catalog/units/new-app")
 }
 
+// TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits checks an added stack's nested stack yields units.
+func TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		childStack     string
+		nestedUnitPath []string
+	}{
+		{
+			name: "dot_terragrunt_stack",
+			childStack: `stack "child" {
+	source = "${get_repo_root()}/catalog/stacks/child"
+	path   = "child"
+}
+`,
+			nestedUnitPath: []string{"live-env", ".terragrunt-stack", "child", ".terragrunt-stack", "app"},
+		},
+		{
+			name: "no_dot_terragrunt_stack",
+			childStack: `stack "child" {
+	source                  = "${get_repo_root()}/catalog/stacks/child"
+	path                    = "child"
+	no_dot_terragrunt_stack = true
+}
+`,
+			nestedUnitPath: []string{"live-env", "child", ".terragrunt-stack", "app"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir, runner := setupGitRepo(t)
+
+			appUnitDir := filepath.Join(tmpDir, "catalog", "units", "app")
+			require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
+			)
+
+			childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
+			require.NoError(t, os.MkdirAll(childStackDir, 0o755))
+			require.NoError(t, os.WriteFile(
+				filepath.Join(childStackDir, "terragrunt.stack.hcl"),
+				[]byte(`unit "app" {
+	source = "${get_repo_root()}/catalog/units/app"
+	path   = "app"
+}
+`),
+				0o644,
+			))
+
+			commitChanges(t, runner, "base: catalog only, no live-env stack yet")
+
+			liveEnvDir := filepath.Join(tmpDir, "live-env")
+			require.NoError(t, os.MkdirAll(liveEnvDir, 0o755))
+			require.NoError(t, os.WriteFile(
+				filepath.Join(liveEnvDir, "terragrunt.stack.hcl"),
+				[]byte(tt.childStack),
+				0o644,
+			))
+
+			commitChanges(t, runner, "add: live-env top-level stack referencing nested child stack")
+
+			l := logger.CreateLogger()
+			gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+			wtOpts := worktrees.WorktreeOpts{
+				WorkingDir:     tmpDir,
+				GitExpressions: gitExpressions,
+			}
+			w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
+				require.NoError(t, cleanupErr)
+			})
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = tmpDir
+			opts.RootWorkingDir = tmpDir
+			parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD] | ./live-env/**"})
+			require.NoError(t, parseErr)
+
+			opts.Filters = parsedFilters
+			opts.Experiments = experiment.NewExperiments()
+
+			err = generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
+			require.NoError(t, err)
+
+			pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+			require.NotEmpty(t, pair)
+
+			nestedUnitPath := filepath.Join(append([]string{pair.ToWorktree.Path}, tt.nestedUnitPath...)...)
+			assert.DirExists(t, nestedUnitPath,
+				"nested stack generation in the to-worktree should recurse and materialize the app unit")
+
+			discoveryContext := &component.DiscoveryContext{
+				WorkingDir: tmpDir,
+				Cmd:        "plan",
+			}
+
+			d := discovery.NewDiscovery(tmpDir).
+				WithDiscoveryContext(discoveryContext).
+				WithWorktrees(w).
+				WithFilters(parsedFilters)
+
+			components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+			require.NoError(t, err)
+
+			unitPaths := components.Filter(component.UnitKind).Paths()
+			assert.Contains(t, unitPaths, nestedUnitPath,
+				"the nested stack's unit must be discovered so the same filter can run against it")
+		})
+	}
+}
+
+// TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits checks a removed nested stack plans for destroy.
+func TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	appUnitDir := filepath.Join(tmpDir, "catalog", "units", "app")
+	require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
+	)
+
+	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
+	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "app" {
+	source = "${get_repo_root()}/catalog/units/app"
+	path   = "app"
+}
+`),
+		0o644,
+	))
+
+	liveEnvDir := filepath.Join(tmpDir, "live-env")
+	require.NoError(t, os.MkdirAll(liveEnvDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(liveEnvDir, "terragrunt.stack.hcl"),
+		[]byte(`stack "child" {
+	source = "${get_repo_root()}/catalog/stacks/child"
+	path   = "child"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "base: live-env top-level stack referencing nested child stack")
+
+	require.NoError(t, os.RemoveAll(liveEnvDir))
+	commitChanges(t, runner, "remove: live-env stack")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	wtOpts := worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	}
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv())
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+
+	err = generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w)
+	require.NoError(t, err)
+
+	pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, pair)
+
+	nestedUnitPath := filepath.Join(
+		pair.FromWorktree.Path,
+		"live-env", ".terragrunt-stack", "child", ".terragrunt-stack", "app",
+	)
+	assert.DirExists(t, nestedUnitPath,
+		"nested stack generation in the from-worktree should recurse and materialize the app unit")
+
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+		Cmd:        "plan",
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w).
+		WithFilters(parsedFilters)
+
+	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	units := components.Filter(component.UnitKind)
+	require.Contains(t, units.Paths(), nestedUnitPath,
+		"the removed nested stack's unit must be discovered for destroy planning")
+
+	for _, c := range units {
+		if c.Path() != nestedUnitPath {
+			continue
+		}
+
+		dc := c.DiscoveryContext()
+		require.NotNil(t, dc)
+		assert.Equal(t, "HEAD~1", dc.Ref, "removed unit should carry the from-worktree ref")
+		assert.Contains(t, dc.Args, "-destroy", "removed unit should be planned with -destroy")
+	}
+}
+
+// TestWorktreePhase_Integration_NestedStackReadingDiffedFileIsReadingAffected checks a generated nested
+// stack that reads a changed file is recorded as reading-affected.
+func TestWorktreePhase_Integration_NestedStackReadingDiffedFileIsReadingAffected(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	appUnitDir := filepath.Join(tmpDir, "catalog", "units", "app")
+	require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
+	)
+
+	// The child stack is three levels deep in the catalog and once generated, so one relative glob reaches shared/.
+	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
+	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
+		[]byte(`locals {
+  config_files = mark_glob_as_read("../../../shared/*.yml")
+}
+
+unit "app" {
+	source = "${get_repo_root()}/catalog/units/app"
+	path   = "app"
+}
+`),
+		0o644,
+	))
+
+	sharedDir := filepath.Join(tmpDir, "shared")
+	require.NoError(t, os.MkdirAll(sharedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item.yml"), []byte("a: 1\n"), 0o644))
+
+	liveEnvDir := filepath.Join(tmpDir, "live-env")
+	require.NoError(t, os.MkdirAll(liveEnvDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(liveEnvDir, "terragrunt.stack.hcl"),
+		[]byte(`stack "child" {
+	source = "${get_repo_root()}/catalog/stacks/child"
+	path   = "child"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "base: live-env stack whose nested child stack reads shared files")
+
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item.yml"), []byte("a: 2\n"), 0o644))
+	commitChanges(t, runner, "change: shared file read only by the nested child stack")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv()))
+	})
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+
+	require.NoError(t, generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w))
+
+	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
+
+	for _, pair := range w.ReadingAffectedStacks {
+		rel, relErr := filepath.Rel(pair.ToStack.DiscoveryContext().WorkingDir, pair.ToStack.Path())
+		require.NoError(t, relErr)
+
+		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
+	}
+
+	assert.ElementsMatch(t, []string{"catalog/stacks/child", "live-env/.terragrunt-stack/child"}, readingAffectedDirs,
+		"the generated nested stack reads the changed file, so its units must be walked, once")
+}
+
+// TestWorktreePhase_Integration_NestedStackReadingAffectedAcrossLevels checks a nested stack is
+// reading-affected when the two references generate it at different levels.
+func TestWorktreePhase_Integration_NestedStackReadingAffectedAcrossLevels(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	appUnitDir := filepath.Join(tmpDir, "catalog", "units", "app")
+	require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
+	)
+
+	// The child stack is three levels deep in the catalog and once generated, so one relative glob reaches shared/.
+	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
+	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
+		[]byte(`locals {
+  config_files = mark_glob_as_read("../../../shared/*.yml")
+}
+
+unit "app" {
+	source = "${get_repo_root()}/catalog/units/app"
+	path   = "app"
+}
+`),
+		0o644,
+	))
+
+	sharedDir := filepath.Join(tmpDir, "shared")
+	require.NoError(t, os.MkdirAll(sharedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item.yml"), []byte("a: 1\n"), 0o644))
+
+	liveEnvDir := filepath.Join(tmpDir, "live-env")
+	require.NoError(t, os.MkdirAll(liveEnvDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(liveEnvDir, "terragrunt.stack.hcl"),
+		[]byte(`stack "child" {
+	source = "${get_repo_root()}/catalog/stacks/child"
+	path   = "child"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "base: live-env stack whose nested child stack reads shared files")
+
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item.yml"), []byte("a: 2\n"), 0o644))
+
+	// A new root stack makes live-env one level deeper in the "to" reference only.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "root-app" {
+	source = "${get_repo_root()}/catalog/units/app"
+	path   = "root-app"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "change: shared file, plus a root stack above live-env")
+
+	l := logger.CreateLogger()
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")},
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv()))
+	})
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+
+	require.NoError(t, generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w))
+
+	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
+
+	for _, pair := range w.ReadingAffectedStacks {
+		rel, relErr := filepath.Rel(pair.ToStack.DiscoveryContext().WorkingDir, pair.ToStack.Path())
+		require.NoError(t, relErr)
+
+		readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
+	}
+
+	assert.ElementsMatch(t, []string{"catalog/stacks/child", "live-env/.terragrunt-stack/child"}, readingAffectedDirs,
+		"the nested stack reads the changed file even though each reference generates it at a different level")
+}
+
+// TestWorktreePhase_Integration_NestedStackReadingAffectedInSharedWorktree checks a nested stack is
+// reading-affected when its worktree is shared with a Git expression that has no reading filters.
+func TestWorktreePhase_Integration_NestedStackReadingAffectedInSharedWorktree(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	appUnitDir := filepath.Join(tmpDir, "catalog", "units", "app")
+	require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
+	)
+
+	// The child stack is three levels deep in the catalog and once generated, so one relative glob reaches shared/.
+	childStackDir := filepath.Join(tmpDir, "catalog", "stacks", "child")
+	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
+		[]byte(`locals {
+  config_files = mark_glob_as_read("../../../shared/*.yml")
+}
+
+unit "app" {
+	source = "${get_repo_root()}/catalog/units/app"
+	path   = "app"
+}
+`),
+		0o644,
+	))
+
+	sharedDir := filepath.Join(tmpDir, "shared")
+	require.NoError(t, os.MkdirAll(sharedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item.yml"), []byte("a: 1\n"), 0o644))
+
+	liveEnvDir := filepath.Join(tmpDir, "live-env")
+	require.NoError(t, os.MkdirAll(liveEnvDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(liveEnvDir, "terragrunt.stack.hcl"),
+		[]byte(`stack "child" {
+	source = "${get_repo_root()}/catalog/stacks/child"
+	path   = "child"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "base: live-env stack whose nested child stack reads shared files")
+
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "item.yml"), []byte("a: 2\n"), 0o644))
+	commitChanges(t, runner, "change: shared file read only by the nested child stack")
+
+	createUnit(t, tmpDir, "other", `# Unrelated unit`)
+	commitChanges(t, runner, "add: unrelated unit, so the last commit alone has no reading filters")
+
+	l := logger.CreateLogger()
+	queries := []string{"[HEAD~1...HEAD]", "[HEAD~2...HEAD]"}
+
+	// Both expressions share the HEAD worktree and pairs are visited in random map order,
+	// so the run repeats until both orders are almost certainly covered.
+	for attempt := range 8 {
+		w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+			WorkingDir: tmpDir,
+			GitExpressions: filter.GitExpressions{
+				filter.NewGitExpression("HEAD~1", "HEAD"),
+				filter.NewGitExpression("HEAD~2", "HEAD"),
+			},
+		})
+		require.NoError(t, err)
+
+		t.Cleanup(func() {
+			require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv()))
+		})
+
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts.WorkingDir = tmpDir
+		opts.RootWorkingDir = tmpDir
+
+		parsedFilters, parseErr := filter.ParseFilterQueries(l, queries)
+		require.NoError(t, parseErr)
+
+		opts.Filters = parsedFilters
+		opts.Experiments = experiment.NewExperiments()
+
+		require.NoError(t, generate.WorktreeStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w))
+
+		readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
+
+		for _, pair := range w.ReadingAffectedStacks {
+			rel, relErr := filepath.Rel(pair.ToStack.DiscoveryContext().WorkingDir, pair.ToStack.Path())
+			require.NoError(t, relErr)
+
+			readingAffectedDirs = append(readingAffectedDirs, filepath.ToSlash(rel))
+		}
+
+		require.ElementsMatch(t, []string{"catalog/stacks/child", "live-env/.terragrunt-stack/child"}, readingAffectedDirs,
+			"attempt %d: the nested stack reads the changed file, whichever pair is visited first", attempt)
+	}
+}
+
 // TestWorktreePhase_Integration_FileRename tests that file renames are detected.
 func TestWorktreePhase_Integration_FileRename(t *testing.T) {
 	t.Parallel()

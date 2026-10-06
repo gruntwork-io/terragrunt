@@ -82,6 +82,141 @@ func TestGeneratorDefaultMaxLevel(t *testing.T) {
 	)
 }
 
+// TestGenerateStacksNestedNoDotStack checks a nested stack with no_dot_terragrunt_stack generates its units.
+func TestGenerateStacksNestedNoDotStack(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	liveDir := filepath.Join(tmpDir, "live")
+	childStackDir := filepath.Join(tmpDir, "stacks", "child")
+	appUnitDir := filepath.Join(tmpDir, "units", "app")
+
+	require.NoError(t, os.MkdirAll(liveDir, 0o755))
+	require.NoError(t, os.MkdirAll(childStackDir, 0o755))
+	require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
+	)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(childStackDir, "terragrunt.stack.hcl"),
+		fmt.Appendf(nil, `unit "app" {
+  source = %q
+  path   = "app"
+}
+`, appUnitDir),
+		0o644,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(liveDir, "terragrunt.stack.hcl"),
+		fmt.Appendf(nil, `stack "child" {
+  source                  = %q
+  path                    = "child"
+  no_dot_terragrunt_stack = true
+}
+`, childStackDir),
+		0o644,
+	))
+
+	l := logger.CreateLogger()
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = liveDir
+	opts.RootWorkingDir = liveDir
+	opts.Parallelism = 1
+	opts.NoCAS = true
+
+	require.NoError(
+		t,
+		generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, nil),
+	)
+
+	assert.FileExists(
+		t,
+		filepath.Join(liveDir, "child", ".terragrunt-stack", "app", "terragrunt.hcl"),
+		"the nested stack lands beside the parent stack file, so its units must still generate",
+	)
+}
+
+// TestGenerateStacksSkipsExcludedStackUnderGeneratedStack checks the nested stack walk keeps user filters,
+// also when the working directory is reached through a symlink, as /tmp is on macOS.
+func TestGenerateStacksSkipsExcludedStackUnderGeneratedStack(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		symlinked bool
+	}{
+		{name: "real_working_dir"},
+		{name: "symlinked_working_dir", symlinked: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			realDir := filepath.Join(tmpDir, "real")
+			liveDir := filepath.Join(realDir, "live")
+			landMineDir := filepath.Join(liveDir, "land-mine")
+			appUnitDir := filepath.Join(realDir, "units", "app")
+
+			require.NoError(t, os.MkdirAll(landMineDir, 0o755))
+			require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(appUnitDir, "terragrunt.hcl"), []byte(`# app unit`), 0o644),
+			)
+
+			stackConfig := fmt.Appendf(nil, `unit "app" {
+  source = %q
+  path   = "app"
+}
+`, appUnitDir)
+
+			require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), stackConfig, 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), stackConfig, 0o644))
+
+			workingDir := liveDir
+
+			if tt.symlinked {
+				linkDir := filepath.Join(tmpDir, "link")
+				require.NoError(t, os.Symlink(realDir, linkDir))
+
+				workingDir = filepath.Join(linkDir, "live")
+			}
+
+			l := logger.CreateLogger()
+
+			filters, err := filter.ParseFilterQueries(l, []string{"!./land-mine | type=stack"})
+			require.NoError(t, err)
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = workingDir
+			opts.RootWorkingDir = workingDir
+			opts.Parallelism = 1
+			opts.NoCAS = true
+			opts.Filters = filters
+
+			require.NoError(
+				t,
+				generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, nil),
+			)
+
+			assert.FileExists(
+				t,
+				filepath.Join(liveDir, ".terragrunt-stack", "app", "terragrunt.hcl"),
+				"the selected stack must generate, or the exclusion check below proves nothing",
+			)
+			assert.NoDirExists(
+				t,
+				filepath.Join(landMineDir, ".terragrunt-stack"),
+				"a stack excluded by the filter must not generate just because it sits under a generated stack",
+			)
+		})
+	}
+}
+
 // TestStackDiscoveryFilters pins how a generation run composes its stack filters. A user
 // filter that already narrows to stacks must stand on its own, because unioning a blanket
 // type=stack alongside it would re-select the stacks it excludes.
