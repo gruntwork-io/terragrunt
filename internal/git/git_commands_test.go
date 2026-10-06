@@ -804,6 +804,28 @@ func TestGitRunner_GetDefaultBranchRemote(t *testing.T) {
 	}
 }
 
+// TestGitRunner_LsRemoteDefaultBranch pins that the lookup asks the remote it
+// is given, so it needs no working-directory repository.
+func TestGitRunner_LsRemoteDefaultBranch(t *testing.T) {
+	t.Parallel()
+
+	const remote = "https://example.com/acme/catalog.git"
+
+	var args []string
+
+	runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		args = inv.Args
+
+		return vexec.Result{Stdout: []byte("ref: refs/heads/trunk\tHEAD\n" + headHash + "\tHEAD\n")}
+	})
+
+	branch, err := runner.LsRemoteDefaultBranch(t.Context(), remote)
+	require.NoError(t, err)
+
+	assert.Equal(t, "trunk", branch)
+	assert.Equal(t, []string{"ls-remote", "--symref", "--", remote, "HEAD"}, args)
+}
+
 func TestGitRunner_GetDefaultBranch(t *testing.T) {
 	t.Parallel()
 
