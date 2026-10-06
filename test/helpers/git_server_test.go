@@ -115,3 +115,67 @@ func TestGitServerSSHClone(t *testing.T) {
 	assert.Contains(t, refs, "refs/heads/main")
 	assert.Contains(t, refs, "refs/tags/v0.93.2")
 }
+
+func TestGitServerRenderFixture(t *testing.T) {
+	t.Parallel()
+
+	s := helpers.NewGitServer(t)
+
+	fixture := helpers.MustAbs(t, filepath.Join("..", "fixtures", "download", "remote-commit-ref"))
+	root := s.RenderFixture(fixture)
+
+	// The copy lands at the fixture's own path, nested under the returned root.
+	rendered := filepath.Join(root, strings.TrimPrefix(fixture, filepath.VolumeName(fixture)), "terragrunt.hcl")
+
+	contents, err := os.ReadFile(rendered)
+	require.NoError(t, err)
+
+	head := thTRemoteMainSHA(t, s.URL)
+
+	assert.Contains(t, string(contents), "git::"+s.URL+"//test/fixtures/download/hello-world-no-remote?ref="+head,
+		"the URL and SHA placeholders should point at this server and its HEAD")
+	assert.NotContains(t, string(contents), "__MIRROR_")
+
+	// Rendering made the server serve the fixture the copy references.
+	dst := t.TempDir()
+
+	out, err := exec.CommandContext(t.Context(), "git", "clone", "--branch=main", s.URL, dst).CombinedOutput()
+	require.NoError(t, err, "git clone: %s", out)
+	assert.FileExists(t, filepath.Join(dst, "test", "fixtures", "download", "hello-world-no-remote", "main.tf"))
+
+	// Asking again for a fixture the server already serves adds no commit.
+	s.AddFixtures("test/fixtures/download/hello-world-no-remote")
+
+	assert.Equal(t, head, thTRemoteMainSHA(t, s.URL))
+}
+
+func TestInitTestGitRunner(t *testing.T) {
+	t.Parallel()
+
+	thTRequireGit(t)
+
+	dir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, dir)
+
+	require.NotNil(t, runner)
+	assert.Equal(t, dir, runner.WorkDir)
+	assert.DirExists(t, filepath.Join(dir, ".git"))
+	assert.Equal(t, "test@example.com", thTGit(t, dir, "config", "user.email"))
+	assert.Equal(t, "Test User", thTGit(t, dir, "config", "user.name"))
+	assert.Equal(t, "false", thTGit(t, dir, "config", "commit.gpgsign"))
+}
+
+// thTRemoteMainSHA returns the commit the server's main branch points at.
+func thTRemoteMainSHA(t *testing.T, url string) string {
+	t.Helper()
+
+	out, err := exec.CommandContext(t.Context(), "git", "ls-remote", url, "refs/heads/main").CombinedOutput()
+	require.NoError(t, err, "git ls-remote: %s", out)
+
+	fields := strings.Fields(string(out))
+	require.NotEmpty(t, fields, "no refs/heads/main in %q", out)
+	require.Regexp(t, `^[0-9a-f]{40}$`, fields[0])
+
+	return fields[0]
+}

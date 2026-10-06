@@ -197,7 +197,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Can't evaluate expression",
-			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
+			Detail:   "Locals can only reference these variables: local, include, feature, values. This expression references \"dependency\".",
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 149},
@@ -214,7 +214,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Can't evaluate expression",
-			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
+			Detail:   "Locals can only reference these variables: local, include, feature, values. This expression references \"dependency\".",
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 117},

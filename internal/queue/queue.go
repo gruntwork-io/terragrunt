@@ -4,16 +4,13 @@
 //
 // The algorithm for populating the queue is as follows:
 //  1. Given a list of discovered configurations, start with an empty queue.
-//  2. Sort configurations alphabetically to ensure deterministic ordering of independent items.
-//  3. For each discovered configuration:
-//     a. If the configuration has no dependencies, append it to the queue.
-//     b. Otherwise, find the position after its last dependency.
-//     c. Among items that depend on the same dependency, maintain alphabetical order.
+//  2. Append every configuration that waits on nothing, sorted alphabetically.
+//  3. Repeatedly append, sorted alphabetically, every configuration whose waits are all already in the queue.
 //
 // The resulting queue will have:
 // - Configurations with no dependencies at the front
 // - Configurations with dependents are ordered after their dependencies
-// - Alphabetical ordering only between items that share the same dependencies
+// - Alphabetical ordering within each level of the dependency graph
 //
 // During operations like applies, entries will be dequeued from the front of the queue and run.
 // During operations like destroys, entries will be dequeued from the back of the queue and run.
@@ -25,10 +22,11 @@ package queue
 import (
 	"errors"
 	"slices"
-	"sort"
+	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/topo"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -52,72 +50,12 @@ type Status byte
 const (
 	StatusPending Status = iota
 	StatusBlocked
-	StatusUnsorted
 	StatusReady
 	StatusRunning
 	StatusSucceeded
 	StatusFailed
 	StatusEarlyExit // Terminal status set on Entries in case of fail fast mode
 )
-
-// UpdateBlocked updates the status of the entry to blocked, if it is blocked.
-// An entry is blocked if:
-//  1. It is an "up" command (none of destroy, apply -destroy or plan -destroy)
-//     and it has dependencies that are not ready.
-//  2. It is a "down" command (destroy, apply -destroy or plan -destroy)
-//     and it has dependents that are not ready.
-//
-// If the entry isn't blocked, then it is marked as unsorted, and is ready to be sorted.
-func (e *Entry) UpdateBlocked(entries Entries) {
-	// If the entry is already ready, we can skip the rest of the logic.
-	if e.Status == StatusReady {
-		return
-	}
-
-	if e.IsUp() {
-		for _, dep := range e.Component.Dependencies() {
-			depEntry := entries.Entry(dep)
-			if depEntry == nil {
-				continue
-			}
-
-			if !depEntry.IsUp() {
-				continue
-			}
-
-			if depEntry.Status != StatusReady {
-				e.Status = StatusBlocked
-				return
-			}
-		}
-
-		e.Status = StatusUnsorted
-
-		return
-	}
-
-	// If the entry is a "down" command, we need to check if all of its dependents are ready.
-	for _, qEntry := range entries {
-		if len(qEntry.Component.Dependencies()) == 0 {
-			continue
-		}
-
-		if !slices.Contains(qEntry.Component.Dependencies(), e.Component) {
-			continue
-		}
-
-		if qEntry.IsUp() {
-			continue
-		}
-
-		if qEntry.Status != StatusReady {
-			e.Status = StatusBlocked
-			return
-		}
-	}
-
-	e.Status = StatusUnsorted
-}
 
 // IsUp returns true if the entry is an "up" command.
 func (e *Entry) IsUp() bool {
@@ -215,9 +153,11 @@ func (q *Queue) entryByPathUnsafe(path string) *Entry {
 //
 //  2. The name of the configuration. Configurations of the same "level" are sorted alphabetically.
 //
-// Passing configurations that haven't been checked for cycles in their dependency graph is unsafe.
-// If any cycles are present, the queue construction will halt after N
-// iterations, where N is the number of discovered configs, and throw an error.
+// An "up" entry waits on its "up" dependencies, and a "down" entry waits on its "down" dependents. Entries of the
+// other direction never gate one another.
+//
+// Returns an error when the entries wait on one another in a cycle. The returned queue then holds the entries that
+// could be ordered, as [StatusReady], followed by the rest, as [StatusBlocked], in discovery order.
 func NewQueue(discovered component.Components) (*Queue, error) {
 	if len(discovered) == 0 {
 		return &Queue{
@@ -225,77 +165,101 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 		}, nil
 	}
 
-	// First, we need to take all the discovered configs
-	// and assign them a status of pending.
 	entries := make(Entries, 0, len(discovered))
 
 	for _, cfg := range discovered {
-		entry := &Entry{
+		entries = append(entries, &Entry{
 			Component: cfg,
 			Status:    StatusPending,
+		})
+	}
+
+	graph := entryGraph(entries)
+	sorted := make(Entries, 0, len(entries))
+
+	for ready := graph.Roots(); len(ready) > 0; {
+		slices.SortStableFunc(ready, func(a, b *Entry) int {
+			return strings.Compare(a.Component.Path(), b.Component.Path())
+		})
+
+		var next Entries
+
+		for _, entry := range ready {
+			entry.Status = StatusReady
+			sorted = append(sorted, entry)
+			next = append(next, graph.Done(entry)...)
 		}
-		entries = append(entries, entry)
+
+		ready = next
 	}
 
 	q := &Queue{
-		Entries: entries,
+		Entries: sorted,
 	}
 
-	// readyPending returns the index of the first pending entry if there is one,
-	// or -1 if there are no pending entries.
-	readyPending := func(entries Entries) int {
-		// Next, we need to iterate through the entries
-		// and check if any of them are blocked.
-		for _, entry := range entries {
-			entry.UpdateBlocked(entries)
-		}
-
-		// Next, we need to sort the entries by status and path.
-		sort.SliceStable(entries, func(i, j int) bool {
-			if entries[i].Status > entries[j].Status {
-				return true
-			}
-
-			if entries[i].Status == StatusUnsorted && entries[j].Status == StatusUnsorted {
-				return entries[i].Component.Path() < entries[j].Component.Path()
-			}
-
-			return false
-		})
-
-		// Now, we can mark all unsorted entries as ready,
-		// and check if all entries are ready.
-		for idx, entry := range entries {
-			if entry.Status == StatusUnsorted {
-				entry.Status = StatusReady
-			}
-
-			if entry.Status != StatusReady {
-				return idx
-			}
-		}
-
-		return -1
+	if len(sorted) == len(entries) {
+		return q, nil
 	}
 
-	// We need to iterate through the entries until all entries are ready.
-	// We can use the length of the entries as a safe upper bound for the number of iterations,
-	// because a cycle-free graph has a maximum depth of N, where N is the number of discovered configs.
-	maxIterations := len(entries)
-
-	// We keep track of the index of the first pending entry
-	// to save us from iterating through the entire list of entries
-	// on each iteration.
-	firstPending := 0
-
-	for range maxIterations {
-		firstPending = readyPending(entries[firstPending:])
-		if firstPending == -1 {
-			return q, nil
+	for _, entry := range entries {
+		if entry.Status != StatusReady {
+			entry.Status = StatusBlocked
+			q.Entries = append(q.Entries, entry)
 		}
 	}
 
 	return q, errors.New("cycle detected during queue construction")
+}
+
+// entryGraph returns a graph over entries in which an "up" entry waits on its "up" dependencies and a "down" entry
+// waits on its "down" dependents. Dependencies outside entries are not waited on.
+func entryGraph(entries Entries) *topo.Graph[*Entry] {
+	byPath := make(map[string]*Entry, len(entries))
+
+	for _, entry := range entries {
+		if _, ok := byPath[entry.Component.Path()]; !ok {
+			byPath[entry.Component.Path()] = entry
+		}
+	}
+
+	downWaits := map[*Entry]Entries{}
+
+	for _, entry := range entries {
+		if entry.IsUp() {
+			continue
+		}
+
+		for _, dep := range entry.Component.Dependencies() {
+			depEntry := byPath[dep.Path()]
+			if depEntry != nil && !depEntry.IsUp() {
+				downWaits[depEntry] = append(downWaits[depEntry], entry)
+			}
+		}
+	}
+
+	graph := topo.New[*Entry](len(entries))
+
+	var upWaits Entries
+
+	for _, entry := range entries {
+		if !entry.IsUp() {
+			graph.Add(entry, downWaits[entry]...)
+			continue
+		}
+
+		upWaits = upWaits[:0]
+
+		for _, dep := range entry.Component.Dependencies() {
+			depEntry := byPath[dep.Path()]
+			if depEntry != nil && depEntry.IsUp() {
+				upWaits = append(upWaits, depEntry)
+			}
+		}
+
+		graph.Add(entry, upWaits...)
+	}
+
+	return graph
 }
 
 // GetReadyWithDependencies returns all entries that are ready to run and
@@ -341,7 +305,7 @@ func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 
 // areDependenciesReadyUnsafe checks if all dependencies of an entry are ready for "up" commands.
 // For up commands, only other up-command dependencies must be in a succeeded state (or terminal if
-// ignoring errors). Down-command (destroy) dependencies are skipped, mirroring [Entry.UpdateBlocked]:
+// ignoring errors). Down-command (destroy) dependencies are skipped, mirroring [NewQueue]:
 // a unit being destroyed does not gate a unit being applied or planned.
 // If a dependency is not in the queue, it is assumed to have existing state.
 // Should only be called when the caller already holds a read lock.
@@ -355,7 +319,7 @@ func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
 		}
 
 		// Skip down-command (destroy) dependencies: they run in reverse order and must
-		// not block an up-command entry from proceeding. Mirrors UpdateBlocked.
+		// not block an up-command entry from proceeding. Mirrors NewQueue.
 		if !depEntry.IsUp() {
 			continue
 		}
@@ -381,7 +345,7 @@ func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
 // areDependentsReadyUnsafe checks if all dependents of an entry are ready for "down" commands.
 // For down commands, only other down-command dependents must be in a succeeded state (or terminal
 // if ignoring errors). Up-command (plan/apply) dependents are skipped, mirroring
-// [Entry.UpdateBlocked]: a unit being planned or applied does not gate a unit being destroyed.
+// [NewQueue]: a unit being planned or applied does not gate a unit being destroyed.
 // Should only be called when the caller already holds a read lock.
 func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
 	for _, other := range q.Entries {
@@ -390,7 +354,7 @@ func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
 		}
 
 		// Skip up-command (plan/apply) dependents: they run in forward order and must
-		// not block a down-command entry from proceeding. Mirrors UpdateBlocked.
+		// not block a down-command entry from proceeding. Mirrors NewQueue.
 		if other.IsUp() {
 			continue
 		}
@@ -568,7 +532,7 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 // isTerminal returns true if the status is terminal.
 func isTerminal(status Status) bool {
 	switch status {
-	case StatusPending, StatusBlocked, StatusUnsorted, StatusReady, StatusRunning:
+	case StatusPending, StatusBlocked, StatusReady, StatusRunning:
 		return false
 	case StatusSucceeded, StatusFailed, StatusEarlyExit:
 		return true

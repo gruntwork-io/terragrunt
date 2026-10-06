@@ -47,8 +47,18 @@ const (
 	// ErrSourceNotLiteral is returned when an update_source_with_cas source is not a
 	// literal string, such as one using interpolation, a function call, or a reference
 	ErrSourceNotLiteral Error = "update_source_with_cas requires a literal source string"
+	// ErrUpdateSourceWithCASNotConstant is returned when update_source_with_cas calls a function
+	// or reads anything other than literals and the locals of the same file
+	ErrUpdateSourceWithCASNotConstant Error = "update_source_with_cas must be true, false, " +
+		"or an expression of literals and locals that call no functions"
 	// ErrNotADirectory is returned when a path expected to be a directory is not.
 	ErrNotADirectory Error = "not a directory"
+	// ErrTreeEntryEscapesDir is returned when an untrusted git tree entry escapes its destination directory
+	ErrTreeEntryEscapesDir Error = "tree entry path escapes the destination directory"
+	// ErrTreeEntryCrossesSymlink is returned when a git tree entry would be written through a symbolic link
+	ErrTreeEntryCrossesSymlink Error = "tree entry path crosses a symbolic link"
+	// ErrTreeEntryCollides is returned when two git tree entries name the same path in the destination directory
+	ErrTreeEntryCollides Error = "tree entries name the same path"
 	// ErrIncludedGitFileIsDir is returned when a name in [CloneOptions.IncludedGitFiles]
 	// resolves to a directory in the source repository's git directory
 	ErrIncludedGitFileIsDir Error = "included git file is a directory"

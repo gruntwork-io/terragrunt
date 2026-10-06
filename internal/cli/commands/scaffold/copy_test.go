@@ -1,7 +1,10 @@
 package scaffold_test
 
 import (
+	"io/fs"
+	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -74,6 +77,129 @@ func TestScaffoldCopiesUnitAddressedWithoutSubdirectory(t *testing.T) {
 
 	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
 	assert.NoFileExists(t, filepath.Join(outputDir, getter.SourceManifestName))
+}
+
+// TestScaffoldLeavesNoSourceManifestBehind pins that scaffold output holds no
+// source manifest at any depth, whichever getter fetched the component.
+func TestScaffoldLeavesNoSourceManifestBehind(t *testing.T) {
+	t.Parallel()
+
+	nestedFiles := map[string]string{
+		"nested/sub/notes.txt":          "# notes\n",
+		".terraform/providers/fake.zip": "zip\n",
+		".git/objects/ab/deadbeef":      "object\n",
+		".gitignore":                    ".terraform\n",
+		"README.md":                     "# Component\n",
+	}
+
+	moduleFiles := map[string]string{
+		"main.tf": "variable \"name\" {\n  type = string\n}\n",
+	}
+
+	templateFiles := map[string]string{
+		"boilerplate.yml":   "variables: []\n",
+		"terragrunt.hcl":    "# generated\n",
+		"nested/sub/doc.md": "# doc\n",
+	}
+
+	testCases := []struct {
+		name  string
+		setup func(t *testing.T) (source, templateURL string)
+		want  []string
+	}{
+		{
+			name: "unit addressed by its own directory",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+
+				dir := helpers.TmpDirWOSymlinks(t)
+				writeFiles(t, dir, nestedFiles)
+				writeFile(t, filepath.Join(dir, "terragrunt.hcl"), "# unit\n")
+
+				return helpers.FileURL(dir), ""
+			},
+			want: []string{"terragrunt.hcl", "nested/sub/notes.txt", ".terraform/providers/fake.zip"},
+		},
+		{
+			name: "unit addressed through a subdirectory",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+
+				files := map[string]string{"terragrunt.hcl": "# unit\n"}
+				maps.Copy(files, nestedFiles)
+
+				return writeComponent(t, "units/app", files), ""
+			},
+			want: []string{"terragrunt.hcl", "nested/sub/notes.txt", ".terraform/providers/fake.zip"},
+		},
+		{
+			name: "unit cloned from a repository that committed manifests",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+
+				committed := "units/app/nested/" + getter.SourceManifestName
+
+				repoDir := helpers.TmpDirWOSymlinks(t)
+				writeFiles(t, repoDir, map[string]string{
+					"units/app/terragrunt.hcl":               "# unit\n",
+					"units/app/nested/sub/notes.txt":         "# notes\n",
+					"units/app/" + getter.SourceManifestName: "committed\n",
+					committed:                                "committed\n",
+				})
+				helpers.CreateGitRepo(t, repoDir)
+
+				// A global gitignore could keep the manifests out of the
+				// commit, and the case would then pass without testing anything.
+				out, err := exec.CommandContext(t.Context(), "git", "-C", repoDir, "ls-files", "--error-unmatch", committed).
+					CombinedOutput()
+				require.NoError(t, err, string(out))
+
+				return "git::" + helpers.FileURL(repoDir) + "//units/app", ""
+			},
+			want: []string{"terragrunt.hcl", "nested/sub/notes.txt"},
+		},
+		{
+			name: "module rendered from its own template",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+
+				files := maps.Clone(moduleFiles)
+				for name, contents := range templateFiles {
+					files[".boilerplate/"+name] = contents
+				}
+
+				return writeComponent(t, "modules/vpc", files), ""
+			},
+			want: []string{"terragrunt.hcl", "nested/sub/doc.md"},
+		},
+		{
+			name: "module rendered from a separate template",
+			setup: func(t *testing.T) (string, string) {
+				t.Helper()
+
+				templateDir := helpers.TmpDirWOSymlinks(t)
+				writeFiles(t, templateDir, templateFiles)
+
+				return writeComponent(t, "modules/vpc", moduleFiles), helpers.FileURL(templateDir)
+			},
+			want: []string{"terragrunt.hcl", "nested/sub/doc.md"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			source, templateURL := tc.setup(t)
+			outputDir := runScaffoldWithTemplate(t, source, templateURL)
+
+			for _, name := range tc.want {
+				require.FileExists(t, filepath.Join(outputDir, filepath.FromSlash(name)))
+			}
+
+			assert.Empty(t, findSourceManifests(t, outputDir))
+		})
+	}
 }
 
 func TestScaffoldCopiesStackWithItsSupportingFiles(t *testing.T) {
@@ -184,6 +310,14 @@ func writeComponent(t *testing.T, dir string, files map[string]string) string {
 func runScaffold(t *testing.T, source string) string {
 	t.Helper()
 
+	return runScaffoldWithTemplate(t, source, "")
+}
+
+// runScaffoldWithTemplate is runScaffold rendering through the template at
+// templateURL, when it is set.
+func runScaffoldWithTemplate(t *testing.T, source, templateURL string) string {
+	t.Helper()
+
 	outputDir := helpers.TmpDirWOSymlinks(t)
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
@@ -194,7 +328,7 @@ func runScaffold(t *testing.T, source string) string {
 
 	require.NoError(
 		t,
-		scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, ""),
+		scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, templateURL),
 	)
 
 	return outputDir
@@ -205,6 +339,43 @@ func writeFile(t *testing.T, path, contents string) {
 
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0644))
+}
+
+// writeFiles writes each file, keyed by its slash-separated path, under dir.
+func writeFiles(t *testing.T, dir string, files map[string]string) {
+	t.Helper()
+
+	for name, contents := range files {
+		writeFile(t, filepath.Join(dir, filepath.FromSlash(name)), contents)
+	}
+}
+
+// findSourceManifests returns every source manifest under dir, relative to it.
+func findSourceManifests(t *testing.T, dir string) []string {
+	t.Helper()
+
+	var found []string
+
+	require.NoError(t, filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.Name() != getter.SourceManifestName {
+			return nil
+		}
+
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+
+		found = append(found, filepath.ToSlash(rel))
+
+		return nil
+	}))
+
+	return found
 }
 
 func readFile(t *testing.T, path string) string {

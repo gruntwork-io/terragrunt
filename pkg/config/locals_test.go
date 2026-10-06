@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,6 +113,131 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 
 	_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
 	require.True(t, ok, "Did not get expected error: %s", err)
+}
+
+func TestEvaluateLocalsBlockUnresolvableWillFail(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		config string
+	}{
+		{
+			name: "self-reference",
+			config: `
+locals {
+  a = local.a
+}
+`,
+		},
+		{
+			name: "undefined local",
+			config: `
+locals {
+  a = "a"
+  b = local.missing
+}
+`,
+		},
+		{
+			name: "depends on undefined local",
+			config: `
+locals {
+  a = local.missing
+  b = "${local.a}/b"
+}
+`,
+		},
+		{
+			name: "variable outside locals",
+			config: `
+locals {
+  a = dependency.vpc.outputs.id
+}
+`,
+		},
+		{
+			name: "bare local",
+			config: `
+locals {
+  a = "a"
+  b = local
+}
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			file, err := hclparse.NewParser().ParseFromString(tc.config, config.DefaultTerragruntConfigPath)
+			require.NoError(t, err)
+
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+			_, err = config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file)
+
+			_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
+			require.True(t, ok, "Did not get expected error: %v", err)
+		})
+	}
+}
+
+func TestEvaluateLocalsBlockDiamond(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().ParseFromString(`
+locals {
+  joined = "${local.left}+${local.right}"
+  left   = "${local.root}/left"
+  right  = "${local.root}/right"
+  root   = "root"
+  twice  = "${local.root}${local.root}"
+}
+`, config.DefaultTerragruntConfigPath)
+	require.NoError(t, err)
+
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file)
+	require.NoError(t, err)
+
+	var joined string
+	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["joined"], &joined))
+	assert.Equal(t, "root/left+root/right", joined)
+
+	var twice string
+	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["twice"], &twice))
+	assert.Equal(t, "rootroot", twice)
+}
+
+func TestEvaluateLocalsBlockLongChain(t *testing.T) {
+	t.Parallel()
+
+	const depth = 1500
+
+	var sb strings.Builder
+
+	sb.WriteString("locals {\n  l0 = 0\n")
+
+	for i := 1; i < depth; i++ {
+		fmt.Fprintf(&sb, "  l%d = local.l%d + 1\n", i, i-1)
+	}
+
+	sb.WriteString("}\n")
+
+	file, err := hclparse.NewParser().ParseFromString(sb.String(), config.DefaultTerragruntConfigPath)
+	require.NoError(t, err)
+
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file)
+	require.NoError(t, err)
+
+	var last int
+	require.NoError(t, gocty.FromCtyValue(evaluatedLocals[fmt.Sprintf("l%d", depth-1)], &last))
+	assert.Equal(t, depth-1, last)
 }
 
 func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {

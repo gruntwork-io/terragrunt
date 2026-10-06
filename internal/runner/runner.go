@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -201,33 +202,22 @@ func syncUnitCliArgs(
 	}
 }
 
-// checkLocalStateWithGitRefs checks if any unit has a Git ref in its discovery context
-// but no remote state configuration, and logs a warning if so.
-func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
-	for _, unit := range units {
-		discoveryCtx := unit.DiscoveryContext()
-		if discoveryCtx == nil {
-			continue
-		}
+// usesLocalState reports whether cfg keeps its state locally: it has no remote_state, or its
+// remote_state names the local backend.
+func usesLocalState(cfg *config.TerragruntConfig) bool {
+	return cfg.RemoteState == nil ||
+		(cfg.RemoteState.Config != nil && cfg.RemoteState.BackendName == "local")
+}
 
-		if discoveryCtx.Ref == "" {
-			continue
-		}
-
-		unitConfig := unit.Config()
-		if unitConfig == nil {
-			continue
-		}
-
-		if unitConfig.RemoteState == nil ||
-			(unitConfig.RemoteState.Config != nil && unitConfig.RemoteState.BackendName == "local") {
-			l.Warnf(
-				"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) do not have a remote_state configuration. This may result in unexpected outcomes, such as outputs for dependencies returning empty. It is strongly recommended to use remote state when working with Git-based filter expressions.",
-			)
-
-			return
-		}
-	}
+// warnLocalStateWithGitRef warns that a unit a Git-based filter expression selected keeps its
+// state locally, so dependency outputs may come back empty.
+func warnLocalStateWithGitRef(l log.Logger) {
+	l.Warnf(
+		"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) " +
+			"do not have a remote_state configuration. This may result in unexpected outcomes, " +
+			"such as outputs for dependencies returning empty. It is strongly recommended to use " +
+			"remote state when working with Git-based filter expressions.",
+	)
 }
 
 // NewFromComponents assembles a [Runner] from components discovery already produced.
@@ -286,7 +276,6 @@ func NewFromComponents(
 		units = append(units, unit)
 	}
 
-	checkLocalStateWithGitRefs(l, units)
 	rnr.Stack.Units = units
 
 	if opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand) {
@@ -453,6 +442,8 @@ func (rnr *Runner) Run(
 
 	withDependents := UnitsWithDependents(rnr.queue)
 
+	var localStateWarning sync.Once
+
 	task := func(ctx context.Context, u *component.Unit) error {
 		unitOpts, unitLogger, err := BuildUnitOpts(l, stackOpts, u)
 		if err != nil {
@@ -552,6 +543,11 @@ func (rnr *Runner) Run(
 
 				if !unitOpts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
 					unitOpts.TFPath = cfg.TerraformBinary
+				}
+
+				discoveryCtx := u.DiscoveryContext()
+				if discoveryCtx != nil && discoveryCtx.Ref != "" && usesLocalState(cfg) {
+					localStateWarning.Do(func() { warnLocalStateWithGitRef(l) })
 				}
 
 				runCfg := cfg.ToRunConfig(unitLogger, unitV.FS)
@@ -709,7 +705,7 @@ func (rnr *Runner) Run(
 					if endErr := r.EndRun(l, run.Path, endOpts...); endErr != nil {
 						l.Errorf("Error ending run for failed unit %s: %v", unitPath, endErr)
 					}
-				case queue.StatusPending, queue.StatusBlocked, queue.StatusUnsorted,
+				case queue.StatusPending, queue.StatusBlocked,
 					queue.StatusReady, queue.StatusRunning, queue.StatusSucceeded:
 				}
 			}

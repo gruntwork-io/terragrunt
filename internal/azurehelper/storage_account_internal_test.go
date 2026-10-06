@@ -1,8 +1,12 @@
 package azurehelper
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,4 +88,27 @@ func TestMinimumTLSVersionValue(t *testing.T) {
 		require.ErrorAs(t, err, &unknown, "input %q must be rejected", bad)
 		assert.Equal(t, bad, unknown.Version)
 	}
+}
+
+func TestStringMapPtr(t *testing.T) {
+	t.Parallel()
+
+	// An empty map is omitted from the request rather than sent as {}.
+	assert.Nil(t, stringMapPtr(nil))
+	assert.Nil(t, stringMapPtr(map[string]string{}))
+
+	got := stringMapPtr(map[string]string{"created-by": "terragrunt"})
+	require.Len(t, got, 1)
+	require.NotNil(t, got["created-by"])
+	assert.Equal(t, "terragrunt", *got["created-by"])
+}
+
+func TestIsStatusCode(t *testing.T) {
+	t.Parallel()
+
+	notFound := &azcore.ResponseError{StatusCode: http.StatusNotFound}
+
+	assert.True(t, isStatusCode(fmt.Errorf("wrapped: %w", notFound), http.StatusNotFound))
+	assert.False(t, isStatusCode(notFound, http.StatusForbidden))
+	assert.False(t, isStatusCode(errors.New("404 not found"), http.StatusNotFound), "only a service response carries a status")
 }

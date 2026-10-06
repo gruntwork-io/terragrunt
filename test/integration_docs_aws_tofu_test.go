@@ -895,7 +895,7 @@ inputs = {
 		)
 		assert.Contains(t, runAllPlanStderr, "Unit dev")
 		assert.Contains(t, runAllPlanStderr, "Unit prod")
-		assert.Contains(t, runAllPlanStdout, "found no differences, so no changes are needed.")
+		assert.Contains(t, runAllPlanStdout, "Your infrastructure matches the configuration.")
 
 		devOnlyPlanStdout, devOnlyPlanStderr := helpers.ExecWithMiseAndCaptureOutput(
 			t,
@@ -910,7 +910,7 @@ inputs = {
 		)
 		assert.Contains(t, devOnlyPlanStderr, "Unit dev")
 		assert.NotContains(t, devOnlyPlanStderr, "Unit prod")
-		assert.Contains(t, devOnlyPlanStdout, "found no differences, so no changes are needed.")
+		assert.Contains(t, devOnlyPlanStdout, "Your infrastructure matches the configuration.")
 
 		devOutputStdout, _ := helpers.ExecWithMiseAndCaptureOutput(
 			t,
@@ -1222,7 +1222,7 @@ inputs = {
 			"terragrunt",
 			"plan",
 		)
-		assert.Contains(t, devLambdaPlan, "found no differences, so no changes are needed.")
+		assert.Contains(t, devLambdaPlan, "Your infrastructure matches the configuration.")
 
 		prodLambdaPlan, _ := helpers.ExecWithMiseAndCaptureOutput(
 			t,
@@ -1230,7 +1230,7 @@ inputs = {
 			"terragrunt",
 			"plan",
 		)
-		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
+		assert.Contains(t, prodLambdaPlan, "Your infrastructure matches the configuration.")
 
 		t.Log("Step 6 - Breaking the Terralith Further completed successfully")
 
@@ -1483,7 +1483,7 @@ EOF
 			"terragrunt",
 			"plan",
 		)
-		assert.Contains(t, devLambdaPlan, "found no differences, so no changes are needed.")
+		assert.Contains(t, devLambdaPlan, "Your infrastructure matches the configuration.")
 
 		prodLambdaPlan, _ := helpers.ExecWithMiseAndCaptureOutput(
 			t,
@@ -1491,7 +1491,7 @@ EOF
 			"terragrunt",
 			"plan",
 		)
-		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
+		assert.Contains(t, prodLambdaPlan, "Your infrastructure matches the configuration.")
 
 		t.Log("Step 7 - Taking advantage of Terragrunt Stacks completed successfully")
 
@@ -1757,7 +1757,7 @@ EOF
 			"terragrunt",
 			"plan",
 		)
-		assert.Contains(t, devLambdaPlan, "found no differences, so no changes are needed.")
+		assert.Contains(t, devLambdaPlan, "Your infrastructure matches the configuration.")
 
 		prodLambdaPlan, _ := helpers.ExecWithMiseAndCaptureOutput(
 			t,
@@ -1765,7 +1765,7 @@ EOF
 			"terragrunt",
 			"plan",
 		)
-		assert.Contains(t, prodLambdaPlan, "found no differences, so no changes are needed.")
+		assert.Contains(t, prodLambdaPlan, "Your infrastructure matches the configuration.")
 
 		// Verify the directory structure is clean - dev and prod should only contain terragrunt.stack.hcl
 		devEntries, err := os.ReadDir(devDir)

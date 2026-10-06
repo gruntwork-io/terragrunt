@@ -116,6 +116,6 @@ func TestRunCommandWithOutputPanicsOnNilShellOptions(t *testing.T) {
 
 	assert.PanicsWithValue(t, shell.ErrShellOptionsNil, func() {
 		_, err := shell.RunCommandWithOutput(t.Context(), l, v, nil, "work", false, false, "tool")
-		t.Errorf("RunCommandWithOutput returned instead of panicking: %v", err)
+		assert.Failf(t, "RunCommandWithOutput returned instead of panicking", "err: %v", err)
 	})
 }

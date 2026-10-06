@@ -2,6 +2,7 @@ package azurehelper
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -151,6 +152,79 @@ func TestApplyEnvFallbacks_RequestURLImpliesOIDC(t *testing.T) {
 	}
 }
 
+func TestFetchOIDCAssertion_Failures(t *testing.T) {
+	t.Parallel()
+
+	const tokenURL = "https://pipelines.example/token"
+
+	tests := []struct {
+		handler vhttp.Handler
+		name    string
+		url     string
+		want    string
+		nilCtx  bool
+	}{
+		{
+			name: "unparsable request url",
+			url:  "https://pipelines.example/\x7f",
+			want: "parsing OIDC request url",
+		},
+		{
+			// A nil context is the one input http.NewRequestWithContext rejects
+			// once the url has already parsed.
+			name:   "request cannot be built",
+			url:    tokenURL,
+			nilCtx: true,
+			want:   "building OIDC token request",
+		},
+		{
+			name: "transport failure",
+			url:  tokenURL,
+			handler: func(_ context.Context, _ *http.Request) (*http.Response, error) {
+				return nil, errors.New("connection refused")
+			},
+			want: "requesting OIDC token",
+		},
+		{
+			name: "unreadable response body",
+			url:  tokenURL,
+			handler: func(_ context.Context, _ *http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(failingReader{})}, nil
+			},
+			want: "reading OIDC token response",
+		},
+		{
+			name: "response is not json",
+			url:  tokenURL,
+			handler: func(_ context.Context, _ *http.Request) (*http.Response, error) {
+				return oidcJSON(http.StatusOK, "not json"), nil
+			},
+			want: "decoding OIDC token response",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := tc.handler
+			if h == nil {
+				h = func(_ context.Context, _ *http.Request) (*http.Response, error) {
+					return nil, errors.New("no request must be made")
+				}
+			}
+
+			ctx := t.Context()
+			if tc.nilCtx {
+				ctx = nil
+			}
+
+			_, err := fetchOIDCAssertion(ctx, oidcTestVenv(map[string]string{}, h), tc.url, "runner-token", "value")
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
 func oidcTestVenv(env map[string]string, h vhttp.Handler) *venv.Venv {
 	v := &venv.Venv{}
 	if h != nil {
@@ -197,4 +271,12 @@ func TestApplyEnvFallbacks_ExplicitFalseWins(t *testing.T) {
 	unset := &AzureSessionConfig{}
 	applyEnvFallbacks(v.Env, unset)
 	assert.True(t, util.Deref(unset.UseMSI), "an unset flag must still honor ARM_USE_MSI")
+}
+
+// failingReader fails every read, standing in for a connection dropped
+// mid-body.
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) {
+	return 0, errors.New("connection reset")
 }

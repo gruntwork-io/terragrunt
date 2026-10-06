@@ -883,7 +883,7 @@ func PartialParseConfig(
 	}
 
 	if output.Terraform != nil && output.Terraform.Source != nil {
-		markLocalModuleSourceAsRead(v, pctx, file.ConfigPath, *output.Terraform.Source)
+		markLocalModuleSourceAsRead(v, pctx, *output.Terraform.Source)
 	}
 
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.

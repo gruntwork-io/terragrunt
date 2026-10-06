@@ -555,9 +555,8 @@ func initialSetup(
 		args = slices.DeleteFunc(args, func(arg string) bool { return arg == tf.FlagNameDestroy })
 	}
 
-	// Since Terragrunt and Terraform have the same `-no-color` flag,
-	// if a user specifies `-no-color` for Terragrunt, we should propagate it to Terraform as well.
-	if l.Formatter().DisabledColors() {
+	// Terragrunt's `--no-color` propagates to tofu unless the user already passed it after `--`.
+	if l.Formatter().DisabledColors() && !slices.Contains(args, tf.FlagNameNoColor) {
 		args = append(args, tf.FlagNameNoColor)
 	}
 
