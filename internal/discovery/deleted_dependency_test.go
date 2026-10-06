@@ -21,48 +21,81 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDiscovery_DeletedDependency pins that a dependency on a unit the Git diff deleted is reported as a
+// TestDiscovery_DeletedDependency pins that a dependency on a unit or stack the Git diff deleted is reported as a
 // [discovery.DeletedDependencyError], and that other missing dependencies are not.
 func TestDiscovery_DeletedDependency(t *testing.T) {
 	t.Parallel()
 
+	const (
+		dependsOnDep   = "dependency \"dep\" {\n  config_path = \"../dep\"\n}\n"
+		dependsOnNever = "dependency \"never\" {\n  config_path = \"../never\"\n}\n"
+		readsDep       = "locals {\n  dep = read_terragrunt_config(\"../dep/terragrunt.hcl\")\n}\n"
+		stackFile      = "unit \"vpc\" {\n  source = \"../vpc\"\n  path   = \"vpc\"\n}\n"
+	)
+
 	tcs := []struct {
 		name           string
-		filter         string
-		dependencyPath string
+		consumer       string
+		filters        []string
+		addDep         bool
+		depIsStack     bool
 		modifyConsumer bool
 		wantDeleted    bool
 	}{
 		{
-			name:           "untouched dependent in the working tree",
-			filter:         "...[HEAD~1...HEAD]... | ./**",
-			dependencyPath: "../dep",
-			wantDeleted:    true,
+			name:        "untouched dependent in the working tree",
+			consumer:    dependsOnDep,
+			filters:     []string{"...[HEAD~1...HEAD]... | ./**"},
+			wantDeleted: true,
 		},
 		{
 			name:           "modified dependent with dependency expansion",
-			filter:         "[HEAD~1...HEAD]...",
-			dependencyPath: "../dep",
+			consumer:       dependsOnDep,
+			filters:        []string{"[HEAD~1...HEAD]..."},
 			modifyConsumer: true,
 			wantDeleted:    true,
 		},
 		{
 			name:           "modified dependent",
-			filter:         "[HEAD~1...HEAD]",
-			dependencyPath: "../dep",
+			consumer:       dependsOnDep,
+			filters:        []string{"[HEAD~1...HEAD]"},
 			modifyConsumer: true,
 			wantDeleted:    true,
 		},
 		{
+			name:        "deleted dependency next to one missing at every reference",
+			consumer:    dependsOnNever + dependsOnDep,
+			filters:     []string{"...[HEAD~1...HEAD]... | ./**"},
+			wantDeleted: true,
+		},
+		{
+			name:        "deleted stack",
+			consumer:    dependsOnDep,
+			filters:     []string{"...[HEAD~1...HEAD]... | ./**"},
+			depIsStack:  true,
+			wantDeleted: true,
+		},
+		{
 			name:           "dependency missing at every reference",
-			filter:         "[HEAD~1...HEAD]",
-			dependencyPath: "../never",
+			consumer:       dependsOnNever,
+			filters:        []string{"[HEAD~1...HEAD]"},
 			modifyConsumer: true,
 		},
 		{
-			name:           "no Git filter",
-			filter:         "./**",
-			dependencyPath: "../dep",
+			name:     "dependency added in the diff",
+			consumer: dependsOnDep,
+			filters:  []string{"[HEAD~1...HEAD]", "./consumer"},
+			addDep:   true,
+		},
+		{
+			name:     "deleted unit read by read_terragrunt_config",
+			consumer: readsDep,
+			filters:  []string{"...[HEAD~1...HEAD]... | ./**"},
+		},
+		{
+			name:     "no Git filter",
+			consumer: dependsOnDep,
+			filters:  []string{"./**"},
 		},
 	}
 
@@ -71,34 +104,41 @@ func TestDiscovery_DeletedDependency(t *testing.T) {
 			t.Parallel()
 
 			tmpDir, runner := setupGitRepo(t)
+			depDir := filepath.Join(tmpDir, "dep")
 
-			consumer := `dependency "dep" {
-  config_path = "` + tc.dependencyPath + `"
-}
-`
-
-			createUnit(t, tmpDir, "dep", `# dep`)
+			// A second untouched unit keeps the relationship phase from stopping before it reaches the missing dep.
 			createUnit(t, tmpDir, "other", `# other`)
-			createUnit(t, tmpDir, "consumer", consumer)
-			commitChanges(t, runner, "Initial commit")
+			createUnit(t, tmpDir, "consumer", tc.consumer)
 
-			require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "dep")))
-
-			if tc.modifyConsumer {
-				createUnit(t, tmpDir, "consumer", consumer+"# modified\n")
+			switch {
+			case tc.depIsStack:
+				require.NoError(t, os.MkdirAll(depDir, 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(depDir, config.DefaultStackFile), []byte(stackFile), 0o644))
+			case !tc.addDep:
+				createUnit(t, tmpDir, "dep", `# dep`)
 			}
 
-			commitChanges(t, runner, "Delete dep")
+			commitChanges(t, runner, "Initial commit")
 
-			_, err := discoverForRunAll(t, tmpDir, tc.filter)
+			if tc.modifyConsumer {
+				createUnit(t, tmpDir, "consumer", tc.consumer+"# modified\n")
+			}
+
+			if tc.addDep {
+				createUnit(t, tmpDir, "dep", `# dep`)
+				commitChanges(t, runner, "Add dep")
+				require.NoError(t, os.RemoveAll(depDir))
+			} else {
+				require.NoError(t, os.RemoveAll(depDir))
+				commitChanges(t, runner, "Delete dep")
+			}
+
+			_, err := discoverForRunAll(t, tmpDir, tc.filters...)
 			require.Error(t, err)
-
-			_, notFound := errors.AsType[config.TerragruntConfigNotFoundError](err)
-			assert.True(t, notFound, "unexpected error %v", err)
 
 			deleted, ok := errors.AsType[discovery.DeletedDependencyError](err)
 			if !tc.wantDeleted {
-				assert.False(t, ok, "only a unit deleted in the diff is a deleted dependency: %v", err)
+				assert.False(t, ok, "only a dependency on a unit deleted in the diff is a deleted dependency: %v", err)
 
 				return
 			}
@@ -106,17 +146,21 @@ func TestDiscovery_DeletedDependency(t *testing.T) {
 			require.True(t, ok, "unexpected error %v", err)
 			assert.Equal(t, "dep", deleted.Path)
 			assert.Equal(t, "HEAD~1", deleted.Ref)
+			assert.Contains(t, err.Error(), "a dependency points at dep, which exists at HEAD~1 but was deleted or moved")
+
+			_, notFound := errors.AsType[config.TerragruntConfigNotFoundError](err)
+			assert.True(t, notFound, "the original error must stay matchable: %v", err)
 		})
 	}
 }
 
 // discoverForRunAll runs discovery the way `run --all` configures it.
-func discoverForRunAll(t *testing.T, workingDir, filterQuery string) (component.Components, error) {
+func discoverForRunAll(t *testing.T, workingDir string, filterQueries ...string) (component.Components, error) {
 	t.Helper()
 
 	l := logger.CreateLogger()
 
-	filters, err := filter.ParseFilterQueries(l, []string{filterQuery})
+	filters, err := filter.ParseFilterQueries(l, filterQueries)
 	require.NoError(t, err)
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())

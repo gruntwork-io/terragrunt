@@ -1503,8 +1503,9 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 		"terragrunt run --all --non-interactive --filter-allow-destroy"+filterArgs+" -- plan",
 	)
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "a dependency points at dep, which exists at HEAD~1 but was deleted or moved")
 	assert.Contains(t, stderr, "TIP (missing-dependency-config)")
-	assert.Contains(t, stderr, "Deleted unit: dep (exists at HEAD~1).")
+	assert.Contains(t, stderr, "points at dep, which exists at HEAD~1 but was deleted or moved in the Git diff")
 
 	// Without a Git-based filter there is no diff to blame, so the tip stays quiet.
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
@@ -1512,6 +1513,7 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 		"terragrunt run --all --non-interactive --no-color --working-dir "+tmpDir+" -- plan",
 	)
 	require.Error(t, err)
+	require.Contains(t, stderr, "TIP (debugging-docs)", "tips must reach stderr for the next check to mean anything")
 	assert.NotContains(t, stderr, "TIP (missing-dependency-config)")
 
 	for _, cmd := range []string{"find", "list"} {

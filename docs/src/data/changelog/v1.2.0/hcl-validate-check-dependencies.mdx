@@ -11,6 +11,6 @@ A `dependency` block that points at a deleted or moved unit made `run --all` fai
 terragrunt hcl validate
 ```
 
-`hcl validate` does not generate stacks, so a `dependency` block that points at a unit inside a `.terragrunt-stack` directory fails until `terragrunt stack generate` has generated that stack. A `dependency` block that points at the stack directory itself is checked against its `terragrunt.stack.hcl`.
+`hcl validate` does not generate stacks, so a `dependency` block that points at a unit inside a `.terragrunt-stack` directory fails until you run `terragrunt stack generate`. A `dependency` block that points at the stack directory itself is checked against its `terragrunt.stack.hcl`.
 
-When `run --all` fails because a Git-based filter compares against a reference where the unit still exists, such as `--filter '[main...HEAD]'` after deleting the unit, the new `missing-dependency-config` tip names the deleted unit and points at this check. `find` and `list` behave as before.
+If `run --all` with a Git-based filter such as `--filter '[main...HEAD]'` fails because a `dependency` block points at a unit or stack deleted in that diff, the error now names it and the reference it still exists at, and the new `missing-dependency-config` tip suggests `hcl validate`. `find` and `list` behave as before.

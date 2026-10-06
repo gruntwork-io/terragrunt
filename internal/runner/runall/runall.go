@@ -61,7 +61,7 @@ func Run(
 
 	defer func() {
 		if deleted, ok := errors.AsType[discovery.DeletedDependencyError](err); ok {
-			tips.GiveMissingDependencyConfigTip(l, opts.Tips, deleted.Path, deleted.Ref)
+			tips.GiveMissingDependencyConfigTip(l, deleted.Path, deleted.Ref, opts.Tips)
 		}
 	}()
 

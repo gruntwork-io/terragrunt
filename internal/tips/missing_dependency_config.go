@@ -6,11 +6,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// GiveMissingDependencyConfigTip emits the MissingDependencyConfig tip for the unit at unitPath,
-// which exists at ref but not where a `dependency` block points.
-func GiveMissingDependencyConfigTip(l log.Logger, allTips Tips, unitPath, ref string) {
-	allTips.Find(MissingDependencyConfig).EvaluateWith(
-		l,
-		fmt.Sprintf("%s Deleted unit: %s (exists at %s).", MissingDependencyConfigMessage, unitPath, ref),
-	)
+// GiveMissingDependencyConfigTip emits the MissingDependencyConfig tip for the component at path,
+// which exists at ref but was deleted or moved in the Git diff.
+func GiveMissingDependencyConfigTip(l log.Logger, path, ref string, allTips Tips) {
+	allTips.Find(MissingDependencyConfig).EvaluateWith(l, fmt.Sprintf(
+		"A `dependency` block points at %s, which exists at %s but was deleted or moved in the Git diff. %s",
+		path,
+		ref,
+		missingDependencyConfigFix,
+	))
 }

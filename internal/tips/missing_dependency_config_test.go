@@ -30,7 +30,7 @@ func TestGiveMissingDependencyConfigTip(t *testing.T) {
 
 			l, output := newTestLogger()
 
-			tips.GiveMissingDependencyConfigTip(l, allTips, "live/dep", "HEAD~1")
+			tips.GiveMissingDependencyConfigTip(l, "live/dep", "HEAD~1", allTips)
 
 			if tc.disableTip {
 				assert.NotContains(t, output.String(), tips.MissingDependencyConfig)
@@ -39,7 +39,7 @@ func TestGiveMissingDependencyConfigTip(t *testing.T) {
 			}
 
 			assert.Contains(t, output.String(), "TIP ("+tips.MissingDependencyConfig+")")
-			assert.Contains(t, output.String(), "Deleted unit: live/dep (exists at HEAD~1).")
+			assert.Contains(t, output.String(), "points at live/dep, which exists at HEAD~1 but was deleted or moved")
 		})
 	}
 }
@@ -49,7 +49,7 @@ func TestGiveMissingDependencyConfigTipNilTips(t *testing.T) {
 
 	l, output := newTestLogger()
 
-	tips.GiveMissingDependencyConfigTip(l, nil, "live/dep", "HEAD~1")
+	tips.GiveMissingDependencyConfigTip(l, "live/dep", "HEAD~1", nil)
 
 	assert.Empty(t, output.String())
 }
