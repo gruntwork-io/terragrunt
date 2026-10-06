@@ -3,8 +3,11 @@ package test_test
 import (
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,27 +37,32 @@ func TestFindJSONRelativizesEveryPathField(t *testing.T) {
 
 	rel := filepath.FromSlash
 
-	expected, err := json.Marshal([]map[string]any{
-		{
-			"type":    "unit",
-			"path":    rel("../ext/other"),
-			"reading": []string{rel("../modules/foo/main.tf")},
-		},
-		{
-			"type":         "unit",
-			"path":         "app",
-			"include":      map[string]string{"root": rel("../root.hcl")},
-			"dependencies": []string{"vpc", rel("../ext/other")},
-			"reading":      []string{rel("../modules/foo/main.tf"), rel("../root.hcl")},
-		},
-		{
-			"type":    "unit",
-			"path":    "vpc",
-			"include": map[string]string{"root": rel("../root.hcl")},
-			"reading": []string{rel("../modules/foo/main.tf"), rel("../root.hcl")},
-		},
-	})
-	require.NoError(t, err)
+	var found find.FoundComponents
+	require.NoError(t, json.Unmarshal([]byte(stdout), &found))
 
-	requireJSONEqualIgnoringArrayOrder(t, string(expected), stdout)
+	for _, c := range found {
+		slices.Sort(c.Dependencies)
+		slices.Sort(c.Reading)
+	}
+
+	assert.Equal(t, find.FoundComponents{
+		{
+			Type:    component.UnitKind,
+			Path:    rel("../ext/other"),
+			Reading: []string{rel("../modules/foo/main.tf")},
+		},
+		{
+			Type:         component.UnitKind,
+			Path:         "app",
+			Include:      map[string]string{"root": rel("../root.hcl")},
+			Dependencies: []string{rel("../ext/other"), "vpc"},
+			Reading:      []string{rel("../modules/foo/main.tf"), rel("../root.hcl")},
+		},
+		{
+			Type:    component.UnitKind,
+			Path:    "vpc",
+			Include: map[string]string{"root": rel("../root.hcl")},
+			Reading: []string{rel("../modules/foo/main.tf"), rel("../root.hcl")},
+		},
+	}, found)
 }
