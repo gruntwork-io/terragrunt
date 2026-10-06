@@ -63,6 +63,41 @@ func TestNewRepoThroughCASReportsRequestedRef(t *testing.T) {
 	assert.Equal(t, "release", repo.BranchName)
 }
 
+// TestNewRepoThroughCASLinksModulesUnderRequestedSubdir pins that a CAS clone
+// of a //subdir links and sources its modules by their path from the
+// repository root.
+func TestNewRepoThroughCASLinksModulesUnderRequestedSubdir(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	sourceDir := writeCatalogSource(t, tmpDir)
+	helpers.InitGitRepoOnBranch(t, sourceDir, sourceDefaultBranch)
+
+	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), casVenv(tmpDir), &module.RepoOpts{
+		CloneURL:      "git::" + helpers.FileURL(sourceDir) + "//modules",
+		Path:          filepath.Join(tmpDir, "clone"),
+		AllowCAS:      true,
+		CASCloneDepth: 1,
+	})
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(repo.Path(), "vpc", "main.tf"))
+
+	assert.Equal(t, helpers.FileURL(sourceDir), repo.RemoteURL)
+	assert.Equal(
+		t,
+		"git::"+helpers.FileURL(sourceDir)+"//modules/vpc",
+		module.SourcePath(repo.CloneURL(), "vpc"),
+	)
+
+	repo.RemoteURL = "https://github.com/acme/catalog"
+
+	assert.Equal(
+		t,
+		"https://github.com/acme/catalog/tree/"+sourceDefaultBranch+"/modules/vpc",
+		repo.ModuleURL("vpc"),
+	)
+}
+
 // TestNewRepoThroughCASOfflineReportsHead pins that an offline CAS clone does
 // not ask the remote for its default branch and reports HEAD instead.
 func TestNewRepoThroughCASOfflineReportsHead(t *testing.T) {

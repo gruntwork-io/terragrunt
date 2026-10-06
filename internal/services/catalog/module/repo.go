@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -213,12 +214,15 @@ func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (M
 var githubEnterprisePatternReg = regexp.MustCompile(githubEnterpriseRegex)
 var gitlabSelfHostedPatternReg = regexp.MustCompile(gitlabSelfHostedRegex)
 
-// ModuleURL returns the URL to view this module in a browser.
+// ModuleURL returns the URL to view this module in a browser. moduleDir is
+// relative to the //subdir the clone URL selects, when it selects one.
 // When the module provided is in a format that is not supported by the catalog, it returns an empty string.
 func (repo *Repo) ModuleURL(moduleDir string) string {
 	if repo.RemoteURL == "" {
 		return filepath.Join(repo.path, moduleDir)
 	}
+
+	moduleDir = path.Join(repo.sourceSubdir(), moduleDir)
 
 	remote, err := vcsurl.Parse(repo.RemoteURL)
 	if err != nil {
@@ -301,6 +305,26 @@ func (repo *Repo) Path() string {
 // This may differ from the URL originally passed via RepoOpts.
 func (repo *Repo) CloneURL() string {
 	return repo.cloneURL
+}
+
+// SourcePath returns the go-getter source of dir in the repository cloneURL
+// points at, as baseURL//dir?query (e.g.
+// git::https://github.com/org/repo.git//modules/foo?ref=v1.0.0). dir is
+// relative to the //subdir cloneURL selects, when it selects one.
+func SourcePath(cloneURL, dir string) string {
+	if dir == "" {
+		return cloneURL
+	}
+
+	source, subdir := getter.SourceDirSubdir(cloneURL)
+	base, query, _ := strings.Cut(source, "?")
+
+	result := base + "//" + path.Join(subdir, dir)
+	if query != "" {
+		result += "?" + query
+	}
+
+	return result
 }
 
 // ResolveLatestTag looks up the latest semver release tag and stores it in
@@ -824,17 +848,36 @@ func (repo *Repo) requestedRef() string {
 // and the //subdir suffix stripped. It also returns that stripped URL
 // unparsed, for callers to fall back on when parsing fails.
 func (repo *Repo) parseCloneURL() (string, *url.URL, error) {
+	u, _ := repo.splitCloneURL()
+
+	parsed, err := getter.URLParse(u)
+
+	return u, parsed, err
+}
+
+// sourceSubdir returns the //subdir the clone URL selects, empty when it
+// selects none. A local repository has none: its clone URL is a directory
+// path.
+func (repo *Repo) sourceSubdir() string {
+	if repo.isLocal {
+		return ""
+	}
+
+	_, subdir := repo.splitCloneURL()
+
+	return subdir
+}
+
+// splitCloneURL returns cloneURL without its forced getter prefix (e.g.
+// "git::") and //subdir suffix, and that subdir.
+func (repo *Repo) splitCloneURL() (string, string) {
 	u := repo.cloneURL
 
 	if _, after, ok := strings.Cut(u, "::"); ok {
 		u = after
 	}
 
-	u, _ = getter.SourceDirSubdir(u)
-
-	parsed, err := getter.URLParse(u)
-
-	return u, parsed, err
+	return getter.SourceDirSubdir(u)
 }
 
 // cloneURLString formats sourceURL keeping the slash ahead of a Windows drive

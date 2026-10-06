@@ -14,3 +14,5 @@ When the [catalog](/features/catalog) cloned a repository through the [CAS](/fea
 The catalog read the remote and branch from the clone's git metadata, which under the CAS describes the CAS store's own bare repository. That repository records no remote, and its branch is the store's default rather than the source's.
 
 Terragrunt now takes the remote from the clone URL, and the branch from the `ref` the URL asks for or from the branch the remote's `HEAD` points at. Under `--cas-offline` the link uses `HEAD`, which GitHub and GitLab resolve to the default branch.
+
+A catalog URL that selects a subdirectory, such as `github.com/acme/catalog//modules`, now loads through the CAS. The `url` and `component_source` of each component include that subdirectory.
