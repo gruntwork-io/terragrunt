@@ -883,7 +883,12 @@ func (repo *Repo) splitCloneURL() (string, string) {
 // cloneURLString formats sourceURL keeping the slash ahead of a Windows drive
 // letter (file:///C:/repo), which parsing strips from the path.
 func cloneURLString(sourceURL *url.URL) string {
-	if sourceURL.Scheme != "file" || len(sourceURL.Path) < 2 || sourceURL.Path[1] != ':' {
+	scheme := sourceURL.Scheme
+	if i := strings.LastIndex(scheme, "::"); i >= 0 {
+		scheme = scheme[i+len("::"):]
+	}
+
+	if scheme != "file" || len(sourceURL.Path) < 2 || sourceURL.Path[1] != ':' {
 		return sourceURL.String()
 	}
 
