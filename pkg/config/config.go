@@ -2375,9 +2375,10 @@ var moduleSourceReadExtensions = map[string]struct{}{
 // best-effort annotation: non-local sources are skipped and walk errors are
 // swallowed, since a genuinely broken source will surface during download.
 //
-// A relative source resolves against pctx.WorkingDir, the unit's directory,
-// which is where a run resolves it. The file that declares the source may be an
-// included config in another directory; that directory plays no part.
+// A relative source resolves against pctx.WorkingDir. For a unit that is the
+// unit's directory, where a run resolves the source, even when an included
+// config in another directory declares it. For a file loaded with
+// read_terragrunt_config it is that file's directory.
 //
 // A pctx that keeps no record of its reads gets no walk. The walk feeds nothing
 // but that record, and is the most expensive thing a parse does for it, so this
