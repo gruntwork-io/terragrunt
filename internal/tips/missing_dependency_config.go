@@ -1,18 +1,16 @@
 package tips
 
 import (
-	"errors"
+	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// GiveMissingDependencyConfigTip emits the MissingDependencyConfig tip when err reports a missing Terragrunt config.
-func GiveMissingDependencyConfigTip(l log.Logger, err error, allTips Tips) {
-	_, notFound := errors.AsType[config.TerragruntConfigNotFoundError](err)
-	_, depNotFound := errors.AsType[config.DependencyConfigNotFound](err)
-
-	if notFound || depNotFound {
-		allTips.Find(MissingDependencyConfig).Evaluate(l)
-	}
+// GiveMissingDependencyConfigTip emits the MissingDependencyConfig tip for the unit at unitPath,
+// which exists at ref but not where a `dependency` block points.
+func GiveMissingDependencyConfigTip(l log.Logger, allTips Tips, unitPath, ref string) {
+	allTips.Find(MissingDependencyConfig).EvaluateWith(
+		l,
+		fmt.Sprintf("%s Deleted unit: %s (exists at %s).", MissingDependencyConfigMessage, unitPath, ref),
+	)
 }

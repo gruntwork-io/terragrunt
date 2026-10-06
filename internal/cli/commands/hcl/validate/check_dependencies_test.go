@@ -22,8 +22,9 @@ func TestRunValidateDependencyConfigPaths(t *testing.T) {
 		wantErr    bool
 	}{
 		{name: "existing dependency", configPath: "../db"},
+		{name: "stack dependency", configPath: "../net"},
 		{name: "deleted dependency", configPath: "../deleted", wantErr: true},
-		{name: "stack-generated dependency", configPath: "../net/.terragrunt-stack/vpc"},
+		{name: "stack unit not generated", configPath: "../net/.terragrunt-stack/vpc", wantErr: true},
 	}
 
 	for _, tc := range tcs {
@@ -32,8 +33,9 @@ func TestRunValidateDependencyConfigPaths(t *testing.T) {
 
 			root := venvtest.Root("/repo")
 			v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{
-				"app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"" + tc.configPath + "\"\n}\n",
-				"db/terragrunt.hcl":  "",
+				"app/terragrunt.hcl":       "dependency \"dep\" {\n  config_path = \"" + tc.configPath + "\"\n}\n",
+				"db/terragrunt.hcl":        "",
+				"net/terragrunt.stack.hcl": "unit \"vpc\" {\n  source = \"../vpc\"\n  path   = \"vpc\"\n}\n",
 			}))
 
 			opts, err := options.NewTerragruntOptionsForTest(filepath.Join(root, config.DefaultTerragruntConfigPath))

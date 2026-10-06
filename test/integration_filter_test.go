@@ -1504,6 +1504,15 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, stderr, "TIP (missing-dependency-config)")
+	assert.Contains(t, stderr, "Deleted unit: dep (exists at HEAD~1).")
+
+	// Without a Git-based filter there is no diff to blame, so the tip stays quiet.
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --no-color --working-dir "+tmpDir+" -- plan",
+	)
+	require.Error(t, err)
+	assert.NotContains(t, stderr, "TIP (missing-dependency-config)")
 
 	for _, cmd := range []string{"find", "list"} {
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+cmd+filterArgs)

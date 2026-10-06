@@ -220,3 +220,23 @@ func (e EmptyQueueConstructAsError) Error() string {
 func NewEmptyQueueConstructAsError(value string) error {
 	return EmptyQueueConstructAsError{Value: value}
 }
+
+// DeletedDependencyError reports a missing dependency configuration for a unit
+// that still exists at a Git reference a Git-based filter compares, which means
+// the diff deleted or moved a unit some `dependency` block still points at.
+type DeletedDependencyError struct {
+	// Err is the original missing configuration error.
+	Err error
+	// Path is the unit's path relative to the repository root.
+	Path string
+	// Ref is the Git reference the unit still exists at.
+	Ref string
+}
+
+func (e DeletedDependencyError) Error() string {
+	return e.Err.Error()
+}
+
+func (e DeletedDependencyError) Unwrap() error {
+	return e.Err
+}

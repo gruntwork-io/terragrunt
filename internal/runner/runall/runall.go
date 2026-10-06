@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
@@ -59,7 +60,9 @@ func Run(
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	defer func() {
-		tips.GiveMissingDependencyConfigTip(l, err, opts.Tips)
+		if deleted, ok := errors.AsType[discovery.DeletedDependencyError](err); ok {
+			tips.GiveMissingDependencyConfigTip(l, opts.Tips, deleted.Path, deleted.Ref)
+		}
 	}()
 
 	if opts.TerraformCommand == "" {

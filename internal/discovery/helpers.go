@@ -697,3 +697,52 @@ func (d *Discovery) worktreeRootOf(fsys vfs.FS, path string) string {
 
 	return ""
 }
+
+// markDeletedDependency wraps err in a [DeletedDependencyError] when the configuration it reports missing
+// belongs to a unit that components discovered at a Git reference, so the diff deleted or moved it.
+func (d *Discovery) markDeletedDependency(fsys vfs.FS, err error, components component.Components) error {
+	notFound, ok := errors.AsType[config.TerragruntConfigNotFoundError](err)
+	if !ok {
+		return err
+	}
+
+	missingDir := filepath.Dir(notFound.Path)
+
+	root := d.worktreeRootOf(fsys, missingDir)
+	if root == "" {
+		root = d.worktreeGitRoot
+	}
+
+	missingRel, ok := repoRelPath(fsys, root, missingDir)
+	if !ok {
+		return err
+	}
+
+	for _, c := range components {
+		if !isWorktreeComponent(c) {
+			continue
+		}
+
+		dctx := c.DiscoveryContext()
+
+		if rel, ok := repoRelPath(fsys, dctx.WorkingDir, c.Path()); ok && rel == missingRel {
+			return DeletedDependencyError{Err: err, Path: rel, Ref: dctx.Ref}
+		}
+	}
+
+	return err
+}
+
+// repoRelPath returns path relative to the repository or worktree root, reporting false when path is not below it.
+func repoRelPath(fsys vfs.FS, root, path string) (string, bool) {
+	if root == "" {
+		return "", false
+	}
+
+	rel, err := filepath.Rel(vfs.ResolveForCompare(fsys, root), vfs.ResolveForCompare(fsys, path))
+	if err != nil || rel == "." || !filepath.IsLocal(rel) {
+		return "", false
+	}
+
+	return filepath.ToSlash(rel), true
+}
