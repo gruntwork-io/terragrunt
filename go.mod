@@ -10,7 +10,7 @@ require (
 	cloud.google.com/go/auth v0.24.0
 	cloud.google.com/go/storage v1.68.0
 	dario.cat/mergo v1.0.2
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.2
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
@@ -47,7 +47,7 @@ require (
 	github.com/gruntwork-io/terragrunt-engine-go v0.2.0
 	github.com/hashicorp/go-getter/gcs/v2 v2.2.4
 	github.com/hashicorp/go-getter/s3/v2 v2.2.4
-	github.com/hashicorp/go-getter/v2 v2.2.4
+	github.com/hashicorp/go-getter/v2 v2.2.5
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.8.0
 	github.com/hashicorp/go-uuid v1.0.4
@@ -59,7 +59,7 @@ require (
 	github.com/invopop/jsonschema v0.14.0
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/mattn/go-shellwords v1.0.15
-	github.com/mattn/go-zglob v0.0.6
+	github.com/mattn/go-zglob v0.0.8
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
