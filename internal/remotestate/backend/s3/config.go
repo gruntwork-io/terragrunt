@@ -5,11 +5,11 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mitchellh/mapstructure"
 )
 
 const (

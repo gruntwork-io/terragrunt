@@ -53,6 +53,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TMPDIR: ${{ matrix.os == 'macos' && '/tmp' || '' }}
 
+      - name: Report Windows Disk Usage
+        if: always() && runner.os == 'Windows'
+        run: Get-Volume | Where-Object DriveLetter | Format-Table DriveLetter, FileSystemType, Size, SizeRemaining
+        shell: pwsh
+
       - name: Generate Coverage Summary
         if: always() && matrix.os == 'ubuntu'
         run: ./.github/scripts/coverage/coverage-report.sh summary

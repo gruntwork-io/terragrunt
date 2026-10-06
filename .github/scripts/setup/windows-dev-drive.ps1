@@ -26,4 +26,5 @@ New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     "TMP=$tmp"
 ) | Out-File -Append -FilePath $env:GITHUB_ENV
 
-Write-Output "Dev Drive mounted at $drive"
+$hostFree = (Get-Volume -DriveLetter D).SizeRemaining / 1GB
+Write-Output ("Dev Drive mounted at $drive, {0:N1}GB free on D: for its backing file" -f $hostFree)
