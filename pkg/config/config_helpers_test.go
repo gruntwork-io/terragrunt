@@ -2195,9 +2195,10 @@ func TestReadTerragruntConfigCycle(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		files map[string]string
-		name  string
-		chain []string
+		files  map[string]string
+		inputs map[string]any
+		name   string
+		chain  []string
 	}{
 		{
 			name: "self by file",
@@ -2223,6 +2224,36 @@ func TestReadTerragruntConfigCycle(t *testing.T) {
 			chain: []string{config.DefaultTerragruntConfigPath, "a.hcl", "b.hcl", "a.hcl"},
 		},
 		{
+			name: "read then dependency back",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `locals { b = read_terragrunt_config("b/terragrunt.hcl") }`,
+				"b/terragrunt.hcl": `
+dependency "root" {
+  config_path  = "../"
+  mock_outputs = { x = 1 }
+}`,
+			},
+			chain: []string{
+				config.DefaultTerragruntConfigPath,
+				"b/terragrunt.hcl",
+				config.DefaultTerragruntConfigPath,
+				"b/terragrunt.hcl",
+			},
+		},
+		{
+			name: "read stack file back",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `locals { st = read_terragrunt_config("st/terragrunt.stack.hcl") }`,
+				"st/terragrunt.stack.hcl":          `locals { root = read_terragrunt_config("../terragrunt.hcl") }`,
+			},
+			chain: []string{
+				config.DefaultTerragruntConfigPath,
+				"st/terragrunt.stack.hcl",
+				config.DefaultTerragruntConfigPath,
+				"st/terragrunt.stack.hcl",
+			},
+		},
+		{
 			name: "same file read twice",
 			files: map[string]string{
 				config.DefaultTerragruntConfigPath: `
@@ -2235,6 +2266,104 @@ inputs = {
   second = local.second.locals.value
 }`,
 				"common.hcl": `locals { value = "shared" }`,
+			},
+			inputs: map[string]any{"first": "shared", "second": "shared"},
+		},
+		{
+			name: "reread under dependency original dir",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `locals { deps = read_terragrunt_config("deps.hcl") }`,
+				"deps.hcl": `
+dependency "net" {
+  config_path  = "net"
+  enabled      = basename(get_original_terragrunt_dir()) != "net"
+  skip_outputs = true
+  mock_outputs = { x = 1 }
+}`,
+				"net/terragrunt.hcl": `locals { deps = read_terragrunt_config("../deps.hcl") }`,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, rootDir := newMemTestDir(t)
+
+			for name, contents := range tc.files {
+				require.NoError(
+					t,
+					vfs.WriteFile(v.FS, filepath.Join(rootDir, name), []byte(contents), 0o644),
+				)
+			}
+
+			cfgPath := filepath.Join(rootDir, config.DefaultTerragruntConfigPath)
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			pctx.OriginalTerragruntConfigPath = cfgPath
+
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+
+			if tc.chain != nil {
+				chain := make([]string, 0, len(tc.chain))
+				for _, name := range tc.chain {
+					chain = append(chain, filepath.Join(rootDir, name))
+				}
+
+				// HCL ends the function error with a period, which pins the end of the chain.
+				require.ErrorContains(
+					t,
+					err,
+					config.ReadTerragruntConfigCycleError{Chain: chain}.Error()+".",
+				)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			for name, value := range tc.inputs {
+				assert.Equal(t, value, cfg.Inputs[name])
+			}
+		})
+	}
+}
+
+// pins that read_terragrunt_config decodes only a file named exactly terragrunt.values.hcl as a
+// values file, and reads the requested file rather than the directory's terragrunt.values.hcl.
+func TestReadTerragruntConfigValuesFile(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		files map[string]string
+		name  string
+	}{
+		{
+			name: "values file",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `
+locals { v = read_terragrunt_config("env/terragrunt.values.hcl") }
+inputs = { region = local.v.region }`,
+				"env/terragrunt.values.hcl": `region = "eu-west-1"`,
+			},
+		},
+		{
+			name: "suffix named file",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `
+locals { v = read_terragrunt_config("env/prod.terragrunt.values.hcl") }
+inputs = { region = local.v.locals.region }`,
+				"env/prod.terragrunt.values.hcl": `locals { region = "eu-west-1" }`,
+			},
+		},
+		{
+			name: "suffix named file next to values file",
+			files: map[string]string{
+				config.DefaultTerragruntConfigPath: `
+locals { v = read_terragrunt_config("env/prod.terragrunt.values.hcl") }
+inputs = { region = local.v.locals.region }`,
+				"env/prod.terragrunt.values.hcl": `locals { region = "eu-west-1" }`,
+				"env/terragrunt.values.hcl":      `region = "us-east-1"`,
 			},
 		},
 	}
@@ -2256,25 +2385,8 @@ inputs = {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 
 			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
-
-			if tc.chain != nil {
-				chain := make([]string, 0, len(tc.chain))
-				for _, name := range tc.chain {
-					chain = append(chain, filepath.Join(rootDir, name))
-				}
-
-				require.ErrorContains(
-					t,
-					err,
-					config.ReadTerragruntConfigCycleError{Chain: chain}.Error(),
-				)
-
-				return
-			}
-
 			require.NoError(t, err)
-			assert.Equal(t, "shared", cfg.Inputs["first"])
-			assert.Equal(t, "shared", cfg.Inputs["second"])
+			assert.Equal(t, "eu-west-1", cfg.Inputs["region"])
 		})
 	}
 }
