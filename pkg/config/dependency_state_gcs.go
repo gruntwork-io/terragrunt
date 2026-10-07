@@ -68,10 +68,8 @@ var gcsUnsupportedConfigKeys = []string{
 // gcsUnsupportedEnvKeys names venv variables the native backend honors and gcphelper does not.
 var gcsUnsupportedEnvKeys = []string{
 	"GOOGLE_BACKEND_CREDENTIALS",
-	"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES",
 	"GOOGLE_BACKEND_STORAGE_CUSTOM_ENDPOINT",
 	"GOOGLE_BACKEND_UNIVERSE_DOMAIN",
-	"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES",
 	"GOOGLE_CLOUD_UNIVERSE_DOMAIN",
 	"GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES",
 	"GOOGLE_STORAGE_CUSTOM_ENDPOINT",
@@ -247,6 +245,7 @@ func getTerragruntOutputJSONFromRemoteStateGCS(
 	key := gcsStateObjectKey(stateConfig, workspace)
 	location := fmt.Sprintf("gs://%s/%s", bucket, key)
 
+	// gcsDirectStateReadSupported already validated these settings; this only guards a caller that skipped it.
 	settings, valid := gcsBackendConfigSettings(remoteState.BackendConfig)
 	if !valid {
 		return nil, fmt.Errorf("unsupported GCS backend configuration for a direct read of %s", location)
@@ -254,7 +253,7 @@ func getTerragruntOutputJSONFromRemoteStateGCS(
 
 	sessionConfig := extendedConfig.GetGCPSessionConfig()
 	sessionConfig.ImpersonateServiceAccount = gcsEffectiveImpersonateServiceAccount(v.Env, &settings)
-	sessionConfig.ImpersonateScopes = gcsImpersonateScopes
+	sessionConfig.ImpersonateScopes = slices.Clone(gcsImpersonateScopes)
 
 	open := func(ctx context.Context, l log.Logger) (io.ReadCloser, error) {
 		client, err := gcphelper.NewGCPConfigBuilder().WithSessionConfig(sessionConfig).BuildGCSClient(ctx, v)

@@ -183,8 +183,8 @@ func (b *GCPConfigBuilder) Build(
 
 	// Handle service account impersonation.
 	// When impersonation is configured, the impersonation token source replaces
-	// any base credentials. The impersonate library uses Application Default
-	// Credentials internally as the source identity.
+	// any base credentials. The resolved base credentials, or Application Default
+	// Credentials when none are configured, sign the IAM Credentials call.
 	if gcpCfg != nil && gcpCfg.ImpersonateServiceAccount != "" {
 		scopes := gcpCfg.ImpersonateScopes
 		if len(scopes) == 0 {

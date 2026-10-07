@@ -5,6 +5,6 @@ category: "new-features"
 
 #### Read GCS dependency outputs directly under service account impersonation
 
-Direct state reads of dependency outputs now work when the GCS backend impersonates a service account. Units that set `impersonate_service_account`, `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT` or `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT` used to run `tofu`/`terraform` output for every dependency.
+Terragrunt now reads dependency outputs straight from GCS state when the backend impersonates a service account. Before, `impersonate_service_account`, `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT` or `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT` made Terragrunt run `tofu/terraform output` for those dependencies.
 
-Terragrunt resolves the account, its `impersonate_service_account_delegates` and the requested OAuth scope (`devstorage.read_write`) the same way the native GCS backend does, so the state is read with the same identity. Delegates set through environment variables still use the normal method.
+Terragrunt picks the account and its `impersonate_service_account_delegates` the way the native GCS backend does, and requests the same `devstorage.read_write` scope, so the read uses the same identity. Setting `impersonate_service_account = ""` turns impersonation off, as it does natively.

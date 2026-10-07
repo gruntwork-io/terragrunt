@@ -16,9 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGcpConfigImpersonationScopes pins the scopes requested for the impersonated token and that the
-// IAM Credentials call goes through the venv transport, signed by the source credentials.
-func TestGcpConfigImpersonationScopes(t *testing.T) {
+// TestGCPConfigImpersonationScopes pins the impersonated token's scopes and the token each call carries.
+func TestGCPConfigImpersonationScopes(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -42,14 +41,25 @@ func TestGcpConfigImpersonationScopes(t *testing.T) {
 			t.Parallel()
 
 			var (
-				mu            sync.Mutex
-				scopes        []string
-				authorization string
+				mu                   sync.Mutex
+				scopes               []string
+				iamAuthorization     string
+				storageAuthorization string
 			)
 
 			client := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
-				if req.URL.Host != "iamcredentials.googleapis.com" {
+				if req.URL.Host == "storage.googleapis.com" {
+					mu.Lock()
+					storageAuthorization = req.Header.Get("Authorization")
+					mu.Unlock()
+
 					return vhttp.Respond(http.StatusOK, []byte(`{"name":"object","bucket":"bucket"}`), nil), nil
+				}
+
+				if req.URL.Host != "iamcredentials.googleapis.com" {
+					assert.Fail(t, "unexpected request to "+req.URL.Host)
+
+					return vhttp.Respond(http.StatusInternalServerError, nil, nil), nil
 				}
 
 				body, err := io.ReadAll(req.Body)
@@ -67,7 +77,7 @@ func TestGcpConfigImpersonationScopes(t *testing.T) {
 
 				mu.Lock()
 				scopes = request.Scope
-				authorization = req.Header.Get("Authorization")
+				iamAuthorization = req.Header.Get("Authorization")
 				mu.Unlock()
 
 				return vhttp.Respond(
@@ -99,7 +109,8 @@ func TestGcpConfigImpersonationScopes(t *testing.T) {
 			defer mu.Unlock()
 
 			assert.Equal(t, testCase.wantScopes, scopes)
-			assert.Equal(t, "Bearer source-token", authorization, "the source credentials must sign the impersonation call")
+			assert.Equal(t, "Bearer source-token", iamAuthorization, "the source credentials must sign the impersonation call")
+			assert.Equal(t, "Bearer impersonated-token", storageAuthorization, "storage must use the impersonated token")
 		})
 	}
 }
