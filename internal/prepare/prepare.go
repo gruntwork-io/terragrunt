@@ -154,14 +154,14 @@ func PrepareSource(
 		return nil, err
 	}
 
-	// When the no-cache experiment is enabled and no_cache is set in config,
-	// GetTerraformSourceURL returns "" to signal that the unit directory
-	// should be used directly without copying to .terragrunt-cache.
-	if sourceURL == "" && !opts.Experiments.Evaluate(experiment.NoCache) {
-		sourceURL = "."
+	skipCache, err := runcfg.ShouldSkipCache(opts.Experiments.Evaluate(experiment.NoCache), opts.Source, runCfg)
+	if err != nil {
+		return nil, err
 	}
 
-	if sourceURL == "" {
+	if skipCache {
+		// The no-cache experiment is enabled and no_cache is set: run the unit in place
+		// instead of copying its source into .terragrunt-cache.
 		_, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 		if err != nil {
 			return nil, err

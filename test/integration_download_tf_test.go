@@ -1268,7 +1268,9 @@ func TestTFLocalNoCacheSkipsTerragruntCache(t *testing.T) {
 		"terragrunt apply -auto-approve --non-interactive --experiment no-cache --working-dir "+rootPath,
 	)
 
+	// No cache directory is created, and the unit runs in place: local state lands in the unit directory.
 	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
+	assert.FileExists(t, filepath.Join(rootPath, "terraform.tfstate"))
 }
 
 func TestTFLocalNoCacheWithoutExperimentStillUsesCache(t *testing.T) {
@@ -1284,4 +1286,50 @@ func TestTFLocalNoCacheWithoutExperimentStillUsesCache(t *testing.T) {
 	)
 
 	assert.DirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
+}
+
+func TestTFLocalNoCacheWithSourceReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCacheWithSource)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-cache --working-dir "+rootPath,
+	)
+
+	require.ErrorContains(t, err, "no_cache cannot be combined with an external source")
+}
+
+func TestTFLocalNoCacheWithCLISourceReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCache)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-cache --source ./mod --working-dir "+rootPath,
+	)
+
+	require.ErrorContains(t, err, "no_cache cannot be combined with an external source")
+}
+
+func TestTFLocalNoCacheInitSkipsCacheWithoutError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCache)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// init exercises the lock-file copy path; with no cache directory it must be a no-op, not an error.
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt init --non-interactive --experiment no-cache --working-dir "+rootPath,
+	)
+
+	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
 }

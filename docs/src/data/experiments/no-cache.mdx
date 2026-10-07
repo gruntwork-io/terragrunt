@@ -2,13 +2,15 @@
 name: no-cache
 ---
 
-Skip the `.terragrunt-cache` copy for local modules.
+Skip the `.terragrunt-cache` copy and run a unit in place.
 
 ### `no-cache` - What it does
 
-By default, Terragrunt copies all Terraform/OpenTofu source into a `.terragrunt-cache` directory before running any commands. When `terraform.no_cache = true` is set in `terragrunt.hcl` and this experiment is enabled, Terragrunt skips the copy and runs directly from the unit directory.
+By default, Terragrunt copies all OpenTofu/Terraform source into a `.terragrunt-cache` directory before running any commands. When `terraform.no_cache = true` is set in `terragrunt.hcl` and this experiment is enabled, Terragrunt skips the copy and runs directly from the unit directory. Relative local module paths resolve relative to the unit directory, so they work as written, and editors and language servers can read the files directly.
 
-This only applies when no external `terraform.source` is configured. If a remote source or `--terragrunt-source` CLI override is present, the cache is used regardless of the `no_cache` setting.
+Because the unit runs in place, anything a run produces is written into the unit directory and stays there: `generate` blocks, the `.terraform` directory, the `.terraform.lock.hcl` lock file, and OpenTofu/Terraform state for a local backend. Add the generated files you do not want to commit to your `.gitignore`.
+
+This only applies when no source is configured. If a source is set (via the `terraform.source` attribute or the `--source` CLI flag), Terragrunt returns an error, because a source has to be fetched into the cache directory and cannot be run in place.
 
 ```hcl
 terraform {

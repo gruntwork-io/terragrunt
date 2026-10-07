@@ -26,5 +26,6 @@ const (
 	testFixtureNotExistingSource                      = "fixtures/download/invalid-path"
 	testFixtureDisableCopyLockFilePath                = "fixtures/download/local-disable-copy-terraform-lock-file"
 	testFixtureIncludeDisableCopyLockFilePath         = "fixtures/download/local-include-disable-copy-lock-file/module-b"
-	testFixtureLocalNoCache                          = "fixtures/download/local-no-cache"
+	testFixtureLocalNoCache                           = "fixtures/download/local-no-cache"
+	testFixtureLocalNoCacheWithSource                 = "fixtures/download/local-no-cache-with-source"
 )

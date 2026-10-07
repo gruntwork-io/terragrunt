@@ -171,15 +171,15 @@ func Run(
 		return err
 	}
 
-	if sourceURL == "" && !opts.Experiments.Evaluate(experiment.NoCache) {
-		sourceURL = "."
+	skipCache, err := runcfg.ShouldSkipCache(opts.Experiments.Evaluate(experiment.NoCache), opts.Source, cfg)
+	if err != nil {
+		return err
 	}
 
-	if sourceURL == "" {
-		updatedOpts = opts
-	} else {
-		// Always download/copy source to cache directory for consistency.
-		// When no source is specified, sourceURL will be "." (current directory).
+	// When skipCache is true (the no-cache experiment is enabled and no_cache is set), updatedOpts keeps pointing at the
+	// unit directory, so the unit runs in place. Otherwise download/copy the source into .terragrunt-cache for
+	// consistency; when no source is specified, sourceURL is "." (the current directory).
+	if !skipCache {
 		err = telemetry.TelemeterFromContext(ctx).
 			Collect(ctx, l, "download_terraform_source", map[string]any{
 				"sourceUrl": redact.NewURL(sourceURL),

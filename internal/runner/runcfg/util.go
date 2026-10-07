@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -70,9 +71,6 @@ func CopyLockFile(
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL. If neither is specified, returns "." to indicate the current directory should be
 // used as the source, ensuring a .terragrunt-cache directory is always created for consistency.
-//
-// When terraform.no_cache is true and no external source is configured, returns "" to signal that the unit directory
-// should be used directly without copying to .terragrunt-cache.
 func GetTerraformSourceURL(
 	source string, sourceMap map[string]string, originalConfigPath string, cfg *RunConfig,
 ) (string, error) {
@@ -82,12 +80,31 @@ func GetTerraformSourceURL(
 	case cfg != nil && cfg.Terraform.Source != "":
 		return AdjustSourceWithMap(sourceMap, cfg.Terraform.Source, originalConfigPath)
 	default:
-		if cfg != nil && cfg.Terraform.NoCache {
-			return "", nil
-		}
-
 		return ".", nil
 	}
+}
+
+// ShouldSkipCache reports whether a unit should run in place, skipping the copy of its source into the
+// .terragrunt-cache directory.
+//
+// Skipping the cache is opt-in: it requires the no-cache experiment to be enabled and terraform.no_cache to be set to
+// true on a unit that configures no external source. When no_cache is set together with an external source (via the
+// terraform block or the --source flag), it returns a NoCacheWithSourceError, because an external source has to be
+// fetched into the cache directory and cannot be run in place.
+func ShouldSkipCache(noCacheEnabled bool, source string, cfg *RunConfig) (bool, error) {
+	if cfg == nil || !cfg.Terraform.NoCache || !noCacheEnabled {
+		return false, nil
+	}
+
+	if source != "" {
+		return false, NoCacheWithSourceError{Source: source}
+	}
+
+	if cfg.Terraform.Source != "" {
+		return false, NoCacheWithSourceError{Source: cfg.Terraform.Source}
+	}
+
+	return true, nil
 }
 
 // AdjustSourceWithMap implements the --terragrunt-source-map feature. This function will check if the URL portion of a
@@ -185,6 +202,24 @@ func (err ParsingModulePathError) Error() string {
 		"Unable to obtain the module path from the source URL '%s'."+
 			" Ensure that the URL is in a supported format.",
 		err.ModuleSourceURL,
+	)
+}
+
+// NoCacheWithSourceError is returned when terraform.no_cache is set on a unit that also configures an external source.
+// no_cache runs a unit in place, which is incompatible with a source that must be fetched into the cache directory.
+//
+// Source holds the raw source so callers can inspect it; Error renders it through redact so credentials embedded in the
+// source URL do not leak into logs.
+type NoCacheWithSourceError struct {
+	Source string
+}
+
+func (err NoCacheWithSourceError) Error() string {
+	return fmt.Sprintf(
+		"terraform.no_cache cannot be combined with an external source ('%s')."+
+			" no_cache runs the unit in place and only applies when no source is configured."+
+			" Remove the source to run from the unit directory, or remove no_cache to run from .terragrunt-cache.",
+		redact.NewURL(err.Source).String(),
 	)
 }
 
