@@ -7,8 +7,6 @@ category: "bug-fixes"
 
 When a `dependency` block pointed at a deleted or moved unit, `run --all` failed, but `find`, `list` and `hcl validate` passed. `hcl validate` now fails for every enabled `dependency` block whose `config_path` has no unit or stack configuration, so you can catch the problem before a run.
 
-`hcl validate` does not generate stacks. A `dependency` block that points at a unit inside a `.terragrunt-stack` directory fails until you run `terragrunt stack generate`. A block that points at the stack directory passes when that directory has a `terragrunt.stack.hcl`.
-
 `run --all` with a Git-based filter, such as `--filter '[main...HEAD]'`, still fails when a `dependency` block points at a unit or stack that the diff deleted. The error now names the deleted path and the Git reference that still has it:
 
 ```text

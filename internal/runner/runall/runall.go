@@ -54,15 +54,8 @@ func Run(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) (err error) {
-	// --filter sets RunAll, so the CLI layer dispatches here without going
-	// through the single-unit run path. Emit the tip here as well; the
-	// underlying sync.Once dedupes if both paths fire.
-	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
-
 	defer func() {
-		if deleted, ok := errors.AsType[discovery.DeletedDependencyError](err); ok {
-			tips.GiveMissingDependencyConfigTip(l, deleted.Path, deleted.Ref, opts.Tips)
-		}
+		giveTips(l, v, opts, err)
 	}()
 
 	if opts.TerraformCommand == "" {
@@ -319,4 +312,16 @@ func shouldSkipSummary(opts *options.TerragruntOptions) bool {
 	}
 
 	return false
+}
+
+// giveTips emits the tips that fit a `run --all` invocation, once it has returned err.
+func giveTips(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions, err error) {
+	// --filter sets RunAll, so the CLI layer dispatches here without going
+	// through the single-unit run path. Emit the tip here as well; the
+	// underlying sync.Once dedupes if both paths fire.
+	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
+
+	if deleted, ok := errors.AsType[discovery.DeletedDependencyError](err); ok {
+		tips.GiveMissingDependencyConfigTip(l, deleted.Path, deleted.Ref, opts.Tips)
+	}
 }
