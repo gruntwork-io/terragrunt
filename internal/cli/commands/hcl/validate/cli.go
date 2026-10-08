@@ -100,6 +100,14 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 		Usage:                        "Recursively find HashiCorp Configuration Language (HCL) files and validate them.",
 		Flags:                        NewFlags(l, opts, v),
 		DisabledErrorOnUndefinedFlag: true,
+		Before: func(_ context.Context, _ *clihelper.Context) error {
+			// `--inputs` fetches sources and needs the probed implementation to pick the `tfr:///` registry.
+			if !opts.HCLValidateInputs {
+				opts.NoAutoProviderCacheDir = true
+			}
+
+			return nil
+		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
 		},

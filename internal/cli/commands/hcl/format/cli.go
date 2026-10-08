@@ -126,6 +126,12 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 		Aliases: []string{CommandNameAlias},
 		Usage:   "Recursively find HashiCorp Configuration Language (HCL) files and rewrite them into a canonical format.",
 		Flags:   NewFlags(l, opts, v, nil),
+		Before: func(_ context.Context, _ *clihelper.Context) error {
+			// `hcl format` never runs the OpenTofu/Terraform binary, so skip the version probe.
+			opts.NoAutoProviderCacheDir = true
+
+			return nil
+		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
 		},

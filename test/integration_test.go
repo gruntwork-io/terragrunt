@@ -3,16 +3,22 @@ package test_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -245,42 +251,98 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	assert.ElementsMatch(t, expectedDiags, actualDiags)
 }
 
-// TestHclFormatSkipsTofuProbe pins that `hcl format` never runs the auto
-// provider cache dir setup, which probes `tofu -version` before any HCL file
-// is read (issue #7094).
-func TestHclFormatSkipsTofuProbe(t *testing.T) {
+// TestHclCommandsSkipTofuProbe counts spawns through an injected in-memory
+// exec to prove `hcl format` and plain `hcl validate` never probe the
+// OpenTofu/Terraform version at startup (#7094).
+func TestHclCommandsSkipTofuProbe(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtCheck)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtCheck)
+	testCases := []struct {
+		name    string
+		command string
+	}{
+		{
+			name:    "hcl format",
+			command: "terragrunt hcl format --check --working-dir ",
+		},
+		{
+			name:    "hcl validate",
+			command: "terragrunt hcl validate --working-dir ",
+		},
+	}
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt hcl format --check --log-level debug --working-dir "+rootPath,
-	)
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.NotRegexp(t, `(?i)auto provider cache dir`, stderr)
-	assert.NotContains(t, stderr, "tofu -version")
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtCheck)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtCheck)
+
+			v, probes := venvRecordingTFVersionProbes(t)
+
+			_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v, tc.command+rootPath)
+			require.NoError(t, err)
+
+			assert.Empty(t, probes(), "no OpenTofu/Terraform version probe may run")
+		})
+	}
 }
 
-// TestHclvalidateSkipsTofuProbe pins that `hcl validate` never runs the auto
-// provider cache dir setup, which probes `tofu -version` before any HCL file
-// is read (issue #7094).
-func TestHclvalidateSkipsTofuProbe(t *testing.T) {
+// TestHclvalidateInputsKeepsTofuProbe pins only that `hcl validate --inputs`
+// still runs the version probe at startup. It does not observe the registry
+// selection that depends on it.
+func TestHclvalidateInputsKeepsTofuProbe(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtCheck)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtCheck)
+	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate, "valid", "single-required-input")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	v, probes := venvRecordingTFVersionProbes(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
-		"terragrunt hcl validate --log-level debug --working-dir "+rootPath,
+		v,
+		"terragrunt hcl validate --inputs --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.NotRegexp(t, `(?i)auto provider cache dir`, stderr)
-	assert.NotContains(t, stderr, "tofu -version")
+	assert.NotEmpty(t, probes(), "hcl validate --inputs must keep the implementation probe")
+}
+
+// venvRecordingTFVersionProbes returns an OS venv whose exec records each
+// `-version` probe and answers it like a Terraform binary, so no real
+// process is spawned.
+func venvRecordingTFVersionProbes(t *testing.T) (*venv.Venv, func() []string) {
+	t.Helper()
+
+	var (
+		mu     sync.Mutex
+		probes []string
+	)
+
+	v := helpers.RunVenv(t)
+	delete(v.Env, tf.EnvNameTFPluginCacheDir)
+	v.Exec = vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if slices.Contains(inv.Args, tf.FlagNameVersion) {
+			mu.Lock()
+
+			probes = append(probes, inv.Name)
+
+			mu.Unlock()
+
+			return vexec.Result{Stdout: []byte("Terraform v1.5.7\non linux_amd64\n")}
+		}
+
+		return vexec.Result{}
+	})
+
+	return v, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return slices.Clone(probes)
+	}
 }
 
 func TestHclvalidateReturnsNonZeroExitCodeOnError(t *testing.T) {

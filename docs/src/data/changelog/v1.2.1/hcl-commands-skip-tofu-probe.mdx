@@ -1,0 +1,10 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### `hcl format` and `hcl validate` without `--inputs` no longer probe for an OpenTofu binary
+
+These commands used to initialize Automatic Provider Cache Dir before reading HCL. That initialization probed the configured OpenTofu/Terraform binary with `-version`. A slow binary on `PATH`, such as a version-manager shim, delayed every invocation, even though these commands do not need OpenTofu/Terraform for formatting or syntax validation.
+
+`hcl format` and `hcl validate` without `--inputs` no longer enter that setup, so they do not probe the binary. `hcl validate --inputs` keeps the normal setup path, because implementation detection selects the default `tfr:///` registry when it fetches sources. Commands that run OpenTofu/Terraform, such as `run`, behave as before.

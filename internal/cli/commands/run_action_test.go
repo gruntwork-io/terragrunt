@@ -48,8 +48,8 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 }
 
 // TestRunActionHonorsNoAutoProviderCacheDir pins that opting out skips the
-// `tofu -version` probe and leaves TF_PLUGIN_CACHE_DIR unset, the contract
-// the `hcl` and `mcp` commands rely on (issue #7094).
+// version probe and leaves TF_PLUGIN_CACHE_DIR unset. The `hcl` and `mcp`
+// commands rely on this (#7094).
 func TestRunActionHonorsNoAutoProviderCacheDir(t *testing.T) {
 	t.Parallel()
 
