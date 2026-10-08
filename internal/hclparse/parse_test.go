@@ -1973,8 +1973,74 @@ unit "app" {
 			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
 		},
 	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "duplicate unit name")
+
+	var dupErr hclparse.DuplicateUnitNameError
+
+	require.ErrorAs(t, err, &dupErr)
+	assert.Equal(t, "app", dupErr.Name)
+}
+
+// TestParseStackFile_OverrideExpandedUnitRefs pins that every element of an expanded override block
+// publishes its own unit.<name>[key].path ref.
+func TestParseStackFile_OverrideExpandedUnitRefs(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "worker" {
+  source = "../catalog/units/worker"
+  path   = "worker"
+}
+
+unit "logs" {
+  source = "../catalog/units/logs"
+  path   = "logs"
+
+  autoinclude {
+    dependency "first" {
+      config_path = unit.worker["a"].path
+    }
+
+    dependency "second" {
+      config_path = unit.worker["b"].path
+    }
+  }
+}
+`
+	overrideSrc := `
+unit "worker" {
+  source = "../catalog/units/worker"
+  path   = "worker-${each.key}"
+
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.NoError(t, err)
+
+	logs, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "logs")]
+	require.True(t, ok)
+	require.Len(t, logs.Dependencies, 2)
+
+	for i, key := range []string{"a", "b"} {
+		assert.Equal(
+			t,
+			hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "worker-"+key)),
+			logs.Dependencies[i].ConfigPath,
+		)
+	}
 }
 
 // Benchmarks

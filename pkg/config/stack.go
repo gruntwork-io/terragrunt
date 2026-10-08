@@ -385,9 +385,7 @@ func resolveStackAutoIncludes(
 		}
 	}
 
-	autoIncludes := parseResult.AutoIncludes
-
-	return autoIncludes, stackSrcBytes, nil
+	return parseResult.AutoIncludes, stackSrcBytes, nil
 }
 
 // validateUpdateSourceWithCAS rejects stack files that declare update_source_with_cas = true
