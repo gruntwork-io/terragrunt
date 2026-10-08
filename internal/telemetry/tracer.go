@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"runtime/debug"
-	"strconv"
-	"strings"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
@@ -15,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
@@ -27,8 +26,6 @@ const (
 	otlpHTTPTraceExporterType traceExporterType = "otlpHttp"
 	otlpGrpcTraceExporterType traceExporterType = "otlpGrpc"
 	httpTraceExporterType     traceExporterType = "http"
-
-	traceParentParts = 4
 )
 
 type traceExporterType string
@@ -63,6 +60,11 @@ func NewTracer(
 
 	otel.SetTracerProvider(provider)
 
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+
 	var (
 		parentTraceID    *trace.TraceID
 		parentSpanID     *trace.SpanID
@@ -70,33 +72,19 @@ func NewTracer(
 	)
 
 	if opts.TraceParent != "" {
-		// parse trace parent values
-		parts := strings.Split(opts.TraceParent, "-")
-		if len(parts) != traceParentParts {
+		parentCtx := propagation.TraceContext{}.Extract(
+			ctx,
+			propagation.MapCarrier{traceParentHeader: opts.TraceParent},
+		)
+
+		parentSpanContext := trace.SpanContextFromContext(parentCtx)
+		if !parentSpanContext.IsValid() {
 			return nil, fmt.Errorf("invalid TRACEPARENT value %s", opts.TraceParent)
 		}
 
-		_, traceIDHex, spanIDHex, traceFlagsStr := parts[0], parts[1], parts[2], parts[3]
-
-		parsedFlag, err := strconv.Atoi(traceFlagsStr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid trace flags: %w", err)
-		}
-
-		traceFlags := trace.FlagsSampled
-		if parsedFlag == 0 {
-			traceFlags = 0
-		}
-
-		traceID, err := trace.TraceIDFromHex(traceIDHex)
-		if err != nil {
-			return nil, err
-		}
-
-		spanID, err := trace.SpanIDFromHex(spanIDHex)
-		if err != nil {
-			return nil, err
-		}
+		traceID := parentSpanContext.TraceID()
+		spanID := parentSpanContext.SpanID()
+		traceFlags := parentSpanContext.TraceFlags()
 
 		parentTraceID = &traceID
 		parentSpanID = &spanID
