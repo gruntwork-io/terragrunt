@@ -385,9 +385,7 @@ func resolveStackAutoIncludes(
 		}
 	}
 
-	autoIncludes := parseResult.AutoIncludes
-
-	return autoIncludes, stackSrcBytes, nil
+	return parseResult.AutoIncludes, stackSrcBytes, nil
 }
 
 // validateUpdateSourceWithCAS rejects stack files that declare update_source_with_cas = true
@@ -764,7 +762,8 @@ func validateGeneratedComponent(
 	return nil
 }
 
-// generateAutoInclude writes the autoinclude file for a component if one was resolved.
+// generateAutoInclude writes the autoinclude file for a component if one was resolved, and removes
+// a generated one left in dest otherwise.
 func generateAutoInclude(
 	l log.Logger,
 	v *venv.Venv,
@@ -772,10 +771,6 @@ func generateAutoInclude(
 	cmp *componentToGenerate,
 	dest string,
 ) error {
-	if opts.autoIncludes == nil {
-		return nil
-	}
-
 	kind := inthclparse.KindUnit
 	if cmp.kind == stackKind {
 		kind = inthclparse.KindStack
@@ -783,6 +778,10 @@ func generateAutoInclude(
 
 	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(kind, cmp.address)]
 	if !ok {
+		if err := inthclparse.RemoveGeneratedAutoIncludeFile(v.FS, dest, kind); err != nil {
+			return fmt.Errorf("failed to remove autoinclude for %s %s: %w", kind, cmp.address, err)
+		}
+
 		return nil
 	}
 

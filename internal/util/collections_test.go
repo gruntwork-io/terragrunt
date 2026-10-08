@@ -311,10 +311,16 @@ func TestMergeNamed(t *testing.T) {
 			expected: []item{{"a", "base-a1"}, {"a", "base-a2"}},
 		},
 		{
-			desc:     "last writer wins within the override set",
-			base:     []item{{"a", "base-a"}},
+			desc:     "same-name override entries all replace the base entry in override order",
+			base:     []item{{"a", "base-a"}, {"b", "base-b"}},
 			override: []item{{"a", "over-a1"}, {"a", "over-a2"}},
-			expected: []item{{"a", "over-a2"}},
+			expected: []item{{"a", "over-a1"}, {"a", "over-a2"}, {"b", "base-b"}},
+		},
+		{
+			desc:     "same-name override entries with no base entry all append",
+			base:     []item{{"a", "base-a"}},
+			override: []item{{"b", "over-b1"}, {"b", "over-b2"}},
+			expected: []item{{"a", "base-a"}, {"b", "over-b1"}, {"b", "over-b2"}},
 		},
 		{
 			desc:     "empty-name base entries pass through and empty-name override entries are dropped",
