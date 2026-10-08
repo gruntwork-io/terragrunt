@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"maps"
 	"path/filepath"
 	"testing"
 
@@ -142,9 +143,7 @@ stack "team" {
 			t.Parallel()
 
 			files := map[string]string{config.DefaultStackFile: tc.withBlock}
-			for path, body := range teamFiles {
-				files[path] = body
-			}
+			maps.Copy(files, teamFiles)
 
 			gen := generateStack(t, files)
 			require.True(t, gen.generated(tc.autoInclude...))
