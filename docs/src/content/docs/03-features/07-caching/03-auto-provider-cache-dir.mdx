@@ -33,6 +33,8 @@ When using OpenTofu >= 1.10, this feature is enabled by default. No additional c
 terragrunt run --all apply
 ```
 
+Commands that never run the OpenTofu/Terraform binary, such as `hcl format` and `hcl validate`, skip this setup entirely, so they don't probe the binary version at startup.
+
 ## How it Works
 
 When enabled, Terragrunt automatically:

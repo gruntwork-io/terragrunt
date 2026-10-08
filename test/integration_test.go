@@ -52,6 +52,7 @@ const (
 	testFixtureGetTerragruntSourceCli         = "fixtures/get-terragrunt-source-cli"
 	testFixtureRunAllSource                   = "fixtures/get-output/run-all-source"
 	testFixtureGraphDependencies              = "fixtures/graph-dependencies"
+	testFixtureHclfmtCheck                    = "fixtures/hclfmt-check"
 	testFixtureHclvalidate                    = "fixtures/hclvalidate"
 	testFixtureIamRolesMultipleModules        = "fixtures/read-config/iam_roles_multiple_modules"
 	testFixtureIncludeParent                  = "fixtures/include-parent"
@@ -242,6 +243,44 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, expectedDiags, actualDiags)
+}
+
+// TestHclFormatSkipsTofuProbe pins that `hcl format` never runs the auto
+// provider cache dir setup, which probes `tofu -version` before any HCL file
+// is read (issue #7094).
+func TestHclFormatSkipsTofuProbe(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtCheck)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtCheck)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt hcl format --check --log-level debug --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotRegexp(t, `(?i)auto provider cache dir`, stderr)
+	assert.NotContains(t, stderr, "tofu -version")
+}
+
+// TestHclvalidateSkipsTofuProbe pins that `hcl validate` never runs the auto
+// provider cache dir setup, which probes `tofu -version` before any HCL file
+// is read (issue #7094).
+func TestHclvalidateSkipsTofuProbe(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtCheck)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtCheck)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt hcl validate --log-level debug --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotRegexp(t, `(?i)auto provider cache dir`, stderr)
+	assert.NotContains(t, stderr, "tofu -version")
 }
 
 func TestHclvalidateReturnsNonZeroExitCodeOnError(t *testing.T) {
