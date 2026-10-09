@@ -311,8 +311,8 @@ dependencies:
 		l,
 		v,
 		opts,
-		repoDir+"//modules/vpc",
-		repoDir+"//templates/root",
+		helpers.FileURL(repoDir)+"//modules/vpc",
+		helpers.FileURL(repoDir)+"//templates/root",
 	)
 	require.NoError(t, err)
 
