@@ -889,6 +889,71 @@ func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
 	assert.Equal(t, "A", entries[2].Component.Path())
 }
 
+func TestDestroyFlagQueueOrderIsReverseOfDependencies(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cmd      string
+		args     []string
+		expected []string
+	}{
+		{
+			name:     "apply with -destroy",
+			cmd:      "apply",
+			args:     []string{"-destroy"},
+			expected: []string{"C", "B", "A"},
+		},
+		{
+			name:     "apply with -destroy=true",
+			cmd:      "apply",
+			args:     []string{"-destroy=true"},
+			expected: []string{"C", "B", "A"},
+		},
+		{
+			name:     "plan with -destroy=true",
+			cmd:      "plan",
+			args:     []string{"-destroy=true"},
+			expected: []string{"C", "B", "A"},
+		},
+		{
+			name:     "apply with -destroy=false",
+			cmd:      "apply",
+			args:     []string{"-destroy=false"},
+			expected: []string{"A", "B", "C"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a simple chain: A -> B -> C
+			cfgA := component.NewUnit("A")
+			cfgB := component.NewUnit("B")
+			cfgB.AddDependency(cfgA)
+
+			cfgC := component.NewUnit("C")
+			cfgC.AddDependency(cfgB)
+
+			configs := component.Components{cfgA, cfgB, cfgC}
+			for _, cfg := range configs {
+				cfg.SetDiscoveryContext(&component.DiscoveryContext{Cmd: tt.cmd, Args: tt.args})
+			}
+
+			q, err := queue.NewQueue(configs)
+			require.NoError(t, err)
+
+			paths := make([]string, 0, len(q.Entries))
+			for _, entry := range q.Entries {
+				paths = append(paths, entry.Component.Path())
+			}
+
+			assert.Equal(t, tt.expected, paths)
+		})
+	}
+}
+
 func TestDestroyCommandQueueOrderMatchesDependenciesByPath(t *testing.T) {
 	t.Parallel()
 

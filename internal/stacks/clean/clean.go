@@ -6,16 +6,16 @@ import (
 	"io/fs"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// CleanStacks removes stack directories within the specified working directory, unless the command is "destroy".
+// CleanStacks removes stack directories within the specified working directory, unless the command is "destroy"
+// or its alias, "apply" with the destroy flag.
 // It returns an error if any issues occur during the deletion process, or nil if successful.
 func CleanStacks(l log.Logger, fsys vfs.FS, opts *options.TerragruntOptions) error {
-	if opts.TerraformCommand == tf.CommandNameDestroy {
+	if opts.TerraformCliArgs.IsDestroyOrAlias(opts.TerraformCommand) {
 		l.Debugf("Skipping stack clean for %s, as part of delete command", opts.WorkingDir)
 		return nil
 	}

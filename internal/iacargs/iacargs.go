@@ -4,6 +4,7 @@ package iacargs
 import (
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -13,6 +14,9 @@ const (
 
 	// CommandNameDestroy is the terraform destroy command name
 	CommandNameDestroy = "destroy"
+
+	// CommandNameApply is the terraform apply command name
+	CommandNameApply = "apply"
 )
 
 const (
@@ -364,9 +368,38 @@ func (a *IacArgs) Normalize(acts ...NormalizeActsType) *IacArgs {
 }
 
 // IsDestroyCommand returns true if this represents a destroy operation.
-// It checks both the command name and the -destroy flag.
+// It checks both the command name and the destroy flag, with one dash or two,
+// including the `-destroy=<value>` form: `-destroy=true` is a destroy, `-destroy=false` is not.
+// The value is parsed with `strconv.ParseBool`, as Go's `flag` package does for boolean flags.
 func (a *IacArgs) IsDestroyCommand(cmd string) bool {
-	return cmd == CommandNameDestroy || a.Contains("-"+CommandNameDestroy)
+	if cmd == CommandNameDestroy || a.Contains("-"+CommandNameDestroy) {
+		return true
+	}
+
+	return slices.ContainsFunc(a.Flags, func(flag string) bool {
+		if !isFlag(flag) {
+			return false
+		}
+
+		name, value, hasValue := strings.Cut(normalizeFlag(flag), "=")
+		if name != CommandNameDestroy {
+			return false
+		}
+
+		if !hasValue {
+			return true
+		}
+
+		isDestroy, err := strconv.ParseBool(value)
+
+		return err == nil && isDestroy
+	})
+}
+
+// IsDestroyOrAlias returns true for the destroy command and for its alias, `apply` with the destroy flag.
+// Unlike IsDestroyCommand, it is false for `plan` with the destroy flag, which only plans the destruction.
+func (a *IacArgs) IsDestroyOrAlias(cmd string) bool {
+	return cmd == CommandNameDestroy || (cmd == CommandNameApply && a != nil && a.IsDestroyCommand(cmd))
 }
 
 // parse parses raw args into Command/SubCommand/Flags/Arguments.
