@@ -4,7 +4,6 @@ package vfs
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -1411,22 +1410,7 @@ func (z *ZipDecompressor) Unzip(l log.Logger, fsys FS, dst, src string, umask os
 		return fmt.Errorf("failed to stat zip archive %q: %w", src, err)
 	}
 
-	size := fileInfo.Size()
-
-	var readerAt io.ReaderAt
-	if ra, ok := file.(io.ReaderAt); ok {
-		readerAt = ra
-	} else {
-		data, err := io.ReadAll(file)
-		if err != nil {
-			return fmt.Errorf("failed to read zip archive %q: %w", src, err)
-		}
-
-		readerAt = bytes.NewReader(data)
-		size = int64(len(data))
-	}
-
-	zipReader, err := zip.NewReader(readerAt, size)
+	zipReader, err := zip.NewReader(file, fileInfo.Size())
 	if err != nil {
 		return fmt.Errorf("failed to read zip archive %q: %w", src, err)
 	}

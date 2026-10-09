@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,6 +52,118 @@ func TestDetectNameFoldingOSFS(t *testing.T) {
 	assert.Len(t, entries, 1, "only the reference file may remain")
 }
 
+func TestDetectNameFoldingFoldingFS(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		fold func(string) string
+		name string
+		want vfs.NameFolding
+	}{
+		{
+			name: "case-insensitive",
+			fold: strings.ToLower,
+			want: vfs.NameFolding{Case: true},
+		},
+		{
+			name: "normalization-insensitive",
+			fold: norm.NFC.String,
+			want: vfs.NameFolding{Unicode: true},
+		},
+		{
+			name: "case- and normalization-insensitive",
+			fold: func(name string) string { return strings.ToLower(norm.NFC.String(name)) },
+			want: vfs.NameFolding{Case: true, Unicode: true},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			base := vfs.NewMemMapFS()
+			require.NoError(t, base.MkdirAll("/dir", 0o755))
+
+			fsys := &statHookFS{FS: base, stat: func(name string) (os.FileInfo, error) {
+				return base.Stat(tc.fold(name))
+			}}
+
+			folding, err := vfs.DetectNameFolding(fsys, "/dir")
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, folding)
+
+			entries, err := vfs.ReadDir(base, "/dir")
+			require.NoError(t, err)
+			assert.Empty(t, entries, "the probe file must be removed")
+		})
+	}
+}
+
+func TestDetectNameFoldingReportsFailures(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		wrap     func(base vfs.FS) vfs.FS
+		name     string
+		wantLeft int
+	}{
+		{
+			name: "probe cannot be created",
+			wrap: func(base vfs.FS) vfs.FS {
+				return &faultFS{FS: base, faults: map[string]string{faultOpenFile: ""}}
+			},
+		},
+		{
+			name: "probe cannot be closed",
+			wrap: func(base vfs.FS) vfs.FS {
+				return &faultFS{FS: base, fileFaults: []string{faultClose}}
+			},
+		},
+		{
+			name: "case probe cannot be looked up",
+			wrap: func(base vfs.FS) vfs.FS {
+				return &faultFS{FS: base, faults: map[string]string{faultStat: ""}}
+			},
+		},
+		{
+			name: "unicode probe cannot be looked up",
+			wrap: func(base vfs.FS) vfs.FS {
+				return &statHookFS{FS: base, stat: func(name string) (os.FileInfo, error) {
+					if !norm.NFC.IsNormalString(name) {
+						return nil, &os.PathError{Op: "stat", Path: name, Err: errInjected}
+					}
+
+					return base.Stat(name)
+				}}
+			},
+		},
+		{
+			name: "probe cannot be removed",
+			wrap: func(base vfs.FS) vfs.FS {
+				return &faultFS{FS: base, faults: map[string]string{faultRemove: ""}}
+			},
+			wantLeft: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			base := vfs.NewMemMapFS()
+			require.NoError(t, base.MkdirAll("/dir", 0o755))
+
+			folding, err := vfs.DetectNameFolding(tc.wrap(base), "/dir")
+			require.ErrorIs(t, err, errInjected)
+			assert.Equal(t, vfs.NameFolding{}, folding)
+
+			entries, err := vfs.ReadDir(base, "/dir")
+			require.NoError(t, err)
+			assert.Len(t, entries, tc.wantLeft, "the probe file is removed unless removing it is what failed")
+		})
+	}
+}
+
 func existsOnDisk(t *testing.T, path string) bool {
 	t.Helper()
 
@@ -62,4 +175,14 @@ func existsOnDisk(t *testing.T, path string) bool {
 	require.NoError(t, err)
 
 	return true
+}
+
+// statHookFS answers Stat through stat, so a test can fold spellings together or fail chosen ones.
+type statHookFS struct {
+	vfs.FS
+	stat func(name string) (os.FileInfo, error)
+}
+
+func (fsys *statHookFS) Stat(name string) (os.FileInfo, error) {
+	return fsys.stat(name)
 }
