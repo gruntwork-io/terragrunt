@@ -539,6 +539,7 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 	}
 
 	configCty := ctyEngineConfig{
+		Meta:    cty.NullVal(cty.DynamicPseudoType),
 		Source:  config.Source,
 		Version: v,
 		Type:    t,

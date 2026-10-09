@@ -36,6 +36,7 @@ const (
 	testFixtureStackDepsBasic                    = "fixtures/stacks/stack-deps-basic"
 	testFixtureStackDepsChain                    = "fixtures/stacks/stack-deps-chain"
 	testFixtureStackDepsCrossStack               = "fixtures/stacks/stack-deps-cross-stack"
+	testFixtureStackDepsNestedStackOutputs       = "fixtures/stacks/stack-deps-nested-stack-outputs"
 	testFixtureStackDepsTransitiveStackDir       = "fixtures/stacks/stack-deps-transitive-stack-dir"
 	testFixtureStackDepsTree                     = "fixtures/stacks/stack-deps-tree"
 	testFixtureStackDepsAutoIncParserLimit       = "fixtures/stacks/stack-deps-autoinclude-parser-limit"
@@ -63,6 +64,7 @@ const (
 	testFixtureStackDepsNestedUnitDep            = "fixtures/stacks/stack-deps-nested-unit-dep"
 	testFixtureStackDepsApplyNoMocks             = "fixtures/stacks/stack-deps-apply-no-mocks"
 	testFixtureStackDepsStackAutoIncOverride     = "fixtures/stacks/stack-deps-stack-autoinclude-override"
+	testFixtureStackDepsStackAutoIncInjectedDep  = "fixtures/stacks/stack-deps-stack-autoinclude-injected-dep"
 	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
 	testFixtureStackDepsMockLocal                = "fixtures/stacks/stack-deps-mock-local"
 	testFixtureStackDepsAutoIncValuesResolved    = "fixtures/stacks/stack-deps-autoinclude-values-resolved"
@@ -91,11 +93,15 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-		Src:      srcBytes,
-		Filename: stackFile,
-		StackDir: liveDir,
-	})
+	result, err := inthclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewOSFS(),
+		&inthclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: stackFile,
+			StackDir: liveDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 
@@ -243,11 +249,15 @@ func TestStackDepsAutoIncludeSymlink(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-		Src:      srcBytes,
-		Filename: stackFile,
-		StackDir: symlinkDir,
-	})
+	result, err := inthclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewOSFS(),
+		&inthclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: stackFile,
+			StackDir: symlinkDir,
+		},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 
@@ -270,11 +280,15 @@ func TestStackDepsDAGWithoutAutoInclude(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-		Src:      srcBytes,
-		Filename: stackFile,
-		StackDir: liveDir,
-	})
+	result, err := inthclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewOSFS(),
+		&inthclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: stackFile,
+			StackDir: liveDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app")]
@@ -316,11 +330,15 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
-		Src:      srcBytes,
-		Filename: stackFile,
-		StackDir: liveDir,
-	})
+	result, err := inthclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewOSFS(),
+		&inthclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: stackFile,
+			StackDir: liveDir,
+		},
+	)
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app_stack_dep")]
@@ -362,12 +380,15 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
+	ctx := t.Context()
+	v := venv.OSVenv()
+	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
+		ctx,
 		vfs.NewOSFS(),
 		stackDir,
-		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, pctx)},
+		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx)},
 	)
 	require.NoError(t, err)
 	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
@@ -405,12 +426,15 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
+	ctx := t.Context()
+	v := venv.OSVenv()
+	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
+		ctx,
 		vfs.NewOSFS(),
 		root,
-		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, pctx)},
+		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx)},
 	)
 	require.NoError(t, err)
 
@@ -431,12 +455,15 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 	root := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), options.NewTerragruntOptions(vexec.NewOSExec()))
+	ctx := t.Context()
+	v := venv.OSVenv()
+	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
+		ctx,
 		vfs.NewOSFS(),
 		root,
-		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, pctx)},
+		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx)},
 	)
 	require.NoError(t, err)
 	assert.Empty(t, unitPaths, "a directory without a stack file expands to no unit paths")
@@ -1331,9 +1358,9 @@ func TestStackDepsAutoIncludeArbitraryRetryBlock(t *testing.T) {
 	// sibling autoinclude merges in. The injected errors/retry block must appear in the unit's
 	// effective merged config, not merely as text in the standalone generated autoinclude file.
 	l := logger.CreateLogger()
-	ctx, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
+	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, unitConfigPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, unitConfigPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -1386,9 +1413,9 @@ func TestStackDepsAutoIncludeFeatureBlock(t *testing.T) {
 	// sibling autoinclude merges in. The injected feature block must appear in the unit's
 	// effective merged config with the exact value.
 	l := logger.CreateLogger()
-	ctx, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
+	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, unitConfigPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, unitConfigPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -1445,9 +1472,9 @@ func TestStackDepsAutoIncludeIgnoreBlock(t *testing.T) {
 	// sibling autoinclude merges in. The injected errors/ignore block must appear in the unit's
 	// effective merged config with the exact values.
 	l := logger.CreateLogger()
-	ctx, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
+	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, unitConfigPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, unitConfigPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -1694,10 +1721,80 @@ func TestStackDepsStackLevelAutoIncludeOverridesSameNameUnit(t *testing.T) {
 	assert.True(t, foundAdded, "the appended added unit must be discoverable")
 }
 
+// TestStackDepsStackLevelAutoIncludeNestedAutoInclude verifies that a component injected by a stack-level
+// autoinclude keeps its own nested autoinclude: the next generation pass writes it, so the injected unit's
+// dependency orders the DAG and its outputs reach the unit's inputs. Overriding the catalog stack's unit must
+// not break the catalog's own wiring of a sibling unit to it. The nested case injects a stack whose own
+// stack-level autoinclude carries the wiring one level further down.
+func TestStackDepsStackLevelAutoIncludeNestedAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		liveDir  string
+		stackDir []string
+	}{
+		{
+			name:     "injected unit",
+			liveDir:  "live",
+			stackDir: []string{"fn"},
+		},
+		{
+			name:     "injected stack",
+			liveDir:  "live-nested",
+			stackDir: []string{"wrap", inthclparse.StackDir, "inner"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoIncInjectedDep)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncInjectedDep)
+			gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncInjectedDep)
+
+			runner, err := git.NewGitRunner(venv.OSVenv())
+			require.NoError(t, err)
+			require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+			rootPath := filepath.Join(gitPath, tc.liveDir)
+			rootPath, err = filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
+
+			helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+			stackDir := filepath.Join(append([]string{rootPath, inthclparse.StackDir}, tc.stackDir...)...)
+			functionDir := filepath.Join(stackDir, inthclparse.StackDir, "handler")
+			logsDir := filepath.Join(stackDir, inthclparse.StackDir, "logs")
+
+			autoInclude, err := os.ReadFile(filepath.Join(functionDir, inthclparse.AutoIncludeFile))
+			require.NoError(t, err, "the injected unit's nested autoinclude must be generated")
+			assert.Contains(t, string(autoInclude), `dependency "queue"`)
+
+			helpers.RunTerragrunt(
+				t,
+				"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
+			)
+
+			for dir, expected := range map[string]string{
+				functionDir: "function:queue-arn",
+				logsDir:     "logs:function:queue-arn",
+			} {
+				stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+					t,
+					"terragrunt output -raw value --non-interactive --working-dir "+dir,
+				)
+				require.NoError(t, err)
+				assert.Equal(t, expected, strings.TrimSpace(stdout), "unexpected output in %s", dir)
+			}
+		})
+	}
+}
+
 // TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal pins that stack generation succeeds when a
-// sibling autoinclude injects a block whose path references the base stack's local. The override prune
-// reads only block names, so it must not fail evaluating the injected path against the generate-path eval
-// context (which has no local.* populated), keeping generation consistent with discovery and the full parse.
+// sibling autoinclude injects a block whose path references the base stack's local. The injected blocks
+// decode in the base stack file's eval context, keeping generation consistent with discovery and the full parse.
 func TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal(t *testing.T) {
 	t.Parallel()
 
@@ -1914,14 +2011,14 @@ func newStackDepsParsingContext(
 	t *testing.T,
 	l log.Logger,
 	configPath string,
-) (context.Context, *config.ParsingContext) {
+) (context.Context, *venv.Venv, *config.ParsingContext) {
 	t.Helper()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.StackDependencies))
 	opts.TerragruntConfigPath = configPath
 
-	return configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), opts)
+	return t.Context(), venv.OSVenv(), configbridge.NewParsingContext(opts)
 }
 
 // partialParseDiscovery partial parses a unit config the way discovery does, with the
@@ -1930,11 +2027,11 @@ func newStackDepsParsingContext(
 func partialParseDiscovery(t *testing.T, l log.Logger, configPath string) *config.TerragruntConfig {
 	t.Helper()
 
-	ctx, pctx := newStackDepsParsingContext(t, l, configPath)
+	ctx, v, pctx := newStackDepsParsingContext(t, l, configPath)
 	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ErrorsBlock).
 		WithSkipOutputsResolution()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
 	require.NoError(t, err, "discovery-style partial parse of the merged unit config must succeed")
 
 	return parsed
@@ -1944,10 +2041,11 @@ func partialParseDiscovery(t *testing.T, l log.Logger, configPath string) *confi
 func stackDepsFuncsFor(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *config.ParsingContext,
 ) inthclparse.StackFuncFactory {
 	return func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, dir, pctx)
+		return config.EarlyStackParseFunctions(ctx, l, v, pctx, dir)
 	}
 }
 

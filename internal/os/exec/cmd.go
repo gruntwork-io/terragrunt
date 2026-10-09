@@ -44,13 +44,15 @@ type Cmd struct {
 
 // Command returns a `Cmd` configured to execute the named program with the
 // given arguments through v's executor, with the three standard streams wired
-// to v's console handles. PTY allocation requires an OS-backed Exec; non-OS
-// backends are accepted but `WithUsePTY(true)` will fail at Start with
-// ErrPTYRequiresOSBackend.
+// to v's console handles and the child's environment set from v.Env, which
+// [WithEnv] overrides.
+// PTY allocation requires an OS-backed Exec; non-OS backends are accepted but
+// `WithUsePTY(true)` will fail at Start with ErrPTYRequiresOSBackend.
 func Command(ctx context.Context, v *venv.Venv, name string, args ...string) *Cmd {
 	v.RequireExec()
 	v.RequireStdin()
 	v.RequireWriters()
+	v.RequireEnv()
 
 	vc := v.Exec.Command(ctx, name, args...)
 
@@ -64,6 +66,7 @@ func Command(ctx context.Context, v *venv.Venv, name string, args ...string) *Cm
 	cmd.SetStdin(v.Stdin)
 	cmd.SetStdout(v.Writers.Writer)
 	cmd.SetStderr(v.Writers.ErrWriter)
+	cmd.SetEnv(venv.Environ(v.Env))
 
 	vc.SetWaitDelay(DefaultGracefulShutdownDelay)
 

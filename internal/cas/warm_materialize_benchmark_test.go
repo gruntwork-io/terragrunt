@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -26,7 +27,7 @@ func BenchmarkWarmMaterialize(b *testing.B) {
 	warm, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(b, err)
 
-	require.NoError(b, warm.Clone(b.Context(), l, v, repoURL,
+	require.NoError(b, warm.Clone(b.Context(), l, v, redact.NewURL(repoURL),
 		cas.WithDir(filepath.Join(tempDir, "initial")), cas.WithDepth(-1)))
 
 	target := filepath.Join(tempDir, "target")
@@ -37,7 +38,7 @@ func BenchmarkWarmMaterialize(b *testing.B) {
 		c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 		require.NoError(b, err)
 
-		require.NoError(b, c.Clone(b.Context(), l, v, repoURL,
+		require.NoError(b, c.Clone(b.Context(), l, v, redact.NewURL(repoURL),
 			cas.WithDir(filepath.Join(target, strconv.Itoa(i))), cas.WithDepth(-1)))
 
 		i++

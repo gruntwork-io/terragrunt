@@ -5,19 +5,21 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mitchellh/mapstructure"
 )
 
 const (
-	configLockTableKey                 = "lock_table"
-	configDynamoDBTableKey             = "dynamodb_table"
-	configAssumeRoleKey                = "assume_role"
-	configAssumeRoleWithWebIdentityKey = "assume_role_with_web_identity"
-	configAccessloggingTargetPrefixKey = "accesslogging_target_prefix"
+	configLockTableKey                  = "lock_table"
+	configDynamoDBTableKey              = "dynamodb_table"
+	configAssumeRoleKey                 = "assume_role"
+	configAssumeRoleWithWebIdentityKey  = "assume_role_with_web_identity"
+	configAccessloggingTargetPrefixKey  = "accesslogging_target_prefix"
+	configSkipAccessLoggingBucketACLKey = "skip_accesslogging_bucket_acl"
+	configSkipBucketRootAccessKey       = "skip_bucket_root_access"
 
 	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
 

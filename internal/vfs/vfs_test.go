@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -18,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -282,7 +285,7 @@ func TestEvalSymlinks(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fs, "/root/real/sub")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/real/sub", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/real/sub"), resolved)
 	})
 
 	t.Run("resolves parent symlink", func(t *testing.T) {
@@ -295,7 +298,7 @@ func TestEvalSymlinks(t *testing.T) {
 		resolved, err := vfs.EvalSymlinks(fs, "/root/link/sub")
 
 		require.NoError(t, err)
-		assert.Equal(t, "/root/real/sub", resolved)
+		assert.Equal(t, filepath.FromSlash("/root/real/sub"), resolved)
 	})
 
 	t.Run("missing path returns error", func(t *testing.T) {
@@ -369,7 +372,11 @@ func TestParentPathHasSymlink(t *testing.T) {
 	t.Run("absolute relative path is unsafe", func(t *testing.T) {
 		t.Parallel()
 
-		hasSymlink, err := vfs.ParentPathHasSymlink(vfs.NewMemMapFS(), "/root", "/root/file.txt")
+		hasSymlink, err := vfs.ParentPathHasSymlink(
+			vfs.NewMemMapFS(),
+			"/root",
+			venvtest.Root("/root/file.txt"),
+		)
 
 		require.NoError(t, err)
 		assert.True(t, hasSymlink)
@@ -522,6 +529,10 @@ func TestUnzip(t *testing.T) {
 	t.Run("permissions preserved with umask 0", func(t *testing.T) {
 		t.Parallel()
 
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
+
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
 		zipPath := filepath.Join(tempDir, "archive.zip")
@@ -541,6 +552,10 @@ func TestUnzip(t *testing.T) {
 
 	t.Run("permissions with umask applied", func(t *testing.T) {
 		t.Parallel()
+
+		if helpers.IsWindows() {
+			t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+		}
 
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
@@ -801,7 +816,7 @@ func TestUnzipFilesLimit(t *testing.T) {
 		assert.Contains(t, err.Error(), "exceeds limit")
 	})
 
-	t.Run("no limit when FilesLimit is zero", func(t *testing.T) {
+	t.Run("no limit when FilesLimit is explicitly zero", func(t *testing.T) {
 		t.Parallel()
 
 		fs := vfs.NewMemMapFS()
@@ -812,10 +827,21 @@ func TestUnzipFilesLimit(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor(vfs.WithFilesLimit(0)).Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 	})
+}
+
+// TestNewZipDecompressorBoundsByDefault pins that a decompressor built
+// without options still bounds what it extracts.
+func TestNewZipDecompressorBoundsByDefault(t *testing.T) {
+	t.Parallel()
+
+	z := vfs.NewZipDecompressor()
+
+	assert.Equal(t, vfs.DefaultZipFileSizeLimit, z.FileSizeLimit)
+	assert.Equal(t, vfs.DefaultZipFilesLimit, z.FilesLimit)
 }
 
 func TestUnzipFileSizeLimit(t *testing.T) {
@@ -964,7 +990,7 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 			"target.txt",
 			[]byte("target content"),
 			"evil_link.txt",
-			"/etc/passwd",
+			venvtest.Root("/abs/path"),
 		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
@@ -984,7 +1010,7 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 
 		// Create symlink pointing outside destination with ..
 		zipData := createZipArchiveWithSymlink(
-			t, "target.txt", []byte("target content"), "evil_link.txt", "../../../etc/passwd",
+			t, "target.txt", []byte("target content"), "evil_link.txt", "../../../outside",
 		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
@@ -1042,13 +1068,18 @@ func TestWalkDir(t *testing.T) {
 	t.Run("walks nested directories", func(t *testing.T) {
 		t.Parallel()
 
+		root := filepath.FromSlash("/root")
+
 		memFs := vfs.NewMemMapFS()
-		require.NoError(t, vfs.WriteFile(memFs, "/root/dir/nested.txt", []byte("n"), 0644))
-		require.NoError(t, vfs.WriteFile(memFs, "/root/top.txt", []byte("t"), 0644))
+		require.NoError(
+			t,
+			vfs.WriteFile(memFs, filepath.Join(root, "dir", "nested.txt"), []byte("n"), 0644),
+		)
+		require.NoError(t, vfs.WriteFile(memFs, filepath.Join(root, "top.txt"), []byte("t"), 0644))
 
 		var paths []string
 
-		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+		err := vfs.WalkDir(memFs, root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -1061,7 +1092,12 @@ func TestWalkDir(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(
 			t,
-			[]string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"},
+			[]string{
+				root,
+				filepath.Join(root, "dir"),
+				filepath.Join(root, "dir", "nested.txt"),
+				filepath.Join(root, "top.txt"),
+			},
 			paths,
 		)
 	})
@@ -1091,13 +1127,21 @@ func TestWalkDir(t *testing.T) {
 	t.Run("SkipDir skips directory", func(t *testing.T) {
 		t.Parallel()
 
+		root := filepath.FromSlash("/root")
+
 		memFs := vfs.NewMemMapFS()
-		require.NoError(t, vfs.WriteFile(memFs, "/root/skip/hidden.txt", []byte("h"), 0644))
-		require.NoError(t, vfs.WriteFile(memFs, "/root/keep/visible.txt", []byte("v"), 0644))
+		require.NoError(
+			t,
+			vfs.WriteFile(memFs, filepath.Join(root, "skip", "hidden.txt"), []byte("h"), 0644),
+		)
+		require.NoError(
+			t,
+			vfs.WriteFile(memFs, filepath.Join(root, "keep", "visible.txt"), []byte("v"), 0644),
+		)
 
 		var paths []string
 
-		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+		err := vfs.WalkDir(memFs, root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -1112,7 +1156,11 @@ func TestWalkDir(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"/root", "/root/keep", "/root/keep/visible.txt"}, paths)
+		assert.Equal(
+			t,
+			[]string{root, filepath.Join(root, "keep"), filepath.Join(root, "keep", "visible.txt")},
+			paths,
+		)
 	})
 
 	t.Run("nonexistent root returns error to callback", func(t *testing.T) {
@@ -1332,6 +1380,63 @@ func TestWalkDirWithSymlinks(t *testing.T) {
 			root,
 			func(_ string, _ fs.DirEntry, err error) error { return err },
 		))
+	})
+
+	t.Run("missing root skipped by fn", func(t *testing.T) {
+		t.Parallel()
+
+		root := filepath.Join(evaledTempDir(t), "nonexistent")
+
+		var errPaths []string
+
+		require.NoError(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(path string, _ fs.DirEntry, err error) error {
+				if err != nil {
+					errPaths = append(errPaths, path)
+				}
+
+				return nil
+			},
+		))
+
+		assert.Equal(t, []string{root}, errPaths)
+	})
+
+	t.Run("broken symlink skipped by fn", func(t *testing.T) {
+		t.Parallel()
+
+		root := evaledTempDir(t)
+
+		require.NoError(
+			t,
+			os.Symlink(filepath.Join(root, "nonexistent"), filepath.Join(root, "a-broken")),
+		)
+		require.NoError(t, os.WriteFile(filepath.Join(root, "b.txt"), []byte("test"), 0644))
+
+		var paths, errPaths []string
+
+		require.NoError(t, vfs.WalkDirWithSymlinks(
+			vfs.NewOSFS(),
+			root,
+			func(path string, _ fs.DirEntry, err error) error {
+				rel, relErr := filepath.Rel(root, path)
+				require.NoError(t, relErr)
+
+				switch {
+				case err != nil:
+					errPaths = append(errPaths, rel)
+				default:
+					paths = append(paths, rel)
+				}
+
+				return nil
+			},
+		))
+
+		assert.Equal(t, []string{"a-broken"}, errPaths)
+		assert.Equal(t, []string{".", "a-broken", "b.txt"}, paths)
 	})
 }
 
@@ -1994,6 +2099,44 @@ func TestWalkDirParallel(t *testing.T) {
 		assert.Contains(t, seen, filepath.Join(root, "keep", "a.txt"))
 		assert.NotContains(t, seen, filepath.Join(root, "skip", "b.txt"))
 	})
+
+	t.Run("WithWorkers(1) never overlaps two callbacks", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		osFs := vfs.NewOSFS()
+
+		for i := range 32 {
+			require.NoError(t, vfs.WriteFile(
+				osFs,
+				filepath.Join(root, fmt.Sprintf("d%02d", i), "f.txt"),
+				[]byte("x"),
+				0o644,
+			))
+		}
+
+		var inFlight, overlaps, visited atomic.Int32
+
+		err := vfs.WalkDirParallel(osFs, root, func(_ string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if inFlight.Add(1) > 1 {
+				overlaps.Add(1)
+			}
+
+			visited.Add(1)
+			inFlight.Add(-1)
+
+			return nil
+		}, vfs.WithWorkers(1))
+
+		require.NoError(t, err)
+		assert.Zero(t, overlaps.Load())
+		// root, 32 dirs, 32 files.
+		assert.Equal(t, int32(65), visited.Load())
+	})
 }
 
 func TestCreateTemp(t *testing.T) {
@@ -2091,7 +2234,10 @@ func TestValidateResolvedSymlinkTarget(t *testing.T) {
 
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
 		require.NoError(t, os.WriteFile(outside, []byte("secret\n"), 0o600))
-		require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "real.txt"), []byte("ok\n"), 0o644))
+		require.NoError(
+			t,
+			os.WriteFile(filepath.Join(root, "sub", "real.txt"), []byte("ok\n"), 0o644),
+		)
 
 		return root, outside
 	}

@@ -1,9 +1,11 @@
 import type { CollectionEntry } from "astro:content";
-import { isReleased } from "./changelog";
+import { isReleased } from "./versions";
 
 export type CompatibilityEntry = CollectionEntry<"compatibility">;
 
-// Hide entries whose terragrunt_min has not been released yet.
+// Hide entries whose terragrunt_min has not been released yet. Compatibility
+// data omits the `v` that `latestVersion` carries, since the compatibility API
+// serves it as written.
 export function filterByReleasedMin<T extends CompatibilityEntry>(
   entries: T[],
   latestVersion: string,

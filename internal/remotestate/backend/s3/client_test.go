@@ -3,6 +3,7 @@
 package s3_test
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,9 +14,11 @@ import (
 	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -49,7 +52,7 @@ func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 	return client
 }
 
-func TestAwsCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
+func TestAWSCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -59,7 +62,7 @@ func TestAwsCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
 	})
 }
 
-func TestAwsCreateLockTableConcurrency(t *testing.T) {
+func TestAWSCreateLockTableConcurrency(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -85,7 +88,7 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 	waitGroup.Wait()
 }
 
-func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
+func TestAWSWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -110,7 +113,7 @@ func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	assert.True(t, errorMatchs, "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
-func TestAwsCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
+func TestAWSCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -127,7 +130,7 @@ func TestAwsCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 	})
 }
 
-func TestAwsTableTagging(t *testing.T) {
+func TestAWSTableTagging(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -147,10 +150,10 @@ func TestAwsTableTagging(t *testing.T) {
 	})
 }
 
-// TestAwsCreateLockTableWithTagsAtCreation verifies that
+// TestAWSCreateLockTableWithTagsAtCreation verifies that
 // DynamoDB lock table tags are applied during the initial
 // CreateTable API request.
-func TestAwsCreateLockTableWithTagsAtCreation(t *testing.T) {
+func TestAWSCreateLockTableWithTagsAtCreation(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -300,11 +303,11 @@ func CreateKeyFromItemID(itemID string) map[string]dynamodbtypes.AttributeValue 
 	}
 }
 
-// TestAwsCreateS3BucketWithTagsAtCreation verifies that tags passed via
+// TestAWSCreateS3BucketWithTagsAtCreation verifies that tags passed via
 // CreateS3BucketOpts are applied at bucket creation time (via
 // CreateBucketConfiguration.Tags), without relying on a subsequent
 // PutBucketTagging call.
-func TestAwsCreateS3BucketWithTagsAtCreation(t *testing.T) {
+func TestAWSCreateS3BucketWithTagsAtCreation(t *testing.T) {
 	t.Parallel()
 
 	client := CreateS3ClientForTest(t)
@@ -353,4 +356,36 @@ func TestAwsCreateS3BucketWithTagsAtCreation(t *testing.T) {
 		actualTags,
 		"Tags should be present from creation-time CreateBucketConfiguration.Tags",
 	)
+}
+
+// TestAWSCreateS3BucketInAccountRegionalNamespace verifies that a bucket named for the caller's
+// account regional namespace is created there. S3 rejects that name in the shared global namespace,
+// so a successful create proves Terragrunt asked for the right one.
+func TestAWSCreateS3BucketInAccountRegionalNamespace(t *testing.T) {
+	t.Parallel()
+
+	client := CreateS3ClientForTest(t)
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(t.Context(), awsconfig.WithRegion(defaultTestRegion))
+	require.NoError(t, err)
+
+	accountID, err := awshelper.GetAWSAccountID(t.Context(), &awsCfg)
+	require.NoError(t, err)
+
+	bucketName := fmt.Sprintf(
+		"terragrunt-test-%s-%s-%s-an",
+		strings.ToLower(util.UniqueID()),
+		accountID,
+		defaultTestRegion,
+	)
+
+	l := logger.CreateLogger()
+
+	require.NoError(t, client.CreateS3Bucket(t.Context(), l, bucketName))
+
+	defer func() {
+		require.NoError(t, client.DeleteS3BucketWithAllObjects(t.Context(), l, bucketName))
+	}()
+
+	require.NoError(t, client.WaitUntilS3BucketExists(t.Context(), l, bucketName))
 }

@@ -447,12 +447,7 @@ func TestTFPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
-	if err != nil {
-		t.Fatalf(
-			"run --all apply in TestTFPreventDestroyDependenciesIncludedConfig failed with error: %v. Full std",
-			err,
-		)
-	}
+	require.NoError(t, err, "run --all apply in TestTFPreventDestroyDependenciesIncludedConfig failed")
 
 	var (
 		destroyAllStdout bytes.Buffer

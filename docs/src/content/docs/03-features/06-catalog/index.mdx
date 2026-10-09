@@ -8,6 +8,8 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import PortalCatalogBeta from '@components/PortalCatalogBeta.astro';
 
 Terragrunt's catalog ecosystem provides two complementary tools for working with OpenTofu/Terraform modules:
 
@@ -17,6 +19,16 @@ Terragrunt's catalog ecosystem provides two complementary tools for working with
 You can use Scaffold standalone, or launch it directly from the Catalog TUI by pressing `S` on a selected module.
 
 Where a terminal is not available, the catalog can write what it discovers to standard output instead of drawing an interface. See [Non-interactive catalog](/features/catalog/non-interactive).
+
+<Since version="v1.2.0">
+
+An organization can also register catalog repositories in the Gruntwork Developer Portal.
+
+After `terragrunt --experiment tg-login login`, `terragrunt --experiment tg-login catalog` will automatically discover repositories selected in the Gruntwork Developer Portal as part of your catalog.
+
+<PortalCatalogBeta campaign="catalog-overview" />
+
+</Since>
 
 ## Security Configuration
 

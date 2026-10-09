@@ -54,7 +54,7 @@ func TestAzureDependencyFetchOutputFromState(t *testing.T) {
 	_, _, rootPath := setupAzureFixture(t, testFixtureAzureDependencyState)
 	producerPath := filepath.Join(rootPath, "producer")
 	consumerPath := filepath.Join(rootPath, "consumer")
-	consumerPlan := "terragrunt run plan --backend-bootstrap --experiment azure-backend " +
+	consumerPlan := "terragrunt run plan --backend-bootstrap " +
 		"--dependency-fetch-output-from-state --non-interactive --log-level debug --working-dir " + consumerPath
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, consumerPlan)
@@ -64,7 +64,7 @@ func TestAzureDependencyFetchOutputFromState(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run apply --backend-bootstrap --experiment azure-backend --non-interactive --tf-path "+
+		"terragrunt run apply --backend-bootstrap --non-interactive --tf-path "+
 			helpers.WrappedBinary(t.Context())+" --working-dir "+producerPath+" -- -auto-approve",
 	)
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestAzureBootstrapBackend(t *testing.T) {
 
 			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 				t,
-				"terragrunt "+tc.args+" --all --non-interactive --experiment azure-backend --log-level debug --working-dir "+rootPath,
+				"terragrunt "+tc.args+" --all --non-interactive --log-level debug --working-dir "+rootPath,
 			)
 
 			tc.checkResult(t, ctx, stderr, account, container, err)
@@ -160,7 +160,7 @@ func TestAzureBackendVersioningConverges(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt backend bootstrap --all --non-interactive --experiment azure-backend --working-dir "+rootPath,
+		"terragrunt backend bootstrap --all --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -192,7 +192,7 @@ func TestAzureDeleteBackend(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run apply --all --non-interactive --backend-bootstrap --experiment azure-backend --working-dir "+rootPath,
+		"terragrunt run apply --all --non-interactive --backend-bootstrap --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -209,7 +209,7 @@ func TestAzureDeleteBackend(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt backend delete --all --non-interactive --force --experiment azure-backend --working-dir "+rootPath,
+		"terragrunt backend delete --all --non-interactive --force --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -223,29 +223,9 @@ func TestAzureDeleteBackend(t *testing.T) {
 	// Deleting again must be a no-op rather than an error.
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt backend delete --all --non-interactive --force --experiment azure-backend --working-dir "+rootPath,
-	)
-	require.NoError(t, err, "backend delete must be idempotent")
-}
-
-// TestAzureBackendRequiresExperiment verifies the experiment gate end to end:
-// an explicit backend command refuses to run without the experiment enabled.
-func TestAzureBackendRequiresExperiment(t *testing.T) {
-	t.Parallel()
-
-	_, _, rootPath := setupAzureBackendFixture(t)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
 		"terragrunt backend delete --all --non-interactive --force --working-dir "+rootPath,
 	)
-
-	require.Error(t, err)
-
-	// The CLI routes the failure through the returned error; stderr carries only
-	// the troubleshooting tip, so assert on the error the user actually gets.
-	assert.Contains(t, err.Error()+stderr, "azure-backend",
-		"the failure must name the experiment the user needs to enable")
+	require.NoError(t, err, "backend delete must be idempotent")
 }
 
 // TestAzureCreatesResourceGroupAndStorageAccount proves bootstrap provisions both
@@ -274,7 +254,7 @@ func TestAzureCreatesResourceGroupAndStorageAccount(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt backend bootstrap --all --non-interactive --experiment azure-backend --working-dir "+rootPath,
+		"terragrunt backend bootstrap --all --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -297,7 +277,7 @@ func TestAzureSoftDeleteRetentionConverges(t *testing.T) {
 	ctx := t.Context()
 	account, resourceGroup, _, rootPath := setupAzureProvisionFixture(t, true)
 
-	bootstrap := "terragrunt backend bootstrap --all --non-interactive --experiment azure-backend --working-dir " + rootPath
+	bootstrap := "terragrunt backend bootstrap --all --non-interactive --working-dir " + rootPath
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, bootstrap)
 	require.NoError(t, err)
@@ -336,7 +316,7 @@ func TestAzureMigrateBackend(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run apply --backend-bootstrap --experiment azure-backend --non-interactive --log-level debug --working-dir "+
+		"terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+
 			unit1Path+" -- -auto-approve",
 	)
 	require.NoError(t, err)
@@ -354,7 +334,7 @@ func TestAzureMigrateBackend(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt backend migrate --experiment azure-backend --non-interactive --log-level debug --working-dir "+
+		"terragrunt backend migrate --non-interactive --log-level debug --working-dir "+
 			rootPath+" unit1 unit2",
 	)
 	require.NoError(t, err)
@@ -396,7 +376,7 @@ func TestAzureAssignsBlobDataRole(t *testing.T) {
 	// feature closes.
 	waitForRoleAssignment(ctx, t, rbacClient, scope, principal.ID, false)
 
-	bootstrap := "terragrunt backend bootstrap --all --non-interactive --experiment azure-backend --working-dir " + rootPath
+	bootstrap := "terragrunt backend bootstrap --all --non-interactive --working-dir " + rootPath
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, bootstrap)
 	require.NoError(t, err)
@@ -429,7 +409,7 @@ func TestAzureSkipsRoleAssignmentByDefault(t *testing.T) {
 	scope := azurehelper.StorageAccountScope(cfg.SubscriptionID, resourceGroup, account)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t,
-		"terragrunt backend bootstrap --all --non-interactive --experiment azure-backend --working-dir "+rootPath)
+		"terragrunt backend bootstrap --all --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	has, err := rbacClient.HasRoleAssignment(ctx, scope, principal.ID, azurehelper.RoleStorageBlobDataContributor)
@@ -602,7 +582,13 @@ func waitForRoleAssignment(ctx context.Context, t *testing.T, c *azurehelper.RBA
 		time.Sleep(azureRBACPollInterval)
 	}
 
-	t.Fatalf("role assignment did not converge to present=%v within %s", want, azureRBACPropagationTimeout)
+	require.FailNowf(
+		t,
+		"role assignment did not converge",
+		"role assignment did not converge to present=%v within %s",
+		want,
+		azureRBACPropagationTimeout,
+	)
 }
 
 // setupAzureBackendFixture copies the fixture, fills in the live account

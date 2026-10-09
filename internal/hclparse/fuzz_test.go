@@ -1,13 +1,14 @@
 package hclparse_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -34,6 +35,72 @@ func FuzzParseStackFile(f *testing.F) {
 		`locals { a = local.b; b = local.a }; unit "x" { source = "."; path = "x" }`,
 		`locals { x = 42 }; unit "x" { source = "."; path = "x" }`,
 		`locals { flag = true }; unit "x" { source = "."; path = "x" }`,
+		`unit "vpc" {
+  expansion {
+    for_each = { east = "east", west = "west" }
+  }
+  source = "."
+  path = "vpc/${each.key}"
+}
+
+unit "app" {
+  source = "."
+  path = "app"
+  autoinclude {
+    dependency "vpc" {
+      expansion {
+        for_each = { east = "east", west = "west" }
+      }
+      config_path = unit.vpc[each.key].path
+    }
+  }
+}`,
+		`unit "shard" {
+  expansion {
+    count = 2
+  }
+  source = "."
+  path = "shard/${count.index}"
+  autoinclude {
+    dependency "peer" {
+      expansion {
+        count = count.index
+      }
+      config_path = unit.shard[count.index].path
+    }
+  }
+}`,
+		`unit "env" {
+  source = "."
+  path = "env"
+}
+
+unit "env" {
+  expansion {
+    for_each = { dev = "dev" }
+  }
+  source = "."
+  path = "env/${each.key}"
+}`,
+		`unit "x" {
+  expansion {
+    count = 1
+    for_each = { a = "a" }
+  }
+  source = "."
+  path = "x"
+}`,
+		`unit "x" {
+  source = "."
+  path = "x"
+  autoinclude {
+    dependency "d" {
+      expansion {
+      }
+      config_path = "../d"
+    }
+  }
+}`,
 	}
 
 	for _, seed := range seeds {
@@ -43,7 +110,7 @@ func FuzzParseStackFile(f *testing.F) {
 	f.Fuzz(func(t *testing.T, input string) {
 		fs := vfs.NewMemMapFS()
 
-		_, _ = hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		_, _ = hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 			Src:      []byte(input),
 			Filename: "fuzz.hcl",
 			StackDir: "/fuzz",
@@ -90,7 +157,7 @@ func FuzzPartialEval(f *testing.F) {
 		},
 	}
 
-	deferred := map[string]bool{"dependency": true}
+	deferred := map[string]struct{}{"dependency": {}}
 
 	f.Fuzz(func(t *testing.T, input string) {
 		srcBytes := []byte(input)
@@ -145,7 +212,7 @@ unit "app" { source = "."; path = "app"
 		srcBytes := []byte(input)
 		fs := vfs.NewMemMapFS()
 
-		result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 			Src:      srcBytes,
 			Filename: "fuzz.hcl",
 			StackDir: "/fuzz",
@@ -205,7 +272,11 @@ func FuzzBuildComponentRefMap(f *testing.F) {
 	f.Add("name", "/also-reserved")
 
 	f.Fuzz(func(t *testing.T, name, path string) {
-		hclparse.BuildComponentRefMap([]hclparse.ComponentRef{{Name: name, Path: path}})
+		_, err := hclparse.BuildComponentRefMap(
+			hclparse.VarUnit,
+			[]hclparse.ComponentRef{{Name: name, Path: path}},
+		)
+		require.NoError(t, err)
 	})
 }
 
@@ -221,6 +292,83 @@ func FuzzAutoIncludeResolve(f *testing.F) {
 		`{}`,
 		`dependency "x" {}`,
 		`retry "err" { retryable_errors = [".*"]; max_attempts = 3 }`,
+		`dependency "vpc" {
+  expansion {
+    for_each = { a = "../a", b = "../b" }
+  }
+  config_path = each.value
+}`,
+		`dependency "vpc" {
+  expansion {
+    count = 2
+  }
+  config_path = "../vpc-${count.index}"
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each = { a = 1, b = null }
+  }
+  config_path = each.value
+}`,
+		`dependency "vpc" {
+  expansion {
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each = { a = "a" }
+    count = 1
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    count = 1
+  }
+  expansion {
+    count = 2
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion "x" {
+    count = 1
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each {
+    }
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    bogus = 1
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    count = -1
+  }
+  config_path = "../vpc"
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each = ["a"]
+  }
+  config_path = unit.vpc.path
+}`,
+		`dependency "vpc" {
+  expansion {
+    for_each = { a = "a" }
+  }
+  config_path = unit[each.key].path
+  mock_outputs = { id = each.key }
+}`,
 	}
 
 	for _, seed := range seeds {
@@ -247,7 +395,7 @@ func FuzzAutoIncludeResolve(f *testing.F) {
 		}
 
 		autoInclude := &hclparse.AutoIncludeHCL{Remain: file.Body}
-		_, _ = autoInclude.Resolve(evalCtx)
+		_, _ = autoInclude.Resolve(t.Context(), evalCtx)
 	})
 }
 
@@ -273,13 +421,13 @@ func FuzzParseStackFileFromPath_ArgPanics(f *testing.F) {
 
 			switch {
 			case stackDir == "" && r == nil:
-				t.Errorf("expected panic for empty stackDir, got none")
+				assert.Fail(t, "expected panic for empty stackDir, got none")
 			case stackDir != "" && r != nil:
-				t.Errorf("unexpected panic for stackDir=%q: %v", stackDir, r)
+				assert.Fail(t, "unexpected panic", "stackDir=%q: %v", stackDir, r)
 			}
 		}()
 
-		_, _ = hclparse.ParseStackFileFromPath(fs, stackDir)
+		_, _ = hclparse.ParseStackFileFromPath(t.Context(), fs, stackDir)
 	})
 }
 
@@ -300,13 +448,18 @@ func FuzzUnitPathsFromStackDir_ArgPanics(f *testing.F) {
 
 			switch {
 			case stackDir == "" && r == nil:
-				t.Errorf("expected panic for empty stackDir, got none")
+				assert.Fail(t, "expected panic for empty stackDir, got none")
 			case stackDir != "" && r != nil:
-				t.Errorf("unexpected panic for stackDir=%q: %v", stackDir, r)
+				assert.Fail(t, "unexpected panic", "stackDir=%q: %v", stackDir, r)
 			}
 		}()
 
-		_, _ = hclparse.UnitPathsFromStackDir(fs, stackDir, &hclparse.StackDirArgs{FuncsFor: noFuncs})
+		_, _ = hclparse.UnitPathsFromStackDir(
+			t.Context(),
+			fs,
+			stackDir,
+			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		)
 	})
 }
 
@@ -332,16 +485,15 @@ func FuzzAutoIncludeDependencyPaths_ArgErrors(f *testing.F) {
 
 		defer func() {
 			if r := recover(); r != nil {
-				t.Errorf("unexpected panic for unitDir=%q: %v", unitDir, r)
+				assert.Fail(t, "unexpected panic", "unitDir=%q: %v", unitDir, r)
 			}
 		}()
 
 		_, err := hclparse.AutoIncludeDependencyPaths(fs, unitDir)
 
 		if unitDir == "" {
-			if _, ok := errors.AsType[hclparse.EmptyArgError](err); !ok {
-				t.Errorf("expected EmptyArgError for empty unitDir, got %v", err)
-			}
+			var emptyArgErr hclparse.EmptyArgError
+			assert.ErrorAs(t, err, &emptyArgErr)
 		}
 	})
 }
@@ -363,9 +515,9 @@ func FuzzGenerateAutoIncludeFile_ArgPanics(f *testing.F) {
 
 			switch {
 			case targetDir == "" && r == nil:
-				t.Errorf("expected panic for empty targetDir, got none")
+				assert.Fail(t, "expected panic for empty targetDir, got none")
 			case targetDir != "" && r != nil:
-				t.Errorf("unexpected panic for targetDir=%q: %v", targetDir, r)
+				assert.Fail(t, "unexpected panic", "targetDir=%q: %v", targetDir, r)
 			}
 		}()
 
@@ -416,7 +568,7 @@ unit "extra" { source = "."; path = "extra"; values = { v = dependency.foo.outpu
 		}
 
 		autoInclude := &hclparse.AutoIncludeHCL{Remain: file.Body}
-		_, _ = autoInclude.ResolveForKind(evalCtx, hclparse.KindStack, "fuzz")
+		_, _ = autoInclude.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "fuzz")
 	})
 }
 
@@ -460,6 +612,11 @@ func FuzzUnitPathsFromStackDir_AutoIncludeContent(f *testing.F) {
 			0644,
 		)
 
-		_, _ = hclparse.UnitPathsFromStackDir(fs, "/fuzz", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+		_, _ = hclparse.UnitPathsFromStackDir(
+			t.Context(),
+			fs,
+			"/fuzz",
+			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		)
 	})
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -608,7 +609,8 @@ func TestTFLogWithRelPath(t *testing.T) {
 				assert.Contains(
 					t,
 					stderr,
-					"Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache",
+					"Downloading OpenTofu/Terraform configurations "+
+						"from .. into ./bbb/ccc/workspace/.terragrunt-cache",
 				)
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
 				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
@@ -849,8 +851,8 @@ func TestTFTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 			)
 
 			providers := []string{
-				"hashicorp/null/3.2.3",
-				"hashicorp/local/2.5.2",
+				"hashicorp/null/3.2.4",
+				"hashicorp/local/2.6.1",
 			}
 
 			registryName := "registry.opentofu.org"
@@ -1181,9 +1183,7 @@ func TestTFTerraformSubcommandCliArgs(t *testing.T) {
 		// Call helpers.RunTerragruntCommand directly because this command
 		// contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-		if err == nil {
-			t.Fatalf("Failed to properly fail command: %v.", cmd)
-		}
+		require.Error(t, err, "Failed to properly fail command: %v.", cmd)
 
 		assert.True(
 			t,
@@ -1361,9 +1361,7 @@ func TestTFTerragruntExcludeExternalDependencies(t *testing.T) {
 
 	applyAllStdoutString := applyAllStdout.String()
 
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
+	require.NoError(t, err)
 
 	assert.Contains(t, applyAllStdoutString, "Hello World, "+includedModule)
 	assert.NotContains(t, applyAllStdoutString, "Hello World, "+excludedModule)
@@ -3756,8 +3754,9 @@ func TestTFTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
-//nolint:paralleltest // it overrides the global version.Version
 func TestTFTerragruntValidateAllWithVersionChecks(t *testing.T) {
+	t.Parallel()
+
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/version-check")
 
 	stdout := bytes.Buffer{}
@@ -3791,8 +3790,9 @@ func TestTFTerragruntIncludeParentHclFile(t *testing.T) {
 	assert.Contains(t, stderr, "common_hcl")
 }
 
-//nolint:paralleltest // runTerragruntVersionCommand overrides the global version.Version
 func TestTFTerragruntVersionConstraints(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name                 string
 		terragruntVersion    string
@@ -3843,8 +3843,10 @@ func TestTFTerragruntVersionConstraints(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases { //nolint:paralleltest // the parent test overrides the global version.Version
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_constraints")
 
@@ -3890,7 +3892,7 @@ func TestTFReadTerragruntAuthProviderCmd(t *testing.T) {
 	appPath := filepath.Join(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	helpers.RunTerragrunt(
 		t,
@@ -3964,7 +3966,7 @@ func TestTFReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
@@ -4024,7 +4026,7 @@ func TestTFNoDiscoveryAuthProviderCmdSkipsDiscoveryAuthWithRacing(t *testing.T) 
 	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
 	logPath := filepath.Join(rootPath, "calls.jsonl")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, authProviderCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, authProviderCmd)
 	require.NoError(t, os.Remove(logPath), "auth-provider.sh should have created %s", logPath)
 
 	helpers.RunTerragrunt(
@@ -4087,8 +4089,9 @@ func TestTFIamRolesLoadingFromDifferentModules(t *testing.T) {
 	assert.NotEmptyf(t, component2, "Missing role for component 2")
 }
 
-//nolint:paralleltest // it overrides the global version.Version
 func TestTFTerragruntVersionConstraintsPartialParse(t *testing.T) {
+	t.Parallel()
+
 	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
 	helpers.CleanupTerragruntFolder(t, fixturePath)
 
@@ -4127,7 +4130,7 @@ func TestTFLogFailingDependencies(t *testing.T) {
 	)
 	require.Error(t, err)
 
-	// Check that the error output contains terraform/tofu error details
+	// Check that the error output contains tofu/terraform error details
 	assert.Contains(t, stderr, "Getting output of dependency ../dependency/terragrunt.hcl")
 	assert.Contains(t, stderr, "Error: Failed to download module")
 }
@@ -4425,9 +4428,12 @@ func TestTFInitSkipCache(t *testing.T) {
 
 	// verify that after adding new file, init is executed
 	tfFile := filepath.Join(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
-	if err := os.WriteFile(tfFile, []byte(""), 0o644); err != nil {
-		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
-	}
+	require.NoError(
+		t,
+		os.WriteFile(tfFile, []byte(""), 0o644),
+		"Error writing new Terraform file to %s",
+		tfFile,
+	)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -4916,7 +4922,7 @@ func TestTFLogFormatJSONOutput(t *testing.T) {
 	assert.Contains(
 		t,
 		strings.Join(msgs, ""),
-		"Downloading Terraform configurations from git::"+mirror.URL,
+		"Downloading OpenTofu/Terraform configurations from git::"+mirror.URL,
 	)
 	assert.Contains(t, strings.Join(msgs, ""), "ref=v0.83.2")
 }

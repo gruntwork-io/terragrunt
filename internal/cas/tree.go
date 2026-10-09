@@ -2,15 +2,24 @@ package cas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"unicode"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -31,20 +40,54 @@ const (
 	gitTypeSymlink = uint64(0o120000)
 )
 
+// LinkFallback classifies why a tree could not be materialized in the mode it
+// was asked for. It is the fallback attribute on the cas_link_tree span.
+type LinkFallback string
+
+const (
+	// LinkFallbackNone reports that the requested mode served the whole tree.
+	LinkFallbackNone LinkFallback = ""
+
+	// LinkFallbackCloneUnsupported reports that the filesystem holding the
+	// target has no copy-on-write clone, so files were copied instead.
+	LinkFallbackCloneUnsupported LinkFallback = "clone_unsupported"
+
+	// LinkFallbackHardlinkUnavailable reports that some files could not be
+	// hard linked and were copied, because the target sits on another
+	// filesystem, the filesystem has no hard links, or a stored blob's
+	// permissions differ from the ones requested.
+	LinkFallbackHardlinkUnavailable LinkFallback = "hardlink_unavailable"
+)
+
+// linkFallbackByMode names the fallback a tree reports when the mode it was
+// asked for did not serve every file in it. [LinkModeCopy] never falls back,
+// so it has no entry.
+var linkFallbackByMode = map[LinkMode]LinkFallback{
+	LinkModeHardlink: LinkFallbackHardlinkUnavailable,
+	LinkModeClone:    LinkFallbackCloneUnsupported,
+}
+
 // LinkTreeOption configures a LinkTree call.
 type LinkTreeOption func(*linkTreeOpts)
 
 type linkTreeOpts struct {
 	maxDepth  int
-	forceCopy bool
+	mode      LinkMode
+	mutable   bool
 	fsWorkers int
 }
 
-// WithForceCopy makes LinkTree copy blobs from the CAS store into the target
-// directory instead of hardlinking them. The destination tree becomes safe to
-// mutate without affecting the shared store, at the cost of extra I/O.
-func WithForceCopy() LinkTreeOption {
-	return func(o *linkTreeOpts) { o.forceCopy = true }
+// WithMutableTree tells LinkTree the target directory is going to be edited,
+// so a tree asked for in [LinkModeHardlink] is cloned and every file in it is
+// writable.
+func WithMutableTree() LinkTreeOption {
+	return func(o *linkTreeOpts) { o.mutable = true }
+}
+
+// WithTreeLinkMode selects how blobs reach the target directory. Without it
+// LinkTree uses [DefaultLinkMode].
+func WithTreeLinkMode(mode LinkMode) LinkTreeOption {
+	return func(o *linkTreeOpts) { o.mode = mode }
 }
 
 // WithMaxTreeDepth sets how deep a tree is followed before materialization
@@ -84,6 +127,12 @@ type treeWork struct {
 
 // LinkTree writes the tree to a target directory.
 // blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
+//
+// The whole tree, subtrees included, is reported as one cas_link_tree span
+// with the requested mode and how many files each mode served.
+//
+// An entry that leaves targetDir, would be written through a symbolic link, or names a path another entry names
+// refuses the whole call with ErrTreeEntryEscapesDir, ErrTreeEntryCrossesSymlink, or ErrTreeEntryCollides.
 func LinkTree(
 	ctx context.Context,
 	l log.Logger,
@@ -94,7 +143,7 @@ func LinkTree(
 	targetDir string,
 	opts ...LinkTreeOption,
 ) error {
-	var o linkTreeOpts
+	o := linkTreeOpts{mode: DefaultLinkMode}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -103,25 +152,51 @@ func LinkTree(
 	// probe cost on every subtree.
 	o.fsWorkers = vfs.FSWorkersFor(v.FS, targetDir)
 
+	mode := resolveLinkMode(o.mode, o.mutable)
+
+	// An empty tree writes nothing, so the root is neither created nor probed and stays as the caller left it.
+	var folding vfs.NameFolding
+
+	if len(t.Entries()) > 0 {
+		// The root is created here so its filesystem can be probed; planTree would create it anyway.
+		if err := v.FS.MkdirAll(targetDir, DefaultDirPerms); err != nil {
+			return fmt.Errorf("mkdir %s: %w", targetDir, err)
+		}
+
+		var err error
+
+		// Probed at the root: a nested mount with other folding rules inside the download directory is not repository state.
+		if folding, err = vfs.DetectNameFolding(v.FS, targetDir); err != nil {
+			return fmt.Errorf("probe name folding of %s: %w", targetDir, err)
+		}
+	}
+
 	linker := &treeLinker{
 		blobContent: NewContent(blobStore),
 		treeContent: NewContent(treeStore),
 		treeStore:   treeStore,
+		entries:     newTreeEntryRegistry(targetDir, folding),
 		rootDir:     targetDir,
 		maxDepth:    o.maxTreeDepth(),
+		mode:        mode,
+		mutable:     o.mutable,
 	}
 
-	if o.forceCopy {
-		linker.linkOpts = append(linker.linkOpts, WithLinkForceCopy())
-	}
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, nil, "cas_link_tree", map[string]any{
+		"path": targetDir,
+		"mode": mode.String(),
+	}, telemetry.WithoutLogger(func(childCtx context.Context) error {
+		err := linkTree(l, v, linker, t, targetDir, o.fsWorkers)
 
-	return linkTree(ctx, l, v, linker, t, targetDir, o.fsWorkers)
+		linker.report(childCtx)
+
+		return err
+	}))
 }
 
 // linkTree materializes t and everything nested below it, one level of the
 // tree at a time.
 func linkTree(
-	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	linker *treeLinker,
@@ -129,21 +204,29 @@ func linkTree(
 	targetDir string,
 	fsWorkers int,
 ) error {
-	level, err := planTree(v, t, targetDir, 0)
+	level, err := linker.planTree(v, t, targetDir, 0)
 	if err != nil {
 		return err
 	}
 
 	for len(level) > 0 {
+		if idx := linker.probeIndex(level); idx >= 0 {
+			if err := linker.probe(l, v, &level[idx]); err != nil {
+				return err
+			}
+
+			level = slices.Delete(level, idx, idx+1)
+		}
+
 		opened := make([][]treeWork, len(level))
 
-		g, gCtx := errgroup.WithContext(ctx)
+		var g errgroup.Group
 
 		g.SetLimit(fsWorkers)
 
 		for i := range level {
 			g.Go(func() error {
-				children, err := linker.materialize(gCtx, l, v, &level[i])
+				children, err := linker.materialize(l, v, &level[i])
 				if err != nil {
 					return err
 				}
@@ -165,13 +248,18 @@ func linkTree(
 }
 
 // planTree creates the directories t's entries need and returns the work each
-// entry represents at t's own nesting depth.
-func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWork, error) {
+// entry represents at t's own nesting depth. Every entry is checked before anything is created.
+func (tl *treeLinker) planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWork, error) {
 	dirsToCreate := make(map[string]struct{}, len(t.Entries()))
 	work := make([]treeWork, 0, len(t.Entries()))
+	guard := newTreeEntryGuard(v.FS, tl.rootDir)
 
 	for _, entry := range t.Entries() {
-		entryPath := filepath.Join(targetDir, entry.Path)
+		entryPath, err := guard.confine(targetDir, entry)
+		if err != nil {
+			return nil, err
+		}
+
 		dirPath := filepath.Dir(entryPath)
 
 		dirsToCreate[dirPath] = struct{}{}
@@ -184,6 +272,18 @@ func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWor
 		kind, ok := treeEntryKindOf(entry)
 		if !ok {
 			continue
+		}
+
+		// Only an entry that is written claims its path; a skipped kind never collides with anything.
+		if err := tl.entries.register(entryPath, kind); err != nil {
+			return nil, err
+		}
+
+		// A subtree or submodule is written into, so its own path must not already be a symlink.
+		if kind == entrySubtree || kind == entrySubmodule {
+			if err := rejectSymlinkAt(v.FS, entryPath, entry); err != nil {
+				return nil, err
+			}
 		}
 
 		work = append(work, treeWork{
@@ -201,6 +301,184 @@ func planTree(v *venv.Venv, t *git.Tree, targetDir string, depth int) ([]treeWor
 	}
 
 	return work, nil
+}
+
+// treeEntryGuard confines one listing's entries to the root, walking each parent directory for symlinks once.
+type treeEntryGuard struct {
+	fsys        vfs.FS
+	linkParents map[string]bool
+	rootDir     string
+}
+
+func newTreeEntryGuard(fsys vfs.FS, rootDir string) *treeEntryGuard {
+	return &treeEntryGuard{
+		fsys:        fsys,
+		linkParents: make(map[string]bool),
+		rootDir:     rootDir,
+	}
+}
+
+// confine returns where entry lands, ErrTreeEntryEscapesDir when it leaves the root, or ErrTreeEntryCrossesSymlink.
+func (g *treeEntryGuard) confine(targetDir string, entry git.TreeEntry) (string, error) {
+	entryPath := filepath.Join(targetDir, filepath.FromSlash(entry.Path))
+
+	// A ".." or an absolute entry.Path is fine as long as it lands inside the root and is not the root itself.
+	rel, err := filepath.Rel(g.rootDir, entryPath)
+	if err != nil || !filepath.IsLocal(rel) || rel == "." {
+		return "", fmt.Errorf("%w: %q", ErrTreeEntryEscapesDir, entry.Path)
+	}
+
+	parent := filepath.Dir(rel)
+
+	viaLink, seen := g.linkParents[parent]
+	if !seen {
+		viaLink, err = vfs.ParentPathHasSymlink(g.fsys, g.rootDir, rel)
+		if err != nil {
+			return "", fmt.Errorf("check parents of tree entry %q: %w", entry.Path, err)
+		}
+
+		g.linkParents[parent] = viaLink
+	}
+
+	if viaLink {
+		return "", fmt.Errorf("%w: %q", ErrTreeEntryCrossesSymlink, entry.Path)
+	}
+
+	return entryPath, nil
+}
+
+// rejectSymlinkAt returns ErrTreeEntryCrossesSymlink when path already exists as a symlink; an absent path passes.
+func rejectSymlinkAt(fsys vfs.FS, path string, entry git.TreeEntry) error {
+	info, err := vfs.Lstat(fsys, path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("check tree entry %q: %w", entry.Path, err)
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%w: %q", ErrTreeEntryCrossesSymlink, entry.Path)
+	}
+
+	return nil
+}
+
+// treeEntryRegistry refuses two entries that name one path, and an entry at or beneath a symlink entry of the tree.
+type treeEntryRegistry struct {
+	leaves  map[string]string
+	links   map[string]string
+	dirs    map[string]string
+	rootDir string
+	mu      sync.Mutex
+	folding vfs.NameFolding
+}
+
+func newTreeEntryRegistry(rootDir string, folding vfs.NameFolding) *treeEntryRegistry {
+	return &treeEntryRegistry{
+		leaves:  make(map[string]string),
+		links:   make(map[string]string),
+		dirs:    make(map[string]string),
+		rootDir: filepath.Clean(rootDir),
+		folding: folding,
+	}
+}
+
+// register records an entry of kind at path, or returns the typed error for the entry it collides with.
+func (r *treeEntryRegistry) register(path string, kind treeEntryKind) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	rel := r.relative(path)
+	key := r.key(path)
+
+	if prior, ok := r.leaves[key]; ok {
+		return fmt.Errorf("%w: %q and %q", ErrTreeEntryCollides, prior, rel)
+	}
+
+	r.leaves[key] = rel
+
+	if kind == entrySymlink {
+		if below, ok := r.dirs[key]; ok {
+			return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryCrossesSymlink, below, rel)
+		}
+
+		r.links[key] = rel
+	}
+
+	// A subtree or submodule is written into, so its own path counts as a directory too.
+	start := filepath.Dir(path)
+	if kind == entrySubtree || kind == entrySubmodule {
+		start = path
+	}
+
+	for dir := range vfs.Ancestors(start) {
+		if dir == r.rootDir {
+			break
+		}
+
+		dirKey := r.key(dir)
+
+		if linkPath, ok := r.links[dirKey]; ok {
+			return fmt.Errorf("%w: %q is nested under symlink entry %q", ErrTreeEntryCrossesSymlink, rel, linkPath)
+		}
+
+		r.dirs[dirKey] = rel
+	}
+
+	return nil
+}
+
+// relative names path relative to the root for messages; confine already placed it inside, so Rel cannot fail.
+func (r *treeEntryRegistry) relative(path string) string {
+	rel, err := filepath.Rel(r.rootDir, path)
+	if err != nil {
+		return path
+	}
+
+	return rel
+}
+
+// key folds path exactly as far as the target filesystem does, so distinct names stay distinct where they are on disk.
+func (r *treeEntryRegistry) key(path string) string {
+	if r.folding.Unicode {
+		path = norm.NFC.String(path)
+	}
+
+	if r.folding.Case {
+		path = foldCase(path)
+	}
+
+	return path
+}
+
+// maxCaseFoldOrbit bounds the walk over one rune's simple case-fold orbit; Unicode keeps it at four members or fewer.
+const maxCaseFoldOrbit = 4
+
+// foldCase maps each rune to the smallest member of its simple case-fold orbit, as filesystems fold per character.
+func foldCase(path string) string {
+	var b strings.Builder
+
+	b.Grow(len(path))
+
+	for _, r := range path {
+		smallest := r
+
+		next := unicode.SimpleFold(r)
+		for range maxCaseFoldOrbit {
+			if next == r {
+				break
+			}
+
+			smallest = min(smallest, next)
+			next = unicode.SimpleFold(next)
+		}
+
+		b.WriteRune(smallest)
+	}
+
+	return b.String()
 }
 
 // treeEntryKindOf reports how to materialize entry, and false for an entry
@@ -225,27 +503,32 @@ func treeEntryKindOf(entry git.TreeEntry) (treeEntryKind, bool) {
 }
 
 // treeLinker is the state one [LinkTree] call shares across every entry it
-// materializes.
+// materializes. Its counters are shared across the workers every level runs,
+// so LinkTree can report the tree as a single span.
 type treeLinker struct {
-	blobContent *Content
-	treeContent *Content
-	treeStore   *Store
-	rootDir     string
-	linkOpts    []LinkOption
-	maxDepth    int
+	blobContent      *Content
+	treeContent      *Content
+	treeStore        *Store
+	entries          *treeEntryRegistry
+	rootDir          string
+	maxDepth         int
+	linked           atomic.Int64
+	cloned           atomic.Int64
+	copied           atomic.Int64
+	bytesCopied      atomic.Int64
+	mode             LinkMode
+	cloneUnsupported atomic.Bool
+	mutable          bool
 }
 
 // materialize writes work to disk. For a subtree or submodule it opens the
 // tree the entry stands for and returns the work its own entries represent.
-func (tl *treeLinker) materialize(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	work *treeWork,
-) ([]treeWork, error) {
+func (tl *treeLinker) materialize(l log.Logger, v *venv.Venv, work *treeWork) ([]treeWork, error) {
 	switch work.kind {
 	case entryLink:
-		return nil, tl.link(ctx, l, v, work)
+		_, err := tl.link(l, v, work)
+
+		return nil, err
 	case entrySymlink:
 		return nil, tl.symlink(v, work)
 	case entrySubtree:
@@ -257,17 +540,34 @@ func (tl *treeLinker) materialize(
 	return nil, nil
 }
 
-func (tl *treeLinker) link(ctx context.Context, l log.Logger, v *venv.Venv, work *treeWork) error {
-	err := tl.blobContent.Link(
-		ctx,
+// link materializes one blob entry and counts how it arrived.
+func (tl *treeLinker) link(l log.Logger, v *venv.Venv, work *treeWork) (LinkOutcome, error) {
+	outcome, err := tl.blobContent.Link(
 		l,
 		v,
 		work.entry.Hash,
 		work.path,
 		gitFilePerm(work.entry.Mode),
-		tl.linkOpts...)
+		tl.linkOptions()...)
 	if err != nil {
-		return fmt.Errorf("link blob %s: %w", work.path, err)
+		return LinkOutcome{}, fmt.Errorf("link blob %s: %w", work.path, err)
+	}
+
+	tl.record(outcome)
+
+	return outcome, nil
+}
+
+// probe links work ahead of the rest of its level. A blob that comes back as
+// anything but a clone stops the rest of the tree from attempting one.
+func (tl *treeLinker) probe(l log.Logger, v *venv.Venv, work *treeWork) error {
+	outcome, err := tl.link(l, v, work)
+	if err != nil {
+		return err
+	}
+
+	if outcome.Mode != LinkModeClone {
+		tl.cloneUnsupported.Store(true)
 	}
 
 	return nil
@@ -283,6 +583,7 @@ func (tl *treeLinker) symlink(v *venv.Venv, work *treeWork) error {
 		return err
 	}
 
+	// planTree already confined work.path strictly inside the root, so this RemoveAll cannot escape.
 	if err := v.FS.RemoveAll(work.path); err != nil {
 		return fmt.Errorf("clear existing entry before symlink %s: %w", work.path, err)
 	}
@@ -310,7 +611,7 @@ func (tl *treeLinker) subtree(v *venv.Venv, work *treeWork) ([]treeWork, error) 
 		return nil, fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
 	}
 
-	children, err := planTree(v, subTree, work.path, depth)
+	children, err := tl.planTree(v, subTree, work.path, depth)
 	if err != nil {
 		return nil, fmt.Errorf("link subtree %s: %w", work.path, err)
 	}
@@ -329,6 +630,11 @@ func (tl *treeLinker) submodule(v *venv.Venv, work *treeWork) ([]treeWork, error
 	// created up front: a gitlink with no stored tree had no .gitmodules
 	// entry to fetch it by, and `git clone` leaves an empty directory there
 	// too.
+	//
+	// Which is also why a submodule tree deleted from the store reads as that
+	// same skip and leaves an empty directory rather than a
+	// [MissingObjectError] that repair could act on. Telling the two apart
+	// needs the .gitmodules blob parsed here, at materialization time.
 	if err := v.FS.MkdirAll(work.path, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf("mkdir submodule %s: %w", work.path, err)
 	}
@@ -347,12 +653,87 @@ func (tl *treeLinker) submodule(v *venv.Venv, work *treeWork) ([]treeWork, error
 		return nil, fmt.Errorf("parse submodule tree %s: %w", work.entry.Hash, err)
 	}
 
-	children, err := planTree(v, subTree, work.path, depth)
+	children, err := tl.planTree(v, subTree, work.path, depth)
 	if err != nil {
 		return nil, fmt.Errorf("link submodule %s: %w", work.path, err)
 	}
 
 	return children, nil
+}
+
+// probeIndex returns the index of the blob in level to [treeLinker.probe]
+// before the level fans out, or -1 when the tree is not cloned or an earlier
+// probe already came back uncloned.
+func (tl *treeLinker) probeIndex(level []treeWork) int {
+	if tl.mode != LinkModeClone || tl.cloneUnsupported.Load() {
+		return -1
+	}
+
+	return slices.IndexFunc(level, func(work treeWork) bool {
+		return work.kind == entryLink
+	})
+}
+
+// linkOptions returns the options one blob is materialized with. Once a probe
+// has come back uncloned, every later blob copies without attempting a clone.
+func (tl *treeLinker) linkOptions() []LinkOption {
+	opts := []LinkOption{WithFileLinkMode(tl.mode)}
+
+	if tl.mutable {
+		opts = append(opts, WithLinkMutable())
+	}
+
+	if tl.cloneUnsupported.Load() {
+		opts = append(opts, WithoutCloneAttempt())
+	}
+
+	return opts
+}
+
+// record counts one materialized blob.
+func (tl *treeLinker) record(outcome LinkOutcome) {
+	switch outcome.Mode {
+	case LinkModeHardlink:
+		tl.linked.Add(1)
+	case LinkModeClone:
+		tl.cloned.Add(1)
+	case LinkModeCopy:
+		tl.copied.Add(1)
+		tl.bytesCopied.Add(outcome.BytesCopied)
+	}
+}
+
+// report sets the per-mode file counts, the bytes copied, and the fallback on
+// the span in ctx.
+func (tl *treeLinker) report(ctx context.Context) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	counts := map[LinkMode]int64{
+		LinkModeHardlink: tl.linked.Load(),
+		LinkModeClone:    tl.cloned.Load(),
+		LinkModeCopy:     tl.copied.Load(),
+	}
+
+	var total int64
+	for _, n := range counts {
+		total += n
+	}
+
+	fallback := LinkFallbackNone
+	if counts[tl.mode] < total {
+		fallback = linkFallbackByMode[tl.mode]
+	}
+
+	span.SetAttributes(
+		attribute.Int64("files_linked", counts[LinkModeHardlink]),
+		attribute.Int64("files_cloned", counts[LinkModeClone]),
+		attribute.Int64("files_copied", counts[LinkModeCopy]),
+		attribute.Int64("bytes_copied", tl.bytesCopied.Load()),
+		attribute.String("fallback", string(fallback)),
+	)
 }
 
 // gitFilePerm extracts the unix permission bits from a git tree entry mode

@@ -278,7 +278,6 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 			c.logger.Infof("Downloading %s to %s", url, localPath)
 
 			opts := []getter.Option{
-				getter.WithHTTP(v.HTTP),
 				// Disable archive decompression: GitHub release assets are
 				// fetched verbatim, not unpacked.
 				getter.WithDecompressors(map[string]getter.Decompressor{}),

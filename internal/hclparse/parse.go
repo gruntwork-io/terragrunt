@@ -2,12 +2,15 @@
 package hclparse
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
 	"path/filepath"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/topo"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -24,12 +27,16 @@ const (
 	blockDependency  = "dependency"
 	blockLocals      = "locals"
 	blockAutoInclude = "autoinclude"
+	blockUnit        = "unit"
+	blockStack       = "stack"
 	attrConfigPath   = "config_path"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
 	varValues     = "values"
 	varDependency = blockDependency
+	varEach       = "each"
+	varCount      = "count"
 )
 
 const (
@@ -55,8 +62,13 @@ type ParseStackFileInput struct {
 	Filename string
 	// StackDir is used to resolve include paths.
 	StackDir string
+	// OverrideFilename names OverrideSrc for diagnostics and expression slicing.
+	OverrideFilename string
 	// Src is the raw stack file bytes.
 	Src []byte
+	// OverrideSrc is the optional sibling terragrunt.autoinclude.stack.hcl. Its unit and stack blocks
+	// replace same-name base blocks wholesale, including their paths and autoinclude blocks.
+	OverrideSrc []byte
 }
 
 // ParseResult holds the output of ParseStackFile.
@@ -67,7 +79,11 @@ type ParseResult struct {
 }
 
 // ParseStackFile runs the phase flow and returns partial results when decode partially succeeds.
-func ParseStackFile(fsys vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
+func ParseStackFile(
+	ctx context.Context,
+	fsys vfs.FS,
+	input *ParseStackFileInput,
+) (*ParseResult, error) {
 	validateParseStackFileInput(fsys, input)
 
 	result := &ParseResult{AutoIncludes: map[string]*AutoIncludeResolved{}}
@@ -91,34 +107,69 @@ func ParseStackFile(fsys vfs.FS, input *ParseStackFileInput) (*ParseResult, erro
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
 	// Phase 3 resolves include blocks and merges included Remain bodies.
-	mergedRemain, err := mergeIncludes(fsys, parsedStackFile, input.StackDir, evalCtx, srcByFilename)
+	mergedRemain, err := mergeIncludes(
+		fsys,
+		parsedStackFile,
+		input.StackDir,
+		evalCtx,
+		srcByFilename,
+	)
 	if err != nil {
 		return result, err
+	}
+
+	var overrideRemain hcl.Body
+
+	if input.OverrideSrc != nil {
+		override, err := parseStackFileRoot(input.OverrideSrc, input.OverrideFilename)
+		if err != nil {
+			return result, err
+		}
+
+		srcByFilename[input.OverrideFilename] = input.OverrideSrc
+		overrideRemain = override.Remain
 	}
 
 	// Publish unit.<name>.path / stack.<name>.path from a path-only pre-decode so the
 	// phase-4 decode can evaluate values expressions that reference sibling component
 	// paths, matching the production parse (injectStackComponentRefs in pkg/config).
-	publishComponentRefs(mergedRemain, evalCtx, input.StackDir)
-
-	// Phase 4 decodes unit/stack blocks and resolves autoincludes.
-	decoded := &unitsAndStacksHCL{}
-	if diags := gohcl.DecodeBody(mergedRemain, evalCtx, decoded); diags.HasErrors() {
-		// Surface partial Units/Stacks before the error so LSP/IDE callers can inspect them.
-		result.Units = decoded.Units
-		result.Stacks = decoded.Stacks
-
-		return result, FileDecodeError{Name: input.Filename, Err: diags}
-	}
-
-	result.Units = decoded.Units
-	result.Stacks = decoded.Stacks
-
-	if err := validateUniqueNames(decoded); err != nil {
+	if err := publishComponentRefs(ctx, mergedRemain, overrideRemain, evalCtx, input.StackDir); err != nil {
 		return result, err
 	}
 
-	autoIncludes, err := resolveAutoIncludes(decoded.Units, decoded.Stacks, evalCtx, srcByFilename)
+	// Phase 4 decodes unit/stack blocks once per expansion element and resolves autoincludes.
+	units, stacks, err := decodeComponents(ctx, mergedRemain, evalCtx)
+
+	// Surface partial Units/Stacks before the error so LSP/IDE callers can inspect them.
+	result.Units = units
+	result.Stacks = stacks
+
+	if err != nil {
+		return result, FileDecodeError{Name: input.Filename, Err: err}
+	}
+
+	if err := validateUniqueNames(units, stacks); err != nil {
+		return result, err
+	}
+
+	resolveUnits, resolveStacks := units, stacks
+
+	if overrideRemain != nil {
+		overrideUnits, overrideStacks, err := decodeComponents(ctx, overrideRemain, evalCtx)
+		if err != nil {
+			return result, FileDecodeError{Name: input.OverrideFilename, Err: err}
+		}
+
+		if err := validateUniqueNames(overrideUnits, overrideStacks); err != nil {
+			return result, err
+		}
+
+		// The override is wholesale, so an overridden base block's autoinclude is never resolved.
+		resolveUnits = util.MergeNamed(units, overrideUnits, func(u *UnitBlockHCL) string { return u.Name })
+		resolveStacks = util.MergeNamed(stacks, overrideStacks, func(s *StackBlockHCL) string { return s.Name })
+	}
+
+	autoIncludes, err := resolveAutoIncludes(ctx, resolveUnits, resolveStacks, srcByFilename)
 	if err != nil {
 		return result, err
 	}
@@ -190,30 +241,57 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	return evalCtx
 }
 
-// validateUniqueNames reports duplicate unit and stack names.
-func validateUniqueNames(decoded *unitsAndStacksHCL) error {
+// decodeComponents decodes every unit and stack block in body once per expansion element. The
+// instances that decoded are returned even when others did not.
+func decodeComponents(
+	ctx context.Context,
+	body hcl.Body,
+	evalCtx *hcl.EvalContext,
+) ([]*UnitBlockHCL, []*StackBlockHCL, error) {
+	content, _, diags := body.PartialContent(componentBlocksSchema())
+	if diags.HasErrors() {
+		return nil, nil, diags
+	}
+
+	units, unitErr := expandComponentBlocks[UnitBlockHCL](
+		ctx,
+		content.Blocks.OfType(blockUnit),
+		evalCtx,
+	)
+	stacks, stackErr := expandComponentBlocks[StackBlockHCL](
+		ctx,
+		content.Blocks.OfType(blockStack),
+		evalCtx,
+	)
+
+	return units, stacks, errors.Join(unitErr, stackErr)
+}
+
+// validateUniqueNames reports duplicate unit and stack addresses. The elements of one expanded
+// block share its label but not its address.
+func validateUniqueNames(units []*UnitBlockHCL, stacks []*StackBlockHCL) error {
 	var errs []error
 
-	seenUnits := make(map[string]struct{}, len(decoded.Units))
+	seenUnits := make(map[string]struct{}, len(units))
 
-	for _, u := range decoded.Units {
-		if _, exists := seenUnits[u.Name]; exists {
+	for _, u := range units {
+		if _, exists := seenUnits[u.Address()]; exists {
 			errs = append(errs, DuplicateUnitNameError{Name: u.Name})
 			continue
 		}
 
-		seenUnits[u.Name] = struct{}{}
+		seenUnits[u.Address()] = struct{}{}
 	}
 
-	seenStacks := make(map[string]struct{}, len(decoded.Stacks))
+	seenStacks := make(map[string]struct{}, len(stacks))
 
-	for _, s := range decoded.Stacks {
-		if _, exists := seenStacks[s.Name]; exists {
+	for _, s := range stacks {
+		if _, exists := seenStacks[s.Address()]; exists {
 			errs = append(errs, DuplicateStackNameError{Name: s.Name})
 			continue
 		}
 
-		seenStacks[s.Name] = struct{}{}
+		seenStacks[s.Address()] = struct{}{}
 	}
 
 	return errors.Join(errs...)
@@ -223,28 +301,72 @@ func validateUniqueNames(decoded *unitsAndStacksHCL) error {
 // from a path-only decode of body (the discovery shapes), leaving source, values, and
 // autoinclude content unevaluated. Running it before the phase-4 decode lets values
 // expressions reference sibling component paths, matching the production parse
-// (injectStackComponentRefs in pkg/config). A failed path-only decode publishes
-// nothing and reports no error: the phase-4 decode evaluates a superset of the same
-// attributes against the same context, so it surfaces the identical diagnostics
-// along with partial results.
-func publishComponentRefs(body hcl.Body, evalCtx *hcl.EvalContext, stackDir string) {
-	headers := &discoveryDecode{}
-	if diags := gohcl.DecodeBody(body, evalCtx, headers); diags.HasErrors() {
-		return
+// (injectStackComponentRefs in pkg/config). Blocks of the optional override body replace
+// same-name base blocks, so an overridden component's ref reflects the override's path.
+//
+// A failed path-only decode publishes nothing and reports no error: the phase-4 decode
+// evaluates a superset of the same attributes against the same context, so it surfaces
+// the identical diagnostics along with partial results.
+//
+// Returns [ComponentRefCollisionError] when a label names both an unexpanded and an expanded
+// block, which the phase-4 decode accepts.
+func publishComponentRefs(
+	ctx context.Context,
+	body, override hcl.Body,
+	evalCtx *hcl.EvalContext,
+	stackDir string,
+) error {
+	headers, decoded := pathOnlyHeaders(ctx, body, evalCtx)
+	if !decoded {
+		return nil
 	}
 
-	evalCtx.Variables[VarUnit] = BuildComponentRefMap(
-		buildDiscoveryUnitRefs(headers.Units, stackDir),
-	)
-	evalCtx.Variables[VarStack] = BuildComponentRefMap(
-		buildDiscoveryStackRefs(headers.Stacks, stackDir),
-	)
+	// Publish the base refs first so an override path referencing a base component resolves.
+	if err := setComponentRefVars(evalCtx, headers, stackDir); err != nil {
+		return err
+	}
+
+	if override == nil {
+		return nil
+	}
+
+	overrideHeaders, decoded := pathOnlyHeaders(ctx, override, evalCtx)
+	if !decoded {
+		return nil
+	}
+
+	headers.Units = util.MergeNamed(headers.Units, overrideHeaders.Units, unitPathName)
+	headers.Stacks = util.MergeNamed(headers.Stacks, overrideHeaders.Stacks, stackPathName)
+
+	return setComponentRefVars(evalCtx, headers, stackDir)
 }
 
-// maxLocalsIterations bounds the fixed-point loop in evaluateLocals as a safeguard against pathological inputs.
-const maxLocalsIterations = 10000
+// pathOnlyHeaders decodes the path-only shape of every unit and stack block in body, and reports
+// whether the whole decode succeeded.
+func pathOnlyHeaders(
+	ctx context.Context,
+	body hcl.Body,
+	evalCtx *hcl.EvalContext,
+) (*discoveryDecode, bool) {
+	content, _, diags := body.PartialContent(componentBlocksSchema())
+	if diags.HasErrors() {
+		return nil, false
+	}
 
-// evaluateLocals resolves locals via fixed-point iteration.
+	headers, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
+
+	return headers, err == nil
+}
+
+// evaluateLocals evaluates the attributes of a locals block in dependency order and publishes them to evalCtx under
+// local. Each attribute evaluates once, after every sibling it references.
+//
+// A bare reference to local waits for every other sibling. A local that indexes local with a computed key, as in
+// local[local.key], waits for the siblings it names statically, then evaluates once no other local can, and again
+// each time more locals evaluate, until it succeeds.
+//
+// Returns [LocalEvalError] for the first local, by name, whose expression fails to evaluate. Returns
+// [LocalsCycleError] naming every local left unevaluated when the rest wait on one another in a cycle.
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	// In production the caller parses with hclsyntax.ParseConfig, so the body is always *hclsyntax.Body; surface the impossible-state assertion as an error rather than silently swallowing locals.
 	syntaxBody, ok := body.(*hclsyntax.Body)
@@ -256,112 +378,220 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	evaluated := make(map[string]cty.Value, len(attrs))
 	evalCtx.Variables[varLocal] = localObject(evaluated)
 
-	remaining := maps.Clone(attrs)
+	computedIndexes, diags := computedLocalIndexes(syntaxBody)
+	if diags.HasErrors() {
+		return diags
+	}
 
-	for range maxLocalsIterations {
-		if len(remaining) == 0 {
-			return nil
-		}
+	graph := topo.New[string](len(attrs))
+	computedIndex := map[string]struct{}{}
 
-		if !attemptEvaluateLocals(remaining, evaluated, evalCtx) {
-			return reportUnresolvedLocals(remaining, evalCtx)
+	for name, attr := range attrs {
+		deps, indexesComputed := localDependencies(name, attr, attrs, computedIndexes)
+		graph.Add(name, deps...)
+
+		if indexesComputed {
+			computedIndex[name] = struct{}{}
 		}
 	}
 
-	return LocalsCycleError{Names: slices.Sorted(maps.Keys(remaining))}
+	failures := map[string]hcl.Diagnostics{}
+
+	var held []string
+
+	for ready := graph.Roots(); len(ready) > 0; {
+		slices.Sort(ready)
+
+		var next []string
+
+		for _, name := range ready {
+			if _, ok := computedIndex[name]; ok {
+				held = append(held, name)
+				continue
+			}
+
+			val, diags := attrs[name].Expr.Value(evalCtx)
+			if diags.HasErrors() {
+				failures[name] = diags
+				continue
+			}
+
+			evaluated[name] = val
+			next = append(next, graph.Done(name)...)
+		}
+
+		evalCtx.Variables[varLocal] = localObject(evaluated)
+
+		if len(next) == 0 && len(held) > 0 {
+			var heldFailures map[string]hcl.Diagnostics
+
+			next, held, heldFailures = evaluateHeldLocals(held, attrs, evaluated, evalCtx, graph)
+			if len(next) == 0 {
+				maps.Copy(failures, heldFailures)
+			}
+		}
+
+		ready = next
+	}
+
+	if len(failures) > 0 {
+		name := slices.Min(slices.Collect(maps.Keys(failures)))
+
+		return LocalEvalError{Name: name, Err: failures[name]}
+	}
+
+	if len(evaluated) < len(attrs) {
+		var remaining []string
+
+		for name := range attrs {
+			if _, ok := evaluated[name]; !ok {
+				remaining = append(remaining, name)
+			}
+		}
+
+		slices.Sort(remaining)
+
+		return LocalsCycleError{Names: remaining}
+	}
+
+	return nil
 }
 
-// attemptEvaluateLocals runs one fixed-point pass; returns true if at least one local was evaluated.
-func attemptEvaluateLocals(
-	remaining map[string]*hclsyntax.Attribute,
+// evaluateHeldLocals evaluates held in passes until a pass evaluates none of them, publishing each local to evalCtx as
+// it evaluates.
+//
+// Returns the locals that the evaluated ones release in graph, the held locals that still fail to evaluate, and
+// their diagnostics from the last pass.
+func evaluateHeldLocals(
+	held []string,
+	attrs map[string]*hclsyntax.Attribute,
 	evaluated map[string]cty.Value,
 	evalCtx *hcl.EvalContext,
-) bool {
-	progress := false
+	graph *topo.Graph[string],
+) (next, stillHeld []string, failures map[string]hcl.Diagnostics) {
+	slices.Sort(held)
 
-	for _, name := range slices.Sorted(maps.Keys(remaining)) {
-		val, diags := remaining[name].Expr.Value(evalCtx)
-		if diags.HasErrors() {
+	for progress := true; progress; {
+		progress = false
+		stillHeld = held[:0]
+		failures = map[string]hcl.Diagnostics{}
+
+		for _, name := range held {
+			val, diags := attrs[name].Expr.Value(evalCtx)
+			if diags.HasErrors() {
+				stillHeld = append(stillHeld, name)
+				failures[name] = diags
+
+				continue
+			}
+
+			evaluated[name] = val
+			evalCtx.Variables[varLocal] = localObject(evaluated)
+
+			next = append(next, graph.Done(name)...)
+			progress = true
+		}
+
+		held = stillHeld
+	}
+
+	return next, stillHeld, failures
+}
+
+// localDependencies returns, sorted, the siblings in attrs that the attribute called name references, and whether it
+// indexes local with a computed key, which it does when a bare local it references appears in computedIndexes. A
+// reference to a local absent from attrs is not a dependency, so evaluation reports it.
+func localDependencies(
+	name string,
+	attr *hclsyntax.Attribute,
+	attrs map[string]*hclsyntax.Attribute,
+	computedIndexes map[hcl.Range]struct{},
+) ([]string, bool) {
+	var (
+		deps            []string
+		indexesComputed bool
+	)
+
+	for _, t := range attr.Expr.Variables() {
+		if t.RootName() != varLocal {
 			continue
 		}
 
-		evaluated[name] = val
-		evalCtx.Variables[varLocal] = localObject(evaluated)
+		if dep, ok := localTraversalName(t); ok {
+			if _, sibling := attrs[dep]; sibling {
+				deps = append(deps, dep)
+			}
 
-		delete(remaining, name)
+			continue
+		}
 
-		progress = true
+		if _, ok := computedIndexes[t.SourceRange()]; !ok {
+			return allSiblings(name, attrs), false
+		}
+
+		indexesComputed = true
 	}
 
-	return progress
+	slices.Sort(deps)
+
+	return slices.Compact(deps), indexesComputed
 }
 
-// reportUnresolvedLocals classifies a stuck set of locals as either a cycle or a hard eval error.
-func reportUnresolvedLocals(
-	remaining map[string]*hclsyntax.Attribute,
-	evalCtx *hcl.EvalContext,
-) error {
-	sortedNames := slices.Sorted(maps.Keys(remaining))
+// computedLocalIndexes returns the source ranges of every bare local in body that is indexed with a computed key, as
+// in local[local.key].
+func computedLocalIndexes(body *hclsyntax.Body) (map[hcl.Range]struct{}, hcl.Diagnostics) {
+	ranges := map[hcl.Range]struct{}{}
 
-	for _, name := range sortedNames {
-		_, diags := remaining[name].Expr.Value(evalCtx)
-		if !diagsAreLocalForwardRefOnly(diags, remaining) {
-			return LocalEvalError{Name: name, Err: diags}
+	diags := hclsyntax.VisitAll(body, func(n hclsyntax.Node) hcl.Diagnostics {
+		index, ok := n.(*hclsyntax.IndexExpr)
+		if !ok {
+			return nil
 		}
-	}
 
-	return LocalsCycleError{Names: sortedNames}
+		collection, ok := index.Collection.(*hclsyntax.ScopeTraversalExpr)
+		if ok && len(collection.Traversal) == 1 && collection.Traversal.RootName() == varLocal {
+			ranges[collection.Traversal.SourceRange()] = struct{}{}
+		}
+
+		return nil
+	})
+
+	return ranges, diags
 }
 
-// diagsAreLocalForwardRefOnly reports whether every diagnostic references only still-unresolved locals.
-func diagsAreLocalForwardRefOnly(
-	diags hcl.Diagnostics,
-	remaining map[string]*hclsyntax.Attribute,
-) bool {
-	for _, d := range diags {
-		if d.Expression == nil {
-			return false
-		}
+// allSiblings returns, sorted, every name in attrs other than name.
+func allSiblings(name string, attrs map[string]*hclsyntax.Attribute) []string {
+	siblings := make([]string, 0, len(attrs))
 
-		hasForwardRef := false
-
-		for _, t := range d.Expression.Variables() {
-			if t.RootName() != varLocal {
-				return false
-			}
-
-			localName, ok := localTraversalName(t)
-			if !ok {
-				return false
-			}
-
-			if _, exists := remaining[localName]; !exists {
-				return false
-			}
-
-			hasForwardRef = true
-		}
-
-		if !hasForwardRef {
-			return false
+	for sibling := range attrs {
+		if sibling != name {
+			siblings = append(siblings, sibling)
 		}
 	}
 
-	return true
+	slices.Sort(siblings)
+
+	return siblings
 }
 
+// localTraversalName returns the name of the local that t reads, when its first step names one statically, as in
+// local.name or local["name"].
 func localTraversalName(t hcl.Traversal) (string, bool) {
 	parts := t.SimpleSplit()
 	if len(parts.Rel) == 0 {
 		return "", false
 	}
 
-	attr, ok := parts.Rel[0].(hcl.TraverseAttr)
-	if !ok {
-		return "", false
+	switch step := parts.Rel[0].(type) {
+	case hcl.TraverseAttr:
+		return step.Name, true
+	case hcl.TraverseIndex:
+		if step.Key.Type() == cty.String {
+			return step.Key.AsString(), true
+		}
 	}
 
-	return attr.Name, true
+	return "", false
 }
 
 // diagAt builds a single-diagnostic slice anchored at rng so callers using errors.As(err, &hcl.Diagnostics{}) get the offending expression's source position.
@@ -514,16 +744,20 @@ func autoIncludeSourceBytes(srcByFilename map[string][]byte, autoInclude *AutoIn
 	return srcByFilename[syntaxBody.Range().Filename]
 }
 
-// AutoIncludeKey returns the map key for an autoinclude entry, namespaced by component kind to prevent collisions between same-name units and stacks.
-func AutoIncludeKey(kind AutoIncludeKind, name string) string {
-	return string(kind) + ":" + name
+// AutoIncludeKey returns the map key for the autoinclude of the component at address (see
+// [UnitBlockHCL.Address]), namespaced by component kind to prevent collisions between same-name
+// units and stacks.
+func AutoIncludeKey(kind AutoIncludeKind, address string) string {
+	return string(kind) + ":" + address
 }
 
-// resolveAutoIncludes resolves autoinclude blocks for all units and stacks; keys are namespaced as "unit:name" and "stack:name".
+// resolveAutoIncludes resolves autoinclude blocks for all units and stacks, keyed by
+// [AutoIncludeKey]. Each autoinclude resolves in the eval context its component instance decoded
+// in, so it sees the same each.* or count.index as the rest of the block.
 func resolveAutoIncludes(
+	ctx context.Context,
 	units []*UnitBlockHCL,
 	stacks []*StackBlockHCL,
-	evalCtx *hcl.EvalContext,
 	srcByFilename map[string][]byte,
 ) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
@@ -534,8 +768,9 @@ func resolveAutoIncludes(
 		}
 
 		resolved, err := resolveAutoInclude(
+			ctx,
 			unit.AutoInclude,
-			evalCtx,
+			unit.evalCtx,
 			KindUnit,
 			unit.Name,
 			autoIncludeSourceBytes(srcByFilename, unit.AutoInclude),
@@ -545,7 +780,7 @@ func resolveAutoIncludes(
 		}
 
 		if resolved != nil {
-			autoIncludes[AutoIncludeKey(KindUnit, unit.Name)] = resolved
+			autoIncludes[AutoIncludeKey(KindUnit, unit.Address())] = resolved
 		}
 	}
 
@@ -555,8 +790,9 @@ func resolveAutoIncludes(
 		}
 
 		resolved, err := resolveAutoInclude(
+			ctx,
 			stack.AutoInclude,
-			evalCtx,
+			stack.evalCtx,
 			KindStack,
 			stack.Name,
 			autoIncludeSourceBytes(srcByFilename, stack.AutoInclude),
@@ -566,7 +802,7 @@ func resolveAutoIncludes(
 		}
 
 		if resolved != nil {
-			autoIncludes[AutoIncludeKey(KindStack, stack.Name)] = resolved
+			autoIncludes[AutoIncludeKey(KindStack, stack.Address())] = resolved
 		}
 	}
 
@@ -575,13 +811,14 @@ func resolveAutoIncludes(
 
 // resolveAutoInclude resolves a single autoinclude block, attaches the eval context, tags it with the component kind so the generator picks the right filename, and records the originating file's bytes for include-aware expression slicing.
 func resolveAutoInclude(
+	ctx context.Context,
 	autoInclude *AutoIncludeHCL,
 	evalCtx *hcl.EvalContext,
 	kind AutoIncludeKind,
 	name string,
 	sourceBytes []byte,
 ) (*AutoIncludeResolved, error) {
-	resolved, diags := autoInclude.ResolveForKind(evalCtx, kind, name)
+	resolved, diags := autoInclude.ResolveForKind(ctx, evalCtx, kind, name)
 	if diags.HasErrors() {
 		if typed := autoIncludeTypedErr(diags); typed != nil {
 			return nil, typed

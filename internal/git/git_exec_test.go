@@ -10,6 +10,7 @@
 package git_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -309,6 +310,120 @@ func TestExecGitRunner_AddCommitCheckoutConfig(t *testing.T) {
 	email, err := runner.Config(ctx, "user.email")
 	require.NoError(t, err)
 	assert.Equal(t, "test@example.com", email)
+}
+
+// TestExecGitRunner_CheckoutPaths fills worktrees registered without a
+// checkout, including one for a commit that holds no files.
+func TestExecGitRunner_CheckoutPaths(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	dir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner(venv.OSVenv())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(dir)
+	require.NoError(t, runner.Init(ctx))
+
+	require.NoError(t, runner.ConfigSet(ctx, "user.email", "test@example.com"))
+	require.NoError(t, runner.ConfigSet(ctx, "user.name", "Terragrunt Test"))
+
+	require.NoError(t, runner.Commit(ctx, "empty commit", "--allow-empty"))
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "unit"), 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(dir, "unit", "terragrunt.hcl"), []byte(""), 0o600),
+	)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.txt"), []byte("other"), 0o600))
+
+	require.NoError(t, runner.Add(ctx, "."))
+	require.NoError(t, runner.Commit(ctx, "add files"))
+
+	testCases := []struct {
+		name      string
+		ref       string
+		pathspecs []string
+		wantFiles []string
+	}{
+		{
+			name:      "whole tree of an empty commit",
+			ref:       "HEAD~1",
+			wantFiles: []string{},
+		},
+		{
+			name:      "whole tree",
+			ref:       "HEAD",
+			wantFiles: []string{"other.txt", "unit/terragrunt.hcl"},
+		},
+		{
+			name:      "pathspecs",
+			ref:       "HEAD",
+			pathspecs: []string{"unit"},
+			wantFiles: []string{"unit/terragrunt.hcl"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			worktreeDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "worktree")
+
+			require.NoError(
+				t,
+				runner.CreateDetachedWorktree(
+					ctx,
+					venv.OSVenv(),
+					worktreeDir,
+					tc.ref,
+					git.SkipCheckout,
+				),
+			)
+			require.NoError(
+				t,
+				runner.WithWorkDir(worktreeDir).CheckoutPaths(ctx, venv.OSVenv(), tc.pathspecs...),
+			)
+
+			assert.ElementsMatch(t, tc.wantFiles, worktreeFiles(t, worktreeDir))
+		})
+	}
+}
+
+// worktreeFiles returns the slash-separated paths of the files in dir, leaving
+// out the `.git` file that links a worktree to its repository.
+func worktreeFiles(t *testing.T, dir string) []string {
+	t.Helper()
+
+	files := []string{}
+
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+
+		if rel == ".git" {
+			return nil
+		}
+
+		files = append(files, filepath.ToSlash(rel))
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	return files
 }
 
 // TestExecGitRunner_SubmoduleURLs exercises the `git config --blob` path

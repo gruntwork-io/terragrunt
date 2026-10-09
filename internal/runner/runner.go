@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -200,33 +202,22 @@ func syncUnitCliArgs(
 	}
 }
 
-// checkLocalStateWithGitRefs checks if any unit has a Git ref in its discovery context
-// but no remote state configuration, and logs a warning if so.
-func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
-	for _, unit := range units {
-		discoveryCtx := unit.DiscoveryContext()
-		if discoveryCtx == nil {
-			continue
-		}
+// usesLocalState reports whether cfg keeps its state locally: it has no remote_state, or its
+// remote_state names the local backend.
+func usesLocalState(cfg *config.TerragruntConfig) bool {
+	return cfg.RemoteState == nil ||
+		(cfg.RemoteState.Config != nil && cfg.RemoteState.BackendName == "local")
+}
 
-		if discoveryCtx.Ref == "" {
-			continue
-		}
-
-		unitConfig := unit.Config()
-		if unitConfig == nil {
-			continue
-		}
-
-		if unitConfig.RemoteState == nil ||
-			(unitConfig.RemoteState.Config != nil && unitConfig.RemoteState.BackendName == "local") {
-			l.Warnf(
-				"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) do not have a remote_state configuration. This may result in unexpected outcomes, such as outputs for dependencies returning empty. It is strongly recommended to use remote state when working with Git-based filter expressions.",
-			)
-
-			return
-		}
-	}
+// warnLocalStateWithGitRef warns that a unit a Git-based filter expression selected keeps its
+// state locally, so dependency outputs may come back empty.
+func warnLocalStateWithGitRef(l log.Logger) {
+	l.Warnf(
+		"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) " +
+			"do not have a remote_state configuration. This may result in unexpected outcomes, " +
+			"such as outputs for dependencies returning empty. It is strongly recommended to use " +
+			"remote state when working with Git-based filter expressions.",
+	)
 }
 
 // NewFromComponents assembles a [Runner] from components discovery already produced.
@@ -285,7 +276,6 @@ func NewFromComponents(
 		units = append(units, unit)
 	}
 
-	checkLocalStateWithGitRefs(l, units)
 	rnr.Stack.Units = units
 
 	if opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand) {
@@ -452,6 +442,8 @@ func (rnr *Runner) Run(
 
 	withDependents := UnitsWithDependents(rnr.queue)
 
+	var localStateWarning sync.Once
+
 	task := func(ctx context.Context, u *component.Unit) error {
 		unitOpts, unitLogger, err := BuildUnitOpts(l, stackOpts, u)
 		if err != nil {
@@ -530,20 +522,15 @@ func (rnr *Runner) Run(
 						"unit_name":              unitName,
 						"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 					}, func(readCtx context.Context, unitLogger log.Logger) error {
-						parseCtx, pctx := configbridge.NewParsingContext(
-							readCtx,
-							unitLogger,
-							unitV,
-							unitOpts,
-						)
+						pctx := configbridge.NewParsingContext(unitOpts)
 
 						var readErr error
 
 						cfg, readErr = config.ReadTerragruntConfig(
-							parseCtx,
+							readCtx,
 							unitLogger,
+							unitV,
 							pctx,
-							pctx.ParserOptions,
 						)
 
 						return readErr
@@ -556,6 +543,11 @@ func (rnr *Runner) Run(
 
 				if !unitOpts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
 					unitOpts.TFPath = cfg.TerraformBinary
+				}
+
+				discoveryCtx := u.DiscoveryContext()
+				if discoveryCtx != nil && discoveryCtx.Ref != "" && usesLocalState(cfg) {
+					localStateWarning.Do(func() { warnLocalStateWithGitRef(l) })
 				}
 
 				runCfg := cfg.ToRunConfig(unitLogger, unitV.FS)
@@ -706,14 +698,14 @@ func (rnr *Runner) Run(
 						// the controller captured for this unit so the report carries the
 						// failure text instead of an empty cause.
 						if unitErr := controller.UnitErr(entry.Component.Path()); unitErr != nil {
-							endOpts = append(endOpts, report.WithCauseRunError(unitErr.Error()))
+							endOpts = append(endOpts, report.WithCauseRunError(errfmt.Format(unitErr)))
 						}
 					}
 
 					if endErr := r.EndRun(l, run.Path, endOpts...); endErr != nil {
 						l.Errorf("Error ending run for failed unit %s: %v", unitPath, endErr)
 					}
-				case queue.StatusPending, queue.StatusBlocked, queue.StatusUnsorted,
+				case queue.StatusPending, queue.StatusBlocked,
 					queue.StatusReady, queue.StatusRunning, queue.StatusSucceeded:
 				}
 			}
@@ -880,123 +872,6 @@ func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorScanners map[string
 			dependenciesMsg,
 		)
 	}
-}
-
-// FilterDiscoveredUnits removes configs for units flagged as excluded and prunes dependencies
-// that point to excluded units. This keeps the execution queue and any user-facing listings
-// free from units not intended to run. The returned slice holds shallow copies, so the
-// discovery results the caller passed in are left unchanged.
-//
-// Every path handled here is already canonical, because discovery canonicalized it.
-func FilterDiscoveredUnits(
-	discovered component.Components,
-	units []*component.Unit,
-) component.Components {
-	allowed := make(map[string]struct{}, len(units))
-	for _, u := range units {
-		if !u.Excluded() {
-			allowed[u.Path()] = struct{}{}
-		}
-	}
-
-	// First pass: keep only allowed configs and prune their dependencies to allowed ones
-	filtered := make(component.Components, 0, len(discovered))
-	present := make(map[string]*component.Unit, len(discovered))
-
-	for _, c := range discovered {
-		unit, ok := c.(*component.Unit)
-		if !ok {
-			continue
-		}
-
-		unitPath := unit.Path()
-
-		if _, ok := allowed[unitPath]; !ok {
-			continue
-		}
-
-		copyCfg := component.NewUnit(unitPath)
-		copyCfg.SetDiscoveryContext(unit.DiscoveryContext())
-		copyCfg.SetReading(unit.Reading()...)
-
-		if unit.External() {
-			copyCfg.SetExternal()
-		}
-
-		if len(unit.Dependencies()) > 0 {
-			for _, dep := range unit.Dependencies() {
-				depPath := dep.Path()
-				if _, ok := allowed[depPath]; ok {
-					depCfg := component.NewUnit(depPath)
-					copyCfg.AddDependency(depCfg)
-				}
-			}
-		}
-
-		filtered = append(filtered, copyCfg)
-		present[copyCfg.Path()] = copyCfg
-	}
-
-	// Ensure every allowed unit exists in the filtered set, even if discovery didn't include it (or it was pruned)
-	for _, u := range units {
-		if u.Excluded() {
-			continue
-		}
-
-		if _, ok := present[u.Path()]; ok {
-			continue
-		}
-
-		copyCfg := component.NewUnit(u.Path())
-
-		filtered = append(filtered, copyCfg)
-		present[u.Path()] = copyCfg
-	}
-
-	// Augment dependencies from resolved units to ensure DAG edges are complete
-	for _, u := range units {
-		if u.Excluded() {
-			continue
-		}
-
-		cfg := present[u.Path()]
-		if cfg == nil {
-			continue
-		}
-
-		// Build a set of existing dependency paths on cfg to avoid duplicates
-		existing := make(map[string]struct{}, len(cfg.Dependencies()))
-		for _, dep := range cfg.Dependencies() {
-			existing[dep.Path()] = struct{}{}
-		}
-
-		// Add any missing allowed dependencies from the resolved unit graph
-		for _, dep := range u.Dependencies() {
-			depUnit, okDep := dep.(*component.Unit)
-			if !okDep || depUnit == nil {
-				continue
-			}
-
-			if _, allowedOK := allowed[depUnit.Path()]; !allowedOK {
-				continue
-			}
-
-			if _, existsOK := existing[depUnit.Path()]; existsOK {
-				continue
-			}
-
-			depCfg, presentOK := present[depUnit.Path()]
-			if !presentOK {
-				depCfg = component.NewUnit(depUnit.Path())
-				filtered = append(filtered, depCfg)
-				present[depUnit.Path()] = depCfg
-			}
-
-			cfg.AddDependency(depCfg)
-		}
-	}
-
-	return filtered
 }
 
 // GetStack returns the stack associated with the runner.

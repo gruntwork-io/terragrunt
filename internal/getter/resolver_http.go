@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
@@ -60,24 +61,24 @@ func (r *HTTPResolver) Scheme() string {
 // qualify, but the parameter is stripped before probing, so two URLs
 // pinning different checksums share one recorded answer keyed on the
 // ETag the endpoint currently serves.
-func (r *HTTPResolver) Pinned(_ string) bool { return false }
+func (r *HTTPResolver) Pinned(_ redact.URL) bool { return false }
 
-// Probe HEADs rawURL and returns a URL-scoped opaque cache key derived
+// Probe HEADs source and returns a URL-scoped opaque cache key derived
 // from the ETag (preferred) or Last-Modified header.
 //
 // ETag is treated as opaque even when the server claims it is a strong
 // content hash: there is no portable way to distinguish content hashes
 // from server-assigned tokens. Network errors and non-2xx responses
 // surface as [cas.ErrNoVersionMetadata].
-func (r *HTTPResolver) Probe(ctx context.Context, rawURL string) (string, error) {
+func (r *HTTPResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
 	// The outer client strips these before invoking the HTTP getter,
 	// so probing with them attached would split cache entries that
 	// resolve to the same fetched bytes.
-	probeURL := stripHTTPMagicParams(rawURL)
+	probeURL := stripHTTPMagicParams(source.Reveal())
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, probeURL, http.NoBody)
 	if err != nil {
-		return "", fmt.Errorf("build HEAD request for %s: %w", rawURL, err)
+		return "", fmt.Errorf("build HEAD request for %s: %w", source, err)
 	}
 
 	resp, err := r.Client.Do(req)
@@ -98,7 +99,7 @@ func (r *HTTPResolver) Probe(ctx context.Context, rawURL string) (string, error)
 	}
 
 	if closeErr != nil {
-		return "", fmt.Errorf("close HTTP response body for %s: %w", rawURL, closeErr)
+		return "", fmt.Errorf("close HTTP response body for %s: %w", source, closeErr)
 	}
 
 	return key, nil

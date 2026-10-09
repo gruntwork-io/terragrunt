@@ -5,11 +5,15 @@ set -euo pipefail
 #
 # - network reach beyond loopback
 # - writes outside the directories the run owns
-# - execution of a real OpenTofu or Terraform binary
+# - execution of a real OpenTofu/Terraform binary
 #
 # Written for `go test -exec`:
 #
-#   go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" ./...
+#   go test -exec "$PWD/.github/scripts/ci/sandbox-exec.sh" <packages>
+#
+# sandbox-test.sh, beside this script, runs the suite while excluding the
+# upstream OpenTofu package. Now that we've pulled in OpenTofu packages,
+# we can't run this with ./... , unfortunately.
 #
 # Loopback stays reachable so tests can stand up httptest servers, and writes
 # stay open in the temp dir, the Go caches and Terragrunt's user cache. A test
@@ -104,7 +108,7 @@ check_tf_exec() {
 	binary="$(command -v tofu || command -v terraform || true)"
 
 	if [[ -z "$binary" ]]; then
-		echo "sandbox-exec.sh: no tofu or terraform on PATH, skipping the execution check"
+		echo "sandbox-exec.sh: no tofu/terraform on PATH, skipping the execution check"
 		return
 	fi
 

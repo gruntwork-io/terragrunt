@@ -32,8 +32,8 @@ func WithOCI(g *OCIGetter) Option {
 
 // WithCAS registers CASGetter, which intercepts git/file sources and routes
 // them through Terragrunt's content-addressable storage. Every CAS operation
-// uses the venv [NewClient] was given; [WithHTTP] must also be set since the
-// CAS dispatch probes over HTTP.
+// uses the venv [NewClient] was given, including the client the dispatch
+// probes over HTTP with.
 func WithCAS(c *cas.CAS, cloneOpts *cas.CloneOptions) Option {
 	return func(b *builder) {
 		b.casStore = c
@@ -41,9 +41,10 @@ func WithCAS(c *cas.CAS, cloneOpts *cas.CloneOptions) Option {
 	}
 }
 
-// WithHTTP sets the outbound-HTTP client the CAS dispatch resolvers and
-// tfr fetcher ride on (unlike [WithHTTPAuth], which only attaches headers
-// to the bare http getter). Required with [WithCAS].
+// WithHTTP overrides the outbound-HTTP client every fetch, CAS dispatch
+// resolver, and tfr fetcher rides on, which [NewClient] otherwise takes from
+// the venv. Unlike [WithHTTPAuth], it replaces the client instead of
+// attaching headers to the bare http getter.
 func WithHTTP(c vhttp.Client) Option {
 	return func(b *builder) { b.httpClient = c }
 }

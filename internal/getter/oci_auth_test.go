@@ -1144,7 +1144,7 @@ func TestOCIHelperCredentialTimeoutHonorsParentDeadline(t *testing.T) {
 	select {
 	case <-started:
 	default:
-		t.Fatal("helper never started")
+		require.Fail(t, "helper never started")
 	}
 }
 

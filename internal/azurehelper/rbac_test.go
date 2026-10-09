@@ -1,11 +1,10 @@
-//go:build azure
-
 package azurehelper_test
 
 import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -23,8 +22,9 @@ import (
 )
 
 const (
-	testPrincipalID = "11111111-2222-3333-4444-555555555555"
-	testScope       = "/subscriptions/" + testSub + "/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/" + testAccount
+	testRoleDefinitions = "/subscriptions/x/providers/Microsoft.Authorization/roleDefinitions/"
+	testPrincipalID     = "11111111-2222-3333-4444-555555555555"
+	testScope           = "/subscriptions/" + testSub + "/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/" + testAccount
 )
 
 func TestNewRBACClient_Validation(t *testing.T) {
@@ -353,7 +353,7 @@ func TestResolvePrincipal(t *testing.T) {
 	}{
 		{name: "app-only token is a service principal", idtyp: "app", wantType: azurehelper.PrincipalTypeServicePrincipal},
 		{name: "signed-in human is a user", idtyp: "user", wantType: azurehelper.PrincipalTypeUser},
-		{name: "absent idtyp defaults to user", idtyp: "", wantType: azurehelper.PrincipalTypeUser},
+		{name: "absent idtyp stays untyped", idtyp: "", wantType: ""},
 	}
 
 	for _, tc := range tt {
@@ -480,13 +480,297 @@ func TestResolvePrincipal_RequiresTokenCredential(t *testing.T) {
 	require.ErrorIs(t, err, azurehelper.ErrAzureConfigRequired)
 }
 
-// tokenCredential returns a caller-supplied token so tests can drive the
-// claim parsing directly.
+// TestResolvePrincipal_ARMScope pins where the token scope comes from: the
+// client options cloud stands in for an empty CloudConfig, and a config with
+// no Resource Manager audience at all is rejected before any token request.
+func TestResolvePrincipal_ARMScope(t *testing.T) {
+	t.Parallel()
+
+	cred := &recordingCredential{token: jwtWithClaims(map[string]any{"oid": testPrincipalID})}
+
+	got, err := azurehelper.ResolvePrincipal(t.Context(), &azurehelper.AzureConfig{
+		Credential:    cred,
+		ClientOptions: policy.ClientOptions{Cloud: cloud.AzureChina},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, testPrincipalID, got.ID)
+	assert.Equal(t,
+		[]string{strings.TrimSuffix(cloud.AzureChina.Services[cloud.ResourceManager].Audience, "/") + "/.default"},
+		cred.scopes,
+	)
+
+	_, err = azurehelper.ResolvePrincipal(t.Context(), &azurehelper.AzureConfig{Credential: tokenCredential{}})
+	require.ErrorIs(t, err, azurehelper.ErrARMAudienceRequired)
+}
+
+func TestResolvePrincipal_TokenFailure(t *testing.T) {
+	t.Parallel()
+
+	cfg := cfgWithTransport(&stubTransport{status: http.StatusOK, body: []byte(`{}`)})
+	cfg.Credential = tokenCredential{err: errors.New("AADSTS70043: refresh token expired")}
+
+	_, err := azurehelper.ResolvePrincipal(t.Context(), cfg)
+	require.ErrorContains(t, err, "acquiring token to resolve principal id")
+	require.ErrorContains(t, err, "AADSTS70043")
+}
+
+// TestAssignRole_SendsDeclaredPrincipalType pins that a known type reaches the
+// request, since Azure needs it to assign a role to a just-created principal.
+func TestAssignRole_SendsDeclaredPrincipalType(t *testing.T) {
+	t.Parallel()
+
+	tr := &recordingTransport{status: http.StatusCreated, body: jsonBody(map[string]any{"id": "/ra/1"})}
+
+	c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
+	require.NoError(t, err)
+
+	require.NoError(t, c.AssignRole(t.Context(), log.New(), azurehelper.AssignRoleInput{
+		Scope:            testScope,
+		PrincipalID:      testPrincipalID,
+		PrincipalType:    azurehelper.PrincipalTypeServicePrincipal,
+		RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor,
+	}))
+
+	require.NotEmpty(t, tr.bodies)
+	assert.Contains(t, tr.bodies[0], `"principalType":"ServicePrincipal"`)
+}
+
+// TestRBACClient_RejectsInvalidInput verifies the read and remove paths
+// validate their arguments the same way AssignRole does.
+func TestRBACClient_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	c, err := azurehelper.NewRBACClient(cfgWithTransport(&stubTransport{status: http.StatusOK, body: []byte(`{}`)}))
+	require.NoError(t, err)
+
+	_, err = c.HasRoleAssignment(t.Context(), "", testPrincipalID, azurehelper.RoleStorageBlobDataContributor)
+	require.ErrorIs(t, err, azurehelper.ErrScopePrincipalRoleArgs)
+
+	err = c.AssignRoleIfMissing(t.Context(), log.New(), azurehelper.AssignRoleInput{Scope: testScope})
+	require.ErrorIs(t, err, azurehelper.ErrScopePrincipalRoleArgs)
+
+	err = c.RemoveRole(t.Context(), log.New(), testScope, "not-a-uuid", azurehelper.RoleStorageBlobDataContributor)
+
+	var principalErr *azurehelper.InvalidPrincipalIDError
+	require.ErrorAs(t, err, &principalErr)
+}
+
+// TestRBACClient_ListFailures verifies a failed role-assignment list is
+// surfaced, and in AssignRoleIfMissing stops before any write is attempted.
+func TestRBACClient_ListFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		call func(ctx context.Context, c *azurehelper.RBACClient) error
+		name string
+		want string
+	}{
+		{
+			name: "has role assignment",
+			call: func(ctx context.Context, c *azurehelper.RBACClient) error {
+				_, err := c.HasRoleAssignment(ctx, testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor)
+				return err
+			},
+			want: "listing role assignments",
+		},
+		{
+			name: "assign role if missing",
+			call: func(ctx context.Context, c *azurehelper.RBACClient) error {
+				return c.AssignRoleIfMissing(ctx, log.New(), azurehelper.AssignRoleInput{
+					Scope:            testScope,
+					PrincipalID:      testPrincipalID,
+					RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor,
+				})
+			},
+			want: "listing role assignments",
+		},
+		{
+			name: "remove role",
+			call: func(ctx context.Context, c *azurehelper.RBACClient) error {
+				return c.RemoveRole(ctx, log.New(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor)
+			},
+			want: "listing role assignments for removal",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tr := &recordingTransport{status: http.StatusForbidden, body: jsonBody(map[string]any{
+				"error": map[string]any{"code": "AuthorizationFailed", "message": "no permission"},
+			})}
+
+			c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
+			require.NoError(t, err)
+
+			err = tc.call(t.Context(), c)
+			require.ErrorContains(t, err, tc.want)
+
+			var respErr *azcore.ResponseError
+			require.ErrorAs(t, err, &respErr)
+			assert.Equal(t, "AuthorizationFailed", respErr.ErrorCode)
+
+			assert.NotContains(t, tr.methods, http.MethodPut, "a failed read must not be followed by a write")
+		})
+	}
+}
+
+// TestHasRoleAssignment_SkipsMalformedAndForeignRows verifies rows missing
+// their properties, role, or principal, and rows for another principal, never
+// count as a match.
+func TestHasRoleAssignment_SkipsMalformedAndForeignRows(t *testing.T) {
+	t.Parallel()
+
+	contributor := testRoleDefinitions + azurehelper.RoleStorageBlobDataContributor
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"value": []any{
+			nil,
+			map[string]any{"id": "/ra/no-properties"},
+			map[string]any{"id": "/ra/no-role", "properties": map[string]any{"principalId": testPrincipalID}},
+			map[string]any{"id": "/ra/no-principal", "properties": map[string]any{"roleDefinitionId": contributor}},
+			map[string]any{"id": "/ra/other", "properties": map[string]any{
+				"principalId":      "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+				"roleDefinitionId": contributor,
+			}},
+		},
+	})}
+
+	c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
+	require.NoError(t, err)
+
+	has, err := c.HasRoleAssignment(t.Context(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor)
+	require.NoError(t, err)
+	assert.False(t, has)
+}
+
+func TestAssignRoleIfMissing_CreatesWhenAbsent(t *testing.T) {
+	t.Parallel()
+
+	rt := &routeTransport{routes: []stubRoute{
+		{method: http.MethodGet, status: http.StatusOK, body: string(jsonBody(map[string]any{"value": []any{}}))},
+		{method: http.MethodPut, status: http.StatusCreated, body: string(jsonBody(map[string]any{"id": "/ra/new"}))},
+	}}
+
+	c, err := azurehelper.NewRBACClient(cfgWithTransport(rt))
+	require.NoError(t, err)
+
+	require.NoError(t, c.AssignRoleIfMissing(t.Context(), log.New(), azurehelper.AssignRoleInput{
+		Scope:            testScope,
+		PrincipalID:      testPrincipalID,
+		RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor,
+	}))
+
+	listIdx := rt.firstIndexOf(http.MethodGet, "roleAssignments")
+	createIdx := rt.firstIndexOf(http.MethodPut, "roleAssignments")
+
+	require.GreaterOrEqual(t, listIdx, 0, "existing assignments must be checked")
+	require.GreaterOrEqual(t, createIdx, 0, "a missing assignment must be created")
+	assert.Less(t, listIdx, createIdx, "the check must precede the create")
+}
+
+func TestRemoveRole_BoundsPages(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"value":    []any{},
+		"nextLink": "https://management.azure.com/next",
+	})}
+
+	c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
+	require.NoError(t, err)
+
+	err = c.RemoveRole(t.Context(), log.New(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor)
+
+	var tooMany *azurehelper.TooManyRoleAssignmentPagesError
+	require.ErrorAs(t, err, &tooMany)
+	assert.Equal(t, testScope, tooMany.Scope)
+}
+
+// TestRemoveRole_DeletesMatchingAssignments covers every row outcome in one
+// listing: malformed rows and other roles are skipped, a concurrent removal
+// (404) counts as success, and a real delete failure is reported by id after
+// the remaining rows are still attempted.
+func TestRemoveRole_DeletesMatchingAssignments(t *testing.T) {
+	t.Parallel()
+
+	assignment := func(id, role string) map[string]any {
+		return map[string]any{
+			"id": "/subscriptions/" + testSub + "/providers/Microsoft.Authorization/roleAssignments/" + id,
+			"properties": map[string]any{
+				"principalId":      testPrincipalID,
+				"roleDefinitionId": testRoleDefinitions + role,
+			},
+		}
+	}
+
+	listing := jsonBody(map[string]any{"value": []any{
+		nil,
+		map[string]any{"properties": map[string]any{"principalId": testPrincipalID}},
+		assignment("ra-reader", azurehelper.RoleStorageBlobDataReader),
+		assignment("ra-ok", azurehelper.RoleStorageBlobDataContributor),
+		assignment("ra-gone", azurehelper.RoleStorageBlobDataContributor),
+		assignment("ra-denied", azurehelper.RoleStorageBlobDataContributor),
+	}})
+
+	tests := []struct {
+		name    string
+		deny    bool
+		wantErr bool
+	}{
+		{name: "all deletes succeed"},
+		{name: "one delete is denied", deny: true, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			deniedStatus, deniedCode := http.StatusOK, ""
+			if tc.deny {
+				deniedStatus, deniedCode = http.StatusForbidden, "AuthorizationFailed"
+			}
+
+			rt := &routeTransport{routes: []stubRoute{
+				{method: http.MethodGet, status: http.StatusOK, body: string(listing)},
+				{method: http.MethodDelete, pathSub: "ra-ok", status: http.StatusOK, body: "{}"},
+				{method: http.MethodDelete, pathSub: "ra-gone", status: http.StatusNotFound, code: "RoleAssignmentNotFound"},
+				{method: http.MethodDelete, pathSub: "ra-denied", status: deniedStatus, code: deniedCode, body: "{}"},
+			}}
+
+			c, err := azurehelper.NewRBACClient(cfgWithTransport(rt))
+			require.NoError(t, err)
+
+			err = c.RemoveRole(t.Context(), log.New(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor)
+			if tc.wantErr {
+				require.ErrorContains(t, err, "deleting role assignment")
+				require.ErrorContains(t, err, "ra-denied")
+			} else {
+				require.NoError(t, err)
+			}
+
+			for _, id := range []string{"ra-ok", "ra-gone", "ra-denied"} {
+				assert.True(t, rt.sawMethodOnPath(http.MethodDelete, id), "matching assignment %s must be deleted", id)
+			}
+
+			assert.False(t, rt.sawMethodOnPath(http.MethodDelete, "ra-reader"), "an assignment for another role must survive")
+		})
+	}
+}
+
+// tokenCredential returns a caller-supplied token, or err when set, so tests
+// can drive the claim parsing and token failures directly.
 type tokenCredential struct {
+	err   error
 	token string
 }
 
 func (c tokenCredential) GetToken(_ context.Context, _ policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	if c.err != nil {
+		return azcore.AccessToken{}, c.err
+	}
+
 	return azcore.AccessToken{Token: c.token, ExpiresOn: time.Now().Add(time.Hour)}, nil
 }
 

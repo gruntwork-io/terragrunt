@@ -1,6 +1,9 @@
 #!/usr/bin/env bats
 
 setup() {
+	# Keep any summary a script writes inside this test's tmpdir, not in the job summary.
+	export GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md"
+
 	SCRIPT="${BATS_TEST_DIRNAME}/../coverage-report.sh"
 	CURRENT="${BATS_TEST_TMPDIR}/current.json"
 	PREVIOUS="${BATS_TEST_TMPDIR}/previous.json"
@@ -134,4 +137,45 @@ EOF
     "TestOther"
   ]' "$REPORT"
 	[ "$status" -eq 0 ]
+}
+
+@test "timing omits packages that ran no tests" {
+	EVENTS="${BATS_TEST_TMPDIR}/events.ndjson"
+
+	cat >"$EVENTS" <<'EOF2'
+{"Action":"start","Package":"example.com/root"}
+{"Action":"output","Package":"example.com/root","Output":"\texample.com/root\t\tcoverage: 0.0% of statements\n"}
+{"Action":"pass","Package":"example.com/root","Elapsed":6.6}
+{"Action":"skip","Package":"example.com/notests","Elapsed":0.2}
+{"Action":"run","Package":"example.com/a","Test":"TestA"}
+{"Action":"pass","Package":"example.com/a","Test":"TestA","Elapsed":1.5}
+{"Action":"pass","Package":"example.com/a","Elapsed":2}
+{"Action":"run","Package":"example.com/skipped","Test":"TestSkipped"}
+{"Action":"skip","Package":"example.com/skipped","Test":"TestSkipped","Elapsed":0}
+{"Action":"pass","Package":"example.com/skipped","Elapsed":0.1}
+EOF2
+
+	run "$SCRIPT" timing "$EVENTS" "$REPORT"
+	[ "$status" -eq 0 ]
+
+	run jq -e '.packages | keys == ["example.com/a", "example.com/skipped"]' "$REPORT"
+	[ "$status" -eq 0 ]
+
+	run jq -e '.total_sec == 2.1' "$REPORT"
+	[ "$status" -eq 0 ]
+}
+
+@test "timing rounds times to hundredths" {
+	EVENTS="${BATS_TEST_TMPDIR}/events.ndjson"
+
+	cat >"$EVENTS" <<'EOF2'
+{"Action":"pass","Package":"example.com/a","Test":"TestA","Elapsed":2.1390000000000002}
+{"Action":"pass","Package":"example.com/a","Elapsed":6.7059999999999995}
+EOF2
+
+	run "$SCRIPT" timing "$EVENTS" "$REPORT"
+	[ "$status" -eq 0 ]
+
+	run jq -r '[.packages["example.com/a"].wall_sec, .packages["example.com/a"].tests.TestA, .total_sec] | @tsv' "$REPORT"
+	[ "$output" = $'6.71\t2.14\t6.71' ]
 }

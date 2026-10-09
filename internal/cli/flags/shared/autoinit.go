@@ -17,9 +17,10 @@ func NewNoAutoInitFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *fl
 
 	return flags.NewFlag(
 		&clihelper.BoolFlag{
-			Name:        NoAutoInitFlagName,
-			EnvVars:     tgPrefix.EnvVars(NoAutoInitFlagName),
-			Usage:       "Don't automatically run 'terraform/tofu init' during other terragrunt commands. You must run 'terragrunt init' manually.",
+			Name:    NoAutoInitFlagName,
+			EnvVars: tgPrefix.EnvVars(NoAutoInitFlagName),
+			Usage: "Don't automatically run 'tofu/terraform init' " +
+				"during other terragrunt commands. You must run 'terragrunt init' manually.",
 			Negative:    true,
 			Destination: &opts.AutoInit,
 		},

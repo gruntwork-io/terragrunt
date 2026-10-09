@@ -18,7 +18,7 @@ export const GET: APIRoute = async ({ params }) => {
 	// Fail open when we cannot determine the latest release, so the API still
 	// returns historical compatibility data if the GitHub API is unreachable.
 	const showUnreleased = import.meta.env.DEV || releaseData === null;
-	const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+	const latestVersion = releaseData?.tag_name ?? 'v0.0.0';
 
 	const filtered = filterByReleasedMin(
 		(await getCollection('compatibility')).filter(e => !tool || e.data.tool === tool),

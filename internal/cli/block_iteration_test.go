@@ -19,9 +19,9 @@ import (
 // The block-iteration tests run the CLI against an in-memory tree built per test, and a
 // lifecycle transition is an edit to that tree. The live configuration sits under live, and
 // the modules and units it points at sit beside it.
-const (
-	blockIterationRoot = "/block-iteration"
+var blockIterationRoot = venvtest.Root("/block-iteration")
 
+const (
 	generatedStackDir = ".terragrunt-stack"
 	generatedValues   = "terragrunt.values.hcl"
 
@@ -33,23 +33,6 @@ const (
 )
 
 var liveDir = filepath.Join(blockIterationRoot, "live")
-
-// experimentGate says whether a run opts into block-iteration, so a test that leaves the
-// gate closed on purpose reads differently from one that forgot the flag.
-type experimentGate int
-
-const (
-	gateClosed experimentGate = iota
-	gateOpen
-)
-
-func (gate experimentGate) args() []string {
-	if gate == gateOpen {
-		return []string{"--experiment", "block-iteration"}
-	}
-
-	return nil
-}
 
 const (
 	appModuleConfig = `inputs = {
@@ -181,6 +164,24 @@ unit "aurora" {
   }
 }
 `
+
+	unitCountGrown = `locals {
+  roles = ["alpha", "beta", "gamma", "delta"]
+}
+
+unit "aurora" {
+  expansion {
+    count = length(local.roles)
+  }
+
+  source = "../modules/app"
+  path   = "aurora/${count.index}"
+
+  values = {
+    role = local.roles[count.index]
+  }
+}
+`
 )
 
 // Stack block variants, each a whole terragrunt.stack.hcl pointing at the team stack.
@@ -287,6 +288,24 @@ stack "team" {
   }
 }
 `
+
+	stackCountGrown = `locals {
+  roles = ["alpha", "beta", "gamma", "delta"]
+}
+
+stack "team" {
+  expansion {
+    count = length(local.roles)
+  }
+
+  source = "../modules/team"
+  path   = "team/${count.index}"
+
+  values = {
+    role = local.roles[count.index]
+  }
+}
+`
 )
 
 // Dependency block variants, each a whole terragrunt.hcl pointing at the aurora units. Every
@@ -308,24 +327,29 @@ inputs = {
 }
 `
 
-	dependencyDisabled = `dependency "aurora" {
-  enabled     = false
-  config_path = "../aurora-web"
+	dependencyForEachSet = `dependency "aurora" {
+  expansion {
+    for_each = toset(["api", "web"])
+  }
+
+  config_path  = "../aurora-${each.key}"
+  skip_outputs = true
 
   mock_outputs = {
-    id = "aurora-web-id"
+    id = "aurora-${each.key}"
   }
 }
 
 inputs = {
-  addresses = sort(keys(dependency))
-  aurora_id = dependency.aurora.outputs.id
+  addresses   = sort(keys(dependency))
+  aurora_keys = sort(keys(dependency.aurora))
+  ids         = { for key, instance in dependency.aurora : key => instance.outputs.id }
 }
 `
 
-	dependencyForEachSet = `dependency "aurora" {
+	dependencyForEachSetGrown = `dependency "aurora" {
   expansion {
-    for_each = toset(["api", "web"])
+    for_each = toset(["api", "edge", "web"])
   }
 
   config_path  = "../aurora-${each.key}"
@@ -408,6 +432,54 @@ dependency "aurora" {
 inputs = {
   aurora_keys = sort(keys(dependency.aurora))
   ids         = { for key, instance in dependency.aurora : key => instance.outputs.id }
+}
+`
+
+	dependencyCountGrown = `locals {
+  shards = ["web", "edge", "api"]
+}
+
+dependency "aurora" {
+  expansion {
+    count = length(local.shards)
+  }
+
+  config_path  = "../aurora-${local.shards[count.index]}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = local.shards[count.index]
+  }
+}
+
+inputs = {
+  aurora_keys = sort(keys(dependency.aurora))
+  ids         = { for key, instance in dependency.aurora : key => instance.outputs.id }
+}
+`
+
+	// dependencyQuotedKeys expands over keys that an address has to escape or keep whole: one
+	// holding a quote and one holding a dot.
+	dependencyQuotedKeys = `dependency "aurora" {
+  expansion {
+    for_each = {
+      "a\"b" = "api"
+      "c.d"  = "web"
+    }
+  }
+
+  config_path  = "../aurora-${each.value}"
+  skip_outputs = true
+
+  mock_outputs = {
+    id = each.key
+  }
+}
+
+inputs = {
+  aurora_keys = sort(keys(dependency.aurora))
+  quoted_id   = dependency.aurora["a\"b"].outputs.id
+  dotted_id   = dependency.aurora["c.d"].outputs.id
 }
 `
 
@@ -509,7 +581,6 @@ func generateStack(t *testing.T, v *venv.Venv, args ...string) {
 
 	_, err := runCLI(t, v, slices.Concat(
 		[]string{"stack", "generate", "--no-color", "--working-dir", liveDir},
-		gateOpen.args(),
 		args,
 	)...)
 	require.NoError(t, err)
@@ -593,13 +664,10 @@ func generatedRoles(t *testing.T, fsys vfs.FS) map[string]string {
 // renderedInputs returns the inputs the live configuration resolves to. Inputs are where a
 // dependency address becomes observable: a reference that resolves proves the address exists,
 // and its value proves which instance it reached.
-func renderedInputs(t *testing.T, v *venv.Venv, gate experimentGate) map[string]any {
+func renderedInputs(t *testing.T, v *venv.Venv) map[string]any {
 	t.Helper()
 
-	stdout, err := runCLI(t, v, slices.Concat(
-		[]string{"render", "--format", "json", "--no-color", "--working-dir", liveDir},
-		gate.args(),
-	)...)
+	stdout, err := runCLI(t, v, "render", "--format", "json", "--no-color", "--working-dir", liveDir)
 	require.NoError(t, err)
 
 	rendered := struct {

@@ -28,7 +28,7 @@ func extractHostServiceLine(t *testing.T, terraformrc, service string) string {
 		}
 	}
 
-	t.Fatalf("service %q not found in .terraformrc:\n%s", service, terraformrc)
+	require.FailNowf(t, "service not found", "service %q not found in .terraformrc:\n%s", service, terraformrc)
 
 	return ""
 }
@@ -72,13 +72,13 @@ func TestTerragruntDownloadDir(t *testing.T) {
 				"download-dir",
 				"in-config",
 			),
+			// The fixture appends "/.download" to get_terragrunt_dir() verbatim.
 			downloadDirReference: filepath.Join(
 				tmpEnvPath,
 				testFixtureGetOutput,
 				"download-dir",
 				"in-config",
-				".download",
-			),
+			) + "/.download",
 		},
 		{
 			name: "download dir set in config and in env var",

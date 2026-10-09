@@ -1,9 +1,8 @@
-//go:build azure
-
 package azurehelper
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -73,7 +72,7 @@ func TestOIDCAssertionProvider_MissingRequestToken(t *testing.T) {
 	v := oidcTestVenv(map[string]string{
 		"ACTIONS_ID_TOKEN_REQUEST_URL": "https://pipelines.example/token",
 	}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
-		t.Fatal("no request must be made without a bearer token")
+		require.Fail(t, "no request must be made without a bearer token")
 
 		return nil, nil
 	})
@@ -125,7 +124,7 @@ func TestOIDCAssertionProvider_NoRequestURL(t *testing.T) {
 	t.Parallel()
 
 	v := oidcTestVenv(map[string]string{}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
-		t.Fatal("no request must be made when no request url is configured")
+		require.Fail(t, "no request must be made when no request url is configured")
 
 		return nil, nil
 	})
@@ -149,6 +148,79 @@ func TestApplyEnvFallbacks_RequestURLImpliesOIDC(t *testing.T) {
 			applyEnvFallbacks(v.Env, cfg)
 
 			assert.True(t, util.Deref(cfg.UseOIDC), "%s must select the OIDC tier", key)
+		})
+	}
+}
+
+func TestFetchOIDCAssertion_Failures(t *testing.T) {
+	t.Parallel()
+
+	const tokenURL = "https://pipelines.example/token"
+
+	tests := []struct {
+		handler vhttp.Handler
+		name    string
+		url     string
+		want    string
+		nilCtx  bool
+	}{
+		{
+			name: "unparsable request url",
+			url:  "https://pipelines.example/\x7f",
+			want: "parsing OIDC request url",
+		},
+		{
+			// A nil context is the one input http.NewRequestWithContext rejects
+			// once the url has already parsed.
+			name:   "request cannot be built",
+			url:    tokenURL,
+			nilCtx: true,
+			want:   "building OIDC token request",
+		},
+		{
+			name: "transport failure",
+			url:  tokenURL,
+			handler: func(_ context.Context, _ *http.Request) (*http.Response, error) {
+				return nil, errors.New("connection refused")
+			},
+			want: "requesting OIDC token",
+		},
+		{
+			name: "unreadable response body",
+			url:  tokenURL,
+			handler: func(_ context.Context, _ *http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(failingReader{})}, nil
+			},
+			want: "reading OIDC token response",
+		},
+		{
+			name: "response is not json",
+			url:  tokenURL,
+			handler: func(_ context.Context, _ *http.Request) (*http.Response, error) {
+				return oidcJSON(http.StatusOK, "not json"), nil
+			},
+			want: "decoding OIDC token response",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := tc.handler
+			if h == nil {
+				h = func(_ context.Context, _ *http.Request) (*http.Response, error) {
+					return nil, errors.New("no request must be made")
+				}
+			}
+
+			ctx := t.Context()
+			if tc.nilCtx {
+				ctx = nil
+			}
+
+			_, err := fetchOIDCAssertion(ctx, oidcTestVenv(map[string]string{}, h), tc.url, "runner-token", "value")
+			require.ErrorContains(t, err, tc.want)
 		})
 	}
 }
@@ -199,4 +271,12 @@ func TestApplyEnvFallbacks_ExplicitFalseWins(t *testing.T) {
 	unset := &AzureSessionConfig{}
 	applyEnvFallbacks(v.Env, unset)
 	assert.True(t, util.Deref(unset.UseMSI), "an unset flag must still honor ARM_USE_MSI")
+}
+
+// failingReader fails every read, standing in for a connection dropped
+// mid-body.
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) {
+	return 0, errors.New("connection reset")
 }

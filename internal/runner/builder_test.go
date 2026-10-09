@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -138,7 +139,10 @@ func TestNew(t *testing.T) {
 
 		l := thlogger.CreateLogger()
 
-		filters, err := filter.ParseFilterQueries(l, []string{filepath.Join(memRoot, "keep")})
+		filters, err := filter.ParseFilterQueries(
+			l,
+			[]string{filepath.ToSlash(filepath.Join(memRoot, "keep"))},
+		)
 		require.NoError(t, err)
 
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
@@ -324,6 +328,29 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 
 	assert.Contains(t, invoked, "custom-tofu", "the version probe runs the unit's terraform_binary")
 }
+
+// TestNew_EngineSkipsVersionProbe pins that units an engine runs need no OpenTofu/Terraform binary
+// for the version check: venvtest's fail-closed exec errors on any spawn, so success proves no
+// probe ran.
+func TestNew_EngineSkipsVersionProbe(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+	writeUnit(t, v, memRoot, "vpc", engineBlock)
+	writeUnit(t, v, memRoot, "app", engineBlock+"\n"+dependencyBlock("../vpc"))
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.IacEngine))
+
+	rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+	require.NoError(t, err)
+	assert.Len(t, rnr.GetStack().Units, 2)
+}
+
+// engineBlock is an engine block for units whose commands must not spawn a local binary.
+const engineBlock = `engine {
+  source = "github.com/example/engine"
+}`
 
 // dependencyBlock returns a dependency block pointing at configPath.
 func dependencyBlock(configPath string) string {

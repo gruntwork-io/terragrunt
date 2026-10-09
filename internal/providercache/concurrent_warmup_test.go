@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -35,6 +36,11 @@ import (
 const (
 	// concurrentWarmupRequests is how many clients must be answered while one download is in flight.
 	concurrentWarmupRequests = 20
+
+	// warmupRegistryName addresses the fake registry by a reserved name that never resolves, so the
+	// cache server reaches it only through the seeded discovery URLs. The registry name becomes a
+	// directory and file name in the cache, where the colon of an httptest host:port is invalid on Windows.
+	warmupRegistryName = "registry.test"
 
 	warmupProviderNamespace = "example"
 	warmupProviderName      = "tiny"
@@ -86,17 +92,14 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		case platformJSONPath:
 			w.Header().Set("Content-Type", "application/json")
 
-			body := fmt.Sprintf(
-				`{"os":%q,"arch":%q,"filename":%q,"download_url":%q}`,
-				providerOS,
-				providerArch,
-				archiveName,
-				"http://"+r.Host+archiveURLPath,
+			_, err := io.WriteString(
+				w,
+				warmupPlatformResponse(archiveName, "http://"+r.Host, archiveURLPath, archive),
 			)
-
-			if _, err := io.WriteString(w, body); err != nil {
-				t.Errorf("upstream platform response write failed: %v", err)
-			}
+			assert.NoError(t, err, "upstream platform response write failed")
+		case warmupShasumsPath:
+			_, err := io.WriteString(w, warmupShasums(archiveName, archive))
+			assert.NoError(t, err, "upstream checksum document write failed")
 		case archiveURLPath:
 			archiveHitsMu.Lock()
 
@@ -106,16 +109,13 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 			<-releaseArchive
 
-			if _, err := w.Write(archive); err != nil {
-				t.Errorf("upstream archive write failed: %v", err)
-			}
+			_, err := w.Write(archive)
+			assert.NoError(t, err, "upstream archive write failed")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	t.Cleanup(upstream.Close)
-
-	registryName := strings.TrimPrefix(upstream.URL, "http://")
 
 	l := logger.CreateLogger()
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
@@ -137,7 +137,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		new(cliconfig.ProviderInstallationDirect),
 		nil,
 	)
-	directHandler.SetDiscoveryURLCache(registryName, &handlers.RegistryURLs{
+	directHandler.SetDiscoveryURLCache(warmupRegistryName, &handlers.RegistryURLs{
 		ProvidersV1: upstream.URL + "/v1/providers",
 	})
 
@@ -147,7 +147,9 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 		cache.WithToken(token),
 		cache.WithProviderService(providerService),
 		cache.WithProviderHandlers(directHandler),
-		cache.WithProxyProviderHandler(handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil)),
+		cache.WithProxyProviderHandler(
+			handlers.NewProxyProviderHandler(l, vhttp.NewOSClient(), nil),
+		),
 		cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode),
 		cache.WithLogger(l),
 	)
@@ -159,8 +161,8 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("listener close failed: %v", err)
+		if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err, "listener close failed")
 		}
 	})
 
@@ -172,7 +174,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	downloadURL := server.ProviderController.URL()
 	downloadURL.Path += "/" + strings.Join([]string{
 		requestID,
-		registryName,
+		warmupRegistryName,
 		warmupProviderNamespace,
 		warmupProviderName,
 		warmupProviderVersion,
@@ -232,7 +234,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	packageDir := filepath.Join(
 		providerCacheDir,
-		registryName,
+		warmupRegistryName,
 		warmupProviderNamespace,
 		warmupProviderName,
 		warmupProviderVersion,
@@ -247,8 +249,12 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	archiveHitsMu.Unlock()
 
-	assert.Equal(t, 1, hits,
-		"concurrent warm-up requests for the same provider platform must share a single upstream archive download")
+	assert.Equal(
+		t,
+		1,
+		hits,
+		"concurrent warm-up requests for the same provider platform must share a single upstream archive download",
+	)
 
 	cancel()
 	require.NoError(t, srvGroup.Wait())
@@ -256,6 +262,31 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 // buildWarmupProviderArchive returns an in-memory zip archive holding a single
 // fake provider binary, small enough to make warm-up nearly instant.
+// warmupShasumsPath is where the fake registries serve the checksum document
+// for the warm-up provider.
+const warmupShasumsPath = "/archives/SHA256SUMS"
+
+// warmupPlatformResponse builds a fake registry's download response for the
+// warm-up provider on the running platform. baseURL is the registry's own
+// address, which also serves the archive and its checksum document.
+func warmupPlatformResponse(archiveName, baseURL, archiveURLPath string, archive []byte) string {
+	return fmt.Sprintf(
+		`{"os":%q,"arch":%q,"filename":%q,"download_url":%q,"shasums_url":%q,"shasum":"%x"}`,
+		runtime.GOOS,
+		runtime.GOARCH,
+		archiveName,
+		baseURL+archiveURLPath,
+		baseURL+warmupShasumsPath,
+		sha256.Sum256(archive),
+	)
+}
+
+// warmupShasums builds the checksum document listing the warm-up provider's
+// archive.
+func warmupShasums(archiveName string, archive []byte) string {
+	return fmt.Sprintf("%x  %s\n", sha256.Sum256(archive), archiveName)
+}
+
 func buildWarmupProviderArchive(t *testing.T) []byte {
 	t.Helper()
 

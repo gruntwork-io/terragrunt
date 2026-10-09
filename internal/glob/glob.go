@@ -45,9 +45,12 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	gobwas "github.com/gobwas/glob"
+	"github.com/gobwas/glob/compiler"
+	"github.com/gobwas/glob/match"
+	"github.com/gobwas/glob/syntax"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/mattn/go-zglob"
 )
@@ -58,10 +61,59 @@ type Matcher interface {
 	Match(s string) bool
 }
 
-// Compile parses pattern as a '/'-separated glob and returns a [Matcher].
-// Intended for testing one pattern against many strings.
-func Compile(pattern string) (Matcher, error) {
-	return gobwas.Compile(pattern, '/')
+// ErrUnsupportedBraceGroup is returned by [Compile] for a pattern with a {}
+// group the underlying matcher accepts but cannot match correctly, e.g. an
+// unclosed group such as "a{" or a group of only empty options such as "a{,}".
+// Matching such a pattern either crashes or reports no match for a string it
+// should match.
+var ErrUnsupportedBraceGroup = errors.New("unsupported empty or unclosed {} group in glob pattern")
+
+// CompileOption configures a [Compile] call.
+type CompileOption func(*compileOptions)
+
+type compileOptions struct {
+	noSeparator bool
+}
+
+// WithoutSeparator makes [Compile] treat '/' as an ordinary character, so '*'
+// and '?' match it too. Use it for patterns matched against strings that are
+// not paths.
+func WithoutSeparator() CompileOption {
+	return func(o *compileOptions) {
+		o.noSeparator = true
+	}
+}
+
+// Compile parses pattern as a glob and returns a [Matcher]. Intended for
+// testing one pattern against many strings. The pattern is '/'-separated
+// unless [WithoutSeparator] is passed. A pattern with a {} group the matcher
+// cannot handle returns [ErrUnsupportedBraceGroup].
+func Compile(pattern string, opts ...CompileOption) (Matcher, error) {
+	var o compileOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	separators := []rune{'/'}
+	if o.noSeparator {
+		separators = nil
+	}
+
+	tree, err := syntax.Parse(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := compiler.Compile(tree, separators)
+	if err != nil {
+		return nil, err
+	}
+
+	if hasZeroLengthRowPart(m) {
+		return nil, ErrUnsupportedBraceGroup
+	}
+
+	return m, nil
 }
 
 // ErrOutsideBoundary reports that a pattern's walk root fell outside the
@@ -381,4 +433,35 @@ func resolveSymlinkedRoot(fsys vfs.FS, root string) (string, error) {
 	}
 
 	return resolved, nil
+}
+
+// hasZeroLengthRowPart reports whether m contains a match.Row with a part whose
+// length is not positive. match.Row assumes every part has a fixed positive
+// length. A part that does not either slices past the end of the input or
+// consumes the rest of it, and some empty or unclosed {} groups compile to
+// such a part.
+func hasZeroLengthRowPart(m match.Matcher) bool {
+	stack := []match.Matcher{m}
+
+	for len(stack) > 0 {
+		next := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		switch v := next.(type) {
+		case match.Row:
+			if slices.ContainsFunc(v.Matchers, func(part match.Matcher) bool { return part.Len() <= 0 }) {
+				return true
+			}
+
+			stack = append(stack, v.Matchers...)
+		case match.AnyOf:
+			stack = append(stack, v.Matchers...)
+		case match.EveryOf:
+			stack = append(stack, v.Matchers...)
+		case match.BTree:
+			stack = append(stack, v.Value, v.Left, v.Right)
+		}
+	}
+
+	return false
 }

@@ -280,7 +280,7 @@ func Prepare(
 		Collect(ctx, l, "scaffold_get_module", map[string]any{
 			"module_url": resolvedURL,
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, l, v, tempDir, resolvedURL); getErr != nil {
+			if getErr := fetchScaffoldSource(ctx, l, v, tempDir, resolvedURL); getErr != nil {
 				return fmt.Errorf("downloading scaffold module from %s: %w", resolvedURL, getErr)
 			}
 
@@ -598,9 +598,9 @@ func applyCatalogConfigToScaffold(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 ) {
-	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
-	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
+	catalogCfg, err := config.ReadCatalogConfig(ctx, l, v, pctx)
 	if err != nil {
 		// Don't fail if catalog config can't be read - it's optional
 		l.Debugf("Could not read catalog config for scaffold: %v", err)
@@ -677,9 +677,8 @@ func downloadTemplate(
 		return "", err
 	}
 
-	// Go-getter expects a pathspec or . for file paths
 	if baseURL.Scheme == "" || baseURL.Scheme == "file" {
-		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/")) + "//."
+		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/"))
 	}
 
 	baseURL, err = rewriteTemplateURL(ctx, l, v, opts, baseURL)
@@ -699,7 +698,7 @@ func downloadTemplate(
 		Collect(ctx, l, "scaffold_get_template", map[string]any{
 			"template_url": baseURL.String(),
 		}, func(ctx context.Context, l log.Logger) error {
-			if _, getErr := getter.GetAny(ctx, l, v, templateDir, baseURL.String()); getErr != nil {
+			if getErr := fetchScaffoldSource(ctx, l, v, templateDir, baseURL.String()); getErr != nil {
 				return fmt.Errorf(
 					"downloading scaffold template from %s: %w",
 					baseURL.String(),
@@ -729,6 +728,37 @@ func downloadTemplate(
 	return templateDir, nil
 }
 
+// fetchScaffoldSource downloads the module or template at src into dst.
+func fetchScaffoldSource(ctx context.Context, l log.Logger, v *venv.Venv, dst, src string) error {
+	fileCopy := getter.NewFileCopyGetter(v.FS).
+		WithLogger(l).
+		WithIncludeInCopy(".*", "**/.*")
+
+	if _, err := getter.GetAny(ctx, l, v, dst, src, getter.WithFileCopy(fileCopy)); err != nil {
+		return err
+	}
+
+	return removeSourceManifests(v.FS, dst)
+}
+
+// removeSourceManifests deletes every source manifest under dir. Copying a
+// local source writes one into each directory it creates. A file of the same
+// name fetched by any other getter goes too: the name is Terragrunt's, and a
+// manifest committed by an earlier scaffold must not spread to another tree.
+func removeSourceManifests(fsys vfs.FS, dir string) error {
+	return vfs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() || d.Name() != getter.SourceManifestName {
+			return nil
+		}
+
+		return fsys.Remove(path)
+	})
+}
+
 // prepareBoilerplateFiles - prepare boilerplate files from provided template, tf module, or (custom) default template
 func prepareBoilerplateFiles(
 	ctx context.Context,
@@ -753,9 +783,9 @@ func prepareBoilerplateFiles(
 
 	// if boilerplate dir is not found, create one with default template
 	if !vfs.IsDir(v.FS, boilerplateDir) {
-		_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+		pctx := configbridge.NewParsingContext(opts)
 
-		config, err := config.ReadCatalogConfig(ctx, l, pctx)
+		config, err := config.ReadCatalogConfig(ctx, l, v, pctx)
 		if err != nil {
 			return "", err
 		}

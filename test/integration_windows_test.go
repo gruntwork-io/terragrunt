@@ -289,10 +289,40 @@ func TestWindowsProviderCacheWithRemoteURL(t *testing.T) {
 	assert.NotEmpty(t, entries, "provider cache dir should not be empty after init")
 }
 
-func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
-	if err := os.MkdirAll(targetPath, 0o777); err != nil {
-		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
+// TestWindowsFindWithGitFilterNestedUnit reproduces
+// https://github.com/gruntwork-io/terragrunt/issues/6969: a Git-based filter
+// found nothing on Windows when the only change was a unit configuration in a
+// nested directory.
+func TestWindowsFindWithGitFilterNestedUnit(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	for _, unit := range []string{"nested/changed", "nested/unchanged"} {
+		dir := filepath.Join(tmpDir, filepath.FromSlash(unit))
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0o644))
 	}
+
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
+
+	changed := filepath.Join(tmpDir, "nested", "changed", "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(changed, []byte("inputs = { changed = true }\n"), 0o644))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Change a unit"))
+
+	cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '[HEAD~1...HEAD]'"
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err, "stderr: %s", stderr)
+
+	assert.Equal(t, []string{filepath.Join("nested", "changed")}, strings.Fields(stdout))
+}
+
+func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
+	require.NoError(t, os.MkdirAll(targetPath, 0o777), "Failed to create temp dir %s", targetPath)
 
 	copyErr := util.CopyFolderContents(
 		createLogger(),
@@ -306,13 +336,10 @@ func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 
 func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 	currentDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
+	require.NoError(t, err, "Failed to get current directory")
+
 	tmpDir, err := os.MkdirTemp(currentDir, "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
+	require.NoError(t, err, "Failed to create temp dir")
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 

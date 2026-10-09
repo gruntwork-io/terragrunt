@@ -53,13 +53,20 @@ run_test() {
 	local name="$1"
 	shift
 	TESTS_RUN=$((TESTS_RUN + 1))
-	if "$@"; then
+
+	local captured
+	if captured=$("$@" 2>&1); then
 		pass "$name"
 		return 0
-	else
-		fail "$name"
-		return 1
 	fi
+
+	fail "$name"
+
+	if [[ -n "$captured" ]]; then
+		printf '%s\n' "$captured" | sed 's/^/    /'
+	fi
+
+	return 1
 }
 
 skip_test() {
@@ -80,6 +87,7 @@ test_script_executable_syntax() {
 test_help_output() {
 	local output
 	output=$(bash "$INSTALL_SCRIPT" --help 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Terragrunt Installer"* ]] &&
 		[[ "$output" == *"--version"* ]] &&
 		[[ "$output" == *"--dir"* ]] &&
@@ -111,6 +119,7 @@ test_missing_dir_arg_fails() {
 test_help_shows_tip_test_commit_options() {
 	local output
 	output=$(bash "$INSTALL_SCRIPT" --help 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"--tip"* ]] &&
 		[[ "$output" == *"--test"* ]] &&
 		[[ "$output" == *"--commit"* ]]
@@ -295,6 +304,7 @@ test_install_no_verify() {
 
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify --no-verify-sig 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Skipping checksum verification"* ]] &&
 		[[ -f "$tmpdir/terragrunt" ]]
 }
@@ -308,6 +318,7 @@ test_install_no_verification_at_all() {
 	# Install with no checksum and no signature verification
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify --no-verify-sig 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Skipping checksum verification"* ]] &&
 		[[ "$output" != *"SHA256 checksum verified"* ]] &&
 		[[ "$output" != *"Signature verified"* ]] &&
@@ -323,6 +334,7 @@ test_checksum_verification() {
 
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"SHA256 checksum verified"* ]]
 }
 
@@ -341,6 +353,7 @@ test_old_version_skips_signature() {
 	# v0.72.5 is below MIN_SIGNED_VERSION (0.98.0), should skip signature gracefully
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Skipping signature verification: not available for versions older than"* ]]
 }
 
@@ -360,6 +373,7 @@ test_signature_enabled_by_default() {
 	# Use RC version which has signatures
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Verifying GPG signature"* ]] &&
 		[[ "$output" == *"Signature verified"* ]]
 }
@@ -373,6 +387,7 @@ test_no_verify_sig_skips_signature() {
 	# With --no-verify-sig, signature verification should be skipped
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" != *"Signature verified"* ]] &&
 		[[ "$output" != *"Using GPG"* ]] &&
 		[[ "$output" != *"Using Cosign"* ]]
@@ -393,6 +408,7 @@ test_cosign_signature_verification() {
 	# Use RC version which has signatures
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 --verify-cosign 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Verifying Cosign signature"* ]] &&
 		[[ "$output" == *"Signature verified"* ]]
 }
@@ -412,6 +428,7 @@ test_gpg_is_default_signature_method() {
 	# GPG is default method - verify it's used without any flags
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Verifying GPG signature"* ]] &&
 		[[ "$output" == *"Signature verified"* ]]
 }
@@ -435,6 +452,7 @@ test_attestation_verification() {
 	# v1.1.0-rc1 is the first release published with a release attestation
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v1.1.0-rc1 --no-verify-sig 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Verifying release attestation"* ]] &&
 		[[ "$output" == *"Release attestation verified"* ]] &&
 		[[ -f "$tmpdir/terragrunt" ]]
@@ -448,6 +466,7 @@ test_no_verify_attestation_skips() {
 
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v1.1.0-rc1 --no-verify-sig --no-verify-attestation 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" != *"attestation"* ]] &&
 		[[ -f "$tmpdir/terragrunt" ]]
 }
@@ -461,6 +480,7 @@ test_old_version_skips_attestation() {
 	# v0.72.5 predates release attestations, should skip gracefully
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Skipping release attestation verification: not available for versions older than"* ]]
 }
 
@@ -547,6 +567,7 @@ test_tip_build_checksum_verification() {
 
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --no-verify-sig 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"SHA256 checksum verified"* ]]
 }
 
@@ -563,6 +584,7 @@ test_tip_build_gpg_signature_verification() {
 
 	local output
 	output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip 2>&1)
+	printf '%s\n' "$output"
 	[[ "$output" == *"Verifying GPG signature"* ]] &&
 		[[ "$output" == *"Signature verified"* ]]
 }

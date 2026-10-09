@@ -143,18 +143,17 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 			actualResult, actualErr := auth.Authenticate(vfs.NewOSFS(), tc.path)
 
 			if tc.expectedErr != nil {
-				if actualErr == nil {
-					t.Fatalf("expected error %v but got no error", tc.expectedErr)
-				}
+				require.Error(t, actualErr, "expected error %v but got no error", tc.expectedErr)
+
 				// For file not found errors, just check if it contains the expected text
 				if strings.Contains(tc.expectedErr.Error(), "file not found") {
-					if !strings.Contains(actualErr.Error(), "no such file") &&
-						!strings.Contains(actualErr.Error(), "cannot find the file") {
-						t.Errorf(
-							"expected error containing 'file not found' but got: %v",
-							actualErr,
-						)
-					}
+					assert.True(
+						t,
+						strings.Contains(actualErr.Error(), "no such file") ||
+							strings.Contains(actualErr.Error(), "cannot find the file"),
+						"expected error containing 'file not found' but got: %v",
+						actualErr,
+					)
 				} else {
 					require.EqualError(t, actualErr, tc.expectedErr.Error())
 				}

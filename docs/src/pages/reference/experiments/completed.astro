@@ -2,11 +2,10 @@
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import ExperimentEntries from '@components/ExperimentEntries.astro';
 import { getCollection } from 'astro:content';
-import { getLatestRelease } from '@lib/github';
+import { getLatestVersion } from '@lib/release';
 import { isCompleted } from '@lib/experiments';
 
-const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
-const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+const latestVersion = await getLatestVersion();
 
 const entries = await getCollection('experiments');
 

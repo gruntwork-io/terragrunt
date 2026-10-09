@@ -81,10 +81,10 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS().WithEnv(map[string]string{authKey: token})
 
-			_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
+			pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 			pctx.WorkingDir = filepath.Dir(filePath)
 
-			result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, filePath, "json", mockDecrypter)
+			result, err := config.SopsDecryptFileWithDecrypter(ctx, l, v, pctx, filePath, "json", mockDecrypter)
 			assert.NoError(t, err)
 			assert.Contains(t, result, `"value":"secret-from-unit-`)
 			assert.Contains(t, result, token)
@@ -138,10 +138,10 @@ func TestSOPSDecryptDistinctPathsOverlapWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
-			_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
+			pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 			pctx.WorkingDir = dir
 
-			result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, f, "json", blockingDecrypter)
+			result, err := config.SopsDecryptFileWithDecrypter(ctx, l, v, pctx, f, "json", blockingDecrypter)
 			require.NoError(t, err)
 			assert.Contains(t, result, `"value":"secret"`)
 		})
@@ -153,7 +153,7 @@ func TestSOPSDecryptDistinctPathsOverlapWithRacing(t *testing.T) {
 		case <-time.After(10 * time.Second):
 			close(release)
 			wg.Wait()
-			t.Fatal("decrypts of distinct files did not overlap")
+			require.FailNow(t, "decrypts of distinct files did not overlap")
 		}
 	}
 
@@ -196,10 +196,10 @@ func TestSOPSDecryptDeduplicatesSamePathWithRacing(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS().WithEnv(map[string]string{})
 
-			_, pctx := config.NewParsingContext(ctx, l, v, config.WithStrictControls(controls.New()))
+			pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 			pctx.WorkingDir = dir
 
-			result, err := config.SopsDecryptFileWithDecrypter(ctx, pctx, l, secretFile, "json", countingDecrypter)
+			result, err := config.SopsDecryptFileWithDecrypter(ctx, l, v, pctx, secretFile, "json", countingDecrypter)
 			require.NoError(t, err)
 			assert.Contains(t, result, `"value":"shared"`)
 		})

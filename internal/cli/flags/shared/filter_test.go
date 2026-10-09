@@ -5,7 +5,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -14,24 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiscoveryBoundaryFlagRequiresExperiment(t *testing.T) {
+func TestDiscoveryBoundaryFlagSetsBoundary(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	flags := shared.NewFilterFlags(logger.CreateLogger(), opts, venvtest.New())
-
-	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}, map[string]string{}))
-
-	err := flags.RunActions(t.Context(), &clihelper.Context{})
-
-	require.ErrorIs(t, err, shared.ErrDiscoveryBoundaryRequiresExperiment)
-}
-
-func TestDiscoveryBoundaryFlagAllowedWithExperiment(t *testing.T) {
-	t.Parallel()
-
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.BoundedDiscovery))
 	flags := shared.NewFilterFlags(logger.CreateLogger(), opts, venvtest.New())
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}, map[string]string{}))

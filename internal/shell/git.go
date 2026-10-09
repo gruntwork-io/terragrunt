@@ -9,6 +9,7 @@ import (
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -37,6 +38,8 @@ func GitRepoTags(
 	gitV := v.WithWriter(&stdout).WithErrWriter(&stderr)
 
 	gitRunOpts := NewShellOptions(v.Env).WithWorkingDir(workingDir)
+
+	ctx = vexec.WithTrustedCommand(ctx)
 
 	output, err := RunCommandWithOutput(
 		ctx,

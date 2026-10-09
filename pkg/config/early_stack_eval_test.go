@@ -23,7 +23,7 @@ import (
 )
 
 // terragruntFuncNames lists every Terragrunt HCL function exposed by the full
-// production eval context. Kept in sync with createTerragruntEvalContext;
+// production eval context. Kept in sync with CreateTerragruntEvalContext;
 // TestEarlyStackParseFunctions_CoversAllTerragruntFunctions guards parity.
 var terragruntFuncNames = []string{
 	config.FuncNameFindInParentFolders,
@@ -54,10 +54,6 @@ var terragruntFuncNames = []string{
 	config.FuncNameGetDefaultRetryableErrors,
 	config.FuncNameReadTfvarsFile,
 	config.FuncNameGetWorkingDir,
-	config.FuncNameStartsWith,
-	config.FuncNameEndsWith,
-	config.FuncNameStrContains,
-	config.FuncNameTimeCmp,
 	config.FuncNameMarkAsRead,
 	config.FuncNameMarkGlobAsRead,
 	config.FuncNameConstraintCheck,
@@ -71,7 +67,7 @@ var terragruntFuncNames = []string{
 func newStackParsePctx(t *testing.T, baseDir string) *config.ParsingContext {
 	t.Helper()
 
-	_, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), venvtest.NewWithOSFS())
+	pctx := config.NewParsingContext()
 	pctx.TerragruntConfigPath = filepath.Join(baseDir, "terragrunt.hcl")
 	pctx.WorkingDir = baseDir
 	pctx.MaxFoldersToCheck = 100
@@ -82,12 +78,15 @@ func newStackParsePctx(t *testing.T, baseDir string) *config.ParsingContext {
 func TestEarlyStackParseFunctions_CoversAllTerragruntFunctions(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.NewWithOSFS()
+
 	baseDir := t.TempDir()
 	funcs, err := config.EarlyStackParseFunctions(
 		t.Context(),
 		logger.CreateLogger(),
-		baseDir,
+		v,
 		newStackParsePctx(t, baseDir),
+		baseDir,
 	)
 	require.NoError(t, err)
 
@@ -100,30 +99,35 @@ func TestEarlyStackParseFunctions_CoversAllTerragruntFunctions(t *testing.T) {
 func TestEarlyStackParseFunctions_PureEvaluatesNormally(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.NewWithOSFS()
+
 	baseDir := t.TempDir()
 	funcs, err := config.EarlyStackParseFunctions(
 		t.Context(),
 		logger.CreateLogger(),
-		baseDir,
+		v,
 		newStackParsePctx(t, baseDir),
+		baseDir,
 	)
 	require.NoError(t, err)
 
-	got, err := funcs[config.FuncNameStartsWith].Call(
+	got, err := funcs["startswith"].Call(
 		[]cty.Value{cty.StringVal("foobar"), cty.StringVal("foo")},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, cty.True, got)
 }
 
-func TestEarlyStackParseFunctions_GetEnvReadsPctxEnv(t *testing.T) {
+func TestEarlyStackParseFunctions_GetEnvReadsVenvEnv(t *testing.T) {
 	t.Parallel()
+
+	v := venvtest.NewWithOSFS()
 
 	baseDir := t.TempDir()
 	pctx := newStackParsePctx(t, baseDir)
-	pctx.Venv.Env = map[string]string{"PLAN_KEY": "plan_value"}
+	v.Env = map[string]string{"PLAN_KEY": "plan_value"}
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, pctx)
+	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, baseDir)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetEnv].Call([]cty.Value{cty.StringVal("PLAN_KEY")})
@@ -134,12 +138,15 @@ func TestEarlyStackParseFunctions_GetEnvReadsPctxEnv(t *testing.T) {
 func TestEarlyStackParseFunctions_GetTerragruntDirReturnsBaseDir(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.NewWithOSFS()
+
 	baseDir := t.TempDir()
 	funcs, err := config.EarlyStackParseFunctions(
 		t.Context(),
 		logger.CreateLogger(),
-		baseDir,
+		v,
 		newStackParsePctx(t, baseDir),
+		baseDir,
 	)
 	require.NoError(t, err)
 
@@ -155,12 +162,15 @@ func TestEarlyStackParseFunctions_GetTerragruntDirReturnsBaseDir(t *testing.T) {
 func TestEarlyStackParseFunctions_GetWorkingDirOverride(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.NewWithOSFS()
+
 	baseDir := t.TempDir()
 	funcs, err := config.EarlyStackParseFunctions(
 		t.Context(),
 		logger.CreateLogger(),
-		baseDir,
+		v,
 		newStackParsePctx(t, baseDir),
+		baseDir,
 	)
 	require.NoError(t, err)
 
@@ -204,11 +214,13 @@ func TestStackParseFunctionsFrom_OverridesWithoutMutating(t *testing.T) {
 func TestEarlyStackParseFunctions_GetTerraformCommandReadsPctx(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.NewWithOSFS()
+
 	baseDir := t.TempDir()
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.TerraformCommand = "plan"
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, pctx)
+	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, baseDir)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetTerraformCommand].Call(nil)
@@ -219,12 +231,14 @@ func TestEarlyStackParseFunctions_GetTerraformCommandReadsPctx(t *testing.T) {
 func TestEarlyStackParseFunctions_GetTerraformCLIArgsReadsPctx(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.NewWithOSFS()
+
 	baseDir := t.TempDir()
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.TerraformCliArgs = iacargs.New()
 	pctx.TerraformCliArgs.InsertArguments(0, "-auto-approve")
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, pctx)
+	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, baseDir)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetTerraformCLIArgs].Call(nil)
@@ -236,11 +250,13 @@ func TestEarlyStackParseFunctions_GetTerraformCLIArgsReadsPctx(t *testing.T) {
 func TestEarlyStackParseFunctions_MarkAsReadAppendsToPctxFilesRead(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.NewWithOSFS()
+
 	baseDir := t.TempDir()
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.FilesRead = config.NewFilesRead()
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), baseDir, pctx)
+	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, baseDir)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameMarkAsRead].Call([]cty.Value{cty.StringVal("inputs.yaml")})
@@ -255,12 +271,15 @@ func TestEarlyStackParseFunctions_MarkAsReadAppendsToPctxFilesRead(t *testing.T)
 func TestEarlyStackParseFunctions_PathRelativeToIncludeFallback(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.NewWithOSFS()
+
 	baseDir := t.TempDir()
 	funcs, err := config.EarlyStackParseFunctions(
 		t.Context(),
 		logger.CreateLogger(),
-		baseDir,
+		v,
 		newStackParsePctx(t, baseDir),
+		baseDir,
 	)
 	require.NoError(t, err)
 
@@ -274,6 +293,8 @@ func TestEarlyStackParseFunctions_PathRelativeToIncludeFallback(t *testing.T) {
 // through UnitPathsFromStackDir.
 func TestEarlyStackParseFunctions_FindInParentFoldersResolvesDuringDiscovery(t *testing.T) {
 	t.Parallel()
+
+	v := venvtest.NewWithOSFS()
 
 	// find_in_parent_folders walks the real OS filesystem; the fixture must live on disk.
 	tmpRoot := t.TempDir()
@@ -289,10 +310,11 @@ unit "vpc" {
 
 	pctx := newStackParsePctx(t, stackDir)
 	funcsFor := func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
+		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, dir)
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
+		t.Context(),
 		vfs.NewOSFS(),
 		stackDir,
 		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
@@ -325,17 +347,18 @@ unit "vpc" {
 	pctx := newStackParsePctx(t, stackDir)
 
 	// The unit's path attribute is whatever run_cmd prints.
-	pctx.Venv = pctx.Venv.WithHandler(
+	v := venvtest.NewWithOSFS().WithHandler(
 		func(_ context.Context, inv vexec.Invocation) vexec.Result {
 			return vexec.Result{Stdout: []byte(strings.Join(inv.Args, " ") + "\n")}
 		},
 	)
 
 	funcsFor := func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), dir, pctx)
+		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, dir)
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
+		t.Context(),
 		vfs.NewOSFS(),
 		stackDir,
 		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
@@ -353,12 +376,15 @@ unit "vpc" {
 func TestEarlyStackParseFunctions_TerraformStdlibIncluded(t *testing.T) {
 	t.Parallel()
 
+	v := venvtest.NewWithOSFS()
+
 	baseDir := t.TempDir()
 	funcs, err := config.EarlyStackParseFunctions(
 		t.Context(),
 		logger.CreateLogger(),
-		baseDir,
+		v,
 		newStackParsePctx(t, baseDir),
+		baseDir,
 	)
 	require.NoError(t, err)
 

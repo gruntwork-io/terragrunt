@@ -79,14 +79,10 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 
 	// Write out a version file so we can test a cache hit
 	terraformSource, _, _, err := createConfig(t, canonicalURL, downloadDir, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = terraformSource.WriteVersionFile(logger.CreateLogger(), vfs.NewOSFS())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, true)
 }
@@ -117,9 +113,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 		}
 	})
 
-	if err := os.Chmod(stagedFixture, 0o000); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Chmod(stagedFixture, 0o000))
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -146,9 +140,8 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		0644,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	defer f.Close()
 
 	// Modify content of file to simulate change
@@ -450,6 +443,57 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	assert.True(t, ok)
 }
 
+// TestDownloadTerraformSourceIfNecessaryRedactsSourceCredentials pins that a
+// download that fails reports the source without the password its URL carries,
+// and with the ref that URL names.
+func TestDownloadTerraformSourceIfNecessaryRedactsSourceCredentials(t *testing.T) {
+	t.Parallel()
+
+	const password = "not-a-real-password"
+
+	// v1.2.3 is not among the server's seeded tags, so the clone fails and the
+	// download is reported as a DownloadingTerraformSourceErr.
+	srv := helpers.NewGitServer(t)
+	canonicalURL := strings.Replace(
+		srv.SourceURL("test/fixtures/download-source/hello-world", "v1.2.3"),
+		"http://",
+		"http://tester:"+password+"@",
+		1,
+	)
+
+	downloadDir := helpers.TmpDirWOSymlinks(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
+
+	terraformSource, opts, cfg, err := createConfig(t, canonicalURL, downloadDir, false)
+	require.NoError(t, err)
+	require.Contains(
+		t,
+		terraformSource.CanonicalSourceURL.String(),
+		password,
+		"the source must reach the download carrying the password",
+	)
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		terraformSource,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.Error(t, err)
+
+	var downloadErr run.DownloadingTerraformSourceErr
+
+	require.ErrorAs(t, err, &downloadErr)
+	assert.NotContains(t, downloadErr.URL.String(), password)
+	assert.Contains(t, downloadErr.URL.String(), "ref=v1.2.3")
+	assert.NotContains(t, err.Error(), password)
+}
+
 func TestInvalidModulePath(t *testing.T) {
 	t.Parallel()
 
@@ -665,7 +709,7 @@ func createConfig(
 	// other than the version probe is a regression: fail loudly rather
 	// than silently absorb it.
 	versionExec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		// IdentifyDefaultWrappedExecutable resolves to either tofu or terraform
+		// IdentifyDefaultWrappedExecutable resolves to tofu/terraform
 		// depending on what's on the host PATH; accept both so the assertion
 		// stays host-independent.
 		if (inv.Name != "tofu" && inv.Name != "terraform") ||
@@ -749,9 +793,7 @@ func parseURL(t *testing.T, str string) *url.URL {
 	rawURL := strings.Join(strings.Split(str, string(filepath.Separator)), "/")
 
 	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return parsed
 }
@@ -760,9 +802,7 @@ func readFile(t *testing.T, path string) string {
 	t.Helper()
 
 	contents, err := vfs.ReadFileAsString(vfs.NewOSFS(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return contents
 }
@@ -1065,102 +1105,71 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	assert.FileExists(t, expectedFilePath)
 }
 
-// TestDownloadSourceOCIThroughCASExperimentGate: with the oci experiment on,
-// an oci source enters the CAS path (observed via the CAS attempt log) and
-// reaches the real getter; off, the CAS attempt is skipped up front.
-func TestDownloadSourceOCIThroughCASExperimentGate(t *testing.T) {
+// TestDownloadSourceOCIEntersCASPath: an oci source enters the CAS path
+// (observed via the CAS attempt log) and reaches the real getter, with no
+// experiment enabled.
+func TestDownloadSourceOCIEntersCASPath(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name      string
-		enableOCI bool
-	}{
-		{name: "experiment enabled reaches the oci getter", enableOCI: true},
-		{name: "experiment disabled skips the oci getter", enableOCI: false},
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	// A TLS server the test owns: the client rejects its self-signed
+	// cert deterministically, with no assumptions about closed ports.
+	registry := httptest.NewTLSServer(http.NotFoundHandler())
+	t.Cleanup(registry.Close)
+
+	registryAddr := registry.Listener.Addr().String()
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "oci://"+registryAddr+"/terraform-modules/vpc?tag=1.0.0"),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
 
-			tmpDir := helpers.TmpDirWOSymlinks(t)
+	// Defaults only: the oci experiment is completed, so nothing is enabled here.
+	opts.Experiments = experiment.NewExperiments()
 
-			// A TLS server the test owns: the client rejects its self-signed
-			// cert deterministically, with no assumptions about closed ports.
-			registry := httptest.NewTLSServer(http.NotFoundHandler())
-			t.Cleanup(registry.Close)
-
-			registryAddr := registry.Listener.Addr().String()
-			src := &tf.Source{
-				CanonicalSourceURL: parseURL(t, "oci://"+registryAddr+"/terraform-modules/vpc?tag=1.0.0"),
-				DownloadDir:        tmpDir,
-				WorkingDir:         tmpDir,
-				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
-			}
-
-			opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
-			require.NoError(t, err)
-
-			opts.Experiments = experiment.NewExperiments()
-
-			if tc.enableOCI {
-				require.NoError(t, opts.Experiments.EnableExperiment(experiment.OCI))
-			}
-
-			cfg := &runcfg.RunConfig{
-				Terraform: runcfg.TerraformConfig{
-					ExtraArgs: []runcfg.TerraformExtraArguments{},
-				},
-			}
-
-			var logBuf bytes.Buffer
-
-			l := logger.CreateLogger()
-			l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
-
-			// Hermetic env and home so a developer's local Docker or tofu
-			// credentials cannot change how the source authenticates.
-			hermeticHome := t.TempDir()
-			v := venvtest.NewOSWithEmptyEnv().
-				WithEnv(map[string]string{"HOME": hermeticHome}).
-				WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
-
-			_, err = run.DownloadTerraformSourceIfNecessary(
-				t.Context(),
-				l,
-				v,
-				src,
-				configbridge.NewRunOptions(opts),
-				cfg,
-				report.NewReport(),
-			)
-			require.Error(t, err, "the fake registry's cert is untrusted, so every fetch fails")
-
-			const casAttempt = "CAS enabled: attempting to use Content Addressable Storage"
-
-			var resolutionErr getter.OCIReferenceResolutionError
-
-			if tc.enableOCI {
-				require.ErrorAs(t, err, &resolutionErr, "the oci getter must run when the experiment is on")
-				assert.Contains(
-					t,
-					logBuf.String(),
-					casAttempt,
-					"the oci source must enter the CAS path when the experiment is on",
-				)
-
-				return
-			}
-
-			assert.NotErrorAs(t, err, &resolutionErr, "no oci getter must run when the experiment is off")
-			assert.NotContains(
-				t,
-				logBuf.String(),
-				casAttempt,
-				"the CAS attempt must be skipped when the experiment is off",
-			)
-		})
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
 	}
+
+	var logBuf bytes.Buffer
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
+
+	// Hermetic env and home so a developer's local Docker or tofu
+	// credentials cannot change how the source authenticates.
+	hermeticHome := t.TempDir()
+	v := venvtest.NewOSWithEmptyEnv().
+		WithEnv(map[string]string{"HOME": hermeticHome}).
+		WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		l,
+		v,
+		src,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+	require.Error(t, err, "the fake registry's cert is untrusted, so every fetch fails")
+
+	var resolutionErr getter.OCIReferenceResolutionError
+
+	require.ErrorAs(t, err, &resolutionErr, "the oci getter must run with stock defaults")
+	assert.Contains(
+		t,
+		logBuf.String(),
+		"CAS enabled: attempting to use Content Addressable Storage",
+		"an oci source must enter the CAS path",
+	)
 }
 
 // TestDownloadSourceOCIAgainstLocalRegistry downloads a published module end to end with the experiment on.
@@ -1184,7 +1193,6 @@ func TestDownloadSourceOCIAgainstLocalRegistry(t *testing.T) {
 	require.NoError(t, err)
 
 	opts.Experiments = experiment.NewExperiments()
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OCI))
 
 	cfg := &runcfg.RunConfig{
 		Terraform: runcfg.TerraformConfig{
@@ -1328,6 +1336,10 @@ func TestDownloadSourceWithCASOfflineDamagedStoreFails(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.NotErrorIs(t, err, cas.ErrCASOffline, "the probe is answered; the store fails on the content behind it")
+
+	var refused *cas.OfflineRepairError
+
+	require.ErrorAs(t, err, &refused, "the flag forbids the re-ingest that would repair the store")
 
 	assert.NoFileExists(t, filepath.Join(offline.DownloadDir, "main.tf"), "the standard getter must not have fetched the source")
 }
@@ -1807,66 +1819,36 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	require.ErrorIs(t, err, run.ErrNonOSFilesystem)
 }
 
-// TestBuildDownloadClientOCIExperimentGate verifies that the oci getter is
-// registered only when the oci experiment is enabled: without it, oci://
-// sources keep failing with the generic go-getter error; with it, the typed
-// OCI validation error proves the getter runs.
-func TestBuildDownloadClientOCIExperimentGate(t *testing.T) {
+// TestBuildDownloadClientRegistersOCIGetter verifies that the oci getter is
+// registered with stock defaults: the typed OCI validation error proves the
+// getter runs rather than go-getter rejecting the scheme.
+func TestBuildDownloadClientRegistersOCIGetter(t *testing.T) {
 	t.Parallel()
 
-	helpers.SkipInExperimentMode(t, experiment.OCI)
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
 
-	testCases := []struct {
-		name    string
-		enabled bool
-	}{
-		{
-			name:    "experiment disabled keeps oci unregistered",
-			enabled: false,
-		},
-		{
-			name:    "experiment enabled registers the oci getter",
-			enabled: true,
-		},
-	}
+	client, err := run.BuildDownloadClient(
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		configbridge.NewRunOptions(terragruntOptions),
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+	)
+	require.NoError(t, err)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	_, found := findGetter[*getter.OCIGetter](client.Getters)
+	assert.True(t, found, "the oci getter must be registered without any experiment")
 
-			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
-			require.NoError(t, err)
+	dst := filepath.Join(t.TempDir(), "module")
 
-			if tc.enabled {
-				require.NoError(t, terragruntOptions.Experiments.EnableExperiment(experiment.OCI))
-			}
-
-			client, err := run.BuildDownloadClient(
-				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv(),
-				configbridge.NewRunOptions(terragruntOptions),
-				&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
-			)
-			require.NoError(t, err)
-
-			_, found := findGetter[*getter.OCIGetter](client.Getters)
-			assert.Equal(t, tc.enabled, found)
-
-			dst := filepath.Join(t.TempDir(), "module")
-
-			_, err = client.Get(t.Context(), &getter.Request{
-				Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?bogus=1",
-				Dst:     dst,
-				GetMode: getter.ModeDir,
-			})
-			require.Error(t, err)
-			assert.Equal(
-				t,
-				tc.enabled,
-				errors.Is(err, getter.OCIUnsupportedQueryParamError{Param: "bogus"}),
-			)
-		})
-	}
+	_, err = client.Get(t.Context(), &getter.Request{
+		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?bogus=1",
+		Dst:     dst,
+		GetMode: getter.ModeDir,
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, getter.OCIUnsupportedQueryParamError{Param: "bogus"},
+		"the oci getter must validate the source rather than go-getter rejecting the scheme")
 }
 
 // TestBuildDownloadClientThreadsVenvToOCIStore: the run's venv reaches the OCI credential store.
@@ -1875,12 +1857,18 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 	require.NoError(t, err)
-	require.NoError(t, terragruntOptions.Experiments.EnableExperiment(experiment.OCI))
 
-	// A .tofurc reachable only through this venv's home lookup.
+	// A CLI config reachable only through this venv's home lookup. Windows reads it as
+	// tofu.rc under %APPDATA%, every other platform as ~/.tofurc.
 	home := t.TempDir()
+	configName := ".tofurc"
+
+	if helpers.IsWindows() {
+		configName = "tofu.rc"
+	}
+
 	require.NoError(t, os.WriteFile(
-		filepath.Join(home, ".tofurc"),
+		filepath.Join(home, configName),
 		[]byte(fmt.Sprintf(
 			"\noci_credentials %q {\n  %s = %q\n  %s = %q\n}\n",
 			"registry.example.com", "username", "wired", "password", "fake-secret-wired",
@@ -1889,7 +1877,7 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	))
 
 	v := venvtest.NewOSWithEmptyEnv().
-		WithEnv(map[string]string{"HOME": home}).
+		WithEnv(map[string]string{"HOME": home, "APPDATA": home}).
 		WithUserHomeDir(func() (string, error) { return home, nil })
 
 	client, err := run.BuildDownloadClient(

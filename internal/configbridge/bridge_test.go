@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,16 +17,19 @@ func TestBackendOptsFromOpts_CopiesFields(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("terragrunt.hcl")
 	require.NoError(t, err)
 
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.AzureBackend))
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Symlinks))
 
 	opts.NonInteractive = true
 	opts.FailIfBucketCreationRequired = true
 
 	got := configbridge.BackendOptsFromOpts(opts)
 
-	assert.True(t, got.Experiments.Evaluate(experiment.AzureBackend), "enabled experiments must reach backend options")
+	assert.True(t, got.Experiments.Evaluate(experiment.Symlinks), "enabled experiments must reach backend options")
 	assert.True(t, got.NonInteractive)
 	assert.True(t, got.FailIfBucketCreationRequired)
+
+	// Backends evaluate deprecation controls, which silently no-op if they don't reach them.
+	assert.NotEmpty(t, got.StrictControls.FilterByNames(controls.SkipBucketRootAccess))
 }
 
 func TestRemoteStateOptsFromOpts_CarriesBackendOptions(t *testing.T) {
@@ -34,14 +38,14 @@ func TestRemoteStateOptsFromOpts_CarriesBackendOptions(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("terragrunt.hcl")
 	require.NoError(t, err)
 
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.AzureBackend))
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Symlinks))
 
 	opts.DisableBucketUpdate = true
 	opts.TerragruntConfigPath = "/work/terragrunt.hcl"
 
 	got := configbridge.RemoteStateOptsFromOpts(map[string]string{}, opts)
 
-	assert.True(t, got.Experiments.Evaluate(experiment.AzureBackend), "experiments must reach remote state options")
+	assert.True(t, got.Experiments.Evaluate(experiment.Symlinks), "experiments must reach remote state options")
 	assert.True(t, got.DisableBucketUpdate)
 
 	// TFRunOpts feeds migrate state pull/push, so its threading is load-bearing.

@@ -40,7 +40,7 @@ now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 this_commit() { echo "${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"; }
 this_ref() { echo "${GITHUB_REF:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)}"; }
 
-# Run the suite (-json) and emit coverage.out, test-events.ndjson and result.xml
+# Run the suite through gotestsum and emit coverage.out, test-events.ndjson and result.xml
 cmd_run() {
 	local out="${1:?Usage: coverage-report.sh run <out-dir> [packages...]}"
 	shift
@@ -50,19 +50,25 @@ cmd_run() {
 	mkdir -p "$out"
 	local events="$out/test-events.ndjson" cover="$out/coverage.out" junit="$out/result.xml"
 
+	# cmd_failures below prints the failing tests, so gotestsum's own failure summary is hidden.
 	set +e
-	go test -json -coverprofile="$cover" -covermode=atomic "${pkgs[@]}" -timeout "${TEST_TIMEOUT:-45m}" |
-		tee "$events" |
-		go-junit-report -parser gojson -set-exit-code >"$junit"
-	local status=${PIPESTATUS[0]}
+	gotestsum --format pkgname --format-hide-empty-pkg --hide-summary skipped,failed,output \
+		--jsonfile "$events" --junitfile "$junit" --junitfile-hide-empty-pkg \
+		--junitfile-testcase-classname relative --junitfile-testsuite-name relative \
+		-- -coverprofile="$cover" -covermode=atomic "${pkgs[@]}" -timeout "${TEST_TIMEOUT:-45m}"
+	local status=$?
 	set -e
 
-	echo "go test exit status: $status"
+	if [[ ! -s "$junit" && "$status" -eq 0 ]]; then
+		echo "Could not write JUnit report $junit" >&2
+		return 1
+	fi
+
+	echo "gotestsum exit status: $status"
 	echo "Events: $events ($(wc -l <"$events") lines)"
 	echo "Cover:  $cover"
 	echo "JUnit:  $junit"
 
-	# The -json stream lands in a file, so a failing run would otherwise print only the exit status.
 	if [[ "$status" -ne 0 ]]; then
 		cmd_failures "$events" || echo "Could not summarize failures from $events" >&2
 	fi
@@ -525,6 +531,9 @@ cmd_timing() {
 		--arg ts "$(now_utc)" \
 		--arg commit "$(this_commit)" \
 		--arg ref "$(this_ref)" '
+		# go test -json Elapsed carries float residue (6.7059999999999995), so
+		# round to the hundredths go test itself prints.
+		def secs: (. // 0) * 100 | round / 100;
 		reduce (
 			inputs
 			| select(length > 0)
@@ -535,16 +544,20 @@ cmd_timing() {
 			if ($e.Test // "") == "" then
 				.packages[$e.Package] = (
 					(.packages[$e.Package] // {wall_sec: 0, tests: {}})
-					| .wall_sec = ($e.Elapsed // 0)
+					| .wall_sec = ($e.Elapsed | secs)
 				)
 			else
 				.packages[$e.Package] = (
 					(.packages[$e.Package] // {wall_sec: 0, tests: {}})
-					| .tests[$e.Test] = ($e.Elapsed // 0)
+					| .tests[$e.Test] = ($e.Elapsed | secs)
 				)
 			end
 		)
-		| .total_sec = ([.packages[].wall_sec] | add // 0)
+		# A package that ran no tests only reports build time: under -cover a
+		# package with no test files (e.g. the root main package) still gets a
+		# package-level pass, so keep only packages with test events.
+		| .packages |= with_entries(select(.value.tests | length > 0))
+		| .total_sec = ([.packages[].wall_sec] | add // 0 | secs)
 		| . + {generated_at: $ts, commit: $commit, ref: $ref}
 	' "$events" >"$output"
 

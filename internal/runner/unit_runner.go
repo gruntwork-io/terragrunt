@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -111,7 +112,7 @@ func (runner *UnitRunner) runTerragrunt(
 				unitPath,
 				report.WithResult(report.ResultFailed),
 				report.WithReason(report.ReasonRunError),
-				report.WithCauseRunError(runErr.Error()),
+				report.WithCauseRunError(errfmt.Format(runErr)),
 			); endErr != nil {
 				l.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
 			}

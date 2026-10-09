@@ -4,6 +4,9 @@ on:
     - cron: "0 * * * *" # Runs every hour
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   run_cloud_nuke:
     permissions:

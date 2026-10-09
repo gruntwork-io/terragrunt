@@ -6,7 +6,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,14 +34,14 @@ func newCountingFS(fsys vfs.FS) *countingFS {
 }
 
 // Open counts the open and delegates.
-func (fsys *countingFS) Open(name string) (afero.File, error) {
+func (fsys *countingFS) Open(name string) (vfs.File, error) {
 	fsys.count(name)
 
 	return fsys.FS.Open(name)
 }
 
 // OpenFile counts the open and delegates.
-func (fsys *countingFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+func (fsys *countingFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
 	fsys.count(name)
 
 	return fsys.FS.OpenFile(name, flag, perm)

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -30,8 +31,9 @@ var fieldsCopyLocks = util.NewKeyLocks()
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	includedConfig *IncludeConfig,
 ) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
@@ -84,7 +86,7 @@ func parseIncludedConfig(
 	// NOTE: To make the logic easier to implement, we implement the inverse here, where we check whether the included
 	// config has a dependency block, and if we are in the middle of a partial parse, we perform a partial parse of the
 	// included config.
-	hasDependency, err := configFileHasDependencyBlock(pctx.Venv.FS, includePath)
+	hasDependency, err := ConfigFileHasDependencyBlock(v.FS, includePath)
 	if err != nil {
 		return nil, err
 	}
@@ -95,16 +97,16 @@ func parseIncludedConfig(
 			includePath,
 		)
 
-		return PartialParseConfigFile(ctx, pctx, l, includePath, includedConfig)
+		return PartialParseConfigFile(ctx, l, v, pctx, includePath, includedConfig)
 	}
 
 	// When included config has dependencies, suppress diagnostics during parsing.
 	parseCtx := pctx
 	if hasDependency {
-		parseCtx = pctx.WithDiagnosticsSuppressed(l)
+		parseCtx = pctx.WithDiagnosticsSuppressed()
 	}
 
-	config, err := ParseConfigFile(ctx, parseCtx, l, includePath, includedConfig)
+	config, err := ParseConfigFile(ctx, l, v, parseCtx, includePath, includedConfig)
 	if err != nil {
 		if _, ok := errors.AsType[TerragruntConfigNotFoundError](err); ok {
 			return nil, IncludeConfigNotFoundError{
@@ -123,8 +125,9 @@ func parseIncludedConfig(
 // user.
 func handleInclude(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	config *TerragruntConfig,
 	isPartial bool,
 ) (*TerragruntConfig, error) {
@@ -153,10 +156,10 @@ func handleInclude(
 		pctx.FilesRead.Add(includeConfig.Path)
 
 		if isPartial {
-			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, pctx, l, &includeConfig)
+			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 			logPrefix = "[Partial] "
 		} else {
-			parsedIncludeConfig, err = parseIncludedConfig(ctx, pctx, l, &includeConfig)
+			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 		}
 
 		if err != nil {
@@ -213,8 +216,9 @@ func handleInclude(
 // child.
 func handleIncludeForDependency(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	childDecodedDependency TerragruntDependency,
 ) (*TerragruntDependency, error) {
 	if pctx.TrackInclude == nil {
@@ -235,8 +239,9 @@ func handleIncludeForDependency(
 
 		includedPartialParse, err := partialParseIncludedConfig(
 			ctx,
-			pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock),
 			l,
+			v,
+			pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock),
 			&includeConfig,
 		)
 		if err != nil {
@@ -636,7 +641,8 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 }
 
 // fetchDependencyPaths returns each dependency's config path, keyed the way include
-// merging matches dependencies up.
+// merging matches dependencies up. A dependency whose config_path is not a known string
+// has no path to carry over, so it is left out, as [Dependency.DeepMerge] ignores it too.
 func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	var m = make(map[string]string)
 	if config == nil {
@@ -644,7 +650,9 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	}
 
 	for _, dependency := range config.TerragruntDependencies {
-		m[dependency.mergeKey()] = dependency.ConfigPath.AsString()
+		if configPath, ok := dependency.configPathString(); ok {
+			m[dependency.mergeKey()] = configPath
+		}
 	}
 
 	return m

@@ -49,34 +49,27 @@ func TestNewGitRunner(t *testing.T) {
 	})
 }
 
-func TestGitRunner_LatestReleaseTag(t *testing.T) {
+func TestGitRunner_LsRemoteTags(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		wantErr error
 		name    string
 		stdout  string
-		want    string
+		want    []git.LsRemoteResult
 		exit    int
 	}{
 		{
-			name: "highest stable tag",
-			stdout: "a\trefs/tags/v1.2.0\n" +
-				"b\trefs/tags/v2.0.0-rc1\n" +
-				"c\trefs/tags/not-semver\n" +
-				"d\trefs/tags/v1.10.0\n" +
-				"e\trefs/tags/v1.10.0^{}\n",
-			want: "v1.10.0",
+			name:   "tags",
+			stdout: "a\trefs/tags/v1.2.0\nb\trefs/tags/v1.2.0^{}\n",
+			want: []git.LsRemoteResult{
+				{Hash: "a", Ref: "refs/tags/v1.2.0"},
+				{Hash: "b", Ref: "refs/tags/v1.2.0^{}"},
+			},
 		},
 		{
 			name:   "no tags",
 			stdout: "",
-			want:   "",
-		},
-		{
-			name:   "no release tags",
-			stdout: "a\trefs/tags/not-semver\nb\trefs/tags/v2.0.0-beta1\n",
-			want:   "",
 		},
 		{
 			name:    "command failure",
@@ -95,7 +88,7 @@ func TestGitRunner_LatestReleaseTag(t *testing.T) {
 				return vexec.Result{Stdout: []byte(tc.stdout), ExitCode: tc.exit}
 			})
 
-			got, err := runner.LatestReleaseTag(t.Context(), "origin")
+			got, err := runner.LsRemoteTags(t.Context(), "origin")
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
 				return
@@ -103,6 +96,96 @@ func TestGitRunner_LatestReleaseTag(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestGitRunner_LocalTags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("lists tags", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			assert.Equal(t, []string{"for-each-ref", "--format=%(objectname) %(refname)", "refs/tags/"}, inv.Args)
+
+			return vexec.Result{Stdout: []byte("a refs/tags/v1.0.0\nb refs/tags/v1.1.0\n")}
+		}).WithWorkDir("/repo")
+
+		got, err := runner.LocalTags(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, []git.LsRemoteResult{
+			{Hash: "a", Ref: "refs/tags/v1.0.0"},
+			{Hash: "b", Ref: "refs/tags/v1.1.0"},
+		}, got)
+	})
+
+	t.Run("command failure", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
+
+		_, err := runner.LocalTags(t.Context())
+		require.ErrorIs(t, err, git.ErrCommandSpawn)
+	})
+}
+
+func TestReleaseTags(t *testing.T) {
+	t.Parallel()
+
+	refs := []git.LsRemoteResult{
+		{Hash: "a", Ref: "refs/tags/v1.2.0"},
+		{Hash: "b", Ref: "refs/tags/v1.10.0"},
+		{Hash: "c", Ref: "refs/tags/v1.10.0^{}"},
+		{Hash: "d", Ref: "refs/tags/v2.0.0-rc1"},
+		{Hash: "e", Ref: "refs/tags/not-semver"},
+		{Hash: "f", Ref: "refs/heads/v9.0.0"},
+		{Hash: "g", Ref: "refs/tags/v0.9.0"},
+	}
+
+	assert.Equal(t, []git.LsRemoteResult{
+		{Hash: "b", Ref: "refs/tags/v1.10.0"},
+		{Hash: "a", Ref: "refs/tags/v1.2.0"},
+		{Hash: "g", Ref: "refs/tags/v0.9.0"},
+	}, git.ReleaseTags(refs))
+}
+
+func TestLatestReleaseTag(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		want string
+		refs []git.LsRemoteResult
+	}{
+		{
+			name: "highest stable tag",
+			refs: []git.LsRemoteResult{
+				{Hash: "a", Ref: "refs/tags/v1.2.0"},
+				{Hash: "b", Ref: "refs/tags/v2.0.0-rc1"},
+				{Hash: "c", Ref: "refs/tags/not-semver"},
+				{Hash: "d", Ref: "refs/tags/v1.10.0"},
+				{Hash: "e", Ref: "refs/tags/v1.10.0^{}"},
+			},
+			want: "v1.10.0",
+		},
+		{
+			name: "no tags",
+		},
+		{
+			name: "no release tags",
+			refs: []git.LsRemoteResult{
+				{Hash: "a", Ref: "refs/tags/not-semver"},
+				{Hash: "b", Ref: "refs/tags/v2.0.0-beta1"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, git.LatestReleaseTag(tc.refs))
 		})
 	}
 }
@@ -148,12 +231,30 @@ func TestGitRunner_Fetch(t *testing.T) {
 		t.Parallel()
 
 		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
-			assert.Equal(t, []string{"fetch", "--", "file:///repo", "main"}, inv.Args)
+			assert.Equal(t, []string{
+				"-c", "maintenance.auto=false", "-c", "gc.auto=0",
+				"fetch", "--", "file:///repo", "main",
+			}, inv.Args)
 
 			return vexec.Result{}
 		}).WithWorkDir("/repo")
 
 		require.NoError(t, runner.Fetch(t.Context(), "file:///repo", "main", 0))
+	})
+
+	t.Run("depth limited", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			assert.Equal(t, []string{
+				"-c", "maintenance.auto=false", "-c", "gc.auto=0",
+				"fetch", "--depth", "1", "--no-tags", "--", "file:///repo", "main",
+			}, inv.Args)
+
+			return vexec.Result{}
+		}).WithWorkDir("/repo")
+
+		require.NoError(t, runner.Fetch(t.Context(), "file:///repo", "main", 1))
 	})
 
 	t.Run("command failure", func(t *testing.T) {
@@ -171,6 +272,43 @@ func TestGitRunner_Fetch(t *testing.T) {
 		runner := newMemRunner(t, staticResult(vexec.Result{}))
 
 		err := runner.Fetch(t.Context(), "file:///repo", "main", 1)
+		require.ErrorIs(t, err, git.ErrNoWorkDir)
+	})
+}
+
+func TestGitRunner_FetchUnshallow(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			assert.Equal(t, []string{
+				"-c", "maintenance.auto=false", "-c", "gc.auto=0",
+				"fetch", "--unshallow", "--", "file:///repo", "+refs/*:refs/*",
+			}, inv.Args)
+
+			return vexec.Result{}
+		}).WithWorkDir("/repo")
+
+		require.NoError(t, runner.FetchUnshallow(t.Context(), "file:///repo", "+refs/*:refs/*"))
+	})
+
+	t.Run("command failure", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
+
+		err := runner.FetchUnshallow(t.Context(), "file:///repo", "+refs/*:refs/*")
+		require.ErrorIs(t, err, git.ErrGitFetch)
+	})
+
+	t.Run("missing workdir", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, staticResult(vexec.Result{}))
+
+		err := runner.FetchUnshallow(t.Context(), "file:///repo", "+refs/*:refs/*")
 		require.ErrorIs(t, err, git.ErrNoWorkDir)
 	})
 }
@@ -255,7 +393,13 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 		{
 			name: "create detached",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.CreateDetachedWorktree(ctx, venvtest.New(), "/worktree", "HEAD", git.CheckoutFiles)
+				return runner.CreateDetachedWorktree(
+					ctx,
+					venvtest.New(),
+					"/worktree",
+					"HEAD",
+					git.CheckoutFiles,
+				)
 			},
 			args: []string{
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
@@ -266,7 +410,13 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 		{
 			name: "create detached without checkout",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.CreateDetachedWorktree(ctx, venvtest.New(), "/worktree", "HEAD", git.SkipCheckout)
+				return runner.CreateDetachedWorktree(
+					ctx,
+					venvtest.New(),
+					"/worktree",
+					"HEAD",
+					git.SkipCheckout,
+				)
 			},
 			args: []string{
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
@@ -275,12 +425,26 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 			wantErr: git.ErrCommandSpawn,
 		},
 		{
-			name: "read tree",
+			name: "checkout paths",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.ReadTree(ctx, "HEAD")
+				return runner.CheckoutPaths(ctx, venvtest.New(), "unit")
 			},
-			args:    []string{"read-tree", "HEAD"},
-			wantErr: git.ErrReadTree,
+			args: []string{
+				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
+				"checkout", "HEAD", "--", "unit",
+			},
+			wantErr: git.ErrCommandSpawn,
+		},
+		{
+			name: "checkout whole tree",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.CheckoutPaths(ctx, venvtest.New())
+			},
+			args: []string{
+				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
+				"checkout", "--force", "HEAD",
+			},
+			wantErr: git.ErrCommandSpawn,
 		},
 		{
 			name: "remove",
@@ -640,6 +804,28 @@ func TestGitRunner_GetDefaultBranchRemote(t *testing.T) {
 	}
 }
 
+// TestGitRunner_LsRemoteDefaultBranch pins that the lookup asks the remote it
+// is given, so it needs no working-directory repository.
+func TestGitRunner_LsRemoteDefaultBranch(t *testing.T) {
+	t.Parallel()
+
+	const remote = "https://example.com/acme/catalog.git"
+
+	var args []string
+
+	runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		args = inv.Args
+
+		return vexec.Result{Stdout: []byte("ref: refs/heads/trunk\tHEAD\n" + headHash + "\tHEAD\n")}
+	})
+
+	branch, err := runner.LsRemoteDefaultBranch(t.Context(), remote)
+	require.NoError(t, err)
+
+	assert.Equal(t, "trunk", branch)
+	assert.Equal(t, []string{"ls-remote", "--symref", "--", remote, "HEAD"}, args)
+}
+
 func TestGitRunner_GetDefaultBranch(t *testing.T) {
 	t.Parallel()
 
@@ -700,7 +886,7 @@ func TestGitRunner_GetDefaultBranch(t *testing.T) {
 				case "config":
 					return tc.config
 				default:
-					t.Errorf("unexpected git command: %v", inv.Args)
+					assert.Fail(t, "unexpected git command", "args=%v", inv.Args)
 
 					return vexec.Result{ExitCode: 1}
 				}
@@ -831,7 +1017,7 @@ func failIfSpawned(t *testing.T) vexec.Handler {
 	t.Helper()
 
 	return func(context.Context, vexec.Invocation) vexec.Result {
-		t.Error("git must not be spawned when no working directory is set")
+		assert.Fail(t, "git must not be spawned when no working directory is set")
 
 		return vexec.Result{Stdout: []byte("value\n")}
 	}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/detect"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -76,6 +77,9 @@ type StackCASResult struct {
 // Requires v.FS unconditionally. Remote sources additionally require
 // v.Exec for the git runner; the assertion fires once dispatch picks
 // the remote branch.
+//
+// Returns the [NewGitStoreVenv] error for a remote source when v cannot
+// back the git store.
 func (c *CAS) ProcessStackComponent(
 	ctx context.Context,
 	l log.Logger,
@@ -94,17 +98,22 @@ func (c *CAS) ProcessStackComponent(
 
 	detectedURL, err := DetectRemoteSource(repoURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect source URL %q: %w", repoURL, err)
+		return nil, fmt.Errorf("failed to detect source URL %q: %w", redact.NewURL(repoURL), err)
 	}
 
 	parsedURL, err := url.Parse(detectedURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse source URL %q: %w", detectedURL, err)
+		return nil, fmt.Errorf("failed to parse source URL %q: %w", redact.NewURL(detectedURL), err)
 	}
 
 	strippedURL, ref := StripGitURLParams(parsedURL)
 
-	cleanURL := strings.TrimPrefix(strippedURL.String(), "git::")
+	cleanURL := redact.NewURL(strings.TrimPrefix(strippedURL.String(), "git::"))
+
+	gv, err := NewGitStoreVenv(v)
+	if err != nil {
+		return nil, err
+	}
 
 	// Stack processing derives deterministic CAS keys from refHash, so
 	// abbreviated SHAs would produce keys that depend on the input
@@ -112,7 +121,7 @@ func (c *CAS) ProcessStackComponent(
 	// stacks; CommitHash returns the user input as-is for the
 	// commit-ref path, and the canonical hash for the symbolic-ref
 	// path.
-	resolved, err := c.resolveReference(ctx, l, v, cleanURL, ref)
+	resolved, err := c.resolveReference(ctx, l, gv, cleanURL, ref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve reference %q: %w", ref, err)
 	}

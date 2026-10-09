@@ -46,7 +46,7 @@ func serviceAccountJSON(t *testing.T) []byte {
 	return sa
 }
 
-func TestGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
+func TestGCPConfigWithApplicationCredentialsEnv(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -66,7 +66,7 @@ func TestGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
+func TestGCPConfigWithOAuthAccessTokenEnv(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -80,7 +80,7 @@ func TestGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
+func TestGCPConfigWithGoogleCredentialsEnv(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -106,7 +106,7 @@ func TestGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
+func TestGCPConfigWithCredentialsFileFromConfig(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -130,7 +130,7 @@ func TestGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestGcpConfigWithAccessTokenFromConfig(t *testing.T) {
+func TestGCPConfigWithAccessTokenFromConfig(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -148,7 +148,7 @@ func TestGcpConfigWithAccessTokenFromConfig(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
+func TestGCPConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -184,7 +184,7 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 	// The if-else chain in CreateGcpConfig checks env vars first
 }
 
-func TestGcpConfigWithImpersonation(t *testing.T) {
+func TestGCPConfigWithImpersonation(t *testing.T) {
 	t.Skip(
 		"impersonation succeeds when application default credentials are present, as they are in the GCP CI job",
 	)
@@ -208,7 +208,7 @@ func TestGcpConfigWithImpersonation(t *testing.T) {
 	assert.Contains(t, err.Error(), "impersonation")
 }
 
-func TestGcpConfigWithNoCredentials(t *testing.T) {
+func TestGCPConfigWithNoCredentials(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -223,7 +223,7 @@ func TestGcpConfigWithNoCredentials(t *testing.T) {
 	assert.Empty(t, clientOpts)
 }
 
-func TestGcpConfigWithGoogleCredentialsFile(t *testing.T) {
+func TestGCPConfigWithGoogleCredentialsFile(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -252,7 +252,7 @@ func TestGcpConfigWithGoogleCredentialsFile(t *testing.T) {
 	assert.NotEmpty(t, clientOpts)
 }
 
-func TestGcpConfigCredentialsPayloads(t *testing.T) {
+func TestGCPConfigCredentialsPayloads(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -280,9 +280,9 @@ func TestGcpConfigCredentialsPayloads(t *testing.T) {
 	}
 }
 
-// TestGcpConfigUnsupportedCredentialsType pins that a type the SDK does not accept is
+// TestGCPConfigUnsupportedCredentialsType pins that a type the SDK does not accept is
 // reported as a build failure naming the type, not as a parse failure.
-func TestGcpConfigUnsupportedCredentialsType(t *testing.T) {
+func TestGCPConfigUnsupportedCredentialsType(t *testing.T) {
 	t.Parallel()
 
 	v := gcpCredentialsVenv(t, []byte(`{"type":"gce_metadata"}`))
@@ -296,9 +296,9 @@ func TestGcpConfigUnsupportedCredentialsType(t *testing.T) {
 	assert.Equal(t, credentials.CredType("gce_metadata"), buildErr.CredType)
 }
 
-// TestGcpConfigEmptyCredentialsFileFallsBackToADC pins the behaviour an unpopulated secret
+// TestGCPConfigEmptyCredentialsFileFallsBackToADC pins the behaviour an unpopulated secret
 // volume depends on: an empty file contributes no option rather than failing the run.
-func TestGcpConfigEmptyCredentialsFileFallsBackToADC(t *testing.T) {
+func TestGCPConfigEmptyCredentialsFileFallsBackToADC(t *testing.T) {
 	t.Parallel()
 
 	v := gcpCredentialsVenv(t, nil)
@@ -310,10 +310,10 @@ func TestGcpConfigEmptyCredentialsFileFallsBackToADC(t *testing.T) {
 	assert.Empty(t, clientOpts)
 }
 
-// TestGcpConfigEmptyGACDoesNotFallBackToGoogleCredentials pins that an unpopulated
+// TestGCPConfigEmptyGACDoesNotFallBackToGoogleCredentials pins that an unpopulated
 // GOOGLE_APPLICATION_CREDENTIALS file falls through to ADC, not to a leftover
 // GOOGLE_CREDENTIALS naming a different service account.
-func TestGcpConfigEmptyGACDoesNotFallBackToGoogleCredentials(t *testing.T) {
+func TestGCPConfigEmptyGACDoesNotFallBackToGoogleCredentials(t *testing.T) {
 	t.Parallel()
 
 	v := gcpCredentialsVenv(t, nil).WithEnv(map[string]string{

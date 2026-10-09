@@ -2,16 +2,16 @@ terraform {
   required_version = ">= 1.0"
   required_providers {
     null = {
-      # Not fully qualified to allow tests to run with both Terraform and OpenTofu
+      # Not fully qualified to allow tests to run with both OpenTofu and Terraform
       # and verify that a different lock file will be generated for each.
       source  = "hashicorp/null"
-      version = "3.2.3"
+      version = "3.2.4"
     }
     local = {
-      # Not fully qualified to allow tests to run with both Terraform and OpenTofu
+      # Not fully qualified to allow tests to run with both OpenTofu and Terraform
       # and verify that a different lock file will be generated for each.
       source  = "hashicorp/local"
-      version = "2.5.2"
+      version = "2.6.1"
     }
   }
 }

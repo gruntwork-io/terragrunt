@@ -21,10 +21,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
-const (
-	// memRoot is the in-memory filesystem root every runner pool fixture lives under.
-	memRoot = "/repo"
+// memRoot is the in-memory filesystem root every runner pool fixture lives under.
+var memRoot = venvtest.Root("/repo")
 
+const (
 	// tfVersionOutput is what the fake exec reports to a Terraform version probe.
 	tfVersionOutput = "OpenTofu v1.9.0"
 

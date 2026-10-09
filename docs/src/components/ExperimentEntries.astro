@@ -1,8 +1,9 @@
 ---
 import { getCollection, render } from "astro:content";
 import { Aside } from "@astrojs/starlight/components";
-import { getLatestRelease } from "@lib/github";
-import { isCompleted, isVersionReleased } from "@lib/experiments";
+import { getLatestVersion } from "@lib/release";
+import { isCompleted } from "@lib/experiments";
+import { isReleased } from "@lib/versions";
 
 interface Props {
   status: "active" | "completed";
@@ -11,8 +12,7 @@ interface Props {
 
 const { status, showUnreleased = false } = Astro.props;
 
-const releaseData = await getLatestRelease("gruntwork-io", "terragrunt");
-const latestVersion = (releaseData?.tag_name ?? "v0.0.0").replace(/^v/, "");
+const latestVersion = await getLatestVersion();
 
 const allEntries = await getCollection("experiments");
 
@@ -21,7 +21,7 @@ const entries = allEntries
     status === "completed"
       ? isCompleted(entry, latestVersion)
       : !isCompleted(entry, latestVersion) &&
-        (showUnreleased || isVersionReleased(entry.data.since, latestVersion))
+        (showUnreleased || !entry.data.since || isReleased(entry.data.since, latestVersion))
   )
   .sort((a, b) => a.data.name.localeCompare(b.data.name));
 

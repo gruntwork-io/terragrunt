@@ -7,16 +7,18 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -37,7 +39,6 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
 		backendConfig string
 		workspace     string
 		wantRequest   string
-		enableAzure   bool
 	}{
 		{
 			name:    "S3 default workspace",
@@ -93,7 +94,6 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
         key                  = "service.tfstate"
         storage_account_name = "stateaccount"`, accessKey),
 			wantRequest: "stateaccount.blob.core.windows.net/state/service.tfstate",
-			enableAzure: true,
 		},
 		{
 			name:      "Azure named workspace",
@@ -105,7 +105,6 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
         key                  = "service.tfstate"
         storage_account_name = "stateaccount"`, accessKey),
 			wantRequest: "stateaccount.blob.core.windows.net/state/service.tfstateenv:production",
-			enableAzure: true,
 		},
 	}
 
@@ -131,7 +130,6 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
 				testCase.backend,
 				testCase.backendConfig,
 				env,
-				testCase.enableAzure,
 				"",
 			)
 			require.NoError(t, err)
@@ -146,6 +144,245 @@ func TestDependencyStateDirectReadRoutesByBackendAndWorkspace(t *testing.T) {
 	}
 }
 
+// TestDependencyStateS3AssumeRoleUsedForDirectRead verifies backend assume_role.role_arn is used for direct S3 read (issue #4979).
+func TestDependencyStateS3AssumeRoleUsedForDirectRead(t *testing.T) {
+	t.Parallel()
+
+	const backendRoleARN = "arn:aws:iam::999999999999:role/backend-state-reader"
+
+	var (
+		rolesMu        sync.Mutex
+		requestedRoles []string
+	)
+
+	recordRole := func(roleARN string) {
+		rolesMu.Lock()
+		defer rolesMu.Unlock()
+
+		requestedRoles = append(requestedRoles, roleARN)
+	}
+
+	recorder := newDependencyStateRecorder(t, 0, nil)
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+
+	cfg, err := parseDependencyStateFixture(
+		t,
+		recorder,
+		"s3",
+		fmt.Sprintf(`
+        bucket              = "state-bucket"
+        key                 = "service.tfstate"
+        region              = "us-east-1"
+        endpoint            = "https://s3.example.com"
+        force_path_style    = true
+        skip_credentials_validation = true
+        assume_role = {
+          role_arn = %q
+        }`, backendRoleARN),
+		map[string]string{
+			"AWS_ACCESS_KEY_ID":     "base-access-key",
+			"AWS_SECRET_ACCESS_KEY": "base-secret-key",
+		},
+		"",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "from-assumed-role", cfg.Inputs["result"])
+
+	requestPaths := recorder.requestPaths()
+	stsIdx := slices.IndexFunc(requestPaths, func(p string) bool {
+		return strings.Contains(p, "sts")
+	})
+	s3Idx := slices.IndexFunc(requestPaths, func(p string) bool {
+		return strings.Contains(p, "s3.example.com")
+	})
+
+	require.GreaterOrEqual(t, stsIdx, 0, "an STS AssumeRole request must be made for the backend role")
+	require.GreaterOrEqual(t, s3Idx, 0, "an S3 GetObject request must be made")
+	assert.Less(t, stsIdx, s3Idx, "STS role assumption must precede the S3 state read")
+
+	rolesMu.Lock()
+	defer rolesMu.Unlock()
+
+	require.Equal(t, []string{backendRoleARN}, requestedRoles)
+}
+
+// stsAndS3Responder returns an HTTP callback handling STS AssumeRole and S3 state requests.
+func stsAndS3Responder(t *testing.T, defaultRoleARN string, onAssumeRole func(string)) func(*http.Request) *http.Response {
+	t.Helper()
+
+	return func(req *http.Request) *http.Response {
+		if strings.Contains(req.URL.Host, "sts") {
+			body, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+
+			if strings.Contains(string(body), "AssumeRole") {
+				roleARN := defaultRoleARN
+
+				if vals, err := url.ParseQuery(string(body)); err == nil {
+					if r := vals.Get("RoleArn"); r != "" {
+						roleARN = r
+					}
+				}
+
+				if onAssumeRole != nil {
+					onAssumeRole(roleARN)
+				}
+
+				return vhttp.Respond(http.StatusOK, stsAssumeRoleResponse(roleARN), nil)
+			}
+		}
+
+		if strings.Contains(req.URL.Host, "s3") {
+			return vhttp.Respond(http.StatusOK, terraformState("from-assumed-role"), nil)
+		}
+
+		return vhttp.Respond(http.StatusNotFound, nil, nil)
+	}
+}
+
+// stsAssumeRoleResponse returns a minimal valid STS AssumeRole XML response.
+func stsAssumeRoleResponse(roleARN string) []byte {
+	return []byte(fmt.Sprintf(`<AssumeRoleResponse>
+  <AssumeRoleResult>
+    <Credentials>
+      <AccessKeyId>ASSUMED_ACCESS_KEY</AccessKeyId>
+      <SecretAccessKey>ASSUMED_SECRET_KEY</SecretAccessKey>
+      <SessionToken>ASSUMED_SESSION_TOKEN</SessionToken>
+      <Expiration>2030-12-31T23:59:59Z</Expiration>
+    </Credentials>
+    <AssumedRoleUser>
+      <AssumedRoleId>AROA_ASSUMED:terragrunt-session</AssumedRoleId>
+      <Arn>%s</Arn>
+    </AssumedRoleUser>
+  </AssumeRoleResult>
+</AssumeRoleResponse>`, roleARN))
+}
+
+// TestDependencyStateS3AssumeRoleWithClearedIAMOptions checks target iam_role and backend assume_role are used when caller IAM differs (issue #4979).
+func TestDependencyStateS3AssumeRoleWithClearedIAMOptions(t *testing.T) {
+	t.Parallel()
+
+	const (
+		callerRoleARN   = "arn:aws:iam::111111111111:role/caller-deploy-role"
+		producerRoleARN = "arn:aws:iam::222222222222:role/producer-base-role"
+		backendRoleARN  = "arn:aws:iam::999999999999:role/backend-state-reader"
+	)
+
+	var (
+		rolesMu        sync.Mutex
+		requestedRoles []string
+	)
+
+	recordRole := func(roleARN string) {
+		rolesMu.Lock()
+		defer rolesMu.Unlock()
+
+		requestedRoles = append(requestedRoles, roleARN)
+	}
+
+	recorder := newDependencyStateRecorder(t, 0, nil)
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
+		t,
+		recorder,
+		"s3",
+		"",
+		map[string]string{
+			"AWS_ACCESS_KEY_ID":     "caller-access-key",
+			"AWS_SECRET_ACCESS_KEY": "caller-secret-key",
+		},
+		"",
+	)
+
+	producerHCL := fmt.Sprintf(`iam_role = %q
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket              = "state-bucket"
+    key                 = "service.tfstate"
+    region              = "us-east-1"
+    endpoint            = "https://s3.example.com"
+    force_path_style    = true
+    skip_credentials_validation = true
+    assume_role = {
+      role_arn = %q
+    }
+  }
+}
+`, producerRoleARN, backendRoleARN)
+	require.NoError(t, vfs.WriteFile(v.FS, venvtest.Root("/repo/producer/terragrunt.hcl"), []byte(producerHCL), 0o600))
+
+	pctx.IAMRoleOptions = iam.RoleOptions{
+		RoleARN: callerRoleARN,
+	}
+
+	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "from-assumed-role", cfg.Inputs["result"])
+
+	requestPaths := recorder.requestPaths()
+	require.True(t, slices.ContainsFunc(requestPaths, func(p string) bool {
+		return strings.Contains(p, "sts")
+	}), "STS AssumeRole must be called")
+	require.True(t, slices.ContainsFunc(requestPaths, func(p string) bool {
+		return strings.Contains(p, "s3.example.com")
+	}), "S3 GetObject must be called for the state file")
+
+	rolesMu.Lock()
+	defer rolesMu.Unlock()
+
+	require.Equal(t, []string{producerRoleARN, backendRoleARN}, requestedRoles)
+	assert.NotContains(t, requestedRoles, callerRoleARN)
+}
+
+// TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput verifies fallback to native output when direct S3 read fails.
+func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T) {
+	t.Parallel()
+
+	const backendRoleARN = "arn:aws:iam::999999999999:role/backend-state-reader"
+
+	recorder := newDependencyStateRecorder(t, 0, nil)
+	recorder.respond = func(req *http.Request) *http.Response {
+		if strings.Contains(req.URL.Host, "sts") {
+			return vhttp.Respond(http.StatusOK, stsAssumeRoleResponse(backendRoleARN), nil)
+		}
+
+		if strings.Contains(req.URL.Host, "s3") {
+			return vhttp.Respond(http.StatusInternalServerError, []byte("Internal Server Error"), nil)
+		}
+
+		return vhttp.Respond(http.StatusNotFound, nil, nil)
+	}
+
+	cfg, err := parseDependencyStateFixture(
+		t,
+		recorder,
+		"s3",
+		fmt.Sprintf(`
+        bucket              = "state-bucket"
+        key                 = "service.tfstate"
+        region              = "us-east-1"
+        endpoint            = "https://s3.example.com"
+        force_path_style    = true
+        skip_credentials_validation = true
+        assume_role = {
+          role_arn = %q
+        }`, backendRoleARN),
+		map[string]string{
+			"AWS_ACCESS_KEY_ID":     "base-access-key",
+			"AWS_SECRET_ACCESS_KEY": "base-secret-key",
+		},
+		"",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+
+	outputs := recorder.outputInvocations()
+	require.Len(t, outputs, 1, "direct read failure must trigger native output retrieval")
+}
+
 func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 	t.Parallel()
 
@@ -155,7 +392,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 		name          string
 		backend       string
 		backendConfig string
-		enableAzure   bool
 	}{
 		{
 			name:    "S3 invalid workspace prefix",
@@ -220,7 +456,6 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
         key                  = "service.tfstate"
         metadata_host        = "https://metadata.example.com"
         storage_account_name = "stateaccount"`, accessKey),
-			enableAzure: true,
 		},
 	}
 
@@ -235,17 +470,16 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				env = map[string]string{}
 			}
 
-			ctx, pctx, configPath := prepareDependencyStateFixture(
+			ctx, v, pctx, configPath := prepareDependencyStateFixture(
 				t,
 				recorder,
 				testCase.backend,
 				testCase.backendConfig,
 				env,
-				testCase.enableAzure,
 				"",
 			)
 
-			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 			require.NoError(t, err)
 			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
 			assert.Empty(t, recorder.requestPaths(), "an unsupported config must not use the direct state client")
@@ -272,7 +506,6 @@ func TestDependencyStateGCSCustomerEncryptionKey(t *testing.T) {
         bucket        = "state-bucket"
         encryption_key = %q`, encryptionKey),
 		map[string]string{},
-		false,
 		"",
 	)
 
@@ -323,7 +556,6 @@ func TestDependencyStateDirectReadFailureFallsBackToNativeOutput(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 				map[string]string{},
-				false,
 				"",
 			)
 
@@ -365,7 +597,6 @@ func TestDependencyStateStopsReadingAfterOutputs(t *testing.T) {
 			"AWS_ACCESS_KEY_ID":     "test-access-key",
 			"AWS_SECRET_ACCESS_KEY": "test-secret-key",
 		},
-		false,
 		"",
 	)
 
@@ -389,7 +620,6 @@ func TestDependencyStateReadsOutputsAfterResources(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 		map[string]string{},
-		false,
 		"",
 	)
 
@@ -445,7 +675,6 @@ func TestDependencyStateTransportFailureFallsBackToNativeOutput(t *testing.T) {
 					"AWS_ACCESS_KEY_ID":     "test-access-key",
 					"AWS_SECRET_ACCESS_KEY": "test-secret-key",
 				},
-				false,
 				"",
 			)
 
@@ -469,7 +698,6 @@ func TestDependencyStateMissingDirectStateUsesMockOutputs(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 		map[string]string{},
-		false,
 		`mock_outputs = { producer_value = "from-mock" }`,
 	)
 
@@ -501,7 +729,7 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 			t.Parallel()
 
 			recorder := newDependencyStateRecorder(t, http.StatusNotFound, []byte(`{"error":{"code":404,"message":"missing"}}`))
-			ctx, pctx, configPath := prepareDependencyStateFixture(
+			ctx, v, pctx, configPath := prepareDependencyStateFixture(
 				t,
 				recorder,
 				"gcs",
@@ -509,13 +737,12 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 				map[string]string{},
-				false,
 				testCase.dependencyExtra,
 			)
 			pctx.OriginalTerraformCommand = "plan"
 			pctx.TerraformCliArgs = iacargs.New("plan")
 
-			_, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 
 			require.Error(t, err)
 
@@ -568,7 +795,6 @@ func TestDependencyStateAzureClientSetupFailureFallsBackWithoutMocks(t *testing.
         subscription_id      = "subscription"
         tenant_id            = "tenant"`,
 		map[string]string{},
-		true,
 		`mock_outputs = { producer_value = "from-mock" }`,
 	)
 
@@ -614,7 +840,6 @@ func TestDependencyStateEncryptedDirectStateFallsBackToNativeOutput(t *testing.T
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 				map[string]string{},
-				false,
 				`mock_outputs = { producer_value = "from-mock" }`,
 			)
 
@@ -651,7 +876,7 @@ func TestDependencyStateRenderDirectReadFailureUsesMockOutputs(t *testing.T) {
 			t.Parallel()
 
 			recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(testCase.state))
-			ctx, pctx, configPath := prepareDependencyStateFixture(
+			ctx, v, pctx, configPath := prepareDependencyStateFixture(
 				t,
 				recorder,
 				"gcs",
@@ -659,12 +884,11 @@ func TestDependencyStateRenderDirectReadFailureUsesMockOutputs(t *testing.T) {
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 				map[string]string{},
-				false,
 				`mock_outputs = { producer_value = "from-mock" }`,
 			)
 			pctx.TerraformCliArgs = iacargs.New(testCase.command)
 
-			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 
 			require.NoError(t, err)
 			assert.Equal(t, "from-mock", cfg.Inputs["result"])
@@ -679,7 +903,7 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 	recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(
 		`{"encrypted_data":"Y2lwaGVydGV4dA==","encryption_version":"v0"}`,
 	))
-	ctx, pctx, configPath := prepareDependencyStateFixture(
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
 		t,
 		recorder,
 		"gcs",
@@ -687,17 +911,16 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
         bucket       = "state-bucket"
         prefix       = "environment/service"`,
 		map[string]string{"TF_DATA_DIR": ".tf_data"},
-		false,
 		"",
 	)
 
 	l := logger.CreateLogger()
 
 	// The fallback must run in the initialized unit so a relative TF_DATA_DIR retains its workspace.
-	producerDir := "/repo/producer"
+	producerDir := venvtest.Root("/repo/producer")
 	source, err := tf.NewSource(
 		l,
-		pctx.Venv.FS,
+		v.FS,
 		".",
 		filepath.Join(producerDir, util.TerragruntCacheDir),
 		producerDir,
@@ -706,13 +929,13 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 	require.NoError(t, err)
 
 	dataDir := filepath.Join(source.WorkingDir, ".tf_data")
-	require.NoError(t, pctx.Venv.FS.MkdirAll(dataDir, 0o700))
+	require.NoError(t, v.FS.MkdirAll(dataDir, 0o700))
 	require.NoError(
 		t,
-		vfs.WriteFile(pctx.Venv.FS, filepath.Join(dataDir, "environment"), []byte("production"), 0o600),
+		vfs.WriteFile(v.FS, filepath.Join(dataDir, "environment"), []byte("production"), 0o600),
 	)
 
-	cfg, err := config.ParseConfigFile(ctx, pctx, l, configPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, configPath, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
@@ -856,22 +1079,20 @@ func parseDependencyStateFixture(
 	backend string,
 	backendConfig string,
 	env map[string]string,
-	enableAzure bool,
 	dependencyExtra string,
 ) (*config.TerragruntConfig, error) {
 	t.Helper()
 
-	ctx, pctx, configPath := prepareDependencyStateFixture(
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
 		t,
 		recorder,
 		backend,
 		backendConfig,
 		env,
-		enableAzure,
 		dependencyExtra,
 	)
 
-	return config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+	return config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 }
 
 func prepareDependencyStateFixture(
@@ -880,14 +1101,13 @@ func prepareDependencyStateFixture(
 	backend string,
 	backendConfig string,
 	env map[string]string,
-	enableAzure bool,
 	dependencyExtra string,
-) (context.Context, *config.ParsingContext, string) {
+) (context.Context, *venv.Venv, *config.ParsingContext, string) {
 	t.Helper()
 
-	const (
-		consumerPath = "/repo/consumer/terragrunt.hcl"
-		producerPath = "/repo/producer/terragrunt.hcl"
+	var (
+		consumerPath = venvtest.Root("/repo/consumer/terragrunt.hcl")
+		producerPath = venvtest.Root("/repo/producer/terragrunt.hcl")
 	)
 
 	effectiveEnv := maps.Clone(env)
@@ -924,16 +1144,11 @@ inputs = {
 	require.NoError(t, vfs.WriteFile(v.FS, producerPath, []byte(producer), 0o600))
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
-	ctx, pctx := newTestParsingContext(t, v, consumerPath)
+	ctx, pctx := newTestParsingContext(t, consumerPath)
 	ctx = config.WithConfigValues(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
-	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState))
 
-	if enableAzure {
-		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.AzureBackend))
-	}
-
-	return ctx, pctx, consumerPath
+	return ctx, v, pctx, consumerPath
 }
 
 func terraformState(value string) []byte {

@@ -44,6 +44,10 @@ func (d *Discovery) Discover(
 
 	l.Debugf("Discovery: %d filter(s) configured: %s", len(d.filters), d.filters)
 
+	if d.discoveryBoundaryInput == "" {
+		d.discoveryBoundaryInput = d.discoveryBoundary
+	}
+
 	if d.discoveryBoundary != "" {
 		boundary, boundaryErr := resolveDiscoveryBoundary(
 			v.FS,
@@ -69,6 +73,18 @@ func (d *Discovery) Discover(
 	)
 
 	withWorktree := len(d.gitExpressions) > 0 && d.worktrees != nil
+
+	if withWorktree {
+		if gitRoot, gitErr := git.GoRepoRoot(ctx, v, d.workingDir); gitErr == nil {
+			d.worktreeGitRoot = gitRoot
+		}
+
+		// A boundary that exists at neither compared reference is a mistake, not an empty result.
+		err := CheckWorktreeBoundaries(ctx, v, d.worktrees, d.filters, d.discoveryBoundaryInput, d.workingDir)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	l.Debugf(
 		"Discovery: starting filesystem phase (workers=%d, with_worktree=%t)",
@@ -117,6 +133,7 @@ func (d *Discovery) Discover(
 				"parse_includes":    d.parseIncludes,
 				"parse_exclude":     d.parseExclude,
 				"read_files":        d.readFiles,
+				"track_reads":       d.trackReads,
 				"activation_reason": reasonsStr,
 			}, func(childCtx context.Context, l log.Logger) error {
 				var phaseErr error
@@ -171,7 +188,7 @@ func (d *Discovery) Discover(
 		logPhaseComplete(l, "graph", results, err)
 
 		if err != nil && !d.suppressParseErrors {
-			return nil, err
+			return nil, d.markDeletedDependency(v.FS, err, resultsToComponents(slices.Concat(discovered, candidates)))
 		}
 
 		discovered = results.Discovered
@@ -203,7 +220,7 @@ func (d *Discovery) Discover(
 		)
 
 		if err != nil && !d.suppressParseErrors {
-			return components, err
+			return components, d.markDeletedDependency(v.FS, err, components)
 		}
 	}
 
@@ -472,10 +489,12 @@ func (d *Discovery) runGraphPhase(
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
 
+		unparsed := d.potentialDependentsOutsideBoundary(l, v.FS, candidates)
+
 		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
-				return errors.Join(d.buildDependencyGraph(childCtx, l, v, opts, allComponents)...)
+				return errors.Join(d.buildDependencyGraph(childCtx, l, v, opts, allComponents, unparsed)...)
 			})
 
 		if buildErr != nil && !d.suppressParseErrors {
@@ -545,12 +564,14 @@ func (d *Discovery) runRelationshipPhase(
 // buildDependencyGraph parses all components and builds bidirectional dependency links.
 // This is called before the graph phase when dependent filters exist, to populate
 // the reverse links (dependents) that the graph phase needs for dependent traversal.
+// Components whose paths are in unparsed stay in the graph but are not parsed.
 func (d *Discovery) buildDependencyGraph(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	allComponents component.Components,
+	unparsed map[string]struct{},
 ) []error {
 	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
 
@@ -563,6 +584,11 @@ func (d *Discovery) buildDependencyGraph(
 	g.SetLimit(d.numWorkers)
 
 	for _, c := range allComponents {
+		if _, skip := unparsed[c.Path()]; skip {
+			l.Debugf("Discovery: %s is outside every dependent boundary; not parsing it", c.Path())
+			continue
+		}
+
 		g.Go(func() error {
 			err := d.buildComponentDependencies(ctx, l, v, opts, c, threadSafeComponents)
 			if err != nil {
@@ -689,7 +715,6 @@ func (d *Discovery) filterGraphTarget(
 	targetPath := canonicalizeGraphTarget(fsys, d.workingDir, d.graphTarget)
 
 	dependentUnits := buildDependentsIndex(fsys, components)
-	propagateTransitiveDependents(dependentUnits)
 
 	allowed := buildAllowSet(targetPath, dependentUnits)
 
@@ -720,7 +745,7 @@ func canonicalizeGraphTarget(fsys vfs.FS, baseDir, target string) string {
 }
 
 // buildDependentsIndex builds an index mapping each unit path to the list of units
-// that directly depend on it. Duplicate entries are removed.
+// that directly depend on it. A unit that lists the same dependency twice appears twice.
 // Paths are resolved to handle symlinks consistently across platforms.
 func buildDependentsIndex(fsys vfs.FS, components component.Components) map[string][]string {
 	dependentUnits := make(map[string][]string)
@@ -730,56 +755,31 @@ func buildDependentsIndex(fsys vfs.FS, components component.Components) map[stri
 
 		for _, dep := range c.Dependencies() {
 			depPath := vfs.ResolveForCompare(fsys, dep.Path())
-			dependentUnits[depPath] = util.RemoveDuplicates(append(dependentUnits[depPath], cPath))
+			dependentUnits[depPath] = append(dependentUnits[depPath], cPath)
 		}
 	}
 
 	return dependentUnits
 }
 
-// propagateTransitiveDependents expands the dependents index to include transitive dependents.
-// Iteratively propagates dependents until a fixed point is reached or the iteration cap is met.
-func propagateTransitiveDependents(dependentUnits map[string][]string) {
-	// Determine an upper bound on iterations based on unique nodes in the graph (keys + values).
-	nodes := make(map[string]struct{})
-	for unit, dependents := range dependentUnits {
-		nodes[unit] = struct{}{}
-		for _, dep := range dependents {
-			nodes[dep] = struct{}{}
-		}
-	}
-
-	maxIterations := len(nodes)
-
-	for range maxIterations {
-		updated := false
-
-		for unit, dependents := range dependentUnits {
-			for _, dep := range dependents {
-				old := dependentUnits[unit]
-				newList := util.RemoveDuplicates(append(old, dependentUnits[dep]...))
-				newList = slices.DeleteFunc(newList, func(path string) bool { return path == unit })
-
-				if len(newList) != len(old) {
-					dependentUnits[unit] = newList
-					updated = true
-				}
-			}
-		}
-
-		if !updated {
-			break
-		}
-	}
-}
-
-// buildAllowSet creates the allowlist containing the target and all of its dependents.
+// buildAllowSet creates the allowlist containing the target and every unit that depends on it, directly or
+// transitively.
 func buildAllowSet(targetPath string, dependentUnits map[string][]string) map[string]struct{} {
-	allowed := make(map[string]struct{})
+	allowed := map[string]struct{}{targetPath: {}}
+	pending := []string{targetPath}
 
-	allowed[targetPath] = struct{}{}
-	for _, dep := range dependentUnits[targetPath] {
-		allowed[dep] = struct{}{}
+	for len(pending) > 0 {
+		unit := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+
+		for _, dependent := range dependentUnits[unit] {
+			if _, ok := allowed[dependent]; ok {
+				continue
+			}
+
+			allowed[dependent] = struct{}{}
+			pending = append(pending, dependent)
+		}
 	}
 
 	return allowed
@@ -841,11 +841,22 @@ func (d *Discovery) dropOutsideBoundary(
 	kept := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		if reachedByTraversal(c) && isExternal(fsys, d.discoveryBoundary, c.Path()) {
+		if !reachedByTraversal(c) {
+			kept = append(kept, c)
+			continue
+		}
+
+		// A component found in a Git worktree is bounded by the flag resolved in that worktree.
+		boundary := d.discoveryBoundary
+		if root := d.worktreeRootOf(fsys, c.Path()); root != "" {
+			boundary = filter.WorktreeBoundaryPath(root, d.worktreeGitRoot, d.discoveryBoundaryInput)
+		}
+
+		if isExternal(fsys, boundary, c.Path()) {
 			l.Debugf(
 				"Discovery: %s was reached across discovery boundary %s; not returning it",
 				c.Path(),
-				d.discoveryBoundary,
+				boundary,
 			)
 
 			continue
@@ -887,23 +898,23 @@ func (d *Discovery) applyExcludeModules(
 			continue
 		}
 
-		if !cfg.Exclude.IsActionListed(opts.TerraformCommand) {
+		if !cfg.Exclude.Excludes(opts.TerraformCommand) {
 			continue
 		}
 
-		if cfg.Exclude.If {
-			unit.SetExcluded(true)
+		unit.SetExcluded(true)
 
-			if cfg.Exclude.ExcludeDependencies != nil && *cfg.Exclude.ExcludeDependencies {
-				for _, dep := range unit.Dependencies() {
-					depUnit, ok := dep.(*component.Unit)
-					if !ok {
-						continue
-					}
+		if cfg.Exclude.ExcludeDependencies == nil || !*cfg.Exclude.ExcludeDependencies {
+			continue
+		}
 
-					depUnit.SetExcluded(true)
-				}
+		for _, dep := range unit.Dependencies() {
+			depUnit, ok := dep.(*component.Unit)
+			if !ok {
+				continue
 			}
+
+			depUnit.SetExcluded(true)
 		}
 	}
 

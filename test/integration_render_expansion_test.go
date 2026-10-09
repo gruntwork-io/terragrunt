@@ -26,7 +26,7 @@ func TestRenderPreviewsExpandedDependencies(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt render --format hcl --experiment block-iteration"+
+		"terragrunt render --format hcl"+
 			" --non-interactive --working-dir "+appPath,
 	)
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestRenderPreviewsExpandedJSONDependencies(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt render --format hcl --write --experiment block-iteration"+
+		"terragrunt render --format hcl --write"+
 			" --non-interactive --working-dir "+appPath,
 	)
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestRenderPreviewsExpandedJSONDependencies(t *testing.T) {
 	// pass on output that no future version of Terragrunt will accept.
 	reparsed, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt render --format hcl --experiment block-iteration"+
+		"terragrunt render --format hcl"+
 			" --strict-control duplicate-dependency-labels"+
 			" --non-interactive --working-dir "+reparsePath,
 	)
@@ -158,7 +158,7 @@ func TestRenderJSONFormatKeepsExpandedDependenciesWhole(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt render --format json --experiment block-iteration"+
+		"terragrunt render --format json"+
 			" --non-interactive --working-dir "+appPath,
 	)
 	require.NoError(t, err)
@@ -198,7 +198,7 @@ func TestRenderJSONFormatWithMetadataKeepsExpandedDependenciesWhole(t *testing.T
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt render --format json --with-metadata --experiment block-iteration"+
+		"terragrunt render --format json --with-metadata"+
 			" --non-interactive --working-dir "+appPath,
 	)
 	require.NoError(t, err)

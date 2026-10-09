@@ -13,7 +13,7 @@ Terragrunt's "Run Queue" is the mechanism it uses to manage the run order and co
 
 ## How it Works: The Dependency Graph (DAG)
 
-At its core, the Run Queue relies on a [Directed Acyclic Graph (DAG)](/getting-started/terminology#directed-acyclic-graph-dag) built from the dependencies defined between your Terragrunt units. These dependencies are typically established using [`dependency`](/reference/hcl/blocks#dependency) or [`dependencies`](/reference/hcl/blocks#dependencies) blocks in your `terragrunt.hcl` files.
+The Run Queue relies on a [Directed Acyclic Graph (DAG)](/getting-started/terminology#directed-acyclic-graph-dag) built from the dependencies defined between your Terragrunt units. These dependencies are typically established using [`dependency`](/reference/hcl/blocks#dependency) or [`dependencies`](/reference/hcl/blocks#dependencies) blocks in your `terragrunt.hcl` files. A dependency that points at a stack directory expands to one edge per unit the stack generates, so the dependent unit waits for all of them. See [Depending on a stack](/features/stacks/stack-operations#depending-on-a-stack).
 
 Terragrunt analyzes these dependencies to determine the correct order of operations:
 

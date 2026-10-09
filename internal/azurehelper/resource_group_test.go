@@ -1,5 +1,3 @@
-//go:build azure
-
 package azurehelper_test
 
 import (
@@ -8,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -100,7 +99,150 @@ func TestResourceGroup_EnsureResourceGroup_NoopWhenExists(t *testing.T) {
 	require.NoError(t, c.EnsureResourceGroup(t.Context(), log.New(), "rg", ""))
 }
 
-func newTestResourceGroupClient(t *testing.T, tr *stubTransport) *azurehelper.ResourceGroupClient {
+func TestResourceGroup_Exists_Failures(t *testing.T) {
+	t.Parallel()
+
+	// A not-found error code is honored even when the status is not the 404
+	// CheckExistence already treats as absent.
+	c := newTestResourceGroupClient(t, &routeTransport{routes: []stubRoute{
+		{method: http.MethodHead, status: http.StatusBadRequest, code: "ResourceNotFound"},
+	}})
+
+	exists, err := c.Exists(t.Context(), "rg")
+	require.NoError(t, err)
+	assert.False(t, exists)
+
+	c = newTestResourceGroupClient(t, &routeTransport{routes: []stubRoute{
+		{method: http.MethodHead, status: http.StatusForbidden, code: "AuthorizationFailed"},
+	}})
+
+	_, err = c.Exists(t.Context(), "rg")
+	require.ErrorContains(t, err, "checking resource group existence")
+}
+
+func TestResourceGroup_EnsureResourceGroup(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		want      string
+		routes    []stubRoute
+		wantWrite bool
+	}{
+		{
+			name: "existence check failure is propagated",
+			routes: []stubRoute{
+				{method: http.MethodHead, status: http.StatusForbidden, code: "AuthorizationFailed"},
+			},
+			want: "checking resource group existence",
+		},
+		{
+			name: "creates a missing group",
+			routes: []stubRoute{
+				{method: http.MethodHead, status: http.StatusNotFound},
+				{method: http.MethodPut, status: http.StatusCreated, body: `{"location":"eastus"}`},
+			},
+			wantWrite: true,
+		},
+		{
+			name: "create failure is wrapped",
+			routes: []stubRoute{
+				{method: http.MethodHead, status: http.StatusNotFound},
+				{method: http.MethodPut, status: http.StatusForbidden, code: "AuthorizationFailed"},
+			},
+			want:      "creating resource group rg",
+			wantWrite: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rt := &routeTransport{routes: tc.routes}
+			c := newTestResourceGroupClient(t, rt)
+
+			err := c.EnsureResourceGroup(t.Context(), log.New(), "rg", "eastus")
+			if tc.want != "" {
+				require.ErrorContains(t, err, tc.want)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tc.wantWrite, rt.sawBodyOnPath(http.MethodPut, "/resourcegroups/rg", `{"location":"eastus"}`),
+				"the group must be created in the requested location only when missing")
+		})
+	}
+}
+
+// TestResourceGroup_EnsureDeleted covers both halves of the long-running
+// delete: the initial request and the poll that follows a 202, each of which
+// treats a missing group as already deleted.
+func TestResourceGroup_EnsureDeleted(t *testing.T) {
+	t.Parallel()
+
+	const pollURL = "https://management.azure.com/operationresults/rg-delete"
+
+	accepted := stubRoute{
+		method:  http.MethodDelete,
+		status:  http.StatusAccepted,
+		headers: map[string]string{"Location": pollURL},
+	}
+
+	tests := []struct {
+		name   string
+		want   string
+		routes []stubRoute
+	}{
+		{
+			name:   "deleted synchronously",
+			routes: []stubRoute{{method: http.MethodDelete, status: http.StatusOK}},
+		},
+		{
+			name:   "already gone",
+			routes: []stubRoute{{method: http.MethodDelete, status: http.StatusNotFound, code: "ResourceGroupNotFound"}},
+		},
+		{
+			name:   "delete request fails",
+			routes: []stubRoute{{method: http.MethodDelete, status: http.StatusForbidden, code: "AuthorizationFailed"}},
+			want:   "starting resource group delete rg",
+		},
+		{
+			name: "gone by the time it is polled",
+			routes: []stubRoute{
+				accepted,
+				{method: http.MethodGet, pathSub: "/operationresults/", status: http.StatusNotFound, code: "ResourceGroupNotFound"},
+			},
+		},
+		{
+			name: "poll fails",
+			routes: []stubRoute{
+				accepted,
+				{method: http.MethodGet, pathSub: "/operationresults/", status: http.StatusForbidden, code: "AuthorizationFailed"},
+			},
+			want: "waiting for resource group delete rg",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			c := newTestResourceGroupClient(t, &routeTransport{routes: tc.routes})
+
+			err := c.EnsureDeleted(t.Context(), log.New(), "rg")
+			if tc.want != "" {
+				require.ErrorContains(t, err, tc.want)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func newTestResourceGroupClient(t *testing.T, tr policy.Transporter) *azurehelper.ResourceGroupClient {
 	t.Helper()
 
 	c, err := azurehelper.NewResourceGroupClient(cfgWithTransport(tr))

@@ -110,6 +110,21 @@ type PlatformPackage struct {
 	PackageSize int64    `json:"package_size,omitempty"`
 }
 
+// PackageOrigin is the kind of installation source that described a provider
+// package.
+type PackageOrigin int
+
+const (
+	// OriginRegistry is a provider registry. The provider registry protocol
+	// requires its download response to name the archive's checksum and the
+	// document that lists it.
+	OriginRegistry PackageOrigin = iota
+
+	// OriginMirror is a network or filesystem mirror. The mirror protocol has
+	// no checksum document.
+	OriginMirror
+)
+
 // ResponseBody represents the details of the OpenTofu/Terraform provider received from a registry.
 type ResponseBody struct {
 	Packages map[string]*PlatformPackage `json:"packages,omitempty"`
@@ -121,6 +136,7 @@ type ResponseBody struct {
 	SHA256Sum              string         `json:"shasum,omitempty"`
 	Protocols              []string       `json:"protocols,omitempty"`
 	SigningKeys            SigningKeyList `json:"signing_keys"`
+	Origin                 PackageOrigin  `json:"-"`
 }
 
 func (body *ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {

@@ -19,14 +19,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	gcsCredentialPath = "/credentials/service-account.json"
-	gcsStatePath      = "storage.googleapis.com/state-bucket/environment/service/default.tfstate"
-)
+const gcsStatePath = "storage.googleapis.com/state-bucket/environment/service/default.tfstate"
+
+var gcsCredentialPath = venvtest.Root("/credentials/service-account.json")
 
 var errGCSCredentialClose = errors.New("closing GCS credential file")
 
@@ -330,7 +330,7 @@ func parseGCSExternalAccountFixture(
 		case "storage.googleapis.com":
 			return vhttp.Respond(http.StatusOK, terraformState("from-direct"), nil)
 		default:
-			t.Errorf("unexpected request to %s", req.URL.Host)
+			assert.Fail(t, "unexpected request to "+req.URL.Host)
 
 			return vhttp.Respond(http.StatusInternalServerError, nil, nil)
 		}

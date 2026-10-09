@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -77,5 +78,5 @@ func logRunError(
 		return
 	}
 
-	l.Error(err.Error())
+	l.Error(errfmt.Format(err))
 }

@@ -1,0 +1,59 @@
+---
+title: Gruntwork Developer Portal
+description: Register catalog repositories in the Gruntwork Developer Portal so terragrunt catalog finds them without a catalog block.
+slug: features/catalog/gruntwork-developer-portal
+since: v1.2.0
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import PortalCatalogBeta from '@components/PortalCatalogBeta.astro';
+import portalGithubApp from '../../../../assets/img/features/catalog/portal-github-app.png';
+import portalCatalogRepositories from '../../../../assets/img/features/catalog/portal-catalog-repositories.png';
+
+Your organization can register repositories in the Gruntwork Developer Portal for your central team catalog.
+
+Once you sign in with `terragrunt login`, `terragrunt catalog` automatically discovers those repositories, with no [`catalog`](/reference/hcl/blocks#catalog) HCL configuration required.
+
+<PortalCatalogBeta campaign="catalog-portal-setup" />
+
+Management of the repositories discovered this way happens through use of the Gruntwork Developer Portal, on the account page at [app.gruntwork.io](https://app.gruntwork.io/account).
+
+<Aside type="note">
+The portal is under active development during the beta, so the screenshots below may not be exactly what you see in the portal.
+</Aside>
+
+## Install the Gruntwork.io GitHub App
+
+The portal can only list repositories the Gruntwork.io GitHub App can access. Open the [GitHub App](https://app.gruntwork.io/account#github-app) section of the account page. If it doesn't show your GitHub account as linked, install the app from there.
+
+<img src={portalGithubApp.src} alt="The GitHub App section of the Gruntwork Developer Portal account page, showing a linked GitHub account" />
+
+To grant the app access to more repositories, select **View app settings in GitHub** and add them there.
+
+## Select your catalog repositories
+
+Open the [Catalog](https://app.gruntwork.io/account#catalog) section of the account page and choose your catalog repositories from the **Catalog Repositories** list.
+
+<img src={portalCatalogRepositories.src} alt="The Catalog section of the Gruntwork Developer Portal account page, with one repository selected under Catalog Repositories" />
+
+If you can't find your repository in the picker, make sure that you have correctly configured the Gruntwork.io GitHub App, granting access to the repositories you want served to your team while using the `catalog` command.
+
+## Browse the catalog
+
+To use the catalog entries configured in the Gruntwork Developer Portal locally, first ensure that Terragrunt is authenticated locally using the `login` command:
+
+```bash
+terragrunt --experiment tg-login login
+```
+
+Once you're logged in, the `catalog` command will automatically detect that you are, and fetch catalog entries from the Gruntwork Developer Portal on start-up.
+
+```bash
+terragrunt --experiment tg-login catalog
+```
+
+The repositories selected in the portal join any that you have already configured in the `catalog` block of your Terragrunt HCL configurations.
+
+Terragrunt clones each repository with your own git credentials for discovery of components within them, so you still need read access to every repository in the catalog. This may change in the future.

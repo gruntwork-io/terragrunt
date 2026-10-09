@@ -17,11 +17,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
-// TestAwsS3GetterModes downloads from a real S3 bucket in each shape a
+// TestAWSS3GetterModes downloads from a real S3 bucket in each shape a
 // `source` can name: an object, a prefix, and a prefix written with a
 // trailing separator. Real S3 supplies the listing order and the directory
 // placeholder that the mode scan reads, which no stub can vouch for.
-func TestAwsS3GetterModes(t *testing.T) {
+func TestAWSS3GetterModes(t *testing.T) {
 	t.Parallel()
 
 	region := helpers.TerraformRemoteStateS3Region
@@ -69,10 +69,10 @@ func TestAwsS3GetterModes(t *testing.T) {
 	}
 }
 
-// TestAwsS3GetterRejectsEscapingKey pins that a key climbing out of the
+// TestAWSS3GetterRejectsEscapingKey pins that a key climbing out of the
 // destination is refused against a real bucket, where the key travels through
 // S3's own listing rather than a fixture.
-func TestAwsS3GetterRejectsEscapingKey(t *testing.T) {
+func TestAWSS3GetterRejectsEscapingKey(t *testing.T) {
 	t.Parallel()
 
 	region := helpers.TerraformRemoteStateS3Region

@@ -160,12 +160,12 @@ func BenchmarkPlanErrorScan(b *testing.B) {
 
 				for range chunks {
 					if _, err := scanner.Write(chunk); err != nil {
-						b.Fatal(err)
+						require.FailNow(b, err.Error())
 					}
 				}
 
 				if scanner.FoundAll() {
-					b.Fatal("benchmark input should not match")
+					require.FailNow(b, "benchmark input should not match")
 				}
 			}
 		})
@@ -179,14 +179,14 @@ func BenchmarkPlanErrorScan(b *testing.B) {
 
 				for range chunks {
 					if _, err := buf.Write(chunk); err != nil {
-						b.Fatal(err)
+						require.FailNow(b, err.Error())
 					}
 				}
 
 				output := buf.String()
 				if strings.Contains(output, benchNeedlePrefix) &&
 					strings.Contains(output, benchNeedleResource) {
-					b.Fatal("benchmark input should not match")
+					require.FailNow(b, "benchmark input should not match")
 				}
 			}
 		})

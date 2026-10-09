@@ -33,7 +33,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/puzpuzpuz/xsync/v4"
 )
 
 const ContextKey ctxKey = iota
@@ -79,7 +78,7 @@ type TerragruntOptions struct {
 	// Version of terragrunt
 	TerragruntVersion *semver.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
-	FeatureFlags *xsync.Map[string, string] `clone:"shadowcopy"`
+	FeatureFlags map[string]string `clone:"shadowcopy"`
 	// EngineConfig holds the resolved engine configuration from HCL.
 	EngineConfig *engine.EngineConfig
 	// EngineOptions groups CLI-supplied engine options.
@@ -151,8 +150,7 @@ type TerragruntOptions struct {
 	FiltersFile string
 	// DiscoveryBoundary encloses graph discovery for filters within the given
 	// directory instead of the git repository root: dependencies and dependents
-	// resolving outside it are not discovered. Gated behind the bounded-discovery
-	// experiment.
+	// resolving outside it are not discovered.
 	DiscoveryBoundary string
 	// Report format.
 	ReportFormat report.Format
@@ -357,7 +355,7 @@ func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
 		ProviderCacheOptions: pcoptions.ProviderCacheOptions{
 			RegistryNames: pcoptions.DefaultRegistryNames,
 		},
-		FeatureFlags:           xsync.NewMap[string, string](),
+		FeatureFlags:           map[string]string{},
 		Errors:                 defaultErrorsConfig(),
 		StrictControls:         controls.New(),
 		Experiments:            experiment.NewExperiments(),
@@ -468,9 +466,7 @@ func (opts *TerragruntOptions) CloneWithConfigPath(
 
 	workingDir := filepath.Dir(configPath)
 
-	// Only update logger field if the working directory actually changed
-	// This preserves any custom display path (e.g., relative path) set on the logger
-	if workingDir != opts.WorkingDir {
+	if configPath != filepath.Clean(opts.TerragruntConfigPath) {
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 	}
 

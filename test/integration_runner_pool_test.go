@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/require"
@@ -423,5 +424,5 @@ func TestTFAuthProviderParallelExecution(t *testing.T) {
 		"Expected auth commands to detect at least 2 concurrent executions. "+
 			"Detected max concurrent: %d. This proves parallel execution.", maxConcurrent)
 
-	helpers.ValidateAuthProviderScript(t, testPath, authProviderScript)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), testPath, authProviderScript)
 }

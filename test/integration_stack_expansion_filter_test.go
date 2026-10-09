@@ -70,14 +70,13 @@ func expansionFilterStack(elements string) string {
 `
 }
 
-// runExpansionFilterFind runs `terragrunt find` with the block-iteration experiment enabled
-// and returns the selected paths.
+// runExpansionFilterFind runs `terragrunt find` and returns the selected paths.
 func runExpansionFilterFind(t *testing.T, tmpDir, args string) []string {
 	t.Helper()
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt find --no-color --experiment block-iteration --working-dir "+tmpDir+" "+args,
+		"terragrunt find --no-color --working-dir "+tmpDir+" "+args,
 	)
 	require.NoError(t, err, "stderr: %s", stderr)
 
@@ -86,7 +85,7 @@ func runExpansionFilterFind(t *testing.T, tmpDir, args string) []string {
 		return nil
 	}
 
-	return strings.Split(trimmed, "\n")
+	return helpers.ToSlashAll(strings.Split(trimmed, "\n"))
 }
 
 // generateExpansionFilterStacks runs `terragrunt stack generate` over tmpDir and returns the
@@ -96,7 +95,7 @@ func generateExpansionFilterStacks(t *testing.T, tmpDir, args string) []string {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack generate --no-color --experiment block-iteration --working-dir "+tmpDir+" "+args,
+		"terragrunt stack generate --no-color --working-dir "+tmpDir+" "+args,
 	)
 	require.NoError(t, err, "stderr: %s", stderr)
 
@@ -140,24 +139,6 @@ func generateExpansionFilterStacks(t *testing.T, tmpDir, args string) []string {
 func TestStackExpansionGitFilterSelectsRemovedInstance(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, runner := setupExpansionFilterRepo(t)
-	stackFile := filepath.Join(tmpDir, "live", "terragrunt.stack.hcl")
-
-	writeExpansionFilterFile(t, stackFile, expansionFilterStack(`["web", "api"]`))
-	commitExpansionFilterChanges(t, runner, "Expand shard over web and api")
-
-	// --filter-affected compares against main, so the initial state has to live there before
-	// the change lands on a branch of its own.
-	if branch, err := runner.Config(t.Context(), "init.defaultBranch"); err != nil ||
-		branch != "main" {
-		require.NoError(t, runner.Checkout(t.Context(), "main", true))
-	}
-
-	require.NoError(t, runner.Checkout(t.Context(), "shrink-expansion", true))
-
-	writeExpansionFilterFile(t, stackFile, expansionFilterStack(`["web"]`))
-	commitExpansionFilterChanges(t, runner, "Drop the api shard")
-
 	expected := []string{"live", "live/.terragrunt-stack/shard/api"}
 
 	for _, tc := range []struct {
@@ -169,6 +150,22 @@ func TestStackExpansionGitFilterSelectsRemovedInstance(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			tmpDir, runner := setupExpansionFilterRepo(t)
+			stackFile := filepath.Join(tmpDir, "live", "terragrunt.stack.hcl")
+
+			writeExpansionFilterFile(t, stackFile, expansionFilterStack(`["web", "api"]`))
+			commitExpansionFilterChanges(t, runner, "Expand shard over web and api")
+
+			if branch, err := runner.Config(t.Context(), "init.defaultBranch"); err != nil ||
+				branch != "main" {
+				require.NoError(t, runner.Checkout(t.Context(), "main", true))
+			}
+
+			require.NoError(t, runner.Checkout(t.Context(), "shrink-expansion", true))
+
+			writeExpansionFilterFile(t, stackFile, expansionFilterStack(`["web"]`))
+			commitExpansionFilterChanges(t, runner, "Drop the api shard")
 
 			assert.ElementsMatch(t, expected, runExpansionFilterFind(t, tmpDir, tc.args))
 		})
@@ -192,7 +189,7 @@ func TestStackExpansionGitFilterNeedsTheStackFileInTheDiff(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt stack generate --experiment block-iteration --working-dir "+tmpDir,
+		"terragrunt stack generate --working-dir "+tmpDir,
 	)
 
 	writeExpansionFilterFile(
@@ -297,7 +294,7 @@ func TestStackExpansionFilterSelectsGeneratedInstancePath(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt stack generate --experiment block-iteration --working-dir "+tmpDir,
+		"terragrunt stack generate --working-dir "+tmpDir,
 	)
 
 	assert.ElementsMatch(
@@ -321,7 +318,7 @@ func TestStackExpansionFilterSelectsGeneratedInstancePath(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt find --no-color --experiment block-iteration --working-dir "+tmpDir+
+		"terragrunt find --no-color --working-dir "+tmpDir+
 			` --filter 'shard["web"]'`,
 	)
 	require.Error(t, err)
@@ -343,7 +340,7 @@ func TestStackExpansionSelectionIgnoresStaleGeneratedDirectory(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt stack generate --experiment block-iteration --working-dir "+tmpDir,
+		"terragrunt stack generate --working-dir "+tmpDir,
 	)
 
 	writeExpansionFilterFile(t, stackFile, expansionFilterStack(`["web"]`))
@@ -351,7 +348,7 @@ func TestStackExpansionSelectionIgnoresStaleGeneratedDirectory(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt stack generate --experiment block-iteration --working-dir "+tmpDir,
+		"terragrunt stack generate --working-dir "+tmpDir,
 	)
 
 	assert.DirExists(
@@ -397,7 +394,7 @@ func TestStackExpansionGitFilterRejectsDestroy(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all destroy --experiment block-iteration --non-interactive"+
+		"terragrunt run --all destroy --non-interactive"+
 			" --working-dir "+tmpDir+" --filter '[HEAD~1...HEAD]'",
 	)
 

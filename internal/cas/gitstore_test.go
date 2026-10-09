@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -30,7 +31,7 @@ func TestGitStoreEnsureRef_InitsAndFetches(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx := t.Context()
 
-	repo, err := store.EnsureRef(ctx, l, v, url, "main", hash, 0)
+	repo, err := store.EnsureRef(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), "main", hash, 0)
 	require.NoError(t, err)
 
 	assert.True(
@@ -47,7 +48,7 @@ func TestGitStoreEnsureRef_InitsAndFetches(t *testing.T) {
 	require.NoError(t, repo.Unlock())
 
 	// Second call hits the cache-warm path: object already present, no fetch.
-	repo2, err := store.EnsureRef(ctx, l, v, url, "main", hash, 0)
+	repo2, err := store.EnsureRef(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), "main", hash, 0)
 	require.NoError(t, err)
 	require.NoError(t, repo2.Unlock())
 }
@@ -67,11 +68,11 @@ func TestGitStoreEnsureRef_PartitionsByURL(t *testing.T) {
 	hash1 := resolveHead(t, url1)
 	hash2 := resolveHead(t, url2)
 
-	e1, err := store.EnsureRef(ctx, l, v, url1, "main", hash1, 0)
+	e1, err := store.EnsureRef(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url1), "main", hash1, 0)
 	require.NoError(t, err)
 	require.NoError(t, e1.Unlock())
 
-	e2, err := store.EnsureRef(ctx, l, v, url2, "main", hash2, 0)
+	e2, err := store.EnsureRef(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url2), "main", hash2, 0)
 	require.NoError(t, err)
 	require.NoError(t, e2.Unlock())
 
@@ -88,6 +89,7 @@ func TestGitStoreEnsureRefConcurrentSameURLWithRacing(t *testing.T) {
 	require.NotEmpty(t, root)
 
 	l := logger.CreateLogger()
+	gv := newTestGitStoreVenv(t, v)
 
 	const workers = 4
 
@@ -101,7 +103,7 @@ func TestGitStoreEnsureRefConcurrentSameURLWithRacing(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			repo, err := store.EnsureRef(t.Context(), l, v, url, "main", hash, 0)
+			repo, err := store.EnsureRef(t.Context(), l, gv, redact.NewURL(url), "main", hash, 0)
 			if err != nil {
 				errs[idx] = err
 				return
@@ -130,7 +132,7 @@ func TestGitStoreEnsureRef_LockHeldRespectsContextCancellation(t *testing.T) {
 	l := logger.CreateLogger()
 
 	// First caller takes the per-URL lock and holds it.
-	repo, err := store.EnsureRef(t.Context(), l, v, url, "main", hash, 0)
+	repo, err := store.EnsureRef(t.Context(), l, newTestGitStoreVenv(t, v), redact.NewURL(url), "main", hash, 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, repo.Path)
 	t.Cleanup(func() { _ = repo.Unlock() })
@@ -142,7 +144,7 @@ func TestGitStoreEnsureRef_LockHeldRespectsContextCancellation(t *testing.T) {
 
 	start := time.Now()
 
-	_, err = store.EnsureRef(ctx, l, v, url, "main", hash, 0)
+	_, err = store.EnsureRef(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), "main", hash, 0)
 	require.Error(t, err)
 	assert.Less(
 		t,
@@ -168,7 +170,7 @@ func TestGitStoreEnsureRefLockReleaseAllowsWaiterToProceedWithRacing(t *testing.
 
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureRef(t.Context(), l, v, url, "main", hash, 0)
+	repo, err := store.EnsureRef(t.Context(), l, newTestGitStoreVenv(t, v), redact.NewURL(url), "main", hash, 0)
 	require.NoError(t, err)
 
 	// Release the holder after a short delay so the waiter sees the lock open.
@@ -181,7 +183,7 @@ func TestGitStoreEnsureRefLockReleaseAllowsWaiterToProceedWithRacing(t *testing.
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
-	repo2, err := store.EnsureRef(ctx, l, v, url, "main", hash, 0)
+	repo2, err := store.EnsureRef(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), "main", hash, 0)
 	require.NoError(t, err)
 	require.NoError(t, repo2.Unlock())
 }
@@ -194,28 +196,18 @@ func TestGitStoreEnsureRef_FetchFailureSurfacesError(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	_, err := store.EnsureRef(t.Context(), l, v, "file:///does/not/exist", "main", "deadbeef", 0)
+	_, err := store.EnsureRef(
+		t.Context(), l, newTestGitStoreVenv(t, v),
+		redact.NewURL("file:///does/not/exist"), "main", "deadbeef", 0,
+	)
 	require.Error(t, err)
 }
 
-func TestGitStoreRejectsNonOSFilesystem(t *testing.T) {
+func TestNewGitStoreVenvRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore")
-
-	store := cas.NewGitStore(root)
-
-	memVenv := venvtest.New()
-
-	_, err := store.EnsureRef(
-		t.Context(), logger.CreateLogger(), memVenv,
-		"file:///does/not/exist", "main", "deadbeef", 0,
-	)
+	_, err := cas.NewGitStoreVenv(venvtest.New())
 	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
-
-	require.PanicsWithValue(t, cas.ErrGitStoreFSNotOS, func() {
-		store.ProbeCachedCommit(t.Context(), memVenv, "file:///does/not/exist", "deadbeef")
-	})
 }
 
 func newTestGitStore(t *testing.T) (*cas.GitStore, *venv.Venv, string) {
@@ -228,6 +220,15 @@ func newTestGitStore(t *testing.T) (*cas.GitStore, *venv.Venv, string) {
 	store := cas.NewGitStore(root)
 
 	return store, v, root
+}
+
+func newTestGitStoreVenv(tb testing.TB, v *venv.Venv) *cas.GitStoreVenv {
+	tb.Helper()
+
+	gv, err := cas.NewGitStoreVenv(v)
+	require.NoError(tb, err)
+
+	return gv
 }
 
 func resolveHead(t *testing.T, url string) string {

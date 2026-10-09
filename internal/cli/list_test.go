@@ -72,7 +72,7 @@ func TestListCommandWithDependencies(t *testing.T) {
     ╰── units/live/prod/ec2
 `
 
-		assert.Equal(t, want, runList(t, queueUnits, "--tree", "--dag"))
+		assert.Equal(t, filepath.FromSlash(want), runList(t, queueUnits, "--tree", "--dag"))
 	})
 
 	t.Run("long format lists them in a column", func(t *testing.T) {
@@ -89,7 +89,11 @@ unit  units/live/prod/ec2  units/live/prod/db, units/live/prod/vpc
 unit  units/live/prod/vpc
 `
 
-		assert.Equal(t, want, runList(t, queueUnits, "--long", "--dependencies"))
+		assert.Equal(
+			t,
+			filepath.FromSlash(want),
+			runList(t, queueUnits, "--long", "--dependencies"),
+		)
 	})
 }
 

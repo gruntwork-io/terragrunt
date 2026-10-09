@@ -7,11 +7,11 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	svchost "github.com/hashicorp/terraform-svchost"
-	"github.com/puzpuzpuz/xsync/v4"
 )
 
 // maxResponseBody bounds a registry response body length.
@@ -24,7 +24,8 @@ type Client struct {
 	httpClient vhttp.Client
 
 	credsSource *cliconfig.CredentialsSource
-	cache       *xsync.Map[string, []byte]
+	cache       map[string][]byte
+	cacheMu     sync.Mutex
 }
 
 // NewClient returns a [Client] that dispatches requests through c.
@@ -33,14 +34,18 @@ func NewClient(c vhttp.Client, credsSource *cliconfig.CredentialsSource) *Client
 	return &Client{
 		httpClient:  c,
 		credsSource: credsSource,
-		cache:       xsync.NewMap[string, []byte](),
+		cache:       make(map[string][]byte),
 	}
 }
 
 // Do sends an HTTP request and decodes an HTTP response to the given `value`.
 func (client *Client) Do(ctx context.Context, method, reqURL string, value any) (err error) {
-	if bodyBytes, ok := client.cache.Load(reqURL); ok {
-		return unmarshalBody(bodyBytes, value)
+	client.cacheMu.Lock()
+	cached, ok := client.cache[reqURL]
+	client.cacheMu.Unlock()
+
+	if ok {
+		return unmarshalBody(cached, value)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, reqURL, nil)
@@ -69,7 +74,9 @@ func (client *Client) Do(ctx context.Context, method, reqURL string, value any) 
 		return err
 	}
 
-	client.cache.Store(reqURL, bodyBytes)
+	client.cacheMu.Lock()
+	client.cache[reqURL] = bodyBytes
+	client.cacheMu.Unlock()
 
 	return unmarshalBody(bodyBytes, value)
 }

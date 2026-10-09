@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -32,7 +33,7 @@ func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
 
 	// First clone: probe hits, fetcher runs (tree not cached yet).
 	dst1 := filepath.Join(tempDir, "dst1")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst1),
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(dst1),
 		cas.WithBranch("main"),
 		cas.WithDepth(-1)))
 
@@ -49,7 +50,7 @@ func TestCASClone_E2E_SymbolicRefSecondRunReusesCache(t *testing.T) {
 	// FetchSource short-circuits via treeStore.NeedsWrite, fetcher
 	// never runs.
 	dst2 := filepath.Join(tempDir, "dst2")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst2),
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(dst2),
 		cas.WithBranch("main"),
 		cas.WithDepth(-1)))
 
@@ -74,7 +75,7 @@ func TestCASClone_E2E_CommitFormRefRoundTrip(t *testing.T) {
 	// Probe will return ErrNoVersionMetadata (ls-remote can't resolve
 	// a raw SHA), so fetcher canonicalizes via populateTreeFromCommitRef.
 	dst := filepath.Join(tempDir, "dst")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst),
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(dst),
 		cas.WithBranch(headHash),
 		cas.WithDepth(-1)))
 
@@ -148,7 +149,7 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 	l := logger.CreateLogger()
 
 	dst1 := filepath.Join(tempDir, "dst1")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst1),
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(dst1),
 		cas.WithBranch("main"),
 		cas.WithDepth(-1)))
 
@@ -161,7 +162,7 @@ func TestCASClone_E2E_RemainsOfflineAfterFirstClone(t *testing.T) {
 		t.Context(),
 		l,
 		v,
-		repoURL,
+		redact.NewURL(repoURL),
 		cas.WithDir(dst2),
 		cas.WithBranch(headHash),
 		cas.WithDepth(
@@ -186,7 +187,7 @@ func TestCASClone_E2E_MutableSetCopiesBlobs(t *testing.T) {
 	l := logger.CreateLogger()
 
 	dst := filepath.Join(tempDir, "dst")
-	require.NoError(t, c.Clone(t.Context(), l, v, repoURL, cas.WithDir(dst),
+	require.NoError(t, c.Clone(t.Context(), l, v, redact.NewURL(repoURL), cas.WithDir(dst),
 		cas.WithBranch("main"),
 		cas.WithDepth(-1),
 		cas.WithMutable(true)))

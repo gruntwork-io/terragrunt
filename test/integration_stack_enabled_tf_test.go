@@ -24,13 +24,13 @@ func TestTFStackEnabledLeavesOutputsAddressable(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt stack run apply --experiment block-iteration --non-interactive --working-dir "+
+		"terragrunt stack run apply --non-interactive --working-dir "+
 			rootPath+" -- -auto-approve",
 	)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack output --experiment block-iteration --non-interactive --working-dir "+
+		"terragrunt stack output --non-interactive --working-dir "+
 			rootPath,
 	)
 	require.NoError(t, err)

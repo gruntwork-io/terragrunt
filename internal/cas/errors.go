@@ -2,8 +2,11 @@ package cas
 
 import (
 	"fmt"
+	"io/fs"
 
 	"errors"
+
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 )
 
 // Error types that can be returned by the cas package
@@ -44,8 +47,24 @@ const (
 	// ErrSourceNotLiteral is returned when an update_source_with_cas source is not a
 	// literal string, such as one using interpolation, a function call, or a reference
 	ErrSourceNotLiteral Error = "update_source_with_cas requires a literal source string"
+	// ErrUpdateSourceWithCASNotConstant is returned when update_source_with_cas calls a function
+	// or reads anything other than literals and the locals of the same file
+	ErrUpdateSourceWithCASNotConstant Error = "update_source_with_cas must be true, false, " +
+		"or an expression of literals and locals that call no functions"
 	// ErrNotADirectory is returned when a path expected to be a directory is not.
 	ErrNotADirectory Error = "not a directory"
+	// ErrTreeEntryEscapesDir is returned when an untrusted git tree entry escapes its destination directory
+	ErrTreeEntryEscapesDir Error = "tree entry path escapes the destination directory"
+	// ErrTreeEntryCrossesSymlink is returned when a git tree entry would be written through a symbolic link
+	ErrTreeEntryCrossesSymlink Error = "tree entry path crosses a symbolic link"
+	// ErrTreeEntryCollides is returned when two git tree entries name the same path in the destination directory
+	ErrTreeEntryCollides Error = "tree entries name the same path"
+	// ErrIncludedGitFileIsDir is returned when a name in [CloneOptions.IncludedGitFiles]
+	// resolves to a directory in the source repository's git directory
+	ErrIncludedGitFileIsDir Error = "included git file is a directory"
+	// ErrGitFileNotStored is returned when a name in [CloneOptions.IncludedGitFiles]
+	// has no record against the requested tree in the CAS store
+	ErrGitFileNotStored Error = "included git file not present in CAS store"
 )
 
 // WrappedError provides additional context for errors
@@ -86,8 +105,8 @@ var (
 // that would have filled a gap in the local store. It unwraps to
 // [ErrCASOffline].
 type OfflineMissError struct {
-	// Source is the source URL with any credentials removed.
-	Source string
+	// Source is the source URL.
+	Source redact.URL
 	// Ref is the branch, tag, or commit requested. Empty for a source that
 	// is not addressed by ref, such as an object in a bucket, whose URL
 	// already names everything that was asked for.
@@ -99,10 +118,10 @@ func (e *OfflineMissError) Error() string {
 		"run once without --cas-offline to populate the store, or drop the flag"
 
 	if e.Ref == "" {
-		return e.Source + gap
+		return e.Source.String() + gap
 	}
 
-	return e.Source + " at " + e.Ref + gap
+	return e.Source.String() + " at " + e.Ref + gap
 }
 
 func (e *OfflineMissError) Unwrap() error { return ErrCASOffline }
@@ -127,7 +146,7 @@ type UpdateSourceWithCASRequiresCASError struct {
 type GitStoreObjectMissingError struct {
 	Hash string
 	Ref  string
-	URL  string
+	URL  redact.URL
 }
 
 func (e *GitStoreObjectMissingError) Error() string {
@@ -136,6 +155,53 @@ func (e *GitStoreObjectMissingError) Error() string {
 		e.Hash, e.Ref, e.URL,
 	)
 }
+
+// MissingObjectError reports that the store holds no file for an object
+// something still names: a blob a stored tree lists, or a tree a gitlink
+// pins. Ingest writes a tree only after every object that tree names, so a
+// store only Terragrunt has touched never reaches this state, and reaching
+// it means an entry was removed out from under it.
+//
+// [CAS.FetchSource] answers this by re-ingesting from the source, so the
+// error only reaches a caller when the source cannot supply the object
+// either, when [WithOffline] forbids going back to it (wrapped in
+// [OfflineRepairError]), or when the entry point had no source to go back
+// to ([CAS.MaterializeTree] serving a cas:: reference).
+type MissingObjectError struct {
+	// Hash is the object the store was asked for.
+	Hash string
+	// Path is where the store expected to find it.
+	Path string
+}
+
+func (e *MissingObjectError) Error() string {
+	return fmt.Sprintf("CAS store is missing object %s, expected at %s", e.Hash, e.Path)
+}
+
+// Unwrap reports the miss as [fs.ErrNotExist], which is what it is on
+// disk, so a caller that only asks whether the object was there keeps
+// working without knowing this type.
+func (e *MissingObjectError) Unwrap() error {
+	return fs.ErrNotExist
+}
+
+// OfflineRepairError reports that the store is missing an object and
+// --cas-offline forbade the re-ingest that would restore it. It unwraps
+// to the [MissingObjectError] and not to [ErrCASOffline]: the source was
+// in the store, so a caller must not read this as content never fetched.
+type OfflineRepairError struct {
+	// Missing is the object the store could not produce.
+	Missing *MissingObjectError
+	// Source is the source URL.
+	Source redact.URL
+}
+
+func (e *OfflineRepairError) Error() string {
+	return e.Missing.Error() + "; --cas-offline forbids fetching " + e.Source.String() +
+		" to restore it; run once without --cas-offline to repair the store, or drop the flag"
+}
+
+func (e *OfflineRepairError) Unwrap() error { return e.Missing }
 
 // TreeDepthExceededError is returned when materializing a tree hits the
 // nesting bound. Only a repository built to exhaust the stack reaches it.

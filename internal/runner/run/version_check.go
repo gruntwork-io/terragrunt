@@ -49,12 +49,22 @@ type PopulateTFVersionInput struct {
 // when terraform_binary overrides the default after a prior call has already
 // resolved a different binary). Returns the discovered version and implementation
 // type; the caller is responsible for storing them on *options.TerragruntOptions.
+//
+// When an engine runs the commands, which in.TFOpts.ShellOptions reports through
+// EngineEnabled, no probe runs: the version comes back nil and the implementation
+// [tfimpl.Unknown].
 func PopulateTFVersion(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	in PopulateTFVersionInput,
 ) (log.Logger, *semver.Version, tfimpl.Type, error) {
+	if in.TFOpts.ShellOptions.EngineEnabled() {
+		l.Debugf("Skipping the OpenTofu/Terraform version probe: an engine runs the commands, so the version and implementation stay unknown")
+
+		return l, nil, tfimpl.Unknown, nil
+	}
+
 	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(
 		v.FS,
@@ -132,8 +142,10 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *semver.Version, err
 }
 
 // GetTFVersion checks the OpenTofu/Terraform version directly without using cache.
-// It takes pre-built *tf.TFOptions and runs "terraform version", discarding output
+// It takes pre-built *tf.TFOptions and runs "tofu version", discarding output
 // and stripping TF_CLI_ARGS env vars to avoid interference.
+//
+// Returns [tfimpl.Unknown] with the parsed version when the output names neither tool.
 func GetTFVersion(
 	ctx context.Context,
 	l log.Logger,
@@ -174,15 +186,16 @@ func GetTFVersion(
 	}
 
 	if tfImplementation == tfimpl.Unknown {
-		tfImplementation = tfimpl.Terraform
-
 		l.Warnf(
-			"Failed to identify Terraform implementation, fallback to terraform version: %s",
+			"Could not identify OpenTofu/Terraform from the version output of %s (version %s)",
+			filepath.Base(tfOpts.ShellOptions.TFPath),
 			terraformVersion,
 		)
-	} else {
-		l.Debugf("%s version: %s", tfImplementation, terraformVersion)
+
+		return l, terraformVersion, tfImplementation, nil
 	}
+
+	l.Debugf("%s version: %s", tfImplementation, terraformVersion)
 
 	return l, terraformVersion, tfImplementation, nil
 }
@@ -219,12 +232,38 @@ func CheckTerragruntVersionMeetsConstraint(
 	return nil
 }
 
-// CheckTerraformVersionMeetsConstraint checks that the current version of
-// Terraform meets the specified constraint and returns an error if it doesn't.
+// CheckTerraformVersionMeetsConstraint checks that the installed OpenTofu/Terraform
+// version meets configConstraint, the terraform_version_constraint from config.
+// An empty configConstraint checks against [DefaultTerraformVersionConstraint].
+//
+// A nil currentVersion is the unknown version [PopulateTFVersion] reports when an
+// engine runs the commands. The check then passes, with a warning through l when
+// configConstraint is set, since Terragrunt cannot enforce it.
+//
+// Returns [InvalidTerraformVersion] naming impl when the version does not meet the constraint.
 func CheckTerraformVersionMeetsConstraint(
+	l log.Logger,
 	currentVersion *semver.Version,
-	constraint string,
+	impl tfimpl.Type,
+	configConstraint string,
 ) error {
+	if currentVersion == nil {
+		if configConstraint != "" {
+			l.Warnf(
+				"Skipping terraform_version_constraint %q: an engine runs %s, so Terragrunt cannot detect its version",
+				configConstraint,
+				impl.DisplayName(),
+			)
+		}
+
+		return nil
+	}
+
+	constraint, source := configConstraint, ConfigConstraint
+	if constraint == "" {
+		constraint, source = DefaultTerraformVersionConstraint, DefaultConstraint
+	}
+
 	versionConstraint, err := semver.ParseConstraint(constraint)
 	if err != nil {
 		return err
@@ -234,6 +273,8 @@ func CheckTerraformVersionMeetsConstraint(
 		return InvalidTerraformVersion{
 			CurrentVersion:     currentVersion,
 			VersionConstraints: versionConstraint,
+			Implementation:     impl,
+			ConstraintSource:   source,
 		}
 	}
 
@@ -317,12 +358,25 @@ func computeVersionFilesCacheKey(
 type InvalidTerraformVersionSyntax string
 
 func (err InvalidTerraformVersionSyntax) Error() string {
-	return "Unable to parse Terraform version output: " + string(err)
+	return "Unable to parse OpenTofu/Terraform version output: " + string(err)
 }
 
+// ConstraintSource says where an OpenTofu/Terraform version constraint came from.
+type ConstraintSource int
+
+const (
+	// DefaultConstraint is [DefaultTerraformVersionConstraint],
+	// the oldest version Terragrunt supports.
+	DefaultConstraint ConstraintSource = iota
+	// ConfigConstraint is the terraform_version_constraint set in config.
+	ConfigConstraint
+)
+
 type InvalidTerraformVersion struct {
+	Implementation     tfimpl.Type
 	CurrentVersion     *semver.Version
 	VersionConstraints semver.Constraints
+	ConstraintSource   ConstraintSource
 }
 
 type InvalidTerragruntVersion struct {
@@ -331,8 +385,19 @@ type InvalidTerragruntVersion struct {
 }
 
 func (err InvalidTerraformVersion) Error() string {
+	if err.ConstraintSource == DefaultConstraint {
+		return fmt.Sprintf(
+			"The installed version of %s (%s) is older than "+
+				"the minimum version Terragrunt supports (%s).",
+			err.Implementation.DisplayName(),
+			err.CurrentVersion.String(),
+			err.VersionConstraints.String(),
+		)
+	}
+
 	return fmt.Sprintf(
-		"The currently installed version of Terraform (%s) is not compatible with the version Terragrunt requires (%s).",
+		"The installed version of %s (%s) does not satisfy terraform_version_constraint (%s).",
+		err.Implementation.DisplayName(),
 		err.CurrentVersion.String(),
 		err.VersionConstraints.String(),
 	)

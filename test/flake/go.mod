@@ -1,6 +1,6 @@
 module github.com/gruntwork-io/terragrunt/test/flake
 
-go 1.27
+go 1.27.2
 
 require (
 	github.com/google/go-github/v53 v53.2.0
@@ -15,6 +15,6 @@ require (
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 )

@@ -1,0 +1,14 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Skip hooks for a run with `--no-hooks`
+
+The [`--no-hooks`](/reference/cli/commands/run#no-hooks) flag (env: `TG_NO_HOOKS`) skips every [hook](/features/units/hooks) for a run: `before_hook`, `after_hook`, and `error_hook` blocks.
+
+```bash
+terragrunt run --no-hooks -- plan
+```
+
+Previously gated behind the `optional-hooks` experiment, `--no-hooks` no longer requires `--experiment optional-hooks`.

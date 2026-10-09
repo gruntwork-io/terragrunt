@@ -24,7 +24,7 @@ func TestBlockIterationDependencyStaticToDynamicReplacesBareAddressWithKeys(t *t
 	assert.Equal(t, map[string]any{
 		"addresses": []any{"aurora"},
 		"aurora_id": "aurora-web",
-	}, renderedInputs(t, v, gateOpen))
+	}, renderedInputs(t, v))
 
 	switchConfig(t, fsys, config.DefaultTerragruntConfigPath, dependencyForEachSet)
 
@@ -32,7 +32,7 @@ func TestBlockIterationDependencyStaticToDynamicReplacesBareAddressWithKeys(t *t
 		"addresses":   []any{"aurora"},
 		"aurora_keys": []any{"api", "web"},
 		"ids":         map[string]any{"api": "aurora-api", "web": "aurora-web"},
-	}, renderedInputs(t, v, gateOpen))
+	}, renderedInputs(t, v))
 }
 
 // TestBlockIterationDependencyDynamicToStaticRestoresBareAddress pins that dropping the
@@ -42,14 +42,14 @@ func TestBlockIterationDependencyDynamicToStaticRestoresBareAddress(t *testing.T
 
 	v, fsys := blockIterationVenv(t, dependencyTree(dependencyForEachSet))
 
-	assert.Equal(t, []any{"api", "web"}, renderedInputs(t, v, gateOpen)["aurora_keys"])
+	assert.Equal(t, []any{"api", "web"}, renderedInputs(t, v)["aurora_keys"])
 
 	switchConfig(t, fsys, config.DefaultTerragruntConfigPath, dependencyStatic)
 
 	assert.Equal(t, map[string]any{
 		"addresses": []any{"aurora"},
 		"aurora_id": "aurora-web",
-	}, renderedInputs(t, v, gateOpen))
+	}, renderedInputs(t, v))
 }
 
 // TestBlockIterationDependencyForEachMapAddressesByKeyAndResolvesByValue pins that a map
@@ -62,7 +62,7 @@ func TestBlockIterationDependencyForEachMapAddressesByKeyAndResolvesByValue(t *t
 	assert.Equal(t, map[string]any{
 		"aurora_keys": []any{"api", "web"},
 		"ids":         map[string]any{"api": "backend", "web": "frontend"},
-	}, renderedInputs(t, v, gateOpen))
+	}, renderedInputs(t, v))
 }
 
 // TestBlockIterationDependencyCountDeletionShiftsLaterIndices pins the count hazard on the
@@ -76,14 +76,76 @@ func TestBlockIterationDependencyCountDeletionShiftsLaterIndices(t *testing.T) {
 	assert.Equal(t, map[string]any{
 		"aurora_keys": []any{"0", "1", "2"},
 		"ids":         map[string]any{"0": "web", "1": "api", "2": "edge"},
-	}, renderedInputs(t, v, gateOpen))
+	}, renderedInputs(t, v))
 
 	switchConfig(t, fsys, config.DefaultTerragruntConfigPath, dependencyCountShrunk)
 
 	assert.Equal(t, map[string]any{
 		"aurora_keys": []any{"0", "1"},
 		"ids":         map[string]any{"0": "web", "1": "edge"},
-	}, renderedInputs(t, v, gateOpen))
+	}, renderedInputs(t, v))
+}
+
+// TestBlockIterationDependencyForEachGrowthAddsOnlyTheNewKey pins that adding a for_each key
+// adds one keyed address and leaves every existing address reaching the instance it did.
+func TestBlockIterationDependencyForEachGrowthAddsOnlyTheNewKey(t *testing.T) {
+	t.Parallel()
+
+	v, fsys := blockIterationVenv(t, dependencyTree(dependencyForEachSet))
+
+	assert.Equal(t, map[string]any{
+		"addresses":   []any{"aurora"},
+		"aurora_keys": []any{"api", "web"},
+		"ids":         map[string]any{"api": "aurora-api", "web": "aurora-web"},
+	}, renderedInputs(t, v))
+
+	switchConfig(t, fsys, config.DefaultTerragruntConfigPath, dependencyForEachSetGrown)
+
+	assert.Equal(t, map[string]any{
+		"addresses":   []any{"aurora"},
+		"aurora_keys": []any{"api", "edge", "web"},
+		"ids": map[string]any{
+			"api":  "aurora-api",
+			"edge": "aurora-edge",
+			"web":  "aurora-web",
+		},
+	}, renderedInputs(t, v))
+}
+
+// TestBlockIterationDependencyCountGrowthAppendsWithoutShifting pins that raising a count by
+// appending to the list it reads adds the next index and leaves every earlier index reaching
+// the instance it did.
+func TestBlockIterationDependencyCountGrowthAppendsWithoutShifting(t *testing.T) {
+	t.Parallel()
+
+	v, fsys := blockIterationVenv(t, dependencyTree(dependencyCountShrunk))
+
+	assert.Equal(t, map[string]any{
+		"aurora_keys": []any{"0", "1"},
+		"ids":         map[string]any{"0": "web", "1": "edge"},
+	}, renderedInputs(t, v))
+
+	switchConfig(t, fsys, config.DefaultTerragruntConfigPath, dependencyCountGrown)
+
+	assert.Equal(t, map[string]any{
+		"aurora_keys": []any{"0", "1", "2"},
+		"ids":         map[string]any{"0": "web", "1": "edge", "2": "api"},
+	}, renderedInputs(t, v))
+}
+
+// TestBlockIterationDependencyKeysWithQuotesAndDotsResolveInInputs pins that a for_each key
+// holding a quote or a dot addresses its own instance from inputs. The quote is written with
+// HCL's escape, and the dot stays inside the key.
+func TestBlockIterationDependencyKeysWithQuotesAndDotsResolveInInputs(t *testing.T) {
+	t.Parallel()
+
+	v, _ := blockIterationVenv(t, dependencyTree(dependencyQuotedKeys))
+
+	assert.Equal(t, map[string]any{
+		"aurora_keys": []any{`a"b`, "c.d"},
+		"dotted_id":   "c.d",
+		"quoted_id":   `a"b`,
+	}, renderedInputs(t, v))
 }
 
 // TestBlockIterationDependencyEnabledFalseKeepsTheBareAddress pins addressing parity. A
@@ -99,7 +161,7 @@ func TestBlockIterationDependencyEnabledFalseKeepsTheBareAddress(t *testing.T) {
 		"aurora_keys": []any{"api", "web"},
 		"vpc_id":      "vpc-id",
 		"web_id":      "aurora-web-id",
-	}, renderedInputs(t, v, gateOpen))
+	}, renderedInputs(t, v))
 }
 
 // TestBlockIterationDependencyEnabledFalseDropsOutOfTheRunGraph pins addressing parity in
@@ -110,10 +172,9 @@ func TestBlockIterationDependencyEnabledFalseDropsOutOfTheRunGraph(t *testing.T)
 
 	v, _ := blockIterationVenv(t, parityTree())
 
-	stdout, err := runCLI(t, v, slices.Concat(
-		[]string{"find", "--dependencies", "--json", "--no-color", "--working-dir", blockIterationRoot},
-		gateOpen.args(),
-	)...)
+	stdout, err := runCLI(
+		t, v, "find", "--dependencies", "--json", "--no-color", "--working-dir", blockIterationRoot,
+	)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []foundUnit{
@@ -140,7 +201,7 @@ func TestBlockIterationDependencyFanOutResolvesEveryInstanceWithRacing(t *testin
 		want[strconv.Itoa(index)] = "instance-" + strconv.Itoa(index)
 	}
 
-	assert.Equal(t, want, renderedInputs(t, v, gateOpen)["ids"])
+	assert.Equal(t, want, renderedInputs(t, v)["ids"])
 }
 
 // parityTree holds the parity configuration as the live unit, with the vpc unit it disables

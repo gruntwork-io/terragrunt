@@ -63,7 +63,7 @@ func TestCopyCmdPanicsWithoutFS(t *testing.T) {
 
 	assert.Panics(t, func() {
 		err := tui.NewCopyCmd(logger.CreateLogger(), opts, nil).Run()
-		t.Errorf("Run returned %v instead of panicking", err)
+		assert.Fail(t, "Run returned instead of panicking", "err=%v", err)
 	})
 }
 

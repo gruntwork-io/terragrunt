@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    random = {
+      source  = "registry.opentofu.org/hashicorp/random"
+      version = "3.8.0"
+    }
+  }
+}
+
 variable "prefix" {
   type    = string
   default = ""

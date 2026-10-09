@@ -2,15 +2,27 @@ package cas
 
 import (
 	"path/filepath"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
-// Store manages the store directory and filesystem locks to prevent concurrent writes.
+// Store manages one content-addressed directory of the CAS.
+//
+// Every writer publishes an object by renaming a uniquely named temp
+// file onto its hash-addressed path, so two writers of one hash leave
+// the same result and racing costs only duplicated work. [Store.Lock]
+// spares that work within a process; across processes writers race on
+// the rename, so the store needs no per-object lock files.
 type Store struct {
 	path string
 }
+
+// objectLocks serializes in-process writers per object path. It is
+// package state rather than a Store field because each call site builds
+// a CAS per unit, and writers of one object in separate instances must
+// wait on the same lock.
+var objectLocks = newKeyedLocks()
 
 // NewStore creates a new Store rooted at path.
 func NewStore(path string) *Store {
@@ -24,92 +36,99 @@ func (s *Store) Path() string {
 
 // NeedsWrite checks if a given hash needs to be stored.
 func (s *Store) NeedsWrite(v *venv.Venv, hash string) bool {
-	partitionDir := filepath.Join(s.path, hash[:2])
-	path := filepath.Join(partitionDir, hash)
-
-	return !s.hasContent(v, path)
+	return !s.hasContent(v, s.objectPath(hash))
 }
 
-// AcquireLock acquires a filesystem lock for the given hash.
-// Returns the lock that should be unlocked when done.
-func (s *Store) AcquireLock(v *venv.Venv, hash string) (vfs.Unlocker, error) {
-	partitionDir := filepath.Join(s.path, hash[:2])
-	lockPath := filepath.Join(partitionDir, hash+".lock")
-
-	if err := v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return nil, err
-	}
-
-	return vfs.Lock(v.FS, lockPath)
+// Lock blocks until no other goroutine in this process is writing the
+// object at hash and returns the function that releases it, which must
+// be called exactly once. It offers no protection against other
+// processes.
+func (s *Store) Lock(hash string) (unlock func()) {
+	return objectLocks.lock(s.objectPath(hash))
 }
 
-// TryAcquireLock attempts to acquire a filesystem lock for the given hash without blocking.
-// Returns the lock and true if successful, nil and false if the lock is already held.
-func (s *Store) TryAcquireLock(v *venv.Venv, hash string) (vfs.Unlocker, bool, error) {
-	partitionDir := filepath.Join(s.path, hash[:2])
-	lockPath := filepath.Join(partitionDir, hash+".lock")
-
-	if err := v.FS.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return nil, false, err
-	}
-
-	return vfs.TryLock(v.FS, lockPath)
-}
-
-// EnsureWithWait tries to acquire a lock for the given hash, and if another process
-// is writing the same content, waits for it to complete instead of doing redundant work.
-// This is an optimization for read operations that avoids duplicate writes.
+// EnsureWithWait reports whether the object at hash still has to be
+// written and, when it does, holds [Store.Lock] for it. The existence
+// check is repeated once the lock is held, so a caller that waited on
+// another writer of the same hash learns that the write is already done
+// instead of repeating it.
 //
-// Returns:
-//   - needsWrite: true if content doesn't exist and caller should write it
-//   - lock: the acquired lock (nil if needsWrite is false)
-//   - error: any error that occurred
-func (s *Store) EnsureWithWait(
-	v *venv.Venv,
-	hash string,
-) (needsWrite bool, lock vfs.Unlocker, err error) {
-	partitionDir := filepath.Join(s.path, hash[:2])
-	path := filepath.Join(partitionDir, hash)
-
-	if s.hasContent(v, path) {
-		return false, nil, nil
+// unlock must always be called; it releases the lock when needsWrite
+// is true and does nothing otherwise.
+func (s *Store) EnsureWithWait(v *venv.Venv, hash string) (needsWrite bool, unlock func()) {
+	if !s.NeedsWrite(v, hash) {
+		return false, func() {}
 	}
 
-	tryLock, acquired, err := s.TryAcquireLock(v, hash)
-	if err != nil {
-		return false, nil, err
-	}
-
-	if acquired {
-		if !s.NeedsWrite(v, hash) {
-			if err = tryLock.Unlock(); err != nil {
-				return false, nil, err
-			}
-
-			return false, nil, nil
-		}
-
-		return true, tryLock, nil
-	}
-
-	waitLock, err := s.AcquireLock(v, hash)
-	if err != nil {
-		return false, nil, err
-	}
+	unlock = s.Lock(hash)
 
 	if !s.NeedsWrite(v, hash) {
-		if err := waitLock.Unlock(); err != nil {
-			return false, nil, err
-		}
+		unlock()
 
-		return false, nil, nil
+		return false, func() {}
 	}
 
-	return true, waitLock, nil
+	return true, unlock
+}
+
+func (s *Store) objectPath(hash string) string {
+	return filepath.Join(s.path, hash[:2], hash)
 }
 
 func (s *Store) hasContent(v *venv.Venv, path string) bool {
 	_, err := v.FS.Stat(path)
 
 	return err == nil
+}
+
+// keyedLocks hands out one mutex per key and forgets a key once no
+// goroutine holds or waits on it, so the table grows with in-flight
+// writes rather than with every object the process has ever stored.
+type keyedLocks struct {
+	entries map[string]*keyedLock
+	mu      sync.Mutex
+}
+
+// keyedLock is one entry of [keyedLocks].
+type keyedLock struct {
+	mu   sync.Mutex
+	refs int
+}
+
+func newKeyedLocks() *keyedLocks {
+	return &keyedLocks{entries: make(map[string]*keyedLock)}
+}
+
+// lock blocks until key is free and returns the function that releases
+// it.
+func (kl *keyedLocks) lock(key string) func() {
+	kl.mu.Lock()
+
+	entry, ok := kl.entries[key]
+	if !ok {
+		entry = &keyedLock{}
+		kl.entries[key] = entry
+	}
+
+	// Counting this goroutine in before the table lock goes keeps a
+	// releasing peer from dropping the entry it is about to block on.
+	// Two callers would otherwise hold different locks for one key.
+	entry.refs++
+
+	kl.mu.Unlock()
+
+	entry.mu.Lock()
+
+	return func() {
+		entry.mu.Unlock()
+
+		kl.mu.Lock()
+		defer kl.mu.Unlock()
+
+		entry.refs--
+
+		if entry.refs == 0 {
+			delete(kl.entries, key)
+		}
+	}
 }

@@ -76,10 +76,12 @@ func (app *App) Run(l log.Logger, v *venv.Venv, args []string) error {
 	return app.RunContext(context.Background(), l, v, args)
 }
 
-func (app *App) registerGracefullyShutdown(ctx context.Context, l log.Logger) context.Context {
+func (app *App) registerGracefullyShutdown(ctx context.Context, l log.Logger, v *venv.Venv) context.Context {
+	v.RequireSignals()
+
 	ctx, cancel := context.WithCancelCause(ctx)
 
-	signal.NotifierWithContext(ctx, func(sig os.Signal) {
+	v.Signals(ctx, func(sig os.Signal) {
 		// Carriage return helps prevent "^C" from being printed
 		if _, err := fmt.Fprint(app.Writer, "\r"); err != nil {
 			l.Debugf("Failed to write to the output on %s: %v", sig, err)
@@ -105,7 +107,7 @@ func (app *App) RunContext(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ctx = app.registerGracefullyShutdown(ctx, l)
+	ctx = app.registerGracefullyShutdown(ctx, l, v)
 
 	ctx = config.WithConfigValues(ctx)
 	// configure engine context
@@ -114,7 +116,7 @@ func (app *App) RunContext(
 	ctx = run.WithRunVersionCache(ctx)
 	ctx = run.WithModuleVersionResolver(ctx, v)
 
-	args = removeNoColorFlagDuplicates(args)
+	args = RemoveNoColorFlagDuplicates(args)
 
 	if err := app.App.RunContext(ctx, args); err != nil && !errors.Is(err, context.Canceled) {
 		return err
@@ -123,17 +125,21 @@ func (app *App) RunContext(
 	return nil
 }
 
-// removeNoColorFlagDuplicates removes one of the `--no-color` or `--terragrunt-no-color` arguments if both are present.
-// We have to do this because `--terragrunt-no-color` is a deprecated alias for `--no-color`,
-// therefore we end up specifying the same flag twice, which causes the `setting the flag multiple times` error.
-func removeNoColorFlagDuplicates(args []string) []string {
+// RemoveNoColorFlagDuplicates keeps only the first `--no-color` argument, since the parser rejects
+// a flag that is set more than once. Arguments from the `--` terminator onward belong to tofu and
+// pass through as written.
+func RemoveNoColorFlagDuplicates(args []string) []string {
 	var (
 		foundNoColor bool
 		filteredArgs = make([]string, 0, len(args))
 	)
 
-	for _, arg := range args {
-		if strings.HasSuffix(arg, "-"+global.NoColorFlagName) {
+	for i, arg := range args {
+		if arg == "--" {
+			return append(filteredArgs, args[i:]...)
+		}
+
+		if isNoColorFlag(arg) {
 			if foundNoColor {
 				continue
 			}
@@ -145,6 +151,16 @@ func removeNoColorFlagDuplicates(args []string) []string {
 	}
 
 	return filteredArgs
+}
+
+func isNoColorFlag(arg string) bool {
+	if !strings.HasPrefix(arg, "-") {
+		return false
+	}
+
+	name, _, _ := strings.Cut(strings.TrimPrefix(arg[1:], "-"), "=")
+
+	return name == global.NoColorFlagName
 }
 
 func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {

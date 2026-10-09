@@ -1,0 +1,6 @@
+version: 2
+
+secret:
+  ignored_paths:
+    - "internal/vendored/opentofu/upstream/*"
+    - "internal/vendored/opentofu/upstream/**/*"

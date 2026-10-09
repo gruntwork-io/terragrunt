@@ -119,6 +119,26 @@ func TestVisibleLength(t *testing.T) {
 			expected: 5,
 		},
 		{
+			name:     "double_width_runes",
+			input:    "データ",
+			expected: 6,
+		},
+		{
+			name:     "double_width_runes_with_ansi",
+			input:    "\033[31mデータ\033[0m",
+			expected: 6,
+		},
+		{
+			name:     "combining_mark",
+			input:    "e\u0301",
+			expected: 1,
+		},
+		{
+			name:     "invalid_utf8_byte",
+			input:    "a\xffb",
+			expected: 3,
+		},
+		{
 			name:     "empty",
 			input:    "",
 			expected: 0,
@@ -173,6 +193,30 @@ func TestTruncateVisible(t *testing.T) {
 			expected: "hé",
 		},
 		{
+			name:     "counts_double_width_runes_as_two_columns",
+			input:    "データ",
+			width:    4,
+			expected: "デー",
+		},
+		{
+			name:     "leaves_out_double_width_rune_crossing_the_limit",
+			input:    "aデー",
+			width:    2,
+			expected: "a",
+		},
+		{
+			name:     "keeps_combining_mark_with_its_base",
+			input:    "e\u0301x",
+			width:    1,
+			expected: "e\u0301",
+		},
+		{
+			name:     "replaces_invalid_utf8_bytes",
+			input:    "a\xffb",
+			width:    5,
+			expected: "a\uFFFDb",
+		},
+		{
 			name:     "zero_width",
 			input:    "hello",
 			width:    0,
@@ -192,7 +236,10 @@ func FuzzTruncateVisible(f *testing.F) {
 	f.Add("hello world", 5)
 	f.Add("\033[31mred\033[0m", 2)
 	f.Add("héllo", 3)
+	f.Add("データ", 3)
+	f.Add("\033[31mデータ\033[0m", 4)
 	f.Add("", 4)
+	f.Add("\xe3", 50)
 
 	f.Fuzz(func(t *testing.T, input string, width int) {
 		result := log.TruncateVisible(input, width)

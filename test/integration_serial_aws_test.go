@@ -19,12 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
-func TestAwsTerragruntParallelism(t *testing.T) {
+func TestAWSTerragruntParallelism(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -76,13 +77,13 @@ func TestAwsTerragruntParallelism(t *testing.T) {
 	}
 }
 
-func TestAwsReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
@@ -129,7 +130,7 @@ func TestAwsReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	)
 }
 
-func TestAwsReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
+func TestAWSReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
@@ -165,7 +166,7 @@ func TestAwsReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 		},
 	)
 
-	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
 
 	helpers.RunTerragrunt(
 		t,

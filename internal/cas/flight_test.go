@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 )
 
 // errProbeBug stands in for a bug inside the shared probe.
@@ -42,7 +43,7 @@ func TestGitResolver_ProbePanicReachesEveryCallerWithRacing(t *testing.T) {
 				defer func() { recovered[i] = recover() }()
 
 				r := &cas.GitResolver{Venv: v, Branch: "main"}
-				_, errs[i] = r.Probe(t.Context(), url)
+				_, errs[i] = r.Probe(t.Context(), redact.NewURL(url))
 			})
 		}
 
@@ -87,7 +88,7 @@ func TestGitResolver_ProbeConcurrentCallersShareOneLsRemoteWithRacing(t *testing
 		for i := range callers {
 			wg.Go(func() {
 				r := &cas.GitResolver{Venv: v, Branch: "main"}
-				hashes[i], errs[i] = r.Probe(t.Context(), url)
+				hashes[i], errs[i] = r.Probe(t.Context(), redact.NewURL(url))
 			})
 		}
 
@@ -129,7 +130,7 @@ func TestGitResolver_ProbeLeaderCancellationLeavesFollowersIntactWithRacing(t *t
 			defer close(leaderDone)
 
 			r := &cas.GitResolver{Venv: v, Branch: "main"}
-			_, leaderErr = r.Probe(leaderCtx, url)
+			_, leaderErr = r.Probe(leaderCtx, redact.NewURL(url))
 		}()
 
 		synctest.Wait()
@@ -145,7 +146,7 @@ func TestGitResolver_ProbeLeaderCancellationLeavesFollowersIntactWithRacing(t *t
 		for i := range followers {
 			wg.Go(func() {
 				r := &cas.GitResolver{Venv: v, Branch: "main"}
-				hashes[i], errs[i] = r.Probe(t.Context(), url)
+				hashes[i], errs[i] = r.Probe(t.Context(), redact.NewURL(url))
 			})
 		}
 
@@ -189,7 +190,7 @@ func TestGitResolver_ProbeAbandonedFlightIsReplacedForLateCallerWithRacing(t *te
 		leaderDone := make(chan error, 1)
 
 		go func() {
-			_, err := (&cas.GitResolver{Venv: v, Branch: "main"}).Probe(leaderCtx, url)
+			_, err := (&cas.GitResolver{Venv: v, Branch: "main"}).Probe(leaderCtx, redact.NewURL(url))
 			leaderDone <- err
 		}()
 
@@ -213,7 +214,7 @@ func TestGitResolver_ProbeAbandonedFlightIsReplacedForLateCallerWithRacing(t *te
 		go func() {
 			defer close(lateDone)
 
-			lateHash, lateErr = (&cas.GitResolver{Venv: v, Branch: "main"}).Probe(t.Context(), url)
+			lateHash, lateErr = (&cas.GitResolver{Venv: v, Branch: "main"}).Probe(t.Context(), redact.NewURL(url))
 		}()
 
 		synctest.Wait()

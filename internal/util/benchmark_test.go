@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/stretchr/testify/require"
 )
 
 // buildCopyTree writes a tree shaped like a module cache: nested
@@ -26,23 +27,17 @@ func buildCopyTree(tb testing.TB, root string, dirs, filesPerDir, fileSize, blob
 
 	for i := range dirs {
 		dir := filepath.Join(root, strconv.Itoa(i/(fanout*fanout)), strconv.Itoa(i/fanout), strconv.Itoa(i))
-		if err := os.MkdirAll(dir, dirPerms); err != nil {
-			tb.Fatal(err)
-		}
+		require.NoError(tb, os.MkdirAll(dir, dirPerms))
 
 		for j := range filesPerDir {
-			if err := os.WriteFile(filepath.Join(dir, "f"+strconv.Itoa(j)+".tf"), small, perms); err != nil {
-				tb.Fatal(err)
-			}
+			require.NoError(tb, os.WriteFile(filepath.Join(dir, "f"+strconv.Itoa(j)+".tf"), small, perms))
 		}
 	}
 
 	blob := make([]byte, blobSize)
 
 	for i := range blobs {
-		if err := os.WriteFile(filepath.Join(root, "blob"+strconv.Itoa(i)+".bin"), blob, perms); err != nil {
-			tb.Fatal(err)
-		}
+		require.NoError(tb, os.WriteFile(filepath.Join(root, "blob"+strconv.Itoa(i)+".bin"), blob, perms))
 	}
 }
 
@@ -84,22 +79,18 @@ func BenchmarkCopyFolderContentsFast(b *testing.B) {
 				dest := filepath.Join(dests, strconv.Itoa(i))
 				i++
 
-				if err := util.CopyFolderContents(
+				require.NoError(b, util.CopyFolderContents(
 					l,
 					fsys,
 					source,
 					dest,
 					".terragrunt-bench-manifest",
 					util.WithFastCopy(),
-				); err != nil {
-					b.Fatal(err)
-				}
+				))
 
 				b.StopTimer()
 
-				if err := os.RemoveAll(dest); err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(b, os.RemoveAll(dest))
 
 				b.StartTimer()
 			}

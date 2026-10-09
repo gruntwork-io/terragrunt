@@ -1,17 +1,12 @@
 package config
 
 import (
-	"context"
-	"errors"
-	"io"
 	"maps"
 	"path/filepath"
 	"slices"
 	"time"
 
-	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -34,27 +29,17 @@ const (
 	MaxParseDepth = 1000
 )
 
-// ErrParsingContextVenvNil is the panic value [NewParsingContext] raises when
-// its venv argument is nil. Every caller is handed the bundle main.go built,
-// so a nil points at a caller bug rather than a runtime condition.
-var ErrParsingContextVenvNil = errors.New("config.NewParsingContext: venv must not be nil")
-
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	// Venv is the virtualized environment used by HCL helper functions
-	// that shell out (e.g. get_repo_root) or evaluate dependency outputs.
-	// It also carries the shell environment and stdout/stderr writers.
-	Venv *venv.Venv
-
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
 	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
 
 	// FeatureFlags contains explicit feature flag overrides supplied by the user.
-	FeatureFlags *xsync.Map[string, string]
+	FeatureFlags map[string]string
 
 	FilesRead *FilesRead
 	Telemetry *telemetry.Options
@@ -69,9 +54,6 @@ type ParsingContext struct {
 	// extra_arguments.env_vars. Inherited process values stay eligible for direct state reads until
 	// output-specific configuration overrides them.
 	dependencyOutputEnvKeys map[string]struct{}
-	PredefinedFunctions     map[string]function.Function
-
-	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, cfgPath string, cfgFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
@@ -93,7 +75,14 @@ type ParsingContext struct {
 	Experiments            experiment.Experiments
 	StrictControls         strict.Controls
 	PartialParseDecodeList []PartialDecodeSectionType
-	ParserOptions          []hclparse.Option
+
+	// Parser configures the HCL parsers this context builds.
+	Parser ParserSettings
+
+	// readConfigChain lists the configs being parsed by nested read_terragrunt_config calls,
+	// outermost first: each read target, plus each config a dependency block parses in between.
+	// Clones share it, so it is only ever extended with slices.Concat.
+	readConfigChain []readConfigFrame
 
 	ProviderCacheOptions pcoptions.ProviderCacheOptions
 
@@ -122,59 +111,43 @@ type ParsingContext struct {
 	LogShowAbsPaths                  bool
 	LogDisableErrorSummary           bool
 
-	// skipAutoIncludeMerge is set on contexts that parse the files an autoinclude pulls in through its
+	// SkipAutoIncludeMerge is set on contexts that parse the files an autoinclude pulls in through its
 	// own include blocks, so those files do not re-merge a sibling autoinclude. This bounds the merge to
 	// the unit being parsed and prevents an autoinclude that includes another file from recursing.
-	skipAutoIncludeMerge bool
+	SkipAutoIncludeMerge bool
+
+	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig].
+	catalogOnly bool
+
+	// stubWorkingDirFunc makes get_working_dir return an empty string, for the parse
+	// get_working_dir runs to find the terraform source.
+	stubWorkingDirFunc bool
 }
 
-// NewParsingContext builds a parsing context whose file reads, subprocesses,
-// and decryption all travel on v.
-func NewParsingContext(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	opts ...Option,
-) (context.Context, *ParsingContext) {
-	if v == nil {
-		panic(ErrParsingContextVenvNil)
-	}
-
+// NewParsingContext builds a parsing context from opts.
+//
+// The returned context keeps no record of the files it reads. Recording them
+// costs a walk of every local module a config sources, and only a caller that
+// surfaces the record has any use for it, so those call
+// [ParsingContext.WithFileReadTracking] and the rest pay nothing.
+func NewParsingContext(opts ...Option) *ParsingContext {
 	pctx := &ParsingContext{
 		TerraformCliArgs: iacargs.New(),
-		FilesRead:        NewFilesRead(),
-		Venv:             v,
 	}
 
 	for _, opt := range opts {
 		opt(pctx)
 	}
 
-	pctx.ParserOptions = DefaultParserOptions(l, v, pctx.StrictControls)
+	pctx.Parser = DefaultParserSettings(pctx.StrictControls)
 
-	return ctx, pctx
+	return pctx
 }
 
-// Clone returns a copy of the ParsingContext.
-// Maps and the embedded Venv (including its Writers pointer and Env map)
-// are deep-copied so that mutations on a clone (credential injection,
-// writer redirection, and so on) do not affect the original or other clones.
+// Clone returns a copy of the ParsingContext. Its maps and slices are
+// deep-copied.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
-
-	if ctx.Venv != nil {
-		v := *ctx.Venv
-		if v.Env != nil {
-			v.Env = maps.Clone(v.Env)
-		}
-
-		if v.Writers != nil {
-			w := *v.Writers
-			v.Writers = &w
-		}
-
-		clone.Venv = &v
-	}
 
 	if ctx.SourceMap != nil {
 		clone.SourceMap = maps.Clone(ctx.SourceMap)
@@ -184,6 +157,8 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 		eo := *ctx.EngineOptions
 		clone.EngineOptions = &eo
 	}
+
+	clone.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(ctx.Parser.HaltOnErrorOnlyInBlocks)
 
 	clone.ProviderCacheOptions.RegistryNames = slices.Clone(ctx.ProviderCacheOptions.RegistryNames)
 
@@ -230,28 +205,49 @@ func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *Parsing
 	return c
 }
 
-func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
+// WithParserSettings returns a copy whose parsers use s.
+func (ctx *ParsingContext) WithParserSettings(s ParserSettings) *ParsingContext {
 	c := ctx.Clone()
-	c.ParserOptions = parserOptions
+	c.Parser = s
+	c.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(s.HaltOnErrorOnlyInBlocks)
 
 	return c
 }
 
-// WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
-// Diagnostics are written to stderr in debug mode for troubleshooting, otherwise discarded.
-// This avoids false positive "There is no variable named dependency" errors during parsing
-// when dependency outputs haven't been resolved yet.
-func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
-	var diagWriter = io.Discard
-	if l.Level() >= log.DebugLevel {
-		diagWriter = ctx.Venv.Writers.ErrWriter
-	}
-
+// WithDiagnosticsSuppressed returns a copy whose parsers write diagnostics to stderr at debug
+// level and discard them otherwise. This avoids false positive "There is no variable named
+// dependency" errors while dependency outputs are not yet resolved.
+func (ctx *ParsingContext) WithDiagnosticsSuppressed() *ParsingContext {
 	c := ctx.Clone()
-	c.ParserOptions = slices.Concat(
-		ctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(ctx.Venv, diagWriter, true)},
-	)
+	c.Parser.Diagnostics = DiagnosticsSuppressed
+
+	return c
+}
+
+// WithDiagnosticsDiscarded returns a copy whose parsers discard diagnostics.
+func (ctx *ParsingContext) WithDiagnosticsDiscarded() *ParsingContext {
+	c := ctx.Clone()
+	c.Parser.Diagnostics = DiagnosticsDiscarded
+
+	return c
+}
+
+// ParserOptions returns the [hclparse.Option] list for this context's parser settings.
+func (ctx *ParsingContext) ParserOptions(l log.Logger, v *venv.Venv) []hclparse.Option {
+	return ParserOptions(l, v, ctx.Parser)
+}
+
+// NewParser returns an HCL parser configured by this context's parser settings.
+func (ctx *ParsingContext) NewParser(l log.Logger, v *venv.Venv) *hclparse.Parser {
+	return hclparse.NewParser(ctx.ParserOptions(l, v)...)
+}
+
+// WithFileReadTracking returns a copy that records every file it reads, so that
+// the caller can read them back off [ParsingContext.FilesRead] once parsing is
+// done. Clones made from the returned context share the one record.
+func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
+	c := ctx.Clone()
+	c.FilesRead = NewFilesRead()
 
 	return c
 }
@@ -342,4 +338,22 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	c.OriginalTerragruntConfigPath = c.TerragruntConfigPath
 
 	return l, c, nil
+}
+
+// readConfigFrame is one config on the read_terragrunt_config chain. A dependency block or a stack
+// file is parsed under its own original config, so get_original_terragrunt_dir() can make the same
+// file evaluate differently. Only a file parsed again under the same original config is a cycle.
+type readConfigFrame struct {
+	path         string
+	originalPath string
+}
+
+// readConfigChainPaths returns the paths of chain followed by last, for a cycle error.
+func readConfigChainPaths(chain []readConfigFrame, last readConfigFrame) []string {
+	paths := make([]string, 0, len(chain)+1)
+	for _, frame := range chain {
+		paths = append(paths, frame.path)
+	}
+
+	return append(paths, last.path)
 }

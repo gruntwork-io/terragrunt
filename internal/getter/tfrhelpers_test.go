@@ -1,15 +1,18 @@
 package getter_test
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -353,6 +356,48 @@ func TestGetLatestModuleVersion(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "4.0.0", latestVersion)
+}
+
+// TestGetLatestModuleVersionRejectsOversizedResponse pins that a versions list
+// past the response bound surfaces as a typed error rather than as a parse
+// error on a silently truncated body.
+func TestGetLatestModuleVersionRejectsOversizedResponse(t *testing.T) {
+	t.Parallel()
+
+	const oversized = 32<<20 + 1
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(
+		"/v1/modules/terraform-aws-modules/vpc/aws/versions",
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", strconv.Itoa(oversized))
+
+			_, err := io.CopyN(w, zeroReader{}, oversized)
+			assert.NoError(t, err)
+		},
+	)
+
+	server := httptest.NewTLSServer(mux)
+	t.Cleanup(server.Close)
+
+	_, err := getter.GetLatestModuleVersion(
+		t.Context(), logger.CreateLogger(), server.Client(), testRegistryAuth(),
+		server.Listener.Addr().String(), "/v1/modules/", "terraform-aws-modules/vpc/aws",
+	)
+
+	var tooLarge helpers.ResponseTooLargeError
+
+	require.ErrorAs(t, err, &tooLarge)
+}
+
+// zeroReader yields an endless stream of zero bytes.
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+
+	return len(p), nil
 }
 
 // TestGetLatestModuleVersionSkipsPrereleases pins the behavior of the

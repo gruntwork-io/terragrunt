@@ -1,11 +1,9 @@
 package getter_test
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -13,10 +11,6 @@ import (
 	"testing"
 	"time"
 
-	// The pinned go-getter/s3/v2 builds its S3 client on aws-sdk-go v1, so the
-	// dependency-contract tests below have to drive the deprecated v1 chain.
-	"github.com/aws/aws-sdk-go/aws"         //nolint:staticcheck // deprecated v1 SDK, per the note above
-	"github.com/aws/aws-sdk-go/aws/session" //nolint:staticcheck // deprecated v1 SDK, per the note above
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -112,12 +106,11 @@ func TestDefaultClientCanonicalizesS3SourceURLs(t *testing.T) {
 	}
 }
 
-// Verifies that the SDK allows EKS and ECS container credential endpoints
-// and rejects arbitrary hosts. Uses a recording RoundTripper so no real
-// network I/O occurs and results are deterministic on any runner.
-// This is a dependency-contract test: it exercises the same default credential
-// provider that go-getter/s3/v2 uses to verify the aws-sdk-go v1 version pin.
-func TestS3SessionCredentialEndpointHosts(t *testing.T) {
+// TestS3ClientForTargetContainerCredentialHosts pins which container credential
+// endpoints the S3 download client accepts: loopback and the ECS and EKS Pod
+// Identity agent addresses. The SDK rejects any other host while building the
+// client, so no case sends a request.
+func TestS3ClientForTargetContainerCredentialHosts(t *testing.T) {
 	tests := []struct {
 		name       string
 		endpoint   string
@@ -155,38 +148,28 @@ func TestS3SessionCredentialEndpointHosts(t *testing.T) {
 			suppressAWSEnv(t)
 			t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", tt.endpoint)
 
-			var called atomic.Bool
-
-			sess, err := session.NewSession(&aws.Config{
-				Region: new("us-east-1"),
-				HTTPClient: &http.Client{
-					Transport: recordingTransport(&called),
-				},
-				CredentialsChainVerboseErrors: new(true),
-				MaxRetries:                    new(0),
-			})
-			require.NoError(t, err)
-
-			_, credErr := sess.Config.Credentials.Get()
+			_, err := getter.S3ClientForTarget(
+				t.Context(), logger.CreateLogger(), venvtest.New(), &getter.S3FetchTarget{})
 
 			if tt.wantReject {
-				assert.False(t, called.Load(), "transport must NOT be invoked for rejected hosts")
-				require.Error(t, credErr)
+				require.Error(t, err)
 
 				return
 			}
 
-			assert.True(t, called.Load(), "transport must be invoked for accepted hosts")
+			require.NoError(t, err)
 		})
 	}
 }
 
-// Verifies the full EKS Pod Identity credential flow: endpoint acceptance,
-// authorization-token-file loading, header propagation, and response decoding.
-// Uses a recording RoundTripper against the EKS endpoint IP so no real
-// request reaches 169.254.170.23. The token file is a real temp file because
-// the SDK reads the OS filesystem directly.
-func TestS3SessionEKSPodIdentityAuthTokenFile(t *testing.T) {
+// TestS3ClientForTargetEKSPodIdentityCredentials pins that the S3 download
+// client completes the EKS Pod Identity flow: it reads the token from
+// AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE, sends it as the Authorization header
+// to AWS_CONTAINER_CREDENTIALS_FULL_URI, and decodes the credentials the agent
+// returns. A loopback server stands in for the agent because the SDK accepts
+// loopback endpoints. The token file lives on the OS filesystem because the SDK
+// reads it with os.ReadFile.
+func TestS3ClientForTargetEKSPodIdentityCredentials(t *testing.T) {
 	const (
 		fakeAccessKey = "test-access-key-id"
 		fakeSecretKey = "test-secret-access-key"
@@ -197,10 +180,6 @@ func TestS3SessionEKSPodIdentityAuthTokenFile(t *testing.T) {
 	tokenFile := filepath.Join(t.TempDir(), "token")
 	require.NoError(t, os.WriteFile(tokenFile, []byte(authToken), 0o600))
 
-	suppressAWSEnv(t)
-	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "http://169.254.170.23/v1/credentials")
-	t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", tokenFile)
-
 	credsJSON, err := json.Marshal(map[string]any{
 		"AccessKeyId":     fakeAccessKey,
 		"SecretAccessKey": fakeSecretKey,
@@ -209,35 +188,40 @@ func TestS3SessionEKSPodIdentityAuthTokenFile(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var gotAuthHeader string
+	var gotAuthHeader atomic.Pointer[string]
 
-	sess, err := session.NewSession(&aws.Config{
-		Region: new("us-east-1"),
-		HTTPClient: &http.Client{
-			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-				gotAuthHeader = req.Header.Get("Authorization")
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuthHeader.Store(new(r.Header.Get("Authorization")))
+		w.Header().Set("Content-Type", "application/json")
 
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Header:     http.Header{"Content-Type": {"application/json"}},
-					Body:       io.NopCloser(bytes.NewReader(credsJSON)),
-				}, nil
-			}),
-		},
-		MaxRetries: new(0),
-	})
+		_, writeErr := w.Write(credsJSON)
+		assert.NoError(t, writeErr)
+	}))
+	t.Cleanup(agent.Close)
+
+	suppressAWSEnv(t)
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", agent.URL+"/v1/credentials")
+	t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", tokenFile)
+
+	client, err := getter.S3ClientForTarget(
+		t.Context(), logger.CreateLogger(), venvtest.New(), &getter.S3FetchTarget{})
 	require.NoError(t, err)
 
-	creds, err := sess.Config.Credentials.Get()
+	creds, err := client.Options().Credentials.Retrieve(t.Context())
 	require.NoError(t, err)
 
 	assert.Equal(t, fakeAccessKey, creds.AccessKeyID)
 	assert.Equal(t, fakeSecretKey, creds.SecretAccessKey)
 	assert.Equal(t, fakeToken, creds.SessionToken)
-	assert.Equal(t, authToken, gotAuthHeader)
+
+	header := gotAuthHeader.Load()
+	require.NotNil(t, header, "the agent must receive the credentials request")
+	assert.Equal(t, authToken, *header)
 }
 
-// suppressAWSEnv neutralizes all AWS credential env vars the SDK v1 chain inspects.
+// suppressAWSEnv clears the AWS environment the SDK credential chain reads, so
+// keys, profiles, or container settings on the machine running the suite cannot
+// change which provider resolves.
 func suppressAWSEnv(t *testing.T) {
 	t.Helper()
 
@@ -245,8 +229,6 @@ func suppressAWSEnv(t *testing.T) {
 		"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
 		"AWS_ACCESS_KEY", "AWS_SECRET_KEY",
 		"AWS_PROFILE", "AWS_DEFAULT_PROFILE",
-		"AWS_SDK_LOAD_CONFIG",
-		"AWS_METADATA_URL",
 		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
 		"AWS_CONTAINER_CREDENTIALS_FULL_URI",
 		"AWS_CONTAINER_AUTHORIZATION_TOKEN",
@@ -258,22 +240,8 @@ func suppressAWSEnv(t *testing.T) {
 		t.Setenv(key, "")
 	}
 
-	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
-	t.Setenv("AWS_CONFIG_FILE", "/dev/null")
+	missing := filepath.Join(t.TempDir(), "missing")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", missing)
+	t.Setenv("AWS_CONFIG_FILE", missing)
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 }
-
-// recordingTransport returns a RoundTripper that records whether it was called and returns a sentinel error.
-func recordingTransport(called *atomic.Bool) http.RoundTripper {
-	return roundTripFunc(func(_ *http.Request) (*http.Response, error) {
-		called.Store(true)
-
-		return nil, errTransportSentinel
-	})
-}
-
-var errTransportSentinel = errors.New("sentinel: transport invoked")
-
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }

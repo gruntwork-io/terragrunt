@@ -35,7 +35,7 @@ func TestDiscoveryBoundaryUnderSymlinkedWorkingDir(t *testing.T) {
 	linkDir := filepath.Join(t.TempDir(), "link")
 	require.NoError(t, os.Symlink(fixtureDir, linkDir))
 
-	cmd := "terragrunt find --experiment bounded-discovery --no-color --working-dir " +
+	cmd := "terragrunt find --no-color --working-dir " +
 		filepath.Join(linkDir, "prod") + " --filter '...{./db}' --discovery-boundary ."
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)

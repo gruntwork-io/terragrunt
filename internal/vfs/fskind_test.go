@@ -27,15 +27,22 @@ func TestDetectFSKind(t *testing.T) {
 			"the filesystem behind the temp dir is unrecognized; add it to the probe if it is worth tuning for")
 	})
 
-	// A path the probe cannot describe is worth re-asking about at an
-	// ancestor; one on an unnamed filesystem is not. Only the first
-	// reports FSUnprobed.
-	t.Run("missing path is unprobed, not unknown", func(t *testing.T) {
+	// A path that does not exist yet is sized by the directory it would be
+	// created in. Linux and macOS decline to probe it, so FSWorkersFor climbs
+	// to the parent, while Windows answers from the drive. Reading as
+	// FSUnknown would stop the climb at the missing path.
+	t.Run("missing path is answered by its existing parent", func(t *testing.T) {
 		t.Parallel()
 
-		missing := filepath.Join(t.TempDir(), "no-such-dir", "deeper")
+		parent := t.TempDir()
+		missing := filepath.Join(parent, "no-such-dir", "deeper")
 
-		assert.Equal(t, vfs.FSUnprobed, vfs.DetectFSKind(vfs.NewOSFS(), missing))
+		assert.NotEqual(t, vfs.FSUnknown, vfs.DetectFSKind(vfs.NewOSFS(), missing))
+		assert.Equal(
+			t,
+			vfs.FSWorkersFor(vfs.NewOSFS(), parent),
+			vfs.FSWorkersFor(vfs.NewOSFS(), missing),
+		)
 	})
 
 	t.Run("a filesystem that is not the real disk never reaches the kernel", func(t *testing.T) {
@@ -91,9 +98,7 @@ func TestDetectFSKind(t *testing.T) {
 					"kind %d reports itself as unknown", kind)
 			}
 
-			if other, ok := seen[name]; ok {
-				t.Errorf("kinds %d and %d share the name %q", other, kind, name)
-			}
+			assert.NotContains(t, seen, name, "kinds %d and %d share the name %q", seen[name], kind, name)
 
 			seen[name] = kind
 		}

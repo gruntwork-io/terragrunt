@@ -118,7 +118,7 @@ func TestRunLoadsARepoNamedTwiceOnce(t *testing.T) {
 	rootDir := t.TempDir()
 
 	// A local path that does not exist fails in the getter without reaching the network.
-	repoURL := filepath.Join(rootDir, "missing-repo")
+	repoURL := filepath.ToSlash(filepath.Join(rootDir, "missing-repo"))
 
 	v := venvtest.NewWithOSFS()
 
@@ -223,7 +223,7 @@ func TestRunWritesComponentsFromTheCatalogBlock(t *testing.T) {
 	require.NoError(t, vfs.WriteFile(
 		v.FS,
 		filepath.Join(rootDir, "root.hcl"),
-		[]byte("catalog {\n  urls = [\""+repoDir+"\"]\n}\n"),
+		[]byte("catalog {\n  urls = [\""+filepath.ToSlash(repoDir)+"\"]\n}\n"),
 		0o644,
 	))
 

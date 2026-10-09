@@ -11,6 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// toSlashAll returns paths with every separator as a slash, so a result the
+// filesystem reports in its native spelling compares against the slash
+// literals the fixtures are written in.
+func toSlashAll(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		out = append(out, filepath.ToSlash(p))
+	}
+
+	return out
+}
+
 func TestCompile(t *testing.T) {
 	t.Parallel()
 
@@ -98,6 +110,18 @@ func TestCompile(t *testing.T) {
 			path:    "acb.tf",
 			want:    false,
 		},
+		{
+			name:    "brace alternation with an empty option matches without it",
+			pattern: "main.tf{,.bak}",
+			path:    "main.tf",
+			want:    true,
+		},
+		{
+			name:    "brace alternation with an empty option matches with the other option",
+			pattern: "main.tf{,.bak}",
+			path:    "main.tf.bak",
+			want:    true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -118,6 +142,51 @@ func TestCompileRejectsInvalidPattern(t *testing.T) {
 	// An unterminated character class is rejected by the underlying matcher.
 	_, err := glob.Compile("[unterminated")
 	require.Error(t, err)
+}
+
+// TestCompileRejectsAnUnsupportedBraceGroup pins that a {} group the
+// underlying matcher crashes on fails to compile, with or without a
+// separator.
+func TestCompileRejectsAnUnsupportedBraceGroup(t *testing.T) {
+	t.Parallel()
+
+	for _, pattern := range []string{"a{", "./a{", "a{,}", "a{*,}", "}{"} {
+		t.Run(pattern, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := glob.Compile(pattern)
+			require.ErrorIs(t, err, glob.ErrUnsupportedBraceGroup)
+
+			_, err = glob.Compile(pattern, glob.WithoutSeparator())
+			require.ErrorIs(t, err, glob.ErrUnsupportedBraceGroup)
+		})
+	}
+}
+
+// TestCompileWithoutSeparator pins that '*' and '?' match '/' once the
+// separator is dropped.
+func TestCompileWithoutSeparator(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		pattern string
+		s       string
+	}{
+		{pattern: "-chdir=*", s: "-chdir=envs/prod"},
+		{pattern: "a?b", s: "a/b"},
+	} {
+		t.Run(tc.pattern, func(t *testing.T) {
+			t.Parallel()
+
+			withSeparator, err := glob.Compile(tc.pattern)
+			require.NoError(t, err)
+			assert.False(t, withSeparator.Match(tc.s))
+
+			withoutSeparator, err := glob.Compile(tc.pattern, glob.WithoutSeparator())
+			require.NoError(t, err)
+			assert.True(t, withoutSeparator.Match(tc.s))
+		})
+	}
 }
 
 func TestExpand(t *testing.T) {
@@ -250,7 +319,7 @@ func TestExpand(t *testing.T) {
 
 			// ElementsMatch ignores order, so the assertion is robust to walker
 			// ordering changes without asserting a specific traversal order.
-			assert.ElementsMatch(t, tc.want, got, "pattern %q", tc.pattern)
+			assert.ElementsMatch(t, tc.want, toSlashAll(got), "pattern %q", tc.pattern)
 		})
 	}
 }
@@ -316,7 +385,7 @@ func TestExpandBoundary(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tc.want, got, "pattern %q", tc.pattern)
+			assert.ElementsMatch(t, tc.want, toSlashAll(got), "pattern %q", tc.pattern)
 		})
 	}
 }
@@ -412,5 +481,5 @@ func TestExpandDivergesFromLegacyOnGlobstar(t *testing.T) {
 	require.NoError(t, err)
 
 	// Only the nested file survives: gobwas does not collapse `**`.
-	assert.Equal(t, []string{"/mod/sub/nested.tf"}, got)
+	assert.Equal(t, []string{"/mod/sub/nested.tf"}, toSlashAll(got))
 }

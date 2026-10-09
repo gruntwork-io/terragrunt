@@ -26,7 +26,6 @@ func TestTFProfileCPUDoesNotPropagateToTofu(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	profilePath := filepath.Join(tmpDir, "terragrunt_cpu.prof")
 
-	t.Setenv("TG_EXPERIMENT", "profiling")
 	t.Setenv("TG_PROFILE_CPU", profilePath)
 
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+rootPath)

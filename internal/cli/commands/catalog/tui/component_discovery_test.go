@@ -20,9 +20,9 @@ import (
 // testRepoDir and testWorkingDir are stable in-memory paths used across the
 // redesign test suite. Both live under root so afero's MemMapFs can host
 // the fixture trees without colliding with real OS paths.
-const (
-	testRepoDir    = "/repo"
-	testWorkingDir = "/work"
+var (
+	testRepoDir    = venvtest.Root("/repo")
+	testWorkingDir = venvtest.Root("/work")
 )
 
 // TestDiscoverComponents_WithCustomFS proves discovery runs against an
@@ -360,7 +360,7 @@ func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 	writeFileFS(t, fsys, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
 		"examples\nexamples/**\nstash/**\n")
 
-	extraPath := "/extra/extra-ignore"
+	extraPath := venvtest.Root("/extra/extra-ignore")
 	writeFileFS(t, fsys, extraPath, "integration/**\n!stash/keep\n")
 
 	repo := newFakeRepo(t, fsys, repoDir)
@@ -430,6 +430,12 @@ func TestComponent_TerraformSourcePath(t *testing.T) {
 			cloneURL: "github.com/org/repo?ref=v1.0.0",
 			dir:      "modules/vpc",
 			want:     "github.com/org/repo//modules/vpc?ref=v1.0.0",
+		},
+		{
+			name:     "joins dir onto clone url subdir",
+			cloneURL: "github.com/org/repo//modules?ref=v1.0.0",
+			dir:      "aws/vpc",
+			want:     "github.com/org/repo//modules/aws/vpc?ref=v1.0.0",
 		},
 	}
 

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWrapMapToSingleLineHcl(t *testing.T) {
@@ -54,9 +55,7 @@ func TestWrapMapToSingleLineHcl(t *testing.T) {
 			t.Parallel()
 
 			result := hclhelper.WrapMapToSingleLineHcl(tc.input)
-			if result != tc.expected {
-				t.Errorf("Expected %s, but got %s", tc.expected, result)
-			}
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
@@ -106,9 +105,7 @@ func TestWrapListToSingleLineHcl(t *testing.T) {
 			t.Parallel()
 
 			result := hclhelper.WrapListToSingleLineHcl(tc.input)
-			if result != tc.expected {
-				t.Errorf("Expected %s, but got %s", tc.expected, result)
-			}
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
@@ -137,9 +134,7 @@ func TestFormatValueToSingleLineHcl(t *testing.T) {
 			t.Parallel()
 
 			result := hclhelper.FormatValueToSingleLineHcl(tc.input)
-			if result != tc.expected {
-				t.Errorf("Expected %s, but got %s", tc.expected, result)
-			}
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }

@@ -116,6 +116,60 @@ func TestBlockIterationUnitForEachDeletionOrphansOnlyTheRemovedKey(t *testing.T)
 	assert.Equal(t, []string{"aurora/api"}, generatedUnits(t, fsys))
 }
 
+// TestBlockIterationUnitForEachGrowthAddsOnlyTheNewKey pins that adding a for_each key
+// generates one new directory and leaves the existing keys where they were, so a sweep finds
+// nothing to remove.
+func TestBlockIterationUnitForEachGrowthAddsOnlyTheNewKey(t *testing.T) {
+	t.Parallel()
+
+	v, fsys := blockIterationVenv(t, unitTree(unitForEachSetShrunk))
+
+	generateStack(t, v)
+	assert.Equal(t, map[string]string{"aurora/api": "api"}, generatedRoles(t, fsys))
+
+	switchConfig(t, fsys, config.DefaultStackFile, unitForEachSet)
+	generateStack(t, v)
+
+	want := map[string]string{
+		"aurora/api": "api",
+		"aurora/web": "web",
+	}
+	assert.Equal(t, want, generatedRoles(t, fsys))
+
+	generateStack(t, v, sweepOrphans)
+	assert.Equal(t, want, generatedRoles(t, fsys))
+}
+
+// TestBlockIterationUnitCountGrowthAppendsWithoutShifting pins that raising a count by
+// appending to the list it reads adds the next index and regenerates every earlier index
+// with the values it already had.
+func TestBlockIterationUnitCountGrowthAppendsWithoutShifting(t *testing.T) {
+	t.Parallel()
+
+	v, fsys := blockIterationVenv(t, unitTree(unitCount))
+
+	generateStack(t, v)
+	assert.Equal(t, map[string]string{
+		"aurora/0": "alpha",
+		"aurora/1": "beta",
+		"aurora/2": "gamma",
+	}, generatedRoles(t, fsys))
+
+	switchConfig(t, fsys, config.DefaultStackFile, unitCountGrown)
+	generateStack(t, v)
+
+	want := map[string]string{
+		"aurora/0": "alpha",
+		"aurora/1": "beta",
+		"aurora/2": "gamma",
+		"aurora/3": "delta",
+	}
+	assert.Equal(t, want, generatedRoles(t, fsys))
+
+	generateStack(t, v, sweepOrphans)
+	assert.Equal(t, want, generatedRoles(t, fsys))
+}
+
 // TestBlockIterationUnitForEachMapResolvesEachValuePerInstance pins that a map for_each keys
 // the path by each.key while the body reads each.value.
 func TestBlockIterationUnitForEachMapResolvesEachValuePerInstance(t *testing.T) {
@@ -277,6 +331,60 @@ func TestBlockIterationStackForEachDeletionOrphansOnlyTheRemovedKey(t *testing.T
 	assert.Equal(t, map[string]string{
 		"team/east/.terragrunt-stack/member": "east",
 	}, generatedRoles(t, fsys))
+}
+
+// TestBlockIterationStackForEachGrowthAddsOnlyTheNewKey pins that adding a key to a stack's
+// for_each generates one new tree and leaves the existing trees untouched.
+func TestBlockIterationStackForEachGrowthAddsOnlyTheNewKey(t *testing.T) {
+	t.Parallel()
+
+	v, fsys := blockIterationVenv(t, stackTree(stackForEachSetShrunk))
+
+	generateStack(t, v)
+	assert.Equal(t, map[string]string{
+		"team/east/.terragrunt-stack/member": "east",
+	}, generatedRoles(t, fsys))
+
+	switchConfig(t, fsys, config.DefaultStackFile, stackForEachSet)
+	generateStack(t, v)
+
+	want := map[string]string{
+		"team/east/.terragrunt-stack/member": "east",
+		"team/west/.terragrunt-stack/member": "west",
+	}
+	assert.Equal(t, want, generatedRoles(t, fsys))
+
+	generateStack(t, v, sweepOrphans)
+	assert.Equal(t, want, generatedRoles(t, fsys))
+}
+
+// TestBlockIterationStackCountGrowthAppendsWithoutShifting pins the append case one level up.
+// The new index generates a tree of its own, and every earlier tree keeps its values.
+func TestBlockIterationStackCountGrowthAppendsWithoutShifting(t *testing.T) {
+	t.Parallel()
+
+	v, fsys := blockIterationVenv(t, stackTree(stackCount))
+
+	generateStack(t, v)
+	assert.Equal(t, map[string]string{
+		"team/0/.terragrunt-stack/member": "alpha",
+		"team/1/.terragrunt-stack/member": "beta",
+		"team/2/.terragrunt-stack/member": "gamma",
+	}, generatedRoles(t, fsys))
+
+	switchConfig(t, fsys, config.DefaultStackFile, stackCountGrown)
+	generateStack(t, v)
+
+	want := map[string]string{
+		"team/0/.terragrunt-stack/member": "alpha",
+		"team/1/.terragrunt-stack/member": "beta",
+		"team/2/.terragrunt-stack/member": "gamma",
+		"team/3/.terragrunt-stack/member": "delta",
+	}
+	assert.Equal(t, want, generatedRoles(t, fsys))
+
+	generateStack(t, v, sweepOrphans)
+	assert.Equal(t, want, generatedRoles(t, fsys))
 }
 
 // TestBlockIterationStackForEachMapResolvesEachValuePerInstance pins that a map for_each

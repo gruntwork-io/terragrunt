@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -14,6 +13,7 @@ import (
 	"errors"
 
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -28,8 +28,9 @@ const (
 	authTokenEnvName     = "TG_TF_REGISTRY_TOKEN"
 
 	// maxRegistryResponseBytes bounds a registry response. The largest of them
-	// lists a module's versions, which stays well under this.
-	maxRegistryResponseBytes = 1 << 20
+	// lists a module's versions: the longest public lists run to several hundred
+	// KiB and grow with every release.
+	maxRegistryResponseBytes = 32 << 20
 )
 
 // RegistryServicePath is the modules service path returned by service discovery.
@@ -217,7 +218,7 @@ func BuildRequestURL(
 	return &url.URL{Scheme: SchemeHTTPS, Host: registryDomain, Path: moduleFullPath}, nil
 }
 
-// GetLatestModuleVersion queries the OpenTofu or Terraform module registry to
+// GetLatestModuleVersion queries the OpenTofu/Terraform module registry to
 // list available versions for the given module and returns the latest stable
 // (non-prerelease) version. Prereleases are excluded to match OpenTofu and
 // Terraform's default behavior when resolving an unconstrained module
@@ -267,7 +268,7 @@ func GetLatestModuleVersion(
 	return latest.Original(), nil
 }
 
-// GetMatchingModuleVersion queries the OpenTofu or Terraform module registry
+// GetMatchingModuleVersion queries the OpenTofu/Terraform module registry
 // and returns the highest published version of the module that satisfies
 // constraint (for example "~> 3.3" or ">= 1.0.0, < 2.0.0").
 //
@@ -321,7 +322,7 @@ func GetMatchingModuleVersion(
 	return match.Original(), nil
 }
 
-// PinModuleVersion resolves constraint against the OpenTofu or Terraform module
+// PinModuleVersion resolves constraint against the OpenTofu/Terraform module
 // registry addressed by the tfr:// source and returns the source URL rewritten
 // to pin the exact version that satisfies the constraint. tofuImpl selects the
 // default registry host when the source omits it, and which implementation's
@@ -724,7 +725,7 @@ func httpGETAndGetResponse(
 		return nil, nil, RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode}
 	}
 
-	bodyData, err := io.ReadAll(io.LimitReader(resp.Body, maxRegistryResponseBytes))
+	bodyData, err := helpers.ReadBody(resp.Body, resp.ContentLength, maxRegistryResponseBytes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading registry response body from %s: %w", getURL, err)
 	}

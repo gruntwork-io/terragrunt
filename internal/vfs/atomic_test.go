@@ -28,9 +28,39 @@ func TestWriteFileAtomic(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "hello", string(contents))
 
+	if runtime.GOOS == "windows" {
+		return
+	}
+
 	info, err := fsys.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+// TestWriteFileAtomicReplacesReadOnlyHardLink mirrors a lock file the CAS
+// materialized as a read-only hard link into its store. The write must replace
+// the link and leave the stored blob as it was.
+func TestWriteFileAtomicReplacesReadOnlyHardLink(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewOSFS()
+	dir := t.TempDir()
+	blob := filepath.Join(dir, "blob")
+	target := filepath.Join(dir, "target.txt")
+
+	require.NoError(t, vfs.WriteFile(fsys, blob, []byte("stored"), 0o644))
+	require.NoError(t, vfs.Link(fsys, blob, target))
+	require.NoError(t, fsys.Chmod(blob, 0o444))
+
+	require.NoError(t, vfs.WriteFileAtomic(fsys, target, []byte("new"), 0o644))
+
+	contents, err := vfs.ReadFile(fsys, target)
+	require.NoError(t, err)
+	assert.Equal(t, "new", string(contents))
+
+	stored, err := vfs.ReadFile(fsys, blob)
+	require.NoError(t, err)
+	assert.Equal(t, "stored", string(stored))
 }
 
 // TestWriteFileAtomicCreatesParentDirs confirms a destination under a directory
@@ -76,6 +106,10 @@ func TestWriteFileAtomicReplacesSymlink(t *testing.T) {
 // a file that exists.
 func TestWriteFileAtomicTightensExistingMode(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: the filesystem does not carry POSIX mode bits")
+	}
 
 	fsys := vfs.NewOSFS()
 	path := filepath.Join(t.TempDir(), "out.txt")

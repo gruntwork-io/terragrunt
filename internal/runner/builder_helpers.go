@@ -224,18 +224,20 @@ func CheckUnitVersionConstraints(
 	unitConfig := unit.Config()
 
 	if unitConfig == nil {
-		configCtx, pctx := configbridge.NewParsingContext(ctx, l, v, unitOpts)
+		pctx := configbridge.NewParsingContext(unitOpts)
 		pctx = pctx.WithDecodeList(
 			config.TerragruntVersionConstraints,
 			config.FeatureFlagsBlock,
+			config.EngineBlock,
 		)
 
 		var err error
 
 		unitConfig, err = config.PartialParseConfigFile(
-			configCtx,
-			pctx,
+			ctx,
 			l,
+			v,
+			pctx,
 			unitOpts.TerragruntConfigPath,
 			nil,
 		)
@@ -252,6 +254,13 @@ func CheckUnitVersionConstraints(
 		l = unitLogger
 	}
 
+	engineConfig, err := unitConfig.EngineOptions()
+	if err != nil {
+		return fmt.Errorf("failed to read the engine block for unit %s: %w", unit.DisplayPath(), err)
+	}
+
+	unitOpts.EngineConfig = engineConfig
+
 	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
 		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, unitOpts),
 		WorkingDir:   unitOpts.WorkingDir,
@@ -259,7 +268,7 @@ func CheckUnitVersionConstraints(
 	})
 	if err != nil {
 		return fmt.Errorf(
-			"failed to populate Terraform version for unit %s: %w",
+			"failed to populate OpenTofu/Terraform version for unit %s: %w",
 			unit.DisplayPath(),
 			err,
 		)
@@ -268,16 +277,18 @@ func CheckUnitVersionConstraints(
 	unitOpts.TerraformVersion = ver
 	unitOpts.TofuImplementation = impl
 
-	terraformVersionConstraint := run.DefaultTerraformVersionConstraint
-	if unitConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = unitConfig.TerraformVersionConstraint
-	}
-
 	if err := run.CheckTerraformVersionMeetsConstraint(
+		l,
 		unitOpts.TerraformVersion,
-		terraformVersionConstraint,
+		unitOpts.TofuImplementation,
+		unitConfig.TerraformVersionConstraint,
 	); err != nil {
-		return fmt.Errorf("terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
+		return fmt.Errorf(
+			"%s version check failed for unit %s: %w",
+			unitOpts.TofuImplementation.DisplayName(),
+			unit.DisplayPath(),
+			err,
+		)
 	}
 
 	if unitConfig.TerragruntVersionConstraint != "" {

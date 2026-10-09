@@ -1,4 +1,3 @@
-// Package retry provides default retry configuration for Terragrunt.
 package retry
 
 import (
@@ -13,7 +12,7 @@ const DefaultMaxAttempts = 3
 const DefaultSleepInterval = 5 * time.Second
 
 // DefaultRetryableErrors lists regex patterns matching transient errors
-// from terraform/tofu invocations. If any match, the command is retried.
+// from tofu/terraform invocations. If any match, the command is retried.
 //
 // Exposed to HCL via get_default_retryable_errors().
 var DefaultRetryableErrors = []string{

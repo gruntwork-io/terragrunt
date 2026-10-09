@@ -40,15 +40,14 @@ inputs = {
 	"shared/dns/terragrunt.hcl": "",
 }
 
-// runBounded runs a discovery command under the bounded-discovery experiment,
-// from workDir inside the boundary fixture.
-func runBounded(t *testing.T, workDir string, args ...string) (string, error) {
+// runInBoundaryFixture runs a discovery command from workDir inside the
+// boundary fixture.
+func runInBoundaryFixture(t *testing.T, workDir string, args ...string) (string, error) {
 	t.Helper()
 
 	v := venvtest.New().WithFS(venvtest.NewFS(t, discoveryRoot, boundaryUnits))
 
 	base := []string{
-		"--experiment", "bounded-discovery",
 		"--no-color",
 		"--working-dir", filepath.Join(discoveryRoot, workDir),
 	}
@@ -67,7 +66,7 @@ func TestDiscoveryBoundaryBoundsGraphTraversal(t *testing.T) {
 		{
 			name: "dependency traversal leaves the working directory when unbounded",
 			args: []string{"--filter", "{./app}..."},
-			want: []string{"app", "db", "../shared/dns"},
+			want: []string{"app", "db", filepath.FromSlash("../shared/dns")},
 		},
 		{
 			name: "dependency traversal stops at the boundary",
@@ -80,9 +79,14 @@ func TestDiscoveryBoundaryBoundsGraphTraversal(t *testing.T) {
 			want: []string{"app", "db"},
 		},
 		{
+			name: "inline operand stops dependency traversal at its directory",
+			args: []string{"--filter", "{./app}...(.)"},
+			want: []string{"app", "db"},
+		},
+		{
 			name: "inline operand reaches wider than the boundary it overrides",
 			args: []string{"--filter", "{./app}...(..)", "--discovery-boundary", "."},
-			want: []string{"app", "db", "../shared/dns"},
+			want: []string{"app", "db", filepath.FromSlash("../shared/dns")},
 		},
 	}
 
@@ -90,7 +94,7 @@ func TestDiscoveryBoundaryBoundsGraphTraversal(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			out, err := runBounded(t, "prod", append([]string{"find"}, tc.args...)...)
+			out, err := runInBoundaryFixture(t, "prod", append([]string{"find"}, tc.args...)...)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, tc.want, discoveredPaths(out))
@@ -105,31 +109,45 @@ func TestDiscoveryBoundaryBoundsGraphTraversal(t *testing.T) {
 func TestDiscoveryBoundaryKeepsEdgesToWithheldDependencies(t *testing.T) {
 	t.Parallel()
 
-	out, err := runBounded(t, "prod", "dag", "graph", "--discovery-boundary", ".")
+	out, err := runInBoundaryFixture(t, "prod", "dag", "graph", "--discovery-boundary", ".")
 	require.NoError(t, err)
 
-	assert.Contains(t, out, `"app" -> "../shared/dns"`)
+	assert.Contains(t, out, filepath.FromSlash(`"app" -> "../shared/dns"`))
 	assert.Contains(t, out, `"app" -> "db"`)
 
 	// DOT gives every component it reports a `"path" ;` line of its own.
 	// shared/dns has none, so the boundary dropped it.
-	assert.NotContains(t, out, `"../shared/dns" ;`)
+	assert.NotContains(t, out, filepath.FromSlash(`"../shared/dns" ;`))
 }
 
 // TestDiscoveryBoundaryRejectsDependentTraversalOutsideIt pins the refusal of
-// a boundary that excludes the working directory. Filters that traverse
-// dependents search upward from the working directory, so such a boundary
-// could never take effect.
+// a boundary that neither contains the working directory nor sits inside it.
+// Filters that traverse dependents search from the working directory, so such
+// a boundary could never take effect.
 func TestDiscoveryBoundaryRejectsDependentTraversalOutsideIt(t *testing.T) {
 	t.Parallel()
 
-	_, err := runBounded(t, ".", "find", "--filter", "...{./prod/db}", "--discovery-boundary", "./prod")
+	_, err := runInBoundaryFixture(t, "prod", "find", "--filter", "...{./db}", "--discovery-boundary", "../shared")
 
 	var scopeErr discovery.DiscoveryBoundaryScopeError
 
 	require.ErrorAs(t, err, &scopeErr)
-	assert.Equal(t, filepath.Join(discoveryRoot, "prod"), scopeErr.Boundary)
-	assert.Equal(t, discoveryRoot, scopeErr.WorkingDir)
+	assert.Equal(t, filepath.Join(discoveryRoot, "shared"), scopeErr.Boundary)
+	assert.Equal(t, filepath.Join(discoveryRoot, "prod"), scopeErr.WorkingDir)
+}
+
+// TestDiscoveryBoundaryWalksDependentsFromBoundaryInsideIt pins dependents confined to a boundary under the working dir.
+func TestDiscoveryBoundaryWalksDependentsFromBoundaryInsideIt(t *testing.T) {
+	t.Parallel()
+
+	out, err := runInBoundaryFixture(t, ".", "find", "--filter", "...{./prod/db}", "--discovery-boundary", "./prod")
+	require.NoError(t, err)
+
+	assert.ElementsMatch(
+		t,
+		[]string{filepath.FromSlash("prod/app"), filepath.FromSlash("prod/db")},
+		discoveredPaths(out),
+	)
 }
 
 // regionUnits puts each unit in its own region directory, with the dependency

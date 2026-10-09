@@ -39,7 +39,7 @@ inputs = {
 	// A unit with a resolvable include so TrackInclude is set and the post-merge handleInclude branch dereferences config on a shallow merge.
 	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 include "root" {
-  path           = "`+filepath.Join(parentDir, "root.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(parentDir, "root.hcl"))+`"
   merge_strategy = "shallow"
 }
 
@@ -56,14 +56,14 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
 	// The call must return the parse error, never panic on a nil config.
 	require.NotPanics(t, func() {
-		_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+		_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 		require.Error(t, err, "a malformed sibling autoinclude must surface as an error")
 	})
 }
@@ -119,13 +119,13 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -179,7 +179,7 @@ remote_state {
 	// the unit relies on. config_path is absolute so it resolves the same regardless of parse dir.
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, "base", "base.hcl"), []byte(`
 dependency "foo" {
-  config_path  = "`+filepath.Join(tmpDir, "foo")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "foo"))+`"
   skip_outputs = true
   mock_outputs = {
     val = "`+marker+`"
@@ -192,18 +192,18 @@ dependency "foo" {
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 include "base" {
-  path           = "`+filepath.Join(tmpDir, "base", "base.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "base", "base.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(
 		t,
 		err,
@@ -243,18 +243,18 @@ inputs = {
 	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
 	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 include "common" {
-  path           = "`+filepath.Join(tmpDir, "common.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "common.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
 	require.NotPanics(t, func() {
-		parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+		parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 		require.NoError(t, err, "a same-dir autoinclude include must terminate, not recurse")
 		require.NotNil(t, parsed)
 		// The included sibling's inputs still flow through the autoinclude into the unit.
@@ -272,7 +272,7 @@ include "common" {
 // an autoinclude's own include (here b/base.hcl in a DIFFERENT directory, whose own sibling autoinclude
 // declares a foreign "leak" dependency) does not leak that foreign dependency into the unit. The unit
 // must end with the autoinclude's own "wanted" dependency and NOT "leak". It asserts the resulting
-// dependency set (cache-order independent), covering the skipAutoIncludeMerge guard on the fold path.
+// dependency set (cache-order independent), covering the SkipAutoIncludeMerge guard on the fold path.
 func TestFoldSiblingAutoIncludeDeps_PulledInFileDoesNotFoldForeignAutoInclude(t *testing.T) {
 	t.Parallel()
 
@@ -298,14 +298,14 @@ inputs = { from_unit = "a" }
 	// A's autoinclude declares a WANTED dependency and deep-includes a base file in a different dir.
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tmpDir, config.DefaultAutoIncludeFile), []byte(`
 dependency "wanted" {
-  config_path  = "`+filepath.Join(tmpDir, "wanted-target")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "wanted-target"))+`"
   skip_outputs = true
   mock_outputs = { val = "wanted" }
   mock_outputs_allowed_terraform_commands = ["init"]
 }
 
 include "base" {
-  path           = "`+filepath.Join(tmpDir, "b", "base.hcl")+`"
+  path           = "`+filepath.ToSlash(filepath.Join(tmpDir, "b", "base.hcl"))+`"
   merge_strategy = "deep"
 }
 `), 0644))
@@ -319,7 +319,7 @@ inputs = { from_base = "b" }
 		t,
 		vfs.WriteFile(v.FS, filepath.Join(tmpDir, "b", config.DefaultAutoIncludeFile), []byte(`
 dependency "leak" {
-  config_path  = "`+filepath.Join(tmpDir, "leak-target")+`"
+  config_path  = "`+filepath.ToSlash(filepath.Join(tmpDir, "leak-target"))+`"
   skip_outputs = true
   mock_outputs = { val = "leaked" }
   mock_outputs_allowed_terraform_commands = ["init"]
@@ -327,11 +327,11 @@ dependency "leak" {
 `), 0644),
 	)
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -380,10 +380,10 @@ exclude {
 
 	l := logger.CreateLogger()
 
-	ctxFull, pctxFull := newTestParsingContext(t, v, cfgPath)
+	ctxFull, pctxFull := newTestParsingContext(t, cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
+	parsedFull, err := config.ParseConfigFile(ctxFull, l, v, pctxFull, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
 	require.NotNil(t, parsedFull.Exclude)
@@ -394,11 +394,11 @@ exclude {
 		"autoinclude exclude must win in full parse",
 	)
 
-	ctxPartial, pctxPartial := newTestParsingContext(t, v, cfgPath)
+	ctxPartial, pctxPartial := newTestParsingContext(t, cfgPath)
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
 
-	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, pctxPartial, l, cfgPath, nil)
+	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, l, v, pctxPartial, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Exclude)
@@ -427,11 +427,11 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -466,11 +466,11 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -507,11 +507,11 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -555,14 +555,14 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
 		WithSkipOutputsResolution()
 
 	l := logger.CreateLogger()
 
-	_, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	_, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 }
 
@@ -612,13 +612,13 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 	require.NotNil(t, parsed.RemoteState)
@@ -655,13 +655,13 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, autoIncludePath)
+	ctx, pctx := newTestParsingContext(t, autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, autoIncludePath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 }
@@ -691,12 +691,12 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -751,10 +751,10 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	ctxFull, pctxFull := newTestParsingContext(t, v, cfgPath)
+	ctxFull, pctxFull := newTestParsingContext(t, cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	parsedFull, err := config.ParseConfigFile(ctxFull, pctxFull, l, cfgPath, nil)
+	parsedFull, err := config.ParseConfigFile(ctxFull, l, v, pctxFull, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
 	assert.Equal(
@@ -772,11 +772,11 @@ inputs = {
 		"autoinclude terraform source must win in full parse",
 	)
 
-	ctxPartial, pctxPartial := newTestParsingContext(t, v, cfgPath)
+	ctxPartial, pctxPartial := newTestParsingContext(t, cfgPath)
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
 
-	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, pctxPartial, l, cfgPath, nil)
+	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, l, v, pctxPartial, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Terraform)
@@ -829,7 +829,7 @@ errors {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(
 		config.DependencyBlock,
@@ -840,7 +840,7 @@ errors {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -895,13 +895,13 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependencyBlock).WithSkipOutputsResolution()
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -959,7 +959,7 @@ dependency "foo" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, autoIncludePath)
+	ctx, pctx := newTestParsingContext(t, autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
@@ -967,7 +967,7 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, autoIncludePath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 }
@@ -997,7 +997,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
 	ctx = context.WithValue(
 		ctx,
@@ -1012,7 +1012,7 @@ inputs = {
 	l := logger.CreateLogger()
 
 	// First parse populates the cache while no autoinclude exists.
-	before, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	before, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, before)
 	assert.Nil(t, before.RemoteState, "no autoinclude yet: no remote_state should be merged")
@@ -1039,7 +1039,7 @@ remote_state {
 `), 0644))
 
 	// Second parse must reflect the freshly created autoinclude, not the stale pre-autoinclude entry.
-	after, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	after, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	require.NotNil(
@@ -1088,7 +1088,7 @@ remote_state {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
 	ctx = context.WithValue(
 		ctx,
@@ -1101,7 +1101,7 @@ remote_state {
 
 	l := logger.CreateLogger()
 
-	first, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	first, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, first)
 	require.NotNil(t, first.RemoteState)
@@ -1121,7 +1121,7 @@ remote_state {
 }
 `), 0644))
 
-	second, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	second, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, second)
 	require.NotNil(t, second.RemoteState)
@@ -1171,14 +1171,14 @@ dependency "bar" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.DependencyBlock).
 		WithSkipOutputsResolution()
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed.Dependencies)
 	assert.Contains(
@@ -1215,12 +1215,12 @@ stack "networking" {
 `), 0644))
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
-	cfgCty, err := config.ParseTerragruntConfig(ctx, pctx, l, autoIncludePath, nil)
+	cfgCty, err := config.ParseTerragruntConfig(ctx, l, v, pctx, autoIncludePath, nil)
 	require.NoError(
 		t,
 		err,
@@ -1282,13 +1282,13 @@ inputs = {
 `), 0644))
 
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	cfgCty, err := config.ParseTerragruntConfig(ctx, pctx, l, autoIncludePath, nil)
+	cfgCty, err := config.ParseTerragruntConfig(ctx, l, v, pctx, autoIncludePath, nil)
 	require.NoError(t, err, "a unit-level autoinclude file must read through the unit-config path")
 
 	cfgMap, err := ctyhelper.ParseCtyValueToMap(cfgCty)
@@ -1328,19 +1328,19 @@ unit "app" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, stackPath)
+	ctx, pctx := newTestParsingContext(t, stackPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, pctx, stackPath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackPath, nil)
 	require.NoError(
 		t,
 		err,
 		"the lenient stack decode must keep accepting the malformed autoinclude block",
 	)
 
-	err = config.ValidateStackAutoIncludes(ctx, l, pctx, stackPath, stackCfg, nil)
+	err = config.ValidateStackAutoIncludes(ctx, l, v, pctx, stackPath, stackCfg, nil)
 	require.Error(t, err, "the strict autoinclude parse must report the locals block")
 
 	var stageErr config.AutoIncludeParserStageError
@@ -1379,12 +1379,12 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err, "parsing must not fail on values.vpc_id when autoinclude overrides vpc_id")
 	require.NotNil(t, parsed)
 
@@ -1441,7 +1441,7 @@ dependency "vpc" {
 region = "us-east-1"
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -1452,7 +1452,7 @@ region = "us-east-1"
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err, "autoinclude dependency override must suppress the unresolvable values.vpc_path")
 	require.NotNil(t, parsed)
 	assert.Equal(t, marker, parsed.Inputs["vpc_id"], "autoinclude's mock output must win")
@@ -1511,7 +1511,7 @@ dependency "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -1522,7 +1522,7 @@ dependency "vpc" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err, "mixed deps must resolve when autoinclude overrides the unresolvable one")
 	require.NotNil(t, parsed)
 	assert.Equal(t, "autoinclude-vpc", parsed.Inputs["vpc_id"], "autoinclude must win for vpc")
@@ -1566,7 +1566,7 @@ dependency "other" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -1577,7 +1577,7 @@ dependency "other" {
 
 	l := logger.CreateLogger()
 
-	_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.Error(t, err, "a non-overridden dep with unresolvable config_path must still fail")
 }
 
@@ -1604,7 +1604,7 @@ inputs = {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -1615,7 +1615,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.Error(t, err, "without autoinclude the values.vpc_path error must not be swallowed")
 
 	var diags hcl.Diagnostics
@@ -1668,13 +1668,13 @@ dependency "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 	assert.Equal(t, "from-autoinclude", parsed.Inputs["vpc_id"])
@@ -1726,13 +1726,13 @@ dependency "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newExpansionParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 
 	var collision config.DependencyLabelCollisionError
 	require.ErrorAs(t, err, &collision)
@@ -1774,7 +1774,7 @@ dependency "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newExpansionParsingContext(t, v, cfgPath)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx.OriginalTerraformCommand = tfInitCommand
 
@@ -1785,6 +1785,6 @@ dependency "vpc" {
 
 	l := logger.CreateLogger()
 
-	_, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
+	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.Error(t, err)
 }

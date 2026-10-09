@@ -670,13 +670,13 @@ func TestTFTerragruntProviderCache(t *testing.T) {
 
 	providers := map[string][]string{
 		"first": {
-			"hashicorp/null/3.2.3",
-			"hashicorp/local/2.5.2",
+			"hashicorp/null/3.2.4",
+			"hashicorp/local/2.6.1",
 		},
 		"second": {
 			"hashicorp/null/3.2.4",
-			"hashicorp/local/2.5.2",
-			"hashicorp/random/3.6.3",
+			"hashicorp/local/2.6.1",
+			"hashicorp/random/3.8.0",
 		},
 	}
 
@@ -800,7 +800,7 @@ func TestTFTerragruntProviderCacheWithDependency(t *testing.T) {
 	// dep uses hashicorp/local, app uses hashicorp/null — if both are cached,
 	// the provider cache server was used for both the dependency and the dependent.
 	for _, provider := range []string{
-		"hashicorp/local/2.7.0",
+		"hashicorp/local/2.6.1",
 		"hashicorp/null/3.2.4",
 	} {
 		providerPath := filepath.Join(providerCacheDir, registryName, provider)

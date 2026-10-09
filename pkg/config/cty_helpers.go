@@ -1,4 +1,3 @@
-//nolint:dupl // the wrapStringSliceTo* helpers differ only in the cty type they return
 package config
 
 import (
@@ -16,6 +15,7 @@ import (
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -26,9 +26,10 @@ import (
 // it the input parameters string slice as well as the given include and terragruntOptions.
 func wrapStringSliceToStringAsFuncImpl(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
-	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error),
+	v *venv.Venv,
+	pctx *ParsingContext,
+	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, params []string) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -39,7 +40,7 @@ func wrapStringSliceToStringAsFuncImpl(
 				return cty.StringVal(""), err
 			}
 
-			out, err := toWrap(ctx, pctx, l, params)
+			out, err := toWrap(ctx, l, v, pctx, params)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -49,35 +50,11 @@ func wrapStringSliceToStringAsFuncImpl(
 	})
 }
 
-func wrapStringSliceToNumberAsFuncImpl(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (int64, error),
-) function.Function {
-	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type:     function.StaticReturnType(cty.Number),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			params, err := ctySliceToStringSlice(args)
-			if err != nil {
-				return cty.NumberIntVal(0), err
-			}
-
-			out, err := toWrap(ctx, pctx, l, params)
-			if err != nil {
-				return cty.NumberIntVal(0), err
-			}
-
-			return cty.NumberIntVal(out), nil
-		},
-	})
-}
-
 func wrapStringSliceToBoolAsFuncImpl(
 	ctx context.Context,
+	v *venv.Venv,
 	pctx *ParsingContext,
-	toWrap func(ctx context.Context, pctx *ParsingContext, params []string) (bool, error),
+	toWrap func(ctx context.Context, v *venv.Venv, pctx *ParsingContext, params []string) (bool, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -88,7 +65,7 @@ func wrapStringSliceToBoolAsFuncImpl(
 				return cty.BoolVal(false), err
 			}
 
-			out, err := toWrap(ctx, pctx, params)
+			out, err := toWrap(ctx, v, pctx, params)
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
@@ -102,14 +79,15 @@ func wrapStringSliceToBoolAsFuncImpl(
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringAsFuncImpl(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
-	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error),
+	v *venv.Venv,
+	pctx *ParsingContext,
+	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			out, err := toWrap(ctx, pctx, l)
+			out, err := toWrap(ctx, l, v, pctx)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -133,14 +111,15 @@ func wrapVoidToEmptyStringAsFuncImpl() function.Function {
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringSliceAsFuncImpl(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
-	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger) ([]string, error),
+	v *venv.Venv,
+	pctx *ParsingContext,
+	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			outVals, err := toWrap(ctx, pctx, l)
+			outVals, err := toWrap(ctx, l, v, pctx)
 			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
 			}
@@ -159,9 +138,10 @@ func wrapVoidToStringSliceAsFuncImpl(
 // The implementation of the function calls the given toWrap function.
 func wrapStringSliceToStringSliceAsFuncImpl(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
-	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) ([]string, error),
+	v *venv.Venv,
+	pctx *ParsingContext,
+	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, params []string) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -172,7 +152,7 @@ func wrapStringSliceToStringSliceAsFuncImpl(
 				return cty.ListValEmpty(cty.String), err
 			}
 
-			outVals, err := toWrap(ctx, pctx, l, params)
+			outVals, err := toWrap(ctx, l, v, pctx, params)
 			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
 			}
@@ -363,19 +343,20 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 // graph.
 func includeMapAsCtyVal(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 ) (cty.Value, error) {
 	bareInclude, hasBareInclude := pctx.TrackInclude.CurrentMap[bareIncludeKey]
 	if len(pctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
 		l.Debug("Detected single bare include block - exposing as top level")
-		return includeConfigAsCtyVal(ctx, pctx, l, bareInclude)
+		return includeConfigAsCtyVal(ctx, l, v, pctx, bareInclude)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
 
 	for key, included := range pctx.TrackInclude.CurrentMap {
-		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, pctx, l, included)
+		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, l, v, pctx, included)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -441,8 +422,9 @@ func fieldError(field string, err error) error {
 // the nil representation of cty.Value.
 func includeConfigAsCtyVal(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	includeConfig IncludeConfig,
 ) (cty.Value, error) {
 	pctx = pctx.WithTrackInclude(nil)
@@ -451,7 +433,7 @@ func includeConfigAsCtyVal(
 		// Annotate resolution errors with the include name and parent file. The conversion layer further annotates
 		// these with the failing field/attribute path (see TerragruntConfigAsCty), since low-level conversion errors
 		// carry no source location of their own.
-		parsedIncluded, err := parseIncludedConfig(ctx, pctx, l, &includeConfig)
+		parsedIncluded, err := parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 		if err != nil {
 			return cty.NilVal, fmt.Errorf(
 				"exposed include %s (%s): %w",

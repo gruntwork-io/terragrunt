@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -39,18 +41,39 @@ func TestRunUnwindsCleanlyWhenContextCancelledWithRacing(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
+	v := venvtest.NewOSWithEmptyEnv()
+	v.Terminal = &venv.Terminal{
+		StdinIsTTY:  func() bool { return true },
+		StdoutIsTTY: func() bool { return true },
+		StderrIsTTY: func() bool { return true },
+		Width:       func() int { return 0 },
+	}
+
 	done := make(chan error, 1)
 
 	go func() {
-		done <- browse.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), browse.NewOptions(opts))
+		done <- browse.Run(ctx, logger.CreateLogger(), v, browse.NewOptions(opts))
 	}()
 
 	select {
 	case err := <-done:
 		require.NoError(t, err)
 	case <-time.After(30 * time.Second):
-		t.Fatal("browse.Run did not return; the discovery goroutine likely never unwound")
+		require.Fail(t, "browse.Run did not return; the discovery goroutine likely never unwound")
 	}
+}
+
+// TestRunWithoutTerminalFails covers a run with no terminal to draw on, such
+// as a CI job: the browser has no other output, so it reports that instead of
+// starting.
+func TestRunWithoutTerminalFails(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(t.TempDir(), "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	err = browse.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), browse.NewOptions(opts))
+	require.ErrorIs(t, err, viewtui.ErrNoTerminal)
 }
 
 func TestNewCommandIsNamedBrowse(t *testing.T) {

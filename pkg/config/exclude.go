@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"errors"
-
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
@@ -27,6 +26,12 @@ type ExcludeConfig struct {
 // IsActionListed checks if the action is listed in the exclude block.
 func (e *ExcludeConfig) IsActionListed(action string) bool {
 	return runcfg.IsActionListedInExclude(e.Actions, action)
+}
+
+// Excludes reports whether the block excludes its unit from action. A block
+// with a false `if` excludes nothing, whatever actions it lists.
+func (e *ExcludeConfig) Excludes(action string) bool {
+	return e.If && e.IsActionListed(action)
 }
 
 // ShouldPreventRun checks if the unit should be prevented from running based on the no_run attribute and current action.
@@ -59,8 +64,9 @@ func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 // evaluateExcludeBlocks evaluates the exclude block in the parsed file.
 func evaluateExcludeBlocks(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 ) (*ExcludeConfig, error) {
 	excludeBlock, err := file.Blocks(MetadataExclude, false)
@@ -87,7 +93,7 @@ func evaluateExcludeBlocks(
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		l.Errorf("Failed to create eval context %s", file.ConfigPath)
 		return nil, err
@@ -108,7 +114,8 @@ func evaluateExcludeBlocks(
 
 	for _, boolFlag := range boolFlagValues {
 		if value, ok := evaluatedAttrs[boolFlag]; ok {
-			if value.Type() == cty.String { // handle bool flag value
+			// Null, unknown and sensitive strings skip parsing and reach the checks below.
+			if value.Type() == cty.String && !value.IsMarked() && value.IsKnown() && !value.IsNull() {
 				val, err := strconv.ParseBool(value.AsString())
 				if err != nil {
 					return nil, err
@@ -124,10 +131,18 @@ func evaluateExcludeBlocks(
 		return nil, err
 	}
 
-	// convert cty map to ExcludeConfig
+	if !excludeAsCtyVal.IsWhollyKnown() {
+		l.Warnf(
+			"Ignoring the exclude block in %s because it reads values that are not known during discovery, such as dependency outputs.",
+			file.ConfigPath,
+		)
+
+		return nil, nil
+	}
+
 	excludeConfig := &ExcludeConfig{}
 	if err := CtyToStruct(excludeAsCtyVal, excludeConfig); err != nil {
-		return nil, errors.Unwrap(err)
+		return nil, InvalidExcludeBlockError{Err: err, ConfigPath: file.ConfigPath}
 	}
 
 	return excludeConfig, nil

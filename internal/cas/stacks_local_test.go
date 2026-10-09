@@ -114,6 +114,132 @@ func TestProcessStackComponent_LocalSource_RewritesUnitSources(t *testing.T) {
 	)
 }
 
+func TestProcessStackComponent_LocalSource_UpdateSourceWithCASExpressions(t *testing.T) {
+	t.Parallel()
+
+	const casRefPrefix = "cas::sha256:"
+
+	testCases := []struct {
+		expectedErr   error
+		name          string
+		stackExpr     string
+		unitExpr      string
+		stackContains string
+		unitContains  string
+	}{
+		{
+			name:          "negated false",
+			stackExpr:     `!false`,
+			unitExpr:      `!false`,
+			stackContains: casRefPrefix,
+			unitContains:  casRefPrefix,
+		},
+		{
+			name:          "negated true on terraform block",
+			stackExpr:     `true`,
+			unitExpr:      `!true`,
+			stackContains: casRefPrefix,
+			unitContains:  `"../..//modules/vpc"`,
+		},
+		{
+			name:          "negated true on unit block",
+			stackExpr:     `!true`,
+			unitExpr:      `true`,
+			stackContains: `"../..//units/my-service"`,
+			unitContains:  `"../..//modules/vpc"`,
+		},
+		{
+			name:          "literal and local",
+			stackExpr:     `true && local.use_cas`,
+			unitExpr:      `true && local.use_cas`,
+			stackContains: casRefPrefix,
+			unitContains:  casRefPrefix,
+		},
+		{
+			name:        "function call on terraform block",
+			stackExpr:   `true`,
+			unitExpr:    `tobool("true")`,
+			expectedErr: cas.ErrUpdateSourceWithCASNotConstant,
+		},
+		{
+			name:        "function call on unit block",
+			stackExpr:   `tobool("true")`,
+			unitExpr:    `true`,
+			expectedErr: cas.ErrUpdateSourceWithCASNotConstant,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := buildLocalStackFixture(t)
+
+			require.NoError(t, os.WriteFile(
+				filepath.Join(root, "stacks", "my-stack", "terragrunt.stack.hcl"),
+				[]byte(`locals {
+  use_cas = true
+}
+
+unit "service" {
+  source = "../..//units/my-service"
+
+  update_source_with_cas = `+tc.stackExpr+`
+
+  path = "service"
+}
+`),
+				0o644,
+			))
+			require.NoError(t, os.WriteFile(
+				filepath.Join(root, "units", "my-service", "terragrunt.hcl"),
+				[]byte(`locals {
+  use_cas = true
+}
+
+terraform {
+  source = "../..//modules/vpc"
+
+  update_source_with_cas = `+tc.unitExpr+`
+}
+`),
+				0o644,
+			))
+
+			l := logger.CreateLogger()
+
+			storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+			c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+			require.NoError(t, err)
+
+			v := venvtest.NewOSWithEmptyEnv()
+
+			result, err := c.ProcessStackComponent(t.Context(), l, v, root+"//stacks/my-stack", "stack")
+			if tc.expectedErr != nil {
+				require.ErrorIs(t, err, tc.expectedErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			defer result.Cleanup()
+
+			stackContent, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+			require.NoError(t, err)
+
+			// contentDir = <tmp>/repo/stacks/my-stack, so repo root is two dirs up.
+			repoCopy := filepath.Dir(filepath.Dir(result.ContentDir))
+
+			unitContent, err := os.ReadFile(filepath.Join(repoCopy, "units", "my-service", "terragrunt.hcl"))
+			require.NoError(t, err)
+
+			assert.Contains(t, string(stackContent), tc.stackContains)
+			assert.Contains(t, string(unitContent), tc.unitContains)
+		})
+	}
+}
+
 func TestProcessStackComponent_LocalSource_DoesNotMutateInput(t *testing.T) {
 	t.Parallel()
 
@@ -460,6 +586,74 @@ func TestProcessStackComponent_LocalSource_CacheDirsDoNotAffectCASRefs(t *testin
 	)
 }
 
+// TestProcessStackComponent_LocalSource_StackOutputDirIgnored exercises the
+// same-repo consumer layout from issue #6663: a catalog repository that also
+// contains a live stack (examples/live) consuming it through a local "../.."
+// source, which makes the repository root the tree CAS copies and hashes.
+// Running Terragrunt in the consumer generates .terragrunt-stack output
+// inside that tree, and generated units embed the previous run's cas:: refs,
+// so hashing it would change the CAS key of an unchanged source on every
+// regeneration. Tool-managed links inside the generated tree can also point
+// anywhere on the host, so the walk must not descend into it at all.
+func TestProcessStackComponent_LocalSource_StackOutputDirIgnored(t *testing.T) {
+	t.Parallel()
+
+	clean := buildLocalStackFixture(t)
+	consumed := buildLocalStackFixture(t)
+
+	// Leftover output of a previous Terragrunt run in the same-repo consumer:
+	// a generated unit embedding that run's cas:: ref, plus a link escaping
+	// the source tree (e.g. a provider-cache or kubeconfig link).
+	generated := filepath.Join(consumed, "examples", "live", ".terragrunt-stack", "service")
+	require.NoError(t, os.MkdirAll(generated, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(generated, "terragrunt.hcl"),
+		[]byte(`terraform {
+  source = "cas::sha256:previous-generation//modules/vpc"
+}
+`),
+		0o644,
+	))
+
+	// os.Symlink requires special permissions on Windows
+	if runtime.GOOS != osWindows {
+		require.NoError(t, os.Symlink(
+			filepath.Join(t.TempDir(), "outside"),
+			filepath.Join(generated, "kubeconfig.yml"),
+		))
+	}
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	result, err := c.ProcessStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		consumed+"//stacks/my-stack",
+		"stack",
+	)
+	require.NoError(t, err, "generated stack output must not break processing the source that contains it")
+
+	defer result.Cleanup()
+
+	// contentDir = <tmp>/repo/stacks/my-stack, so repo root is two dirs up.
+	repoCopy := filepath.Dir(filepath.Dir(result.ContentDir))
+	assert.NoDirExists(
+		t,
+		filepath.Join(repoCopy, "examples", "live", ".terragrunt-stack"),
+		"generated stack output must not be copied into the snapshot",
+	)
+
+	assert.Equal(
+		t,
+		serviceUnitCASRef(t, clean),
+		serviceUnitCASRef(t, consumed),
+		"generated stack output must not change the CAS ref of unchanged source",
+	)
+}
+
 // serviceUnitCASRef processes the stack in a fixture built by
 // buildLocalStackFixture and returns the rewritten source of its "service"
 // unit, using a store of its own so nothing is read from an earlier run.
@@ -493,7 +687,7 @@ func serviceUnitCASRef(t *testing.T, root string) string {
 		}
 	}
 
-	t.Fatalf("no %q unit in the processed stack file", serviceUnitName)
+	require.Failf(t, "unit not found", "no %q unit in the processed stack file", serviceUnitName)
 
 	return ""
 }

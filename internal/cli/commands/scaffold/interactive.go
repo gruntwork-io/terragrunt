@@ -34,7 +34,7 @@ func RunInteractive(
 
 	defer plan.Cleanup(v.FS)
 
-	values, err := promptForValues(ctx, l, opts, plan, moduleURL)
+	values, err := promptForValues(ctx, l, v, opts, plan, moduleURL)
 
 	if errors.Is(err, form.ErrCancelled) {
 		l.Info("Scaffolding cancelled. Nothing was written.")
@@ -56,6 +56,7 @@ func RunInteractive(
 func promptForValues(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	plan *Plan,
 	moduleURL string,
@@ -64,10 +65,12 @@ func promptForValues(
 		return nil, nil
 	}
 
+	v.RequireTerminal()
+
 	// A CI job, a script, and a tool running Terragrunt all land here, so a
 	// missing terminal falls back rather than failing: scaffolding has a
 	// perfectly good non-interactive result to write.
-	if err := viewtui.EnsureOSTTY(); err != nil {
+	if err := viewtui.EnsureTTY(v.Terminal.StdinIsTTY); err != nil {
 		l.Debugf("Scaffolding without the form: %v", err)
 
 		return nil, nil

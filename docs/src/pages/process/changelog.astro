@@ -2,19 +2,13 @@ export const prerender = true;
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import { getCollection } from 'astro:content';
-import { getLatestRelease } from '@lib/github';
-import {
-  compareVersionsDesc,
-  entriesForVersion,
-  groupByCategory,
-  isReleased,
-  uniqueVersions,
-} from '@lib/changelog';
+import { getLatestVersion } from '@lib/release';
+import { entriesForVersion, groupByCategory, uniqueVersions } from '@lib/changelog';
+import { compareVersionsDesc, isReleased } from '@lib/versions';
 
 const showUnreleased = import.meta.env.DEV;
 
-const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
-const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+const latestVersion = await getLatestVersion();
 
 const allEntries = await getCollection('changelog');
 

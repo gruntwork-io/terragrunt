@@ -18,11 +18,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // corpusRepoRoot is the git root every corpus fixture is laid out under. The
 // fixtures live on an in-memory filesystem, so the path never touches disk.
-const corpusRepoRoot = string(filepath.Separator) + "repo"
+var corpusRepoRoot = venvtest.Root("/repo")
 
 // dependentsCase is one entry in the dependents-discovery corpus: a fixture
 // tree, the queries run over it, and the components the run has to select.

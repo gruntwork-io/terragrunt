@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -43,6 +44,10 @@ func (backend *Backend) NeedsBootstrap(
 
 	extS3Cfg, err := cfg.ExtendedS3Config(l)
 	if err != nil {
+		return false, err
+	}
+
+	if err := evaluateDeprecatedAttributes(ctx, l, backendConfig, opts); err != nil {
 		return false, err
 	}
 
@@ -84,6 +89,10 @@ func (backend *Backend) Bootstrap(
 ) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
+		return err
+	}
+
+	if err := evaluateDeprecatedAttributes(ctx, l, backendConfig, opts); err != nil {
 		return err
 	}
 
@@ -345,4 +354,41 @@ func (backend *Backend) DeleteBucket(
 
 func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {
 	return Config(config).GetTFInitArgs()
+}
+
+// deprecatedAttributeControls pairs each deprecated backend config attribute with the strict
+// control that reports it.
+var deprecatedAttributeControls = []struct {
+	attribute string
+	control   string
+}{
+	{attribute: configSkipAccessLoggingBucketACLKey, control: controls.SkipAccessLoggingBucketACL},
+	{attribute: configSkipBucketRootAccessKey, control: controls.SkipBucketRootAccess},
+}
+
+// evaluateDeprecatedAttributes reports each deprecated attribute set in the config through its
+// strict control. Presence of the attribute is what matters, not its value, so this reads the raw
+// config rather than the parsed struct, which cannot tell an explicit `false` from an absent
+// attribute.
+func evaluateDeprecatedAttributes(
+	ctx context.Context,
+	l log.Logger,
+	backendConfig backend.Config,
+	opts *backend.Options,
+) error {
+	var names []string
+
+	for _, deprecated := range deprecatedAttributeControls {
+		if _, ok := backendConfig[deprecated.attribute]; ok {
+			names = append(names, deprecated.control)
+		}
+	}
+
+	if len(names) == 0 {
+		return nil
+	}
+
+	return opts.StrictControls.
+		FilterByNames(names...).
+		Evaluate(log.ContextWithLogger(ctx, l))
 }

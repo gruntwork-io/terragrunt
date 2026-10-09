@@ -4,7 +4,6 @@ package shell_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -25,7 +24,7 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest")
 
 	l := logger.CreateLogger()
 	v := venv.OSVenv()
@@ -68,22 +67,19 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	actualErrStr := actualErr.Error()
 	containsExitStatus5 := strings.Contains(actualErrStr, "exit status 5")
 	containsExitStatus1 := strings.Contains(actualErrStr, "exit status 1")
-	containsKilled := strings.Contains(actualErrStr, "signal: killed")
 	containsFailedExecute := strings.Contains(
 		actualErrStr,
-		fmt.Sprintf("Failed to execute \"%s", cmdPath),
+		"Failed to execute \""+cmdPath,
 	)
 
-	if containsKilled {
-		t.Errorf("Expected process to gracefully terminate but got\n: %s", actualErrStr)
-	}
+	assert.NotContains(t, actualErrStr, "signal: killed", "Expected process to gracefully terminate")
 
 	// On Windows, the batch file might exit with status 1 when interrupted, or be killed by signal
-	if !containsFailedExecute || (!containsExitStatus5 && !containsExitStatus1) {
-		t.Errorf(
-			"Expected error to contain 'Failed to execute \"%s' and either 'exit status 5', or 'exit status 1', but got:\n  %s",
-			cmdPath,
-			actualErrStr,
-		)
-	}
+	assert.True(
+		t,
+		containsFailedExecute && (containsExitStatus5 || containsExitStatus1),
+		"Expected error to contain 'Failed to execute \"%s' and either 'exit status 5', or 'exit status 1', but got:\n  %s",
+		cmdPath,
+		actualErrStr,
+	)
 }

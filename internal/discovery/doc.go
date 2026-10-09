@@ -78,30 +78,6 @@
 //   - Git expressions: [main...develop] (changes between refs)
 //   - Negated expressions: !./internal (exclusion)
 //
-// # Configuration Methods
-//
-// Discovery uses a fluent builder pattern. Available configuration methods include:
-//
-//   - [Discovery.WithFilters]: Set filter queries for component selection
-//   - [Discovery.WithRelationships]: Enable relationship discovery for execution ordering
-//   - [Discovery.WithMaxDependencyDepth]: Set maximum dependency traversal depth (default 1000)
-//   - [Discovery.WithNumWorkers]: Set concurrent worker count (default 4, max 8)
-//   - [Discovery.WithBreakCycles]: Enable cycle detection and removal
-//   - [Discovery.WithNoHidden]: Exclude hidden directories from discovery
-//   - [Discovery.WithRequiresParse]: Force parsing of all Terragrunt configurations
-//   - [Discovery.WithSuppressParseErrors]: Continue discovery despite parse errors
-//   - [Discovery.WithParseExclude]: Parse exclude configurations
-//   - [Discovery.WithParseIncludes]: Parse include configurations
-//   - [Discovery.WithReadFiles]: Parse for file reading information
-//   - [Discovery.WithDiscoveryContext]: Set the discovery context
-//   - [Discovery.WithWorktrees]: Set worktrees for Git-based filters
-//   - [Discovery.WithConfigFilenames]: Set custom config filenames to discover
-//   - [Discovery.WithParserOptions]: Set custom HCL parser options
-//   - [Discovery.WithGitRoot]: Set the git root used as the default dependent-walk ceiling
-//   - [Discovery.WithDiscoveryBoundary]: Enclose graph discovery within a directory instead of the git root
-//   - [Discovery.WithGraphTarget]: Set graph target for pruning results
-//   - [Discovery.WithOptions]: Ingest runner options for parser and graph settings
-//
 // # Example Usage
 //
 //	d := NewDiscovery(workingDir).

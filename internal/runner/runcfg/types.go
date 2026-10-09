@@ -33,7 +33,7 @@ type RunConfig struct {
 	TerragruntVersionConstraint string
 	// TerraformVersionConstraint specifies version constraints for terraform
 	TerraformVersionConstraint string
-	// TerraformBinary is the path to the terraform/tofu binary
+	// TerraformBinary is the path to the tofu/terraform binary
 	TerraformBinary string
 	// IAMRole contains IAM role options for AWS authentication
 	IAMRole iam.RoleOptions

@@ -1,7 +1,6 @@
 package azurerm
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
@@ -56,11 +55,6 @@ func (e *CrossCloudMigrationError) Error() string {
 	)
 }
 
-// ErrBackendOptionsRequired is the panic value used when a lifecycle entry
-// point is called without backend options, which the remote-state layer
-// always supplies.
-var ErrBackendOptionsRequired = errors.New("backend options are required")
-
 // StateClientSetupError marks a client-construction failure, never an absent state blob.
 type StateClientSetupError struct {
 	// Err is the underlying setup failure.
@@ -99,14 +93,6 @@ func (err *StateClientCoordinatesError) Error() string {
 func (err *StateClientCoordinatesError) Unwrap() error {
 	return err.Err
 }
-
-// ErrAzureBackendExperimentRequired is returned when an azurerm backend
-// lifecycle operation is attempted without the `azure-backend` experiment
-// enabled. Match with errors.Is.
-var ErrAzureBackendExperimentRequired = errors.New(
-	"the azurerm backend is experimental and requires the 'azure-backend' experiment to be enabled " +
-		"(e.g. --experiment azure-backend or experiments = [\"azure-backend\"])",
-)
 
 // AssignBlobDataRoleRequiresARMError is returned when assign_blob_data_role is
 // set but the resolved auth method cannot call the ARM role-assignment API

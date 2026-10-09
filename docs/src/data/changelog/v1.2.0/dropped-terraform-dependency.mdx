@@ -1,0 +1,12 @@
+---
+version: "v1.2.0"
+category: "process-updates"
+---
+
+#### Dropped the `hashicorp/terraform` `v0.15.3` dependency
+
+Terragrunt drew its built-in [functions](/reference/hcl/functions) from `github.com/hashicorp/terraform`, pinned to v0.15.3 by a `replace` directive. Those functions now come from Terragrunt's own copy of the OpenTofu implementations, and `go.mod` has no `replace` directives.
+
+Projects that import Terragrunt as a Go module no longer resolve `github.com/hashicorp/terraform`, and their dependency graph drops by roughly 175 modules, most of them cloud provider SDKs that Terraform used for its backends.
+
+Installing and running the Terragrunt binary is unchanged.

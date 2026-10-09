@@ -12,7 +12,7 @@ func TestRemoteStateOptsPropagatesExperiments(t *testing.T) {
 	t.Parallel()
 
 	exps := experiment.NewExperiments()
-	require.NoError(t, exps.EnableExperiment(experiment.AzureBackend))
+	require.NoError(t, exps.EnableExperiment(experiment.Symlinks))
 
 	o := &Options{
 		Experiments:                  exps,
@@ -24,7 +24,7 @@ func TestRemoteStateOptsPropagatesExperiments(t *testing.T) {
 
 	got := o.remoteStateOpts(map[string]string{})
 
-	assert.True(t, got.Experiments.Evaluate(experiment.AzureBackend), "enabled experiments must reach backend options")
+	assert.True(t, got.Experiments.Evaluate(experiment.Symlinks), "enabled experiments must reach backend options")
 	assert.True(t, got.NonInteractive)
 	assert.True(t, got.FailIfBucketCreationRequired)
 	assert.True(t, got.DisableBucketUpdate)

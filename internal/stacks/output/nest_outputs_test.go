@@ -129,6 +129,16 @@ func TestNestOutputsKeepsDottedKeysWhole(t *testing.T) {
 	assert.Equal(t, cty.StringVal("shard-a.b"), leaf(t, nested, "shard", "a.b").AsValueMap()["id"])
 }
 
+// TestNestOutputsKeepsQuotedKeysWhole pins that an iteration key containing a quote nests
+// under the key as written, with no escaping added to the segment.
+func TestNestOutputsKeepsQuotedKeysWhole(t *testing.T) {
+	t.Parallel()
+
+	nested := nest(t, noEnclosingStacks(), expandedUnit("shard", `a"b`, "shard/a-b"))
+
+	assert.Equal(t, cty.StringVal(`shard-a"b`), leaf(t, nested, "shard", `a"b`).AsValueMap()["id"])
+}
+
 func TestNestOutputsNestsUnitsUnderTheirStacks(t *testing.T) {
 	t.Parallel()
 

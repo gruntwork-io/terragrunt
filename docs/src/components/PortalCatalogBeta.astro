@@ -1,0 +1,28 @@
+---
+/**
+ * Private beta notice for managing catalog entries in the Gruntwork Developer
+ * Portal through `terragrunt login` and `terragrunt catalog`.
+ *
+ * Usage in .mdx files:
+ *   <PortalCatalogBeta campaign="catalog-overview" />
+ */
+import { Aside } from '@astrojs/starlight/components';
+
+interface Props {
+  campaign: string;
+}
+
+const { campaign } = Astro.props;
+
+const scaleUrl = new URL('https://terragrunt.com/terragrunt-scale');
+scaleUrl.searchParams.set('utm_source', 'terragrunt-docs');
+scaleUrl.searchParams.set('utm_medium', 'referral');
+scaleUrl.searchParams.set('utm_campaign', campaign);
+---
+
+<Aside type="tip" title="Catalog API Private Beta">
+  Managing catalog entries in the Gruntwork Developer Portal, and using them with the Terragrunt CLI via <code dir="auto">terragrunt login</code> and <code dir="auto">terragrunt catalog</code>, is a private beta feature for <a href={scaleUrl.toString()}>Terragrunt Scale</a> customers. It also requires usage of the <a href="/reference/experiments/active#tg-login"><code dir="auto">tg-login</code> experiment</a>.<br/><br/>
+
+
+  To join the beta as a Terragrunt Scale customer, contact <a href="https://gruntwork.io/support">Gruntwork support</a>.
+</Aside>

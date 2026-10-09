@@ -3,6 +3,7 @@ package cas_test
 import (
 	"context"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -53,7 +55,7 @@ func cloneInto(
 		return err
 	}
 
-	return c.Clone(ctx, logger.CreateLogger(), v, repoURL,
+	return c.Clone(ctx, logger.CreateLogger(), v, redact.NewURL(repoURL),
 		cas.WithDir(dst),
 		cas.WithBranch(branch),
 		cas.WithDepth(-1))
@@ -195,6 +197,45 @@ func TestCASClone_SemverTagProbePersistsAcrossInstancesUntilTTL(t *testing.T) {
 	})
 }
 
+// TestCASClone_CachedProbeFetchesHexNamedBranch pins that a clone served
+// from a cached probe fetches the ref that probe matched. The test removes
+// everything in the store except the probe cache, so the second clone has
+// to fetch.
+func TestCASClone_CachedProbeFetchesHexNamedBranch(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile(t.Context(), "main.tf", []byte("# hex"), "init"))
+
+	const hexBranch = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.NoError(t, srv.Branch(t.Context(), hexBranch))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	storePath := filepath.Join(tempDir, "store")
+	v, rec := newRecordedVenv(nil)
+
+	require.NoError(t, cloneInto(t.Context(), v, storePath, repoURL, hexBranch, filepath.Join(tempDir, "first"),
+		cas.WithProbeTTL(time.Hour)))
+
+	entries, err := os.ReadDir(storePath)
+	require.NoError(t, err)
+
+	for _, entry := range entries {
+		if entry.Name() != "probes" {
+			require.NoError(t, os.RemoveAll(filepath.Join(storePath, entry.Name())))
+		}
+	}
+
+	dst := filepath.Join(tempDir, "second")
+	require.NoError(t, cloneInto(t.Context(), v, storePath, repoURL, hexBranch, dst, cas.WithProbeTTL(time.Hour)))
+
+	assert.FileExists(t, filepath.Join(dst, "main.tf"))
+	assert.Equal(t, 1, rec.count("ls-remote"), "the second clone must be served from the cached probe")
+}
+
 // TestCASClone_OfflineServesCachedSourceWithoutNetwork pins the offline
 // happy path: once a branch has been cloned, a later offline clone of it
 // is answered entirely from the persisted probe and the tree store. The
@@ -301,7 +342,7 @@ func TestCASClone_OfflineMissFailsWithoutFallbackClone(t *testing.T) {
 	var miss *cas.OfflineMissError
 
 	require.ErrorAs(t, err, &miss)
-	assert.Equal(t, repoURL, miss.Source)
+	assert.Equal(t, repoURL, miss.Source.String())
 	assert.Equal(t, "main", miss.Ref)
 
 	assert.Equal(t, 0, rec.count("ls-remote"))
@@ -380,7 +421,7 @@ func TestCASClone_OfflineMissRedactsCredentials(t *testing.T) {
 	var miss *cas.OfflineMissError
 
 	require.ErrorAs(t, fetchMiss, &miss)
-	assert.Equal(t, repoURL, miss.Source)
+	assert.Equal(t, repoURL, miss.Source.String())
 
 	assert.Equal(t, 0, rec.count("ls-remote"))
 	assert.Equal(t, 0, rec.count("fetch"))

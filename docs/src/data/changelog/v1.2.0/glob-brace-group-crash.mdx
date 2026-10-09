@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Malformed `{}` groups in glob patterns no longer crash Terragrunt
+
+Some glob patterns with an empty or unclosed `{}` group crashed Terragrunt when it matched them, e.g. `terragrunt find --filter '{./a{}'`. Others silently failed to match, so `{}a` did not match `a`.
+
+Terragrunt now refuses these patterns with an invalid pattern error. This covers [filter queries](/features/filter), `include_in_copy` and `exclude_from_copy` in the [`terraform`](/reference/hcl/blocks#terraform) block, and `.terragrunt-catalog-ignore` files. A group with one empty option next to a non-empty one, such as `main.tf{,.bak}`, still works.

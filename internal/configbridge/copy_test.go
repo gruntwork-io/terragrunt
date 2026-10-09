@@ -27,12 +27,10 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	t.Parallel()
 
 	opts := optionsWithDistinctValues(t)
-	v := venvtest.New()
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 	require.NotNil(t, pctx)
 
-	assert.Same(t, v, pctx.Venv, "HCL helpers shell out and read files through the venv handed to the bridge")
 	assert.Equal(t, opts.TerragruntConfigPath, pctx.TerragruntConfigPath)
 	assert.Equal(t, opts.OriginalTerragruntConfigPath, pctx.OriginalTerragruntConfigPath)
 	assert.Equal(t, opts.WorkingDir, pctx.WorkingDir)
@@ -77,9 +75,7 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Equal(t, opts.TerragruntStackConfigPath, pctx.TerragruntStackConfigPath)
 	assert.Equal(t, opts.ProviderCacheOptions, pctx.ProviderCacheOptions)
 
-	require.NotNil(t, pctx.FeatureFlags)
-
-	flag, ok := pctx.FeatureFlags.Load("region")
+	flag, ok := pctx.FeatureFlags["region"]
 	require.True(t, ok, "feature flags supplied on the CLI must reach config parsing")
 	assert.Equal(t, "us-east-1", flag)
 }
@@ -92,7 +88,7 @@ func TestNewParsingContextPropagatesStrictControls(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, opts.StrictControls.EnableControl(controls.BareInclude))
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), venvtest.New(), opts)
+	pctx := configbridge.NewParsingContext(opts)
 
 	ctrl := pctx.StrictControls.Find(controls.BareInclude)
 	require.NotNil(t, ctrl, "strict controls must reach the parsing context")
@@ -165,9 +161,7 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	assert.True(t, runOpts.NoCAS)
 	assert.True(t, runOpts.NoHooks, "NoHooks is fed by NoRunHooks, so before/after hooks stay disabled when asked")
 
-	require.NotNil(t, runOpts.FeatureFlags)
-
-	flag, ok := runOpts.FeatureFlags.Load("region")
+	flag, ok := runOpts.FeatureFlags["region"]
 	require.True(t, ok, "feature flags supplied on the CLI must reach the runner")
 	assert.Equal(t, "us-east-1", flag)
 }
@@ -278,7 +272,7 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	require.NoError(t, err)
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.Stacks))
 
-	opts.FeatureFlags.Store("region", "us-east-1")
+	opts.FeatureFlags["region"] = "us-east-1"
 
 	opts.TerragruntConfigPath = "/copy/unit/terragrunt.hcl"
 	opts.OriginalTerragruntConfigPath = "/copy/original/terragrunt.hcl"

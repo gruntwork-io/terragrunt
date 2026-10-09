@@ -49,22 +49,16 @@ type failingFlusher struct {
 
 func (f *failingFlusher) Flush() error { return f.err }
 
-// This test must run serially because it swaps the package-level newTabFlusher
-// seam to force a Flush failure path. Other tests read that variable
-// concurrently when running with t.Parallel().
-//
-//nolint:paralleltest // mutates package-level newTabFlusher.
 func TestRenderFormatOutputFlushError(t *testing.T) {
+	t.Parallel()
+
 	sentinel := errors.New("flush boom")
-	original := newTabFlusher
 
-	t.Cleanup(func() { newTabFlusher = original })
-
-	newTabFlusher = func(w io.Writer) tabFlusher {
+	r := NewRender()
+	r.newTabFlusher = func(w io.Writer) tabFlusher {
 		return &failingFlusher{Writer: w, err: sentinel}
 	}
 
-	r := NewRender()
 	_, err := r.List(strict.Controls{})
 	require.ErrorIs(t, err, sentinel)
 }

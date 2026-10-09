@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -153,6 +154,34 @@ func TestProviderCommandShellwordsParsing(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestProviderRefusesAShellOperator pins that a command with an unquoted shell
+// operator fails before anything runs, rather than running the words before
+// the operator.
+func TestProviderRefusesAShellOperator(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		assert.Fail(t, "no command may run", "got %q", inv.Name)
+
+		return vexec.Result{}
+	})
+	p := externalcmd.NewProvider(logger.CreateLogger(), "get-creds | jq .creds", newRunOpts())
+
+	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), v)
+	require.ErrorIs(t, err, split.ErrShellOperator)
+}
+
 func newRunOpts() *shell.ShellOptions {
 	return shell.NewShellOptions(map[string]string{})
+}
+
+// TestProviderCommandWithoutWordsErrors pins the error for a command of only
+// whitespace, which parses to no words and so leaves no program to run.
+func TestProviderCommandWithoutWordsErrors(t *testing.T) {
+	t.Parallel()
+
+	p := externalcmd.NewProvider(logger.CreateLogger(), "   ", newRunOpts())
+
+	_, err := p.GetCredentials(t.Context(), logger.CreateLogger(), venvtest.New())
+	require.ErrorIs(t, err, externalcmd.ErrEmptyAuthProviderCmd)
 }

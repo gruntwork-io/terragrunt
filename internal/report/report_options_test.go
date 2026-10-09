@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +66,7 @@ func TestReportWriteToFile(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	dir := "/reports"
+	dir := venvtest.Root("/reports")
 
 	t.Run("json format", func(t *testing.T) {
 		t.Parallel()

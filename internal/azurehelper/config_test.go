@@ -1,5 +1,3 @@
-//go:build azure
-
 package azurehelper_test
 
 import (
@@ -371,6 +369,209 @@ func TestBuildStorageAccountClient_RequiresArmFields(t *testing.T) {
 		}).
 		BuildStorageAccountClient(log.New(), isolatedEnv())
 	require.Error(t, err, "ARM-plane fields are required for a storage account client")
+}
+
+func TestWithSessionConfig_NilKeepsCurrent(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{StorageAccountName: testAccount, SasToken: testSASToken}).
+		WithSessionConfig(nil).
+		Build(log.New(), isolatedEnv())
+	require.NoError(t, err)
+	assert.Equal(t, testAccount, cfg.AccountName, "a nil session config must not discard the one already set")
+}
+
+// TestBuild_OIDC covers both OIDC credential sources: a federated token file
+// (workload identity) and a CI token request url, each selected without an
+// explicit use_oidc because the environment implies it.
+func TestBuild_OIDC(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		env  *venv.Venv
+		name string
+	}{
+		{
+			name: "token file implies oidc",
+			env:  isolatedEnv("AZURE_FEDERATED_TOKEN_FILE", "/var/run/secrets/azure/tokens/azure-identity-token"),
+		},
+		{
+			name: "github actions request url",
+			env: isolatedEnv(
+				"ACTIONS_ID_TOKEN_REQUEST_URL", "https://pipelines.example/token",
+				"ACTIONS_ID_TOKEN_REQUEST_TOKEN", "runner-token",
+			),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg, err := azurehelper.NewAzureConfigBuilder().
+				WithSessionConfig(&azurehelper.AzureSessionConfig{
+					StorageAccountName: testAccount,
+					TenantID:           "tid",
+					ClientID:           "cid",
+				}).
+				Build(log.New(), tc.env)
+			require.NoError(t, err)
+			assert.Equal(t, azurehelper.AuthMethodOIDC, cfg.Method)
+			assert.NotNil(t, cfg.Credential)
+		})
+	}
+}
+
+// TestBuild_CredentialConstructionErrors verifies an SDK constructor failure
+// names the auth method being built. Entra tenant ids allow only alphanumerics,
+// '-' and '.', so the SDK rejects this one without any network call.
+func TestBuild_CredentialConstructionErrors(t *testing.T) {
+	t.Parallel()
+
+	const badTenant = "bad tenant!"
+
+	tests := []struct {
+		env  *venv.Venv
+		cfg  azurehelper.AzureSessionConfig
+		name string
+		want string
+	}{
+		{
+			name: "service principal",
+			cfg:  azurehelper.AzureSessionConfig{TenantID: badTenant, ClientID: "cid", ClientSecret: "sec"},
+			env:  isolatedEnv(),
+			want: "creating service principal credential",
+		},
+		{
+			name: "oidc request url",
+			cfg:  azurehelper.AzureSessionConfig{UseOIDC: new(true), TenantID: badTenant, ClientID: "cid"},
+			env: isolatedEnv(
+				"ACTIONS_ID_TOKEN_REQUEST_URL", "https://pipelines.example/token",
+				"ACTIONS_ID_TOKEN_REQUEST_TOKEN", "runner-token",
+			),
+			want: "creating OIDC client assertion credential",
+		},
+		{
+			name: "oidc workload identity",
+			cfg: azurehelper.AzureSessionConfig{
+				UseOIDC:           new(true),
+				TenantID:          badTenant,
+				ClientID:          "cid",
+				OIDCTokenFilePath: "/var/run/secrets/azure/tokens/azure-identity-token",
+			},
+			env:  isolatedEnv(),
+			want: "creating OIDC workload identity credential",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := azurehelper.NewAzureConfigBuilder().
+				WithSessionConfig(&tc.cfg).
+				Build(log.New(), tc.env)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
+// TestBuild_ManagedIdentityCredentialError drives the SDK's own rejection of a
+// user-assigned identity on Cloud Shell. The SDK picks the managed identity
+// source from the process environment, so this test isolates it with
+// t.Setenv and therefore cannot run in parallel.
+func TestBuild_ManagedIdentityCredentialError(t *testing.T) {
+	for _, key := range []string{"IDENTITY_ENDPOINT", "IDENTITY_HEADER", "IMDS_ENDPOINT", "MSI_SECRET"} {
+		t.Setenv(key, "")
+	}
+
+	// MSI_ENDPOINT without MSI_SECRET is how the SDK recognizes Cloud Shell.
+	t.Setenv("MSI_ENDPOINT", "http://127.0.0.1:50342/oauth2/token")
+
+	_, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{UseMSI: new(true), ClientID: "cid"}).
+		Build(log.New(), isolatedEnv())
+	require.ErrorContains(t, err, "creating managed identity credential")
+}
+
+// TestBuild_DefaultCredentialError verifies a DefaultAzureCredential failure
+// is surfaced. The SDK reads AZURE_TOKEN_CREDENTIALS from the process
+// environment, so this test sets it with t.Setenv and cannot run in parallel.
+func TestBuild_DefaultCredentialError(t *testing.T) {
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "not-a-credential")
+
+	_, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{StorageAccountName: testAccount}).
+		Build(log.New(), isolatedEnv())
+	require.ErrorContains(t, err, "creating default Azure credential")
+}
+
+func TestBuildStorageAccountClient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		check func(t *testing.T, sc *azurehelper.StorageAccountClient, err error)
+		env   *venv.Venv
+		cfg   azurehelper.AzureSessionConfig
+		name  string
+	}{
+		{
+			// ARM_ACCESS_KEY is caught before Build, same as an explicit access key.
+			name: "access key from env is rejected up front",
+			cfg:  azurehelper.AzureSessionConfig{StorageAccountName: testAccount},
+			env:  isolatedEnv("ARM_ACCESS_KEY", "a2V5"),
+			check: func(t *testing.T, _ *azurehelper.StorageAccountClient, err error) {
+				t.Helper()
+
+				var unsupported *azurehelper.UnsupportedAuthForOpError
+				require.ErrorAs(t, err, &unsupported)
+				assert.Equal(t, azurehelper.AuthMethodAccessKey, unsupported.Method)
+			},
+		},
+		{
+			name: "build error is propagated",
+			cfg: azurehelper.AzureSessionConfig{
+				StorageAccountName: testAccount,
+				UseAzureADAuth:     new(true),
+				CloudEnvironment:   "governmnt",
+			},
+			env: isolatedEnv(),
+			check: func(t *testing.T, _ *azurehelper.StorageAccountClient, err error) {
+				t.Helper()
+
+				var unknown *azurehelper.UnknownCloudEnvironmentError
+				require.ErrorAs(t, err, &unknown)
+			},
+		},
+		{
+			name: "token credential builds a client",
+			cfg: azurehelper.AzureSessionConfig{
+				SubscriptionID:     testSub,
+				ResourceGroupName:  "rg",
+				StorageAccountName: testAccount,
+				UseAzureADAuth:     new(true),
+			},
+			env: isolatedEnv(),
+			check: func(t *testing.T, sc *azurehelper.StorageAccountClient, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.NotNil(t, sc)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sc, err := azurehelper.NewAzureConfigBuilder().
+				WithSessionConfig(&tc.cfg).
+				BuildStorageAccountClient(log.New(), tc.env)
+			tc.check(t, sc, err)
+		})
+	}
 }
 
 // isolatedEnv builds a virtualized environment from (key, value) pairs; the

@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,7 @@ import (
 
 	tggetter "github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	getter "github.com/hashicorp/go-getter/v2"
 )
 
@@ -20,9 +22,15 @@ import (
 // `file://<path>` output into a *url.URL and the client is given its String(),
 // so any space arrives percent-encoded. Building it through url.URL keeps the
 // result a valid URI on Windows too, where the path is `C:/...` rather than
-// `/...`.
+// `/...` and needs a slash ahead of the drive letter (RFC 8089) or the URL
+// carries the drive as its host.
 func fileSourceURL(path string) string {
-	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
+	p := filepath.ToSlash(path)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+
+	u := url.URL{Scheme: "file", Path: p}
 
 	return u.String()
 }
@@ -47,11 +55,12 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name string
-		src  string
-		dst  string
-		want string
-		mode getter.Mode
+		name          string
+		src           string
+		dst           string
+		want          string
+		skipOnWindows string
+		mode          getter.Mode
 	}{
 		{
 			name: "single file",
@@ -75,17 +84,22 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 			want: filepath.Join(base, "out-any", "main.tf"),
 		},
 		{
-			name: "unencoded spaces",
-			src:  "file://" + filepath.ToSlash(srcDir),
-			dst:  filepath.Join(base, "out-raw"),
-			mode: getter.ModeAny,
-			want: filepath.Join(base, "out-raw", "main.tf"),
+			name:          "unencoded spaces",
+			src:           helpers.FileURL(srcDir),
+			dst:           filepath.Join(base, "out-raw"),
+			mode:          getter.ModeAny,
+			want:          filepath.Join(base, "out-raw", "main.tf"),
+			skipOnWindows: "Skipping on Windows: a drive path with an unencoded space loses its drive letter",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			if tc.skipOnWindows != "" && helpers.IsWindows() {
+				t.Skip(tc.skipOnWindows)
+			}
 
 			_, err := client.Get(context.Background(), &getter.Request{
 				Src:     tc.src,

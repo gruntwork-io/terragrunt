@@ -21,7 +21,7 @@ import (
 // docsRoot holds one example's tree. Discovery starts at the root directory
 // inside it, which leaves room alongside for the external dependencies a few
 // examples reach.
-const docsRoot = "/docs"
+var docsRoot = venvtest.Root("/docs")
 
 // unitHCL is the smallest configuration that makes a directory discoverable as
 // a unit. A stack needs no contents at all, only the file that names it one,
@@ -209,10 +209,12 @@ terraform {
 			want:    "envs/stage/apps/app1\nenvs/stage/apps/app2\n",
 		},
 		{
-			name:    "path-based-absolute-exact-match",
-			files:   pathBased,
-			filters: []string{filepath.Join(docsRoot, "root", "envs", "dev", "apps", "*")},
-			want:    "envs/dev/apps/app1\nenvs/dev/apps/app2\n",
+			name:  "path-based-absolute-exact-match",
+			files: pathBased,
+			filters: []string{
+				filepath.ToSlash(filepath.Join(docsRoot, "root", "envs", "dev", "apps", "*")),
+			},
+			want: "envs/dev/apps/app1\nenvs/dev/apps/app2\n",
 		},
 		{
 			name:    "path-based-braced-exact-match",
@@ -440,7 +442,11 @@ terraform {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.want, findWithFilters(t, tc.files, tc.filters...))
+			assert.Equal(
+				t,
+				filepath.FromSlash(tc.want),
+				findWithFilters(t, tc.files, tc.filters...),
+			)
 		})
 	}
 }
@@ -490,7 +496,7 @@ func TestFilterDocumentationExamplesWithUnion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.want, findWithFilters(t, union, tc.filters...))
+			assert.Equal(t, filepath.FromSlash(tc.want), findWithFilters(t, union, tc.filters...))
 		})
 	}
 }

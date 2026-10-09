@@ -40,6 +40,8 @@ import (
 	helpcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/help"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/login"
+	mcpcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
@@ -96,6 +98,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	catalogCommands := clihelper.Commands{
 		catalog.NewCommand(l, opts, v),  // catalog
 		scaffold.NewCommand(l, opts, v), // scaffold
+		login.NewCommand(l, opts, v),    // login
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
@@ -119,6 +122,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 		info.NewCommand(l, opts, v),             // info
 		dag.NewCommand(l, opts, v),              // dag
 		render.NewCommand(l, opts, v),           // render
+		mcpcmd.NewCommand(l, opts, v),           // mcp
 		helpcmd.NewCommand(l, opts),             // help (hidden)
 		versioncmd.NewCommand(),                 // version (hidden)
 		awsproviderpatch.NewCommand(l, opts, v), // aws-provider-patch (hidden)
@@ -551,9 +555,8 @@ func initialSetup(
 		args = slices.DeleteFunc(args, func(arg string) bool { return arg == tf.FlagNameDestroy })
 	}
 
-	// Since Terragrunt and Terraform have the same `-no-color` flag,
-	// if a user specifies `-no-color` for Terragrunt, we should propagate it to Terraform as well.
-	if l.Formatter().DisabledColors() {
+	// Terragrunt's `--no-color` propagates to tofu unless the user already passed it after `--`.
+	if l.Formatter().DisabledColors() && !slices.Contains(args, tf.FlagNameNoColor) {
 		args = append(args, tf.FlagNameNoColor)
 	}
 
@@ -666,10 +669,6 @@ func initialSetup(
 	}
 
 	opts.Filters = deduped
-
-	if opts.Filters.HasGraphBoundary() && !opts.Experiments.Evaluate(experiment.BoundedDiscovery) {
-		return filter.ErrBoundaryRequiresExperiment
-	}
 
 	// --- Terragrunt Version
 	terragruntVersion, err := semver.Parse(cliCtx.Version)

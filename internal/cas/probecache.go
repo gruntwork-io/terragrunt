@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
@@ -46,14 +47,15 @@ const (
 	// probeCacheMaxEntrySize bounds how much of an entry file is read. A
 	// well-formed entry measures 189 bytes with a SHA-1 commit hash and 213
 	// with a SHA-256 one, plus up to 10 more for a timestamp carrying
-	// fractional seconds. Anything approaching this bound is damage and is
-	// read as a miss.
+	// fractional seconds and up to 36 for a git fetch rule. Anything
+	// approaching this bound is damage and is read as a miss.
 	probeCacheMaxEntrySize = 512
 )
 
-// ProbeEntry is one persisted probe answer. Every field is fixed width,
-// so an entry is a couple of hundred bytes whatever the source was called
-// and nothing a remote or a configuration chose is written verbatim.
+// ProbeEntry is one persisted probe answer. Every field is fixed width or
+// drawn from a fixed set, so an entry is a couple of hundred bytes whatever
+// the source was called and nothing a remote or a configuration chose is
+// written verbatim.
 type ProbeEntry struct {
 	// ProbedAt is when the probe returned Key.
 	ProbedAt time.Time `json:"probed_at"`
@@ -65,6 +67,10 @@ type ProbeEntry struct {
 	// tree-store key from [ContentKey] or [OpaqueKey] for every other
 	// resolver. Hex either way.
 	Key string `json:"key"`
+	// FetchRule is the git fetch rule the probe matched its ref through,
+	// such as refs/tags/%s. It is empty for other resolvers and in entries
+	// that predate the field, and a fetch then asks for the short name.
+	FetchRule string `json:"fetch_rule,omitempty"`
 	// Immutable reports that the source this answers for cannot change
 	// upstream, so the entry is served for [DefaultImmutableProbeTTL]
 	// rather than the caller's mutable TTL.
@@ -97,11 +103,11 @@ func (p *ProbeCache) RootPath() string {
 	return p.rootPath
 }
 
-// Lookup returns the entry recorded for (url, ref). ok is false when
+// Lookup returns the entry recorded for (u, ref). ok is false when
 // nothing was recorded or the entry cannot be read or decoded; a damaged
 // entry is never fatal because the next successful probe overwrites it.
-func (p *ProbeCache) Lookup(fsys vfs.FS, url, ref string) (ProbeEntry, bool) {
-	data, err := vfs.ReadFileLimit(fsys, p.EntryPath(url, ref), probeCacheMaxEntrySize)
+func (p *ProbeCache) Lookup(fsys vfs.FS, u redact.URL, ref string) (ProbeEntry, bool) {
+	data, err := vfs.ReadFileLimit(fsys, p.EntryPath(u, ref), probeCacheMaxEntrySize)
 	if err != nil {
 		return ProbeEntry{}, false
 	}
@@ -121,12 +127,12 @@ func (p *ProbeCache) Lookup(fsys vfs.FS, url, ref string) (ProbeEntry, bool) {
 	return entry, true
 }
 
-// Store records entry as the answer for (url, ref), stamping its
+// Store records entry as the answer for (u, ref), stamping its
 // timestamp and ref digest in place first. The entry is written to a
 // temporary file and renamed into place, so a concurrent reader sees
 // either the previous entry or this one, never a torn write.
-func (p *ProbeCache) Store(fsys vfs.FS, url, ref string, entry *ProbeEntry) error {
-	path := p.EntryPath(url, ref)
+func (p *ProbeCache) Store(fsys vfs.FS, u redact.URL, ref string, entry *ProbeEntry) error {
+	path := p.EntryPath(u, ref)
 	dir := filepath.Dir(path)
 
 	if err := fsys.MkdirAll(dir, DefaultDirPerms); err != nil {
@@ -163,10 +169,10 @@ func (p *ProbeCache) Store(fsys vfs.FS, url, ref string, entry *ProbeEntry) erro
 	return nil
 }
 
-// EntryPath returns the file the answer for (url, ref) is recorded in:
+// EntryPath returns the file the answer for (u, ref) is recorded in:
 // <root>/<algorithm>/<url hash>/<ref hash>.json. Both hashed components
 // are hashed because a URL carries characters that are not path-safe and a
-// ref may contain slashes. The URL is redacted first, so a token rotated
+// ref may contain slashes. The URL's userinfo is dropped first, so a token rotated
 // between runs still finds the answer recorded for the repository it
 // addresses instead of leaving an entry nothing reads again.
 //
@@ -174,11 +180,11 @@ func (p *ProbeCache) Store(fsys vfs.FS, url, ref string, entry *ProbeEntry) erro
 // keeps the names legal on Windows, where a colon cannot appear in a path.
 // A later algorithm gets its own subtree, so entries never collide across
 // the two and old ones stay identifiable.
-func (p *ProbeCache) EntryPath(url, ref string) string {
+func (p *ProbeCache) EntryPath(u redact.URL, ref string) string {
 	name := RefDigest(ref)[:probeCacheKeyLen] + ".json"
 	root := filepath.Join(p.rootPath, string(probeDigestAlgorithm))
 
-	return filepath.Join(EntryPathForURL(root, RedactURL(url), probeDigestAlgorithm), name)
+	return filepath.Join(EntryPathForURL(root, u.WithoutUserinfo(), probeDigestAlgorithm), name)
 }
 
 // RefDigest returns the digest an entry records for ref and the name

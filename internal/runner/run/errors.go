@@ -9,25 +9,7 @@ import (
 type MissingCommand struct{}
 
 func (err MissingCommand) Error() string {
-	return "Missing terraform command (Example: terragrunt run plan)"
-}
-
-type WrongTerraformCommand string
-
-func (name WrongTerraformCommand) Error() string {
-	return fmt.Sprintf(
-		"Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help",
-		string(name),
-	)
-}
-
-type WrongTofuCommand string
-
-func (name WrongTofuCommand) Error() string {
-	return fmt.Sprintf(
-		"OpenTofu has no command named %q. To see all of OpenTofu's top-level commands, run: tofu -help",
-		string(name),
-	)
+	return "Missing OpenTofu/Terraform command (Example: terragrunt run plan)"
 }
 
 type BackendNotDefined struct {
@@ -38,7 +20,12 @@ type BackendNotDefined struct {
 
 func (err BackendNotDefined) Error() string {
 	return fmt.Sprintf(
-		"Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n",
+		"Found remote_state settings in %s but no backend block "+
+			"in the OpenTofu/Terraform code in %s. "+
+			"You must define a backend block (it can be empty!) in your OpenTofu/Terraform code "+
+			"or your remote state settings will have no effect! "+
+			"It should look something like this:\n\n"+
+			"terraform {\n  backend \"%s\" {}\n}\n\n",
 		err.ConfigPath,
 		err.WorkingDir,
 		err.BackendType,

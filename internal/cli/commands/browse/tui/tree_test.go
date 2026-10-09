@@ -32,10 +32,8 @@ func flatten(root *tui.Node) []flatNode {
 func TestBuildTree(t *testing.T) {
 	t.Parallel()
 
-	const workingDir = "/work"
-
 	abs := func(parts ...string) string {
-		return filepath.Join(append([]string{workingDir}, parts...)...)
+		return filepath.Join(append([]string{workRoot}, parts...)...)
 	}
 
 	tests := []struct {
@@ -90,7 +88,7 @@ func TestBuildTree(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			root := tui.BuildTree(workingDir, tt.components)
+			root := tui.BuildTree(workRoot, tt.components)
 
 			assert.Equal(t, ".", root.Name())
 			assert.Equal(t, tt.want, flatten(root))
@@ -101,8 +99,8 @@ func TestBuildTree(t *testing.T) {
 func TestNavigation(t *testing.T) {
 	t.Parallel()
 
-	root := tui.BuildTree("/work", component.Components{
-		component.NewUnit(filepath.Join("/work", "prod", "vpc")),
+	root := tui.BuildTree(workRoot, component.Components{
+		component.NewUnit(filepath.Join(workRoot, "prod", "vpc")),
 	})
 
 	require.Len(t, root.Children(), 1)

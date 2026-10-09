@@ -191,7 +191,7 @@ func RegexFoundInTFFiles(fsys vfs.FS, workingDir string, pattern *regexp.Regexp)
 }
 
 // DirContainsTFFiles checks if the given directory contains any
-// Terraform/OpenTofu files (.tf, .tofu, .tf.json, .tofu.json)
+// OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
 func DirContainsTFFiles(fsys vfs.FS, dirPath string) (bool, error) {
 	var found bool
 
@@ -617,6 +617,12 @@ func fastCopyIncludesEntry(
 	return true
 }
 
+// isCopyManifest reports whether a source entry is the manifest an earlier
+// copy left behind.
+func isCopyManifest(name, manifestFile string) bool {
+	return name == filepath.Base(manifestFile)
+}
+
 // copyFolderContentsFast is the [CopyFolderContents] path used when the
 // `fast-copy` strict control is enabled. Include and exclude patterns
 // are compiled once and the source tree is walked once through
@@ -699,6 +705,10 @@ func copyFolderContentsFast(
 			}
 
 			isDir = targetInfo.IsDir()
+		}
+
+		if !isDir && isCopyManifest(d.Name(), manifestFile) {
+			return nil
 		}
 
 		// Skip .terragrunt-cache before include matching. A user
@@ -989,7 +999,7 @@ func CopyFolderContentsWithFilter(
 	for _, entry := range entries {
 		file := filepath.Join(source, entry.Name())
 
-		if !filter(file) {
+		if isCopyManifest(entry.Name(), manifestFile) || !filter(file) {
 			continue
 		}
 

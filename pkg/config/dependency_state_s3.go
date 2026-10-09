@@ -16,19 +16,20 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // s3DirectStateReadSupported preserves the native backend's validation for the
 // configurable workspace prefix. An explicit empty prefix is valid; leading or
 // trailing slashes are not.
-func s3DirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
+func s3DirectStateReadSupported(v *venv.Venv, pctx *ParsingContext, remoteState *remotestate.RemoteState) bool {
 	config := remoteState.BackendConfig
 
 	// SSE-C state needs the customer key on every GetObject. The direct reader does
 	// not send those headers, so AWS would answer 400 for state the native backend
 	// reads fine.
-	if backendConfigValueSet(config, "sse_customer_key") || pctx.Venv.Env["AWS_SSE_CUSTOMER_KEY"] != "" {
+	if backendConfigValueSet(config, "sse_customer_key") || v.Env["AWS_SSE_CUSTOMER_KEY"] != "" {
 		return false
 	}
 
@@ -49,6 +50,7 @@ func s3DirectStateReadSupported(pctx *ParsingContext, remoteState *remotestate.R
 func getTerragruntOutputJSONFromRemoteStateS3(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	remoteState *remotestate.RemoteState,
 	workspace string,
@@ -66,7 +68,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(
 		s3Client, err := awshelper.NewAWSConfigBuilder().
 			WithSessionConfig(s3ConfigExtended.GetAwsSessionConfig()).
 			WithIAMRoleOptions(pctx.IAMRoleOptions).
-			BuildS3Client(ctx, l, pctx.Venv)
+			BuildS3Client(ctx, l, v)
 		if err != nil {
 			return nil, fmt.Errorf("building s3 client for %s: %w", location, err)
 		}

@@ -22,6 +22,7 @@ func stackOutputs() cty.Value {
 			"api":   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("api-id")}),
 			"0":     cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("zero-id")}),
 			"a.b":   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("dotted-id")}),
+			`a"b`:   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("quoted-id")}),
 			"12345": cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("numeric-id")}),
 		}),
 	})
@@ -59,6 +60,11 @@ func TestFilterOutputsResolvesAddresses(t *testing.T) {
 			name:    "key containing a dot stays one segment",
 			address: `shard["a.b"].id`,
 			want:    "dotted-id",
+		},
+		{
+			name:    "key containing a quote",
+			address: `shard["a\"b"].id`,
+			want:    "quoted-id",
 		},
 		{
 			name:    "numeric-looking key",

@@ -146,6 +146,51 @@ func TestCASGetter_HTTPArchiveCachesSecondRun(t *testing.T) {
 		"second run must still probe to confirm the cached version is current")
 }
 
+// TestCASGetter_HTTPArchiveIgnoresIncludedGitFiles pins that the git-only
+// IncludedGitFiles option production callers set on every CloneOptions
+// neither writes a .git directory for a non-git source nor turns the
+// probe hit into a re-download.
+func TestCASGetter_HTTPArchiveIgnoresIncludedGitFiles(t *testing.T) {
+	t.Parallel()
+
+	body := makeTarGz(t, map[string]string{"main.tf": "ok"})
+
+	h := &tarballHandler{body: body, etag: "stable-etag"}
+
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	l := logger.CreateLogger()
+
+	g := getter.NewCASGetter(l, c, v, &tgcas.CloneOptions{IncludedGitFiles: []string{"HEAD", "config"}},
+		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
+
+	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
+
+	src := srv.URL + "/mod.tar.gz"
+
+	for range 2 {
+		dst := filepath.Join(t.TempDir(), "out")
+
+		_, err := client.Get(t.Context(), &gogetter.Request{
+			Src:     src,
+			Dst:     dst,
+			GetMode: gogetter.ModeAny,
+		})
+		require.NoError(t, err)
+		require.FileExists(t, filepath.Join(dst, "main.tf"))
+		require.NoDirExists(t, filepath.Join(dst, ".git"))
+	}
+
+	assert.Equal(t, int32(1), h.gets.Load(), "second run must be served from the store")
+}
+
 // TestCASGetter_HTTPArchiveFalseSkipsExtraction pins that a user-supplied
 // archive=false reaches the inner fetch, so CAS ingests the raw archive
 // instead of its extracted contents. CAS injects archive=false itself to

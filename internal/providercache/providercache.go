@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -93,9 +94,8 @@ type ProviderCache struct {
 	opts            *pcoptions.ProviderCacheOptions
 	cliCfg          *cliconfig.Config
 	providerService *services.ProviderService
-	// implementation is the implementation whose CLI config files Init loaded.
-	implementation tfimpl.Type
-	// mismatchWarning ensures a mixed-implementation run warns once, not once per unit.
+	implementation  tfimpl.Type
+	configShared    bool
 	mismatchWarning sync.Once
 }
 
@@ -155,6 +155,11 @@ func (pc *ProviderCache) Init(
 		return err
 	}
 
+	configShared, err := sharedUserConfig(v, impl)
+	if err != nil {
+		return err
+	}
+
 	v.RequireHTTP()
 
 	providerService := services.NewProviderService(
@@ -210,8 +215,45 @@ func (pc *ProviderCache) Init(
 	pc.Server = cacheServer
 	pc.cliCfg = cliCfg
 	pc.providerService = providerService
+	pc.configShared = configShared
 
 	return nil
+}
+
+// sharedUserConfig reports whether the implementation other than impl reads the
+// same CLI config files and provider directory, in which case a run under either
+// implementation can use the config Init loaded.
+func sharedUserConfig(v *venv.Venv, impl tfimpl.Type) (bool, error) {
+	other := tfimpl.Terraform
+	if impl == tfimpl.Terraform {
+		other = tfimpl.OpenTofu
+	}
+
+	paths, err := cliconfig.UserConfigPaths(v, impl)
+	if err != nil {
+		return false, err
+	}
+
+	otherPaths, err := cliconfig.UserConfigPaths(v, other)
+	if err != nil {
+		return false, err
+	}
+
+	if !slices.Equal(paths, otherPaths) {
+		return false, nil
+	}
+
+	providerDir, err := cliconfig.UserProviderDir(v, impl)
+	if err != nil {
+		return false, err
+	}
+
+	otherProviderDir, err := cliconfig.UserProviderDir(v, other)
+	if err != nil {
+		return false, err
+	}
+
+	return providerDir == otherProviderDir, nil
 }
 
 // InitServer creates and initializes a new ProviderCache backed by v's
@@ -272,10 +314,12 @@ func (pc *ProviderCache) TerraformCommandHook(
 	}
 
 	// A mismatched implementation must not consume the wrong CLI config, so run without the cache.
-	if warning := ImplementationMismatchWarning(pc.implementation, tfOpts.TofuImplementation); warning != "" {
-		pc.mismatchWarning.Do(func() { l.Warn(warning) })
+	if !pc.configShared {
+		if warning := ImplementationMismatchWarning(pc.implementation, tfOpts.TofuImplementation); warning != "" {
+			pc.mismatchWarning.Do(func() { l.Warn(warning) })
 
-		return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
+			return tf.RunCommandWithOutput(ctx, l, v, tfOpts, args...)
+		}
 	}
 
 	cacheEnvV := v.WithEnv(
@@ -331,7 +375,7 @@ func (pc *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
-	l.Infof("Caching terraform providers for %s", tfOpts.ShellOptions.WorkingDir)
+	l.Infof("Caching providers for %s", tfOpts.ShellOptions.WorkingDir)
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
@@ -595,13 +639,17 @@ func (pc *ProviderCache) configureRegistryHosts(
 			return nil, err
 		}
 
+		providersV1, err := url.JoinPath(
+			pc.ProviderController.URL().String(),
+			cacheRequestID,
+			registryName+"/",
+		)
+		if err != nil {
+			return nil, err
+		}
+
 		hostServices := map[string]string{
-			serviceProvidersV1: fmt.Sprintf(
-				"%s/%s/%s/",
-				pc.ProviderController.URL(),
-				cacheRequestID,
-				registryName,
-			),
+			serviceProvidersV1: providersV1,
 		}
 
 		if hasModules {
@@ -698,7 +746,7 @@ func (pc *ProviderCache) runTerraformCommand(
 
 	err := util.DoWithRetry(
 		ctx,
-		"Running terraform providers lock",
+		fmt.Sprintf("Running %s providers lock", filepath.Base(shellOpts.TFPath)),
 		registryRetryMaxAttempts,
 		registryRetrySleepInterval,
 		l,
@@ -780,7 +828,8 @@ func (pc *ProviderCache) providerCacheEnvironment(
 	envs := make(map[string]string, len(env))
 	maps.Copy(envs, env)
 
-	// Filter registries based on OpenTofu or Terraform implementation to avoid setting env vars for unnecessary registries
+	// Filter registries based on the OpenTofu/Terraform implementation
+	// to avoid setting env vars for unnecessary registries
 	filteredRegistryNames := FilterRegistriesByImplementation(
 		pc.opts.RegistryNames,
 		implementation,
@@ -889,7 +938,8 @@ func StripProxiedCredentials(
 // ImplementationMismatchWarning returns the warning to log when a run's implementation reads
 // different CLI config files than the ones the cache server loaded at startup, or "" when the
 // two agree. Anything but Terraform reads OpenTofu's file locations, so only crossing that
-// boundary warrants a warning; the hook then bypasses the cache for that run.
+// boundary warrants a warning; the hook then bypasses the cache for that run, unless the two
+// implementations resolve to the same files on this machine.
 func ImplementationMismatchWarning(serverImpl, runImpl tfimpl.Type) string {
 	if runImpl == "" || runImpl == tfimpl.Unknown {
 		return ""

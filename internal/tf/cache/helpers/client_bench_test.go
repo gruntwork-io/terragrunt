@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/stretchr/testify/require"
 )
 
 // providerVersionsJSON approximates a registry's provider versions listing, which
@@ -51,9 +52,7 @@ func providerVersionsJSON(tb testing.TB, versions int) []byte {
 	}
 
 	data, err := json.Marshal(body)
-	if err != nil {
-		tb.Fatal(err)
-	}
+	require.NoError(tb, err)
 
 	return data
 }
@@ -81,9 +80,7 @@ func BenchmarkClientDo(b *testing.B) {
 				var value map[string]any
 
 				client := helpers.NewClient(c, nil)
-				if err := client.Do(ctx, http.MethodGet, "https://registry.test/v1/providers/hashicorp/aws/versions", &value); err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(b, client.Do(ctx, http.MethodGet, "https://registry.test/v1/providers/hashicorp/aws/versions", &value))
 			}
 		})
 	}

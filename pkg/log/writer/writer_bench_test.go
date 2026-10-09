@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+	"github.com/stretchr/testify/require"
 )
 
 // tfOutputChunk mimics one read from a tofu process's stdout pipe, where many
@@ -36,7 +37,7 @@ func BenchmarkWriterWrite(b *testing.B) {
 
 			for b.Loop() {
 				if _, err := w.Write(chunk); err != nil {
-					b.Fatal(err)
+					require.FailNow(b, err.Error())
 				}
 			}
 		})

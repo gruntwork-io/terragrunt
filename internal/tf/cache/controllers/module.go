@@ -1,10 +1,11 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -18,7 +19,7 @@ const (
 type ModuleController struct {
 	*router.Router
 
-	AuthMiddleware     echo.MiddlewareFunc
+	AuthMiddleware     router.MiddlewareFunc
 	ProxyModuleHandler *handlers.ProxyModuleHandler
 	Logger             log.Logger
 }
@@ -40,12 +41,12 @@ func (c *ModuleController) Register(r *router.Router) {
 		c.Use(c.AuthMiddleware)
 	}
 
-	c.GET("/:registry_name/*", c.proxyAction)
+	c.GET("/{registry_name}/{rest...}", c.proxyAction)
 }
 
-func (c *ModuleController) proxyAction(ctx echo.Context) error {
-	registryName := ctx.Param("registry_name")
-	rest := ctx.Param("*")
+func (c *ModuleController) proxyAction(w router.ResponseWriter, r *http.Request) error {
+	registryName := r.PathValue("registry_name")
+	rest := r.PathValue("rest")
 
-	return c.ProxyModuleHandler.Proxy(ctx, registryName, rest)
+	return c.ProxyModuleHandler.Proxy(w, r, registryName, rest)
 }

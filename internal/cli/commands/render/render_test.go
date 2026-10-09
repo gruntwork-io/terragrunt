@@ -9,14 +9,13 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
-	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
 )
 
 func TestRenderJSON_Basic(t *testing.T) {
@@ -293,10 +292,12 @@ func TestRenderJSON_NumberOutOfRange(t *testing.T) {
 		opts,
 	)
 
-	var rangeErr ctyhelper.NumberOutOfRangeError
+	var diags hcl.Diagnostics
 
-	require.ErrorAs(t, err, &rangeErr)
-	assert.Equal(t, cty.GetAttrPath("dependency").GetAttr("dep").GetAttr("mock_outputs").GetAttr("count"), rangeErr.Path)
+	require.ErrorAs(t, err, &diags)
+	require.Len(t, diags, 1)
+	assert.Equal(t, "Number out of range", diags[0].Summary)
+	assert.Equal(t, 6, diags[0].Subject.Start.Line)
 }
 
 // setupTest writes config to a terragrunt.hcl in a fresh temporary directory
