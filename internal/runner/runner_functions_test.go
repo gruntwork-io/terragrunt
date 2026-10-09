@@ -539,6 +539,51 @@ func TestNewFromComponents_IgnoresStackComponents(t *testing.T) {
 	assert.Equal(t, "/tmp/test/vpc", units[0].Path())
 }
 
+func TestNewFromComponents_DependencyCycle(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	a := component.NewUnit("/tmp/test/a").WithConfig(&config.TerragruntConfig{})
+	b := component.NewUnit("/tmp/test/b").WithConfig(&config.TerragruntConfig{})
+	a.AddDependency(b)
+	b.AddDependency(a)
+
+	rnr, err := runner.NewFromComponents(
+		t.Context(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{a, b},
+	)
+	require.Error(t, err, "units that wait on each other cannot be ordered")
+	assert.Nil(t, rnr)
+}
+
+func TestNewFromComponents_FilterAllowDestroyWithoutDiscoveryContext(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	vpc.SetDiscoveryContext(nil)
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	opts.TerraformCommand = "plan"
+
+	rnr, err := runner.NewFromComponents(
+		t.Context(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{vpc},
+	)
+	require.NoError(t, err)
+
+	units := rnr.GetStack().Units
+	require.Len(t, units, 1)
+	assert.False(t, units[0].Excluded(), "a unit no Git filter selected is never excluded as a removed unit")
+}
+
 // unitPathAt returns the path of the i-th unit in a dependency chain.
 func unitPathAt(i int) string {
 	return "/tmp/test/unit" + strconv.Itoa(i)

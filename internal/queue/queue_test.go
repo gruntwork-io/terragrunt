@@ -1199,3 +1199,266 @@ func TestQueueClaimForRunningRacesFailEntryWithRacing(t *testing.T) {
 		)
 	}
 }
+
+func TestEntryIsUp(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		discoveryCtx *component.DiscoveryContext
+		name         string
+		want         bool
+	}{
+		{
+			name: "no discovery context",
+			want: true,
+		},
+		{
+			name:         "plan",
+			discoveryCtx: &component.DiscoveryContext{Cmd: "plan"},
+			want:         true,
+		},
+		{
+			name:         "plan -destroy",
+			discoveryCtx: &component.DiscoveryContext{Cmd: "plan", Args: []string{"-destroy"}},
+		},
+		{
+			name:         "apply",
+			discoveryCtx: &component.DiscoveryContext{Cmd: "apply"},
+			want:         true,
+		},
+		{
+			name:         "apply -destroy",
+			discoveryCtx: &component.DiscoveryContext{Cmd: "apply", Args: []string{"-destroy"}},
+		},
+		{
+			name:         "destroy",
+			discoveryCtx: &component.DiscoveryContext{Cmd: "destroy"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			unit := component.NewUnit("a")
+			unit.SetDiscoveryContext(tc.discoveryCtx)
+
+			entry := &queue.Entry{Component: unit}
+			assert.Equal(t, tc.want, entry.IsUp())
+		})
+	}
+}
+
+func TestQueueComponents(t *testing.T) {
+	t.Parallel()
+
+	a := component.NewUnit("a")
+	b := component.NewUnit("b")
+	b.AddDependency(a)
+
+	c := component.NewUnit("c")
+
+	q, err := queue.NewQueue(component.Components{b, c, a})
+	require.NoError(t, err)
+
+	paths := make([]string, 0, len(q.Entries))
+	for _, comp := range q.Components() {
+		paths = append(paths, comp.Path())
+	}
+
+	assert.Equal(t, []string{"a", "c", "b"}, paths, "components come back in queue order")
+}
+
+func TestQueueEntryByPathMissing(t *testing.T) {
+	t.Parallel()
+
+	q, err := queue.NewQueue(component.Components{component.NewUnit("a")})
+	require.NoError(t, err)
+
+	assert.Nil(t, q.EntryByPath("b"))
+}
+
+func TestGetReadyWithDependenciesDependencyOutsideQueue(t *testing.T) {
+	t.Parallel()
+
+	app := component.NewUnit("app")
+	app.AddDependency(component.NewUnit("external"))
+
+	q, err := queue.NewQueue(component.Components{app})
+	require.NoError(t, err)
+
+	ready := q.GetReadyWithDependencies(logger.CreateLogger())
+	assert.Equal(t, []string{"app"}, entryPaths(ready), "a dependency outside the queue is assumed applied")
+}
+
+func TestGetReadyWithDependenciesMixedDirections(t *testing.T) {
+	t.Parallel()
+
+	dep := component.NewUnit("dep")
+	dep.SetDiscoveryContext(&component.DiscoveryContext{Cmd: "destroy"})
+
+	app := component.NewUnit("app")
+	app.SetDiscoveryContext(&component.DiscoveryContext{Cmd: "plan"})
+	app.AddDependency(dep)
+
+	q, err := queue.NewQueue(component.Components{app, dep})
+	require.NoError(t, err)
+
+	ready := q.GetReadyWithDependencies(logger.CreateLogger())
+	assert.ElementsMatch(
+		t,
+		[]string{"app", "dep"},
+		entryPaths(ready),
+		"a unit being destroyed and a unit being planned do not wait on each other",
+	)
+}
+
+func TestGetReadyWithDependenciesIgnoreDependencyErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		want      []string
+		depStatus queue.Status
+	}{
+		{
+			name:      "failed dependency",
+			depStatus: queue.StatusFailed,
+			want:      []string{"app"},
+		},
+		{
+			name:      "running dependency",
+			depStatus: queue.StatusRunning,
+			want:      []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dep := component.NewUnit("dep")
+			app := component.NewUnit("app")
+			app.AddDependency(dep)
+
+			q, err := queue.NewQueue(component.Components{app, dep})
+			require.NoError(t, err)
+
+			q.IgnoreDependencyErrors = true
+			q.EntryByPath("dep").Status = tc.depStatus
+
+			ready := q.GetReadyWithDependencies(logger.CreateLogger())
+			assert.Equal(t, tc.want, entryPaths(ready), "only a finished dependency lets its dependent start")
+		})
+	}
+}
+
+func TestSetEntryStatusNonTerminal(t *testing.T) {
+	t.Parallel()
+
+	q, err := queue.NewQueue(component.Components{component.NewUnit("a")})
+	require.NoError(t, err)
+
+	entry := q.EntryByPath("a")
+	q.SetEntryStatus(entry, queue.StatusRunning)
+
+	assert.Equal(t, queue.StatusRunning, entry.Status)
+}
+
+func TestClaimForRunning(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		initial queue.Status
+		want    queue.Status
+		claimed bool
+	}{
+		{name: "ready", initial: queue.StatusReady, want: queue.StatusRunning, claimed: true},
+		{name: "succeeded", initial: queue.StatusSucceeded, want: queue.StatusSucceeded},
+		{name: "failed", initial: queue.StatusFailed, want: queue.StatusFailed},
+		{name: "early exit", initial: queue.StatusEarlyExit, want: queue.StatusEarlyExit},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			q, err := queue.NewQueue(component.Components{component.NewUnit("a")})
+			require.NoError(t, err)
+
+			entry := q.EntryByPath("a")
+			entry.Status = tc.initial
+
+			assert.Equal(t, tc.claimed, q.ClaimForRunning(entry))
+			assert.Equal(t, tc.want, entry.Status, "a finished entry is never claimed")
+		})
+	}
+}
+
+func TestFailEntryLeavesRunningDependents(t *testing.T) {
+	t.Parallel()
+
+	a := component.NewUnit("a")
+	b := component.NewUnit("b")
+	b.AddDependency(a)
+
+	c := component.NewUnit("c")
+	c.AddDependency(a)
+
+	q, err := queue.NewQueue(component.Components{a, b, c})
+	require.NoError(t, err)
+
+	q.EntryByPath("b").Status = queue.StatusRunning
+	q.FailEntry(q.EntryByPath("a"))
+
+	assert.Equal(t, queue.StatusRunning, q.EntryByPath("b").Status, "a running dependent keeps running")
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("c").Status)
+}
+
+func TestFailEntryDestroyLeavesFinishedAndOutsideDependencies(t *testing.T) {
+	t.Parallel()
+
+	destroy := &component.DiscoveryContext{Cmd: "destroy"}
+
+	a := component.NewUnit("a")
+	a.SetDiscoveryContext(destroy)
+
+	d := component.NewUnit("d")
+	d.SetDiscoveryContext(destroy)
+
+	b := component.NewUnit("b")
+	b.SetDiscoveryContext(destroy)
+	b.AddDependency(a)
+	b.AddDependency(component.NewUnit("external"))
+	b.AddDependency(d)
+
+	q, err := queue.NewQueue(component.Components{a, b, d})
+	require.NoError(t, err)
+
+	q.EntryByPath("a").Status = queue.StatusSucceeded
+	q.FailEntry(q.EntryByPath("b"))
+
+	assert.Equal(t, queue.StatusSucceeded, q.EntryByPath("a").Status, "a finished dependency keeps its status")
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("d").Status)
+}
+
+func TestFinishedUnknownStatus(t *testing.T) {
+	t.Parallel()
+
+	q, err := queue.NewQueue(component.Components{component.NewUnit("a")})
+	require.NoError(t, err)
+
+	q.EntryByPath("a").Status = queue.Status(255)
+
+	assert.False(t, q.Finished(), "a status outside the known set is not terminal")
+}
+
+func entryPaths(entries []*queue.Entry) []string {
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.Component.Path())
+	}
+
+	return paths
+}

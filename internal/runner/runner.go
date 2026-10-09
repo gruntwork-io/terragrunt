@@ -229,41 +229,8 @@ func NewFromComponents(
 	discovered component.Components,
 ) (*Runner, error) {
 	// Stack components (terragrunt.stack.hcl files) drive stack generation, not execution.
-	nonStackComponents := make(component.Components, 0, len(discovered))
+	units := make([]*component.Unit, 0, len(discovered))
 	for _, c := range discovered {
-		if _, ok := c.(*component.Unit); ok {
-			nonStackComponents = append(nonStackComponents, c)
-		}
-	}
-
-	if len(nonStackComponents) == 0 {
-		l.Warnf("No units discovered. Creating an empty runner.")
-
-		stack := component.NewStack(opts.WorkingDir)
-
-		rnr := &Runner{
-			Stack: stack,
-		}
-
-		q, queueErr := queue.NewQueue(component.Components{})
-		if queueErr != nil {
-			return nil, queueErr
-		}
-
-		rnr.queue = q
-
-		return rnr, nil
-	}
-
-	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
-	stack := component.NewStack(opts.WorkingDir)
-
-	rnr := &Runner{
-		Stack: stack,
-	}
-
-	units := make([]*component.Unit, 0, len(nonStackComponents))
-	for _, c := range nonStackComponents {
 		unit, ok := c.(*component.Unit)
 		if !ok {
 			continue
@@ -274,6 +241,17 @@ func NewFromComponents(
 		}
 
 		units = append(units, unit)
+	}
+
+	if len(units) == 0 {
+		l.Warnf("No units discovered. Creating an empty runner.")
+	}
+
+	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
+	stack := component.NewStack(opts.WorkingDir)
+
+	rnr := &Runner{
+		Stack: stack,
 	}
 
 	rnr.Stack.Units = units

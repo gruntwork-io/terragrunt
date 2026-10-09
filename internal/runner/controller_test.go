@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -422,4 +423,130 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	for _, want := range []string{"unit B failed", "Unit 'D' did not run", "Unit 'E' did not run"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
+}
+
+// One worker makes the dispatch loop wait for A before it claims C, and by then fail-fast has cancelled C.
+func TestRunnerPool_FailFastSkipsEntriesCancelledBeforeDispatch(t *testing.T) {
+	t.Parallel()
+
+	units := buildComponentUnits([]string{"A", "B", "C"}, nil)
+
+	q, err := queue.NewQueue(component.Components{units[0], units[1], units[2]})
+	require.NoError(t, err)
+
+	q.FailFast = true
+
+	errA := errors.New("unit A failed")
+
+	var (
+		mu  sync.Mutex
+		ran []string
+	)
+
+	dagRunner := runner.NewController(
+		q,
+		units,
+		runner.WithRunner(func(_ context.Context, u *component.Unit) error {
+			mu.Lock()
+			defer mu.Unlock()
+
+			ran = append(ran, u.Path())
+
+			if u.Path() == "A" {
+				return errA
+			}
+
+			return nil
+		}),
+		runner.WithMaxConcurrency(1),
+	)
+
+	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	require.ErrorIs(t, err, errA)
+
+	var earlyExit runner.UnitEarlyExitError
+
+	require.ErrorAs(t, err, &earlyExit)
+	assert.Equal(t, "C", earlyExit.UnitPath)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Equal(t, []string{"A", "B"}, ran, "B was claimed before A failed, so only C is skipped")
+	assert.Equal(t, queue.StatusSucceeded, q.EntryByPath("B").Status)
+}
+
+func TestRunnerPool_ReportsEntryFailedBeforeRun(t *testing.T) {
+	t.Parallel()
+
+	units := buildComponentUnits([]string{"A", "B"}, nil)
+
+	q, err := queue.NewQueue(component.Components{units[0], units[1]})
+	require.NoError(t, err)
+
+	q.EntryByPath("A").Status = queue.StatusFailed
+
+	var ran []string
+
+	dagRunner := runner.NewController(
+		q,
+		units,
+		runner.WithRunner(func(_ context.Context, u *component.Unit) error {
+			ran = append(ran, u.Path())
+
+			return nil
+		}),
+		runner.WithMaxConcurrency(1),
+	)
+
+	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+
+	var failed runner.UnitFailedError
+
+	require.ErrorAs(t, err, &failed)
+	assert.Equal(t, "A", failed.UnitPath)
+	assert.Equal(t, []string{"B"}, ran, "an entry that already failed is not run again")
+}
+
+func TestRunnerPool_RecordsOutcomeCountsOnSpan(t *testing.T) {
+	t.Parallel()
+
+	units := buildComponentUnits([]string{"A", "B", "C"}, map[string][]string{"C": {"B"}})
+
+	q, err := queue.NewQueue(component.Components{units[0], units[1], units[2]})
+	require.NoError(t, err)
+
+	errB := errors.New("unit B failed")
+
+	buf, tlm := newConsoleTelemeter(t)
+	ctx := telemetry.ContextWithTelemeter(t.Context(), tlm)
+
+	dagRunner := runner.NewController(
+		q,
+		units,
+		runner.WithRunner(func(_ context.Context, u *component.Unit) error {
+			if u.Path() == "B" {
+				return errB
+			}
+
+			return nil
+		}),
+	)
+
+	require.ErrorIs(t, dagRunner.Run(ctx, logger.CreateLogger()), errB)
+	require.NoError(t, tlm.Shutdown(ctx))
+
+	spans := spansNamed(decodeSpans(t, buf), "runner_pool_controller")
+	require.Len(t, spans, 1)
+
+	counts := map[string]any{}
+	for _, key := range []string{"tasks_succeeded", "tasks_failed", "tasks_early_exit"} {
+		counts[key] = spans[0].Attrs[key]
+	}
+
+	assert.Equal(t, map[string]any{
+		"tasks_succeeded":  float64(1),
+		"tasks_failed":     float64(1),
+		"tasks_early_exit": float64(1),
+	}, counts)
 }

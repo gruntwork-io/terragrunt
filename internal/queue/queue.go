@@ -99,17 +99,6 @@ type Queue struct {
 
 type Entries []*Entry
 
-// Entry returns a given entry from the queue.
-func (e Entries) Entry(cfg component.Component) *Entry {
-	for _, entry := range e {
-		if entry.Component.Path() == cfg.Path() {
-			return entry
-		}
-	}
-
-	return nil
-}
-
 // Components returns the queue components.
 func (q *Queue) Components() component.Components {
 	result := make(component.Components, 0, len(q.Entries))
@@ -506,27 +495,6 @@ func (q *Queue) Finished() bool {
 	}
 
 	return true
-}
-
-// RemainingDeps Helper to calculate remaining dependencies for an entry.
-func (q *Queue) RemainingDeps(e *Entry) int {
-	if e.Component == nil || len(e.Component.Dependencies()) == 0 {
-		return 0
-	}
-
-	q.mu.RLock()
-	defer q.mu.RUnlock()
-
-	count := 0
-
-	for _, dep := range e.Component.Dependencies() {
-		depEntry := q.entryByPathUnsafe(dep.Path())
-		if depEntry == nil || depEntry.Status != StatusSucceeded {
-			count++
-		}
-	}
-
-	return count
 }
 
 // isTerminal returns true if the status is terminal.

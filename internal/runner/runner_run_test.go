@@ -1,9 +1,13 @@
 package runner_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -11,14 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -436,6 +443,341 @@ func TestRunnerRun_PlanWithRemoteStateErrors(t *testing.T) {
 	}
 }
 
+// TestRunnerRun_ReportsUnitOutcome pins the report entry and detailed exit code a unit run leaves behind.
+func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		wantResult report.Result
+		exitCode   int
+		wantErr    bool
+	}{
+		{
+			name:       "plan with changes",
+			exitCode:   tf.DetailedExitCodeChanges,
+			wantResult: report.ResultSucceeded,
+		},
+		{
+			name:       "plan that fails",
+			exitCode:   tf.DetailedExitCodeError,
+			wantResult: report.ResultFailed,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				if slices.Contains(inv.Args, tf.FlagNameDetailedExitCode) {
+					return vexec.Result{Err: exitStatusErr{code: tc.exitCode}}
+				}
+
+				return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+			})
+
+			vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+			opts.TerraformCliArgs = iacargs.New(tf.CommandNamePlan, tf.FlagNameDetailedExitCode)
+
+			l := thlogger.CreateLogger()
+
+			rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+			require.NoError(t, err)
+
+			exitCodes := tf.NewDetailedExitCodeMap()
+			ctx := tf.ContextWithDetailedExitCode(t.Context(), exitCodes)
+			r := report.NewReport().WithWorkingDir(memRoot)
+
+			err = rnr.Run(ctx, l, v, opts, r)
+			assert.Equal(t, tc.wantErr, err != nil, "run error: %v", err)
+
+			run, err := r.GetRun(vpc.Path())
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantResult, run.Result)
+			assert.Equal(t, tc.exitCode, exitCodes.Get(vpc.Path()), "the unit exit code reaches the caller")
+		})
+	}
+}
+
+// TestRunnerRun_OutputFolderCannotBeCreated pins that a run stops when a unit's plan folder cannot be created.
+func TestRunnerRun_OutputFolderCannotBeCreated(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.OutputFolder = filepath.Join(memRoot, "out")
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	faulty := *v
+	faulty.FS = &faultFS{FS: v.FS, op: faultMkdirAll, under: opts.OutputFolder}
+
+	require.ErrorIs(t, rnr.Run(t.Context(), l, &faulty, opts, nil), errInjected)
+}
+
+// TestRunnerRun_RelativeUnitPathsAreLeftOutOfTheReport pins that units the report cannot record do not stop the run.
+func TestRunnerRun_RelativeUnitPathsAreLeftOutOfTheReport(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+
+	reported := newTestUnit(t, v, memRoot, "db", "")
+	reported.SetExcluded(true)
+
+	excluded := component.NewUnit("vpc").WithConfig(&config.TerragruntConfig{})
+	excluded.SetExcluded(true)
+
+	failing := component.NewUnit("app").WithConfig(&config.TerragruntConfig{})
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(
+		t.Context(),
+		l,
+		opts,
+		component.Components{reported, excluded, failing},
+	)
+	require.NoError(t, err)
+
+	r := report.NewReport().WithWorkingDir(memRoot)
+
+	require.Error(t, rnr.Run(t.Context(), l, v, opts, r), "the unit without a config file fails")
+
+	require.Len(t, r.Runs, 1, "the report only records absolute unit paths")
+	assert.Equal(t, reported.Path(), r.Runs[0].Path)
+}
+
+// TestRunnerRun_UnitOptionsCannotBeBuilt pins that a unit whose source cannot be resolved fails.
+func TestRunnerRun_UnitOptionsCannotBeBuilt(t *testing.T) {
+	t.Parallel()
+
+	badSource := "no-slashes-here"
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "").WithConfig(&config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{Source: &badSource},
+	})
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.Source = "/local/modules"
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	var target config.ParsingModulePathError
+
+	require.ErrorAs(t, rnr.Run(t.Context(), l, v, opts, nil), &target)
+}
+
+// TestRunnerRun_WarnsOnLocalStateWithGitRef pins the one warning a run gives when a Git filter selected units
+// that keep their state locally.
+func TestRunnerRun_WarnsOnLocalStateWithGitRef(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		unitBody string
+		mainTF   string
+		ref      string
+		want     int
+	}{
+		{
+			name: "no remote state",
+			ref:  "HEAD~1",
+			want: 1,
+		},
+		{
+			name: "local backend",
+			unitBody: `remote_state {
+  backend = "local"
+  config = {
+    path = "terraform.tfstate"
+  }
+}`,
+			mainTF: `terraform {
+  backend "local" {}
+}`,
+			ref:  "HEAD~1",
+			want: 1,
+		},
+		{
+			name: "remote backend",
+			unitBody: `remote_state {
+  backend = "http"
+  disable_init = true
+  config = {
+    address = "http://127.0.0.1:1/state"
+  }
+}`,
+			mainTF: `terraform {
+  backend "http" {}
+}`,
+			ref: "HEAD~1",
+		},
+		{
+			name: "no git ref",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := memVenv(tfVersionOutput)
+
+			names := []string{"vpc", "app"}
+			units := make(component.Components, 0, len(names))
+
+			for _, name := range names {
+				dir := writeUnit(t, v, memRoot, name, tc.unitBody)
+				require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(dir, "main.tf"), []byte(tc.mainTF), 0o644))
+
+				unit := component.NewUnit(dir).WithConfig(&config.TerragruntConfig{})
+				unit.SetDiscoveryContext(&component.DiscoveryContext{WorkingDir: memRoot, Ref: tc.ref})
+
+				units = append(units, unit)
+			}
+
+			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+
+			var out bytes.Buffer
+
+			l := thlogger.CreateLogger().WithOptions(log.WithOutput(&out))
+
+			rnr, err := runner.NewFromComponents(t.Context(), l, opts, units)
+			require.NoError(t, err)
+			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+
+			assert.Equal(
+				t,
+				tc.want,
+				strings.Count(out.String(), "do not have a remote_state configuration"),
+				"the warning is given at most once per run",
+			)
+		})
+	}
+}
+
+// TestRunnerRun_EngineShutdownFailureKeepsUnitResult pins that a failed engine release does not fail the unit.
+func TestRunnerRun_EngineShutdownFailureKeepsUnitResult(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.IacEngine))
+
+	var out bytes.Buffer
+
+	l := thlogger.CreateLogger().WithOptions(log.WithOutput(&out))
+
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+	assert.Contains(t, out.String(), "Error shutting down engine for unit", "no engine clients were set up to release")
+}
+
+// TestRunnerRun_OutputFlushFailureFailsUnit pins that output the unit could not write fails the unit.
+func TestRunnerRun_OutputFlushFailureFailsUnit(t *testing.T) {
+	t.Parallel()
+
+	writeErr := errors.New("write failed")
+
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if slices.Contains(inv.Args, "-version") {
+			return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+		}
+
+		return vexec.Result{Stdout: []byte("partial line")}
+	}).WithWriter(&failingWriter{err: writeErr})
+
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), writeErr)
+}
+
+// TestRunnerRun_RecordsTaskOutcomeOnSpan pins the outcome each unit task records on its span.
+func TestRunnerRun_RecordsTaskOutcomeOnSpan(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+	app := newTestUnit(t, v, memRoot, "app", invalidHCL)
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc, app})
+	require.NoError(t, err)
+
+	buf, tlm := newConsoleTelemeter(t)
+	ctx := telemetry.ContextWithTelemeter(t.Context(), tlm)
+
+	require.Error(t, rnr.Run(ctx, l, v, opts, nil))
+	require.NoError(t, tlm.Shutdown(ctx))
+
+	outcomes := map[any]any{}
+	for _, span := range spansNamed(decodeSpans(t, buf), "runner_pool_task") {
+		outcomes[span.Attrs["unit_path"]] = span.Attrs["outcome"]
+	}
+
+	assert.Equal(t, map[any]any{vpc.Path(): "succeeded", app.Path(): "failed"}, outcomes)
+}
+
+// TestRunnerRun_JSONOutputCannotBeWritten pins that a unit fails when its JSON plan cannot be written.
+func TestRunnerRun_JSONOutputCannotBeWritten(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.JSONOutputFolder = filepath.Join(memRoot, "json")
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	faulty := *v
+	faulty.FS = &faultFS{FS: v.FS, op: faultMkdirAll, under: opts.JSONOutputFolder}
+
+	require.ErrorIs(t, rnr.Run(t.Context(), l, &faulty, opts, nil), errInjected)
+}
+
+// TestUnitRunnerRun_WithoutOptions pins that a unit runner given no options does nothing.
+func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
+	t.Parallel()
+
+	unitRunner := runner.NewUnitRunner(component.NewUnit(memRoot))
+
+	require.NoError(t, unitRunner.Run(t.Context(), thlogger.CreateLogger(), venvtest.New(), nil, nil, nil, nil))
+	assert.Equal(t, runner.Running, unitRunner.Status)
+}
+
 // newTestUnit writes a unit directory into the in-memory filesystem of v and returns the matching component.
 func newTestUnit(t *testing.T, v *venv.Venv, root, name, hcl string) *component.Unit {
 	t.Helper()
@@ -470,6 +812,15 @@ func recordingVenv(stdout, stderr string) (*venv.Venv, func() []vexec.Invocation
 		return slices.Clone(recorded)
 	}
 }
+
+// exitStatusErr fails a fake OpenTofu/Terraform process with code, as an exited process does.
+type exitStatusErr struct {
+	code int
+}
+
+func (e exitStatusErr) Error() string { return "exit status " + strconv.Itoa(e.code) }
+
+func (e exitStatusErr) ExitStatus() (int, error) { return e.code, nil }
 
 // commandInvocation returns the first invocation of command.
 func commandInvocation(t *testing.T, invocations []vexec.Invocation, command string) vexec.Invocation {

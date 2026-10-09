@@ -61,3 +61,15 @@ func TestNewUnitEarlyExitError(t *testing.T) {
 	assert.Contains(t, err.Error(), "/units/app")
 	assert.Contains(t, err.Error(), "/units/vpc")
 }
+
+func TestNewUnitNotDiscoveredError(t *testing.T) {
+	t.Parallel()
+
+	err := runner.NewUnitNotDiscoveredError("/units/app")
+
+	var notDiscovered runner.UnitNotDiscoveredError
+
+	require.ErrorAs(t, err, &notDiscovered)
+	assert.Equal(t, "/units/app", notDiscovered.UnitPath)
+	assert.Contains(t, err.Error(), "/units/app")
+}
