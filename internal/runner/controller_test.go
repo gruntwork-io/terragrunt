@@ -425,55 +425,63 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	}
 }
 
-// One worker makes the dispatch loop wait for A before it claims C, and by then fail-fast has cancelled C.
+// A fails only once fake time advances, after the loop has claimed B and blocked on the one worker.
 func TestRunnerPool_FailFastSkipsEntriesCancelledBeforeDispatch(t *testing.T) {
 	t.Parallel()
 
-	units := buildComponentUnits([]string{"A", "B", "C"}, nil)
+	synctest.Test(t, func(t *testing.T) {
+		units := buildComponentUnits([]string{"A", "B", "C"}, nil)
 
-	q, err := queue.NewQueue(component.Components{units[0], units[1], units[2]})
-	require.NoError(t, err)
+		q, err := queue.NewQueue(component.Components{units[0], units[1], units[2]})
+		require.NoError(t, err)
 
-	q.FailFast = true
+		q.FailFast = true
 
-	errA := errors.New("unit A failed")
+		errA := errors.New("unit A failed")
 
-	var (
-		mu  sync.Mutex
-		ran []string
-	)
+		var (
+			mu  sync.Mutex
+			ran []string
+		)
 
-	dagRunner := runner.NewController(
-		q,
-		units,
-		runner.WithRunner(func(_ context.Context, u *component.Unit) error {
+		record := func(path string) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			ran = append(ran, u.Path())
+			ran = append(ran, path)
+		}
 
-			if u.Path() == "A" {
+		dagRunner := runner.NewController(
+			q,
+			units,
+			runner.WithRunner(func(_ context.Context, u *component.Unit) error {
+				record(u.Path())
+
+				if u.Path() != "A" {
+					return nil
+				}
+
+				time.Sleep(time.Second)
+
 				return errA
-			}
+			}),
+			runner.WithMaxConcurrency(1),
+		)
 
-			return nil
-		}),
-		runner.WithMaxConcurrency(1),
-	)
+		err = dagRunner.Run(t.Context(), logger.CreateLogger())
+		require.ErrorIs(t, err, errA)
 
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.ErrorIs(t, err, errA)
+		var earlyExit runner.UnitEarlyExitError
 
-	var earlyExit runner.UnitEarlyExitError
+		require.ErrorAs(t, err, &earlyExit)
+		assert.Equal(t, "C", earlyExit.UnitPath)
 
-	require.ErrorAs(t, err, &earlyExit)
-	assert.Equal(t, "C", earlyExit.UnitPath)
+		mu.Lock()
+		defer mu.Unlock()
 
-	mu.Lock()
-	defer mu.Unlock()
-
-	assert.Equal(t, []string{"A", "B"}, ran, "B was claimed before A failed, so only C is skipped")
-	assert.Equal(t, queue.StatusSucceeded, q.EntryByPath("B").Status)
+		assert.Equal(t, []string{"A", "B"}, ran, "B was claimed before A failed, so only C is skipped")
+		assert.Equal(t, queue.StatusSucceeded, q.EntryByPath("B").Status)
+	})
 }
 
 func TestRunnerPool_ReportsEntryFailedBeforeRun(t *testing.T) {

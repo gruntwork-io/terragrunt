@@ -443,7 +443,7 @@ func TestRunnerRun_PlanWithRemoteStateErrors(t *testing.T) {
 	}
 }
 
-// TestRunnerRun_ReportsUnitOutcome pins the report entry and detailed exit code a unit run leaves behind.
+// The in-memory exec's exit code is invisible to util.GetExitCode, so the fake plan fails with an ExitStatus error.
 func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 	t.Parallel()
 
@@ -503,7 +503,6 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 	}
 }
 
-// TestRunnerRun_OutputFolderCannotBeCreated pins that a run stops when a unit's plan folder cannot be created.
 func TestRunnerRun_OutputFolderCannotBeCreated(t *testing.T) {
 	t.Parallel()
 
@@ -524,7 +523,7 @@ func TestRunnerRun_OutputFolderCannotBeCreated(t *testing.T) {
 	require.ErrorIs(t, rnr.Run(t.Context(), l, &faulty, opts, nil), errInjected)
 }
 
-// TestRunnerRun_RelativeUnitPathsAreLeftOutOfTheReport pins that units the report cannot record do not stop the run.
+// The report refuses relative paths, so those units are left out and the run goes on.
 func TestRunnerRun_RelativeUnitPathsAreLeftOutOfTheReport(t *testing.T) {
 	t.Parallel()
 
@@ -558,7 +557,6 @@ func TestRunnerRun_RelativeUnitPathsAreLeftOutOfTheReport(t *testing.T) {
 	assert.Equal(t, reported.Path(), r.Runs[0].Path)
 }
 
-// TestRunnerRun_UnitOptionsCannotBeBuilt pins that a unit whose source cannot be resolved fails.
 func TestRunnerRun_UnitOptionsCannotBeBuilt(t *testing.T) {
 	t.Parallel()
 
@@ -582,8 +580,7 @@ func TestRunnerRun_UnitOptionsCannotBeBuilt(t *testing.T) {
 	require.ErrorAs(t, rnr.Run(t.Context(), l, v, opts, nil), &target)
 }
 
-// TestRunnerRun_WarnsOnLocalStateWithGitRef pins the one warning a run gives when a Git filter selected units
-// that keep their state locally.
+// Two units run in each case, so a warning given per unit instead of per run would be counted twice.
 func TestRunnerRun_WarnsOnLocalStateWithGitRef(t *testing.T) {
 	t.Parallel()
 
@@ -671,7 +668,7 @@ func TestRunnerRun_WarnsOnLocalStateWithGitRef(t *testing.T) {
 	}
 }
 
-// TestRunnerRun_EngineShutdownFailureKeepsUnitResult pins that a failed engine release does not fail the unit.
+// No engine clients are set up, so releasing the unit's engine fails.
 func TestRunnerRun_EngineShutdownFailureKeepsUnitResult(t *testing.T) {
 	t.Parallel()
 
@@ -692,7 +689,7 @@ func TestRunnerRun_EngineShutdownFailureKeepsUnitResult(t *testing.T) {
 	assert.Contains(t, out.String(), "Error shutting down engine for unit", "no engine clients were set up to release")
 }
 
-// TestRunnerRun_OutputFlushFailureFailsUnit pins that output the unit could not write fails the unit.
+// Output without a trailing newline stays buffered until the final flush, which is the write that fails.
 func TestRunnerRun_OutputFlushFailureFailsUnit(t *testing.T) {
 	t.Parallel()
 
@@ -718,7 +715,6 @@ func TestRunnerRun_OutputFlushFailureFailsUnit(t *testing.T) {
 	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), writeErr)
 }
 
-// TestRunnerRun_RecordsTaskOutcomeOnSpan pins the outcome each unit task records on its span.
 func TestRunnerRun_RecordsTaskOutcomeOnSpan(t *testing.T) {
 	t.Parallel()
 
@@ -747,7 +743,6 @@ func TestRunnerRun_RecordsTaskOutcomeOnSpan(t *testing.T) {
 	assert.Equal(t, map[any]any{vpc.Path(): "succeeded", app.Path(): "failed"}, outcomes)
 }
 
-// TestRunnerRun_JSONOutputCannotBeWritten pins that a unit fails when its JSON plan cannot be written.
 func TestRunnerRun_JSONOutputCannotBeWritten(t *testing.T) {
 	t.Parallel()
 
@@ -768,7 +763,6 @@ func TestRunnerRun_JSONOutputCannotBeWritten(t *testing.T) {
 	require.ErrorIs(t, rnr.Run(t.Context(), l, &faulty, opts, nil), errInjected)
 }
 
-// TestUnitRunnerRun_WithoutOptions pins that a unit runner given no options does nothing.
 func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
 	t.Parallel()
 
