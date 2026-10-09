@@ -10,10 +10,12 @@ The `slow-task-reporting` experiment drew a spinner for each slow operation stra
 The experiment now draws a single progress line that is shared by every operation in flight, is cut to the width of the terminal, and steps out of the way of log lines:
 
 ```text
-| Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
+T Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
 ```
 
-Terragrunt writes INFO log lines instead of drawing when it detects a CI environment, when `TERM` is `dumb`, when logs are in the `json` format, and for the units of a `run --all` and the repositories of `terragrunt catalog`. The animation falls back to ASCII characters on terminals without a UTF-8 locale and on Windows consoles other than Windows Terminal.
+Terragrunt writes INFO log lines instead of drawing when it detects a CI environment, when `TERM` is `dumb`, when logs are in the `json` format, and for the units of a `run --all` and the repositories of `terragrunt catalog`.
+
+The line starts with the letters `T` and `G`. On terminals with a UTF-8 locale and on Windows Terminal they are drawn in braille dots that change from one letter into the other. On other terminals the plain letters take turns.
 
 More operations are reported: unit discovery, fetching the outputs of `dependency` blocks, provider caching, waiting for new remote state resources, `stack generate` fetches, and lock waits.
 

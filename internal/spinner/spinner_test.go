@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math/bits"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -22,6 +24,12 @@ import (
 )
 
 const testThreshold = 50 * time.Millisecond
+
+// dotsT and dotsG are the letters T and G as the animation draws them in braille dots.
+const (
+	dotsT = "\u28b9\u284f"
+	dotsG = "\u288e\u28ed"
+)
 
 func TestShowAfterFastOperationIsNotReported(t *testing.T) {
 	t.Parallel()
@@ -344,8 +352,10 @@ func TestProgressLineShowsFrameMessageAndElapsedTime(t *testing.T) {
 
 		frames := drawnLines(term.Bytes())
 		require.NotEmpty(t, frames)
-		assert.Equal(t, "⠋ Cloning repository... (0s)", frames[0])
-		assert.Contains(t, frames, "⠹ Cloning repository... (2s)")
+		assert.Equal(t, dotsT+" Cloning repository... (0s)", frames[0])
+		assert.True(t, slices.ContainsFunc(frames, func(frame string) bool {
+			return strings.HasSuffix(frame, " Cloning repository... (2s)")
+		}), frames)
 
 		screen := screenRows(term.Bytes(), 120)
 		require.Len(t, screen, 1)
@@ -405,17 +415,17 @@ func TestProgressLineStaysOnOneRowWhateverTheMessageHolds(t *testing.T) {
 		{
 			name:    "tab and line breaks",
 			working: "Reading a\tb\nc\r\nd",
-			want:    "⠋ Reading a b c  d (0s)",
+			want:    dotsT + " Reading a b c  d (0s)",
 		},
 		{
 			name:    "wide characters are counted as two columns",
 			working: "Downloading " + strings.Repeat("\uff21\uff22", 10),
-			want:    "⠋ Downloading " + strings.Repeat("\uff21\uff22", 4) + "... (0s)",
+			want:    dotsT + " Downloading " + strings.Repeat("\uff21\uff22", 4) + "... (0s)",
 		},
 		{
 			name:    "combining marks take no column",
 			working: "Cloning cafe\u0301 repo 0123456789 0123456789 0123456789",
-			want:    "⠋ Cloning cafe\u0301 repo 0123456789 ... (0s)",
+			want:    dotsT + " Cloning cafe\u0301 repo 0123456789... (0s)",
 		},
 	}
 
@@ -487,7 +497,7 @@ func TestProgressLineIsSharedAndLogsAreWrittenAroundIt(t *testing.T) {
 		require.Len(t, during, 2)
 		assert.True(t, strings.HasPrefix(during[0], "time="), during[0])
 		assert.Contains(t, during[0], `msg="unit-c: tofu init finished"`)
-		assert.Equal(t, "⠴ Downloading source... (1s) +1 more", during[1])
+		assert.Equal(t, dotsG+" Downloading source... (1s) +1 more", during[1])
 
 		after := screenRows(term.Bytes(), 200)
 		require.Len(t, after, 3)
@@ -543,55 +553,55 @@ func TestProgressFramesFollowTheTerminal(t *testing.T) {
 			name:      "linux with a UTF-8 locale",
 			goos:      "linux",
 			env:       map[string]string{"TERM": "xterm", "LANG": "en_US.UTF-8"},
-			wantFrame: "⠋",
+			wantFrame: dotsT,
 		},
 		{
 			name:      "linux with the C locale",
 			goos:      "linux",
 			env:       map[string]string{"TERM": "xterm", "LANG": "C"},
-			wantFrame: "|",
+			wantFrame: "T",
 		},
 		{
 			name:      "linux with no locale",
 			goos:      "linux",
 			env:       map[string]string{"TERM": "xterm"},
-			wantFrame: "|",
+			wantFrame: "T",
 		},
 		{
 			name:      "LC_ALL wins over LANG",
 			goos:      "linux",
 			env:       map[string]string{"TERM": "xterm", "LANG": "en_US.UTF-8", "LC_ALL": "POSIX"},
-			wantFrame: "|",
+			wantFrame: "T",
 		},
 		{
 			name:      "LC_CTYPE wins over LANG",
 			goos:      "linux",
 			env:       map[string]string{"TERM": "xterm", "LANG": "C", "LC_CTYPE": "en_US.utf8"},
-			wantFrame: "⠋",
+			wantFrame: dotsT,
 		},
 		{
 			name:      "macOS terminal",
 			goos:      "darwin",
 			env:       map[string]string{"TERM": "xterm-256color", "LANG": "en_US.UTF-8"},
-			wantFrame: "⠋",
+			wantFrame: dotsT,
 		},
 		{
 			name:      "windows console",
 			goos:      "windows",
 			env:       map[string]string{},
-			wantFrame: "|",
+			wantFrame: "T",
 		},
 		{
 			name:      "windows console ignores the locale",
 			goos:      "windows",
 			env:       map[string]string{"LANG": "en_US.UTF-8"},
-			wantFrame: "|",
+			wantFrame: "T",
 		},
 		{
 			name:      "windows terminal",
 			goos:      "windows",
 			env:       map[string]string{"WT_SESSION": "c4a9a1b2"},
-			wantFrame: "⠋",
+			wantFrame: dotsT,
 		},
 	}
 
@@ -628,6 +638,85 @@ func TestProgressFramesFollowTheTerminal(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestProgressLettersChangeOneDotAtATime(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		term := new(syncBuffer)
+		reporter := spinner.New(terminalOptions(term, 120))
+		l := newLogger(reporter.Guard(term))
+
+		err := reporter.Show(t.Context(), l, spinner.Messages{
+			Working: "working",
+			Done:    "done",
+		}, func() error {
+			time.Sleep(3 * time.Second)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+
+		var letters []string
+
+		for _, line := range drawnLines(term.Bytes()) {
+			letter, _, found := strings.Cut(line, " ")
+			require.True(t, found, line)
+
+			if len(letters) == 0 || letters[len(letters)-1] != letter {
+				letters = append(letters, letter)
+			}
+		}
+
+		require.GreaterOrEqual(t, len(letters), 17, letters)
+		assert.Equal(t, dotsT, letters[0])
+		assert.Equal(t, dotsG, letters[8])
+		assert.Equal(t, dotsT, letters[16])
+
+		for i := range len(letters) - 1 {
+			assert.Equal(t, 1, changedDots(letters[i], letters[i+1]), "%s -> %s", letters[i], letters[i+1])
+		}
+	})
+}
+
+func TestProgressLettersTakeTurnsWithoutBraille(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		term := new(syncBuffer)
+
+		opts := terminalOptions(term, 120)
+		opts.Env = map[string]string{"TERM": "xterm", "LANG": "C"}
+
+		reporter := spinner.New(opts)
+		l := newLogger(reporter.Guard(term))
+
+		err := reporter.Show(t.Context(), l, spinner.Messages{
+			Working: "working",
+			Done:    "done",
+		}, func() error {
+			time.Sleep(3 * time.Second)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+
+		var letters []string
+
+		for _, line := range drawnLines(term.Bytes()) {
+			letter, _, found := strings.Cut(line, " ")
+			require.True(t, found, line)
+
+			if len(letters) == 0 || letters[len(letters)-1] != letter {
+				letters = append(letters, letter)
+			}
+		}
+
+		assert.Equal(t, []string{"T", "G", "T"}, letters)
+	})
 }
 
 func TestProgressWriteFailureIsLoggedOnceAndTheOperationCompletes(t *testing.T) {
@@ -1002,6 +1091,19 @@ func newLogger(out interface{ Write([]byte) (int, error) }) log.Logger {
 // logLines returns the lines written to `logs`.
 func logLines(logs *bytes.Buffer) []string {
 	return strings.Split(strings.TrimSuffix(logs.String(), "\n"), "\n")
+}
+
+// changedDots returns how many braille dots differ between `a` and `b`, two letters of equal length.
+func changedDots(a, b string) int {
+	changed := 0
+
+	other := []rune(b)
+
+	for i, char := range []rune(a) {
+		changed += bits.OnesCount32(uint32(char ^ other[i]))
+	}
+
+	return changed
 }
 
 // loggerOutput returns the writer `l` writes to.

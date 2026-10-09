@@ -42,7 +42,7 @@ These operations are reported:
 **On a terminal**, Terragrunt draws one progress line. It shows the operation, how long it has been running, and how many other operations are running:
 
 ```text
-| Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
+T Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
 ```
 
 The line is cut to the width of the terminal, so it never wraps. Log lines are written above it. When the operation succeeds, the line is replaced with an INFO log line that includes the elapsed time.
@@ -66,7 +66,7 @@ To get log lines on a terminal, set `TERM=dumb` or `CI=true`.
 
 Units of a `run --all` and the repositories `terragrunt catalog` loads always report as log lines, because their output reaches the terminal while other units and repositories are still running.
 
-The animation uses braille characters on terminals with a UTF-8 locale and on Windows Terminal, and the characters `|`, `/`, `-` and `\` elsewhere.
+The line starts with the letters `T` and `G`, for Terragrunt. On terminals with a UTF-8 locale and on Windows Terminal they are drawn in braille dots, and the dots of one letter change into the other one at a time. Elsewhere the plain letters `T` and `G` take turns.
 
 The log lines are written at the INFO level. With `--log-level warn` or higher, or with `--log-disable`, nothing is reported, including the lines that keep a CI job alive.
 
