@@ -893,6 +893,16 @@ inputs = local.config
 result into a map that can be used to reference the values of the parsed config. This function will expose all blocks
 and attributes of a terragrunt config.
 
+<Since version="v1.2.1">
+
+The file can't see the locals or feature flags of the unit reading it, and relative paths resolve from the file's own directory. Use [`get_original_terragrunt_dir()`](#get_original_terragrunt_dir) to get the reading unit's directory.
+
+Terragrunt parses the file once and gives every unit the same result. It parses the file again when the file, or a file it reads, changes during the command, and `run --all` parses it a second time when the run starts, after discovering units. It parses the file for each unit if the file has `dependency` blocks or calls `get_original_terragrunt_dir()`, [`get_working_dir()`](#get_working_dir), `uuid()`, `timestamp()`, `bcrypt()`, or [`run_cmd`](#run_cmd) with `--terragrunt-no-cache`. The same goes for any file that reads one of those.
+
+An [auth provider command](/features/units/authentication/) runs for each unit and can set different environment variables for each one, such as its own credentials. Units whose environment variables differ get separate results.
+
+</Since>
+
 For example, suppose you had a config file called `common.hcl` that contains common input variables:
 
 ```hcl
