@@ -44,6 +44,7 @@ var valueTakingFlags = []string{
 	"state-out",
 	"backup",
 	"target",
+	"replace",
 	"var",
 	"var-file",
 }
