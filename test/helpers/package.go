@@ -6,21 +6,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"io/fs"
-	"math/big"
 	mathRand "math/rand"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -81,16 +72,11 @@ const (
 	readWritePermissions = 0o666
 	allPermissions       = 0o777
 
-	caKeyBits = 4096
-
 	// argsPerModulePath is the flag and value each module path adds to a command line.
 	argsPerModulePath = 2
 
 	// fakeProviderBinarySize is the size of the dummy binary FakeProvider packs into its archive.
 	fakeProviderBinarySize = 1e7
-
-	// certValidityYears is how long the test CA and its leaf certificate stay valid.
-	certValidityYears = 10
 
 	semverPartsLen = 3
 
@@ -610,80 +596,6 @@ func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 	return relPaths
 }
 
-func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
-	t.Helper()
-
-	tmpEnvPath := CopyEnvironment(t, TestFixtureOutDir)
-	CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := filepath.Join(tmpEnvPath, TestFixtureOutDir)
-
-	// run plan with output directory
-	stdout, stderr, err := RunTerragruntCommandWithOutput(
-		t,
-		fmt.Sprintf(
-			"terraform run --all plan --non-interactive --working-dir %s %s",
-			testPath,
-			args,
-		),
-	)
-
-	return tmpEnvPath, stdout, stderr, err
-}
-
-func RunNetworkMirrorServer(
-	t *testing.T,
-	ctx context.Context,
-	urlPrefix, providerDir, token string,
-) *url.URL {
-	t.Helper()
-
-	serverTLSConf, clientTLSConf := certSetup(t)
-
-	http.DefaultTransport = &http.Transport{
-		TLSClientConfig: clientTLSConf,
-	}
-
-	mux := http.NewServeMux()
-
-	fs := http.FileServer(http.Dir(providerDir))
-
-	withGz := GzipHandler(http.StripPrefix(urlPrefix, fs))
-
-	mux.HandleFunc(urlPrefix, func(resp http.ResponseWriter, req *http.Request) {
-		if token != "" {
-			authHeaders := req.Header.Values("Authorization")
-			assert.Contains(t, authHeaders, "Bearer "+token)
-		}
-
-		withGz.ServeHTTP(resp, req)
-	})
-
-	ln, err := tls.Listen("tcp", "localhost:8888", serverTLSConf)
-	require.NoError(t, err)
-
-	server := &http.Server{
-		Addr:    ln.Addr().String(),
-		Handler: mux,
-	}
-
-	go func() {
-		err := server.Serve(ln)
-		assert.NoError(t, err)
-	}()
-
-	go func() {
-		<-ctx.Done()
-		err := server.Shutdown(ctx)
-		assert.NoError(t, err)
-	}()
-
-	return &url.URL{
-		Scheme: "https",
-		Host:   ln.Addr().String(),
-		Path:   urlPrefix,
-	}
-}
-
 type FakeProvider struct {
 	RegistryName string
 	Namespace    string
@@ -817,115 +729,6 @@ func marshalFile(t *testing.T, filename string, dest any) {
 	require.NoError(t, err)
 	err = os.WriteFile(filename, data, readWritePermissions)
 	require.NoError(t, err)
-}
-
-func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
-	t.Helper()
-
-	// set up our CA certificate
-	serialNumber, err := strconv.ParseInt(time.Now().Format("20060102150405"), 10, 64)
-	require.NoError(t, err)
-
-	ca := &x509.Certificate{
-		SerialNumber: big.NewInt(serialNumber),
-		Subject: pkix.Name{
-			Organization:  []string{"Company, INC."},
-			Country:       []string{"US"},
-			Province:      []string{""},
-			Locality:      []string{"San Francisco"},
-			StreetAddress: []string{"Golden Gate Bridge"},
-			PostalCode:    []string{"94016"},
-		},
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().AddDate(certValidityYears, 0, 0),
-		IsCA:      true,
-		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageClientAuth,
-			x509.ExtKeyUsageServerAuth,
-		},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
-
-	// create our private and public key
-	caPrivKey, err := rsa.GenerateKey(rand.Reader, caKeyBits)
-	require.NoError(t, err)
-
-	// create the CA
-	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
-	require.NoError(t, err)
-
-	// pem encode
-	caPEM := new(bytes.Buffer)
-	require.NoError(t, pem.Encode(caPEM, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: caBytes,
-	}))
-
-	caPrivKeyPEM := new(bytes.Buffer)
-	require.NoError(t, pem.Encode(caPrivKeyPEM, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
-	}))
-
-	// set up our server certificate
-	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(serialNumber),
-		Subject: pkix.Name{
-			Organization:  []string{"Company, INC."},
-			Country:       []string{"US"},
-			Province:      []string{""},
-			Locality:      []string{"San Francisco"},
-			StreetAddress: []string{"Golden Gate Bridge"},
-			PostalCode:    []string{"94016"},
-		},
-		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.IPv6loopback},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().AddDate(certValidityYears, 0, 0),
-		SubjectKeyId: []byte{1, 2, 3, 4, 6},
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-	}
-
-	certPrivKey, err := rsa.GenerateKey(rand.Reader, caKeyBits)
-	require.NoError(t, err)
-
-	certBytes, err := x509.CreateCertificate(
-		rand.Reader,
-		cert,
-		ca,
-		&certPrivKey.PublicKey,
-		caPrivKey,
-	)
-	require.NoError(t, err)
-
-	certPEM := new(bytes.Buffer)
-	require.NoError(t, pem.Encode(certPEM, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certBytes,
-	}))
-
-	certPrivKeyPEM := new(bytes.Buffer)
-	require.NoError(t, pem.Encode(certPrivKeyPEM, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
-	}))
-
-	serverCert, err := tls.X509KeyPair(certPEM.Bytes(), certPrivKeyPEM.Bytes())
-	require.NoError(t, err)
-
-	serverTLSConf := &tls.Config{
-		Certificates: []tls.Certificate{serverCert},
-	}
-
-	certpool := x509.NewCertPool()
-	certpool.AppendCertsFromPEM(caPEM.Bytes())
-	clientTLSConf := &tls.Config{
-		RootCAs:            certpool,
-		InsecureSkipVerify: true,
-	}
-
-	return serverTLSConf, clientTLSConf
 }
 
 func ValidateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value any) {
