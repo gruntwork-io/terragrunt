@@ -365,7 +365,8 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 	// includes the identity that AssignRoleIfMissing will target. Without this,
 	// two callers sharing assign_blob_data_role=true and an empty principal_id
 	// would share one "already initialized" entry and the second would skip the grant.
-	if err := resolveAssignBlobDataPrincipal(ctx, extCfg, cfg); err != nil {
+	principal, err := resolveAssignBlobDataPrincipal(ctx, extCfg, cfg)
+	if err != nil {
 		return err
 	}
 
@@ -392,7 +393,7 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 	}
 
 	if armCapable(cfg) {
-		if err := b.bootstrapAccount(ctx, l, extCfg, cfg, opts); err != nil {
+		if err := b.bootstrapAccount(ctx, l, extCfg, cfg, opts, principal); err != nil {
 			return err
 		}
 	}
@@ -447,6 +448,7 @@ func (b *Backend) bootstrapAccount(
 	extCfg *ExtendedRemoteStateConfigAzurerm,
 	cfg *azurehelper.AzureConfig,
 	opts *backend.Options,
+	principal azurehelper.Principal,
 ) error {
 	// A user-managed account with no policy work needs nothing from ARM.
 	if !armWorkRequested(extCfg) {
@@ -501,32 +503,19 @@ func (b *Backend) bootstrapAccount(
 		}
 	}
 
-	return ensureBlobDataRole(ctx, l, extCfg, cfg)
+	return ensureBlobDataRole(ctx, l, extCfg, cfg, principal)
 }
 
-// ensureBlobDataRole grants data-plane access, which creating the account does not convey.
+// ensureBlobDataRole grants principal data-plane access, which creating the account does not convey.
 func ensureBlobDataRole(
 	ctx context.Context,
 	l log.Logger,
 	extCfg *ExtendedRemoteStateConfigAzurerm,
 	cfg *azurehelper.AzureConfig,
+	principal azurehelper.Principal,
 ) error {
 	if !extCfg.AssignBlobDataRole {
 		return nil
-	}
-
-	// A configured principal is left untyped so Azure infers it. A pre-resolved
-	// one keeps its token type: an ABAC condition on roleAssignments/write
-	// (e.g. RBAC Administrator delegation) may require principalType.
-	principal := azurehelper.Principal{ID: extCfg.PrincipalID, Type: extCfg.resolvedPrincipalType}
-
-	if principal.ID == "" {
-		resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
-		if err != nil {
-			return err
-		}
-
-		principal = resolved
 	}
 
 	rbacClient, err := azurehelper.NewRBACClient(cfg)
@@ -544,27 +533,36 @@ func ensureBlobDataRole(
 	})
 }
 
-// resolveAssignBlobDataPrincipal fills PrincipalID from the caller's token when
-// assign_blob_data_role is set and principal_id was left empty, so CacheKey
-// distinguishes identities before the bootstrap short-circuit.
+// resolveAssignBlobDataPrincipal returns the principal that receives the blob
+// data role, or the zero value when assign_blob_data_role is unset or the auth
+// cannot reach ARM.
+//
+// When principal_id is empty it reads the caller from its token and stores the
+// id in PrincipalID.
 func resolveAssignBlobDataPrincipal(
 	ctx context.Context,
 	extCfg *ExtendedRemoteStateConfigAzurerm,
 	cfg *azurehelper.AzureConfig,
-) error {
-	if !extCfg.AssignBlobDataRole || extCfg.PrincipalID != "" || !armCapable(cfg) {
-		return nil
+) (azurehelper.Principal, error) {
+	if !extCfg.AssignBlobDataRole || !armCapable(cfg) {
+		return azurehelper.Principal{}, nil
 	}
 
+	if extCfg.PrincipalID != "" {
+		return azurehelper.Principal{ID: extCfg.PrincipalID}, nil
+	}
+
+	// The caller keeps its token type because an ABAC condition on
+	// roleAssignments/write (e.g. RBAC Administrator delegation) may require
+	// principalType.
 	resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
 	if err != nil {
-		return err
+		return azurehelper.Principal{}, err
 	}
 
 	extCfg.PrincipalID = resolved.ID
-	extCfg.resolvedPrincipalType = resolved.Type
 
-	return nil
+	return resolved, nil
 }
 
 // createAccount provisions the resource group (when allowed) and the storage

@@ -101,8 +101,7 @@ func StorageAccountScope(subscriptionID, resourceGroup, account string) string {
 type Principal struct {
 	// ID is the Microsoft Entra object id.
 	ID string
-	// Type is "User" or "ServicePrincipal", or empty when the token does not say,
-	// because Azure rejects a mismatch.
+	// Type is "User" or "ServicePrincipal", or empty when the token does not state it.
 	Type string
 }
 
@@ -373,8 +372,8 @@ func principalFromToken(token string) (Principal, error) {
 	}
 
 	// Entra sets idtyp to "app" on an app-only token and "user" on a delegated
-	// one. Without it the type stays empty so Azure infers it instead of
-	// rejecting a wrong guess.
+	// one. Without it the type stays empty, because Azure infers a missing type
+	// and rejects a wrong one.
 	var principalType string
 
 	switch {
