@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -527,6 +529,43 @@ func TestRunOrderRejectsAnUnknownFormat(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.True(t, res.IsError)
+}
+
+// TestRunOrderDescriptionNamesOnlyArgumentsItAccepts pins that every
+// name=value the description tells a client to pass names an argument in the
+// input schema. The schema is closed, so a call with any other name fails.
+func TestRunOrderDescriptionNamesOnlyArgumentsItAccepts(t *testing.T) {
+	t.Parallel()
+
+	session := newTestSession(t, newTestTree(t))
+
+	res, err := session.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+
+	idx := slices.IndexFunc(res.Tools, func(tool *mcp.Tool) bool { return tool.Name == "run_order" })
+	require.GreaterOrEqual(t, idx, 0, "run_order must be advertised")
+
+	tool := res.Tools[idx]
+
+	raw, err := json.Marshal(tool.InputSchema)
+	require.NoError(t, err)
+
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+
+	require.NoError(t, json.Unmarshal(raw, &schema))
+
+	arguments := slices.Sorted(maps.Keys(schema.Properties))
+	require.NotEmpty(t, arguments)
+
+	// A leading dash marks a server flag such as --allow=exec.
+	mentions := regexp.MustCompile(`(?:^|[^-\w])([a-z_]+)=\w`).FindAllStringSubmatch(tool.Description, -1)
+	require.NotEmpty(t, mentions)
+
+	for _, mention := range mentions {
+		assert.Contains(t, arguments, mention[1])
+	}
 }
 
 func TestValidateToolSeparatesCleanAndBrokenTrees(t *testing.T) {
