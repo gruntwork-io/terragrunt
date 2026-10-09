@@ -247,3 +247,28 @@ func (e EmptyQueueConstructAsError) Error() string {
 func NewEmptyQueueConstructAsError(value string) error {
 	return EmptyQueueConstructAsError{Value: value}
 }
+
+// DeletedDependencyError reports a missing dependency configuration for a component
+// that the diff of a Git-based filter deleted or moved while a `dependency` block
+// still points at it.
+type DeletedDependencyError struct {
+	// Err is the original missing configuration error.
+	Err error
+	// Path is the component's path relative to the repository root.
+	Path string
+	// Ref is the Git reference the component still exists at.
+	Ref string
+}
+
+func (e DeletedDependencyError) Error() string {
+	return fmt.Sprintf(
+		"a dependency points at %s, which exists at %s but was deleted or moved in the Git diff: %s",
+		e.Path,
+		e.Ref,
+		e.Err,
+	)
+}
+
+func (e DeletedDependencyError) Unwrap() error {
+	return e.Err
+}

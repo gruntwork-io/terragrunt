@@ -49,12 +49,22 @@ type PopulateTFVersionInput struct {
 // when terraform_binary overrides the default after a prior call has already
 // resolved a different binary). Returns the discovered version and implementation
 // type; the caller is responsible for storing them on *options.TerragruntOptions.
+//
+// When an engine runs the commands, which in.TFOpts.ShellOptions reports through
+// EngineEnabled, no probe runs: the version comes back nil and the implementation
+// [tfimpl.Unknown].
 func PopulateTFVersion(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	in PopulateTFVersionInput,
 ) (log.Logger, *semver.Version, tfimpl.Type, error) {
+	if in.TFOpts.ShellOptions.EngineEnabled() {
+		l.Debugf("Skipping the OpenTofu/Terraform version probe: an engine runs the commands, so the version and implementation stay unknown")
+
+		return l, nil, tfimpl.Unknown, nil
+	}
+
 	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(
 		v.FS,
@@ -226,12 +236,29 @@ func CheckTerragruntVersionMeetsConstraint(
 // version meets configConstraint, the terraform_version_constraint from config.
 // An empty configConstraint checks against [DefaultTerraformVersionConstraint].
 //
+// A nil currentVersion is the unknown version [PopulateTFVersion] reports when an
+// engine runs the commands. The check then passes, with a warning through l when
+// configConstraint is set, since Terragrunt cannot enforce it.
+//
 // Returns [InvalidTerraformVersion] naming impl when the version does not meet the constraint.
 func CheckTerraformVersionMeetsConstraint(
+	l log.Logger,
 	currentVersion *semver.Version,
 	impl tfimpl.Type,
 	configConstraint string,
 ) error {
+	if currentVersion == nil {
+		if configConstraint != "" {
+			l.Warnf(
+				"Skipping terraform_version_constraint %q: an engine runs %s, so Terragrunt cannot detect its version",
+				configConstraint,
+				impl.DisplayName(),
+			)
+		}
+
+		return nil
+	}
+
 	constraint, source := configConstraint, ConfigConstraint
 	if constraint == "" {
 		constraint, source = DefaultTerraformVersionConstraint, DefaultConstraint

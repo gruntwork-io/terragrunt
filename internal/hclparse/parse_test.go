@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -1725,6 +1726,323 @@ unit "vpc" {
 	)
 }
 
+func TestParseStackFile_OverrideReplacesUnitAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  region = "eu"
+}
+
+unit "queue" {
+  source = "../catalog/units/queue"
+  path   = "queue"
+}
+
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "function-${each.key}"
+
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+
+  autoinclude {
+    inputs = {
+      leaked = true
+    }
+  }
+}
+
+unit "logs" {
+  source = "../catalog/units/logs"
+  path   = "logs"
+
+  autoinclude {
+    dependency "function" {
+      config_path = unit.function.path
+    }
+  }
+}
+`
+	overrideSrc := `
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "handler-${local.region}"
+
+  autoinclude {
+    dependency "queue" {
+      config_path = unit.queue.path
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.NoError(t, err)
+	require.Len(t, result.AutoIncludes, 2, "the base autoinclude of every overridden instance must be dropped")
+
+	function, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "function")]
+	require.True(t, ok, "the override's own autoinclude must resolve")
+	require.Len(t, function.Dependencies, 1)
+	assert.Equal(
+		t,
+		hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "queue")),
+		function.Dependencies[0].ConfigPath,
+	)
+	assert.Equal(t, []byte(overrideSrc), function.SourceBytes)
+
+	logs, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "logs")]
+	require.True(t, ok, "a sibling that is not overridden must keep its autoinclude")
+	require.Len(t, logs.Dependencies, 1)
+	assert.Equal(
+		t,
+		hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "handler-eu")),
+		logs.Dependencies[0].ConfigPath,
+		"a reference to an overridden unit must resolve to the override's path",
+	)
+	assert.Equal(t, []byte(src), logs.SourceBytes)
+}
+
+func TestParseStackFile_OverrideReplacesStackAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+
+stack "inner" {
+  source = "../catalog/stacks/inner"
+  path   = "inner"
+
+  autoinclude {
+    unit "base" {
+      source = "../catalog/units/base"
+      path   = "base"
+    }
+  }
+}
+`
+	overrideSrc := `
+stack "inner" {
+  source = "../catalog/stacks/inner"
+  path   = "inner"
+
+  autoinclude {
+    unit "injected" {
+      source = "../catalog/units/injected"
+      path   = "injected"
+    }
+  }
+}
+
+unit "worker" {
+  source = "../catalog/units/worker"
+  path   = "worker-${each.key}"
+
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+
+  autoinclude {
+    dependency "app" {
+      config_path = unit.app.path
+    }
+
+    inputs = {
+      name = each.key
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.NoError(t, err)
+	require.Len(t, result.AutoIncludes, 3)
+
+	inner, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindStack, "inner")]
+	require.True(t, ok)
+	assert.Equal(t, hclparse.KindStack, inner.Kind)
+	assert.Equal(t, []byte(overrideSrc), inner.SourceBytes)
+
+	body, ok := inner.RawBody.(*hclsyntax.Body)
+	require.True(t, ok)
+	assert.NotNil(t, hclparse.FindBlock(body, "unit", "injected"))
+	assert.Nil(t, hclparse.FindBlock(body, "unit", "base"), "the base stack autoinclude must be dropped")
+
+	for _, address := range []string{"worker[a]", "worker[b]"} {
+		worker, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, address)]
+		require.True(t, ok, address)
+		require.Len(t, worker.Dependencies, 1)
+		assert.Equal(
+			t,
+			hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "app")),
+			worker.Dependencies[0].ConfigPath,
+		)
+	}
+}
+
+func TestParseStackFile_OverrideSkipsOverriddenBaseAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "function"
+
+  autoinclude {
+    dependency "missing" {
+      config_path = unit.missing.path
+    }
+  }
+}
+`
+	overrideSrc := `
+unit "function" {
+  source = "../catalog/units/function"
+  path   = "function"
+}
+`
+
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.NoError(t, err, "the autoinclude of an overridden base block must not be resolved")
+	assert.Empty(t, result.AutoIncludes)
+}
+
+func TestParseStackFile_OverrideDuplicateUnits(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+	overrideSrc := `
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+
+unit "app" {
+  source = "../catalog/units/app2"
+  path   = "app2"
+}
+`
+
+	_, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+
+	var dupErr hclparse.DuplicateUnitNameError
+
+	require.ErrorAs(t, err, &dupErr)
+	assert.Equal(t, "app", dupErr.Name)
+}
+
+// TestParseStackFile_OverrideExpandedUnitRefs pins that every element of an expanded override block
+// publishes its own unit.<name>[key].path ref.
+func TestParseStackFile_OverrideExpandedUnitRefs(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "worker" {
+  source = "../catalog/units/worker"
+  path   = "worker"
+}
+
+unit "logs" {
+  source = "../catalog/units/logs"
+  path   = "logs"
+
+  autoinclude {
+    dependency "first" {
+      config_path = unit.worker["a"].path
+    }
+
+    dependency "second" {
+      config_path = unit.worker["b"].path
+    }
+  }
+}
+`
+	overrideSrc := `
+unit "worker" {
+  source = "../catalog/units/worker"
+  path   = "worker-${each.key}"
+
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(
+		t.Context(),
+		vfs.NewMemMapFS(),
+		&hclparse.ParseStackFileInput{
+			Src:              []byte(src),
+			Filename:         "terragrunt.stack.hcl",
+			StackDir:         testStackDir,
+			OverrideSrc:      []byte(overrideSrc),
+			OverrideFilename: filepath.Join(testStackDir, hclparse.AutoIncludeStackFile),
+		},
+	)
+	require.NoError(t, err)
+
+	logs, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "logs")]
+	require.True(t, ok)
+	require.Len(t, logs.Dependencies, 2)
+
+	for i, key := range []string{"a", "b"} {
+		assert.Equal(
+			t,
+			hclparse.SingleConfigPath(filepath.Join(testStackDir, hclparse.StackDir, "worker-"+key)),
+			logs.Dependencies[i].ConfigPath,
+		)
+	}
+}
+
 // Benchmarks
 
 func BenchmarkParseStackFile_Simple(b *testing.B) {
@@ -2480,6 +2798,328 @@ unit "vpc" {
 			"cycle path must be deterministic across runs (run %d)",
 			i,
 		)
+	}
+}
+
+func TestParseStackFile_LocalsEvaluateInDependencyOrder(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  joined = "${local.left}+${local.right}"
+  left   = "${local.root}/left"
+  right  = "${local.root}/right"
+  root   = "root"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+  values = {
+    joined = local.joined
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	require.NotNil(t, result.Units[0].Values)
+	assert.Equal(t, cty.StringVal("root/left+root/right"), result.Units[0].Values.GetAttr("joined"))
+}
+
+func TestParseStackFile_LocalWaitingOnSiblingEvaluatedOnce(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	onceFn := function.New(&function.Spec{
+		Type: function.StaticReturnType(cty.String),
+		Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
+			calls.Add(1)
+			return cty.StringVal("once"), nil
+		},
+	})
+
+	src := `
+locals {
+  a = [once(), local.z]
+  z = "z"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+		Functions: map[string]function.Function{
+			"once": onceFn,
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), calls.Load())
+}
+
+func TestParseStackFile_BareLocalSeesEverySibling(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  all = local
+  z   = "z"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+  values = {
+    all = local.all
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	require.NotNil(t, result.Units[0].Values)
+
+	all := result.Units[0].Values.GetAttr("all")
+	require.True(t, all.Type().IsObjectType())
+	require.True(t, all.Type().HasAttribute("z"))
+	assert.Equal(t, cty.StringVal("z"), all.GetAttr("z"))
+}
+
+func TestParseStackFile_LiteralIndexWaitsOnlyOnNamedLocal(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  name   = "demo"
+  prefix = local["name"]
+  label  = "${local.prefix}-app"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.label
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "demo-app", result.Units[0].Path)
+}
+
+func TestParseStackFile_DynamicIndexSeesEverySibling(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  key    = "z"
+  picked = local[local.key]
+  z      = "z"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.picked
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "z", result.Units[0].Path)
+}
+
+func TestParseStackFile_DynamicIndexWithDependent(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  key    = "a"
+  a      = "ok"
+  picked = local[local.key]
+  use    = "${local.picked}-app"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.use
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "ok-app", result.Units[0].Path)
+}
+
+func TestParseStackFile_DynamicIndexOfDynamicIndex(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  first_key  = "second"
+  second_key = "a"
+  a          = "ok"
+  first      = local[local.first_key]
+  second     = local[local.second_key]
+  use        = "${local.first}-app"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = local.use
+}
+`
+
+	result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "ok-app", result.Units[0].Path)
+}
+
+func TestParseStackFile_LiteralIndexCycleIsReported(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  a = local["b"]
+  b = local.a
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+}
+`
+
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+
+	var cycleErr hclparse.LocalsCycleError
+	require.ErrorAs(t, err, &cycleErr)
+	assert.Equal(t, []string{"a", "b"}, cycleErr.Names)
+}
+
+func TestParseStackFile_LocalEvalErrorNamesFailingLocal(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		src    string
+		failed string
+	}{
+		{
+			name: "undefined local",
+			src: `
+locals {
+  a = local.missing
+}
+`,
+			failed: "a",
+		},
+		{
+			name: "dependent of failing local",
+			src: `
+locals {
+  a = local.b
+  b = unit.vpc.path
+}
+`,
+			failed: "b",
+		},
+		{
+			name: "failure alongside cycle",
+			src: `
+locals {
+  a = local.b
+  b = local.a
+  c = unit.vpc.path
+}
+`,
+			failed: "c",
+		},
+		{
+			name: "first failure by name",
+			src: `
+locals {
+  root = "root"
+  y    = "${local.root}${unit.vpc.path}"
+  x    = unit.vpc.path
+}
+`,
+			failed: "x",
+		},
+		{
+			name: "dynamic index of undefined local",
+			src: `
+locals {
+  key    = "missing"
+  picked = local[local.key]
+  use    = local.picked
+}
+`,
+			failed: "picked",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := tc.src + `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+			_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src:      []byte(src),
+				Filename: "terragrunt.stack.hcl",
+				StackDir: testStackDir,
+			})
+
+			var localErr hclparse.LocalEvalError
+
+			require.ErrorAs(t, err, &localErr)
+			assert.Equal(t, tc.failed, localErr.Name)
+		})
 	}
 }
 

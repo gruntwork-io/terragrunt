@@ -98,18 +98,7 @@ func (c *Component) URL() string { return c.url }
 // TerraformSourcePath returns the go-getter-style source string
 // (baseURL//dir?query) used when scaffolding a unit from this component.
 func (c *Component) TerraformSourcePath() string {
-	if c.Dir == "" {
-		return c.cloneURL
-	}
-
-	base, query, _ := strings.Cut(c.cloneURL, "?")
-
-	result := base + "//" + c.Dir
-	if query != "" {
-		result += "?" + query
-	}
-
-	return result
+	return module.SourcePath(c.cloneURL, c.Dir)
 }
 
 // IsMarkDown reports whether the component's README (if any) is Markdown,

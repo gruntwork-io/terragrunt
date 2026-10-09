@@ -231,12 +231,30 @@ func TestGitRunner_Fetch(t *testing.T) {
 		t.Parallel()
 
 		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
-			assert.Equal(t, []string{"fetch", "--", "file:///repo", "main"}, inv.Args)
+			assert.Equal(t, []string{
+				"-c", "maintenance.auto=false", "-c", "gc.auto=0",
+				"fetch", "--", "file:///repo", "main",
+			}, inv.Args)
 
 			return vexec.Result{}
 		}).WithWorkDir("/repo")
 
 		require.NoError(t, runner.Fetch(t.Context(), "file:///repo", "main", 0))
+	})
+
+	t.Run("depth limited", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			assert.Equal(t, []string{
+				"-c", "maintenance.auto=false", "-c", "gc.auto=0",
+				"fetch", "--depth", "1", "--no-tags", "--", "file:///repo", "main",
+			}, inv.Args)
+
+			return vexec.Result{}
+		}).WithWorkDir("/repo")
+
+		require.NoError(t, runner.Fetch(t.Context(), "file:///repo", "main", 1))
 	})
 
 	t.Run("command failure", func(t *testing.T) {
@@ -254,6 +272,43 @@ func TestGitRunner_Fetch(t *testing.T) {
 		runner := newMemRunner(t, staticResult(vexec.Result{}))
 
 		err := runner.Fetch(t.Context(), "file:///repo", "main", 1)
+		require.ErrorIs(t, err, git.ErrNoWorkDir)
+	})
+}
+
+func TestGitRunner_FetchUnshallow(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			assert.Equal(t, []string{
+				"-c", "maintenance.auto=false", "-c", "gc.auto=0",
+				"fetch", "--unshallow", "--", "file:///repo", "+refs/*:refs/*",
+			}, inv.Args)
+
+			return vexec.Result{}
+		}).WithWorkDir("/repo")
+
+		require.NoError(t, runner.FetchUnshallow(t.Context(), "file:///repo", "+refs/*:refs/*"))
+	})
+
+	t.Run("command failure", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
+
+		err := runner.FetchUnshallow(t.Context(), "file:///repo", "+refs/*:refs/*")
+		require.ErrorIs(t, err, git.ErrGitFetch)
+	})
+
+	t.Run("missing workdir", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, staticResult(vexec.Result{}))
+
+		err := runner.FetchUnshallow(t.Context(), "file:///repo", "+refs/*:refs/*")
 		require.ErrorIs(t, err, git.ErrNoWorkDir)
 	})
 }
@@ -747,6 +802,28 @@ func TestGitRunner_GetDefaultBranchRemote(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// TestGitRunner_LsRemoteDefaultBranch pins that the lookup asks the remote it
+// is given, so it needs no working-directory repository.
+func TestGitRunner_LsRemoteDefaultBranch(t *testing.T) {
+	t.Parallel()
+
+	const remote = "https://example.com/acme/catalog.git"
+
+	var args []string
+
+	runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		args = inv.Args
+
+		return vexec.Result{Stdout: []byte("ref: refs/heads/trunk\tHEAD\n" + headHash + "\tHEAD\n")}
+	})
+
+	branch, err := runner.LsRemoteDefaultBranch(t.Context(), remote)
+	require.NoError(t, err)
+
+	assert.Equal(t, "trunk", branch)
+	assert.Equal(t, []string{"ls-remote", "--symref", "--", remote, "HEAD"}, args)
 }
 
 func TestGitRunner_GetDefaultBranch(t *testing.T) {

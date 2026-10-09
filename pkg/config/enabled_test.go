@@ -95,7 +95,7 @@ func generateStack(t *testing.T, files map[string]string) generatedStack {
 	stackPath := filepath.Join(enabledStackDir, config.DefaultStackFile)
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, v, stackPath)
+	ctx, pctx := newTestParsingContext(t, stackPath)
 
 	pctx.TerragruntStackConfigPath = stackPath
 	// CAS shells out to git, which the no-spawn venv refuses, and a local source has
@@ -107,7 +107,7 @@ func generateStack(t *testing.T, files map[string]string) generatedStack {
 
 	defer pool.Stop()
 
-	require.NoError(t, config.GenerateStackFile(ctx, l, pctx, pool, stackPath))
+	require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
 	require.NoError(t, pool.Wait())
 
 	return generatedStack{v: v, dir: filepath.Join(enabledStackDir, config.StackDir)}

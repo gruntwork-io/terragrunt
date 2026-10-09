@@ -431,6 +431,12 @@ func TestComponent_TerraformSourcePath(t *testing.T) {
 			dir:      "modules/vpc",
 			want:     "github.com/org/repo//modules/vpc?ref=v1.0.0",
 		},
+		{
+			name:     "joins dir onto clone url subdir",
+			cloneURL: "github.com/org/repo//modules?ref=v1.0.0",
+			dir:      "aws/vpc",
+			want:     "github.com/org/repo//modules/aws/vpc?ref=v1.0.0",
+		},
 	}
 
 	for _, tc := range cases {

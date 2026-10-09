@@ -167,6 +167,27 @@ unit "vpc" {
 			},
 		},
 		{
+			name: "sibling stack autoinclude replaces a unit with an expanded unit",
+			files: map[string]string{
+				liveStackFile: `
+unit "vpc" {
+  source = "` + generationParityUnitSource + `"
+  path   = "vpc"
+}
+`,
+				liveAutoIncludeFile: `
+unit "vpc" {
+  expansion {
+    for_each = toset(["east", "west"])
+  }
+
+  source = "` + generationParityUnitSource + `"
+  path   = "vpc/${each.key}"
+}
+`,
+			},
+		},
+		{
 			name: "sibling stack autoinclude injects a unit",
 			files: map[string]string{
 				liveStackFile: `
@@ -288,7 +309,7 @@ unit "member" {
 			}
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, v, liveStackFile)
+			ctx, pctx := newTestParsingContext(t, liveStackFile)
 
 			unitPaths, err := inthclparse.UnitPathsFromStackDir(
 				ctx,
@@ -296,7 +317,7 @@ unit "member" {
 				generationParityLiveDir,
 				&inthclparse.StackDirArgs{
 					FuncsFor: func(stackDir string) (map[string]function.Function, error) {
-						return config.EarlyStackParseFunctions(ctx, l, stackDir, pctx)
+						return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
 					},
 				},
 			)
@@ -366,7 +387,7 @@ func generateStackLevel(t *testing.T, v *venv.Venv, stackPath string) {
 	t.Helper()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, v, stackPath)
+	ctx, pctx := newTestParsingContext(t, stackPath)
 
 	pctx.TerragruntStackConfigPath = stackPath
 	pctx.NoCAS = true
@@ -376,7 +397,7 @@ func generateStackLevel(t *testing.T, v *venv.Venv, stackPath string) {
 
 	defer pool.Stop()
 
-	require.NoError(t, config.GenerateStackFile(ctx, l, pctx, pool, stackPath))
+	require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
 	require.NoError(t, pool.Wait())
 }
 

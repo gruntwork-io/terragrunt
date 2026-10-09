@@ -279,9 +279,9 @@ func discoverCatalogConfigURLs(
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
-	_, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
-	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
+	catalogCfg, err := config.ReadCatalogConfig(ctx, l, v, pctx)
 	if err != nil {
 		l.Debugf("No catalog config found: %v", err)
 		return nil
@@ -307,9 +307,9 @@ func discoverSourceFileURLs(
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
-	ctx, pctx := configbridge.NewParsingContext(ctx, l, v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 
-	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)
+	urls, err := tui.DiscoverSourceURLs(ctx, l, v, pctx)
 	if err != nil {
 		l.Warnf("Failed to discover source URLs: %v", err)
 		return nil

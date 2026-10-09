@@ -3,6 +3,7 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -34,6 +35,10 @@ import (
 // if it receives the signal directly from the shell, to avoid sending the
 // second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
+
+// ErrShellOptionsNil is the panic value [RunCommandWithOutput] and [RunCommand]
+// raise when runOpts is nil.
+var ErrShellOptionsNil = errors.New("shell: runOpts must not be nil")
 
 // ShellOptions contains the per-invocation configuration needed to run shell
 // commands.
@@ -158,11 +163,19 @@ func (o *ShellOptions) NoEngine() bool {
 	return o.EngineOptions != nil && o.EngineOptions.NoEngine
 }
 
+// EngineEnabled reports whether an engine is enabled for a run.
+//
+// Use this to drive logic where Terragrunt typically assumes it's running
+// OpenTofu/Terraform directly.
+func (o *ShellOptions) EngineEnabled() bool {
+	return o.EngineConfig != nil && o.Experiments.Evaluate(experiment.IacEngine) && !o.NoEngine()
+}
+
 // RunCommand runs the given shell command. The shell environment and process
 // executor come from v; tests can substitute a venv whose Exec is a
 // [vexec.NewMemExec] so external binaries like tofu/terraform are never forked.
 //
-// Requires a non-nil v.Env.
+// Panics with [ErrShellOptionsNil] when runOpts is nil. Requires a non-nil v.Env.
 func RunCommand(
 	ctx context.Context,
 	l log.Logger,
@@ -184,7 +197,7 @@ func RunCommand(
 // the currently running app. The command can be executed in a custom working directory by using the parameter
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
 //
-// Requires a non-nil v.Env.
+// Panics with [ErrShellOptionsNil] when runOpts is nil. Requires a non-nil v.Env.
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
@@ -196,6 +209,10 @@ func RunCommandWithOutput(
 	command string,
 	args ...string,
 ) (*util.CmdOutput, error) {
+	if runOpts == nil {
+		panic(ErrShellOptionsNil)
+	}
+
 	var (
 		output     = util.CmdOutput{}
 		commandDir = workingDir
@@ -296,8 +313,7 @@ func runCommand(
 
 	if cmdOpts.Command == runOpts.TFPath {
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-		if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) &&
-			!runOpts.NoEngine() {
+		if runOpts.EngineEnabled() {
 			l.Debugf(
 				"Using engine to run command: %s %s",
 				cmdOpts.Command,

@@ -1472,3 +1472,58 @@ func TestFilterFlagWithGitFilterMarkGlobAsRead(t *testing.T) {
 	assert.ElementsMatch(t, []string{"unit-reads-added", "unit-reads-removed"}, results,
 		"units reading added or removed glob files should be selected; untouched unit should not")
 }
+
+func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	depDir := filepath.Join(tmpDir, "dep")
+	createTestUnit(t, depDir, `# dep`)
+	createTestUnit(t, filepath.Join(tmpDir, "consumer"), `dependency "dep" {
+  config_path = "../dep"
+  mock_outputs = { name = "mock" }
+  mock_outputs_allowed_terraform_commands = ["plan", "destroy"]
+}`)
+
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Baseline units"))
+
+	require.NoError(t, os.RemoveAll(depDir))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Delete dep"))
+
+	helpers.CleanupTerraformFolder(t, tmpDir)
+
+	filterArgs := " --no-color --working-dir " + tmpDir + " --filter '...[HEAD~1...HEAD]... | ./**'"
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --filter-allow-destroy"+filterArgs+" -- plan",
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "a dependency points at dep, which exists at HEAD~1 but was deleted or moved")
+	assert.Contains(t, stderr, "TIP (missing-dependency-config)")
+	assert.Contains(t, stderr, "points at dep, which exists at HEAD~1 but was deleted or moved in the Git diff")
+
+	// Without a Git-based filter there is no diff to blame, so the tip stays quiet.
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --no-color --working-dir "+tmpDir+" -- plan",
+	)
+	require.Error(t, err)
+	require.Contains(t, stderr, "TIP (debugging-docs)", "tips must reach stderr for the next check to mean anything")
+	assert.NotContains(t, stderr, "TIP (missing-dependency-config)")
+
+	for _, cmd := range []string{"find", "list"} {
+		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+cmd+filterArgs)
+		require.NoError(t, err, "%s must keep tolerating the dangling reference\nstderr: %s", cmd, stderr)
+		assert.ElementsMatch(t, []string{"consumer", "dep"}, strings.Fields(stdout), cmd)
+	}
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --no-color --working-dir "+tmpDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `dependency "dep"`)
+	assert.Contains(t, err.Error(), "does not exist")
+}

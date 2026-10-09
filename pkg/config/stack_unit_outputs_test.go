@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -71,12 +72,12 @@ func newStackOutputsContext(
 	t *testing.T,
 	files map[string]string,
 	outputs map[string]string,
-) (context.Context, *config.ParsingContext) {
+) (context.Context, *venv.Venv, *config.ParsingContext) {
 	t.Helper()
 
 	v := venvtest.New().WithFS(venvtest.NewFS(t, stackUnitOutputsRoot, files))
 
-	ctx, pctx := newTestParsingContext(t, v, filepath.Join(stackUnitOutputsRoot, "terragrunt.hcl"))
+	ctx, pctx := newTestParsingContext(t, filepath.Join(stackUnitOutputsRoot, "terragrunt.hcl"))
 
 	// The caches the fetch path reads live on the context, and only WithConfigValues puts
 	// them there. Without it every lookup below builds a throwaway cache and misses.
@@ -100,7 +101,7 @@ func newStackOutputsContext(
 		jsonCache.Put(ctx, filepath.Join(stackUnitOutputsRoot, configPath), []byte(out))
 	}
 
-	return ctx, pctx
+	return ctx, v, pctx
 }
 
 // requireAttr fails with the shape it found when value has no attribute name, so a missing
@@ -136,12 +137,13 @@ func TestCollectStackOutputsNestsExpandedElements(t *testing.T) {
 		files[configPath] = ""
 	}
 
-	ctx, pctx := newStackOutputsContext(t, files, outputs)
+	ctx, v, pctx := newStackOutputsContext(t, files, outputs)
 
 	collected, err := config.CollectStackOutputs(
 		ctx,
-		pctx,
 		logger.CreateLogger(),
+		v,
+		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
 			Units: []*config.Unit{
@@ -179,15 +181,16 @@ func TestCollectStackOutputsNestsNestedStackUnits(t *testing.T) {
 		filepath.Join(config.StackDir, "network", config.DefaultStackFile): nestedSubnetStackHCL,
 	}, vpcConfig, subnetConfig)
 
-	ctx, pctx := newStackOutputsContext(t, files, map[string]string{
+	ctx, v, pctx := newStackOutputsContext(t, files, map[string]string{
 		vpcConfig:    roleOutput("vpc"),
 		subnetConfig: roleOutput("subnet"),
 	})
 
 	collected, err := config.CollectStackOutputs(
 		ctx,
-		pctx,
 		logger.CreateLogger(),
+		v,
+		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
 			Units:  []*config.Unit{{Name: "vpc", Path: "vpc"}},
@@ -218,7 +221,7 @@ func TestCollectStackOutputsMocksNestedStackUnits(t *testing.T) {
 		filepath.Join(config.StackDir, "network", config.DefaultStackFile): nestedSubnetStackHCL,
 	}, vpcConfig, subnetConfig)
 
-	ctx, pctx := newStackOutputsContext(t, files, map[string]string{
+	ctx, v, pctx := newStackOutputsContext(t, files, map[string]string{
 		vpcConfig: roleOutput("vpc"),
 	})
 
@@ -236,8 +239,9 @@ func TestCollectStackOutputsMocksNestedStackUnits(t *testing.T) {
 
 	collected, err := config.CollectStackOutputs(
 		ctx,
-		pctx,
 		logger.CreateLogger(),
+		v,
+		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
 			Units:  []*config.Unit{{Name: "vpc", Path: "vpc"}},
@@ -269,15 +273,16 @@ func TestCollectStackOutputsRejectsUnitAndStackSharingAName(t *testing.T) {
 		filepath.Join(config.StackDir, "network", config.DefaultStackFile): nestedSubnetStackHCL,
 	}, unitConfig, subnetConfig)
 
-	ctx, pctx := newStackOutputsContext(t, files, map[string]string{
+	ctx, v, pctx := newStackOutputsContext(t, files, map[string]string{
 		unitConfig:   roleOutput("unit"),
 		subnetConfig: roleOutput("subnet"),
 	})
 
 	_, err := config.CollectStackOutputs(
 		ctx,
-		pctx,
 		logger.CreateLogger(),
+		v,
+		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
 			Units:  []*config.Unit{{Name: "network", Path: "network-unit"}},
@@ -311,14 +316,15 @@ stack "loop" {
 		filepath.Join(config.StackDir, "loop", config.DefaultStackFile): loopingStackHCL,
 	}
 
-	ctx, pctx := newStackOutputsContext(t, files, map[string]string{})
+	ctx, v, pctx := newStackOutputsContext(t, files, map[string]string{})
 
 	const maxDepth = 3
 
 	_, err := config.CollectStackOutputs(
 		ctx,
-		pctx,
 		logger.CreateLogger(),
+		v,
+		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
 			Stacks: []*config.Stack{{Name: "loop", Path: "loop"}},

@@ -3,8 +3,10 @@ package venv_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -12,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -249,6 +253,12 @@ func TestVenvPlatformBuildersRequireAPlatform(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).WithTempDir(func() string { return "" })
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithUserCacheDir(func() (string, error) { return "", nil })
+	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithReplaceEnviron(func(map[string]string) error { return nil })
+	})
 }
 
 // TestVenvHandleBuildersReturnCopies pins the builder contract: the returned
@@ -260,6 +270,7 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 	require.NoError(t, vfs.WriteFile(memFS, "/tracer.txt", []byte("tracer"), 0o644))
 
 	wantSopsErr := errors.New("decrypt failed")
+	wantBrowserErr := errors.New("browser opened")
 	echo := vexec.Handler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte(inv.Name + " " + strings.Join(inv.Args, " "))}
 	})
@@ -304,6 +315,57 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 				require.ErrorIs(t, err, wantSopsErr)
 			},
 		},
+		{
+			name: "WithHTTP",
+			build: func(v *venv.Venv) *venv.Venv {
+				return v.WithHTTP(vhttp.NewMemClient(teapotHandler))
+			},
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com", nil)
+				require.NoError(t, err)
+
+				resp, err := got.HTTP.Do(req)
+				require.NoError(t, err)
+
+				defer resp.Body.Close()
+
+				assert.Equal(t, http.StatusTeapot, resp.StatusCode)
+			},
+		},
+		{
+			name: "WithBrowser",
+			build: func(v *venv.Venv) *venv.Venv {
+				return v.WithBrowser(vbrowser.NewMemOpener(func(_ context.Context, rawURL string) error {
+					return fmt.Errorf("%w: %s", wantBrowserErr, rawURL)
+				}))
+			},
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				err := got.Browser.Open(t.Context(), "https://example.com/login")
+				require.ErrorIs(t, err, wantBrowserErr)
+				assert.ErrorContains(t, err, "https://example.com/login")
+			},
+		},
+		{
+			name: "WithSignals",
+			build: func(v *venv.Venv) *venv.Venv {
+				return v.WithSignals(func(_ context.Context, notifyFn signal.NotifyFunc, _ ...os.Signal) {
+					notifyFn(os.Interrupt)
+				})
+			},
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				var received os.Signal
+
+				got.Signals(t.Context(), func(sig os.Signal) { received = sig }, os.Interrupt)
+
+				assert.Equal(t, os.Interrupt, received)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -317,6 +379,9 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 			assert.Nil(t, original.FS)
 			assert.Nil(t, original.Exec)
 			assert.Nil(t, original.Sops)
+			assert.Nil(t, original.HTTP)
+			assert.Nil(t, original.Browser)
+			assert.Nil(t, original.Signals)
 			tc.verify(t, got)
 		})
 	}
@@ -376,4 +441,8 @@ func assertExecEchoes(t *testing.T, got *venv.Venv) {
 
 func okHandler(_ context.Context, _ *http.Request) (*http.Response, error) {
 	return vhttp.Respond(http.StatusOK, nil, nil), nil
+}
+
+func teapotHandler(_ context.Context, _ *http.Request) (*http.Response, error) {
+	return vhttp.Respond(http.StatusTeapot, nil, nil), nil
 }

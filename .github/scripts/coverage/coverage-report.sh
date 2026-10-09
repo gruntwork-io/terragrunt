@@ -531,6 +531,9 @@ cmd_timing() {
 		--arg ts "$(now_utc)" \
 		--arg commit "$(this_commit)" \
 		--arg ref "$(this_ref)" '
+		# go test -json Elapsed carries float residue (6.7059999999999995), so
+		# round to the hundredths go test itself prints.
+		def secs: (. // 0) * 100 | round / 100;
 		reduce (
 			inputs
 			| select(length > 0)
@@ -541,16 +544,20 @@ cmd_timing() {
 			if ($e.Test // "") == "" then
 				.packages[$e.Package] = (
 					(.packages[$e.Package] // {wall_sec: 0, tests: {}})
-					| .wall_sec = ($e.Elapsed // 0)
+					| .wall_sec = ($e.Elapsed | secs)
 				)
 			else
 				.packages[$e.Package] = (
 					(.packages[$e.Package] // {wall_sec: 0, tests: {}})
-					| .tests[$e.Test] = ($e.Elapsed // 0)
+					| .tests[$e.Test] = ($e.Elapsed | secs)
 				)
 			end
 		)
-		| .total_sec = ([.packages[].wall_sec] | add // 0)
+		# A package that ran no tests only reports build time: under -cover a
+		# package with no test files (e.g. the root main package) still gets a
+		# package-level pass, so keep only packages with test events.
+		| .packages |= with_entries(select(.value.tests | length > 0))
+		| .total_sec = ([.packages[].wall_sec] | add // 0 | secs)
 		| . + {generated_at: $ts, commit: $commit, ref: $ref}
 	' "$events" >"$output"
 

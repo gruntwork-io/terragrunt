@@ -190,7 +190,7 @@ func (d *Discovery) Discover(
 		logPhaseComplete(l, "graph", results, err)
 
 		if err != nil && !d.suppressParseErrors {
-			return nil, err
+			return nil, d.markDeletedDependency(v.FS, err, resultsToComponents(slices.Concat(discovered, candidates)))
 		}
 
 		discovered = results.Discovered
@@ -222,7 +222,7 @@ func (d *Discovery) Discover(
 		)
 
 		if err != nil && !d.suppressParseErrors {
-			return components, err
+			return components, d.markDeletedDependency(v.FS, err, components)
 		}
 	}
 
@@ -717,7 +717,6 @@ func (d *Discovery) filterGraphTarget(
 	targetPath := canonicalizeGraphTarget(fsys, d.workingDir, d.graphTarget)
 
 	dependentUnits := buildDependentsIndex(fsys, components)
-	propagateTransitiveDependents(dependentUnits)
 
 	allowed := buildAllowSet(targetPath, dependentUnits)
 
@@ -748,7 +747,7 @@ func canonicalizeGraphTarget(fsys vfs.FS, baseDir, target string) string {
 }
 
 // buildDependentsIndex builds an index mapping each unit path to the list of units
-// that directly depend on it. Duplicate entries are removed.
+// that directly depend on it. A unit that lists the same dependency twice appears twice.
 // Paths are resolved to handle symlinks consistently across platforms.
 func buildDependentsIndex(fsys vfs.FS, components component.Components) map[string][]string {
 	dependentUnits := make(map[string][]string)
@@ -758,56 +757,31 @@ func buildDependentsIndex(fsys vfs.FS, components component.Components) map[stri
 
 		for _, dep := range c.Dependencies() {
 			depPath := vfs.ResolveForCompare(fsys, dep.Path())
-			dependentUnits[depPath] = util.RemoveDuplicates(append(dependentUnits[depPath], cPath))
+			dependentUnits[depPath] = append(dependentUnits[depPath], cPath)
 		}
 	}
 
 	return dependentUnits
 }
 
-// propagateTransitiveDependents expands the dependents index to include transitive dependents.
-// Iteratively propagates dependents until a fixed point is reached or the iteration cap is met.
-func propagateTransitiveDependents(dependentUnits map[string][]string) {
-	// Determine an upper bound on iterations based on unique nodes in the graph (keys + values).
-	nodes := make(map[string]struct{})
-	for unit, dependents := range dependentUnits {
-		nodes[unit] = struct{}{}
-		for _, dep := range dependents {
-			nodes[dep] = struct{}{}
-		}
-	}
-
-	maxIterations := len(nodes)
-
-	for range maxIterations {
-		updated := false
-
-		for unit, dependents := range dependentUnits {
-			for _, dep := range dependents {
-				old := dependentUnits[unit]
-				newList := util.RemoveDuplicates(append(old, dependentUnits[dep]...))
-				newList = slices.DeleteFunc(newList, func(path string) bool { return path == unit })
-
-				if len(newList) != len(old) {
-					dependentUnits[unit] = newList
-					updated = true
-				}
-			}
-		}
-
-		if !updated {
-			break
-		}
-	}
-}
-
-// buildAllowSet creates the allowlist containing the target and all of its dependents.
+// buildAllowSet creates the allowlist containing the target and every unit that depends on it, directly or
+// transitively.
 func buildAllowSet(targetPath string, dependentUnits map[string][]string) map[string]struct{} {
-	allowed := make(map[string]struct{})
+	allowed := map[string]struct{}{targetPath: {}}
+	pending := []string{targetPath}
 
-	allowed[targetPath] = struct{}{}
-	for _, dep := range dependentUnits[targetPath] {
-		allowed[dep] = struct{}{}
+	for len(pending) > 0 {
+		unit := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+
+		for _, dependent := range dependentUnits[unit] {
+			if _, ok := allowed[dependent]; ok {
+				continue
+			}
+
+			allowed[dependent] = struct{}{}
+			pending = append(pending, dependent)
+		}
 	}
 
 	return allowed
@@ -926,23 +900,23 @@ func (d *Discovery) applyExcludeModules(
 			continue
 		}
 
-		if !cfg.Exclude.IsActionListed(opts.TerraformCommand) {
+		if !cfg.Exclude.Excludes(opts.TerraformCommand) {
 			continue
 		}
 
-		if cfg.Exclude.If {
-			unit.SetExcluded(true)
+		unit.SetExcluded(true)
 
-			if cfg.Exclude.ExcludeDependencies != nil && *cfg.Exclude.ExcludeDependencies {
-				for _, dep := range unit.Dependencies() {
-					depUnit, ok := dep.(*component.Unit)
-					if !ok {
-						continue
-					}
+		if cfg.Exclude.ExcludeDependencies == nil || !*cfg.Exclude.ExcludeDependencies {
+			continue
+		}
 
-					depUnit.SetExcluded(true)
-				}
+		for _, dep := range unit.Dependencies() {
+			depUnit, ok := dep.(*component.Unit)
+			if !ok {
+				continue
 			}
+
+			depUnit.SetExcluded(true)
 		}
 	}
 

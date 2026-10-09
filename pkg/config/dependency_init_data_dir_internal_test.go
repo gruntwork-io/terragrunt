@@ -68,9 +68,9 @@ func TestDependencyInitDataDir(t *testing.T) {
 				env["TF_DATA_DIR"] = tc.dataDir
 			}
 
-			pctx := &ParsingContext{Venv: venvtest.NewOSWithEmptyEnv().WithEnv(env)}
+			v := venvtest.NewOSWithEmptyEnv().WithEnv(env)
 
-			assert.Equal(t, tc.want, dependencyInitDataDir(pctx, workingDir))
+			assert.Equal(t, tc.want, dependencyInitDataDir(v, workingDir))
 		})
 	}
 }
@@ -82,10 +82,8 @@ func TestDependencyStateDataDirKeepsAbsolutePath(t *testing.T) {
 	workingDir := venvtest.Root("/tmp/cache/unit")
 	shared := venvtest.Root("/shared/tf-data")
 
-	pctx := &ParsingContext{
-		Venv: venvtest.NewOSWithEmptyEnv().WithEnv(map[string]string{"TF_DATA_DIR": shared}),
-	}
+	v := venvtest.NewOSWithEmptyEnv().WithEnv(map[string]string{"TF_DATA_DIR": shared})
 
-	assert.Equal(t, shared, dependencyStateDataDir(pctx, workingDir),
+	assert.Equal(t, shared, dependencyStateDataDir(v, workingDir),
 		"workspace resolution must keep honouring an absolute TF_DATA_DIR, since that is where tofu writes it")
 }

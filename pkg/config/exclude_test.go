@@ -1,11 +1,15 @@
 package config_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -25,10 +29,11 @@ exclude {
 }
 `)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx = pctx.WithDecodeList(config.ExcludeBlock)
 
-	_, err := config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
 	require.ErrorAs(t, err, new(config.InvalidExcludeBlockError))
 }
 
@@ -50,14 +55,184 @@ exclude {
 }
 `)
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), cfgPath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock)
 	pctx.SkipOutputsResolution = true
 
-	parsed, err := config.PartialParseConfigFile(ctx, pctx, logger.CreateLogger(), cfgPath, nil)
+	parsed, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
 	require.NoError(t, err)
 	assert.Nil(t, parsed.Exclude)
 	assert.Len(t, parsed.TerragruntDependencies, 1)
+}
+
+// TestPartialParseExcludeWithNullUnknownOrSensitiveString pins that discovery parses null, unknown and sensitive string flags like bools instead of panicking.
+func TestPartialParseExcludeWithNullUnknownOrSensitiveString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		want      *config.ExcludeConfig
+		wantErrAs any
+		name      string
+		exclude   string
+		wantWarn  bool
+	}{
+		{
+			name:    "null bool if",
+			exclude: `if = null`,
+			want:    &config.ExcludeConfig{Actions: []string{"plan"}},
+		},
+		{
+			name:    "null string if",
+			exclude: `if = tostring(null)`,
+			want:    &config.ExcludeConfig{Actions: []string{"plan"}},
+		},
+		{
+			name:    "null string no_run",
+			exclude: "if = true\nno_run = tostring(null)",
+			want:    &config.ExcludeConfig{If: true, Actions: []string{"plan"}},
+		},
+		{
+			name:    "null string exclude_dependencies",
+			exclude: "if = true\nexclude_dependencies = tostring(null)",
+			want:    &config.ExcludeConfig{If: true, Actions: []string{"plan"}},
+		},
+		{
+			name:     "unknown dependency output if",
+			exclude:  `if = dependency.dep.outputs.flag`,
+			wantWarn: true,
+		},
+		{
+			name:     "unknown string if",
+			exclude:  `if = tostring(dependency.dep.outputs.flag)`,
+			wantWarn: true,
+		},
+		{
+			name:     "unknown interpolated string if",
+			exclude:  `if = "${dependency.dep.outputs.flag}"`,
+			wantWarn: true,
+		},
+		{
+			name:     "unknown string no_run",
+			exclude:  "if = true\nno_run = tostring(dependency.dep.outputs.flag)",
+			wantWarn: true,
+		},
+		{
+			name:     "unknown string exclude_dependencies",
+			exclude:  "if = true\nexclude_dependencies = tostring(dependency.dep.outputs.flag)",
+			wantWarn: true,
+		},
+		{
+			name:      "sensitive bool if",
+			exclude:   `if = sensitive(true)`,
+			wantErrAs: new(config.InvalidExcludeBlockError),
+		},
+		{
+			name:      "sensitive string if",
+			exclude:   `if = sensitive("true")`,
+			wantErrAs: new(config.InvalidExcludeBlockError),
+		},
+		{
+			name:      "sensitive null string if",
+			exclude:   `if = sensitive(tostring(null))`,
+			wantErrAs: new(config.InvalidExcludeBlockError),
+		},
+		{
+			name:     "sensitive unknown string if",
+			exclude:  `if = sensitive(tostring(dependency.dep.outputs.flag))`,
+			wantWarn: true,
+		},
+		{
+			name:    "known string flags",
+			exclude: "if = \"true\"\nno_run = \"false\"\nexclude_dependencies = \"true\"",
+			want: &config.ExcludeConfig{
+				If:                  true,
+				Actions:             []string{"plan"},
+				NoRun:               new(false),
+				ExcludeDependencies: new(true),
+			},
+		},
+		{
+			name:      "invalid string if",
+			exclude:   `if = "maybe"`,
+			wantErrAs: new(*strconv.NumError),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/live")
+			unitPath := filepath.Join("unit", config.DefaultTerragruntConfigPath)
+			cfgPath := filepath.Join(root, unitPath)
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				filepath.Join("dep", config.DefaultTerragruntConfigPath): "",
+				unitPath: `
+dependency "dep" {
+  config_path = "../dep"
+}
+
+exclude {
+  actions = ["plan"]
+  ` + tt.exclude + `
+}
+`,
+			})
+
+			var logBuf bytes.Buffer
+
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(&logBuf))
+
+			v := venvtest.New().WithFS(fsys)
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
+
+			parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			if tt.wantErrAs != nil {
+				require.ErrorAs(t, err, tt.wantErrAs)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, parsed.Exclude)
+			assert.Equal(
+				t,
+				tt.wantWarn,
+				strings.Contains(logBuf.String(), "Ignoring the exclude block in "+cfgPath),
+				logBuf.String(),
+			)
+		})
+	}
+}
+
+// TestParseConfigFileExcludeInIncludeWithNullString pins that an included exclude block with a null string if errors instead of panicking.
+func TestParseConfigFileExcludeInIncludeWithNullString(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/live")
+	cfgPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"root.hcl": `
+exclude {
+  if      = tostring(null)
+  actions = ["all"]
+}
+`,
+		filepath.Join("app", config.DefaultTerragruntConfigPath): `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`,
+	})
+
+	v := venvtest.New().WithFS(fsys)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+
+	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	require.ErrorContains(t, err, "null value is not allowed")
+	assert.ErrorContains(t, err, filepath.Join(root, "root.hcl"))
 }
 
 // writeExcludeUnit writes body as a unit config beside an empty dependency

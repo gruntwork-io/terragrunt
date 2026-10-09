@@ -31,14 +31,16 @@ func TestIncludeConfigAsCtyValWrapsErrorWithIncludeNameAndPath(t *testing.T) {
 	require.NoError(t, os.WriteFile(childPath, []byte("terraform {\n  source = \".\"\n}\n"), 0644))
 
 	l := logger.CreateLogger()
-	ctx, pctx := NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), WithStrictControls(controls.New()))
+	ctx := t.Context()
+	v := venvtest.NewWithOSFS()
+	pctx := NewParsingContext(WithStrictControls(controls.New()))
 	pctx.TerragruntConfigPath = childPath
 	pctx.WorkingDir = tmpDir
 
 	expose := true
 	inc := IncludeConfig{Name: "root", Path: parentPath, Expose: &expose}
 
-	_, err := includeConfigAsCtyVal(ctx, pctx, l, inc)
+	_, err := includeConfigAsCtyVal(ctx, l, v, pctx, inc)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `exposed include "root"`,
 		"error should name the include block so the user knows WHERE resolution failed")

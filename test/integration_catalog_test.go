@@ -201,10 +201,12 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, venv.OSVenv(), opts)
+	v := venv.OSVenv()
+	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
 		t.Context(),
 		l,
+		v,
 		pctx,
 	)
 	require.NoError(t, err)

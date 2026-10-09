@@ -106,10 +106,7 @@ func newGitExecRecorder(inner vexec.Exec, gate chan struct{}) *gitExecRecorder {
 }
 
 func (r *gitExecRecorder) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
-	sub := ""
-	if len(args) > 0 {
-		sub = args[0]
-	}
+	sub := gitSubcommand(args)
 
 	r.mu.Lock()
 	r.counts[sub]++
@@ -132,6 +129,24 @@ func (r *gitExecRecorder) Command(ctx context.Context, name string, args ...stri
 
 func (r *gitExecRecorder) LookPath(file string) (string, error) {
 	return r.inner.LookPath(file)
+}
+
+// gitSubcommand returns the subcommand in a git argument list, skipping the
+// `-c key=value` pairs a runner puts before it. Empty when args has none.
+func gitSubcommand(args []string) string {
+	for len(args) > 0 {
+		if args[0] != "-c" {
+			return args[0]
+		}
+
+		if len(args) < 2 {
+			return ""
+		}
+
+		args = args[2:]
+	}
+
+	return ""
 }
 
 // count returns how many times the git subcommand sub was prepared.

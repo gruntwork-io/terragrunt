@@ -357,3 +357,104 @@ func TestAttemptErrorRecoveryHonorsNegativePatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestAttemptErrorRecoveryNilError(t *testing.T) {
+	t.Parallel()
+
+	cfg := &errorconfig.Config{
+		Retry: map[string]*errorconfig.RetryConfig{
+			"all": {
+				Name:            "all",
+				RetryableErrors: []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`.*`)}},
+				MaxAttempts:     3,
+			},
+		},
+	}
+
+	action, err := cfg.AttemptErrorRecovery(logger.CreateLogger(), nil, 1)
+	require.NoError(t, err)
+	assert.Nil(t, action)
+}
+
+func TestAttemptErrorRecoveryPopulatesAction(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		config *errorconfig.Config
+		want   *errorconfig.Action
+		name   string
+	}{
+		{
+			name: "ignore block",
+			config: &errorconfig.Config{
+				Ignore: map[string]*errorconfig.IgnoreConfig{
+					"safe": {
+						Name:            "safe",
+						Message:         "known flake",
+						Signals:         map[string]any{"alert": false},
+						IgnorableErrors: []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`.*transient.*`)}},
+					},
+				},
+			},
+			want: &errorconfig.Action{
+				IgnoreBlockName: "safe",
+				IgnoreMessage:   "known flake",
+				IgnoreSignals:   map[string]any{"alert": false},
+				ShouldIgnore:    true,
+			},
+		},
+		{
+			name: "retry block",
+			config: &errorconfig.Config{
+				Retry: map[string]*errorconfig.RetryConfig{
+					"transient": {
+						Name:             "transient",
+						RetryableErrors:  []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`.*transient.*`)}},
+						MaxAttempts:      5,
+						SleepIntervalSec: 7,
+					},
+				},
+			},
+			want: &errorconfig.Action{
+				RetryBlockName: "transient",
+				RetryAttempts:  5,
+				RetrySleepSecs: 7,
+				ShouldRetry:    true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			action, err := tt.config.AttemptErrorRecovery(logger.CreateLogger(), errors.New("transient"), 1)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, action)
+		})
+	}
+}
+
+func TestAttemptErrorRecoveryMaxAttemptsReached(t *testing.T) {
+	t.Parallel()
+
+	origErr := errors.New("transient")
+	cfg := &errorconfig.Config{
+		Retry: map[string]*errorconfig.RetryConfig{
+			"transient": {
+				Name:            "transient",
+				RetryableErrors: []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`.*transient.*`)}},
+				MaxAttempts:     3,
+			},
+		},
+	}
+
+	action, err := cfg.AttemptErrorRecovery(logger.CreateLogger(), origErr, 3)
+	assert.Nil(t, action)
+
+	maxErr, ok := errors.AsType[*errorconfig.MaxAttemptsReachedError](err)
+	require.True(t, ok, "expected MaxAttemptsReachedError, got %v", err)
+	assert.Equal(t, 3, maxErr.MaxRetries)
+	require.ErrorIs(t, maxErr.Err, origErr)
+	assert.Equal(t, "max retry attempts (3) reached for error: transient", err.Error())
+}
