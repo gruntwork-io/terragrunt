@@ -122,6 +122,8 @@ func partialDecodeSectionName(section PartialDecodeSectionType) string {
 		return "exclude"
 	case ErrorsBlock:
 		return "errors"
+	case InputsBlock:
+		return "inputs"
 	default:
 		return "unknown"
 	}
