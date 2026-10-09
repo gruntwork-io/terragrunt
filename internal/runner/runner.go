@@ -231,16 +231,9 @@ func NewFromComponents(
 	// Stack components (terragrunt.stack.hcl files) drive stack generation, not execution.
 	units := make([]*component.Unit, 0, len(discovered))
 	for _, c := range discovered {
-		unit, ok := c.(*component.Unit)
-		if !ok {
-			continue
+		if unit, ok := c.(*component.Unit); ok {
+			units = append(units, unit)
 		}
-
-		if unit.DiscoveryContext() != nil && unit.Config() == nil {
-			l.Debugf("Unit %s has no config from discovery", unit.DisplayPath())
-		}
-
-		units = append(units, unit)
 	}
 
 	if len(units) == 0 {
