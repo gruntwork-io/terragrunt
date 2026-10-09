@@ -32,7 +32,15 @@ type Snippet struct {
 	HighlightEndOffset int `json:"highlight_end_offset"`
 }
 
+// NewSnippet returns the source that hclDiag points at in file, with highlightRange marked.
+//
+// Panics when file is nil. [NewDiagnostic] returns [MissingSourceError] for that case before it
+// reaches here.
 func NewSnippet(file *hcl.File, hclDiag *hcl.Diagnostic, highlightRange hcl.Range) *Snippet {
+	if file == nil {
+		panic("diagnostic: NewSnippet called without a file; NewDiagnostic rejects that first")
+	}
+
 	snipRange := *hclDiag.Subject
 	if hclDiag.Context != nil {
 		// Show enough of the source code to include both the subject and context ranges, which overlap in all reasonable situations.
@@ -48,7 +56,7 @@ func NewSnippet(file *hcl.File, hclDiag *hcl.Diagnostic, highlightRange hcl.Rang
 		StartLine: hclDiag.Subject.Start.Line,
 	}
 
-	if file != nil && file.Bytes != nil {
+	if file.Bytes != nil {
 		snippet.Context = hcled.ContextString(file, hclDiag.Subject.Start.Byte-1)
 
 		var (

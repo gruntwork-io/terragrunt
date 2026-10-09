@@ -229,6 +229,43 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 				HighlightEndOffset:   30,
 			},
 		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Missing dependency",
+			Detail:   "This directory does not exist.",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "first/b/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 2, Column: 17, Byte: 33},
+				End:      diagnostic.Pos{Line: 2, Column: 85, Byte: 101},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "dependency \"a\"",
+				Code:                 "  config_path = \"${path_relative_from_include()}/${path_relative_to_include()}/../a\"",
+				StartLine:            2,
+				HighlightStartOffset: 16,
+				HighlightEndOffset:   84,
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Missing dependency",
+			Detail:   "This directory does not exist.",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(
+					rootPath,
+					"valid/dependency-unresolvable-path/terragrunt.hcl",
+				),
+				Start: diagnostic.Pos{Line: 2, Column: 17, Byte: 39},
+				End:   diagnostic.Pos{Line: 2, Column: 40, Byte: 62},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "dependency \"missing\"",
+				Code:                 "  config_path = \"../nonexistent-module\"",
+				StartLine:            2,
+				HighlightStartOffset: 16,
+				HighlightEndOffset:   39,
+			},
+		},
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
