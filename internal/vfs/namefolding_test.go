@@ -177,7 +177,7 @@ func existsOnDisk(t *testing.T, path string) bool {
 	return true
 }
 
-// statHookFS answers Stat through stat, so a test can fold spellings together or fail chosen ones.
+// statHookFS overrides Stat to simulate folded names and lookup failures.
 type statHookFS struct {
 	vfs.FS
 	stat func(name string) (os.FileInfo, error)
