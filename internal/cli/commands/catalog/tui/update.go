@@ -574,8 +574,8 @@ func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool, fi
 		return ""
 	}
 
-	// A module scaffold writes terragrunt.hcl; when the caller did not
-	// capture a file list, fall back to it so the message stays useful.
+	// With no recorded files the callout would have no path to show, so it
+	// names the default config file.
 	if len(files) == 0 {
 		files = []string{config.DefaultTerragruntConfigPath}
 	}
@@ -623,10 +623,8 @@ func formatScaffoldFileList(outputDir string, files []string) string {
 	return strings.Join(paths, "\n")
 }
 
-// scaffoldHeading titles the post-scaffold callout from the generated files.
-// A single file is shown relativized from outputDir (the generation root)
-// via displayPath, matching the listed paths. Otherwise the heading is a
-// count with a pluralized "file"/"files".
+// scaffoldHeading returns the callout title: the file's path relative to
+// outputDir when there is one file, and a count when there are several.
 func scaffoldHeading(outputDir string, files []string) string {
 	n := len(files)
 	if n == 1 {

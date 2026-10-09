@@ -578,11 +578,7 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 }
 
 // TestModelScaffoldFinishedWithFilesListsGeneratedFiles verifies that a
-// scaffold finishing with an explicit file list names those files (and not a
-// hardcoded terragrunt.hcl) in the exit callout. It covers the singular
-// heading (top-level and nested, both relativized from the generation root),
-// the pluralized "files" heading, Windows-safe nested paths, and the
-// "... +N more" cap on long lists.
+// scaffold finishing with a file list names those files in the exit callout.
 func TestModelScaffoldFinishedWithFilesListsGeneratedFiles(t *testing.T) {
 	t.Parallel()
 

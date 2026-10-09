@@ -189,14 +189,11 @@ func (p *Plan) Cleanup(fsys vfs.FS) {
 	p.tempDirs = nil
 }
 
-// GeneratedFiles returns the paths of the files written by the last
-// [Plan.Generate] call, relative to the output directory, cleaned and
-// deduplicated. It is empty before Generate runs.
+// GeneratedFiles returns the files the last [Plan.Generate] call rendered,
+// as sorted, deduplicated paths relative to the output directory.
 //
-// Only rendered module and template scaffolds populate this list. Copyable
-// kinds (units and stacks) take [Plan.copyComponent] and leave it empty:
-// the catalog TUI reports those via CopyCmd.Result rather than
-// GeneratedFiles, and no other caller consumes this method.
+// Returns nil before Generate runs, and for a unit or stack, which Generate
+// copies without recording the files.
 func (p *Plan) GeneratedFiles() []string {
 	return p.generatedFiles
 }
@@ -361,8 +358,7 @@ func (p *Plan) Generate(
 ) error {
 	// The zero kind is a module, so a plan whose source was never classified
 	// as copyable renders, which is every plan Prepare built before units and
-	// stacks could be scaffolded by copying. Copyable kinds do not populate
-	// generatedFiles; see GeneratedFiles.
+	// stacks could be scaffolded by copying.
 	if p.kind.IsCopyable() {
 		return p.copyComponent(l, v, values)
 	}
@@ -1046,8 +1042,8 @@ func collectDependencyFiles(
 }
 
 // dependencyFilePath returns file relative to outputDir. Boilerplate records
-// Files.Path relative to the dependency's own OutputFolder, so a nested
-// output-folder of ./config with extra.hcl becomes config/extra.hcl.
+// file relative to the dependency's output folder, which it has already
+// resolved under outputDir.
 func dependencyFilePath(outputDir, outputFolder, file string) string {
 	p := file
 	if outputFolder != "" {

@@ -123,16 +123,14 @@ func TestScaffoldGeneratesForModuleCarryingAUnit(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(outputDir, "terragrunt.values.hcl"))
 }
 
-// TestGeneratedFilesIncludesBoilerplateDependencyFiles exercises the
-// template path with opts.Manifest true: a custom boilerplate template that
-// depends on a nested template must list the dependency's generated files
-// alongside the root template's outputs.
+// TestGeneratedFilesIncludesBoilerplateDependencyFiles pins that a template's
+// dependency files are listed alongside its own, relative to the output
+// directory.
 func TestGeneratedFilesIncludesBoilerplateDependencyFiles(t *testing.T) {
 	t.Parallel()
 
 	repoDir := helpers.TmpDirWOSymlinks(t)
 
-	// A module source so Prepare takes the render path, not the copy path.
 	writeFile(t, filepath.Join(repoDir, "modules", "vpc", "main.tf"), `variable "name" {
   type = string
 }
@@ -188,9 +186,8 @@ dependencies:
 	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
 }
 
-// TestGeneratedFilesEmptyAfterCopyingUnit pins the GeneratedFiles contract
-// for copyable kinds: Generate copies the unit but leaves the list empty,
-// because the catalog TUI reports those via CopyCmd.Result.
+// TestGeneratedFilesEmptyAfterCopyingUnit pins that Generate copies a unit
+// without recording its files.
 func TestGeneratedFilesEmptyAfterCopyingUnit(t *testing.T) {
 	t.Parallel()
 
@@ -218,8 +215,7 @@ func TestGeneratedFilesEmptyAfterCopyingUnit(t *testing.T) {
 
 	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
 	assert.FileExists(t, filepath.Join(outputDir, "extra.hcl"))
-	assert.Empty(t, plan.GeneratedFiles(),
-		"copyable scaffolds report via CopyCmd.Result, not GeneratedFiles")
+	assert.Empty(t, plan.GeneratedFiles(), "a copied unit records no generated files")
 }
 
 // TestScaffoldRefusesToOverwriteWhenCopying covers a collision in the output
