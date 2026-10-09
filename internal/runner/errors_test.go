@@ -73,3 +73,15 @@ func TestNewUnitNotDiscoveredError(t *testing.T) {
 	assert.Equal(t, "/units/app", notDiscovered.UnitPath)
 	assert.Contains(t, err.Error(), "/units/app")
 }
+
+func TestNewUnitNotParsedError(t *testing.T) {
+	t.Parallel()
+
+	err := runner.NewUnitNotParsedError("/units/app")
+
+	var notParsed runner.UnitNotParsedError
+
+	require.ErrorAs(t, err, &notParsed)
+	assert.Equal(t, "/units/app", notParsed.UnitPath)
+	assert.Contains(t, err.Error(), "/units/app")
+}

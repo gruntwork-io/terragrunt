@@ -290,8 +290,12 @@ func TestNewFromComponents_UnitWithoutParsedConfig(t *testing.T) {
 		opts,
 		component.Components{component.NewUnit("/tmp/test/vpc")},
 	)
-	require.NoError(t, err)
-	assert.Len(t, rnr.GetStack().Units, 1)
+
+	var target runner.UnitNotParsedError
+
+	require.ErrorAs(t, err, &target, "discovery parses every unit, so an unparsed one is a bug")
+	assert.Equal(t, "/tmp/test/vpc", target.UnitPath)
+	assert.Nil(t, rnr)
 }
 
 func TestListStackDependentUnits_Transitive(t *testing.T) {
@@ -466,10 +470,6 @@ func TestNewFromComponents_WithGitRefsAndStateBackends(t *testing.T) {
 			name:             "no git ref",
 			unitConfig:       &config.TerragruntConfig{},
 			discoveryContext: &component.DiscoveryContext{},
-		},
-		{
-			name:             "no parsed config",
-			discoveryContext: &component.DiscoveryContext{Ref: "HEAD~1"},
 		},
 		{
 			name: "remote state is configured",

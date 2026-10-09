@@ -47,6 +47,27 @@ func NewUnitNotDiscoveredError(unitPath string) error {
 	return UnitNotDiscoveredError{UnitPath: unitPath}
 }
 
+// UnitNotParsedError reports a unit that reached the runner without the configuration discovery parses for every
+// unit. This indicates a bug in Terragrunt.
+type UnitNotParsedError struct {
+	UnitPath string
+}
+
+func (e UnitNotParsedError) Error() string {
+	return fmt.Sprintf(
+		"Unit at path '%s' reached the runner without a parsed configuration. "+
+			"This is a bug in Terragrunt. "+
+			"Please open a bug report at https://github.com/gruntwork-io/terragrunt/issues "+
+			"with details about how you encountered this error.",
+		e.UnitPath,
+	)
+}
+
+// NewUnitNotParsedError creates a new UnitNotParsedError.
+func NewUnitNotParsedError(unitPath string) error {
+	return UnitNotParsedError{UnitPath: unitPath}
+}
+
 // UnitFailedError reports a unit that failed during execution.
 type UnitFailedError struct {
 	UnitPath string

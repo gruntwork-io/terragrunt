@@ -228,12 +228,20 @@ func NewFromComponents(
 	opts *options.TerragruntOptions,
 	discovered component.Components,
 ) (*Runner, error) {
-	// Stack components (terragrunt.stack.hcl files) drive stack generation, not execution.
 	units := make([]*component.Unit, 0, len(discovered))
 	for _, c := range discovered {
-		if unit, ok := c.(*component.Unit); ok {
-			units = append(units, unit)
+		// Stack components (terragrunt.stack.hcl files) drive stack generation, not execution.
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
 		}
+
+		// Discovery parses every unit it returns, so a unit without a config is a bug.
+		if unit.Config() == nil {
+			return nil, NewUnitNotParsedError(unit.Path())
+		}
+
+		units = append(units, unit)
 	}
 
 	if len(units) == 0 {
