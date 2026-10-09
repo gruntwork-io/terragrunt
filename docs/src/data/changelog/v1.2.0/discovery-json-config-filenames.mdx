@@ -1,0 +1,16 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Units configured with `terragrunt.hcl.json` are discovered
+
+Discovery only looked for `terragrunt.hcl` and `terragrunt.stack.hcl`, so a unit configured with a `terragrunt.hcl.json` file and no `terragrunt.hcl` was silently left out of the component graph. Commands built on discovery, such as [`find`](/reference/cli/commands/find), [`list`](/reference/cli/commands/list), and [`--filter`](/features/filter), acted as though the unit did not exist, even though the config loader has always read JSON configuration files.
+
+Discovery now reads `terragrunt.hcl.json` as well. A directory that holds both `terragrunt.hcl` and `terragrunt.hcl.json` is an error, since which of the two applies would otherwise depend on the order in which the filesystem is walked:
+
+```
+Component "/repo/unit" has more than one Terragrunt configuration file (terragrunt.hcl and terragrunt.hcl.json). Only one may be present in a directory; remove one to disambiguate.
+```
+
+Remove one of the two files to resolve it, or name the one you want with [`--config`](/reference/cli/commands/run#config). A filename supplied through `--config` takes precedence over both default filenames, so a directory holding the named file alongside a `terragrunt.hcl` or a `terragrunt.hcl.json` is unambiguous.

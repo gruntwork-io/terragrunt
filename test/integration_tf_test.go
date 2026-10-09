@@ -972,6 +972,54 @@ func TestTFTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(stdout, "common_hcl"))
 }
 
+// TestTFTerragruntWorksWithNonDefaultConfigNamesAlongsideDefaultsAndRunAllCommand checks that an
+// explicit --config wins over default config filenames that sit in the same directories. The
+// fixture pairs app/main.hcl with an app/terragrunt.hcl and dependency/another-name.hcl with a
+// dependency/terragrunt.hcl.json, so discovery would see two unit configs per directory if the
+// defaults were still considered, and would reject them as ambiguous.
+func TestTFTerragruntWorksWithNonDefaultConfigNamesAlongsideDefaultsAndRunAllCommand(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureConfigNonDefaultPlusDefaults)
+	tmpEnvPath = path.Join(tmpEnvPath, testFixtureConfigNonDefaultPlusDefaults)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --log-level debug --config main.hcl --non-interactive --working-dir "+tmpEnvPath,
+	)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "run_cmd output: [parent_hcl_file]")
+	assert.Contains(t, stderr, "run_cmd output: [dependency_hcl]")
+	assert.Contains(t, stderr, "run_cmd output: [common_hcl]")
+
+	// The default-named configs must never be parsed when --config names another file.
+	assert.NotContains(t, stderr, "app_default_hcl_should_not_run")
+	assert.NotContains(t, stderr, "dependency_default_json_should_not_run")
+}
+
+// TestTFTerragruntWorksWithNonDefaultConfigNamesAlongsideDefaults is the single-unit counterpart of
+// the run --all test above: --config has to win over a default config file in the same directory.
+func TestTFTerragruntWorksWithNonDefaultConfigNamesAlongsideDefaults(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureConfigNonDefaultPlusDefaults)
+	tmpEnvPath = path.Join(tmpEnvPath, testFixtureConfigNonDefaultPlusDefaults)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply --config main.hcl --non-interactive --working-dir "+
+			filepath.Join(tmpEnvPath, "app"),
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, strings.Count(stdout, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(stdout, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(stdout, "common_hcl"))
+
+	assert.NotContains(t, stdout+stderr, "app_default_hcl_should_not_run")
+}
+
 func TestTFTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	t.Parallel()
 

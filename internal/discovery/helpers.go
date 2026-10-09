@@ -241,10 +241,16 @@ func createComponentFromPath(
 
 // validateNoCoexistence checks that no directory has more than one Terragrunt configuration
 // file. Returns a CoexistenceError if a directory has both a unit and a stack config file, or
-// an AmbiguousConfigError if a directory has two config files of the same kind (e.g. both
-// terragrunt.hcl and terragrunt.hcl.json), since which one applies would otherwise depend
-// silently on filesystem walk order and differ from the single-unit config loader's own
-// resolution (pkg/config.DefaultTerragruntConfigPaths).
+// an AmbiguousConfigError if a directory has both default unit config files (terragrunt.hcl and
+// terragrunt.hcl.json), since which one applies would otherwise depend silently on filesystem
+// walk order and differ from the single-unit config loader's own resolution
+// (pkg/config.DefaultTerragruntConfigPaths).
+//
+// A config filename the user named explicitly via `--config` is never half of an ambiguous pair:
+// buildConfigFilenames drops the default unit filenames when a custom one is supplied, so the
+// custom filename is the only unit config discovery looks for. The check below is limited to the
+// default filenames so that a caller passing a custom filename alongside the defaults still
+// resolves rather than erroring.
 func validateNoCoexistence(results []DiscoveryResult) error {
 	seen := make(map[string]DiscoveryResult, len(results))
 
@@ -255,7 +261,9 @@ func validateNoCoexistence(results []DiscoveryResult) error {
 			switch {
 			case existing.Component.Kind() != result.Component.Kind():
 				return NewCoexistenceError(existing.Component, result.Component)
-			case existing.Component.ConfigFile() != result.Component.ConfigFile():
+			case existing.Component.ConfigFile() != result.Component.ConfigFile() &&
+				isDefaultUnitConfigFile(existing.Component.ConfigFile()) &&
+				isDefaultUnitConfigFile(result.Component.ConfigFile()):
 				return NewAmbiguousConfigError(existing.Component, result.Component)
 			}
 		}
@@ -264,6 +272,12 @@ func validateNoCoexistence(results []DiscoveryResult) error {
 	}
 
 	return nil
+}
+
+// isDefaultUnitConfigFile reports whether filename is one of the default unit config filenames,
+// as opposed to a filename the user supplied through `--config`.
+func isDefaultUnitConfigFile(filename string) bool {
+	return filename == config.DefaultTerragruntConfigPath || filename == config.DefaultTerragruntJSONConfigPath
 }
 
 // deduplicateResults removes duplicate components from results by path.
