@@ -188,7 +188,7 @@ func (d *Discovery) Discover(
 		logPhaseComplete(l, "graph", results, err)
 
 		if err != nil && !d.suppressParseErrors {
-			return nil, err
+			return nil, d.markDeletedDependency(v.FS, err, resultsToComponents(slices.Concat(discovered, candidates)))
 		}
 
 		discovered = results.Discovered
@@ -220,7 +220,7 @@ func (d *Discovery) Discover(
 		)
 
 		if err != nil && !d.suppressParseErrors {
-			return components, err
+			return components, d.markDeletedDependency(v.FS, err, components)
 		}
 	}
 

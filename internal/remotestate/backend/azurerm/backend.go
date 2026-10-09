@@ -515,8 +515,10 @@ func ensureBlobDataRole(
 		return nil
 	}
 
-	// A configured or pre-resolved principal is left untyped so Azure infers it.
-	principal := azurehelper.Principal{ID: extCfg.PrincipalID}
+	// A configured principal is left untyped so Azure infers it. A pre-resolved
+	// one keeps its token type: an ABAC condition on roleAssignments/write
+	// (e.g. RBAC Administrator delegation) may require principalType.
+	principal := azurehelper.Principal{ID: extCfg.PrincipalID, Type: extCfg.resolvedPrincipalType}
 
 	if principal.ID == "" {
 		resolved, err := azurehelper.ResolvePrincipal(ctx, cfg)
@@ -560,6 +562,7 @@ func resolveAssignBlobDataPrincipal(
 	}
 
 	extCfg.PrincipalID = resolved.ID
+	extCfg.resolvedPrincipalType = resolved.Type
 
 	return nil
 }

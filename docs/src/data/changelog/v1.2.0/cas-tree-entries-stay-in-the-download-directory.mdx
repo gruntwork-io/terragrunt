@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### The CAS refuses tree entries that escape the download directory
+
+A repository with a hand-edited git tree can list a file at a path git would never write, such as `../../x.tf` or a path under a symbolic link in the same tree. The [CAS](/features/caching/cas) wrote the file where the path pointed, which could be outside the module's download directory.
+
+Terragrunt now checks each path before writing to it and refuses the tree when one escapes the download directory. A path that passes through a symbolic link already present in the download directory is refused too, because the link decides where the write lands.

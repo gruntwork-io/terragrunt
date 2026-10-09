@@ -536,6 +536,49 @@ func TestUnitPathsFromStackDir_StackAutoIncludeSameNameOverrides(t *testing.T) {
 		"the injected unit overrides the base unit wholesale, so only the injected path remains")
 }
 
+// TestUnitPathsFromStackDir_StackAutoIncludeExpandedOverride pins that discovery keeps every element
+// of an expanded unit the autoinclude injects over a same-name base unit, matching the full stack parse.
+func TestUnitPathsFromStackDir_StackAutoIncludeExpandedOverride(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc"
+}
+`), 0644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fs, "/test/terragrunt.autoinclude.stack.hcl", []byte(`unit "vpc" {
+  source = "."
+  path   = "vpc-${each.key}"
+
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+}
+`), 0644),
+	)
+
+	paths, err := hclparse.UnitPathsFromStackDir(
+		t.Context(),
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(
+		t,
+		[]string{
+			filepath.Join("/test", ".terragrunt-stack", "vpc-a"),
+			filepath.Join("/test", ".terragrunt-stack", "vpc-b"),
+		},
+		paths,
+	)
+}
+
 // TestUnitPathsFromStackDir_StackFileDuplicateNameRejected pins that a duplicate unit name within the
 // base stack file itself is still rejected; override only collapses base-vs-autoinclude collisions.
 func TestUnitPathsFromStackDir_StackFileDuplicateNameRejected(t *testing.T) {

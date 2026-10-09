@@ -135,9 +135,10 @@ func SplitUrls(s, sep string) []string {
 }
 
 // MergeNamed overrides base entries with same-name override entries, preserving base order and appending new override entries last.
+// Override entries that share a name, such as the elements of one expanded block, all replace the base entries of that name, in override order.
 // The name func returns an empty string for entries to leave untouched (e.g. a nil pointer), which are never indexed or overridden.
 func MergeNamed[T any](base, override []T, name func(T) string) []T {
-	overrideByName := make(map[string]T, len(override))
+	overrideByName := make(map[string][]T, len(override))
 	order := make([]string, 0, len(override))
 
 	for _, item := range override {
@@ -146,12 +147,11 @@ func MergeNamed[T any](base, override []T, name func(T) string) []T {
 			continue
 		}
 
-		if _, dup := overrideByName[key]; !dup {
+		if _, seen := overrideByName[key]; !seen {
 			order = append(order, key)
 		}
 
-		// Last writer wins within the override set itself.
-		overrideByName[key] = item
+		overrideByName[key] = append(overrideByName[key], item)
 	}
 
 	result := make([]T, 0, len(base)+len(override))
@@ -160,7 +160,7 @@ func MergeNamed[T any](base, override []T, name func(T) string) []T {
 	for _, item := range base {
 		key := name(item)
 
-		replacement, matched := overrideByName[key]
+		replacements, matched := overrideByName[key]
 		if key == "" || !matched {
 			result = append(result, item)
 			continue
@@ -171,7 +171,7 @@ func MergeNamed[T any](base, override []T, name func(T) string) []T {
 			continue
 		}
 
-		result = append(result, replacement)
+		result = append(result, replacements...)
 		consumed[key] = struct{}{}
 	}
 
@@ -180,7 +180,7 @@ func MergeNamed[T any](base, override []T, name func(T) string) []T {
 			continue
 		}
 
-		result = append(result, overrideByName[key])
+		result = append(result, overrideByName[key]...)
 	}
 
 	return result

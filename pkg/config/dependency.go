@@ -2940,3 +2940,33 @@ func IsValidConfigPath(v cty.Value) bool {
 
 	return true
 }
+
+// ValidateDependencyConfigPaths reports each enabled dependency block whose config_path has no Terragrunt config.
+func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPath string) error {
+	var errs []error
+
+	for i := range cfg.TerragruntDependencies {
+		dep := &cfg.TerragruntDependencies[i]
+		if !dep.isEnabled() || !IsValidConfigPath(dep.ConfigPath) {
+			continue
+		}
+
+		rawPath := dep.ConfigPath.AsString()
+		targetConfigPath := getCleanedTargetConfigPath(fsys, rawPath, configPath)
+
+		if stackFilePath, ok := resolveStackFilePath(rawPath, targetConfigPath); ok && vfs.Exists(fsys, stackFilePath) {
+			continue
+		}
+
+		exists, err := vfs.FileExists(fsys, targetConfigPath)
+		if err == nil && !exists {
+			err = DependencyConfigNotFound{Path: targetConfigPath}
+		}
+
+		if err != nil {
+			errs = append(errs, fmt.Errorf("dependency %q in %s: %w", dep.Name, configPath, err))
+		}
+	}
+
+	return errors.Join(errs...)
+}

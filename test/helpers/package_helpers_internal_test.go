@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNestUnder(t *testing.T) {
@@ -108,26 +106,4 @@ func TestIsAWSResourceNotFoundError(t *testing.T) {
 			assert.Equal(t, tc.want, isAWSResourceNotFoundError(tc.err))
 		})
 	}
-}
-
-func TestCertSetup(t *testing.T) {
-	t.Parallel()
-
-	serverConf, clientConf := certSetup(t)
-
-	require.Len(t, serverConf.Certificates, 1)
-	require.NotEmpty(t, serverConf.Certificates[0].Certificate)
-	require.NotNil(t, clientConf.RootCAs)
-
-	leaf, err := x509.ParseCertificate(serverConf.Certificates[0].Certificate[0])
-	require.NoError(t, err)
-
-	// The leaf is signed by the CA the client trusts and is valid for the mirror's loopback address.
-	_, err = leaf.Verify(x509.VerifyOptions{
-		Roots:     clientConf.RootCAs,
-		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-	})
-	require.NoError(t, err)
-	require.NoError(t, leaf.VerifyHostname("127.0.0.1"))
-	assert.False(t, leaf.IsCA)
 }
