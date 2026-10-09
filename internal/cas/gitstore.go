@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -510,7 +511,18 @@ func (s *GitStore) acquire(
 	lockCtx, cancel := context.WithTimeout(ctx, gitStoreLockTimeout)
 	defer cancel()
 
-	unlocker, err := vfs.LockContext(lockCtx, v.FS, lockPath)
+	var unlocker vfs.Unlocker
+
+	err := spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Waiting for the lock on the Git store for " + u.String() + "...",
+		Done:    "Got the lock on the Git store for " + u.String(),
+	}, func() error {
+		var lockErr error
+
+		unlocker, lockErr = vfs.LockContext(lockCtx, v.FS, lockPath)
+
+		return lockErr
+	})
 	if err != nil {
 		return nil, fmt.Errorf("lock git store for %s: %w", u, errors.Join(ErrGitStoreLock, err))
 	}

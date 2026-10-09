@@ -27,6 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -474,6 +475,9 @@ func (rnr *Runner) Run(
 				"working_dir":            unitOpts.WorkingDir,
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(childCtx context.Context, unitLogger log.Logger) error {
+				// Units write to the terminal while their siblings run, so their progress is logged, never drawn.
+				childCtx = spinner.ContextWithLogOnly(childCtx)
+
 				l.Debugf(
 					"Runner Pool Task: starting unit=%s command=%s",
 					unitPath,

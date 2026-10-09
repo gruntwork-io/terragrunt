@@ -1,6 +1,7 @@
 package worktrees_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,8 +15,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -948,6 +952,127 @@ func TestWorktreeCleanupWithCancelledContextWithRacing(t *testing.T) {
 			assert.NoDirExists(t, worktree.Path)
 		}
 	}
+}
+
+// TestNewWorktreesComparisonProgress pins that the Git comparison is reported only when the run carries a reporter.
+func TestNewWorktreesComparisonProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+			commitUnits(t, tmpDir, 2)
+
+			logs := new(bytes.Buffer)
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)))
+
+			filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+			require.NoError(t, err)
+
+			gitExpressions := filters.UniqueGitFilters()
+			require.Len(t, gitExpressions, 1)
+
+			ctx := t.Context()
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+			}
+
+			v := venvtest.NewOSWithEmptyEnv()
+
+			w, err := worktrees.NewWorktrees(
+				ctx,
+				l,
+				v,
+				worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions},
+			)
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				require.NoError(t, w.Cleanup(t.Context(), l, v))
+			})
+
+			pair := w.WorktreePairs[gitExpressions[0].String()]
+			require.NotNil(t, pair, "the expression is compared with and without a reporter")
+			assert.Equal(t, []string{"unit-1/terragrunt.hcl"}, pair.Diffs.Added)
+			require.Contains(t, logs.String(), "Created Git worktree for reference HEAD at ")
+
+			working := "Comparing Git references for filters..."
+			done := "Compared Git references for filters"
+
+			if !tc.reported {
+				assert.NotContains(t, logs.String(), working)
+				assert.NotContains(t, logs.String(), done)
+
+				return
+			}
+
+			assert.Contains(t, logs.String(), working)
+			assert.Contains(t, logs.String(), done)
+		})
+	}
+}
+
+// TestNewWorktreesFailedCheckoutReportsNoSuccess pins that a worktree whose
+// checkout fails is reported as started and never as created.
+func TestNewWorktreesFailedCheckoutReportsNoSuccess(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	commitUnits(t, tmpDir, 2)
+
+	logs := new(bytes.Buffer)
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
+
+	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	ctx := spinner.ContextWithReporter(t.Context(), spinner.New(spinner.Options{}))
+
+	v := venvtest.NewOSWithEmptyEnv()
+	v = v.WithExec(&failOnCheckoutExec{Exec: v.Exec})
+
+	_, err = worktrees.NewWorktrees(
+		ctx,
+		l,
+		v,
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.Error(t, err)
+
+	assert.Contains(t, logs.String(), "Creating Git worktree")
+	assert.NotContains(t, logs.String(), "Created Git worktree")
+	assert.Empty(t, registeredWorktrees(t, tmpDir))
+}
+
+// failOnCheckoutExec makes every `git checkout` fail and prepares every other
+// command through the wrapped Exec.
+type failOnCheckoutExec struct {
+	vexec.Exec
+}
+
+// Command prepares a `git checkout` that exits with an error.
+func (e *failOnCheckoutExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
+	if !slices.Contains(args, "checkout") {
+		return e.Exec.Command(ctx, name, args...)
+	}
+
+	failing := vexec.NewMemExec(func(context.Context, vexec.Invocation) vexec.Result {
+		return vexec.Result{ExitCode: 1, Stderr: []byte("fatal: checkout failed")}
+	})
+
+	return failing.Command(ctx, name, args...)
 }
 
 // cancelOnCheckoutExec cancels a context when a `git checkout` is prepared,
