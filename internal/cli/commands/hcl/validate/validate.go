@@ -75,16 +75,6 @@ func RunValidate(
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           opts.Filters,
-	})
-	if err != nil {
-		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
-	}
-
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
 	gitFilters := opts.Filters.UniqueGitFilters()
@@ -110,14 +100,21 @@ func RunValidate(
 		}
 	}()
 
-	d = d.WithWorktrees(worktrees)
-
-	components, err := d.Discover(ctx, l, v, opts)
+	d, err := newDiscovery(l, v, opts, worktrees)
 	if err != nil {
 		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
 	}
 
-	parseErrs := []error{}
+	components, err := d.WithSuppressParseErrors().Discover(ctx, l, v, opts)
+	if err != nil {
+		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
+	}
+
+	var (
+		parseErrs []error
+		missing   []*MissingDependencyError
+		unitErrs  = make(map[string]error)
+	)
 
 	for _, c := range components {
 		// Parsing can write obtained credentials into the env, so each
@@ -130,17 +127,155 @@ func RunValidate(
 			continue
 		}
 
+		missingErr, err := missingDependency(v.FS, opts, c)
+		if err != nil {
+			parseErrs = append(parseErrs, err)
+
+			continue
+		}
+
+		if missingErr != nil {
+			missing = append(missing, missingErr)
+
+			continue
+		}
+
 		if err := parser.Unit(ctx, l, componentV, opts, c.Path()); err != nil {
 			parseErrs = append(parseErrs, err)
+			unitErrs[c.Path()] = err
 		}
 	}
 
-	var combinedErr error
-	if len(parseErrs) > 0 {
-		combinedErr = errors.Join(parseErrs...)
+	parseErrs = append(parseErrs, unreportedMissingDependencies(missing, unitErrs)...)
+
+	if len(parseErrs) > 0 || len(collector.Diagnostics()) > 0 {
+		return processDiagnostics(l, v, opts, collector.Diagnostics(), errors.Join(parseErrs...))
 	}
 
-	return processDiagnostics(l, v, opts, collector.Diagnostics(), combinedErr)
+	return strictDiscoveryError(ctx, l, v, opts, worktrees)
+}
+
+// MissingDependencyError reports a dependency path that has no unit configuration.
+type MissingDependencyError struct {
+	Path       string
+	ConfigFile string
+	Dependents []string
+}
+
+func (err MissingDependencyError) Error() string {
+	return fmt.Sprintf(
+		"dependency of %s: %s has no %s",
+		strings.Join(err.Dependents, ", "),
+		err.Path,
+		err.ConfigFile,
+	)
+}
+
+func newDiscovery(
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) (*discovery.Discovery, error) {
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return d.WithWorktrees(wts), nil
+}
+
+// missingDependency returns an error for a unit that other units depend on and that has no configuration file.
+// Graph filters add such a unit to the discovered set from the dependency path alone.
+func missingDependency(
+	fsys vfs.FS,
+	opts *options.TerragruntOptions,
+	c component.Component,
+) (*MissingDependencyError, error) {
+	dependents := c.Dependents()
+	if len(dependents) == 0 {
+		return nil, nil
+	}
+
+	if vfs.Exists(fsys, c.Path()) && !vfs.IsDir(fsys, c.Path()) {
+		return nil, nil
+	}
+
+	configFile := unitConfigFilename(opts)
+
+	exists, err := vfs.FileExists(fsys, filepath.Join(c.Path(), configFile))
+	if err != nil {
+		return nil, err
+	}
+
+	if exists {
+		return nil, nil
+	}
+
+	paths := dependents.Paths()
+	slices.Sort(paths)
+
+	return &MissingDependencyError{
+		Path:       c.Path(),
+		ConfigFile: configFile,
+		Dependents: paths,
+	}, nil
+}
+
+// unreportedMissingDependencies returns the missing dependencies that no dependent reported while it was validated.
+// A dependent reports a target its own blocks name, which leaves out a dependent outside the validated set and a
+// `dependencies` path whose directory exists without a configuration file.
+func unreportedMissingDependencies(missing []*MissingDependencyError, unitErrs map[string]error) []error {
+	var errs []error
+
+	for _, missingErr := range missing {
+		if !slices.ContainsFunc(missingErr.Dependents, func(dependent string) bool {
+			return reportsMissingDependency(unitErrs[dependent])
+		}) {
+			errs = append(errs, missingErr)
+		}
+	}
+
+	return errs
+}
+
+// reportsMissingDependency reports whether err has a missing `dependency` or `dependencies` target in its tree.
+func reportsMissingDependency(err error) bool {
+	if _, ok := errors.AsType[config.DependencyConfigNotFound](err); ok {
+		return true
+	}
+
+	_, ok := errors.AsType[config.DependencyDirNotFoundError](err)
+
+	return ok
+}
+
+// strictDiscoveryError repeats discovery without suppressing parse errors and returns what it reports.
+// A unit that discovery cannot parse at all is left out of a filtered set, so a validation that found
+// nothing has not proven that every matching unit is valid.
+func strictDiscoveryError(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) error {
+	if len(opts.Filters) == 0 {
+		return nil
+	}
+
+	d, err := newDiscovery(l, v, opts, wts)
+	if err != nil {
+		return err
+	}
+
+	_, err = d.Discover(ctx, l, v, opts)
+
+	return err
 }
 
 func processDiagnostics(
@@ -215,15 +350,6 @@ func RunValidateInputs(
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           opts.Filters,
-	})
-	if err != nil {
-		return err
-	}
-
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
 	gitFilters := opts.Filters.UniqueGitFilters()
@@ -249,7 +375,10 @@ func RunValidateInputs(
 		}
 	}()
 
-	d = d.WithWorktrees(worktrees)
+	d, err := newDiscovery(l, v, opts, worktrees)
+	if err != nil {
+		return err
+	}
 
 	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
