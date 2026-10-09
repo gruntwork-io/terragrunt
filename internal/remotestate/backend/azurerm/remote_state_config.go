@@ -46,7 +46,10 @@ type ExtendedRemoteStateConfigAzurerm struct {
 	AccessTier             string            `mapstructure:"access_tier"`
 	MinimumTLSVersion      string            `mapstructure:"minimum_tls_version"`
 	// PrincipalID defaults to the identity Terragrunt authenticated as.
-	PrincipalID              string                   `mapstructure:"principal_id"`
+	PrincipalID string `mapstructure:"principal_id"`
+	// resolvedPrincipalType is the type read from the caller's token alongside
+	// PrincipalID. It stays empty for a configured principal_id, whose type is unknown.
+	resolvedPrincipalType    string
 	RemoteStateConfigAzurerm RemoteStateConfigAzurerm `mapstructure:",squash"`
 	SoftDeleteRetentionDays  int                      `mapstructure:"soft_delete_retention_days"`
 
