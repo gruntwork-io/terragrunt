@@ -11,6 +11,9 @@ on:
         description: 'Latest release tag to clean up against (e.g. v1.0.7)'
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   cleanup:
     name: Remove obsolete docs version gates

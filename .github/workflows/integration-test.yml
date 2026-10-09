@@ -3,9 +3,15 @@ name: Integration Tests
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test (${{ matrix.integration.name }})
+    permissions:
+      contents: read
+      checks: write
     runs-on: ${{ matrix.integration.os }}-latest
     strategy:
       fail-fast: false

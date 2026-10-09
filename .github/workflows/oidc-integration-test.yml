@@ -7,6 +7,9 @@ name: OIDC Integration Tests
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     permissions:
