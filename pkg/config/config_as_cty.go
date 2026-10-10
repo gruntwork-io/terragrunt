@@ -590,6 +590,7 @@ type CtyTerraformConfig struct {
 	IncludeInCopy         *[]string                          `cty:"include_in_copy"`
 	ExcludeFromCopy       *[]string                          `cty:"exclude_from_copy"`
 	CopyTerraformLockFile *bool                              `cty:"copy_terraform_lock_file"`
+	NoCache               *bool                              `cty:"no_cache"`
 	BeforeHooks           map[string]Hook                    `cty:"before_hook"`
 	AfterHooks            map[string]Hook                    `cty:"after_hook"`
 	ErrorHooks            map[string]ErrorHook               `cty:"error_hook"`
@@ -606,6 +607,7 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		IncludeInCopy:         config.IncludeInCopy,
 		ExcludeFromCopy:       config.ExcludeFromCopy,
 		CopyTerraformLockFile: config.CopyTerraformLockFile,
+		NoCache:               config.NoCache,
 		ExtraArgs:             map[string]TerraformExtraArguments{},
 		BeforeHooks:           map[string]Hook{},
 		AfterHooks:            map[string]Hook{},

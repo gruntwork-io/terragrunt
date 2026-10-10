@@ -286,6 +286,42 @@ func TestGetTerraformSourceURL(t *testing.T) {
 			expectedResult: ".",
 			expectedError:  "",
 		},
+		{
+			name:      "no_cache with no source returns empty string",
+			source:    "",
+			sourceMap: map[string]string{},
+			cfg: &runcfg.RunConfig{
+				Terraform: runcfg.TerraformConfig{
+					NoCache: true,
+				},
+			},
+			expectedResult: "",
+			expectedError:  "",
+		},
+		{
+			name:      "no_cache with explicit source still returns source",
+			source:    "",
+			sourceMap: map[string]string{},
+			cfg: &runcfg.RunConfig{
+				Terraform: runcfg.TerraformConfig{
+					Source:  "git::ssh://git@github.com/org/repo.git",
+					NoCache: true,
+				},
+			},
+			expectedResult: "git::ssh://git@github.com/org/repo.git",
+			expectedError:  "",
+		},
+		{
+			name:   "no_cache with CLI source still returns CLI source",
+			source: "git::ssh://git@github.com/org/repo.git",
+			cfg: &runcfg.RunConfig{
+				Terraform: runcfg.TerraformConfig{
+					NoCache: true,
+				},
+			},
+			expectedResult: "git::ssh://git@github.com/org/repo.git",
+			expectedError:  "",
+		},
 	}
 
 	for _, tc := range testCases {
