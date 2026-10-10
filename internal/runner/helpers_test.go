@@ -1,7 +1,9 @@
 package runner_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -252,4 +255,80 @@ func newStackOpts(t *testing.T, root, command string) *options.TerragruntOptions
 	opts.TerraformCliArgs = iacargs.New(command)
 
 	return opts
+}
+
+// newConsoleTelemeter returns a telemeter whose console trace exporter writes every finished span into the buffer.
+func newConsoleTelemeter(t *testing.T) (*bytes.Buffer, *telemetry.Telemeter) {
+	t.Helper()
+
+	buf := new(bytes.Buffer)
+
+	tlm, err := telemetry.NewTelemeter(
+		t.Context(),
+		thlogger.CreateLogger(),
+		"terragrunt",
+		"v0.0.0-test",
+		buf,
+		&telemetry.Options{TraceExporter: "console"},
+		false,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, tlm)
+
+	return buf, tlm
+}
+
+// decodedSpan is one span as the console trace exporter wrote it.
+type decodedSpan struct {
+	// Attrs maps each attribute key to its value, with numbers decoded as
+	// float64 the way encoding/json reports any JSON number.
+	Attrs map[string]any
+	// Name is the span name.
+	Name string
+}
+
+// decodeSpans reads back every span the console trace exporter wrote into buf.
+func decodeSpans(t *testing.T, buf *bytes.Buffer) []decodedSpan {
+	t.Helper()
+
+	type exported struct {
+		Name       string `json:"Name"`
+		Attributes []struct {
+			Value struct {
+				Value any `json:"Value"`
+			} `json:"Value"`
+			Key string `json:"Key"`
+		} `json:"Attributes"`
+	}
+
+	var spans []decodedSpan
+
+	dec := json.NewDecoder(buf)
+	for dec.More() {
+		var e exported
+
+		require.NoError(t, dec.Decode(&e))
+
+		span := decodedSpan{Name: e.Name, Attrs: map[string]any{}}
+		for _, attr := range e.Attributes {
+			span.Attrs[attr.Key] = attr.Value.Value
+		}
+
+		spans = append(spans, span)
+	}
+
+	return spans
+}
+
+// spansNamed returns the decoded spans called name.
+func spansNamed(spans []decodedSpan, name string) []decodedSpan {
+	var named []decodedSpan
+
+	for _, span := range spans {
+		if span.Name == name {
+			named = append(named, span)
+		}
+	}
+
+	return named
 }
