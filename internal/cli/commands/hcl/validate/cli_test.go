@@ -88,3 +88,42 @@ func TestNewFlagsMapsEachEnvVarToOneFlag(t *testing.T) {
 		})
 	}
 }
+
+// TestNewCommandSkipsAutoProviderCacheDirWithoutInputs pins that `hcl validate`
+// skips the auto provider cache dir unless `--inputs` is set, since `--inputs`
+// needs the probed implementation for `tfr:///` registry selection (#7094).
+func TestNewCommandSkipsAutoProviderCacheDirWithoutInputs(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		validateInputs bool
+		wantSkip       bool
+	}{
+		{
+			name:           "without inputs the probe is skipped",
+			validateInputs: false,
+			wantSkip:       true,
+		},
+		{
+			name:           "with inputs the probe is kept",
+			validateInputs: true,
+			wantSkip:       false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.HCLValidateInputs = tc.validateInputs
+
+			cmd := validate.NewCommand(logger.CreateLogger(), opts, venvtest.New())
+
+			require.NotNil(t, cmd.Before, "validate command must decide on the auto provider cache dir in Before")
+			require.NoError(t, cmd.Before(t.Context(), nil))
+			assert.Equal(t, tc.wantSkip, opts.NoAutoProviderCacheDir)
+		})
+	}
+}

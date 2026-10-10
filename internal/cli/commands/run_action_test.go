@@ -8,6 +8,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -43,6 +45,26 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 	require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, venvtest.New(), action))
 	assert.True(t, hasRunCmd, "RunCmdCacheContextKey missing from action context")
 	assert.True(t, hasRepoRoots, "RepoRootCacheContextKey missing from action context")
+}
+
+// TestRunActionHonorsNoAutoProviderCacheDir pins that opting out skips the
+// version probe and leaves TF_PLUGIN_CACHE_DIR unset. The `hcl` and `mcp`
+// commands rely on this (#7094).
+func TestRunActionHonorsNoAutoProviderCacheDir(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.NoAutoProviderCacheDir = true
+	opts.TFPath = "tofu"
+
+	// venvtest's fail-closed exec errors on any spawn, so success proves no probe ran.
+	v := venvtest.New()
+
+	action := func(context.Context, *clihelper.Context) error { return nil }
+
+	require.NoError(t, commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, v, action))
+	assert.Empty(t, v.Env[tf.EnvNameTFPluginCacheDir])
+	assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
 }
 
 func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
