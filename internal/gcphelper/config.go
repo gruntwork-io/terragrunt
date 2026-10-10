@@ -36,6 +36,9 @@ type GCPSessionConfig struct {
 	AccessToken                        string
 	ImpersonateServiceAccount          string
 	ImpersonateServiceAccountDelegates []string
+	// ImpersonateScopes are the OAuth scopes requested for the impersonated token.
+	// Empty means storage.ScopeFullControl.
+	ImpersonateScopes []string
 }
 
 // GCPConfigBuilder constructs GCP client options using the builder pattern.
@@ -180,14 +183,31 @@ func (b *GCPConfigBuilder) Build(
 
 	// Handle service account impersonation.
 	// When impersonation is configured, the impersonation token source replaces
-	// any base credentials. The impersonate library uses Application Default
-	// Credentials internally as the source identity.
+	// any base credentials. The resolved base credentials, or Application Default
+	// Credentials when none are configured, sign the IAM Credentials call.
 	if gcpCfg != nil && gcpCfg.ImpersonateServiceAccount != "" {
+		scopes := gcpCfg.ImpersonateScopes
+		if len(scopes) == 0 {
+			scopes = []string{storage.ScopeFullControl}
+		}
+
+		// The IAM Credentials call goes through v's transport too: left to build its
+		// own client, the impersonate library would reach the real network.
+		baseOpts := append([]option.ClientOption{option.WithScopes(cloudPlatformScope)}, clientOpts...)
+
+		trans, err := htransport.NewTransport(ctx, v.HTTP.Transport, baseOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("error building impersonation transport: %w", err)
+		}
+
+		//nolint:forbidigo // Same wrapper as BuildGCSClient; trans is built on the venv's transport.
+		impersonationClient := &http.Client{Transport: trans}
+
 		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
 			TargetPrincipal: gcpCfg.ImpersonateServiceAccount,
-			Scopes:          []string{storage.ScopeFullControl},
+			Scopes:          scopes,
 			Delegates:       gcpCfg.ImpersonateServiceAccountDelegates,
-		}, clientOpts...)
+		}, option.WithHTTPClient(impersonationClient))
 		if err != nil {
 			return nil, fmt.Errorf("error creating impersonation token source: %w", err)
 		}
