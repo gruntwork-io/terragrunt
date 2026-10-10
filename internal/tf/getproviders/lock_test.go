@@ -445,3 +445,28 @@ provider "registry.terraform.io/hashicorp/aws" {
 	assert.NotContains(t, string(actualLockfile), `constraints = ">= 3.0.0, < 7.0.0"`,
 		"Module-only constraints should not replace the aggregated constraints")
 }
+
+// TestMockUpdateLockfileWritesProviderConstraints pins that a new lock file
+// records the provider's constraints as given, next to the resolved version.
+func TestMockUpdateLockfileWritesProviderConstraints(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	provider := mockProviderWithConstraints(t, ctrl,
+		"registry.opentofu.org/hashicorp/null", "3.2.4",
+		"~> 3.0",
+	)
+
+	workingDir := helpers.TmpDirWOSymlinks(t)
+
+	err := getproviders.UpdateLockfile(t.Context(), vfs.NewOSFS(), workingDir, []getproviders.Provider{provider})
+	require.NoError(t, err)
+
+	actualLockfile, err := os.ReadFile(filepath.Join(workingDir, ".terraform.lock.hcl"))
+	require.NoError(t, err)
+
+	assert.Contains(t, string(actualLockfile), `version     = "3.2.4"`)
+	assert.Contains(t, string(actualLockfile), `constraints = "~> 3.0"`)
+}

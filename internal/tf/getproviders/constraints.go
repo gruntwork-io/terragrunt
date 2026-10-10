@@ -1,6 +1,7 @@
 package getproviders
 
 import (
+	"cmp"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -263,46 +264,146 @@ func normalizeProviderAddress(env map[string]string, impl tfimpl.Type, source st
 // This includes:
 // 1. Removing the "=" prefix if present
 // 2. Normalizing version numbers to full 3-part format (e.g., "2.2" becomes "2.2.0")
-// 3. Handling multi-part constraints (e.g., ">= 3.0, < 7.0" becomes ">= 3.0.0, < 7.0.0")
+// 3. Writing a pessimistic constraint with two parts unless it declares three (e.g., "~> 3.0" stays "~> 3.0")
+// 4. Handling multi-part constraints (e.g., ">= 3.0, < 7.0" becomes ">= 3.0.0, < 7.0.0")
+// 5. Sorting the terms by version and dropping repeats (e.g., "< 7.0, >= 3.0, >= 3.0.0" becomes ">= 3.0.0, < 7.0.0")
+//
+// A constraint with a term whose operator or version is not recognized keeps
+// its declared order and repeats.
 func normalizeVersionConstraint(constraint string) string {
-	constraint = strings.TrimSpace(constraint)
-
-	parts := strings.Split(constraint, ",")
-	normalized := make([]string, 0, len(parts))
+	parts := strings.Split(strings.TrimSpace(constraint), ",")
+	terms := make([]constraintTerm, 0, len(parts))
+	recognized := true
 
 	for _, part := range parts {
-		normalized = append(normalized, normalizeSingleConstraint(strings.TrimSpace(part)))
+		term, ok := normalizeSingleConstraint(strings.TrimSpace(part))
+		recognized = recognized && ok
+
+		terms = append(terms, term)
+	}
+
+	if recognized {
+		slices.SortFunc(terms, compareConstraintTerms)
+
+		terms = slices.CompactFunc(terms, func(a, b constraintTerm) bool {
+			return a.text == b.text
+		})
+	}
+
+	normalized := make([]string, 0, len(terms))
+	for _, term := range terms {
+		normalized = append(normalized, term.text)
 	}
 
 	return strings.Join(normalized, ", ")
 }
 
+// constraintTerm is one comma-separated term of a version constraint, written
+// the way tofu writes it to a lock file.
+type constraintTerm struct {
+	version *semver.Version
+	text    string
+	rank    operatorRank
+}
+
+// operatorRank orders terms that share a version. The order is the one tofu
+// uses when it writes lock file constraints.
+type operatorRank int
+
+const (
+	rankGreaterThan operatorRank = iota + 1
+	rankGreaterThanOrEqual
+	rankEqual
+	rankPessimisticPatch
+	rankPessimisticMinor
+	rankLessThanOrEqual
+	rankLessThan
+	rankNotEqual
+)
+
+// compareConstraintTerms orders terms by version, then by build metadata, then
+// by operator.
+func compareConstraintTerms(a, b constraintTerm) int {
+	return cmp.Or(
+		a.version.Compare(b.version),
+		strings.Compare(a.version.Metadata(), b.version.Metadata()),
+		cmp.Compare(a.rank, b.rank),
+	)
+}
+
 // normalizeSingleConstraint normalizes a single version constraint (no commas).
-func normalizeSingleConstraint(constraint string) string {
-	if after, ok := strings.CutPrefix(constraint, "="); ok {
-		constraint = strings.TrimSpace(after)
+// It reports false, with the term as declared, when the operator or version is
+// not recognized.
+func normalizeSingleConstraint(constraint string) (constraintTerm, bool) {
+	const operatorChars = "=<>!~"
+
+	rest := strings.TrimLeft(constraint, operatorChars)
+	operator := constraint[:len(constraint)-len(rest)]
+	declared := strings.TrimSpace(rest)
+
+	v, err := semver.Parse(declared)
+	if err != nil {
+		return constraintTerm{text: constraint}, false
 	}
 
-	fields := strings.Fields(constraint)
+	term := constraintTerm{version: v, text: operator + " " + v.String()}
 
-	const justVersionParts = 1
-	if len(fields) == justVersionParts {
-		if v, err := semver.Parse(fields[0]); err == nil {
-			return v.String()
+	switch operator {
+	case "", "=":
+		term.text = v.String()
+		term.rank = rankEqual
+	case "~>":
+		term.rank = rankPessimisticPatch
+
+		if declaresMinorOnly(declared) {
+			term.text = operator + " " + minorVersion(v)
+			term.rank = rankPessimisticMinor
 		}
-
-		return constraint
+	case ">":
+		term.rank = rankGreaterThan
+	case ">=":
+		term.rank = rankGreaterThanOrEqual
+	case "<=":
+		term.rank = rankLessThanOrEqual
+	case "<":
+		term.rank = rankLessThan
+	case "!=":
+		term.rank = rankNotEqual
+	default:
+		return constraintTerm{text: constraint}, false
 	}
 
-	const operatorAndVersionParts = 2
-	if len(fields) == operatorAndVersionParts {
-		operator := fields[0]
-		versionStr := fields[1]
+	return term, true
+}
 
-		if v, err := semver.Parse(versionStr); err == nil {
-			return fmt.Sprintf("%s %s", operator, v.String())
-		}
+// declaresMinorOnly reports whether a `~>` version is declared with one or two
+// parts. The number of parts sets which part may vary, so `3.0` allows any 3.x
+// release and `3.0.0` allows only 3.0.x.
+func declaresMinorOnly(declared string) bool {
+	const (
+		minorOnlyParts = 2
+		digitsAndDots  = "0123456789."
+	)
+
+	numeric := strings.TrimPrefix(declared, "v")
+	numeric = numeric[:len(numeric)-len(strings.TrimLeft(numeric, digitsAndDots))]
+
+	return strings.Count(numeric, ".")+1 <= minorOnlyParts
+}
+
+// minorVersion formats v with two parts, the way tofu writes a `~>` version
+// declared with one or two.
+func minorVersion(v *semver.Version) string {
+	segments := v.Segments()
+	version := fmt.Sprintf("%d.%d", segments[0], segments[1])
+
+	if prerelease := v.Prerelease(); prerelease != "" {
+		version += "-" + prerelease
 	}
 
-	return constraint
+	if metadata := v.Metadata(); metadata != "" {
+		version += "+" + metadata
+	}
+
+	return version
 }
