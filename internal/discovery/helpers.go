@@ -40,7 +40,11 @@ const (
 )
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
-var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
+var DefaultConfigFilenames = []string{
+	config.DefaultTerragruntConfigPath,
+	config.DefaultTerragruntJSONConfigPath,
+	config.DefaultStackFile,
+}
 
 // walkDirFunc returns the tree walk the discovery phases use, bound to the
 // venv filesystem so discovery only sees what the venv exposes. The symlinks
@@ -156,6 +160,12 @@ func isExternal(fsys vfs.FS, workingDir string, componentPath string) bool {
 // componentFromDependencyPath returns a component for a dependency path. If the path already
 // exists in the thread-safe components, it returns that. If the path contains a stack file,
 // it creates a stack. Otherwise, it creates a unit.
+//
+// A dependency path reaches here (rather than via createComponentFromPath) when it wasn't
+// already registered by the filesystem walk, e.g. an external dependency outside the discovery
+// boundary. The new unit's config file is probed on disk rather than left at Unit's
+// terragrunt.hcl default, so a JSON-only dependency (terragrunt.hcl.json, no terragrunt.hcl)
+// doesn't get parsed against a config file that doesn't exist.
 func componentFromDependencyPath(
 	fsys vfs.FS,
 	path string,
@@ -169,7 +179,24 @@ func componentFromDependencyPath(
 		return component.NewStack(path)
 	}
 
-	return component.NewUnit(path)
+	unit := component.NewUnit(path)
+	unit.SetConfigFile(unitConfigFilename(fsys, path))
+
+	return unit
+}
+
+// unitConfigFilename returns the unit config filename that exists in dir, preferring
+// terragrunt.hcl and falling back to terragrunt.hcl.json, mirroring the unit-relevant entries
+// in DefaultConfigFilenames. Returns the terragrunt.hcl default if neither exists, e.g. because
+// dir doesn't exist yet, matching Unit's own default.
+func unitConfigFilename(fsys vfs.FS, dir string) string {
+	for _, fname := range []string{config.DefaultTerragruntConfigPath, config.DefaultTerragruntJSONConfigPath} {
+		if _, err := fsys.Stat(filepath.Join(dir, fname)); err == nil {
+			return fname
+		}
+	}
+
+	return config.DefaultTerragruntConfigPath
 }
 
 // createComponentFromPath creates a component from a file path if it matches one of the config filenames.
@@ -213,22 +240,45 @@ func createComponentFromPath(
 	return nil
 }
 
-// validateNoCoexistence checks that no directory has both a unit and a stack config file.
-// Returns a CoexistenceError if a directory contains both.
+// validateNoCoexistence checks that no directory has more than one Terragrunt configuration
+// file. Returns a CoexistenceError if a directory has both a unit and a stack config file, or
+// an AmbiguousConfigError if a directory has both default unit config files (terragrunt.hcl and
+// terragrunt.hcl.json), since which one applies would otherwise depend silently on filesystem
+// walk order and differ from the single-unit config loader's own resolution
+// (pkg/config.DefaultTerragruntConfigPaths).
+//
+// A config filename the user named explicitly via `--config` is never half of an ambiguous pair:
+// buildConfigFilenames drops the default unit filenames when a custom one is supplied, so the
+// custom filename is the only unit config discovery looks for. The check below is limited to the
+// default filenames so that a caller passing a custom filename alongside the defaults still
+// resolves rather than erroring.
 func validateNoCoexistence(results []DiscoveryResult) error {
 	seen := make(map[string]DiscoveryResult, len(results))
 
 	for _, result := range results {
 		path := result.Component.Path()
 
-		if existing, ok := seen[path]; ok && existing.Component.Kind() != result.Component.Kind() {
-			return NewCoexistenceError(existing.Component, result.Component)
+		if existing, ok := seen[path]; ok {
+			switch {
+			case existing.Component.Kind() != result.Component.Kind():
+				return NewCoexistenceError(existing.Component, result.Component)
+			case existing.Component.ConfigFile() != result.Component.ConfigFile() &&
+				isDefaultUnitConfigFile(existing.Component.ConfigFile()) &&
+				isDefaultUnitConfigFile(result.Component.ConfigFile()):
+				return NewAmbiguousConfigError(existing.Component, result.Component)
+			}
 		}
 
 		seen[path] = result
 	}
 
 	return nil
+}
+
+// isDefaultUnitConfigFile reports whether filename is one of the default unit config filenames,
+// as opposed to a filename the user supplied through `--config`.
+func isDefaultUnitConfigFile(filename string) bool {
+	return filename == config.DefaultTerragruntConfigPath || filename == config.DefaultTerragruntJSONConfigPath
 }
 
 // deduplicateResults removes duplicate components from results by path.

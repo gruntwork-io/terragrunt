@@ -45,17 +45,23 @@ func resolveWorkingDir(opts *options.TerragruntOptions) string {
 	return opts.WorkingDir
 }
 
-// buildConfigFilenames returns the list of config filenames to consider, including custom if provided.
+// buildConfigFilenames returns the list of config filenames to consider.
+//
+// A custom unit config filename, supplied via `--config`, takes precedence over the default unit
+// filenames rather than being considered alongside them: the user named the file they want, so a
+// `terragrunt.hcl` or `terragrunt.hcl.json` sitting in the same directory must not compete with it.
+// Were both kept, a directory holding the custom file and a default one would hold two unit configs,
+// which discovery rejects as ambiguous. The stack filename is always kept, since a stack config is a
+// different component kind that `--config` does not name.
 func buildConfigFilenames(opts *options.TerragruntOptions) []string {
-	configFilenames := append([]string{}, discovery.DefaultConfigFilenames...)
 	customConfigName := filepath.Base(opts.TerragruntConfigPath)
 	isCustom := !slices.Contains(discovery.DefaultConfigFilenames, customConfigName)
 
-	if isCustom && customConfigName != "" && customConfigName != "." {
-		configFilenames = append(configFilenames, customConfigName)
+	if !isCustom || customConfigName == "" || customConfigName == "." {
+		return append([]string{}, discovery.DefaultConfigFilenames...)
 	}
 
-	return configFilenames
+	return []string{customConfigName, config.DefaultStackFile}
 }
 
 func extractWorktrees(opts []Option) *worktrees.Worktrees {
