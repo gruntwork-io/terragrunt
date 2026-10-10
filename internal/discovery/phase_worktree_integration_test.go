@@ -3263,6 +3263,155 @@ unit "myapp" {
 		"Land-mine stack was parsed (marker file created) despite being excluded by filter")
 }
 
+// TestWorktreePhase_Integration_StackWithMultipleFilters reproduces issue #7081:
+// a git filter that matches a changed terragrunt.stack.hcl combined with another
+// filter caused the stack's generated units to be dropped because walkChangedStack
+// propagated the unrelated parent filter to its sub-discoveries. Each subtest
+// exercises a different second-filter type to guard against regression.
+func TestWorktreePhase_Integration_StackWithMultipleFilters(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create two catalog sources so the generated unit changes between refs.
+	for _, name := range []string{"legacy", "modern"} {
+		dir := filepath.Join(tmpDir, "catalog", "units", name)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, "terragrunt.hcl"), []byte("# "+name), 0o644,
+		))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, "main.tf"), []byte("# "+name+" tf"), 0o644,
+		))
+	}
+
+	// Create a stack in live/one referencing the legacy source.
+	stackDir := filepath.Join(tmpDir, "live", "one")
+	require.NoError(t, os.MkdirAll(stackDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "thing" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "thing"
+}
+`),
+		0o644,
+	))
+
+	// Create a plain unit in live/other.
+	createUnit(t, filepath.Join(tmpDir, "live"), "other", `# other unit`)
+
+	commitChanges(t, runner, "Initial layout")
+
+	// Switch the stack to the modern source so the generated unit differs.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(`unit "thing" {
+  source = "${get_repo_root()}/catalog/units/modern"
+  path   = "thing"
+}
+`),
+		0o644,
+	))
+
+	commitChanges(t, runner, "Switch stack source")
+
+	tests := []struct {
+		name            string
+		extraFilter     string
+		expectStackUnit bool
+	}{
+		{
+			name:            "path filter",
+			extraFilter:     "./live/other",
+			expectStackUnit: true,
+		},
+		{
+			name:            "type attribute filter",
+			extraFilter:     "type=unit",
+			expectStackUnit: true,
+		},
+		{
+			name:            "negation excludes specific unit",
+			extraFilter:     "!./live/one/.terragrunt-stack/thing",
+			expectStackUnit: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+			wtOpts := worktrees.WorktreeOpts{
+				WorkingDir:     tmpDir,
+				GitExpressions: gitExpressions,
+			}
+			w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), wtOpts)
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				cleanupErr := w.Cleanup(
+					context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv(),
+				)
+				require.NoError(t, cleanupErr)
+			})
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = tmpDir
+			opts.RootWorkingDir = tmpDir
+
+			parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{
+				"[HEAD~1...HEAD]",
+				tt.extraFilter,
+			})
+			require.NoError(t, parseErr)
+
+			opts.Filters = parsedFilters
+			opts.Experiments = experiment.NewExperiments()
+			require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
+
+			require.NoError(t, generate.NewGenerator().GenerateStacks(
+				t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w,
+			))
+
+			discoveryContext := &component.DiscoveryContext{
+				WorkingDir: tmpDir,
+			}
+
+			disc := discovery.NewDiscovery(tmpDir).
+				WithDiscoveryContext(discoveryContext).
+				WithWorktrees(w).
+				WithFilters(parsedFilters)
+
+			components, err := disc.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+			require.NoError(t, err)
+
+			componentPaths := components.Paths()
+
+			pair := w.WorktreePairs["[HEAD~1...HEAD]"]
+			require.NotNil(t, pair)
+			toWorktree := pair.ToWorktree.Path
+
+			expectedUnit := filepath.Join(
+				toWorktree, "live", "one", ".terragrunt-stack", "thing",
+			)
+
+			if tt.expectStackUnit {
+				assert.Contains(t, componentPaths, expectedUnit,
+					"stack unit should be discovered with extra filter %q; got: %v",
+					tt.extraFilter, componentPaths)
+			} else {
+				assert.NotContains(t, componentPaths, expectedUnit,
+					"stack unit should be excluded by filter %q; got: %v",
+					tt.extraFilter, componentPaths)
+			}
+		})
+	}
+}
+
 // runWorktreeDiscovery runs discovery with worktree phase enabled.
 func runWorktreeDiscovery(
 	t *testing.T,
