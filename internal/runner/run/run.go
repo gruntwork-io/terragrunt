@@ -20,6 +20,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
@@ -169,17 +170,25 @@ func Run(
 		return err
 	}
 
-	// Always download/copy source to cache directory for consistency.
-	// When no source is specified, sourceURL will be "." (current directory).
-	err = telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "download_terraform_source", map[string]any{
-			"sourceUrl": redact.NewURL(sourceURL),
-		}, func(ctx context.Context, l log.Logger) error {
-			updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
-			return err
-		})
+	skipCache, err := runcfg.ShouldSkipCache(opts.Experiments.Evaluate(experiment.NoCache), opts.Source, cfg)
 	if err != nil {
 		return err
+	}
+
+	// When skipCache is true (the no-cache experiment is enabled and no_cache is set), updatedOpts keeps pointing at the
+	// unit directory, so the unit runs in place. Otherwise download/copy the source into .terragrunt-cache for
+	// consistency; when no source is specified, sourceURL is "." (the current directory).
+	if !skipCache {
+		err = telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "download_terraform_source", map[string]any{
+				"sourceUrl": redact.NewURL(sourceURL),
+			}, func(ctx context.Context, l log.Logger) error {
+				updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
+				return err
+			})
+		if err != nil {
+			return err
+		}
 	}
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.

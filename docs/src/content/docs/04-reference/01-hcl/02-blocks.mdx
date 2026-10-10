@@ -111,6 +111,17 @@ The `terraform` block supports the following arguments:
   [Lock File Handling](/features/units/lock-files). This attribute allows you to disable the copy
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
+- `no_cache` (attribute): Skip the copy of a unit's source into the `.terragrunt-cache` directory and run OpenTofu/Terraform
+  directly from the unit directory. Relative local module paths then resolve relative to the unit directory, and editors and
+  language servers can read the files directly. Because the unit runs in place, generated files, the `.terraform` directory,
+  and the lock file are written into the unit directory and stay there, so add any you do not want to commit to `.gitignore`.
+  It only applies when no source is configured; setting `no_cache = true` together with a `source` (or the `--source` flag)
+  is an error. Default is `false`.
+
+  <Aside type="tip" title="Experimental">
+    The `no_cache` attribute is gated behind the `no-cache` experiment. Enable it with `--experiment no-cache` (or `TG_EXPERIMENT=no-cache`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#no-cache).
+  </Aside>
+
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
   about its usage in the [Keep your CLI flags DRY](/features/units/extra-arguments) use case overview. Supports
   the following arguments:

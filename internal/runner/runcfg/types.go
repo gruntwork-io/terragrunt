@@ -80,6 +80,12 @@ type TerraformConfig struct {
 	// Defaults to false (copy the lock file) when not set
 	NoCopyTerraformLockFile bool
 
+	// NoCache, when true, skips copying the unit's source into .terragrunt-cache
+	// and runs OpenTofu/Terraform directly from the unit directory. It only
+	// applies when no source is configured; combining it with a source is an
+	// error. Gated behind the no-cache experiment.
+	NoCache bool
+
 	// UpdateSourceWithCAS indicates the terraform.source is a relative path
 	// meant to be rewritten against a cloned repository by CAS. The run path
 	// rejects this when CAS is unavailable, since the relative path has no
