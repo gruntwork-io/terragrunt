@@ -82,6 +82,8 @@ TG_PROVIDER_CACHE_REGISTRY_NAMES=example1.com,example2.com \
 terragrunt apply
 ```
 
+Registries named by the `include` patterns of `network_mirror` and `filesystem_mirror` methods in your CLI config file are routed through the cache server as well, so that the cache server can apply those methods.
+
 ## How Terragrunt Provider Caching works
 
 - Start a server on localhost. This is the _Terragrunt Provider Cache server_.

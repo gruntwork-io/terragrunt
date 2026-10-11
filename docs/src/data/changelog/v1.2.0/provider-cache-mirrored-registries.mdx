@@ -1,0 +1,14 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Provider Cache Server applies mirrors for registries it did not route
+
+With the [Provider Cache Server](/features/caching/provider-cache-server) enabled, the CLI config Terragrunt generates for OpenTofu/Terraform drops the `provider_installation` methods from the user's CLI config and leaves them to the cache server, which applies them to the registries routed through it. With the default registry list, an OpenTofu run routes only `registry.opentofu.org` and a Terraform run only `registry.terraform.io`, so a provider addressed through the other registry never reached the cache server, and a `network_mirror` or `filesystem_mirror` whose `include` named it was ignored. OpenTofu then failed to initialize with:
+
+```text
+Could not retrieve the list of available versions for provider registry.terraform.io/example/private: provider was not found in any of the search locations
+```
+
+Terragrunt now also routes the registries named by the `include` patterns of `network_mirror` and `filesystem_mirror` methods through the cache server, which fetches those providers from the mirror, with the `credentials` configured for its host, and caches them.

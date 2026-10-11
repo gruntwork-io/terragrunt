@@ -54,6 +54,9 @@ const (
 	// Terraform service discovery keys used in host blocks and registry URLs.
 	serviceProvidersV1 = "providers.v1"
 	serviceModulesV1   = "modules.v1"
+
+	// providerAddrSegments is the number of segments in a provider address or pattern naming its registry.
+	providerAddrSegments = 3
 )
 
 var (
@@ -175,6 +178,7 @@ func (pc *ProviderCache) Init(
 	// relies on that slice containing only the standard registries to detect impl-based filtering.
 	// See: https://github.com/gruntwork-io/terragrunt/issues/5916
 	registryNamesForHandlers := AppendCustomHostRegistries(cliCfg.Hosts, pcOpts.RegistryNames)
+	registryNamesForHandlers = AppendMirroredRegistries(cliCfg.ProviderInstallation.Methods, registryNamesForHandlers)
 
 	providerHandlers, err := handlers.NewProviderHandlers(
 		cliCfg,
@@ -588,6 +592,7 @@ func (pc *ProviderCache) CreateLocalCLIConfig(
 
 	filteredRegistryNames := FilterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
 	filteredRegistryNames = AppendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
+	filteredRegistryNames = AppendMirroredRegistries(pc.cliCfg.ProviderInstallation.Methods, filteredRegistryNames)
 
 	cfg.Credentials = StripProxiedCredentials(cfg.Credentials, filteredRegistryNames)
 
@@ -837,6 +842,7 @@ func (pc *ProviderCache) providerCacheEnvironment(
 
 	// Include custom host blocks so auth tokens are set for them too.
 	filteredRegistryNames = AppendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
+	filteredRegistryNames = AppendMirroredRegistries(pc.cliCfg.ProviderInstallation.Methods, filteredRegistryNames)
 
 	for _, registryName := range filteredRegistryNames {
 		envName := fmt.Sprintf(tf.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
@@ -977,6 +983,47 @@ func AppendCustomHostRegistries(hosts []cliconfig.ConfigHost, registryNames []st
 	for _, host := range hosts {
 		if !slices.Contains(registryNames, host.Name) {
 			toAdd = append(toAdd, host.Name)
+		}
+	}
+
+	return slices.Concat(registryNames, toAdd)
+}
+
+// AppendMirroredRegistries adds the registries named by the include patterns of the
+// network_mirror and filesystem_mirror methods in the user config, if they are not
+// already present. The generated CLI config drops those methods and leaves them to
+// the cache server, so their registries must be routed through it.
+// See: https://github.com/gruntwork-io/terragrunt/issues/7100
+func AppendMirroredRegistries(
+	methods cliconfig.ProviderInstallationMethods,
+	registryNames []string,
+) []string {
+	toAdd := make([]string, 0, len(methods))
+
+	for _, method := range methods {
+		var include *[]string
+
+		switch method := method.(type) {
+		case *cliconfig.ProviderInstallationNetworkMirror:
+			include = method.Include
+		case *cliconfig.ProviderInstallationFilesystemMirror:
+			include = method.Include
+		}
+
+		if include == nil {
+			continue
+		}
+
+		for _, pattern := range *include {
+			// Only a three-segment pattern names a registry, and "*" names none.
+			parts := strings.Split(pattern, "/")
+			if len(parts) != providerAddrSegments || parts[0] == "*" {
+				continue
+			}
+
+			if !slices.Contains(registryNames, parts[0]) && !slices.Contains(toAdd, parts[0]) {
+				toAdd = append(toAdd, parts[0])
+			}
 		}
 	}
 
