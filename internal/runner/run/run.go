@@ -170,6 +170,10 @@ func Run(
 		return err
 	}
 
+	if opts.Experiments.Evaluate(experiment.NoCache) && cfg.Terraform.NoCache && cfg.Terraform.Source != "" {
+		return runcfg.NoCacheWithSourceError{Source: cfg.Terraform.Source}
+	}
+
 	if sourceURL == "" && !opts.Experiments.Evaluate(experiment.NoCache) {
 		sourceURL = "."
 	}

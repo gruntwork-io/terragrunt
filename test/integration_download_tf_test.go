@@ -1271,6 +1271,22 @@ func TestTFLocalNoCacheSkipsTerragruntCache(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
 }
 
+func TestTFLocalNoCacheWithSourceErrors(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCacheWithSource)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-cache --working-dir "+rootPath,
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no_cache is not compatible with terraform.source")
+}
+
 func TestTFLocalNoCacheWithoutExperimentStillUsesCache(t *testing.T) {
 	t.Parallel()
 

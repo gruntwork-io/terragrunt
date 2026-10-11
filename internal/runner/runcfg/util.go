@@ -160,6 +160,18 @@ func AdjustSourceWithMap(
 	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
 }
 
+// NoCacheWithSourceError is returned when no_cache is set together with terraform.source.
+type NoCacheWithSourceError struct {
+	Source string
+}
+
+func (err NoCacheWithSourceError) Error() string {
+	return fmt.Sprintf(
+		"no_cache is not compatible with terraform.source (%s) — no_cache can only be used when running directly from the unit directory without an external source",
+		err.Source,
+	)
+}
+
 // InvalidSourceURLWithMapError is an error type for invalid source URLs when using source map.
 type InvalidSourceURLWithMapError struct {
 	ModulePath      string
