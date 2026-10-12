@@ -35,7 +35,7 @@ type GCPSessionConfig struct {
 	AccessToken                        string
 	ImpersonateServiceAccount          string
 	ImpersonateServiceAccountDelegates []string
-	// ImpersonateScopes are the OAuth scopes of the impersonated token, storage.ScopeFullControl when empty.
+	// ImpersonateScopes are the OAuth scopes of the impersonated token, defaulting to storage.ScopeFullControl.
 	ImpersonateScopes []string
 }
 

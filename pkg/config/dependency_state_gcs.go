@@ -56,9 +56,6 @@ var gcsImpersonateServiceAccountEnvKeys = []string{
 	"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
 }
 
-// gcsImpersonateScopes are the scopes the native backend requests for the impersonated token.
-var gcsImpersonateScopes = []string{storage.ScopeReadWrite}
-
 // gcsUnsupportedConfigKeys names settings whose endpoint host gcphelper resolves differently.
 var gcsUnsupportedConfigKeys = []string{
 	"storage_custom_endpoint",
@@ -253,7 +250,7 @@ func getTerragruntOutputJSONFromRemoteStateGCS(
 
 	sessionConfig := extendedConfig.GetGCPSessionConfig()
 	sessionConfig.ImpersonateServiceAccount = gcsEffectiveImpersonateServiceAccount(v.Env, &settings)
-	sessionConfig.ImpersonateScopes = slices.Clone(gcsImpersonateScopes)
+	sessionConfig.ImpersonateScopes = []string{storage.ScopeReadWrite}
 
 	open := func(ctx context.Context, l log.Logger) (io.ReadCloser, error) {
 		client, err := gcphelper.NewGCPConfigBuilder().WithSessionConfig(sessionConfig).BuildGCSClient(ctx, v)
