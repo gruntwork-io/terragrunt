@@ -743,6 +743,10 @@ A `terragrunt.hcl` file configuring Azure Key Vault encryption with the `azurerm
 
 remote_state {
   backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
   config = {
     resource_group_name  = "rg-example"
     storage_account_name = "stexample"
