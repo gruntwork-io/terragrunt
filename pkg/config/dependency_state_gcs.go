@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -242,14 +243,11 @@ func getTerragruntOutputJSONFromRemoteStateGCS(
 	key := gcsStateObjectKey(stateConfig, workspace)
 	location := fmt.Sprintf("gs://%s/%s", bucket, key)
 
-	// This error only fires for a caller that skipped gcsDirectStateReadSupported.
-	settings, valid := gcsBackendConfigSettings(remoteState.BackendConfig)
-	if !valid {
-		return nil, fmt.Errorf("unsupported GCS backend configuration for a direct read of %s", location)
-	}
-
 	sessionConfig := extendedConfig.GetGCPSessionConfig()
-	sessionConfig.ImpersonateServiceAccount = gcsEffectiveImpersonateServiceAccount(v.Env, &settings)
+	sessionConfig.ImpersonateServiceAccount = cmp.Or(
+		sessionConfig.ImpersonateServiceAccount,
+		firstNonEmptyFromMap(v.Env, gcsImpersonateServiceAccountEnvKeys...),
+	)
 	sessionConfig.ImpersonateScopes = []string{storage.ScopeReadWrite}
 
 	open := func(ctx context.Context, l log.Logger) (io.ReadCloser, error) {
@@ -473,16 +471,13 @@ func gcsEnvFallbackSuppressionSupported(env map[string]string, settings *gcsDire
 		return false
 	}
 
-	return true
-}
-
-// gcsEffectiveImpersonateServiceAccount returns the configured account, even when empty, else the first env fallback.
-func gcsEffectiveImpersonateServiceAccount(env map[string]string, settings *gcsDirectStateReadSettings) string {
-	if settings.impersonateServiceAccountConfigured {
-		return settings.impersonateServiceAccount
+	// OpenTofu keeps an empty account, Terraform reads the environment instead, so let the native binary decide.
+	if settings.impersonateServiceAccountConfigured && settings.impersonateServiceAccount == "" &&
+		firstNonEmptyFromMap(env, gcsImpersonateServiceAccountEnvKeys...) != "" {
+		return false
 	}
 
-	return firstNonEmptyFromMap(env, gcsImpersonateServiceAccountEnvKeys...)
+	return true
 }
 
 // gcsEffectiveEncryptionKey mirrors the native backend's precedence of a configured key over the environment.

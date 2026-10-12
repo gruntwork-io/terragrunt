@@ -179,6 +179,18 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			}),
 		},
 		{
+			name:          "GCS empty impersonation with GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT falls back",
+			backend:       "gcs",
+			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"impersonate_service_account": `""`}),
+			env:           map[string]string{"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT": "backend@example.com"},
+		},
+		{
+			name:          "GCS empty impersonation with GOOGLE_IMPERSONATE_SERVICE_ACCOUNT falls back",
+			backend:       "gcs",
+			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"impersonate_service_account": `""`}),
+			env:           map[string]string{"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT": "env@example.com"},
+		},
+		{
 			name:    "GCS CSEK and CMEK conflict falls back",
 			backend: "gcs",
 			backendConfig: eligibilityConfig(gcsConfig, map[string]string{

@@ -31,9 +31,13 @@ const (
 
 // GCPSessionConfig is a representation of the configuration options for a GCP Config
 type GCPSessionConfig struct {
-	Credentials                        string
-	AccessToken                        string
-	ImpersonateServiceAccount          string
+	// Credentials is the path of a Google Cloud credentials JSON file.
+	Credentials string
+	// AccessToken is an OAuth 2.0 access token used as is.
+	AccessToken string
+	// ImpersonateServiceAccount is the service account to impersonate for every API call.
+	ImpersonateServiceAccount string
+	// ImpersonateServiceAccountDelegates is the delegation chain for the impersonated account.
 	ImpersonateServiceAccountDelegates []string
 	// ImpersonateScopes are the OAuth scopes of the impersonated token, defaulting to storage.ScopeFullControl.
 	ImpersonateScopes []string

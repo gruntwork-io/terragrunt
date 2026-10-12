@@ -2072,8 +2072,6 @@ func backendConfigStringListValid(config backend.Config, key string) bool {
 	}
 
 	switch value := value.(type) {
-	case []string:
-		return true
 	case []any:
 		for _, element := range value {
 			if _, ok := element.(string); !ok {

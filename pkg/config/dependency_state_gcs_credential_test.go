@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -235,16 +236,8 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 			wantScope:         readWriteScope,
 		},
 		{
-			name:              "configured empty service account suppresses GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT",
+			name:              "configured empty service account without environment reads without impersonating",
 			backendConfig:     map[string]string{"impersonate_service_account": `""`},
-			env:               map[string]string{"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT": "backend@example.com"},
-			wantRequests:      []string{gcsStatePath},
-			wantAuthorization: []string{"Bearer test-token"},
-		},
-		{
-			name:              "configured empty service account suppresses GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
-			backendConfig:     map[string]string{"impersonate_service_account": `""`},
-			env:               map[string]string{"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT": "env@example.com"},
 			wantRequests:      []string{gcsStatePath},
 			wantAuthorization: []string{"Bearer test-token"},
 		},
@@ -353,6 +346,9 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 			}
 
 			cfg, recorder, request := parseGCSImpersonationFixture(t, &fixture)
+
+			request.mu.Lock()
+			defer request.mu.Unlock()
 
 			require.NoError(t, request.decodeErr, "decoding generateAccessToken request")
 			assert.Equal(t, "from-direct", cfg.Inputs["result"])
@@ -586,6 +582,7 @@ type gcsGenerateAccessTokenRequest struct {
 	decodeErr error
 	Delegates []string `json:"delegates"`
 	Scope     []string `json:"scope"`
+	mu        sync.Mutex
 }
 
 // parseGCSImpersonationFixture serves OAuth, IAM and storage in memory and returns the IAM request it saw.
@@ -607,7 +604,9 @@ func parseGCSImpersonationFixture(
 				nil,
 			)
 		case "iamcredentials.googleapis.com":
+			request.mu.Lock()
 			request.decodeErr = json.NewDecoder(req.Body).Decode(request)
+			request.mu.Unlock()
 
 			return vhttp.Respond(http.StatusOK, []byte(gcsImpersonatedTokenResponse), nil)
 		case "storage.googleapis.com":
