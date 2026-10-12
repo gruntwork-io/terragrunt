@@ -2064,7 +2064,7 @@ func backendConfigString(config backend.Config, key string) backendConfigStringR
 	return backendConfigStringResult{value: parsed, configured: true, valid: valid}
 }
 
-// backendConfigStringListValid reports whether key is absent, null, or a list of strings, the only forms the native backend accepts for a list setting.
+// backendConfigStringListValid reports whether key is absent, null, or a list of strings.
 func backendConfigStringListValid(config backend.Config, key string) bool {
 	value, configured := config[key]
 	if !configured || value == nil {

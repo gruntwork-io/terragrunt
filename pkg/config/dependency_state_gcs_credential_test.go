@@ -27,7 +27,7 @@ import (
 const (
 	gcsStatePath = "storage.googleapis.com/state-bucket/environment/service/default.tfstate"
 
-	// gcsImpersonatedTokenResponse is the IAM Credentials reply that mints impersonated-token.
+	// gcsImpersonatedTokenResponse is the IAM Credentials reply that returns impersonated-token.
 	gcsImpersonatedTokenResponse = `{"accessToken":"impersonated-token","expireTime":"2099-01-01T00:00:00Z"}`
 )
 
@@ -182,13 +182,14 @@ func TestDependencyStateEligibilityExternalAccountCredentialIOFailure(t *testing
 	assert.Equal(t, int32(1), fsys.closes.Load())
 }
 
-// TestDependencyStateEligibilityImpersonatesLikeNativeBackend pins that impersonation keeps direct state reads, resolving the service account, delegates, scope and source identity the way the native GCS backend does.
+// TestDependencyStateEligibilityImpersonatesLikeNativeBackend pins that impersonated GCS reads stay direct and use the account, delegates, scope and source identity of the native backend.
 func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 	t.Parallel()
 
 	serviceAccount := testGCSServiceAccountJSON(t)
 	configuredAccount := map[string]string{"impersonate_service_account": `"config@example.com"`}
 	readWriteScope := []string{"https://www.googleapis.com/auth/devstorage.read_write"}
+	signedByTestToken := []string{"Bearer test-token", "Bearer impersonated-token"}
 
 	testCases := []struct {
 		name              string
@@ -205,14 +206,14 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 			name:              "configured service account remains direct",
 			backendConfig:     configuredAccount,
 			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
-			wantAuthorization: []string{"Bearer test-token", "Bearer impersonated-token"},
+			wantAuthorization: signedByTestToken,
 			wantScope:         readWriteScope,
 		},
 		{
 			name:              "GOOGLE_IMPERSONATE_SERVICE_ACCOUNT remains direct",
 			env:               map[string]string{"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT": "env@example.com"},
 			wantRequests:      []string{gcsGenerateAccessTokenPath("env@example.com"), gcsStatePath},
-			wantAuthorization: []string{"Bearer test-token", "Bearer impersonated-token"},
+			wantAuthorization: signedByTestToken,
 			wantScope:         readWriteScope,
 		},
 		{
@@ -222,7 +223,7 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 				"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT":         "env@example.com",
 			},
 			wantRequests:      []string{gcsGenerateAccessTokenPath("backend@example.com"), gcsStatePath},
-			wantAuthorization: []string{"Bearer test-token", "Bearer impersonated-token"},
+			wantAuthorization: signedByTestToken,
 			wantScope:         readWriteScope,
 		},
 		{
@@ -230,7 +231,7 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 			backendConfig:     configuredAccount,
 			env:               map[string]string{"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT": "backend@example.com"},
 			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
-			wantAuthorization: []string{"Bearer test-token", "Bearer impersonated-token"},
+			wantAuthorization: signedByTestToken,
 			wantScope:         readWriteScope,
 		},
 		{
@@ -254,7 +255,16 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 				"impersonate_service_account_delegates": `["delegate@example.com"]`,
 			},
 			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
-			wantAuthorization: []string{"Bearer test-token", "Bearer impersonated-token"},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+			wantDelegates:     []string{"projects/-/serviceAccounts/delegate@example.com"},
+		},
+		{
+			name:              "configured delegates apply to an account from the environment",
+			backendConfig:     map[string]string{"impersonate_service_account_delegates": `["delegate@example.com"]`},
+			env:               map[string]string{"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT": "backend@example.com"},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("backend@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
 			wantScope:         readWriteScope,
 			wantDelegates:     []string{"projects/-/serviceAccounts/delegate@example.com"},
 		},
@@ -265,7 +275,7 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 				"impersonate_service_account_delegates": "null",
 			},
 			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
-			wantAuthorization: []string{"Bearer test-token", "Bearer impersonated-token"},
+			wantAuthorization: signedByTestToken,
 			wantScope:         readWriteScope,
 		},
 		{
@@ -275,11 +285,11 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 				"impersonate_service_account_delegates": "[]",
 			},
 			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
-			wantAuthorization: []string{"Bearer test-token", "Bearer impersonated-token"},
+			wantAuthorization: signedByTestToken,
 			wantScope:         readWriteScope,
 		},
 		{
-			// Neither native backend reads delegates from the environment.
+			// OpenTofu and Terraform ignore these variables.
 			name:          "delegates environment variables are ignored like the native backend",
 			backendConfig: configuredAccount,
 			env: map[string]string{
@@ -287,7 +297,7 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 				"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES":         "delegate@example.com",
 			},
 			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
-			wantAuthorization: []string{"Bearer test-token", "Bearer impersonated-token"},
+			wantAuthorization: signedByTestToken,
 			wantScope:         readWriteScope,
 		},
 		{
@@ -538,15 +548,14 @@ func parseGCSExternalAccountFixture(
 	return cfg, recorder
 }
 
-// gcsGenerateAccessTokenRequest is the IAM Credentials request body the impersonation chain sends.
+// gcsGenerateAccessTokenRequest is the body of the IAM Credentials generateAccessToken request.
 type gcsGenerateAccessTokenRequest struct {
 	decodeErr error
 	Delegates []string `json:"delegates"`
 	Scope     []string `json:"scope"`
 }
 
-// parseGCSImpersonationFixture parses a GCS dependency with token exchange, IAM Credentials and storage served in memory,
-// returning the generateAccessToken request it captured.
+// parseGCSImpersonationFixture parses a GCS dependency against in-memory OAuth, IAM Credentials and storage, and returns the generateAccessToken request it saw.
 func parseGCSImpersonationFixture(
 	t *testing.T,
 	testCase *dependencyStateEligibilityTestCase,
@@ -573,7 +582,8 @@ func parseGCSImpersonationFixture(
 		default:
 			assert.Fail(t, "unexpected request to "+req.URL.Host)
 
-			return vhttp.Respond(http.StatusInternalServerError, nil, nil)
+			// The storage client retries a 5xx forever, so a 500 would hang the test.
+			return vhttp.Respond(http.StatusBadRequest, nil, nil)
 		}
 	}
 
@@ -583,7 +593,7 @@ func parseGCSImpersonationFixture(
 	return cfg, recorder, request
 }
 
-// gcsGenerateAccessTokenPath is the IAM Credentials request path that impersonates principal.
+// gcsGenerateAccessTokenPath returns the IAM Credentials request path that impersonates principal.
 func gcsGenerateAccessTokenPath(principal string) string {
 	return "iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/" + principal + ":generateAccessToken"
 }

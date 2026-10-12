@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGCPConfigImpersonationScopes pins the impersonated token's scopes and the token each call carries.
+// TestGCPConfigImpersonationScopes pins the scopes of the impersonated token and the token each request sends.
 func TestGCPConfigImpersonationScopes(t *testing.T) {
 	t.Parallel()
 
@@ -59,7 +59,8 @@ func TestGCPConfigImpersonationScopes(t *testing.T) {
 				if req.URL.Host != "iamcredentials.googleapis.com" {
 					assert.Fail(t, "unexpected request to "+req.URL.Host)
 
-					return vhttp.Respond(http.StatusInternalServerError, nil, nil), nil
+					// The storage client retries a 5xx forever, so a 500 would hang the test.
+					return vhttp.Respond(http.StatusBadRequest, nil, nil), nil
 				}
 
 				body, err := io.ReadAll(req.Body)

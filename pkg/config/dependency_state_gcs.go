@@ -50,7 +50,7 @@ var gcsStringConfigKeys = []string{
 	"prefix",
 }
 
-// gcsImpersonateServiceAccountEnvKeys names the variables the native backend falls back to, in order, when impersonate_service_account is unset.
+// gcsImpersonateServiceAccountEnvKeys lists, in order, the variables the native backend reads when impersonate_service_account is unset.
 var gcsImpersonateServiceAccountEnvKeys = []string{
 	"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT",
 	"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
@@ -245,7 +245,7 @@ func getTerragruntOutputJSONFromRemoteStateGCS(
 	key := gcsStateObjectKey(stateConfig, workspace)
 	location := fmt.Sprintf("gs://%s/%s", bucket, key)
 
-	// gcsDirectStateReadSupported already validated these settings; this only guards a caller that skipped it.
+	// This error only fires for a caller that skipped gcsDirectStateReadSupported.
 	settings, valid := gcsBackendConfigSettings(remoteState.BackendConfig)
 	if !valid {
 		return nil, fmt.Errorf("unsupported GCS backend configuration for a direct read of %s", location)
@@ -479,7 +479,7 @@ func gcsEnvFallbackSuppressionSupported(env map[string]string, settings *gcsDire
 	return true
 }
 
-// gcsEffectiveImpersonateServiceAccount mirrors the native backend's precedence of a configured service account over the environment.
+// gcsEffectiveImpersonateServiceAccount mirrors the native backend's precedence of a configured service account, even an empty one, over the environment.
 func gcsEffectiveImpersonateServiceAccount(env map[string]string, settings *gcsDirectStateReadSettings) string {
 	if settings.impersonateServiceAccountConfigured {
 		return settings.impersonateServiceAccount
