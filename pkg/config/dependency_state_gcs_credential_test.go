@@ -371,6 +371,39 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 	}
 }
 
+// TestDependencyStateEligibilityImpersonationDeniedFallsBack pins that a denied IAM token request falls back to native output without reading state as the source identity.
+func TestDependencyStateEligibilityImpersonationDeniedFallsBack(t *testing.T) {
+	t.Parallel()
+
+	recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("from-direct"))
+	recorder.respond = func(req *http.Request) *http.Response {
+		if req.URL.Host == "iamcredentials.googleapis.com" {
+			return vhttp.Respond(
+				http.StatusForbidden,
+				[]byte(`{"error":{"code":403,"message":"Permission 'iam.serviceAccounts.getAccessToken' denied","status":"PERMISSION_DENIED"}}`),
+				nil,
+			)
+		}
+
+		return vhttp.Respond(http.StatusOK, terraformState("from-direct"), nil)
+	}
+
+	fixture := dependencyStateEligibilityTestCase{
+		backend: "gcs",
+		backendConfig: eligibilityConfig(
+			eligibilityGCSConfig(),
+			map[string]string{"impersonate_service_account": `"config@example.com"`},
+		),
+	}
+
+	cfg, err := parseDependencyStateEligibilityFixture(t, recorder, &fixture)
+	require.NoError(t, err, "a denied impersonation must fall back instead of aborting")
+
+	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+	assert.Len(t, recorder.outputInvocations(), 1, "a denied impersonation must run the native output command once")
+	assert.Equal(t, []string{gcsGenerateAccessTokenPath("config@example.com")}, recorder.requestPaths(), "the state must not be read with the source token")
+}
+
 func parseGCSCredentialEligibilityFixture(
 	t *testing.T,
 	credentials string,
