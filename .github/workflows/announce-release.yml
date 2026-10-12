@@ -8,6 +8,9 @@ on:
       tag_name:
         description: 'The tag name of the release'
         required: true
+permissions:
+  contents: read
+
 jobs:
   release:
     runs-on: ubuntu-slim

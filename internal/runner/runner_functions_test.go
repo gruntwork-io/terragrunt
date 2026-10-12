@@ -290,8 +290,12 @@ func TestNewFromComponents_UnitWithoutParsedConfig(t *testing.T) {
 		opts,
 		component.Components{component.NewUnit("/tmp/test/vpc")},
 	)
-	require.NoError(t, err)
-	assert.Len(t, rnr.GetStack().Units, 1)
+
+	var target runner.UnitNotParsedError
+
+	require.ErrorAs(t, err, &target, "discovery parses every unit, so an unparsed one is a bug")
+	assert.Equal(t, "/tmp/test/vpc", target.UnitPath)
+	assert.Nil(t, rnr)
 }
 
 func TestListStackDependentUnits_Transitive(t *testing.T) {
@@ -468,10 +472,6 @@ func TestNewFromComponents_WithGitRefsAndStateBackends(t *testing.T) {
 			discoveryContext: &component.DiscoveryContext{},
 		},
 		{
-			name:             "no parsed config",
-			discoveryContext: &component.DiscoveryContext{Ref: "HEAD~1"},
-		},
-		{
 			name: "remote state is configured",
 			unitConfig: &config.TerragruntConfig{
 				RemoteState: remotestate.New(&remotestate.Config{BackendName: "s3"}),
@@ -537,6 +537,51 @@ func TestNewFromComponents_IgnoresStackComponents(t *testing.T) {
 	units := rnr.GetStack().Units
 	require.Len(t, units, 1)
 	assert.Equal(t, "/tmp/test/vpc", units[0].Path())
+}
+
+func TestNewFromComponents_DependencyCycle(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	a := component.NewUnit("/tmp/test/a").WithConfig(&config.TerragruntConfig{})
+	b := component.NewUnit("/tmp/test/b").WithConfig(&config.TerragruntConfig{})
+	a.AddDependency(b)
+	b.AddDependency(a)
+
+	rnr, err := runner.NewFromComponents(
+		t.Context(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{a, b},
+	)
+	require.Error(t, err, "units that wait on each other cannot be ordered")
+	assert.Nil(t, rnr)
+}
+
+func TestNewFromComponents_FilterAllowDestroyWithoutDiscoveryContext(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	vpc.SetDiscoveryContext(nil)
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	opts.TerraformCommand = "plan"
+
+	rnr, err := runner.NewFromComponents(
+		t.Context(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{vpc},
+	)
+	require.NoError(t, err)
+
+	units := rnr.GetStack().Units
+	require.Len(t, units, 1)
+	assert.False(t, units[0].Excluded(), "a unit no Git filter selected is never excluded as a removed unit")
 }
 
 // unitPathAt returns the path of the i-th unit in a dependency chain.

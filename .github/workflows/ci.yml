@@ -7,6 +7,9 @@ concurrency:
   group: ci-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+permissions:
+  contents: read
+
 jobs:
   # Skips the Go jobs for pushes that touch only docs, and the install script
   # tests for pushes that leave the install script alone. Every Go job needs

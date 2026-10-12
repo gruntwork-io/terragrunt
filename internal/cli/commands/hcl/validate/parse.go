@@ -116,9 +116,12 @@ func (p ComponentParser) Unit(
 
 	pctx := configbridge.NewParsingContext(parseOpts)
 
-	_, err := config.ReadTerragruntConfig(ctx, l, v, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
+	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
+	if err != nil {
+		return err
+	}
 
-	return err
+	return config.ValidateDependencyConfigPaths(v.FS, cfg, parseOpts.TerragruntConfigPath)
 }
 
 // Stack parses the stack configuration in stackDir, returning every error the

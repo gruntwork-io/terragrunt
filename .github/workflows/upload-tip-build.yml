@@ -17,6 +17,9 @@ on:
       SIGNING_GPG_PASSPHRASE:
         required: false
 
+permissions:
+  contents: read
+
 jobs:
   upload:
     name: Package, Sign, and Upload to S3

@@ -19,6 +19,9 @@ on:
         type: string
         default: ""
 
+permissions:
+  contents: read
+
 jobs:
   detect_release:
     name: Detect if this is a release build

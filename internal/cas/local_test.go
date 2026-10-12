@@ -267,6 +267,7 @@ func TestStoreLocalDirectoryIgnoresCacheDirs(t *testing.T) {
 		".terraform.lock.hcl": `provider "registry.opentofu.org/hashicorp/aws" {}`,
 		".terraform/providers/hashicorp/aws/5.0.0/keep.txt": "",
 		".terragrunt-cache/aBc123/dEf456/main.tf":           "stale",
+		".terragrunt-stack/service/terragrunt.hcl":          "generated",
 	})
 	require.NoError(t, os.Symlink(
 		pluginCache,
@@ -284,11 +285,12 @@ func TestStoreLocalDirectoryIgnoresCacheDirs(t *testing.T) {
 	)
 	assert.NoDirExists(t, filepath.Join(dst, ".terraform"))
 	assert.NoDirExists(t, filepath.Join(dst, ".terragrunt-cache"))
+	assert.NoDirExists(t, filepath.Join(dst, ".terragrunt-stack"))
 }
 
 // TestComputeLocalRootHashIgnoresCacheDirs pins the cache-key half of the
-// exclusion: initializing a source in place must not change the hash that
-// identifies it.
+// exclusion: initializing a source in place, or generating a stack into it,
+// must not change the hash that identifies it.
 func TestComputeLocalRootHashIgnoresCacheDirs(t *testing.T) {
 	t.Parallel()
 
@@ -299,6 +301,9 @@ func TestComputeLocalRootHashIgnoresCacheDirs(t *testing.T) {
 		"main.tf":                                 "ok",
 		".terraform/modules/modules.json":         `{"Modules":[]}`,
 		".terragrunt-cache/aBc123/dEf456/main.tf": "stale",
+		".terragrunt-stack/service/terragrunt.hcl": `terraform {
+  source = "cas::sha256:previous-generation//modules/vpc"
+}`,
 	})
 
 	cleanHash, err := c.ComputeLocalRootHash(v, clean, cas.HashSHA256)

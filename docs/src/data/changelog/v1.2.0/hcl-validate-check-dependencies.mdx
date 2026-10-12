@@ -1,0 +1,16 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `hcl validate` reports dependencies on deleted units
+
+When a `dependency` block pointed at a deleted or moved unit, `run --all` failed, but `find`, `list` and `hcl validate` passed. `hcl validate` now fails for every enabled `dependency` block whose `config_path` has no unit or stack configuration, so you can catch the problem before a run.
+
+`run --all` with a Git-based filter, such as `--filter '[main...HEAD]'`, still fails when a `dependency` block points at a unit or stack that the diff deleted. The error now names the deleted path and the Git reference that still has it:
+
+```text
+a dependency points at dep, which exists at main but was deleted or moved in the Git diff
+```
+
+The new `missing-dependency-config` tip also suggests running `hcl validate`. `find` and `list` behave as before.

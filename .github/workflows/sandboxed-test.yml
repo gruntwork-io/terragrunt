@@ -3,6 +3,9 @@ name: Sandboxed Tests
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 # Run the suite with every socket except loopback closed. Terragrunt virtualizes
 # its side effects through the venv bundle, so a test that reaches the network
 # either exercises an unvirtualized code path or is an integration test hiding in
