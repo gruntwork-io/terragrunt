@@ -158,12 +158,23 @@ func TestDependencyStateEligibilityRoutesSafely(t *testing.T) {
 			env: map[string]string{"GOOGLE_OAUTH_ACCESS_TOKEN": "environment-token"},
 		},
 		{
-			name:    "GCS impersonation remains native",
+			name:          "GCS invalid impersonation service account type falls back",
+			backend:       "gcs",
+			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"impersonate_service_account": "42"}),
+		},
+		{
+			name:    "GCS invalid impersonation delegates type falls back",
 			backend: "gcs",
-			backendConfig: eligibilityConfig(
-				gcsConfig,
-				map[string]string{"impersonate_service_account": `"state@example.com"`},
-			),
+			backendConfig: eligibilityConfig(gcsConfig, map[string]string{
+				"impersonate_service_account":           `"state@example.com"`,
+				"impersonate_service_account_delegates": `"delegate@example.com"`,
+			}),
+		},
+		{
+			name:          "GCS impersonation delegates environment falls back",
+			backend:       "gcs",
+			backendConfig: eligibilityConfig(gcsConfig, map[string]string{"impersonate_service_account": `"state@example.com"`}),
+			env:           map[string]string{"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES": "delegate@example.com"},
 		},
 		{
 			name:    "GCS CSEK and CMEK conflict falls back",
