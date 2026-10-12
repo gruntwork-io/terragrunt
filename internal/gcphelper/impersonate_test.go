@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGCPConfigImpersonationScopes pins the scopes of the impersonated token and the token each request sends.
+// TestGCPConfigImpersonationScopes checks the requested scopes and which token each call sends.
 func TestGCPConfigImpersonationScopes(t *testing.T) {
 	t.Parallel()
 

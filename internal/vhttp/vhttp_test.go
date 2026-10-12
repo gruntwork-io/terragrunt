@@ -166,6 +166,39 @@ func TestNewOSClientWithTimeout_AppliesTimeout(t *testing.T) {
 	assert.Equal(t, 7*time.Second, c.Timeout)
 }
 
+func TestWithTransport_SwapsTransportAndKeepsTheRest(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+
+	base := vhttp.WithTimeout(vhttp.NewNoNetworkClient(), 7*time.Second)
+	rt := vhttp.NewMemClient(func(_ context.Context, _ *http.Request) (*http.Response, error) {
+		hits.Add(1)
+
+		return vhttp.Respond(http.StatusOK, nil, nil), nil
+	}).Transport
+
+	c := vhttp.WithTransport(base, rt)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/", nil)
+	require.NoError(t, err)
+
+	resp, err := c.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, int32(1), hits.Load(), "requests must go through the new transport")
+	assert.Equal(t, 7*time.Second, c.Timeout, "other client fields must carry over")
+
+	resp, err = base.Do(req)
+	if resp != nil {
+		require.NoError(t, resp.Body.Close())
+	}
+
+	require.ErrorIs(t, err, vhttp.ErrNoNetwork, "the original client must keep its own transport")
+	assert.Equal(t, int32(1), hits.Load(), "the original client must not reach the new transport")
+}
+
 // TestMemClient_DoWithRacing exercises concurrent Do calls so CI runs it
 // under -race.
 func TestMemClient_DoWithRacing(t *testing.T) {

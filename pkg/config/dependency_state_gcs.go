@@ -50,7 +50,7 @@ var gcsStringConfigKeys = []string{
 	"prefix",
 }
 
-// gcsImpersonateServiceAccountEnvKeys lists, in order, the variables the native backend reads when impersonate_service_account is unset.
+// gcsImpersonateServiceAccountEnvKeys are the env fallbacks for impersonate_service_account, in native order.
 var gcsImpersonateServiceAccountEnvKeys = []string{
 	"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT",
 	"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
@@ -479,7 +479,7 @@ func gcsEnvFallbackSuppressionSupported(env map[string]string, settings *gcsDire
 	return true
 }
 
-// gcsEffectiveImpersonateServiceAccount mirrors the native backend's precedence of a configured service account, even an empty one, over the environment.
+// gcsEffectiveImpersonateServiceAccount returns the configured account, even when empty, else the first env fallback.
 func gcsEffectiveImpersonateServiceAccount(env map[string]string, settings *gcsDirectStateReadSettings) string {
 	if settings.impersonateServiceAccountConfigured {
 		return settings.impersonateServiceAccount

@@ -7,13 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"net/http"
-
 	"cloud.google.com/go/auth/credentials"
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/impersonate"
@@ -36,7 +35,7 @@ type GCPSessionConfig struct {
 	AccessToken                        string
 	ImpersonateServiceAccount          string
 	ImpersonateServiceAccountDelegates []string
-	// ImpersonateScopes sets the OAuth scopes of the impersonated token. Empty means storage.ScopeFullControl.
+	// ImpersonateScopes are the OAuth scopes of the impersonated token, storage.ScopeFullControl when empty.
 	ImpersonateScopes []string
 }
 
@@ -87,7 +86,7 @@ func (b *GCPConfigBuilder) BuildGCSClient(
 	//nolint:forbidigo // This is the wrapper the rule points callers at; trans is built on the venv's transport.
 	gcsClient, err := storage.NewClient(
 		ctx,
-		option.WithHTTPClient(&http.Client{Transport: trans}),
+		option.WithHTTPClient(vhttp.WithTransport(v.HTTP, trans)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating GCS client: %w", err)
@@ -180,17 +179,14 @@ func (b *GCPConfigBuilder) Build(
 		}
 	}
 
-	// Handle service account impersonation.
-	// When impersonation is configured, the impersonation token source replaces
-	// any base credentials. The base credentials, or Application Default
-	// Credentials when none are set, sign the IAM Credentials call.
+	// The impersonated token replaces the base credentials, which sign the IAM call.
 	if gcpCfg != nil && gcpCfg.ImpersonateServiceAccount != "" {
 		scopes := gcpCfg.ImpersonateScopes
 		if len(scopes) == 0 {
 			scopes = []string{storage.ScopeFullControl}
 		}
 
-		// Send the IAM Credentials call through v's transport, not a default client the impersonate library builds.
+		// Use v's transport for the IAM call too.
 		baseOpts := append([]option.ClientOption{option.WithScopes(cloudPlatformScope)}, clientOpts...)
 
 		trans, err := htransport.NewTransport(ctx, v.HTTP.Transport, baseOpts...)
@@ -198,14 +194,11 @@ func (b *GCPConfigBuilder) Build(
 			return nil, fmt.Errorf("error building impersonation transport: %w", err)
 		}
 
-		//nolint:forbidigo // Same wrapper as BuildGCSClient; trans uses the venv transport.
-		impersonationClient := &http.Client{Transport: trans}
-
 		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
 			TargetPrincipal: gcpCfg.ImpersonateServiceAccount,
 			Scopes:          scopes,
 			Delegates:       gcpCfg.ImpersonateServiceAccountDelegates,
-		}, option.WithHTTPClient(impersonationClient))
+		}, option.WithHTTPClient(vhttp.WithTransport(v.HTTP, trans)))
 		if err != nil {
 			return nil, fmt.Errorf("error creating impersonation token source: %w", err)
 		}

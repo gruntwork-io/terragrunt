@@ -182,7 +182,7 @@ func TestDependencyStateEligibilityExternalAccountCredentialIOFailure(t *testing
 	assert.Equal(t, int32(1), fsys.closes.Load())
 }
 
-// TestDependencyStateEligibilityImpersonatesLikeNativeBackend pins that impersonated GCS reads stay direct and use the account, delegates, scope and source identity of the native backend.
+// TestDependencyStateEligibilityImpersonatesLikeNativeBackend checks impersonated reads stay direct and match the native identity.
 func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 	t.Parallel()
 
@@ -371,7 +371,7 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 	}
 }
 
-// TestDependencyStateEligibilityImpersonationDeniedFallsBack pins that a denied IAM token request falls back to native output without reading state as the source identity.
+// TestDependencyStateEligibilityImpersonationDeniedFallsBack checks a denied IAM token falls back to native output.
 func TestDependencyStateEligibilityImpersonationDeniedFallsBack(t *testing.T) {
 	t.Parallel()
 
@@ -588,7 +588,7 @@ type gcsGenerateAccessTokenRequest struct {
 	Scope     []string `json:"scope"`
 }
 
-// parseGCSImpersonationFixture parses a GCS dependency against in-memory OAuth, IAM Credentials and storage, and returns the generateAccessToken request it saw.
+// parseGCSImpersonationFixture serves OAuth, IAM and storage in memory and returns the IAM request it saw.
 func parseGCSImpersonationFixture(
 	t *testing.T,
 	testCase *dependencyStateEligibilityTestCase,
