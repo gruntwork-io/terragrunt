@@ -400,8 +400,8 @@ func rendererErrCmd(err error) tea.Cmd {
 // Interactive distinguishes the form-submit path from the placeholder path.
 type ScaffoldFinishedMsg struct {
 	Err         error
-	Interactive bool
 	Files       []string
+	Interactive bool
 }
 
 // CopyFinishedMsg is delivered when a copy subprocess completes.
