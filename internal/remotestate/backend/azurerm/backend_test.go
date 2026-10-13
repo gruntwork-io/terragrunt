@@ -241,11 +241,9 @@ func TestNeedsBootstrap_RoleOnlyDriftRequiresBootstrap(t *testing.T) {
 	})
 }
 
-// TestBootstrap_AssignBlobDataRolePrincipalType locks the regression where the
-// principal resolved from the token before the inited short-circuit lost its
-// type, so the role assignment was sent untyped. An ABAC condition on
-// roleAssignments/write that checks principalType (RBAC Administrator
-// delegation) then denied the grant.
+// TestBootstrap_AssignBlobDataRolePrincipalType verifies the role assignment
+// sends the principal type read from the caller's token, and sends none when
+// the token omits idtyp or principal_id is configured.
 func TestBootstrap_AssignBlobDataRolePrincipalType(t *testing.T) {
 	t.Parallel()
 
@@ -386,8 +384,9 @@ func roleDriftHTTP(rolePresent bool) vhttp.Client {
 	return vhttp.NewMemClient(roleDriftHandler("test-token", rolePresent, nil))
 }
 
-// roleDriftHandler backs roleDriftHTTP. It issues accessToken and passes the
-// body of a role-assignment create to onCreate, so Bootstrap can be observed too.
+// roleDriftHandler serves the token and ARM requests of NeedsBootstrap and
+// Bootstrap. It issues accessToken and passes the body of a role-assignment
+// create to onCreate when one is set.
 func roleDriftHandler(accessToken string, rolePresent bool, onCreate func(body []byte)) vhttp.Handler {
 	jsonHeaders := http.Header{"Content-Type": []string{"application/json"}}
 

@@ -137,6 +137,10 @@ func NewBoilerplateOptions(
 		NoHooks:                 terragruntOpts.NoHooks,
 		NonInteractive:          terragruntOpts.NonInteractive,
 		DisableDependencyPrompt: terragruntOpts.NoDependencyPrompt,
+		// Manifest must be true so ProcessTemplateWithContext records each
+		// dependency's generated files. Without it, result.Dependencies has
+		// empty Files and GeneratedFiles() would omit them.
+		Manifest: true,
 	}
 }
 
@@ -159,6 +163,7 @@ type Plan struct {
 	sourceDir         string
 	values            component.ValuesReferences
 	kind              component.Kind
+	generatedFiles    []string
 }
 
 // FormFields returns what a user is asked to fill in before this plan is
@@ -182,6 +187,15 @@ func (p *Plan) Cleanup(fsys vfs.FS) {
 	}
 
 	p.tempDirs = nil
+}
+
+// GeneratedFiles returns the files the last [Plan.Generate] call rendered,
+// as sorted, deduplicated paths relative to the output directory.
+//
+// Returns nil before Generate runs, and for a unit or stack, which Generate
+// copies without recording the files.
+func (p *Plan) GeneratedFiles() []string {
+	return p.generatedFiles
 }
 
 // Prepare downloads the source module and template, parses the module's
@@ -385,7 +399,7 @@ func (p *Plan) Generate(
 		return err
 	}
 
-	depFiles, err := collectDependencyFiles(result.Dependencies, 0)
+	depFiles, err := collectDependencyFiles(p.outputDir, result.Dependencies, 0)
 	if err != nil {
 		return err
 	}
@@ -397,6 +411,8 @@ func (p *Plan) Generate(
 	}
 
 	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
+
+	p.generatedFiles = allFiles
 
 	l.Debugf("Running fmt on generated code %s", p.outputDir)
 
@@ -1027,7 +1043,12 @@ const maxDependencyDepth = 100
 
 // collectDependencyFiles recursively collects file paths from all boilerplate
 // dependencies and their nested sub-dependencies up to maxDependencyDepth.
-func collectDependencyFiles(deps []manifest.ManifestDependency, depth int) ([]string, error) {
+// Each path is returned relative to outputDir, the generation root.
+func collectDependencyFiles(
+	outputDir string,
+	deps []manifest.ManifestDependency,
+	depth int,
+) ([]string, error) {
 	if depth >= maxDependencyDepth {
 		return nil, MaxDependencyDepthExceededError{}
 	}
@@ -1036,10 +1057,10 @@ func collectDependencyFiles(deps []manifest.ManifestDependency, depth int) ([]st
 
 	for i := range deps {
 		for _, f := range deps[i].Files {
-			files = append(files, f.Path)
+			files = append(files, dependencyFilePath(outputDir, deps[i].OutputFolder, f.Path))
 		}
 
-		subFiles, err := collectDependencyFiles(deps[i].Dependencies, depth+1)
+		subFiles, err := collectDependencyFiles(outputDir, deps[i].Dependencies, depth+1)
 		if err != nil {
 			return nil, err
 		}
@@ -1048,6 +1069,27 @@ func collectDependencyFiles(deps []manifest.ManifestDependency, depth int) ([]st
 	}
 
 	return files, nil
+}
+
+// dependencyFilePath returns file relative to outputDir. Boilerplate records
+// file relative to the dependency's output folder, which it has already
+// resolved under outputDir.
+func dependencyFilePath(outputDir, outputFolder, file string) string {
+	p := file
+	if outputFolder != "" {
+		p = filepath.Join(outputFolder, file)
+	}
+
+	if filepath.IsAbs(p) && outputDir != "" {
+		if rel, err := filepath.Rel(outputDir, p); err == nil {
+			parentPrefix := ".." + string(filepath.Separator)
+			if rel != ".." && !strings.HasPrefix(rel, parentPrefix) {
+				return rel
+			}
+		}
+	}
+
+	return p
 }
 
 type MaxDependencyDepthExceededError struct{}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -130,6 +131,46 @@ func TestWriteJSONOutputTruncatesExistingFile(t *testing.T) {
 	assert.JSONEq(t, `{"fresh":true}`, string(contents))
 }
 
+func TestWriteJSONOutputReportsFilesystemFailures(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		op   string
+	}{
+		{name: "directory cannot be created", op: faultMkdirAll},
+		{name: "scratch file cannot be created", op: faultOpenFile},
+		{name: "scratch file mode cannot be set", op: faultChmod},
+		{name: "plan cannot be flushed", op: faultWrite},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			base := vfs.NewMemMapFS()
+			path := filepath.Join("/out", "plan.json")
+
+			err := runner.WriteJSONOutput(&faultFS{FS: base, op: tc.op}, path, func(w io.Writer) error {
+				_, err := io.WriteString(w, `{"format_version":"1.2"}`)
+
+				return err
+			})
+			require.ErrorIs(t, err, errInjected)
+
+			assert.False(t, vfs.Exists(base, path), "a failed write must not publish a plan")
+
+			if tc.op == faultMkdirAll {
+				return
+			}
+
+			entries, err := vfs.ReadDir(base, "/out")
+			require.NoError(t, err)
+			assert.Empty(t, entries, "the scratch file is removed")
+		})
+	}
+}
+
 // planJSONChunk is one pipe-sized read of a plan document, so the benchmark feeds
 // the writer in chunks the way a real run does rather than in one large write.
 func planJSONChunk() []byte {
@@ -235,4 +276,73 @@ func BenchmarkWriteJSONOutput(b *testing.B) {
 			})
 		}
 	}
+}
+
+// errInjected is the failure faultFS reports.
+var errInjected = errors.New("injected failure")
+
+// Operations faultFS can be told to fail.
+const (
+	faultMkdirAll = "mkdirall"
+	faultOpenFile = "openfile"
+	faultChmod    = "chmod"
+	faultWrite    = "write"
+)
+
+// faultFS fails op with errInjected on paths under under, or on every path when under is empty.
+// It hides the wrapped filesystem's optional interfaces.
+type faultFS struct {
+	vfs.FS
+	op    string
+	under string
+}
+
+func (fsys *faultFS) fails(op, path string) bool {
+	if fsys.op != op {
+		return false
+	}
+
+	return fsys.under == "" || vfs.Within(fsys.FS, fsys.under, path)
+}
+
+func (fsys *faultFS) MkdirAll(path string, perm os.FileMode) error {
+	if fsys.fails(faultMkdirAll, path) {
+		return &os.PathError{Op: "mkdir", Path: path, Err: errInjected}
+	}
+
+	return fsys.FS.MkdirAll(path, perm)
+}
+
+func (fsys *faultFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
+	if fsys.fails(faultOpenFile, name) {
+		return nil, &os.PathError{Op: "open", Path: name, Err: errInjected}
+	}
+
+	file, err := fsys.FS.OpenFile(name, flag, perm)
+	if err != nil {
+		return nil, err
+	}
+
+	if fsys.fails(faultWrite, name) {
+		return &failWriteFile{File: file}, nil
+	}
+
+	return file, nil
+}
+
+func (fsys *faultFS) Chmod(name string, mode os.FileMode) error {
+	if fsys.fails(faultChmod, name) {
+		return &os.PathError{Op: "chmod", Path: name, Err: errInjected}
+	}
+
+	return fsys.FS.Chmod(name, mode)
+}
+
+// failWriteFile fails every write.
+type failWriteFile struct {
+	vfs.File
+}
+
+func (f *failWriteFile) Write([]byte) (int, error) {
+	return 0, errInjected
 }

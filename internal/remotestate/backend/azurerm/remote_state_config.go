@@ -38,18 +38,14 @@ var terragruntOnlyConfigs = []string{
 // the Terragrunt-only bootstrap options (location, SKU, skip_* toggles) that
 // are stripped before the config is handed to `tofu init -backend-config`.
 type ExtendedRemoteStateConfigAzurerm struct {
-	Tags                   map[string]string `mapstructure:"tags"`
-	Location               string            `mapstructure:"location"`
-	AccountTier            string            `mapstructure:"account_tier"`
-	AccountReplicationType string            `mapstructure:"account_replication_type"`
-	AccountKind            string            `mapstructure:"account_kind"`
-	AccessTier             string            `mapstructure:"access_tier"`
-	MinimumTLSVersion      string            `mapstructure:"minimum_tls_version"`
-	// PrincipalID defaults to the identity Terragrunt authenticated as.
-	PrincipalID string `mapstructure:"principal_id"`
-	// resolvedPrincipalType is the type read from the caller's token alongside
-	// PrincipalID. It stays empty for a configured principal_id, whose type is unknown.
-	resolvedPrincipalType    string
+	Tags                     map[string]string        `mapstructure:"tags"`
+	Location                 string                   `mapstructure:"location"`
+	AccountTier              string                   `mapstructure:"account_tier"`
+	AccountReplicationType   string                   `mapstructure:"account_replication_type"`
+	AccountKind              string                   `mapstructure:"account_kind"`
+	AccessTier               string                   `mapstructure:"access_tier"`
+	MinimumTLSVersion        string                   `mapstructure:"minimum_tls_version"`
+	PrincipalID              string                   `mapstructure:"principal_id"`
 	RemoteStateConfigAzurerm RemoteStateConfigAzurerm `mapstructure:",squash"`
 	SoftDeleteRetentionDays  int                      `mapstructure:"soft_delete_retention_days"`
 
@@ -59,8 +55,7 @@ type ExtendedRemoteStateConfigAzurerm struct {
 	SkipVersioning             bool `mapstructure:"skip_versioning"`
 	EnableSoftDelete           bool `mapstructure:"enable_soft_delete"`
 	AllowBlobPublicAccess      bool `mapstructure:"allow_blob_public_access"`
-	// AssignBlobDataRole grants Storage Blob Data Contributor during bootstrap; opt-in because it needs roleAssignments/write.
-	AssignBlobDataRole bool `mapstructure:"assign_blob_data_role"`
+	AssignBlobDataRole         bool `mapstructure:"assign_blob_data_role"`
 }
 
 // RemoteStateConfigAzurerm mirrors the configuration keys accepted by the
