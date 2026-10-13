@@ -47,6 +47,8 @@ func TestTFTelemetryTracesMarkFailedSpans(t *testing.T) {
 		diagnosticsType  = "github.com/hashicorp/hcl/v2.Diagnostics"
 	)
 
+	runSpan := "run_" + helpers.WrappedBinary(t.Context())
+
 	tests := []struct {
 		name        string
 		args        string
@@ -59,7 +61,7 @@ func TestTFTelemetryTracesMarkFailedSpans(t *testing.T) {
 			args:        "run plan",
 			dir:         "run-all/fails",
 			errorType:   processErrorType,
-			failedSpans: []string{"run_tofu"},
+			failedSpans: []string{runSpan},
 		},
 		{
 			name:        "config parse failure",
@@ -73,7 +75,7 @@ func TestTFTelemetryTracesMarkFailedSpans(t *testing.T) {
 			args:        "run --all plan",
 			dir:         "run-all",
 			errorType:   processErrorType,
-			failedSpans: []string{"run_tofu", "unit_run", "runner_pool_task"},
+			failedSpans: []string{runSpan, "unit_run", "runner_pool_task"},
 		},
 	}
 
