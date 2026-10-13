@@ -162,8 +162,8 @@ type Plan struct {
 	outputDir         string
 	sourceDir         string
 	values            component.ValuesReferences
-	kind              component.Kind
 	generatedFiles    []string
+	kind              component.Kind
 }
 
 // FormFields returns what a user is asked to fill in before this plan is
