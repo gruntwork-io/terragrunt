@@ -179,16 +179,17 @@ provider_installation {
 			continue
 		}
 
-		var cacheIncludes []string
+		var mirrors []*cliconfig.ProviderInstallationFilesystemMirror
 
 		for _, method := range cfg.ProviderInstallation.Methods {
-			mirror, ok := method.(*cliconfig.ProviderInstallationFilesystemMirror)
-			if ok && mirror.Path == cacheDir && mirror.Include != nil {
-				cacheIncludes = *mirror.Include
+			if mirror, ok := method.(*cliconfig.ProviderInstallationFilesystemMirror); ok {
+				mirrors = append(mirrors, mirror)
 			}
 		}
 
-		assert.Contains(t, cacheIncludes, registry+"/*/*")
+		require.Len(t, mirrors, 1)
+		require.NotNil(t, mirrors[0].Include)
+		assert.Contains(t, *mirrors[0].Include, registry+"/*/*")
 	}
 
 	tfOpts := &tf.TFOptions{
