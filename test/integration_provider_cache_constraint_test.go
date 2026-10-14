@@ -193,7 +193,10 @@ func TestTFProviderCacheLockConstraintsMatchTofu(t *testing.T) {
 		{name: "lower bounds sharing a version", version: ">= 3.1, > 3.1"},
 		{name: "upper bounds sharing a version", version: "< 3.2.3, <= 3.2.3"},
 		{name: "exclusion sharing a version with a lower bound", version: "!= 3.2.0, >= 3.2.0"},
-		{name: "exact sharing a version with other operators", version: "<= 3.2.3, ~> 3.2.3, 3.2.3, >= 3.2.3"},
+		{
+			name:    "exact sharing a version with other operators",
+			version: "<= 3.2.3, ~> 3.2.3, 3.2.3, >= 3.2.3",
+		},
 		{name: "pessimistic with an exclusion", version: "~> 3.0, != 3.2.0"},
 		{name: "lower bound with a pessimistic", version: ">= 3.0, ~> 3.1"},
 		{name: "two pessimistic precisions", version: "~> 3.1, ~> 3.2.0"},
@@ -208,17 +211,43 @@ func TestTFProviderCacheLockConstraintsMatchTofu(t *testing.T) {
 		{name: "numeric build metadata in order", version: ">= 3.0.0+2, >= 3.0.0+10"},
 		{name: "numeric and text build metadata", version: ">= 3.0.0+1a, >= 3.0.0+2"},
 		{name: "build metadata with one and two identifiers", version: ">= 3.0.0+a.1, >= 3.0.0+b"},
-		{name: "build metadata differing before the last identifier", version: ">= 3.0.0+b.1, >= 3.0.0+a.x.y"},
-		{name: "build metadata differing in the second identifier", version: ">= 3.0.0+build.10, >= 3.0.0+build.2"},
+		{
+			name:    "build metadata differing before the last identifier",
+			version: ">= 3.0.0+b.1, >= 3.0.0+a.x.y",
+		},
+		{
+			name:    "build metadata differing in the second identifier",
+			version: ">= 3.0.0+build.10, >= 3.0.0+build.2",
+		},
 		{name: "build metadata sharing a version with none", version: ">= 3.0.0+build, >= 3.0.0"},
 		{name: "build metadata with different operators", version: "> 3.0.0+2, != 3.0.0+1"},
-		{name: "prerelease with one and two identifiers", version: ">= 3.0.0-alpha.1, >= 3.0.0-beta"},
+		{
+			name:    "prerelease with one and two identifiers",
+			version: ">= 3.0.0-alpha.1, >= 3.0.0-beta",
+		},
 		{name: "numeric prerelease", version: ">= 3.0.0-10, >= 3.0.0-2"},
 		{name: "numeric and text prerelease", version: ">= 3.0.0-alpha, >= 3.0.0-1"},
-		{name: "prerelease differing before the last identifier", version: ">= 3.0.0-beta.1, >= 3.0.0-alpha.x.y"},
-		{name: "prerelease differing in the second identifier", version: ">= 3.0.0-alpha.10, >= 3.0.0-alpha.2"},
+		{
+			name:    "prerelease differing before the last identifier",
+			version: ">= 3.0.0-beta.1, >= 3.0.0-alpha.x.y",
+		},
+		{
+			name:    "prerelease differing in the second identifier",
+			version: ">= 3.0.0-alpha.10, >= 3.0.0-alpha.2",
+		},
 		{name: "prerelease with build metadata", version: ">= 3.0.0-beta+1, >= 3.0.0-alpha+2"},
-		{name: "prerelease sharing a version with its release", version: ">= 3.0.0+1, >= 3.0.0-beta+2"},
+		{name: "dash with no prerelease after it", version: ">= 3.0-"},
+		{name: "pessimistic with a dash and no prerelease after it", version: "~> 3.0-"},
+		{name: "prerelease of a dash", version: ">= 3.0--"},
+		{name: "prerelease starting with a dot", version: ">= 3.0-.a"},
+		{
+			name:    "dash with no prerelease sharing a version with a prerelease",
+			version: ">= 3.0-, >= 3.0.0-beta",
+		},
+		{
+			name:    "prerelease sharing a version with its release",
+			version: ">= 3.0.0+1, >= 3.0.0-beta+2",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -238,11 +267,17 @@ func TestTFProviderCacheLockConstraintsMatchTofu(t *testing.T) {
 `
 
 			cachedPath := helpers.TmpDirWOSymlinks(t)
-			require.NoError(t, os.WriteFile(filepath.Join(cachedPath, "main.tf"), []byte(mainTf), 0644))
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(cachedPath, "main.tf"), []byte(mainTf), 0644),
+			)
 			require.NoError(t, os.WriteFile(filepath.Join(cachedPath, "terragrunt.hcl"), nil, 0644))
 
 			directPath := helpers.TmpDirWOSymlinks(t)
-			require.NoError(t, os.WriteFile(filepath.Join(directPath, "main.tf"), []byte(mainTf), 0644))
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(directPath, "main.tf"), []byte(mainTf), 0644),
+			)
 
 			helpers.RunTerragrunt(
 				t,

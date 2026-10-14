@@ -107,6 +107,84 @@ func TestCheckConstraint(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestLockFileConstraint pins the `constraints` value tofu writes to a lock
+// file for a provider's `version` argument.
+func TestLockFileConstraint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "pessimistic with two parts", in: "~> 3.0", want: "~> 3.0"},
+		{name: "pessimistic with one part", in: "~> 3", want: "~> 3.0"},
+		{name: "pessimistic with three parts", in: "~> 3.2.0", want: "~> 3.2.0"},
+		{name: "lower bound without a space", in: ">=3.0", want: ">= 3.0.0"},
+		{name: "exact with equals", in: "= 3.2.3", want: "3.2.3"},
+		{name: "range with the upper bound first", in: "< 4.0, >= 3.0", want: ">= 3.0.0, < 4.0.0"},
+		{
+			name: "three terms out of order",
+			in:   "!= 3.2.0, < 4, ~> 3.0",
+			want: "~> 3.0, != 3.2.0, < 4.0.0",
+		},
+		{name: "repeated term", in: ">= 3.0, >= 3.0.0", want: ">= 3.0.0"},
+		{
+			name: "pessimistic precisions sharing a version",
+			in:   "~> 3.2, ~> 3.2.0",
+			want: "~> 3.2.0, ~> 3.2",
+		},
+		{
+			name: "numeric build metadata",
+			in:   ">= 3.0.0+10, >= 3.0.0+2",
+			want: ">= 3.0.0+2, >= 3.0.0+10",
+		},
+		{
+			name: "build metadata with fewer identifiers",
+			in:   ">= 3.0.0+a.1, >= 3.0.0+b",
+			want: ">= 3.0.0+b, >= 3.0.0+a.1",
+		},
+		{
+			name: "prerelease with fewer identifiers",
+			in:   ">= 3.0.0-alpha.1, >= 3.0.0-beta",
+			want: ">= 3.0.0-beta, >= 3.0.0-alpha.1",
+		},
+		{
+			name: "release after its prerelease",
+			in:   ">= 3.0.0+1, >= 3.0.0-beta+2",
+			want: ">= 3.0.0-beta+2, >= 3.0.0+1",
+		},
+		{name: "dash with no prerelease after it", in: ">= 3.0-", want: ">= 3.0.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := semver.LockFileConstraint(tt.in)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestLockFileConstraintRejects pins the provider version arguments tofu
+// rejects, including ones only one of its two parsers rejects.
+func TestLockFileConstraintRejects(t *testing.T) {
+	t.Parallel()
+
+	for _, s := range []string{
+		"",
+		"not a constraint",
+		"=> 2.2",
+		">= 3.0+",
+		">= 3.0a",
+	} {
+		_, err := semver.LockFileConstraint(s)
+		require.Error(t, err, s)
+	}
+}
+
 func TestMustParsePanicsOnGarbage(t *testing.T) {
 	t.Parallel()
 

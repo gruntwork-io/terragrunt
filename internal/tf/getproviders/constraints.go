@@ -7,6 +7,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"errors"
@@ -150,7 +151,9 @@ func parseProvidersFromRequiredProvidersBlock(
 			source = name
 		}
 
-		constraints[normalizeProviderAddress(env, impl, source)] = normalizeVersionConstraint(version)
+		constraints[normalizeProviderAddress(env, impl, source)] = normalizeVersionConstraint(
+			version,
+		)
 	}
 
 	return constraints
@@ -301,9 +304,10 @@ func normalizeVersionConstraint(constraint string) string {
 // constraintTerm is one comma-separated term of a version constraint, written
 // the way tofu writes it to a lock file.
 type constraintTerm struct {
-	version *semver.Version
-	text    string
-	rank    operatorRank
+	version    *semver.Version
+	prerelease string
+	text       string
+	rank       operatorRank
 }
 
 // operatorRank orders terms that share a version. The order is the one tofu
@@ -327,7 +331,7 @@ const (
 func compareConstraintTerms(a, b constraintTerm) int {
 	return cmp.Or(
 		slices.Compare(a.version.Segments(), b.version.Segments()),
-		comparePrereleases(a.version.Prerelease(), b.version.Prerelease()),
+		comparePrereleases(a.prerelease, b.prerelease),
 		compareVersionExtras(a.version.Metadata(), b.version.Metadata()),
 		cmp.Compare(a.rank, b.rank),
 	)
@@ -409,17 +413,21 @@ func normalizeSingleConstraint(constraint string) (constraintTerm, bool) {
 		return constraintTerm{text: constraint}, false
 	}
 
-	term := constraintTerm{version: v, text: operator + " " + v.String()}
+	number, suffix := splitDeclaredVersion(declared)
+	prerelease := declaredPrerelease(suffix)
+	version := formatVersion(v, len(v.Segments()), prerelease)
+
+	term := constraintTerm{version: v, prerelease: prerelease, text: operator + " " + version}
 
 	switch operator {
 	case "", "=":
-		term.text = v.String()
+		term.text = version
 		term.rank = rankEqual
 	case "~>":
 		term.rank = rankPessimisticPatch
 
-		if declaresMinorOnly(declared) {
-			term.text = operator + " " + minorVersion(v)
+		if declaresMinorOnly(number) {
+			term.text = operator + " " + formatVersion(v, minorOnlyParts, prerelease)
 			term.rank = rankPessimisticMinor
 		}
 	case ">":
@@ -439,28 +447,54 @@ func normalizeSingleConstraint(constraint string) (constraintTerm, bool) {
 	return term, true
 }
 
-// declaresMinorOnly reports whether a `~>` version is declared with one or two
-// parts. The number of parts sets which part may vary, so `3.0` allows any 3.x
-// release and `3.0.0` allows only 3.0.x.
-func declaresMinorOnly(declared string) bool {
-	const (
-		minorOnlyParts = 2
-		digitsAndDots  = "0123456789."
-	)
+// minorOnlyParts is the number of parts tofu writes for a `~>` version
+// declared with one or two.
+const minorOnlyParts = 2
 
-	numeric := strings.TrimPrefix(declared, "v")
-	numeric = numeric[:len(numeric)-len(strings.TrimLeft(numeric, digitsAndDots))]
+// splitDeclaredVersion splits a declared version, without any leading `v`,
+// into its dot-separated number and the text after it.
+func splitDeclaredVersion(declared string) (number, suffix string) {
+	const digitsAndDots = "0123456789."
 
-	return strings.Count(numeric, ".")+1 <= minorOnlyParts
+	trimmed := strings.TrimPrefix(declared, "v")
+	suffix = strings.TrimLeft(trimmed, digitsAndDots)
+
+	return trimmed[:len(trimmed)-len(suffix)], suffix
 }
 
-// minorVersion formats v with two parts, the way tofu writes a `~>` version
-// declared with one or two.
-func minorVersion(v *semver.Version) string {
-	segments := v.Segments()
-	version := fmt.Sprintf("%d.%d", segments[0], segments[1])
+// declaresMinorOnly reports whether a `~>` version number is declared with one
+// or two parts. The number of parts sets which part may vary, so `3.0` allows
+// any 3.x release and `3.0.0` allows only 3.0.x.
+func declaresMinorOnly(number string) bool {
+	return strings.Count(number, ".")+1 <= minorOnlyParts
+}
 
-	if prerelease := v.Prerelease(); prerelease != "" {
+// declaredPrerelease returns the prerelease tofu reads from the text after a
+// version number: what follows a leading `-`, up to any `+`.
+func declaredPrerelease(suffix string) string {
+	prerelease, ok := strings.CutPrefix(suffix, "-")
+	if !ok {
+		return ""
+	}
+
+	prerelease, _, _ = strings.Cut(prerelease, "+")
+
+	return prerelease
+}
+
+// formatVersion formats the first parts segments of v, then prerelease, then
+// the build metadata of v.
+func formatVersion(v *semver.Version, parts int, prerelease string) string {
+	segments := v.Segments()[:parts]
+
+	numbers := make([]string, 0, parts)
+	for _, segment := range segments {
+		numbers = append(numbers, strconv.Itoa(segment))
+	}
+
+	version := strings.Join(numbers, ".")
+
+	if prerelease != "" {
 		version += "-" + prerelease
 	}
 
