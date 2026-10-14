@@ -18,12 +18,34 @@ import (
 // that answers with them rather than letting the parser's default diagnostics
 // writer print them.
 type DiagnosticsCollector struct {
+	// missingDependencyUnits has the directory of each unit that has a diagnostic for a missing dependency.
+	missingDependencyUnits map[string]struct{}
+	// owners maps each diagnostic to the directory of the component whose validation collected it.
+	owners map[*diagnostic.Diagnostic]string
+	// diags are the diagnostics collected so far, without repeats.
 	diags diagnostic.Diagnostics
 }
 
 // Diagnostics returns what the parses collected so far.
 func (c *DiagnosticsCollector) Diagnostics() diagnostic.Diagnostics {
 	return c.diags
+}
+
+// owner returns the directory of the component whose validation collected diag.
+func (c *DiagnosticsCollector) owner(diag *diagnostic.Diagnostic) string {
+	return c.owners[diag]
+}
+
+// attribute records dir as the owner of every diagnostic collected since the collector held from
+// of them. A repeat that [DiagnosticsCollector.add] dropped keeps the owner of the first.
+func (c *DiagnosticsCollector) attribute(from int, dir string) {
+	if c.owners == nil {
+		c.owners = make(map[*diagnostic.Diagnostic]string)
+	}
+
+	for _, diag := range c.diags[from:] {
+		c.owners[diag] = dir
+	}
 }
 
 // collect keeps the diagnostics raised for the file being parsed. It reports
@@ -34,11 +56,16 @@ func (c *DiagnosticsCollector) collect(
 	hclDiags hcl.Diagnostics,
 ) (hcl.Diagnostics, error) {
 	for _, hclDiag := range hclDiags {
+		diag, err := diagnostic.NewDiagnostic(file, hclDiag)
+		if err != nil {
+			return nil, err
+		}
+
 		if raisedElsewhere(file, hclDiag) {
 			continue
 		}
 
-		c.add(diagnostic.NewDiagnostic(file, hclDiag))
+		c.add(diag)
 	}
 
 	return nil, nil
@@ -71,8 +98,11 @@ func (c *DiagnosticsCollector) has(diag *diagnostic.Diagnostic) bool {
 // raisedElsewhere reports whether diag points at a file other than the one
 // being parsed. A parse raises what its dependencies and includes report too,
 // and those belong to whichever file declared them.
+//
+// file is set whenever diag has a Subject: collect converts diag with
+// [diagnostic.NewDiagnostic], which rejects a Subject without a file, before calling this.
 func raisedElsewhere(file *hcl.File, diag *hcl.Diagnostic) bool {
-	if diag.Subject == nil || file == nil {
+	if diag.Subject == nil {
 		return false
 	}
 
@@ -109,6 +139,9 @@ func (p ComponentParser) Unit(
 	opts *options.TerragruntOptions,
 	unitDir string,
 ) error {
+	from := len(p.Collector.diags)
+	defer p.Collector.attribute(from, unitDir)
+
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = unitDir
 	parseOpts.TerragruntConfigPath = filepath.Join(unitDir, unitConfigFilename(opts))
@@ -116,12 +149,24 @@ func (p ComponentParser) Unit(
 
 	pctx := configbridge.NewParsingContext(parseOpts)
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
+	configPath := parseOpts.TerragruntConfigPath
+
+	cfg, err := config.ReadTerragruntConfig(
+		ctx,
+		l,
+		v,
+		pctx.WithParserSettings(p.parserSettings(pctx.Parser)),
+	)
 	if err != nil {
-		return err
+		return p.Collector.pointAtDependencyErrors(v.FS, unitDir, []string{configPath}, err)
 	}
 
-	return config.ValidateDependencyConfigPaths(v.FS, cfg, parseOpts.TerragruntConfigPath)
+	return p.Collector.pointAtDependencyErrors(
+		v.FS,
+		unitDir,
+		dependencyConfigPaths(configPath, cfg),
+		config.ValidateDependencyConfigPaths(v.FS, cfg, configPath),
+	)
 }
 
 // Stack parses the stack configuration in stackDir, returning every error the
@@ -133,6 +178,9 @@ func (p ComponentParser) Stack(
 	opts *options.TerragruntOptions,
 	stackDir string,
 ) []error {
+	from := len(p.Collector.diags)
+	defer p.Collector.attribute(from, stackDir)
+
 	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
 
 	parseOpts := opts.Clone()

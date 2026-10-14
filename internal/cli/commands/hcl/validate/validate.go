@@ -102,19 +102,22 @@ func RunValidate(
 
 	d, err := newDiscovery(l, v, opts, worktrees)
 	if err != nil {
-		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
+		return err
 	}
 
 	components, err := d.WithSuppressParseErrors().Discover(ctx, l, v, opts)
 	if err != nil {
-		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
+		return err
 	}
 
 	var (
-		parseErrs []error
-		missing   []*MissingDependencyError
-		unitErrs  = make(map[string]error)
+		parseErrs        []error
+		missing          []*MissingDependencyError
+		fileDependencies []string
+		unitErrs         = make(map[string]error)
 	)
+
+	configFile := unitConfigFilename(opts)
 
 	for _, c := range components {
 		// Parsing can write obtained credentials into the env, so each
@@ -127,7 +130,7 @@ func RunValidate(
 			continue
 		}
 
-		missingErr, err := missingDependency(v.FS, opts, c)
+		missingErr, err := asMissingDependency(v.FS, c, configFile)
 		if err != nil {
 			parseErrs = append(parseErrs, err)
 
@@ -140,34 +143,29 @@ func RunValidate(
 			continue
 		}
 
+		if isFileDependency(v.FS, c) {
+			fileDependencies = append(fileDependencies, c.Path())
+
+			continue
+		}
+
 		if err := parser.Unit(ctx, l, componentV, opts, c.Path()); err != nil {
 			parseErrs = append(parseErrs, err)
 			unitErrs[c.Path()] = err
 		}
 	}
 
-	parseErrs = append(parseErrs, unreportedMissingDependencies(missing, unitErrs)...)
+	parseErrs = append(parseErrs, reportMissingDependencies(v.FS, collector, missing, unitErrs)...)
 
 	if len(parseErrs) > 0 || len(collector.Diagnostics()) > 0 {
-		return processDiagnostics(l, v, opts, collector.Diagnostics(), errors.Join(parseErrs...))
+		return processDiagnostics(l, v, opts, collector, components, errors.Join(parseErrs...))
 	}
 
-	return strictDiscoveryError(ctx, l, v, opts, worktrees)
-}
-
-// MissingDependencyError reports a dependency path that has no unit configuration.
-type MissingDependencyError struct {
-	Path       string
-	ConfigFile string
-	Dependents []string
-}
-
-func (err MissingDependencyError) Error() string {
-	return fmt.Sprintf(
-		"dependency of %s: %s has no %s",
-		strings.Join(err.Dependents, ", "),
-		err.Path,
-		err.ConfigFile,
+	return withoutDecidedDependencies(
+		strictDiscoveryError(ctx, l, v, opts, worktrees),
+		missing,
+		fileDependencies,
+		configFile,
 	)
 }
 
@@ -187,71 +185,6 @@ func newDiscovery(
 	}
 
 	return d.WithWorktrees(wts), nil
-}
-
-// missingDependency returns an error for a unit that other units depend on and that has no configuration file.
-// Graph filters add such a unit to the discovered set from the dependency path alone.
-func missingDependency(
-	fsys vfs.FS,
-	opts *options.TerragruntOptions,
-	c component.Component,
-) (*MissingDependencyError, error) {
-	dependents := c.Dependents()
-	if len(dependents) == 0 {
-		return nil, nil
-	}
-
-	if vfs.Exists(fsys, c.Path()) && !vfs.IsDir(fsys, c.Path()) {
-		return nil, nil
-	}
-
-	configFile := unitConfigFilename(opts)
-
-	exists, err := vfs.FileExists(fsys, filepath.Join(c.Path(), configFile))
-	if err != nil {
-		return nil, err
-	}
-
-	if exists {
-		return nil, nil
-	}
-
-	paths := dependents.Paths()
-	slices.Sort(paths)
-
-	return &MissingDependencyError{
-		Path:       c.Path(),
-		ConfigFile: configFile,
-		Dependents: paths,
-	}, nil
-}
-
-// unreportedMissingDependencies returns the missing dependencies that no dependent reported while it was validated.
-// A dependent reports a target its own blocks name, which leaves out a dependent outside the validated set and a
-// `dependencies` path whose directory exists without a configuration file.
-func unreportedMissingDependencies(missing []*MissingDependencyError, unitErrs map[string]error) []error {
-	var errs []error
-
-	for _, missingErr := range missing {
-		if !slices.ContainsFunc(missingErr.Dependents, func(dependent string) bool {
-			return reportsMissingDependency(unitErrs[dependent])
-		}) {
-			errs = append(errs, missingErr)
-		}
-	}
-
-	return errs
-}
-
-// reportsMissingDependency reports whether err has a missing `dependency` or `dependencies` target in its tree.
-func reportsMissingDependency(err error) bool {
-	if _, ok := errors.AsType[config.DependencyConfigNotFound](err); ok {
-		return true
-	}
-
-	_, ok := errors.AsType[config.DependencyDirNotFoundError](err)
-
-	return ok
 }
 
 // strictDiscoveryError repeats discovery without suppressing parse errors and returns what it reports.
@@ -282,9 +215,11 @@ func processDiagnostics(
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
-	diags diagnostic.Diagnostics,
+	collector *DiagnosticsCollector,
+	components component.Components,
 	callErr error,
 ) error {
+	diags := collector.Diagnostics()
 	if len(diags) == 0 {
 		return callErr
 	}
@@ -303,7 +238,7 @@ func processDiagnostics(
 		return a < b
 	})
 
-	if err := writeDiagnostics(l, v, opts, diags); err != nil {
+	if err := writeDiagnostics(l, v, opts, collector, components, diags); err != nil {
 		return err
 	}
 
@@ -319,10 +254,14 @@ func processDiagnostics(
 	return errors.Join(callErr, diagError)
 }
 
+// writeDiagnostics writes diags in the format the options select. Only the human rendering of the
+// diagnostics shows filenames relative to where discovery found them.
 func writeDiagnostics(
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
+	collector *DiagnosticsCollector,
+	components component.Components,
 	diags diagnostic.Diagnostics,
 ) error {
 	render := view.NewHumanRender(v, l.Formatter().DisabledColors())
@@ -336,7 +275,70 @@ func writeDiagnostics(
 		return writer.ShowConfigPath(diags)
 	}
 
+	if !opts.HCLValidateJSONOutput {
+		diags = relativeToDiscovery(l, collector, components, diags, opts.WorkingDir)
+	}
+
 	return writer.Diagnostics(diags)
+}
+
+// relativeToDiscovery returns diags with each filename relative to the discovery working directory of the
+// component whose validation collected it, as find and list print component paths. A component matched
+// by a Git filter is discovered in a worktree, so its files read against that worktree. A component with
+// no discovery working directory reads against workingDir.
+//
+// Every diagnostic in collector belongs to one of components or to a dependent of one, because
+// [ComponentParser] and the missing dependency diagnostics attribute each diagnostic they collect.
+func relativeToDiscovery(
+	l log.Logger,
+	collector *DiagnosticsCollector,
+	components component.Components,
+	diags diagnostic.Diagnostics,
+	workingDir string,
+) diagnostic.Diagnostics {
+	byPath := componentsByPath(components)
+	shown := make(diagnostic.Diagnostics, 0, len(diags))
+
+	for _, diag := range diags {
+		if diag.Range == nil {
+			shown = append(shown, diag)
+
+			continue
+		}
+
+		relative := *diag
+		rng := *diag.Range
+		rng.Filename = discovery.RelPathForComponent(
+			l,
+			byPath[collector.owner(diag)],
+			workingDir,
+			rng.Filename,
+			"diagnostic",
+		)
+		relative.Range = &rng
+
+		shown = append(shown, &relative)
+	}
+
+	return shown
+}
+
+// componentsByPath indexes components and their dependents by path. A dependent that a filter left out
+// of components still owns the diagnostics for its missing dependencies.
+func componentsByPath(components component.Components) map[string]component.Component {
+	byPath := make(map[string]component.Component, len(components))
+
+	for _, c := range components {
+		for _, dependent := range c.Dependents() {
+			byPath[dependent.Path()] = dependent
+		}
+	}
+
+	for _, c := range components {
+		byPath[c.Path()] = c
+	}
+
+	return byPath
 }
 
 func RunValidateInputs(
@@ -715,7 +717,8 @@ func getTerraformInputNamesFromAutomaticVarFiles(
 		name := entry.Name()
 
 		named := name == "terraform.tfvars" || name == "terraform.tfvars.json"
-		automatic := strings.HasSuffix(name, ".auto.tfvars") || strings.HasSuffix(name, ".auto.tfvars.json")
+		automatic := strings.HasSuffix(name, ".auto.tfvars") ||
+			strings.HasSuffix(name, ".auto.tfvars.json")
 
 		if named || automatic {
 			automaticVarFiles = append(automaticVarFiles, filepath.Join(base, name))

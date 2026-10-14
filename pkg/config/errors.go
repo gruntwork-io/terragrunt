@@ -330,6 +330,21 @@ func (err DependencyConfigNotFound) Error() string {
 	return err.Path + " does not exist"
 }
 
+// DependencyBlockError reports a failure in one dependency block of a configuration file.
+type DependencyBlockError struct {
+	Err        error
+	Name       string
+	ConfigPath string
+}
+
+func (err DependencyBlockError) Error() string {
+	return fmt.Sprintf("dependency %q in %s: %v", err.Name, err.ConfigPath, err.Err)
+}
+
+func (err DependencyBlockError) Unwrap() error {
+	return err.Err
+}
+
 // DependencyStateReadError reports a failure while reading a dependency's remote state body.
 type DependencyStateReadError struct {
 	// Err is the underlying reader failure.
@@ -510,6 +525,23 @@ func (err DuplicateDependencyConfigPathError) Error() string {
 		err.ConfigPath,
 		err.FirstAddress,
 		err.SecondAddress,
+		err.DependencyPath,
+	)
+}
+
+// DependencyConfigPathFileError is returned when a dependency block sets config_path to a
+// file while the dependency-config-path-file strict control is enabled.
+type DependencyConfigPathFileError struct {
+	ConfigPath     string
+	Address        string
+	DependencyPath string
+}
+
+func (err DependencyConfigPathFileError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependency %s sets config_path to the file %s; set it to the directory of the unit or stack",
+		err.ConfigPath,
+		err.Address,
 		err.DependencyPath,
 	)
 }
