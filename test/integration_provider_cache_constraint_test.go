@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/hashicorp/hcl/v2"
@@ -250,6 +251,12 @@ func TestTFProviderCacheLockConstraintsMatchTofu(t *testing.T) {
 		},
 	}
 
+	// Every case shares one provider cache, and tofu re-installs from it, so
+	// each provider version is downloaded once for the whole test instead of
+	// once per command.
+	providerCacheDir := helpers.TmpDirWOSymlinks(t)
+	pluginCacheEnv := tf.EnvNameTFPluginCacheDir + "=" + providerCacheDir
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -283,11 +290,11 @@ func TestTFProviderCacheLockConstraintsMatchTofu(t *testing.T) {
 				t,
 				fmt.Sprintf(
 					"terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
-					helpers.TmpDirWOSymlinks(t),
+					providerCacheDir,
 					cachedPath,
 				),
 			)
-			runWrappedBinary(t, directPath, "init", "-input=false")
+			runWrappedBinary(t, directPath, nil, "init", "-input=false")
 
 			assert.Equal(
 				t,
@@ -300,23 +307,33 @@ func TestTFProviderCacheLockConstraintsMatchTofu(t *testing.T) {
 			require.NoError(t, err)
 
 			require.NoError(t, os.RemoveAll(filepath.Join(cachedPath, ".terraform")))
-			runWrappedBinary(t, cachedPath, "init", "-input=false", "-lockfile=readonly")
-			runWrappedBinary(t, cachedPath, "init", "-input=false")
+			runWrappedBinary(
+				t,
+				cachedPath,
+				[]string{pluginCacheEnv},
+				"init",
+				"-input=false",
+				"-lockfile=readonly",
+			)
+			runWrappedBinary(t, cachedPath, []string{pluginCacheEnv}, "init", "-input=false")
 
-			directLockfile, err := os.ReadFile(lockfilePath)
+			reinitLockfile, err := os.ReadFile(lockfilePath)
 			require.NoError(t, err)
-			assert.Equal(t, string(cachedLockfile), string(directLockfile))
+			assert.Equal(t, string(cachedLockfile), string(reinitLockfile))
 		})
 	}
 }
 
 // runWrappedBinary runs tofu, or whichever binary Terragrunt wraps, directly
-// in dir and fails the test when the command fails.
-func runWrappedBinary(t *testing.T, dir string, args ...string) {
+// in dir with env added to the environment, and fails the test when the
+// command fails.
+func runWrappedBinary(t *testing.T, dir string, env []string, args ...string) {
 	t.Helper()
 
 	cmd := exec.CommandContext(t.Context(), helpers.WrappedBinary(t.Context()), args...)
 	cmd.Dir = dir
+
+	cmd.Env = append(os.Environ(), env...)
 
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(output))

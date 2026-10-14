@@ -226,15 +226,24 @@ func TestLockFileConstraint(t *testing.T) {
 func TestLockFileConstraintRejects(t *testing.T) {
 	t.Parallel()
 
-	for _, s := range []string{
-		"",
-		"not a constraint",
-		"=> 2.2",
-		">= 3.0+",
-		">= 3.0a",
-	} {
-		_, err := semver.LockFileConstraint(s)
-		require.Error(t, err, s)
+	tests := []struct {
+		name string
+		in   string
+	}{
+		{name: "empty", in: ""},
+		{name: "not a constraint", in: "not a constraint"},
+		{name: "reversed operator", in: "=> 2.2"},
+		{name: "plus with no build metadata after it", in: ">= 3.0+"},
+		{name: "letters after the version", in: ">= 3.0a"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := semver.LockFileConstraint(tt.in)
+			require.Error(t, err)
+		})
 	}
 }
 

@@ -31,12 +31,7 @@ func LockFileConstraint(s string) (string, error) {
 	terms := make([]lockFileTerm, 0, len(spec))
 
 	for i := range spec {
-		term, err := newLockFileTerm(&spec[i])
-		if err != nil {
-			return "", fmt.Errorf("invalid constraint %s: %w", s, err)
-		}
-
-		terms = append(terms, term)
+		terms = append(terms, newLockFileTerm(&spec[i]))
 	}
 
 	slices.SortFunc(terms, func(a, b lockFileTerm) int {
@@ -77,25 +72,27 @@ var lockFileOperators = []lockFileOperator{
 
 // lockFileTerm is one term of a lock file constraint.
 type lockFileTerm struct {
-	version *versions.Version
 	text    string
+	version versions.Version
 	rank    int
 }
 
 // newLockFileTerm writes selection the way tofu writes it to a lock file, with
 // omitted version parts as zero.
 //
-// Returns an error when the operator of selection is not in lockFileOperators.
-func newLockFileTerm(selection *constraints.SelectionSpec) (lockFileTerm, error) {
+// Panics when the operator of selection is not in lockFileOperators.
+// [LockFileConstraint] gets selection from [constraints.ParseRubyStyleMulti],
+// which returns an error for any other operator.
+func newLockFileTerm(selection *constraints.SelectionSpec) lockFileTerm {
 	rank := slices.IndexFunc(lockFileOperators, func(o lockFileOperator) bool {
 		return o.operator == selection.Operator
 	})
 	if rank == -1 {
-		return lockFileTerm{}, fmt.Errorf("unsupported operator %s", selection.Operator)
+		panic(fmt.Sprintf("semver: no lock file operator for %s", selection.Operator))
 	}
 
 	boundary := selection.Boundary.ConstrainToZero()
-	version := &versions.Version{
+	version := versions.Version{
 		Major:      boundary.Major.Num,
 		Minor:      boundary.Minor.Num,
 		Patch:      boundary.Patch.Num,
@@ -120,16 +117,16 @@ func newLockFileTerm(selection *constraints.SelectionSpec) (lockFileTerm, error)
 		version: version,
 		text:    lockFileOperators[rank].prefix + text,
 		rank:    rank,
-	}, nil
+	}
 }
 
 // compareLockFileVersions orders a and b by precedence, then by build
 // metadata.
-func compareLockFileVersions(a, b *versions.Version) int {
+func compareLockFileVersions(a, b versions.Version) int {
 	switch {
-	case a.LessThan(*b):
+	case a.LessThan(b):
 		return -1
-	case b.LessThan(*a):
+	case b.LessThan(a):
 		return 1
 	case a.Metadata == b.Metadata:
 		return 0
