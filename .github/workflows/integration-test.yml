@@ -154,7 +154,7 @@ jobs:
 
       # install dependencies for the integration tests
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           version: 2026.9.12
           cache_save: ${{ github.ref == 'refs/heads/main' }}
