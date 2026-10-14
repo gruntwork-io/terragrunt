@@ -204,6 +204,21 @@ func TestTFProviderCacheLockConstraintsMatchTofu(t *testing.T) {
 		{name: "upper bound with two parts", version: "< 3.2"},
 		{name: "inclusive upper bound", version: "<= 3.1"},
 		{name: "exclusive lower bound", version: "> 3.1"},
+		{name: "numeric build metadata out of order", version: ">= 3.0.0+10, >= 3.0.0+2"},
+		{name: "numeric build metadata in order", version: ">= 3.0.0+2, >= 3.0.0+10"},
+		{name: "numeric and text build metadata", version: ">= 3.0.0+1a, >= 3.0.0+2"},
+		{name: "build metadata with one and two identifiers", version: ">= 3.0.0+a.1, >= 3.0.0+b"},
+		{name: "build metadata differing before the last identifier", version: ">= 3.0.0+b.1, >= 3.0.0+a.x.y"},
+		{name: "build metadata differing in the second identifier", version: ">= 3.0.0+build.10, >= 3.0.0+build.2"},
+		{name: "build metadata sharing a version with none", version: ">= 3.0.0+build, >= 3.0.0"},
+		{name: "build metadata with different operators", version: "> 3.0.0+2, != 3.0.0+1"},
+		{name: "prerelease with one and two identifiers", version: ">= 3.0.0-alpha.1, >= 3.0.0-beta"},
+		{name: "numeric prerelease", version: ">= 3.0.0-10, >= 3.0.0-2"},
+		{name: "numeric and text prerelease", version: ">= 3.0.0-alpha, >= 3.0.0-1"},
+		{name: "prerelease differing before the last identifier", version: ">= 3.0.0-beta.1, >= 3.0.0-alpha.x.y"},
+		{name: "prerelease differing in the second identifier", version: ">= 3.0.0-alpha.10, >= 3.0.0-alpha.2"},
+		{name: "prerelease with build metadata", version: ">= 3.0.0-beta+1, >= 3.0.0-alpha+2"},
+		{name: "prerelease sharing a version with its release", version: ">= 3.0.0+1, >= 3.0.0-beta+2"},
 	}
 
 	for _, tc := range testCases {

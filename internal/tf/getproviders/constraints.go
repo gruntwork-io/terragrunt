@@ -321,14 +321,77 @@ const (
 	rankNotEqual
 )
 
-// compareConstraintTerms orders terms by version, then by build metadata, then
-// by operator.
+// compareConstraintTerms orders terms by version number, then by prerelease,
+// then by build metadata, then by operator. A release sorts after its
+// prereleases.
 func compareConstraintTerms(a, b constraintTerm) int {
 	return cmp.Or(
-		a.version.Compare(b.version),
-		strings.Compare(a.version.Metadata(), b.version.Metadata()),
+		slices.Compare(a.version.Segments(), b.version.Segments()),
+		comparePrereleases(a.version.Prerelease(), b.version.Prerelease()),
+		compareVersionExtras(a.version.Metadata(), b.version.Metadata()),
 		cmp.Compare(a.rank, b.rank),
 	)
+}
+
+// comparePrereleases orders two prerelease strings the way tofu orders them in
+// a lock file constraint. An empty string is a release.
+func comparePrereleases(a, b string) int {
+	switch {
+	case a == b:
+		return 0
+	case a == "":
+		return 1
+	case b == "":
+		return -1
+	}
+
+	return compareVersionExtras(a, b)
+}
+
+// compareVersionExtras orders two dot-separated prerelease or build metadata
+// strings the way tofu orders them in a lock file constraint.
+//
+// Identifiers are compared in order until the shorter string reaches its last
+// identifier. From there the string with fewer identifiers sorts first, so
+// `beta` sorts before `alpha.1` while `a.x.y` sorts before `b.1`. This differs
+// from semantic versioning precedence.
+func compareVersionExtras(a, b string) int {
+	aIdentifiers := strings.Split(a, ".")
+	bIdentifiers := strings.Split(b, ".")
+	last := min(len(aIdentifiers), len(bIdentifiers)) - 1
+
+	for i := range last {
+		if c := compareVersionIdentifiers(aIdentifiers[i], bIdentifiers[i]); c != 0 {
+			return c
+		}
+	}
+
+	return cmp.Or(
+		cmp.Compare(len(aIdentifiers), len(bIdentifiers)),
+		compareVersionIdentifiers(aIdentifiers[last], bIdentifiers[last]),
+	)
+}
+
+// compareVersionIdentifiers orders two identifiers of a prerelease or build
+// metadata string. An identifier of only digits sorts before any other, and
+// two of them sort by length before content, so `2` sorts before `10`. Other
+// identifiers sort as text.
+func compareVersionIdentifiers(a, b string) int {
+	const digits = "0123456789"
+
+	aNumeric := strings.Trim(a, digits) == ""
+	bNumeric := strings.Trim(b, digits) == ""
+
+	switch {
+	case aNumeric && !bNumeric:
+		return -1
+	case !aNumeric && bNumeric:
+		return 1
+	case aNumeric:
+		return cmp.Or(cmp.Compare(len(a), len(b)), strings.Compare(a, b))
+	}
+
+	return strings.Compare(a, b)
 }
 
 // normalizeSingleConstraint normalizes a single version constraint (no commas).

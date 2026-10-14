@@ -506,6 +506,116 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 			expected: "!= 3.0.0-beta1, >= 3.0.0",
 		},
 		{
+			name:     "numeric build metadata sorts by value",
+			input:    ">= 3.0.0+10, >= 3.0.0+2",
+			expected: ">= 3.0.0+2, >= 3.0.0+10",
+		},
+		{
+			name:     "numeric build metadata already in order",
+			input:    ">= 3.0.0+2, >= 3.0.0+10",
+			expected: ">= 3.0.0+2, >= 3.0.0+10",
+		},
+		{
+			name:     "numeric build metadata of one length sorts as text",
+			input:    ">= 3.0.0+21, >= 3.0.0+12",
+			expected: ">= 3.0.0+12, >= 3.0.0+21",
+		},
+		{
+			name:     "numeric build metadata sorts before text",
+			input:    ">= 3.0.0+1a, >= 3.0.0+2",
+			expected: ">= 3.0.0+2, >= 3.0.0+1a",
+		},
+		{
+			name:     "text build metadata sorts as text",
+			input:    ">= 3.0.0+build10, >= 3.0.0+build2",
+			expected: ">= 3.0.0+build10, >= 3.0.0+build2",
+		},
+		{
+			name:     "build metadata with fewer identifiers sorts first",
+			input:    ">= 3.0.0+a.1, >= 3.0.0+b",
+			expected: ">= 3.0.0+b, >= 3.0.0+a.1",
+		},
+		{
+			name:     "build metadata identifier before the last decides over the count",
+			input:    ">= 3.0.0+b.1, >= 3.0.0+a.x.y",
+			expected: ">= 3.0.0+a.x.y, >= 3.0.0+b.1",
+		},
+		{
+			name:     "build metadata with a shared first identifier and fewer identifiers sorts first",
+			input:    ">= 3.0.0+a.b.c, >= 3.0.0+a.z",
+			expected: ">= 3.0.0+a.z, >= 3.0.0+a.b.c",
+		},
+		{
+			name:     "build metadata sorts by the first identifier that differs",
+			input:    ">= 3.0.0+build.10, >= 3.0.0+build.2",
+			expected: ">= 3.0.0+build.2, >= 3.0.0+build.10",
+		},
+		{
+			name:     "no build metadata sorts before build metadata",
+			input:    ">= 3.0.0+build, >= 3.0.0",
+			expected: ">= 3.0.0, >= 3.0.0+build",
+		},
+		{
+			name:     "build metadata sorts before the operator",
+			input:    "> 3.0.0+2, != 3.0.0+1",
+			expected: "!= 3.0.0+1, > 3.0.0+2",
+		},
+		{
+			name:     "version number sorts before build metadata",
+			input:    ">= 3.0.1+1, >= 3.0.0+2",
+			expected: ">= 3.0.0+2, >= 3.0.1+1",
+		},
+		{
+			name:     "repeated term with build metadata",
+			input:    ">= 3.0+2, >= 3.0.0+2",
+			expected: ">= 3.0.0+2",
+		},
+		{
+			name:     "pessimistic with two parts keeps build metadata",
+			input:    "~> 3.1+10, ~> 3.1+2",
+			expected: "~> 3.1+2, ~> 3.1+10",
+		},
+		{
+			name:     "prerelease with fewer identifiers sorts first",
+			input:    ">= 3.0.0-alpha.1, >= 3.0.0-beta",
+			expected: ">= 3.0.0-beta, >= 3.0.0-alpha.1",
+		},
+		{
+			name:     "numeric prerelease sorts by value",
+			input:    ">= 3.0.0-10, >= 3.0.0-2",
+			expected: ">= 3.0.0-2, >= 3.0.0-10",
+		},
+		{
+			name:     "numeric prerelease sorts before text",
+			input:    ">= 3.0.0-alpha, >= 3.0.0-1",
+			expected: ">= 3.0.0-1, >= 3.0.0-alpha",
+		},
+		{
+			name:     "text prerelease sorts as text",
+			input:    ">= 3.0.0-rc2, >= 3.0.0-rc10",
+			expected: ">= 3.0.0-rc10, >= 3.0.0-rc2",
+		},
+		{
+			name:     "prerelease identifier before the last decides over the count",
+			input:    ">= 3.0.0-beta.1, >= 3.0.0-alpha.x.y",
+			expected: ">= 3.0.0-alpha.x.y, >= 3.0.0-beta.1",
+		},
+		{
+			name:     "prerelease sorts by the first identifier that differs",
+			input:    ">= 3.0.0-alpha.10, >= 3.0.0-alpha.2",
+			expected: ">= 3.0.0-alpha.2, >= 3.0.0-alpha.10",
+		},
+		{
+			name:     "prerelease sorts before build metadata",
+			input:    ">= 3.0.0-beta+1, >= 3.0.0-alpha+2",
+			expected: ">= 3.0.0-alpha+2, >= 3.0.0-beta+1",
+		},
+		{
+			name:     "release with build metadata sorts after its prerelease",
+			input:    ">= 3.0.0+1, >= 3.0.0-beta+2",
+			expected: ">= 3.0.0-beta+2, >= 3.0.0+1",
+		},
+		{
 			name:     "unrecognized term keeps the declared order",
 			input:    "< 7.0, => 2.2, < 7.0",
 			expected: "< 7.0.0, => 2.2, < 7.0.0",
