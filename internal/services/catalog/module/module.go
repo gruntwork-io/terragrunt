@@ -91,19 +91,7 @@ func (module *Module) URL() string {
 // TerraformSourcePath returns the module source URL in the format expected by go-getter:
 // baseURL//moduleDir?query (e.g., git::https://github.com/org/repo.git//modules/foo?ref=v1.0.0)
 func (module *Module) TerraformSourcePath() string {
-	if module.moduleDir == "" {
-		return module.cloneURL
-	}
-
-	// Split on ? to separate base URL from query string
-	base, query, _ := strings.Cut(module.cloneURL, "?")
-
-	result := base + "//" + module.moduleDir
-	if query != "" {
-		result += "?" + query
-	}
-
-	return result
+	return SourcePath(module.cloneURL, module.moduleDir)
 }
 
 func (module *Module) isValid(fsys vfs.FS) (bool, error) {

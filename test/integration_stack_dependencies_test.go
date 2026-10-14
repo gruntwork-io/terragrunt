@@ -64,6 +64,7 @@ const (
 	testFixtureStackDepsNestedUnitDep            = "fixtures/stacks/stack-deps-nested-unit-dep"
 	testFixtureStackDepsApplyNoMocks             = "fixtures/stacks/stack-deps-apply-no-mocks"
 	testFixtureStackDepsStackAutoIncOverride     = "fixtures/stacks/stack-deps-stack-autoinclude-override"
+	testFixtureStackDepsStackAutoIncInjectedDep  = "fixtures/stacks/stack-deps-stack-autoinclude-injected-dep"
 	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
 	testFixtureStackDepsMockLocal                = "fixtures/stacks/stack-deps-mock-local"
 	testFixtureStackDepsAutoIncValuesResolved    = "fixtures/stacks/stack-deps-autoinclude-values-resolved"
@@ -1720,10 +1721,80 @@ func TestStackDepsStackLevelAutoIncludeOverridesSameNameUnit(t *testing.T) {
 	assert.True(t, foundAdded, "the appended added unit must be discoverable")
 }
 
+// TestStackDepsStackLevelAutoIncludeNestedAutoInclude verifies that a component injected by a stack-level
+// autoinclude keeps its own nested autoinclude: the next generation pass writes it, so the injected unit's
+// dependency orders the DAG and its outputs reach the unit's inputs. Overriding the catalog stack's unit must
+// not break the catalog's own wiring of a sibling unit to it. The nested case injects a stack whose own
+// stack-level autoinclude carries the wiring one level further down.
+func TestStackDepsStackLevelAutoIncludeNestedAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		liveDir  string
+		stackDir []string
+	}{
+		{
+			name:     "injected unit",
+			liveDir:  "live",
+			stackDir: []string{"fn"},
+		},
+		{
+			name:     "injected stack",
+			liveDir:  "live-nested",
+			stackDir: []string{"wrap", inthclparse.StackDir, "inner"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoIncInjectedDep)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncInjectedDep)
+			gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncInjectedDep)
+
+			runner, err := git.NewGitRunner(venv.OSVenv())
+			require.NoError(t, err)
+			require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+			rootPath := filepath.Join(gitPath, tc.liveDir)
+			rootPath, err = filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
+
+			helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+			stackDir := filepath.Join(append([]string{rootPath, inthclparse.StackDir}, tc.stackDir...)...)
+			functionDir := filepath.Join(stackDir, inthclparse.StackDir, "handler")
+			logsDir := filepath.Join(stackDir, inthclparse.StackDir, "logs")
+
+			autoInclude, err := os.ReadFile(filepath.Join(functionDir, inthclparse.AutoIncludeFile))
+			require.NoError(t, err, "the injected unit's nested autoinclude must be generated")
+			assert.Contains(t, string(autoInclude), `dependency "queue"`)
+
+			helpers.RunTerragrunt(
+				t,
+				"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
+			)
+
+			for dir, expected := range map[string]string{
+				functionDir: "function:queue-arn",
+				logsDir:     "logs:function:queue-arn",
+			} {
+				stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+					t,
+					"terragrunt output -raw value --non-interactive --working-dir "+dir,
+				)
+				require.NoError(t, err)
+				assert.Equal(t, expected, strings.TrimSpace(stdout), "unexpected output in %s", dir)
+			}
+		})
+	}
+}
+
 // TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal pins that stack generation succeeds when a
-// sibling autoinclude injects a block whose path references the base stack's local. The override prune
-// reads only block names, so it must not fail evaluating the injected path against the generate-path eval
-// context (which has no local.* populated), keeping generation consistent with discovery and the full parse.
+// sibling autoinclude injects a block whose path references the base stack's local. The injected blocks
+// decode in the base stack file's eval context, keeping generation consistent with discovery and the full parse.
 func TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal(t *testing.T) {
 	t.Parallel()
 

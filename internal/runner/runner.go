@@ -228,31 +228,24 @@ func NewFromComponents(
 	opts *options.TerragruntOptions,
 	discovered component.Components,
 ) (*Runner, error) {
-	// Stack components (terragrunt.stack.hcl files) drive stack generation, not execution.
-	nonStackComponents := make(component.Components, 0, len(discovered))
+	units := make([]*component.Unit, 0, len(discovered))
 	for _, c := range discovered {
-		if _, ok := c.(*component.Unit); ok {
-			nonStackComponents = append(nonStackComponents, c)
+		// Stack components (terragrunt.stack.hcl files) drive stack generation, not execution.
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
 		}
+
+		// Discovery parses every unit it returns, so a unit without a config is a bug.
+		if unit.Config() == nil {
+			return nil, NewUnitNotParsedError(unit.Path())
+		}
+
+		units = append(units, unit)
 	}
 
-	if len(nonStackComponents) == 0 {
+	if len(units) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
-
-		stack := component.NewStack(opts.WorkingDir)
-
-		rnr := &Runner{
-			Stack: stack,
-		}
-
-		q, queueErr := queue.NewQueue(component.Components{})
-		if queueErr != nil {
-			return nil, queueErr
-		}
-
-		rnr.queue = q
-
-		return rnr, nil
 	}
 
 	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
@@ -260,20 +253,6 @@ func NewFromComponents(
 
 	rnr := &Runner{
 		Stack: stack,
-	}
-
-	units := make([]*component.Unit, 0, len(nonStackComponents))
-	for _, c := range nonStackComponents {
-		unit, ok := c.(*component.Unit)
-		if !ok {
-			continue
-		}
-
-		if unit.DiscoveryContext() != nil && unit.Config() == nil {
-			l.Debugf("Unit %s has no config from discovery", unit.DisplayPath())
-		}
-
-		units = append(units, unit)
 	}
 
 	rnr.Stack.Units = units

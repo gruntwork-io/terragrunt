@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `stack generate` removes the file of a deleted `autoinclude` block
+
+Deleting an [`autoinclude`](/reference/hcl/blocks#autoinclude) block from a `unit` or `stack` block and running `terragrunt stack generate` again left the earlier run's `terragrunt.autoinclude.hcl` or `terragrunt.autoinclude.stack.hcl` behind.
+
+Generation now automatically removes the file when the `autoinclude` is removed.

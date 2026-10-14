@@ -158,13 +158,22 @@ func CreateGitRepo(t *testing.T, path string) {
 func InitGitRepoWithBranchRef(t *testing.T, dir, ref string) {
 	t.Helper()
 
-	runGitCmd(t, dir, "init", "-b", "main")
+	InitGitRepoOnBranch(t, dir, "main")
+	runGitCmd(t, dir, "update-ref", "refs/heads/"+ref, "HEAD")
+}
+
+// InitGitRepoOnBranch initializes a git repo at dir whose HEAD is branch and
+// commits every file already present. Callers write their fixture files into
+// dir before calling this.
+func InitGitRepoOnBranch(t *testing.T, dir, branch string) {
+	t.Helper()
+
+	runGitCmd(t, dir, "init", "-b", branch)
 	runGitCmd(t, dir, "config", "user.email", "test@example.com")
 	runGitCmd(t, dir, "config", "user.name", "Terragrunt Test")
 	runGitCmd(t, dir, "config", "commit.gpgsign", "false")
 	runGitCmd(t, dir, "add", "-A")
 	runGitCmd(t, dir, "commit", "-m", "initial commit")
-	runGitCmd(t, dir, "update-ref", "refs/heads/"+ref, "HEAD")
 }
 
 func runGitCmd(t *testing.T, dir string, args ...string) {

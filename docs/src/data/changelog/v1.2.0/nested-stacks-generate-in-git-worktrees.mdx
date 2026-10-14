@@ -1,0 +1,12 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Nested stacks now generate inside Git filter worktrees
+
+A stack file can reference another stack with a `stack` block. For a brand-new stack like that, `terragrunt find --filter '[a...b]'` reported the nested stack, but `terragrunt run` with the same filter warned `No units discovered` and did nothing. Terragrunt never generated the nested stack in the temporary worktree, so no units existed there to run.
+
+Worktree generation now recurses into nested stacks, the same way it does in the working directory, including nested stacks that set `no_dot_terragrunt_stack = true`. `find` and `run` agree again, and Terragrunt discovers and runs the units of added, changed, and removed nested stacks.
+
+After each level of generation, Terragrunt now only walks the directories of the stacks it just generated, instead of walking everything again.

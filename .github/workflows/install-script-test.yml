@@ -3,6 +3,9 @@ name: Install Script Test
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   install-script-test:
     name: Install Script Tests (${{ matrix.os }})

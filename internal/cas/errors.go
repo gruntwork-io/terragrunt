@@ -53,6 +53,12 @@ const (
 		"or an expression of literals and locals that call no functions"
 	// ErrNotADirectory is returned when a path expected to be a directory is not.
 	ErrNotADirectory Error = "not a directory"
+	// ErrTreeEntryEscapesDir is returned when an untrusted git tree entry escapes its destination directory
+	ErrTreeEntryEscapesDir Error = "tree entry path escapes the destination directory"
+	// ErrTreeEntryCrossesSymlink is returned when a git tree entry would be written through a symbolic link
+	ErrTreeEntryCrossesSymlink Error = "tree entry path crosses a symbolic link"
+	// ErrTreeEntryCollides is returned when two git tree entries name the same path in the destination directory
+	ErrTreeEntryCollides Error = "tree entries name the same path"
 	// ErrIncludedGitFileIsDir is returned when a name in [CloneOptions.IncludedGitFiles]
 	// resolves to a directory in the source repository's git directory
 	ErrIncludedGitFileIsDir Error = "included git file is a directory"

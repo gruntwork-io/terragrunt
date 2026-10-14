@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 # D:\ keeps the backing file outside the checkout.
 $vhd = 'D:\dev_drive.vhdx'
 
-$partition = New-VHD -Path $vhd -SizeBytes 16GB -Dynamic |
+$partition = New-VHD -Path $vhd -SizeBytes 64GB -Dynamic |
     Mount-VHD -PassThru |
     Initialize-Disk -PassThru |
     New-Partition -AssignDriveLetter -UseMaximumSize
@@ -26,4 +26,5 @@ New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     "TMP=$tmp"
 ) | Out-File -Append -FilePath $env:GITHUB_ENV
 
-Write-Output "Dev Drive mounted at $drive"
+$hostFree = (Get-Volume -DriveLetter D).SizeRemaining / 1GB
+Write-Output ("Dev Drive mounted at $drive, {0:N1}GB free on D: for its backing file" -f $hostFree)

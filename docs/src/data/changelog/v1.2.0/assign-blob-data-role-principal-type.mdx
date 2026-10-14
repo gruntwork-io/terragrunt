@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `assign_blob_data_role` sends the principal type of the authenticated identity
+
+When `principal_id` was unset, Terragrunt resolved the authenticated identity from its access token but sent the role assignment without a `principalType`. An identity whose `roleAssignments/write` permission is constrained by a condition on the principal type, such as a delegated **Role Based Access Control Administrator** limited to service principals and groups, was then denied the Storage Blob Data Contributor grant.
+
+Terragrunt now sends the principal type it reads from the token. When the token does not state the type, and for an explicitly configured `principal_id`, the assignment is still sent without a type, so Azure infers it.

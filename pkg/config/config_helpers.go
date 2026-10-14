@@ -1137,9 +1137,23 @@ func ParseTerragruntConfig(
 		readingPath = filepath.Clean(filepath.Join(pctx.WorkingDir, readingPath))
 	}
 
-	chain := slices.Concat(pctx.ReadConfigChain, []string{readingPath})
-	if slices.Contains(chain, path) {
-		return cty.NilVal, ReadTerragruntConfigCycleError{Chain: append(chain, path)}
+	// The chain ends with the last read target. A reader that differs from it was reached through a
+	// dependency block, so append it to keep that hop in the chain.
+	reader := readConfigFrame{path: readingPath, originalPath: pctx.OriginalTerragruntConfigPath}
+	target := readConfigFrame{path: path, originalPath: pctx.OriginalTerragruntConfigPath}
+
+	// ReadStackConfigFile parses a stack file under its own original config, so record it that way.
+	if base := filepath.Base(targetConfig); base == DefaultStackFile || base == DefaultAutoIncludeStackFile {
+		target.originalPath = targetConfig
+	}
+
+	chain := pctx.readConfigChain
+	if len(chain) == 0 || chain[len(chain)-1] != reader {
+		chain = slices.Concat(chain, []readConfigFrame{reader})
+	}
+
+	if slices.Contains(chain, target) {
+		return cty.NilVal, ReadTerragruntConfigCycleError{Chain: readConfigChainPaths(chain, target)}
 	}
 
 	pctx.FilesRead.Add(path)
@@ -1149,7 +1163,7 @@ func ParseTerragruntConfig(
 		return cty.NilVal, err
 	}
 
-	pctx.ReadConfigChain = chain
+	pctx.readConfigChain = slices.Concat(chain, []readConfigFrame{target})
 
 	pctx = pctx.WithDiagnosticsSuppressed()
 
@@ -1189,10 +1203,15 @@ func ParseTerragruntConfig(
 	}
 
 	// check if file is a values file, decode as values file
-	if strings.HasSuffix(targetConfig, valuesFile) {
+	if targetBase == valuesFile {
 		unitValues, readErr := ReadValues(ctx, l, v, pctx, filepath.Dir(targetConfig))
 		if readErr != nil {
 			return cty.NilVal, readErr
+		}
+
+		// ReadValues returns nil when the file is gone, e.g. removed after the check above.
+		if unitValues == nil {
+			return cty.NilVal, TerragruntConfigNotFoundError{Path: targetConfig}
 		}
 
 		return *unitValues, nil

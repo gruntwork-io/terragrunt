@@ -110,6 +110,58 @@ unit "environment" {
 	assert.False(t, gen.generated("environment", "prod"))
 }
 
+// TestGenerateStackKeepsEveryElementOfExpandedOverrideUnit pins that a sibling
+// terragrunt.autoinclude.stack.hcl overriding a unit with an expanded block generates every element,
+// and that a base autoinclude can depend on each element by key.
+func TestGenerateStackKeepsEveryElementOfExpandedOverrideUnit(t *testing.T) {
+	t.Parallel()
+
+	gen := generateStack(t, map[string]string{
+		config.DefaultStackFile: expandedConsumersStackHCL + `
+unit "audit" {
+  source = "` + enabledUnitSource + `"
+  path   = "audit"
+
+  autoinclude {
+    dependency "qa" {
+      config_path = unit.environment["qa"].path
+    }
+
+    dependency "staging" {
+      config_path = unit.environment["staging"].path
+    }
+  }
+}
+`,
+		config.DefaultAutoIncludeStackFile: `
+unit "environment" {
+  expansion {
+    for_each = toset(["qa", "staging"])
+  }
+
+  source = "` + enabledUnitSource + `"
+  path   = "environment/${each.key}"
+}
+`,
+	})
+
+	environments := []string{"qa", "staging"}
+	expected := make([]string, 0, len(environments))
+
+	for _, environment := range environments {
+		assert.True(t, gen.generated("environment", environment, config.DefaultTerragruntConfigPath))
+
+		expected = append(expected, filepath.Join(gen.dir, "environment", environment))
+	}
+
+	assert.False(t, gen.generated("environment", "dev"))
+	assert.False(t, gen.generated("environment", "prod"))
+
+	depPaths, err := inthclparse.AutoIncludeDependencyPaths(gen.v.FS, filepath.Join(gen.dir, "audit"))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, depPaths)
+}
+
 // expandedDependencyStack declares dev and prod units, an env unit expanded over both, and a consumer
 // unit whose autoinclude dependency expands by Expansion, resolving ConfigPath and MockName per element.
 var expandedDependencyStack = template.Must(template.New("expanded-dependency").Parse(`

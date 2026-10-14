@@ -1,0 +1,12 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Fixed `read_terragrunt_config` on suffixed values files and dependency cycles
+
+[`read_terragrunt_config`](/reference/hcl/functions#read_terragrunt_config) treated any file whose name ended in `terragrunt.values.hcl`, such as `prod.terragrunt.values.hcl`, as the values file of its directory. It returned the contents of the `terragrunt.values.hcl` next to it, or failed with `panic in function implementation: runtime error: invalid memory address or nil pointer dereference` when there was none.
+
+Only a file named exactly `terragrunt.values.hcl` is now read as a values file. A file such as `prod.terragrunt.values.hcl` is parsed as a Terragrunt configuration, so its attributes belong in blocks such as `locals`.
+
+When a `dependency` block makes a `read_terragrunt_config` call repeat itself, for example when unit `a` reads `../b/terragrunt.hcl` and `b` has a `dependency` on `a`, Terragrunt now fails with a `read_terragrunt_config cycle detected` error that lists the chain. Before, it recursed until it failed with `maximum parse depth of 1000 exceeded`, buried in a long chain of nested errors. A dependency can still read the same file again when the file evaluates differently there, for example through `get_original_terragrunt_dir()`.

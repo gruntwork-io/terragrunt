@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### CAS leaves `.terragrunt-stack` out of local sources
+
+A stack reading a local source from its own repository, such as `source = "../..//catalog/stacks/foo"` with `update_source_with_cas = true`, got a new [CAS](/features/caching/cas) key on every `stack generate`, even when the source had not changed.
+
+CAS now leaves `.terragrunt-stack` out of local sources, like it does for `.terraform` and `.terragrunt-cache`.

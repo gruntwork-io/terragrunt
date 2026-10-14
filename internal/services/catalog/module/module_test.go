@@ -52,6 +52,24 @@ func TestTerraformSourcePath(t *testing.T) {
 			moduleDir: "modules/foo",
 			expected:  "git::https://github.com/org/repo.git//modules/foo?ref=v1.0.0&depth=1",
 		},
+		{
+			name:      "clone url with subdir",
+			cloneURL:  "git::https://github.com/org/repo.git//modules",
+			moduleDir: "aws/foo",
+			expected:  "git::https://github.com/org/repo.git//modules/aws/foo",
+		},
+		{
+			name:      "clone url with subdir and ref",
+			cloneURL:  "git::https://github.com/org/repo.git//modules?ref=v1.0.0",
+			moduleDir: "aws/foo",
+			expected:  "git::https://github.com/org/repo.git//modules/aws/foo?ref=v1.0.0",
+		},
+		{
+			name:      "root module of clone url with subdir",
+			cloneURL:  "git::https://github.com/org/repo.git//modules?ref=v1.0.0",
+			moduleDir: "",
+			expected:  "git::https://github.com/org/repo.git//modules?ref=v1.0.0",
+		},
 	}
 
 	for _, tc := range testCases {

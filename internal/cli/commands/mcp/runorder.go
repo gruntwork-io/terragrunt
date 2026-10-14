@@ -97,7 +97,7 @@ func registerRunOrder(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *ve
 			"Ask about the command you actually intend to run, because plan and apply are " +
 			"ordered alike but exclude blocks can drop different units from each. Pass format=tree or " +
 			"format=dot for a rendering to show a person. Use before proposing a " +
-			"multi-unit change to know blast-radius ordering, or set order=destroy to get teardown order. " +
+			"multi-unit change to know blast-radius ordering, or set command=destroy to get teardown order. " +
 			"Ordering comes from parsed dependency edges; when the server runs without --allow=exec, configs " +
 			"using run_cmd() may parse degraded and lose edges, so check the degraded list.",
 		Annotations: &mcp.ToolAnnotations{

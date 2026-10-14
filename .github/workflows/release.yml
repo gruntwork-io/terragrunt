@@ -8,12 +8,17 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   # Validate the release is a draft with a valid semver tag,
   # targeting an explicit commit SHA.
   validate:
     name: Validate Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       ref: ${{ steps.resolve.outputs.ref }}
@@ -49,9 +54,7 @@ jobs:
       is_release: true
       ref: ${{ needs.validate.outputs.ref }}
     permissions:
-      contents: write
-      id-token: write
-      actions: read
+      contents: read
     secrets: inherit
 
   # Upload binaries to the draft GitHub release

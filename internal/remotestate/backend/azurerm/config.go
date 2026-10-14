@@ -3,8 +3,8 @@ package azurerm
 import (
 	"slices"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/mitchellh/mapstructure"
 )
 
 // Config is the raw remote_state backend configuration for the azurerm backend.

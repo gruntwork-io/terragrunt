@@ -1,13 +1,15 @@
 package test_test
 
 import (
-	"fmt"
+	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wI2L/jsondiff"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -30,33 +32,24 @@ func TestDependencyExpansionReportsEveryInstanceAsDependency(t *testing.T) {
 
 	assert.Empty(t, stderr)
 
-	requireJSONEqualIgnoringArrayOrder(t, `[
-  {"type":"unit","path":"app","dependencies":["aurora-api","aurora-web","shard-0","shard-1","vpc"]},
-  {"type":"unit","path":"aurora-api"},
-  {"type":"unit","path":"aurora-web"},
-  {"type":"unit","path":"shard-0"},
-  {"type":"unit","path":"shard-1"},
-  {"type":"unit","path":"vpc"}
-]`, stdout)
-}
+	var found find.FoundComponents
+	require.NoError(t, json.Unmarshal([]byte(stdout), &found))
 
-// requireJSONEqualIgnoringArrayOrder compares two JSON strings for equivalence, ignoring the order of array elements.
-// Use it instead of require.JSONEq only when the output's array ordering is not guaranteed (e.g. the order of a unit's
-// dependencies, or of units that share a DAG level); prefer require.JSONEq when the order is deterministic.
-func requireJSONEqualIgnoringArrayOrder(
-	t *testing.T,
-	expected, actual string,
-	msgAndArgs ...any,
-) bool {
-	t.Helper()
+	// find sorts units by path but lists each unit's dependencies in discovery order.
+	for _, c := range found {
+		slices.Sort(c.Dependencies)
+	}
 
-	patch, err := jsondiff.CompareJSON([]byte(expected), []byte(actual), jsondiff.Equivalent())
-	require.NoErrorf(t, err, fmt.Sprintf("Error comparing JSON strings: %v", err), msgAndArgs...)
-	require.Emptyf(
-		t,
-		patch,
-		fmt.Sprintf("JSON strings are not equal\nExpected: %s\nActual: %s", expected, actual),
-		msgAndArgs...)
-
-	return true
+	assert.Equal(t, find.FoundComponents{
+		{
+			Type:         component.UnitKind,
+			Path:         "app",
+			Dependencies: []string{"aurora-api", "aurora-web", "shard-0", "shard-1", "vpc"},
+		},
+		{Type: component.UnitKind, Path: "aurora-api"},
+		{Type: component.UnitKind, Path: "aurora-web"},
+		{Type: component.UnitKind, Path: "shard-0"},
+		{Type: component.UnitKind, Path: "shard-1"},
+		{Type: component.UnitKind, Path: "vpc"},
+	}, found)
 }

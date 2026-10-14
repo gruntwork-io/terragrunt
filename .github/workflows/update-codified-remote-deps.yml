@@ -5,6 +5,9 @@ on:
     - cron: '0 9 * * 1' # Every Monday at 9:00 UTC
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   live-stacks-example:
     permissions:

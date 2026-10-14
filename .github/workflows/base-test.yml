@@ -3,9 +3,15 @@ name: Base Tests
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test (${{ matrix.os }})
+    permissions:
+      contents: read
+      checks: write
     runs-on: ${{ matrix.os }}-latest
     strategy:
       fail-fast: false
@@ -52,6 +58,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TMPDIR: ${{ matrix.os == 'macos' && '/tmp' || '' }}
+
+      - name: Report Windows Disk Usage
+        if: always() && runner.os == 'Windows'
+        run: Get-Volume | Where-Object DriveLetter | Format-Table DriveLetter, FileSystemType, Size, SizeRemaining
+        shell: pwsh
 
       - name: Generate Coverage Summary
         if: always() && matrix.os == 'ubuntu'
