@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 
@@ -71,7 +72,7 @@ func TestDeleteS3Bucket(t *testing.T) {
 		markers:  []pkgTS3Entry{{Key: "b", VersionID: "3"}},
 	}
 	lastPage := pkgTS3Page{versions: []pkgTS3Entry{{Key: "c", VersionID: "4"}}}
-	markerPage := pkgTS3Page{markers: []pkgTS3Entry{{Key: "d", VersionID: "5"}}}
+	refused := pkgTS3Entry{Key: "c", VersionID: "4"}
 
 	testCases := []struct {
 		s3        *pkgTFakeS3
@@ -87,8 +88,7 @@ func TestDeleteS3Bucket(t *testing.T) {
 			name: "versions and delete markers are removed page by page",
 			s3:   &pkgTFakeS3{headStatus: http.StatusOK, listPages: []pkgTS3Page{firstPage, lastPage}},
 			wantCalls: []string{
-				"HeadBucket", "ListObjectVersions", "DeleteObjects", "DeleteObjects",
-				"ListObjectVersions", "DeleteObjects", "DeleteBucket",
+				"HeadBucket", "ListObjectVersions", "DeleteObjects", "ListObjectVersions", "DeleteObjects", "DeleteBucket",
 			},
 		},
 		{
@@ -108,6 +108,14 @@ func TestDeleteS3Bucket(t *testing.T) {
 			},
 		},
 		{
+			name: "a version S3 refuses to delete once is retried after the bucket reports not empty",
+			s3:   &pkgTFakeS3{headStatus: http.StatusOK, listPages: []pkgTS3Page{lastPage}, refuseOnce: []pkgTS3Entry{refused}},
+			wantCalls: []string{
+				"HeadBucket", "ListObjectVersions", "DeleteObjects", "DeleteBucket",
+				"ListObjectVersions", "DeleteObjects", "DeleteBucket",
+			},
+		},
+		{
 			name: "bucket gone during the second delete is done",
 			s3:   &pkgTFakeS3{headStatus: http.StatusOK, deleteBucketCodes: []string{"BucketNotEmpty", "NoSuchBucket"}},
 			wantCalls: []string{
@@ -115,20 +123,12 @@ func TestDeleteS3Bucket(t *testing.T) {
 			},
 		},
 		{
-			name: "bucket gone while deleting versions ends the cleanup",
+			name: "bucket gone while deleting ends the cleanup",
 			s3: &pkgTFakeS3{
 				headStatus:        http.StatusOK,
-				listPages:         []pkgTS3Page{lastPage},
+				listPages:         []pkgTS3Page{firstPage},
 				deleteObjectsCode: "NoSuchBucket",
-			},
-			wantCalls: []string{"HeadBucket", "ListObjectVersions", "DeleteObjects", "DeleteBucket"},
-		},
-		{
-			name: "bucket gone while deleting markers ends the cleanup",
-			s3: &pkgTFakeS3{
-				headStatus:        http.StatusOK,
-				listPages:         []pkgTS3Page{markerPage},
-				deleteObjectsCode: "NoSuchBucket",
+				deleteBucketCodes: []string{"NoSuchBucket"},
 			},
 			wantCalls: []string{"HeadBucket", "ListObjectVersions", "DeleteObjects", "DeleteBucket"},
 		},
@@ -146,10 +146,13 @@ func TestDeleteS3Bucket(t *testing.T) {
 			server := httptest.NewServer(tc.s3)
 			t.Cleanup(server.Close)
 
-			// The S3-specific setting outranks the general one, and the ignore flag would switch both off.
+			// Both endpoint settings are pinned so no inherited value wins, the ignore flag would switch them
+			// off, and FIPS or dual-stack cannot be combined with a custom endpoint.
 			t.Setenv("AWS_ENDPOINT_URL", server.URL)
 			t.Setenv("AWS_ENDPOINT_URL_S3", server.URL)
 			t.Setenv("AWS_IGNORE_CONFIGURED_ENDPOINT_URLS", "false")
+			t.Setenv("AWS_USE_FIPS_ENDPOINT", "false")
+			t.Setenv("AWS_USE_DUALSTACK_ENDPOINT", "false")
 
 			require.NoError(t, helpers.DeleteS3Bucket(t, "us-east-1", bucket))
 			assert.Equal(t, tc.wantCalls, tc.s3.recorded(), "S3 calls in order")
@@ -182,13 +185,18 @@ type pkgTS3Page struct {
 	markers  []pkgTS3Entry
 }
 
-// last returns the entry the page ends with, which S3 names as the marker for the next page.
+// last returns the entry the page ends with, which S3 names as the marker for the next page, or a zero
+// entry for an empty page.
 func (p pkgTS3Page) last() pkgTS3Entry {
 	if len(p.markers) > 0 {
 		return p.markers[len(p.markers)-1]
 	}
 
-	return p.versions[len(p.versions)-1]
+	if len(p.versions) > 0 {
+		return p.versions[len(p.versions)-1]
+	}
+
+	return pkgTS3Entry{}
 }
 
 // pkgTS3ListResult is the ListObjectVersions response document.
@@ -207,9 +215,26 @@ type pkgTS3DeleteRequest struct {
 	Objects []pkgTS3Entry `xml:"Object"`
 }
 
+// pkgTS3DeleteResult is the DeleteObjects response document.
+type pkgTS3DeleteResult struct {
+	XMLName xml.Name            `xml:"http://s3.amazonaws.com/doc/2006-03-01/ DeleteResult"`
+	Deleted []pkgTS3Entry       `xml:"Deleted"`
+	Errors  []pkgTS3DeleteError `xml:"Error"`
+}
+
+// pkgTS3DeleteError is one object a DeleteObjects call refused to delete.
+type pkgTS3DeleteError struct {
+	pkgTS3Entry
+
+	Code    string `xml:"Code"`
+	Message string `xml:"Message"`
+}
+
 // pkgTFakeS3 answers the calls DeleteS3Bucket makes on one bucket with scripted outcomes and records their order.
 // A call for another bucket, a listing that does not continue from the last page, or a DeleteObjects that does
-// not name exactly the objects of the last page fails the test.
+// not name exactly the objects of the last page fails the test. Objects in refuseOnce are answered with a
+// per-object error the first time, as S3 does for a version the caller may not delete; they stay in the
+// bucket, are listed again once the scripted pages run out, and keep DeleteBucket answering BucketNotEmpty.
 type pkgTFakeS3 struct {
 	t *testing.T
 	// bucket is the only bucket the fake serves.
@@ -226,6 +251,10 @@ type pkgTFakeS3 struct {
 	listPages []pkgTS3Page
 	// wantDeletes are the object sets the next DeleteObjects calls must name, in order.
 	wantDeletes [][]pkgTS3Entry
+	// refuseOnce are objects whose next DeleteObjects answers a per-object error instead of deleting them.
+	refuseOnce []pkgTS3Entry
+	// leftover holds the refused objects still in the bucket.
+	leftover pkgTS3Page
 	// deleteBucketCodes are the DeleteBucket outcomes in order, where an empty code succeeds.
 	deleteBucketCodes []string
 	// headStatus is the HeadBucket response status.
@@ -257,6 +286,10 @@ func (f *pkgTFakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			code, f.deleteBucketCodes = f.deleteBucketCodes[0], f.deleteBucketCodes[1:]
 		}
 
+		if code == "" && len(f.leftover.versions) > 0 {
+			code = "BucketNotEmpty"
+		}
+
 		if code != "" {
 			f.writeError(w, code)
 
@@ -281,17 +314,10 @@ func (f *pkgTFakeS3) listVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	page := pkgTS3Page{}
-	if len(f.listPages) > 0 {
-		page, f.listPages = f.listPages[0], f.listPages[1:]
-	}
+	page := f.nextPage()
 
-	if len(page.versions) > 0 {
-		f.wantDeletes = append(f.wantDeletes, page.versions)
-	}
-
-	if len(page.markers) > 0 {
-		f.wantDeletes = append(f.wantDeletes, page.markers)
+	if listed := slices.Concat(page.versions, page.markers); len(listed) > 0 {
+		f.wantDeletes = append(f.wantDeletes, listed)
 	}
 
 	result := pkgTS3ListResult{
@@ -310,6 +336,21 @@ func (f *pkgTFakeS3) listVersions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f.write(w, result)
+}
+
+// nextPage returns the next scripted page, or the refused objects still in the bucket once the script runs out.
+func (f *pkgTFakeS3) nextPage() pkgTS3Page {
+	if len(f.listPages) > 0 {
+		page := f.listPages[0]
+		f.listPages = f.listPages[1:]
+
+		return page
+	}
+
+	page := f.leftover
+	f.leftover = pkgTS3Page{}
+
+	return page
 }
 
 // deleteObjects checks that the request names exactly the objects of the last listed page, then answers it.
@@ -331,9 +372,21 @@ func (f *pkgTFakeS3) deleteObjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f.write(w, struct {
-		XMLName xml.Name `xml:"http://s3.amazonaws.com/doc/2006-03-01/ DeleteResult"`
-	}{})
+	result := pkgTS3DeleteResult{}
+
+	for _, object := range request.Objects {
+		if i := slices.Index(f.refuseOnce, object); i >= 0 {
+			f.refuseOnce = slices.Delete(f.refuseOnce, i, i+1)
+			f.leftover.versions = append(f.leftover.versions, object)
+			result.Errors = append(result.Errors, pkgTS3DeleteError{pkgTS3Entry: object, Code: "AccessDenied", Message: "Access Denied"})
+
+			continue
+		}
+
+		result.Deleted = append(result.Deleted, object)
+	}
+
+	f.write(w, result)
 }
 
 // recorded returns the calls answered so far, in order.
@@ -365,8 +418,13 @@ func (f *pkgTFakeS3) write(w http.ResponseWriter, result any) {
 func (f *pkgTFakeS3) writeError(w http.ResponseWriter, code string) {
 	statuses := map[string]int{"NoSuchBucket": http.StatusNotFound, "BucketNotEmpty": http.StatusConflict}
 
+	status, ok := statuses[code]
+	if !assert.True(f.t, ok, "scripted S3 error code %q", code) {
+		status = http.StatusBadRequest
+	}
+
 	w.Header().Set("Content-Type", "application/xml")
-	w.WriteHeader(statuses[code])
+	w.WriteHeader(status)
 
 	_, err := fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><Error><Code>%s</Code><Message>%s</Message></Error>`, code, code)
 	assert.NoError(f.t, err, "write fake S3 error")
