@@ -1,13 +1,11 @@
 package getproviders
 
 import (
-	"cmp"
 	"fmt"
 	"io/fs"
 	"maps"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 
 	"errors"
@@ -151,9 +149,7 @@ func parseProvidersFromRequiredProvidersBlock(
 			source = name
 		}
 
-		constraints[normalizeProviderAddress(env, impl, source)] = normalizeVersionConstraint(
-			version,
-		)
+		constraints[normalizeProviderAddress(env, impl, source)] = normalizeVersionConstraint(version)
 	}
 
 	return constraints
@@ -262,245 +258,14 @@ func normalizeProviderAddress(env map[string]string, impl tfimpl.Type, source st
 	}
 }
 
-// normalizeVersionConstraint normalizes version constraints to the format expected by OpenTofu/Terraform lockfiles.
-//
-// This includes:
-// 1. Removing the "=" prefix if present
-// 2. Normalizing version numbers to full 3-part format (e.g., "2.2" becomes "2.2.0")
-// 3. Writing a pessimistic constraint with two parts unless it declares three (e.g., "~> 3.0" stays "~> 3.0")
-// 4. Handling multi-part constraints (e.g., ">= 3.0, < 7.0" becomes ">= 3.0.0, < 7.0.0")
-// 5. Sorting the terms by version and dropping repeats (e.g., "< 7.0, >= 3.0, >= 3.0.0" becomes ">= 3.0.0, < 7.0.0")
-//
-// A constraint with a term whose operator or version is not recognized keeps
-// its declared order and repeats.
+// normalizeVersionConstraint returns the `constraints` value tofu writes to a
+// lock file for a provider whose `version` argument is constraint, or
+// constraint without surrounding whitespace when tofu rejects it.
 func normalizeVersionConstraint(constraint string) string {
-	parts := strings.Split(strings.TrimSpace(constraint), ",")
-	terms := make([]constraintTerm, 0, len(parts))
-	recognized := true
-
-	for _, part := range parts {
-		term, ok := normalizeSingleConstraint(strings.TrimSpace(part))
-		recognized = recognized && ok
-
-		terms = append(terms, term)
-	}
-
-	if recognized {
-		slices.SortFunc(terms, compareConstraintTerms)
-
-		terms = slices.CompactFunc(terms, func(a, b constraintTerm) bool {
-			return a.text == b.text
-		})
-	}
-
-	normalized := make([]string, 0, len(terms))
-	for _, term := range terms {
-		normalized = append(normalized, term.text)
-	}
-
-	return strings.Join(normalized, ", ")
-}
-
-// constraintTerm is one comma-separated term of a version constraint, written
-// the way tofu writes it to a lock file.
-type constraintTerm struct {
-	version    *semver.Version
-	prerelease string
-	text       string
-	rank       operatorRank
-}
-
-// operatorRank orders terms that share a version. The order is the one tofu
-// uses when it writes lock file constraints.
-type operatorRank int
-
-const (
-	rankGreaterThan operatorRank = iota + 1
-	rankGreaterThanOrEqual
-	rankEqual
-	rankPessimisticPatch
-	rankPessimisticMinor
-	rankLessThanOrEqual
-	rankLessThan
-	rankNotEqual
-)
-
-// compareConstraintTerms orders terms by version number, then by prerelease,
-// then by build metadata, then by operator. A release sorts after its
-// prereleases.
-func compareConstraintTerms(a, b constraintTerm) int {
-	return cmp.Or(
-		slices.Compare(a.version.Segments(), b.version.Segments()),
-		comparePrereleases(a.prerelease, b.prerelease),
-		compareVersionExtras(a.version.Metadata(), b.version.Metadata()),
-		cmp.Compare(a.rank, b.rank),
-	)
-}
-
-// comparePrereleases orders two prerelease strings the way tofu orders them in
-// a lock file constraint. An empty string is a release.
-func comparePrereleases(a, b string) int {
-	switch {
-	case a == b:
-		return 0
-	case a == "":
-		return 1
-	case b == "":
-		return -1
-	}
-
-	return compareVersionExtras(a, b)
-}
-
-// compareVersionExtras orders two dot-separated prerelease or build metadata
-// strings the way tofu orders them in a lock file constraint.
-//
-// Identifiers are compared in order until the shorter string reaches its last
-// identifier. From there the string with fewer identifiers sorts first, so
-// `beta` sorts before `alpha.1` while `a.x.y` sorts before `b.1`. This differs
-// from semantic versioning precedence.
-func compareVersionExtras(a, b string) int {
-	aIdentifiers := strings.Split(a, ".")
-	bIdentifiers := strings.Split(b, ".")
-	last := min(len(aIdentifiers), len(bIdentifiers)) - 1
-
-	for i := range last {
-		if c := compareVersionIdentifiers(aIdentifiers[i], bIdentifiers[i]); c != 0 {
-			return c
-		}
-	}
-
-	return cmp.Or(
-		cmp.Compare(len(aIdentifiers), len(bIdentifiers)),
-		compareVersionIdentifiers(aIdentifiers[last], bIdentifiers[last]),
-	)
-}
-
-// compareVersionIdentifiers orders two identifiers of a prerelease or build
-// metadata string. An identifier of only digits sorts before any other, and
-// two of them sort by length before content, so `2` sorts before `10`. Other
-// identifiers sort as text.
-func compareVersionIdentifiers(a, b string) int {
-	const digits = "0123456789"
-
-	aNumeric := strings.Trim(a, digits) == ""
-	bNumeric := strings.Trim(b, digits) == ""
-
-	switch {
-	case aNumeric && !bNumeric:
-		return -1
-	case !aNumeric && bNumeric:
-		return 1
-	case aNumeric:
-		return cmp.Or(cmp.Compare(len(a), len(b)), strings.Compare(a, b))
-	}
-
-	return strings.Compare(a, b)
-}
-
-// normalizeSingleConstraint normalizes a single version constraint (no commas).
-// It reports false, with the term as declared, when the operator or version is
-// not recognized.
-func normalizeSingleConstraint(constraint string) (constraintTerm, bool) {
-	const operatorChars = "=<>!~"
-
-	rest := strings.TrimLeft(constraint, operatorChars)
-	operator := constraint[:len(constraint)-len(rest)]
-	declared := strings.TrimSpace(rest)
-
-	v, err := semver.Parse(declared)
+	normalized, err := semver.LockFileConstraint(constraint)
 	if err != nil {
-		return constraintTerm{text: constraint}, false
+		return strings.TrimSpace(constraint)
 	}
 
-	number, suffix := splitDeclaredVersion(declared)
-	prerelease := declaredPrerelease(suffix)
-	version := formatVersion(v, len(v.Segments()), prerelease)
-
-	term := constraintTerm{version: v, prerelease: prerelease, text: operator + " " + version}
-
-	switch operator {
-	case "", "=":
-		term.text = version
-		term.rank = rankEqual
-	case "~>":
-		term.rank = rankPessimisticPatch
-
-		if declaresMinorOnly(number) {
-			term.text = operator + " " + formatVersion(v, minorOnlyParts, prerelease)
-			term.rank = rankPessimisticMinor
-		}
-	case ">":
-		term.rank = rankGreaterThan
-	case ">=":
-		term.rank = rankGreaterThanOrEqual
-	case "<=":
-		term.rank = rankLessThanOrEqual
-	case "<":
-		term.rank = rankLessThan
-	case "!=":
-		term.rank = rankNotEqual
-	default:
-		return constraintTerm{text: constraint}, false
-	}
-
-	return term, true
-}
-
-// minorOnlyParts is the number of parts tofu writes for a `~>` version
-// declared with one or two.
-const minorOnlyParts = 2
-
-// splitDeclaredVersion splits a declared version, without any leading `v`,
-// into its dot-separated number and the text after it.
-func splitDeclaredVersion(declared string) (number, suffix string) {
-	const digitsAndDots = "0123456789."
-
-	trimmed := strings.TrimPrefix(declared, "v")
-	suffix = strings.TrimLeft(trimmed, digitsAndDots)
-
-	return trimmed[:len(trimmed)-len(suffix)], suffix
-}
-
-// declaresMinorOnly reports whether a `~>` version number is declared with one
-// or two parts. The number of parts sets which part may vary, so `3.0` allows
-// any 3.x release and `3.0.0` allows only 3.0.x.
-func declaresMinorOnly(number string) bool {
-	return strings.Count(number, ".")+1 <= minorOnlyParts
-}
-
-// declaredPrerelease returns the prerelease tofu reads from the text after a
-// version number: what follows a leading `-`, up to any `+`.
-func declaredPrerelease(suffix string) string {
-	prerelease, ok := strings.CutPrefix(suffix, "-")
-	if !ok {
-		return ""
-	}
-
-	prerelease, _, _ = strings.Cut(prerelease, "+")
-
-	return prerelease
-}
-
-// formatVersion formats the first parts segments of v, then prerelease, then
-// the build metadata of v.
-func formatVersion(v *semver.Version, parts int, prerelease string) string {
-	segments := v.Segments()[:parts]
-
-	numbers := make([]string, 0, parts)
-	for _, segment := range segments {
-		numbers = append(numbers, strconv.Itoa(segment))
-	}
-
-	version := strings.Join(numbers, ".")
-
-	if prerelease != "" {
-		version += "-" + prerelease
-	}
-
-	if metadata := v.Metadata(); metadata != "" {
-		version += "+" + metadata
-	}
-
-	return version
+	return normalized
 }
