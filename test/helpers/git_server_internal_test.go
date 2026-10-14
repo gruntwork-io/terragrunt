@@ -425,6 +425,7 @@ func TestAddReportsSSHRefreshFailure(t *testing.T) {
 	err := s.add([]string{"test/fixtures/c"})
 	require.Error(t, err)
 	require.ErrorContains(t, err, "refresh ssh bare repo")
+	require.ErrorContains(t, err, "init --bare")
 	assert.Equal(t, []string{"test/fixtures/c"}, s.committedDirsLocked(),
 		"the HTTP mirror keeps the commit the SSH refresh could not copy")
 }
