@@ -21,6 +21,7 @@ require (
 	github.com/agext/levenshtein v1.2.3
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/apparentlymart/go-cidr v1.1.1
+	github.com/apparentlymart/go-versions v1.0.3
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.6

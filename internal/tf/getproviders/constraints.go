@@ -258,51 +258,14 @@ func normalizeProviderAddress(env map[string]string, impl tfimpl.Type, source st
 	}
 }
 
-// normalizeVersionConstraint normalizes version constraints to the format expected by OpenTofu/Terraform lockfiles.
-//
-// This includes:
-// 1. Removing the "=" prefix if present
-// 2. Normalizing version numbers to full 3-part format (e.g., "2.2" becomes "2.2.0")
-// 3. Handling multi-part constraints (e.g., ">= 3.0, < 7.0" becomes ">= 3.0.0, < 7.0.0")
+// normalizeVersionConstraint returns the `constraints` value tofu writes to a
+// lock file for a provider whose `version` argument is constraint, or
+// constraint without surrounding whitespace when tofu rejects it.
 func normalizeVersionConstraint(constraint string) string {
-	constraint = strings.TrimSpace(constraint)
-
-	parts := strings.Split(constraint, ",")
-	normalized := make([]string, 0, len(parts))
-
-	for _, part := range parts {
-		normalized = append(normalized, normalizeSingleConstraint(strings.TrimSpace(part)))
+	normalized, err := semver.LockFileConstraint(constraint)
+	if err != nil {
+		return strings.TrimSpace(constraint)
 	}
 
-	return strings.Join(normalized, ", ")
-}
-
-// normalizeSingleConstraint normalizes a single version constraint (no commas).
-func normalizeSingleConstraint(constraint string) string {
-	if after, ok := strings.CutPrefix(constraint, "="); ok {
-		constraint = strings.TrimSpace(after)
-	}
-
-	fields := strings.Fields(constraint)
-
-	const justVersionParts = 1
-	if len(fields) == justVersionParts {
-		if v, err := semver.Parse(fields[0]); err == nil {
-			return v.String()
-		}
-
-		return constraint
-	}
-
-	const operatorAndVersionParts = 2
-	if len(fields) == operatorAndVersionParts {
-		operator := fields[0]
-		versionStr := fields[1]
-
-		if v, err := semver.Parse(versionStr); err == nil {
-			return fmt.Sprintf("%s %s", operator, v.String())
-		}
-	}
-
-	return constraint
+	return normalized
 }
