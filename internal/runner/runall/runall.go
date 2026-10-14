@@ -236,13 +236,13 @@ func RunAllOnStack(
 
 	var prompt string
 
-	switch {
-	case opts.TerraformCliArgs.IsDestroyOrAlias(opts.TerraformCommand):
+	switch opts.TerraformCliArgs.CommandName(opts.TerraformCommand) {
+	case tf.CommandNameApply:
+		prompt = "Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above?"
+	case tf.CommandNameDestroy:
 		prompt = "WARNING: Are you sure you want to run `terragrunt destroy`" +
 			" in each unit of the run queue displayed above? There is no undo!"
-	case opts.TerraformCommand == tf.CommandNameApply:
-		prompt = "Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above?"
-	case opts.TerraformCommand == tf.CommandNameState:
+	case tf.CommandNameState:
 		prompt = "Are you sure you want to manipulate the state with `terragrunt state`" +
 			" in each unit of the run queue displayed above? Note that absolute paths are shared," +
 			" while relative paths will be relative to each working directory."

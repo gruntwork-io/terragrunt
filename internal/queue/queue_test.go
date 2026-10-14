@@ -922,6 +922,18 @@ func TestDestroyFlagQueueOrderIsReverseOfDependencies(t *testing.T) {
 			args:     []string{"-destroy=false"},
 			expected: []string{"A", "B", "C"},
 		},
+		{
+			name:     "apply with -destroy=true then -destroy=false",
+			cmd:      "apply",
+			args:     []string{"-destroy=true", "-destroy=false"},
+			expected: []string{"A", "B", "C"},
+		},
+		{
+			name:     "output with -destroy",
+			cmd:      "output",
+			args:     []string{"-destroy"},
+			expected: []string{"A", "B", "C"},
+		},
 	}
 
 	for _, tt := range tests {

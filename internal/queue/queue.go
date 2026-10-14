@@ -67,7 +67,14 @@ func (e *Entry) IsUp() bool {
 		return true
 	}
 
-	return !iacargs.New(discoveryCtx.Args...).IsDestroyCommand(discoveryCtx.Cmd)
+	switch discoveryCtx.Cmd {
+	case "destroy":
+		return false
+	case "apply", "plan":
+		return !iacargs.HasDestroyFlag(discoveryCtx.Args)
+	}
+
+	return true
 }
 
 type Queue struct {

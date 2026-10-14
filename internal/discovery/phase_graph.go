@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -800,14 +801,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 	}
 
 	if dCtx := state.target.DiscoveryContext(); dCtx != nil {
-		copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-		copiedCtx.Ref = ""
-		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-			return arg == "-destroy"
-		})
-
-		candidate.SetDiscoveryContext(copiedCtx)
+		candidate.SetDiscoveryContext(graphDiscoveryContext(dCtx))
 	}
 
 	canonicalCandidate, _ := graphState.threadSafeComponents.EnsureComponent(
@@ -935,20 +929,27 @@ func assignGraphDiscoveryContext(
 		return
 	}
 
-	copiedCtx := parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-	copiedCtx.Ref = ""
-	copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-		return arg == "-destroy"
-	})
-
-	dep.SetDiscoveryContext(copiedCtx)
+	dep.SetDiscoveryContext(graphDiscoveryContext(parentCtx))
 
 	if isExternal(fsys, parentCtx.WorkingDir, depPath) {
 		if ext, ok := dep.(*component.Unit); ok {
 			ext.SetExternal()
 		}
 	}
+}
+
+// graphDiscoveryContext returns the discovery context for a unit that graph discovery
+// reaches from the unit that owns ctx. The copy has no Git reference.
+func graphDiscoveryContext(ctx *component.DiscoveryContext) *component.DiscoveryContext {
+	copiedCtx := ctx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+
+	if ctx.RemovedInRef() {
+		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, iacargs.IsDestroyFlag)
+	}
+
+	copiedCtx.Ref = ""
+
+	return copiedCtx
 }
 
 // isWorktreeComponent reports whether c was discovered in a Git worktree rather than the working tree.
