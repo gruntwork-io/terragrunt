@@ -393,7 +393,7 @@ func TestAddReportsUnreadableFixture(t *testing.T) {
 	assert.Empty(t, s.committedDirsLocked(), "a fixture that cannot be read is not marked as served")
 }
 
-func TestAddReportsCommitFailure(t *testing.T) {
+func TestAddReportsCommitDirsFailure(t *testing.T) {
 	thTRequireBinaries(t, "git")
 
 	// New temp dirs stay under this test's own, so the work dir the commit step recreates leaves nothing behind.

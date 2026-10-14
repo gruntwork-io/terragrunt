@@ -274,11 +274,14 @@ func populateBareRepo(fixturesDir string, dirs []string, bareDir, httpURL, sshUR
 	return nil
 }
 
+// runGit runs git with the host's global and system config suppressed, so the mirror cannot vary with developer settings.
 func runGit(dir string, args ...string) error {
 	cmd := exec.CommandContext(context.Background(), "git", args...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
+
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1")
 
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git %v: %w: %s", args, err, out)
