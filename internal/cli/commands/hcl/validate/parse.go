@@ -56,13 +56,13 @@ func (c *DiagnosticsCollector) collect(
 	hclDiags hcl.Diagnostics,
 ) (hcl.Diagnostics, error) {
 	for _, hclDiag := range hclDiags {
+		if raisedElsewhere(file, hclDiag) {
+			continue
+		}
+
 		diag, err := diagnostic.NewDiagnostic(file, hclDiag)
 		if err != nil {
 			return nil, err
-		}
-
-		if raisedElsewhere(file, hclDiag) {
-			continue
 		}
 
 		c.add(diag)
@@ -99,10 +99,10 @@ func (c *DiagnosticsCollector) has(diag *diagnostic.Diagnostic) bool {
 // being parsed. A parse raises what its dependencies and includes report too,
 // and those belong to whichever file declared them.
 //
-// file is set whenever diag has a Subject: collect converts diag with
-// [diagnostic.NewDiagnostic], which rejects a Subject without a file, before calling this.
+// A diagnostic with a Subject and no file is not dismissed here, so that
+// [diagnostic.NewDiagnostic] rejects it.
 func raisedElsewhere(file *hcl.File, diag *hcl.Diagnostic) bool {
-	if diag.Subject == nil {
+	if diag.Subject == nil || file == nil {
 		return false
 	}
 

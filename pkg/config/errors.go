@@ -332,8 +332,11 @@ func (err DependencyConfigNotFound) Error() string {
 
 // DependencyBlockError reports a failure in one dependency block of a configuration file.
 type DependencyBlockError struct {
-	Err        error
-	Name       string
+	// Err is what went wrong with the dependency.
+	Err error
+	// Name is the label of the dependency block.
+	Name string
+	// ConfigPath is the configuration file that declares the block.
 	ConfigPath string
 }
 
@@ -532,8 +535,11 @@ func (err DuplicateDependencyConfigPathError) Error() string {
 // DependencyConfigPathFileError is returned when a dependency block sets config_path to a
 // file while the dependency-config-path-file strict control is enabled.
 type DependencyConfigPathFileError struct {
-	ConfigPath     string
-	Address        string
+	// ConfigPath is the configuration file that declares the block.
+	ConfigPath string
+	// Address names the dependency block, as its label and any expansion key.
+	Address string
+	// DependencyPath is the config_path of the block, as written.
 	DependencyPath string
 }
 

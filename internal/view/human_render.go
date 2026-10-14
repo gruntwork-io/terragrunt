@@ -373,10 +373,11 @@ type sourcePointer struct {
 }
 
 // sourcePointers returns, for each line, the pointer that underlines the part of it between the offsets
-// start and end into the joined lines.
+// start and end into the joined lines. An end before start points at start.
 func sourcePointers(lines []string, start, end int) []sourcePointer {
 	pointers := make([]sourcePointer, len(lines))
 	lineStart := 0
+	end = max(end, start)
 
 	for i, line := range lines {
 		lineEnd := lineStart + len(line)

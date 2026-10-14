@@ -30,10 +30,14 @@ const (
 
 // MissingDependencyError reports a dependency path that has no unit configuration.
 type MissingDependencyError struct {
-	Path       string
+	// Path is the directory of the dependency.
+	Path string
+	// ConfigFile is the name of the unit configuration file that validation looked for in Path.
 	ConfigFile string
+	// Dependents are the directories of the units that depend on Path, sorted.
 	Dependents []string
-	DirExists  bool
+	// DirExists reports whether Path is a directory.
+	DirExists bool
 }
 
 func (err MissingDependencyError) Error() string {
@@ -72,13 +76,8 @@ func asMissingDependency(
 		return nil, nil
 	}
 
-	exists, err := vfs.FileExists(fsys, filepath.Join(c.Path(), configFile))
-	if err != nil {
+	if exists, err := hasUnitConfig(fsys, c.Path(), configFile); err != nil || exists {
 		return nil, err
-	}
-
-	if exists {
-		return nil, nil
 	}
 
 	paths := dependents.Paths()
@@ -117,10 +116,13 @@ func reportMissingDependencies(
 	missing []*MissingDependencyError,
 	unitErrs map[string]error,
 ) []error {
-	var errs []error
+	var (
+		errs    []error
+		sources = make(dependencySources)
+	)
 
 	for _, missingErr := range missing {
-		reported, err := collector.pointAtDependents(fsys, missingErr, unitErrs)
+		reported, err := collector.pointAtDependents(fsys, sources, missingErr, unitErrs)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -207,6 +209,38 @@ type dependencySource struct {
 	configPaths map[string]hcl.Expression
 	// paths has the elements of the `paths` list of each `dependencies` block.
 	paths []hcl.Expression
+}
+
+// dependencySources holds each configuration file read for its dependencies, by path.
+type dependencySources map[string]*dependencySource
+
+// read returns the configuration file at path, reading it the first time it is asked for.
+func (s dependencySources) read(fsys vfs.FS, path string) (*dependencySource, error) {
+	if source, ok := s[path]; ok {
+		return source, nil
+	}
+
+	source, err := readDependencySource(fsys, path)
+	if err != nil {
+		return nil, err
+	}
+
+	s[path] = source
+
+	return source, nil
+}
+
+// hasUnitConfig reports whether dir has configFile or one of the default configuration files, which a
+// `dependency` block resolves its `config_path` to.
+func hasUnitConfig(fsys vfs.FS, dir, configFile string) (bool, error) {
+	for _, name := range slices.Concat([]string{configFile}, config.DefaultTerragruntConfigPaths) {
+		exists, err := vfs.FileExists(fsys, filepath.Join(dir, name))
+		if err != nil || exists {
+			return exists, err
+		}
+	}
+
+	return false, nil
 }
 
 // readDependencySource reads the configuration file at path.
@@ -353,6 +387,7 @@ func (c *DiagnosticsCollector) reportedMissingDependency(unitDir string) bool {
 // reported one in unitErrs while it was validated.
 func (c *DiagnosticsCollector) pointAtDependents(
 	fsys vfs.FS,
+	sources dependencySources,
 	missingErr *MissingDependencyError,
 	unitErrs map[string]error,
 ) (bool, error) {
@@ -365,6 +400,7 @@ func (c *DiagnosticsCollector) pointAtDependents(
 	for _, dependent := range missingErr.Dependents {
 		pointed, err := c.pointAtDependency(
 			fsys,
+			sources,
 			dependent,
 			filepath.Join(dependent, missingErr.ConfigFile),
 			missingErr.Path,
@@ -387,9 +423,10 @@ func (c *DiagnosticsCollector) pointAtDependents(
 // spells out target, a dependency of the unit in unitDir. It reports whether it found one.
 func (c *DiagnosticsCollector) pointAtDependency(
 	fsys vfs.FS,
+	sources dependencySources,
 	unitDir, configPath, target, detail string,
 ) (bool, error) {
-	source, err := readDependencySource(fsys, configPath)
+	source, err := sources.read(fsys, configPath)
 	if err != nil {
 		return false, err
 	}
@@ -547,7 +584,12 @@ func (c *DiagnosticsCollector) pointAtDependencyDirs(
 	}
 
 	for _, dir := range missing {
-		if err := c.addMissingDependency(unitDir, source.file, dir.expr, missingDirDetail); err != nil {
+		if err := c.addMissingDependency(
+			unitDir,
+			source.file,
+			dir.expr,
+			missingDirDetail,
+		); err != nil {
 			return false, err
 		}
 	}

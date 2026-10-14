@@ -341,3 +341,24 @@ func TestRunValidateShowsPathsRelativeToWorkingDir(t *testing.T) {
 
 	assert.Contains(t, stdout.String(), " --> "+filepath.Join("app", "terragrunt.hcl")+":2:17\n")
 }
+
+// TestRunValidateGraphFilterAcceptsJSONDependency pins that a dependency configured by terragrunt.hcl.json
+// is not reported missing, since a `dependency` block resolves its `config_path` to that file too.
+func TestRunValidateGraphFilterAcceptsJSONDependency(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, validateRun{
+		files: map[string]string{
+			"app/terragrunt.hcl":     "dependency \"db\" {\n  config_path = \"../db\"\n}\n",
+			"db/terragrunt.hcl.json": "{}\n",
+		},
+		queries: []string{"{./app}..."},
+	})
+
+	for _, diag := range result.diags {
+		assert.NotEqual(t, "Missing dependency", diag.Summary)
+	}
+
+	_, ok := errors.AsType[*validate.MissingDependencyError](result.err)
+	assert.False(t, ok, "unexpected error %v", result.err)
+}

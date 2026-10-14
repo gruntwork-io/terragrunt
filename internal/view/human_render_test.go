@@ -183,3 +183,40 @@ func TestHumanRenderDiagnosticPanicsOnRangeWithoutSnippet(t *testing.T) {
 		})
 	})
 }
+
+// TestHumanRenderDiagnosticsHighlightEndingBeforeStart pins that a snippet whose highlight ends before it
+// starts is drawn with one caret at the start instead of failing.
+func TestHumanRenderDiagnosticsHighlightEndingBeforeStart(t *testing.T) {
+	t.Parallel()
+
+	render := view.NewHumanRender(venvtest.New(), true)
+
+	actual, err := render.Diagnostics(diagnostic.Diagnostics{
+		{
+			Range: &diagnostic.Range{
+				Filename: "terragrunt.hcl",
+				Start:    diagnostic.Pos{Line: 1, Column: 15, Byte: 14},
+				End:      diagnostic.Pos{Line: 1, Column: 10, Byte: 9},
+			},
+			Snippet: &diagnostic.Snippet{
+				Code:                 `config_path = "../db"`,
+				StartLine:            1,
+				HighlightStartOffset: 14,
+				HighlightEndOffset:   9,
+			},
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Missing dependency",
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"error: Missing dependency\n"+
+			" --> terragrunt.hcl:1:15\n"+
+			"  |\n"+
+			`1 | config_path = "../db"`+"\n"+
+			"  |               ^\n"+
+			"\n",
+		actual,
+	)
+}

@@ -100,12 +100,7 @@ func RunValidate(
 		}
 	}()
 
-	d, err := newDiscovery(l, v, opts, worktrees)
-	if err != nil {
-		return err
-	}
-
-	components, err := d.WithSuppressParseErrors().Discover(ctx, l, v, opts)
+	components, discoveryErr, err := discoverComponents(ctx, l, v, opts, worktrees)
 	if err != nil {
 		return err
 	}
@@ -161,54 +156,7 @@ func RunValidate(
 		return processDiagnostics(l, v, opts, collector, components, errors.Join(parseErrs...))
 	}
 
-	return withoutDecidedDependencies(
-		strictDiscoveryError(ctx, l, v, opts, worktrees),
-		missing,
-		fileDependencies,
-		configFile,
-	)
-}
-
-func newDiscovery(
-	l log.Logger,
-	v *venv.Venv,
-	opts *options.TerragruntOptions,
-	wts *worktrees.Worktrees,
-) (*discovery.Discovery, error) {
-	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           opts.Filters,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return d.WithWorktrees(wts), nil
-}
-
-// strictDiscoveryError repeats discovery without suppressing parse errors and returns what it reports.
-// A unit that discovery cannot parse at all is left out of a filtered set, so a validation that found
-// nothing has not proven that every matching unit is valid.
-func strictDiscoveryError(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	opts *options.TerragruntOptions,
-	wts *worktrees.Worktrees,
-) error {
-	if len(opts.Filters) == 0 {
-		return nil
-	}
-
-	d, err := newDiscovery(l, v, opts, wts)
-	if err != nil {
-		return err
-	}
-
-	_, err = d.Discover(ctx, l, v, opts)
-
-	return err
+	return withoutDecidedDependencies(discoveryErr, missing, fileDependencies, configFile)
 }
 
 func processDiagnostics(
@@ -280,65 +228,6 @@ func writeDiagnostics(
 	}
 
 	return writer.Diagnostics(diags)
-}
-
-// relativeToDiscovery returns diags with each filename relative to the discovery working directory of the
-// component whose validation collected it, as find and list print component paths. A component matched
-// by a Git filter is discovered in a worktree, so its files read against that worktree. A component with
-// no discovery working directory reads against workingDir.
-//
-// Every diagnostic in collector belongs to one of components or to a dependent of one, because
-// [ComponentParser] and the missing dependency diagnostics attribute each diagnostic they collect.
-func relativeToDiscovery(
-	l log.Logger,
-	collector *DiagnosticsCollector,
-	components component.Components,
-	diags diagnostic.Diagnostics,
-	workingDir string,
-) diagnostic.Diagnostics {
-	byPath := componentsByPath(components)
-	shown := make(diagnostic.Diagnostics, 0, len(diags))
-
-	for _, diag := range diags {
-		if diag.Range == nil {
-			shown = append(shown, diag)
-
-			continue
-		}
-
-		relative := *diag
-		rng := *diag.Range
-		rng.Filename = discovery.RelPathForComponent(
-			l,
-			byPath[collector.owner(diag)],
-			workingDir,
-			rng.Filename,
-			"diagnostic",
-		)
-		relative.Range = &rng
-
-		shown = append(shown, &relative)
-	}
-
-	return shown
-}
-
-// componentsByPath indexes components and their dependents by path. A dependent that a filter left out
-// of components still owns the diagnostics for its missing dependencies.
-func componentsByPath(components component.Components) map[string]component.Component {
-	byPath := make(map[string]component.Component, len(components))
-
-	for _, c := range components {
-		for _, dependent := range c.Dependents() {
-			byPath[dependent.Path()] = dependent
-		}
-	}
-
-	for _, c := range components {
-		byPath[c.Path()] = c
-	}
-
-	return byPath
 }
 
 func RunValidateInputs(
@@ -798,4 +687,120 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 	}
 
 	return vars, varFiles, nil
+}
+
+// newDiscovery returns the discovery that hcl commands run over the working directory, the filters and
+// the worktrees of the Git filters in opts.
+func newDiscovery(
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) (*discovery.Discovery, error) {
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return d.WithWorktrees(wts), nil
+}
+
+// discoverComponents returns the components hcl validate checks. It returns err when discovery cannot
+// produce them at all.
+//
+// When discovery fails, discoverComponents repeats it with parse errors suppressed, so validation can
+// still point at what it finds in the components discovery reaches, and returns the failure of the first
+// run as discoveryErr. A unit that discovery cannot parse is left out of a filtered set, and a failed
+// filesystem walk leaves units out of any set, so discoveryErr is all that reports them.
+func discoverComponents(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) (components component.Components, discoveryErr, err error) {
+	d, err := newDiscovery(l, v, opts, wts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	components, discoveryErr = d.Discover(ctx, l, v, opts)
+	if discoveryErr == nil {
+		return components, nil, nil
+	}
+
+	d, err = newDiscovery(l, v, opts, wts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	components, err = d.WithSuppressParseErrors().Discover(ctx, l, v, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return components, discoveryErr, nil
+}
+
+// relativeToDiscovery returns diags with each filename relative to the discovery working directory of the
+// component whose validation collected it, as find and list print component paths. A component matched
+// by a Git filter is discovered in a worktree, so its files read against that worktree. A component with
+// no discovery working directory reads against workingDir.
+//
+// Every diagnostic in collector belongs to one of components or to a dependent of one, because
+// [ComponentParser] and the missing dependency diagnostics attribute each diagnostic they collect.
+func relativeToDiscovery(
+	l log.Logger,
+	collector *DiagnosticsCollector,
+	components component.Components,
+	diags diagnostic.Diagnostics,
+	workingDir string,
+) diagnostic.Diagnostics {
+	byPath := componentsByPath(components)
+	shown := make(diagnostic.Diagnostics, 0, len(diags))
+
+	for _, diag := range diags {
+		if diag.Range == nil {
+			shown = append(shown, diag)
+
+			continue
+		}
+
+		relative := *diag
+		rng := *diag.Range
+		rng.Filename = discovery.RelPathForComponent(
+			l,
+			byPath[collector.owner(diag)],
+			workingDir,
+			rng.Filename,
+			"diagnostic",
+		)
+		relative.Range = &rng
+
+		shown = append(shown, &relative)
+	}
+
+	return shown
+}
+
+// componentsByPath indexes components and their dependents by path. A dependent that a filter left out
+// of components still owns the diagnostics for its missing dependencies.
+func componentsByPath(components component.Components) map[string]component.Component {
+	byPath := make(map[string]component.Component, len(components))
+
+	for _, c := range components {
+		for _, dependent := range c.Dependents() {
+			byPath[dependent.Path()] = dependent
+		}
+	}
+
+	for _, c := range components {
+		byPath[c.Path()] = c
+	}
+
+	return byPath
 }
