@@ -560,8 +560,6 @@ func TestPopulateBareRepoReportsWorkRepoStepFailures(t *testing.T) {
 }
 
 func TestPopulateBareRepoReportsPushFailure(t *testing.T) {
-	t.Parallel()
-
 	thTRequireBinaries(t, "git")
 
 	if runtime.GOOS == "windows" {
@@ -574,6 +572,11 @@ func TestPopulateBareRepoReportsPushFailure(t *testing.T) {
 	require.NoError(t, runGit("", "init", "--bare", "-b", "main", bareDir))
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-receive"), []byte("#!/bin/sh\nexit 1\n"), 0o755))
+
+	// An inherited hooks path moves only the work repo's hooks; the bare repo keeps the declining one.
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "core.hooksPath")
+	t.Setenv("GIT_CONFIG_VALUE_0", t.TempDir())
 
 	err := populateBareRepo(thTFakeFixtures(t), []string{"test/fixtures/c"}, bareDir, thTHTTPURL, thTSSHURL)
 	require.Error(t, err)

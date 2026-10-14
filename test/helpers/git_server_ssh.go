@@ -297,7 +297,8 @@ func populateBareRepo(fixturesDir string, dirs []string, bareDir, httpURL, sshUR
 // runGit runs git with the host's global and system config files and system attributes suppressed and any
 // inherited repository selection dropped, so the mirror cannot vary with developer settings or with the
 // repository a caller runs in. GIT_CONFIG_COUNT and GIT_CONFIG_PARAMETERS are inherited on purpose, so tests
-// can inject config.
+// can inject config into the work repo steps. They never reach the bare repo: git drops both before it starts
+// the receive-pack for a local push, so the bare repo's own hooks stay in charge.
 func runGit(dir string, args ...string) error {
 	cmd := exec.CommandContext(context.Background(), "git", args...)
 	if dir != "" {
