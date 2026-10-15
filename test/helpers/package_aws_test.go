@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -266,7 +267,8 @@ func (f *pkgTFakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	assert.Equal(f.t, "/"+f.bucket+"/", r.URL.Path, "every call targets the bucket under cleanup")
+	// smithy-go releases disagree on whether a bucket-level path ends in a slash.
+	assert.Equal(f.t, "/"+f.bucket, strings.TrimSuffix(r.URL.Path, "/"), "every call targets the bucket under cleanup")
 
 	switch {
 	case r.Method == http.MethodHead:
