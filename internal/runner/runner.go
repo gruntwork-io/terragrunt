@@ -926,8 +926,7 @@ func applyFilterAllowDestroyExclusions(
 			continue
 		}
 
-		if discoveryCtx.Ref != "" &&
-			iacargs.New(discoveryCtx.Args...).IsDestroyCommand(discoveryCtx.Cmd) {
+		if discoveryCtx.RemovedInRef() {
 			unit.SetExcluded(true)
 
 			l.Warnf(
