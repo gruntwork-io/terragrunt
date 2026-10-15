@@ -14,7 +14,6 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
-	"github.com/gruntwork-io/terragrunt/internal/multierror"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -254,10 +253,9 @@ var (
 	fmtWrapErrorType = reflect.TypeOf(fmt.Errorf("%w", errors.New("")))
 
 	// aggregateErrorTypes holds the types that collect several errors. A unit
-	// run returns a [multierror.Error] even when it holds one error, so
+	// run returns an [errors.Join] aggregate even when it holds one error, so
 	// errorType reports what the collected errors are, not the aggregate.
 	aggregateErrorTypes = map[reflect.Type]struct{}{
-		reflect.TypeFor[*multierror.Error]():                                {},
 		reflect.TypeOf(errors.Join(errors.New(""))):                         {},
 		reflect.TypeOf(fmt.Errorf("%w %w", errors.New(""), errors.New(""))): {},
 	}

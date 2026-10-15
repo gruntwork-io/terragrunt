@@ -9,7 +9,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/multierror"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -41,7 +40,7 @@ type exportedAttribute struct {
 // span status and an error.type attribute, per the OpenTelemetry
 // recording-errors convention. The errors mirror what Terragrunt's spans
 // return: a failed tofu command arrives as a [util.ProcessExecutionError]
-// inside the [multierror.Error] a unit run collects.
+// inside the [errors.Join] aggregate a unit run collects.
 func TestTraceSetsErrorStatusAndType(t *testing.T) {
 	t.Parallel()
 
@@ -67,17 +66,17 @@ func TestTraceSetsErrorStatusAndType(t *testing.T) {
 		},
 		{
 			name:      "unit run with a failed tofu command",
-			err:       multierror.Join(tofuFailed),
+			err:       errors.Join(tofuFailed),
 			errorType: processErrorType,
 		},
 		{
 			name:      "run all with two failed tofu commands",
-			err:       multierror.Join(multierror.Join(tofuFailed), multierror.Join(tofuFailed)),
+			err:       errors.Join(errors.Join(tofuFailed), errors.Join(tofuFailed)),
 			errorType: processErrorType,
 		},
 		{
 			name:      "run all with a dependent skipped after a failure",
-			err:       multierror.Join(tofuFailed, runner.NewUnitEarlyExitError("app", "vpc")),
+			err:       errors.Join(tofuFailed, runner.NewUnitEarlyExitError("app", "vpc")),
 			errorType: other,
 		},
 		{
