@@ -1326,7 +1326,7 @@ The `dependency` block supports the following arguments:
   reference the specific dependency output by the name. E.g if you had a block `dependency "vpc"`, you can reference the
   outputs of this dependency with the expression `dependency.vpc.outputs`.
 - `config_path` (attribute): Path to a Terragrunt unit (folder with a `terragrunt.hcl` file) that should be included
-  as a dependency in this configuration. The path can also point at a stack (folder with a `terragrunt.stack.hcl` file). See [Depending on a stack](#depending-on-a-stack).
+  as a dependency in this configuration. The path can also point at a stack (folder with a `terragrunt.stack.hcl` file). See [Depending on a stack](#depending-on-a-stack). <Since version="v1.2.1">Setting it to a file is deprecated. See the [`dependency-config-path-file`](/reference/strict-controls/active#dependency-config-path-file) strict control.</Since>
 - `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
 - `expansion` (block, optional): Iterates the `dependency` block, producing one dependency per element of a `count` or `for_each`. Each instance is referenced by key, as in `dependency.aurora["web"].outputs.id`. See [`expansion`](#expansion).
 
