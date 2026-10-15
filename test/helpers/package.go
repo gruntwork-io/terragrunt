@@ -381,62 +381,30 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 			break
 		}
 
-		if len(out.Versions) > 0 {
-			var objectsToDelete []s3types.ObjectIdentifier
+		objects := make([]s3types.ObjectIdentifier, 0, len(out.Versions)+len(out.DeleteMarkers))
 
-			for i := range out.Versions {
-				version := &out.Versions[i]
-				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
-					Key:       version.Key,
-					VersionId: version.VersionId,
-				})
-			}
-
-			deleteInput := &s3.DeleteObjectsInput{
-				Bucket: aws.String(bucketName),
-				Delete: &s3types.Delete{
-					Objects: objectsToDelete,
-				},
-			}
-
-			_, err := client.DeleteObjects(ctx, deleteInput)
-			if err != nil {
-				if isAWSResourceNotFoundError(err) {
-					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
-					return
-				}
-
-				require.NoError(t, err)
-			}
+		for i := range out.Versions {
+			objects = append(objects, s3types.ObjectIdentifier{Key: out.Versions[i].Key, VersionId: out.Versions[i].VersionId})
 		}
 
-		if len(out.DeleteMarkers) > 0 {
-			var objectsToDelete []s3types.ObjectIdentifier
-
-			for _, marker := range out.DeleteMarkers {
-				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
-					Key:       marker.Key,
-					VersionId: marker.VersionId,
-				})
-			}
-
-			deleteInput := &s3.DeleteObjectsInput{
-				Bucket: aws.String(bucketName),
-				Delete: &s3types.Delete{
-					Objects: objectsToDelete,
-				},
-			}
-
-			_, err := client.DeleteObjects(ctx, deleteInput)
-			if err != nil {
-				if isAWSResourceNotFoundError(err) {
-					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
-					return
-				}
-
-				require.NoError(t, err)
-			}
+		for i := range out.DeleteMarkers {
+			objects = append(objects, s3types.ObjectIdentifier{Key: out.DeleteMarkers[i].Key, VersionId: out.DeleteMarkers[i].VersionId})
 		}
+
+		deleted, err := client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+			Bucket: aws.String(bucketName),
+			Delete: &s3types.Delete{Objects: objects},
+		})
+		if err != nil {
+			if isAWSResourceNotFoundError(err) {
+				t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
+				return
+			}
+
+			require.NoError(t, err)
+		}
+
+		logS3DeleteErrors(t, bucketName, deleted.Errors)
 
 		if out.IsTruncated == nil || !*out.IsTruncated {
 			break
@@ -1416,4 +1384,15 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	}
 
 	return w.gz.Write(b)
+}
+
+// logS3DeleteErrors reports every object a DeleteObjects call refused to delete, so a bucket that stays
+// non-empty names its leftover versions in the test log.
+func logS3DeleteErrors(t *testing.T, bucketName string, errs []s3types.Error) {
+	t.Helper()
+
+	for _, e := range errs {
+		t.Logf("S3 bucket %s: could not delete %s version %s: %s: %s",
+			bucketName, aws.ToString(e.Key), aws.ToString(e.VersionId), aws.ToString(e.Code), aws.ToString(e.Message))
+	}
 }
