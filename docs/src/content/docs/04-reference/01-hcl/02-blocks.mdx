@@ -3269,6 +3269,8 @@ stack "networking" {
 }
 ```
 
+Terragrunt writes the `source` of an injected block into the nested stack unchanged. Use `get_repo_root()` for a local source, as above. In a catalog stack, an injected block honors `update_source_with_cas = true` like any other block of that file, and [CAS](/features/stacks/explicit#cas-integration) rewrites its relative source to a `cas::` reference.
+
 A `dependency` block is rejected in a stack-level autoinclude, because stacks themselves have no dependencies. Declare the dependency inside the target unit's own `autoinclude`.
 
 ### Limitations

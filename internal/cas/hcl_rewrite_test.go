@@ -453,3 +453,111 @@ stack "nested" {
 		})
 	}
 }
+
+// TestReadStackBlocks_StackAutoIncludeBlocks pins that unit and stack blocks injected by a stack-level
+// autoinclude, at any depth, are read after the block that injects them, with a location naming it. Blocks
+// in a unit's own autoinclude are not stack blocks and are skipped.
+func TestReadStackBlocks_StackAutoIncludeBlocks(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`unit "function" {
+  source = "../..//units/function"
+  path = "function"
+}
+
+stack "fn" {
+  source = "../..//stacks/fn"
+  update_source_with_cas = true
+  path = "fn"
+
+  autoinclude {
+    unit "function" {
+      source = "../..//units/override"
+      update_source_with_cas = true
+      path = "function"
+
+      autoinclude {
+        dependency "queue" {
+          config_path = "../queue"
+        }
+      }
+    }
+
+    stack "inner" {
+      source = "../..//stacks/inner"
+      path = "inner"
+
+      autoinclude {
+        unit "deep" {
+          source = "../..//units/deep"
+          update_source_with_cas = true
+          path = "deep"
+        }
+      }
+    }
+  }
+}
+`)
+
+	blocks, err := cas.ReadStackBlocks(input)
+	require.NoError(t, err)
+	require.Len(t, blocks, 5)
+
+	want := []struct {
+		location string
+		source   string
+		withCAS  bool
+	}{
+		{`unit "function"`, "../..//units/function", false},
+		{`stack "fn"`, "../..//stacks/fn", true},
+		{`stack "fn" > unit "function"`, "../..//units/override", true},
+		{`stack "fn" > stack "inner"`, "../..//stacks/inner", false},
+		{`stack "fn" > stack "inner" > unit "deep"`, "../..//units/deep", true},
+	}
+
+	for i, w := range want {
+		assert.Equal(t, w.location, blocks[i].Location)
+		assert.Equal(t, w.source, blocks[i].Source, w.location)
+		assert.Equal(t, w.withCAS, blocks[i].UpdateSourceWithCAS, w.location)
+	}
+}
+
+// TestReadStackBlocks_StackAutoIncludeNonLiteralSource pins that a block injected by a stack-level
+// autoinclude is validated like a top-level one: with update_source_with_cas its source must be a literal,
+// and the error names the block by its location. Without the flag the source is left alone.
+func TestReadStackBlocks_StackAutoIncludeNonLiteralSource(t *testing.T) {
+	t.Parallel()
+
+	stackFile := func(flag string) []byte {
+		return []byte(`stack "fn" {
+  source = "../..//stacks/fn"
+  path = "fn"
+
+  autoinclude {
+    unit "function" {
+      source = "${get_repo_root()}/units/override"
+      ` + flag + `
+      path = "function"
+    }
+  }
+}
+`)
+	}
+
+	_, err := cas.ReadStackBlocks(stackFile("update_source_with_cas = true"))
+	require.ErrorIs(t, err, cas.ErrSourceNotLiteral)
+
+	var wrapped *cas.WrappedError
+
+	require.ErrorAs(t, err, &wrapped)
+	assert.Equal(t, "unit", wrapped.Op)
+	assert.Equal(t, `stack "fn" > unit "function"`, wrapped.Context)
+
+	_, err = cas.ReadStackBlocks(stackFile("update_source_with_cas = upper(true)"))
+	require.ErrorIs(t, err, cas.ErrUpdateSourceWithCASNotConstant)
+
+	blocks, err := cas.ReadStackBlocks(stackFile(""))
+	require.NoError(t, err)
+	require.Len(t, blocks, 2)
+	assert.False(t, blocks[1].UpdateSourceWithCAS)
+}

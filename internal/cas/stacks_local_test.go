@@ -1146,3 +1146,62 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 		"two stack blocks sharing one nested-stack template must resolve to the same synthetic tree",
 	)
 }
+
+// TestProcessStackComponent_LocalSource_RewritesInjectedSources pins that CAS rewrites the source of a block
+// injected by a stack-level autoinclude with update_source_with_cas, and leaves a same-named top-level block
+// without the flag untouched.
+func TestProcessStackComponent_LocalSource_RewritesInjectedSources(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+
+	for rel, body := range map[string]string{
+		"units/function/terragrunt.hcl":  "",
+		"units/override/terragrunt.hcl":  "",
+		"stacks/fn/terragrunt.stack.hcl": "",
+		"stacks/wrap/terragrunt.stack.hcl": `unit "function" {
+  source = "../..//units/function"
+  path   = "function"
+}
+
+stack "fn" {
+  source                 = "../..//stacks/fn"
+  update_source_with_cas = true
+  path                   = "fn"
+
+  autoinclude {
+    unit "function" {
+      source                 = "../..//units/override"
+      update_source_with_cas = true
+      path                   = "function"
+    }
+  }
+}
+`,
+	} {
+		full := filepath.Join(root, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0o644))
+	}
+
+	c, v := newCAS(t)
+	l := logger.CreateLogger()
+
+	result, err := c.ProcessStackComponent(t.Context(), l, v, root+"//stacks/wrap", "stack")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	blocks, err := cas.ReadStackBlocks(content)
+	require.NoError(t, err)
+	require.Len(t, blocks, 3)
+
+	assert.Equal(t, "../..//units/function", blocks[0].Source, "the unflagged top-level unit must stay unchanged")
+	assert.True(t, strings.HasPrefix(blocks[1].Source, cas.CASProtocolPrefix), "the stack must be rewritten")
+	assert.Equal(t, `stack "fn" > unit "function"`, blocks[2].Location)
+	assert.True(t, strings.HasPrefix(blocks[2].Source, cas.CASProtocolPrefix), "the injected unit must be rewritten")
+	assert.NotEqual(t, blocks[1].Source, blocks[2].Source)
+}

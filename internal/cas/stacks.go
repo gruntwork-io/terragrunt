@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // RemoteSourceDetectors is the go-getter detector chain CAS applies to
@@ -283,7 +284,8 @@ func (c *CAS) processDirectory(
 }
 
 // processStackFile processes a terragrunt.stack.hcl file, rewriting sources
-// for blocks that have update_source_with_cas = true.
+// for blocks that have update_source_with_cas = true, including blocks
+// injected by a stack-level autoinclude.
 func (c *CAS) processStackFile(
 	ctx context.Context, l log.Logger, v *venv.Venv,
 	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm,
@@ -293,69 +295,20 @@ func (c *CAS) processStackFile(
 		return fmt.Errorf("failed to read stack file %s: %w", stackFile, err)
 	}
 
-	blocks, err := ReadStackBlocks(content)
+	f, blocks, err := readStackFile(content)
 	if err != nil {
 		return fmt.Errorf("failed to parse stack file %s: %w", stackFile, err)
 	}
 
-	for _, block := range blocks {
-		if !block.UpdateSourceWithCAS {
+	for i := range blocks {
+		block := &blocks[i]
+		if !block.UpdateSourceWithCAS || strings.HasPrefix(block.Source, CASProtocolPrefix) {
 			continue
 		}
 
-		if strings.HasPrefix(block.Source, CASProtocolPrefix) {
-			continue
+		if err := c.rewriteStackBlockSource(ctx, l, v, repoRoot, dirPath, refHash, hashAlg, block); err != nil {
+			return err
 		}
-
-		l.Debugf(
-			"Processing CAS source rewrite for %s %q with source %q",
-			block.BlockType,
-			block.Name,
-			block.Source,
-		)
-
-		targetDir, err := ResolveInRepoSource(repoRoot, dirPath, block.Source)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to resolve source for %s %q: %w",
-				block.BlockType,
-				block.Name,
-				err,
-			)
-		}
-
-		if err := c.processDirectory(ctx, l, v, repoRoot, targetDir, refHash, hashAlg); err != nil {
-			return fmt.Errorf(
-				"failed to process %s %q source: %w",
-				block.BlockType,
-				block.Name,
-				err,
-			)
-		}
-
-		synthHash, err := c.buildSyntheticTree(l, v, targetDir, refHash, repoRoot, hashAlg)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to build synthetic tree for %s %q: %w",
-				block.BlockType,
-				block.Name,
-				err,
-			)
-		}
-
-		newSource := FormatCASRef(synthHash)
-
-		content, err = RewriteStackBlockSource(content, block.BlockType, block.Name, newSource)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to rewrite source for %s %q: %w",
-				block.BlockType,
-				block.Name,
-				err,
-			)
-		}
-
-		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
 	}
 
 	// The file may be a read-only hard link from the CAS store, so remove it
@@ -365,7 +318,38 @@ func (c *CAS) processStackFile(
 		return fmt.Errorf("failed to remove stack file before rewrite %s: %w", stackFile, err)
 	}
 
-	return vfs.WriteFile(v.FS, stackFile, content, RegularFilePerms)
+	return vfs.WriteFile(v.FS, stackFile, f.Bytes(), RegularFilePerms)
+}
+
+// rewriteStackBlockSource stores the in-repo source of a stack file block in CAS and sets the
+// block's source to the resulting CAS reference.
+func (c *CAS) rewriteStackBlockSource(
+	ctx context.Context, l log.Logger, v *venv.Venv,
+	repoRoot, dirPath, refHash string, hashAlg HashAlgorithm, block *stackBlockInfo,
+) error {
+	l.Debugf("Processing CAS source rewrite for %s with source %q", block.Location, block.Source)
+
+	targetDir, err := ResolveInRepoSource(repoRoot, dirPath, block.Source)
+	if err != nil {
+		return fmt.Errorf("failed to resolve source for %s: %w", block.Location, err)
+	}
+
+	if err := c.processDirectory(ctx, l, v, repoRoot, targetDir, refHash, hashAlg); err != nil {
+		return fmt.Errorf("failed to process %s source: %w", block.Location, err)
+	}
+
+	synthHash, err := c.buildSyntheticTree(l, v, targetDir, refHash, repoRoot, hashAlg)
+	if err != nil {
+		return fmt.Errorf("failed to build synthetic tree for %s: %w", block.Location, err)
+	}
+
+	newSource := FormatCASRef(synthHash)
+
+	block.block.Body().SetAttributeValue("source", cty.StringVal(newSource))
+
+	l.Debugf("Rewrote %s source to %s", block.Location, newSource)
+
+	return nil
 }
 
 // processUnitFile processes a terragrunt.hcl file, rewriting the

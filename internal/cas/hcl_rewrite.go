@@ -67,9 +67,13 @@ func RewriteStackBlockSource(
 
 // stackBlockInfo holds parsed information about a unit or stack block in a stack file.
 type stackBlockInfo struct {
-	Name                string
-	Source              string
-	BlockType           string
+	block     *hclwrite.Block
+	Name      string
+	Source    string
+	BlockType string
+	// Location names the block in its file. A block injected by a stack-level autoinclude is prefixed by
+	// the stack blocks that inject it, e.g. `stack "fn" > unit "function"`.
+	Location            string
 	UpdateSourceWithCAS bool
 }
 
@@ -79,66 +83,122 @@ type stackBlockInfo struct {
 // non-literal source returns [ErrSourceNotLiteral] wrapped with the block
 // type and name. An update_source_with_cas value that [extractBool] cannot
 // evaluate returns [ErrUpdateSourceWithCASNotConstant], wrapped the same way.
+//
+// Blocks injected by a stack-level autoinclude (in the `autoinclude` body of
+// a `stack` block, at any depth) are read too, after the block that injects
+// them. They are declared in this file, so they are validated and rewritten
+// like top-level blocks.
 func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
+	_, blocks, err := readStackFile(content)
+
+	return blocks, err
+}
+
+// readStackFile parses a stack file once and reads its unit and stack blocks with [ReadStackBlocks]
+// semantics. Each block keeps a pointer into the returned file, so sources can be set in place.
+func readStackFile(content []byte) (*hclwrite.File, []stackBlockInfo, error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.stack.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to parse stack HCL: %s", diags.Error())
+		return nil, nil, fmt.Errorf("failed to parse stack HCL: %s", diags.Error())
 	}
 
 	var blocks []stackBlockInfo
 
-	evalCtx := constantLocals(f.Body())
-
-	for _, block := range f.Body().Blocks() {
-		bt := block.Type()
-		if bt != "unit" && bt != "stack" {
-			continue
-		}
-
-		labels := block.Labels()
-		if len(labels) == 0 {
-			continue
-		}
-
-		info := stackBlockInfo{
-			Name:      labels[0],
-			BlockType: bt,
-		}
-
-		var sourceErr error
-
-		if attr := block.Body().GetAttribute("source"); attr != nil {
-			info.Source, sourceErr = extractStringLiteral(attr)
-		}
-
-		if attr := block.Body().GetAttribute("update_source_with_cas"); attr != nil {
-			updateWithCAS, err := extractBool(attr, evalCtx)
-			if err != nil {
-				return nil, &WrappedError{
-					Op:      bt,
-					Context: info.Name,
-					Err:     err,
-				}
-			}
-
-			info.UpdateSourceWithCAS = updateWithCAS
-		}
-
-		// A non-literal source only matters for blocks CAS will rewrite;
-		// other blocks are skipped by the caller, so their sources stay
-		// untouched and are evaluated later by the full HCL parser.
-		if info.UpdateSourceWithCAS && sourceErr != nil {
-			return nil, &WrappedError{
-				Op:      bt,
-				Context: info.Name,
-				Err:     sourceErr,
-			}
-		}
-
-		blocks = append(blocks, info)
+	if err := readStackBlocks(f.Body(), "", constantLocals(f.Body()), &blocks); err != nil {
+		return nil, nil, err
 	}
 
-	return blocks, nil
+	return f, blocks, nil
+}
+
+// readStackBlocks appends the unit and stack blocks of body to out, each followed by the blocks its
+// stack-level autoinclude injects. prefix is the location of the enclosing stack blocks.
+func readStackBlocks(body *hclwrite.Body, prefix string, evalCtx *hcl.EvalContext, out *[]stackBlockInfo) error {
+	for _, block := range body.Blocks() {
+		bt := block.Type()
+		if (bt != "unit" && bt != "stack") || len(block.Labels()) == 0 {
+			continue
+		}
+
+		info, err := readStackBlock(block, prefix, evalCtx)
+		if err != nil {
+			return err
+		}
+
+		*out = append(*out, info)
+
+		for _, injected := range injectedBodies(block) {
+			if err := readStackBlocks(injected, info.Location+" > ", evalCtx, out); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// injectedBodies returns the `autoinclude` bodies of a `stack` block, whose unit and stack blocks are
+// injected into the nested stack, or nil for a `unit` block.
+func injectedBodies(block *hclwrite.Block) []*hclwrite.Body {
+	if block.Type() != "stack" {
+		return nil
+	}
+
+	var bodies []*hclwrite.Body
+
+	for _, nested := range block.Body().Blocks() {
+		if nested.Type() == "autoinclude" {
+			bodies = append(bodies, nested.Body())
+		}
+	}
+
+	return bodies
+}
+
+// readStackBlock reads the source and update_source_with_cas attributes of a labelled unit or stack block.
+func readStackBlock(block *hclwrite.Block, prefix string, evalCtx *hcl.EvalContext) (stackBlockInfo, error) {
+	bt := block.Type()
+	name := block.Labels()[0]
+
+	info := stackBlockInfo{
+		block:     block,
+		Name:      name,
+		BlockType: bt,
+		Location:  fmt.Sprintf("%s%s %q", prefix, bt, name),
+	}
+
+	// Errors name a top-level block by its label, as before, and an injected one by its location.
+	wrap := func(err error) error {
+		if prefix == "" {
+			return &WrappedError{Op: bt, Context: name, Err: err}
+		}
+
+		return &WrappedError{Op: bt, Context: info.Location, Err: err}
+	}
+
+	var sourceErr error
+
+	if attr := block.Body().GetAttribute("source"); attr != nil {
+		info.Source, sourceErr = extractStringLiteral(attr)
+	}
+
+	if attr := block.Body().GetAttribute("update_source_with_cas"); attr != nil {
+		updateWithCAS, err := extractBool(attr, evalCtx)
+		if err != nil {
+			return info, wrap(err)
+		}
+
+		info.UpdateSourceWithCAS = updateWithCAS
+	}
+
+	// A non-literal source only matters for blocks CAS will rewrite;
+	// other blocks are skipped by the caller, so their sources stay
+	// untouched and are evaluated later by the full HCL parser.
+	if info.UpdateSourceWithCAS && sourceErr != nil {
+		return info, wrap(sourceErr)
+	}
+
+	return info, nil
 }
 
 // ReadTerraformSourceInfo reads the source and update_source_with_cas from a
