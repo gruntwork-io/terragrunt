@@ -81,6 +81,15 @@ func PrepareSource(
 	cfg *config.TerragruntConfig,
 	r *report.Report,
 ) (*options.TerragruntOptions, error) {
+	// Downloading `tfr:///` sources needs the implementation to pick the default registry.
+	if err := PopulateTFImplementation(ctx, l, v, opts); err != nil {
+		l.Debugf(
+			"Failed to detect the OpenTofu/Terraform implementation; "+
+				"`tfr:///` sources without a host fall back to the OpenTofu registry: %v",
+			err,
+		)
+	}
+
 	engine, err := cfg.EngineOptions()
 	if err != nil {
 		return nil, err

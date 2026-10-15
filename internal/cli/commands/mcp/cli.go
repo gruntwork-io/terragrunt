@@ -121,12 +121,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}
 
-			// RunAction's auto-provider-cache setup probes a real
-			// `tofu version` before the Action runs, so it spawns with the
-			// unmodified venv and would hand that subprocess the client's
-			// request stream as its stdin.
-			opts.NoAutoProviderCacheDir = true
-
 			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {

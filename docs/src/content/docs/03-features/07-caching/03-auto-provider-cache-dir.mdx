@@ -37,7 +37,7 @@ terragrunt run --all apply
 
 <Since version="v1.2.1">
 
-`hcl format` and `hcl validate` skip this setup entirely, so they don't probe the binary version at startup. The exception is `hcl validate --inputs`, which keeps the setup because it fetches sources and the detected implementation selects the default `tfr:///` registry.
+Only commands that run OpenTofu/Terraform, such as `run` and its shortcuts, set up this feature, after the configuration is read, so `terraform_binary` and `--tf-path` are honored. Commands that never run the binary, such as `hcl format` and `hcl validate`, skip the setup entirely and don't probe the binary version at startup. Commands that download `tfr:///` sources, such as `hcl validate --inputs`, still detect the implementation to pick the default registry.
 
 </Since>
 

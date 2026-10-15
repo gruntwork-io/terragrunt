@@ -38,7 +38,6 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 	}
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	opts.NoAutoProviderCacheDir = true
 
 	l := logger.CreateLogger()
 
@@ -47,14 +46,13 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 	assert.True(t, hasRepoRoots, "RepoRootCacheContextKey missing from action context")
 }
 
-// TestRunActionHonorsNoAutoProviderCacheDir pins that opting out skips the
-// version probe and leaves TF_PLUGIN_CACHE_DIR unset. The `hcl` and `mcp`
-// commands rely on this (#7094).
-func TestRunActionHonorsNoAutoProviderCacheDir(t *testing.T) {
+// TestRunActionDoesNotSetUpAutoProviderCacheDir pins that RunAction leaves the
+// auto provider cache dir setup to the run paths: no version probe runs and
+// TF_PLUGIN_CACHE_DIR stays unset for commands that never run the binary (#7094).
+func TestRunActionDoesNotSetUpAutoProviderCacheDir(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	opts.NoAutoProviderCacheDir = true
 	opts.TFPath = "tofu"
 
 	// venvtest's fail-closed exec errors on any spawn, so success proves no probe ran.
@@ -75,7 +73,6 @@ func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
 	}
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	opts.NoAutoProviderCacheDir = true
 
 	err := commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venvtest.New(), action)
 	require.Error(t, err)

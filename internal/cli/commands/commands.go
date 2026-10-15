@@ -13,17 +13,15 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -50,7 +48,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
@@ -223,83 +220,6 @@ func WrapWithTelemetry(
 	}
 }
 
-// probeDirPerms is the mode of the throwaway directory the symlink probe creates.
-const probeDirPerms = 0o755
-
-// GiveWindowsSymlinksTip warns Windows users that OpenTofu/Terraform may not create symlinks
-// for provider plugins installed in the local cache directory.
-//
-// We generally don't need to recommend this if:
-//   - The user is not on Windows (this is generally a Windows-only problem)
-//   - The user isn't using the provider cache directory or provider cache server
-//   - We can successfully create a test symlink
-//
-// Note that OpenTofu doesn't want to emit a warning like this for OpenTofu users.
-//
-// See: https://github.com/opentofu/opentofu/issues/3972
-//
-// In the future, this may be less important, as the OpenTofu global provider cache
-// dir might be the default, and no copying/symlinking will happen anyways. At that
-// time, this check may need to have a version gate to avoid warning Windows users
-// on a sufficiently new version of OpenTofu.
-func GiveWindowsSymlinksTip(
-	l log.Logger,
-	fsys vfs.FS,
-	goos string,
-	allTips tips.Tips,
-	envs map[string]string,
-	providerCacheEnabled bool,
-	tfImpl tfimpl.Type,
-	tfVersion *semver.Version,
-) {
-	if goos != "windows" {
-		return
-	}
-
-	if envs[tf.EnvNameTFPluginCacheDir] == "" && !providerCacheEnabled {
-		return
-	}
-
-	tmp, err := vfs.MkdirTemp(fsys, "", "terragrunt-test-symlink")
-	if err != nil {
-		l.Debugf("Failed to create temporary directory for testing symlink: %v", err)
-		return
-	}
-
-	defer func() {
-		if err := fsys.RemoveAll(tmp); err != nil {
-			l.Debugf("Failed to remove temporary directory for testing symlink: %v", err)
-		}
-	}()
-
-	source := filepath.Join(tmp, "source")
-	target := filepath.Join(tmp, "target")
-
-	if err := fsys.Mkdir(source, probeDirPerms); err != nil {
-		l.Debugf("Failed to create source directory for testing symlink: %v", err)
-		return
-	}
-
-	err = vfs.Symlink(fsys, source, target)
-	if err == nil {
-		return
-	}
-
-	tip := allTips.Find(tips.WindowsSymlinkWarning)
-	if tip == nil {
-		return
-	}
-
-	if tfImpl == tfimpl.OpenTofu && tfVersion != nil {
-		minVersion, verErr := semver.Parse("1.12.0")
-		if verErr == nil && !tfVersion.LessThan(minVersion) {
-			tip.Message = tips.WindowsSymlinkWarningOpenTofuMessage
-		}
-	}
-
-	tip.Evaluate(l)
-}
-
 // RunAction wires up cancellation, run-scoped caches, and (when enabled)
 // the provider cache server, then invokes action with the resulting context.
 func RunAction(
@@ -320,16 +240,9 @@ func RunAction(
 	// the version probes below share state across the whole action.
 	actionCtx := cache.ContextWithCache(ctx)
 
-	// Set up automatic provider caching if enabled
-	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(actionCtx, l, opts, v); err != nil {
-			l.Debugf("Auto provider cache dir setup failed: %v", err)
-		}
-	}
-
 	// The implementation decides which CLI config files the cache server reads, so resolve it before the tips and the server start; a run the probe leaves mismatched is warned about, and bypasses the cache, in the command hook.
 	if opts.ProviderCacheOptions.Enabled {
-		if err := PopulateTFImplementation(actionCtx, l, opts, v); err != nil {
+		if err := prepare.PopulateTFImplementation(actionCtx, l, v, opts); err != nil {
 			l.Debugf(
 				"Failed to detect the OpenTofu/Terraform implementation; the provider cache server falls back to OpenTofu's CLI config file locations: %v",
 				err,
@@ -339,7 +252,7 @@ func RunAction(
 
 	v.RequireGOOS()
 
-	GiveWindowsSymlinksTip(
+	tips.GiveWindowsSymlinksTip(
 		l,
 		v.FS,
 		v.Platform.GOOS,
@@ -403,126 +316,6 @@ func RunAction(
 	})
 
 	return errGroup.Wait()
-}
-
-// PopulateTFImplementation resolves which OpenTofu/Terraform implementation opts.TFPath names, so
-// callers like the provider cache server can follow that implementation's behavior. It reuses the
-// run version cache and returns without probing when both the implementation and version are known.
-func PopulateTFImplementation(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	v *venv.Venv,
-) error {
-	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown &&
-		opts.TerraformVersion != nil {
-		return nil
-	}
-
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
-		WorkingDir:   opts.WorkingDir,
-		VersionFiles: opts.VersionManagerFileName,
-	})
-	if err != nil {
-		return err
-	}
-
-	opts.TerraformVersion = ver
-	opts.TofuImplementation = impl
-
-	return nil
-}
-
-const minTofuVersionForAutoProviderCacheDir = "1.10.0"
-
-// setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
-//
-// Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
-//
-// Panics if v.Env is nil, as it mutates it.
-func setupAutoProviderCacheDir(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	v *venv.Venv,
-) error {
-	if v.Env == nil {
-		panic("setupAutoProviderCacheDir: venv environment map is nil")
-	}
-
-	// Set TF_PLUGIN_CACHE_DIR environment variable
-	if v.Env[tf.EnvNameTFPluginCacheDir] != "" {
-		l.Debugf(
-			"TF_PLUGIN_CACHE_DIR already set to %s, skipping auto provider cache dir",
-			v.Env[tf.EnvNameTFPluginCacheDir],
-		)
-
-		return nil
-	}
-
-	if err := PopulateTFImplementation(ctx, l, opts, v); err != nil {
-		return err
-	}
-
-	terraformVersion := opts.TerraformVersion
-	tfImplementation := opts.TofuImplementation
-
-	// Check if OpenTofu is being used
-	if tfImplementation != tfimpl.OpenTofu {
-		return fmt.Errorf(
-			"auto provider cache dir requires OpenTofu, but detected %s",
-			tfImplementation,
-		)
-	}
-
-	// Check OpenTofu version > 1.10
-	if terraformVersion == nil {
-		return errors.New("cannot determine OpenTofu version")
-	}
-
-	requiredVersion, err := semver.Parse(minTofuVersionForAutoProviderCacheDir)
-	if err != nil {
-		return fmt.Errorf("failed to parse required version: %w", err)
-	}
-
-	if terraformVersion.LessThan(requiredVersion) {
-		return fmt.Errorf(
-			"auto provider cache dir requires OpenTofu version >= 1.10, but found %s",
-			terraformVersion,
-		)
-	}
-
-	// Set up the provider cache directory
-	providerCacheDir := opts.ProviderCacheOptions.Dir
-	if providerCacheDir == "" {
-		cacheDir, err := util.EnsureCacheDir(v)
-		if err != nil {
-			return fmt.Errorf("failed to get cache directory: %w", err)
-		}
-
-		providerCacheDir = filepath.Join(cacheDir, "providers")
-	}
-
-	// Make sure the cache directory is absolute
-	if !filepath.IsAbs(providerCacheDir) {
-		providerCacheDir = filepath.Join(opts.RootWorkingDir, providerCacheDir)
-	}
-
-	providerCacheDir = filepath.Clean(providerCacheDir)
-
-	const cacheDirMode = 0755
-
-	// Create the cache directory if it doesn't exist
-	if err := v.FS.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
-		return fmt.Errorf("failed to create provider cache directory: %w", err)
-	}
-
-	v.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
-
-	l.Debugf("Auto provider cache dir enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
-
-	return nil
 }
 
 // mostly preparing terragrunt options

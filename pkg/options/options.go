@@ -290,8 +290,6 @@ type TerragruntOptions struct {
 	SummaryDisable bool
 	// SummaryPerUnit enables showing duration information for each unit in the summary.
 	SummaryPerUnit bool
-	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
-	NoAutoProviderCacheDir bool
 	// NoDependencyFetchOutputFromState disables the
 	// dependency-fetch-output-from-state feature even when the experiment
 	// is enabled.

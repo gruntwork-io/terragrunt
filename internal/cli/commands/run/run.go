@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
@@ -93,6 +94,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	l, err := checkVersionConstraints(ctx, l, opts, v)
 	if err != nil {
 		return err
+	}
+
+	// Runs after the config-resolved TFPath probe, so no extra process is spawned.
+	if err := prepare.SetupAutoProviderCacheDir(ctx, l, v, opts); err != nil {
+		l.Debugf("Auto provider cache dir setup failed: %v", err)
 	}
 
 	pctx := configbridge.NewParsingContext(opts)

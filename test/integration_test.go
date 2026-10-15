@@ -289,8 +289,8 @@ func TestHclCommandsSkipTofuProbe(t *testing.T) {
 }
 
 // TestHclvalidateInputsKeepsTofuProbe pins only that `hcl validate --inputs`
-// still runs the version probe at startup. It does not observe the registry
-// selection that depends on it.
+// still detects the implementation while preparing sources. It does not
+// observe the registry selection that depends on it.
 func TestHclvalidateInputsKeepsTofuProbe(t *testing.T) {
 	t.Parallel()
 

@@ -349,7 +349,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 		}
 	}
 
-	// First call mirrors what setupAutoProviderCacheDir does before
+	// First call mirrors what prepare.SetupAutoProviderCacheDir does before
 	// terraform_binary is read from HCL: TFPath is still the auto-detected
 	// "tofu", and the OpenTofu version gets resolved and cached.
 	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(
