@@ -602,6 +602,54 @@ func TestIacArgsIsDestroyCommand(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "plan with -destroy=true flag",
+			args:     iacargs.New("plan", "-destroy=true"),
+			cmd:      "plan",
+			expected: true,
+		},
+		{
+			name:     "apply with -destroy=1 flag",
+			args:     iacargs.New("apply", "-destroy=1", "tfplan"),
+			cmd:      "apply",
+			expected: true,
+		},
+		{
+			name:     "plan with -destroy=false flag",
+			args:     iacargs.New("plan", "-destroy=false"),
+			cmd:      "plan",
+			expected: false,
+		},
+		{
+			name:     "plan with -destroy=0 flag",
+			args:     iacargs.New("plan", "-destroy=0"),
+			cmd:      "plan",
+			expected: false,
+		},
+		{
+			name:     "plan with a -destroy value that is not a boolean",
+			args:     iacargs.New("plan", "-destroy=maybe"),
+			cmd:      "plan",
+			expected: false,
+		},
+		{
+			name:     "apply with --destroy flag",
+			args:     iacargs.New("apply", "--destroy"),
+			cmd:      "apply",
+			expected: true,
+		},
+		{
+			name:     "apply with --destroy=true flag",
+			args:     iacargs.New("apply", "--destroy=true"),
+			cmd:      "apply",
+			expected: true,
+		},
+		{
+			name:     "apply with --destroy=false flag",
+			args:     iacargs.New("apply", "--destroy=false"),
+			cmd:      "apply",
+			expected: false,
+		},
+		{
 			name:     "regular apply",
 			args:     iacargs.New("apply", "-auto-approve"),
 			cmd:      "apply",
@@ -614,10 +662,34 @@ func TestIacArgsIsDestroyCommand(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "nil args with destroy cmd",
-			args:     nil,
-			cmd:      "destroy",
+			name:     "plan with -destroy=true then -destroy=false",
+			args:     iacargs.New("plan", "-destroy=true", "-destroy=false"),
+			cmd:      "plan",
+			expected: false,
+		},
+		{
+			name:     "plan with -destroy=false then -destroy",
+			args:     iacargs.New("plan", "-destroy=false", "-destroy"),
+			cmd:      "plan",
 			expected: true,
+		},
+		{
+			name:     "plan with an empty -destroy value",
+			args:     iacargs.New("plan", "-destroy="),
+			cmd:      "plan",
+			expected: false,
+		},
+		{
+			name:     "plan with three dashes",
+			args:     iacargs.New("plan", "---destroy=true"),
+			cmd:      "plan",
+			expected: false,
+		},
+		{
+			name:     "plan with a flag that only starts with destroy",
+			args:     iacargs.New("plan", "-destroy-all"),
+			cmd:      "plan",
+			expected: false,
 		},
 	}
 
@@ -625,12 +697,122 @@ func TestIacArgsIsDestroyCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if tt.args == nil {
-				// Test nil case separately
-				assert.Equal(t, tt.expected, tt.cmd == "destroy")
-			} else {
-				assert.Equal(t, tt.expected, tt.args.IsDestroyCommand(tt.cmd))
-			}
+			assert.Equal(t, tt.expected, tt.args.IsDestroyCommand(tt.cmd))
+		})
+	}
+}
+
+func TestHasDestroyFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		args     []string
+		expected bool
+	}{
+		{name: "no args", args: nil, expected: false},
+		{name: "-destroy", args: []string{"-auto-approve", "-destroy"}, expected: true},
+		{name: "--destroy", args: []string{"--destroy"}, expected: true},
+		{name: "-destroy=true", args: []string{"-destroy=true"}, expected: true},
+		{name: "-destroy=T", args: []string{"-destroy=T"}, expected: true},
+		{name: "-destroy=false", args: []string{"-destroy=false"}, expected: false},
+		{name: "last value is false", args: []string{"-destroy", "-destroy=false"}, expected: false},
+		{name: "last value is true", args: []string{"-destroy=false", "--destroy=1"}, expected: true},
+		{name: "value is not a boolean", args: []string{"-destroy=maybe"}, expected: false},
+		{name: "three dashes", args: []string{"---destroy"}, expected: false},
+		{name: "no dash", args: []string{"destroy"}, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, iacargs.HasDestroyFlag(tt.args))
+		})
+	}
+}
+
+func TestIsDestroyFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		arg      string
+		expected bool
+	}{
+		{arg: "-destroy", expected: true},
+		{arg: "--destroy", expected: true},
+		{arg: "-destroy=true", expected: true},
+		{arg: "--destroy=false", expected: true},
+		{arg: "-destroy=maybe", expected: true},
+		{arg: "---destroy", expected: false},
+		{arg: "-destroy-all", expected: false},
+		{arg: "destroy", expected: false},
+		{arg: "-auto-approve", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.arg, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, iacargs.IsDestroyFlag(tt.arg))
+		})
+	}
+}
+
+func TestIacArgsIsDestroy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		args     *iacargs.IacArgs
+		cmd      string
+		expected bool
+	}{
+		{name: "destroy", args: iacargs.New("destroy"), cmd: "destroy", expected: true},
+		{name: "apply with -destroy", args: iacargs.New("apply", "-destroy"), cmd: "apply", expected: true},
+		{name: "apply with --destroy=true", args: iacargs.New("apply", "--destroy=true"), cmd: "apply", expected: true},
+		{name: "apply with -destroy=false", args: iacargs.New("apply", "-destroy=false"), cmd: "apply", expected: false},
+		{name: "apply", args: iacargs.New("apply", "-auto-approve"), cmd: "apply", expected: false},
+		{name: "plan with -destroy", args: iacargs.New("plan", "-destroy"), cmd: "plan", expected: false},
+		{name: "output with -destroy", args: iacargs.New("output", "-destroy"), cmd: "output", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, tt.args.IsDestroy(tt.cmd))
+		})
+	}
+}
+
+func TestIacArgsCommandName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		args     *iacargs.IacArgs
+		cmd      string
+		expected string
+	}{
+		{name: "destroy", args: iacargs.New("destroy"), cmd: "destroy", expected: "destroy"},
+		{name: "apply with -destroy", args: iacargs.New("apply", "-destroy"), cmd: "apply", expected: "destroy"},
+		{name: "apply with -destroy=true", args: iacargs.New("apply", "-destroy=true"), cmd: "apply", expected: "destroy"},
+		{name: "apply with -destroy=false", args: iacargs.New("apply", "-destroy=false"), cmd: "apply", expected: "apply"},
+		{name: "plan with -destroy", args: iacargs.New("plan", "-destroy"), cmd: "plan", expected: "plan"},
+		{
+			name:     "a command that differs from the args",
+			args:     iacargs.New("apply", "-destroy"),
+			cmd:      "terragrunt-read-config",
+			expected: "terragrunt-read-config",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, tt.args.CommandName(tt.cmd))
 		})
 	}
 }

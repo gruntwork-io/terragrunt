@@ -4,6 +4,7 @@ package iacargs
 import (
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -13,6 +14,9 @@ const (
 
 	// CommandNameDestroy is the terraform destroy command name
 	CommandNameDestroy = "destroy"
+
+	commandNameApply = "apply"
+	destroyFlagName  = "-" + CommandNameDestroy
 )
 
 const (
@@ -364,9 +368,65 @@ func (a *IacArgs) Normalize(acts ...NormalizeActsType) *IacArgs {
 }
 
 // IsDestroyCommand returns true if this represents a destroy operation.
-// It checks both the command name and the -destroy flag.
+// It checks both the command name and the destroy flag, as [HasDestroyFlag] reads it.
 func (a *IacArgs) IsDestroyCommand(cmd string) bool {
-	return cmd == CommandNameDestroy || a.Contains("-"+CommandNameDestroy)
+	return cmd == CommandNameDestroy || HasDestroyFlag(a.Flags)
+}
+
+// IsDestroy reports whether cmd destroys infrastructure: `destroy`, or `apply` with the destroy flag set.
+//
+// Unlike [IacArgs.IsDestroyCommand], it is false for `plan` with the destroy flag, which only plans a destroy.
+func (a *IacArgs) IsDestroy(cmd string) bool {
+	return cmd == CommandNameDestroy || (cmd == commandNameApply && HasDestroyFlag(a.Flags))
+}
+
+// CommandName returns the name that command lists in configuration match cmd against, such as
+// `exclude` actions and the commands of hooks and `extra_arguments`.
+// It is `destroy` when [IacArgs.IsDestroy] reports a destroy, and cmd otherwise.
+func (a *IacArgs) CommandName(cmd string) string {
+	if a.IsDestroy(cmd) {
+		return CommandNameDestroy
+	}
+
+	return cmd
+}
+
+// HasDestroyFlag reports whether args set the destroy flag to true.
+//
+// It reads the flag as tofu does. `-destroy` and `--destroy` are the same flag,
+// a value is parsed with [strconv.ParseBool], and the last occurrence wins.
+func HasDestroyFlag(args []string) bool {
+	destroy := false
+
+	for _, arg := range args {
+		if value, ok := destroyFlagValue(arg); ok {
+			destroy = value
+		}
+	}
+
+	return destroy
+}
+
+// IsDestroyFlag reports whether arg is the destroy flag, with one dash or two and with any value.
+func IsDestroyFlag(arg string) bool {
+	_, ok := destroyFlagValue(arg)
+
+	return ok
+}
+
+func destroyFlagValue(arg string) (value, ok bool) {
+	name, raw, hasValue := strings.Cut(arg, "=")
+	if name != destroyFlagName && name != "-"+destroyFlagName {
+		return false, false
+	}
+
+	if !hasValue {
+		return true, true
+	}
+
+	parsed, err := strconv.ParseBool(raw)
+
+	return err == nil && parsed, true
 }
 
 // parse parses raw args into Command/SubCommand/Flags/Arguments.

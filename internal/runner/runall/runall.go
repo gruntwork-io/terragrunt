@@ -236,7 +236,7 @@ func RunAllOnStack(
 
 	var prompt string
 
-	switch opts.TerraformCommand {
+	switch opts.TerraformCliArgs.CommandName(opts.TerraformCommand) {
 	case tf.CommandNameApply:
 		prompt = "Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above?"
 	case tf.CommandNameDestroy:
