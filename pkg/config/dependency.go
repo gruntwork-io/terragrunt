@@ -48,6 +48,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -1686,7 +1687,23 @@ func getOutputJSONWithCaching(
 				return nil
 			}
 
-			fetched, strategy, fetchErr := resolveOutputJSON(fetchCtx, l, v, pctx, targetConfig)
+			var (
+				fetched  []byte
+				strategy string
+			)
+
+			target := util.RelPathForLog(pctx.RootWorkingDir, targetConfig, pctx.LogShowAbsPaths)
+
+			fetchErr := spinner.ShowAfter(fetchCtx, l, spinner.Messages{
+				Working: "Fetching outputs of dependency " + target + "...",
+				Done:    "Fetched outputs of dependency " + target,
+			}, func() error {
+				var err error
+
+				fetched, strategy, err = resolveOutputJSON(fetchCtx, l, v, pctx, targetConfig)
+
+				return err
+			})
 
 			if span := trace.SpanFromContext(fetchCtx); span.IsRecording() {
 				span.SetAttributes(attribute.Bool("cache_hit", false))

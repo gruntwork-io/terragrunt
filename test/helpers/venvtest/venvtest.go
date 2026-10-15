@@ -107,6 +107,7 @@ func New() *venv.Venv {
 			StdoutIsTTY: func() bool { return false },
 			StderrIsTTY: func() bool { return false },
 			Width:       func() int { return 0 },
+			ErrWidth:    func() int { return 0 },
 		},
 		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}

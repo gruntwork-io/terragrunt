@@ -140,13 +140,15 @@ type Platform struct {
 
 // Terminal reports the console a run's output is adapting to: whether each
 // standard stream is attached to a terminal, and how wide that terminal is.
-// Width reports 0 when no width is available, which callers read as "do not
+// Width reports the width behind stdout and ErrWidth the width behind stderr.
+// Each reports 0 when no width is available, which callers read as "do not
 // wrap" or replace with a default of their own.
 type Terminal struct {
 	StdinIsTTY  func() bool
 	StdoutIsTTY func() bool
 	StderrIsTTY func() bool
 	Width       func() int
+	ErrWidth    func() int
 }
 
 // Venv is the root virtualized environment. It carries the filesystem,
@@ -593,6 +595,7 @@ func OSVenv() *Venv {
 			StdoutIsTTY: func() bool { return term.IsTerminal(int(os.Stdout.Fd())) },
 			StderrIsTTY: func() bool { return term.IsTerminal(int(os.Stderr.Fd())) },
 			Width:       osTerminalWidth,
+			ErrWidth:    osTerminalErrWidth,
 		},
 		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}
@@ -617,6 +620,17 @@ func replaceOSEnviron(env map[string]string) error {
 // substitute their own default for the 0.
 func osTerminalWidth() int {
 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return 0
+	}
+
+	return width
+}
+
+// osTerminalErrWidth returns the width of the terminal behind stderr, or 0
+// when stderr is not a terminal.
+func osTerminalErrWidth() int {
+	width, _, err := term.GetSize(int(os.Stderr.Fd()))
 	if err != nil {
 		return 0
 	}

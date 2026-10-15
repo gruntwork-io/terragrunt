@@ -1,6 +1,7 @@
 package cas_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"path/filepath"
@@ -15,7 +16,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -186,6 +190,81 @@ func TestGitStoreEnsureRefLockReleaseAllowsWaiterToProceedWithRacing(t *testing.
 	repo2, err := store.EnsureRef(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), "main", hash, 0)
 	require.NoError(t, err)
 	require.NoError(t, repo2.Unlock())
+}
+
+// TestGitStoreEnsureRefReportsLockWaitWithRacing pins that only a run with a reporter reports the lock wait.
+func TestGitStoreEnsureRefReportsLockWaitWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const password = "not-a-real-password"
+
+	tests := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "run with a reporter", reported: true},
+		{name: "run without a reporter", reported: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			url := strings.Replace(startTestServer(t), "http://", "http://tester:"+password+"@", 1)
+			require.Contains(t, url, password, "the URL must reach the store carrying the password")
+
+			hash := resolveHead(t, url)
+			shownURL := redact.NewURL(url)
+
+			store, v, root := newTestGitStore(t)
+			require.NotEmpty(t, root)
+
+			gv := newTestGitStoreVenv(t, v)
+
+			holder, err := store.EnsureRef(t.Context(), logger.CreateLogger(), gv, shownURL, "main", hash, 0)
+			require.NoError(t, err)
+
+			// Release the holder after a short delay so the waiter finds the lock taken.
+			released := make(chan error, 1)
+
+			go func() {
+				time.Sleep(50 * time.Millisecond)
+
+				released <- holder.Unlock()
+			}()
+
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			defer cancel()
+
+			if tt.reported {
+				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+			}
+
+			logs := new(bytes.Buffer)
+			l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
+
+			waiter, err := store.EnsureRef(ctx, l, gv, shownURL, "main", hash, 0)
+			require.NoError(t, err)
+			require.NoError(t, <-released)
+			require.NoError(t, waiter.Unlock())
+
+			assert.Equal(t, holder.Path, waiter.Path)
+			assert.NotContains(t, logs.String(), password)
+
+			working := "Waiting for the lock on the Git store for " + shownURL.String() + "..."
+			done := "Got the lock on the Git store for " + shownURL.String()
+
+			if !tt.reported {
+				assert.NotContains(t, logs.String(), working)
+				assert.NotContains(t, logs.String(), done)
+
+				return
+			}
+
+			assert.Contains(t, logs.String(), working)
+			assert.Contains(t, logs.String(), done)
+		})
+	}
 }
 
 func TestGitStoreEnsureRef_FetchFailureSurfacesError(t *testing.T) {

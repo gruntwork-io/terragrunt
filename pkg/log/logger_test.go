@@ -3,6 +3,7 @@ package log_test
 import (
 	"bytes"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -214,4 +215,32 @@ func newTestLogger(level log.Level) (log.Logger, *bytes.Buffer) {
 	)
 
 	return logger, buf
+}
+
+func TestWithOutputWrapperWrapsTheCurrentOutput(t *testing.T) {
+	t.Parallel()
+
+	output := new(bytes.Buffer)
+	logger := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(output))
+
+	var wrapped io.Writer
+
+	prefixed := new(bytes.Buffer)
+
+	logger.SetOptions(log.WithOutputWrapper(func(current io.Writer) io.Writer {
+		wrapped = current
+
+		return io.MultiWriter(current, prefixed)
+	}))
+
+	logger.Info("through the wrapper")
+
+	assert.Same(t, output, wrapped)
+	assert.Contains(t, output.String(), "through the wrapper")
+	assert.Contains(t, prefixed.String(), "through the wrapper")
+
+	clone := logger.WithOptions(log.WithLevel(log.InfoLevel))
+	clone.Info("from the clone")
+
+	assert.Contains(t, prefixed.String(), "from the clone")
 }

@@ -1,6 +1,7 @@
 package list_test
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -1234,6 +1237,73 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 
 			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
 			require.ErrorIs(t, list.Run(t.Context(), newTestLogger(t), v, opts), errWriteFailed)
+		})
+	}
+}
+
+// TestRunDiscoveryProgress pins that discovery is reported only when the run carries a reporter.
+func TestRunDiscoveryProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/list-progress"
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				"alpha/terragrunt.hcl": "",
+				"zulu/terragrunt.hcl":  "",
+			})
+
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := list.NewOptions(tgOpts)
+			opts.Format = list.FormatLong
+
+			logs := new(bytes.Buffer)
+			l := newTestLogger(t)
+			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)))
+
+			ctx := t.Context()
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+			}
+
+			var buf strings.Builder
+
+			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			require.NoError(t, list.Run(ctx, l, v, opts))
+
+			assert.Equal(
+				t,
+				"Type  Path\nunit  alpha\nunit  zulu\n",
+				buf.String(),
+				"stdout is the same with and without a reporter",
+			)
+			require.NotEmpty(t, logs.String(), "the run logs to the captured output")
+
+			working := "Discovering units in " + root + "..."
+			done := "Discovered units in " + root
+
+			if !tc.reported {
+				assert.NotContains(t, logs.String(), working)
+				assert.NotContains(t, logs.String(), done)
+
+				return
+			}
+
+			assert.Contains(t, logs.String(), working)
+			assert.Contains(t, logs.String(), done)
 		})
 	}
 }

@@ -3,9 +3,15 @@ name: slow-task-reporting
 since: "v1.0.1"
 ---
 
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
+
 Progress reporting for long-running Terragrunt operations.
 
 ### `slow-task-reporting` - What it does
+
+<Before version="v1.2.0">
+
 When enabled, Terragrunt displays animated progress spinners for operations that take longer than 1 second (e.g., Git worktree creation). Once the operation completes, the spinner is replaced with an INFO log line showing the operation result and elapsed time.
 
 This provides visual feedback during operations that would otherwise show no output:
@@ -16,17 +22,83 @@ This provides visual feedback during operations that would otherwise show no out
 
 In non-interactive environments (CI/CD, piped output), spinners are suppressed and INFO log lines are emitted instead. To prevent CI systems (e.g., CircleCI) from killing jobs due to prolonged output silence, periodic keepalive log lines are emitted every 30 seconds while the operation is in progress.
 
+</Before>
+
+<Since version="v1.2.0">
+
+When enabled, Terragrunt reports operations that run for more than 1 second, so a long wait is not mistaken for a hang.
+
+These operations are reported:
+
+- OpenTofu/Terraform source downloads, and the waits for the locks on the download directory and on the shared Git store
+- Git worktree creation and Git reference comparison for `--filter` with Git references
+- Unit discovery for `run --all`, `find` and `list`
+- Fetching the outputs of `dependency` blocks
+- Provider caching
+- Waiting for a new remote state S3 bucket, DynamoDB table or GCS bucket to become ready
+- Fetching unit and stack sources during `stack generate`
+- Catalog repository cloning (`terragrunt catalog`)
+
+**On a terminal**, Terragrunt draws one progress line. It shows the operation, how long it has been running, and how many other operations are running:
+
+```text
+T Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
+```
+
+The line is cut to the width of the terminal, so it never wraps. Log lines are written above it. When the operation succeeds, the line is replaced with an INFO log line that includes the elapsed time.
+
+**Everywhere else**, Terragrunt writes INFO log lines: one when the operation becomes slow, one every 30 seconds while it runs so that CI systems do not end the job for being silent, and one when it succeeds:
+
+```text
+INFO   Fetching outputs of dependency ../vpc...
+INFO   Fetching outputs of dependency ../vpc... (30s elapsed)
+INFO   Fetched outputs of dependency ../vpc (41.7s)
+```
+
+Terragrunt draws the progress line only when all of the following are true, and writes log lines otherwise:
+
+- Standard error is a terminal that reports its width, and the terminal is at least 20 columns wide.
+- `TERM` is set to something other than `dumb`. Windows consoles do not need `TERM`.
+- No CI environment is detected. Terragrunt checks `CI`, `TF_BUILD`, `TEAMCITY_VERSION`, `JENKINS_URL` and `TF_IN_AUTOMATION`. This covers CI systems that give a job a pseudo-terminal.
+- The log format is not `json`, logging is not disabled, and the log level is `info` or lower.
+
+To get log lines on a terminal, set `TERM=dumb` or `CI=true`.
+
+Units of a `run --all` and the repositories `terragrunt catalog` loads always report as log lines, because their output reaches the terminal while other units and repositories are still running.
+
+The line starts with the letters `T` and `G`, for Terragrunt. On terminals with a UTF-8 locale and on Windows Terminal they are drawn in braille dots, and the dots of one letter change into the other one at a time. Elsewhere the plain letters `T` and `G` take turns.
+
+The log lines are written at the INFO level. With `--log-level warn` or higher, or with `--log-disable`, nothing is reported, including the lines that keep a CI job alive.
+
+</Since>
+
 ```bash
 terragrunt run --all --experiment slow-task-reporting -- plan
 ```
 
 ### `slow-task-reporting` - How to provide feedback
+
 Provide your feedback on the [`slow-task-reporting` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6226).
 
 ### `slow-task-reporting` - Criteria for stabilization
+
 To transition the `slow-task-reporting` feature to a stable release, the following must be addressed:
+
+<Before version="v1.2.0">
 
 - [ ] Validate spinner rendering across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, GNOME Terminal)
 - [ ] Extend progress reporting to additional slow operations (e.g., provider caching)
 - [ ] Community feedback on usefulness and threshold tuning
 - [ ] Ensure no interference with structured log output when using `--log-format json`
+
+</Before>
+
+<Since version="v1.2.0">
+
+- [ ] Validate the progress line across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, the Windows console, GNOME Terminal)
+- [x] Extend progress reporting to additional slow operations (e.g., provider caching)
+- [ ] Community feedback on usefulness and threshold tuning
+- [x] Ensure no interference with structured log output when using `--log-format json`
+- [x] Ensure no interference with the output of units that run concurrently, or with the catalog TUI
+
+</Since>
