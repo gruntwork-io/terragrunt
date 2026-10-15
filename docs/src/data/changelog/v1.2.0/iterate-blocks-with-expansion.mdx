@@ -5,7 +5,9 @@ category: "new-features"
 
 #### Iterate `unit`, `stack`, and `dependency` blocks with `expansion`
 
-An [`expansion`](/reference/hcl/blocks#expansion) block declares a `count` or a `for_each`, and Terragrunt reads the block it sits in once per element. This `unit` block generates two units, at `.terragrunt-stack/aurora/web` and `.terragrunt-stack/aurora/api`:
+An [`expansion`](/reference/hcl/blocks#expansion) block adds a `count` or a `for_each` to the `unit`, `stack` or `dependency` that contains it, and Terragrunt generates a copy of the block per element.
+
+This `unit` block generates two units, at `.terragrunt-stack/aurora/web` and `.terragrunt-stack/aurora/api`:
 
 ```hcl
 # terragrunt.stack.hcl

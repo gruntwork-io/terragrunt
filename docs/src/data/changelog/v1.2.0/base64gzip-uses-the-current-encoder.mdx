@@ -5,7 +5,7 @@ category: "breaking-changes"
 
 import WithinGuarantees from '@components/WithinGuarantees.astro';
 
-#### `base64gzip()` uses the current Go encoder
+#### `base64gzip()` now uses the Go 1.27 gzip encoder
 
 Go 1.27 changed the compressed output of its gzip encoder. Terragrunt v1.1.5 kept `base64gzip()` on the older output and warned once per run that this was legacy behavior. `base64gzip()` now returns what the Go 1.27 encoder produces.
 
