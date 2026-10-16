@@ -171,12 +171,16 @@ func Run(
 		return err
 	}
 
-	skipCache, err := runcfg.ShouldSkipCache(opts.Experiments.Evaluate(experiment.NoCache), opts.Source, cfg)
+	skipCache, err := runcfg.ShouldSkipCache(
+		opts.Experiments.Evaluate(experiment.NoDotTerragruntCache),
+		opts.Source,
+		cfg,
+	)
 	if err != nil {
 		return err
 	}
 
-	// When skipCache is true (the no-cache experiment is enabled and no_cache is set), updatedOpts keeps pointing at the
+	// When skipCache is true (the no-dot-terragrunt-cache experiment is enabled and no_dot_terragrunt_cache is set), updatedOpts keeps pointing at the
 	// unit directory, so the unit runs in place. Otherwise download/copy the source into .terragrunt-cache for
 	// consistency; when no source is specified, sourceURL is "." (the current directory).
 	if !skipCache {

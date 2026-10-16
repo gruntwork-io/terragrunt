@@ -1,5 +1,5 @@
 terraform {
-  no_cache = true
+  no_dot_terragrunt_cache = true
 }
 
 inputs = {

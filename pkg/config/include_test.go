@@ -354,6 +354,48 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			},
 		},
 		{
+			// child sets no_dot_terragrunt_cache, parent has other terraform attrs: both survive
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: &[]bool{true}[0]},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					NoDotTerragruntCache: &[]bool{true}[0],
+					IncludeInCopy:        &[]string{"abc"},
+				},
+			},
+		},
+		{
+			// parent sets no_dot_terragrunt_cache, child has its own terraform block without it: parent value flows
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: &[]bool{true}[0]},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					NoDotTerragruntCache:  &[]bool{true}[0],
+					CopyTerraformLockFile: &[]bool{false}[0],
+				},
+			},
+		},
+		{
+			// child overrides the parent's no_dot_terragrunt_cache
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: &[]bool{false}[0]},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: &[]bool{true}[0]},
+			},
+			&config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: &[]bool{false}[0]},
+			},
+		},
+		{
 			config: &config.TerragruntConfig{
 				Terraform: &config.TerraformConfig{Version: new("~> 4.0")},
 			},
@@ -593,6 +635,33 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 					CopyTerraformLockFile: &[]bool{false}[0],
 					ExcludeFromCopy:       &[]string{"abc"},
 				},
+			},
+		},
+		{
+			name: "terraform no_dot_terragrunt_cache",
+			source: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: &[]bool{true}[0]},
+			},
+			target: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}},
+			},
+			expected: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					NoDotTerragruntCache: &[]bool{true}[0],
+					IncludeInCopy:        &[]string{"abc"},
+				},
+			},
+		},
+		{
+			name: "terraform no_dot_terragrunt_cache overridden by source config",
+			source: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: &[]bool{false}[0]},
+			},
+			target: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: &[]bool{true}[0]},
+			},
+			expected: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: &[]bool{false}[0]},
 			},
 		},
 		{

@@ -68,9 +68,9 @@ func translateTerraformConfig(tf *TerraformConfig, l log.Logger, fsys vfs.FS) ru
 		noCopyTerraformLockFile = !*tf.CopyTerraformLockFile
 	}
 
-	noCache := false
-	if tf.NoCache != nil {
-		noCache = *tf.NoCache
+	noDotTerragruntCache := false
+	if tf.NoDotTerragruntCache != nil {
+		noDotTerragruntCache = *tf.NoDotTerragruntCache
 	}
 
 	updateSourceWithCAS := false
@@ -89,7 +89,7 @@ func translateTerraformConfig(tf *TerraformConfig, l log.Logger, fsys vfs.FS) ru
 		IncludeInCopy:           includeInCopy,
 		ExcludeFromCopy:         excludeFromCopy,
 		NoCopyTerraformLockFile: noCopyTerraformLockFile,
-		NoCache:                 noCache,
+		NoDotTerragruntCache:    noDotTerragruntCache,
 		UpdateSourceWithCAS:     updateSourceWithCAS,
 		Mutable:                 mutable,
 		ExtraArgs:               translateExtraArgs(tf.ExtraArgs, l, fsys),

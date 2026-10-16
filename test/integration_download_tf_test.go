@@ -1256,16 +1256,16 @@ func TestTFDownloadWithCASMutable(t *testing.T) {
 	require.Positive(t, checked, "expected at least one .tf file under %s", cacheDir)
 }
 
-func TestTFLocalNoCacheSkipsTerragruntCache(t *testing.T) {
+func TestTFLocalNoDotTerragruntCacheSkipsTerragruntCache(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
-	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCache)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoDotTerragruntCache)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt apply -auto-approve --non-interactive --experiment no-cache --working-dir "+rootPath,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+rootPath,
 	)
 
 	// No cache directory is created, and the unit runs in place: local state lands in the unit directory.
@@ -1273,11 +1273,11 @@ func TestTFLocalNoCacheSkipsTerragruntCache(t *testing.T) {
 	assert.FileExists(t, filepath.Join(rootPath, "terraform.tfstate"))
 }
 
-func TestTFLocalNoCacheWithoutExperimentStillUsesCache(t *testing.T) {
+func TestTFLocalNoDotTerragruntCacheWithoutExperimentStillUsesCache(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
-	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCache)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoDotTerragruntCache)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	helpers.RunTerragrunt(
@@ -1288,48 +1288,84 @@ func TestTFLocalNoCacheWithoutExperimentStillUsesCache(t *testing.T) {
 	assert.DirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
 }
 
-func TestTFLocalNoCacheWithSourceReturnsError(t *testing.T) {
+func TestTFLocalNoDotTerragruntCacheWithSourceReturnsError(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
-	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCacheWithSource)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoDotTerragruntCacheWithSource)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt apply -auto-approve --non-interactive --experiment no-cache --working-dir "+rootPath,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+rootPath,
 	)
 
-	require.ErrorContains(t, err, "no_cache cannot be combined with an external source")
+	require.ErrorContains(t, err, "no_dot_terragrunt_cache cannot be combined with an external source")
 }
 
-func TestTFLocalNoCacheWithCLISourceReturnsError(t *testing.T) {
+func TestTFLocalNoDotTerragruntCacheWithCLISourceReturnsError(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
-	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCache)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoDotTerragruntCache)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt apply -auto-approve --non-interactive --experiment no-cache --source ./mod --working-dir "+rootPath,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-dot-terragrunt-cache --source ./mod --working-dir "+rootPath,
 	)
 
-	require.ErrorContains(t, err, "no_cache cannot be combined with an external source")
+	require.ErrorContains(t, err, "no_dot_terragrunt_cache cannot be combined with an external source")
 }
 
-func TestTFLocalNoCacheInitSkipsCacheWithoutError(t *testing.T) {
+func TestTFLocalNoDotTerragruntCacheInitSkipsCacheWithoutError(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
-	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoCache)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoDotTerragruntCache)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
 	// init exercises the lock-file copy path; with no cache directory it must be a no-op, not an error.
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt init --non-interactive --experiment no-cache --working-dir "+rootPath,
+		"terragrunt init --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+rootPath,
 	)
 
 	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
+}
+
+func TestTFLocalIncludeNoDotTerragruntCache(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalIncludeNoDotTerragruntCache)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// no_dot_terragrunt_cache is set only in root.hcl, reached through include + find_in_parent_folders,
+	// and the unit has its own terraform block.
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+rootPath,
+	)
+
+	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
+	assert.FileExists(t, filepath.Join(rootPath, "terraform.tfstate"))
+}
+
+func TestTFLocalIncludeNoDotTerragruntCacheSetInChild(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalIncludeNoDotTerragruntCacheChild)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// root.hcl has a terraform block without the attribute and the unit sets it. The merge result starts from the
+	// included root, so the unit's value is only kept when the include merges no_dot_terragrunt_cache explicitly.
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+rootPath,
+	)
+
+	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
+	assert.FileExists(t, filepath.Join(rootPath, "terraform.tfstate"))
 }

@@ -87,21 +87,22 @@ func GetTerraformSourceURL(
 // ShouldSkipCache reports whether a unit should run in place, skipping the copy of its source into the
 // .terragrunt-cache directory.
 //
-// Skipping the cache is opt-in: it requires the no-cache experiment to be enabled and terraform.no_cache to be set to
-// true on a unit that configures no external source. When no_cache is set together with an external source (via the
-// terraform block or the --source flag), it returns a NoCacheWithSourceError, because an external source has to be
-// fetched into the cache directory and cannot be run in place.
+// Skipping the cache is opt-in: it requires the no-dot-terragrunt-cache experiment to be enabled and
+// terraform.no_dot_terragrunt_cache to be set to true on a unit that configures no external source. When
+// no_dot_terragrunt_cache is set together with an external source (via the terraform block or the --source flag),
+// it returns a NoDotTerragruntCacheWithSourceError, because an external source has to be fetched into the cache
+// directory and cannot be run in place.
 func ShouldSkipCache(noCacheEnabled bool, source string, cfg *RunConfig) (bool, error) {
-	if cfg == nil || !cfg.Terraform.NoCache || !noCacheEnabled {
+	if cfg == nil || !cfg.Terraform.NoDotTerragruntCache || !noCacheEnabled {
 		return false, nil
 	}
 
 	if source != "" {
-		return false, NoCacheWithSourceError{Source: source}
+		return false, NoDotTerragruntCacheWithSourceError{Source: source}
 	}
 
 	if cfg.Terraform.Source != "" {
-		return false, NoCacheWithSourceError{Source: cfg.Terraform.Source}
+		return false, NoDotTerragruntCacheWithSourceError{Source: cfg.Terraform.Source}
 	}
 
 	return true, nil
@@ -205,20 +206,22 @@ func (err ParsingModulePathError) Error() string {
 	)
 }
 
-// NoCacheWithSourceError is returned when terraform.no_cache is set on a unit that also configures an external source.
-// no_cache runs a unit in place, which is incompatible with a source that must be fetched into the cache directory.
+// NoDotTerragruntCacheWithSourceError is returned when terraform.no_dot_terragrunt_cache is set on a unit that
+// also configures an external source. no_dot_terragrunt_cache runs a unit in place, which is incompatible with a
+// source that must be fetched into the cache directory.
 //
 // Source holds the raw source so callers can inspect it; Error renders it through redact so credentials embedded in the
 // source URL do not leak into logs.
-type NoCacheWithSourceError struct {
+type NoDotTerragruntCacheWithSourceError struct {
 	Source string
 }
 
-func (err NoCacheWithSourceError) Error() string {
+func (err NoDotTerragruntCacheWithSourceError) Error() string {
 	return fmt.Sprintf(
-		"terraform.no_cache cannot be combined with an external source ('%s')."+
-			" no_cache runs the unit in place and only applies when no source is configured."+
-			" Remove the source to run from the unit directory, or remove no_cache to run from .terragrunt-cache.",
+		"terraform.no_dot_terragrunt_cache cannot be combined with an external source ('%s')."+
+			" no_dot_terragrunt_cache runs the unit in place and only applies when no source is configured."+
+			" Remove the source to run from the unit directory,"+
+			" or remove no_dot_terragrunt_cache to run from .terragrunt-cache.",
 		redact.NewURL(err.Source).String(),
 	)
 }
