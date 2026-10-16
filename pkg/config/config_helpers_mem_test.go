@@ -2,9 +2,14 @@ package config_test
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -280,4 +285,155 @@ func TestRunCommandReceivesVenvEnv(t *testing.T) {
 		"TG_TEST_TOKEN=abc123",
 		"v.Env must propagate to the spawned subprocess environment",
 	)
+}
+
+// TestRunCommandCacheKeyKeepsArgBoundaries pins that the cache key preserves
+// argv element boundaries: ("x y") and ("x", "y") are different commands and
+// must not share one cache entry, which the former %v-formatted key allowed.
+func TestRunCommandCacheKeyKeepsArgBoundaries(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		calls.Add(1)
+		return vexec.Result{Stdout: []byte(strings.Join(inv.Args, "|") + "\n")}
+	})
+
+	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
+	ctx, pctx := newTestParsingContext(t, t.TempDir())
+	ctx = config.WithConfigValues(ctx)
+
+	joined, err := config.RunCommand(ctx, l, v, pctx, []string{"printf", "%s", "x y"})
+	require.NoError(t, err)
+	assert.Equal(t, "%s|x y", joined)
+
+	split, err := config.RunCommand(ctx, l, v, pctx, []string{"printf", "%s", "x", "y"})
+	require.NoError(t, err)
+	assert.Equal(t, "%s|x|y", split, "a different argv must not replay another command's output")
+
+	assert.Equal(t, int32(2), calls.Load(), "distinct argv must not share a cache entry")
+}
+
+// TestRunCommandCacheKeyIncludesEnv pins that the cache key covers the
+// environment the subprocess inherits. Two units reading one shared file via
+// read_terragrunt_config evaluate run_cmd under the same config path; with
+// per-unit credentials in v.Env (--auth-provider-cmd) each must get the output
+// its own environment produces, while identical environments still share one
+// run. The same holds under --terragrunt-global-cache.
+func TestRunCommandCacheKeyIncludesEnv(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "default scope",
+			args: []string{"whoami"},
+		},
+		{
+			name: "global cache",
+			args: []string{"--terragrunt-global-cache", "whoami"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+
+			exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				calls.Add(1)
+
+				for _, kv := range inv.Env {
+					if account, ok := strings.CutPrefix(kv, "ACCOUNT="); ok {
+						return vexec.Result{Stdout: []byte(account + "\n")}
+					}
+				}
+
+				return vexec.Result{ExitCode: 1, Stderr: []byte("ACCOUNT unset\n")}
+			})
+
+			l := logger.CreateLogger()
+			sharedConfig := filepath.Join(t.TempDir(), "common.hcl")
+			ctx, pctx := newTestParsingContext(t, sharedConfig)
+			ctx = config.WithConfigValues(ctx)
+
+			unitA := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
+			unitB := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "222"})
+
+			gotA, err := config.RunCommand(ctx, l, unitA, pctx, tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, "111", gotA)
+
+			gotB, err := config.RunCommand(ctx, l, unitB, pctx, tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, "222", gotB, "unit B must not receive unit A's cached output")
+
+			assert.Equal(t, int32(2), calls.Load(), "a different environment must run the command again")
+
+			unitC := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
+
+			gotC, err := config.RunCommand(ctx, l, unitC, pctx, tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, "111", gotC)
+			assert.Equal(t, int32(2), calls.Load(), "an identical environment must reuse the cached result")
+		})
+	}
+}
+
+// TestRunCommandConcurrentMissesRunOnce pins the per-key lock around the cache
+// miss window: goroutines parsing units in parallel that miss on the same key
+// must run the command once and all observe that one result, rather than each
+// spawning the subprocess and racing to Put.
+func TestRunCommandConcurrentMissesRunOnce(t *testing.T) {
+	t.Parallel()
+
+	const workers = 8
+
+	var calls atomic.Int32
+
+	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		n := calls.Add(1)
+
+		// Hold the miss window open so every worker arrives before the first run finishes.
+		time.Sleep(50 * time.Millisecond)
+
+		return vexec.Result{Stdout: fmt.Appendf(nil, "run-%d\n", n)}
+	})
+
+	l := logger.CreateLogger()
+	ctx, _ := newTestParsingContext(t, t.TempDir())
+	ctx = config.WithConfigValues(ctx)
+
+	results := make([]string, workers)
+
+	var wg sync.WaitGroup
+
+	for i := range workers {
+		v := venvtest.New().WithExec(exec)
+		_, pctx := newTestParsingContext(t, t.TempDir())
+
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			out, err := config.RunCommand(ctx, l, v, pctx, []string{"--terragrunt-global-cache", "slow-cmd"})
+			assert.NoError(t, err)
+
+			results[i] = out
+		}()
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, int32(1), calls.Load(), "concurrent misses on one key must coalesce into a single run")
+
+	for i, got := range results {
+		assert.Equal(t, "run-1", got, "worker %d must see the single shared result", i)
+	}
 }
