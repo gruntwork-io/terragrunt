@@ -928,14 +928,21 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
-// RunVenv returns [venv.OSVenv] with the user configuration directory set to a
-// temporary directory of the test's own.
+// RunVenv returns [venv.OSVenv] with the user configuration and cache
+// directories set to temporary directories of the test's own, so a run never
+// reads or writes the stores of the machine running the suite.
+//
+// Each call gets directories of its own. A test whose runs must share a store
+// builds one with RunVenv and passes it to each run.
 func RunVenv(t *testing.T) *venv.Venv {
 	t.Helper()
 
 	configDir := t.TempDir()
+	cacheDir := t.TempDir()
 
-	return venv.OSVenv().WithUserConfigDir(func() (string, error) { return configDir, nil })
+	return venv.OSVenv().
+		WithUserConfigDir(func() (string, error) { return configDir, nil }).
+		WithUserCacheDir(func() (string, error) { return cacheDir, nil })
 }
 
 func RunTerragruntCommandWithContext(
