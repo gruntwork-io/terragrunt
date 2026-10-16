@@ -12,16 +12,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 )
 
 const (
 	serverDirMode  os.FileMode = 0o755
 	serverFileMode os.FileMode = 0o644
-
-	// fastImportEpoch is the committer time of the first fast-import commit; later ones count up from it.
-	fastImportEpoch = 1_700_000_000
 )
 
 // Server is an HTTP Git server backed by on-disk repositories.
@@ -195,34 +191,14 @@ func (s *Server) CommitEmpty(ctx context.Context, msg string) error {
 	return s.push(ctx)
 }
 
-// CommitEmptyChain adds count empty commits on HEAD through one fast-import run and pushes them.
+// CommitEmptyChain stacks count empty commits on the current HEAD and pushes
+// them together, for tests that need a history deep enough to tell a fetch of
+// one commit from a fetch of every commit. Pushing once keeps the cost of a
+// few hundred commits to one spawn each.
 func (s *Server) CommitEmptyChain(ctx context.Context, count int, msg string) error {
-	if count > 0 {
-		head, err := s.Head(ctx)
-		if err != nil {
-			return fmt.Errorf("resolve HEAD: %w", err)
-		}
-
-		commits := make([]string, 0, count)
-
-		for i := range count {
-			commit := "commit refs/heads/main\n" +
-				"committer Test <test@example.com> " + strconv.Itoa(fastImportEpoch+i) + " +0000\n" +
-				"data " + strconv.Itoa(len(msg)) + "\n" + msg + "\n"
-
-			// Only the first commit names its parent; the rest chain on the branch.
-			if i == 0 {
-				commit += "from " + head + "\n"
-			}
-
-			commits = append(commits, commit)
-		}
-
-		cmd := s.gitCommand(ctx, s.workDir, "fast-import", "--quiet")
-		cmd.Stdin = strings.NewReader(strings.Join(commits, "\n"))
-
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("git fast-import: %w\n%s", err, strings.TrimSpace(string(out)))
+	for range count {
+		if err := s.gitIn(ctx, s.workDir, "commit", "--allow-empty", "-m", msg); err != nil {
+			return fmt.Errorf("commit: %w", err)
 		}
 	}
 
