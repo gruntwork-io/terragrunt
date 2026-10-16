@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -58,6 +59,7 @@ const (
 	testFixtureGetTerragruntSourceCli         = "fixtures/get-terragrunt-source-cli"
 	testFixtureRunAllSource                   = "fixtures/get-output/run-all-source"
 	testFixtureGraphDependencies              = "fixtures/graph-dependencies"
+	testFixtureAutoProviderCacheDirMixed      = "fixtures/auto-provider-cache-dir/mixed"
 	testFixtureHclfmtCheck                    = "fixtures/hclfmt-check"
 	testFixtureHclvalidate                    = "fixtures/hclvalidate"
 	testFixtureIamRolesMultipleModules        = "fixtures/read-config/iam_roles_multiple_modules"
@@ -307,11 +309,50 @@ func TestHclvalidateInputsKeepsTofuProbe(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	assert.NotEmpty(t, probes(), "hcl validate --inputs must keep the implementation probe")
+	assert.Equal(
+		t,
+		[]string{"tofu"},
+		probes(),
+		"hcl validate --inputs must probe the default binary exactly once",
+	)
+}
+
+// TestRunAllAutoProviderCacheDirPerUnit pins that a mixed stack gets per-unit
+// decisions: the OpenTofu unit runs with TF_PLUGIN_CACHE_DIR set, and the
+// Terraform unit in the same `run --all` runs without it.
+func TestRunAllAutoProviderCacheDirPerUnit(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("the fixture fakes the binaries with shell scripts")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureAutoProviderCacheDirMixed)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDirMixed)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoProviderCacheDirMixed)
+
+	cacheDir := t.TempDir()
+
+	v := helpers.RunVenv(t)
+	delete(v.Env, "TF_PLUGIN_CACHE_DIR")
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+		t,
+		v,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --provider-cache-dir %s --working-dir %s -- init",
+			cacheDir,
+			rootPath,
+		),
+	)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "FAKE_TOFU TF_PLUGIN_CACHE_DIR="+cacheDir)
+	assert.Contains(t, stdout, "FAKE_TERRAFORM TF_PLUGIN_CACHE_DIR=\n")
 }
 
 // venvRecordingTFVersionProbes returns an OS venv whose exec records each
-// `-version` probe and answers it like a Terraform binary, so no real
+// `-version` probe and answers it as the probed binary would, so no real
 // process is spawned.
 func venvRecordingTFVersionProbes(t *testing.T) (*venv.Venv, func() []string) {
 	t.Helper()
@@ -330,6 +371,10 @@ func venvRecordingTFVersionProbes(t *testing.T) (*venv.Venv, func() []string) {
 			probes = append(probes, inv.Name)
 
 			mu.Unlock()
+
+			if strings.Contains(inv.Name, "tofu") {
+				return vexec.Result{Stdout: []byte("OpenTofu v1.10.0\non linux_amd64\n")}
+			}
 
 			return vexec.Result{Stdout: []byte("Terraform v1.5.7\non linux_amd64\n")}
 		}

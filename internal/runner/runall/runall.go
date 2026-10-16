@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errfmt"
-	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -69,11 +68,6 @@ func Run(
 			command: opts.TerraformCommand,
 			reason:  reason,
 		}
-	}
-
-	// Runs once before units build concurrently, since the setup mutates the shared venv environment.
-	if err := prepare.SetupAutoProviderCacheDir(ctx, l, v, opts); err != nil {
-		l.Debugf("Auto provider cache dir setup failed: %v", err)
 	}
 
 	runnerOpts := []runner.Option{}

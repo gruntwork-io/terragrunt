@@ -67,7 +67,8 @@ func SetupAutoProviderCacheDir(
 		panic("SetupAutoProviderCacheDir: venv environment map is nil")
 	}
 
-	if opts.ProviderCacheOptions.NoAutoCacheDir {
+	//nolint:staticcheck // The deprecated TerragruntOptions field keeps working for Go API callers.
+	if opts.ProviderCacheOptions.NoAutoCacheDir || opts.NoAutoProviderCacheDir {
 		return nil
 	}
 

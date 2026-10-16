@@ -50,6 +50,18 @@ func TestSetupAutoProviderCacheDir(t *testing.T) {
 		assert.Empty(t, v.Env[tf.EnvNameTFPluginCacheDir])
 	})
 
+	t.Run("deprecated TerragruntOptions opt-out still skips without probing", func(t *testing.T) {
+		t.Parallel()
+
+		opts := newOpts()
+		opts.NoAutoProviderCacheDir = true //nolint:staticcheck // Pins the deprecated Go API field keeps working.
+
+		v := venvtest.New().WithGOOS("linux")
+
+		require.NoError(t, prepare.SetupAutoProviderCacheDir(t.Context(), logger.CreateLogger(), v, opts))
+		assert.Empty(t, v.Env[tf.EnvNameTFPluginCacheDir])
+	})
+
 	t.Run("preset TF_PLUGIN_CACHE_DIR skips without probing", func(t *testing.T) {
 		t.Parallel()
 

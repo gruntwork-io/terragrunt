@@ -77,12 +77,15 @@ func GiveWindowsSymlinksTip(
 		return
 	}
 
+	// EvaluateWith keeps the shared Tip.Message untouched, since concurrent unit runs reach this path.
+	msg := tip.Message
+
 	if tfImpl == tfimpl.OpenTofu && tfVersion != nil {
 		minVersion, verErr := semver.Parse("1.12.0")
 		if verErr == nil && !tfVersion.LessThan(minVersion) {
-			tip.Message = WindowsSymlinkWarningOpenTofuMessage
+			msg = WindowsSymlinkWarningOpenTofuMessage
 		}
 	}
 
-	tip.Evaluate(l)
+	tip.EvaluateWith(l, msg)
 }
