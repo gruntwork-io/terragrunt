@@ -671,7 +671,7 @@ func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venvtest.NewOSWithEmptyEnv()
+	v := venvtest.NewOSWithEmptyEnv().WithEnv(map[string]string{"GIT_TERMINAL_PROMPT": "0"})
 
 	// Bogus org so the network call fails fast. The error shape proves the
 	// shorthand was rewritten and reached `git ls-remote`.
