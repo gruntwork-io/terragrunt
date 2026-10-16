@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -277,11 +276,6 @@ func CheckUnitVersionConstraints(
 
 	unitOpts.TerraformVersion = ver
 	unitOpts.TofuImplementation = impl
-
-	// Runs after the unit's version probe, so no extra process is spawned.
-	if err := prepare.SetupAutoProviderCacheDir(ctx, l, v, unitOpts); err != nil {
-		l.Debugf("Auto provider cache dir setup failed for unit %s: %v", unit.DisplayPath(), err)
-	}
 
 	if err := run.CheckTerraformVersionMeetsConstraint(
 		l,

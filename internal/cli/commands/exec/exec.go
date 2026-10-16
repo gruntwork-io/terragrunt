@@ -29,6 +29,11 @@ func Run(
 		return err
 	}
 
+	// The executed command may run OpenTofu, so keep exporting TF_PLUGIN_CACHE_DIR for it.
+	if err := prepare.SetupAutoProviderCacheDir(ctx, l, v, prepared.Opts); err != nil {
+		l.Debugf("Auto provider cache dir setup failed: %v", err)
+	}
+
 	r := report.NewReport()
 
 	// Download source

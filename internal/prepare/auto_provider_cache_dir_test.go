@@ -83,11 +83,15 @@ func TestSetupAutoProviderCacheDir(t *testing.T) {
 
 		v := venvtest.New().WithGOOS("linux").WithHandler(fakeOpenTofuVersionHandler("1.10.0"))
 
+		// t.TempDir is absolute on every host OS, so filepath.IsAbs and filepath.Clean leave it unchanged.
+		dir := t.TempDir()
+
 		opts := newOpts()
+		opts.ProviderCacheOptions.Dir = dir
 
 		require.NoError(t, prepare.SetupAutoProviderCacheDir(t.Context(), logger.CreateLogger(), v, opts))
-		assert.Equal(t, cacheDir, v.Env[tf.EnvNameTFPluginCacheDir])
+		assert.Equal(t, dir, v.Env[tf.EnvNameTFPluginCacheDir])
 
-		assert.True(t, vfs.Exists(v.FS, cacheDir), "the cache dir must be created on the virtual filesystem")
+		assert.True(t, vfs.Exists(v.FS, dir), "the cache dir must be created on the virtual filesystem")
 	})
 }

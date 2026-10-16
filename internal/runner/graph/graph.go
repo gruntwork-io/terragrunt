@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
@@ -26,6 +27,11 @@ import (
 // Run executes the configured terraform command against the dependency
 // graph of the unit in the working directory.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+	// Runs once before units build concurrently, since the setup mutates the shared venv environment.
+	if err := prepare.SetupAutoProviderCacheDir(ctx, l, v, opts); err != nil {
+		l.Debugf("Auto provider cache dir setup failed: %v", err)
+	}
+
 	// Get credentials BEFORE config parsing: sops_decrypt_file() and
 	// get_aws_account_id() in locals need auth-provider credentials
 	// available in v.Env during HCL evaluation.
