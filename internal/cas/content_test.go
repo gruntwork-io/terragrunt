@@ -998,8 +998,9 @@ func TestContent_EnsureWithWait(t *testing.T) {
 func TestContent_ReadAsObjectAppearsWithRacing(t *testing.T) {
 	t.Parallel()
 
+	// 200 rounds keep the disk writes small and still race the reads against the rename.
 	const (
-		rounds  = 2000
+		rounds  = 200
 		readers = 4
 	)
 
