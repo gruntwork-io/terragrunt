@@ -98,8 +98,7 @@ func (s *stdoutStore) removeAll(fsys vfs.FS) error {
 
 // stdoutCapture is the stdout of one call. It is a
 // [runner.UnitOutputSplitter], so each unit's output goes to a file of its own,
-// and output that belongs to no unit is dropped. A plan call's plan files go
-// under the same directory, dir.
+// and output that belongs to no unit is dropped.
 type stdoutCapture struct {
 	fsys  vfs.FS
 	units map[string]*unitStdout
@@ -142,8 +141,8 @@ func (c *stdoutCapture) close() {
 }
 
 // annotate fills in the stdout file of each unit result, and returns a note
-// for each unit whose stdout could not be written in full. units must be the
-// summary of r, which keeps r.Runs order.
+// for each unit whose stdout could not be written in full. units is the
+// summary of r, in r.Runs order.
 func (c *stdoutCapture) annotate(r *report.Report, units []runAllUnitResult) []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -172,11 +171,10 @@ func (c *stdoutCapture) annotate(r *report.Report, units []runAllUnitResult) []s
 	return notes
 }
 
-// unitStdout writes one unit's stdout, without color. The first
-// [stdoutMaxBytes] stream to a raw file. Text past that goes to a ring buffer
-// of the same size, which only a unit that outgrows the cap allocates, and
-// when the run ends the last stdoutMaxBytes of the whole text become the
-// unit's file.
+// unitStdout writes one unit's stdout, without color, and keeps the last
+// [stdoutMaxBytes] of it. The first stdoutMaxBytes stream to a raw file and
+// the rest to a ring buffer of the same size, allocated only then. When the
+// run ends the kept tail becomes the unit's file.
 //
 // A failed write does not fail the run. The error is reported alongside the
 // result.
@@ -364,7 +362,6 @@ func (b *tailBuffer) write(p []byte) {
 	b.full = b.full || n < len(p) || b.pos == 0
 }
 
-// size returns how many bytes the buffer holds.
 func (b *tailBuffer) size() int {
 	if b.full {
 		return len(b.buf)

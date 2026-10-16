@@ -927,7 +927,6 @@ func (s *recordingSplitter) ForUnit(unitPath string) io.Writer {
 	return &lockedWriter{w: buf, mu: &s.mu}
 }
 
-// lockedWriter serializes writes to w under mu.
 type lockedWriter struct {
 	w  io.Writer
 	mu *sync.Mutex

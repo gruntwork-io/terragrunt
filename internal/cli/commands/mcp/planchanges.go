@@ -12,9 +12,8 @@ import (
 
 // annotatePlanChanges fills in the plan JSON and change counts of each unit
 // result, and returns a note for each unit whose plan JSON could not be read.
-// units must be the summary of r, which keeps r.Runs order, and jsonFiles maps
-// each unit's path to its plan JSON file, which a unit whose plan failed does
-// not have.
+// units is the summary of r, in r.Runs order, and jsonFiles maps each unit's
+// path to its plan JSON file.
 func annotatePlanChanges(
 	fsys vfs.FS,
 	r *report.Report,
@@ -24,6 +23,7 @@ func annotatePlanChanges(
 	var notes []string
 
 	for i, unitRun := range r.Runs {
+		// A unit whose plan failed has no JSON file.
 		jsonFile, ok := jsonFiles[filepath.Clean(unitRun.Path)]
 		if !ok || !vfs.Exists(fsys, jsonFile) {
 			continue

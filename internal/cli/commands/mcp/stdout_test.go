@@ -42,8 +42,7 @@ type planOutput struct {
 	Degraded []string   `json:"degraded"`
 }
 
-// planWithChanges is the plan a unit with changes prints, including the bold
-// OpenTofu puts around the summary when it writes to a terminal.
+// planWithChanges is the plan a unit with changes prints to a terminal.
 const planWithChanges = "OpenTofu will perform the following actions:\n" +
 	"  # terraform_data.this will be created\n" +
 	"\x1b[1mPlan:\x1b[0m 1 to import, 2 to add, 0 to change, 1 to destroy.\n"
