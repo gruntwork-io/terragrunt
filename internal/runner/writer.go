@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"io"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // UnitOutputSplitter is a writer that gives each unit a destination of its own.
 // When the venv handed to [Runner.Run] writes to one, each unit's stdout goes to
 // the writer ForUnit returns for that unit's path, and none of it reaches the
-// shared stream.
+// shared stream. fsys is the filesystem of the venv the unit runs in.
 type UnitOutputSplitter interface {
 	io.Writer
-	ForUnit(unitPath string) io.Writer
+	ForUnit(fsys vfs.FS, unitPath string) io.Writer
 }
 
 // UnitWriter buffers output for a single unit and flushes each complete line as it
@@ -92,11 +94,11 @@ func (writer *UnitWriter) Unwrap() io.Writer {
 // unitOutput returns the writer for the stdout of the unit at unitPath. That
 // is the writer w gives the unit when w is a [UnitOutputSplitter], and w
 // itself otherwise.
-func unitOutput(w io.Writer, unitPath string) io.Writer {
+func unitOutput(fsys vfs.FS, w io.Writer, unitPath string) io.Writer {
 	splitter, ok := w.(UnitOutputSplitter)
 	if !ok {
 		return w
 	}
 
-	return splitter.ForUnit(unitPath)
+	return splitter.ForUnit(fsys, unitPath)
 }

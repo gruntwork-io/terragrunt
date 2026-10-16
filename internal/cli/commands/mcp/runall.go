@@ -144,19 +144,15 @@ func runAllCommand(
 	// regenerating .terragrunt-stack dirs would rewrite it underneath them.
 	opts.NoStackGenerate = true
 
-	capture, err := d.stdout.startRun(rootVenv.FS, command)
+	capture, err := newStdoutCapture(rootVenv.FS, d.stdoutDir, command)
 	if err != nil {
 		return runAllOutput{}, err
 	}
-
-	defer capture.close()
 
 	opts.ForwardTFStdout = true
 	opts.TerraformCliArgs.AppendFlag(tf.FlagNameNoColor)
 
 	if command == tf.CommandNamePlan {
-		// Set together, these make the runner plan each unit with -out and
-		// then run show -json on the plan file.
 		opts.OutputFolder = capture.dir
 		opts.JSONOutputFolder = capture.dir
 	}
@@ -189,16 +185,16 @@ func runAllCommand(
 		return runAllOutput{}, err
 	}
 
+	runErr := runall.RunAllOnStack(ctx, l, cv, opts, rnr, r)
+
+	capture.close(rootVenv.FS)
+
 	// A non-nil runErr with a populated report means unit failures, which
 	// the per-unit summary already carries; only fail the tool call when
 	// nothing ran at all (discovery or build failure).
-	runErr := runall.RunAllOnStack(ctx, l, cv, opts, rnr, r)
 	if runErr != nil && len(r.Runs) == 0 {
 		return runAllOutput{}, fmt.Errorf("%s failed before any unit ran: %w", command, runErr)
 	}
-
-	// annotate reads what close finishes.
-	capture.close()
 
 	out := runAllSummarize(r, dir)
 	out.Degraded = d.rec.notes()

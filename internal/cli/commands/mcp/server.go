@@ -26,10 +26,10 @@ import (
 type serverDeps struct {
 	baseOpts    *options.TerragruntOptions
 	rec         *execRecorder
-	stdout      *stdoutStore
 	runSem      chan struct{}
 	tgVersion   *semver.Version
 	launchDir   string
+	stdoutDir   string
 	allowCmds   []AllowCmd
 	approved    []string
 	approvalKey []byte
@@ -152,6 +152,11 @@ func Serve(
 		return err
 	}
 
+	stdoutDir, err := vfs.MkdirTemp(rootVenv.FS, "", "terragrunt-mcp-stdout-")
+	if err != nil {
+		return fmt.Errorf("creating the stdout directory: %w", err)
+	}
+
 	deps := &serverDeps{
 		launchDir:   launchDir,
 		baseOpts:    opts.TerragruntOptions,
@@ -165,7 +170,7 @@ func Serve(
 		approvalKey: []byte(rand.Text()),
 		refusal:     refusalStubs,
 		runSem:      make(chan struct{}, 1),
-		stdout:      &stdoutStore{},
+		stdoutDir:   stdoutDir,
 	}
 
 	srv := mcp.NewServer(&mcp.Implementation{
@@ -188,7 +193,18 @@ func Serve(
 
 	serveErr := serve(ctx, l, srv, in, out)
 
-	return errors.Join(serveErr, deps.stdout.removeAll(rootVenv.FS))
+	return errors.Join(serveErr, removeStdoutDir(rootVenv.FS, stdoutDir))
+}
+
+// removeStdoutDir removes the directory the plan, apply, and destroy tools
+// wrote each unit's stdout into. Every call's files stay until the server
+// stops.
+func removeStdoutDir(fsys vfs.FS, dir string) error {
+	if err := fsys.RemoveAll(dir); err != nil {
+		return fmt.Errorf("removing the stdout directory: %w", err)
+	}
+
+	return nil
 }
 
 // serverTerragruntVersion returns the version a unit's

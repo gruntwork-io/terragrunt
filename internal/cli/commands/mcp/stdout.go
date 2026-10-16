@@ -34,76 +34,24 @@ const (
 	stdoutTruncatedNote = "[stdout truncated: Terragrunt keeps the last %d bytes per unit]\n\n"
 )
 
-// errStdoutStoreClosed is returned when a run starts after the server began
-// removing its stdout directory.
-var errStdoutStoreClosed = errors.New("the server is shutting down")
-
-// stdoutStore creates the directory the plan, apply, and destroy tools write
-// each unit's stdout into, and the plan tool its plan files. Every call's
-// files stay until [stdoutStore.removeAll] removes the directory when the
-// server stops.
-type stdoutStore struct {
-	root   string
-	mu     sync.Mutex
-	closed bool
-}
-
-// startRun returns the writer the next call's units write their stdout
-// through. command names the call's directory.
-func (s *stdoutStore) startRun(fsys vfs.FS, command string) (*stdoutCapture, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.closed {
-		return nil, errStdoutStoreClosed
-	}
-
-	if s.root == "" {
-		root, err := vfs.MkdirTemp(fsys, "", "terragrunt-mcp-stdout-")
-		if err != nil {
-			return nil, fmt.Errorf("creating the stdout directory: %w", err)
-		}
-
-		s.root = root
-	}
-
-	dir, err := vfs.MkdirTemp(fsys, s.root, command+"-")
-	if err != nil {
-		return nil, fmt.Errorf("creating the stdout directory: %w", err)
-	}
-
-	return &stdoutCapture{fsys: fsys, dir: dir, units: map[string]*unitStdout{}}, nil
-}
-
-// removeAll removes every file the server wrote, and refuses any run that
-// starts afterwards.
-func (s *stdoutStore) removeAll(fsys vfs.FS) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.closed = true
-
-	if s.root == "" {
-		return nil
-	}
-
-	if err := fsys.RemoveAll(s.root); err != nil {
-		return fmt.Errorf("removing the stdout directory: %w", err)
-	}
-
-	s.root = ""
-
-	return nil
-}
-
 // stdoutCapture is the stdout of one call. It is a
 // [runner.UnitOutputSplitter], so each unit's output goes to a file of its own,
 // and output that belongs to no unit is dropped.
 type stdoutCapture struct {
-	fsys  vfs.FS
 	units map[string]*unitStdout
 	dir   string
 	mu    sync.Mutex
+}
+
+// newStdoutCapture creates the call's directory under root, named after
+// command, and returns the capture that writes into it.
+func newStdoutCapture(fsys vfs.FS, root, command string) (*stdoutCapture, error) {
+	dir, err := vfs.MkdirTemp(fsys, root, command+"-")
+	if err != nil {
+		return nil, fmt.Errorf("creating the stdout directory: %w", err)
+	}
+
+	return &stdoutCapture{dir: dir, units: map[string]*unitStdout{}}, nil
 }
 
 var _ runner.UnitOutputSplitter = (*stdoutCapture)(nil)
@@ -112,9 +60,10 @@ func (c *stdoutCapture) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// ForUnit returns the writer for the stdout of the unit at unitPath. Its file
-// appears when the run ends, and a unit that prints nothing has none.
-func (c *stdoutCapture) ForUnit(unitPath string) io.Writer {
+// ForUnit opens the file the stdout of the unit at unitPath streams into on
+// fsys, and returns the writer for it. The unit's file appears when the run
+// ends, and a unit that prints nothing has none.
+func (c *stdoutCapture) ForUnit(fsys vfs.FS, unitPath string) io.Writer {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -124,19 +73,19 @@ func (c *stdoutCapture) ForUnit(unitPath string) io.Writer {
 	}
 
 	name := fmt.Sprintf("%03d-%s.txt", len(c.units), stdoutFileName(filepath.Base(key)))
-	out := &unitStdout{fsys: c.fsys, path: filepath.Join(c.dir, name)}
+	out := openUnitStdout(fsys, filepath.Join(c.dir, name))
 	c.units[key] = out
 
 	return out
 }
 
 // close finishes every unit's file.
-func (c *stdoutCapture) close() {
+func (c *stdoutCapture) close(fsys vfs.FS) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	for _, out := range c.units {
-		out.close()
+		out.close(fsys)
 	}
 }
 
@@ -179,7 +128,6 @@ func (c *stdoutCapture) annotate(r *report.Report, units []runAllUnitResult) []s
 // A failed write does not fail the run. The error is reported alongside the
 // result.
 type unitStdout struct {
-	fsys    vfs.FS
 	file    vfs.File
 	tail    *tailBuffer
 	err     error
@@ -188,6 +136,23 @@ type unitStdout struct {
 	mu      sync.Mutex
 	wrote   bool
 	closed  bool
+}
+
+// openUnitStdout creates the raw file the unit's stdout streams into. path is
+// the unit's file, which replaces the raw file when the run ends. When the
+// raw file cannot be created, the writer drops what it is given and reports
+// the error with the result.
+func openUnitStdout(fsys vfs.FS, path string) *unitStdout {
+	file, err := fsys.OpenFile(
+		path+stdoutRawSuffix,
+		os.O_RDWR|os.O_CREATE|os.O_EXCL,
+		stdoutFilePerms,
+	)
+	if err != nil {
+		return &unitStdout{path: path, err: err}
+	}
+
+	return &unitStdout{file: file, path: path}
 }
 
 func (o *unitStdout) Write(p []byte) (int, error) {
@@ -211,21 +176,6 @@ func (o *unitStdout) store(text []byte) {
 	}
 
 	if o.tail == nil {
-		if o.file == nil {
-			file, err := o.fsys.OpenFile(
-				o.path+stdoutRawSuffix,
-				os.O_RDWR|os.O_CREATE|os.O_EXCL,
-				stdoutFilePerms,
-			)
-			if err != nil {
-				o.err = err
-
-				return
-			}
-
-			o.file = file
-		}
-
 		head := text
 		if room := stdoutMaxBytes - o.written; len(head) > room {
 			head = head[:room]
@@ -252,7 +202,7 @@ func (o *unitStdout) store(text []byte) {
 }
 
 // close turns the raw file into the unit's file.
-func (o *unitStdout) close() {
+func (o *unitStdout) close(fsys vfs.FS) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
@@ -266,20 +216,25 @@ func (o *unitStdout) close() {
 		return
 	}
 
-	o.err = errors.Join(o.err, o.finish())
+	o.err = errors.Join(o.err, o.finish(fsys))
 }
 
 // finish renames the raw file into place when the stdout fit in it. When it did
 // not, finish writes the kept tail to the unit's file and removes the raw file.
-func (o *unitStdout) finish() error {
+// A unit that printed nothing gets no file.
+func (o *unitStdout) finish(fsys vfs.FS) error {
 	raw := o.path + stdoutRawSuffix
+
+	if o.written == 0 {
+		return errors.Join(o.file.Close(), fsys.Remove(raw))
+	}
 
 	if o.tail == nil {
 		if err := o.file.Close(); err != nil {
 			return err
 		}
 
-		if err := o.fsys.Rename(raw, o.path); err != nil {
+		if err := fsys.Rename(raw, o.path); err != nil {
 			return err
 		}
 
@@ -288,9 +243,9 @@ func (o *unitStdout) finish() error {
 		return nil
 	}
 
-	tailErr := o.writeTail()
+	tailErr := o.writeTail(fsys)
 	closeErr := o.file.Close()
-	removeErr := o.fsys.Remove(raw)
+	removeErr := fsys.Remove(raw)
 
 	return errors.Join(tailErr, closeErr, removeErr)
 }
@@ -298,8 +253,8 @@ func (o *unitStdout) finish() error {
 // writeTail writes the note and then the last [stdoutMaxBytes] of the
 // stdout to the unit's file: the end of the raw file that the ring buffer
 // does not cover, then the ring buffer, starting on a whole line.
-func (o *unitStdout) writeTail() error {
-	file, err := o.fsys.OpenFile(o.path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, stdoutFilePerms)
+func (o *unitStdout) writeTail(fsys vfs.FS) error {
+	file, err := fsys.OpenFile(o.path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, stdoutFilePerms)
 	if err != nil {
 		return err
 	}

@@ -917,7 +917,7 @@ func (s *recordingSplitter) Write(p []byte) (int, error) {
 	return s.shared.Write(p)
 }
 
-func (s *recordingSplitter) ForUnit(unitPath string) io.Writer {
+func (s *recordingSplitter) ForUnit(_ vfs.FS, unitPath string) io.Writer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -328,7 +328,10 @@ func (rnr *Runner) Run(
 
 		for _, u := range rnr.Stack.Units {
 			planFile := u.OutputFile(stackOpts.RootWorkingDir, stackOpts.OutputFolder)
-			if err := v.FS.MkdirAll(filepath.Dir(planFile), ownerReadWriteExecutePerms); err != nil {
+			if err := v.FS.MkdirAll(
+				filepath.Dir(planFile),
+				ownerReadWriteExecutePerms,
+			); err != nil {
 				return err
 			}
 		}
@@ -461,7 +464,7 @@ func (rnr *Runner) Run(
 
 				// Wrap the writer to buffer unit-scoped output. Build a per-unit
 				// venv so the wrapped writers flow through tf and shell calls.
-				unitWriter := NewUnitWriter(unitOutput(v.Writers.Writer, unitPath))
+				unitWriter := NewUnitWriter(unitOutput(v.FS, v.Writers.Writer, unitPath))
 
 				// Per-unit mutations (e.g. SetTerragruntInputsAsEnvVars writing
 				// TF_VAR_* in run.go) must not leak across concurrent units.
@@ -677,7 +680,10 @@ func (rnr *Runner) Run(
 						// the controller captured for this unit so the report carries the
 						// failure text instead of an empty cause.
 						if unitErr := controller.UnitErr(entry.Component.Path()); unitErr != nil {
-							endOpts = append(endOpts, report.WithCauseRunError(errfmt.Format(unitErr)))
+							endOpts = append(
+								endOpts,
+								report.WithCauseRunError(errfmt.Format(unitErr)),
+							)
 						}
 					}
 

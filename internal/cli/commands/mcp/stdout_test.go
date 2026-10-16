@@ -201,6 +201,56 @@ func TestPlanWritesEachUnitsPlanToAFileOfItsOwn(t *testing.T) {
 	assert.Equal(t, fs.FileMode(0o700), info.Mode().Perm())
 }
 
+// TestPlanWritesNoFileForAUnitThatPrintsNothing pins that a unit whose plan
+// prints nothing gets no stdout file and leaves no raw file behind.
+func TestPlanWritesNoFileForAUnitThatPrintsNothing(t *testing.T) {
+	t.Parallel()
+
+	dir := newPlanTree(t, "a", "b")
+
+	v := fakePlanVenv(func(runDir string) string {
+		if unitOf(runDir, dir) == "a" {
+			return "plan of a\n" + planWithoutChanges
+		}
+
+		return ""
+	}, func(string) string { return planJSONWithoutChanges })
+
+	session := newTestSessionWith(
+		t,
+		dir,
+		v,
+		func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+		nil,
+	)
+
+	var out planOutput
+
+	callTool(t, session, "plan", map[string]any{}, &out)
+
+	a := planUnitByPath(t, out, "a")
+	b := planUnitByPath(t, out, "b")
+
+	require.FileExists(t, a.Stdout)
+	assert.Empty(t, b.Stdout, "a unit that prints nothing has no stdout file")
+	assert.Empty(t, out.Degraded)
+
+	entries, err := vfs.ReadDir(vfs.NewOSFS(), filepath.Dir(a.Stdout))
+	require.NoError(t, err)
+
+	var textFiles []string
+
+	for _, entry := range entries {
+		assert.NotEqual(t, ".raw", filepath.Ext(entry.Name()), "no raw file outlives the plan")
+
+		if filepath.Ext(entry.Name()) == ".txt" {
+			textFiles = append(textFiles, entry.Name())
+		}
+	}
+
+	assert.Equal(t, []string{filepath.Base(a.Stdout)}, textFiles)
+}
+
 // TestPlanKeepsItsFilesUntilTheServerStops pins that a plan leaves the files
 // of the plans before it alone, and that the server removes them all when it
 // stops.
@@ -212,7 +262,6 @@ func TestPlanKeepsItsFilesUntilTheServerStops(t *testing.T) {
 
 	var latest string
 
-	// Registered before the session, so it runs after the session closes.
 	t.Cleanup(func() {
 		assert.False(t, vfs.Exists(fsys, filepath.Dir(filepath.Dir(latest))),
 			"the server must remove its stdout files when it stops")

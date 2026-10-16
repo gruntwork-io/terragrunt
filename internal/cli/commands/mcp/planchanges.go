@@ -23,7 +23,6 @@ func annotatePlanChanges(
 	var notes []string
 
 	for i, unitRun := range r.Runs {
-		// A unit whose plan failed has no JSON file.
 		jsonFile, ok := jsonFiles[filepath.Clean(unitRun.Path)]
 		if !ok || !vfs.Exists(fsys, jsonFile) {
 			continue
