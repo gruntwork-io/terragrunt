@@ -1,0 +1,10 @@
+{
+  "findings": [
+    {
+      "id": "GO-2026-5932",
+      "pkg": "golang.org/x/crypto",
+      "reason": "Advisory is for golang.org/x/crypto/openpgp (unmaintained, no fixed version). No openpgp package is in the Terragrunt build graph (go list -deps ./...); only x/crypto/ssh, bcrypt, and their internals are linked.",
+      "expires": "2027-04-16"
+    }
+  ]
+}
