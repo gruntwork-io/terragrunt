@@ -1,0 +1,8 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `update_source_with_cas` works on components injected by a stack-level autoinclude
+
+CAS ignored `update_source_with_cas = true` on a `unit` or `stack` block injected by a stack-level `autoinclude` in a catalog stack, so its relative source reached the nested stack unchanged and generation failed with `relative paths require a module with a pwd`. CAS now rewrites these blocks too.

@@ -678,7 +678,7 @@ func serviceUnitCASRef(t *testing.T, root string) string {
 	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(content)
+	_, blocks, err := cas.ReadStackBlocks(content)
 	require.NoError(t, err)
 
 	for _, b := range blocks {
@@ -823,7 +823,7 @@ func TestProcessStackComponent_LocalSource_MaterializeSynthTree(t *testing.T) {
 	stackContent, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(stackContent)
+	_, blocks, err := cas.ReadStackBlocks(stackContent)
 	require.NoError(t, err)
 
 	var serviceSource string
@@ -1067,7 +1067,7 @@ func TestProcessStackComponent_LocalSource_SharedUnitTemplate(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(content)
+	_, blocks, err := cas.ReadStackBlocks(content)
 	require.NoError(t, err)
 
 	sources := map[string]string{}
@@ -1119,7 +1119,7 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(content)
+	_, blocks, err := cas.ReadStackBlocks(content)
 	require.NoError(t, err)
 
 	sources := map[string]string{}
@@ -1145,4 +1145,66 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 		sources["beta"],
 		"two stack blocks sharing one nested-stack template must resolve to the same synthetic tree",
 	)
+}
+
+// TestProcessStackComponent_LocalSource_RewritesInjectedSources pins that CAS rewrites the source of
+// a flagged block in a stack-level autoinclude and leaves a same-named unflagged top-level block alone.
+func TestProcessStackComponent_LocalSource_RewritesInjectedSources(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+
+	for rel, body := range map[string]string{
+		"units/function/terragrunt.hcl":  "",
+		"units/override/terragrunt.hcl":  "",
+		"stacks/fn/terragrunt.stack.hcl": "",
+		"stacks/wrap/terragrunt.stack.hcl": `unit "function" {
+  source = "../..//units/function"
+  path   = "function"
+}
+
+stack "fn" {
+  source                 = "../..//stacks/fn"
+  update_source_with_cas = true
+  path                   = "fn"
+
+  autoinclude {
+    unit "function" {
+      source                 = "../..//units/override"
+      update_source_with_cas = true
+      path                   = "function"
+    }
+  }
+}
+`,
+	} {
+		full := filepath.Join(root, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0o644))
+	}
+
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	result, err := c.ProcessStackComponent(t.Context(), l, v, root+"//stacks/wrap", "stack")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	_, blocks, err := cas.ReadStackBlocks(content)
+	require.NoError(t, err)
+	require.Len(t, blocks, 3)
+
+	assert.Equal(t, "../..//units/function", blocks[0].Source, "the unflagged top-level unit must stay unchanged")
+	assert.True(t, strings.HasPrefix(blocks[1].Source, cas.CASProtocolPrefix), "the stack must be rewritten")
+	assert.True(t, strings.HasPrefix(blocks[2].Source, cas.CASProtocolPrefix), "the injected unit must be rewritten")
+	assert.NotEqual(t, blocks[1].Source, blocks[2].Source)
 }

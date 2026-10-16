@@ -415,7 +415,7 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 	content, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(content)
+	_, blocks, err := cas.ReadStackBlocks(content)
 	require.NoError(t, err)
 
 	var serviceSource string
@@ -515,7 +515,7 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 	stackContent, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(stackContent)
+	_, blocks, err := cas.ReadStackBlocks(stackContent)
 	require.NoError(t, err)
 
 	var serviceSource string
