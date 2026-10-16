@@ -6,6 +6,15 @@ import (
 	"sync"
 )
 
+// UnitOutputSplitter is a writer that gives each unit a destination of its own.
+// When the venv handed to [Runner.Run] writes to one, each unit's stdout goes to
+// the writer ForUnit returns for that unit's path, and none of it reaches the
+// shared stream.
+type UnitOutputSplitter interface {
+	io.Writer
+	ForUnit(unitPath string) io.Writer
+}
+
 // UnitWriter buffers output for a single unit and flushes each complete line as it
 // arrives. Buffering keeps parallel units from interleaving their output. Flushing per
 // line keeps that output appearing during the run instead of only at the end.
@@ -78,4 +87,16 @@ func (writer *UnitWriter) Flush() error {
 // Unwrap returns the writer this [UnitWriter] wraps.
 func (writer *UnitWriter) Unwrap() io.Writer {
 	return writer.out
+}
+
+// unitOutput returns the writer for the stdout of the unit at unitPath. That
+// is the writer w gives the unit when w is a [UnitOutputSplitter], and w
+// itself otherwise.
+func unitOutput(w io.Writer, unitPath string) io.Writer {
+	splitter, ok := w.(UnitOutputSplitter)
+	if !ok {
+		return w
+	}
+
+	return splitter.ForUnit(unitPath)
 }

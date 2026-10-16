@@ -461,7 +461,7 @@ func (rnr *Runner) Run(
 
 				// Wrap the writer to buffer unit-scoped output. Build a per-unit
 				// venv so the wrapped writers flow through tf and shell calls.
-				unitWriter := NewUnitWriter(v.Writers.Writer)
+				unitWriter := NewUnitWriter(unitOutput(v.Writers.Writer, unitPath))
 
 				// Per-unit mutations (e.g. SetTerragruntInputsAsEnvVars writing
 				// TF_VAR_* in run.go) must not leak across concurrent units.
@@ -708,7 +708,12 @@ func (rnr *Runner) LogUnitDeployOrder(
 
 // logUnitDeployOrderDAG renders the queue as a DAG tree showing dependency relationships.
 // Independent units (siblings in the tree) may run concurrently.
-func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, v *venv.Venv, isDestroy bool, showAbsPaths bool) error {
+func (rnr *Runner) logUnitDeployOrderDAG(
+	l log.Logger,
+	v *venv.Venv,
+	isDestroy bool,
+	showAbsPaths bool,
+) error {
 	components := rnr.queueComponents()
 	listed := rnr.buildListedComponents(components, isDestroy, showAbsPaths)
 
@@ -824,7 +829,10 @@ func (rnr *Runner) ListStackDependentUnits() map[string][]string {
 }
 
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
-func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorScanners map[string]*SubstringScanner) {
+func (rnr *Runner) summarizePlanAllErrors(
+	l log.Logger,
+	errorScanners map[string]*SubstringScanner,
+) {
 	for _, unit := range rnr.Stack.Units {
 		scanner := errorScanners[unit.Path()]
 		if scanner == nil || !scanner.FoundAll() {

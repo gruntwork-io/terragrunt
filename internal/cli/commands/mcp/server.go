@@ -26,6 +26,7 @@ import (
 type serverDeps struct {
 	baseOpts    *options.TerragruntOptions
 	rec         *execRecorder
+	stdout      *stdoutStore
 	runSem      chan struct{}
 	tgVersion   *semver.Version
 	launchDir   string
@@ -164,6 +165,7 @@ func Serve(
 		approvalKey: []byte(rand.Text()),
 		refusal:     refusalStubs,
 		runSem:      make(chan struct{}, 1),
+		stdout:      &stdoutStore{},
 	}
 
 	srv := mcp.NewServer(&mcp.Implementation{
@@ -184,7 +186,9 @@ func Serve(
 		registerMutatingTools(srv, l, deps, rootVenv)
 	}
 
-	return serve(ctx, l, srv, in, out)
+	serveErr := serve(ctx, l, srv, in, out)
+
+	return errors.Join(serveErr, deps.stdout.removeAll(rootVenv.FS))
 }
 
 // serverTerragruntVersion returns the version a unit's

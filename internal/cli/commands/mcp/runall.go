@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"path/filepath"
 	"strings"
 
@@ -43,11 +42,15 @@ func (in runAllInput) validate() error {
 }
 
 type runAllUnitResult struct {
-	Reason     *string `json:"reason,omitempty"`
-	Cause      *string `json:"cause,omitempty"`
-	Path       string  `json:"path"`
-	Result     string  `json:"result"`
-	DurationMs int64   `json:"duration_ms"`
+	Reason          *string         `json:"reason,omitempty"`
+	Cause           *string         `json:"cause,omitempty"`
+	Changes         *tf.PlanChanges `json:"changes,omitempty"`
+	Path            string          `json:"path"`
+	Result          string          `json:"result"`
+	Stdout          string          `json:"stdout,omitempty"`
+	PlanJSON        string          `json:"plan_json,omitempty"`
+	DurationMs      int64           `json:"duration_ms"`
+	StdoutTruncated bool            `json:"stdout_truncated,omitempty"`
 }
 
 type runAllOutput struct {
@@ -64,9 +67,16 @@ func registerPlan(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *venv.V
 		Name: "plan",
 		Description: "Run 'terragrunt run --all plan' across the units under a directory and return a " +
 			"per-unit result summary (succeeded/failed/excluded, with failure causes). Use to verify a " +
-			"proposed change before a human applies it. Requires the server to be started with " +
-			"--allow=exec, and runs are serialized, so concurrent plan calls queue. This can download module " +
-			"sources, run init, and reach backends/registries.",
+			"proposed change before a human applies it. Each unit that planned has changes, the counts of " +
+			"resources to add/change/destroy/import/forget and of outputs that change, and plan_json, the " +
+			"path of the plan's JSON representation (what show -json prints), which lists every resource " +
+			"change with its before and after values, sensitive ones included. Read it to see which " +
+			"resources change and how. Each unit that printed anything has stdout, the path of a file " +
+			"with its stdout, color stripped: the plan as OpenTofu/Terraform prints it, sensitive values " +
+			"redacted. A stdout file keeps the last 8 MiB (stdout_truncated says when the start was " +
+			"cut). The files, the binary plan files among them, stay until the server stops. Requires " +
+			"the server to be started with --allow=exec, and runs are serialized, so concurrent plan " +
+			"calls queue. This can download module sources, run init, and reach backends/registries.",
 		Annotations: &mcp.ToolAnnotations{
 			// Not read-only: plan writes caches, lockfile scratch, and plan
 			// files on disk, and clients should gate it accordingly.
@@ -134,7 +144,24 @@ func runAllCommand(
 	// regenerating .terragrunt-stack dirs would rewrite it underneath them.
 	opts.NoStackGenerate = true
 
-	cv := d.callVenv(rootVenv, env, io.Discard)
+	capture, err := d.stdout.startRun(rootVenv.FS, command)
+	if err != nil {
+		return runAllOutput{}, err
+	}
+
+	defer capture.close()
+
+	opts.ForwardTFStdout = true
+	opts.TerraformCliArgs.AppendFlag(tf.FlagNameNoColor)
+
+	if command == tf.CommandNamePlan {
+		// Set together, these make the runner plan each unit with -out and
+		// then run show -json on the plan file.
+		opts.OutputFolder = capture.dir
+		opts.JSONOutputFolder = capture.dir
+	}
+
+	cv := d.callVenv(rootVenv, env, capture)
 
 	ctx = freshCallContext(ctx)
 
@@ -170,8 +197,26 @@ func runAllCommand(
 		return runAllOutput{}, fmt.Errorf("%s failed before any unit ran: %w", command, runErr)
 	}
 
+	// annotate reads what close finishes.
+	capture.close()
+
 	out := runAllSummarize(r, dir)
 	out.Degraded = d.rec.notes()
+	out.Degraded = append(out.Degraded, capture.annotate(r, out.Units)...)
+
+	if command == tf.CommandNamePlan {
+		jsonFiles := make(map[string]string, len(rnr.Stack.Units))
+		for _, u := range rnr.Stack.Units {
+			jsonFiles[filepath.Clean(u.Path())] = u.OutputJSONFile(
+				opts.RootWorkingDir,
+				opts.JSONOutputFolder,
+			)
+		}
+
+		out.Degraded = append(
+			out.Degraded,
+			annotatePlanChanges(rootVenv.FS, r, out.Units, jsonFiles)...)
+	}
 
 	return out, nil
 }
@@ -263,8 +308,11 @@ func registerMutatingTools(srv *mcp.Server, l log.Logger, d *serverDeps, rootVen
 				"can replace resources. The call does not apply anything on its own: it names the units " +
 				"it would touch and asks the person operating this client to accept, and only their " +
 				"acceptance starts the apply. It does not plan them, so call the plan tool first if you " +
-				"need to know what would change. A client that cannot ask them is refused. Runs are " +
-				"serialized, so concurrent calls queue.",
+				"need to know what would change. A client that cannot ask them is refused. Each unit that " +
+				"printed anything has stdout, the path of a file with its stdout, color stripped, with " +
+				"the apply summary and the unit's outputs, sensitive values redacted. A stdout file keeps " +
+				"the last 8 MiB (stdout_truncated says when the start was cut) and stays until the server " +
+				"stops. Runs are serialized, so concurrent calls queue.",
 		},
 		{
 			name:    "destroy",
@@ -274,7 +322,10 @@ func registerMutatingTools(srv *mcp.Server, l log.Logger, d *serverDeps, rootVen
 				"data in the resources it removes is gone. The call does not destroy anything on its own: " +
 				"it first asks the person operating this client to approve the exact set of units, and " +
 				"only their acceptance starts the destroy. A client that cannot ask them is refused. " +
-				"Narrow the blast radius with the filter argument before calling.",
+				"Narrow the blast radius with the filter argument before calling. Each unit that printed " +
+				"anything has stdout, the path of a file with its stdout, color stripped. A stdout file " +
+				"keeps the last 8 MiB (stdout_truncated says when the start was cut) and stays until the " +
+				"server stops.",
 		},
 	} {
 		mcp.AddTool(srv, &mcp.Tool{
