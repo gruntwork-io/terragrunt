@@ -179,6 +179,9 @@ export async function findMergedPRs({
  *   closed #123, fixed #456, resolved #789
  *   fixes #123, #456, #789
  *   closes https://github.com/owner/repo/issues/123
+ *
+ * Skips issue number 0, which GitHub never assigns, so the PR template's
+ * `Fixes #000.` placeholder yields no reference.
  */
 export function parseIssueReferences(
   body: string,
@@ -207,6 +210,9 @@ export function parseIssueReferences(
   }
 
   function addRef(refOwner: string, refRepo: string, refNumber: number) {
+    if (refNumber === 0) {
+      return;
+    }
     const key = `${refOwner}/${refRepo}#${refNumber}`;
     if (!seen.has(key)) {
       seen.add(key);
