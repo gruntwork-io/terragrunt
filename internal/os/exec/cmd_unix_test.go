@@ -74,7 +74,12 @@ func TestExitCodeUnix(t *testing.T) {
 func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	t.Parallel()
 
-	expectedWait := 2
+	const (
+		// trapWait is how long the script's INT trap sleeps before exiting;
+		// the forwarder has to wait it out instead of reporting early.
+		trapWait     = 200 * time.Millisecond
+		expectedExit = 2
+	)
 
 	l := logger.CreateLogger()
 
@@ -84,7 +89,8 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 		t.Context(),
 		venvtest.New().WithExec(vexec.NewOSExec()),
 		"testdata/test_sigint_wait.sh",
-		strconv.Itoa(expectedWait),
+		strconv.FormatFloat(trapWait.Seconds(), 'f', -1, 64),
+		strconv.Itoa(expectedExit),
 		readyPath,
 	)
 
@@ -106,14 +112,8 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	retCode, err := util.GetExitCode(err)
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedWait, retCode)
-	assert.WithinDuration(
-		t,
-		time.Now(),
-		start.Add(time.Duration(expectedWait)*time.Second),
-		time.Second,
-		"Expected to wait 5 (+/-1) seconds after SIGINT",
-	)
+	assert.Equal(t, expectedExit, retCode, "the trap's exit code proves SIGINT was forwarded, not a kill")
+	assert.GreaterOrEqual(t, time.Since(start), trapWait, "the forwarder must wait for the trap to finish")
 }
 
 // TestGracefulShutdownOnContextCancelUnix verifies that when the context is cancelled

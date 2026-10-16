@@ -156,7 +156,7 @@ func TestScaffoldLocalTofuModule(t *testing.T) {
 		fmt.Sprintf(
 			"terragrunt scaffold --non-interactive --working-dir %s %s",
 			tmpEnvPath,
-			helpers.FileURL(workingDir)+"//"+testScaffoldLocalTofuModulePath,
+			helpers.FileURL(filepath.Join(workingDir, testScaffoldLocalTofuModulePath)),
 		),
 	)
 	require.NoError(t, err)
@@ -205,12 +205,18 @@ func TestScaffoldLocalModule(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
+	// This is the one local test on the "//subdir" form, which copies the
+	// whole base directory before selecting the subdir, so the base is the
+	// fixture's parent and not the test tree.
+	moduleURL := helpers.FileURL(filepath.Join(workingDir, filepath.Dir(testScaffoldLocalModulePath))) +
+		"//" + filepath.Base(testScaffoldLocalModulePath)
+
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
 			"terragrunt scaffold --non-interactive --working-dir %s %s",
 			tmpEnvPath,
-			helpers.FileURL(workingDir)+"//"+testScaffoldLocalModulePath,
+			moduleURL,
 		),
 	)
 	require.NoError(t, err)
@@ -307,14 +313,15 @@ func TestScaffoldCopyRefusesToOverwrite(t *testing.T) {
 }
 
 // localScaffoldSource returns the go-getter source addressing a fixture
-// directory under the test tree.
+// directory under the test tree. It names the directory itself rather than
+// the test tree with a "//" subdir, which would copy every fixture first.
 func localScaffoldSource(t *testing.T, fixturePath string) string {
 	t.Helper()
 
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	return helpers.FileURL(workingDir) + "//" + fixturePath
+	return helpers.FileURL(filepath.Join(workingDir, fixturePath))
 }
 
 // TestScaffoldRemoteGitModuleAtRef scaffolds from a git source pinned with a
@@ -438,7 +445,7 @@ func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-shell-commands"
+	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-commands"))
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -466,7 +473,7 @@ func TestScaffoldWithShellCommandsDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-shell-commands"
+	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-commands"))
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -503,7 +510,7 @@ func TestScaffoldWithHooksEnabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-hooks"
+	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-hooks"))
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -528,7 +535,7 @@ func TestScaffoldWithHooksDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-hooks"
+	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-hooks"))
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -553,7 +560,7 @@ func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-shell-and-hooks"
+	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-and-hooks"))
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -624,7 +631,7 @@ func TestScaffoldCatalogConfigIntegration(t *testing.T) {
 		workingDir,
 		"fixtures/scaffold/catalog-config-test/terragrunt.hcl",
 	)
-	templatePath := helpers.FileURL(workingDir) + "//fixtures/scaffold/with-shell-and-hooks"
+	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-and-hooks"))
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	catalogContent, err := vfs.ReadFileAsString(vfs.NewOSFS(), catalogConfigPath)

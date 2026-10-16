@@ -337,6 +337,11 @@ remote_state {
 	assert.NotContains(t, requestedRoles, callerRoleARN)
 }
 
+// s3AccessDeniedBody is the error document S3 returns for a read the caller
+// may not make, the direct-read failure a dependency most often hits.
+const s3AccessDeniedBody = `<?xml version="1.0" encoding="UTF-8"?>` +
+	`<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`
+
 // TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput verifies fallback to native output when direct S3 read fails.
 func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T) {
 	t.Parallel()
@@ -350,7 +355,9 @@ func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T)
 		}
 
 		if strings.Contains(req.URL.Host, "s3") {
-			return vhttp.Respond(http.StatusInternalServerError, []byte("Internal Server Error"), nil)
+			// AccessDenied is not retried by the SDK, unlike a 5xx, so the
+			// fallback is reached on the first attempt.
+			return vhttp.Respond(http.StatusForbidden, []byte(s3AccessDeniedBody), nil)
 		}
 
 		return vhttp.Respond(http.StatusNotFound, nil, nil)
@@ -381,6 +388,16 @@ func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T)
 
 	outputs := recorder.outputInvocations()
 	require.Len(t, outputs, 1, "direct read failure must trigger native output retrieval")
+
+	s3Requests := 0
+
+	for _, p := range recorder.requestPaths() {
+		if strings.Contains(p, "s3.example.com") {
+			s3Requests++
+		}
+	}
+
+	assert.Equal(t, 1, s3Requests, "a denied read must not be retried before falling back")
 }
 
 func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {

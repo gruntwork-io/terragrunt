@@ -998,8 +998,11 @@ func TestContent_EnsureWithWait(t *testing.T) {
 func TestContent_ReadAsObjectAppearsWithRacing(t *testing.T) {
 	t.Parallel()
 
+	// A losing interleaving shows up within a few rounds; the race detector
+	// run this test is enrolled in reports a conflict on first contact, so
+	// more rounds add disk writes, not confidence.
 	const (
-		rounds  = 2000
+		rounds  = 200
 		readers = 4
 	)
 

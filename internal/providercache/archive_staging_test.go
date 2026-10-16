@@ -124,12 +124,18 @@ func startProviderCacheRun(t *testing.T, upstreamURL string) *providerCacheRun {
 	t.Helper()
 
 	l := logger.CreateLogger()
+
+	// Provider lock files live under the venv temp dir, so a run of its own
+	// never waits on the lock of a sibling test warming the same provider.
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir })
+
 	service := services.NewProviderService(
 		helpers.TmpDirWOSymlinks(t),
 		helpers.TmpDirWOSymlinks(t),
 		nil,
 		l,
-		venvtest.NewOSWithEmptyEnv(),
+		v,
 	)
 
 	// The pre-populated discovery cache points version and platform lookups at

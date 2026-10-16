@@ -4,18 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/cgi"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 )
 
 const (
 	serverDirMode  os.FileMode = 0o755
 	serverFileMode os.FileMode = 0o644
+
+	// fastImportEpoch is the committer time of the first commit in a
+	// fast-import stream; later commits in the stream count up from it.
+	fastImportEpoch = 1_700_000_000
 )
 
 // Server is an HTTP Git server backed by on-disk repositories.
@@ -191,12 +198,35 @@ func (s *Server) CommitEmpty(ctx context.Context, msg string) error {
 
 // CommitEmptyChain stacks count empty commits on the current HEAD and pushes
 // them together, for tests that need a history deep enough to tell a fetch of
-// one commit from a fetch of every commit. Pushing once keeps the cost of a
-// few hundred commits to one spawn each.
+// one commit from a fetch of every commit. The commits go in through one
+// fast-import stream, so a few hundred of them cost one spawn in all.
 func (s *Server) CommitEmptyChain(ctx context.Context, count int, msg string) error {
-	for range count {
-		if err := s.gitIn(ctx, s.workDir, "commit", "--allow-empty", "-m", msg); err != nil {
-			return fmt.Errorf("commit: %w", err)
+	if count > 0 {
+		head, err := s.Head(ctx)
+		if err != nil {
+			return fmt.Errorf("resolve HEAD: %w", err)
+		}
+
+		commits := make([]string, 0, count)
+
+		for i := range count {
+			commit := "commit refs/heads/main\n" +
+				"committer Test <test@example.com> " + strconv.Itoa(fastImportEpoch+i) + " +0000\n" +
+				"data " + strconv.Itoa(len(msg)) + "\n" + msg + "\n"
+
+			// Only the first commit names its parent; the rest chain on the branch.
+			if i == 0 {
+				commit += "from " + head + "\n"
+			}
+
+			commits = append(commits, commit)
+		}
+
+		cmd := s.gitCommand(ctx, s.workDir, "fast-import", "--quiet")
+		cmd.Stdin = strings.NewReader(strings.Join(commits, "\n"))
+
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("git fast-import: %w\n%s", err, strings.TrimSpace(string(out)))
 		}
 	}
 
@@ -278,6 +308,29 @@ func (s *Server) Branch(ctx context.Context, name string) error {
 // advance that branch — it will only advance main.
 func (s *Server) SetBranch(ctx context.Context, name, hash string) error {
 	return s.gitIn(ctx, s.bareDir, "update-ref", "refs/heads/"+name, hash)
+}
+
+// SetRefs points every ref in refs at its commit hash through one git
+// invocation, creating the refs that do not exist yet. Keys are full ref
+// names such as refs/tags/v1.0.0 or refs/heads/main.
+func (s *Server) SetRefs(ctx context.Context, refs map[string]string) error {
+	if len(refs) == 0 {
+		return nil
+	}
+
+	updates := make([]string, 0, len(refs))
+	for _, name := range slices.Sorted(maps.Keys(refs)) {
+		updates = append(updates, "update "+name+" "+refs[name])
+	}
+
+	cmd := s.gitCommand(ctx, s.bareDir, "update-ref", "--stdin")
+	cmd.Stdin = strings.NewReader(strings.Join(updates, "\n") + "\n")
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git update-ref --stdin: %w\n%s", err, strings.TrimSpace(string(out)))
+	}
+
+	return nil
 }
 
 // SetConfig writes a config value into the served bare repository. The CGI

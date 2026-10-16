@@ -1,13 +1,18 @@
 package test_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,23 +21,50 @@ const (
 	testFixtureReportPath = "fixtures/report"
 )
 
+// TestTerragruntReportDisableSummary pins that --summary-disable drops the
+// run summary a run --all prints by default. Only the summary gate is under
+// test, so the run is in memory with a stand-in OpenTofu that answers every
+// call with success.
 func TestTerragruntReportDisableSummary(t *testing.T) {
 	t.Parallel()
 
-	// Set up test environment
-	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
+	testCases := []struct {
+		name        string
+		flag        string
+		wantSummary bool
+	}{
+		{name: "summary printed by default", wantSummary: true},
+		{name: "summary disabled", flag: " --summary-disable"},
+	}
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run --all apply --non-interactive --working-dir "+
-			rootPath+" --summary-disable",
-	)
-	require.Error(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Verify the report output does not contain the summary
-	assert.NotContains(t, stdout, "Run Summary")
+			root := venvtest.Root("/repo")
+			v := venvtest.New().
+				WithFS(venvtest.NewFS(t, root, map[string]string{
+					filepath.Join("unit", "terragrunt.hcl"): "",
+					filepath.Join("unit", "main.tf"):        "",
+				})).
+				WithExec(vexec.NewMemExec(reportStubExec(root), vexec.WithLookPath(reportStubLookPath)))
+
+			stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+				t,
+				v,
+				"terragrunt run --all plan --non-interactive --working-dir "+root+tc.flag,
+			)
+			require.NoError(t, err)
+
+			if tc.wantSummary {
+				assert.Contains(t, stdout, "Run Summary", "a run --all prints the summary unless told not to")
+
+				return
+			}
+
+			assert.NotContains(t, stdout, "Run Summary", "--summary-disable must drop the summary")
+		})
+	}
 }
 
 // lineType represents the type of line we're processing
@@ -124,4 +156,29 @@ func createReportTestUnit(t *testing.T, dir, comment string) {
 
 	err = os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`# Minimal terraform config`), 0644)
 	require.NoError(t, err)
+}
+
+// reportStubExec answers the subprocesses a run --all plan makes: a version
+// for OpenTofu, the repository root for git, and success for everything else.
+func reportStubExec(root string) vexec.Handler {
+	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		name := filepath.Base(inv.Name)
+
+		switch {
+		case (name == "tofu" || name == "terraform") && slices.ContainsFunc(inv.Args, isReportVersionArg):
+			return vexec.Result{Stdout: []byte("OpenTofu v1.10.0\non linux_amd64\n")}
+		case name == "git" && slices.Contains(inv.Args, "--show-toplevel"):
+			return vexec.Result{Stdout: []byte(root + "\n")}
+		}
+
+		return vexec.Result{}
+	}
+}
+
+func reportStubLookPath(file string) (string, error) {
+	return "/usr/bin/" + file, nil
+}
+
+func isReportVersionArg(arg string) bool {
+	return arg == tf.FlagNameVersion || arg == tf.CommandNameVersion
 }

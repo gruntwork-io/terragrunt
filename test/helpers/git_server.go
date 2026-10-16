@@ -356,28 +356,20 @@ func (s *GitServer) RequireSSH() {
 	))
 }
 
-// retagLocked moves every tag and branch to the current HEAD. The caller
-// must hold s.mu.
+// retagLocked moves every tag and branch to s.headSHA in one git call. The
+// caller must hold s.mu and have refreshed s.headSHA.
 func (s *GitServer) retagLocked() error {
-	ctx := s.t.Context()
+	refs := make(map[string]string, len(TerragruntMirrorTags)+len(TerragruntMirrorBranches))
 
 	for _, tag := range TerragruntMirrorTags {
-		if err := s.httpServer.DeleteTag(ctx, tag); err != nil {
-			return fmt.Errorf("delete tag %s: %w", tag, err)
-		}
-
-		if err := s.httpServer.Tag(ctx, tag); err != nil {
-			return fmt.Errorf("tag %s: %w", tag, err)
-		}
+		refs["refs/tags/"+tag] = s.headSHA
 	}
 
 	for _, branch := range TerragruntMirrorBranches {
-		if err := s.httpServer.Branch(ctx, branch); err != nil {
-			return fmt.Errorf("branch %s: %w", branch, err)
-		}
+		refs["refs/heads/"+branch] = s.headSHA
 	}
 
-	return nil
+	return s.httpServer.SetRefs(s.t.Context(), refs)
 }
 
 // committedDirsLocked returns the served fixture directories in sorted

@@ -2,6 +2,7 @@ package md_test
 
 import (
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -128,6 +129,29 @@ func FuzzRender(f *testing.F) {
 	f.Add("# VPC\n", 1)
 	f.Add(strings.Repeat("word ", 128), md.NoWrapWidth)
 
+	// Building a renderer costs more than rendering a seed, so each width is
+	// built once. A renderer carries state across renders, so the lock keeps
+	// them sequential, as the TUIs do with the one renderer they hold.
+	var (
+		renderersMu sync.Mutex
+		renderers   = map[int]*md.TerminalRenderer{}
+	)
+
+	rendererFor := func(t *testing.T, width int) *md.TerminalRenderer {
+		t.Helper()
+
+		if renderer, ok := renderers[width]; ok {
+			return renderer
+		}
+
+		renderer, err := md.NewTerminalRenderer(width, md.DarkBackground)
+		require.NoError(t, err)
+
+		renderers[width] = renderer
+
+		return renderer
+	}
+
 	f.Fuzz(func(t *testing.T, source string, width int) {
 		// A width the renderer cannot lay a document out in is the caller's
 		// error to make, not the fuzzer's to find; the TUIs pass the pane they
@@ -141,10 +165,10 @@ func FuzzRender(f *testing.F) {
 		// through, so what is fuzzed here is what a renderer actually sees.
 		source = strings.ToValidUTF8(strings.ReplaceAll(source, "\x1b", ""), "�")
 
-		renderer, err := md.NewTerminalRenderer(width, md.DarkBackground)
-		require.NoError(t, err)
+		renderersMu.Lock()
+		defer renderersMu.Unlock()
 
-		_, err = renderer.Render(source)
+		_, err := rendererFor(t, width).Render(source)
 		require.NoError(t, err)
 	})
 }
