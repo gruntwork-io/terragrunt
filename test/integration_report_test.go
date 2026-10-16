@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -42,18 +43,15 @@ func TestTerragruntReportDisableSummary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var planRuns atomic.Int32
-
 			root := venvtest.Root("/repo")
+			stub := &reportStub{root: root, planExit: tc.planExit}
+
 			v := venvtest.New().
 				WithFS(venvtest.NewFS(t, root, map[string]string{
 					filepath.Join("unit", "terragrunt.hcl"): "",
 					filepath.Join("unit", "main.tf"):        "",
 				})).
-				WithExec(vexec.NewMemExec(
-					reportStubExec(root, tc.planExit, &planRuns),
-					vexec.WithLookPath(reportStubLookPath),
-				))
+				WithExec(vexec.NewMemExec(stub.handler(), vexec.WithLookPath(reportStubLookPath)))
 
 			stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 				t,
@@ -68,7 +66,8 @@ func TestTerragruntReportDisableSummary(t *testing.T) {
 				require.Error(t, err, "a failing plan must fail the run")
 			}
 
-			assert.Equal(t, int32(1), planRuns.Load(), "the unit's plan must have run for the summary to describe it")
+			assert.Empty(t, stub.unexpectedCommands(), "the run must only spawn the commands the stub models")
+			assert.Equal(t, int32(1), stub.planRuns.Load(), "the unit's plan must have run for the summary to describe it")
 
 			if tc.wantSummary {
 				assert.Contains(t, stdout, "Run Summary", "a run --all prints the summary unless told not to")
@@ -172,8 +171,17 @@ func createReportTestUnit(t *testing.T, dir, comment string) {
 	require.NoError(t, err)
 }
 
-// reportStubExec stands in for OpenTofu and git; plan exits with planExit and is counted in planRuns.
-func reportStubExec(root string, planExit int, planRuns *atomic.Int32) vexec.Handler {
+// reportStub stands in for OpenTofu and git, counts plan runs, and records every command it does not model.
+type reportStub struct {
+	root       string
+	unexpected []string
+	mu         sync.Mutex
+	planExit   int
+	planRuns   atomic.Int32
+}
+
+// handler answers the modeled commands and fails any other one, so a new subprocess shows up in the test.
+func (s *reportStub) handler() vexec.Handler {
 	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		name := filepath.Base(inv.Name)
 		isTofu := name == "tofu" || name == "terraform"
@@ -181,16 +189,32 @@ func reportStubExec(root string, planExit int, planRuns *atomic.Int32) vexec.Han
 		switch {
 		case isTofu && slices.ContainsFunc(inv.Args, isReportVersionArg):
 			return vexec.Result{Stdout: []byte("OpenTofu v1.10.0\non linux_amd64\n")}
+		case isTofu && slices.Contains(inv.Args, tf.CommandNameInit):
+			return vexec.Result{}
 		case isTofu && slices.Contains(inv.Args, tf.CommandNamePlan):
-			planRuns.Add(1)
+			s.planRuns.Add(1)
 
-			return vexec.Result{ExitCode: planExit}
+			return vexec.Result{ExitCode: s.planExit}
 		case name == "git" && slices.Contains(inv.Args, "--show-toplevel"):
-			return vexec.Result{Stdout: []byte(root + "\n")}
+			return vexec.Result{Stdout: []byte(s.root + "\n")}
 		}
 
-		return vexec.Result{}
+		command := name + " " + strings.Join(inv.Args, " ")
+
+		s.mu.Lock()
+		s.unexpected = append(s.unexpected, command)
+		s.mu.Unlock()
+
+		return vexec.Result{ExitCode: 1, Stderr: []byte("unexpected subprocess: " + command + "\n")}
 	}
+}
+
+// unexpectedCommands returns every command the stub refused, in call order.
+func (s *reportStub) unexpectedCommands() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.unexpected)
 }
 
 func reportStubLookPath(file string) (string, error) {
