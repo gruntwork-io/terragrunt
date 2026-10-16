@@ -337,8 +337,7 @@ remote_state {
 	assert.NotContains(t, requestedRoles, callerRoleARN)
 }
 
-// s3AccessDeniedBody is the error document S3 returns for a read the caller
-// may not make, the direct-read failure a dependency most often hits.
+// s3AccessDeniedBody is the S3 error body for a read the caller may not make.
 const s3AccessDeniedBody = `<?xml version="1.0" encoding="UTF-8"?>` +
 	`<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`
 
@@ -355,8 +354,7 @@ func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T)
 		}
 
 		if strings.Contains(req.URL.Host, "s3") {
-			// AccessDenied is not retried by the SDK, unlike a 5xx, so the
-			// fallback is reached on the first attempt.
+			// AccessDenied is not retried, so the fallback runs on the first attempt.
 			return vhttp.Respond(http.StatusForbidden, []byte(s3AccessDeniedBody), nil)
 		}
 

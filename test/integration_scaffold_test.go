@@ -205,9 +205,7 @@ func TestScaffoldLocalModule(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	// This is the one local test on the "//subdir" form, which copies the
-	// whole base directory before selecting the subdir, so the base is the
-	// fixture's parent and not the test tree.
+	// The one test of the "//subdir" form; its base is the fixture parent, not the whole test tree.
 	moduleURL := helpers.FileURL(filepath.Join(workingDir, filepath.Dir(testScaffoldLocalModulePath))) +
 		"//" + filepath.Base(testScaffoldLocalModulePath)
 
@@ -312,9 +310,7 @@ func TestScaffoldCopyRefusesToOverwrite(t *testing.T) {
 	assert.Equal(t, "# mine\n", got)
 }
 
-// localScaffoldSource returns the go-getter source addressing a fixture
-// directory under the test tree. It names the directory itself rather than
-// the test tree with a "//" subdir, which would copy every fixture first.
+// localScaffoldSource returns a file source naming the fixture directory itself.
 func localScaffoldSource(t *testing.T, fixturePath string) string {
 	t.Helper()
 

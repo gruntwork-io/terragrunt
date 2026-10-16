@@ -121,8 +121,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
-	// Provider lock files live under the venv temp dir, so this test never
-	// waits on the lock of a sibling test warming the same provider.
+	// A temp dir of its own keeps the provider lock file away from the sibling test.
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir })
 

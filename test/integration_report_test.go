@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -21,25 +22,27 @@ const (
 	testFixtureReportPath = "fixtures/report"
 )
 
-// TestTerragruntReportDisableSummary pins that --summary-disable drops the
-// run summary a run --all prints by default. Only the summary gate is under
-// test, so the run is in memory with a stand-in OpenTofu that answers every
-// call with success.
+// TestTerragruntReportDisableSummary pins that --summary-disable drops the run summary, pass or fail.
 func TestTerragruntReportDisableSummary(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name        string
 		flag        string
+		planExit    int
 		wantSummary bool
 	}{
-		{name: "summary printed by default", wantSummary: true},
-		{name: "summary disabled", flag: " --summary-disable"},
+		{name: "summary printed after a passing run", wantSummary: true},
+		{name: "summary printed after a failing run", planExit: 1, wantSummary: true},
+		{name: "summary disabled after a passing run", flag: " --summary-disable"},
+		{name: "summary disabled after a failing run", flag: " --summary-disable", planExit: 1},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			var planRuns atomic.Int32
 
 			root := venvtest.Root("/repo")
 			v := venvtest.New().
@@ -47,14 +50,25 @@ func TestTerragruntReportDisableSummary(t *testing.T) {
 					filepath.Join("unit", "terragrunt.hcl"): "",
 					filepath.Join("unit", "main.tf"):        "",
 				})).
-				WithExec(vexec.NewMemExec(reportStubExec(root), vexec.WithLookPath(reportStubLookPath)))
+				WithExec(vexec.NewMemExec(
+					reportStubExec(root, tc.planExit, &planRuns),
+					vexec.WithLookPath(reportStubLookPath),
+				))
 
 			stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 				t,
 				v,
 				"terragrunt run --all plan --non-interactive --working-dir "+root+tc.flag,
 			)
-			require.NoError(t, err)
+
+			switch tc.planExit {
+			case 0:
+				require.NoError(t, err)
+			default:
+				require.Error(t, err, "a failing plan must fail the run")
+			}
+
+			assert.Equal(t, int32(1), planRuns.Load(), "the unit's plan must have run for the summary to describe it")
 
 			if tc.wantSummary {
 				assert.Contains(t, stdout, "Run Summary", "a run --all prints the summary unless told not to")
@@ -158,15 +172,19 @@ func createReportTestUnit(t *testing.T, dir, comment string) {
 	require.NoError(t, err)
 }
 
-// reportStubExec answers the subprocesses a run --all plan makes: a version
-// for OpenTofu, the repository root for git, and success for everything else.
-func reportStubExec(root string) vexec.Handler {
+// reportStubExec stands in for OpenTofu and git; plan exits with planExit and is counted in planRuns.
+func reportStubExec(root string, planExit int, planRuns *atomic.Int32) vexec.Handler {
 	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		name := filepath.Base(inv.Name)
+		isTofu := name == "tofu" || name == "terraform"
 
 		switch {
-		case (name == "tofu" || name == "terraform") && slices.ContainsFunc(inv.Args, isReportVersionArg):
+		case isTofu && slices.ContainsFunc(inv.Args, isReportVersionArg):
 			return vexec.Result{Stdout: []byte("OpenTofu v1.10.0\non linux_amd64\n")}
+		case isTofu && slices.Contains(inv.Args, tf.CommandNamePlan):
+			planRuns.Add(1)
+
+			return vexec.Result{ExitCode: planExit}
 		case name == "git" && slices.Contains(inv.Args, "--show-toplevel"):
 			return vexec.Result{Stdout: []byte(root + "\n")}
 		}

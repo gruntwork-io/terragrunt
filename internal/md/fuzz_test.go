@@ -129,9 +129,9 @@ func FuzzRender(f *testing.F) {
 	f.Add("# VPC\n", 1)
 	f.Add(strings.Repeat("word ", 128), md.NoWrapWidth)
 
-	// Building a renderer costs more than rendering a seed, so each width is
-	// built once. A renderer carries state across renders, so the lock keeps
-	// them sequential, as the TUIs do with the one renderer they hold.
+	// Cache one renderer per width, capped, and lock around use since a renderer keeps state.
+	const maxCachedRenderers = 16
+
 	var (
 		renderersMu sync.Mutex
 		renderers   = map[int]*md.TerminalRenderer{}
@@ -147,7 +147,9 @@ func FuzzRender(f *testing.F) {
 		renderer, err := md.NewTerminalRenderer(width, md.DarkBackground)
 		require.NoError(t, err)
 
-		renderers[width] = renderer
+		if len(renderers) < maxCachedRenderers {
+			renderers[width] = renderer
+		}
 
 		return renderer
 	}

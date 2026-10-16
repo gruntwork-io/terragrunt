@@ -20,8 +20,7 @@ const (
 	serverDirMode  os.FileMode = 0o755
 	serverFileMode os.FileMode = 0o644
 
-	// fastImportEpoch is the committer time of the first commit in a
-	// fast-import stream; later commits in the stream count up from it.
+	// fastImportEpoch is the committer time of the first fast-import commit; later ones count up from it.
 	fastImportEpoch = 1_700_000_000
 )
 
@@ -196,10 +195,7 @@ func (s *Server) CommitEmpty(ctx context.Context, msg string) error {
 	return s.push(ctx)
 }
 
-// CommitEmptyChain stacks count empty commits on the current HEAD and pushes
-// them together, for tests that need a history deep enough to tell a fetch of
-// one commit from a fetch of every commit. The commits go in through one
-// fast-import stream, so a few hundred of them cost one spawn in all.
+// CommitEmptyChain adds count empty commits on HEAD through one fast-import run and pushes them.
 func (s *Server) CommitEmptyChain(ctx context.Context, count int, msg string) error {
 	if count > 0 {
 		head, err := s.Head(ctx)
@@ -310,9 +306,7 @@ func (s *Server) SetBranch(ctx context.Context, name, hash string) error {
 	return s.gitIn(ctx, s.bareDir, "update-ref", "refs/heads/"+name, hash)
 }
 
-// SetRefs points every ref in refs at its commit hash through one git
-// invocation, creating the refs that do not exist yet. Keys are full ref
-// names such as refs/tags/v1.0.0 or refs/heads/main.
+// SetRefs points each full ref name in refs at its hash with one git update-ref call.
 func (s *Server) SetRefs(ctx context.Context, refs map[string]string) error {
 	if len(refs) == 0 {
 		return nil

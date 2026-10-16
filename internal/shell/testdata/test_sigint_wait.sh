@@ -2,8 +2,7 @@
 
 set -e
 
-# The trap sleeps for WAIT_TIME so the caller can see it waited, then exits
-# with EXIT_CODE so the caller can tell a handled signal from a kill.
+# The INT trap sleeps WAIT_TIME then exits with EXIT_CODE, so the caller can check both.
 WAIT_TIME=$1
 EXIT_CODE=$2
 READY_FILE=$3

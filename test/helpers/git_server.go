@@ -356,8 +356,7 @@ func (s *GitServer) RequireSSH() {
 	))
 }
 
-// retagLocked moves every tag and branch to s.headSHA in one git call. The
-// caller must hold s.mu and have refreshed s.headSHA.
+// retagLocked points every tag and branch at s.headSHA in one git call; the caller holds s.mu.
 func (s *GitServer) retagLocked() error {
 	refs := make(map[string]string, len(TerragruntMirrorTags)+len(TerragruntMirrorBranches))
 

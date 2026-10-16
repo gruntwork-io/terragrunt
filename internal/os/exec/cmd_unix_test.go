@@ -75,8 +75,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	t.Parallel()
 
 	const (
-		// trapWait is how long the script's INT trap sleeps before exiting;
-		// the forwarder has to wait it out instead of reporting early.
+		// trapWait is how long the INT trap sleeps before exiting, and the forwarder must wait it out.
 		trapWait     = 200 * time.Millisecond
 		expectedExit = 2
 	)

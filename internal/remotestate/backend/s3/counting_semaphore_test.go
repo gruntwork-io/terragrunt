@@ -27,8 +27,7 @@ func TestAWSCountingSemaphoreHappyPath(t *testing.T) {
 func TestAWSCountingSemaphoreConcurrency(t *testing.T) {
 	t.Parallel()
 
-	// The random sleeps stand in for work; in the bubble they cost no wall
-	// time and still interleave the goroutines.
+	// Inside the bubble the random sleeps cost no wall time.
 	synctest.Test(t, func(t *testing.T) {
 		permits := 10
 		goroutines := 100

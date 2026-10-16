@@ -125,8 +125,7 @@ func startProviderCacheRun(t *testing.T, upstreamURL string) *providerCacheRun {
 
 	l := logger.CreateLogger()
 
-	// Provider lock files live under the venv temp dir, so a run of its own
-	// never waits on the lock of a sibling test warming the same provider.
+	// A temp dir of its own keeps the provider lock file away from the sibling test.
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir })
 
