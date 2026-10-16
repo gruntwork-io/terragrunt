@@ -52,6 +52,26 @@ func TestTFDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
 	}
 }
 
+// Inputs that reference skipped dependency outputs must stay unset instead of
+// being passed as empty strings, which are invalid for typed variables.
+func TestTFDependencyOutputSkipDependencyOutputsFlagTypedInputs(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNoDependencyOutputs)
+
+	for _, cmd := range []string{"init", "validate", "plan"} {
+		t.Run(cmd, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoDependencyOutputs)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureNoDependencyOutputs)
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --no-dependency-outputs --non-interactive --working-dir "+rootPath+" -- "+cmd)
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestTFDependencyOutputSkipDependencyOutputsFlagWithApplyAndDestroy(t *testing.T) {
 	t.Parallel()
 
@@ -67,9 +87,12 @@ func TestTFDependencyOutputSkipDependencyOutputsFlagWithApplyAndDestroy(t *testi
 			args: " --no-dependency-outputs",
 			want: map[string]string{
 				"dep":               "real",
-				"consumer":          "",
+				"consumer":          "unset",
+				"explicit-null":     "null",
 				"mocks-allowed":     "mocked",
-				"mocks-not-allowed": "",
+				"mocks-not-allowed": "unset",
+				"partial":           "fallback",
+				"typed":             "fallback",
 			},
 		},
 		{
@@ -77,8 +100,11 @@ func TestTFDependencyOutputSkipDependencyOutputsFlagWithApplyAndDestroy(t *testi
 			want: map[string]string{
 				"dep":               "real",
 				"consumer":          "real",
+				"explicit-null":     "null",
 				"mocks-allowed":     "real",
 				"mocks-not-allowed": "real",
+				"partial":           "real",
+				"typed":             "static,10.0.0.1,10.0.0.2",
 			},
 		},
 	}

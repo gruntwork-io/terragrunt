@@ -30,6 +30,7 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 		moduleFiles    map[string]string
 		expected       map[string]string
 		description    string
+		skippedInputs  []string
 	}{
 		{
 			description:    "No env vars in opts, no inputs",
@@ -122,13 +123,25 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 			moduleFiles:    map[string]string{"main.tf": `variable "foo" {`},
 			expected:       map[string]string{"TF_VAR_foo": `{"a": "${b}"}`},
 		},
+		{
+			description:    "skipped inputs are left unset, including partially known containers",
+			inputsInConfig: map[string]any{"foo": "bar", "partial": []any{nil}, "whole": nil},
+			skippedInputs:  []string{"partial", "whole"},
+			expected:       map[string]string{"TF_VAR_foo": "bar"},
+		},
+		{
+			description:    "skipped input name absent from inputs is ignored",
+			inputsInConfig: map[string]any{"foo": "bar"},
+			skippedInputs:  []string{"gone"},
+			expected:       map[string]string{"TF_VAR_foo": "bar"},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := &runcfg.RunConfig{Inputs: tc.inputsInConfig}
+			cfg := &runcfg.RunConfig{Inputs: tc.inputsInConfig, SkippedInputs: tc.skippedInputs}
 
 			// Clone envVarsInOpts so the assertion observes the merge result
 			// rather than the test-table fixture, which is shared across cases.

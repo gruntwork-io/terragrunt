@@ -83,6 +83,70 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 	}
 }
 
+func TestUpdateUnknownCtyValValuesToNull(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		value         cty.Value
+		expectedValue cty.Value
+		name          string
+	}{
+		{
+			name:          "wholly unknown value",
+			value:         cty.UnknownVal(cty.List(cty.String)),
+			expectedValue: cty.NullVal(cty.String),
+		},
+		{
+			name:          "dynamic value",
+			value:         cty.DynamicVal,
+			expectedValue: cty.NullVal(cty.String),
+		},
+		{
+			name: "unknown nested in object",
+			value: cty.ObjectVal(map[string]cty.Value{
+				"known":   cty.StringVal("foo"),
+				"unknown": cty.UnknownVal(cty.String),
+			}),
+			expectedValue: cty.ObjectVal(map[string]cty.Value{
+				"known":   cty.StringVal("foo"),
+				"unknown": cty.NullVal(cty.String),
+			}),
+		},
+		{
+			name: "unknown nested in tuple",
+			value: cty.TupleVal([]cty.Value{
+				cty.StringVal("foo"),
+				cty.UnknownVal(cty.String),
+			}),
+			expectedValue: cty.TupleVal([]cty.Value{
+				cty.StringVal("foo"),
+				cty.NullVal(cty.String),
+			}),
+		},
+		{
+			name:          "wholly known value untouched",
+			value:         cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("value")}),
+			expectedValue: cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("value")}),
+		},
+		{
+			name:          "null value untouched",
+			value:         cty.NullVal(cty.List(cty.String)),
+			expectedValue: cty.NullVal(cty.List(cty.String)),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actualValue, err := ctyhelper.UpdateUnknownCtyValValuesToNull(tc.value)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedValue, actualValue)
+		})
+	}
+}
+
 func TestValidateNumberRanges(t *testing.T) {
 	t.Parallel()
 
