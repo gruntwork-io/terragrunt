@@ -20,4 +20,6 @@ type ProviderCacheOptions struct {
 	RegistryNames []string
 	Port          int
 	Enabled       bool
+	// NoAutoCacheDir disables the automatic TF_PLUGIN_CACHE_DIR setup on run paths.
+	NoAutoCacheDir bool
 }

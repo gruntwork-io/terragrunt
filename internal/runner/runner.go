@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 
@@ -522,6 +523,11 @@ func (rnr *Runner) Run(
 
 				if !unitOpts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
 					unitOpts.TFPath = cfg.TerraformBinary
+				}
+
+				// Runs against the unit's cloned environment and resolved binary, so mixed stacks get per-unit decisions.
+				if err := prepare.SetupAutoProviderCacheDir(childCtx, unitLogger, unitV, unitOpts); err != nil {
+					unitLogger.Debugf("Auto provider cache dir setup failed for unit %s: %v", unitPath, err)
 				}
 
 				discoveryCtx := u.DiscoveryContext()
