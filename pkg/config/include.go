@@ -386,6 +386,10 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
 			}
 
+			if sourceConfig.Terraform.NoDotTerragruntCache != nil {
+				cfg.Terraform.NoDotTerragruntCache = sourceConfig.Terraform.NoDotTerragruntCache
+			}
+
 			mergeExtraArgs(l, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
 			mergeHooks(l, sourceConfig.Terraform.BeforeHooks, &cfg.Terraform.BeforeHooks)
@@ -583,6 +587,10 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
 				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
+			}
+
+			if sourceConfig.Terraform.NoDotTerragruntCache != nil {
+				cfg.Terraform.NoDotTerragruntCache = sourceConfig.Terraform.NoDotTerragruntCache
 			}
 
 			if sourceConfig.Terraform.IncludeInCopy != nil {

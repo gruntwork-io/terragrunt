@@ -310,6 +310,100 @@ func TestGetTerraformSourceURL(t *testing.T) {
 	}
 }
 
+func TestShouldSkipCache(t *testing.T) {
+	t.Parallel()
+
+	const externalSource = "git::ssh://git@github.com/org/repo.git"
+
+	testCases := []struct {
+		cfg               *runcfg.RunConfig
+		name              string
+		source            string
+		expectedErrSource string
+		noCacheEnabled    bool
+		expectedSkip      bool
+	}{
+		{
+			name:           "experiment disabled keeps cache even when no_dot_terragrunt_cache is set",
+			noCacheEnabled: false,
+			cfg:            &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}},
+			expectedSkip:   false,
+		},
+		{
+			name:           "no_dot_terragrunt_cache unset keeps cache",
+			noCacheEnabled: true,
+			cfg:            &runcfg.RunConfig{},
+			expectedSkip:   false,
+		},
+		{
+			name:           "nil config keeps cache",
+			noCacheEnabled: true,
+			cfg:            nil,
+			expectedSkip:   false,
+		},
+		{
+			name:           "no_dot_terragrunt_cache with no source skips cache",
+			noCacheEnabled: true,
+			cfg:            &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}},
+			expectedSkip:   true,
+		},
+		{
+			name:           "no_dot_terragrunt_cache with config source errors",
+			noCacheEnabled: true,
+			cfg: &runcfg.RunConfig{
+				Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true, Source: externalSource},
+			},
+			expectedErrSource: externalSource,
+		},
+		{
+			name:              "no_dot_terragrunt_cache with CLI source errors",
+			noCacheEnabled:    true,
+			source:            externalSource,
+			cfg:               &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}},
+			expectedErrSource: externalSource,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			skip, err := runcfg.ShouldSkipCache(tc.noCacheEnabled, tc.source, tc.cfg)
+
+			if tc.expectedErrSource != "" {
+				var noCacheErr runcfg.NoDotTerragruntCacheWithSourceError
+				require.ErrorAs(t, err, &noCacheErr)
+				assert.Equal(t, tc.expectedErrSource, noCacheErr.Source)
+				assert.False(t, skip)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedSkip, skip)
+		})
+	}
+}
+
+func TestNoDotTerragruntCacheWithSourceError(t *testing.T) {
+	t.Parallel()
+
+	const rawSource = "git::https://user:ghp_SECRETTOKEN@github.com/org/repo.git"
+
+	err := runcfg.NoDotTerragruntCacheWithSourceError{Source: rawSource}
+
+	var target runcfg.NoDotTerragruntCacheWithSourceError
+	require.ErrorAs(t, err, &target)
+	assert.Equal(t, rawSource, target.Source, "raw source is preserved for callers that inspect it")
+
+	errorMsg := err.Error()
+	assert.NotContains(t, errorMsg, "ghp_SECRETTOKEN", "credentials must not leak into the error message")
+	assert.NotContains(t, errorMsg, "user:")
+	assert.Contains(t, errorMsg, "github.com/org/repo.git")
+	assert.Contains(t, errorMsg, "no_dot_terragrunt_cache")
+	assert.Contains(t, errorMsg, "Remove the source")
+}
+
 func TestInvalidSourceURLWithMapError(t *testing.T) {
 	t.Parallel()
 
