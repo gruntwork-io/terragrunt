@@ -3,11 +3,14 @@
 package test_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +24,7 @@ const (
 	testFixtureRunCmdModuleGlobalB    = "fixtures/run-cmd-flags/module-global-cache-b"
 	testFixtureRunCmdModuleNoCache    = "fixtures/run-cmd-flags/module-no-cache"
 	testFixtureRunCmdModuleConflict   = "fixtures/run-cmd-flags/module-conflict"
+	testFixtureRunCmdSharedFile       = "fixtures/run-cmd-shared-file"
 	runCmdSecretValue                 = "TOP_SECRET_TOKEN"
 	expectedGlobalCachedValue         = "global-value-1"
 	unexpectedGlobalCachedSecondValue = "global-value-2"
@@ -109,4 +113,49 @@ func TestTFRunCmdNoCacheSkipsCachedValue(t *testing.T) {
 
 	assert.Contains(t, result.stderr, "run_cmd output: ["+expectedNoCacheFirstValue+"]")
 	assert.NotContains(t, result.stderr, "run_cmd, cached output: ["+expectedNoCacheFirstValue+"]")
+}
+
+// TestTFRunCmdSharedFileKeysOnUnitEnvAndArgv pins the run_cmd cache key across
+// a `run --all`: two units read one shared file, so its run_cmd calls evaluate
+// under the same directory, while --auth-provider-cmd hands each unit its own
+// credentials. Each unit must see the value its own environment produced, and
+// two commands whose argv differ only in element boundaries must not share one
+// cache entry.
+func TestTFRunCmdSharedFileKeysOnUnitEnvAndArgv(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureRunCmdSharedFile)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunCmdSharedFile)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRunCmdSharedFile)
+	mockAuthCmd := filepath.Join(rootPath, "mock-auth-cmd.sh")
+
+	helpers.ValidateAuthProviderScript(t, venv.OSVenv(), rootPath, mockAuthCmd)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --working-dir %s --auth-provider-cmd %s -- apply -auto-approve",
+			rootPath,
+			mockAuthCmd,
+		),
+	)
+
+	for _, unit := range []string{"unit-a", "unit-b"} {
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			fmt.Sprintf(
+				"terragrunt run --non-interactive --working-dir %s --auth-provider-cmd %s -- output -json",
+				filepath.Join(rootPath, unit),
+				mockAuthCmd,
+			),
+		)
+		require.NoError(t, err)
+
+		outputs := map[string]helpers.TerraformOutput{}
+		require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+		assert.Equal(t, "acct-"+unit, outputs["account"].Value, "%s must get the value its own credentials produced", unit)
+		assert.Equal(t, "x y|", outputs["joined"].Value)
+		assert.Equal(t, "x|y|", outputs["split"].Value, "argv element boundaries must be part of the cache key")
+	}
 }

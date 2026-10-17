@@ -2,6 +2,8 @@ package config
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -68,6 +70,27 @@ type RunCmdCacheEntry struct {
 // Value returns the whitespace-trimmed stdout, which is the return value of run_cmd.
 func (e *RunCmdCacheEntry) Value() string {
 	return strings.TrimSuffix(e.Stdout, "\n")
+}
+
+// replay writes the captured output to v's writers exactly once, and only when
+// they are real (non-Discard) writers. The command may first run during the
+// discovery phase with io.Discard writers, so its output has to reach the user
+// when the entry is reused during the execution phase.
+func (e *RunCmdCacheEntry) replay(v *venv.Venv, suppressOutput bool) {
+	w := v.Writers.Writer
+	if w == io.Discard {
+		return
+	}
+
+	e.replayOnce.Do(func() {
+		if !suppressOutput && e.Stdout != "" {
+			_, _ = w.Write([]byte(e.Stdout))
+		}
+
+		if e.Stderr != "" {
+			_, _ = v.Writers.ErrWriter.Write([]byte(e.Stderr))
+		}
+	})
 }
 
 const (
@@ -642,37 +665,31 @@ func runCommandImpl(
 		)
 	}
 
-	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
+	// To avoid re-running the same run_cmd command, results are memoized in an in-memory cache keyed by
+	// everything the output can depend on: the directory the command runs in, the environment it runs
+	// with, and its exact argv.
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
+	cacheKey := runCmdCacheKey(cachePath, v.Env, args)
 
 	// Skip cache lookup if --terragrunt-no-cache is set
 	if !disableCache {
-		cachedEntry, foundInCache := runCommandCache.Get(ctx, cacheKey)
-		if foundInCache {
-			// Replay stdout/stderr to current writers once when we have a real (non-Discard) writer.
-			// This is needed because the command may have first run during discovery phase
-			// with io.Discard writers, so we need to replay the output during execution phase.
-			// We only call Do() when we have a real writer, so it won't fire during discovery.
-			if w := v.Writers.Writer; w != io.Discard {
-				cachedEntry.replayOnce.Do(func() {
-					if !suppressOutput && cachedEntry.Stdout != "" {
-						_, _ = w.Write([]byte(cachedEntry.Stdout))
-					}
+		if cachedEntry, found := runCommandCache.Get(ctx, cacheKey); found {
+			return replayCachedRunCmd(l, v, cachedEntry, suppressOutput), nil
+		}
 
-					if cachedEntry.Stderr != "" {
-						_, _ = v.Writers.ErrWriter.Write([]byte(cachedEntry.Stderr))
-					}
-				})
-			}
+		// Units are parsed concurrently, so several goroutines can miss on the same key at once.
+		// Holding a per-key lock across the run and the Put makes them execute the command once
+		// and share the result instead of each spawning it, and keeps a slower run from
+		// overwriting a fresher entry.
+		runCmdLocks := runCmdLocksFromContext(ctx)
 
-			if suppressOutput {
-				l.Debugf("run_cmd, cached output: [REDACTED]")
-			} else {
-				l.Debugf("run_cmd, cached output: [%s]", cachedEntry.Value())
-			}
+		runCmdLocks.Lock(cacheKey)
+		defer runCmdLocks.Unlock(cacheKey)
 
-			return cachedEntry.Value(), nil
+		// Whoever held the lock may have been running this very command, so the cache is
+		// consulted again before paying for a run of our own.
+		if cachedEntry, found := runCommandCache.Get(ctx, cacheKey); found {
+			return replayCachedRunCmd(l, v, cachedEntry, suppressOutput), nil
 		}
 	}
 
@@ -691,36 +708,24 @@ func runCommandImpl(
 		return "", fmt.Errorf("running command: %w", err)
 	}
 
-	value := strings.TrimSuffix(cmdOutput.Stdout.String(), "\n")
-
-	if suppressOutput {
-		l.Debugf("run_cmd output: [REDACTED]")
-	} else {
-		l.Debugf("run_cmd output: [%s]", value)
-	}
-
 	entry := &RunCmdCacheEntry{
 		Stdout: cmdOutput.Stdout.String(),
 		Stderr: cmdOutput.Stderr.String(),
 	}
 
-	if w := v.Writers.Writer; w != io.Discard {
-		entry.replayOnce.Do(func() {
-			if !suppressOutput && entry.Stdout != "" {
-				_, _ = w.Write([]byte(entry.Stdout))
-			}
-
-			if entry.Stderr != "" {
-				_, _ = v.Writers.ErrWriter.Write([]byte(entry.Stderr))
-			}
-		})
+	if suppressOutput {
+		l.Debugf("run_cmd output: [REDACTED]")
+	} else {
+		l.Debugf("run_cmd output: [%s]", entry.Value())
 	}
+
+	entry.replay(v, suppressOutput)
 
 	if !disableCache {
 		runCommandCache.Put(ctx, cacheKey, entry)
 	}
 
-	return value, nil
+	return entry.Value(), nil
 }
 
 func getEnvironmentVariable(
@@ -1828,4 +1833,49 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 	}
 
 	return semver.CheckConstraint(args[0], args[1])
+}
+
+// runCmdCacheKey identifies one run_cmd result by everything its output can depend on: the scope
+// the command runs in (its directory, or the global scope), the environment it inherits, and its
+// exact argv. The args are %q-formatted so every element boundary survives; %v on a []string joins
+// elements with spaces, which gave ("x y") and ("x", "y") the same key. NUL separates the parts
+// because it cannot occur in a path, in hex, or unescaped inside a %q string.
+func runCmdCacheKey(scope string, env map[string]string, args []string) string {
+	return fmt.Sprintf("%s\x00%s\x00%q", scope, envFingerprint(env), args)
+}
+
+// envFingerprint hashes the environment a run_cmd subprocess would inherit. Terragrunt injects
+// per-unit credentials into v.Env (--auth-provider-cmd), so the same command evaluated from a
+// shared file (read_terragrunt_config) under two units must not replay the first unit's output
+// for the second. Hashing rather than embedding keeps secrets out of the key.
+func envFingerprint(env map[string]string) string {
+	sum := sha256.Sum256([]byte(strings.Join(venv.Environ(env), "\x00")))
+
+	return hex.EncodeToString(sum[:])
+}
+
+// replayCachedRunCmd replays a cached entry's output to v's writers, logs the hit, and returns
+// the value run_cmd evaluates to.
+func replayCachedRunCmd(l log.Logger, v *venv.Venv, entry *RunCmdCacheEntry, suppressOutput bool) string {
+	entry.replay(v, suppressOutput)
+
+	if suppressOutput {
+		l.Debugf("run_cmd, cached output: [REDACTED]")
+	} else {
+		l.Debugf("run_cmd, cached output: [%s]", entry.Value())
+	}
+
+	return entry.Value()
+}
+
+// runCmdLocksFromContext returns the per-key run_cmd locks, so concurrent misses on one key run
+// the command once and share the result. A context without them (tests calling RunCommand
+// directly) gets a detached set, which coalesces nothing, matching the detached cache that
+// cache.ContextCache hands out in the same situation.
+func runCmdLocksFromContext(ctx context.Context) *util.KeyLocks {
+	if val, ok := ctx.Value(RunCmdLocksContextKey).(*util.KeyLocks); ok && val != nil {
+		return val
+	}
+
+	return util.NewKeyLocks()
 }

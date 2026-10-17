@@ -16,6 +16,7 @@ const (
 	HclCacheContextKey               configKey = iota
 	TerragruntConfigCacheContextKey  configKey = iota
 	RunCmdCacheContextKey            configKey = iota
+	RunCmdLocksContextKey            configKey = iota
 	DependencyOutputCacheContextKey  configKey = iota
 	JSONOutputCacheContextKey        configKey = iota
 	OutputLocksContextKey            configKey = iota
@@ -47,6 +48,7 @@ func WithConfigValues(ctx context.Context) context.Context {
 		RunCmdCacheContextKey,
 		cache.NewCache[*RunCmdCacheEntry](runCmdCacheName),
 	)
+	ctx = context.WithValue(ctx, RunCmdLocksContextKey, util.NewKeyLocks())
 	ctx = azurermbackend.WithStateClientCache(ctx)
 	ctx = context.WithValue(
 		ctx,
