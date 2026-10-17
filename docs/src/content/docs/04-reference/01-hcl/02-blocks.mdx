@@ -1303,8 +1303,21 @@ locals {
 }
 ```
 
+<Before version="v1.2.1">
+
 Note that this can be a powerful feature, but it can easily lead to performance issues if you are not careful,
 as each read will require a full parse of the HCL file and potentially execute expensive computation.
+
+</Before>
+
+<Since version="v1.2.1">
+
+Note that this can be a powerful feature, but it can easily lead to performance issues if you are not careful.
+Terragrunt shares one parse of the file between the units that read it, but a file whose result
+[depends on the unit reading it](/reference/hcl/functions#read_terragrunt_config) is parsed and computed for
+every unit.
+
+</Since>
 
 Use this feature judiciously.
 
