@@ -284,6 +284,37 @@ func TestGetTFInitArgs_MapAndListSerialization(t *testing.T) {
 	}, args)
 }
 
+// TestGetTFInitArgs_MapKeysTemplatesAndNulls verifies that map-valued backend config is passed to
+// -backend-config as valid HCL: keys that are not identifiers are quoted, template sequences are
+// escaped and null attributes are left out.
+func TestGetTFInitArgs_MapKeysTemplatesAndNulls(t *testing.T) {
+	t.Parallel()
+
+	cfg := &remotestate.Config{
+		BackendName: "s4",
+		BackendConfig: map[string]any{
+			"bucket": "my-bucket",
+			"state_tags": map[string]any{
+				"Cost Center": "42",
+				"team:name":   "core",
+				"unset":       nil,
+			},
+			"assume_role": map[string]any{
+				"role_arn":    "arn:aws:iam::123:role/r",
+				"external_id": nil,
+				"policy":      `{"Resource":"arn:aws:s3:::b/${aws:username}/*"}`,
+			},
+		},
+	}
+	args := remotestate.New(cfg).GetTFInitArgs()
+
+	assert.ElementsMatch(t, []string{
+		"-backend-config=bucket=my-bucket",
+		`-backend-config=state_tags={"Cost Center"="42","team:name"="core"}`,
+		`-backend-config=assume_role={policy="{\"Resource\":\"arn:aws:s3:::b/$${aws:username}/*\"}",role_arn="arn:aws:iam::123:role/r"}`,
+	}, args)
+}
+
 func TestNeedsBootstrapDisableInit(t *testing.T) {
 	t.Parallel()
 
