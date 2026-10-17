@@ -1,0 +1,13 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Git filter combined with another filter no longer drops stack units
+
+A Git filter (`[A...B]`) that matched a changed `terragrunt.stack.hcl` lost
+the stack and its generated units when a second `--filter` flag was also given.
+Only the second filter's matches appeared, and the command exited 0, so
+combining a Git range with a path, `reading=`, or `.terragrunt-filters` entry
+produced no results for changed stacks. Fixed by stopping the changed-stack
+walk from inheriting unrelated parent filters.
