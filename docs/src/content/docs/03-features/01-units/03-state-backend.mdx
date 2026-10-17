@@ -362,6 +362,16 @@ remote_state {
 - `skip_metadata_api_check` — Skip the AWS metadata API check.
 - `force_path_style` — Force S3 path-style URLs instead of virtual-hosted-style.
 
+<Since version="v1.2.0">
+
+Some S3-compatible object stores, such as Cloudflare R2, also reject parameters that Terragrunt sends when it creates the state bucket. Use these options to leave them out:
+
+- `skip_object_ownership` — Do not set `ObjectOwnership` on the new bucket. Use only if the object store does not implement object ownership controls.
+- `skip_location_constraint` — Do not set `LocationConstraint` on the new bucket. Use only if the object store rejects the configured `region` as a location constraint.
+- `skip_bucket_tagging` — Do not tag the state bucket or the access logging bucket. Use only if the object store does not implement bucket tagging.
+
+</Since>
+
 If you experience an error for any of these configurations, confirm you are using OpenTofu/Terraform v0.12.2 or greater.
 
 The following config options are only valid for the `s3` backend and are used by Terragrunt — they are **not** passed on to OpenTofu/Terraform:

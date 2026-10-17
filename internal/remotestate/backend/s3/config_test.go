@@ -86,6 +86,45 @@ func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 			},
 		},
 		{
+			name: "skip-object-ownership-string-true",
+			config: s3backend.Config{
+				"bucket":                "my-bucket",
+				"key":                   "my-key",
+				"region":                "us-east-1",
+				"skip_object_ownership": "true",
+			},
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+				t.Helper()
+				assert.True(t, cfg.SkipObjectOwnership)
+			},
+		},
+		{
+			name: "skip-location-constraint-string-true",
+			config: s3backend.Config{
+				"bucket":                   "my-bucket",
+				"key":                      "my-key",
+				"region":                   "us-east-1",
+				"skip_location_constraint": "true",
+			},
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+				t.Helper()
+				assert.True(t, cfg.SkipLocationConstraint)
+			},
+		},
+		{
+			name: "skip-bucket-tagging-string-true",
+			config: s3backend.Config{
+				"bucket":              "my-bucket",
+				"key":                 "my-key",
+				"region":              "us-east-1",
+				"skip_bucket_tagging": "true",
+			},
+			check: func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+				t.Helper()
+				assert.True(t, cfg.SkipBucketTagging)
+			},
+		},
+		{
 			name: "enable-bucket-root-access-string-true",
 			config: s3backend.Config{
 				"bucket":                    "my-bucket",
