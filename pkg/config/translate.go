@@ -22,6 +22,7 @@ func (cfg *TerragruntConfig) ToRunConfig(l log.Logger, fsys vfs.FS) *runcfg.RunC
 		Exclude:                     translateExcludeConfig(cfg.Exclude),
 		GenerateConfigs:             translateGenerateConfigs(cfg.GenerateConfigs),
 		Inputs:                      translateInputs(cfg.Inputs),
+		SkippedInputs:               cfg.SkippedInputs,
 		IAMRole:                     cfg.GetIAMRoleOptions(),
 		DownloadDir:                 cfg.DownloadDir,
 		TerraformBinary:             cfg.TerraformBinary,

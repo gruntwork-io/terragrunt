@@ -25,6 +25,8 @@ type RunConfig struct {
 	GenerateConfigs map[string]codegen.GenerateConfig
 	// Inputs contains input variables to pass to terraform
 	Inputs map[string]any
+	// SkippedInputs lists inputs left unset because dependency output resolution was skipped
+	SkippedInputs []string
 	// Engine contains engine-specific settings
 	Engine EngineConfig
 	// DownloadDir is the custom download directory for terraform source

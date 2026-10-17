@@ -75,17 +75,28 @@ type CtyJSONOutput struct {
 
 // UpdateUnknownCtyValValues deeply updates unknown values with default value
 func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
+	return replaceUnknownCtyValValues(value, cty.StringVal(""))
+}
+
+// UpdateUnknownCtyValValuesToNull deeply replaces unknown values with a null value, so that
+// OpenTofu/Terraform treat them as unset variables rather than empty strings.
+func UpdateUnknownCtyValValuesToNull(value cty.Value) (cty.Value, error) {
+	return replaceUnknownCtyValValues(value, cty.NullVal(cty.String))
+}
+
+// replaceUnknownCtyValValues deeply replaces unknown values in value with replacement.
+func replaceUnknownCtyValValues(value, replacement cty.Value) (cty.Value, error) {
 	var updatedValue any
 
 	switch {
 	case !value.IsKnown():
-		return cty.StringVal(""), nil
+		return replacement, nil
 	case value.IsNull():
 		return value, nil
 	case value.Type().IsMapType(), value.Type().IsObjectType():
 		mapVals := value.AsValueMap()
 		for key, val := range mapVals {
-			val, err := UpdateUnknownCtyValValues(val)
+			val, err := replaceUnknownCtyValValues(val, replacement)
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -100,7 +111,7 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	case value.Type().IsTupleType(), value.Type().IsListType():
 		sliceVals := value.AsValueSlice()
 		for key, val := range sliceVals {
-			val, err := UpdateUnknownCtyValValues(val)
+			val, err := replaceUnknownCtyValValues(val, replacement)
 			if err != nil {
 				return cty.NilVal, err
 			}
