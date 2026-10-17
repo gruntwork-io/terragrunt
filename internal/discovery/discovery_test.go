@@ -572,6 +572,45 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	assert.Equal(t, subDir, coexistErr.ComponentPath)
 }
 
+// TestDiscovery_BothHclAndJSONInSameDir verifies that a directory containing both
+// terragrunt.hcl and terragrunt.hcl.json is rejected with an AmbiguousConfigError,
+// rather than silently picking one based on filesystem walk order -- which would
+// otherwise diverge from the single-unit config loader's own JSON-preferring
+// resolution (pkg/config.DefaultTerragruntConfigPaths).
+func TestDiscovery_BothHclAndJSONInSameDir(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(subDir, 0755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(subDir, "terragrunt.hcl"),
+		[]byte("# empty unit config\n"),
+		0644,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(subDir, "terragrunt.hcl.json"),
+		[]byte("{}"),
+		0644,
+	))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir: tmpDir,
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
+
+	_, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.Error(t, err)
+
+	var ambiguousErr discovery.AmbiguousConfigError
+	require.ErrorAs(t, err, &ambiguousErr)
+	assert.Equal(t, subDir, ambiguousErr.ComponentPath)
+}
+
 // TestDiscovery_SingleUnitNoDuplicateError verifies that a directory with only
 // a single config file does not trigger a coexistence error.
 func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {

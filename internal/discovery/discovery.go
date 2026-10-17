@@ -106,7 +106,9 @@ func (d *Discovery) Discover(
 
 	logPhaseComplete(l, "filesystem", results, err)
 
-	if err != nil && (!d.suppressParseErrors || errors.As(err, new(CoexistenceError))) {
+	if err != nil && (!d.suppressParseErrors ||
+		errors.As(err, new(CoexistenceError)) ||
+		errors.As(err, new(AmbiguousConfigError))) {
 		return nil, err
 	}
 
