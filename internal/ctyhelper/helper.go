@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
@@ -73,56 +72,25 @@ type CtyJSONOutput struct {
 	Type  any            `json:"Type"`
 }
 
-// UpdateUnknownCtyValValues deeply updates unknown values with default value
+// UpdateUnknownCtyValValues deeply replaces unknown values with known placeholders: "" for an
+// unknown string or an unknown of unknown type, and a null of the same type for any other
+// unknown. The placeholder keeps the type because the enclosing collection or object requires it.
 func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
-	var updatedValue any
-
-	switch {
-	case !value.IsKnown():
-		return cty.StringVal(""), nil
-	case value.IsNull():
-		return value, nil
-	case value.Type().IsMapType(), value.Type().IsObjectType():
-		mapVals := value.AsValueMap()
-		for key, val := range mapVals {
-			val, err := UpdateUnknownCtyValValues(val)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			mapVals[key] = val
+	return cty.Transform(value, func(_ cty.Path, val cty.Value) (cty.Value, error) {
+		if val.IsKnown() {
+			return val, nil
 		}
 
-		if len(mapVals) > 0 {
-			updatedValue = mapVals
+		raw, marks := val.Unmark()
+		ty := raw.Type()
+
+		switch ty {
+		case cty.String, cty.DynamicPseudoType:
+			return cty.StringVal("").WithMarks(marks), nil
+		default:
+			return cty.NullVal(ty).WithMarks(marks), nil
 		}
-
-	case value.Type().IsTupleType(), value.Type().IsListType():
-		sliceVals := value.AsValueSlice()
-		for key, val := range sliceVals {
-			val, err := UpdateUnknownCtyValValues(val)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			sliceVals[key] = val
-		}
-
-		if len(sliceVals) > 0 {
-			updatedValue = sliceVals
-		}
-	}
-
-	if updatedValue == nil {
-		return value, nil
-	}
-
-	value, err := gocty.ToCtyValue(updatedValue, value.Type())
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	return value, nil
+	})
 }
 
 // MaxNumberDecimalExponent is the largest power of ten a number's magnitude may reach, in
