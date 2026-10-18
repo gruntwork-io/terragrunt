@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -60,5 +62,44 @@ func TestPopulateTFImplementation(t *testing.T) {
 		require.Error(t, prepare.PopulateTFImplementation(t.Context(), logger.CreateLogger(), venvtest.New(), opts))
 		assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
 		assert.Nil(t, opts.TerraformVersion)
+	})
+}
+
+// TestPrepareSourceDetectsImplementationForTFRSourcesOnly pins the gate: only
+// `tfr://` sources trigger the implementation probe, since the detected
+// implementation steers registry selection and auth (issue #7094).
+func TestPrepareSourceDetectsImplementationForTFRSourcesOnly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("tfr source probes before downloading", func(t *testing.T) {
+		t.Parallel()
+
+		src := "tfr:///acme/module/aws"
+		cfg := &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: &src}}
+
+		v := venvtest.New().WithGOOS("linux").WithHandler(fakeTerraformVersionHandler)
+
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts.TFPath = "terraform"
+
+		// The no-network registry fetch fails, but the probe must already have run.
+		_, _ = prepare.PrepareSource(t.Context(), logger.CreateLogger(), v, opts, cfg, report.NewReport())
+		assert.Equal(t, tfimpl.Terraform, opts.TofuImplementation)
+	})
+
+	t.Run("source without tfr scheme never probes", func(t *testing.T) {
+		t.Parallel()
+
+		src := "git::https://example.com/module.git"
+		cfg := &config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: &src}}
+
+		v := venvtest.New().WithGOOS("linux")
+
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts.TFPath = "terraform"
+
+		// venvtest's fail-closed exec errors on any spawn, so an Unknown implementation proves no probe ran.
+		_, _ = prepare.PrepareSource(t.Context(), logger.CreateLogger(), v, opts, cfg, report.NewReport())
+		assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
 	})
 }

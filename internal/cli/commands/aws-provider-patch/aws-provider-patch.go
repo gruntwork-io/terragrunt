@@ -46,6 +46,11 @@ func runSingle(
 		return err
 	}
 
+	// PrepareInit below downloads providers, so keep exporting TF_PLUGIN_CACHE_DIR for it.
+	if err := prepare.SetupAutoProviderCacheDir(ctx, l, v, prepared.Opts); err != nil {
+		l.Debugf("Auto provider cache dir setup failed: %v", err)
+	}
+
 	r := report.NewReport()
 
 	updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)

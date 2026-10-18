@@ -13,8 +13,10 @@ package prepare
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -81,13 +83,16 @@ func PrepareSource(
 	cfg *config.TerragruntConfig,
 	r *report.Report,
 ) (*options.TerragruntOptions, error) {
-	// Downloading `tfr:///` sources needs the implementation to pick the default registry.
-	if err := PopulateTFImplementation(ctx, l, v, opts); err != nil {
-		l.Debugf(
-			"Failed to detect the OpenTofu/Terraform implementation; "+
-				"`tfr:///` sources without a host fall back to the OpenTofu registry: %v",
-			err,
-		)
+	// Only `tfr://` sources need the implementation, which steers registry selection and auth.
+	if cfg.Terraform != nil && cfg.Terraform.Source != nil &&
+		strings.HasPrefix(*cfg.Terraform.Source, getter.SchemeTFR+"://") {
+		if err := PopulateTFImplementation(ctx, l, v, opts); err != nil {
+			l.Debugf(
+				"Failed to detect the OpenTofu/Terraform implementation; "+
+					"`tfr:///` sources without a host fall back to the OpenTofu registry: %v",
+				err,
+			)
+		}
 	}
 
 	engine, err := cfg.EngineOptions()

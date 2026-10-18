@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"golang.org/x/sync/singleflight"
 )
 
 type configKey byte
@@ -13,13 +14,28 @@ type configKey byte
 const (
 	versionCacheContextKey configKey = iota
 	moduleVersionResolverContextKey
+	versionFlightContextKey
 	versionCacheName = "versionCache"
 )
 
 // WithRunVersionCache initializes the version cache in the context for the run package.
 func WithRunVersionCache(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, versionCacheContextKey, cache.NewCache[string](versionCacheName))
+	ctx = context.WithValue(ctx, versionFlightContextKey, &singleflight.Group{})
+
 	return ctx
+}
+
+// GetRunVersionFlight returns the singleflight group that deduplicates
+// concurrent same-key version probes, so parallel units spawn one probe
+// instead of one each. A context without one gets a fresh group, which
+// deduplicates nothing but keeps callers correct.
+func GetRunVersionFlight(ctx context.Context) *singleflight.Group {
+	if flight, ok := ctx.Value(versionFlightContextKey).(*singleflight.Group); ok {
+		return flight
+	}
+
+	return &singleflight.Group{}
 }
 
 // GetRunVersionCache retrieves the version cache from the context for the run package.

@@ -290,10 +290,10 @@ func TestHclCommandsSkipTofuProbe(t *testing.T) {
 	}
 }
 
-// TestHclvalidateInputsKeepsTofuProbe pins only that `hcl validate --inputs`
-// still detects the implementation while preparing sources. It does not
-// observe the registry selection that depends on it.
-func TestHclvalidateInputsKeepsTofuProbe(t *testing.T) {
+// TestHclvalidateInputsSkipsProbeForLocalSource pins that `hcl validate --inputs`
+// on a unit without a `tfr://` source never probes the binary; only registry
+// sources need the detected implementation.
+func TestHclvalidateInputsSkipsProbeForLocalSource(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
@@ -309,12 +309,7 @@ func TestHclvalidateInputsKeepsTofuProbe(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	assert.Equal(
-		t,
-		[]string{"tofu"},
-		probes(),
-		"hcl validate --inputs must probe the default binary exactly once",
-	)
+	assert.Empty(t, probes(), "no `tfr://` source means no implementation probe")
 }
 
 // TestRunAllAutoProviderCacheDirPerUnit pins that a mixed stack gets per-unit

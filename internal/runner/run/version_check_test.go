@@ -2,7 +2,10 @@ package run_test
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -410,4 +413,57 @@ func testCheckTerragruntVersionMeetsConstraint(
 	require.Error(t, err,
 		"Expected Terragrunt version %s to NOT meet constraint %s",
 		currentVersion, versionConstraint)
+}
+
+// TestPopulateTFVersionDeduplicatesConcurrentProbes pins that concurrent
+// same-key callers share one probe through singleflight, so a `run --all`
+// over many units spawns `-version` once instead of once per unit.
+func TestPopulateTFVersionDeduplicatesConcurrentProbes(t *testing.T) {
+	t.Parallel()
+
+	const callers = 16
+
+	var spawns atomic.Int64
+
+	handler := func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		spawns.Add(1)
+		// A slow probe keeps every caller in flight at once, like the version-manager shim in #7094.
+		time.Sleep(50 * time.Millisecond)
+
+		return vexec.Result{Stdout: []byte("OpenTofu v1.10.0\non linux_amd64\n")}
+	}
+
+	ctx := run.WithRunVersionCache(t.Context())
+	workingDir := t.TempDir()
+
+	var wg sync.WaitGroup
+
+	for range callers {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			_, ver, impl, err := run.PopulateTFVersion(
+				ctx,
+				logger.CreateLogger(),
+				venvtest.New().WithExec(vexec.NewMemExec(handler)),
+				run.PopulateTFVersionInput{
+					TFOpts: &tf.TFOptions{
+						TerraformCliArgs: iacargs.New(),
+						ShellOptions: shell.NewShellOptions(map[string]string{}).
+							WithTFPath("tofu").
+							WithWorkingDir(workingDir),
+					},
+				},
+			)
+			assert.NoError(t, err)
+			assert.Equal(t, tfimpl.OpenTofu, impl)
+			assert.Equal(t, "1.10.0", ver.String())
+		}()
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, int64(1), spawns.Load(), "concurrent same-key callers must share one probe")
 }
