@@ -757,3 +757,101 @@ func TestShouldCopyLockFile(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckProtectedModuleRunCfg(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		args      []string
+		extraArgs []string
+		protected bool
+	}{
+		{
+			name:      "destroy",
+			args:      []string{"destroy"},
+			protected: true,
+		},
+		{
+			name:      "plan with -destroy",
+			args:      []string{"plan", "-destroy"},
+			protected: true,
+		},
+		{
+			name:      "plan with -destroy=true",
+			args:      []string{"plan", "-destroy=true"},
+			protected: true,
+		},
+		{
+			name:      "plan with -destroy=false",
+			args:      []string{"plan", "-destroy=false"},
+			protected: false,
+		},
+		{
+			name:      "plan with -destroy=true then -destroy=false",
+			args:      []string{"plan", "-destroy=true", "-destroy=false"},
+			protected: false,
+		},
+		{
+			name:      "plan with -destroy=true from extra_arguments",
+			args:      []string{"plan"},
+			extraArgs: []string{"-destroy=true"},
+			protected: true,
+		},
+		{
+			name:      "plan -destroy=false with -destroy from extra_arguments",
+			args:      []string{"plan", "-destroy=false"},
+			extraArgs: []string{"-destroy"},
+			protected: false,
+		},
+		{
+			name:      "apply with --destroy from extra_arguments",
+			args:      []string{"apply"},
+			extraArgs: []string{"--destroy"},
+			protected: true,
+		},
+		{
+			name:      "apply with --destroy=true from extra_arguments",
+			args:      []string{"apply"},
+			extraArgs: []string{"--destroy=true"},
+			protected: true,
+		},
+		{
+			name:      "apply with --destroy=false from extra_arguments",
+			args:      []string{"apply"},
+			extraArgs: []string{"--destroy=false"},
+			protected: false,
+		},
+		{
+			name:      "plan",
+			args:      []string{"plan"},
+			protected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := &run.Options{
+				TerraformCliArgs:     iacargs.New(tt.args...),
+				TerragruntConfigPath: "/work/terragrunt.hcl",
+			}
+
+			opts.InsertTerraformCliArgs(tt.extraArgs...)
+
+			err := run.CheckProtectedModuleRunCfg(opts, &runcfg.RunConfig{PreventDestroy: true})
+
+			if !tt.protected {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var target run.ModuleIsProtected
+
+			require.ErrorAs(t, err, &target)
+			assert.Equal(t, opts.TerragruntConfigPath, target.ConfigPath)
+		})
+	}
+}

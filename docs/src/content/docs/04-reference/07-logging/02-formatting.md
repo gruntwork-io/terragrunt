@@ -52,7 +52,7 @@ Placeholders have preset names:
 
 * `%msg` - Log message.
 
-* `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [tf-path](https://docs.terragrunt.com/reference/cli-options/#tf-path)).
+* `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [tf-path](/reference/cli/commands/run#tf-path)).
 
 * `%tf-command` - Executed OpenTofu/Terraform command, e.g. `apply`.
 

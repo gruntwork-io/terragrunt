@@ -190,6 +190,65 @@ func TestWorktreePhase_Integration_DeletedReadingUnitRediscovered(t *testing.T) 
 	assert.True(t, found, "Expected the rediscovered unit in the worktree discovery results")
 }
 
+func TestWorktreePhase_Integration_RemovedUnitDependencyIsNotDestroyed(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, "vpc", "")
+	createUnit(t, tmpDir, "app", `dependency "vpc" {
+  config_path = "../vpc"
+}`)
+	commitChanges(t, runner, "Initial commit")
+
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "app")))
+	commitChanges(t, runner, "Remove app")
+
+	l := logger.CreateLogger()
+
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv()))
+	})
+
+	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]..."})
+	require.NoError(t, err)
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	components, err := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir, Cmd: "apply"}).
+		WithWorktrees(w).
+		WithFilters(filters).
+		Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	require.NoError(t, err)
+
+	fromWorktree := w.WorktreePairs["[HEAD~1...HEAD]"].FromWorktree.Path
+
+	contexts := make(map[string]*component.DiscoveryContext, len(components))
+	for _, c := range components {
+		contexts[c.Path()] = c.DiscoveryContext()
+	}
+
+	appCtx := contexts[filepath.Join(fromWorktree, "app")]
+	require.NotNil(t, appCtx, "removed unit should be discovered in %v", components.Paths())
+	assert.Contains(t, appCtx.Args, "-destroy")
+
+	vpcCtx := contexts[filepath.Join(fromWorktree, "vpc")]
+	require.NotNil(t, vpcCtx, "dependency should be discovered in %v", components.Paths())
+	assert.Empty(t, vpcCtx.Ref)
+	assert.NotContains(t, vpcCtx.Args, "-destroy")
+}
+
 // TestWorktreePhase_Integration_RemovedReadingUnitStaysDestroyed verifies that a unit which both
 // reads a deleted file and is itself removed is still treated as a removal: it is discovered in the
 // from-worktree with -destroy and is not spuriously rediscovered in the to-worktree (where it no

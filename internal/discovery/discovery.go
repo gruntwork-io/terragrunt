@@ -898,7 +898,7 @@ func (d *Discovery) applyExcludeModules(
 			continue
 		}
 
-		if !cfg.Exclude.Excludes(opts.TerraformCommand) {
+		if !cfg.Exclude.Excludes(opts.TerraformCliArgs.CommandName(opts.TerraformCommand)) {
 			continue
 		}
 

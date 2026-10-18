@@ -1,6 +1,8 @@
 ---
 import { getCollection, render } from "astro:content";
+import { Aside } from "@astrojs/starlight/components";
 import { getLatestVersion } from "@lib/release";
+import { isCompleted } from "@lib/strict-controls";
 import { isReleased } from "@lib/versions";
 
 interface Props {
@@ -15,19 +17,28 @@ const latestVersion = await getLatestVersion();
 const allEntries = await getCollection("strictControls");
 
 const entries = allEntries
-  .filter((entry) => entry.data.status === status)
-  .filter((entry) => showUnreleased || !entry.data.since || isReleased(entry.data.since, latestVersion))
+  .filter((entry) =>
+    status === "completed"
+      ? isCompleted(entry, latestVersion)
+      : !isCompleted(entry, latestVersion) &&
+        (showUnreleased || !entry.data.since || isReleased(entry.data.since, latestVersion))
+  )
   .sort((a, b) => a.data.name.localeCompare(b.data.name));
 
 const rendered = await Promise.all(
   entries.map(async (entry) => {
     const { Content } = await render(entry);
-    return { entry, Content };
+    return {
+      entry,
+      Content,
+      completed: isCompleted(entry, latestVersion),
+      completedVersion: entry.data.completedSince?.replace(/^v/, ""),
+    };
   })
 );
 ---
 
-{rendered.map(({ entry, Content }, i) => (
+{rendered.map(({ entry, Content, completed, completedVersion }, i) => (
   <div>
     {i > 0 && <hr />}
     <h2 id={entry.data.name}>
@@ -36,6 +47,12 @@ const rendered = await Promise.all(
         <span aria-hidden="true" class="anchor-icon" />
       </a>
     </h2>
+    {completedVersion && !completed && (
+      <Aside type="tip" title="Completing Soon">
+        This strict control is scheduled to be completed in v{completedVersion}.
+        Once that release ships, the control is no longer needed.
+      </Aside>
+    )}
     <Content />
   </div>
 ))}

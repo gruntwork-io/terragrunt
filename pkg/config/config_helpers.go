@@ -968,7 +968,7 @@ func PathRelativeFromInclude(
 
 // getTerraformCommand returns the current terraform command in execution
 func getTerraformCommand(ctx context.Context, l log.Logger, _ *venv.Venv, pctx *ParsingContext) (string, error) {
-	return pctx.TerraformCommand, nil
+	return pctx.TerraformCliArgs.CommandName(pctx.TerraformCommand), nil
 }
 
 // getWorkingDir returns the current working dir

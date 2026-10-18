@@ -64,6 +64,7 @@ const (
 	testFixtureStackDepsNestedUnitDep            = "fixtures/stacks/stack-deps-nested-unit-dep"
 	testFixtureStackDepsApplyNoMocks             = "fixtures/stacks/stack-deps-apply-no-mocks"
 	testFixtureStackDepsStackAutoIncOverride     = "fixtures/stacks/stack-deps-stack-autoinclude-override"
+	testFixtureStackDepsStackAutoIncInjectedDep  = "fixtures/stacks/stack-deps-stack-autoinclude-injected-dep"
 	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
 	testFixtureStackDepsMockLocal                = "fixtures/stacks/stack-deps-mock-local"
 	testFixtureStackDepsAutoIncValuesResolved    = "fixtures/stacks/stack-deps-autoinclude-values-resolved"
@@ -1721,9 +1722,8 @@ func TestStackDepsStackLevelAutoIncludeOverridesSameNameUnit(t *testing.T) {
 }
 
 // TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal pins that stack generation succeeds when a
-// sibling autoinclude injects a block whose path references the base stack's local. The override prune
-// reads only block names, so it must not fail evaluating the injected path against the generate-path eval
-// context (which has no local.* populated), keeping generation consistent with discovery and the full parse.
+// sibling autoinclude injects a block whose path references the base stack's local. The injected blocks
+// decode in the base stack file's eval context, keeping generation consistent with discovery and the full parse.
 func TestStackDepsStackLevelAutoIncludeOverridePathUsesLocal(t *testing.T) {
 	t.Parallel()
 

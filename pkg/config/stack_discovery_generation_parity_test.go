@@ -167,6 +167,27 @@ unit "vpc" {
 			},
 		},
 		{
+			name: "sibling stack autoinclude replaces a unit with an expanded unit",
+			files: map[string]string{
+				liveStackFile: `
+unit "vpc" {
+  source = "` + generationParityUnitSource + `"
+  path   = "vpc"
+}
+`,
+				liveAutoIncludeFile: `
+unit "vpc" {
+  expansion {
+    for_each = toset(["east", "west"])
+  }
+
+  source = "` + generationParityUnitSource + `"
+  path   = "vpc/${each.key}"
+}
+`,
+			},
+		},
+		{
 			name: "sibling stack autoinclude injects a unit",
 			files: map[string]string{
 				liveStackFile: `

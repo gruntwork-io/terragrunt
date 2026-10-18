@@ -717,6 +717,14 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			expected: []string{tf.CommandNameDestroy, "-foo", "-bar", "plan"},
 		},
 		{
+			args:     []string{tf.CommandNameApply, "-destroy", "-auto-approve"},
+			expected: []string{tf.CommandNameApply, "-destroy", "-auto-approve"},
+		},
+		{
+			args:     []string{tf.CommandNameApply, "--destroy=true"},
+			expected: []string{tf.CommandNameApply, "-destroy=true"},
+		},
+		{
 			args:     []string{tf.CommandNamePlan, doubleDashed(global.NoColorFlagName)},
 			expected: []string{tf.CommandNamePlan, tf.FlagNameNoColor},
 		},

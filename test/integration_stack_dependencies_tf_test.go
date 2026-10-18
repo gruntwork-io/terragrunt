@@ -1252,3 +1252,75 @@ func TestTFStackDepsAutoIncludeOverridesConfigPathFromValues(t *testing.T) {
 	assert.Contains(t, string(backend), "from-autoinclude.tfstate",
 		"autoinclude dependency must override the unit's values.vpc_path config_path")
 }
+
+// TestTFStackDepsStackLevelAutoIncludeNestedAutoInclude verifies that a component injected by a stack-level
+// autoinclude keeps its own nested autoinclude: the next generation pass writes it, so the injected unit's
+// dependency orders the DAG and its outputs reach the unit's inputs. Overriding the catalog stack's unit must
+// not break the catalog's own wiring of a sibling unit to it. The nested case injects a stack whose own
+// stack-level autoinclude carries the wiring one level further down.
+func TestTFStackDepsStackLevelAutoIncludeNestedAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		liveDir  string
+		stackDir []string
+	}{
+		{
+			name:     "injected unit",
+			liveDir:  "live",
+			stackDir: []string{"fn"},
+		},
+		{
+			name:     "injected stack",
+			liveDir:  "live-nested",
+			stackDir: []string{"wrap", inthclparse.StackDir, "inner"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoIncInjectedDep)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncInjectedDep)
+			gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncInjectedDep)
+
+			runner, err := git.NewGitRunner(venv.OSVenv())
+			require.NoError(t, err)
+			require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+			rootPath := filepath.Join(gitPath, tc.liveDir)
+			rootPath, err = filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
+
+			helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+			stackDir := filepath.Join(
+				append([]string{rootPath, inthclparse.StackDir}, tc.stackDir...)...)
+			functionDir := filepath.Join(stackDir, inthclparse.StackDir, "handler")
+			logsDir := filepath.Join(stackDir, inthclparse.StackDir, "logs")
+
+			autoInclude, err := os.ReadFile(filepath.Join(functionDir, inthclparse.AutoIncludeFile))
+			require.NoError(t, err, "the injected unit's nested autoinclude must be generated")
+			assert.Contains(t, string(autoInclude), `dependency "queue"`)
+
+			helpers.RunTerragrunt(
+				t,
+				"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
+			)
+
+			for dir, expected := range map[string]string{
+				functionDir: "function:queue-arn",
+				logsDir:     "logs:function:queue-arn",
+			} {
+				stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+					t,
+					"terragrunt output -raw value --non-interactive --working-dir "+dir,
+				)
+				require.NoError(t, err)
+				assert.Equal(t, expected, strings.TrimSpace(stdout), "unexpected output in %s", dir)
+			}
+		})
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	cryptossh "golang.org/x/crypto/ssh"
@@ -357,6 +358,270 @@ func TestHandleGitSSHSession(t *testing.T) {
 	}
 }
 
+func TestInitRefsReportsSeedCommitFailure(t *testing.T) {
+	t.Parallel()
+
+	thTRequireBinaries(t, "git")
+
+	s := thTClosedGitServer(t, thTFakeFixtures(t))
+
+	err := s.initRefs()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "seed commit")
+}
+
+func TestRetagLockedReportsDeleteTagFailure(t *testing.T) {
+	t.Parallel()
+
+	thTRequireBinaries(t, "git")
+
+	s := thTClosedGitServer(t, thTFakeFixtures(t))
+
+	err := s.retagLocked()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "delete tag "+TerragruntMirrorTags[0])
+}
+
+func TestAddReportsUnreadableFixture(t *testing.T) {
+	t.Parallel()
+
+	thTRequireBinaries(t, "git")
+
+	s := thTClosedGitServer(t, thTUnreadableFixtures(t))
+
+	err := s.add([]string{"test/fixtures/u"})
+	require.ErrorIs(t, err, fs.ErrPermission)
+	assert.Empty(t, s.committedDirsLocked(), "a fixture that cannot be read is not marked as served")
+}
+
+func TestAddReportsCommitDirsFailure(t *testing.T) {
+	thTRequireBinaries(t, "git")
+
+	// New temp dirs stay under this test's own, so the work dir the commit step recreates leaves nothing behind,
+	// and git discovery stops there instead of climbing into a repository that encloses the temp root.
+	confined := t.TempDir()
+	t.Setenv("TMPDIR", confined)
+	t.Setenv("TMP", confined)
+	t.Setenv("TEMP", confined)
+	t.Setenv("GIT_CEILING_DIRECTORIES", confined)
+
+	s := thTClosedGitServer(t, thTFakeFixtures(t))
+
+	err := s.add([]string{"test/fixtures/c"})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "add all")
+	assert.Empty(t, s.committedDirsLocked(), "a fixture whose commit failed is not marked as served")
+}
+
+func TestAddReportsSSHRefreshFailure(t *testing.T) {
+	t.Parallel()
+
+	thTRequireBinaries(t, "git")
+
+	s := thTSeededGitServer(t, thTFakeFixtures(t))
+
+	// git cannot create a bare repository over an existing regular file.
+	s.bareDir = filepath.Join(t.TempDir(), "bare.git")
+	thTWriteFixture(t, s.bareDir, "")
+	s.sshLive = true
+	before := s.headSHA
+
+	err := s.add([]string{"test/fixtures/c"})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "refresh ssh bare repo")
+	require.ErrorContains(t, err, "init --bare")
+	assert.NotEqual(t, before, s.headSHA, "add commits to the HTTP mirror before refreshing SSH")
+	assert.Equal(t, []string{"test/fixtures/c"}, s.committedDirsLocked(),
+		"the HTTP mirror keeps the commit the SSH refresh could not copy")
+}
+
+func TestStartSSHMirrorReportsBareDirFailure(t *testing.T) {
+	thTRequireBinaries(t, "ssh", "git-upload-pack", "git")
+
+	fixturesDir := thTFakeFixtures(t)
+
+	// New temp dirs point at a path that does not exist, so creating the bare dir fails.
+	missing := filepath.Join(t.TempDir(), "missing")
+	t.Setenv("TMPDIR", missing)
+	t.Setenv("TMP", missing)
+	t.Setenv("TEMP", missing)
+
+	m, err := startSSHMirror(fixturesDir, nil, thTHTTPURL)
+	require.Error(t, err)
+	assert.Nil(t, m)
+	require.ErrorContains(t, err, "mkdir bare")
+}
+
+func TestPopulateBareRepoReportsWorkRepoStepFailures(t *testing.T) {
+	thTRequireBinaries(t, "git")
+
+	fixturesDir := thTFakeFixtures(t)
+	thTWriteFixture(t, filepath.Join(fixturesDir, "f", ".gitattributes"), "* filter=reject\n")
+
+	hooksDir := thTFailingHooks(t)
+	missingDir := filepath.Join(t.TempDir(), "missing")
+	emptyDir := t.TempDir()
+
+	// Config enters through GIT_CONFIG_COUNT, which runGit keeps inheriting from the process environment.
+	hookEnv := func(stage string) map[string]string {
+		return map[string]string{
+			"GIT_CONFIG_COUNT":   "1",
+			"GIT_CONFIG_KEY_0":   "core.hooksPath",
+			"GIT_CONFIG_VALUE_0": hooksDir,
+			"THT_FAIL_STAGE":     stage,
+		}
+	}
+
+	testCases := []struct {
+		env     map[string]string
+		wantIs  error
+		name    string
+		wantErr string
+		// wantCause is the text git or the hook prints for the failure, so the step fails for the scripted reason.
+		wantCause  string
+		dirs       []string
+		needsShell bool
+	}{
+		{
+			name:    "work dir cannot be created",
+			env:     map[string]string{"TMPDIR": missingDir, "TMP": missingDir, "TEMP": missingDir},
+			wantErr: "mkdir work",
+			wantIs:  fs.ErrNotExist,
+		},
+		{
+			name:    "git is not on PATH",
+			env:     map[string]string{"PATH": emptyDir},
+			wantErr: "git [init",
+			wantIs:  exec.ErrNotFound,
+		},
+		{
+			name: "clean filter rejects a fixture",
+			env: map[string]string{
+				"GIT_CONFIG_COUNT":   "2",
+				"GIT_CONFIG_KEY_0":   "filter.reject.clean",
+				"GIT_CONFIG_VALUE_0": "false",
+				"GIT_CONFIG_KEY_1":   "filter.reject.required",
+				"GIT_CONFIG_VALUE_1": "true",
+			},
+			dirs:       []string{"test/fixtures/f"},
+			wantErr:    "git [add",
+			wantCause:  "clean filter 'reject' failed",
+			needsShell: true,
+		},
+		{
+			name:       "pre-commit hook rejects the seed commit",
+			env:        hookEnv("commit"),
+			wantErr:    "git [commit",
+			wantCause:  "rejected commit",
+			needsShell: true,
+		},
+		{
+			name:       "reference-transaction hook rejects a tag",
+			env:        hookEnv("tag"),
+			wantErr:    "git [tag",
+			wantCause:  "rejected tag",
+			needsShell: true,
+		},
+		{
+			name:       "reference-transaction hook rejects a branch",
+			env:        hookEnv("branch"),
+			wantErr:    "git [branch",
+			wantCause:  "rejected branch",
+			needsShell: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.needsShell && runtime.GOOS == "windows" {
+				t.Skip("the failing hook or filter is an sh script")
+			}
+
+			// Resolved before the environment changes, so the case without a temp dir still has a bare path.
+			bareDir := filepath.Join(t.TempDir(), "bare.git")
+
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
+
+			err := populateBareRepo(fixturesDir, tc.dirs, bareDir, thTHTTPURL, thTSSHURL)
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.wantErr)
+
+			if tc.wantIs != nil {
+				require.ErrorIs(t, err, tc.wantIs)
+			}
+
+			if tc.wantCause != "" {
+				require.ErrorContains(t, err, tc.wantCause)
+			}
+		})
+	}
+}
+
+func TestPopulateBareRepoReportsPushFailure(t *testing.T) {
+	thTRequireBinaries(t, "git")
+
+	if runtime.GOOS == "windows" {
+		t.Skip("the declining hook is an sh script")
+	}
+
+	// A bare repository that already exists keeps its hooks through the init populateBareRepo runs.
+	bareDir := filepath.Join(t.TempDir(), "bare.git")
+	hooksDir := filepath.Join(bareDir, "hooks")
+	require.NoError(t, runGit("", "init", "--bare", "-b", "main", bareDir))
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-receive"), []byte("#!/bin/sh\nexit 1\n"), 0o755))
+
+	// An inherited hooks path moves only the work repo's hooks; the bare repo keeps the declining one.
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "core.hooksPath")
+	t.Setenv("GIT_CONFIG_VALUE_0", t.TempDir())
+
+	err := populateBareRepo(thTFakeFixtures(t), []string{"test/fixtures/c"}, bareDir, thTHTTPURL, thTSSHURL)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "git [push --mirror")
+	require.ErrorContains(t, err, "pre-receive hook declined")
+}
+
+func TestPopulateBareRepoIgnoresHostGitConfig(t *testing.T) {
+	thTRequireBinaries(t, "git")
+
+	if runtime.GOOS == "windows" {
+		t.Skip("the rejecting hook is an sh script")
+	}
+
+	fixturesDir := thTFakeFixtures(t)
+	bareDir := filepath.Join(t.TempDir(), "bare.git")
+
+	// Global and system configs whose hook rejects every commit, a per-user ignore file that hides every
+	// fixture, a per-user attributes file that routes every fixture through a rejecting filter, an init
+	// template whose hook rejects every commit, and repository selection pointing anywhere but the work repo.
+	hostDir := t.TempDir()
+	thTWriteFixture(t, filepath.Join(hostDir, "gitconfig"), "[core]\n\thooksPath = "+thTFailingHooks(t)+"\n")
+	thTWriteFixture(t, filepath.Join(hostDir, "git", "ignore"), "*\n")
+	thTWriteFixture(t, filepath.Join(hostDir, "git", "attributes"), "* filter=reject\n")
+	require.NoError(t, os.MkdirAll(filepath.Join(hostDir, "templates", "hooks"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(hostDir, "templates", "hooks", "pre-commit"), []byte("#!/bin/sh\nexit 1\n"), 0o755))
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(hostDir, "gitconfig"))
+	t.Setenv("GIT_CONFIG_SYSTEM", filepath.Join(hostDir, "gitconfig"))
+	t.Setenv("XDG_CONFIG_HOME", hostDir)
+	t.Setenv("GIT_TEMPLATE_DIR", filepath.Join(hostDir, "templates"))
+	t.Setenv("GIT_DIR", filepath.Join(hostDir, "elsewhere.git"))
+	t.Setenv("GIT_WORK_TREE", hostDir)
+	t.Setenv("GIT_INDEX_FILE", filepath.Join(hostDir, "index"))
+	t.Setenv("THT_FAIL_STAGE", "commit")
+	t.Setenv("GIT_CONFIG_COUNT", "2")
+	t.Setenv("GIT_CONFIG_KEY_0", "filter.reject.clean")
+	t.Setenv("GIT_CONFIG_VALUE_0", "false")
+	t.Setenv("GIT_CONFIG_KEY_1", "filter.reject.required")
+	t.Setenv("GIT_CONFIG_VALUE_1", "true")
+
+	require.NoError(t, populateBareRepo(fixturesDir, []string{"test/fixtures/c"}, bareDir, thTHTTPURL, thTSSHURL))
+	require.NoError(t, runGit(bareDir, "cat-file", "-e", "main:test/fixtures/c/main.tf"),
+		"the fixture is committed although the host ignore file hides everything")
+}
+
 // thTFakeFixtures builds test/fixtures/{a,b,c}: a uses b by path and c by mirror, b uses c by template-url.
 func thTFakeFixtures(t *testing.T) string {
 	t.Helper()
@@ -482,4 +747,58 @@ func thTReadFixture(t *testing.T, path string) string {
 	require.NoError(t, err)
 
 	return string(data)
+}
+
+// thTClosedGitServer returns a GitServer whose git repositories are already removed, so every git call fails.
+func thTClosedGitServer(t *testing.T, fixturesDir string) *GitServer {
+	t.Helper()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	require.NoError(t, srv.Close())
+
+	return &GitServer{t: t, fixturesDir: fixturesDir, httpServer: srv, committed: map[string]bool{}}
+}
+
+// thTSeededGitServer returns a GitServer over fixturesDir with its refs seeded and no HTTP endpoint.
+func thTSeededGitServer(t *testing.T, fixturesDir string) *GitServer {
+	t.Helper()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	s := &GitServer{t: t, fixturesDir: fixturesDir, httpServer: srv, committed: map[string]bool{}}
+	require.NoError(t, s.initRefs())
+
+	return s
+}
+
+// thTFailingHooks writes git hooks that fail the work repo step named by THT_FAIL_STAGE and pass every other step.
+func thTFailingHooks(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	hooks := map[string]string{
+		"pre-commit": `[ "$THT_FAIL_STAGE" = commit ] || exit 0
+echo "rejected commit" >&2
+exit 1
+`,
+		"reference-transaction": `[ "$1" = prepared ] || exit 0
+case "$THT_FAIL_STAGE" in
+tag) grep -q ' refs/tags/' || exit 0 ;;
+branch) grep -q ' refs/heads/fixture/' || exit 0 ;;
+*) exit 0 ;;
+esac
+echo "rejected $THT_FAIL_STAGE" >&2
+exit 1
+`,
+	}
+
+	for name, body := range hooks {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+body), 0o755))
+	}
+
+	return dir
 }

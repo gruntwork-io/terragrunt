@@ -4,10 +4,10 @@ import (
 	"context"
 	"io"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
-	otellog "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/sdk/log"
 
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -51,7 +51,7 @@ func NewLogger(
 		return nil, err
 	}
 
-	otellog.SetLoggerProvider(provider)
+	otel.SetLoggerProvider(provider)
 
 	return &Logger{
 		provider: provider,

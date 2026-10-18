@@ -23,6 +23,7 @@ type scaffoldCmd struct {
 	plan      *scaffold.Plan
 	values    map[string]string
 	venv      *venv.Venv
+	files     []string
 }
 
 func newScaffoldCmd(
@@ -50,12 +51,18 @@ func (c *scaffoldCmd) Run() error {
 
 		c.logger.Debugf("Generating scaffolded component: %q", c.component.TerraformSourcePath())
 
-		return c.plan.Generate(context.Background(), c.logger, c.venv, c.opts, c.values)
+		if err := c.plan.Generate(context.Background(), c.logger, c.venv, c.opts, c.values); err != nil {
+			return err
+		}
+
+		c.files = c.plan.GeneratedFiles()
+
+		return nil
 	}
 
 	c.logger.Debugf("Scaffolding component: %q", c.component.TerraformSourcePath())
 
-	return scaffold.Run(
+	plan, err := scaffold.Prepare(
 		context.Background(),
 		c.logger,
 		c.venv,
@@ -63,6 +70,25 @@ func (c *scaffoldCmd) Run() error {
 		c.component.TerraformSourcePath(),
 		"",
 	)
+	if err != nil {
+		return err
+	}
+
+	defer plan.Cleanup(c.venv.FS)
+
+	if err := plan.Generate(context.Background(), c.logger, c.venv, c.opts, nil); err != nil {
+		return err
+	}
+
+	c.files = plan.GeneratedFiles()
+
+	return nil
+}
+
+// Files returns the paths of the files written by the last Run call, relative
+// to the output directory. It is empty until Run completes successfully.
+func (c *scaffoldCmd) Files() []string {
+	return c.files
 }
 
 func (c *scaffoldCmd) SetStdin(io.Reader)  {}

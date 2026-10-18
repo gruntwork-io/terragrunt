@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Autoinclude on a component injected by a stack-level autoinclude is generated
+
+A `unit` or `stack` block injected by a stack-level `autoinclude` may declare its own `autoinclude`. Stack generation dropped it, so the injected unit got no dependency and ran with its default inputs. It is now generated in the nested stack.
+
+An injected block that overrides a block of the nested stack also replaces its path for the nested stack's own autoinclude blocks, which previously still pointed at the overridden path.
