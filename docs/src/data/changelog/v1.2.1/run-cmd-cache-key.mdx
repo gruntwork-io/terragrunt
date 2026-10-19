@@ -1,0 +1,8 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### `run_cmd` results are cached per configured environment and exact arguments
+
+The `run_cmd` cache keyed results on the evaluated file's directory and a space-joined argument list. A command in a file shared via `read_terragrunt_config` replayed the first unit's output for every unit, even when `--auth-provider-cmd` had given each unit different credentials. `run_cmd("printf", "%s|", "x y")` also shared an entry with `run_cmd("printf", "%s|", "x", "y")`. The key now includes the configured environment and the exact argument boundaries. Concurrent calls with the same key run the command once and share its result, success or failure. Failures are not stored, so a later call runs the command again.

@@ -2,7 +2,6 @@ package config_test
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -385,10 +384,13 @@ func TestRunCommandCacheKeyIncludesEnv(t *testing.T) {
 	}
 }
 
-// TestRunCommandConcurrentMissesRunOnce pins the per-key lock around the cache
+// TestRunCommandConcurrentMissesRunOnce pins the flight around the cache
 // miss window: goroutines parsing units in parallel that miss on the same key
 // must run the command once and all observe that one result, rather than each
-// spawning the subprocess and racing to Put.
+// spawning the subprocess and racing to Put. The first invocation blocks until
+// the test releases it, so the miss window stays open for every other worker
+// regardless of scheduling; the short sleep only lets stragglers be scheduled
+// into it and is not what proves the overlap.
 func TestRunCommandConcurrentMissesRunOnce(t *testing.T) {
 	t.Parallel()
 
@@ -396,19 +398,24 @@ func TestRunCommandConcurrentMissesRunOnce(t *testing.T) {
 
 	var calls atomic.Int32
 
+	started := make(chan struct{})
+	release := make(chan struct{})
+
 	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-		n := calls.Add(1)
+		if calls.Add(1) == 1 {
+			close(started)
+		}
 
-		// Hold the miss window open so every worker arrives before the first run finishes.
-		time.Sleep(50 * time.Millisecond)
+		<-release
 
-		return vexec.Result{Stdout: fmt.Appendf(nil, "run-%d\n", n)}
+		return vexec.Result{Stdout: []byte("shared\n")}
 	})
 
 	l := logger.CreateLogger()
 	ctx, _ := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithConfigValues(ctx)
 
+	ready := make(chan struct{})
 	results := make([]string, workers)
 
 	var wg sync.WaitGroup
@@ -417,23 +424,89 @@ func TestRunCommandConcurrentMissesRunOnce(t *testing.T) {
 		v := venvtest.New().WithExec(exec)
 		_, pctx := newTestParsingContext(t, t.TempDir())
 
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
+			<-ready
 
 			out, err := config.RunCommand(ctx, l, v, pctx, []string{"--terragrunt-global-cache", "slow-cmd"})
 			assert.NoError(t, err)
 
 			results[i] = out
-		}()
+		})
 	}
 
+	close(ready)
+	<-started
+	time.Sleep(10 * time.Millisecond)
+	close(release)
 	wg.Wait()
 
 	assert.Equal(t, int32(1), calls.Load(), "concurrent misses on one key must coalesce into a single run")
 
 	for i, got := range results {
-		assert.Equal(t, "run-1", got, "worker %d must see the single shared result", i)
+		assert.Equal(t, "shared", got, "worker %d must see the single shared result", i)
 	}
+}
+
+// TestRunCommandConcurrentFailuresShareOneAttempt pins that a failing command
+// is attempted once for every concurrent caller of one key, each of which
+// receives that error, instead of being retried serially by each caller in
+// turn. A failure is not stored, so a later independent call runs it again.
+func TestRunCommandConcurrentFailuresShareOneAttempt(t *testing.T) {
+	t.Parallel()
+
+	const workers = 8
+
+	var calls atomic.Int32
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		if calls.Add(1) == 1 {
+			close(started)
+		}
+
+		<-release
+
+		return vexec.Result{ExitCode: 1, Stderr: []byte("boom\n")}
+	})
+
+	l := logger.CreateLogger()
+	ctx, _ := newTestParsingContext(t, t.TempDir())
+	ctx = config.WithConfigValues(ctx)
+
+	ready := make(chan struct{})
+	errs := make([]error, workers)
+
+	var wg sync.WaitGroup
+
+	for i := range workers {
+		v := venvtest.New().WithExec(exec)
+		_, pctx := newTestParsingContext(t, t.TempDir())
+
+		wg.Go(func() {
+			<-ready
+
+			_, errs[i] = config.RunCommand(ctx, l, v, pctx, []string{"--terragrunt-global-cache", "failing-cmd"})
+		})
+	}
+
+	close(ready)
+	<-started
+	time.Sleep(10 * time.Millisecond)
+	close(release)
+	wg.Wait()
+
+	assert.Equal(t, int32(1), calls.Load(), "concurrent callers must share one failing attempt")
+
+	for i, err := range errs {
+		require.Error(t, err, "worker %d must receive the shared failure", i)
+	}
+
+	v := venvtest.New().WithExec(exec)
+	_, pctx := newTestParsingContext(t, t.TempDir())
+
+	_, err := config.RunCommand(ctx, l, v, pctx, []string{"--terragrunt-global-cache", "failing-cmd"})
+	require.Error(t, err)
+	assert.Equal(t, int32(2), calls.Load(), "a failure must not be cached, so a later call runs the command again")
 }

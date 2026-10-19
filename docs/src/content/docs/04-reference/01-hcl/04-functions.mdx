@@ -762,10 +762,10 @@ The `run_cmd` function accepts some special flags that can alter how the functio
 | Parameter                   | Description                                                                                                                                                                                   | Example                                                                                                               |
 |-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | `--terragrunt-quiet`        | Redacts `run_cmd` stdout from Terragrunt logs while still returning the value to HCL. This keeps sensitive information out of log files.                                                      | `run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")`                                                         |
-| `--terragrunt-global-cache` | Stores and reuses results in a global cache so the command only runs once per set of arguments and environment, no matter which configuration references it. Useful when the output is directory-independent. | `run_cmd("--terragrunt-global-cache", "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")` |
+| `--terragrunt-global-cache` | Stores and reuses results in a global cache so the command only runs once per set of arguments and configured environment, no matter which configuration references it. Useful when the output is directory-independent. | `run_cmd("--terragrunt-global-cache", "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")` |
 | `--terragrunt-no-cache`     | Skips the cache entirely and forces the command to run on every evaluation. Use this when the output changes frequently (timestamps, tokens, random IDs, etc.).                               | `run_cmd("--terragrunt-no-cache", "date", "+%s")`                                                                     |
 
-Terragrunt caches `run_cmd` results by default to avoid running the same command multiple times during parsing. The cache key includes the directory of the `terragrunt.hcl` file, the exact command arguments, and the environment variables the command runs with, so a unit never reuses a result another unit produced under different credentials (for example, ones obtained via `--auth-provider-cmd`). Opting into global caching drops the directory from the key; disabling caching skips the cache entirely. When units are parsed concurrently and several miss the cache for the same command at once, the command runs once and all of them share the result.
+Terragrunt caches successful `run_cmd` results during parsing so the same command does not run repeatedly. The cache key is the directory of the `terragrunt.hcl` file, the exact command arguments, and the environment Terragrunt has configured for the command. A unit therefore never reuses a result another unit produced under different credentials, such as ones obtained via `--auth-provider-cmd`. `--terragrunt-global-cache` drops the directory from the key. `--terragrunt-no-cache` bypasses the cache. Concurrent calls that share a key run the command once and receive the same result, whether it succeeded or failed. A failure is not stored, so a later call runs the command again.
 Parameters `--terragrunt-global-cache` and `--terragrunt-no-cache` are mutually exclusive, Terragrunt will return an error if both are provided.
 
 #### Examples
@@ -805,7 +805,7 @@ session_token = run_cmd("--terragrunt-no-cache", "--terragrunt-quiet", "./genera
 
 ### Caching Behavior
 
-By default, invocations of `run_cmd` are cached based on the current directory, the executed command, and its environment, so cached values are reused later rather than executed multiple times. Here's an example:
+By default, invocations of `run_cmd` are cached based on the current directory, the exact command arguments, and the configured environment, so cached values are reused later rather than executed multiple times. Here's an example:
 
 ```hcl
 # terragrunt.hcl

@@ -47,6 +47,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -665,67 +666,64 @@ func runCommandImpl(
 		)
 	}
 
-	// To avoid re-running the same run_cmd command, results are memoized in an in-memory cache keyed by
-	// everything the output can depend on: the directory the command runs in, the environment it runs
-	// with, and its exact argv.
+	// To avoid re-running the same run_cmd command, successful results are memoized in an in-memory
+	// cache keyed by the directory scope, the configured environment, and the exact argv.
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
+	if disableCache {
+		entry, err := runCmd(ctx, l, v, pctx, currentPath, args, suppressOutput)
+		if err != nil {
+			return "", err
+		}
+
+		return entry.Value(), nil
+	}
+
 	cacheKey := runCmdCacheKey(cachePath, v.Env, args)
 
-	// Skip cache lookup if --terragrunt-no-cache is set
-	if !disableCache {
+	if cachedEntry, found := runCommandCache.Get(ctx, cacheKey); found {
+		return replayCachedRunCmd(l, v, cachedEntry, suppressOutput), nil
+	}
+
+	// Units are parsed concurrently, so several goroutines can miss on the same key at once. The
+	// flight runs the command once for all of them and hands every waiter the same result, error
+	// included, so a failing command is not retried serially by each waiter in turn. Only a success
+	// is stored, so a later independent call runs the command again. The command runs under the
+	// first caller's context, as singleflight does, which is fine here because unit contexts are
+	// cancelled together with the run rather than one at a time.
+	ran := false
+
+	entryAny, err, _ := runCmdFlightsFromContext(ctx).Do(cacheKey, func() (any, error) {
+		// Whoever ran the previous flight for this key may have stored it in the meantime.
 		if cachedEntry, found := runCommandCache.Get(ctx, cacheKey); found {
-			return replayCachedRunCmd(l, v, cachedEntry, suppressOutput), nil
+			return cachedEntry, nil
 		}
 
-		// Units are parsed concurrently, so several goroutines can miss on the same key at once.
-		// Holding a per-key lock across the run and the Put makes them execute the command once
-		// and share the result instead of each spawning it, and keeps a slower run from
-		// overwriting a fresher entry.
-		runCmdLocks := runCmdLocksFromContext(ctx)
-
-		runCmdLocks.Lock(cacheKey)
-		defer runCmdLocks.Unlock(cacheKey)
-
-		// Whoever held the lock may have been running this very command, so the cache is
-		// consulted again before paying for a run of our own.
-		if cachedEntry, found := runCommandCache.Get(ctx, cacheKey); found {
-			return replayCachedRunCmd(l, v, cachedEntry, suppressOutput), nil
+		entry, err := runCmd(ctx, l, v, pctx, currentPath, args, suppressOutput)
+		if err != nil {
+			return nil, err
 		}
-	}
 
-	cmdOutput, err := shell.RunCommandWithOutput(
-		ctx,
-		l,
-		v,
-		shellRunOptsFromPctx(v, pctx),
-		currentPath,
-		true,
-		false,
-		args[0],
-		args[1:]...,
-	)
-	if err != nil {
-		return "", fmt.Errorf("running command: %w", err)
-	}
-
-	entry := &RunCmdCacheEntry{
-		Stdout: cmdOutput.Stdout.String(),
-		Stderr: cmdOutput.Stderr.String(),
-	}
-
-	if suppressOutput {
-		l.Debugf("run_cmd output: [REDACTED]")
-	} else {
-		l.Debugf("run_cmd output: [%s]", entry.Value())
-	}
-
-	entry.replay(v, suppressOutput)
-
-	if !disableCache {
 		runCommandCache.Put(ctx, cacheKey, entry)
+
+		ran = true
+
+		return entry, nil
+	})
+	if err != nil {
+		return "", err
 	}
 
-	return entry.Value(), nil
+	entry, ok := entryAny.(*RunCmdCacheEntry)
+	if !ok {
+		return "", fmt.Errorf("unexpected run_cmd cache flight result type %T", entryAny)
+	}
+
+	// The caller that ran the command has already logged and replayed its output.
+	if ran {
+		return entry.Value(), nil
+	}
+
+	return replayCachedRunCmd(l, v, entry, suppressOutput), nil
 }
 
 func getEnvironmentVariable(
@@ -1835,19 +1833,20 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 	return semver.CheckConstraint(args[0], args[1])
 }
 
-// runCmdCacheKey identifies one run_cmd result by everything its output can depend on: the scope
-// the command runs in (its directory, or the global scope), the environment it inherits, and its
-// exact argv. The args are %q-formatted so every element boundary survives; %v on a []string joins
-// elements with spaces, which gave ("x y") and ("x", "y") the same key. NUL separates the parts
-// because it cannot occur in a path, in hex, or unescaped inside a %q string.
+// runCmdCacheKey identifies one run_cmd result by its directory scope (the directory the command
+// runs in, or the global scope), the configured environment, and the exact argv. The args are
+// %q-formatted so every element boundary survives; %v on a []string joins elements with spaces,
+// which gave ("x y") and ("x", "y") the same key. NUL separates the parts because it cannot occur
+// in a path, in hex, or unescaped inside a %q string.
 func runCmdCacheKey(scope string, env map[string]string, args []string) string {
 	return fmt.Sprintf("%s\x00%s\x00%q", scope, envFingerprint(env), args)
 }
 
-// envFingerprint hashes the environment a run_cmd subprocess would inherit. Terragrunt injects
-// per-unit credentials into v.Env (--auth-provider-cmd), so the same command evaluated from a
-// shared file (read_terragrunt_config) under two units must not replay the first unit's output
-// for the second. Hashing rather than embedding keeps secrets out of the key.
+// envFingerprint hashes the environment Terragrunt has configured for a run_cmd subprocess (v.Env;
+// the shell layer may add a trace parent on top). Terragrunt injects per-unit credentials into
+// v.Env (--auth-provider-cmd), so the same command evaluated from a shared file
+// (read_terragrunt_config) under two units must not replay the first unit's output for the second.
+// Hashing rather than embedding keeps secrets out of the key.
 func envFingerprint(env map[string]string) string {
 	sum := sha256.Sum256([]byte(strings.Join(venv.Environ(env), "\x00")))
 
@@ -1868,14 +1867,56 @@ func replayCachedRunCmd(l log.Logger, v *venv.Venv, entry *RunCmdCacheEntry, sup
 	return entry.Value()
 }
 
-// runCmdLocksFromContext returns the per-key run_cmd locks, so concurrent misses on one key run
+// runCmd executes a run_cmd command in dir and returns its captured output as a cache entry, after
+// logging the output and replaying it to v's writers.
+func runCmd(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	dir string,
+	args []string,
+	suppressOutput bool,
+) (*RunCmdCacheEntry, error) {
+	cmdOutput, err := shell.RunCommandWithOutput(
+		ctx,
+		l,
+		v,
+		shellRunOptsFromPctx(v, pctx),
+		dir,
+		true,
+		false,
+		args[0],
+		args[1:]...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("running command: %w", err)
+	}
+
+	entry := &RunCmdCacheEntry{
+		Stdout: cmdOutput.Stdout.String(),
+		Stderr: cmdOutput.Stderr.String(),
+	}
+
+	if suppressOutput {
+		l.Debugf("run_cmd output: [REDACTED]")
+	} else {
+		l.Debugf("run_cmd output: [%s]", entry.Value())
+	}
+
+	entry.replay(v, suppressOutput)
+
+	return entry, nil
+}
+
+// runCmdFlightsFromContext returns the per-key run_cmd flights, so concurrent misses on one key run
 // the command once and share the result. A context without them (tests calling RunCommand
-// directly) gets a detached set, which coalesces nothing, matching the detached cache that
+// directly) gets a detached group, which coalesces nothing, matching the detached cache that
 // cache.ContextCache hands out in the same situation.
-func runCmdLocksFromContext(ctx context.Context) *util.KeyLocks {
-	if val, ok := ctx.Value(RunCmdLocksContextKey).(*util.KeyLocks); ok && val != nil {
+func runCmdFlightsFromContext(ctx context.Context) *singleflight.Group {
+	if val, ok := ctx.Value(RunCmdFlightsContextKey).(*singleflight.Group); ok && val != nil {
 		return val
 	}
 
-	return util.NewKeyLocks()
+	return new(singleflight.Group)
 }

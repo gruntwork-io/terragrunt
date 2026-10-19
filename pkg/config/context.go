@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"golang.org/x/sync/singleflight"
 )
 
 type configKey byte
@@ -16,7 +17,7 @@ const (
 	HclCacheContextKey               configKey = iota
 	TerragruntConfigCacheContextKey  configKey = iota
 	RunCmdCacheContextKey            configKey = iota
-	RunCmdLocksContextKey            configKey = iota
+	RunCmdFlightsContextKey          configKey = iota
 	DependencyOutputCacheContextKey  configKey = iota
 	JSONOutputCacheContextKey        configKey = iota
 	OutputLocksContextKey            configKey = iota
@@ -48,7 +49,7 @@ func WithConfigValues(ctx context.Context) context.Context {
 		RunCmdCacheContextKey,
 		cache.NewCache[*RunCmdCacheEntry](runCmdCacheName),
 	)
-	ctx = context.WithValue(ctx, RunCmdLocksContextKey, util.NewKeyLocks())
+	ctx = context.WithValue(ctx, RunCmdFlightsContextKey, new(singleflight.Group))
 	ctx = azurermbackend.WithStateClientCache(ctx)
 	ctx = context.WithValue(
 		ctx,
