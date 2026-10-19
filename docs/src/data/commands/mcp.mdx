@@ -86,8 +86,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="caution" title="This is not a sandbox">
 The flags on this page limit what Terragrunt does when a tool asks it to. They do not contain the programs Terragrunt
-  starts, and they do not stop an agent that can run shell commands from running `terragrunt run --all apply` itself,
-  with whatever credentials it can reach.
+starts, and they do not stop an agent that can run shell commands from running `terragrunt run --all apply` itself,
+with whatever credentials it can reach.
 
 - A running `tofu` reaches the network whether or not `--allow=http` was granted. With `exec` granted and `http`
   denied, a `tofu init` still downloads providers from the registry.
@@ -104,10 +104,10 @@ directory that holds the units it needs.
 
 | Name            | What it does                                                                 | Needs                                                  |
 | --------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `discover`      | Lists the units and stacks under a directory                                 | ------------------------------------------------------ |
+| `discover`      | Lists the units and stacks under a directory                                 | None                                                   |
 | `render_config` | Evaluates one unit's `terragrunt.hcl` and returns the resolved configuration | `exec` to read dependency outputs                      |
-| `validate`      | Reports syntax and evaluation errors in the configurations under a directory | ------------------------------------------------------ |
-| `run_order`     | Reports the order units run in, and what blocks each one                     | ------------------------------------------------------ |
+| `validate`      | Reports syntax and evaluation errors in the configurations under a directory | None                                                   |
+| `run_order`     | Reports the order units run in, and what blocks each one                     | None                                                   |
 | `get_outputs`   | Reads the applied outputs of one unit                                        | `exec`, or `http` for `s3`, `gcs`, and `azurerm` state |
 | `plan`          | Runs `run --all plan` across the units and returns the per-unit result       | `exec`                                                 |
 
@@ -229,16 +229,16 @@ stdout has the apply summary and the unit's outputs, sensitive values redacted.
 
 - `filter` narrows which units run.
 - `parallelism` works as it does for `plan`.
-- The approval prompt shows both as flags on the command it asks about.
+- The approval prompt shows `filter` and `parallelism` as flags on the command it asks about.
 
 ## Connecting a client
 
 Clients read a `.mcp.json` like the examples above. Set `TG_EXPERIMENT` in its `env`, since there is no shell to export
 it from. Each client decides where the file lives and how much of this shape it reads, so check its own documentation:
 
-- [VS Code](https://code.visualstudio.com/docs/copilot/customization/mcp-servers)
-- [Cursor](https://cursor.com/docs/context/mcp)
-- [Claude Code](https://docs.claude.com/en/docs/claude-code/mcp)
+- [VS Code](https://code.visualstudio.com/docs/agent-customization/mcp-servers)
+- [Cursor](https://cursor.com/docs/mcp)
+- [Claude Code](https://code.claude.com/docs/en/mcp)
 - [Codex](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
 - [Zed](https://zed.dev/docs/ai/mcp)
 - [OpenCode](https://opencode.ai/docs/mcp-servers/)
@@ -272,7 +272,7 @@ in the tree.
 
 `discover`, `render_config`, `validate`, and `run_order` ask. When a configuration names a refused program, the call
 returns an elicitation naming the programs, then runs again with the ones the person operating the client accepts. An
-acceptance covers those programs for that call only. `plan`, `apply`, and `destroy` never ask.
+acceptance covers those programs for that call only. `get_outputs`, `plan`, `apply`, and `destroy` never ask.
 
 ### http
 
