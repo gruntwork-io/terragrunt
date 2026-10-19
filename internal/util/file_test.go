@@ -18,6 +18,7 @@ import (
 	tglog "github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -565,7 +566,8 @@ func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
 
 	const testMaxFileManifests = 100_000
 
-	root := helpers.TmpDirWOSymlinks(t)
+	fsys := vfs.NewMemMapFS()
+	root := venvtest.Root("/manifest-cap")
 	manifestPath := filepath.Join(root, testManifestName)
 	entries := make([]manifestTestEntry, 0, testMaxFileManifests)
 
@@ -573,9 +575,10 @@ func TestFileManifestCleanRejectsTooManyReferencedManifests(t *testing.T) {
 		entries = append(entries, manifestDir(filepath.Join(root, fmt.Sprintf("dir-%06d", idx))))
 	}
 
-	writeManifestEntryList(t, manifestPath, entries...)
+	require.NoError(t, fsys.MkdirAll(root, 0o755))
+	writeManifestEntryListTo(t, fsys, manifestPath, entries...)
 
-	manifest := util.NewFileManifest(vfs.NewOSFS(), root, testManifestName)
+	manifest := util.NewFileManifest(fsys, root, testManifestName)
 	err := manifest.Clean(l)
 
 	require.ErrorContains(t, err, "exceeded 100000 manifests")
@@ -760,17 +763,20 @@ func writeManifestEntries(t *testing.T, path string, isDir bool, paths ...string
 func writeManifestEntryList(t *testing.T, path string, entries ...manifestTestEntry) {
 	t.Helper()
 
-	f, err := os.Create(path)
-	require.NoError(t, err)
+	writeManifestEntryListTo(t, vfs.NewOSFS(), path, entries...)
+}
 
-	defer func() {
-		require.NoError(t, f.Close())
-	}()
+func writeManifestEntryListTo(t *testing.T, fsys vfs.FS, path string, entries ...manifestTestEntry) {
+	t.Helper()
 
-	enc := gob.NewEncoder(f)
+	var buf bytes.Buffer
+
+	enc := gob.NewEncoder(&buf)
 	for _, entry := range entries {
 		require.NoError(t, enc.Encode(entry))
 	}
+
+	require.NoError(t, vfs.WriteFile(fsys, path, buf.Bytes(), 0o600))
 }
 
 func writeRepeatedManifestEntry(t *testing.T, path string, count int, entry manifestTestEntry) {

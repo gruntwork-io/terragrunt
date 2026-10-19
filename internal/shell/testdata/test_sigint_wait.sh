@@ -2,14 +2,16 @@
 
 set -e
 
+# The INT trap sleeps WAIT_TIME then exits with EXIT_CODE, so the caller can check both.
 WAIT_TIME=$1
-READY_FILE=$2
+EXIT_CODE=$2
+READY_FILE=$3
 
 trap int_handler INT
 
 function int_handler() {
 	sleep "$WAIT_TIME"
-	exit "$WAIT_TIME"
+	exit "$EXIT_CODE"
 }
 
 # The marker tells the test the INT trap is installed and a signal can be sent.

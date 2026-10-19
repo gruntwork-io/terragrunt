@@ -65,6 +65,7 @@ const (
 	testFixtureStackDepsApplyNoMocks             = "fixtures/stacks/stack-deps-apply-no-mocks"
 	testFixtureStackDepsStackAutoIncOverride     = "fixtures/stacks/stack-deps-stack-autoinclude-override"
 	testFixtureStackDepsStackAutoIncInjectedDep  = "fixtures/stacks/stack-deps-stack-autoinclude-injected-dep"
+	testFixtureStackDepsStackAutoIncCASSource    = "fixtures/stacks/stack-deps-stack-autoinclude-cas-source"
 	testFixtureStackDepsStackAutoIncLocalPath    = "fixtures/stacks/stack-deps-stack-autoinclude-local-path"
 	testFixtureStackDepsMockLocal                = "fixtures/stacks/stack-deps-mock-local"
 	testFixtureStackDepsAutoIncValuesResolved    = "fixtures/stacks/stack-deps-autoinclude-values-resolved"
@@ -1782,6 +1783,45 @@ func TestStackDepsStackLevelAutoIncludeInjectsNestedStack(t *testing.T) {
 		"the stack injected via the stack-level autoinclude must materialize in the nested stack")
 	assert.DirExists(t, filepath.Join(moreStackDir, inthclparse.StackDir, "deep"),
 		"the autoinclude-injected nested stack must expand its own units")
+}
+
+// TestStackDepsStackLevelAutoIncludeCASSource verifies that update_source_with_cas on a unit injected by a
+// stack-level autoinclude in a catalog stack rewrites its relative source to a CAS reference. The injected
+// unit must resolve to the catalog unit and keep its nested autoinclude dependency.
+func TestStackDepsStackLevelAutoIncludeCASSource(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackAutoIncCASSource)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackAutoIncCASSource)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsStackAutoIncCASSource)
+
+	runner, err := git.NewGitRunner(venv.OSVenv())
+	require.NoError(t, err)
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	fnDir := filepath.Join(rootPath, inthclparse.StackDir, "wrap", inthclparse.StackDir, "fn")
+	handlerDir := filepath.Join(fnDir, inthclparse.StackDir, "handler")
+
+	injected, err := os.ReadFile(filepath.Join(fnDir, "terragrunt.autoinclude.stack.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, string(injected), `"cas::`, "CAS must rewrite the injected unit's source")
+
+	require.FileExists(t, filepath.Join(handlerDir, "terragrunt.hcl"),
+		"the injected unit must be fetched from the catalog unit")
+	require.FileExists(t, filepath.Join(handlerDir, "main.tf"))
+	assert.NoDirExists(t, filepath.Join(fnDir, inthclparse.StackDir, "function"),
+		"the override must replace the catalog stack's unit")
+
+	autoInclude, err := os.ReadFile(filepath.Join(handlerDir, "terragrunt.autoinclude.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, string(autoInclude), `dependency "queue"`,
+		"the injected unit must keep its nested autoinclude dependency")
 }
 
 // TestStackDepsStackAutoIncludeDepValuesIsClearError covers the unsupported cross-level pattern: a
