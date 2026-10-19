@@ -569,7 +569,7 @@ func (repo *Repo) performClone(
 	sourceURL.RawQuery = q.Encode()
 
 	cloneFunc := func() error {
-		_, err = client.Get(ctx, &getter.Request{
+		_, err = getter.Download(ctx, client, &getter.Request{
 			Src:     sourceURL.String(),
 			Dst:     repo.path,
 			GetMode: getter.ModeDir,

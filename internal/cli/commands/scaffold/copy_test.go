@@ -116,7 +116,7 @@ func TestScaffoldLeavesNoSourceManifestBehind(t *testing.T) {
 				writeFiles(t, dir, nestedFiles)
 				writeFile(t, filepath.Join(dir, "terragrunt.hcl"), "# unit\n")
 
-				return helpers.FileURL(dir), ""
+				return getter.FileURL(dir).String(), ""
 			},
 			want: []string{"terragrunt.hcl", "nested/sub/notes.txt", ".terraform/providers/fake.zip"},
 		},
@@ -154,7 +154,7 @@ func TestScaffoldLeavesNoSourceManifestBehind(t *testing.T) {
 					CombinedOutput()
 				require.NoError(t, err, string(out))
 
-				return "git::" + helpers.FileURL(repoDir) + "//units/app", ""
+				return "git::" + getter.FileURL(repoDir).String() + "//units/app", ""
 			},
 			want: []string{"terragrunt.hcl", "nested/sub/notes.txt"},
 		},
@@ -180,7 +180,7 @@ func TestScaffoldLeavesNoSourceManifestBehind(t *testing.T) {
 				templateDir := helpers.TmpDirWOSymlinks(t)
 				writeFiles(t, templateDir, templateFiles)
 
-				return writeComponent(t, "modules/vpc", moduleFiles), helpers.FileURL(templateDir)
+				return writeComponent(t, "modules/vpc", moduleFiles), getter.FileURL(templateDir).String()
 			},
 			want: []string{"terragrunt.hcl", "nested/sub/doc.md"},
 		},
@@ -311,8 +311,8 @@ dependencies:
 		l,
 		v,
 		opts,
-		helpers.FileURL(repoDir)+"//modules/vpc",
-		helpers.FileURL(repoDir)+"//templates/root",
+		getter.FileURL(repoDir).String()+"//modules/vpc",
+		getter.FileURL(repoDir).String()+"//templates/root",
 	)
 	require.NoError(t, err)
 
@@ -398,7 +398,7 @@ func writeComponent(t *testing.T, dir string, files map[string]string) string {
 		writeFile(t, filepath.Join(repoDir, filepath.FromSlash(dir), name), contents)
 	}
 
-	return helpers.FileURL(repoDir) + "//" + dir
+	return getter.FileURL(repoDir).String() + "//" + dir
 }
 
 // runScaffold scaffolds source into a fresh output directory and returns it.

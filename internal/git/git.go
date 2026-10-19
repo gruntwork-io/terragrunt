@@ -1165,6 +1165,83 @@ func (g *GitRunner) ConfigSet(ctx context.Context, name, value string) error {
 	return nil
 }
 
+// RemoteAdd runs `git remote add` in the working directory, naming url as the
+// remote called name.
+func (g *GitRunner) RemoteAdd(ctx context.Context, name, url string) error {
+	return g.runInWorkDir(ctx, "git_remote_add", "remote", "add", name, "--", url)
+}
+
+// FetchTags runs `git fetch --tags` against remote in the working directory.
+func (g *GitRunner) FetchTags(ctx context.Context, remote string) error {
+	return g.runInWorkDir(ctx, "git_fetch_tags", "fetch", "--tags", "--", remote)
+}
+
+// ResetHard runs `git reset --hard` to ref in the working directory.
+func (g *GitRunner) ResetHard(ctx context.Context, ref string) error {
+	return g.runInWorkDir(ctx, "git_reset_hard", "reset", "--hard", ref)
+}
+
+// PullFastForward runs `git pull --ff-only` for ref from remote in the working
+// directory. A positive depth adds --depth.
+func (g *GitRunner) PullFastForward(ctx context.Context, remote, ref string, depth int) error {
+	args := []string{"pull", remote}
+
+	if depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(depth))
+	}
+
+	args = append(args, "--ff-only", "--", ref)
+
+	return g.runInWorkDir(ctx, "git_pull", args...)
+}
+
+// SubmoduleUpdate runs `git submodule update --init --recursive` in the
+// working directory. A positive depth adds --depth.
+func (g *GitRunner) SubmoduleUpdate(ctx context.Context, depth int) error {
+	args := []string{"submodule", "update", "--init", "--recursive"}
+
+	if depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(depth))
+	}
+
+	return g.runInWorkDir(ctx, "git_submodule_update", args...)
+}
+
+// Version returns the version `git version` reports. A Git for Windows suffix
+// such as .windows.1 is dropped, since it does not parse as a version.
+func (g *GitRunner) Version(ctx context.Context) (*semver.Version, error) {
+	cmd := g.prepareCommand(ctx, "version")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_version",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	const versionField = 2
+
+	fields := strings.Fields(stdout.String())
+	if len(fields) <= versionField {
+		return nil, &WrappedError{Op: "git_version", Context: stdout.String(), Err: ErrParseVersion}
+	}
+
+	raw, _, _ := strings.Cut(fields[versionField], ".windows.")
+
+	version, err := semver.Parse(raw)
+	if err != nil {
+		return nil, &WrappedError{Op: "git_version", Context: raw, Err: errors.Join(ErrParseVersion, err)}
+	}
+
+	return version, nil
+}
+
 // fetch runs `git fetch` with args placed ahead of the remote and refspec.
 func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) error {
 	if err := g.RequiresWorkDir(); err != nil {
@@ -1192,6 +1269,30 @@ func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) 
 			Op:      "git_fetch",
 			Context: stderr.String(),
 			Err:     errors.Join(ErrGitFetch, err),
+		}
+	}
+
+	return nil
+}
+
+// runInWorkDir runs git with args in the working directory, reporting a
+// failure as op with git's stderr attached.
+func (g *GitRunner) runInWorkDir(ctx context.Context, op string, args ...string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      op,
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 

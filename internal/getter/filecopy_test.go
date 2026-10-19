@@ -85,7 +85,7 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 		},
 		{
 			name:          "unencoded spaces",
-			src:           helpers.FileURL(srcDir),
+			src:           tggetter.FileURL(srcDir).String(),
 			dst:           filepath.Join(base, "out-raw"),
 			mode:          getter.ModeAny,
 			want:          filepath.Join(base, "out-raw", "main.tf"),
