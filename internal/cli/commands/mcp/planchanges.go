@@ -3,27 +3,23 @@ package mcp
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // annotatePlanChanges fills in the plan JSON and change counts of each unit
 // result, and returns a note for each unit whose plan JSON could not be read.
-// units is the summary of r, in r.Runs order, and jsonFiles maps each unit's
-// path to its plan JSON file.
+// jsonFiles maps each unit's path to its plan JSON file.
 func annotatePlanChanges(
 	fsys vfs.FS,
-	r *report.Report,
 	units []runAllUnitResult,
 	jsonFiles map[string]string,
 ) []string {
 	var notes []string
 
-	for i, unitRun := range r.Runs {
-		jsonFile, ok := jsonFiles[filepath.Clean(unitRun.Path)]
+	for i := range units {
+		jsonFile, ok := jsonFiles[units[i].absPath]
 		if !ok || !vfs.Exists(fsys, jsonFile) {
 			continue
 		}

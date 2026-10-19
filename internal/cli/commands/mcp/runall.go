@@ -22,9 +22,17 @@ import (
 const runAllCauseMaxLen = 300
 
 type runAllInput struct {
-	WorkingDir  string   `json:"working_dir,omitempty" jsonschema:"Directory whose units to run. Defaults to the server root."`
-	Filter      []string `json:"filter,omitempty"      jsonschema:"Terragrunt filter queries to narrow which units are run."`
-	Parallelism int      `json:"parallelism,omitempty" jsonschema:"Maximum number of units to run at once. Omit for no limit."`
+	WorkingDir  string   `json:"working_dir,omitempty" jsonschema:"Directory whose units run. Defaults to server root."`
+	Filter      []string `json:"filter,omitempty"      jsonschema:"Filter queries that narrow which units run."`
+	Parallelism int      `json:"parallelism,omitempty" jsonschema:"Maximum units to run at once. Omit for no limit."`
+}
+
+// planInput is a [runAllInput] for the plan tool, which can also keep its
+// plan files.
+type planInput struct {
+	runAllInput
+
+	IncludeSensitive bool `json:"include_sensitive,omitempty" jsonschema:"Return plan_json, holding cleartext secrets."`
 }
 
 // ErrToolParallelismInvalid is returned when a tool call asks for a
@@ -49,8 +57,9 @@ type runAllUnitResult struct {
 	Result          string          `json:"result"`
 	Stdout          string          `json:"stdout,omitempty"`
 	PlanJSON        string          `json:"plan_json,omitempty"`
-	DurationMs      int64           `json:"duration_ms"`
-	StdoutTruncated bool            `json:"stdout_truncated,omitempty"`
+	absPath         string
+	DurationMs      int64 `json:"duration_ms"`
+	StdoutTruncated bool  `json:"stdout_truncated,omitempty"`
 }
 
 type runAllOutput struct {
@@ -68,13 +77,15 @@ func registerPlan(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *venv.V
 		Description: "Run 'terragrunt run --all plan' across the units under a directory and return a " +
 			"per-unit result summary (succeeded/failed/excluded, with failure causes). Use to verify a " +
 			"proposed change before a human applies it. Each unit that planned has changes, the counts of " +
-			"resources to add/change/destroy/import/forget and of outputs that change, and plan_json, the " +
-			"path of the plan's JSON representation (what show -json prints), which lists every resource " +
-			"change with its before and after values, sensitive ones included. Read it to see which " +
-			"resources change and how. Each unit that printed anything has stdout, the path of a file " +
-			"with its stdout, color stripped: the plan as OpenTofu/Terraform prints it, sensitive values " +
-			"redacted. A stdout file keeps the last 8 MiB (stdout_truncated says when the start was " +
-			"cut). The files, the binary plan files among them, stay until the server stops. Requires " +
+			"resources to add/change/destroy/import/forget and of outputs that change. Each unit that " +
+			"printed anything has stdout, the path of a file with its stdout, color stripped: the plan as " +
+			"OpenTofu/Terraform prints it, sensitive values redacted. Read it to see which resources " +
+			"change and how. A stdout file keeps the last 8 MiB (stdout_truncated says when the start " +
+			"was cut). With include_sensitive=true, each unit that planned also has plan_json, the path " +
+			"of the plan's JSON representation (what show -json prints), which lists every resource " +
+			"change with its before and after values in cleartext, sensitive ones included; without it, " +
+			"the plan files are deleted once their changes are counted. The files stay until the server " +
+			"stops. Requires " +
 			"the server to be started with --allow=exec, and runs are serialized, so concurrent plan " +
 			"calls queue. This can download module sources, run init, and reach backends/registries.",
 		Annotations: &mcp.ToolAnnotations{
@@ -86,8 +97,16 @@ func registerPlan(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *venv.V
 			// network whether or not Terragrunt itself may.
 			OpenWorldHint: new(true),
 		},
-	}, toolHandler(l, "plan", func(ctx context.Context, input runAllInput) (runAllOutput, error) {
-		return runAllCommand(ctx, l, d.forCall(nil), rootVenv, input, tf.CommandNamePlan)
+	}, toolHandler(l, "plan", func(ctx context.Context, input planInput) (runAllOutput, error) {
+		return runAllCommand(
+			ctx,
+			l,
+			d.forCall(nil),
+			rootVenv,
+			input.runAllInput,
+			tf.CommandNamePlan,
+			outputsSensitivityFor(input.IncludeSensitive),
+		)
 	}))
 }
 
@@ -102,6 +121,7 @@ func runAllCommand(
 	rootVenv *venv.Venv,
 	input runAllInput,
 	command string,
+	sensitivity outputsSensitivity,
 ) (runAllOutput, error) {
 	if !d.allowExec {
 		return runAllOutput{}, fmt.Errorf(
@@ -149,12 +169,26 @@ func runAllCommand(
 		return runAllOutput{}, err
 	}
 
+	ran := false
+
+	defer func() {
+		capture.close(l)
+
+		if ran {
+			return
+		}
+
+		if err := capture.discard(); err != nil {
+			l.Warnf("Removing the stdout directory of a %s that ran no unit: %v", command, err)
+		}
+	}()
+
 	opts.ForwardTFStdout = true
 	opts.TerraformCliArgs.AppendFlag(tf.FlagNameNoColor)
 
 	if command == tf.CommandNamePlan {
-		opts.OutputFolder = capture.dir
-		opts.JSONOutputFolder = capture.dir
+		opts.OutputFolder = capture.planDir()
+		opts.JSONOutputFolder = capture.planDir()
 	}
 
 	cv := d.callVenv(rootVenv, env, capture)
@@ -187,7 +221,7 @@ func runAllCommand(
 
 	runErr := runall.RunAllOnStack(ctx, l, cv, opts, rnr, r)
 
-	capture.close(rootVenv.FS)
+	capture.close(l)
 
 	// A non-nil runErr with a populated report means unit failures, which
 	// the per-unit summary already carries; only fail the tool call when
@@ -196,22 +230,38 @@ func runAllCommand(
 		return runAllOutput{}, fmt.Errorf("%s failed before any unit ran: %w", command, runErr)
 	}
 
+	ran = true
+
 	out := runAllSummarize(r, dir)
 	out.Degraded = d.rec.notes()
-	out.Degraded = append(out.Degraded, capture.annotate(r, out.Units)...)
+	out.Degraded = append(out.Degraded, capture.annotate(out.Units)...)
 
-	if command == tf.CommandNamePlan {
-		jsonFiles := make(map[string]string, len(rnr.Stack.Units))
-		for _, u := range rnr.Stack.Units {
-			jsonFiles[filepath.Clean(u.Path())] = u.OutputJSONFile(
-				opts.RootWorkingDir,
-				opts.JSONOutputFolder,
-			)
-		}
+	if command != tf.CommandNamePlan {
+		return out, nil
+	}
 
-		out.Degraded = append(
-			out.Degraded,
-			annotatePlanChanges(rootVenv.FS, r, out.Units, jsonFiles)...)
+	jsonFiles := make(map[string]string, len(rnr.Stack.Units))
+	for _, u := range rnr.Stack.Units {
+		jsonFiles[filepath.Clean(u.Path())] = u.OutputJSONFile(
+			opts.RootWorkingDir,
+			opts.JSONOutputFolder,
+		)
+	}
+
+	out.Degraded = append(
+		out.Degraded,
+		annotatePlanChanges(rootVenv.FS, out.Units, jsonFiles)...)
+
+	if sensitivity == outputsRevealSensitive {
+		return out, nil
+	}
+
+	for i := range out.Units {
+		out.Units[i].PlanJSON = ""
+	}
+
+	if err := rootVenv.FS.RemoveAll(capture.planDir()); err != nil {
+		out.Degraded = append(out.Degraded, fmt.Sprintf("the plan files could not be removed: %v", err))
 	}
 
 	return out, nil
@@ -229,8 +279,9 @@ func runAllSummarize(r *report.Report, workingDir string) runAllOutput {
 
 	for _, unitRun := range r.Runs {
 		res := runAllUnitResult{
-			Path:   runAllRunPath(unitRun, workingDir),
-			Result: string(unitRun.Result),
+			Path:    runAllRunPath(unitRun, workingDir),
+			Result:  string(unitRun.Result),
+			absPath: filepath.Clean(unitRun.Path),
 		}
 
 		if !unitRun.Ended.IsZero() {

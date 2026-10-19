@@ -122,7 +122,7 @@ func planUnitByPath(t *testing.T, out planOutput, path string) planUnit {
 // TestPlanWritesEachUnitsPlanToAFileOfItsOwn pins that every unit's plan text
 // goes to a file of its own, readable by its owner alone and free of color
 // codes, and that its plan JSON and the counts in it come back with the
-// result.
+// result when the call asks for sensitive values.
 func TestPlanWritesEachUnitsPlanToAFileOfItsOwn(t *testing.T) {
 	t.Parallel()
 
@@ -152,7 +152,7 @@ func TestPlanWritesEachUnitsPlanToAFileOfItsOwn(t *testing.T) {
 
 	var out planOutput
 
-	callTool(t, session, "plan", map[string]any{}, &out)
+	callTool(t, session, "plan", map[string]any{"include_sensitive": true}, &out)
 
 	a := planUnitByPath(t, out, "a")
 	b := planUnitByPath(t, out, "b")
@@ -249,6 +249,52 @@ func TestPlanWritesNoFileForAUnitThatPrintsNothing(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{filepath.Base(a.Stdout)}, textFiles)
+}
+
+// TestPlanDeletesItsPlanFilesUnlessAskedForSensitiveValues pins that a plan
+// that does not ask for sensitive values still counts each unit's changes,
+// but returns no plan JSON and leaves no plan file on disk.
+func TestPlanDeletesItsPlanFilesUnlessAskedForSensitiveValues(t *testing.T) {
+	t.Parallel()
+
+	dir := newPlanTree(t, "a")
+
+	v := fakePlanVenv(
+		func(string) string { return planWithChanges },
+		func(string) string { return planJSONWithChanges },
+	)
+	session := newTestSessionWith(
+		t,
+		dir,
+		v,
+		func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+		nil,
+	)
+
+	var out planOutput
+
+	callTool(t, session, "plan", map[string]any{}, &out)
+
+	a := planUnitByPath(t, out, "a")
+	assert.Equal(t, planChangesInJSON, a.Changes)
+	assert.Empty(t, a.PlanJSON)
+	assert.Empty(t, out.Degraded)
+	require.FileExists(t, a.Stdout)
+
+	var plans []string
+
+	require.NoError(t, filepath.WalkDir(filepath.Dir(a.Stdout), func(path string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if strings.HasPrefix(filepath.Base(path), "tfplan") {
+			plans = append(plans, path)
+		}
+
+		return nil
+	}))
+	assert.Empty(t, plans, "no plan file outlives the call")
 }
 
 // TestPlanKeepsItsFilesUntilTheServerStops pins that a plan leaves the files
@@ -385,6 +431,90 @@ func TestPlanCutsAPlanThatOutgrowsItsFile(t *testing.T) {
 				"the body is the last lines of the plan in order, from line %d",
 				first,
 			)
+		})
+	}
+}
+
+// TestPlanCutsAPlanOnALineBoundaryOrWithoutLines pins that a cut plan keeps
+// its first line whole when the kept window starts on one, and keeps the whole
+// window when it holds no line break.
+func TestPlanCutsAPlanOnALineBoundaryOrWithoutLines(t *testing.T) {
+	t.Parallel()
+
+	const (
+		capBytes  = 8 << 20
+		lineBytes = 1 << 10
+		note      = "[stdout truncated: Terragrunt keeps the last 8388608 bytes per unit]\n\n"
+	)
+
+	line := func(i int) string {
+		return fmt.Sprintf("%07d %s\n", i, strings.Repeat("x", lineBytes-9))
+	}
+
+	lines := func(n int) string {
+		var b strings.Builder
+
+		for i := range n {
+			b.WriteString(line(i))
+		}
+
+		return b.String()
+	}
+
+	tests := []struct {
+		name  string
+		plan  string
+		first string
+	}{
+		{
+			name:  "window starts a line in the raw file",
+			plan:  lines(capBytes/lineBytes + 3),
+			first: line(3),
+		},
+		{
+			name:  "window starts a line in the ring buffer",
+			plan:  lines(5 * capBytes / lineBytes / 2),
+			first: line(5*capBytes/lineBytes/2 - capBytes/lineBytes),
+		},
+		{
+			name:  "window holds no line break",
+			plan:  strings.Repeat("y", capBytes+100),
+			first: strings.Repeat("y", lineBytes),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := newPlanTree(t, "a")
+			v := fakePlanVenv(
+				func(string) string { return tc.plan },
+				func(string) string { return planJSONWithChanges },
+			)
+			session := newTestSessionWith(
+				t,
+				dir,
+				v,
+				func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+				nil,
+			)
+
+			var out planOutput
+
+			callTool(t, session, "plan", map[string]any{}, &out)
+
+			a := planUnitByPath(t, out, "a")
+			require.True(t, a.StdoutTruncated)
+
+			text, err := vfs.ReadFile(vfs.NewOSFS(), a.Stdout)
+			require.NoError(t, err)
+			require.True(t, strings.HasPrefix(string(text), note), "the file opens with the note")
+
+			body := string(text[len(note):])
+			assert.Len(t, body, capBytes, "nothing in the window is dropped")
+			assert.True(t, strings.HasPrefix(body, tc.first), "the body starts with %.20q", tc.first)
+			assert.Equal(t, tc.plan[len(tc.plan)-capBytes:], body)
 		})
 	}
 }

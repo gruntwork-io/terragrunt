@@ -98,7 +98,7 @@ func TestTFApplyAndDestroyChangeRealState(t *testing.T) {
 
 	var planned runAllOutput
 
-	callTool(t, session, "plan", map[string]any{}, &planned)
+	callTool(t, session, "plan", map[string]any{"include_sensitive": true}, &planned)
 	require.Equal(t, 2, planned.Succeeded, "plan: %+v", planned)
 	assert.Empty(t, prompts, "a plan must not ask")
 
@@ -162,18 +162,8 @@ func TestTFApplyAndDestroyChangeRealState(t *testing.T) {
 
 	var revealed getOutputsOutput
 
-	callTool(
-		t,
-		session,
-		"get_outputs",
-		map[string]any{"working_dir": "b", "include_sensitive": true},
-		&revealed,
-	)
-	assert.Equal(
-		t,
-		outputEntry{Value: "secret-b-from-a", Sensitive: true},
-		revealed.Outputs["secret"],
-	)
+	callTool(t, session, "get_outputs", map[string]any{"working_dir": "b", "include_sensitive": true}, &revealed)
+	assert.Equal(t, outputEntry{Value: "secret-b-from-a", Sensitive: true}, revealed.Outputs["secret"])
 	assert.Empty(t, revealed.Redacted)
 
 	var destroyed runAllOutput
@@ -217,10 +207,7 @@ func TestTFApplyFromAClientThatCannotAskChangesNothing(t *testing.T) {
 		o.AllowApply = true
 	})
 
-	res, err := session.CallTool(
-		t.Context(),
-		&mcp.CallToolParams{Name: "apply", Arguments: map[string]any{}},
-	)
+	res, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "apply", Arguments: map[string]any{}})
 	require.NoError(t, err)
 	assert.True(t, res.IsError, "a client that cannot ask must be refused")
 

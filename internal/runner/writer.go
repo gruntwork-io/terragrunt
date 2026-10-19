@@ -11,10 +11,11 @@ import (
 // UnitOutputSplitter is a writer that gives each unit a destination of its own.
 // When the venv handed to [Runner.Run] writes to one, each unit's stdout goes to
 // the writer ForUnit returns for that unit's path, and none of it reaches the
-// shared stream. fsys is the filesystem of the venv the unit runs in.
+// shared stream. fsys is the filesystem of the venv the unit runs in. The
+// runner closes the writer when the unit's task ends.
 type UnitOutputSplitter interface {
 	io.Writer
-	ForUnit(fsys vfs.FS, unitPath string) io.Writer
+	ForUnit(fsys vfs.FS, unitPath string) io.WriteCloser
 }
 
 // UnitWriter buffers output for a single unit and flushes each complete line as it
@@ -93,12 +94,18 @@ func (writer *UnitWriter) Unwrap() io.Writer {
 
 // unitOutput returns the writer for the stdout of the unit at unitPath. That
 // is the writer w gives the unit when w is a [UnitOutputSplitter], and w
-// itself otherwise.
-func unitOutput(fsys vfs.FS, w io.Writer, unitPath string) io.Writer {
+// itself otherwise, whose Close leaves w open.
+func unitOutput(fsys vfs.FS, w io.Writer, unitPath string) io.WriteCloser {
 	splitter, ok := w.(UnitOutputSplitter)
 	if !ok {
-		return w
+		return nopWriteCloser{w}
 	}
 
 	return splitter.ForUnit(fsys, unitPath)
 }
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (nopWriteCloser) Close() error { return nil }

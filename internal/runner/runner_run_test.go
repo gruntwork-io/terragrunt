@@ -122,7 +122,8 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 	}
 }
 
-// TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit pins that a failure behind a failed dependency is an early exit.
+// TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit pins that a failure
+// behind a failed dependency is an early exit.
 func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 	t.Parallel()
 
@@ -146,19 +147,9 @@ func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 
 	appRun, err := r.GetRun(app.Path())
 	require.NoError(t, err)
-	assert.Equal(
-		t,
-		report.ResultEarlyExit,
-		appRun.Result,
-		"a failure behind a failed dependency is an early exit",
-	)
+	assert.Equal(t, report.ResultEarlyExit, appRun.Result, "a failure behind a failed dependency is an early exit")
 	require.NotNil(t, appRun.Cause)
-	assert.Equal(
-		t,
-		report.Cause(filepath.Base(vpc.Path())),
-		*appRun.Cause,
-		"the failed dependency is the cause",
-	)
+	assert.Equal(t, report.Cause(filepath.Base(vpc.Path())), *appRun.Cause, "the failed dependency is the cause")
 }
 
 // TestRunnerRun_WithoutReport pins that a run without a report still applies stack-level flags.
@@ -368,16 +359,9 @@ func TestRunnerRun_SyncsUnitCliArgs(t *testing.T) {
 			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
 
 			if tc.jsonOutput {
-				exists, err := vfs.FileExists(
-					v.FS,
-					vpc.OutputJSONFile(memRoot, opts.JSONOutputFolder),
-				)
+				exists, err := vfs.FileExists(v.FS, vpc.OutputJSONFile(memRoot, opts.JSONOutputFolder))
 				require.NoError(t, err)
-				assert.True(
-					t,
-					exists,
-					"the JSON plan output is written through the venv filesystem",
-				)
+				assert.True(t, exists, "the JSON plan output is written through the venv filesystem")
 			}
 
 			args := commandInvocation(t, invocations(), tc.command).Args
@@ -488,14 +472,13 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().
-				WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-					if slices.Contains(inv.Args, tf.FlagNameDetailedExitCode) {
-						return vexec.Result{Err: exitStatusErr{code: tc.exitCode}}
-					}
+			v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				if slices.Contains(inv.Args, tf.FlagNameDetailedExitCode) {
+					return vexec.Result{Err: exitStatusErr{code: tc.exitCode}}
+				}
 
-					return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
-				})
+				return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+			})
 
 			vpc := newTestUnit(t, v, memRoot, "vpc", "")
 
@@ -517,19 +500,15 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 			run, err := r.GetRun(vpc.Path())
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantResult, run.Result)
-			assert.Equal(
-				t,
-				tc.exitCode,
-				exitCodes.Get(vpc.Path()),
-				"the unit exit code reaches the caller",
-			)
+			assert.Equal(t, tc.exitCode, exitCodes.Get(vpc.Path()), "the unit exit code reaches the caller")
 		})
 	}
 }
 
 // TestRunnerRun_SplitsUnitOutput pins that a venv writer implementing
 // [runner.UnitOutputSplitter] receives each unit's stdout on the writer it
-// gave that unit, and none of it on the shared stream.
+// gave that unit, and none of it on the shared stream, and that the runner
+// closes each unit's writer.
 func TestRunnerRun_SplitsUnitOutput(t *testing.T) {
 	t.Parallel()
 
@@ -555,7 +534,7 @@ func TestRunnerRun_SplitsUnitOutput(t *testing.T) {
 	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc, app})
 	require.NoError(t, err)
 
-	splitter := &recordingSplitter{units: map[string]*bytes.Buffer{}}
+	splitter := &recordingSplitter{units: map[string]*bytes.Buffer{}, closed: map[string]struct{}{}}
 
 	require.NoError(t, rnr.Run(t.Context(), l, v.WithWriter(splitter), opts, nil))
 
@@ -563,6 +542,7 @@ func TestRunnerRun_SplitsUnitOutput(t *testing.T) {
 
 	for _, unit := range []*component.Unit{vpc, app} {
 		require.Contains(t, splitter.units, unit.Path())
+		assert.Contains(t, splitter.closed, unit.Path(), "%s's writer is closed", unit.Path())
 		assert.True(
 			t,
 			strings.HasPrefix(
@@ -713,15 +693,10 @@ func TestRunnerRun_WarnsOnLocalStateWithGitRef(t *testing.T) {
 
 			for _, name := range names {
 				dir := writeUnit(t, v, memRoot, name, tc.unitBody)
-				require.NoError(
-					t,
-					vfs.WriteFile(v.FS, filepath.Join(dir, "main.tf"), []byte(tc.mainTF), 0o644),
-				)
+				require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(dir, "main.tf"), []byte(tc.mainTF), 0o644))
 
 				unit := component.NewUnit(dir).WithConfig(&config.TerragruntConfig{})
-				unit.SetDiscoveryContext(
-					&component.DiscoveryContext{WorkingDir: memRoot, Ref: tc.ref},
-				)
+				unit.SetDiscoveryContext(&component.DiscoveryContext{WorkingDir: memRoot, Ref: tc.ref})
 
 				units = append(units, unit)
 			}
@@ -764,12 +739,7 @@ func TestRunnerRun_EngineShutdownFailureKeepsUnitResult(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
-	assert.Contains(
-		t,
-		out.String(),
-		"Error shutting down engine for unit",
-		"no engine clients were set up to release",
-	)
+	assert.Contains(t, out.String(), "Error shutting down engine for unit", "no engine clients were set up to release")
 }
 
 // Output without a trailing newline stays buffered until the final flush, which is the write that fails.
@@ -851,10 +821,7 @@ func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
 
 	unitRunner := runner.NewUnitRunner(component.NewUnit(memRoot))
 
-	require.NoError(
-		t,
-		unitRunner.Run(t.Context(), thlogger.CreateLogger(), venvtest.New(), nil, nil, nil, nil),
-	)
+	require.NoError(t, unitRunner.Run(t.Context(), thlogger.CreateLogger(), venvtest.New(), nil, nil, nil, nil))
 	assert.Equal(t, runner.Running, unitRunner.Status)
 }
 
@@ -906,6 +873,7 @@ func (e exitStatusErr) ExitStatus() (int, error) { return e.code, nil }
 // unit writes, and what reaches the shared stream, in memory.
 type recordingSplitter struct {
 	units  map[string]*bytes.Buffer
+	closed map[string]struct{}
 	shared bytes.Buffer
 	mu     sync.Mutex
 }
@@ -917,34 +885,40 @@ func (s *recordingSplitter) Write(p []byte) (int, error) {
 	return s.shared.Write(p)
 }
 
-func (s *recordingSplitter) ForUnit(_ vfs.FS, unitPath string) io.Writer {
+func (s *recordingSplitter) ForUnit(_ vfs.FS, unitPath string) io.WriteCloser {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	buf := &bytes.Buffer{}
 	s.units[unitPath] = buf
 
-	return &lockedWriter{w: buf, mu: &s.mu}
+	return &lockedWriter{w: buf, s: s, unitPath: unitPath}
 }
 
 type lockedWriter struct {
-	w  io.Writer
-	mu *sync.Mutex
+	w        io.Writer
+	s        *recordingSplitter
+	unitPath string
 }
 
 func (w *lockedWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+	w.s.mu.Lock()
+	defer w.s.mu.Unlock()
 
 	return w.w.Write(p)
 }
 
+func (w *lockedWriter) Close() error {
+	w.s.mu.Lock()
+	defer w.s.mu.Unlock()
+
+	w.s.closed[w.unitPath] = struct{}{}
+
+	return nil
+}
+
 // commandInvocation returns the first invocation of command.
-func commandInvocation(
-	t *testing.T,
-	invocations []vexec.Invocation,
-	command string,
-) vexec.Invocation {
+func commandInvocation(t *testing.T, invocations []vexec.Invocation, command string) vexec.Invocation {
 	t.Helper()
 
 	for _, inv := range invocations {
@@ -953,13 +927,7 @@ func commandInvocation(
 		}
 	}
 
-	require.FailNowf(
-		t,
-		"no invocation recorded",
-		"expected a %s invocation, got %v",
-		command,
-		invocations,
-	)
+	require.FailNowf(t, "no invocation recorded", "expected a %s invocation, got %v", command, invocations)
 
 	return vexec.Invocation{}
 }

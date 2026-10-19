@@ -328,10 +328,7 @@ func (rnr *Runner) Run(
 
 		for _, u := range rnr.Stack.Units {
 			planFile := u.OutputFile(stackOpts.RootWorkingDir, stackOpts.OutputFolder)
-			if err := v.FS.MkdirAll(
-				filepath.Dir(planFile),
-				ownerReadWriteExecutePerms,
-			); err != nil {
+			if err := v.FS.MkdirAll(filepath.Dir(planFile), ownerReadWriteExecutePerms); err != nil {
 				return err
 			}
 		}
@@ -464,7 +461,14 @@ func (rnr *Runner) Run(
 
 				// Wrap the writer to buffer unit-scoped output. Build a per-unit
 				// venv so the wrapped writers flow through tf and shell calls.
-				unitWriter := NewUnitWriter(unitOutput(v.FS, v.Writers.Writer, unitPath))
+				unitOut := unitOutput(v.FS, v.Writers.Writer, unitPath)
+				defer func() {
+					if closeErr := unitOut.Close(); closeErr != nil {
+						unitLogger.Errorf("Error closing the output of unit %s: %v", unitPath, closeErr)
+					}
+				}()
+
+				unitWriter := NewUnitWriter(unitOut)
 
 				// Per-unit mutations (e.g. SetTerragruntInputsAsEnvVars writing
 				// TF_VAR_* in run.go) must not leak across concurrent units.
@@ -680,10 +684,7 @@ func (rnr *Runner) Run(
 						// the controller captured for this unit so the report carries the
 						// failure text instead of an empty cause.
 						if unitErr := controller.UnitErr(entry.Component.Path()); unitErr != nil {
-							endOpts = append(
-								endOpts,
-								report.WithCauseRunError(errfmt.Format(unitErr)),
-							)
+							endOpts = append(endOpts, report.WithCauseRunError(errfmt.Format(unitErr)))
 						}
 					}
 
@@ -714,12 +715,7 @@ func (rnr *Runner) LogUnitDeployOrder(
 
 // logUnitDeployOrderDAG renders the queue as a DAG tree showing dependency relationships.
 // Independent units (siblings in the tree) may run concurrently.
-func (rnr *Runner) logUnitDeployOrderDAG(
-	l log.Logger,
-	v *venv.Venv,
-	isDestroy bool,
-	showAbsPaths bool,
-) error {
+func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, v *venv.Venv, isDestroy bool, showAbsPaths bool) error {
 	components := rnr.queueComponents()
 	listed := rnr.buildListedComponents(components, isDestroy, showAbsPaths)
 
@@ -835,10 +831,7 @@ func (rnr *Runner) ListStackDependentUnits() map[string][]string {
 }
 
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
-func (rnr *Runner) summarizePlanAllErrors(
-	l log.Logger,
-	errorScanners map[string]*SubstringScanner,
-) {
+func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorScanners map[string]*SubstringScanner) {
 	for _, unit := range rnr.Stack.Units {
 		scanner := errorScanners[unit.Path()]
 		if scanner == nil || !scanner.FoundAll() {
@@ -940,7 +933,8 @@ func applyFilterAllowDestroyExclusions(
 			unit.SetExcluded(true)
 
 			l.Warnf(
-				"The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.",
+				"The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag "+
+					"was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.",
 				unit.DisplayPath(),
 				discoveryCtx.Ref,
 			)

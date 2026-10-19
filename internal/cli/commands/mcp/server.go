@@ -193,6 +193,8 @@ func Serve(
 
 	serveErr := serve(ctx, l, srv, in, out)
 
+	deps.runSem <- struct{}{}
+
 	return errors.Join(serveErr, removeStdoutDir(rootVenv.FS, stdoutDir))
 }
 

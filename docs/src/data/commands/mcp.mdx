@@ -206,13 +206,16 @@ the cause when it failed. The result also counts what succeeded, failed, was exc
 
 - `filter` narrows which units are planned.
 - `parallelism` caps how many units run at once, the way `--parallelism` does. By default there is no limit.
+- `include_sensitive` keeps each unit's plan files and returns `plan_json`. The plan JSON holds every value in the plan
+  in cleartext, sensitive ones included. Without it, Terragrunt deletes the plan files once it has counted their
+  changes. The agent sets it itself, and nobody is asked.
 
 Each unit result can have these fields:
 
 | Field              | What it holds                                                                                                                                                                                                | Returned by                |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------- |
 | `changes`          | Counts of resources the plan would add, change, destroy, import, and forget, and of outputs that would change. A plan that changes only outputs counts them under `outputs`.                                 | `plan`                     |
-| `plan_json`        | Path of the plan's JSON representation, the document `tofu show -json` prints for the plan file. It contains every value in the plan, sensitive ones included.                                               | `plan`                     |
+| `plan_json`        | Path of the plan's JSON representation, the document `tofu show -json` prints for the plan file. It contains every value in the plan, sensitive ones included. Only with `include_sensitive`.               | `plan`                     |
 | `stdout`           | Path of a file with what OpenTofu/Terraform printed to stdout, color codes stripped, including the output of an `init` Terragrunt ran first. Sensitive values are redacted as the CLI redacts them.          | `plan`, `apply`, `destroy` |
 | `stdout_truncated` | `true` when the file keeps only the last 8 MiB of the unit's stdout.                                                                                                                                         | `plan`, `apply`, `destroy` |
 
