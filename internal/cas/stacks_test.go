@@ -415,7 +415,7 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 	content, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(content)
+	_, blocks, err := cas.ReadStackBlocks(content)
 	require.NoError(t, err)
 
 	var serviceSource string
@@ -515,7 +515,7 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 	stackContent, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(stackContent)
+	_, blocks, err := cas.ReadStackBlocks(stackContent)
 	require.NoError(t, err)
 
 	var serviceSource string
@@ -671,7 +671,7 @@ func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venvtest.NewOSWithEmptyEnv()
+	v := venvtest.NewOSWithEmptyEnv().WithEnv(map[string]string{"GIT_TERMINAL_PROMPT": "0"})
 
 	// Bogus org so the network call fails fast. The error shape proves the
 	// shorthand was rewritten and reached `git ls-remote`.

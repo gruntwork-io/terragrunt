@@ -13,6 +13,7 @@ jobs:
       contents: read
       checks: write
     runs-on: ${{ matrix.os }}-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:

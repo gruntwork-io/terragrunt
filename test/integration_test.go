@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -579,22 +580,17 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 
 			units := []string{"unit-a", "unit-b", "unit-mutable"}
 
-			// The store is the one on the machine running the suite, so the
-			// generated contents have to be unique to this run for the case
-			// starting without them to mean anything.
-			for _, unit := range units {
-				markGeneratedContents(t, filepath.Join(fixtureRoot, unit), tmpEnvPath)
-			}
+			v := helpers.RunVenv(t)
 
 			if tc.storedPerm != 0 {
-				seedStoredContent(t, filepath.Join(fixtureRoot, "unit-a"), tc.storedPerm)
+				seedStoredContent(t, v, filepath.Join(fixtureRoot, "unit-a"), tc.storedPerm)
 			}
 
 			generated := map[string]os.FileInfo{}
 
 			for _, unit := range units {
 				unitPath := filepath.Join(fixtureRoot, unit)
-				runMutableGenerateUnit(t, unitPath)
+				runMutableGenerateUnit(t, v, unitPath)
 				generated[unit] = statGeneratedFile(t, unitPath, "provider.tf")
 			}
 
@@ -611,50 +607,27 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 	}
 }
 
-// markGeneratedContents rewrites a unit's generate block so what it produces is
-// unique to marker, keeping whatever the machine's store already holds from
-// deciding which path the test takes.
-func markGeneratedContents(t *testing.T, unitPath, marker string) {
-	t.Helper()
-
-	path := filepath.Join(unitPath, "terragrunt.hcl")
-
-	body, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	const placeholder = "provider \"null\" {\n}"
-
-	marked := strings.Replace(
-		string(body),
-		placeholder,
-		"provider \"null\" {\n  # "+marker+"\n}",
-		1,
-	)
-	require.NotEqual(t, string(body), marked, "fixture no longer holds %q", placeholder)
-
-	require.NoError(t, os.WriteFile(path, []byte(marked), 0644))
-}
-
 // seedStoredContent leaves the store holding a unit's generated contents at
 // perm, standing in for a store filled before Terragrunt asked for a narrower
 // mode. The generated file shares the stored blob's inode, so widening it
 // through the link widens what every later unit links to.
-func seedStoredContent(t *testing.T, unitPath string, perm os.FileMode) {
+func seedStoredContent(t *testing.T, v *venv.Venv, unitPath string, perm os.FileMode) {
 	t.Helper()
 
-	runMutableGenerateUnit(t, unitPath)
+	runMutableGenerateUnit(t, v, unitPath)
 
 	require.NoError(t, os.Chmod(generatedFilePath(t, unitPath, "provider.tf"), perm))
 }
 
-func runMutableGenerateUnit(t *testing.T, unitPath string) {
+func runMutableGenerateUnit(t *testing.T, v *venv.Venv, unitPath string) {
 	t.Helper()
 
 	helpers.CleanupTerraformFolder(t, unitPath)
 	helpers.CleanupTerragruntFolder(t, unitPath)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
+		v,
 		"terragrunt exec --working-dir "+unitPath+" -- true",
 	)
 	require.NoError(t, err)

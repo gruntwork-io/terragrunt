@@ -27,8 +27,6 @@ const (
 	ErrGitClone Error = "failed to complete git clone"
 	// ErrNoTerraformBlock is returned when a terragrunt.hcl file has no terraform block
 	ErrNoTerraformBlock Error = "no terraform block found"
-	// ErrBlockNotFound is returned when a named block is not found in a stack file
-	ErrBlockNotFound Error = "block not found"
 	// ErrGetFileNotSupported is returned when GetFile is called on the CAS protocol getter
 	ErrGetFileNotSupported Error = "CAS protocol does not support single file downloads"
 	// ErrCASRefMissingPrefix is returned when a CAS reference is missing the expected hash algorithm prefix

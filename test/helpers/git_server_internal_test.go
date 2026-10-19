@@ -370,7 +370,7 @@ func TestInitRefsReportsSeedCommitFailure(t *testing.T) {
 	require.ErrorContains(t, err, "seed commit")
 }
 
-func TestRetagLockedReportsDeleteTagFailure(t *testing.T) {
+func TestRetagLockedReportsRefUpdateFailure(t *testing.T) {
 	t.Parallel()
 
 	thTRequireBinaries(t, "git")
@@ -379,7 +379,7 @@ func TestRetagLockedReportsDeleteTagFailure(t *testing.T) {
 
 	err := s.retagLocked()
 	require.Error(t, err)
-	require.ErrorContains(t, err, "delete tag "+TerragruntMirrorTags[0])
+	require.ErrorContains(t, err, "update-ref")
 }
 
 func TestAddReportsUnreadableFixture(t *testing.T) {

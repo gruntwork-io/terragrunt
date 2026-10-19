@@ -17,11 +17,12 @@ import (
 )
 
 // deepHistoryCommits and pinnedCommitOffset shape the fixture behind the
-// pinned-SHA tests: a history long enough to tell a fetch of one commit from a
-// fetch of every commit, with the pinned commit well behind the tip of main.
+// pinned-SHA tests: some history behind the pinned commit and the pinned
+// commit behind the tip of main. The shallow file, not the depth, tells a
+// fetch of one commit from a fetch of every commit, so the counts stay small.
 const (
-	deepHistoryCommits = 200
-	pinnedCommitOffset = 50
+	deepHistoryCommits = 20
+	pinnedCommitOffset = 5
 )
 
 // TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit pins the object-name

@@ -31,7 +31,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
@@ -654,10 +653,7 @@ func TestTFTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheDirect)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheDirect)
 
-	cacheDir, err := util.EnsureCacheDir(venv.OSVenv())
-	require.NoError(t, err)
-
-	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")
+	providerCacheDir := filepath.Join(t.TempDir(), "provider-cache-test-direct")
 
 	helpers.RunTerragrunt(
 		t,

@@ -32,7 +32,12 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	l := logger.CreateLogger()
 
 	errCh := make(chan error)
-	expectedWait := 1
+
+	const (
+		// trapWait is how long the script's INT trap sleeps before exiting.
+		trapWait     = 200 * time.Millisecond
+		expectedExit = 1
+	)
 
 	ctx, cancel := context.WithCancelCause(t.Context())
 
@@ -54,7 +59,8 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 			false,
 			false,
 			cmdPath,
-			strconv.Itoa(expectedWait),
+			strconv.FormatFloat(trapWait.Seconds(), 'f', -1, 64),
+			strconv.Itoa(expectedExit),
 			readyPath,
 		)
 		errCh <- err
@@ -73,9 +79,9 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	require.Error(t, actualErr, "Expected an error but got none")
 
 	// A graceful shutdown lets the script's SIGINT trap run and exit with
-	// expectedWait; a SIGKILL would report a signal status instead.
+	// expectedExit; a SIGKILL would report a signal status instead.
 	retCode, codeErr := util.GetExitCode(actualErr)
 	require.NoError(t, codeErr)
-	assert.Equal(t, expectedWait, retCode,
-		"expected the subprocess to gracefully handle SIGINT and exit with %d", expectedWait)
+	assert.Equal(t, expectedExit, retCode,
+		"expected the subprocess to gracefully handle SIGINT and exit with %d", expectedExit)
 }
