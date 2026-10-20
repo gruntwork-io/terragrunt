@@ -461,7 +461,14 @@ func (rnr *Runner) Run(
 
 				// Wrap the writer to buffer unit-scoped output. Build a per-unit
 				// venv so the wrapped writers flow through tf and shell calls.
-				unitWriter := NewUnitWriter(v.Writers.Writer)
+				unitOut := unitOutput(v.FS, v.Writers.Writer, unitPath)
+				defer func() {
+					if closeErr := unitOut.Close(); closeErr != nil {
+						unitLogger.Errorf("Error closing the output of unit %s: %v", unitPath, closeErr)
+					}
+				}()
+
+				unitWriter := NewUnitWriter(unitOut)
 
 				// Per-unit mutations (e.g. SetTerragruntInputsAsEnvVars writing
 				// TF_VAR_* in run.go) must not leak across concurrent units.
@@ -926,7 +933,8 @@ func applyFilterAllowDestroyExclusions(
 			unit.SetExcluded(true)
 
 			l.Warnf(
-				"The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.",
+				"The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag "+
+					"was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.",
 				unit.DisplayPath(),
 				discoveryCtx.Ref,
 			)

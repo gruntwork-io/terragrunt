@@ -95,7 +95,15 @@ func runMutatingCommand(
 		return nil, runAllOutput{}, ErrApprovalMismatch
 	}
 
-	out, err := runAllCommand(ctx, l, d.withRefusal(refusalFails), rootVenv, input, command)
+	out, err := runAllCommand(
+		ctx,
+		l,
+		d.withRefusal(refusalFails),
+		rootVenv,
+		input,
+		command,
+		outputsRedactSensitive,
+	)
 
 	return nil, out, err
 }
