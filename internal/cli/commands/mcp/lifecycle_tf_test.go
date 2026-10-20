@@ -62,8 +62,11 @@ inputs = {
 `
 
 type runAllUnit struct {
-	Path   string `json:"path"`
-	Result string `json:"result"`
+	Changes  *planChanges `json:"changes"`
+	Path     string       `json:"path"`
+	Result   string       `json:"result"`
+	Stdout   string       `json:"stdout"`
+	PlanJSON string       `json:"plan_json"`
 }
 
 type runAllOutput struct {
@@ -95,15 +98,58 @@ func TestTFApplyAndDestroyChangeRealState(t *testing.T) {
 
 	var planned runAllOutput
 
-	callTool(t, session, "plan", map[string]any{}, &planned)
+	callTool(t, session, "plan", map[string]any{"include_sensitive": true}, &planned)
 	require.Equal(t, 2, planned.Succeeded, "plan: %+v", planned)
 	assert.Empty(t, prompts, "a plan must not ask")
+
+	for _, unit := range planned.Units {
+		assert.Equal(
+			t,
+			&planChanges{Add: 1, Outputs: 2},
+			unit.Changes,
+			"%s creates its one resource and sets its two outputs",
+			unit.Path,
+		)
+		assert.FileExists(t, unit.PlanJSON, "%s plan JSON", unit.Path)
+
+		text, err := vfs.ReadFile(vfs.NewOSFS(), unit.Stdout)
+		require.NoError(t, err)
+		assert.Contains(
+			t,
+			string(text),
+			"terraform_data.this will be created",
+			"%s plan text",
+			unit.Path,
+		)
+		assert.NotContains(t, string(text), "\x1b[", "%s plan text has no color codes", unit.Path)
+	}
 
 	var applied runAllOutput
 
 	callTool(t, session, "apply", map[string]any{}, &applied)
 	require.Equal(t, 2, applied.Succeeded, "apply: %+v", applied)
 	require.Len(t, prompts, 1, "an apply must ask once")
+
+	for _, unit := range applied.Units {
+		assert.Nil(t, unit.Changes, "%s: only a plan counts changes", unit.Path)
+
+		text, err := vfs.ReadFile(vfs.NewOSFS(), unit.Stdout)
+		require.NoError(t, err)
+		assert.Contains(
+			t,
+			string(text),
+			"Apply complete! Resources: 1 added, 0 changed, 0 destroyed.",
+			"%s apply text",
+			unit.Path,
+		)
+		assert.Contains(
+			t,
+			string(text),
+			`secret = <sensitive>`,
+			"%s apply text redacts the sensitive output",
+			unit.Path,
+		)
+	}
 
 	var redacted getOutputsOutput
 
@@ -125,6 +171,18 @@ func TestTFApplyAndDestroyChangeRealState(t *testing.T) {
 	callTool(t, session, "destroy", map[string]any{}, &destroyed)
 	require.Equal(t, 2, destroyed.Succeeded, "destroy: %+v", destroyed)
 	assert.Len(t, prompts, 2, "a destroy must ask once")
+
+	for _, unit := range destroyed.Units {
+		text, err := vfs.ReadFile(vfs.NewOSFS(), unit.Stdout)
+		require.NoError(t, err)
+		assert.Contains(
+			t,
+			string(text),
+			"Destroy complete! Resources: 1 destroyed.",
+			"%s destroy text",
+			unit.Path,
+		)
+	}
 
 	for _, unit := range []string{"a", "b"} {
 		var after getOutputsOutput

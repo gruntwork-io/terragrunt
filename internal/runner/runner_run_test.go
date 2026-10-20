@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -121,7 +122,8 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 	}
 }
 
-// TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit pins that a failure behind a failed dependency is an early exit.
+// TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit pins that a failure
+// behind a failed dependency is an early exit.
 func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 	t.Parallel()
 
@@ -503,6 +505,57 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 	}
 }
 
+// TestRunnerRun_SplitsUnitOutput pins that a venv writer implementing
+// [runner.UnitOutputSplitter] receives each unit's stdout on the writer it
+// gave that unit, and none of it on the shared stream, and that the runner
+// closes each unit's writer.
+func TestRunnerRun_SplitsUnitOutput(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		switch inv.Args[0] {
+		case tf.CommandNamePlan:
+			return vexec.Result{Stdout: []byte("planned in " + inv.Dir + "\n")}
+		case tf.CommandNameInit:
+			return vexec.Result{}
+		}
+
+		return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+	})
+
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+	app := newTestUnit(t, v, memRoot, "app", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.ForwardTFStdout = true
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc, app})
+	require.NoError(t, err)
+
+	splitter := &recordingSplitter{units: map[string]*bytes.Buffer{}, closed: map[string]struct{}{}}
+
+	require.NoError(t, rnr.Run(t.Context(), l, v.WithWriter(splitter), opts, nil))
+
+	assert.Empty(t, splitter.shared.String(), "unit output must not reach the shared stream")
+
+	for _, unit := range []*component.Unit{vpc, app} {
+		require.Contains(t, splitter.units, unit.Path())
+		assert.Contains(t, splitter.closed, unit.Path(), "%s's writer is closed", unit.Path())
+		assert.True(
+			t,
+			strings.HasPrefix(
+				splitter.units[unit.Path()].String(),
+				"planned in "+unit.Path()+string(filepath.Separator),
+			),
+			"%s got %q",
+			unit.Path(),
+			splitter.units[unit.Path()].String(),
+		)
+	}
+}
+
 func TestRunnerRun_OutputFolderCannotBeCreated(t *testing.T) {
 	t.Parallel()
 
@@ -815,6 +868,54 @@ type exitStatusErr struct {
 func (e exitStatusErr) Error() string { return "exit status " + strconv.Itoa(e.code) }
 
 func (e exitStatusErr) ExitStatus() (int, error) { return e.code, nil }
+
+// recordingSplitter is a [runner.UnitOutputSplitter] that records what each
+// unit writes, and what reaches the shared stream, in memory.
+type recordingSplitter struct {
+	units  map[string]*bytes.Buffer
+	closed map[string]struct{}
+	shared bytes.Buffer
+	mu     sync.Mutex
+}
+
+func (s *recordingSplitter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.shared.Write(p)
+}
+
+func (s *recordingSplitter) ForUnit(_ vfs.FS, unitPath string) io.WriteCloser {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	buf := &bytes.Buffer{}
+	s.units[unitPath] = buf
+
+	return &lockedWriter{w: buf, s: s, unitPath: unitPath}
+}
+
+type lockedWriter struct {
+	w        io.Writer
+	s        *recordingSplitter
+	unitPath string
+}
+
+func (w *lockedWriter) Write(p []byte) (int, error) {
+	w.s.mu.Lock()
+	defer w.s.mu.Unlock()
+
+	return w.w.Write(p)
+}
+
+func (w *lockedWriter) Close() error {
+	w.s.mu.Lock()
+	defer w.s.mu.Unlock()
+
+	w.s.closed[w.unitPath] = struct{}{}
+
+	return nil
+}
 
 // commandInvocation returns the first invocation of command.
 func commandInvocation(t *testing.T, invocations []vexec.Invocation, command string) vexec.Invocation {

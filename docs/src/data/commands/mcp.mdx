@@ -12,7 +12,7 @@ experiment:
 usage: |
   The `mcp` command serves Terragrunt operations (read-only by default) to AI agents over the Model Context Protocol, speaking the protocol on standard input and output.
 
-  It is typically not run by hand. An MCP client launches it, and the tools it serves answer questions about the Terragrunt infrastructure estate rooted at the directory it was launched in.
+  It is typically not run by hand. An MCP client launches it, and the tools act on the units under the directory it was launched in.
 examples:
   - description: |
       Read-only. Terragrunt parses configuration and refuses to start the commands or make the requests it otherwise would.
@@ -31,7 +31,7 @@ examples:
         }
       }
   - description: |
-      Enough to plan: real OpenTofu runs against the real filesystem and reaches state backends and module sources, authenticating with the credentials in the server's environment.
+      Enough to plan. OpenTofu reaches state backends and module sources with the credentials in the server's environment.
     lang: json
     code: |
       // .mcp.json
@@ -53,7 +53,7 @@ examples:
         }
       }
   - description: |
-      A throwaway environment the agent may change, with each run waiting on you to accept it. Point it at the environment directory rather than the repository root, since that directory bounds what any call can touch.
+      A throwaway environment the agent may change, with each run waiting on you to accept it. Point `--working-dir` at the environment, not the repository root. Tools cannot reach above it.
     lang: json
     code: |
       // .mcp.json
@@ -85,44 +85,61 @@ flags:
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="caution" title="This is not a sandbox">
-The flags on this page limit what Terragrunt does when a tool asks it to. They do not contain the programs Terragrunt starts, and they do not stop an agent that can run shell commands from running `terragrunt run --all apply` itself, with whatever credentials it can reach.
+The flags on this page limit what Terragrunt does when a tool asks it to. They do not contain the programs Terragrunt
+starts, and they do not stop an agent that can run shell commands from running `terragrunt run --all apply` itself,
+with whatever credentials it can reach.
 
-- A running `tofu` reaches the network whether or not `--allow=http` was granted, and does whatever the configuration it runs tells it to.
+- A running `tofu` reaches the network whether or not `--allow=http` was granted. With `exec` granted and `http`
+  denied, a `tofu init` still downloads providers from the registry.
+
 - An `--allow-cmd` pattern bounds the arguments a command runs with, not what the program does with them.
+
 - Under `--allow=env`, any environment variable the server has can come back in a tool result.
 
-Give the server credentials scoped to what you are willing to have an agent reach, and launch it in the smallest directory that holds the units it needs.
+Give the server credentials scoped to what you are willing to have an agent reach, and point it at the smallest
+directory that holds the units it needs.
 </Aside>
 
 ## Tools
 
-| Name            | What it does                                                                  |
-| --------------- | ----------------------------------------------------------------------------- |
-| `discover`      | Lists the units and stacks under a directory                                  |
-| `render_config` | Evaluates one unit's `terragrunt.hcl` and returns the resolved configuration  |
-| `validate`      | Reports syntax and evaluation errors in the configurations under a directory  |
-| `run_order`     | Reports the order units run in, and what blocks each one                      |
-| `get_outputs`   | Reads the applied outputs of one unit                                         |
-| `plan`          | Runs `run --all plan` across the units and returns the per-unit result        |
+| Name            | What it does                                                                 | Needs                                                  |
+| --------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `discover`      | Lists the units and stacks under a directory                                 | None                                                   |
+| `render_config` | Evaluates one unit's `terragrunt.hcl` and returns the resolved configuration | `exec` to read dependency outputs                      |
+| `validate`      | Reports syntax and evaluation errors in the configurations under a directory | None                                                   |
+| `run_order`     | Reports the order units run in, and what blocks each one                     | None                                                   |
+| `get_outputs`   | Reads the applied outputs of one unit                                        | `exec`, or `http` for `s3`, `gcs`, and `azurerm` state |
+| `plan`          | Runs `run --all plan` across the units and returns the per-unit result       | `exec`                                                 |
 
-More tools are served only when the server is started with [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply). They change real infrastructure, and the flag is named the way it is on purpose:
+Two more tools are served only under
+[`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply). They change real infrastructure.
 
-| Name      | What it does                                                |
-| --------- | ----------------------------------------------------------- |
-| `apply`   | Runs `run --all apply` across the units                     |
-| `destroy` | Runs `run --all destroy` across the units, dependents first |
+| Name      | What it does                                                | Needs  |
+| --------- | ----------------------------------------------------------- | ------ |
+| `apply`   | Runs `run --all apply` across the units                     | `exec` |
+| `destroy` | Runs `run --all destroy` across the units, dependents first | `exec` |
 
-Neither acts when the agent calls it. Each first returns an elicitation (the protocol's way for a server to ask the client's user a question) naming the units it would touch, and runs only once the person operating the client accepts. A client that cannot ask anyone is refused.
+Neither acts when the agent calls it. Each first returns an elicitation (the protocol's way for a server to ask the
+client's user a question) naming the units it would run, and runs only once the person operating the client accepts.
+A client that cannot ask anyone is rejected.
 
-Every tool takes a `working_dir` relative to the server root. It is optional and defaults to the root, except on `render_config` and `get_outputs`, which act on a single unit and require it. Where a tool takes `filter`, it accepts [filter queries](/features/filter) and narrows that tool the way `--filter` narrows a run.
+[`--working-dir`](/reference/cli/global-flags/#working-dir) sets the server root, and defaults to the directory the
+server is launched in. Every tool takes a `working_dir` relative to the root. A value resolving outside it is refused,
+symlinks included, and a filter following dependencies or dependents cannot return a unit from outside it.
+`working_dir` is optional and defaults to the root, except on `render_config` and `get_outputs`, which act on a single
+unit and require it. Where a tool takes `filter`, it accepts [filter queries](/features/filter) and narrows that tool
+the way `--filter` narrows a run.
 
-The tools that run OpenTofu/Terraform use the binary the server was started with. Set it with [`--tf-path`](/reference/cli/commands/mcp#tf-path), as a name on the server's `PATH` or as a path. It defaults to `tofu`, or to `terraform` when `tofu` is not installed. The server ignores a unit's `terraform_binary` and its `engine` block, because Terragrunt starts both under `--allow=exec` without an `--allow-cmd` pattern or an approval.
+The root does not limit file access. `file()` reads anything the server's user can read, and resolving a dependency
+downloads its source into a `.terragrunt-cache`.
 
-When a capability is not granted, the call's `degraded` list names what the tool could not do. See [Capabilities](#capabilities).
+The tools that run OpenTofu/Terraform use the binary the server was started with. Set it with
+[`--tf-path`](/reference/cli/commands/mcp#tf-path), as a program name found in `PATH` or as a filepath. It defaults to
+`tofu`, or to `terraform` when `tofu` is not installed. A unit's `terraform_binary` and `engine` block are ignored.
 
 ### discover
 
-Lists the units and stacks under a directory. Start here, since every other tool needs a directory to work in.
+Lists the units and stacks under a directory.
 
 - `filter` narrows what is returned.
 - `dependencies` adds each unit's dependency edges, and whether an `exclude` block excluded it.
@@ -133,153 +150,173 @@ Units and stacks come back as separate lists of paths, with `unit_count`.
 
 ### render_config
 
-Evaluates one unit's `terragrunt.hcl` the way a run would, resolving locals, includes, functions, and dependency outputs. Use it to see what a unit actually gets as its inputs, source, and backend.
+Evaluates one unit's `terragrunt.hcl` the way a run would, resolving locals, includes, functions, and dependency
+outputs.
 
 - `format` chooses how much comes back:
-  - `summary`, the default, returns the unit's source, its remote state backend, the IAM role it assumes, the names of its inputs, its dependencies, and its generate blocks.
+  - `summary`, the default, returns the unit's source, its remote state backend, the IAM role it assumes, the names of
+  its inputs, its dependencies, and its generate blocks.
   - `full` returns the whole resolved configuration.
-- `render_metadata` tags each value in a `format=full` result with where it was defined, so you can see which `include` a value came from.
+- `render_metadata` tags each value in a `format=full` result with where it was defined, so you can see which `include`
+a value came from.
 
-<Aside type="note">
-Without `--allow=exec`, a dependency's outputs cannot be read, so they fall back to `mock_outputs` where the configuration declares them and the call fails where it does not.
-</Aside>
+Without `--allow=exec`, dependency outputs fall back to `mock_outputs` where the configuration declares them, and the
+call fails where it does not.
 
 ### validate
 
-Checks the configurations under a directory for syntax and evaluation errors. Each diagnostic gives a `file`, `line`, `severity`, `summary`, and `detail`. The result also counts errors and warnings, and sets `valid`.
+Checks the configurations under a directory for syntax and evaluation errors. Each diagnostic gives a `file`, `line`,
+`severity`, `summary`, and `detail`. The result also counts errors and warnings, and sets `valid`.
 
 - `unit` validates a single unit or stack, relative to `working_dir`. Discovery is skipped, and `filter` must be empty.
 - `filter` narrows which units are validated.
 
 ### run_order
 
-Reports the order units run in, based on the [DAG](/getting-started/terminology/#directed-acyclic-graph-dag). Each unit lists the units that block it from running, in `blocked_by`.
+Reports the order units run in, based on the [DAG](/getting-started/terminology/#directed-acyclic-graph-dag). Each unit
+lists the units that block it in `blocked_by`.
 
 - `command` is the command the order is for: `plan` (the default), `apply`, or `destroy`.
-- `format` selects the shape. `edges`, the default, returns the blocking relation as data. `tree` and `dot` also draw the graph the way [`list`](/reference/cli/commands/list) draws it, for showing a person.
+
+- `format` selects the shape. `edges`, the default, returns the blocking relation as data. `tree` and `dot` return the
+  graph as [`list`](/reference/cli/commands/list) prints it.
+
 - `filter` narrows the set of units.
 
-The `units` array is sorted by path. A unit runs once everything in its `blocked_by` has finished.
+The `units` array is sorted by path.
 
 ### get_outputs
 
-Reads one unit's applied outputs. Use it to see what a `dependency` block on that unit will receive.
+Reads one unit's applied outputs, what a `dependency` block on that unit receives.
 
 - `include_sensitive` returns the values of outputs marked sensitive, which are otherwise replaced with `(sensitive)`.
+  The agent sets it itself, and nobody is asked.
 
-Each output comes back with its value and whether it is sensitive. `redacted` lists the names whose values were replaced, so an agent learns a value exists without receiving it.
+Each output comes back with its value and whether it is sensitive. `redacted` lists the names whose values were
+replaced.
 
-Redaction is only a default. `include_sensitive` is an ordinary tool argument that the agent supplies itself, and setting it prompts nobody. It keeps secrets out of a transcript that had no reason to include them. A caller that asks for them gets them.
-
-How the values are read depends on what was granted. Under `--allow=exec`, Terragrunt runs OpenTofu/Terraform to read them. Without it, Terragrunt reads the state itself, which needs `--allow=http` and works for the backends the direct state read supports: `s3`, `gcs`, and `azurerm`. Any other unit reports that it fetched nothing, and says why.
+Under `--allow=exec`, Terragrunt runs OpenTofu/Terraform to read the outputs. Without it, Terragrunt reads the state
+itself, which needs `--allow=http` and works for the `s3`, `gcs`, and `azurerm` backends. Any other unit reports that
+it fetched nothing, and says why.
 
 ### plan
 
-Runs `run --all plan` across the units under a directory. Each unit comes back with its result, how long it took, and the cause when it failed. The result also counts what succeeded, failed, was excluded, and exited early.
+Runs `run --all plan` across the units under a directory. Each unit comes back with its result, how long it took, and
+the cause when it failed. The result also counts what succeeded, failed, was excluded, and exited early.
 
 - `filter` narrows which units are planned.
 - `parallelism` caps how many units run at once, the way `--parallelism` does. By default there is no limit.
+- `include_sensitive` keeps each unit's plan files and returns `plan_json`. The plan JSON holds every value in the plan
+  in cleartext, sensitive ones included. Without it, Terragrunt deletes the plan files once it has counted their
+  changes. The agent sets it itself, and nobody is asked.
 
-Planning runs OpenTofu/Terraform, so this tool needs `--allow=exec`.
+Each unit result can have these fields:
 
-### apply
+| Field              | What it holds                                                                                                                                                                                                | Returned by                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------- |
+| `changes`          | Counts of resources the plan would add, change, destroy, import, and forget, and of outputs that would change. A plan that changes only outputs counts them under `outputs`.                                 | `plan`                     |
+| `plan_json`        | Path of the plan's JSON representation, the document `tofu show -json` prints for the plan file. It contains every value in the plan, sensitive ones included. Only with `include_sensitive`.               | `plan`                     |
+| `stdout`           | Path of a file with what OpenTofu/Terraform printed to stdout, color codes stripped, including the output of an `init` Terragrunt ran first. Sensitive values are redacted as the CLI redacts them.          | `plan`, `apply`, `destroy` |
+| `stdout_truncated` | `true` when the file keeps only the last 8 MiB of the unit's stdout.                                                                                                                                         | `plan`, `apply`, `destroy` |
 
-Runs `run --all apply` across the units under a directory, and answers in the same shape `plan` does.
+A unit that printed nothing has no `stdout`, and a unit whose plan failed has no `changes` or `plan_json`.
 
-- `filter` narrows which units are applied.
+The files go in a directory under the system temp directory, readable only by the server's user, and are deleted when
+the server stops.
+
+### apply and destroy
+
+Run `run --all apply` and `run --all destroy` across the units under a directory, destroy with dependents first. Both
+answer in the shape `plan` does, with `stdout` and `stdout_truncated` and without `changes` or `plan_json`. An apply's
+stdout has the apply summary and the unit's outputs, sensitive values redacted.
+
+- `filter` narrows which units run.
 - `parallelism` works as it does for `plan`.
 - The approval prompt shows `filter` and `parallelism` as flags on the command it asks about.
-
-The server registers this tool only under `--dangerously-allow-apply`, and every call waits on a person accepting it.
-
-### destroy
-
-Runs `run --all destroy` across the units under a directory, dependents first.
-
-- `filter` narrows which units are destroyed.
-- `parallelism` works as it does for `plan`.
-- The approval prompt shows `filter` and `parallelism` as flags on the command it asks about.
-
-Registered under the same flag as `apply`, and it waits for the same acceptance.
 
 ## Connecting a client
 
-Clients launch the server themselves, so it is configured rather than typed. Most read a `.mcp.json` like the examples above: the `command` is the `terragrunt` binary, the `args` carry the working directory and whichever capabilities you grant, and the experiment is enabled through `env` because the server is started for you.
+Clients read a `.mcp.json` like the examples above. Set `TG_EXPERIMENT` in its `env`, since there is no shell to export
+it from. Each client decides where the file lives and how much of this shape it reads, so check its own documentation:
 
-Each client decides where that file lives and how much of this shape it reads, so check its own documentation:
-
-- [VS Code](https://code.visualstudio.com/docs/copilot/customization/mcp-servers)
-- [Cursor](https://cursor.com/docs/context/mcp)
-- [Claude Code](https://docs.claude.com/en/docs/claude-code/mcp)
+- [VS Code](https://code.visualstudio.com/docs/agent-customization/mcp-servers)
+- [Cursor](https://cursor.com/docs/mcp)
+- [Claude Code](https://code.claude.com/docs/en/mcp)
 - [Codex](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
 - [Zed](https://zed.dev/docs/ai/mcp)
 - [OpenCode](https://opencode.ai/docs/mcp-servers/)
 - [Pi](https://pi.dev/packages/pi-mcp-adapter)
 
-The directory the server is launched in is its root. Every tool call takes an optional `working_dir` relative to that root, and a value resolving outside it is refused, symlinks included. Graph traversal is bounded at the same root, so a filter following dependencies or dependents cannot return a unit from outside it.
-
-The root bounds the `working_dir` argument and graph traversal, not file access. Tools work against the real filesystem. Terragrunt writes where its work requires, so resolving a dependency downloads that dependency's source into a `.terragrunt-cache`, and an HCL function such as `file()` reads anything the user running the server can.
-
 ## Capabilities
 
 The server denies every capability at startup, and grants each one separately:
 
-| Flag | What it allows |
-| --- | --- |
-| [`--allow`](/reference/cli/commands/mcp#allow) | One of `exec`, `http`, `sops`, or `env`. Repeatable |
-| [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd) | A command a configuration may run, matched on its program and arguments by a pattern such as `jq **`. Repeatable, and requires `--allow=exec` |
-| [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply) | The `apply` and `destroy` tools, each waiting on a person accepting the run. Requires `--allow=exec` |
+| Flag                                                                                | What it allows                                                   |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [`--allow`](/reference/cli/commands/mcp#allow)                                      | Any of `exec`, `http`, `sops`, or `env`. Repeat it for each one. |
+| [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd)                              | A command pattern a configuration may run                        |
+| [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply)  | The `apply` and `destroy` tools                                  |
 
-With nothing granted, Terragrunt refuses every command and request the tools would otherwise make. Wherever a denied capability stops a tool, the result includes a `degraded` indicator naming what it did instead, such as substituting `mock_outputs` for a dependency output rather than calling `tofu output -json`. Agents read that signal to tell a restriction apart from a real finding.
-
-Without `--dangerously-allow-apply`, Terragrunt never registers `apply` or `destroy`, so a client is not told they exist and no tool call applies or destroys.
-
-<Aside type="caution" title="Capabilities do not restrict running programs">
-`exec` controls whether Terragrunt starts a program, and `http` controls whether Terragrunt itself makes network requests.
-
-They do not control what a program started by Terragrunt does. With `exec` granted and `http` denied, a `tofu init` that Terragrunt starts can still download providers from the registry, for example.
-</Aside>
+Wherever a denied capability stops a tool, the result includes a `degraded` list naming what it did instead, such as
+substituting `mock_outputs` for a dependency output.
 
 ### exec
 
-Lets the tools run the `tofu`, `terraform`, and `git` that Terragrunt starts to do its own work: a plan, a source download, a git-range filter. It does not let a configuration run those programs itself. A `tofu apply` or a `git` a configuration names, through `run_cmd()`, a hook, or `--auth-provider-cmd`, is refused like any other program, so pointing the server at a repository does not hand it the three programs Terragrunt runs.
+Lets the tools run the `tofu`, `terraform`, and `git` that Terragrunt starts for its own work: a plan, a source
+download, a git-range filter. It does not let a configuration run those programs itself. A program a configuration
+names, through `run_cmd()`, a hook, or `--auth-provider-cmd`, is refused like any other.
 
-Without it, Terragrunt also points the server's own `PATH` at an empty directory before serving, so nothing the server loads can start a program by name.
+A refused program is reported in the call's `degraded` list and the call continues, with `run_cmd()` yielding an empty
+string. `apply` and `destroy` fail the unit instead, so a hook written to block the run still blocks it.
 
-A refused program is reported in the call's `degraded` list and the call continues, because an error there would abort the whole HCL parse and turn a refused command into an unreadable configuration.
+To run a program a configuration names, allow it with an [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd)
+pattern, or accept it when a tool asks. A pattern naming `git` matches the `git` on the server's `PATH`, not a `./git`
+in the tree.
 
-`apply` and `destroy` fail the unit instead, so a hook written to block the run still blocks it.
-
-To run a program a configuration names, allow it with an [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd) pattern, or let the read-only tools offer it. The agent chooses which repository the server is pointed at, and a configuration under that root can name any program on the machine, so a pattern or approval naming a bare program such as `git` covers a path only when that path is where the server's `PATH` finds the program. A tree shipping its own file called `git` cannot run it as `./git` unless a pattern or approval names `./git` itself. `discover`, `render_config`, `validate`, and `run_order` return the refused programs as an elicitation, then run again with whatever the person operating the client accepts. An acceptance covers only the programs that elicitation named, and only for the call that made it. An answer the server did not ask for approves nothing, and the call returns with those programs substituted. `plan`, `apply`, and `destroy` never ask, since answering would mean running them a second time.
+`discover`, `render_config`, `validate`, and `run_order` ask. When a configuration names a refused program, the call
+returns an elicitation naming the programs, then runs again with the ones the person operating the client accepts. An
+acceptance covers those programs for that call only. `get_outputs`, `plan`, `apply`, and `destroy` never ask.
 
 ### http
 
-Covers what Terragrunt fetches on its own account:
+Covers what Terragrunt itself fetches:
 
-- Downloading a unit's `terraform { source }` when it is remote, such as a `tfr://` registry module, an `https` archive, or an `oci://` image. Without this, such a unit cannot be planned at all.
+- Downloading a unit's `terraform { source }` when it is remote, such as a `tfr://` registry module, an `https`
+archive, or an `oci://` image. Without this, such a unit cannot be planned.
+
 - Fetching a stack's sources during discovery and generation.
-- Reading remote state directly, which `get_outputs` does when `exec` is not granted. That path works for a unit whose `remote_state` backend is `s3`, `gcs`, or `azurerm`.
+
+- Reading remote state directly for `get_outputs`.
+
 - Cloud API calls Terragrunt makes itself, including assuming a role through STS and reading S3, GCS, or Azure Storage.
-- The provider cache server, when it is fetching providers rather than serving them.
+
+- Provider downloads made by the provider cache server.
 
 ### sops
 
-Without it, a configuration calling `sops_decrypt_file` fails, so a unit whose inputs come from an encrypted file cannot be rendered. A refused `run_cmd` substitutes an empty string; a refused decrypt fails instead, because a configuration that reads a secret and receives an empty value computes a wrong one silently.
-
-Denying it also keeps the real decrypter from publishing your key-service credentials into the process environment, which is what it does for the length of each decrypt.
+Without it, a configuration calling `sops_decrypt_file` fails, so a unit whose inputs come from an encrypted file
+cannot be rendered. A refused decrypt fails the call. No value is substituted.
 
 <Aside type="caution" title="Granting sops shows the agent your secrets">
-Decrypted values flow into whatever the tool returns. `render_config` with `format=full` puts resolved inputs in the result, so a secret read through `sops_decrypt_file` reaches the model, and from there whatever your client logs or sends onward.
+Decrypted values flow into whatever the tool returns. `render_config` with `format=full` puts resolved inputs in
+the result, so a secret read through `sops_decrypt_file` reaches the model, and from there whatever your client logs
+or sends onward.
 </Aside>
 
 ### env
 
-Without it, a tool call starts from an empty environment. A configuration's `get_env()` returns its default, and every command the tools run, `tofu` included, sees none of the server's variables. Terragrunt still finds `tofu` and `git` on the server's own `PATH`.
+Without it, a tool call starts from an empty environment. A configuration's `get_env()` returns its default, and every
+command the tools run, `tofu` included, sees none of the server's variables. Terragrunt still finds `tofu` and `git` on
+the server's own `PATH`.
 
-Granting it passes every one of the server's environment variables to configurations and the commands the tools run, as every other Terragrunt command does. That can include cloud credentials, and a configuration can put any variable in a tool result through `get_env()`.
+Granting it passes every one of the server's environment variables to configurations and the commands the tools run, as
+every other Terragrunt command does. That can include cloud credentials.
 
-Without it, Terragrunt also clears the server's own environment variables before serving and points `HOME` at an empty directory. This covers what reads the server's environment variables directly: the cloud SDKs Terragrunt uses to read remote state, the SOPS decrypter, and `git` commands Terragrunt runs download source code. They find no credential variables and none of the files under your home directory, such as `~/.aws/credentials` or `~/.gitconfig`. So `sops` without `env` cannot find an age key file or key service credentials.
+Without it, the server also points `HOME` at an empty directory, so nothing reads `~/.aws/credentials`,
+`~/.gitconfig`, or an age key file. A direct state read under `http` and a decrypt under `sops` both need `env` to find
+credentials in the environment or your home directory.
 
 ## Logs
 
-Logs, and any output from the commands the tools run, go to standard error, where MCP clients typically surface them as server logs. Standard output carries the protocol itself.
+Logs, and any output from the commands the tools run, go to standard error, where MCP clients typically surface them
+as server logs. Standard output carries the protocol itself.
