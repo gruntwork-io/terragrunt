@@ -4,12 +4,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 )
 
+// TestUnitPathLabels checks the shortest unique labels computed from unit paths.
 func TestUnitPathLabels(t *testing.T) {
 	t.Parallel()
 
@@ -100,4 +102,33 @@ func TestUnitPathLabels(t *testing.T) {
 			assert.Equal(t, tc.expected, runner.UnitPathLabels(wd, tc.paths))
 		})
 	}
+}
+
+// TestUnitLabels checks that labels are also keyed by the display path the unit loggers print.
+func TestUnitLabels(t *testing.T) {
+	t.Parallel()
+
+	wd := venvtest.Root("/work/live")
+	discoveryCtx := &component.DiscoveryContext{WorkingDir: wd}
+
+	dbA := filepath.Join(wd, ".terragrunt-stack", "app-a", ".terragrunt-stack", "db")
+	dbB := filepath.Join(wd, ".terragrunt-stack", "app-b", ".terragrunt-stack", "db")
+
+	units := []*component.Unit{
+		component.NewUnit(dbA).WithDiscoveryContext(discoveryCtx),
+		component.NewUnit(dbB).WithDiscoveryContext(discoveryCtx),
+	}
+
+	labels := runner.UnitLabels(wd, units)
+
+	for _, unit := range units {
+		assert.NotEqual(t, unit.Path(), unit.DisplayPath())
+	}
+
+	assert.Equal(t, map[string]string{
+		dbA:                    filepath.Join("app-a", "db"),
+		dbB:                    filepath.Join("app-b", "db"),
+		units[0].DisplayPath(): filepath.Join("app-a", "db"),
+		units[1].DisplayPath(): filepath.Join("app-b", "db"),
+	}, labels)
 }

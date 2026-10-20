@@ -45,10 +45,5 @@ func setUnitPathLabels(l log.Logger, opts *options.TerragruntOptions, units []*c
 		return
 	}
 
-	paths := make([]string, 0, len(units))
-	for _, unit := range units {
-		paths = append(paths, unit.Path())
-	}
-
-	formatter.SetPathLabels(UnitPathLabels(resolveWorkingDir(opts), paths))
+	formatter.SetPathLabels(UnitLabels(resolveWorkingDir(opts), units))
 }

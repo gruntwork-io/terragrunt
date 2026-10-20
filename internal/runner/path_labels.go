@@ -5,8 +5,29 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 )
+
+// UnitLabels returns the labels of [UnitPathLabels] for the given units, keyed by both the
+// cleaned unit path and the unit's display path. Unit loggers print the display path,
+// which is relative to the discovery working dir, so the formatter looks it up by that key.
+func UnitLabels(workingDir string, units []*component.Unit) map[string]string {
+	paths := make([]string, 0, len(units))
+	for _, unit := range units {
+		paths = append(paths, unit.Path())
+	}
+
+	labels := UnitPathLabels(workingDir, paths)
+
+	for _, unit := range units {
+		if label, ok := labels[filepath.Clean(unit.Path())]; ok {
+			labels[unit.DisplayPath()] = label
+		}
+	}
+
+	return labels
+}
 
 // UnitPathLabels returns the short labels shown by the `basename` path format of `%prefix`
 // for the given unit paths, keyed by the cleaned path.

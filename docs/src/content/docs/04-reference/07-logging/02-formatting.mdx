@@ -244,6 +244,22 @@ Specific options for placeholders:
 
     * `O` - Difference to Greenwich time (GMT) without colon between hours and minutes, e.g. `+0200`
 
+<Before version="v1.2.0">
+
+* `%prefix`
+
+  * `path=[relative|short-relative|short]`
+
+    * `relative` - Outputs a relative path to the working directory.
+
+    * `short-relative` - Outputs a relative path to the working directory, trims the leading slash `./` and hides the working directory path `.`
+
+    * `short` - Outputs an absolute path, but hides the working directory path.
+
+</Before>
+
+<Since version="v1.2.0">
+
 * `%prefix`
 
   * `path=[relative|short-relative|short|basename]`
@@ -255,6 +271,8 @@ Specific options for placeholders:
     * `short` - Outputs an absolute path, but hides the working directory path.
 
     * `basename` - Outputs the last element of the unit's path, and hides the working directory path. If another unit in the run ends in the same element, parent directories are added until the prefix is unique, skipping `.terragrunt-stack` directories. For example, `.terragrunt-stack/app-a/.terragrunt-stack/db` and `.terragrunt-stack/app-b/.terragrunt-stack/db` are shown as `app-a/db` and `app-b/db`. If no number of parent directories makes the prefix unique, e.g. for `db` and `app/db`, the path relative to the working directory is used. The prefixes are computed from all units of the run before any unit starts, so a unit keeps the same prefix throughout the run.
+
+</Since>
 
 * `%tf-path`
 

@@ -142,6 +142,7 @@ func TestFormatterSetCustomFormat(t *testing.T) {
 	assert.Contains(t, outputStr, "custom msg")
 }
 
+// TestFormatterSetPathLabels checks that `%prefix(path=basename)` uses the labels set on the formatter.
 func TestFormatterSetPathLabels(t *testing.T) {
 	t.Parallel()
 
