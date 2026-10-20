@@ -18,6 +18,7 @@ const (
 	ShortPath
 	FilenamePath
 	DirectoryPath
+	BasenamePath
 )
 
 var pathFormatList = NewMapValue(map[PathFormatValue]string{
@@ -26,6 +27,7 @@ var pathFormatList = NewMapValue(map[PathFormatValue]string{
 	ShortPath:         "short",
 	FilenamePath:      "filename",
 	DirectoryPath:     "dir",
+	BasenamePath:      "basename",
 })
 
 type PathFormatValue byte
@@ -61,6 +63,16 @@ func (option *PathFormatOption) Format(data *Data, val any) (any, error) {
 		return filepath.Base(str), nil
 	case DirectoryPath:
 		return filepath.Dir(str), nil
+	case BasenamePath:
+		if str == data.BaseDir {
+			return "", nil
+		}
+
+		if label, ok := data.PathLabels[str]; ok {
+			return label, nil
+		}
+
+		return filepath.Base(str), nil
 	case NonePath:
 	}
 

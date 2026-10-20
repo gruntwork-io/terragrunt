@@ -1,6 +1,7 @@
 package format_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -139,6 +140,39 @@ func TestFormatterSetCustomFormat(t *testing.T) {
 	outputStr := string(output)
 	assert.Contains(t, outputStr, "info")
 	assert.Contains(t, outputStr, "custom msg")
+}
+
+func TestFormatterSetPathLabels(t *testing.T) {
+	t.Parallel()
+
+	fmtr := format.NewFormatter(nil)
+	fmtr.SetDisabledColors(true)
+
+	require.NoError(t, fmtr.SetCustomFormat("%prefix(path=basename,prefix='[',suffix='] ')%msg"))
+
+	unitDir := filepath.Join("work", "app-a", ".terragrunt-stack", "db")
+	otherDir := filepath.Join("work", "app-b", ".terragrunt-stack", "cache")
+
+	formatPrefix := func(dir string) string {
+		entry := &log.Entry{
+			Entry:  logrus.NewEntry(logrus.New()),
+			Level:  log.InfoLevel,
+			Fields: log.Fields{placeholders.WorkDirKeyName: dir},
+		}
+		entry.Message = "msg"
+
+		output, err := fmtr.Format(entry)
+		require.NoError(t, err)
+
+		return string(output)
+	}
+
+	assert.Equal(t, "[db] msg\n", formatPrefix(unitDir))
+
+	fmtr.SetPathLabels(map[string]string{unitDir: "app-a/db"})
+
+	assert.Equal(t, "[app-a/db] msg\n", formatPrefix(unitDir))
+	assert.Equal(t, "[cache] msg\n", formatPrefix(otherDir))
 }
 
 func TestFormatterNilPlaceholders(t *testing.T) {
