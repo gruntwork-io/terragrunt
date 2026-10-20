@@ -5,7 +5,7 @@ author: "The Gruntwork Team"
 order: 1
 ---
 
-import CloudTabs from '@components/CloudTabs.astro';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 A common source of duplication in OpenTofu/Terraform codebases is the remote
 state backend block, which has to be repeated in every module. Terragrunt lets
@@ -16,7 +16,7 @@ you define it once and generate it into every unit.
 In your root `root.hcl`, configure the backend and have Terragrunt
 generate it for each unit:
 
-<CloudTabs>
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
 
 ```hcl
@@ -58,7 +58,7 @@ remote_state {
 ```
 
 </Fragment>
-</CloudTabs>
+</StatefulTabs>
 
 Each child unit then includes the root configuration:
 

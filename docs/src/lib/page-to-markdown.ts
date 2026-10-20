@@ -294,7 +294,7 @@ function rawMdxToMarkdown(body: string): string {
 		// resolved from source — drop the tag.
 		.replace(/<Code\b[^>]*?\/>/g, '')
 		// Unwrap simple wrapper components, keeping inner content.
-		.replace(/<\/?(?:Aside|Before|Since|Tabs|TabItem|CloudTabs|Fragment|Card|Badge)\b[^>]*>/g, '')
+		.replace(/<\/?(?:Aside|Before|Since|Tabs|TabItem|StatefulTabs|Fragment|Card|Badge)\b[^>]*>/g, '')
 		.replace(/\n{3,}/g, '\n\n')
 		.trim();
 }
