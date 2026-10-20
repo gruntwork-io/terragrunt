@@ -5,6 +5,8 @@ author: "The Gruntwork Team"
 order: 1
 ---
 
+import CloudTabs from '@components/CloudTabs.astro';
+
 A common source of duplication in OpenTofu/Terraform codebases is the remote
 state backend block, which has to be repeated in every module. Terragrunt lets
 you define it once and generate it into every unit.
@@ -13,6 +15,9 @@ you define it once and generate it into every unit.
 
 In your root `root.hcl`, configure the backend and have Terragrunt
 generate it for each unit:
+
+<CloudTabs>
+<Fragment slot="aws">
 
 ```hcl
 remote_state {
@@ -30,6 +35,30 @@ remote_state {
   }
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+remote_state {
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    location             = "eastus"
+    use_azuread_auth     = true
+  }
+}
+```
+
+</Fragment>
+</CloudTabs>
 
 Each child unit then includes the root configuration:
 
