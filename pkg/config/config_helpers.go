@@ -698,6 +698,8 @@ func runCommandImpl(
 			return cachedEntry, nil
 		}
 
+		ran = true
+
 		entry, err := runCmd(ctx, l, v, pctx, currentPath, args, suppressOutput)
 		if err != nil {
 			return nil, err
@@ -705,12 +707,20 @@ func runCommandImpl(
 
 		runCommandCache.Put(ctx, cacheKey, entry)
 
-		ran = true
-
 		return entry, nil
 	})
 	if err != nil {
-		return "", err
+		if ran {
+			return "", err
+		}
+
+		// A shared error names the directory the command ran in, which under
+		// --terragrunt-global-cache can be another unit's, so name this caller's as well.
+		return "", fmt.Errorf(
+			"run_cmd in %s shared a concurrent attempt that failed: %w",
+			util.RelPathForLog(pctx.RootWorkingDir, currentPath, pctx.LogShowAbsPaths),
+			err,
+		)
 	}
 
 	entry, ok := entryAny.(*RunCmdCacheEntry)
