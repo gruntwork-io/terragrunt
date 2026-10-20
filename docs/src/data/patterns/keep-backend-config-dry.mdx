@@ -16,7 +16,7 @@ you define it once and generate it into every unit.
 In your root `root.hcl`, configure the backend and have Terragrunt
 generate it for each unit:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">
 
 ```hcl
@@ -53,6 +53,25 @@ remote_state {
     key                  = "${path_relative_to_include()}/tofu.tfstate"
     location             = "eastus"
     use_azuread_auth     = true
+  }
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+remote_state {
+  backend = "gcs"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    project  = "my-project"
+    location = "us-central1"
+    bucket   = "my-tofu-state"
+    prefix   = path_relative_to_include()
   }
 }
 ```
