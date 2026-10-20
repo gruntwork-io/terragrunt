@@ -117,6 +117,7 @@ func TestUnitLabels(t *testing.T) {
 	units := []*component.Unit{
 		component.NewUnit(dbA).WithDiscoveryContext(discoveryCtx),
 		component.NewUnit(dbB).WithDiscoveryContext(discoveryCtx),
+		component.NewUnit(wd).WithDiscoveryContext(discoveryCtx),
 	}
 
 	labels := runner.UnitLabels(wd, units)
@@ -125,10 +126,13 @@ func TestUnitLabels(t *testing.T) {
 		assert.NotEqual(t, unit.Path(), unit.DisplayPath())
 	}
 
+	assert.Equal(t, ".", units[2].DisplayPath())
+
 	assert.Equal(t, map[string]string{
 		dbA:                    filepath.Join("app-a", "db"),
 		dbB:                    filepath.Join("app-b", "db"),
 		units[0].DisplayPath(): filepath.Join("app-a", "db"),
 		units[1].DisplayPath(): filepath.Join("app-b", "db"),
+		".":                    "",
 	}, labels)
 }

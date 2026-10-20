@@ -74,7 +74,7 @@ func TestPathFormatOptionFormat(t *testing.T) {
 
 	withPather := &options.Data{RelativePather: pather, BaseDir: base}
 	withoutPather := &options.Data{BaseDir: base}
-	withLabels := &options.Data{BaseDir: base, PathLabels: map[string]string{unit: "app/unit"}}
+	withLabels := &options.Data{BaseDir: base, PathLabels: map[string]string{unit: "app/unit", ".": ""}}
 
 	tests := []struct {
 		data     *options.Data
@@ -158,6 +158,13 @@ func TestPathFormatOptionFormat(t *testing.T) {
 			format:   options.BasenamePath,
 			data:     withLabels,
 			value:    base,
+			expected: "",
+		},
+		{
+			name:     "basename_working_dir_display_path_is_empty",
+			format:   options.BasenamePath,
+			data:     withLabels,
+			value:    ".",
 			expected: "",
 		},
 		{
