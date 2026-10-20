@@ -12,7 +12,6 @@ import (
 // UnitLabels returns the labels of [UnitPathLabels] for the given units, keyed by both the
 // cleaned unit path and the unit's display path. Unit loggers print the display path,
 // which is relative to the discovery working dir, so the formatter looks it up by that key.
-// A unit at the discovery working dir has the display path ".", which gets an empty label.
 func UnitLabels(workingDir string, units []*component.Unit) map[string]string {
 	paths := make([]string, 0, len(units))
 	for _, unit := range units {
@@ -22,11 +21,6 @@ func UnitLabels(workingDir string, units []*component.Unit) map[string]string {
 	labels := UnitPathLabels(workingDir, paths)
 
 	for _, unit := range units {
-		if unit.DisplayPath() == "." {
-			labels["."] = ""
-			continue
-		}
-
 		if label, ok := labels[filepath.Clean(unit.Path())]; ok {
 			labels[unit.DisplayPath()] = label
 		}

@@ -64,7 +64,8 @@ func (option *PathFormatOption) Format(data *Data, val any) (any, error) {
 	case DirectoryPath:
 		return filepath.Dir(str), nil
 	case BasenamePath:
-		if str == data.BaseDir {
+		// Unit loggers print the display path, which is "." for a unit at the working dir.
+		if str == data.BaseDir || str == "." {
 			return "", nil
 		}
 

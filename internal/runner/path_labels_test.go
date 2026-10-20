@@ -133,6 +133,5 @@ func TestUnitLabels(t *testing.T) {
 		dbB:                    filepath.Join("app-b", "db"),
 		units[0].DisplayPath(): filepath.Join("app-a", "db"),
 		units[1].DisplayPath(): filepath.Join("app-b", "db"),
-		".":                    "",
 	}, labels)
 }

@@ -74,7 +74,7 @@ func TestPathFormatOptionFormat(t *testing.T) {
 
 	withPather := &options.Data{RelativePather: pather, BaseDir: base}
 	withoutPather := &options.Data{BaseDir: base}
-	withLabels := &options.Data{BaseDir: base, PathLabels: map[string]string{unit: "app/unit", ".": ""}}
+	withLabels := &options.Data{BaseDir: base, PathLabels: map[string]string{unit: "app/unit"}}
 
 	tests := []struct {
 		data     *options.Data
