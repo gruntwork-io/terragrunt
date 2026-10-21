@@ -225,14 +225,13 @@ EOF
 
 # Configure the module
 #
-# The URL used here is a shorthand for
-# "tfr://registry.opentofu.org/terraform-google-modules/network/google?version=18.3.1".
+# The `tfr:///` shorthand uses the default registry host for OpenTofu or Terraform.
+# Set `TG_TF_DEFAULT_REGISTRY_HOST` to use a different host.
 #
-# You can find the module at:
+# The module lives at:
 # https://search.opentofu.org/module/terraform-google-modules/network/google/latest
 #
-# Note the extra `/` after the `tfr` protocol is required for the shorthand
-# notation.
+# The shorthand needs three slashes after `tfr:`, as in `tfr:///`.
 terraform {
   source = "tfr:///terraform-google-modules/network/google?version=18.3.1"
 }
@@ -321,7 +320,7 @@ If you want to try this configuration locally:
 
    Terragrunt and the Google provider both read these Application Default Credentials, so one login covers creating the state bucket and the network. Your account needs permission to create Cloud Storage buckets and VPC networks in the project (e.g. the **Storage Admin** and **Compute Network Admin** roles). See the [GCS backend](/features/units/state-backend/#gcs-backend) documentation for other ways to authenticate.
 
-5. Run `terragrunt apply --backend-bootstrap -auto-approve` in the directory where you created the `terragrunt.hcl` file.
+5. Run `terragrunt run --backend-bootstrap -- apply -auto-approve` in the directory where you created the `terragrunt.hcl` file.
 
 </Fragment>
 </StatefulTabs>
@@ -1361,6 +1360,7 @@ terraform {
 ```bash
 # Within the vpc directory
 # First, we'll migrate state to the new location
+# Answer "yes" when OpenTofu asks whether to copy existing state to the new backend
 $ terragrunt init -migrate-state
 # Then, let's take a look at the generated backend.tf file
 $ find .terragrunt-cache -name backend.tf -exec cat {} \;
