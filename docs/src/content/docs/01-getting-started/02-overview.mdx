@@ -16,19 +16,32 @@ It includes configurations that are a bit more complex than the ones found in th
 
 We'll walk you through each one, and you don't need to understand everything right away. Knowing that these features are available as you start to use Terragrunt can give you a tool to reach for when you encounter common problems that typically require one or more of these solutions.
 
-This guide is geared towards users who have either already gone through the [Quick Start](/getting-started/quick-start/) or are joining a team of users that are already using Terragrunt. As a consequence, we'll be using more complex configurations, discussing more advanced features, and showing how to use Terragrunt to manage real AWS or Azure infrastructure.
+This guide is geared towards users who have either already gone through the [Quick Start](/getting-started/quick-start/) or are joining a team of users that are already using Terragrunt. As a consequence, we'll be using more complex configurations, discussing more advanced features, and showing how to use Terragrunt to manage real cloud infrastructure.
 
 If you are unfamiliar with OpenTofu/Terraform, you may want to also read [OpenTofu](https://opentofu.org/docs/intro/) or [Terraform](https://developer.hashicorp.com/terraform/intro) documentation after reading this guide.
 
-<Aside type="tip" title="AWS or Azure?">
-The code samples on this page are provided for both AWS and Azure. Use the **AWS** and **Azure** tabs above each sample to switch between them. Switching one sample switches every sample on the page, and your choice is remembered as you move between pages.
+<Aside type="tip" title="Pick a cloud provider">
+The code samples on this page come in a version for each cloud provider this guide covers. Use the tabs above each sample to switch between them. Switching one sample switches every sample on the page, and your choice is remembered as you move between pages.
 </Aside>
 
 ## Following Along
 
 What follows isn't a tutorial in the same sense as the [Quick Start](/getting-started/quick-start/), but more of a guided tour of some of the more commonly used features of Terragrunt. You don't need to follow along to understand the concepts, but if you want to, you can.
 
-The code samples provided here are available as individual "steps" for [AWS](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview) and [Azure](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview-azure).
+The code samples provided here are available as individual "steps" for each cloud provider covered on this page:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
+
+[AWS code samples](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview)
+
+</Fragment>
+<Fragment slot="azure">
+
+[Azure code samples](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview-azure)
+
+</Fragment>
+</StatefulTabs>
 
 {/* NOTE: We also test these continuously in `test/integration_docs_aws_test.go` and `test/integration_docs_azure_test.go` */}
 
@@ -36,7 +49,7 @@ If you would prefer it, you can clone the [Terragrunt repository](https://github
 
 Just make sure to replace the values prefixed `__FILL_IN_` with values relevant to your account.
 
-If you don't have an AWS or Azure account, you can sign up for a free tier account at [aws.amazon.com](https://aws.amazon.com/) or [azure.microsoft.com](https://azure.microsoft.com/free/), or adapt the examples to use a different cloud provider.
+If you don't have a cloud account yet, each provider covered here offers a free tier you can sign up for, or you can adapt the examples to use a different cloud provider.
 
 ## Example
 
@@ -152,10 +165,10 @@ EOF
 # Configure the module
 #
 # This URL is shorthand for
-# "tfr://registry.terraform.io/Azure/avm-res-resources-resourcegroup/azurerm?version=0.4.0".
+# "tfr://registry.opentofu.org/Azure/avm-res-resources-resourcegroup/azurerm?version=0.4.0".
 #
 # The module lives at:
-# https://registry.terraform.io/modules/Azure/avm-res-resources-resourcegroup/azurerm/latest
+# https://search.opentofu.org/module/azure/avm-res-resources-resourcegroup/azurerm/latest
 #
 # The shorthand needs three slashes after `tfr:`, as in `tfr:///`.
 terraform {
@@ -210,11 +223,15 @@ If you want to try this configuration locally:
    export ARM_SUBSCRIPTION_ID="$(az account show --query id --output tsv)"
    ```
 
-   The example sets `assign_blob_data_role = true`, so the identity you log in with needs permission to create role assignments on the storage account (for example, the **Owner** role on the subscription). If you don't have that, remove `assign_blob_data_role` from the configuration and ask a subscription **Owner** or **User Access Administrator** to grant you the **Storage Blob Data Contributor** role before you apply. The storage account does not exist until bootstrap creates it, so the grant goes on the subscription, or on a resource group the administrator creates first and you name in `resource_group_name`. A Contributor cannot assign roles to itself. See [Required Azure permissions](/features/units/authentication/#required-azure-permissions) for details.
+   The example sets `assign_blob_data_role = true`. To use it, your identity needs permission to create role assignments, such as subscription **Owner**.
+
+   If you cannot assign roles, remove the option. Ask an **Owner** or **User Access Administrator** to grant you **Storage Blob Data Contributor** before you apply. They can grant it on the subscription or on a resource group they create first and name in `resource_group_name`. The storage account does not exist until bootstrap runs. A Contributor cannot assign roles to itself. See [Required Azure permissions](/features/units/authentication/#required-azure-permissions).
 
    The [Azure Verified Modules](https://azure.github.io/Azure-Verified-Modules/) used in this guide require OpenTofu/Terraform 1.9 or newer.
 
 4. Run `terragrunt apply --backend-bootstrap -auto-approve` in the directory where you created the `terragrunt.hcl` file.
+
+   If Terragrunt just granted the blob role and this first run fails with a 403 while checking the container, wait a few minutes and rerun. Azure may not have applied the role yet.
 
 </Fragment>
 </StatefulTabs>
@@ -282,7 +299,7 @@ Notice that `location` and `assign_blob_data_role` aren't in the generated file.
 
 Right before running any OpenTofu/Terraform command that might store state, Terragrunt will ensure that the appropriate `backend.tf` file is present in the working directory where OpenTofu/Terraform will run, so that state is persisted appropriately when `tofu`/`terraform` is invoked.
 
-Note that while following the example above, you didn't need to manually create the remote state resources (the S3 bucket and DynamoDB table on AWS, or the resource group, storage account and container on Azure), or run `tofu/terraform init` to perform initialization. Because you passed `--backend-bootstrap`, Terragrunt created them for you.
+Note that while following the example above, you didn't need to manually create the resources that store remote state, or run `tofu/terraform init` to perform initialization. Because you passed `--backend-bootstrap`, Terragrunt created them for you.
 
 These are just a few of the things that Terragrunt does automatically when orchestrating OpenTofu/Terraform commands because it knows how OpenTofu/Terraform work, and it can take care of some busy work for you to make your life easier.
 
@@ -308,7 +325,7 @@ provider "aws" {
 </Fragment>
 <Fragment slot="azure">
 
-In this example, Terragrunt is being configured to inject a `provider.tf` file into the module that configures the [azapi](https://registry.terraform.io/providers/Azure/azapi/latest/docs) provider, which the Azure Verified Modules used in this guide are built on. Authentication comes from your Azure CLI session, and the target subscription from the `ARM_SUBSCRIPTION_ID` environment variable you exported earlier. The `default_location` is used by any resource that doesn't set a `location` of its own.
+In this example, Terragrunt is being configured to inject a `provider.tf` file into the module that configures the [azapi](https://search.opentofu.org/provider/azure/azapi/latest) provider, which the Azure Verified Modules used in this guide are built on. Authentication comes from your Azure CLI session, and the target subscription from the `ARM_SUBSCRIPTION_ID` environment variable you exported earlier. The `default_location` is used by any resource that doesn't set a `location` of its own.
 
 If you run the following, you can see the `provider.tf` file that Terragrunt generates:
 
@@ -413,7 +430,20 @@ Any file that isn't part of the OpenTofu/Terraform module (like the `backend.tf`
 
 The `inputs` block is used to indicate what variable values should be passed to OpenTofu/Terraform when running `tofu`/`terraform` commands.
 
-In this example, Terragrunt is being configured to pass in a bunch of variables to the OpenTofu/Terraform module. On AWS, these variables configure the VPC module: the name of the VPC, the CIDR block, the availability zones, the subnets, and so on. On Azure, they configure the resource group module: its name, location and tags.
+In this example, Terragrunt is being configured to pass in a bunch of variables to the OpenTofu/Terraform module:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
+
+These variables configure the VPC module: the name of the VPC, the CIDR block, the availability zones, the subnets, and so on.
+
+</Fragment>
+<Fragment slot="azure">
+
+These variables configure the resource group module: its name, location and tags.
+
+</Fragment>
+</StatefulTabs>
 
 Under the hood, what happens here is that Terragrunt sets relevant `TF_VAR_` prefixed environment variables, which are automatically detected by OpenTofu/Terraform as values for variables defined in `.tf` files.
 
@@ -427,7 +457,7 @@ This statement above is kind of a lie:
 
 \*  Here is a typical `terragrunt.hcl` file you might find in a Terragrunt project.
 
-The truth is, you'll almost never see configuration like that outside of some tests or examples. The reason for this is that one of the main responsibilities Terragrunt has is to scale IaC, and the configuration above would result in quite a lot of code duplication across a project. In an AWS or Azure project for example, you will probably use the same (or very similar) `provider` configuration across all your units, and you'll probably use the same `backend` configuration across all your units (with the only exception being the `key` for where in the state bucket or container your state should be stored).
+The truth is, you'll almost never see configuration like that outside of some tests or examples. The reason for this is that one of the main responsibilities Terragrunt has is to scale IaC, and the configuration above would result in quite a lot of code duplication across a project. In a typical project, for example, you will probably use the same (or very similar) `provider` configuration across all your units, and you'll probably use the same `backend` configuration across all your units (with the only exception being the path in the backend where each unit's state is stored).
 
 Aware of this pattern, Terragrunt is designed to leverage a hierarchy of reusable configurations so that your code can be [DRY (Don't Repeat Yourself)](/getting-started/terminology#dont-repeat-yourself-dry).
 
@@ -671,7 +701,7 @@ $ terragrunt plan
 ...
 16:31:14.179 STDOUT tofu:   # aws_vpc.this[0] will be destroyed
 ...
-16:31:14.179 STDOUT tofu: Plan: 4 to add, 0 to change, 22 to destroy.
+16:31:14.179 STDOUT tofu: Plan: 1 to add, 0 to change, 22 to destroy.
 ```
 
 </Fragment>
@@ -741,7 +771,7 @@ terraform {
 
 What most folks would really prefer here is to have the state for the new unit stored in a different, but predictable, location relative to the first unit.
 
-The pattern that we've found to be most effective is to store state so that the location in the remote backend (an S3 bucket or an Azure Storage container) mirrors the location of the unit on the filesystem.
+The pattern that we've found to be most effective is to store state so that the location in the remote backend mirrors the location of the unit on the filesystem.
 
 So this filesystem layout:
 
@@ -799,7 +829,7 @@ Would result in this state layout in the `tfstate` container of the `mytofustate
 </Fragment>
 </StatefulTabs>
 
-To achieve this, we can take advantage of the `path_relative_to_include()` Terragrunt HCL function to generate a `key` dynamically based on the position of the unit relative to the `root.hcl` file within the filesystem.
+To achieve this, we can take advantage of the `path_relative_to_include()` Terragrunt HCL function to generate the state path dynamically based on the position of the unit relative to the `root.hcl` file within the filesystem.
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
@@ -878,7 +908,7 @@ What this does is set the `key` attribute of the generated `backend.tf` file to 
 
 ### Migrating state
 
-You have to be careful when adjusting the `key` attribute of units (including when moving units around in the filesystem, if you use something like `path_relative_to_include` to drive the value of the `key` attribute) because it can result in state being stored in a different location in the remote backend.
+You have to be careful when changing where units store state (including when moving units around in the filesystem, if you use something like `path_relative_to_include` to build the state path) because it can result in state being stored in a different location in the remote backend.
 
 There's native tooling in OpenTofu/Terraform to support these procedures, but you want to be confident you know what you're doing when you run them. By default, Terragrunt will provision a remote backend that uses versioning, so you can always roll back to a previous state if you need to.
 
@@ -888,6 +918,7 @@ There's native tooling in OpenTofu/Terraform to support these procedures, but yo
 ```bash
 # Within the vpc directory
 # First, we'll migrate state to the new location
+# Answer "yes" when OpenTofu asks whether to copy existing state to the new backend
 $ terragrunt init -migrate-state
 # Then, let's take a look at the generated backend.tf file
 $ find .terragrunt-cache -name backend.tf -exec cat {} \;
@@ -935,6 +966,7 @@ terraform {
 ```bash
 # Within the rg directory
 # First, we'll migrate state to the new location
+# Answer "yes" when OpenTofu asks whether to copy existing state to the new backend
 $ terragrunt init -migrate-state
 # Then, let's take a look at the generated backend.tf file
 $ find .terragrunt-cache -name backend.tf -exec cat {} \;
@@ -979,11 +1011,13 @@ terraform {
 </Fragment>
 </StatefulTabs>
 
-Note that `init -migrate-state` copies the state to its new key, but leaves the original behind at the old `tofu.tfstate` key. It's harmless, but you may want to delete it once you've confirmed the migration worked.
+Go ahead and apply that plan with `terragrunt apply`, so both units exist for the next section.
+
+Note that `init -migrate-state` copies the state to its new location, but leaves the original behind at the old one. It's harmless, but you may want to delete it once you've confirmed the migration worked.
 
 Following this pattern, you can create as many units of infrastructure in your project as you like without worrying about collisions in remote state keys.
 
-Note that while this is the idiomatic approach for defining the `key` attribute for your `backend` configuration, it is not a requirement. You can set the `key` attribute to any value you like, and you can use any Terragrunt HCL function to generate that value dynamically such that you avoid collisions in your remote state.
+Note that while this is the idiomatic approach for setting the state path in your `backend` configuration, it is not a requirement. You can set it to any value you like, and you can use any Terragrunt HCL function to generate that value dynamically such that you avoid collisions in your remote state.
 
 Another completely valid approach, for example, is to utilize [get_repo_root](/reference/hcl/functions#get_repo_root), which returns a path relative to the root of the git repository. This, of course, has the drawback that it will not work if you are not using git.
 
@@ -1118,7 +1152,7 @@ Go ahead and answer `y` to the prompt to allow destruction to proceed, and notic
 </Fragment>
 </StatefulTabs>
 
-Terragrunt will give you the contextual information you need to understand what's happening in your stack as it's being run. That `[ec2]` and `[vpc]` (or `[vnet]` and `[rg]`) prefix is a great way to quickly disambiguate what's happening in one unit of infrastructure from another.
+Terragrunt will give you the contextual information you need to understand what's happening in your stack as it's being run. The unit name prefix on each line (e.g. `[vpc]`) is a great way to quickly disambiguate what's happening in one unit of infrastructure from another.
 
 ### Mock outputs
 
@@ -1506,7 +1540,7 @@ The provider's `default_location` only applies to resources that don't set a `lo
 
 **NOTE** In the generate block, we're using `"${local.region}"`, rather than `local.region`. This is because the `generate` block is going to generate a file directly into the OpenTofu/Terraform module. We need to ensure that when the value is interpolated, it's done so in a way that OpenTofu/Terraform can understand, so we wrap it in quotes.
 
-**ALSO NOTE** The `remote_state` block is still storing all state in a single region by design. We don't have to do this, and you could easily set it to store state in multiple regions. For the sake of simplicity, and demonstration, we're keeping it in one region.
+This example keeps state in one region. You can use a different region for the backend by changing the `remote_state` configuration.
 
 ### Exposed includes
 
@@ -1524,7 +1558,7 @@ This would cause issues if we were to try to deploy the `vpc` unit in the `us-we
 
 The `location` input in both the `rg` and `vnet` units of the `eastus` stack is hardcoded to `"eastus"`, and the resource group is named `my-rg-eastus`.
 
-If we copied those units into a `westus2` stack as-is, they would still create resources in `eastus`, and the second resource group would collide with the first (resource group names are unique within a subscription). What we need to do is make the `location` input and the resource group name dynamic, using the resolved region.
+Copying those units into `westus2` as-is would still create resources in `eastus`. It would also reuse the resource group name, which Azure forbids within a subscription. Use the resolved region for both `location` and the resource group name.
 
 </Fragment>
 </StatefulTabs>
@@ -1725,9 +1759,9 @@ You should see the resource group and virtual network being provisioned in the `
 
 This showcases three superpowers you gain when you leverage Terragrunt:
 
-1. **Automatic DAG Resolution**: No configuration file had to be updated or modified to ensure that the dependent unit was run after the unit it depends on when provisioning the second stack. Terragrunt automatically resolved the dependency graph and ran the units in the correct order.
-2. **Dynamic Configuration**: The code you copied from the first region's directory to the second didn't need to be modified at all to provision resources in a different region (with the exception of naming the region in the `region.hcl` file). Terragrunt was able to dynamically resolve the correct configuration based on context, and apply it to the OpenTofu/Terraform modules as generic patterns of infrastructure.
-3. **Reduced Blast Radius**: By applying Terragrunt within the second region's directory, you were able to confidently target only the resources in that region, without affecting the resources in the first region. This is a powerful tool for safely managing multiple environments, regions, or accounts with a single codebase. Your current working directory when using Terragrunt is your [blast radius](/getting-started/terminology/#blast-radius), and Terragrunt makes it easy to manage that blast radius effectively.
+1. **Automatic DAG Resolution**: Terragrunt runs dependencies before the units that use them.
+2. **Dynamic Configuration**: Change `region.hcl` to deploy the same unit files in another region.
+3. **Reduced Blast Radius**: Running `terragrunt run --all` from a region directory limits the run to units in that directory. Your working directory sets the [blast radius](/getting-started/terminology/#blast-radius).
 
 ### Cleanup
 
@@ -1967,11 +2001,11 @@ EOF
 </Fragment>
 </StatefulTabs>
 
-This would result in the `region` local being set to the name of the first directory in the path to the `terragrunt.hcl` file that is being run during an include (the name of the region directory in each respective stack). This would allow you to remove the `region.hcl` file from both region directories.
+With this expression, `region` is the first directory in the path relative to `root.hcl`. You could then remove the `region.hcl` files.
 
 Consider, though, that this might make the configuration harder to understand for someone who is not as familiar with Terragrunt as you are. You've now tightly coupled the name of the directory to the region that the infrastructure is being deployed to, and you've made it harder for someone to understand if they run into issues.
 
-Say a user tries to deploy infrastructure while on a Windows machine, where the path separator is `\` instead of `/`. Using this configuration would result in the `region` local being set to something like `us-east-1\vpc` or `eastus\rg`, which is confusing and not what you want.
+Say a user tries to deploy infrastructure while on a Windows machine, where the path separator is `\` instead of `/`. Using this configuration would result in the `region` local being set to the region and unit directory names joined by a backslash, which is confusing and not what you want.
 
 In this case, you might prefer to have kept the `region.hcl` file, as it makes the configuration more explicit and easier to understand.
 

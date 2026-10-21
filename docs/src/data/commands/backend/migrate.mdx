@@ -108,5 +108,8 @@ This will migrate the backend state from the `old-unit-name` unit to the `new-un
 
 Terragrunt performs migrations in one of two ways, depending on the level of support for the backends being migrated, and the state of configuration between the two units.
 
-1. If the source and destination units use the same backend type (both S3, both GCS, or both Azure Storage), Terragrunt uses the cloud provider's SDK to move the state without invoking OpenTofu/Terraform. This is the preferred method. For Azure Storage, both units must use the same storage account. `backend migrate` refuses to move state between two storage accounts and does not fall back to the CLI, so move that state yourself with `init`, `state pull` and `state push`.
+1. When both units use the same supported backend (S3, GCS, or Azure Storage), Terragrunt uses the cloud provider's SDK to move the state. For Azure Storage, both units must use the same storage account. `backend migrate` refuses cross-account moves and does not fall back to the OpenTofu/Terraform CLI.
+
+   For a cross-account move, stop writes to both units and back up the source state. Initialize each backend, then copy the state with `state pull` and `state push`. Verify the destination state before deleting the source blob and retiring the old unit. Otherwise, later runs can update separate copies of the state.
+
 2. If either backend source isn't supported by Terragrunt, or the state of configuration between the two units is different, Terragrunt will instead use the OpenTofu/Terraform CLI to move the state between the two units. This is the fallback method, and will generally be slower. Terragrunt also won't be able to delete the existing state from the source unit in this case, so you'll need to handle that yourself.

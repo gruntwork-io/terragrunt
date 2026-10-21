@@ -68,12 +68,12 @@ include "root" {
 }
 ```
 
-Now every unit writes its state to a unique key derived from its path, and you
+Now every unit writes its state to a location derived from its directory, and you
 never repeat the backend configuration.
 
 ## Why it works
 
-- `path_relative_to_include()` gives each unit a distinct state key.
+- `path_relative_to_include()` gives each unit a distinct state path.
 - `generate` writes the backend block into the unit at runtime, so OpenTofu/Terraform
   sees a normal backend configuration.
 

@@ -295,7 +295,7 @@ You'll want to make sure that you set configurations like `skip_bucket_versionin
 
 ## Authenticating with Azure
 
-Terragrunt has no Azure equivalent of `--iam-assume-role`: there is no role to assume, because an Azure identity is scoped to the subscriptions and resource groups it has been granted roles on. Instead, Terragrunt's own Azure operations (bootstrapping, migrating and deleting the [`azurerm` state backend](/features/units/state-backend/#azure-storage-azurerm-backend)) use the same credential sources as the `azurerm` and `azapi` providers, so one set of environment variables authenticates both Terragrunt and OpenTofu/Terraform.
+Terragrunt has no Azure equivalent of `--iam-assume-role`. Azure role assignments scope an identity's access. Terragrunt supports the credential sources below for bootstrap, migration, and deletion of the [`azurerm` state backend](/features/units/state-backend/#azure-storage-azurerm-backend). Set the same `ARM_*` variables for the OpenTofu/Terraform backend and providers. Azure DevOps OIDC service connections do not work with these Terragrunt operations.
 
 Set the subscription, then pick whichever credential source fits where Terragrunt is running:
 
@@ -326,7 +326,13 @@ terragrunt apply
 </Fragment>
 <Fragment slot="oidc">
 
-In GitHub Actions, workload identity federation avoids storing a secret at all. With `ARM_USE_OIDC` set, Terragrunt exchanges the job's OIDC token for an Azure access token, reading the request URL and token that GitHub Actions injects into the job (`ACTIONS_ID_TOKEN_REQUEST_URL`, `ACTIONS_ID_TOKEN_REQUEST_TOKEN`):
+In GitHub Actions, configure a federated credential in Azure for the job and grant the workflow or job `id-token: write` permission. GitHub then injects `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`. With `ARM_USE_OIDC` set, Terragrunt uses them to request an Azure access token:
+
+```yaml
+permissions:
+  id-token: write
+  contents: read
+```
 
 ```bash
 export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"

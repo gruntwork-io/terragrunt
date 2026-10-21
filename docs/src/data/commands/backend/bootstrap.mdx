@@ -99,6 +99,8 @@ You'll ensure the availability of:
 - A blob container named `tfstate` in that storage account.
 - A **Storage Blob Data Contributor** role assignment on the storage account for the identity Terragrunt authenticated as. Creating it needs permission to create role assignments, which Owner and User Access Administrator hold and Contributor does not.
 
+Azure may take several minutes to apply a new role assignment. If Terragrunt just assigned the role and the first run fails with a 403 while checking the container, wait and run `terragrunt backend bootstrap` again.
+
 </Fragment>
 </StatefulTabs>
 

@@ -8,7 +8,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import StatefulTabs from '@components/StatefulTabs.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -349,8 +348,8 @@ The `remote_state` block supports the following arguments:
   [available backends](https://opentofu.org/docs/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
 
 - `disable_init` (attribute): When `true`, skip automatic creation and management of remote state resources by Terragrunt.
-  Some backends can be automatically created if the storage backend does not already exist. Currently, `s3` and `gcs` are the
-  two backends with support for automatic creation. Setting this to `true` prevents Terragrunt from creating or modifying these resources,
+  Some backends can be automatically created if the storage backend does not already exist. Currently, `s3`, `gcs`, and
+  `azurerm` are the backends with support for automatic creation. Setting this to `true` prevents Terragrunt from creating or modifying these resources,
   but OpenTofu/Terraform will still initialize the backend normally. Defaults to `false`.
 
   **Note:** When using `generate` with `disable_init = true`, the backend configuration is written to the generated `.tf` file. OpenTofu/Terraform will still attempt to connect to the backend during init.
@@ -525,8 +524,7 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
 - `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
 
-For the `azurerm` backend, the following additional properties are supported in the `config` attribute. They are consumed by
-Terragrunt when bootstrapping and are not passed on to OpenTofu/Terraform:
+For the `azurerm` backend, Terragrunt accepts these additional `config` properties for setup and authentication. It does not pass them to OpenTofu/Terraform:
 
 - `location` - (Optional) Azure region for the resource group and storage account (e.g. `eastus`). Required when Terragrunt creates them.
 - `account_kind` - (Optional) Storage account kind. Defaults to `StorageV2`.
@@ -545,6 +543,8 @@ Terragrunt when bootstrapping and are not passed on to OpenTofu/Terraform:
 - `assign_blob_data_role`: When `true`, bootstrap grants **Storage Blob Data Contributor** on the storage account to `principal_id`, or to the identity Terragrunt authenticated as when it is unset. Requires permission to create role assignments.
 - `principal_id` - (Optional) Microsoft Entra object id that receives the data-plane role when `assign_blob_data_role` is `true`.
 - `msi_resource_id` - (Optional) Resource ID of a user-assigned managed identity to use with `use_msi`.
+
+For a premium account that can store state as block blobs, set `account_kind = "BlockBlobStorage"`, `account_tier = "Premium"`, and `access_tier = "Premium"`. Use `LRS` or `ZRS` replication. Setting only `account_tier = "Premium"` leaves the `StorageV2` and `Hot` defaults, which do not form a valid block blob account.
 
 See the [Azure Storage backend](/features/units/state-backend/#azure-storage-azurerm-backend) documentation for the authentication order and known limitations.
 

@@ -309,9 +309,8 @@ Consider a setup where you want to always assume a specific IAM role when callin
 </FileTree>
 
 Each `env.hcl` file (the one at the environment level, e.g `prod/env.hcl`) should define a
-`generate` block to generate the provider configuration for that environment. For example, if you wanted all the
-units for the prod environment to assume the role `arn:aws:iam::0123456789:role/terragrunt` on AWS, or to target the
-prod subscription on Azure, you would put the following in `prod/env.hcl`:
+`generate` block to generate the provider configuration for that environment. For example, `prod/env.hcl` can give
+every production unit the same provider settings:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
