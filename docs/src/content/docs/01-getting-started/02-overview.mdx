@@ -30,7 +30,7 @@ What follows isn't a tutorial in the same sense as the [Quick Start](/getting-st
 
 Browse the steps for your provider:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">
 
 [AWS code samples](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview)
@@ -41,9 +41,14 @@ Browse the steps for your provider:
 [Azure code samples](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview-azure)
 
 </Fragment>
+<Fragment slot="gcp">
+
+[GCP code samples](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview-gcp)
+
+</Fragment>
 </StatefulTabs>
 
-{/* NOTE: We also test these continuously in `test/integration_docs_aws_test.go` and `test/integration_docs_azure_test.go` */}
+{/* NOTE: We also test these continuously in `test/integration_docs_aws_test.go`, `test/integration_docs_azure_test.go` and `test/integration_docs_gcp_test.go` */}
 
 If you would prefer it, you can clone the [Terragrunt repository](https://github.com/gruntwork-io/terragrunt.git), and follow along with the examples in your own environment without any copy + paste.
 
@@ -2349,7 +2354,7 @@ dependency "vpc" {
   config_path = "../vpc"
 
   mock_outputs = {
-    network_name = "mock-network"
+    network_name = "mock-network-${local.region}"
   }
 
   mock_outputs_allowed_terraform_commands = ["plan"]
