@@ -1,0 +1,10 @@
+---
+version: "v1.2.1"
+category: "performance-improvements"
+---
+
+#### Parallel directory reads for dependent filters
+
+To find the dependents of a unit, Terragrunt walks the directories above it and lists every config file below each one. It now reads those directories in parallel, so dependent filters such as `--filter '...vpc'` spend less time waiting on the filesystem.
+
+On repositories of 64 to 1,024 units, discovery with a dependent filter took 5% to 12% less time on an M3 Max.
