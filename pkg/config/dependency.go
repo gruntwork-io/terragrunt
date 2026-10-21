@@ -297,6 +297,7 @@ func decodeDependencyBlocks(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
+	fsys vfs.FS,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
 	opts ...hclparse.ExpandOption,
@@ -331,7 +332,61 @@ func decodeDependencyBlocks(
 		return nil, err
 	}
 
+	if err := validateDependencyConfigPathDirs(
+		ctx,
+		pctx,
+		l,
+		fsys,
+		file.ConfigPath,
+		dependencies,
+	); err != nil {
+		return nil, err
+	}
+
 	return dependencies, nil
+}
+
+// validateDependencyConfigPathDirs reports the first enabled dependency block whose config_path
+// names an existing file. A config_path that does not exist is not reported here.
+//
+// A relative config_path is resolved against the unit being parsed, as it is when the dependency
+// is read, and not against cfgPath, which is an included file when that is where the block is.
+//
+// Whether that is an error or a warning is left to the dependency-config-path-file strict
+// control.
+func validateDependencyConfigPathDirs(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	fsys vfs.FS,
+	cfgPath string,
+	deps Dependencies,
+) error {
+	for i := range deps {
+		dep := &deps[i]
+
+		path, ok := dep.configPathFrom(pctx.TerragruntConfigPath)
+		if !ok {
+			continue
+		}
+
+		info, err := fsys.Stat(path)
+		if err != nil || info.IsDir() {
+			continue
+		}
+
+		return evaluateDependencyControl(
+			ctx, pctx, l,
+			controls.DependencyConfigPathFile,
+			DependencyConfigPathFileError{
+				ConfigPath:     cfgPath,
+				Address:        dep.mergeKey(),
+				DependencyPath: dep.ConfigPath.AsString(),
+			},
+		)
+	}
+
+	return nil
 }
 
 // validateUniqueDependencies reports two dependency blocks in one config that address the
@@ -351,35 +406,48 @@ func validateUniqueDependencies(
 	deps Dependencies,
 ) error {
 	if address, found := duplicateDependencyAddress(deps); found {
-		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyError{
-			ConfigPath: cfgPath,
-			Address:    address,
-		})
+		return evaluateDependencyControl(
+			ctx,
+			pctx,
+			l,
+			controls.DuplicateDependencyLabels,
+			DuplicateDependencyError{
+				ConfigPath: cfgPath,
+				Address:    address,
+			},
+		)
 	}
 
 	if dup, found := duplicateDependencyConfigPath(cfgPath, deps); found {
-		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyConfigPathError{
-			ConfigPath:     cfgPath,
-			DependencyPath: dup.path,
-			FirstAddress:   dup.first,
-			SecondAddress:  dup.second,
-		})
+		return evaluateDependencyControl(
+			ctx,
+			pctx,
+			l,
+			controls.DuplicateDependencyLabels,
+			DuplicateDependencyConfigPathError{
+				ConfigPath:     cfgPath,
+				DependencyPath: dup.path,
+				FirstAddress:   dup.first,
+				SecondAddress:  dup.second,
+			},
+		)
 	}
 
 	return nil
 }
 
-// evaluateDuplicateDependency returns strictErr when the duplicate-dependency-labels control
-// is enabled, and otherwise lets the control log its warning.
-func evaluateDuplicateDependency(
+// evaluateDependencyControl returns strictErr when the strict control called name is enabled,
+// and otherwise lets the control log its warning.
+func evaluateDependencyControl(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
+	name string,
 	strictErr error,
 ) error {
-	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
+	control := pctx.StrictControls.Find(name)
 	if control == nil {
-		return errors.New("failed to find control " + controls.DuplicateDependencyLabels)
+		return errors.New("failed to find control " + name)
 	}
 
 	if control.GetEnabled() {
@@ -426,17 +494,10 @@ func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDep
 	for i := range deps {
 		dep := &deps[i]
 
-		if !dep.isEnabled() || !dep.ConfigPath.IsWhollyKnown() || dep.ConfigPath.IsNull() ||
-			!dep.ConfigPath.Type().Equals(cty.String) {
+		path, ok := dep.configPathFrom(cfgPath)
+		if !ok {
 			continue
 		}
-
-		path := dep.ConfigPath.AsString()
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(filepath.Dir(cfgPath), path)
-		}
-
-		path = filepath.Clean(path)
 
 		if first, duplicate := seen[path]; duplicate {
 			return sharedDependencyPath{
@@ -450,6 +511,23 @@ func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDep
 	}
 
 	return sharedDependencyPath{}, false
+}
+
+// configPathFrom returns the config_path of an enabled dependency, resolved against the directory
+// of cfgPath. It returns false for a disabled dependency, which reads nothing, and for a
+// config_path that is not yet a known string.
+func (dep *Dependency) configPathFrom(cfgPath string) (string, bool) {
+	if !dep.isEnabled() || !dep.ConfigPath.IsWhollyKnown() || dep.ConfigPath.IsNull() ||
+		!dep.ConfigPath.Type().Equals(cty.String) {
+		return "", false
+	}
+
+	path := dep.ConfigPath.AsString()
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(filepath.Dir(cfgPath), path)
+	}
+
+	return filepath.Clean(path), true
 }
 
 // DecodeTerragruntDependencies decodes the dependency blocks of file, folds in sibling autoinclude dependencies,
@@ -538,7 +616,13 @@ func DecodeTerragruntDependencies(
 
 	// Merge in included dependencies
 	if pctx.TrackInclude != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(ctx, l, v, pctx, decodedDependency)
+		mergedDecodedDependency, err := handleIncludeForDependency(
+			ctx,
+			l,
+			v,
+			pctx,
+			decodedDependency,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -1144,7 +1228,14 @@ func getTerragruntOutput(
 
 	// Check if config_path points to a directory containing a stack file. If so,
 	// resolve outputs from all units in the stack as a nested map.
-	stackOutput, handled, err := tryGetStackOutput(ctx, l, v, pctx, targetConfigPath, dependencyConfig)
+	stackOutput, handled, err := tryGetStackOutput(
+		ctx,
+		l,
+		v,
+		pctx,
+		targetConfigPath,
+		dependencyConfig,
+	)
 	if handled {
 		return stackOutput, stackOutput == nil, err
 	}
@@ -1214,7 +1305,17 @@ func CollectStackOutputs(
 	dependencyConfig *Dependency,
 	maxDepth int,
 ) (map[string]cty.Value, error) {
-	return collectStackOutputs(ctx, l, v, pctx, dependencyConfig, maxDepth, stackDir, stackConfig, nil)
+	return collectStackOutputs(
+		ctx,
+		l,
+		v,
+		pctx,
+		dependencyConfig,
+		maxDepth,
+		stackDir,
+		stackConfig,
+		nil,
+	)
 }
 
 // collectStackOutputs collects one stack level for [CollectStackOutputs] and recurses into the
@@ -2244,7 +2345,11 @@ func dependencyInitDataDir(v *venv.Venv, workingDir string) string {
 }
 
 // applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into v.Env.
-func applyExtraArgsEnvVarsForOutput(v *venv.Venv, pctx *ParsingContext, terraformConfig *TerraformConfig) {
+func applyExtraArgsEnvVarsForOutput(
+	v *venv.Venv,
+	pctx *ParsingContext,
+	terraformConfig *TerraformConfig,
+) {
 	if terraformConfig == nil {
 		return
 	}
@@ -2534,7 +2639,11 @@ func getTerragruntOutputJSONFromRemoteState(
 // going through the full RunTerragrunt operation. Callers must obtain credentials
 // (auth-provider-cmd and any TG_IAM_ROLE assumption) before invoking, so those steps
 // run from the unit's directory rather than the bare-terraform working directory.
-func setupTFRunOptsForBareTerraform(v *venv.Venv, pctx *ParsingContext, workingDir string) *tf.TFOptions {
+func setupTFRunOptsForBareTerraform(
+	v *venv.Venv,
+	pctx *ParsingContext,
+	workingDir string,
+) *tf.TFOptions {
 	shellOpts := shellRunOptsFromPctx(v, pctx)
 	shellOpts.WorkingDir = workingDir
 
@@ -2813,7 +2922,7 @@ func foldSiblingAutoIncludeDeps(
 		return nil, err
 	}
 
-	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, autoFile, evalCtx)
+	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, v.FS, autoFile, evalCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2893,6 +3002,7 @@ func decodeDependencyBlocksWithAutoIncludeOverrides(
 		ctx,
 		pctx,
 		l,
+		v.FS,
 		file,
 		evalContext,
 		hclparse.WithSkipLabels(overrides),
@@ -2958,7 +3068,11 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 		rawPath := dep.ConfigPath.AsString()
 		targetConfigPath := getCleanedTargetConfigPath(fsys, rawPath, configPath)
 
-		if stackFilePath, ok := resolveStackFilePath(rawPath, targetConfigPath); ok && vfs.Exists(fsys, stackFilePath) {
+		if stackFilePath, ok := resolveStackFilePath(
+			rawPath,
+			targetConfigPath,
+		); ok &&
+			vfs.Exists(fsys, stackFilePath) {
 			continue
 		}
 
@@ -2968,7 +3082,10 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 		}
 
 		if err != nil {
-			errs = append(errs, fmt.Errorf("dependency %q in %s: %w", dep.Name, configPath, err))
+			errs = append(
+				errs,
+				DependencyBlockError{Name: dep.Name, ConfigPath: configPath, Err: err},
+			)
 		}
 	}
 

@@ -75,16 +75,6 @@ func RunValidate(
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           opts.Filters,
-	})
-	if err != nil {
-		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
-	}
-
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
 	gitFilters := opts.Filters.UniqueGitFilters()
@@ -110,14 +100,19 @@ func RunValidate(
 		}
 	}()
 
-	d = d.WithWorktrees(worktrees)
-
-	components, err := d.Discover(ctx, l, v, opts)
+	components, discoveryErr, err := discoverComponents(ctx, l, v, opts, worktrees)
 	if err != nil {
-		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
+		return err
 	}
 
-	parseErrs := []error{}
+	var (
+		parseErrs        []error
+		missing          []*MissingDependencyError
+		fileDependencies []string
+		unitErrs         = make(map[string]error)
+	)
+
+	configFile := unitConfigFilename(opts)
 
 	for _, c := range components {
 		// Parsing can write obtained credentials into the env, so each
@@ -130,26 +125,49 @@ func RunValidate(
 			continue
 		}
 
+		missingErr, err := asMissingDependency(v.FS, c, configFile)
+		if err != nil {
+			parseErrs = append(parseErrs, err)
+
+			continue
+		}
+
+		if missingErr != nil {
+			missing = append(missing, missingErr)
+
+			continue
+		}
+
+		if isFileDependency(v.FS, c) {
+			fileDependencies = append(fileDependencies, c.Path())
+
+			continue
+		}
+
 		if err := parser.Unit(ctx, l, componentV, opts, c.Path()); err != nil {
 			parseErrs = append(parseErrs, err)
+			unitErrs[c.Path()] = err
 		}
 	}
 
-	var combinedErr error
-	if len(parseErrs) > 0 {
-		combinedErr = errors.Join(parseErrs...)
+	parseErrs = append(parseErrs, reportMissingDependencies(v.FS, collector, missing, unitErrs)...)
+
+	if len(parseErrs) > 0 || len(collector.Diagnostics()) > 0 {
+		return processDiagnostics(l, v, opts, collector, components, errors.Join(parseErrs...))
 	}
 
-	return processDiagnostics(l, v, opts, collector.Diagnostics(), combinedErr)
+	return withoutDecidedDependencies(discoveryErr, missing, fileDependencies, configFile)
 }
 
 func processDiagnostics(
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
-	diags diagnostic.Diagnostics,
+	collector *DiagnosticsCollector,
+	components component.Components,
 	callErr error,
 ) error {
+	diags := collector.Diagnostics()
 	if len(diags) == 0 {
 		return callErr
 	}
@@ -168,7 +186,7 @@ func processDiagnostics(
 		return a < b
 	})
 
-	if err := writeDiagnostics(l, v, opts, diags); err != nil {
+	if err := writeDiagnostics(l, v, opts, collector, components, diags); err != nil {
 		return err
 	}
 
@@ -184,10 +202,14 @@ func processDiagnostics(
 	return errors.Join(callErr, diagError)
 }
 
+// writeDiagnostics writes diags in the format the options select. Only the human rendering of the
+// diagnostics shows filenames relative to where discovery found them.
 func writeDiagnostics(
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
+	collector *DiagnosticsCollector,
+	components component.Components,
 	diags diagnostic.Diagnostics,
 ) error {
 	render := view.NewHumanRender(v, l.Formatter().DisabledColors())
@@ -199,6 +221,10 @@ func writeDiagnostics(
 
 	if opts.HCLValidateShowConfigPath {
 		return writer.ShowConfigPath(diags)
+	}
+
+	if !opts.HCLValidateJSONOutput {
+		diags = relativeToDiscovery(l, collector, components, diags, opts.WorkingDir)
 	}
 
 	return writer.Diagnostics(diags)
@@ -214,15 +240,6 @@ func RunValidateInputs(
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
-
-	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           opts.Filters,
-	})
-	if err != nil {
-		return err
-	}
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
@@ -249,7 +266,10 @@ func RunValidateInputs(
 		}
 	}()
 
-	d = d.WithWorktrees(worktrees)
+	d, err := newDiscovery(l, v, opts, worktrees)
+	if err != nil {
+		return err
+	}
 
 	components, err := d.Discover(ctx, l, v, opts)
 	if err != nil {
@@ -586,7 +606,8 @@ func getTerraformInputNamesFromAutomaticVarFiles(
 		name := entry.Name()
 
 		named := name == "terraform.tfvars" || name == "terraform.tfvars.json"
-		automatic := strings.HasSuffix(name, ".auto.tfvars") || strings.HasSuffix(name, ".auto.tfvars.json")
+		automatic := strings.HasSuffix(name, ".auto.tfvars") ||
+			strings.HasSuffix(name, ".auto.tfvars.json")
 
 		if named || automatic {
 			automaticVarFiles = append(automaticVarFiles, filepath.Join(base, name))
@@ -666,4 +687,120 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 	}
 
 	return vars, varFiles, nil
+}
+
+// newDiscovery returns the discovery that hcl commands run over the working directory, the filters and
+// the worktrees of the Git filters in opts.
+func newDiscovery(
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) (*discovery.Discovery, error) {
+	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return d.WithWorktrees(wts), nil
+}
+
+// discoverComponents returns the components hcl validate checks. It returns err when discovery cannot
+// produce them at all.
+//
+// When discovery fails, discoverComponents repeats it with parse errors suppressed, so validation can
+// still point at what it finds in the components discovery reaches, and returns the failure of the first
+// run as discoveryErr. A unit that discovery cannot parse is left out of a filtered set, and a failed
+// filesystem walk leaves units out of any set, so discoveryErr is all that reports them.
+func discoverComponents(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) (components component.Components, discoveryErr, err error) {
+	d, err := newDiscovery(l, v, opts, wts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	components, discoveryErr = d.Discover(ctx, l, v, opts)
+	if discoveryErr == nil {
+		return components, nil, nil
+	}
+
+	d, err = newDiscovery(l, v, opts, wts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	components, err = d.WithSuppressParseErrors().Discover(ctx, l, v, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return components, discoveryErr, nil
+}
+
+// relativeToDiscovery returns diags with each filename relative to the discovery working directory of the
+// component whose validation collected it, as find and list print component paths. A component matched
+// by a Git filter is discovered in a worktree, so its files read against that worktree. A component with
+// no discovery working directory reads against workingDir.
+//
+// Every diagnostic in collector belongs to one of components or to a dependent of one, because
+// [ComponentParser] and the missing dependency diagnostics attribute each diagnostic they collect.
+func relativeToDiscovery(
+	l log.Logger,
+	collector *DiagnosticsCollector,
+	components component.Components,
+	diags diagnostic.Diagnostics,
+	workingDir string,
+) diagnostic.Diagnostics {
+	byPath := componentsByPath(components)
+	shown := make(diagnostic.Diagnostics, 0, len(diags))
+
+	for _, diag := range diags {
+		if diag.Range == nil {
+			shown = append(shown, diag)
+
+			continue
+		}
+
+		relative := *diag
+		rng := *diag.Range
+		rng.Filename = discovery.RelPathForComponent(
+			l,
+			byPath[collector.owner(diag)],
+			workingDir,
+			rng.Filename,
+			"diagnostic",
+		)
+		relative.Range = &rng
+
+		shown = append(shown, &relative)
+	}
+
+	return shown
+}
+
+// componentsByPath indexes components and their dependents by path. A dependent that a filter left out
+// of components still owns the diagnostics for its missing dependencies.
+func componentsByPath(components component.Components) map[string]component.Component {
+	byPath := make(map[string]component.Component, len(components))
+
+	for _, c := range components {
+		for _, dependent := range c.Dependents() {
+			byPath[dependent.Path()] = dependent
+		}
+	}
+
+	for _, c := range components {
+		byPath[c.Path()] = c
+	}
+
+	return byPath
 }

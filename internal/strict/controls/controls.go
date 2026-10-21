@@ -112,6 +112,10 @@ const (
 	// DuplicateDependencyLabels is the control that prevents two `dependency` blocks in one
 	// configuration from addressing the same dependency, by label or by config_path.
 	DuplicateDependencyLabels = "duplicate-dependency-labels"
+
+	// DependencyConfigPathFile is the control that prevents a `dependency` block from setting
+	// `config_path` to a file instead of a directory.
+	DependencyConfigPathFile = "dependency-config-path-file"
 )
 
 // LegacyGCSDeprecationWarning is the warning text emitted when a plain
@@ -166,6 +170,15 @@ func New() strict.Controls {
 		Warning: "The `skip_bucket_root_access` config attribute is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so this attribute has no effect. Use `enable_bucket_root_access` to grant that access.",
 	}
 
+	dependencyConfigPathFileControl := &Control{
+		Name:        DependencyConfigPathFile,
+		Description: "Prevents a `dependency` block from setting `config_path` to a file. The `config_path` of a dependency is the directory of a unit or a stack.",
+		Error: errors.New(
+			"Setting the `config_path` of a `dependency` block to a file is no longer supported. Set it to the directory of the unit or stack instead.",
+		),
+		Warning: "Setting the `config_path` of a `dependency` block to a file is deprecated and will be removed in a future version of Terragrunt. Set it to the directory of the unit or stack instead.",
+	}
+
 	controls := strict.Controls{
 		&Control{
 			Name:        DeprecatedCommands,
@@ -187,12 +200,14 @@ func New() strict.Controls {
 				requireExplicitBootstrapControl,
 				skipAccessLoggingBucketACLControl,
 				skipBucketRootAccessControl,
+				dependencyConfigPathFileControl,
 			},
 		},
 		skipDependenciesInputsControl,
 		requireExplicitBootstrapControl,
 		skipAccessLoggingBucketACLControl,
 		skipBucketRootAccessControl,
+		dependencyConfigPathFileControl,
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",
