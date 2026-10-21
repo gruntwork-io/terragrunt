@@ -240,7 +240,7 @@ terraform {
 # Configure the inputs for the module
 inputs = {
   project_id   = "my-project"
-  network_name = "my-vpc"
+  network_name = "my-vpc-us-central1"
 
   subnets = [
     {
@@ -806,7 +806,7 @@ terraform {
 }
 
 inputs = {
-  network_name = "my-vpc"
+  network_name = "my-vpc-us-central1"
 
   subnets = [
     {
@@ -942,7 +942,7 @@ inputs = {
 
 If you tried to run `terragrunt plan` in that new directory, you'd see something alarming:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">
 
 ```bash
@@ -972,6 +972,21 @@ $ terragrunt plan
 16:21:56.723 STDOUT tofu:   # module.subnet["public"].azapi_resource.subnet[0] will be created
 ...
 16:21:56.724 STDOUT tofu: Plan: 3 to add, 0 to change, 1 to destroy.
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```bash
+$ terragrunt plan
+...
+17:45:48.682 STDOUT tofu:   # google_compute_router.router will be created
+...
+17:45:48.682 STDOUT tofu:   # module.subnets.google_compute_subnetwork.subnetwork["us-central1/private"] will be destroyed
+...
+17:45:48.682 STDOUT tofu:   # module.vpc.google_compute_network.network will be destroyed
+...
+17:45:48.683 STDOUT tofu: Plan: 1 to add, 0 to change, 3 to destroy.
 ```
 
 </Fragment>
@@ -1356,6 +1371,13 @@ terraform {
 }
 ```
 
+The `router` unit was initialized against the shared prefix, so it has to be re-initialized against its own prefix before it can be planned. There is nothing to migrate for it, as it has never been applied:
+
+```bash
+# Within the router directory
+$ terragrunt init -reconfigure
+```
+
 Now, we can run the plan in the `router` directory without any issues:
 
 ```bash
@@ -1377,7 +1399,7 @@ terraform {
 
 Go ahead and apply that plan with `terragrunt apply`, so both units exist for the next section.
 
-`init -migrate-state` copies the state to its new location and leaves the original at the old key. After verifying the new state and retiring configurations that use the old key, remove or archive the old copy.
+`init -migrate-state` copies the state to its new location and leaves the original at the old one. After verifying the new state and retiring configurations that use the old location, remove or archive the old copy.
 
 Following this pattern, you can create as many units of infrastructure in your project as you like without worrying about collisions in remote state keys.
 
@@ -1502,15 +1524,11 @@ WARNING: Are you sure you want to run `terragrunt destroy` in each unit of the r
 ```bash
 # From the root directory
 $ terragrunt run --all destroy
-16:32:08.944 INFO   The stack at . will be processed in the following order for command destroy:
-Group 1
-- Module ./router
-
-Group 2
-- Module ./vpc
-
-
-WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo! (y/n)
+16:32:08.944 INFO   The following units will be run, starting with dependents and then their dependencies:
+.
+╰── router
+    ╰── vpc
+WARNING: Are you sure you want to run `terragrunt destroy` in each unit of the run queue displayed above? There is no undo! (y/n)
 ```
 
 </Fragment>
@@ -1553,13 +1571,12 @@ Go ahead and answer `y` to the prompt to allow destruction to proceed, and notic
 <Fragment slot="gcp">
 
 ```txt
-16:33:28.820 STDOUT [router] tofu: google_compute_router.router: Destruction complete after 11s
-16:33:28.936 STDOUT [router] tofu:
-16:33:28.936 STDOUT [router] tofu: Destroy complete! Resources: 1 destroyed.
-16:33:28.936 STDOUT [router] tofu:
-16:33:30.713 STDOUT [vpc] tofu: module.vpc.google_compute_network.network: Refreshing state... [id=projects/my-project/global/networks/my-vpc]
-16:33:31.510 STDOUT [vpc] tofu: module.subnets.google_compute_subnetwork.subnetwork["us-central1/private"]: Refreshing state... [id=projects/my-project/regions/us-central1/subnetworks/private]
-16:33:31.511 STDOUT [vpc] tofu: module.subnets.google_compute_subnetwork.subnetwork["us-central1/public"]: Refreshing state... [id=projects/my-project/regions/us-central1/subnetworks/public]
+16:33:14.620 STDOUT [router] tofu: google_compute_router.router: Destruction complete after 11s
+16:33:14.847 STDOUT [router] tofu: Destroy complete! Resources: 1 destroyed.
+16:33:16.747 STDOUT [vpc] tofu: module.vpc.google_compute_network.network: Refreshing state... [id=projects/my-project/global/networks/my-vpc-us-central1]
+16:33:29.388 STDOUT [vpc] tofu: module.vpc.google_compute_network.network: Destroying... [id=projects/my-project/global/networks/my-vpc-us-central1]
+16:33:51.486 STDOUT [vpc] tofu: module.vpc.google_compute_network.network: Destruction complete after 22s
+16:33:51.890 STDOUT [vpc] tofu: Destroy complete! Resources: 3 destroyed.
 ```
 
 </Fragment>
@@ -1629,14 +1646,24 @@ $ terragrunt run --all plan
 ```bash
 $ terragrunt run --all plan
 ...
-16:50:22.153 STDOUT [vpc] tofu: Note: You didn't use the -out option to save this plan, so OpenTofu can't
-16:50:22.153 STDOUT [vpc] tofu: guarantee to take exactly these actions if you run "tofu apply" now.
-16:50:22.854 ERROR  [router] Module ./router has finished with an error
-16:50:22.855 ERROR  error occurred:
+16:50:22.677 ERROR  [router] Error: Unknown variable
+16:50:22.677 ERROR  [router]   on /path/to/project/router/terragrunt.hcl line 17:
+16:50:22.677 ERROR  [router]   17:   network = dependency.vpc.outputs.network_name
+16:50:22.677 ERROR  [router] There is no variable named "dependency".
+16:50:22.678 ERROR  Run failed: 2 errors occurred:
 
-* ./vpc/terragrunt.hcl is a dependency of ./router/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.
+* resolving dependency "vpc" outputs: /path/to/project/vpc/terragrunt.hcl is a dependency of /path/to/project/router/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs.
 
-16:50:22.855 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+  If this dependency is accessed before the outputs are ready (which can happen during the planning phase of an unapplied stack), consider using mock_outputs:
+
+  dependency "vpc" {
+      config_path = "../vpc"
+
+      mock_outputs = {
+          vpc_output = "mock-vpc-output"
+      }
+  }
+...
 ```
 
 </Fragment>
@@ -1744,6 +1771,8 @@ $ terragrunt run --all plan
 ```bash
 $ terragrunt run --all plan
 ...
+16:53:02.298 WARN   [router] Config /path/to/project/vpc/terragrunt.hcl is a dependency of /path/to/project/router/terragrunt.hcl that has no outputs, but mock outputs provided and returning those in dependency output.
+...
 16:53:04.037 STDOUT [router] tofu:   # google_compute_router.router will be created
 16:53:04.037 STDOUT [router] tofu:   + resource "google_compute_router" "router" {
 16:53:04.037 STDOUT [router] tofu:       + creation_timestamp            = (known after apply)
@@ -1794,15 +1823,11 @@ Are you sure you want to run 'terragrunt apply' in each unit of the run queue di
 
 ```bash
 $ terragrunt run --all apply
-16:57:32.297 INFO   The stack at . will be processed in the following order for command apply:
-Group 1
-- Module ./vpc
-
-Group 2
-- Module ./router
-
-
-Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)
+16:57:32.297 INFO   The following units will be run, starting with dependencies and then their dependents:
+.
+╰── vpc
+    ╰── router
+Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above? (y/n)
 ```
 
 </Fragment>
@@ -1901,12 +1926,7 @@ cp -R rg vnet eastus/
 
 ```bash
 mkdir us-central1
-```
-
-Then move the contents you have in the `vpc` and `router` directories into the `us-central1` directory:
-
-```bash
-mv vpc/ router/ us-central1/
+cp -R vpc router us-central1/
 ```
 
 </Fragment>
@@ -1914,7 +1934,7 @@ mv vpc/ router/ us-central1/
 
 Moving a unit changes the value of `path_relative_to_include()`, and with it the key where its state is stored, so the state has to move too. The [`backend migrate`](/reference/cli/commands/backend/migrate/) command does that for you. Migrate dependencies before their dependents, then remove the old copies:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">
 
 ```bash
@@ -1930,6 +1950,15 @@ rm -rf vpc ec2
 terragrunt backend migrate rg eastus/rg
 terragrunt backend migrate vnet eastus/vnet
 rm -rf rg vnet
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```bash
+terragrunt backend migrate vpc us-central1/vpc
+terragrunt backend migrate router us-central1/router
+rm -rf vpc router
 ```
 
 </Fragment>
@@ -2133,7 +2162,7 @@ Copying those units into `westus2` as-is would still create resources in `eastus
 </Fragment>
 <Fragment slot="gcp">
 
-The `subnet_region` of each subnet in the `vpc` unit and the `region` input of the `router` unit in the `us-central1` stack are hardcoded to `"us-central1"`, and the network is named `my-vpc`.
+The `subnet_region` of each subnet in the `vpc` unit and the `region` input of the `router` unit in the `us-central1` stack are hardcoded to `"us-central1"`, and so is the network name, `my-vpc-us-central1`.
 
 If we copied those units into a `us-east1` stack as-is, they would still create the subnets and router in `us-central1`, and the second network would collide with the first (network names are unique within a project). What we need to do is make those region inputs and the network name dynamic, using the resolved region.
 
