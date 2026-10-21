@@ -7,10 +7,11 @@ sidebar:
 ---
 
 import { Aside, Code } from '@astrojs/starlight/components';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 import authProviderCmdSchema from '../../../../../public/schemas/auth-provider-cmd/v2/schema.json?raw';
 
-AWS is by far the most popular OpenTofu/Terraform provider, and most Terragrunt users are using it to manage AWS infrastructure, at least in part. As a consequence, Terragrunt has a number of features that make it easier to work with AWS.
+AWS is by far the most popular OpenTofu/Terraform provider, and most Terragrunt users are using it to manage AWS infrastructure, at least in part. As a consequence, Terragrunt has a number of features that make it easier to work with AWS. If you are on Azure, skip ahead to [Authenticating with Azure](#authenticating-with-azure).
 
 The most secure way to manage multiple AWS accounts is to segment infrastructure between [multiple AWS accounts](https://aws.amazon.com/organizations/getting-started/best-practices). Segmenting infrastructure in this way can ensure that developers are not granted permissions they don't need on infrastructure they don't manage. It's also a best practice from a safety perspective, as it helps to prevent accidental changes to sensitive resources like production infrastructure.
 
@@ -292,9 +293,78 @@ Additionally, while Terragrunt _can_ provision the S3 bucket and DynamoDB table 
 
 You'll want to make sure that you set configurations like `skip_bucket_versioning` in [remote_state](/reference/hcl/blocks#remote_state) to prevent Terragrunt from attempting to validate the bucket or table is in the proper configuration without requisite permissions.
 
+## Authenticating with Azure
+
+Terragrunt has no Azure equivalent of `--iam-assume-role`: there is no role to assume, because an Azure identity is scoped to the subscriptions and resource groups it has been granted roles on. Instead, Terragrunt's own Azure operations (bootstrapping, migrating and deleting the [`azurerm` state backend](/features/units/state-backend/#azure-storage-azurerm-backend)) use the same credential sources as the `azurerm` and `azapi` providers, so one set of environment variables authenticates both Terragrunt and OpenTofu/Terraform.
+
+Set the subscription, then pick whichever credential source fits where Terragrunt is running:
+
+<StatefulTabs syncKey="azure-auth" tabs={['Azure CLI', 'Service principal', 'OIDC', 'Managed identity']}>
+<Fragment slot="azure-cli">
+
+On a workstation, log in with the Azure CLI. Terragrunt and the providers pick the session up from the default credential chain:
+
+```bash
+az login
+export ARM_SUBSCRIPTION_ID="$(az account show --query id --output tsv)"
+terragrunt apply
+```
+
+</Fragment>
+<Fragment slot="service-principal">
+
+In CI, a service principal with a client secret:
+
+```bash
+export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
+export ARM_TENANT_ID="00000000-0000-0000-0000-000000000000"
+export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000000"
+export ARM_CLIENT_SECRET="..."
+terragrunt apply
+```
+
+</Fragment>
+<Fragment slot="oidc">
+
+In GitHub Actions or Azure DevOps, workload identity federation avoids storing a secret at all. With `ARM_USE_OIDC` set, Terragrunt exchanges the job's OIDC token for an Azure access token, reading the request URL and token that GitHub Actions (`ACTIONS_ID_TOKEN_REQUEST_URL`, `ACTIONS_ID_TOKEN_REQUEST_TOKEN`) or Azure DevOps (`SYSTEM_OIDCREQUESTURI`, `SYSTEM_ACCESSTOKEN`) inject into the job:
+
+```bash
+export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
+export ARM_TENANT_ID="00000000-0000-0000-0000-000000000000"
+export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000000"
+export ARM_USE_OIDC=true
+terragrunt apply
+```
+
+On AKS, the workload identity webhook injects `AZURE_FEDERATED_TOKEN_FILE`, which Terragrunt also accepts.
+
+</Fragment>
+<Fragment slot="managed-identity">
+
+On an Azure VM or in AKS, a managed identity needs no credentials at all. Set `ARM_MSI_RESOURCE_ID` as well to pick a user-assigned identity:
+
+```bash
+export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
+export ARM_USE_MSI=true
+terragrunt apply
+```
+
+</Fragment>
+</StatefulTabs>
+
+The same values can be set in the `remote_state` config instead of the environment (`subscription_id`, `tenant_id`, `client_id`, `client_secret`, `use_oidc`, `use_msi`, `msi_resource_id`), and environment variables fill in whatever the config leaves unset. The `AZURE_*` spellings used by the Azure SDKs (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and so on) are accepted as well.
+
+The [auth provider command](#auth-provider-command) works for Azure too: return the `ARM_*` variables in its `envs` map to select credentials per unit at runtime.
+
+### Required Azure permissions
+
+Reading and writing state with `use_azuread_auth` requires the **Storage Blob Data Contributor** role on the storage account. Holding Contributor or Owner on the subscription is not enough on its own, because those are control-plane roles. Either grant the data-plane role out of band, or set `assign_blob_data_role = true` so that `backend bootstrap` grants it to the identity Terragrunt runs as. The latter needs permission to create role assignments (`Microsoft.Authorization/roleAssignments/write`), which Owner and User Access Administrator hold and Contributor does not.
+
+Bootstrapping the backend additionally needs permission to create the resource group, storage account and container. If the identity must not create them, create them in advance and set `skip_resource_group_creation`, `skip_storage_account_creation` and `skip_container_creation` in the `remote_state` config.
+
 ## Further Reading
 
 - [Units Overview](/features/units) — for context on how units work with remote modules and source URLs
-- [State Backend](/features/units/state-backend) — remote state also involves AWS credentials and role assumption
+- [State Backend](/features/units/state-backend) — remote state also involves cloud credentials and role assumption
 - [`--iam-assume-role` CLI reference](/reference/cli/commands/run#iam-assume-role) — CLI flag for IAM role assumption
 - [`--auth-provider-cmd` CLI reference](/reference/cli/commands/run#auth-provider-cmd) — CLI flag for external auth provider commands

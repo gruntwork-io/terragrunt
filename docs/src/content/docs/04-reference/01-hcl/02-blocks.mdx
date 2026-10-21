@@ -10,6 +10,7 @@ import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
 import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -459,7 +460,7 @@ remote_state = local.common.remote_state
 
 ### backend
 
-Note that Terragrunt does special processing of the `config` attribute for the `s3` and `gcs` remote state backends, and
+Note that Terragrunt does special processing of the `config` attribute for the `s3`, `gcs` and `azurerm` remote state backends, and
 supports additional keys that are used to configure the automatic initialization feature of Terragrunt.
 
 For the `s3` backend, the following additional properties are supported in the `config` attribute:
@@ -543,6 +544,31 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `gcs_bucket_labels`: A map of key value pairs to associate as labels on the created GCS bucket.
 - `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
 - `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
+
+For the `azurerm` backend, the following additional properties are supported in the `config` attribute. They are consumed by
+Terragrunt when bootstrapping and are not passed on to OpenTofu/Terraform:
+
+- `location` - (Optional) Azure region for the resource group and storage account (e.g. `eastus`). Required when Terragrunt creates them.
+- `account_kind` - (Optional) Storage account kind. Defaults to `StorageV2`.
+- `account_tier` - (Optional) Storage account tier, `Standard` or `Premium`. Defaults to `Standard`.
+- `account_replication_type` - (Optional) Replication type, e.g. `LRS`, `GRS`, `ZRS`. Defaults to `LRS`.
+- `access_tier` - (Optional) Blob access tier, `Hot`, `Cool`, `Cold`, or `Premium`. Defaults to `Hot`.
+<Since version="v1.2.0">
+- `minimum_tls_version` - (Optional) Minimum TLS version permitted on requests to the storage account, `TLS1_2` or `TLS1_3`. Defaults to `TLS1_2`. Applies only when Terragrunt creates the account.
+</Since>
+- `tags` - (Optional) A map of key value pairs to associate as tags on the created storage account.
+- `skip_resource_group_creation`: When `true`, never create the resource group.
+- `skip_storage_account_creation`: When `true`, never create the storage account; it must already exist.
+- `skip_container_creation`: When `true`, never create the blob container; it must already exist.
+- `skip_versioning`: When `true`, do not enable blob versioning on the account.
+- `enable_soft_delete`: When `true`, enable blob and container soft delete.
+- `soft_delete_retention_days`: (Optional) Soft delete retention in days, 1 to 365. Defaults to 7.
+- `allow_blob_public_access`: When `true`, allow containers on the account to permit anonymous access. Defaults to `false`.
+- `assign_blob_data_role`: When `true`, bootstrap grants **Storage Blob Data Contributor** on the storage account to `principal_id`, or to the identity Terragrunt authenticated as when it is unset. Requires permission to create role assignments.
+- `principal_id` - (Optional) Microsoft Entra object id that receives the data-plane role when `assign_blob_data_role` is `true`.
+- `msi_resource_id` - (Optional) Resource ID of a user-assigned managed identity to use with `use_msi`.
+
+See the [Azure Storage backend](/features/units/state-backend/#azure-storage-azurerm-backend) documentation for the authentication order and known limitations.
 
 Example with S3:
 
@@ -639,6 +665,53 @@ include "root" {
 # child/main.tf
 terraform {
   backend "gcs" {}
+}
+```
+
+Example with Azure Storage:
+
+```hcl
+# root.hcl
+
+# Configure OpenTofu/Terraform state to be stored in Azure Storage, in the container "tfstate" of the storage account
+# "mytofustate" (resource group "my-tofu-state") under a key that is relative to included terragrunt config. For example,
+# if you had the following filesystem layout:
+#
+# .
+# ├── root.hcl
+# └── child
+#     ├── main.tf
+#     └── terragrunt.hcl
+#
+# And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
+# child module will be stored at the key "child/tofu.tfstate".
+#
+# Note that since we are not using any of the skip args, this will automatically create the resource group
+# "my-tofu-state", the storage account "mytofustate" and the container "tfstate" if they do not already exist.
+remote_state {
+  backend = "azurerm"
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    location             = "eastus"
+    use_azuread_auth     = true
+  }
+}
+```
+
+```hcl
+# child/terragrunt.hcl
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+}
+```
+
+```hcl
+# child/main.tf
+terraform {
+  backend "azurerm" {}
 }
 ```
 
