@@ -605,7 +605,7 @@ The exception to this is when you are using directives that explicitly leverage 
 
 ### Building out the stack
 
-For example, say you wanted to add another unit of infrastructure into the _stack_ that you're building out here. You could create a new directory for it, and add a `terragrunt.hcl` file to it like this:
+To add another unit to this stack, create a directory with a `terragrunt.hcl` file:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
@@ -809,7 +809,7 @@ Would result in this state layout in S3:
 
 </FileTree>
 
-Would result in this state layout in the `tfstate` container of the `mytofustate` storage account:
+The `mytofustate` storage account then has this state layout:
 
 <FileTree>
 
@@ -825,7 +825,7 @@ Would result in this state layout in the `tfstate` container of the `mytofustate
 </Fragment>
 </StatefulTabs>
 
-To achieve this, we can take advantage of the `path_relative_to_include()` Terragrunt HCL function to generate the state path dynamically based on the position of the unit relative to the `root.hcl` file within the filesystem.
+Use `path_relative_to_include()` to build each unit's state path from its directory relative to `root.hcl`.
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
@@ -904,7 +904,7 @@ What this does is set the `key` attribute of the generated `backend.tf` file to 
 
 ### Migrating state
 
-You have to be careful when changing where units store state (including when moving units around in the filesystem, if you use something like `path_relative_to_include` to build the state path) because it can result in state being stored in a different location in the remote backend.
+Changing a unit's state path makes the backend look for state at a new location. Moving a unit can have this effect when its key uses `path_relative_to_include()`. If you want to keep managing the existing resources, migrate the state before applying.
 
 There's native tooling in OpenTofu/Terraform to support these procedures, but you want to be confident you know what you're doing when you run them. By default, Terragrunt will provision a remote backend that uses versioning, so you can always roll back to a previous state if you need to.
 
@@ -1148,7 +1148,7 @@ Go ahead and answer `y` to the prompt to allow destruction to proceed, and notic
 </Fragment>
 </StatefulTabs>
 
-Terragrunt will give you the contextual information you need to understand what's happening in your stack as it's being run. The unit name prefix on each line (e.g. `[vpc]`) is a great way to quickly disambiguate what's happening in one unit of infrastructure from another.
+Prefixes such as `[vpc]` and `[rg]` identify which unit produced an output line.
 
 ### Mock outputs
 
@@ -1331,7 +1331,7 @@ You can answer `y` to allow the apply to proceed and see that the dependent unit
 
 Terragrunt also provides tooling for constructing a hierarchy of configurations that can be used to manage multiple environments, regions, or accounts.
 
-Say, for example, you wanted to provision the same resources you've provisioned so far, but in multiple regions, with a filesystem layout like this:
+To provision the same resources in multiple regions, use a layout like this:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
@@ -1685,7 +1685,7 @@ inputs = {
 </Fragment>
 </StatefulTabs>
 
-This makes it so that those values are determined dynamically based on the region that the unit is being deployed to.
+These inputs now derive their region-specific values from `region.hcl`.
 
 Run `terragrunt run --all plan` from the region directory to confirm it. Both units should report no changes, as the dynamic values resolve to exactly what was hardcoded before.
 
