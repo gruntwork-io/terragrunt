@@ -376,10 +376,20 @@ To that end, the way that Terragrunt loads OpenTofu/Terraform configurations is 
 - .terragrunt-cache/
   - tnIp4Am20T3Q8-6FuPqfof-kRGU
     - ThyYwttwki6d6AS3aD5OwoyqIWA
+      - AGENTS.md
       - CODE_OF_CONDUCT.md
       - CONTRIBUTING.md
       - LICENSE
+      - Makefile
       - README.md
+      - SECURITY.md
+      - SUPPORT.md
+      - _footer.md
+      - _header.md
+      - avm
+      - avm.bat
+      - avm.ps1
+      - avm.tflint.override.hcl
       - backend.tf
       - data.tf
       - examples
@@ -648,29 +658,46 @@ inputs = {
 
 ### Key Collisions
 
-If you tried to run `terragrunt plan` in that new directory, you'd get an error that looked like this:
+If you tried to run `terragrunt plan` in that new directory, you'd see something alarming:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
 
 ```bash
 $ terragrunt plan
 ...
-* Failed to execute "tofu init" in ./.terragrunt-cache/I6Os-7-mjDhv4uQ5iCoGcOrDYhI/pfgqyj3TsBEWff7a1El6tYu6LEE
-  ╷
-  │ Error: Backend configuration changed
-  │
-  │ A change in the backend configuration has been detected, which may require
-  │ migrating existing state.
-  │
-  │ If you wish to attempt automatic migration of the state, use "tofu init
-  │ -migrate-state".
-  │ If you wish to store the current configuration with no changes to the
-  │ state, use "tofu init -reconfigure".
-  ╵
-
-
-  exit status 1
+16:31:14.176 STDOUT tofu:   # aws_instance.this[0] will be created
+...
+16:31:14.178 STDOUT tofu:   # aws_subnet.private[0] will be destroyed
+...
+16:31:14.179 STDOUT tofu:   # aws_vpc.this[0] will be destroyed
+...
+16:31:14.179 STDOUT tofu: Plan: 4 to add, 0 to change, 22 to destroy.
 ```
 
-What's happening here is that when Terragrunt invoked OpenTofu/Terraform, it generated exactly the same `backend.tf` file for the new unit of infrastructure as it did for the first unit.
+</Fragment>
+<Fragment slot="azure">
+
+```bash
+$ terragrunt plan
+...
+16:21:56.723 STDOUT tofu:   # azapi_resource.this will be destroyed
+...
+16:21:56.723 STDOUT tofu:   # azapi_resource.vnet will be created
+...
+16:21:56.723 STDOUT tofu:   # module.subnet["private"].azapi_resource.subnet[0] will be created
+...
+16:21:56.723 STDOUT tofu:   # module.subnet["public"].azapi_resource.subnet[0] will be created
+...
+16:21:56.724 STDOUT tofu: Plan: 3 to add, 0 to change, 1 to destroy.
+```
+
+</Fragment>
+</StatefulTabs>
+
+OpenTofu/Terraform wants to create the resources for the new unit, but it also wants to _destroy_ everything the first unit created. Don't apply this!
+
+What's happening here is that when Terragrunt invoked OpenTofu/Terraform, it generated exactly the same `backend.tf` file for the new unit of infrastructure as it did for the first unit, so both units are using the same state file.
 
 You can see that in the newly generated `backend.tf` file in the `.terragrunt-cache` directory under the new unit:
 
@@ -877,6 +904,13 @@ terraform {
 }
 ```
 
+The `ec2` unit was initialized against the shared key, so it has to be re-initialized against its own key before it can be planned. There is nothing to migrate for it, as it has never been applied:
+
+```bash
+# Within the ec2 directory
+$ terragrunt init -reconfigure
+```
+
 Now, we can run the plan in the `ec2` directory without any issues:
 
 ```bash
@@ -917,6 +951,13 @@ terraform {
 }
 ```
 
+The `vnet` unit was initialized against the shared key, so it has to be re-initialized against its own key before it can be planned. There is nothing to migrate for it, as it has never been applied:
+
+```bash
+# Within the vnet directory
+$ terragrunt init -reconfigure
+```
+
 Now, we can run the plan in the `vnet` directory without any issues:
 
 ```bash
@@ -938,6 +979,8 @@ terraform {
 
 </Fragment>
 </StatefulTabs>
+
+Note that `init -migrate-state` copies the state to its new key, but leaves the original behind at the old `tofu.tfstate` key. It's harmless, but you may want to delete it once you've confirmed the migration worked.
 
 Following this pattern, you can create as many units of infrastructure in your project as you like without worrying about collisions in remote state keys.
 
@@ -1017,15 +1060,11 @@ For example, let's go ahead and destroy all the infrastructure that we've create
 ```bash
 # From the root directory
 $ terragrunt run --all destroy
-16:32:08.944 INFO   The stack at . will be processed in the following order for command destroy:
-Group 1
-- Module ./ec2
-
-Group 2
-- Module ./vpc
-
-
-WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo! (y/n)
+16:32:08.944 INFO   The following units will be run, starting with dependents and then their dependencies:
+.
+╰── ec2
+    ╰── vpc
+WARNING: Are you sure you want to run `terragrunt destroy` in each unit of the run queue displayed above? There is no undo! (y/n)
 ```
 
 </Fragment>
@@ -1034,15 +1073,11 @@ WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the
 ```bash
 # From the root directory
 $ terragrunt run --all destroy
-16:32:08.944 INFO   The stack at . will be processed in the following order for command destroy:
-Group 1
-- Module ./vnet
-
-Group 2
-- Module ./rg
-
-
-WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo! (y/n)
+16:32:08.944 INFO   The following units will be run, starting with dependents and then their dependencies:
+.
+╰── vnet
+    ╰── rg
+WARNING: Are you sure you want to run `terragrunt destroy` in each unit of the run queue displayed above? There is no undo! (y/n)
 ```
 
 </Fragment>
@@ -1050,7 +1085,7 @@ WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the
 
 First, notice that we're using a special `run --all` command for Terragrunt. This command tells Terragrunt that we're operating on a stack of units, and that we want to run a given OpenTofu/Terraform command on all of them.
 
-Second, notice that the dependent unit is being run _before_ the unit it depends on. Terragrunt knows about the dependency, so it plans to run the dependent unit first, followed by its dependency.
+Second, notice that the dependent unit is listed first, and is run _before_ the unit it depends on. Terragrunt knows about the dependency, so it plans to run the dependent unit first, followed by its dependency.
 
 This is a simple example, but as you build out more complex stacks of infrastructure, you'll find that Terragrunt's dependency resolution is a powerful tool for getting infrastructure provisioned correctly.
 
@@ -1073,13 +1108,12 @@ Go ahead and answer `y` to the prompt to allow destruction to proceed, and notic
 <Fragment slot="azure">
 
 ```txt
-16:33:28.820 STDOUT [vnet] tofu: module.subnet["public"].azapi_resource.subnet[0]: Destruction complete after 11s
-16:33:28.936 STDOUT [vnet] tofu: azapi_resource.vnet: Destruction complete after 10s
-16:33:28.936 STDOUT [vnet] tofu:
-16:33:28.936 STDOUT [vnet] tofu: Destroy complete! Resources: 5 destroyed.
-16:33:28.936 STDOUT [vnet] tofu:
-16:33:30.713 STDOUT [rg] tofu: azapi_resource.this: Refreshing state... [id=/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg-eastus]
-16:33:31.510 STDOUT [rg] tofu: azapi_resource.this: Destroying... [id=/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg-eastus]
+16:29:09.531 STDOUT [vnet] tofu: azapi_resource.vnet: Destruction complete after 12s
+16:29:10.149 STDOUT [vnet] tofu: Destroy complete! Resources: 7 destroyed.
+16:29:14.379 STDOUT [rg] tofu: azapi_resource.this: Refreshing state... [id=/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg-eastus]
+16:29:15.504 STDOUT [rg] tofu: azapi_resource.this: Destroying... [id=/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg-eastus]
+16:29:33.808 STDOUT [rg] tofu: azapi_resource.this: Destruction complete after 18s
+16:29:34.421 STDOUT [rg] tofu: Destroy complete! Resources: 5 destroyed.
 ```
 
 </Fragment>
@@ -1097,14 +1131,24 @@ Now that the stack has been destroyed, take a look at the error you get when you
 ```bash
 $ terragrunt run --all plan
 ...
-16:50:22.153 STDOUT [vpc] tofu: Note: You didn't use the -out option to save this plan, so OpenTofu can't
-16:50:22.153 STDOUT [vpc] tofu: guarantee to take exactly these actions if you run "tofu apply" now.
-16:50:22.854 ERROR  [ec2] Module ./ec2 has finished with an error
-16:50:22.855 ERROR  error occurred:
+16:50:22.677 ERROR  [ec2] Error: Unknown variable
+16:50:22.677 ERROR  [ec2]   on /path/to/project/ec2/terragrunt.hcl line 19:
+16:50:22.677 ERROR  [ec2]   19:   subnet_id     = dependency.vpc.outputs.private_subnets[0]
+16:50:22.677 ERROR  [ec2] There is no variable named "dependency".
+16:50:22.678 ERROR  Run failed: 2 errors occurred:
 
-* ./vpc/terragrunt.hcl is a dependency of ./ec2/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.
+* resolving dependency "vpc" outputs: /path/to/project/vpc/terragrunt.hcl is a dependency of /path/to/project/ec2/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs.
 
-16:50:22.855 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+  If this dependency is accessed before the outputs are ready (which can happen during the planning phase of an unapplied stack), consider using mock_outputs:
+
+  dependency "vpc" {
+      config_path = "../vpc"
+
+      mock_outputs = {
+          vpc_output = "mock-vpc-output"
+      }
+  }
+...
 ```
 
 </Fragment>
@@ -1113,20 +1157,30 @@ $ terragrunt run --all plan
 ```bash
 $ terragrunt run --all plan
 ...
-16:50:22.153 STDOUT [rg] tofu: Note: You didn't use the -out option to save this plan, so OpenTofu can't
-16:50:22.153 STDOUT [rg] tofu: guarantee to take exactly these actions if you run "tofu apply" now.
-16:50:22.854 ERROR  [vnet] Module ./vnet has finished with an error
-16:50:22.855 ERROR  error occurred:
+16:50:22.677 ERROR  [vnet] Error: Unknown variable
+16:50:22.677 ERROR  [vnet]   on /path/to/project/vnet/terragrunt.hcl line 17:
+16:50:22.677 ERROR  [vnet]   17:   parent_id = dependency.rg.outputs.resource_id
+16:50:22.677 ERROR  [vnet] There is no variable named "dependency".
+16:50:22.678 ERROR  Run failed: 2 errors occurred:
 
-* ./rg/terragrunt.hcl is a dependency of ./vnet/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.
+* resolving dependency "rg" outputs: /path/to/project/rg/terragrunt.hcl is a dependency of /path/to/project/vnet/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs.
 
-16:50:22.855 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+  If this dependency is accessed before the outputs are ready (which can happen during the planning phase of an unapplied stack), consider using mock_outputs:
+
+  dependency "rg" {
+      config_path = "../rg"
+
+      mock_outputs = {
+          rg_output = "mock-rg-output"
+      }
+  }
+...
 ```
 
 </Fragment>
 </StatefulTabs>
 
-The error emitted here tells us that the dependency doesn't have any outputs available yet for the dependent unit to consume.
+The error emitted here tells us that the dependency doesn't have any outputs available yet for the dependent unit to consume, so the `dependency.*.outputs` reference can't be resolved.
 
 The pattern most commonly used to address this is to simply mock the unavailable output during plans.
 
@@ -1193,14 +1247,14 @@ $ terragrunt run --all plan
 ```bash
 $ terragrunt run --all plan
 ...
-16:53:04.037 STDOUT [vnet] tofu:   # azapi_resource.vnet will be created
-16:53:04.037 STDOUT [vnet] tofu:   + resource "azapi_resource" "vnet" {
-16:53:04.037 STDOUT [vnet] tofu:       + id        = (known after apply)
-16:53:04.037 STDOUT [vnet] tofu:       + location  = "eastus"
-16:53:04.037 STDOUT [vnet] tofu:       + name      = "my-vnet"
-16:53:04.037 STDOUT [vnet] tofu:       + parent_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg"
-16:53:04.038 STDOUT [vnet] tofu:       + tags      = {
-16:53:04.038 STDOUT [vnet] tofu:           + "Environment" = "dev"
+16:30:34.850 WARN   [vnet] Config /path/to/project/rg/terragrunt.hcl is a dependency of /path/to/project/vnet/terragrunt.hcl that has no outputs, but mock outputs provided and returning those in dependency output.
+...
+16:30:39.449 STDOUT [vnet] tofu:   # azapi_resource.vnet will be created
+16:30:39.449 STDOUT [vnet] tofu:   + resource "azapi_resource" "vnet" {
+16:30:39.449 STDOUT [vnet] tofu:       + id                        = (known after apply)
+16:30:39.450 STDOUT [vnet] tofu:       + location                  = "eastus"
+16:30:39.450 STDOUT [vnet] tofu:       + name                      = "my-vnet"
+16:30:39.450 STDOUT [vnet] tofu:       + parent_id                 = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg"
 ...
 ```
 
@@ -1218,15 +1272,11 @@ Also note that when you run `terragrunt run --all apply`:
 
 ```bash
 $ terragrunt run --all apply
-16:57:32.297 INFO   The stack at . will be processed in the following order for command apply:
-Group 1
-- Module ./vpc
-
-Group 2
-- Module ./ec2
-
-
-Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)
+16:57:32.297 INFO   The following units will be run, starting with dependencies and then their dependents:
+.
+╰── vpc
+    ╰── ec2
+Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above? (y/n)
 ```
 
 </Fragment>
@@ -1234,15 +1284,11 @@ Are you sure you want to run 'terragrunt apply' in each folder of the stack desc
 
 ```bash
 $ terragrunt run --all apply
-16:57:32.297 INFO   The stack at . will be processed in the following order for command apply:
-Group 1
-- Module ./rg
-
-Group 2
-- Module ./vnet
-
-
-Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)
+16:57:32.297 INFO   The following units will be run, starting with dependencies and then their dependents:
+.
+╰── rg
+    ╰── vnet
+Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above? (y/n)
 ```
 
 </Fragment>
@@ -1299,19 +1345,14 @@ Say, for example, you wanted to provision the same resources you've provisioned 
 </Fragment>
 </StatefulTabs>
 
-With Terragrunt, that's pretty easy to achieve. You would first create a directory for the region you've been deploying to so far:
+With Terragrunt, that's pretty easy to achieve. You would first create a directory for the region you've been deploying to so far, and copy the units you've created so far into it:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
 
 ```bash
 mkdir us-east-1
-```
-
-Then move the contents you have in the `vpc` and `ec2` directories into the `us-east-1` directory:
-
-```bash
-mv vpc/ ec2/ us-east-1/
+cp -R vpc ec2 us-east-1/
 ```
 
 </Fragment>
@@ -1319,24 +1360,34 @@ mv vpc/ ec2/ us-east-1/
 
 ```bash
 mkdir eastus
-```
-
-Then move the contents you have in the `rg` and `vnet` directories into the `eastus` directory:
-
-```bash
-mv rg/ vnet/ eastus/
+cp -R rg vnet eastus/
 ```
 
 </Fragment>
 </StatefulTabs>
 
-Remember that now you'll need to migrate state, as changing the location of the units in the filesystem will result in a change in the remote state path:
+Moving a unit changes the value of `path_relative_to_include()`, and with it the key where its state is stored, so the state has to move too. The [`backend migrate`](/reference/cli/commands/backend/migrate/) command does that for you. Migrate dependencies before their dependents, then remove the old copies:
 
-(In production scenarios, you likely want to carefully manage state by migrating over one unit at a time, but for the sake of this tutorial, you can learn about this shortcut)
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
 
 ```bash
-terragrunt run --all -- init -migrate-state
+terragrunt backend migrate vpc us-east-1/vpc
+terragrunt backend migrate ec2 us-east-1/ec2
+rm -rf vpc ec2
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```bash
+terragrunt backend migrate rg eastus/rg
+terragrunt backend migrate vnet eastus/vnet
+rm -rf rg vnet
+```
+
+</Fragment>
+</StatefulTabs>
 
 We want the region used by our units to be determined dynamically, so we can add a configuration file to the new region directory that looks like this:
 
@@ -1606,6 +1657,8 @@ inputs = {
 </StatefulTabs>
 
 This makes it so that those values are determined dynamically based on the region that the unit is being deployed to.
+
+Run `terragrunt run --all plan` from the region directory to confirm it. Both units should report no changes, as the dynamic values resolve to exactly what was hardcoded before.
 
 Now that you've set up the first region, you can repeat the process for a second one:
 
