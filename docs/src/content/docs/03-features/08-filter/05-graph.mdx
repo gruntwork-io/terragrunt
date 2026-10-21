@@ -8,8 +8,6 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 
 Filter units and stacks based on their dependency relationships using graph traversal operators. This allows you to find components that depend on a target, or components that a target depends on.
 
@@ -156,14 +154,6 @@ Note that this overhead is especially noticeable in _dependent_ graph expression
 
 ## Bounded Traversal
 
-<Before version="v1.2.0">
-
-Enclosing graph traversal within a directory requires the [`bounded-discovery`](/reference/experiments/active#bounded-discovery) experiment.
-
-</Before>
-
-<Since version="v1.2.0">
-
 The search for dependents runs from the working directory up to the Git repository root, and dependencies are followed wherever their `config_path` points. To keep either direction inside a directory, write that directory in parentheses where a depth would go:
 
 ```bash
@@ -239,5 +229,3 @@ terragrunt find --filter '...vpc' --discovery-boundary .
 # The operand extends this expression's search for dependents to production
 terragrunt find --filter '(..)...vpc' --discovery-boundary .
 ```
-
-</Since>
