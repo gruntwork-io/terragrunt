@@ -34,11 +34,11 @@ EOF
 
 # Configure the module
 #
-# This URL is shorthand for
-# "tfr://registry.terraform.io/Azure/avm-res-resources-resourcegroup/azurerm?version=0.4.0".
+# The `tfr:///` shorthand uses the default registry host for OpenTofu or Terraform.
+# Set `TG_TF_DEFAULT_REGISTRY_HOST` to use a different host.
 #
 # The module lives at:
-# https://registry.terraform.io/modules/Azure/avm-res-resources-resourcegroup/azurerm/latest
+# https://search.opentofu.org/module/azure/avm-res-resources-resourcegroup/azurerm/latest
 #
 # The shorthand needs three slashes after `tfr:`, as in `tfr:///`.
 terraform {

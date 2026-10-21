@@ -295,7 +295,7 @@ You'll want to make sure that you set configurations like `skip_bucket_versionin
 
 ## Authenticating with Azure
 
-Terragrunt has no Azure equivalent of `--iam-assume-role`. Azure role assignments scope an identity's access. Terragrunt supports the credential sources below for bootstrap, migration, and deletion of the [`azurerm` state backend](/features/units/state-backend/#azure-storage-azurerm-backend). Set the same `ARM_*` variables for the OpenTofu/Terraform backend and providers.
+Terragrunt has no Azure equivalent of `--iam-assume-role`. It supports the credential sources below for bootstrap, migration, and deletion of the [`azurerm` state backend](/features/units/state-backend/#azure-storage-azurerm-backend). Set the same `ARM_*` variables for the OpenTofu/Terraform backend and providers.
 
 Set the subscription, then pick whichever credential source fits where Terragrunt is running:
 

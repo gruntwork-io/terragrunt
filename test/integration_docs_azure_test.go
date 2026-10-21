@@ -3,7 +3,6 @@
 package test_test
 
 import (
-	"errors"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -139,6 +138,8 @@ func setupAzureDocsStep(t *testing.T, step string, resourceGroups []string) azur
 	tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 	rootPath := filepath.Join(tmpEnvPath, stepPath)
 
+	// The fixtures use explicit subscription IDs to pin both backend and provider
+	// to the test subscription; the docs read the ID from ARM_SUBSCRIPTION_ID.
 	placeholders := map[string]string{
 		"__FILL_IN_STORAGE_ACCOUNT__": account,
 		"__FILL_IN_RESOURCE_GROUP__":  stateResourceGroup,
@@ -192,12 +193,16 @@ func runTerragruntUntilRoleAssignmentPropagates(t *testing.T, cmd string) (strin
 			return stdout, nil
 		}
 
-		rbacDenied := strings.Contains(stdout+stderr+err.Error(), azureBlobRBACDeniedCode)
-		if !rbacDenied || time.Now().After(deadline) {
+		remaining := time.Until(deadline)
+		if !strings.Contains(stdout+stderr+err.Error(), azureBlobRBACDeniedCode) || remaining <= 0 {
 			return stdout, err
 		}
 
-		t.Logf("role assignment not propagated yet, retrying: %v", errors.Unwrap(err))
-		time.Sleep(azureRBACPollInterval)
+		t.Logf("role assignment not propagated yet, retrying: %v", err)
+		time.Sleep(min(azureRBACPollInterval, remaining))
+
+		if !time.Now().Before(deadline) {
+			return stdout, err
+		}
 	}
 }

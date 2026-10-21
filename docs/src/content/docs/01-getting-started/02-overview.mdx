@@ -47,9 +47,9 @@ Browse the steps for your provider:
 
 If you would prefer it, you can clone the [Terragrunt repository](https://github.com/gruntwork-io/terragrunt.git), and follow along with the examples in your own environment without any copy + paste.
 
-Just make sure to replace the values prefixed `__FILL_IN_` with values relevant to your account.
+Replace values prefixed `__FILL_IN_` with values for your account.
 
-If you don't have a cloud account yet, each provider covered here offers a free tier you can sign up for, or you can adapt the examples to use a different cloud provider.
+If you need a cloud account, check whether your chosen provider offers a free tier. You can also adapt the examples to another provider.
 
 ## Example
 
@@ -164,8 +164,8 @@ EOF
 
 # Configure the module
 #
-# This URL is shorthand for
-# "tfr://registry.opentofu.org/Azure/avm-res-resources-resourcegroup/azurerm?version=0.4.0".
+# The `tfr:///` shorthand uses the default registry host for OpenTofu or Terraform.
+# Set `TG_TF_DEFAULT_REGISTRY_HOST` to use a different host.
 #
 # The module lives at:
 # https://search.opentofu.org/module/azure/avm-res-resources-resourcegroup/azurerm/latest
@@ -274,7 +274,7 @@ terraform {
 </Fragment>
 <Fragment slot="azure">
 
-In this example, Terragrunt is being configured to store state in a blob container named `tfstate`, in a storage account named `mytofustate` that lives in the `my-tofu-state` resource group. The state file will be named `tofu.tfstate`. Azure Blob Storage provides locking through blob leases, so no separate lock table is needed.
+This configuration stores `tofu.tfstate` in the `tfstate` container of the `mytofustate` storage account, within the `my-tofu-state` resource group. Azure Blob Storage uses blob leases for locking, so no separate lock table is needed.
 
 If you run the following, you can see how Terragrunt generates a `backend.tf` file to tell OpenTofu/Terraform to do this:
 
@@ -299,7 +299,7 @@ Notice that `location` and `assign_blob_data_role` aren't in the generated file.
 
 Right before running any OpenTofu/Terraform command that might store state, Terragrunt will ensure that the appropriate `backend.tf` file is present in the working directory where OpenTofu/Terraform will run, so that state is persisted appropriately when `tofu`/`terraform` is invoked.
 
-Note that while following the example above, you didn't need to manually create the resources that store remote state, or run `tofu/terraform init` to perform initialization. Because you passed `--backend-bootstrap`, Terragrunt created them for you.
+Terragrunt created the remote state resources when you passed `--backend-bootstrap`. You did not need to create them or run `tofu/terraform init` yourself.
 
 These are just a few of the things that Terragrunt does automatically when orchestrating OpenTofu/Terraform commands because it knows how OpenTofu/Terraform work, and it can take care of some busy work for you to make your life easier.
 
@@ -325,7 +325,7 @@ provider "aws" {
 </Fragment>
 <Fragment slot="azure">
 
-In this example, Terragrunt is being configured to inject a `provider.tf` file into the module that configures the [azapi](https://search.opentofu.org/provider/azure/azapi/latest) provider, which the Azure Verified Modules used in this guide are built on. Authentication comes from your Azure CLI session, and the target subscription from the `ARM_SUBSCRIPTION_ID` environment variable you exported earlier. The `default_location` is used by any resource that doesn't set a `location` of its own.
+The `generate` block writes `provider.tf` to configure the [azapi](https://search.opentofu.org/provider/azure/azapi/latest) provider used by the Azure Verified Modules in this guide. Authentication comes from your Azure CLI session, and the target subscription comes from the `ARM_SUBSCRIPTION_ID` environment variable you exported earlier. Resources without their own `location` use `default_location`.
 
 If you run the following, you can see the `provider.tf` file that Terragrunt generates:
 
@@ -429,8 +429,6 @@ Any file that isn't part of the OpenTofu/Terraform module (like the `backend.tf`
 #### Inputs configuration
 
 The `inputs` block is used to indicate what variable values should be passed to OpenTofu/Terraform when running `tofu`/`terraform` commands.
-
-In this example, Terragrunt is being configured to pass in a bunch of variables to the OpenTofu/Terraform module:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
@@ -769,9 +767,7 @@ terraform {
 
 ### Dynamic keys
 
-What most folks would really prefer here is to have the state for the new unit stored in a different, but predictable, location relative to the first unit.
-
-The pattern that we've found to be most effective is to store state so that the location in the remote backend mirrors the location of the unit on the filesystem.
+Use each unit's path relative to `root.hcl` in its backend state key. This keeps state keys distinct and predictable.
 
 So this filesystem layout:
 
@@ -1013,11 +1009,11 @@ terraform {
 
 Go ahead and apply that plan with `terragrunt apply`, so both units exist for the next section.
 
-Note that `init -migrate-state` copies the state to its new location, but leaves the original behind at the old one. After verifying the new state and retiring configurations that use the old key, remove or archive the old copy.
+`init -migrate-state` copies the state to its new location and leaves the original at the old key. After verifying the new state and retiring configurations that use the old key, remove or archive the old copy.
 
 Following this pattern, you can create as many units of infrastructure in your project as you like without worrying about collisions in remote state keys.
 
-Note that while this is the idiomatic approach for setting the state path in your `backend` configuration, it is not a requirement. You can set it to any value you like, and you can use any Terragrunt HCL function to generate that value dynamically such that you avoid collisions in your remote state.
+You can choose another backend key or generate one with a Terragrunt HCL function, provided each unit gets a unique key.
 
 Another completely valid approach, for example, is to utilize [get_repo_root](/reference/hcl/functions#get_repo_root), which returns a path relative to the root of the git repository. This, of course, has the drawback that it will not work if you are not using git.
 
@@ -1217,7 +1213,7 @@ The error emitted here tells us that the dependency doesn't have any outputs ava
 
 The pattern most commonly used to address this is to simply mock the unavailable output during plans.
 
-Adjust the `dependency` block in the dependent unit like so:
+Update the dependent unit's `dependency` block:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
@@ -1294,7 +1290,7 @@ $ terragrunt run --all plan
 </Fragment>
 </StatefulTabs>
 
-As you can see, the plan for the dependent unit now includes the mock value we provided in the `mock_outputs` block.
+The dependent unit's plan now uses the value from `mock_outputs`.
 
 Terragrunt only uses these mock values when the output is unavailable, so a `terragrunt run --all apply` would succeed, but it's best practice to explicitly tell Terragrunt that it should only use these mock values during a plan (or any other command where you are okay with the output being mocked).
 
@@ -1378,7 +1374,7 @@ Say, for example, you wanted to provision the same resources you've provisioned 
 </Fragment>
 </StatefulTabs>
 
-With Terragrunt, that's pretty easy to achieve. You would first create a directory for the region you've been deploying to so far, and copy the units you've created so far into it:
+Create a directory for the region you have used so far, then copy the existing units into it:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
