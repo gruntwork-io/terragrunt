@@ -11,6 +11,11 @@ import (
 // PathFormatOptionName is the option name.
 const PathFormatOptionName = "path"
 
+// UnitPathFieldName is the log field holding the path of the unit that logs the entry.
+// The `basename` path format looks up the label by it when the prefix is the unit's directory,
+// so units configured by files in the same directory get distinct labels.
+const UnitPathFieldName = "unit-path"
+
 const (
 	NonePath PathFormatValue = iota
 	RelativePath
@@ -71,6 +76,14 @@ func (option *PathFormatOption) Format(data *Data, val any) (any, error) {
 
 		if label, ok := data.PathLabels[str]; ok {
 			return label, nil
+		}
+
+		if data.Entry != nil {
+			if unitPath := toString(data.Fields[UnitPathFieldName]); unitPath != "" && filepath.Dir(unitPath) == str {
+				if label, ok := data.PathLabels[unitPath]; ok {
+					return label, nil
+				}
+			}
 		}
 
 		return filepath.Base(str), nil

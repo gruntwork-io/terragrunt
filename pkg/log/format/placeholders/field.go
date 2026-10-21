@@ -9,6 +9,7 @@ const (
 	TFPathKeyName    = "tf-path"
 	TFCmdArgsKeyName = "tf-command-args"
 	TFCmdKeyName     = "tf-command"
+	UnitPathKeyName  = options.UnitPathFieldName
 
 	// Terragrunt Provider Cache Server fields.
 	CacheServerURLKeyName    = "url"
