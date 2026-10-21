@@ -55,7 +55,7 @@ jobs:
           ref: ${{ inputs.ref || '' }}
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           version: 2026.9.12
           cache_save: ${{ github.ref == 'refs/heads/main' }}
@@ -73,43 +73,43 @@ jobs:
           BUILD_VERSION: ${{ inputs.version || github.ref_name }}
 
       - name: Upload darwin/amd64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_darwin_amd64
           path: bin/terragrunt_darwin_amd64*
 
       - name: Upload darwin/arm64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_darwin_arm64
           path: bin/terragrunt_darwin_arm64*
 
       - name: Upload linux/386
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_linux_386
           path: bin/terragrunt_linux_386*
 
       - name: Upload linux/amd64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_linux_amd64
           path: bin/terragrunt_linux_amd64*
 
       - name: Upload linux/arm64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_linux_arm64
           path: bin/terragrunt_linux_arm64*
 
       - name: Upload windows/386
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_windows_386
           path: bin/terragrunt_windows_386*
 
       - name: Upload windows/amd64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_windows_amd64
           path: bin/terragrunt_windows_amd64*
@@ -170,7 +170,7 @@ jobs:
         run: ./.github/scripts/release/list-binaries.sh
 
       - name: Upload All Signed Binaries
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: all-signed-binaries
           path: bin/*
