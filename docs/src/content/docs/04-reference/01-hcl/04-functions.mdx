@@ -8,7 +8,6 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import StatefulTabs from '@components/StatefulTabs.astro';
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
@@ -147,9 +146,6 @@ include "root" {
 
 The root `root.hcl` can use the `path_relative_to_include()` in its `remote_state` configuration to ensure each child stores its remote state at a different `key`:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
-<Fragment slot="aws">
-
 ```hcl
 # root.hcl
 
@@ -162,27 +158,6 @@ remote_state {
   }
 }
 ```
-
-</Fragment>
-<Fragment slot="azure">
-
-```hcl
-# root.hcl
-
-remote_state {
-  backend = "azurerm"
-  config = {
-    resource_group_name  = "my-tofu-state"
-    storage_account_name = "mytofustate"
-    container_name       = "tfstate"
-    key                  = "${path_relative_to_include()}/tofu.tfstate"
-    use_azuread_auth     = true
-  }
-}
-```
-
-</Fragment>
-</StatefulTabs>
 
 The resulting `key` will be `prod/mysql/tofu.tfstate` for the prod `mysql` module and `stage/mysql/tofu.tfstate` for the stage `mysql` module.
 
@@ -301,69 +276,23 @@ terraform {
 
 `get_env(NAME)` return the value of variable named `NAME` or throws exceptions if that variable is not set. Example:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
-<Fragment slot="aws">
-
 ```hcl
 # terragrunt.hcl
 
-remote_state {
-  backend = "s3"
-  config = {
-    bucket = get_env("BUCKET")
-  }
+inputs = {
+  image_tag = get_env("IMAGE_TAG")
 }
 ```
-
-</Fragment>
-<Fragment slot="azure">
-
-```hcl
-# terragrunt.hcl
-
-remote_state {
-  backend = "azurerm"
-  config = {
-    storage_account_name = get_env("STORAGE_ACCOUNT")
-  }
-}
-```
-
-</Fragment>
-</StatefulTabs>
 
 `get_env(NAME, DEFAULT)` returns the value of the environment variable named `NAME` or `DEFAULT` if that environment variable is not set. Example:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
-<Fragment slot="aws">
-
 ```hcl
 # terragrunt.hcl
 
-remote_state {
-  backend = "s3"
-  config = {
-    bucket = get_env("BUCKET", "my-tofu-bucket")
-  }
+inputs = {
+  image_tag = get_env("IMAGE_TAG", "latest")
 }
 ```
-
-</Fragment>
-<Fragment slot="azure">
-
-```hcl
-# terragrunt.hcl
-
-remote_state {
-  backend = "azurerm"
-  config = {
-    storage_account_name = get_env("STORAGE_ACCOUNT", "mytofustate")
-  }
-}
-```
-
-</Fragment>
-</StatefulTabs>
 
 Note that [OpenTofu/Terraform will read environment variables](https://opentofu.org/docs/cli/config/environment-variables/#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between OpenTofu/Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
 
@@ -414,9 +343,6 @@ This function will error if the file is not located in a Git repository.
 
 `get_path_from_repo_root()` returns the path from the root of the Git repository to the current directory:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
-<Fragment slot="aws">
-
 ```hcl
 # terragrunt.hcl
 
@@ -433,28 +359,6 @@ remote_state {
   }
 }
 ```
-
-</Fragment>
-<Fragment slot="azure">
-
-```hcl
-# terragrunt.hcl
-
-remote_state {
-  backend = "azurerm"
-
-  config = {
-    resource_group_name  = "tofu"
-    storage_account_name = "tofustate"
-    container_name       = "tfstate"
-    key                  = "${get_path_from_repo_root()}/tofu.tfstate"
-    use_azuread_auth     = true
-  }
-}
-```
-
-</Fragment>
-</StatefulTabs>
 
 This function will error if the file is not located in a Git repository.
 
