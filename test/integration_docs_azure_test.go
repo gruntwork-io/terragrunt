@@ -20,6 +20,10 @@ const (
 	// azureBlobRBACDeniedCode is the error code Azure Storage returns while a
 	// newly assigned data-plane role is still propagating.
 	azureBlobRBACDeniedCode = "AuthorizationPermissionMismatch"
+
+	// azureDocsMockResourceID is the mock_outputs value the fixture gives the
+	// vnet unit, as shown in the overview's mock outputs section.
+	azureDocsMockResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg"
 )
 
 // TestAzureDocsOverview applies and destroys each step of the Azure tab of the
@@ -30,14 +34,18 @@ func TestAzureDocsOverview(t *testing.T) {
 	t.Parallel()
 
 	steps := []struct {
-		name   string
+		name string
+		// single marks the one-unit step, which runs without --all.
 		single bool
+		// mockPlan marks steps whose vnet unit carries mock_outputs: the docs
+		// plan them before anything is applied, so the test does too.
+		mockPlan bool
 	}{
 		{name: "step-01-terragrunt.hcl", single: true},
 		{name: "step-02-dependencies"},
-		{name: "step-03-mock-outputs"},
-		{name: "step-04-configuration-hierarchy"},
-		{name: "step-05-exposed-includes"},
+		{name: "step-03-mock-outputs", mockPlan: true},
+		{name: "step-04-configuration-hierarchy", mockPlan: true},
+		{name: "step-05-exposed-includes", mockPlan: true},
 	}
 
 	for _, step := range steps {
@@ -62,7 +70,18 @@ func TestAzureDocsOverview(t *testing.T) {
 				require.NoError(t, err)
 			}()
 
-			require.NoError(t, runTerragruntUntilRoleAssignmentPropagates(t, applyCmd))
+			if step.mockPlan {
+				planCmd := "terragrunt run --all --non-interactive --backend-bootstrap --working-dir " +
+					rootPath + " -- plan"
+
+				stdout, err := runTerragruntUntilRoleAssignmentPropagates(t, planCmd)
+				require.NoError(t, err)
+				require.Contains(t, stdout, azureDocsMockResourceID,
+					"the vnet plan must use the mock resource group id while rg has no outputs")
+			}
+
+			_, err := runTerragruntUntilRoleAssignmentPropagates(t, applyCmd)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -115,8 +134,9 @@ func setupAzureDocsStep(t *testing.T, step string) string {
 // runTerragruntUntilRoleAssignmentPropagates runs cmd and retries it only while
 // the Storage Blob Data Contributor role that bootstrap just assigned is still
 // propagating. Azure applies role assignments asynchronously, so it can reject
-// the first state write after bootstrap for a short while.
-func runTerragruntUntilRoleAssignmentPropagates(t *testing.T, cmd string) error {
+// the first state write after bootstrap for a short while. It returns the
+// command's stdout.
+func runTerragruntUntilRoleAssignmentPropagates(t *testing.T, cmd string) (string, error) {
 	t.Helper()
 
 	deadline := time.Now().Add(azureRBACPropagationTimeout)
@@ -124,12 +144,12 @@ func runTerragruntUntilRoleAssignmentPropagates(t *testing.T, cmd string) error 
 	for {
 		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 		if err == nil {
-			return nil
+			return stdout, nil
 		}
 
 		rbacDenied := strings.Contains(stdout+stderr+err.Error(), azureBlobRBACDeniedCode)
 		if !rbacDenied || time.Now().After(deadline) {
-			return err
+			return stdout, err
 		}
 
 		t.Logf("role assignment not propagated yet, retrying: %v", errors.Unwrap(err))

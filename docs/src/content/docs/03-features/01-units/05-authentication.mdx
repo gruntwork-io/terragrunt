@@ -341,18 +341,21 @@ On AKS, the workload identity webhook injects `AZURE_FEDERATED_TOKEN_FILE`, whic
 </Fragment>
 <Fragment slot="managed-identity">
 
-On an Azure VM or in AKS, a managed identity needs no credentials at all. Set `ARM_MSI_RESOURCE_ID` as well to pick a user-assigned identity:
+On an Azure VM or in AKS, a managed identity needs no credentials at all. For a user-assigned identity, set `ARM_CLIENT_ID` to the identity's client id, which both Terragrunt and the `azurerm` backend honor. `ARM_MSI_RESOURCE_ID` also selects it, but only for Terragrunt's own work, so it is not enough on its own:
 
 ```bash
 export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
 export ARM_USE_MSI=true
+export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000000" # user-assigned identity only
 terragrunt apply
 ```
 
 </Fragment>
 </StatefulTabs>
 
-The same values can be set in the `remote_state` config instead of the environment (`subscription_id`, `tenant_id`, `client_id`, `client_secret`, `use_oidc`, `use_msi`, `msi_resource_id`), and environment variables fill in whatever the config leaves unset. The `AZURE_*` spellings used by the Azure SDKs (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and so on) are accepted as well.
+The non-secret values can also be set in the `remote_state` config (`subscription_id`, `tenant_id`, `client_id`, `use_oidc`, `use_msi`, `msi_resource_id`), and environment variables fill in whatever the config leaves unset. Keep `ARM_CLIENT_SECRET` in the environment: OpenTofu/Terraform copies backend configuration into `.terraform/terraform.tfstate` and into saved plan files, so a secret placed in `remote_state.config` ends up on disk in plain text.
+
+Use the `ARM_*` names. Terragrunt also accepts the `AZURE_*` spellings used by the Azure SDKs (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and so on) for its own work, but the `azurerm` backend inside OpenTofu/Terraform reads only `ARM_*`, so a run that also initializes the backend fails with `AZURE_*` alone.
 
 The [auth provider command](#auth-provider-command) works for Azure too: return the `ARM_*` variables in its `envs` map to select credentials per unit at runtime.
 
