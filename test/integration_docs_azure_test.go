@@ -89,6 +89,7 @@ func TestAzureDocsOverview(t *testing.T) {
 			// are registered before it, so they run after it: workload groups
 			// first, then the state group with the storage account.
 			defer deleteAzureResourceGroup(t, env.storageAccount, env.stateResourceGroup)
+
 			for _, resourceGroup := range env.workloadResourceGroups {
 				defer deleteAzureResourceGroup(t, env.storageAccount, resourceGroup)
 			}
@@ -165,7 +166,7 @@ func setupAzureDocsStep(t *testing.T, step string, resourceGroups []string) azur
 	})
 	require.NoError(t, err)
 
-	var workloadResourceGroups []string
+	workloadResourceGroups := make([]string, 0, len(resourceGroups))
 	for _, suffix := range resourceGroups {
 		workloadResourceGroups = append(workloadResourceGroups, placeholders["__FILL_IN_NAME_PREFIX__"]+suffix)
 	}
