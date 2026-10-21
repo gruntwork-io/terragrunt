@@ -40,7 +40,7 @@ jobs:
           fetch-depth: 1
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           version: 2026.9.12
           cache_save: ${{ github.ref == 'refs/heads/main' }}
@@ -65,7 +65,7 @@ jobs:
         run: ./_coverage-scripts/.github/scripts/coverage/generate-summary.sh
 
       - name: Upload Coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-base
           path: coverage-summary.json
@@ -90,7 +90,7 @@ jobs:
           fetch-depth: 1
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           version: 2026.9.12
           cache_save: ${{ github.ref == 'refs/heads/main' }}
@@ -115,7 +115,7 @@ jobs:
         run: ./_coverage-scripts/.github/scripts/coverage/generate-summary.sh
 
       - name: Upload Coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-head
           path: coverage-summary.json
@@ -157,7 +157,7 @@ jobs:
 
       - name: Upload comparison-report.json
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: comparison-report.json
           path: comparison-report.json
@@ -165,7 +165,7 @@ jobs:
 
       - name: Upload comparison-report.html
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: comparison-report.html
           path: comparison-report.html
