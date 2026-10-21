@@ -58,6 +58,7 @@ remote_state {
     storage_account_name = "mytofustate"
     container_name       = "tfstate"
     key                  = "${path_relative_to_include()}/tofu.tfstate"
+    location             = "eastus"
     use_azuread_auth     = true
   }
 }

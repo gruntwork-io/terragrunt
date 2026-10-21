@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,9 +66,11 @@ func TestAzureDocsOverview(t *testing.T) {
 				destroyCmd = "terragrunt destroy -auto-approve --non-interactive --working-dir " + rootPath
 			}
 
+			// A failed destroy must not hide the apply error that caused it, and the
+			// resource group cleanup registered in setup reclaims anything left.
 			defer func() {
 				_, _, err := helpers.RunTerragruntCommandWithOutput(t, destroyCmd)
-				require.NoError(t, err)
+				assert.NoError(t, err, "destroying the step's infrastructure")
 			}()
 
 			if step.mockPlan {
