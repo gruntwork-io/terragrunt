@@ -103,7 +103,8 @@ func setupGCPDocsStep(t *testing.T, step string) (string, string) {
 	tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 	rootPath := filepath.Join(tmpEnvPath, stepPath)
 
-	// VPC network names are unique within a project, and the steps share one.
+	// Network names must be unique within a project, and subnet names within a
+	// region of it. The steps share one project, so the prefix keeps them apart.
 	placeholders := map[string]string{
 		"__FILL_IN_PROJECT_ID__":  project,
 		"__FILL_IN_BUCKET_NAME__": bucket,

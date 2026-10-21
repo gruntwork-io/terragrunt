@@ -48,12 +48,12 @@ inputs = {
 
   subnets = [
     {
-      subnet_name   = "private"
+      subnet_name   = "__FILL_IN_NAME_PREFIX__-private"
       subnet_ip     = "10.0.1.0/24"
       subnet_region = "us-central1"
     },
     {
-      subnet_name   = "public"
+      subnet_name   = "__FILL_IN_NAME_PREFIX__-public"
       subnet_ip     = "10.0.101.0/24"
       subnet_region = "us-central1"
     },
