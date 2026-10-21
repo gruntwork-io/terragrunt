@@ -24,8 +24,8 @@ const (
 
 // TestAzureDocsOverview applies and destroys each step of the Azure tab of the
 // Getting Started overview, docs/src/content/docs/01-getting-started/02-overview.mdx.
-// It is the Azure twin of TestAWSDocsOverview. Each step bootstraps its own state
-// resource group and storage account, so the steps run in parallel.
+// It does for Azure what TestAWSDocsOverview does for AWS. Each step bootstraps
+// its own state resource group and storage account, so the steps run in parallel.
 func TestAzureDocsOverview(t *testing.T) {
 	t.Parallel()
 
@@ -96,8 +96,7 @@ func setupAzureDocsStep(t *testing.T, step string) string {
 			return walkErr
 		}
 
-		// Lock files end in .hcl too. They hold no placeholders, and rewriting
-		// them read-only would stop OpenTofu/Terraform from updating them.
+		// Lock files end in .hcl too, but hold no placeholders, so leave them alone.
 		if d.IsDir() || filepath.Ext(path) != ".hcl" || d.Name() == ".terraform.lock.hcl" {
 			return nil
 		}
