@@ -326,7 +326,7 @@ terragrunt apply
 </Fragment>
 <Fragment slot="oidc">
 
-In GitHub Actions or Azure DevOps, workload identity federation avoids storing a secret at all. With `ARM_USE_OIDC` set, Terragrunt exchanges the job's OIDC token for an Azure access token, reading the request URL and token that GitHub Actions (`ACTIONS_ID_TOKEN_REQUEST_URL`, `ACTIONS_ID_TOKEN_REQUEST_TOKEN`) or Azure DevOps (`SYSTEM_OIDCREQUESTURI`, `SYSTEM_ACCESSTOKEN`) inject into the job:
+In GitHub Actions, workload identity federation avoids storing a secret at all. With `ARM_USE_OIDC` set, Terragrunt exchanges the job's OIDC token for an Azure access token, reading the request URL and token that GitHub Actions injects into the job (`ACTIONS_ID_TOKEN_REQUEST_URL`, `ACTIONS_ID_TOKEN_REQUEST_TOKEN`):
 
 ```bash
 export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"

@@ -94,10 +94,10 @@ terragrunt backend bootstrap
 
 You'll ensure the availability of:
 
-- A resource group named `my-tofu-state` in the `eastus` region.
+- A resource group named `my-tofu-state`, created in `eastus` when missing.
 - A storage account named `mytofustate` in that resource group with blob versioning enabled.
 - A blob container named `tfstate` in that storage account.
-- A **Storage Blob Data Contributor** role assignment on the storage account for the identity Terragrunt authenticated as.
+- A **Storage Blob Data Contributor** role assignment on the storage account for the identity Terragrunt authenticated as. Creating it needs permission to create role assignments, which Owner and User Access Administrator hold and Contributor does not.
 
 </Fragment>
 </StatefulTabs>

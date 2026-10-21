@@ -661,11 +661,13 @@ Example with Azure Storage:
 #     ├── main.tf
 #     └── terragrunt.hcl
 #
-# And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
+# And the following is defined in the root.hcl config that is included in the child, the state file for the
 # child module will be stored at the key "child/tofu.tfstate".
 #
-# Note that since we are not using any of the skip args, this will automatically create the resource group
-# "my-tofu-state", the storage account "mytofustate" and the container "tfstate" if they do not already exist.
+# Run `terragrunt backend bootstrap`, or pass `--backend-bootstrap` on the first run, and Terragrunt creates the
+# resource group "my-tofu-state", the storage account "mytofustate" and the container "tfstate" when they are missing.
+# Reading and writing state with use_azuread_auth needs the Storage Blob Data Contributor role on the account. Set
+# assign_blob_data_role = true to have bootstrap grant it, or grant it out of band.
 remote_state {
   backend = "azurerm"
   config = {

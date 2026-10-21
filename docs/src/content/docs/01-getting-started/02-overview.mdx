@@ -210,7 +210,7 @@ If you want to try this configuration locally:
    export ARM_SUBSCRIPTION_ID="$(az account show --query id --output tsv)"
    ```
 
-   The example sets `assign_blob_data_role = true`, so the identity you log in with needs permission to create role assignments on the storage account (for example, the **Owner** role on the subscription). If you don't have that, remove `assign_blob_data_role` from the configuration and ask a subscription **Owner** or **User Access Administrator** to grant you the **Storage Blob Data Contributor** role on the storage account before you apply, since a Contributor cannot assign roles to itself. See [Required Azure permissions](/features/units/authentication/#required-azure-permissions) for details.
+   The example sets `assign_blob_data_role = true`, so the identity you log in with needs permission to create role assignments on the storage account (for example, the **Owner** role on the subscription). If you don't have that, remove `assign_blob_data_role` from the configuration and ask a subscription **Owner** or **User Access Administrator** to grant you the **Storage Blob Data Contributor** role before you apply. The storage account does not exist until bootstrap creates it, so the grant goes on the subscription, or on a resource group the administrator creates first and you name in `resource_group_name`. A Contributor cannot assign roles to itself. See [Required Azure permissions](/features/units/authentication/#required-azure-permissions) for details.
 
    The [Azure Verified Modules](https://azure.github.io/Azure-Verified-Modules/) used in this guide require OpenTofu/Terraform 1.9 or newer.
 

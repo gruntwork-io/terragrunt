@@ -36,24 +36,32 @@ func TestAzureDocsOverview(t *testing.T) {
 
 	steps := []struct {
 		name string
+		// resourceGroups are the workload resource groups the step creates,
+		// without the unique name prefix. In every step but the first, each
+		// one pairs with a vnet unit.
+		resourceGroups []string
 		// single marks the one-unit step, which runs without --all.
 		single bool
 		// mockPlan marks steps whose vnet unit carries mock_outputs: the docs
 		// plan them before anything is applied, so the test does too.
 		mockPlan bool
 	}{
-		{name: "step-01-terragrunt.hcl", single: true},
-		{name: "step-02-dependencies"},
-		{name: "step-03-mock-outputs", mockPlan: true},
-		{name: "step-04-configuration-hierarchy", mockPlan: true},
-		{name: "step-05-exposed-includes", mockPlan: true},
+		{name: "step-01-terragrunt.hcl", resourceGroups: []string{"-step-one-rg"}, single: true},
+		{name: "step-02-dependencies", resourceGroups: []string{"-step-two-rg"}},
+		{name: "step-03-mock-outputs", resourceGroups: []string{"-step-three-rg"}, mockPlan: true},
+		{name: "step-04-configuration-hierarchy", resourceGroups: []string{"-step-four-rg"}, mockPlan: true},
+		{
+			name:           "step-05-exposed-includes",
+			resourceGroups: []string{"-step-five-rg-eastus", "-step-five-rg-westus2"},
+			mockPlan:       true,
+		},
 	}
 
 	for _, step := range steps {
 		t.Run(step.name, func(t *testing.T) {
 			t.Parallel()
 
-			rootPath := setupAzureDocsStep(t, step.name)
+			rootPath := setupAzureDocsStep(t, step.name, step.resourceGroups)
 
 			applyCmd := "terragrunt run --all --non-interactive --backend-bootstrap --working-dir " +
 				rootPath + " -- apply -auto-approve"
@@ -66,8 +74,9 @@ func TestAzureDocsOverview(t *testing.T) {
 				destroyCmd = "terragrunt destroy -auto-approve --non-interactive --working-dir " + rootPath
 			}
 
-			// A failed destroy must not hide the apply error that caused it, and the
-			// resource group cleanup registered in setup reclaims anything left.
+			// A failed destroy must not hide the apply error that caused it. Setup
+			// registers cleanup for the state resource group and every workload
+			// resource group, so a failed destroy leaves nothing behind either.
 			defer func() {
 				_, _, err := helpers.RunTerragruntCommandWithOutput(t, destroyCmd)
 				assert.NoError(t, err, "destroying the step's infrastructure")
@@ -79,8 +88,8 @@ func TestAzureDocsOverview(t *testing.T) {
 
 				stdout, err := runTerragruntUntilRoleAssignmentPropagates(t, planCmd)
 				require.NoError(t, err)
-				require.Contains(t, stdout, azureDocsMockResourceID,
-					"the vnet plan must use the mock resource group id while rg has no outputs")
+				require.GreaterOrEqual(t, strings.Count(stdout, azureDocsMockResourceID), len(step.resourceGroups),
+					"every vnet plan must use the mock resource group id while its rg has no outputs")
 			}
 
 			_, err := runTerragruntUntilRoleAssignmentPropagates(t, applyCmd)
@@ -91,8 +100,9 @@ func TestAzureDocsOverview(t *testing.T) {
 
 // setupAzureDocsStep copies one fixture step and points it at a state resource
 // group and storage account that do not exist yet. Cleanup deletes that resource
-// group, storage account included.
-func setupAzureDocsStep(t *testing.T, step string) string {
+// group, storage account included, and the workload resource groups named by
+// resourceGroups in case destroy did not finish.
+func setupAzureDocsStep(t *testing.T, step string, resourceGroups []string) string {
 	t.Helper()
 
 	subscriptionID := requireAzureEnv(t, envAzureSubscriptionID)
@@ -130,6 +140,14 @@ func setupAzureDocsStep(t *testing.T, step string) string {
 	require.NoError(t, err)
 
 	t.Cleanup(func() { deleteAzureResourceGroup(t, account, stateResourceGroup) })
+
+	// Registered after the state group so they run before it. Deleting a group
+	// that destroy already removed is a no-op.
+	for _, suffix := range resourceGroups {
+		workloadResourceGroup := placeholders["__FILL_IN_NAME_PREFIX__"] + suffix
+
+		t.Cleanup(func() { deleteAzureResourceGroup(t, account, workloadResourceGroup) })
+	}
 
 	return rootPath
 }
