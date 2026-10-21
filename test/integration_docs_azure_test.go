@@ -17,15 +17,15 @@ import (
 const (
 	testFixtureOverviewAzure = "fixtures/docs/02-overview-azure"
 
-	// azureBlobRBACDeniedCode is the Azure Storage error code returned while a
-	// freshly assigned data-plane role has not propagated yet.
+	// azureBlobRBACDeniedCode is the error code Azure Storage returns while a
+	// newly assigned data-plane role is still propagating.
 	azureBlobRBACDeniedCode = "AuthorizationPermissionMismatch"
 )
 
 // TestAzureDocsOverview applies and destroys each step of the Azure tab of the
-// Getting Started overview (docs/src/content/docs/01-getting-started/02-overview.mdx),
-// mirroring TestAWSDocsOverview. Every step bootstraps its own state resource
-// group and storage account so steps can run in parallel.
+// Getting Started overview, docs/src/content/docs/01-getting-started/02-overview.mdx.
+// It is the Azure twin of TestAWSDocsOverview. Each step bootstraps its own state
+// resource group and storage account, so the steps run in parallel.
 func TestAzureDocsOverview(t *testing.T) {
 	t.Parallel()
 
@@ -67,9 +67,9 @@ func TestAzureDocsOverview(t *testing.T) {
 	}
 }
 
-// setupAzureDocsStep copies one fixture step, points it at a state resource
-// group and storage account that do not exist yet, and registers cleanup of
-// that resource group, which also reclaims the storage account inside it.
+// setupAzureDocsStep copies one fixture step and points it at a state resource
+// group and storage account that do not exist yet. Cleanup deletes that resource
+// group, storage account included.
 func setupAzureDocsStep(t *testing.T, step string) string {
 	t.Helper()
 
@@ -96,8 +96,8 @@ func setupAzureDocsStep(t *testing.T, step string) string {
 			return walkErr
 		}
 
-		// Provider lock files share the extension but hold no placeholders, and
-		// rewriting them read-only would stop OpenTofu/Terraform updating them.
+		// Lock files end in .hcl too. They hold no placeholders, and rewriting
+		// them read-only would stop OpenTofu/Terraform from updating them.
 		if d.IsDir() || filepath.Ext(path) != ".hcl" || d.Name() == ".terraform.lock.hcl" {
 			return nil
 		}
@@ -113,10 +113,10 @@ func setupAzureDocsStep(t *testing.T, step string) string {
 	return rootPath
 }
 
-// runTerragruntUntilRoleAssignmentPropagates runs cmd, retrying only while the
-// Storage Blob Data Contributor role that bootstrap just assigned is still
-// propagating. Azure applies role assignments asynchronously, so the first
-// state write after bootstrap can be rejected for a short while.
+// runTerragruntUntilRoleAssignmentPropagates runs cmd and retries it only while
+// the Storage Blob Data Contributor role that bootstrap just assigned is still
+// propagating. Azure applies role assignments asynchronously, so it can reject
+// the first state write after bootstrap for a short while.
 func runTerragruntUntilRoleAssignmentPropagates(t *testing.T, cmd string) error {
 	t.Helper()
 

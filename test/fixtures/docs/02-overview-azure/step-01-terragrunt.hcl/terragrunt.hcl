@@ -34,14 +34,13 @@ EOF
 
 # Configure the module
 #
-# The URL used here is a shorthand for
+# This URL is shorthand for
 # "tfr://registry.terraform.io/Azure/avm-res-resources-resourcegroup/azurerm?version=0.4.0".
 #
-# You can find the module at:
+# The module lives at:
 # https://registry.terraform.io/modules/Azure/avm-res-resources-resourcegroup/azurerm/latest
 #
-# Note the extra `/` after the `tfr` protocol is required for the shorthand
-# notation.
+# The shorthand needs the extra `/` after `tfr`.
 terraform {
   source = "tfr:///Azure/avm-res-resources-resourcegroup/azurerm?version=0.4.0"
 }
