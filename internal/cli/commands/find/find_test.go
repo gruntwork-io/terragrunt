@@ -961,7 +961,7 @@ func TestRunFileDependency(t *testing.T) {
 			var buf strings.Builder
 
 			v := venvtest.New().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
-			require.NoError(t, find.Run(t.Context(), l, v, opts))
+			require.NoError(t, find.Run(config.WithCaches(t.Context()), l, v, opts))
 
 			var found find.FoundComponents
 

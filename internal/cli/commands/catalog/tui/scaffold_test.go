@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -42,8 +43,8 @@ func TestModelCtrlDScaffoldsModuleWithRacing(t *testing.T) {
 	opts.WorkingDir = outputDir
 	opts.NonInteractive = true
 
-	c := tui.NewComponentForTest(component.KindModule, helpers.FileURL(repoDir), "modules/vpc", "")
-	entry := tui.NewComponentEntry(c).WithSource(helpers.FileURL(repoDir))
+	c := tui.NewComponentForTest(component.KindModule, getter.FileURL(repoDir).String(), "modules/vpc", "")
+	entry := tui.NewComponentEntry(c).WithSource(getter.FileURL(repoDir).String())
 
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
