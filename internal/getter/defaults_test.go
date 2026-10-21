@@ -46,28 +46,22 @@ func TestDefaultClientCoversCanonicalProtocols(t *testing.T) {
 	assert.True(t, hasGetter[*getter.HTTPSchemeGetter](client.Getters), "http(s)")
 	assert.True(t, hasGetter[*getter.SmbClientGetter](client.Getters), "smb-client")
 	assert.True(t, hasGetter[*getter.SmbMountGetter](client.Getters), "smb-mount")
-	assert.True(t, hasGetter[*getter.FileGetter](client.Getters), "file")
+	assert.True(t, hasGetter[*getter.FileCopyGetter](client.Getters), "file")
 }
 
-// TestWithFileCopyReplacesFileGetter confirms WithFileCopy substitutes the
-// stock FileGetter with FileCopyGetter (and only that one).
+// TestWithFileCopyReplacesFileGetter confirms WithFileCopy registers the
+// given FileCopyGetter in place of the default one.
 func TestWithFileCopyReplacesFileGetter(t *testing.T) {
 	t.Parallel()
 
-	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(),
-		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
-	)
+	fileCopy := getter.NewFileCopyGetter(vfs.NewOSFS())
+	client := getter.NewClient(logger.CreateLogger(), venvtest.NewWithOSFS(), getter.WithFileCopy(fileCopy))
 
-	assert.True(
-		t,
-		hasGetter[*getter.FileCopyGetter](client.Getters),
-		"FileCopyGetter must be registered",
-	)
-	assert.False(
-		t,
-		hasGetter[*getter.FileGetter](client.Getters),
-		"stock FileGetter must be replaced",
-	)
+	copiers := slices.DeleteFunc(slices.Clone(client.Getters), func(g getter.Getter) bool {
+		_, ok := g.(*getter.FileCopyGetter)
+		return !ok
+	})
+	assert.Equal(t, []getter.Getter{fileCopy}, copiers)
 }
 
 // TestForcedGettersRouteToTheirGetter pins the routing for the v1->v2 forced

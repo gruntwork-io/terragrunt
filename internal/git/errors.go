@@ -58,6 +58,10 @@ var (
 	ErrNoWorkDir           = errors.New("working directory not set")
 	ErrUnknownRevision     = errors.New("unknown revision")
 
+	// ErrParseVersion is returned when `git version` output has no version
+	// number.
+	ErrParseVersion = errors.New("unexpected git version output")
+
 	// ErrCatFileMissing reports that `git cat-file --batch` knows no object by
 	// the requested name.
 	ErrCatFileMissing = errors.New("object not found")

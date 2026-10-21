@@ -171,8 +171,8 @@ func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[stri
 		SchemeGCS:   NewGCSGetter(v),
 		SchemeHTTP:  &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpExtra), Scheme: SchemeHTTP},
 		SchemeHTTPS: &HTTPSchemeGetter{Inner: newHTTPGetter(cfg.httpClient, cfg.httpsExtra), Scheme: SchemeHTTPS},
-		SchemeHg:    new(getter.HgGetter),
-		SchemeSMB:   new(getter.SmbClientGetter),
+		SchemeHg:    NewHgGetter(v),
+		SchemeSMB:   NewSmbClientGetter(v),
 	}
 
 	if cfg.tfrEnabled {
@@ -214,9 +214,11 @@ func DefaultGenericFetchers(v *venv.Venv, opts ...GenericFetcherOption) map[stri
 func buildGetters(b *builder) []Getter {
 	var out []Getter
 
-	var fileGetter Getter = new(getter.FileGetter)
-	if b.fileCopy != nil {
-		fileGetter = b.fileCopy
+	fileGetter := b.fileCopy
+	if fileGetter == nil {
+		fileGetter = NewFileCopyGetter(b.v.FS).
+			WithLogger(b.logger).
+			WithIncludeInCopy(".*", "**/.*")
 	}
 
 	if b.tfRegistry != nil {
@@ -227,7 +229,7 @@ func buildGetters(b *builder) []Getter {
 		out = append(out, b.oci)
 	}
 
-	gitGetter := NewGitGetter()
+	gitGetter := NewGitGetter(b.v)
 
 	var httpGetter Getter = &HTTPSchemeGetter{
 		Inner:  newHTTPGetter(b.httpClient, b.httpExtraHeader),
@@ -239,9 +241,9 @@ func buildGetters(b *builder) []Getter {
 		Scheme: SchemeHTTPS,
 	}
 
-	hgGetter := new(getter.HgGetter)
-	smbClientGetter := new(getter.SmbClientGetter)
-	smbMountGetter := new(getter.SmbMountGetter)
+	hgGetter := NewHgGetter(b.v)
+	smbClientGetter := NewSmbClientGetter(b.v)
+	smbMountGetter := NewSmbMountGetter(b.v, fileGetter)
 
 	s3Getter := NewS3Getter(b.v)
 	gcsGetter := NewGCSGetter(b.v)

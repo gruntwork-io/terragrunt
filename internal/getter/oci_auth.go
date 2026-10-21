@@ -604,7 +604,7 @@ func ociAmbientCredentialPaths(v *venv.Venv) []string {
 		home = ""
 	}
 
-	if (v.Platform.GOOS == "windows" || v.Platform.GOOS == "darwin") && home != "" {
+	if (v.Platform.GOOS == goosWindows || v.Platform.GOOS == goosDarwin) && home != "" {
 		paths = append(paths, filepath.Join(home, ".config", "containers", "auth.json"))
 	}
 
