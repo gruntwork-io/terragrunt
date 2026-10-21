@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
@@ -74,8 +73,8 @@ func getTerragruntOutputJSONFromRemoteStateS3(
 		}
 
 		result, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(key),
+			Bucket: new(bucket),
+			Key:    new(key),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("fetching dependency state from %s: %w", location, err)

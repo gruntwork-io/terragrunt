@@ -111,8 +111,8 @@ func benchmarkLiveLayout(b *testing.B, root string, shape liveLayoutQuery) {
 }
 
 // createLiveLayoutFixture writes a live layout fixture under root: a shared
-// root.hcl, 2 accounts x 4 regions x 5 envs of locals-only config, and units
-// units spread evenly across the resulting 40 env directories.
+// root.hcl, 2 accounts x 4 regions x 5 envs of locals-only config, and the
+// given number of units spread evenly across the resulting 40 env directories.
 //
 // It adds to the live example's layout: root.hcl also decodes a common.yaml
 // read through file(), units sit directly in their env directory, and every

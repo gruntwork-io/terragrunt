@@ -5,7 +5,9 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net"
 	"os"
@@ -13,9 +15,14 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"testing"
 
 	gliderssh "github.com/gliderlabs/ssh"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	cryptossh "golang.org/x/crypto/ssh"
+
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 const (
@@ -32,18 +39,13 @@ var gitRepoEnvVars = []string{
 	"GIT_SHALLOW_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY",
 }
 
-// sshMirror is a running localhost SSH git server together with the
-// resources that must be released when the owning test finishes: the
-// [gliderssh.Server], its listener, and the on-disk bare repo.
-// [GitServer.shutdown] releases them.
+// sshMirror is a running localhost SSH git server. The server stops and
+// its bare repo is removed when the test that started it finishes.
 type sshMirror struct {
-	server *gliderssh.Server
-	ln     net.Listener
 	// url is the SSH endpoint, of form
 	// `ssh://git@127.0.0.1:PORT/terragrunt.git`.
 	url string
-	// bareDir is the temporary bare repo the server serves; removed
-	// on shutdown.
+	// bareDir is the bare repo the server serves.
 	bareDir string
 	// keyPEM is the OpenSSH-format private key the server accepts.
 	keyPEM []byte
@@ -55,72 +57,34 @@ type sshMirror struct {
 // execs `git-upload-pack` (or `git-receive-pack`) against the bare repo
 // on each session, ignoring the path the client requested because there
 // is only one repo to serve. The returned [sshMirror] carries the SSH
-// URL (`ssh://git@HOST:PORT/terragrunt.git`), the OpenSSH-format private
-// key bytes that consumer tests materialize on disk via
-// [GitServer.RequireSSH], and the server/listener/bare-repo
-// handles its owner releases via [GitServer.shutdown].
+// URL (`ssh://git@HOST:PORT/terragrunt.git`) and the OpenSSH-format
+// private key bytes that consumer tests materialize on disk via
+// [GitServer.RequireSSH]. The server shuts down when t finishes.
 //
-// Returns an error if `ssh` or `git-upload-pack` is not on PATH;
-// callers should treat that as "skip SSH tests" rather than fatal.
-func startSSHMirror(fixturesDir string, dirs []string, mirrorHTTPURL string) (*sshMirror, error) {
-	if _, err := exec.LookPath("ssh"); err != nil {
-		return nil, fmt.Errorf("ssh client not available: %w", err)
+// Fails t when `ssh` or `git-upload-pack` is not on PATH.
+func startSSHMirror(t *testing.T, fixturesDir string, dirs []string, mirrorHTTPURL string) *sshMirror {
+	t.Helper()
+
+	for _, bin := range []string{"ssh", "git-upload-pack"} {
+		_, err := exec.LookPath(bin)
+		require.NoError(t, err, "ssh git server needs %s on PATH", bin)
 	}
-
-	if _, err := exec.LookPath("git-upload-pack"); err != nil {
-		return nil, fmt.Errorf("git-upload-pack not available: %w", err)
-	}
-
-	// Bind first so the port (and therefore the SSH URL) is known
-	// before populating the bare repo. Fixtures that embed
-	// __MIRROR_SSH_URL__ need the substitution to happen at bake time.
-	var lc net.ListenConfig
-
-	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		return nil, fmt.Errorf("listen: %w", err)
-	}
-
-	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
-	if !ok {
-		_ = ln.Close()
-
-		return nil, fmt.Errorf("listener returned non-TCP addr %T", ln.Addr())
-	}
-
-	sshURL := fmt.Sprintf("ssh://git@127.0.0.1:%d/terragrunt.git", tcpAddr.Port)
 
 	clientPriv, clientPub, err := generateSSHKey()
-	if err != nil {
-		_ = ln.Close()
-
-		return nil, fmt.Errorf("generate client key: %w", err)
-	}
+	require.NoError(t, err, "generate client key")
 
 	hostSigner, err := generateHostSigner()
-	if err != nil {
-		_ = ln.Close()
+	require.NoError(t, err, "generate host signer")
 
-		return nil, fmt.Errorf("host signer: %w", err)
-	}
+	bareDir := t.TempDir()
 
-	bareDir, err := os.MkdirTemp("", "terragrunt-ssh-bare-*.git")
-	if err != nil {
-		_ = ln.Close()
-
-		return nil, fmt.Errorf("mkdir bare: %w", err)
-	}
-
-	if err := populateBareRepo(fixturesDir, dirs, bareDir, mirrorHTTPURL, sshURL); err != nil {
-		_ = ln.Close()
-		_ = os.RemoveAll(bareDir)
-
-		return nil, fmt.Errorf("populate bare repo: %w", err)
-	}
+	l := logger.CreateLogger()
 
 	server := &gliderssh.Server{
 		Handler: func(s gliderssh.Session) {
-			handleGitSSHSession(s, bareDir)
+			if err := handleGitSSHSession(s, bareDir); err != nil {
+				l.Debugf("SSH git session: %v", err)
+			}
 		},
 		PublicKeyHandler: func(_ gliderssh.Context, key gliderssh.PublicKey) bool {
 			return gliderssh.KeysEqual(key, clientPub)
@@ -128,36 +92,57 @@ func startSSHMirror(fixturesDir string, dirs []string, mirrorHTTPURL string) (*s
 	}
 	server.AddHostKey(hostSigner)
 
-	go func() { _ = server.Serve(ln) }()
+	// Bind first so the port (and therefore the SSH URL) is known
+	// before populating the bare repo. Fixtures that embed
+	// __MIRROR_SSH_URL__ need the substitution to happen at bake time.
+	var lc net.ListenConfig
+
+	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err, "listen")
+
+	serveErrCh := make(chan error, 1)
+
+	go func() {
+		serveErrCh <- server.Serve(ln)
+	}()
+
+	t.Cleanup(func() {
+		assert.NoError(t, server.Close(), "close ssh server")
+
+		if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err, "close ssh listener")
+		}
+
+		if err := <-serveErrCh; !errors.Is(err, gliderssh.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err, "serve ssh")
+		}
+	})
+
+	sshURL := fmt.Sprintf("ssh://git@%s/terragrunt.git", ln.Addr())
+
+	require.NoError(t, populateBareRepo(fixturesDir, dirs, bareDir, mirrorHTTPURL, sshURL), "populate bare repo")
 
 	return &sshMirror{
 		url:     sshURL,
 		keyPEM:  clientPriv,
-		server:  server,
-		ln:      ln,
 		bareDir: bareDir,
-	}, nil
+	}
 }
 
 // handleGitSSHSession services a single SSH `exec` request by running
 // `git-upload-pack` (or `git-receive-pack`) against the bare repo and
-// piping stdin/stdout/stderr through the SSH channel.
-func handleGitSSHSession(s gliderssh.Session, bareDir string) {
+// piping stdin/stdout/stderr through the SSH channel. It returns the errors
+// from reporting to the client and from ending the session.
+func handleGitSSHSession(s gliderssh.Session, bareDir string) error {
 	cmd := s.Command()
 	if len(cmd) == 0 {
-		_, _ = fmt.Fprintln(s.Stderr(), "no command provided")
-		_ = s.Exit(1)
-
-		return
+		return failGitSSHSession(s, "no command provided\n")
 	}
 
 	switch cmd[0] {
 	case "git-upload-pack", "git-receive-pack":
 	default:
-		_, _ = fmt.Fprintf(s.Stderr(), "unsupported command %q\n", cmd[0])
-		_ = s.Exit(1)
-
-		return
+		return failGitSSHSession(s, fmt.Sprintf("unsupported command %q\n", cmd[0]))
 	}
 
 	// Ignore the path the client requested. The server has a single
@@ -168,13 +153,18 @@ func handleGitSSHSession(s gliderssh.Session, bareDir string) {
 	execCmd.Stderr = s.Stderr()
 
 	if err := execCmd.Run(); err != nil {
-		_, _ = fmt.Fprintf(s.Stderr(), "%s failed: %v\n", cmd[0], err)
-		_ = s.Exit(1)
-
-		return
+		return failGitSSHSession(s, fmt.Sprintf("%s failed: %v\n", cmd[0], err))
 	}
 
-	_ = s.Exit(0)
+	return s.Exit(0)
+}
+
+// failGitSSHSession writes msg to the session's stderr and ends the session
+// with exit status 1.
+func failGitSSHSession(s gliderssh.Session, msg string) error {
+	_, writeErr := io.WriteString(s.Stderr(), msg)
+
+	return errors.Join(writeErr, s.Exit(1))
 }
 
 // generateSSHKey returns an ed25519 keypair: the private key encoded
@@ -223,13 +213,17 @@ func generateHostSigner() (cryptossh.Signer, error) {
 // __MIRROR_URL__ and __MIRROR_SSH_URL__ in `*.hcl`, `*.tf`, and `*.tofu`
 // files are substituted at copy time so a clone of one fixture that
 // references another stays inside the local mirror.
-func populateBareRepo(fixturesDir string, dirs []string, bareDir, httpURL, sshURL string) error {
+func populateBareRepo(fixturesDir string, dirs []string, bareDir, httpURL, sshURL string) (retErr error) {
 	workDir, err := os.MkdirTemp("", "terragrunt-ssh-work-*")
 	if err != nil {
 		return fmt.Errorf("mkdir work: %w", err)
 	}
 
-	defer func() { _ = os.RemoveAll(workDir) }()
+	defer func() {
+		if err := os.RemoveAll(workDir); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("remove work repo: %w", err))
+		}
+	}()
 
 	// Identity and signing are pinned, and the per-user ignore and attributes files, which git reads even
 	// with config files suppressed, are pointed at nothing.

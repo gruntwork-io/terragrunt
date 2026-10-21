@@ -1691,7 +1691,7 @@ func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool)
 // containing bucket/container does not exist yet.
 func isRemoteStateMissing(err error) bool {
 	// A client-construction failure is not an absent state, so it must not yield mock outputs.
-	if _, ok := errors.AsType[*azurermbackend.StateClientSetupError](err); ok {
+	if errors.As(err, new(*azurermbackend.StateClientSetupError)) {
 		return false
 	}
 

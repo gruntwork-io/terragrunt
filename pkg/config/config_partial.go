@@ -883,7 +883,9 @@ func PartialParseConfig(
 	}
 
 	if output.Terraform != nil && output.Terraform.Source != nil {
-		markLocalModuleSourceAsRead(v, pctx, *output.Terraform.Source)
+		if err := markLocalModuleSourceAsRead(v, pctx, *output.Terraform.Source); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
@@ -983,7 +985,7 @@ func partialParseIncludedConfig(
 	)
 	if err != nil {
 		// Convert generic config not found error to include-specific error
-		if _, ok := errors.AsType[TerragruntConfigNotFoundError](err); ok {
+		if errors.As(err, new(TerragruntConfigNotFoundError)) {
 			return nil, IncludeConfigNotFoundError{
 				IncludePath: includePath,
 				SourcePath:  pctx.TerragruntConfigPath,

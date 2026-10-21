@@ -841,7 +841,11 @@ func (g *GitRunner) Config(ctx context.Context, name string) (string, error) {
 
 // GetRemoteURL returns the origin remote URL, or empty string on error.
 func (g *GitRunner) GetRemoteURL(ctx context.Context) string {
-	remote, _ := g.Config(ctx, "remote.origin.url")
+	remote, err := g.Config(ctx, "remote.origin.url")
+	if err != nil {
+		return ""
+	}
+
 	return remote
 }
 

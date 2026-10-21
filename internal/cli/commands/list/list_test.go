@@ -253,9 +253,8 @@ func TestDAGSortingReversedDependencies(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	// Create test directory structure with dependencies:
-	// unit3 -> unit2
-	// unit2 -> unit1
+	// Create test directory structure where unit3 depends on unit2,
+	// which depends on unit1.
 	testDirs := []string{
 		"unit1",
 		"unit2",

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -286,37 +287,15 @@ func TestPopulateBareRepoInitBareFailure(t *testing.T) {
 	require.ErrorContains(t, err, "init --bare")
 }
 
-func TestStartSSHMirrorPopulateFailure(t *testing.T) {
-	t.Parallel()
-
-	thTRequireBinaries(t, "ssh", "git-upload-pack", "git")
-
-	fixturesDir, err := locateFixturesDir()
-	require.NoError(t, err)
-
-	m, err := startSSHMirror(fixturesDir, []string{"test/fixtures/thT-missing"}, thTHTTPURL)
-	require.Error(t, err)
-	assert.Nil(t, m)
-	require.ErrorContains(t, err, "populate bare repo")
-	require.ErrorIs(t, err, fs.ErrNotExist)
-}
-
 func TestHandleGitSSHSession(t *testing.T) {
 	t.Parallel()
 
-	thTRequireBinaries(t, "ssh", "git-upload-pack", "git")
+	thTRequireBinaries(t, "git")
 
 	fixturesDir, err := locateFixturesDir()
 	require.NoError(t, err)
 
-	m, err := startSSHMirror(fixturesDir, nil, thTHTTPURL)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		_ = m.server.Close()
-		_ = m.ln.Close()
-		_ = os.RemoveAll(m.bareDir)
-	})
+	m := startSSHMirror(t, fixturesDir, nil, thTHTTPURL)
 
 	client := thTDialSSH(t, m)
 
@@ -433,23 +412,6 @@ func TestAddReportsSSHRefreshFailure(t *testing.T) {
 	assert.NotEqual(t, before, s.headSHA, "add commits to the HTTP mirror before refreshing SSH")
 	assert.Equal(t, []string{"test/fixtures/c"}, s.committedDirsLocked(),
 		"the HTTP mirror keeps the commit the SSH refresh could not copy")
-}
-
-func TestStartSSHMirrorReportsBareDirFailure(t *testing.T) {
-	thTRequireBinaries(t, "ssh", "git-upload-pack", "git")
-
-	fixturesDir := thTFakeFixtures(t)
-
-	// New temp dirs point at a path that does not exist, so creating the bare dir fails.
-	missing := filepath.Join(t.TempDir(), "missing")
-	t.Setenv("TMPDIR", missing)
-	t.Setenv("TMP", missing)
-	t.Setenv("TEMP", missing)
-
-	m, err := startSSHMirror(fixturesDir, nil, thTHTTPURL)
-	require.Error(t, err)
-	assert.Nil(t, m)
-	require.ErrorContains(t, err, "mkdir bare")
 }
 
 func TestPopulateBareRepoReportsWorkRepoStepFailures(t *testing.T) {
@@ -677,7 +639,10 @@ func thTDialSSH(t *testing.T, m *sshMirror) *cryptossh.Client {
 	signer, err := cryptossh.ParsePrivateKey(m.keyPEM)
 	require.NoError(t, err)
 
-	addr := m.ln.Addr().String()
+	u, err := url.Parse(m.url)
+	require.NoError(t, err)
+
+	addr := u.Host
 
 	var dialer net.Dialer
 

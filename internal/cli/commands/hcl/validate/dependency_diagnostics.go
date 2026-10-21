@@ -191,13 +191,8 @@ func isUngeneratedStackUnit(fsys vfs.FS, path string) bool {
 
 // reportsMissingDependency reports whether err has a missing `dependency` or `dependencies` target in its tree.
 func reportsMissingDependency(err error) bool {
-	if _, ok := errors.AsType[config.DependencyConfigNotFound](err); ok {
-		return true
-	}
-
-	_, ok := errors.AsType[config.DependencyDirNotFoundError](err)
-
-	return ok
+	return errors.As(err, new(config.DependencyConfigNotFound)) ||
+		errors.As(err, new(config.DependencyDirNotFoundError))
 }
 
 // dependencySource is a configuration file read for the expressions that declare its dependencies.
@@ -262,26 +257,39 @@ func readDependencySource(fsys vfs.FS, path string) (*dependencySource, error) {
 
 	source := &dependencySource{file: file, configPaths: make(map[string]hcl.Expression)}
 
-	content, _, _ := file.Body.PartialContent(&hcl.BodySchema{
+	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
 			{Type: dependencyBlock, LabelNames: []string{"name"}},
 			{Type: dependenciesBlock},
 		},
 	})
+	if diags.HasErrors() {
+		return nil, diags
+	}
 
 	for _, block := range content.Blocks {
-		attrs, _, _ := block.Body.PartialContent(&hcl.BodySchema{
+		attrs, _, diags := block.Body.PartialContent(&hcl.BodySchema{
 			Attributes: []hcl.AttributeSchema{{Name: configPathAttribute}, {Name: pathsAttribute}},
 		})
+		if diags.HasErrors() {
+			return nil, diags
+		}
 
 		if attr, ok := attrs.Attributes[configPathAttribute]; ok && block.Type == dependencyBlock {
 			source.configPaths[block.Labels[0]] = attr.Expr
 		}
 
-		if attr, ok := attrs.Attributes[pathsAttribute]; ok && block.Type == dependenciesBlock {
-			elements, _ := hcl.ExprList(attr.Expr)
-			source.paths = append(source.paths, elements...)
+		attr, ok := attrs.Attributes[pathsAttribute]
+		if !ok || block.Type != dependenciesBlock {
+			continue
 		}
+
+		elements, diags := hcl.ExprList(attr.Expr)
+		if diags.HasErrors() {
+			continue
+		}
+
+		source.paths = append(source.paths, elements...)
 	}
 
 	return source, nil

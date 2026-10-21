@@ -44,7 +44,7 @@ func TestExitCodeUnix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	for index := 0; index <= 255; index++ {
+	for index := range 256 {
 		cmd := exec.Command(
 			t.Context(),
 			venvtest.New().WithExec(vexec.NewOSExec()),
