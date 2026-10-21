@@ -40,25 +40,21 @@ func TestAzureDocsOverview(t *testing.T) {
 		// without the unique name prefix. In every step but the first, each
 		// one pairs with a vnet unit.
 		resourceGroups []string
-		// single marks the one-unit step, which runs without --all.
-		single bool
-		// mockPlan marks steps whose vnet unit carries mock_outputs: the docs
-		// plan them before anything is applied, so the test does too.
-		mockPlan bool
 		// mockIDs lists the mock resource group ids the plan output must
 		// contain, one per region, so every region's vnet is verified.
 		mockIDs []string
+		// single marks the one-unit step, which runs without --all.
+		single bool
 	}{
 		{name: "step-01-terragrunt.hcl", resourceGroups: []string{"-step-one-rg"}, single: true},
 		{name: "step-02-dependencies", resourceGroups: []string{"-step-two-rg"}},
-		{name: "step-03-mock-outputs", resourceGroups: []string{"-step-three-rg"}, mockPlan: true,
+		{name: "step-03-mock-outputs", resourceGroups: []string{"-step-three-rg"},
 			mockIDs: []string{azureDocsMockResourceID}},
-		{name: "step-04-configuration-hierarchy", resourceGroups: []string{"-step-four-rg"}, mockPlan: true,
+		{name: "step-04-configuration-hierarchy", resourceGroups: []string{"-step-four-rg"},
 			mockIDs: []string{azureDocsMockResourceID}},
 		{
 			name:           "step-05-exposed-includes",
 			resourceGroups: []string{"-step-five-rg-eastus", "-step-five-rg-westus2"},
-			mockPlan:       true,
 			mockIDs: []string{
 				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg-eastus",
 				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg-westus2",
@@ -100,14 +96,15 @@ func TestAzureDocsOverview(t *testing.T) {
 				assert.NoError(t, err, "destroying the step's infrastructure")
 			}()
 
-			if step.mockPlan {
+			if len(step.mockIDs) > 0 {
 				planCmd := "terragrunt run --all --non-interactive --backend-bootstrap --working-dir " +
 					rootPath + " -- plan"
 
 				stdout, err := runTerragruntUntilRoleAssignmentPropagates(t, planCmd)
 				require.NoError(t, err)
+
 				for _, mockID := range step.mockIDs {
-					require.GreaterOrEqual(t, strings.Count(stdout, mockID), 1,
+					require.Contains(t, stdout, mockID,
 						"every region's vnet plan must use its mock resource group id while its rg has no outputs")
 				}
 			}

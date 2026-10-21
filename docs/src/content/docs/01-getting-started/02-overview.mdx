@@ -236,7 +236,7 @@ If you want to try this configuration locally:
 </Fragment>
 </StatefulTabs>
 
-The `--backend-bootstrap` flag tells Terragrunt that it's allowed to create the remote state resources described in the `remote_state` block if they don't exist yet. Terragrunt creates remote-state resources only when you pass this flag.
+The `--backend-bootstrap` flag lets this `apply` run create the remote state resources described in the `remote_state` block if they don't exist yet. You can also create them beforehand with `terragrunt backend bootstrap`.
 
 If you're familiar with OpenTofu/Terraform, this should be a pretty familiar experience.
 
@@ -1655,7 +1655,7 @@ dependency "rg" {
   config_path = "../rg"
 
   mock_outputs = {
-    resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg"
+    resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg-${local.region}"
   }
 
   mock_outputs_allowed_terraform_commands = ["plan"]

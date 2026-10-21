@@ -16,7 +16,7 @@ dependency "rg" {
   config_path = "../rg"
 
   mock_outputs = {
-    resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg-eastus"
+    resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg-${local.region}"
   }
 
   mock_outputs_allowed_terraform_commands = ["plan"]
