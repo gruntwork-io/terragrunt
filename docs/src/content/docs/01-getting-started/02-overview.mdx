@@ -830,6 +830,8 @@ Every Google module in this guide takes a `project_id` input, so `root.hcl` sets
 
 By doing this, you can see that it's become easier to introduce new units of infrastructure, as you only need to define the unique parts of the configuration for that unit in the new `terragrunt.hcl` file. The shared configuration is inherited from the `root.hcl` file.
 
+Run `terragrunt plan` in the unit's directory before moving on. It should report no changes, because the unit still uses the same state. Running it also initializes the unit against that state, which the [Migrating state](#migrating-state) section needs later.
+
 When you see `include` blocks in Terragrunt, remember that they result in the configuration being _inlined_ into the configuration file that includes them. For the most part, you can simply replace the relevant `include` block with the configuration it is including to see the full configuration that Terragrunt will use.
 
 The exception to this is when you are using directives that explicitly leverage the fact that configurations are being included.
