@@ -45,15 +45,24 @@ func TestAzureDocsOverview(t *testing.T) {
 		// mockPlan marks steps whose vnet unit carries mock_outputs: the docs
 		// plan them before anything is applied, so the test does too.
 		mockPlan bool
+		// mockIDs lists the mock resource group ids the plan output must
+		// contain, one per region, so every region's vnet is verified.
+		mockIDs []string
 	}{
 		{name: "step-01-terragrunt.hcl", resourceGroups: []string{"-step-one-rg"}, single: true},
 		{name: "step-02-dependencies", resourceGroups: []string{"-step-two-rg"}},
-		{name: "step-03-mock-outputs", resourceGroups: []string{"-step-three-rg"}, mockPlan: true},
-		{name: "step-04-configuration-hierarchy", resourceGroups: []string{"-step-four-rg"}, mockPlan: true},
+		{name: "step-03-mock-outputs", resourceGroups: []string{"-step-three-rg"}, mockPlan: true,
+			mockIDs: []string{azureDocsMockResourceID}},
+		{name: "step-04-configuration-hierarchy", resourceGroups: []string{"-step-four-rg"}, mockPlan: true,
+			mockIDs: []string{azureDocsMockResourceID}},
 		{
 			name:           "step-05-exposed-includes",
 			resourceGroups: []string{"-step-five-rg-eastus", "-step-five-rg-westus2"},
 			mockPlan:       true,
+			mockIDs: []string{
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg-eastus",
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg-westus2",
+			},
 		},
 	}
 
@@ -75,10 +84,10 @@ func TestAzureDocsOverview(t *testing.T) {
 				destroyCmd = "terragrunt destroy -auto-approve --non-interactive --working-dir " + rootPath
 			}
 
-			// Clean up the state stuff and every workload resource group in case
-			// the destroy below does not finish. These defers are registered
-			// before it, so they run after it: workload groups first, then the
-			// state group with the storage account.
+			// Clean up the state resource group and every workload resource
+			// group in case the destroy below does not finish. These defers
+			// are registered before it, so they run after it: workload groups
+			// first, then the state group with the storage account.
 			defer deleteAzureResourceGroup(t, env.storageAccount, env.stateResourceGroup)
 			for _, resourceGroup := range env.workloadResourceGroups {
 				defer deleteAzureResourceGroup(t, env.storageAccount, resourceGroup)
@@ -96,8 +105,10 @@ func TestAzureDocsOverview(t *testing.T) {
 
 				stdout, err := runTerragruntUntilRoleAssignmentPropagates(t, planCmd)
 				require.NoError(t, err)
-				require.GreaterOrEqual(t, strings.Count(stdout, azureDocsMockResourceID), len(step.resourceGroups),
-					"every vnet plan must use the mock resource group id while its rg has no outputs")
+				for _, mockID := range step.mockIDs {
+					require.GreaterOrEqual(t, strings.Count(stdout, mockID), 1,
+						"every region's vnet plan must use its mock resource group id while its rg has no outputs")
+				}
 			}
 
 			_, err := runTerragruntUntilRoleAssignmentPropagates(t, applyCmd)
@@ -154,8 +165,6 @@ func setupAzureDocsStep(t *testing.T, step string, resourceGroups []string) azur
 	})
 	require.NoError(t, err)
 
-	// Registered after the state group so they run before it. Deleting a group
-	// that destroy already removed is a no-op.
 	var workloadResourceGroups []string
 	for _, suffix := range resourceGroups {
 		workloadResourceGroups = append(workloadResourceGroups, placeholders["__FILL_IN_NAME_PREFIX__"]+suffix)

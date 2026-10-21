@@ -16,19 +16,19 @@ It includes configurations that are a bit more complex than the ones found in th
 
 We'll walk you through each one, and you don't need to understand everything right away. Knowing that these features are available as you start to use Terragrunt can give you a tool to reach for when you encounter common problems that typically require one or more of these solutions.
 
-This guide is geared towards users who have either already gone through the [Quick Start](/getting-started/quick-start/) or are joining a team of users that are already using Terragrunt. As a consequence, we'll be using more complex configurations, discussing more advanced features, and showing how to use Terragrunt to manage real cloud infrastructure.
+This guide is for readers who have completed the [Quick Start](/getting-started/quick-start/) or joined a team already using Terragrunt. It covers advanced configuration with cloud examples.
 
 If you are unfamiliar with OpenTofu/Terraform, you may want to also read [OpenTofu](https://opentofu.org/docs/intro/) or [Terraform](https://developer.hashicorp.com/terraform/intro) documentation after reading this guide.
 
 <Aside type="tip" title="Pick a cloud provider">
-The code samples on this page come in a version for each cloud provider this guide covers. Use the tabs above each sample to switch between them. Switching one sample switches every sample on the page, and your choice is remembered as you move between pages.
+Choose a provider in any sample tab. Your choice syncs across this page and persists as you move between pages.
 </Aside>
 
 ## Following Along
 
 What follows isn't a tutorial in the same sense as the [Quick Start](/getting-started/quick-start/), but more of a guided tour of some of the more commonly used features of Terragrunt. You don't need to follow along to understand the concepts, but if you want to, you can.
 
-The code samples provided here are available as individual "steps" for each cloud provider covered on this page:
+Browse the steps for your provider:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
 <Fragment slot="aws">
@@ -236,7 +236,7 @@ If you want to try this configuration locally:
 </Fragment>
 </StatefulTabs>
 
-The `--backend-bootstrap` flag tells Terragrunt that it's allowed to create the remote state resources described in the `remote_state` block if they don't exist yet. Terragrunt won't create cloud resources as a side effect of a run unless you opt in like this.
+The `--backend-bootstrap` flag tells Terragrunt that it's allowed to create the remote state resources described in the `remote_state` block if they don't exist yet. Terragrunt creates remote-state resources only when you pass this flag.
 
 If you're familiar with OpenTofu/Terraform, this should be a pretty familiar experience.
 
@@ -340,7 +340,7 @@ provider "azapi" {
 </Fragment>
 </StatefulTabs>
 
-This is the most common use case for the `generate` block, but you can use it to inject any file you want into the OpenTofu/Terraform module. This can be useful for injecting any configurations that aren't part of the generic module you want to reuse, or aren't easy to generate dynamically (such as `provider` blocks, which can't be dynamic in OpenTofu/Terraform). You can imagine that it may be convenient to have one set of modules, but dynamically inject different provider configurations based on the region you're deploying to, etc.
+In this example, the `generate` block writes `provider.tf` before OpenTofu/Terraform runs. You can also use it to add other files to a module, such as provider settings that vary by region.
 
 You want to be mindful not to do too much with this configuration block, as it can make your OpenTofu/Terraform code harder to reproduce, understand and maintain. But it can be a powerful tool when used judiciously.
 
@@ -457,7 +457,7 @@ This statement above is kind of a lie:
 
 \*  Here is a typical `terragrunt.hcl` file you might find in a Terragrunt project.
 
-The truth is, you'll almost never see configuration like that outside of some tests or examples. The reason for this is that one of the main responsibilities Terragrunt has is to scale IaC, and the configuration above would result in quite a lot of code duplication across a project. In a typical project, for example, you will probably use the same (or very similar) `provider` configuration across all your units, and you'll probably use the same `backend` configuration across all your units (with the only exception being the path in the backend where each unit's state is stored).
+Most projects share provider and backend settings across units. Repeating them in every `terragrunt.hcl` creates duplication. The state path is the part that varies for each unit.
 
 Aware of this pattern, Terragrunt is designed to leverage a hierarchy of reusable configurations so that your code can be [DRY (Don't Repeat Yourself)](/getting-started/terminology#dont-repeat-yourself-dry).
 
@@ -1013,7 +1013,7 @@ terraform {
 
 Go ahead and apply that plan with `terragrunt apply`, so both units exist for the next section.
 
-Note that `init -migrate-state` copies the state to its new location, but leaves the original behind at the old one. It's harmless, but you may want to delete it once you've confirmed the migration worked.
+Note that `init -migrate-state` copies the state to its new location, but leaves the original behind at the old one. After verifying the new state and retiring configurations that use the old key, remove or archive the old copy.
 
 Following this pattern, you can create as many units of infrastructure in your project as you like without worrying about collisions in remote state keys.
 
