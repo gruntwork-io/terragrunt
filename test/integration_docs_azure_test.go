@@ -61,7 +61,8 @@ func TestAzureDocsOverview(t *testing.T) {
 		t.Run(step.name, func(t *testing.T) {
 			t.Parallel()
 
-			rootPath := setupAzureDocsStep(t, step.name, step.resourceGroups)
+			env := setupAzureDocsStep(t, step.name, step.resourceGroups)
+			rootPath := env.rootPath
 
 			applyCmd := "terragrunt run --all --non-interactive --backend-bootstrap --working-dir " +
 				rootPath + " -- apply -auto-approve"
@@ -74,9 +75,16 @@ func TestAzureDocsOverview(t *testing.T) {
 				destroyCmd = "terragrunt destroy -auto-approve --non-interactive --working-dir " + rootPath
 			}
 
-			// A failed destroy must not hide the apply error that caused it. Setup
-			// registers cleanup for the state resource group and every workload
-			// resource group, so a failed destroy leaves nothing behind either.
+			// Clean up the state stuff and every workload resource group in case
+			// the destroy below does not finish. These defers are registered
+			// before it, so they run after it: workload groups first, then the
+			// state group with the storage account.
+			defer deleteAzureResourceGroup(t, env.storageAccount, env.stateResourceGroup)
+			for _, resourceGroup := range env.workloadResourceGroups {
+				defer deleteAzureResourceGroup(t, env.storageAccount, resourceGroup)
+			}
+
+			// A failed destroy must not hide the apply error that caused it.
 			defer func() {
 				_, _, err := helpers.RunTerragruntCommandWithOutput(t, destroyCmd)
 				assert.NoError(t, err, "destroying the step's infrastructure")
@@ -98,11 +106,18 @@ func TestAzureDocsOverview(t *testing.T) {
 	}
 }
 
+// azureDocsStepEnv holds what a step run needs to clean up after itself.
+type azureDocsStepEnv struct {
+	rootPath               string
+	storageAccount         string
+	stateResourceGroup     string
+	workloadResourceGroups []string
+}
+
 // setupAzureDocsStep copies one fixture step and points it at a state resource
-// group and storage account that do not exist yet. Cleanup deletes that resource
-// group, storage account included, and the workload resource groups named by
-// resourceGroups in case destroy did not finish.
-func setupAzureDocsStep(t *testing.T, step string, resourceGroups []string) string {
+// group and storage account that do not exist yet. The caller deletes the
+// returned resource groups, storage account included, after the step's destroy.
+func setupAzureDocsStep(t *testing.T, step string, resourceGroups []string) azureDocsStepEnv {
 	t.Helper()
 
 	subscriptionID := requireAzureEnv(t, envAzureSubscriptionID)
@@ -139,17 +154,19 @@ func setupAzureDocsStep(t *testing.T, step string, resourceGroups []string) stri
 	})
 	require.NoError(t, err)
 
-	t.Cleanup(func() { deleteAzureResourceGroup(t, account, stateResourceGroup) })
-
 	// Registered after the state group so they run before it. Deleting a group
 	// that destroy already removed is a no-op.
+	var workloadResourceGroups []string
 	for _, suffix := range resourceGroups {
-		workloadResourceGroup := placeholders["__FILL_IN_NAME_PREFIX__"] + suffix
-
-		t.Cleanup(func() { deleteAzureResourceGroup(t, account, workloadResourceGroup) })
+		workloadResourceGroups = append(workloadResourceGroups, placeholders["__FILL_IN_NAME_PREFIX__"]+suffix)
 	}
 
-	return rootPath
+	return azureDocsStepEnv{
+		rootPath:               rootPath,
+		storageAccount:         account,
+		stateResourceGroup:     stateResourceGroup,
+		workloadResourceGroups: workloadResourceGroups,
+	}
 }
 
 // runTerragruntUntilRoleAssignmentPropagates runs cmd and retries it only while
