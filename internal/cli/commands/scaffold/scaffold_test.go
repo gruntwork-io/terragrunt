@@ -1,7 +1,6 @@
 package scaffold_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -462,7 +461,7 @@ catalog {
 			// First, verify catalog config parsing
 			v := venvtest.NewWithOSFS()
 			catalogPctx := configbridge.NewParsingContext(opts)
-			catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(context.Background()), l, v, catalogPctx)
+			catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(t.Context()), l, v, catalogPctx)
 			require.NoError(t, err)
 			require.NotNil(t, catalogCfg, tc.description)
 
@@ -557,7 +556,7 @@ catalog {
 	// Parse the configuration
 	v := venvtest.NewWithOSFS()
 	catalogPctx := configbridge.NewParsingContext(opts)
-	catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(context.Background()), l, v, catalogPctx)
+	catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(t.Context()), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
@@ -597,7 +596,7 @@ catalog {
 	// Parse the configuration
 	v := venvtest.NewWithOSFS()
 	catalogPctx := configbridge.NewParsingContext(opts)
-	catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(context.Background()), l, v, catalogPctx)
+	catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(t.Context()), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
