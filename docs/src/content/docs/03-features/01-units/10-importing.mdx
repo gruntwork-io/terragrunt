@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components'
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 Infrastructure often exists before the code that manages it: a bucket someone created in the console, a VPC that predates your adoption of OpenTofu/Terraform, or resources you are moving out of a [Terralith](/guides/terralith-to-terragrunt/). Importing writes those resources into state so the unit that should own them stops planning to recreate them.
 
@@ -16,28 +17,81 @@ Importing is an OpenTofu/Terraform operation. What Terragrunt adds is that state
 
 Run `import` from inside the unit that should own the resource:
 
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
+
 ```bash
 cd live/prod/vpc
 terragrunt import aws_vpc.this vpc-0123456789abcdef0
 ```
 
+</Fragment>
+<Fragment slot="azure">
+
+```bash
+cd live/prod/rg
+terragrunt import azurerm_resource_group.this /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg
+```
+
+</Fragment>
+</StatefulTabs>
+
 `import` is one of the [OpenTofu shortcuts](/reference/cli/commands/opentofu-shortcuts/), so the command above is equivalent to:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
 
 ```bash
 terragrunt run -- import aws_vpc.this vpc-0123456789abcdef0
 ```
 
+</Fragment>
+<Fragment slot="azure">
+
+```bash
+terragrunt run -- import azurerm_resource_group.this /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg
+```
+
+</Fragment>
+</StatefulTabs>
+
 The resource address is resolved against the module the unit sources in its [`terraform` block](/reference/hcl/blocks#terraform), not against your `terragrunt.hcl`. If the unit sources a module that wraps the resource in a submodule, address it through that path:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
 
 ```bash
 terragrunt import 'module.vpc.aws_vpc.this' vpc-0123456789abcdef0
 ```
 
+</Fragment>
+<Fragment slot="azure">
+
+```bash
+terragrunt import 'module.rg.azurerm_resource_group.this' /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg
+```
+
+</Fragment>
+</StatefulTabs>
+
 Quote addresses that contain square brackets so your shell does not expand them:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
 
 ```bash
 terragrunt import 'aws_subnet.private[0]' subnet-0123456789abcdef0
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```bash
+terragrunt import 'azurerm_subnet.private[0]' /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/private
+```
+
+</Fragment>
+</StatefulTabs>
 
 Terragrunt runs the underlying command in the unit's [working directory](/features/units/terragrunt-cache/), which is inside `.terragrunt-cache` rather than the directory you invoked from. Inputs, generated files, and backend configuration are all applied first, so the import sees the same configuration a `plan` would. Resource IDs are passed through untouched.
 
@@ -61,6 +115,9 @@ If the plan still wants to create the resource, the address you imported to does
 
 A unit that reads outputs from a [`dependency`](/reference/hcl/blocks#dependency) needs those outputs to resolve before any command runs, including `import`. When the dependency has already been applied this is automatic. When it has not, add `import` to the commands that are allowed to use mocks:
 
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
+
 ```hcl
 # terragrunt.hcl
 
@@ -75,6 +132,26 @@ dependency "vpc" {
 }
 ```
 
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# terragrunt.hcl
+
+dependency "rg" {
+  config_path = "../rg"
+
+  mock_outputs = {
+    resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mock-rg"
+  }
+
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "import"]
+}
+```
+
+</Fragment>
+</StatefulTabs>
+
 Without `import` in that list, Terragrunt errors out while resolving the dependency rather than while importing.
 
 ## Using `import` blocks
@@ -82,6 +159,9 @@ Without `import` in that list, Terragrunt errors out while resolving the depende
 The command above is a one-off: it changes state on the machine that runs it and leaves no record. OpenTofu/Terraform [`import` blocks](https://opentofu.org/docs/language/import/) declare imports in configuration instead, so they show up in a plan, get reviewed, and run the same way in CI.
 
 If the unit sources a local module you control, add the block to the module's `.tf` files. If it sources a remote module you do not control, use a [`generate` block](/reference/hcl/blocks#generate) to write the file into the working directory:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
 
 ```hcl
 # terragrunt.hcl
@@ -101,6 +181,31 @@ generate "imports" {
   EOF
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  source = "git::git@github.com:acme/modules.git//rg?ref=v1.2.3"
+}
+
+generate "imports" {
+  path      = "imports.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<-EOF
+    import {
+      to = azurerm_resource_group.this
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg"
+    }
+  EOF
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 Run `terragrunt plan` to preview what will be imported, then `terragrunt apply` to perform it.
 

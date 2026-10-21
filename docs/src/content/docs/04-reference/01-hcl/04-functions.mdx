@@ -22,13 +22,10 @@ terraform {
   source = "../modules/${basename(get_terragrunt_dir())}"
 }
 
-remote_state {
-  backend = "s3"
-  config = {
-    bucket = trimspace("   my-tofu-bucket     ")
-    region = join("-", ["us", "east", "1"])
-    key    = format("%s/tofu.tfstate", path_relative_to_include())
-  }
+inputs = {
+  name        = trimspace("   my-app     ")
+  environment = join("-", ["prod", "eu"])
+  state_path  = format("%s/tofu.tfstate", path_relative_to_include())
 }
 ```
 
@@ -282,11 +279,8 @@ terraform {
 ```hcl
 # terragrunt.hcl
 
-remote_state {
-  backend = "s3"
-  config = {
-    bucket = get_env("BUCKET")
-  }
+inputs = {
+  image_tag = get_env("IMAGE_TAG")
 }
 ```
 
@@ -295,11 +289,8 @@ remote_state {
 ```hcl
 # terragrunt.hcl
 
-remote_state {
-  backend = "s3"
-  config = {
-    bucket = get_env("BUCKET", "my-tofu-bucket")
-  }
+inputs = {
+  image_tag = get_env("IMAGE_TAG", "latest")
 }
 ```
 

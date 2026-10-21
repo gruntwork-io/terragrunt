@@ -1,0 +1,80 @@
+---
+/**
+ * Tabs whose selection is shared across the page and remembered across pages.
+ *
+ * A thin wrapper around Starlight's synced `<Tabs>`: every `StatefulTabs` with
+ * the same `syncKey` switches together, and Starlight persists the selected
+ * tab label in `localStorage` (`starlight-synced-tabs__<syncKey>`), so the
+ * choice survives navigation and reloads. Keep the labels for a given
+ * `syncKey` identical everywhere it is used, or the restore stops matching.
+ *
+ * Usage in MDX:
+ *
+ *   import StatefulTabs from '@components/StatefulTabs.astro';
+ *
+ *   <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+ *   <Fragment slot="aws">
+ *
+ *   ```hcl
+ *   # AWS version
+ *   ```
+ *
+ *   </Fragment>
+ *   <Fragment slot="azure">
+ *
+ *   ```hcl
+ *   # Azure version
+ *   ```
+ *
+ *   </Fragment>
+ *   </StatefulTabs>
+ *
+ * Each tab reads its content from a slot named after its label, lowercased
+ * with runs of non-alphanumeric characters replaced by `-` ("AWS" -> "aws",
+ * "Google Cloud" -> "google-cloud"). A declared tab with no matching slot
+ * fails the build, so a forgotten variant can't ship as an empty panel.
+ */
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+interface Props {
+	/** Shared key: all `StatefulTabs` with this key switch and persist together. */
+	syncKey: string;
+	/** Tab labels, in display order. Shown as-is and used to derive slot names. */
+	tabs: string[];
+}
+
+const { syncKey, tabs } = Astro.props;
+
+if (!syncKey) {
+	throw new Error('Missing prop `syncKey` on `<StatefulTabs>` component.');
+}
+if (!Array.isArray(tabs) || tabs.length === 0) {
+	throw new Error('Missing prop `tabs` on `<StatefulTabs>` component.');
+}
+
+const slotNameFor = (label: string) =>
+	label
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-|-$/g, '');
+
+const panels = await Promise.all(
+	tabs.map(async (label) => {
+		const slot = slotNameFor(label);
+		if (!Astro.slots.has(slot)) {
+			throw new Error(
+				`<StatefulTabs syncKey="${syncKey}">: tab "${label}" has no content. Add <Fragment slot="${slot}">.`,
+			);
+		}
+		return { label, html: await Astro.slots.render(slot) };
+	}),
+);
+---
+
+<Tabs syncKey={syncKey}>
+	{panels.map(({ label, html }) => (
+		<TabItem label={label}>
+			<Fragment set:html={html} />
+		</TabItem>
+	))}
+</Tabs>
