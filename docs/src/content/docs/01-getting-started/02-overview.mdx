@@ -206,7 +206,7 @@ If you want to try this configuration locally:
 
    Running `aws sts get-caller-identity` in the AWS CLI is a good way to confirm this.
 
-4. Run `terragrunt apply --backend-bootstrap -auto-approve` in the directory where you created the `terragrunt.hcl` file.
+4. Run `terragrunt run --backend-bootstrap -- apply -auto-approve` in the directory where you created the `terragrunt.hcl` file.
 
 </Fragment>
 <Fragment slot="azure">
@@ -229,7 +229,7 @@ If you want to try this configuration locally:
 
    The [Azure Verified Modules](https://azure.github.io/Azure-Verified-Modules/) used in this guide require OpenTofu/Terraform 1.9 or newer.
 
-4. Run `terragrunt apply --backend-bootstrap -auto-approve` in the directory where you created the `terragrunt.hcl` file.
+4. Run `terragrunt run --backend-bootstrap -- apply -auto-approve` in the directory where you created the `terragrunt.hcl` file.
 
    If Terragrunt just granted the blob role and this first run fails with a 403 while checking the container, wait a few minutes and rerun. Azure may not have applied the role yet.
 
