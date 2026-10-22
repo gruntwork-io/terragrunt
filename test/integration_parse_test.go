@@ -44,6 +44,7 @@ var knownBadFiles = []string{
 	"fixtures/telemetry-error-status/bad-config/terragrunt.hcl",
 	"fixtures/regressions/terraform-source-references-dependency/live/module-b/terragrunt.hcl",
 	"fixtures/find/source-references-dependency/app/terragrunt.hcl",
+	"fixtures/exclude/dependency-output/unit/terragrunt.hcl",
 	// Files that require AWS credentials (will fail/timeout without them)
 	"fixtures/assume-role/external-id-with-comma/terragrunt.hcl",
 	"fixtures/assume-role/external-id/terragrunt.hcl",

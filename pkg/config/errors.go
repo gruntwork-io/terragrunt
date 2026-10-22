@@ -635,6 +635,20 @@ func (err TerraformSourceReferencesDependencyError) Error() string {
 	)
 }
 
+// ExcludeReferencesDependencyError is returned when an `exclude` block references the `dependency` namespace.
+// Discovery evaluates exclude blocks to build the run queue before any dependency has run, so the reference can
+// never be satisfied there.
+type ExcludeReferencesDependencyError struct {
+	ConfigPath string
+}
+
+func (err ExcludeReferencesDependencyError) Error() string {
+	return fmt.Sprintf(
+		"exclude block in %s cannot reference dependency outputs; exclude blocks are evaluated before dependencies run",
+		err.ConfigPath,
+	)
+}
+
 // MaxParseDepthError is returned when config parsing exceeds the maximum allowed depth.
 type MaxParseDepthError struct {
 	Depth int

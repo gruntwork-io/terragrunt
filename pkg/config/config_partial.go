@@ -115,6 +115,33 @@ func TerraformSourceReferencesDependency(file *hclparse.File) bool {
 	return false
 }
 
+// ValidateExcludeReferences checks that no attribute of an `exclude` block in file references the `dependency`
+// namespace.
+//
+// Returns [ExcludeReferencesDependencyError] when one does, and the diagnostics of an exclude block whose
+// attributes fail to parse.
+func ValidateExcludeReferences(file *hclparse.File) error {
+	blocks, err := file.Blocks(MetadataExclude, true)
+	if err != nil {
+		return err
+	}
+
+	for _, block := range blocks {
+		attrs, err := block.JustAttributes()
+		if err != nil {
+			return err
+		}
+
+		for _, attr := range attrs {
+			if expressionReferencesDependency(attr.Expr) {
+				return ExcludeReferencesDependencyError{ConfigPath: file.ConfigPath}
+			}
+		}
+	}
+
+	return nil
+}
+
 func expressionReferencesDependency(expr hcl.Expression) bool {
 	for _, traversal := range expr.Variables() {
 		if traversal.RootName() == MetadataDependency {
@@ -895,6 +922,10 @@ func PartialParseConfig(
 			}
 
 		case ExcludeBlock:
+			if err := ValidateExcludeReferences(file); err != nil {
+				return nil, err
+			}
+
 			hasExcludeBlock = true
 
 		case ErrorsBlock:
