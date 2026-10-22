@@ -963,6 +963,51 @@ include {
 	}
 }
 
+func TestParseTerragruntConfigIncludeNoDotTerragruntCache(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		fixture string
+	}{
+		{
+			// root.hcl sets the attribute; the unit has its own terraform block without it.
+			name:    "set in the included root",
+			fixture: "local-include-no-dot-terragrunt-cache",
+		},
+		{
+			// root.hcl has a terraform block without the attribute; the unit sets it.
+			name:    "set in the unit",
+			fixture: "local-include-no-dot-terragrunt-cache-child",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfgPath, err := filepath.Abs(
+				filepath.Join("../..", "test", "fixtures", "download", tc.fixture, "unit", config.DefaultTerragruntConfigPath),
+			)
+			require.NoError(t, err)
+
+			l := createLogger()
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+
+			terragruntConfig, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			require.NoError(t, err)
+			require.NotNil(t, terragruntConfig.Terraform)
+
+			// Both sides of the include keep their attributes after the merge.
+			require.NotNil(t, terragruntConfig.Terraform.NoDotTerragruntCache)
+			assert.True(t, *terragruntConfig.Terraform.NoDotTerragruntCache)
+			require.NotNil(t, terragruntConfig.Terraform.CopyTerraformLockFile)
+			assert.True(t, *terragruntConfig.Terraform.CopyTerraformLockFile)
+		})
+	}
+}
+
 func TestParseTerragruntConfigIncludeWithFindInParentFolders(t *testing.T) {
 	t.Parallel()
 

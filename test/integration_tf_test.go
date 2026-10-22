@@ -5448,29 +5448,6 @@ func TestTFNoColorDependency(t *testing.T) {
 	assert.NotContains(t, stdout, "\x1b")
 }
 
-// TestTFTerragruntPassNullValuesReplacesLeftoverCacheFile verifies that the default cache path keeps replacing a
-// null-vars file left in the cache working directory, for example by an interrupted run, since that copy is
-// disposable. Only in-place runs refuse to replace an existing file.
-func TestTFTerragruntPassNullValuesReplacesLeftoverCacheFile(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNullValue)
-	testPath := filepath.Join(tmpEnvPath, testFixtureNullValue)
-
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testPath)
-
-	cacheDirs, err := filepath.Glob(filepath.Join(testPath, ".terragrunt-cache", "*", "*", "main.tf"))
-	require.NoError(t, err)
-	require.Len(t, cacheDirs, 1, "expected exactly one cache working directory")
-
-	leftover := filepath.Join(filepath.Dir(cacheDirs[0]), ".terragrunt-null-vars.auto.tfvars.json")
-	require.NoError(t, os.WriteFile(leftover, []byte(`{"var1":`), 0600))
-
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testPath)
-
-	assert.NoFileExists(t, leftover, "leftover null vars file in the cache must be replaced and removed")
-}
-
 // TestTFTerragruntPassNullValues verifies that terragrunt can pass null values to
 // Terraform variables. This is a regression test for:
 // https://github.com/gruntwork-io/terragrunt/issues/5452

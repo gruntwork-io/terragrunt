@@ -378,7 +378,7 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		if cfg.Terraform == nil {
 			cfg.Terraform = sourceConfig.Terraform
 		} else {
-			mergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
+			MergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
 
 			mergeExtraArgs(l, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
@@ -567,7 +567,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		if cfg.Terraform == nil {
 			cfg.Terraform = sourceConfig.Terraform
 		} else {
-			mergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
+			MergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
 
 			if sourceConfig.Terraform.IncludeInCopy != nil {
 				srcList := *sourceConfig.Terraform.IncludeInCopy
@@ -783,8 +783,9 @@ func mergeExtraArgs(
 	*parentExtraArgs = result
 }
 
-// mergeTerraformAttributes copies the scalar terraform block attributes that are set on sourceConfig onto cfg.
-func mergeTerraformAttributes(cfg, sourceConfig *TerraformConfig) {
+// MergeTerraformAttributes copies the scalar terraform block attributes that are set on sourceConfig onto cfg.
+// Attributes that sourceConfig leaves unset keep their value in cfg.
+func MergeTerraformAttributes(cfg, sourceConfig *TerraformConfig) {
 	if sourceConfig.Source != nil {
 		cfg.Source = sourceConfig.Source
 	}

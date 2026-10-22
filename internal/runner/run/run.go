@@ -174,16 +174,13 @@ func Run(
 	skipCache, err := runcfg.ShouldSkipCache(
 		opts.Experiments.Evaluate(experiment.NoDotTerragruntCache),
 		opts.Source,
+		opts.TerragruntConfigPath,
 		cfg,
 	)
 	if err != nil {
 		return err
 	}
 
-	// When skipCache is true (the no-dot-terragrunt-cache experiment is enabled and no_dot_terragrunt_cache is
-	// set), updatedOpts keeps pointing at the unit directory, so the unit runs in place. Otherwise download/copy
-	// the source into .terragrunt-cache for consistency; when no source is specified, sourceURL is "." (the
-	// current directory).
 	if !skipCache {
 		err = telemetry.TelemeterFromContext(ctx).
 			Collect(ctx, l, "download_terraform_source", map[string]any{
@@ -338,7 +335,7 @@ func runTerragruntWithConfig(
 	}
 
 	// Write null-valued inputs to a tfvars.json file that OpenTofu/Terraform will auto-load.
-	nullVarsFile, err := setTerragruntNullValuesRunCfg(v, originalOpts, opts, cfg)
+	nullVarsFile, err := setTerragruntNullValuesRunCfg(v, opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -980,15 +977,10 @@ func CheckProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
 // cannot accept null values via environment variables (TF_VAR_*), but it can read them
 // from .auto.tfvars.json files.
 //
-// The file is removed after the run. When the unit runs in place, the working directory is the user's unit
-// directory, so an existing file there is never replaced and the run stops with NullVarsFileExists instead. In the
-// cache directory the file is a disposable copy and is overwritten as before.
-func setTerragruntNullValuesRunCfg(
-	v *venv.Venv,
-	originalOpts *Options,
-	opts *Options,
-	cfg *runcfg.RunConfig,
-) (string, error) {
+// The file is removed after the run. When the unit runs in place, the file lands in the user's unit directory,
+// so an existing file there is never replaced and the run stops with NullVarsFileExists. In the cache directory
+// the file is a disposable copy and is overwritten.
+func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunConfig) (string, error) {
 	jsonEmptyVars := make(map[string]any)
 
 	for varName, varValue := range cfg.Inputs {
@@ -1007,47 +999,31 @@ func setTerragruntNullValuesRunCfg(
 	}
 
 	varFile := filepath.Join(opts.CacheDir, NullTFVarsFile)
+	inPlace := filepath.Clean(opts.CacheDir) == filepath.Clean(opts.UnitDir)
 
-	if filepath.Clean(opts.CacheDir) == filepath.Clean(originalOpts.CacheDir) {
-		if err := writeNullVarsFileExclusively(v.FS, varFile, jsonContents); err != nil {
-			return "", err
-		}
-
-		return varFile, nil
-	}
-
-	if err := vfs.WriteFile(v.FS, varFile, jsonContents, nullTFVarsFileMode); err != nil {
+	if err := writeNullVarsFile(v.FS, varFile, jsonContents, inPlace); err != nil {
 		return "", err
 	}
 
 	return varFile, nil
 }
 
-// writeNullVarsFileExclusively creates path with O_EXCL, so an existing file or symlink, or one created between a
-// check and the write, is never replaced. It returns NullVarsFileExists when something already exists at path.
-// When the write fails after the file was created, for example on a full disk, the file is removed again so a
-// partial file does not block the next run.
-func writeNullVarsFileExclusively(fsys vfs.FS, path string, contents []byte) error {
-	file, err := fsys.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, nullTFVarsFileMode)
-	if err != nil {
-		if errors.Is(err, os.ErrExist) {
+// writeNullVarsFile writes contents to path atomically, so path never holds a partial file and nothing is left
+// behind when the write fails. In place, anything already at path, file or symlink, stops the write with
+// NullVarsFileExists rather than being replaced.
+func writeNullVarsFile(fsys vfs.FS, path string, contents []byte, inPlace bool) error {
+	if inPlace {
+		_, err := vfs.Lstat(fsys, path)
+		if err == nil {
 			return NullVarsFileExists{Path: path}
 		}
 
-		return err
-	}
-
-	_, writeErr := file.Write(contents)
-
-	if err := errors.Join(writeErr, file.Close()); err != nil {
-		if removeErr := fsys.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			return errors.Join(err, removeErr)
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
 		}
-
-		return err
 	}
 
-	return nil
+	return vfs.WriteFileAtomic(fsys, path, contents, nullTFVarsFileMode)
 }
 
 // SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.

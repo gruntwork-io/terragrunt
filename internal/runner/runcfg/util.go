@@ -93,14 +93,17 @@ func GetTerraformSourceURL(
 // ShouldSkipCache reports whether a unit should run in place, skipping the copy of its source into the
 // .terragrunt-cache directory.
 //
-// Skipping the cache is opt-in: it requires the no-dot-terragrunt-cache experiment to be enabled and
-// terraform.no_dot_terragrunt_cache to be set to true on a unit that configures no external source. When
-// no_dot_terragrunt_cache is set together with an external source (via the terraform block or the --source flag),
-// it returns a NoDotTerragruntCacheWithSourceError, because an external source has to be fetched into the cache
-// directory and cannot be run in place.
-func ShouldSkipCache(noCacheEnabled bool, source string, cfg *RunConfig) (bool, error) {
-	if cfg == nil || !cfg.Terraform.NoDotTerragruntCache || !noCacheEnabled {
+// terraform.no_dot_terragrunt_cache requires the no-dot-terragrunt-cache experiment; setting it without the
+// experiment returns a NoDotTerragruntCacheRequiresExperimentError. Setting it together with an external source
+// (via the terraform block or the --source flag) returns a NoDotTerragruntCacheWithSourceError, because an
+// external source has to be fetched into the cache directory.
+func ShouldSkipCache(noCacheEnabled bool, source, configPath string, cfg *RunConfig) (bool, error) {
+	if cfg == nil || !cfg.Terraform.NoDotTerragruntCache {
 		return false, nil
+	}
+
+	if !noCacheEnabled {
+		return false, NoDotTerragruntCacheRequiresExperimentError{ConfigPath: configPath}
 	}
 
 	if source != "" {
@@ -209,6 +212,20 @@ func (err ParsingModulePathError) Error() string {
 		"Unable to obtain the module path from the source URL '%s'."+
 			" Ensure that the URL is in a supported format.",
 		err.ModuleSourceURL,
+	)
+}
+
+// NoDotTerragruntCacheRequiresExperimentError is returned when terraform.no_dot_terragrunt_cache is set without
+// the no-dot-terragrunt-cache experiment enabled.
+type NoDotTerragruntCacheRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err NoDotTerragruntCacheRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"terraform.no_dot_terragrunt_cache in %s requires the 'no-dot-terragrunt-cache' experiment;"+
+			" enable it with --experiment no-dot-terragrunt-cache",
+		err.ConfigPath,
 	)
 }
 

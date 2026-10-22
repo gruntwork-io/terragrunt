@@ -157,6 +157,7 @@ func PrepareSource(
 	skipCache, err := runcfg.ShouldSkipCache(
 		opts.Experiments.Evaluate(experiment.NoDotTerragruntCache),
 		opts.Source,
+		opts.TerragruntConfigPath,
 		runCfg,
 	)
 	if err != nil {
@@ -164,8 +165,6 @@ func PrepareSource(
 	}
 
 	if skipCache {
-		// The no-dot-terragrunt-cache experiment is enabled and no_dot_terragrunt_cache is set: run the unit in place
-		// instead of copying its source into .terragrunt-cache.
 		_, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 		if err != nil {
 			return nil, err

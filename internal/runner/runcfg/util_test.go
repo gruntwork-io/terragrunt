@@ -318,20 +318,30 @@ func TestGetTerraformSourceURL(t *testing.T) {
 func TestShouldSkipCache(t *testing.T) {
 	t.Parallel()
 
-	const externalSource = "git::ssh://git@github.com/org/repo.git"
+	const (
+		externalSource = "git::ssh://git@github.com/org/repo.git"
+		configPath     = "/live/unit/terragrunt.hcl"
+	)
 
 	testCases := []struct {
-		cfg               *runcfg.RunConfig
-		name              string
-		source            string
-		expectedErrSource string
-		noCacheEnabled    bool
-		expectedSkip      bool
+		cfg                       *runcfg.RunConfig
+		name                      string
+		source                    string
+		expectedErrSource         string
+		noCacheEnabled            bool
+		expectedSkip              bool
+		expectedExperimentMissing bool
 	}{
 		{
-			name:           "experiment disabled keeps cache even when no_dot_terragrunt_cache is set",
+			name:                      "experiment disabled with no_dot_terragrunt_cache set errors",
+			noCacheEnabled:            false,
+			cfg:                       &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}},
+			expectedExperimentMissing: true,
+		},
+		{
+			name:           "experiment disabled without no_dot_terragrunt_cache keeps cache",
 			noCacheEnabled: false,
-			cfg:            &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}},
+			cfg:            &runcfg.RunConfig{},
 			expectedSkip:   false,
 		},
 		{
@@ -373,7 +383,16 @@ func TestShouldSkipCache(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			skip, err := runcfg.ShouldSkipCache(tc.noCacheEnabled, tc.source, tc.cfg)
+			skip, err := runcfg.ShouldSkipCache(tc.noCacheEnabled, tc.source, configPath, tc.cfg)
+
+			if tc.expectedExperimentMissing {
+				var experimentErr runcfg.NoDotTerragruntCacheRequiresExperimentError
+				require.ErrorAs(t, err, &experimentErr)
+				assert.Equal(t, configPath, experimentErr.ConfigPath)
+				assert.False(t, skip)
+
+				return
+			}
 
 			if tc.expectedErrSource != "" {
 				var noCacheErr runcfg.NoDotTerragruntCacheWithSourceError
@@ -388,6 +407,15 @@ func TestShouldSkipCache(t *testing.T) {
 			assert.Equal(t, tc.expectedSkip, skip)
 		})
 	}
+}
+
+func TestNoDotTerragruntCacheRequiresExperimentError(t *testing.T) {
+	t.Parallel()
+
+	err := runcfg.NoDotTerragruntCacheRequiresExperimentError{ConfigPath: "/live/unit/terragrunt.hcl"}
+
+	assert.Contains(t, err.Error(), "/live/unit/terragrunt.hcl")
+	assert.Contains(t, err.Error(), "--experiment no-dot-terragrunt-cache")
 }
 
 func TestNoDotTerragruntCacheWithSourceError(t *testing.T) {

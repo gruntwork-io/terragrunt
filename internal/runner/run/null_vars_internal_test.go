@@ -10,31 +10,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWriteNullVarsFileExclusively(t *testing.T) {
+func TestWriteNullVarsFile(t *testing.T) {
 	t.Parallel()
 
-	const path = "/unit/.terragrunt-null-vars.auto.tfvars.json"
+	const (
+		dir  = "/unit"
+		path = dir + "/.terragrunt-null-vars.auto.tfvars.json"
+	)
 
 	t.Run("creates the file", func(t *testing.T) {
 		t.Parallel()
 
 		fsys := vfs.NewMemMapFS()
-		require.NoError(t, fsys.MkdirAll("/unit", 0755))
+		require.NoError(t, fsys.MkdirAll(dir, 0755))
 
-		require.NoError(t, writeNullVarsFileExclusively(fsys, path, []byte(`{"var1": null}`)))
+		require.NoError(t, writeNullVarsFile(fsys, path, []byte(`{"var1": null}`), true))
 
 		contents, err := vfs.ReadFile(fsys, path)
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"var1": null}`, string(contents))
 	})
 
-	t.Run("keeps an existing file", func(t *testing.T) {
+	t.Run("in place keeps an existing file", func(t *testing.T) {
 		t.Parallel()
 
 		fsys := vfs.NewMemMapFS()
 		require.NoError(t, vfs.WriteFile(fsys, path, []byte(`{"keep": "original"}`), 0644))
 
-		err := writeNullVarsFileExclusively(fsys, path, []byte(`{"var1": null}`))
+		err := writeNullVarsFile(fsys, path, []byte(`{"var1": null}`), true)
 
 		var exists NullVarsFileExists
 
@@ -46,18 +49,39 @@ func TestWriteNullVarsFileExclusively(t *testing.T) {
 		assert.JSONEq(t, `{"keep": "original"}`, string(contents))
 	})
 
-	t.Run("removes the file when the write fails", func(t *testing.T) {
+	t.Run("in the cache replaces an existing file", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, path, []byte(`{"var1":`), 0644))
+
+		require.NoError(t, writeNullVarsFile(fsys, path, []byte(`{"var1": null}`), false))
+
+		contents, err := vfs.ReadFile(fsys, path)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"var1": null}`, string(contents))
+	})
+
+	t.Run("leaves nothing behind when the write fails", func(t *testing.T) {
 		t.Parallel()
 
 		fsys := failingWriteFS{FS: vfs.NewMemMapFS()}
-		require.NoError(t, fsys.MkdirAll("/unit", 0755))
+		require.NoError(t, fsys.MkdirAll(dir, 0755))
 
-		err := writeNullVarsFileExclusively(fsys, path, []byte(`{"var1": null}`))
+		err := writeNullVarsFile(fsys, path, []byte(`{"var1": null}`), true)
 		require.ErrorIs(t, err, errWriteFailed)
 
-		// A partial file left behind would make every later run stop with NullVarsFileExists.
+		// A partial file at path would make every later in-place run stop with NullVarsFileExists, and a
+		// scratch file left next to it would clutter the unit directory.
 		_, err = fsys.Stat(path)
-		assert.ErrorIs(t, err, os.ErrNotExist)
+		require.ErrorIs(t, err, os.ErrNotExist)
+
+		d, err := fsys.Open(dir)
+		require.NoError(t, err)
+
+		names, err := d.Readdirnames(-1)
+		require.NoError(t, err)
+		assert.Empty(t, names)
 	})
 }
 

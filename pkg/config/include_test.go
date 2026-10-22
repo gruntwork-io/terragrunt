@@ -797,3 +797,53 @@ func TestIncludeConfigNotFoundError(t *testing.T) {
 		"Include configuration not found: /another/path/config.hcl (referenced from: /different/source.hcl)",
 	)
 }
+
+func TestMergeTerraformAttributes(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		target   *config.TerraformConfig
+		source   *config.TerraformConfig
+		expected *config.TerraformConfig
+		name     string
+	}{
+		{
+			name:     "unset source attributes leave the target untouched",
+			target:   &config.TerraformConfig{Source: new("./target"), NoDotTerragruntCache: new(true)},
+			source:   &config.TerraformConfig{},
+			expected: &config.TerraformConfig{Source: new("./target"), NoDotTerragruntCache: new(true)},
+		},
+		{
+			name:   "set source attributes override the target",
+			target: &config.TerraformConfig{Source: new("./target"), NoDotTerragruntCache: new(true)},
+			source: &config.TerraformConfig{
+				Source:                new("./source"),
+				Version:               new("~> 1.0"),
+				CopyTerraformLockFile: new(false),
+				NoDotTerragruntCache:  new(false),
+			},
+			expected: &config.TerraformConfig{
+				Source:                new("./source"),
+				Version:               new("~> 1.0"),
+				CopyTerraformLockFile: new(false),
+				NoDotTerragruntCache:  new(false),
+			},
+		},
+		{
+			name:     "attributes merge independently",
+			target:   &config.TerraformConfig{CopyTerraformLockFile: new(true)},
+			source:   &config.TerraformConfig{NoDotTerragruntCache: new(true)},
+			expected: &config.TerraformConfig{CopyTerraformLockFile: new(true), NoDotTerragruntCache: new(true)},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			config.MergeTerraformAttributes(tc.target, tc.source)
+
+			assert.Equal(t, tc.expected, tc.target)
+		})
+	}
+}
