@@ -1,12 +1,12 @@
 //go:build azure
 
-// Package test_test contains the Azure end-to-end backend tests.
-//
-// These tests create and destroy real Azure resources behind the `azure` build tag.
+// The Azure end-to-end backend tests in this file create and destroy real
+// Azure resources behind the `azure` build tag.
 //
 // Unlike the hermetic tests, these fail loudly when credentials are absent
 // instead of calling t.Skip. A silently skipped live test reports success and
 // hides the fact that nothing was verified against Azure.
+
 package test_test
 
 import (

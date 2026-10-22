@@ -266,12 +266,13 @@ func (cmd *Command) flagSetParse(
 			break
 		}
 
-		if errStr := err.Error(); strings.HasPrefix(errStr, ErrMsgFlagUndefined) {
-			undefArg = strings.Trim(strings.TrimPrefix(errStr, ErrMsgFlagUndefined), " -")
-			err = UndefinedFlagError(undefArg)
-		} else {
+		errStr := err.Error()
+		if !strings.HasPrefix(errStr, ErrMsgFlagUndefined) {
 			break
 		}
+
+		undefArg = strings.Trim(strings.TrimPrefix(errStr, ErrMsgFlagUndefined), " -")
+		err = UndefinedFlagError(undefArg)
 
 		// cut off the args
 		var notFoundMatch bool

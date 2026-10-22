@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,9 +14,9 @@ import (
 	"sync"
 	"testing"
 
-	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,10 +89,8 @@ type GitServer struct {
 	// [MirrorSHAPlaceholder].
 	headSHA string
 
-	httpServer  *git.Server
-	sshServer   *gliderssh.Server
-	sshListener net.Listener
-	bareDir     string
+	httpServer *git.Server
+	bareDir    string
 
 	// committed is the set of repo-relative fixture directories already
 	// served, so AddFixtures only commits what is missing.
@@ -123,6 +120,10 @@ func NewGitServer(t *testing.T) *GitServer {
 	base, err := srv.Start(t.Context())
 	require.NoError(t, err, "start git server")
 
+	t.Cleanup(func() {
+		assert.NoError(t, srv.Close(), "close git server")
+	})
+
 	fixturesDir, err := locateFixturesDir()
 	require.NoError(t, err, "locate fixtures dir")
 
@@ -145,8 +146,6 @@ func NewGitServer(t *testing.T) *GitServer {
 	// ref without rendering a fixture still find the ref.
 	require.NoError(t, s.initRefs(), "initialize git server refs")
 
-	t.Cleanup(s.shutdown)
-
 	return s
 }
 
@@ -168,27 +167,6 @@ func (s *GitServer) initRefs() error {
 	s.headSHA = head
 
 	return s.retagLocked()
-}
-
-// shutdown releases the server's HTTP and SSH endpoints and removes the
-// SSH bare repo. It is best-effort: teardown errors have nowhere
-// meaningful to go.
-func (s *GitServer) shutdown() {
-	if s.httpServer != nil {
-		_ = s.httpServer.Close()
-	}
-
-	if s.sshServer != nil {
-		_ = s.sshServer.Close()
-	}
-
-	if s.sshListener != nil {
-		_ = s.sshListener.Close()
-	}
-
-	if s.bareDir != "" {
-		_ = os.RemoveAll(s.bareDir)
-	}
 }
 
 // SourceURL returns a go-getter source string of the form
@@ -311,44 +289,34 @@ func (s *GitServer) add(subpaths []string) error {
 }
 
 // RequireSSH adds an SSH endpoint over the content committed so far and
-// points the calling test at it. It skips the test when the SSH endpoint
-// can't be built (typically because `ssh` or `git-upload-pack` is not on
-// PATH). On success it writes the server's private key under t.TempDir()
-// and points `GIT_SSH_COMMAND` at it via t.Setenv. Because t.Setenv
-// panics in parallel tests, a test that calls RequireSSH must not call
-// t.Parallel.
+// points the calling test at it. It writes the server's private key
+// under t.TempDir() and points `GIT_SSH_COMMAND` at it via t.Setenv.
+// Because t.Setenv panics in parallel tests, a test that calls
+// RequireSSH must not call t.Parallel.
 //
 // RequireSSH may be called before the fixtures are added; AddFixtures and
 // RenderFixture refresh the SSH bare repo afterwards. This ordering is
 // what lets a fixture that embeds [MirrorSSHURLPlaceholder] be rendered
 // after the SSH URL is known.
+//
+// Fails the test when `ssh` or `git-upload-pack` is not on PATH.
 func (s *GitServer) RequireSSH() {
 	s.t.Helper()
 
 	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if s.sshServer == nil {
-		ssh, err := startSSHMirror(s.fixturesDir, s.committedDirsLocked(), s.URL)
-		if err != nil {
-			s.mu.Unlock()
-			s.t.Skipf("ssh git server unavailable: %v", err)
-
-			return
-		}
+	if !s.sshLive {
+		ssh := startSSHMirror(s.t, s.fixturesDir, s.committedDirsLocked(), s.URL)
 
 		s.SSHURL = ssh.url
 		s.sshKeyPEM = ssh.keyPEM
-		s.sshServer = ssh.server
-		s.sshListener = ssh.ln
 		s.bareDir = ssh.bareDir
 		s.sshLive = true
 	}
 
-	keyPEM := s.sshKeyPEM
-	s.mu.Unlock()
-
 	keyPath := filepath.Join(s.t.TempDir(), "id_ed25519")
-	require.NoError(s.t, os.WriteFile(keyPath, keyPEM, sshKeyFilePerm), "write ssh key")
+	require.NoError(s.t, os.WriteFile(keyPath, s.sshKeyPEM, sshKeyFilePerm), "write ssh key")
 
 	s.t.Setenv("GIT_SSH_COMMAND", fmt.Sprintf(
 		"ssh -i %q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes",

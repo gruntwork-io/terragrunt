@@ -27,9 +27,9 @@ type Flag struct {
 }
 
 // NewFlag returns a new Flag instance.
-func NewFlag(new clihelper.Flag, opts ...Option) *Flag {
+func NewFlag(cliFlag clihelper.Flag, opts ...Option) *Flag {
 	flag := &Flag{
-		Flag: new,
+		Flag: cliFlag,
 		evaluateWrapper: func(ctx context.Context, evalFn func(ctx context.Context) error) error {
 			return evalFn(ctx)
 		},

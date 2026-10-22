@@ -1,6 +1,6 @@
-// Package validate-inputs collects all the terraform variables defined in the target module, and the terragrunt
-// inputs that are configured, and compare the two to determine if there are any unused inputs or undefined required
-// inputs.
+// Package validate implements the `hcl validate` command, which finds Terragrunt HCL files and validates them.
+// With `--inputs`, it also collects the variables defined in the target module and the inputs configured in
+// Terragrunt, and compares the two to report unused inputs and undefined required inputs.
 package validate
 
 import (
@@ -669,7 +669,7 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 
 	for _, arg := range argList {
 		if strings.HasPrefix(arg, "-var=") {
-			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
+			// -var is passed in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
 			splitArg := strings.Split(arg, "=")
 			if len(splitArg) < splitCount {
 				return vars, varFiles, fmt.Errorf(
