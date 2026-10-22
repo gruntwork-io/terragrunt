@@ -41,6 +41,7 @@ import (
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+	nullTFVarsFileMode              = 0o600
 	tofuCPUProfileName              = "tofu_cpu.prof"
 	tofuProfileDirMode              = 0o700
 )
@@ -1007,22 +1008,15 @@ func setTerragruntNullValuesRunCfg(
 
 	varFile := filepath.Join(opts.CacheDir, NullTFVarsFile)
 
-	const ownerReadWritePermissions = 0600
-
 	if filepath.Clean(opts.CacheDir) == filepath.Clean(originalOpts.CacheDir) {
-		if err := writeNullVarsFileExclusively(v.FS, varFile, jsonContents, ownerReadWritePermissions); err != nil {
+		if err := writeNullVarsFileExclusively(v.FS, varFile, jsonContents); err != nil {
 			return "", err
 		}
 
 		return varFile, nil
 	}
 
-	if err := vfs.WriteFile(
-		v.FS,
-		varFile,
-		jsonContents,
-		os.FileMode(ownerReadWritePermissions),
-	); err != nil {
+	if err := vfs.WriteFile(v.FS, varFile, jsonContents, nullTFVarsFileMode); err != nil {
 		return "", err
 	}
 
@@ -1031,8 +1025,10 @@ func setTerragruntNullValuesRunCfg(
 
 // writeNullVarsFileExclusively creates path with O_EXCL, so an existing file or symlink, or one created between a
 // check and the write, is never replaced. It returns NullVarsFileExists when something already exists at path.
-func writeNullVarsFileExclusively(fsys vfs.FS, path string, contents []byte, perm os.FileMode) error {
-	file, err := fsys.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, perm)
+// When the write fails after the file was created, for example on a full disk, the file is removed again so a
+// partial file does not block the next run.
+func writeNullVarsFileExclusively(fsys vfs.FS, path string, contents []byte) error {
+	file, err := fsys.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, nullTFVarsFileMode)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
 			return NullVarsFileExists{Path: path}
@@ -1041,9 +1037,17 @@ func writeNullVarsFileExclusively(fsys vfs.FS, path string, contents []byte, per
 		return err
 	}
 
-	_, err = file.Write(contents)
+	_, writeErr := file.Write(contents)
 
-	return errors.Join(err, file.Close())
+	if err := errors.Join(writeErr, file.Close()); err != nil {
+		if removeErr := fsys.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			return errors.Join(err, removeErr)
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
