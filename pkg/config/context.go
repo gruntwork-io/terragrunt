@@ -6,6 +6,7 @@ import (
 	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
@@ -36,8 +37,13 @@ const (
 	readTerragruntConfigName   = "readTerragruntConfigCache"
 )
 
-// WithConfigValues add to context default values for configuration.
-func WithConfigValues(ctx context.Context) context.Context {
+// WithCaches installs every cache Terragrunt reads while parsing and running a command.
+func WithCaches(ctx context.Context) context.Context {
+	return run.WithRunVersionCache(withConfigValues(ctx))
+}
+
+// withConfigValues adds to context default values for configuration.
+func withConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File](hclCacheName))
 	ctx = context.WithValue(
 		ctx,

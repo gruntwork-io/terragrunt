@@ -81,7 +81,7 @@ func TestFindDependentUnits(t *testing.T) {
 
 			opts := newStackOpts(t, filepath.Join(memRoot, tc.unit), tf.CommandNameDestroy)
 
-			units := runner.FindDependentUnits(t.Context(), thlogger.CreateLogger(), v, opts, tc.cfg)
+			units := runner.FindDependentUnits(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts, tc.cfg)
 
 			paths := make([]string, 0, len(units))
 			for _, unit := range units {

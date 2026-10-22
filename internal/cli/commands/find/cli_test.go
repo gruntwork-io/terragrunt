@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -137,7 +138,7 @@ func TestNewCommandBeforeResolvesFormatAndMode(t *testing.T) {
 			cmd := find.NewCommand(newTestLogger(t), tgOpts, v)
 			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
-			err := cmd.Before(t.Context(), &clihelper.Context{})
+			err := cmd.Before(config.WithCaches(t.Context()), &clihelper.Context{})
 			if tc.wantErr {
 				require.Error(t, err)
 
@@ -150,7 +151,7 @@ func TestNewCommandBeforeResolvesFormatAndMode(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.NoError(t, cmd.Action(t.Context(), &clihelper.Context{}))
+			require.NoError(t, cmd.Action(config.WithCaches(t.Context()), &clihelper.Context{}))
 			assert.Equal(t, tc.wantOutput, buf.String())
 		})
 	}
@@ -195,7 +196,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 			flags := find.NewFlags(newTestLogger(t), find.NewOptions(tgOpts), venvtest.New(), nil)
 			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
-			err := flags.RunActions(t.Context(), &clihelper.Context{})
+			err := flags.RunActions(config.WithCaches(t.Context()), &clihelper.Context{})
 			if tc.wantErr {
 				require.Error(t, err)
 
@@ -236,7 +237,7 @@ func TestNewFlagsExternalFlagAddsAGraphFilter(t *testing.T) {
 
 			flags := find.NewFlags(newTestLogger(t), opts, venvtest.New(), nil)
 			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
-			require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
+			require.NoError(t, flags.RunActions(config.WithCaches(t.Context()), &clihelper.Context{}))
 			assert.Len(t, opts.Filters, tc.wantFilters)
 		})
 	}

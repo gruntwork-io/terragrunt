@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -307,7 +308,7 @@ dependencies:
 	l := logger.CreateLogger()
 
 	plan, err := scaffold.Prepare(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		v,
 		opts,
@@ -318,7 +319,7 @@ dependencies:
 
 	t.Cleanup(func() { plan.Cleanup(v.FS) })
 
-	require.NoError(t, plan.Generate(t.Context(), l, v, opts, nil))
+	require.NoError(t, plan.Generate(config.WithCaches(t.Context()), l, v, opts, nil))
 
 	got := plan.GeneratedFiles()
 	assert.Contains(t, got, "terragrunt.hcl")
@@ -348,12 +349,12 @@ func TestGeneratedFilesEmptyAfterCopyingUnit(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 	l := logger.CreateLogger()
 
-	plan, err := scaffold.Prepare(t.Context(), l, v, opts, source, "")
+	plan, err := scaffold.Prepare(config.WithCaches(t.Context()), l, v, opts, source, "")
 	require.NoError(t, err)
 
 	t.Cleanup(func() { plan.Cleanup(v.FS) })
 
-	require.NoError(t, plan.Generate(t.Context(), l, v, opts, nil))
+	require.NoError(t, plan.Generate(config.WithCaches(t.Context()), l, v, opts, nil))
 
 	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
 	assert.FileExists(t, filepath.Join(outputDir, "extra.hcl"))
@@ -379,7 +380,8 @@ func TestScaffoldRefusesToOverwriteWhenCopying(t *testing.T) {
 	opts.WorkingDir = outputDir
 	opts.NonInteractive = true
 
-	err = scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, "")
+	ctx := config.WithCaches(t.Context())
+	err = scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, "")
 	require.Error(t, err)
 
 	assert.NoFileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
@@ -421,9 +423,11 @@ func runScaffoldWithTemplate(t *testing.T, source, templateURL string) string {
 	opts.WorkingDir = outputDir
 	opts.NonInteractive = true
 
+	ctx := config.WithCaches(t.Context())
+
 	require.NoError(
 		t,
-		scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, templateURL),
+		scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, templateURL),
 	)
 
 	return outputDir

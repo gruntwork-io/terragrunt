@@ -105,7 +105,7 @@ func benchmarkLiveLayout(b *testing.B, root string, shape liveLayoutQuery) {
 			d = d.WithRelationships()
 		}
 
-		_, err := d.Discover(config.WithConfigValues(b.Context()), l, v, opts)
+		_, err := d.Discover(config.WithCaches(b.Context()), l, v, opts)
 		require.NoError(b, err)
 	}
 }

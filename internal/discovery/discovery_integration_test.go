@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -85,7 +86,7 @@ func TestDiscovery_BasicWithHiddenDirectories(t *testing.T) {
 				WorkingDir: tmpDir,
 			}
 
-			ctx := t.Context()
+			ctx := config.WithCaches(t.Context())
 
 			d := discovery.NewDiscovery(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
 				WorkingDir: tmpDir,
@@ -124,7 +125,7 @@ func TestDiscovery_StackHiddenDiscovered(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// By default, .terragrunt-stack contents should be discovered
 	d := discovery.NewDiscovery(tmpDir).
@@ -192,7 +193,7 @@ func TestDiscovery_WithDependencies(t *testing.T) {
 		RootWorkingDir: internalDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	t.Run("discovery with relationships", func(t *testing.T) {
 		t.Parallel()
@@ -309,7 +310,7 @@ dependency "foo" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 	require.NoError(t, err)
@@ -378,7 +379,7 @@ dependency "foo" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 	require.NoError(t, err)
@@ -448,7 +449,7 @@ exclude {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// WithParseExclude sets requiresParse=true which triggers the parse phase,
 	// allowing exclude blocks to be parsed and accessible on the units.
@@ -529,7 +530,7 @@ func TestDiscovery_WithCustomConfigFilenames(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	t.Run("discover only custom config filename", func(t *testing.T) {
 		t.Parallel()
@@ -600,7 +601,7 @@ func TestDiscovery_WithReadFiles(t *testing.T) {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use a reading filter to trigger parsing and populate the reading field
 	filters, err := filter.ParseFilterQueries(l, []string{"reading=shared.hcl"})
@@ -693,7 +694,7 @@ inputs = {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
@@ -749,7 +750,7 @@ func TestDiscovery_IncludeExcludeFilterSemantics(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	tests := []struct {
 		name    string
@@ -813,7 +814,7 @@ func TestDiscovery_HiddenIncludedByIncludeDirs(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	filters, err := filter.ParseFilterQueries(l, []string{"./.hidden/**"})
 	require.NoError(t, err)
@@ -860,7 +861,7 @@ func TestDiscovery_ExternalDependencies(t *testing.T) {
 		RootWorkingDir: internalDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 	require.NoError(t, err)
@@ -938,7 +939,7 @@ dependency "foo" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 	require.NoError(t, err)
@@ -974,7 +975,7 @@ func TestDiscovery_WithNumWorkers(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
@@ -1031,7 +1032,7 @@ dependency "d" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	t.Run("full depth discovers all", func(t *testing.T) {
 		t.Parallel()
@@ -1101,7 +1102,7 @@ terraform {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
@@ -1184,7 +1185,7 @@ dependency "dependency" {
 				TerraformCommand: "plan",
 			}
 
-			ctx := t.Context()
+			ctx := config.WithCaches(t.Context())
 
 			d := discovery.NewDiscovery(tmpDir).
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
@@ -1266,7 +1267,7 @@ dependency "db" {
 		OriginalTerragruntConfigPath: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use a dependency traversal filter (app...) to trigger parsing
 	filters, err := filter.ParseFilterQueries(l, []string{"app..."})
