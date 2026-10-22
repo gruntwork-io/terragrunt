@@ -56,10 +56,10 @@ inputs = {
 	pc := config.NewParseContext(run)
 	l := logger.CreateLogger()
 
-	first, err := config.ParseConfigFile(ctx, l, v, &hclparse.Store{}, pc, cfgPath)
+	first, _, err := config.ParseConfigFile(ctx, l, v, &hclparse.Store{}, pc, cfgPath)
 	require.NoError(t, err)
 
-	second, err := config.ParseConfigFile(ctx, l, v, &hclparse.Store{}, pc, cfgPath)
+	second, _, err := config.ParseConfigFile(ctx, l, v, &hclparse.Store{}, pc, cfgPath)
 	require.NoError(t, err)
 
 	firstCfg, err := first.ToV1(ctx, l, v)
@@ -104,7 +104,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(
+	parsed, _, err := config.ParseConfigFile(
 		ctx,
 		l,
 		v,
