@@ -172,6 +172,71 @@ func (k keptIncludes) autoIncluded(
 	return c.autoInclude.cfg.assemble(ctx, l, v, keptIncludes{})
 }
 
+// keptQueue assembles the files a parse kept from their queue parts alone, with no run parts and no outputs, which
+// gives a caller that shares a memoized parse the config the parse itself returned. It requires every kept file,
+// as [keptIncludes] does, and a parse that returned no error kept them all.
+//
+// Panics when the config has no kept file for an include the assembly reaches.
+type keptQueue struct{}
+
+func (q keptQueue) file(c *UnitConfig, _ *hcl.EvalContext) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
+	return c.queueFile(&c.Queue), nil
+}
+
+func (q keptQueue) dependencies(
+	_ context.Context,
+	_ log.Logger,
+	_ *venv.Venv,
+	c *UnitConfig,
+) (*cty.Value, error) {
+	return c.pc.file.decodedDeps, nil
+}
+
+func (q keptQueue) included(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	c *UnitConfig,
+	i int,
+	_ *cty.Value,
+) (*pkgconfig.TerragruntConfig, error) {
+	included := c.includedFiles[i]
+	if included == nil {
+		panic(fmt.Sprintf("%s: no kept file for include block %d", c.file.ConfigPath, i))
+	}
+
+	if included.cfg == nil {
+		return nil, included.err
+	}
+
+	cfg, err := included.cfg.assemble(ctx, l, v, keptQueue{})
+	if err != nil {
+		include := c.pc.file.includes.List[i]
+
+		return nil, includeParseError(err, &include, c.pc)
+	}
+
+	return cfg, nil
+}
+
+func (q keptQueue) autoIncluded(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	c *UnitConfig,
+	path string,
+) (*pkgconfig.TerragruntConfig, error) {
+	if c.autoInclude == nil {
+		panic(fmt.Sprintf("%s: no kept file for autoinclude %s", c.file.ConfigPath, path))
+	}
+
+	if c.autoInclude.cfg == nil {
+		return nil, c.autoInclude.err
+	}
+
+	return c.autoInclude.cfg.assemble(ctx, l, v, keptQueue{})
+}
+
 // mergeIncludes merges each file c includes into cfg by its merge strategy, last include first, so later include
 // blocks win. Each included file decodes with deps, the `dependency` value of c.
 func (c *UnitConfig) mergeIncludes(
@@ -253,7 +318,7 @@ func (c *UnitConfig) parseIncludedConfig(
 		return nil, nil, err
 	}
 
-	includedPC := c.pc.withInclude(include)
+	includedPC := c.pc.forIncluded(include)
 
 	if hasDependency {
 		includedPC = includedPC.withDiagnosticsSuppressed()
@@ -316,4 +381,13 @@ func newIncludedFile(cfg *UnitConfig, err error) *includedFile {
 	}
 
 	return &includedFile{cfg: cfg}
+}
+
+// rebind returns f with its file rebound to run, as [UnitConfig.rebind] does, or f itself when it kept none.
+func (f *includedFile) rebind(l log.Logger, v *venv.Venv, run *pkgconfig.ParsingContext) *includedFile {
+	if f.cfg == nil {
+		return f
+	}
+
+	return &includedFile{cfg: f.cfg.rebind(l, v, run)}
 }

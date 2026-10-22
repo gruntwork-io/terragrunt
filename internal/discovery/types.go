@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -121,6 +122,10 @@ type Discovery struct {
 
 	// worktrees is the worktrees created for Git-based filters.
 	worktrees *worktrees.Worktrees
+
+	// parseStore memoizes the parses the config rewrite makes when
+	// [github.com/gruntwork-io/terragrunt/internal/config/rewrite.EnvRewrite] selects it.
+	parseStore *hclparse.Store
 
 	// workingDir is the logical working directory for filter evaluation and display paths.
 	workingDir string
