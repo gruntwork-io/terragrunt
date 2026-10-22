@@ -66,7 +66,7 @@ dependency "vpc" {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			l := logger.CreateLogger()
 
-			parsed, parseErr := config.ParseConfigFile(
+			parsed, _, parseErr := config.ParseConfigFile(
 				ctx,
 				l,
 				v,

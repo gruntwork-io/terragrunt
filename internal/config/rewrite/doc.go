@@ -7,6 +7,10 @@
 // outputs, decodes the run parts, which [RunBodies] names, and converts the parse's result and its own together.
 // Every part evaluates once, and nothing a parse produced changes afterwards.
 //
+// Every parse goes through a [hclparse.Store], which shares a file's syntax tree across the units that include it
+// and serves a unit's whole parse again to a later caller with the same context. What the context covers is the
+// contract of the run digest in profile.go. [EnvRewrite] selects this package's parser for discovery.
+//
 // pkg/config must never import this package, which depguard enforces. Delete the package, or merge it into
 // pkg/config, once it is the default parser and its parity test has passed across the fixture corpus for one
 // release.

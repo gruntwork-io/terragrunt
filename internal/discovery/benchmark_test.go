@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -48,7 +49,7 @@ func BenchmarkDiscovery(b *testing.B) {
 	b.Run("dependents_expression", func(b *testing.B) {
 		for _, n := range unitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromRepoRoot, chainedDependentsFixture(n))
+				benchmarkDependents(b, dependentsFromRepoRoot, chainedDependentsFixture(n), defaultParser)
 			})
 		}
 	})
@@ -56,11 +57,29 @@ func BenchmarkDiscovery(b *testing.B) {
 	b.Run("dependents_expression_from_target", func(b *testing.B) {
 		for _, n := range unitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromTargetDir, chainedDependentsFixture(n))
+				benchmarkDependents(b, dependentsFromTargetDir, chainedDependentsFixture(n), defaultParser)
+			})
+		}
+	})
+
+	b.Run("dependents_expression_config_rewrite", func(b *testing.B) {
+		for _, n := range unitCounts {
+			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
+				benchmarkDependents(b, dependentsFromRepoRoot, chainedDependentsFixture(n), rewriteParser)
 			})
 		}
 	})
 }
+
+// benchmarkParser names the parser a benchmark discovers with.
+type benchmarkParser int
+
+const (
+	// defaultParser is pkg/config.
+	defaultParser benchmarkParser = iota
+	// rewriteParser is the config rewrite, selected through its environment variable.
+	rewriteParser
+)
 
 // dependentsPlacement names where a dependents benchmark runs discovery from.
 type dependentsPlacement int
@@ -98,7 +117,12 @@ func chainedDependentsFixture(n int) dependentsFixture {
 // the upstream walk parses nothing it has not already seen, while from the
 // target's own directory the walk is what finds them, and it re-sweeps the
 // boundary tree once per dependent it finds.
-func benchmarkDependents(b *testing.B, placement dependentsPlacement, fixture dependentsFixture) {
+func benchmarkDependents(
+	b *testing.B,
+	placement dependentsPlacement,
+	fixture dependentsFixture,
+	parser benchmarkParser,
+) {
 	b.Helper()
 
 	tmpDir := b.TempDir()
@@ -116,6 +140,10 @@ func benchmarkDependents(b *testing.B, placement dependentsPlacement, fixture de
 	require.NoError(b, err)
 
 	v := venvtest.NewOSWithEmptyEnv()
+
+	if parser == rewriteParser {
+		v.Env[rewrite.EnvRewrite] = "true"
+	}
 
 	b.ResetTimer()
 

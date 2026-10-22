@@ -65,6 +65,9 @@ type parityCase struct {
 	configure func(*pkgconfig.ParsingContext)
 	// outputs maps a target directory to its `tofu output -json`.
 	outputs map[string]string
+	// store is the Store the rewrite parses through, shared with other cases when set. A parse served from it runs
+	// no tofu of its own, so the tofu-run comparison is a bound rather than an equality.
+	store *hclparse.Store
 	// cfgPath is the config both sides parse.
 	cfgPath string
 	// drift is the drifts the case shows.
@@ -164,11 +167,16 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 		t.Logf("pkg/config returned an error: %v", wantErr)
 	}
 
-	parsed, parseErr := config.ParseConfigFile(
+	store := tc.store
+	if store == nil {
+		store = &hclparse.Store{}
+	}
+
+	parsed, _, parseErr := config.ParseConfigFile(
 		ctx,
 		l,
 		v,
-		&hclparse.Store{},
+		store,
 		config.NewParseContext(pctx),
 		tc.cfgPath,
 	)
@@ -187,12 +195,24 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 	assert.Equal(t, wantCfg, gotCfg)
 	assertSameErrors(t, wantErr, gotErr, tc.drift)
 	assert.Equal(t, v1Pctx.FilesRead.Paths(), pctx.FilesRead.Paths())
-	assert.Equal(
-		t,
-		v1Stub.parseExecs.Load(),
-		stub.parseExecs.Load()+stub.toV1Execs.Load(),
-		"tofu runs",
-	)
+
+	if tc.store == nil {
+		assert.Equal(
+			t,
+			v1Stub.parseExecs.Load(),
+			stub.parseExecs.Load()+stub.toV1Execs.Load(),
+			"tofu runs",
+		)
+	}
+
+	if tc.store != nil {
+		assert.LessOrEqual(
+			t,
+			stub.parseExecs.Load()+stub.toV1Execs.Load(),
+			v1Stub.parseExecs.Load(),
+			"tofu runs",
+		)
+	}
 
 	return parityResult{
 		parsed:     parsed,
@@ -560,12 +580,12 @@ func (s *fixtureSet) newFS(t *testing.T) vfs.FS {
 
 // newTestParsingContext mirrors pkg/config's test helper of the same name, with its own caches.
 func newTestParsingContext(
-	t *testing.T,
+	tb testing.TB,
 	cfgPath string,
 ) (context.Context, *pkgconfig.ParsingContext) {
-	t.Helper()
+	tb.Helper()
 
-	ctx := pkgconfig.WithConfigValues(t.Context())
+	ctx := pkgconfig.WithConfigValues(tb.Context())
 	pctx := pkgconfig.NewParsingContext(pkgconfig.WithStrictControls(controls.New()))
 
 	workingDir, downloadDir := util.DefaultWorkingAndDownloadDirs(cfgPath)

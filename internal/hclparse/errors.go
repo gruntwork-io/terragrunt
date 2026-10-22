@@ -279,6 +279,22 @@ func (e EmptyArgError) Error() string {
 	return fmt.Sprintf("hclparse.%s: %s is empty", e.Func, e.Arg)
 }
 
+// FlightAbortedError is what a call waiting on a [Store] run receives when the run's body panicked or exited its
+// goroutine instead of returning.
+type FlightAbortedError struct {
+	// Panic is the value the body panicked with, nil when it exited.
+	Panic any
+	Key   Key
+}
+
+func (e FlightAbortedError) Error() string {
+	if e.Panic == nil {
+		return fmt.Sprintf("parse of %s exited before it returned", e.Key.Path)
+	}
+
+	return fmt.Sprintf("parse of %s panicked: %v", e.Key.Path, e.Panic)
+}
+
 // PartialEvalDepthExceededError indicates that PartialEval hit its recursion guard.
 type PartialEvalDepthExceededError struct {
 	MaxDepth int

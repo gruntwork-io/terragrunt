@@ -278,7 +278,7 @@ func (d *Discovery) withParseSettingsFrom(parent *Discovery) *Discovery {
 		d = d.WithTrackReads()
 	}
 
-	return d
+	return d.WithParseStore(parent.parseStore)
 }
 
 // deletedReadingComponentsToFilters discovers, in the from worktree, the units that read files

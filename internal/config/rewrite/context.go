@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strconv"
+
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -15,10 +17,15 @@ import (
 type ParseContext struct {
 	run  *pkgconfig.ParsingContext
 	file fileScope
+	// memoized is false when the run carries state the Store's key does not cover, so the parse runs uncached.
+	memoized bool
 }
 
 // fileScope is the per-file state pkg/config keeps on ParsingContext clones.
 type fileScope struct {
+	// key is the digest of the run's inputs and of the chain of files the parse went through to reach this one.
+	// It is [hclparse.Key.Context] for the file, and stands for the values the chain evaluated.
+	key string
 	// include is the include block the file is parsed through, nil for the component's own config.
 	include *pkgconfig.IncludeConfig
 	// includes is the file's include blocks, nil until the base blocks decode.
@@ -45,9 +52,13 @@ type fileScope struct {
 
 // NewParseContext returns a ParseContext for run, with the file state starting from run's values.
 func NewParseContext(run *pkgconfig.ParsingContext) *ParseContext {
+	key, memoized := runDigest(run)
+
 	return &ParseContext{
-		run: run,
+		run:      run,
+		memoized: memoized,
 		file: fileScope{
+			key:                  key,
 			includes:             newIncludes(run.TrackInclude),
 			values:               run.Values,
 			features:             run.Features,
@@ -71,6 +82,21 @@ func (pc *ParseContext) withInclude(include *pkgconfig.IncludeConfig) *ParseCont
 	return &c
 }
 
+// forIncluded returns a copy of pc for the file include pulls in, one step further along the chain of files.
+func (pc *ParseContext) forIncluded(include *pkgconfig.IncludeConfig) *ParseContext {
+	c := pc.withInclude(include)
+	c.file.key = extend(
+		c.file.key,
+		"include",
+		include.Name,
+		include.Path,
+		formatBoolPtr(include.Expose),
+		formatStringPtr(include.MergeStrategy),
+	)
+
+	return c
+}
+
 // forAutoInclude returns a copy of pc for the file's autoinclude, which no include block pulls in, resolves its
 // own dependencies, and merges no autoinclude of its own.
 func (pc *ParseContext) forAutoInclude() *ParseContext {
@@ -79,8 +105,34 @@ func (pc *ParseContext) forAutoInclude() *ParseContext {
 	c.file.decodedDeps = nil
 	c.file.inheritsDependencies = false
 	c.file.skipAutoIncludeMerge = true
+	c.file.key = extend(c.file.key, "autoinclude")
 
 	return &c
+}
+
+// withRun returns a copy of pc reading run's settings, for a parse result handed to a caller other than the one
+// that produced it.
+func (pc *ParseContext) withRun(run *pkgconfig.ParsingContext) *ParseContext {
+	c := *pc
+	c.run = run
+
+	return &c
+}
+
+// forFlight returns a copy of pc whose run records its reads apart from the caller's, so the Store can replay
+// them to every caller that shares the result. A run that keeps no record still keeps none.
+func (pc *ParseContext) forFlight() *ParseContext {
+	run := pc.run.Clone()
+	if run.FilesRead.Tracking() {
+		run.FilesRead = pkgconfig.NewFilesRead()
+	}
+
+	return pc.withRun(run)
+}
+
+// StoreContext returns [hclparse.Key.Context] for the file pc parses, and false when the parse is not memoized.
+func (pc *ParseContext) StoreContext() (string, bool) {
+	return pc.file.key, pc.memoized
 }
 
 // withBaseBlocks returns a copy of pc with the include blocks, feature flags, and locals baseBlocks decoded.
@@ -121,6 +173,7 @@ func (pc *ParseContext) withIAMRole(iamRole iam.RoleOptions) *ParseContext {
 func (pc *ParseContext) withDiagnosticsSuppressed() *ParseContext {
 	c := *pc
 	c.file.parser.Diagnostics = pkgconfig.DiagnosticsSuppressed
+	c.file.key = extend(c.file.key, "diagnostics-suppressed")
 
 	return &c
 }
@@ -138,8 +191,27 @@ func (pc *ParseContext) incrementDepth() (*ParseContext, error) {
 
 	c := *pc
 	c.file.depth++
+	c.file.key = extend(c.file.key, "depth", strconv.Itoa(c.file.depth))
 
 	return &c, nil
+}
+
+// formatBoolPtr renders p for a digest, telling nil from false.
+func formatBoolPtr(p *bool) string {
+	if p == nil {
+		return "nil"
+	}
+
+	return strconv.FormatBool(*p)
+}
+
+// formatStringPtr renders p for a digest, telling nil from the empty string.
+func formatStringPtr(p *string) string {
+	if p == nil {
+		return "nil"
+	}
+
+	return strconv.Quote(*p)
 }
 
 // parsingContext returns a clone of the run's [pkgconfig.ParsingContext] with the file state applied.
