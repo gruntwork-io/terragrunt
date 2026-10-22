@@ -10,7 +10,7 @@ Progress reporting for long-running Terragrunt operations.
 
 ### `slow-task-reporting` - What it does
 
-<Before version="v1.2.0">
+<Before version="v1.2.1">
 
 When enabled, Terragrunt displays animated progress spinners for operations that take longer than 1 second (e.g., Git worktree creation). Once the operation completes, the spinner is replaced with an INFO log line showing the operation result and elapsed time.
 
@@ -24,7 +24,7 @@ In non-interactive environments (CI/CD, piped output), spinners are suppressed a
 
 </Before>
 
-<Since version="v1.2.0">
+<Since version="v1.2.1">
 
 When enabled, Terragrunt reports operations that run for more than 1 second, so a long wait is not mistaken for a hang.
 
@@ -84,7 +84,7 @@ Provide your feedback on the [`slow-task-reporting` GitHub Discussion](https://g
 
 To transition the `slow-task-reporting` feature to a stable release, the following must be addressed:
 
-<Before version="v1.2.0">
+<Before version="v1.2.1">
 
 - [ ] Validate spinner rendering across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, GNOME Terminal)
 - [ ] Extend progress reporting to additional slow operations (e.g., provider caching)
@@ -93,7 +93,7 @@ To transition the `slow-task-reporting` feature to a stable release, the followi
 
 </Before>
 
-<Since version="v1.2.0">
+<Since version="v1.2.1">
 
 - [ ] Validate the progress line across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, the Windows console, GNOME Terminal)
 - [x] Extend progress reporting to additional slow operations (e.g., provider caching)
