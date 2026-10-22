@@ -230,6 +230,22 @@ func (err ConflictingRunCmdCacheOptionsError) Error() string {
 	return "The --terragrunt-global-cache and --terragrunt-no-cache options cannot be used together. Choose one caching option for run_cmd."
 }
 
+// RunCmdSharedAttemptError is returned to a `--terragrunt-global-cache` caller whose run_cmd joined
+// another unit's in-flight attempt and that attempt failed. Dir is the caller's own directory; the
+// wrapped error names the directory the command ran in.
+type RunCmdSharedAttemptError struct {
+	Err error
+	Dir string
+}
+
+func (err RunCmdSharedAttemptError) Error() string {
+	return fmt.Sprintf("run_cmd in %s shared a concurrent attempt that failed: %s", err.Dir, err.Err)
+}
+
+func (err RunCmdSharedAttemptError) Unwrap() error {
+	return err.Err
+}
+
 type TerragruntConfigNotFoundError struct {
 	Path string
 }

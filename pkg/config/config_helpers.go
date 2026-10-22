@@ -685,11 +685,11 @@ func runCommandImpl(
 	}
 
 	// Units are parsed concurrently, so several goroutines can miss on the same key at once. The
-	// flight runs the command once for all of them and hands every waiter the same result, error
-	// included, so a failing command is not retried serially by each waiter in turn. Only a success
-	// is stored, so a later independent call runs the command again. The command runs under the
-	// first caller's context, as singleflight does, which is fine here because unit contexts are
-	// cancelled together with the run rather than one at a time.
+	// flight runs the command once and hands every waiter the same result, error included, so
+	// waiters do not retry a failing command one after another. Only a success is stored, so a
+	// later independent call runs the command again. The command runs under the first caller's
+	// context, as singleflight does, which is fine here because unit contexts are cancelled
+	// together with the run rather than one at a time.
 	ran := false
 
 	entryAny, err, _ := runCmdFlightsFromContext(ctx).Do(cacheKey, func() (any, error) {
@@ -710,23 +710,20 @@ func runCommandImpl(
 		return entry, nil
 	})
 	if err != nil {
-		if ran {
+		// Only the global scope lets a waiter sit in a different directory from the one the
+		// command ran in, so only there does the error need the caller's directory as well.
+		if ran || !useGlobalCache {
 			return "", err
 		}
 
-		// A shared error names the directory the command ran in, which under
-		// --terragrunt-global-cache can be another unit's, so name this caller's as well.
-		return "", fmt.Errorf(
-			"run_cmd in %s shared a concurrent attempt that failed: %w",
-			util.RelPathForLog(pctx.RootWorkingDir, currentPath, pctx.LogShowAbsPaths),
-			err,
-		)
+		return "", RunCmdSharedAttemptError{
+			Err: err,
+			Dir: util.RelPathForLog(pctx.RootWorkingDir, currentPath, pctx.LogShowAbsPaths),
+		}
 	}
 
-	entry, ok := entryAny.(*RunCmdCacheEntry)
-	if !ok {
-		return "", fmt.Errorf("unexpected run_cmd cache flight result type %T", entryAny)
-	}
+	// The flight function returns only a *RunCmdCacheEntry on success.
+	entry := entryAny.(*RunCmdCacheEntry)
 
 	// The caller that ran the command has already logged and replayed its output.
 	if ran {
@@ -1845,9 +1842,8 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 
 // runCmdCacheKey identifies one run_cmd result by its directory scope (the directory the command
 // runs in, or the global scope), the configured environment, and the exact argv. The args are
-// %q-formatted so every element boundary survives; %v on a []string joins elements with spaces,
-// which gave ("x y") and ("x", "y") the same key. NUL separates the parts because it cannot occur
-// in a path, in hex, or unescaped inside a %q string.
+// %q-formatted so every element boundary survives: ("x y") and ("x", "y") get different keys. NUL
+// separates the parts because it cannot occur in a path, in hex, or unescaped inside a %q string.
 func runCmdCacheKey(scope string, env map[string]string, args []string) string {
 	return fmt.Sprintf("%s\x00%s\x00%q", scope, envFingerprint(env), args)
 }
@@ -1867,14 +1863,20 @@ func envFingerprint(env map[string]string) string {
 // the value run_cmd evaluates to.
 func replayCachedRunCmd(l log.Logger, v *venv.Venv, entry *RunCmdCacheEntry, suppressOutput bool) string {
 	entry.replay(v, suppressOutput)
-
-	if suppressOutput {
-		l.Debugf("run_cmd, cached output: [REDACTED]")
-	} else {
-		l.Debugf("run_cmd, cached output: [%s]", entry.Value())
-	}
+	logRunCmdOutput(l, "run_cmd, cached output", entry, suppressOutput)
 
 	return entry.Value()
+}
+
+// logRunCmdOutput debug-logs a run_cmd value under prefix, redacted when the call was quiet.
+func logRunCmdOutput(l log.Logger, prefix string, entry *RunCmdCacheEntry, suppressOutput bool) {
+	if suppressOutput {
+		l.Debugf("%s: [REDACTED]", prefix)
+
+		return
+	}
+
+	l.Debugf("%s: [%s]", prefix, entry.Value())
 }
 
 // runCmd executes a run_cmd command in dir and returns its captured output as a cache entry, after
@@ -1908,12 +1910,7 @@ func runCmd(
 		Stderr: cmdOutput.Stderr.String(),
 	}
 
-	if suppressOutput {
-		l.Debugf("run_cmd output: [REDACTED]")
-	} else {
-		l.Debugf("run_cmd output: [%s]", entry.Value())
-	}
-
+	logRunCmdOutput(l, "run_cmd output", entry, suppressOutput)
 	entry.replay(v, suppressOutput)
 
 	return entry, nil

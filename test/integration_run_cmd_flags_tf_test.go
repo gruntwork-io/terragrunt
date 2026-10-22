@@ -116,8 +116,8 @@ func TestTFRunCmdNoCacheSkipsCachedValue(t *testing.T) {
 }
 
 // TestTFRunCmdSharedFileKeysOnUnitEnvAndArgv pins the run_cmd cache key across
-// a `run --all`: two units read one shared file, so its run_cmd calls evaluate
-// under the same directory, while --auth-provider-cmd hands each unit its own
+// a `run --all`. Two units read one shared file, so its run_cmd calls evaluate
+// under one directory, while --auth-provider-cmd hands each unit its own
 // credentials. Each unit must see the value its own environment produced, and
 // two commands whose argv differ only in element boundaries must not share one
 // cache entry.
