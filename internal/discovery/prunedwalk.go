@@ -23,8 +23,8 @@ import (
 // root admits. Each prefix directory is looked up in its parent's listing, so
 // a name that differs from the filter's only in case does not match, even on a
 // case-insensitive filesystem. A start above walkRoot moves down to it, and a
-// start outside walkRoot is dropped. A directory symlink is followed only when
-// followLinks is set.
+// start outside walkRoot is dropped. A directory symlink, the working
+// directory included, is followed only when followLinks is set.
 //
 // A directory that can hold a match only at itself, such as each match of
 // "./apps/*", is not walked. The walk records it, and once the walk ends every
@@ -49,7 +49,7 @@ func (w *prunedWalk) run(ctx context.Context, fsys vfs.FS, roots []glob.Root) er
 	w.workingDir = filepath.Clean(w.workingDir)
 	w.walkRoot = filepath.Clean(w.walkRoot)
 
-	info, err := vfs.Lstat(fsys, w.workingDir)
+	info, err := w.statRoot(fsys)
 	if err != nil {
 		return w.visit(w.workingDir, nil, err)
 	}
@@ -95,6 +95,16 @@ func (w *prunedWalk) run(ctx context.Context, fsys vfs.FS, roots []glob.Root) er
 	}
 
 	return w.visitLeaves(leaves, listings)
+}
+
+// statRoot reads the working directory's FileInfo, through a symlink only
+// when followLinks is set.
+func (w *prunedWalk) statRoot(fsys vfs.FS) (fs.FileInfo, error) {
+	if w.followLinks {
+		return fsys.Stat(w.workingDir)
+	}
+
+	return vfs.Lstat(fsys, w.workingDir)
 }
 
 // literalPrefix joins the segments of dirPattern before its first wildcard onto
