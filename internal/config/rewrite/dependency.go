@@ -13,15 +13,13 @@ import (
 
 // dependencySet is the dependency blocks of a file that resolves its own dependencies.
 type dependencySet struct {
-	// pctx is the owning file's context.
-	pctx *pkgconfig.ParsingContext
 	// file is the owning file.
 	file *pkghclparse.File
 	// blocks is the blocks of file, merged with those of its includes and autoinclude.
 	blocks pkgconfig.Dependencies
 }
 
-// newDependencySet decodes the dependency blocks of file. It fetches no outputs.
+// newDependencySet decodes the dependency blocks of file with pctx. It fetches no outputs.
 func newDependencySet(
 	ctx context.Context,
 	l log.Logger,
@@ -35,19 +33,19 @@ func newDependencySet(
 	}
 
 	return &dependencySet{
-		pctx:   pctx,
 		file:   file,
 		blocks: decoded.Dependencies,
 	}, nil
 }
 
-// resolve fetches the outputs of every block and returns the value of the `dependency` variable.
+// resolve fetches the outputs of every block with pctx and returns the value of the `dependency` variable.
 //
 // Returns [cty.DynamicVal] with the error when resolution fails without a value.
 func (s *dependencySet) resolve(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pctx *pkgconfig.ParsingContext,
 ) (*cty.Value, error) {
 	names := make([]string, 0, len(s.blocks))
 	for _, dep := range s.blocks {
@@ -60,13 +58,13 @@ func (s *dependencySet) resolve(
 		ctx,
 		l,
 		s.file.ConfigPath,
-		s.pctx.SkipOutputsResolution,
+		pctx.SkipOutputsResolution,
 		len(s.blocks),
 		names,
 		func(ctx context.Context, l log.Logger) error {
 			var encodeErr error
 
-			result, encodeErr = pkgconfig.DependencyBlocksToCtyValue(ctx, l, v, s.pctx, s.blocks)
+			result, encodeErr = pkgconfig.DependencyBlocksToCtyValue(ctx, l, v, pctx, s.blocks)
 
 			return encodeErr
 		},
@@ -93,11 +91,10 @@ func (c *UnitConfig) dependencyValue(
 		return c.pc.file.decodedDeps, nil
 	}
 
+	pctx := c.pc.parsingContext()
 	set := c.deps
 
 	if c.pc.file.inheritsDependencies {
-		pctx := c.pc.parsingContext()
-
 		var err error
 
 		set, err = newDependencySet(ctx, l, v, pctx, c.file)
@@ -110,7 +107,7 @@ func (c *UnitConfig) dependencyValue(
 		return failedDependencyValue(nil), nil
 	}
 
-	return set.resolve(ctx, l, v)
+	return set.resolve(ctx, l, v, pctx)
 }
 
 // failedDependencyValue returns the value a failed resolution leaves in the `dependency` variable.

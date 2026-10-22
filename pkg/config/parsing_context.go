@@ -340,6 +340,19 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	return l, c, nil
 }
 
+// ReadConfigChain returns the configs being parsed by nested read_terragrunt_config calls, outermost first, as
+// each config's path followed by the original config it is parsed under.
+func (ctx *ParsingContext) ReadConfigChain() []string {
+	const stringsPerFrame = 2
+
+	chain := make([]string, 0, stringsPerFrame*len(ctx.readConfigChain))
+	for _, frame := range ctx.readConfigChain {
+		chain = append(chain, frame.path, frame.originalPath)
+	}
+
+	return chain
+}
+
 // readConfigFrame is one config on the read_terragrunt_config chain. A dependency block or a stack
 // file is parsed under its own original config, so get_original_terragrunt_dir() can make the same
 // file evaluate differently. Only a file parsed again under the same original config is a cycle.

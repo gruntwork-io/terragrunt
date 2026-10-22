@@ -440,7 +440,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(
+	parsed, _, err := config.ParseConfigFile(
 		ctx,
 		l,
 		v,

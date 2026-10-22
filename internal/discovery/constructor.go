@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -406,6 +407,7 @@ func NewDiscovery(dir string) *Discovery {
 		maxDependencyDepth: defaultMaxDependencyDepth,
 		workingDir:         dir,
 		configFilenames:    DefaultConfigFilenames,
+		parseStore:         new(hclparse.Store),
 		discoveryContext: &component.DiscoveryContext{
 			WorkingDir: dir,
 		},
