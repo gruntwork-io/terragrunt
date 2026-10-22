@@ -12,9 +12,10 @@ import (
 // Option mutates a Client builder.
 type Option func(*builder)
 
-// WithFileCopy substitutes the default file-protocol getter with the supplied
-// FileCopyGetter, which copies directories instead of symlinking them. Use
-// NewFileCopyGetter to build one with sensible defaults.
+// WithFileCopy replaces the default file-protocol getter with g, which also
+// copies the shares an [SmbMountGetter] reaches. The default copies the whole
+// source tree, hidden files included. Use NewFileCopyGetter to build one with
+// sensible defaults.
 func WithFileCopy(g *FileCopyGetter) Option {
 	return func(b *builder) { b.fileCopy = g }
 }

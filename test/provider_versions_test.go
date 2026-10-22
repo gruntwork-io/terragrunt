@@ -24,6 +24,8 @@ import (
 // repository install. CI caches providers so registry outages don't fail runs, and one version per
 // provider keeps that cache small.
 var canonicalProviderVersions = map[string]string{
+	"azure/azapi":          "2.13.0",
+	"azure/modtm":          "0.4.0",
 	"datadog/datadog":      "3.85.0",
 	"hashicorp/aws":        "6.56.0",
 	"hashicorp/azurerm":    "4.58.0",

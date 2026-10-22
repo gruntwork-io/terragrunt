@@ -3,6 +3,7 @@ package getter
 import (
 	"net/url"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/detect"
@@ -14,6 +15,17 @@ import (
 // but returns Windows-safe URLs on Windows.
 func URLParse(rawURL string) (*url.URL, error) {
 	return urlhelper.Parse(rawURL)
+}
+
+// FileURL returns the file URL for the absolute path p. A Windows drive path
+// gets a slash before its drive letter, so C:\repo becomes file:///C:/repo.
+func FileURL(p string) *url.URL {
+	p = filepath.ToSlash(p)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+
+	return &url.URL{Scheme: "file", Path: p}
 }
 
 // SourceDirSubdir splits a source URL on "//", returning the base URL and the
@@ -145,11 +157,7 @@ func (d fileSchemeDetector) Detect(src, pwd string) (string, bool, error) {
 		return out, ok, err
 	}
 
-	if len(out) > 0 && out[0] == '/' {
-		return "file://" + out, true, nil
-	}
-
-	return "file:///" + out, true, nil
+	return "file://" + FileURL(out).Path, true, nil
 }
 
 // defaultDetectors is the detector chain Detect runs against by default.
