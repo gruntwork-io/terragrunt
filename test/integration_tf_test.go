@@ -5122,17 +5122,17 @@ func TestTFLogStreaming(t *testing.T) {
 				timestamp, err := time.Parse("15:04:05.999", timestampStr)
 				require.NoError(t, err)
 
-				if firstTimestamp.IsZero() {
-					assert.Contains(t, line, "(local-exec): sleeping...")
-
-					firstTimestamp = timestamp
-				} else {
+				if !firstTimestamp.IsZero() {
 					assert.Contains(t, line, "(local-exec): done sleeping")
 
 					secondTimestamp = timestamp
 
 					break
 				}
+
+				assert.Contains(t, line, "(local-exec): sleeping...")
+
+				firstTimestamp = timestamp
 			}
 		}
 

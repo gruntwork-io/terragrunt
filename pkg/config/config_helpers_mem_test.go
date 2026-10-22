@@ -32,7 +32,7 @@ func TestRunCommandMemExec(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	out, err := config.RunCommand(ctx, l, v, pctx, []string{"echoer", "hello"})
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestRunCommandCacheHitsCollapseSubprocessForks(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	args := []string{"expensive-cmd", "--flag"}
 
@@ -90,7 +90,7 @@ func TestRunCommandNoCacheRefuses(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	for range 3 {
 		_, err := config.RunCommand(ctx, l, v, pctx, []string{"--terragrunt-no-cache", "cmd"})
@@ -117,7 +117,7 @@ func TestRunCommandSurfacesSubprocessFailure(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	_, err := config.RunCommand(ctx, l, v, pctx, []string{"failing-cmd"})
 	require.Error(t, err)
@@ -140,7 +140,7 @@ func TestRunCommandGlobalCacheSharesAcrossWorkingDirs(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithExec(exec)
 	ctx, pctxA := newTestParsingContext(t, t.TempDir())
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	vB := venvtest.New().WithExec(exec)
 	_, pctxB := newTestParsingContext(t, t.TempDir())
@@ -194,7 +194,7 @@ func TestRunCommandConflictingCacheFlags(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.New().WithExec(exec)
 			ctx, pctx := newTestParsingContext(t, t.TempDir())
-			ctx = config.WithConfigValues(ctx)
+			ctx = config.WithCaches(ctx)
 
 			_, err := config.RunCommand(ctx, l, v, pctx, tc.args)
 			require.Error(t, err)
@@ -218,7 +218,7 @@ func TestRunCommandDoesNotMutateCallerArgs(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	args := []string{"--terragrunt-quiet", "--terragrunt-global-cache", "cmd", "subarg"}
 	want := slices.Clone(args)
@@ -243,7 +243,7 @@ func TestRunCommandEmptyParamsErrors(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	_, err := config.RunCommand(ctx, l, v, pctx, nil)
 	require.Error(t, err)
@@ -267,7 +267,7 @@ func TestRunCommandReceivesVenvEnv(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	v.Env = map[string]string{"TG_TEST_TOKEN": "abc123"}
 
 	_, err := config.RunCommand(ctx, l, v, pctx, []string{"reader"})

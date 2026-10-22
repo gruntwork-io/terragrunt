@@ -15,12 +15,10 @@ var terragruntOnlyConfigs = []string{
 	"enable_bucket_policy_only",
 }
 
-/* ExtendedRemoteStateConfigGCS is a struct that contains the GCS specific configuration options.
- *
- * We use this construct to separate the config key 'gcs_bucket_labels' from the others, as they
- * are specific to the gcs backend, but only used by terragrunt to tag the gcs bucket in case it
- * has to create them.
- */
+// ExtendedRemoteStateConfigGCS holds the GCS specific configuration options.
+//
+// It keeps the config key 'gcs_bucket_labels' apart from the others, as it is specific to the gcs backend and
+// only used by terragrunt to label the gcs bucket in case it has to create it.
 type ExtendedRemoteStateConfigGCS struct {
 	GCSBucketLabels        map[string]string    `mapstructure:"gcs_bucket_labels"`
 	Project                string               `mapstructure:"project"`

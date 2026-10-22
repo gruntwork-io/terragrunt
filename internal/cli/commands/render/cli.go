@@ -1,4 +1,3 @@
-// Package render provides the command to render the final terragrunt config in various formats.
 package render
 
 import (

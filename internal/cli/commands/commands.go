@@ -180,7 +180,9 @@ func WrapWithTelemetry(
 
 		defer func() {
 			if err := telemeter.Shutdown(ctx); err != nil {
-				_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+				if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
+					l.Debugf("Failed to report telemetry shutdown error %v: %v", err, writeErr)
+				}
 			}
 		}()
 
@@ -205,7 +207,9 @@ func WrapWithTelemetry(
 					opts.Experiments,
 					opts.EngineOptions.NoEngine,
 				); err != nil {
-					_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+					if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
+						l.Debugf("Failed to report engine shutdown error %v: %v", err, writeErr)
+					}
 				}
 			}()
 

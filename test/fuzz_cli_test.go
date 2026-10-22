@@ -866,7 +866,7 @@ var fuzzTFArgPool = []string{
 	"-destroy", "-json", "-upgrade", "-var=name=fuzz", "-var-file=extra.tfvars", "-help",
 }
 
-var fuzzStdinPool = []string{"", "y\n", "n\n", "yes\n", "\n", "y\ny\ny\n"}
+var fuzzStdinPool = []string{"", "y\n", "n\n", "yes\n", "\n", strings.Repeat("y\n", 3)}
 
 // fuzzMutateOneFile sometimes damages one file of the world: it truncates it,
 // splices input bytes into it, or replaces it with input bytes. The parsers

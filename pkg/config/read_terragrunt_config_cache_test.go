@@ -134,7 +134,7 @@ func accountsOpens(t *testing.T, commonHCL string, extra map[string]string, coun
 
 	fsys := &countingFS{FS: v.FS, opens: map[string]int{}}
 	v = v.WithFS(fsys)
-	ctx := config.WithConfigValues(t.Context())
+	ctx := config.WithCaches(t.Context())
 
 	for _, unit := range units[:count] {
 		value, filesRead := parseUnitInput(ctx, t, v, unit)
@@ -199,7 +199,7 @@ locals {
 			v, rootDir := newMemTestDir(t)
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, tc.extra)
 
-			ctx := config.WithConfigValues(t.Context())
+			ctx := config.WithCaches(t.Context())
 
 			for _, unit := range units {
 				value, _ := parseUnitInput(ctx, t, v, unit)
@@ -220,7 +220,7 @@ locals {
 }
 `, nil)
 
-	ctx := config.WithConfigValues(t.Context())
+	ctx := config.WithCaches(t.Context())
 
 	for i, unit := range units {
 		want := []string{"first", "second"}[i]
@@ -279,7 +279,7 @@ func TestReadTerragruntConfigDoesNotSharePerCallResult(t *testing.T) {
 			v, rootDir := newMemTestDir(t)
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, map[string]string{"id.tftpl": "${uuid()}"})
 
-			ctx := config.WithConfigValues(t.Context())
+			ctx := config.WithCaches(t.Context())
 
 			first, _ := parseUnitInput(ctx, t, v, units[0])
 			second, _ := parseUnitInput(ctx, t, v, units[1])
@@ -307,7 +307,7 @@ func TestReadTerragruntConfigDoesNotShareUncachedRunCmd(t *testing.T) {
 		v = v.WithExec(exec)
 		units := writeReadConfigFixture(t, v, rootDir, `locals { value = run_cmd("--terragrunt-no-cache", "cmd") }`, nil)
 
-		ctx := config.WithConfigValues(t.Context())
+		ctx := config.WithCaches(t.Context())
 
 		for _, unit := range units[:count] {
 			value, _ := parseUnitInput(ctx, t, v, unit)
@@ -332,7 +332,7 @@ func TestReadTerragruntConfigReplaysRunCmdOutputAfterDiscardedRead(t *testing.T)
 	v = v.WithExec(exec).WithErrWriter(io.Discard)
 	units := writeReadConfigFixture(t, v, rootDir, `locals { value = run_cmd("echoer") }`, nil)
 
-	ctx := config.WithConfigValues(t.Context())
+	ctx := config.WithCaches(t.Context())
 
 	parseUnitInput(ctx, t, v.WithWriter(io.Discard), units[0])
 
@@ -466,10 +466,10 @@ locals {
 			v, rootDir := newMemTestDir(t)
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, tc.extra)
 
-			shared := config.WithConfigValues(t.Context())
+			shared := config.WithCaches(t.Context())
 
 			for _, unit := range units {
-				isolated, _ := parseUnitInput(config.WithConfigValues(t.Context()), t, v, unit, tc.opts...)
+				isolated, _ := parseUnitInput(config.WithCaches(t.Context()), t, v, unit, tc.opts...)
 				value, _ := parseUnitInput(shared, t, v, unit, tc.opts...)
 
 				assert.Equal(t, isolated, value, unit)
@@ -532,7 +532,7 @@ locals {
 			v, rootDir := newMemTestDir(t)
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, nil)
 
-			ctx := config.WithConfigValues(t.Context())
+			ctx := config.WithCaches(t.Context())
 
 			for i, setting := range []string{"plan", "apply"} {
 				value, _ := parseUnitInput(ctx, t, v, units[i], func(pctx *config.ParsingContext) {
@@ -591,7 +591,7 @@ func TestReadTerragruntConfigRereadsFileChangedDuringCommand(t *testing.T) {
 			v, rootDir := newMemTestDir(t)
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, tc.extra)
 
-			ctx := config.WithConfigValues(t.Context())
+			ctx := config.WithCaches(t.Context())
 
 			before, _ := parseUnitInput(ctx, t, v, units[0])
 			assert.Equal(t, tc.wantBefore, before)
@@ -614,7 +614,7 @@ func TestReadTerragruntConfigKeepsSimilarCliArgsApart(t *testing.T) {
 	v, rootDir := newMemTestDir(t)
 	units := writeReadConfigFixture(t, v, rootDir, `locals { value = join("|", get_terraform_cli_args()) }`, nil)
 
-	ctx := config.WithConfigValues(t.Context())
+	ctx := config.WithCaches(t.Context())
 
 	withFlags := func(flags ...string) func(*config.ParsingContext) {
 		return func(pctx *config.ParsingContext) {
@@ -663,7 +663,7 @@ func TestReadTerragruntConfigConcurrentReadsWithRacing(t *testing.T) {
 			v, rootDir := newMemTestDir(t)
 			writeReadConfigFixture(t, v, rootDir, tc.commonHCL, extra)
 
-			ctx := config.WithConfigValues(t.Context())
+			ctx := config.WithCaches(t.Context())
 			values := make([]any, unitCount)
 
 			var g errgroup.Group
@@ -701,7 +701,7 @@ func TestReadTerragruntConfigRecordsFilesReadAfterUntrackedRead(t *testing.T) {
 	v, rootDir := newMemTestDir(t)
 	units := writeReadConfigFixture(t, v, rootDir, `locals { value = yamldecode(file("accounts.yml"))["dev"] }`, nil)
 
-	ctx := config.WithConfigValues(t.Context())
+	ctx := config.WithCaches(t.Context())
 
 	parseUnitInput(ctx, t, v, units[0], func(pctx *config.ParsingContext) { pctx.FilesRead = nil })
 
@@ -751,7 +751,7 @@ locals {
 			ctx, pctx := newTestParsingContext(t, unitPath)
 			pctx.OriginalTerragruntConfigPath = unitPath
 
-			_, err := config.ParseConfigFile(config.WithConfigValues(ctx), logger.CreateLogger(), v, pctx, unitPath, nil)
+			_, err := config.ParseConfigFile(config.WithCaches(ctx), logger.CreateLogger(), v, pctx, unitPath, nil)
 			require.Error(t, err)
 		})
 	}
@@ -774,7 +774,7 @@ locals {
 `, nil)
 
 		commonPath := filepath.Join(rootDir, "common.hcl")
-		ctx := config.WithConfigValues(t.Context())
+		ctx := config.WithCaches(t.Context())
 
 		var calls atomic.Int32
 

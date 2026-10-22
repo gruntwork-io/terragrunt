@@ -91,7 +91,8 @@ const (
 )
 
 var (
-	// Order matters, for example if none of the files are found `GetDefaultConfigPath` func returns the last element.
+	// DefaultTerragruntConfigPaths lists the default config file names in lookup order. Order matters: if none of
+	// the files are found, `GetDefaultConfigPath` returns the last element.
 	DefaultTerragruntConfigPaths = []string{
 		DefaultTerragruntJSONConfigPath,
 		DefaultTerragruntConfigPath,
@@ -2163,7 +2164,9 @@ func ConvertToTerragruntConfig(
 		// FilesRead, so this hook is how files read via read_terragrunt_config of
 		// a config with a local module source reach reading= filters.
 		if cfg.Terraform.Source != nil {
-			markLocalModuleSourceAsRead(v, pctx, *cfg.Terraform.Source)
+			if err := markLocalModuleSourceAsRead(v, pctx, *cfg.Terraform.Source); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 
@@ -2385,9 +2388,10 @@ var moduleSourceReadExtensions = map[string]struct{}{
 }
 
 // markLocalModuleSourceAsRead walks the local terraform module pointed to by
-// rawSource and marks its configuration files as read in pctx.FilesRead. It is a
-// best-effort annotation: non-local sources are skipped and walk errors are
-// swallowed, since a genuinely broken source will surface during download.
+// rawSource and marks its configuration files as read in pctx.FilesRead. Sources
+// that are not local or do not parse are skipped, since a genuinely broken source
+// will surface during download, and so are entries the walk cannot read. It
+// returns the error that stops the walk itself.
 //
 // A relative source resolves against pctx.WorkingDir. For a unit that is the
 // unit's directory, where a run resolves the source, even when an included
@@ -2397,29 +2401,14 @@ var moduleSourceReadExtensions = map[string]struct{}{
 // A pctx that keeps no record of its reads gets no walk. The walk feeds nothing
 // but that record, and is the most expensive thing a parse does for it, so this
 // is where the cost of tracking goes when nobody is asking.
-func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, rawSource string) {
+func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, rawSource string) error {
 	if !pctx.FilesRead.Tracking() {
-		return
+		return nil
 	}
 
-	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
-
-	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, pctx.WorkingDir)
-	if err != nil || !tf.IsLocalSource(sourceURL) {
-		return
-	}
-
-	moduleDir := filepath.Clean(sourceURL.Path)
-	if subdir != "" {
-		moduleDir = filepath.Clean(filepath.Join(moduleDir, subdir))
-	}
-
-	if !filepath.IsAbs(moduleDir) {
-		moduleDir = filepath.Clean(filepath.Join(pctx.WorkingDir, moduleDir))
-	}
-
-	if !pctx.FilesRead.MarkDirIfNew(moduleDir) {
-		return
+	moduleDir, ok := localModuleDir(pctx.WorkingDir, rawSource)
+	if !ok || !pctx.FilesRead.MarkDirIfNew(moduleDir) {
+		return nil
 	}
 
 	walkFunc := vfs.WalkDir
@@ -2427,7 +2416,7 @@ func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, rawSource s
 		walkFunc = vfs.WalkDirWithSymlinks
 	}
 
-	_ = walkFunc(v.FS, moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
+	err := walkFunc(v.FS, moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip unreadable entries rather than aborting the whole walk.
 			if d != nil && d.IsDir() {
@@ -2450,6 +2439,34 @@ func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, rawSource s
 
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("marking files of module source %s as read: %w", moduleDir, err)
+	}
+
+	return nil
+}
+
+// localModuleDir returns the absolute directory rawSource names, resolving a
+// relative source against workingDir. It reports false for a source that is not
+// local or does not parse.
+func localModuleDir(workingDir, rawSource string) (string, bool) {
+	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
+
+	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, workingDir)
+	if err != nil || !tf.IsLocalSource(sourceURL) {
+		return "", false
+	}
+
+	moduleDir := filepath.Clean(sourceURL.Path)
+	if subdir != "" {
+		moduleDir = filepath.Clean(filepath.Join(moduleDir, subdir))
+	}
+
+	if !filepath.IsAbs(moduleDir) {
+		moduleDir = filepath.Clean(filepath.Join(workingDir, moduleDir))
+	}
+
+	return moduleDir, true
 }
 
 // moduleSourceFileExtension returns the extension used for matching module source

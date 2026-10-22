@@ -7,14 +7,19 @@ import (
 	"strings"
 )
 
-func MatchesAny(regExps []string, s string) bool {
+func MatchesAny(regExps []string, s string) (bool, error) {
 	for _, item := range regExps {
-		if matched, _ := regexp.MatchString(item, s); matched {
-			return true
+		matched, err := regexp.MatchString(item, s)
+		if err != nil {
+			return false, err
+		}
+
+		if matched {
+			return true, nil
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 // ListContainsSublist returns true if an instance of the sublist can be found in the given list

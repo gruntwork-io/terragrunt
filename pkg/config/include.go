@@ -108,7 +108,7 @@ func parseIncludedConfig(
 
 	config, err := ParseConfigFile(ctx, l, v, parseCtx, includePath, includedConfig)
 	if err != nil {
-		if _, ok := errors.AsType[TerragruntConfigNotFoundError](err); ok {
+		if errors.As(err, new(TerragruntConfigNotFoundError)) {
 			return nil, IncludeConfigNotFoundError{
 				IncludePath: includePath,
 				SourcePath:  pctx.TerragruntConfigPath,

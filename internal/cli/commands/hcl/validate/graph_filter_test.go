@@ -59,7 +59,7 @@ func runValidate(t *testing.T, run validateRun) validateResult {
 		require.NoError(t, opts.StrictControls.EnableControl(name))
 	}
 
-	result := validateResult{root: root, err: validate.RunValidate(t.Context(), l, v, opts)}
+	result := validateResult{root: root, err: validate.RunValidate(config.WithCaches(t.Context()), l, v, opts)}
 
 	if stdout.Len() > 0 {
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &result.diags))
@@ -337,7 +337,7 @@ func TestRunValidateShowsPathsRelativeToWorkingDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	require.Error(t, validate.RunValidate(t.Context(), logger.CreateLogger(), v, opts))
+	require.Error(t, validate.RunValidate(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
 
 	assert.Contains(t, stdout.String(), " --> "+filepath.Join("app", "terragrunt.hcl")+":2:17\n")
 }

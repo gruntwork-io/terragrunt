@@ -278,12 +278,12 @@ func splitSMBFile(u *url.URL) (string, string, string, error) {
 		return "", "", "", err
 	}
 
-	i := strings.LastIndex(rest, "/")
-	if i < 0 {
+	dir, name, ok := strings.CutLast(rest, "/")
+	if !ok {
 		return share, ".", rest, nil
 	}
 
-	return share, rest[:i], rest[i+1:], nil
+	return share, dir, name, nil
 }
 
 // SmbMountGetter is Terragrunt's getter for smb sources reached through a

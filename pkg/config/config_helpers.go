@@ -668,15 +668,9 @@ func runCommandImpl(
 			// with io.Discard writers, so we need to replay the output during execution phase.
 			// We only call Do() when we have a real writer, so it won't fire during discovery.
 			if w := v.Writers.Writer; w != io.Discard {
-				cachedEntry.replayOnce.Do(func() {
-					if !suppressOutput && cachedEntry.Stdout != "" {
-						_, _ = w.Write([]byte(cachedEntry.Stdout))
-					}
-
-					if cachedEntry.Stderr != "" {
-						_, _ = v.Writers.ErrWriter.Write([]byte(cachedEntry.Stderr))
-					}
-				})
+				if err := cachedEntry.replay(w, v.Writers.ErrWriter, suppressOutput); err != nil {
+					return "", err
+				}
 			}
 
 			if suppressOutput {
@@ -718,15 +712,9 @@ func runCommandImpl(
 	}
 
 	if w := v.Writers.Writer; w != io.Discard {
-		entry.replayOnce.Do(func() {
-			if !suppressOutput && entry.Stdout != "" {
-				_, _ = w.Write([]byte(entry.Stdout))
-			}
-
-			if entry.Stderr != "" {
-				_, _ = v.Writers.ErrWriter.Write([]byte(entry.Stderr))
-			}
-		})
+		if err := entry.replay(w, v.Writers.ErrWriter, suppressOutput); err != nil {
+			return "", err
+		}
 	}
 
 	if !disableCache {
@@ -1819,4 +1807,24 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 	}
 
 	return semver.CheckConstraint(args[0], args[1])
+}
+
+// replay writes the entry's stdout to w, unless suppressOutput is set, and its
+// stderr to errW. Only the first call on an entry writes anything.
+func (e *RunCmdCacheEntry) replay(w, errW io.Writer, suppressOutput bool) error {
+	var err error
+
+	e.replayOnce.Do(func() {
+		if !suppressOutput && e.Stdout != "" {
+			if _, err = w.Write([]byte(e.Stdout)); err != nil {
+				return
+			}
+		}
+
+		if e.Stderr != "" {
+			_, err = errW.Write([]byte(e.Stderr))
+		}
+	})
+
+	return err
 }

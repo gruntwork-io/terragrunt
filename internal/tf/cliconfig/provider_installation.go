@@ -183,7 +183,11 @@ func (method *ProviderInstallationDirect) RemoveInclude(addrs []string) {
 }
 
 func (method *ProviderInstallationDirect) String() string {
-	b, _ := json.Marshal(method) //nolint:errchkjson // the string fields can't form a cycle, so Marshal can't fail
+	b, err := json.Marshal(method)
+	if err != nil {
+		panic(fmt.Sprintf("json.Marshal cannot fail on %T, whose fields are strings and string slices: %v", method, err))
+	}
+
 	return string(b)
 }
 
@@ -304,7 +308,11 @@ func (method *ProviderInstallationFilesystemMirror) RemoveInclude(addrs []string
 }
 
 func (method *ProviderInstallationFilesystemMirror) String() string {
-	b, _ := json.Marshal(method) //nolint:errchkjson // the string fields can't form a cycle, so Marshal can't fail
+	b, err := json.Marshal(method)
+	if err != nil {
+		panic(fmt.Sprintf("json.Marshal cannot fail on %T, whose fields are strings and string slices: %v", method, err))
+	}
+
 	return string(b)
 }
 
@@ -425,6 +433,10 @@ func (method *ProviderInstallationNetworkMirror) RemoveInclude(addrs []string) {
 }
 
 func (method *ProviderInstallationNetworkMirror) String() string {
-	b, _ := json.Marshal(method) //nolint:errchkjson // the string fields can't form a cycle, so Marshal can't fail
+	b, err := json.Marshal(method)
+	if err != nil {
+		panic(fmt.Sprintf("json.Marshal cannot fail on %T, whose fields are strings and string slices: %v", method, err))
+	}
+
 	return string(b)
 }

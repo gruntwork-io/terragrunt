@@ -588,10 +588,10 @@ unit "test" {
 
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
-	_, pctx := newTestParsingContext(t, stackHclPath)
+	ctx, pctx := newTestParsingContext(t, stackHclPath)
 	pctx.WorkingDir = tempDir
 
-	stackConfig, err := config.ReadStackConfigFile(t.Context(), l, v, pctx, stackHclPath, nil)
+	stackConfig, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackHclPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stackConfig)
 
@@ -617,7 +617,7 @@ func TestFindInParentFoldersSharedRunContext(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	baseCtx, pctx := newTestParsingContext(t, first)
-	ctx := config.WithConfigValues(baseCtx)
+	ctx := config.WithCaches(baseCtx)
 
 	firstPath, err := config.FindInParentFolders(ctx, l, v, pctx, []string{"root.hcl"})
 	require.NoError(t, err)
@@ -637,7 +637,7 @@ func TestFindInParentFoldersSharedRunContext(t *testing.T) {
 	require.NoError(t, os.WriteFile(nearerPath, nil, 0644))
 
 	nextRunPath, err := config.FindInParentFolders(
-		config.WithConfigValues(baseCtx),
+		config.WithCaches(baseCtx),
 		l,
 		v,
 		pctx,
@@ -668,7 +668,7 @@ func TestFindInParentFoldersSharedRunContextWithRacing(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	baseCtx, basePctx := newTestParsingContext(t, configPaths[0])
-	ctx := config.WithConfigValues(baseCtx)
+	ctx := config.WithCaches(baseCtx)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
@@ -1105,7 +1105,7 @@ func newMemTestDir(tb testing.TB) (*venv.Venv, string) {
 func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *config.ParsingContext) {
 	tb.Helper()
 
-	ctx := tb.Context()
+	ctx := config.WithCaches(tb.Context())
 	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 
 	workingDir, downloadDir := util.DefaultWorkingAndDownloadDirs(configPath)

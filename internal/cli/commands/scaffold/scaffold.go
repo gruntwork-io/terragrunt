@@ -50,6 +50,8 @@ const (
 	moduleURLPattern = `(?:git|hg|s3|gcs)::([^:]+)://([^/]+)(/.*)`
 	moduleURLParts   = 4
 
+	// DefaultBoilerplateConfig is the boilerplate config used to scaffold a unit.
+	//
 	// TODO: Make the root configuration file name configurable
 	DefaultBoilerplateConfig = `
 variables:

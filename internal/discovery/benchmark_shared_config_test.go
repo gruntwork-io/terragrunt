@@ -48,7 +48,7 @@ func BenchmarkDiscoverySharedConfig(b *testing.B) {
 					WithRequiresParse().
 					WithRelationships()
 
-				components, err := d.Discover(config.WithConfigValues(b.Context()), l, v, opts)
+				components, err := d.Discover(config.WithCaches(b.Context()), l, v, opts)
 				require.NoError(b, err)
 				require.Len(b, components, n)
 

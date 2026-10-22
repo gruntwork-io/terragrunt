@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	// Provider's assets consist of three files/URLs: zipped binary, hashes and signature
+	// ProviderDownloadURLName, ProviderSHASumsURLName and ProviderSHASumsSignatureURLName name the three URLs of a
+	// provider's assets: zipped binary, hashes and signature.
 	ProviderDownloadURLName         providerURLName = "download_url"
 	ProviderSHASumsURLName          providerURLName = "shasums_url"
 	ProviderSHASumsSignatureURLName providerURLName = "shasums_signature_url"

@@ -351,7 +351,7 @@ func (auth signatureAuthentication) findSigningKey() (string, string, error) {
 			bytes.NewReader(auth.Signature),
 			nil,
 		); err != nil {
-			// If the signature issuer does not match the the key, keep trying the rest of the provided keys.
+			// If the signature issuer does not match the key, keep trying the rest of the provided keys.
 			if errors.Is(err, openpgpErrors.ErrUnknownIssuer) {
 				continue
 			}

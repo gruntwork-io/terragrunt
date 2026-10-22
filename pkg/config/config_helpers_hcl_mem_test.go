@@ -25,7 +25,7 @@ func TestHCLGetRepoRoot(t *testing.T) {
 	repoRoot := venvtest.Root("/synthetic/repo/root")
 	v := venvtest.New().WithFS(memRepoFS(t, repoRoot, "unit"))
 	ctx, pctx := newTestParsingContext(t, filepath.Join(repoRoot, "unit", "terragrunt.hcl"))
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   repo = get_repo_root()
@@ -52,7 +52,7 @@ func TestHCLGetPathFromRepoRoot(t *testing.T) {
 	workingDir := venvtest.Root("/repo/services/api")
 	v := venvtest.New().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
 	ctx, pctx := newTestParsingContext(t, filepath.Join(workingDir, "terragrunt.hcl"))
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.WorkingDir = workingDir
 
 	const hcl = `locals {
@@ -74,7 +74,7 @@ func TestHCLGetPathToRepoRoot(t *testing.T) {
 	workingDir := venvtest.Root("/repo/services/api")
 	v := venvtest.New().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
 	ctx, pctx := newTestParsingContext(t, filepath.Join(workingDir, "terragrunt.hcl"))
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.WorkingDir = workingDir
 
 	const hcl = `locals {
@@ -96,7 +96,7 @@ func TestHCLGetRepoRootPropagatesLookupFailure(t *testing.T) {
 	v := venvtest.New().
 		WithFS(venvtest.NewFS(t, venvtest.Root("/not/a/repo"), map[string]string{"terragrunt.hcl": ""}))
 	ctx, pctx := newTestParsingContext(t, venvtest.Root("/not/a/repo/terragrunt.hcl"))
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   repo = get_repo_root()
@@ -123,7 +123,7 @@ func TestHCLRunCmd(t *testing.T) {
 	v := venvtest.New().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir()+"/terragrunt.hcl")
 
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   account = run_cmd("--terragrunt-quiet", "describe", "--account", "prod")
