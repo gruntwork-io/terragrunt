@@ -36,6 +36,12 @@ func CopyLockFile(
 	logShowAbsPaths bool,
 	sourceFolder, destinationFolder string,
 ) error {
+	// When a unit runs in place, source and destination are the same directory and there is nothing to copy.
+	// Copying the lock file onto itself would also replace a symlinked lock file with a regular file.
+	if filepath.Clean(sourceFolder) == filepath.Clean(destinationFolder) {
+		return nil
+	}
+
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 

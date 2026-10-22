@@ -590,7 +590,6 @@ type CtyTerraformConfig struct {
 	IncludeInCopy         *[]string                          `cty:"include_in_copy"`
 	ExcludeFromCopy       *[]string                          `cty:"exclude_from_copy"`
 	CopyTerraformLockFile *bool                              `cty:"copy_terraform_lock_file"`
-	NoDotTerragruntCache  *bool                              `cty:"no_dot_terragrunt_cache"`
 	BeforeHooks           map[string]Hook                    `cty:"before_hook"`
 	AfterHooks            map[string]Hook                    `cty:"after_hook"`
 	ErrorHooks            map[string]ErrorHook               `cty:"error_hook"`
@@ -607,7 +606,6 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		IncludeInCopy:         config.IncludeInCopy,
 		ExcludeFromCopy:       config.ExcludeFromCopy,
 		CopyTerraformLockFile: config.CopyTerraformLockFile,
-		NoDotTerragruntCache:  config.NoDotTerragruntCache,
 		ExtraArgs:             map[string]TerraformExtraArguments{},
 		BeforeHooks:           map[string]Hook{},
 		AfterHooks:            map[string]Hook{},
@@ -651,6 +649,16 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 
 	if config.Version != nil {
 		val = ctyObjectAddField(val, "version", gostringToCty(*config.Version))
+	}
+
+	// Only include no_dot_terragrunt_cache when explicitly set, so rendered output for configs that do not use it
+	// stays unchanged.
+	if config.NoDotTerragruntCache != nil {
+		val = ctyObjectAddField(
+			val,
+			"no_dot_terragrunt_cache",
+			goboolToCty(*config.NoDotTerragruntCache),
+		)
 	}
 
 	return val, nil

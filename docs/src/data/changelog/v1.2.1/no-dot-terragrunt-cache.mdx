@@ -1,0 +1,22 @@
+---
+version: "v1.2.1"
+category: "experiments-added"
+---
+
+#### `no-dot-terragrunt-cache` experiment adds a `terraform.no_dot_terragrunt_cache` attribute
+
+Enable the new [`no-dot-terragrunt-cache`](/reference/experiments/active#no-dot-terragrunt-cache) experiment to run a unit from its own directory instead of a copy in `.terragrunt-cache`.
+
+Set `no_dot_terragrunt_cache = true` in the `terraform` block of a unit that has no `source`. Terragrunt then runs OpenTofu/Terraform in place, so local module paths resolve from the unit directory and editors can read the files Terragrunt works with. The attribute is merged through `include`, so a root configuration can set it for every unit that includes it.
+
+```hcl
+terraform {
+  no_dot_terragrunt_cache = true
+}
+```
+
+```bash
+terragrunt run --experiment no-dot-terragrunt-cache -- plan
+```
+
+Setting `no_dot_terragrunt_cache` together with a `source` (or the `--source` flag) returns an error, because an external source has to be fetched into `.terragrunt-cache`. Without the experiment enabled the attribute has no effect and the unit runs from `.terragrunt-cache` as before.

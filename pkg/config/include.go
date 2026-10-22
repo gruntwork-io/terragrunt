@@ -374,21 +374,7 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		if cfg.Terraform == nil {
 			cfg.Terraform = sourceConfig.Terraform
 		} else {
-			if sourceConfig.Terraform.Source != nil {
-				cfg.Terraform.Source = sourceConfig.Terraform.Source
-			}
-
-			if sourceConfig.Terraform.Version != nil {
-				cfg.Terraform.Version = sourceConfig.Terraform.Version
-			}
-
-			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
-				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
-			}
-
-			if sourceConfig.Terraform.NoDotTerragruntCache != nil {
-				cfg.Terraform.NoDotTerragruntCache = sourceConfig.Terraform.NoDotTerragruntCache
-			}
+			mergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
 
 			mergeExtraArgs(l, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
@@ -577,21 +563,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		if cfg.Terraform == nil {
 			cfg.Terraform = sourceConfig.Terraform
 		} else {
-			if sourceConfig.Terraform.Source != nil {
-				cfg.Terraform.Source = sourceConfig.Terraform.Source
-			}
-
-			if sourceConfig.Terraform.Version != nil {
-				cfg.Terraform.Version = sourceConfig.Terraform.Version
-			}
-
-			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
-				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
-			}
-
-			if sourceConfig.Terraform.NoDotTerragruntCache != nil {
-				cfg.Terraform.NoDotTerragruntCache = sourceConfig.Terraform.NoDotTerragruntCache
-			}
+			mergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
 
 			if sourceConfig.Terraform.IncludeInCopy != nil {
 				srcList := *sourceConfig.Terraform.IncludeInCopy
@@ -805,6 +777,25 @@ func mergeExtraArgs(
 	}
 
 	*parentExtraArgs = result
+}
+
+// mergeTerraformAttributes copies the scalar terraform block attributes that are set on sourceConfig onto cfg.
+func mergeTerraformAttributes(cfg, sourceConfig *TerraformConfig) {
+	if sourceConfig.Source != nil {
+		cfg.Source = sourceConfig.Source
+	}
+
+	if sourceConfig.Version != nil {
+		cfg.Version = sourceConfig.Version
+	}
+
+	if sourceConfig.CopyTerraformLockFile != nil {
+		cfg.CopyTerraformLockFile = sourceConfig.CopyTerraformLockFile
+	}
+
+	if sourceConfig.NoDotTerragruntCache != nil {
+		cfg.NoDotTerragruntCache = sourceConfig.NoDotTerragruntCache
+	}
 }
 
 func mergeInputs(childInputs map[string]any, parentInputs map[string]any) map[string]any {

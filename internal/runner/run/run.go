@@ -337,7 +337,7 @@ func runTerragruntWithConfig(
 	}
 
 	// Write null-valued inputs to a tfvars.json file that OpenTofu/Terraform will auto-load.
-	nullVarsFile, err := setTerragruntNullValuesRunCfg(v, opts, cfg)
+	nullVarsFile, err := setTerragruntNullValuesRunCfg(v, originalOpts, opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -978,7 +978,16 @@ func CheckProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
 // that OpenTofu/Terraform will auto-load. This is necessary because OpenTofu/Terraform
 // cannot accept null values via environment variables (TF_VAR_*), but it can read them
 // from .auto.tfvars.json files.
-func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunConfig) (string, error) {
+//
+// The file is removed after the run. When the unit runs in place, the working directory is the user's unit
+// directory, so an existing file there is never replaced and the run stops with NullVarsFileExists instead. In the
+// cache directory the file is a disposable copy and is overwritten as before.
+func setTerragruntNullValuesRunCfg(
+	v *venv.Venv,
+	originalOpts *Options,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+) (string, error) {
 	jsonEmptyVars := make(map[string]any)
 
 	for varName, varValue := range cfg.Inputs {
@@ -1000,6 +1009,14 @@ func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunC
 
 	const ownerReadWritePermissions = 0600
 
+	if filepath.Clean(opts.CacheDir) == filepath.Clean(originalOpts.CacheDir) {
+		if err := writeNullVarsFileExclusively(v.FS, varFile, jsonContents, ownerReadWritePermissions); err != nil {
+			return "", err
+		}
+
+		return varFile, nil
+	}
+
 	if err := vfs.WriteFile(
 		v.FS,
 		varFile,
@@ -1010,6 +1027,23 @@ func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunC
 	}
 
 	return varFile, nil
+}
+
+// writeNullVarsFileExclusively creates path with O_EXCL, so an existing file or symlink, or one created between a
+// check and the write, is never replaced. It returns NullVarsFileExists when something already exists at path.
+func writeNullVarsFileExclusively(fsys vfs.FS, path string, contents []byte, perm os.FileMode) error {
+	file, err := fsys.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, perm)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return NullVarsFileExists{Path: path}
+		}
+
+		return err
+	}
+
+	_, err = file.Write(contents)
+
+	return errors.Join(err, file.Close())
 }
 
 // SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.

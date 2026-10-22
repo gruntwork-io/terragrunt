@@ -1,9 +1,14 @@
 package runcfg_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -428,4 +433,52 @@ func TestParsingModulePathError(t *testing.T) {
 	errorMsg := err.Error()
 	assert.Contains(t, errorMsg, "git::invalid-url")
 	assert.Contains(t, errorMsg, "Unable to obtain the module path")
+}
+
+func TestCopyLockFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("same folder keeps a symlinked lock file", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		sharedDir := filepath.Join(tmpDir, "shared")
+		unitDir := filepath.Join(tmpDir, "unit")
+
+		require.NoError(t, os.MkdirAll(sharedDir, 0755))
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+
+		sharedLock := filepath.Join(sharedDir, tf.TerraformLockFile)
+		require.NoError(t, os.WriteFile(sharedLock, []byte("# shared"), 0644))
+
+		unitLock := filepath.Join(unitDir, tf.TerraformLockFile)
+		require.NoError(t, os.Symlink(filepath.Join("..", "shared", tf.TerraformLockFile), unitLock))
+
+		// An in-place run has the unit directory as both source and destination; nothing must be rewritten.
+		err := runcfg.CopyLockFile(logger.CreateLogger(), vfs.NewOSFS(), tmpDir, false, unitDir, unitDir)
+		require.NoError(t, err)
+
+		info, err := os.Lstat(unitLock)
+		require.NoError(t, err)
+		assert.NotZero(t, info.Mode()&os.ModeSymlink, "copying a lock file onto itself must not replace the symlink")
+	})
+
+	t.Run("different folders copy the lock file", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		cacheDir := filepath.Join(tmpDir, "cache")
+		unitDir := filepath.Join(tmpDir, "unit")
+
+		require.NoError(t, os.MkdirAll(cacheDir, 0755))
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(cacheDir, tf.TerraformLockFile), []byte("# cache"), 0644))
+
+		err := runcfg.CopyLockFile(logger.CreateLogger(), vfs.NewOSFS(), tmpDir, false, cacheDir, unitDir)
+		require.NoError(t, err)
+
+		contents, err := os.ReadFile(filepath.Join(unitDir, tf.TerraformLockFile))
+		require.NoError(t, err)
+		assert.Equal(t, "# cache", string(contents))
+	})
 }

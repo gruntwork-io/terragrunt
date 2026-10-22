@@ -3,13 +3,15 @@ name: no-dot-terragrunt-cache
 since: "v1.2.1"
 ---
 
-Skip the `.terragrunt-cache` copy and run a unit in place.
+Support for the `terraform.no_dot_terragrunt_cache` attribute, which runs a unit from its own directory instead of a copy in `.terragrunt-cache`.
+
+This experiment is ongoing and disabled by default. While it runs, the attribute is parsed but has no effect unless the experiment is enabled, and units keep running from `.terragrunt-cache`. It becomes generally available once every item in the stabilization criteria below is met.
 
 ### `no-dot-terragrunt-cache` - What it does
 
-By default, Terragrunt copies all OpenTofu/Terraform source into a `.terragrunt-cache` directory before running any commands. When `terraform.no_dot_terragrunt_cache = true` is set in `terragrunt.hcl` and this experiment is enabled, Terragrunt skips the copy and runs directly from the unit directory. Relative local module paths resolve relative to the unit directory, so they work as written, and editors and language servers can read the files directly.
+Terragrunt normally copies a unit into `.terragrunt-cache` before running OpenTofu/Terraform. When enabled, setting `terraform.no_dot_terragrunt_cache = true` in `terragrunt.hcl` makes Terragrunt run from the unit directory instead. Local module paths then resolve from the unit directory, and editors and language servers can read the files directly.
 
-Because the unit runs in place, anything a run produces is written into the unit directory and stays there: `generate` blocks, the `.terraform` directory, the `.terraform.lock.hcl` lock file, and OpenTofu/Terraform state for a local backend. Add the generated files you do not want to commit to your `.gitignore`.
+Because the unit runs in place, the files that would otherwise land in `.terragrunt-cache` are created in the unit directory and stay there: files created by `generate` blocks, the `.terraform` directory, the `.terraform.lock.hcl` lock file, and OpenTofu/Terraform state for a local backend. Add the ones you do not want to commit to your `.gitignore`. When an input is `null`, Terragrunt also writes a temporary `.terragrunt-null-vars.auto.tfvars.json` there for the run and removes it afterwards. If a file with that name already exists in the unit directory, the run stops with an error instead of replacing it.
 
 Like the other `terraform` block attributes, `no_dot_terragrunt_cache` is merged through `include`. A root configuration found with `find_in_parent_folders()` can set it once for every unit that includes it, and a unit can override it in its own `terraform` block.
 
@@ -21,20 +23,19 @@ terraform {
 }
 ```
 
-Enable the experiment with:
-
 ```bash
-terragrunt apply --experiment no-dot-terragrunt-cache
+terragrunt run --experiment no-dot-terragrunt-cache -- plan
 ```
 
 ### `no-dot-terragrunt-cache` - How to provide feedback
 
-Provide your feedback on the [no_dot_terragrunt_cache option](https://github.com/gruntwork-io/terragrunt/issues/6199) issue.
+Provide your feedback on the [`no-dot-terragrunt-cache` GitHub issue](https://github.com/gruntwork-io/terragrunt/issues/6199) that requested running units without `.terragrunt-cache`.
 
 ### `no-dot-terragrunt-cache` - Criteria for stabilization
 
-To stabilize this feature, the following need to be resolved, at a minimum:
+To transition the `no-dot-terragrunt-cache` feature to a stable release, the following must be addressed:
 
 - [ ] Validate behavior with `before_hook` and `after_hook` blocks that reference relative paths.
-- [ ] Validate behavior with `generate` blocks that write into the working directory.
+- [ ] Validate behavior with `generate` blocks that write into the unit directory.
+- [ ] Decide whether the attribute should also be available as a CLI flag.
 - [ ] Gather community feedback on edge cases.

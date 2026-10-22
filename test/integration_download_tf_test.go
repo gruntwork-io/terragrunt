@@ -1369,3 +1369,106 @@ func TestTFLocalIncludeNoDotTerragruntCacheSetInChild(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
 	assert.FileExists(t, filepath.Join(rootPath, "terraform.tfstate"))
 }
+
+func TestTFLocalNoDotTerragruntCacheInitKeepsSymlinkedLockFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoDotTerragruntCache)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// The unit shares its lock file with a sibling directory through a symlink. Running in place, the post-init
+	// lock-file copy has the unit directory as both source and destination and must leave the symlink alone.
+	sharedDir := filepath.Join(filepath.Dir(rootPath), "shared-lock")
+	require.NoError(t, os.MkdirAll(sharedDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, tf.TerraformLockFile), []byte(""), 0644))
+
+	lockPath := filepath.Join(rootPath, tf.TerraformLockFile)
+	require.NoError(t, os.Symlink(filepath.Join("..", "shared-lock", tf.TerraformLockFile), lockPath))
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt init -lockfile=readonly --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+rootPath,
+	)
+
+	info, err := os.Lstat(lockPath)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink, "%s must still be a symlink after an in-place init", lockPath)
+}
+
+func TestTFLocalNoDotTerragruntCacheNullInputRunsInPlace(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoDotTerragruntCacheNullInput)
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+rootPath,
+	)
+
+	// The null-vars file is written next to terragrunt.hcl for the run and removed afterwards.
+	assert.NoFileExists(t, filepath.Join(rootPath, run.NullTFVarsFile))
+	assert.FileExists(t, filepath.Join(rootPath, "terraform.tfstate"))
+}
+
+func TestTFLocalNoDotTerragruntCacheNullInputKeepsExistingFile(t *testing.T) {
+	t.Parallel()
+
+	// Anything already at the reserved path in the unit directory must survive the run untouched, because the
+	// null-vars file is removed afterwards. Terragrunt cannot tell a user file from its own leftover, so it stops.
+	testCases := []struct {
+		name     string
+		contents string
+		symlink  bool
+	}{
+		{
+			name:     "file with values",
+			contents: `{"keep": "original"}`,
+		},
+		{
+			name:     "file with only null values",
+			contents: `{"var1": null}`,
+		},
+		{
+			name:     "symlink to another file",
+			contents: `{"var1": null}`,
+			symlink:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.NewGitServer(t).RenderFixture("fixtures/download")
+			rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoDotTerragruntCacheNullInput)
+			helpers.CleanupTerraformFolder(t, rootPath)
+
+			nullVarsPath := filepath.Join(rootPath, run.NullTFVarsFile)
+			targetPath := nullVarsPath
+
+			if tc.symlink {
+				targetPath = filepath.Join(rootPath, "null-vars-target.json")
+				require.NoError(t, os.Symlink(filepath.Base(targetPath), nullVarsPath))
+			}
+
+			require.NoError(t, os.WriteFile(targetPath, []byte(tc.contents), 0644))
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt plan --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+rootPath,
+			)
+			require.ErrorContains(t, err, run.NullTFVarsFile)
+
+			contents, err := os.ReadFile(targetPath)
+			require.NoError(t, err)
+			assert.Equal(t, tc.contents, string(contents))
+
+			info, err := os.Lstat(nullVarsPath)
+			require.NoError(t, err)
+			assert.Equal(t, tc.symlink, info.Mode()&os.ModeSymlink != 0, "symlink state of %s changed", nullVarsPath)
+		})
+	}
+}
