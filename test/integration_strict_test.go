@@ -4,17 +4,21 @@ package test_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	testFixtureStrictBareInclude = "fixtures/strict-bare-include"
+	testFixtureStrictBareInclude      = "fixtures/strict-bare-include"
+	testFixtureStrictBareIncludeUnits = "fixtures/strict-bare-include-units"
 )
 
 // TestTFRootTerragruntHCLStrictMode uses globally mutated state to determine if strict mode has already
@@ -85,33 +89,33 @@ func TestTFRootTerragruntHCLStrictMode(t *testing.T) {
 func TestTFBareIncludeStrictMode(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStrictBareInclude)
 
+	bareInclude := bareIncludeControl(t)
+
 	testCases := []struct {
 		expectedError error
 		name          string
 		controls      []string
 		strictMode    bool
+		wantWarning   bool
 	}{
 		{
 			name:          "bare include with no strict mode or control",
 			controls:      []string{},
 			strictMode:    false,
 			expectedError: nil,
+			wantWarning:   true,
 		},
 		{
-			name:       "bare include with bare-include strict control",
-			controls:   []string{"bare-include"},
-			strictMode: false,
-			expectedError: errors.New(
-				"Using an `include` block without a label is deprecated. Please use the `include` block with a label instead.",
-			),
+			name:          "bare include with bare-include strict control",
+			controls:      []string{"bare-include"},
+			strictMode:    false,
+			expectedError: bareInclude.Error,
 		},
 		{
-			name:       "bare include with strict mode",
-			controls:   []string{},
-			strictMode: true,
-			expectedError: errors.New(
-				"Using an `include` block without a label is deprecated. Please use the `include` block with a label instead.",
-			),
+			name:          "bare include with strict mode",
+			controls:      []string{},
+			strictMode:    true,
+			expectedError: bareInclude.Error,
 		},
 	}
 
@@ -129,7 +133,7 @@ func TestTFBareIncludeStrictMode(t *testing.T) {
 				args = " --strict-control " + control + " " + args
 			}
 
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+args)
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+args)
 
 			if tc.expectedError != nil {
 				require.Error(t, err)
@@ -137,6 +141,97 @@ func TestTFBareIncludeStrictMode(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
+			if tc.wantWarning {
+				assert.Contains(t, stderr, bareInclude.Warning)
+				return
+			}
+
+			assert.NotContains(t, stderr, bareInclude.Warning)
 		})
 	}
+}
+
+// TestTFBareIncludeWarnsOnce pins that units including the same file with a bare include log one deprecation
+// warning per run.
+func TestTFBareIncludeWarnsOnce(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStrictBareIncludeUnits)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStrictBareIncludeUnits)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- init",
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, strings.Count(stderr, bareIncludeControl(t).Warning))
+}
+
+// TestTFDependencyConfigPathFileStrictMode pins that a `dependency` whose `config_path` names a
+// configuration file still plans with a deprecation warning, and fails once the
+// dependency-config-path-file strict control is enabled, alone or through its group or strict mode.
+//
+// This is deprecated functionality: a file `config_path` is undocumented and deprecated. The
+// warning-only case keeps it working for backwards compatibility through Terragrunt 1.x.
+//
+//nolint:paralleltest // strict mode is triggered through global state
+func TestTFDependencyConfigPathFileStrictMode(t *testing.T) {
+	ctrl, ok := controls.New().Find(controls.DependencyConfigPathFile).(*controls.Control)
+	require.True(t, ok)
+
+	testCases := []struct {
+		name    string
+		flags   string
+		wantErr bool
+	}{
+		{name: "no strict mode or control"},
+		{
+			name:    "dependency-config-path-file strict control",
+			flags:   "--strict-control " + controls.DependencyConfigPathFile,
+			wantErr: true,
+		},
+		{
+			name:    "deprecated-configs strict control",
+			flags:   "--strict-control " + controls.DeprecatedConfigs,
+			wantErr: true,
+		},
+		{name: "strict mode", flags: "--strict-mode", wantErr: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureConfigWithNonDefaultNames)
+			appPath := filepath.Join(tmpEnvPath, testFixtureConfigWithNonDefaultNames, "app")
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt "+tc.flags+" plan --config main.hcl --non-interactive --working-dir "+appPath,
+			)
+
+			if !tc.wantErr {
+				require.NoError(t, err)
+				assert.Contains(t, stderr, ctrl.Warning)
+
+				return
+			}
+
+			var typed config.DependencyConfigPathFileError
+			require.ErrorAs(t, err, &typed)
+			assert.Equal(t, "dependency", typed.Address)
+			assert.Equal(t, "../dependency/another-name.hcl", typed.DependencyPath)
+			assert.NotContains(t, stderr, ctrl.Warning)
+		})
+	}
+}
+
+// bareIncludeControl returns the bare-include strict control Terragrunt registers.
+func bareIncludeControl(t *testing.T) *controls.Control {
+	t.Helper()
+
+	ctrl, ok := controls.New().Find(controls.BareInclude).(*controls.Control)
+	require.True(t, ok)
+
+	return ctrl
 }

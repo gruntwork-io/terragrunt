@@ -285,7 +285,9 @@ func (client *Client) UpdateS3BucketIfNecessary(
 
 	if bucketUpdatesRequired.SSEEncryption {
 		msg := fmt.Sprintf(
-			"Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!",
+			"Encryption is not enabled on the S3 remote state bucket %s. "+
+				"OpenTofu/Terraform state files may contain secrets, "+
+				"so we STRONGLY recommend enabling encryption!",
 			bucketName,
 		)
 

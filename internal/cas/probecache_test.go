@@ -135,6 +135,40 @@ func TestGitResolver_BranchNamedLikeVersionIsNotServedAsSemver(t *testing.T) {
 	})
 }
 
+// TestGitResolver_RecordsFetchRuleOfMatchedRef pins that a probe records
+// the git fetch rule it matched the ref through.
+func TestGitResolver_RecordsFetchRuleOfMatchedRef(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		branch string
+		want   string
+	}{
+		{name: "tag", branch: "v1.2.3", want: "refs/tags/%s"},
+		{name: "branch", branch: "main", want: "refs/heads/%s"},
+		{name: "HEAD", branch: "", want: "%s"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stub := &lsRemoteStub{hash: stubHash}
+			v := stub.venv()
+			url := redact.NewURL("https://example.com/probe-fetch-rule.git")
+			r := newCachingResolver(v, tt.branch)
+
+			_, err := r.Probe(t.Context(), url)
+			require.NoError(t, err)
+
+			entry, ok := r.Cache.Lookup(v.FS, url, tt.branch)
+			require.True(t, ok)
+			assert.Equal(t, tt.want, entry.FetchRule)
+		})
+	}
+}
+
 func TestGitResolver_RefreshModeBypassesCacheButStillRecords(t *testing.T) {
 	t.Parallel()
 

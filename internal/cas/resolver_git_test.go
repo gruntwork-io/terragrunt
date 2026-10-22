@@ -76,6 +76,56 @@ func TestGitResolver_ProbeTag(t *testing.T) {
 	assert.Len(t, got, 40)
 }
 
+// TestGitResolver_ProbeTagShadowedByBranch pins the ref git fetch selects:
+// ls-remote also lists branches whose names end in the tag name, and lists
+// them first.
+func TestGitResolver_ProbeTagShadowedByBranch(t *testing.T) {
+	t.Parallel()
+
+	for _, branch := range []string{"release/v1.2.3", "v1.2.3"} {
+		t.Run(branch, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newEmptyTestServer(t)
+			require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("tagged"), "init"))
+			require.NoError(t, srv.Tag(t.Context(), "v1.2.3"))
+
+			tagHash, err := srv.Head(t.Context())
+			require.NoError(t, err)
+
+			require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("moved"), "move ahead"))
+			require.NoError(t, srv.Branch(t.Context(), branch))
+
+			url, err := srv.Start(t.Context())
+			require.NoError(t, err)
+
+			r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "v1.2.3"}
+
+			got, err := r.Probe(t.Context(), redact.NewURL(url))
+			require.NoError(t, err)
+			assert.Equal(t, tagHash, got)
+		})
+	}
+}
+
+// TestGitResolver_TailMatchOnlyReturnsErrNoVersionMetadata pins that a ref
+// git fetch cannot resolve is not answered by a branch ending in its name.
+func TestGitResolver_TailMatchOnlyReturnsErrNoVersionMetadata(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
+	require.NoError(t, srv.Branch(t.Context(), "release/v1.2.3"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	r := &cas.GitResolver{Venv: venv.OSVenv(), Branch: "v1.2.3"}
+
+	_, err = r.Probe(t.Context(), redact.NewURL(url))
+	require.ErrorIs(t, err, cas.ErrNoVersionMetadata)
+}
+
 func TestGitResolver_CommitFormRefReturnsErrNoVersionMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -155,7 +205,7 @@ func TestGitResolver_FullSHAHitsLocalCacheOffline(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(t.Context(), l, v, redact.NewURL(url), headHash, "")
+	repo, err := store.EnsureCommit(t.Context(), l, newTestGitStoreVenv(t, v), redact.NewURL(url), headHash, "")
 	require.NoError(t, err)
 	require.NoError(t, repo.Unlock())
 
@@ -166,6 +216,26 @@ func TestGitResolver_FullSHAHitsLocalCacheOffline(t *testing.T) {
 	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err, "fast path must skip ls-remote when commit is cached")
 	assert.Equal(t, headHash, got)
+}
+
+// TestGitResolver_StoreRejectsNonOSFilesystem pins that a store probe from an
+// in-memory venv returns an error instead of running git against paths git
+// cannot see.
+func TestGitResolver_StoreRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubGitExec(func(context.Context, vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+
+	r := &cas.GitResolver{
+		Venv:   venvtest.New().WithExec(stub),
+		Store:  cas.NewGitStore(t.TempDir()),
+		Branch: "deadbeefcafefacedeadbeefcafefacedeadbeef",
+	}
+
+	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/org/repo.git"))
+	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }
 
 // TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs pins the

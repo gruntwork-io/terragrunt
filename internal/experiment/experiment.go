@@ -39,7 +39,7 @@ const (
 	// IacEngine is the experiment that enables usage of Terragrunt IaC engines for running IaC operations.
 	IacEngine = "iac-engine"
 	// DependencyFetchOutputFromState names the now-stable reading of dependency
-	// outputs straight from state files instead of running terraform/tofu output.
+	// outputs straight from state files instead of running tofu/terraform output.
 	// It is enabled by default and is opted out of with
 	// --no-dependency-fetch-output-from-state.
 	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"

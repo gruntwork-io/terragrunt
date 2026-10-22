@@ -146,7 +146,7 @@ func TestParseStackFileResolvesAutoIncludePerExpandedInstance(t *testing.T) {
 
 			fs := vfs.NewMemMapFS()
 
-			result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+			result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 				Src:      []byte(src),
 				Filename: "terragrunt.stack.hcl",
 				StackDir: testStackDir,
@@ -229,11 +229,15 @@ func TestParseStackFileResolvesExpandedAutoIncludeDependency(t *testing.T) {
 				ConfigPath: tc.configPath,
 			})
 
-			result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
-				Src:      []byte(src),
-				Filename: "terragrunt.stack.hcl",
-				StackDir: testStackDir,
-			})
+			result, err := hclparse.ParseStackFile(
+				t.Context(),
+				vfs.NewMemMapFS(),
+				&hclparse.ParseStackFileInput{
+					Src:      []byte(src),
+					Filename: "terragrunt.stack.hcl",
+					StackDir: testStackDir,
+				},
+			)
 			require.NoError(t, err)
 
 			resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "consumer")]
@@ -259,7 +263,7 @@ func TestParseStackFileResolvesExpandedAutoIncludeDependency(t *testing.T) {
 func TestParseStackFileReportsEveryFailingExpandedDependencyElement(t *testing.T) {
 	t.Parallel()
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src: []byte(`
 unit "consumer" {
   source = "../catalog/units/consumer"
@@ -325,7 +329,7 @@ func TestBuildComponentRefMapKeysExpandedElements(t *testing.T) {
 func TestParseStackFileRejectsExpandedAndUnexpandedUnitSharingALabel(t *testing.T) {
 	t.Parallel()
 
-	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+	_, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
 		Src:      []byte(expandedAndUnexpandedEnvStack),
 		Filename: "terragrunt.stack.hcl",
 		StackDir: testStackDir,
@@ -353,7 +357,12 @@ func TestUnitPathsFromStackDirRejectsExpandedAndUnexpandedUnitSharingALabel(t *t
 		),
 	)
 
-	_, err := hclparse.UnitPathsFromStackDir(fs, "/test", &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	_, err := hclparse.UnitPathsFromStackDir(
+		t.Context(),
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
 
 	var collision hclparse.ComponentRefCollisionError
 	require.ErrorAs(t, err, &collision)
@@ -400,6 +409,7 @@ unit "environment" {
 `), 0644))
 
 	paths, err := hclparse.UnitPathsFromStackDir(
+		t.Context(),
 		fs,
 		"/test",
 		&hclparse.StackDirArgs{FuncsFor: noFuncs},

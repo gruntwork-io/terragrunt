@@ -120,6 +120,21 @@ func (err InvalidGenerateBlockError) Unwrap() error {
 	return err.Err
 }
 
+// InvalidExcludeBlockError reports an exclude block whose attributes do not
+// decode into [ExcludeConfig], such as a string where a list belongs.
+type InvalidExcludeBlockError struct {
+	Err        error
+	ConfigPath string
+}
+
+func (err InvalidExcludeBlockError) Error() string {
+	return fmt.Sprintf("exclude block in %s: %s", err.ConfigPath, err.Err)
+}
+
+func (err InvalidExcludeBlockError) Unwrap() error {
+	return err.Err
+}
+
 type TFVarFileNotFoundError struct {
 	File  string
 	Cause string
@@ -315,6 +330,24 @@ func (err DependencyConfigNotFound) Error() string {
 	return err.Path + " does not exist"
 }
 
+// DependencyBlockError reports a failure in one dependency block of a configuration file.
+type DependencyBlockError struct {
+	// Err is what went wrong with the dependency.
+	Err error
+	// Name is the label of the dependency block.
+	Name string
+	// ConfigPath is the configuration file that declares the block.
+	ConfigPath string
+}
+
+func (err DependencyBlockError) Error() string {
+	return fmt.Sprintf("dependency %q in %s: %v", err.Name, err.ConfigPath, err.Err)
+}
+
+func (err DependencyBlockError) Unwrap() error {
+	return err.Err
+}
+
 // DependencyStateReadError reports a failure while reading a dependency's remote state body.
 type DependencyStateReadError struct {
 	// Err is the underlying reader failure.
@@ -499,6 +532,26 @@ func (err DuplicateDependencyConfigPathError) Error() string {
 	)
 }
 
+// DependencyConfigPathFileError is returned when a dependency block sets config_path to a
+// file while the dependency-config-path-file strict control is enabled.
+type DependencyConfigPathFileError struct {
+	// ConfigPath is the configuration file that declares the block.
+	ConfigPath string
+	// Address names the dependency block, as its label and any expansion key.
+	Address string
+	// DependencyPath is the config_path of the block, as written.
+	DependencyPath string
+}
+
+func (err DependencyConfigPathFileError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependency %s sets config_path to the file %s; set it to the directory of the unit or stack",
+		err.ConfigPath,
+		err.Address,
+		err.DependencyPath,
+	)
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string
@@ -594,6 +647,20 @@ func (err MaxParseDepthError) Error() string {
 		err.Max,
 		err.Depth,
 	)
+}
+
+// ReadTerragruntConfigCycleError is returned when read_terragrunt_config reads
+// a config that is already being parsed further up the chain, either by an
+// outer read_terragrunt_config call or through a dependency block.
+type ReadTerragruntConfigCycleError struct {
+	// Chain lists the configs being parsed, outermost first, including configs
+	// reached through a dependency block, ending with the config that closes
+	// the cycle.
+	Chain []string
+}
+
+func (err ReadTerragruntConfigCycleError) Error() string {
+	return "read_terragrunt_config cycle detected: " + strings.Join(err.Chain, " -> ")
 }
 
 // AutoIncludeParserStageError reports which stage of autoinclude parsing failed.

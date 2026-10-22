@@ -5,11 +5,9 @@ category: "new-features"
 
 #### Set the minimum TLS version on a bootstrapped Azure storage account
 
-The ARM API treats an unset minimum TLS version as `TLS1_0`, but Azure services
-deprecated `TLS1_0` and `TLS1_1` in August 2025.
+The ARM API treats an unset minimum TLS version as `TLS1_0`, but Azure deprecated `TLS1_0` and `TLS1_1` in August 2025.
 
-Terragrunt now provisions a new storage account with a minimum TLS version of
-`TLS1_2`, and a `minimum_tls_version` option lets you raise it to `TLS1_3`:
+Terragrunt now provisions a new storage account with a minimum TLS version of `TLS1_2`. The `minimum_tls_version` option raises it to `TLS1_3`:
 
 ```hcl
 remote_state {
@@ -17,17 +15,14 @@ remote_state {
   config = {
     storage_account_name = "myterragruntstate"
     container_name       = "tfstate"
-    key                  = "${path_relative_to_include()}/terraform.tfstate"
-    resource_group_name  = "terraform-rg"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    resource_group_name  = "tofu-rg"
     use_azuread_auth     = true
-    minimum_tls_version  = "TLS1_2" # or "TLS1_3"
+    minimum_tls_version  = "TLS1_3"
   }
 }
 ```
 
-`TLS1_2` and `TLS1_3` are the only accepted values; the deprecated `TLS1_0`
-and `TLS1_1` are rejected.
+`TLS1_2` and `TLS1_3` are the only accepted values. Terragrunt rejects the deprecated `TLS1_0` and `TLS1_1`.
 
-The setting applies only when Terragrunt creates the account. It is not
-reconciled against an existing account; use the Azure portal or CLI to change
-it there.
+The setting applies only when Terragrunt creates the account. Terragrunt leaves an existing account's setting alone, so change it there with the Azure portal or CLI.

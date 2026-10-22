@@ -70,6 +70,37 @@ func TestGzipHandler(t *testing.T) {
 	})
 }
 
+func TestGzipHandlerKeepsFirstStatus(t *testing.T) {
+	t.Parallel()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		// A second status is ignored rather than written twice.
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, "created")
+	})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/aws.zip", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	rec := httptest.NewRecorder()
+	helpers.GzipHandler(inner).ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	assert.Equal(t, http.StatusCreated, res.StatusCode)
+	assert.Equal(t, "gzip", res.Header.Get("Content-Encoding"))
+
+	gz, err := gzip.NewReader(res.Body)
+	require.NoError(t, err)
+
+	got, err := io.ReadAll(gz)
+	require.NoError(t, err)
+	require.NoError(t, gz.Close())
+	assert.Equal(t, "created", string(got))
+}
+
 func TestMustAbs(t *testing.T) {
 	t.Parallel()
 

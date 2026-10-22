@@ -2,6 +2,8 @@ package tui_test
 
 import (
 	"testing"
+	"testing/synctest"
+	"time"
 
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/stretchr/testify/assert"
@@ -71,4 +73,68 @@ func TestClipToPane(t *testing.T) {
 	assert.Equal(t, "hello", viewtui.ClipToPane("hello world", 5, 10))
 	// Non-positive dimensions yield no content.
 	assert.Empty(t, viewtui.ClipToPane("anything", 0, 0))
+}
+
+func TestToastStackPushSchedulesExpiry(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var s viewtui.ToastStack
+
+		start := time.Now()
+		expireFirst := s.Push("first")
+		require.NotNil(t, s.Push("second"))
+		require.NotNil(t, expireFirst)
+
+		// The command fires after the TTL and names the toast it belongs to.
+		msg := expireFirst()
+
+		assert.Equal(t, 5*time.Second, time.Since(start))
+		assert.Equal(t, viewtui.ToastExpired{ID: 1}, msg)
+
+		expired, ok := msg.(viewtui.ToastExpired)
+		require.True(t, ok)
+		s.Drop(expired.ID)
+
+		content := s.Overlay("base", 80, 24)
+		assert.NotContains(t, content, "first")
+		assert.Contains(t, content, "second")
+	})
+}
+
+func TestListenForWarnings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil channel", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Nil(t, viewtui.ListenForWarnings(nil))
+	})
+
+	t.Run("delivers next warning", func(t *testing.T) {
+		t.Parallel()
+
+		ch := make(chan viewtui.Warning, 2)
+		ch <- viewtui.Warning{Message: "one"}
+
+		ch <- viewtui.Warning{Message: "two"}
+
+		cmd := viewtui.ListenForWarnings(ch)
+		require.NotNil(t, cmd)
+
+		// Each call delivers one warning, so the handler calls the command again for the next.
+		assert.Equal(t, viewtui.Warning{Message: "one"}, cmd())
+		assert.Equal(t, viewtui.Warning{Message: "two"}, cmd())
+	})
+
+	t.Run("closed channel", func(t *testing.T) {
+		t.Parallel()
+
+		ch := make(chan viewtui.Warning)
+		close(ch)
+
+		cmd := viewtui.ListenForWarnings(ch)
+		require.NotNil(t, cmd)
+		assert.Nil(t, cmd())
+	})
 }

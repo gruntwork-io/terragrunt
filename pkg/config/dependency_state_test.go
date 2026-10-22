@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -282,7 +283,7 @@ func TestDependencyStateS3AssumeRoleWithClearedIAMOptions(t *testing.T) {
 	recorder := newDependencyStateRecorder(t, 0, nil)
 	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
 
-	ctx, pctx, configPath := prepareDependencyStateFixture(
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
 		t,
 		recorder,
 		"s3",
@@ -311,13 +312,13 @@ remote_state {
   }
 }
 `, producerRoleARN, backendRoleARN)
-	require.NoError(t, vfs.WriteFile(pctx.Venv.FS, venvtest.Root("/repo/producer/terragrunt.hcl"), []byte(producerHCL), 0o600))
+	require.NoError(t, vfs.WriteFile(v.FS, venvtest.Root("/repo/producer/terragrunt.hcl"), []byte(producerHCL), 0o600))
 
 	pctx.IAMRoleOptions = iam.RoleOptions{
 		RoleARN: callerRoleARN,
 	}
 
-	cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "from-assumed-role", cfg.Inputs["result"])
 
@@ -336,6 +337,10 @@ remote_state {
 	assert.NotContains(t, requestedRoles, callerRoleARN)
 }
 
+// s3AccessDeniedBody is the S3 error body for a read the caller may not make.
+const s3AccessDeniedBody = `<?xml version="1.0" encoding="UTF-8"?>` +
+	`<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`
+
 // TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput verifies fallback to native output when direct S3 read fails.
 func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T) {
 	t.Parallel()
@@ -349,7 +354,8 @@ func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T)
 		}
 
 		if strings.Contains(req.URL.Host, "s3") {
-			return vhttp.Respond(http.StatusInternalServerError, []byte("Internal Server Error"), nil)
+			// AccessDenied is not retried, so the fallback runs on the first attempt.
+			return vhttp.Respond(http.StatusForbidden, []byte(s3AccessDeniedBody), nil)
 		}
 
 		return vhttp.Respond(http.StatusNotFound, nil, nil)
@@ -380,6 +386,16 @@ func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T)
 
 	outputs := recorder.outputInvocations()
 	require.Len(t, outputs, 1, "direct read failure must trigger native output retrieval")
+
+	s3Requests := 0
+
+	for _, p := range recorder.requestPaths() {
+		if strings.Contains(p, "s3.example.com") {
+			s3Requests++
+		}
+	}
+
+	assert.Equal(t, 1, s3Requests, "a denied read must not be retried before falling back")
 }
 
 func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
@@ -469,7 +485,7 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				env = map[string]string{}
 			}
 
-			ctx, pctx, configPath := prepareDependencyStateFixture(
+			ctx, v, pctx, configPath := prepareDependencyStateFixture(
 				t,
 				recorder,
 				testCase.backend,
@@ -478,7 +494,7 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				"",
 			)
 
-			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 			require.NoError(t, err)
 			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
 			assert.Empty(t, recorder.requestPaths(), "an unsupported config must not use the direct state client")
@@ -728,7 +744,7 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 			t.Parallel()
 
 			recorder := newDependencyStateRecorder(t, http.StatusNotFound, []byte(`{"error":{"code":404,"message":"missing"}}`))
-			ctx, pctx, configPath := prepareDependencyStateFixture(
+			ctx, v, pctx, configPath := prepareDependencyStateFixture(
 				t,
 				recorder,
 				"gcs",
@@ -741,7 +757,7 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 			pctx.OriginalTerraformCommand = "plan"
 			pctx.TerraformCliArgs = iacargs.New("plan")
 
-			_, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 
 			require.Error(t, err)
 
@@ -875,7 +891,7 @@ func TestDependencyStateRenderDirectReadFailureUsesMockOutputs(t *testing.T) {
 			t.Parallel()
 
 			recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(testCase.state))
-			ctx, pctx, configPath := prepareDependencyStateFixture(
+			ctx, v, pctx, configPath := prepareDependencyStateFixture(
 				t,
 				recorder,
 				"gcs",
@@ -887,7 +903,7 @@ func TestDependencyStateRenderDirectReadFailureUsesMockOutputs(t *testing.T) {
 			)
 			pctx.TerraformCliArgs = iacargs.New(testCase.command)
 
-			cfg, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 
 			require.NoError(t, err)
 			assert.Equal(t, "from-mock", cfg.Inputs["result"])
@@ -902,7 +918,7 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 	recorder := newDependencyStateRecorder(t, http.StatusOK, []byte(
 		`{"encrypted_data":"Y2lwaGVydGV4dA==","encryption_version":"v0"}`,
 	))
-	ctx, pctx, configPath := prepareDependencyStateFixture(
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
 		t,
 		recorder,
 		"gcs",
@@ -919,7 +935,7 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 	producerDir := venvtest.Root("/repo/producer")
 	source, err := tf.NewSource(
 		l,
-		pctx.Venv.FS,
+		v.FS,
 		".",
 		filepath.Join(producerDir, util.TerragruntCacheDir),
 		producerDir,
@@ -928,13 +944,13 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 	require.NoError(t, err)
 
 	dataDir := filepath.Join(source.WorkingDir, ".tf_data")
-	require.NoError(t, pctx.Venv.FS.MkdirAll(dataDir, 0o700))
+	require.NoError(t, v.FS.MkdirAll(dataDir, 0o700))
 	require.NoError(
 		t,
-		vfs.WriteFile(pctx.Venv.FS, filepath.Join(dataDir, "environment"), []byte("production"), 0o600),
+		vfs.WriteFile(v.FS, filepath.Join(dataDir, "environment"), []byte("production"), 0o600),
 	)
 
-	cfg, err := config.ParseConfigFile(ctx, pctx, l, configPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, configPath, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
@@ -1082,7 +1098,7 @@ func parseDependencyStateFixture(
 ) (*config.TerragruntConfig, error) {
 	t.Helper()
 
-	ctx, pctx, configPath := prepareDependencyStateFixture(
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
 		t,
 		recorder,
 		backend,
@@ -1091,7 +1107,7 @@ func parseDependencyStateFixture(
 		dependencyExtra,
 	)
 
-	return config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), configPath, nil)
+	return config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 }
 
 func prepareDependencyStateFixture(
@@ -1101,7 +1117,7 @@ func prepareDependencyStateFixture(
 	backendConfig string,
 	env map[string]string,
 	dependencyExtra string,
-) (context.Context, *config.ParsingContext, string) {
+) (context.Context, *venv.Venv, *config.ParsingContext, string) {
 	t.Helper()
 
 	var (
@@ -1143,11 +1159,11 @@ inputs = {
 	require.NoError(t, vfs.WriteFile(v.FS, producerPath, []byte(producer), 0o600))
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
-	ctx, pctx := newTestParsingContext(t, v, consumerPath)
+	ctx, pctx := newTestParsingContext(t, consumerPath)
 	ctx = config.WithConfigValues(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 
-	return ctx, pctx, consumerPath
+	return ctx, v, pctx, consumerPath
 }
 
 func terraformState(value string) []byte {

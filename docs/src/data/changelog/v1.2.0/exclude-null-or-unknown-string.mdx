@@ -1,0 +1,15 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `exclude` blocks no longer crash on null, unknown or sensitive strings
+
+Terragrunt panicked when `if`, `no_run` or `exclude_dependencies` in an [`exclude`](/reference/hcl/blocks#exclude) block evaluated to a null, unknown or sensitive string, such as `if = tostring(dependency.vpc.outputs.skip)`.
+
+These strings now behave like the matching bool values:
+
+- A null `if` reports `null value is not allowed`.
+- A null `no_run` or `exclude_dependencies` counts as unset.
+- An unknown value, such as a dependency output during discovery, skips the block with a warning.
+- A sensitive value reports an invalid `exclude` block error.

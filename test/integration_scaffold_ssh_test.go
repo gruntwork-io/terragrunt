@@ -1,4 +1,4 @@
-//nolint:paralleltest // Every test in this file calls RequireSSH, which uses t.Setenv and therefore can't run in parallel.
+//nolint:paralleltest // The module download runs git through go-getter, which spawns it with the process environment, so RequireSSH's key has to be set with t.Setenv.
 package test_test
 
 import (

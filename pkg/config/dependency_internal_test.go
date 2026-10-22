@@ -221,9 +221,11 @@ func TestApplyExtraArgsEnvVarsForOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			pctx := &ParsingContext{Venv: venvtest.NewOSWithEmptyEnv().WithEnv(tc.initial)}
-			applyExtraArgsEnvVarsForOutput(pctx, tc.terraform)
-			assert.Equal(t, tc.want, pctx.Venv.Env)
+			v := venvtest.NewOSWithEmptyEnv().WithEnv(tc.initial)
+
+			pctx := &ParsingContext{}
+			applyExtraArgsEnvVarsForOutput(v, pctx, tc.terraform)
+			assert.Equal(t, tc.want, v.Env)
 		})
 	}
 }
@@ -319,9 +321,7 @@ func TestGCSCredentialFileDirectStateReadSupported(t *testing.T) {
 			v := venvtest.New()
 			require.NoError(t, vfs.WriteFile(v.FS, credentialPath, []byte(testCase.contents), 0o600))
 
-			pctx := &ParsingContext{Venv: v}
-
-			assert.Equal(t, testCase.want, gcsCredentialFileDirectStateReadSupported(pctx, credentialPath))
+			assert.Equal(t, testCase.want, gcsCredentialFileDirectStateReadSupported(v, credentialPath))
 		})
 	}
 }
@@ -330,8 +330,8 @@ func TestGCSCredentialFileDirectStateReadSupported(t *testing.T) {
 func TestGCSCredentialFileDirectStateReadSupportedMissingFile(t *testing.T) {
 	t.Parallel()
 
-	pctx := &ParsingContext{Venv: venvtest.New()}
+	v := venvtest.New()
 
-	assert.True(t, gcsCredentialFileDirectStateReadSupported(pctx, ""), "an unset credential path is not a divergence")
-	assert.False(t, gcsCredentialFileDirectStateReadSupported(pctx, "/config/absent.json"))
+	assert.True(t, gcsCredentialFileDirectStateReadSupported(v, ""), "an unset credential path is not a divergence")
+	assert.False(t, gcsCredentialFileDirectStateReadSupported(v, "/config/absent.json"))
 }

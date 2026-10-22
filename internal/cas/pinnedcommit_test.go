@@ -17,11 +17,12 @@ import (
 )
 
 // deepHistoryCommits and pinnedCommitOffset shape the fixture behind the
-// pinned-SHA tests: a history long enough to tell a fetch of one commit from a
-// fetch of every commit, with the pinned commit well behind the tip of main.
+// pinned-SHA tests: some history behind the pinned commit and the pinned
+// commit behind the tip of main. The shallow file, not the depth, tells a
+// fetch of one commit from a fetch of every commit, so the counts stay small.
 const (
-	deepHistoryCommits = 200
-	pinnedCommitOffset = 50
+	deepHistoryCommits = 20
+	pinnedCommitOffset = 5
 )
 
 // TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit pins the object-name
@@ -52,7 +53,7 @@ func TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(ctx, l, v, redact.NewURL(url), pinned, "")
+	repo, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), pinned, "")
 	require.NoError(t, err)
 	assert.Equal(t, pinned, repo.Hash)
 
@@ -73,7 +74,7 @@ func TestGitStoreEnsureCommit_PinnedSHAFetchesOneCommit(t *testing.T) {
 	// shallow boundary instead of unshallowing it. That serves the store,
 	// which reads named commits with ls-tree and cat-file and never walks
 	// history, so both the tip and the pinned commit stay readable.
-	branchRepo, err := store.EnsureRef(ctx, l, v, redact.NewURL(url), "main", tip, 0)
+	branchRepo, err := store.EnsureRef(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), "main", tip, 0)
 	require.NoError(t, err)
 
 	tipTree, err := runner.WithWorkDir(branchRepo.Path).LsTreeRecursive(ctx, tip)
@@ -113,7 +114,7 @@ func TestGitStoreEnsureCommit_PinnedSHADeepensForLaterRefs(t *testing.T) {
 	store, v, _ := newTestGitStore(t)
 	l := logger.CreateLogger()
 
-	repo, err := store.EnsureCommit(ctx, l, v, redact.NewURL(url), pinned, "")
+	repo, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), pinned, "")
 	require.NoError(t, err)
 
 	_, err = v.FS.Stat(filepath.Join(repo.Path, "shallow"))
@@ -123,7 +124,7 @@ func TestGitStoreEnsureCommit_PinnedSHADeepensForLaterRefs(t *testing.T) {
 
 	const abbrevLen = 12
 
-	deepened, err := store.EnsureCommit(ctx, l, v, redact.NewURL(url), older[:abbrevLen], "")
+	deepened, err := store.EnsureCommit(ctx, l, newTestGitStoreVenv(t, v), redact.NewURL(url), older[:abbrevLen], "")
 	require.NoError(t, err, "a later ref must reach the history behind the boundary")
 	assert.Equal(t, older, deepened.Hash)
 
@@ -156,7 +157,7 @@ func TestGitStoreEnsureCommit_ServerRefusingObjectNameFallsBack(t *testing.T) {
 	v := oldProtocolVenv()
 	store := cas.NewGitStore(filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore"))
 
-	repo, err := store.EnsureCommit(ctx, logger.CreateLogger(), v, redact.NewURL(url), pinned, "")
+	repo, err := store.EnsureCommit(ctx, logger.CreateLogger(), newTestGitStoreVenv(t, v), redact.NewURL(url), pinned, "")
 	require.NoError(t, err, "a refused object name must fall back to the full fetch")
 	assert.Equal(t, pinned, repo.Hash)
 
@@ -194,7 +195,9 @@ func TestGitStoreEnsureCommit_ServerRefusingObjectNameKeepsKnownHashPath(t *test
 	v := oldProtocolVenv()
 	store := cas.NewGitStore(filepath.Join(helpers.TmpDirWOSymlinks(t), "gitstore"))
 
-	repo, err := store.EnsureCommit(ctx, logger.CreateLogger(), v, redact.NewURL(url), pinned, pinned)
+	repo, err := store.EnsureCommit(
+		ctx, logger.CreateLogger(), newTestGitStoreVenv(t, v), redact.NewURL(url), pinned, pinned,
+	)
 	require.NoError(t, err)
 	assert.Equal(t, pinned, repo.Hash)
 
@@ -221,16 +224,10 @@ func refuseUnadvertisedWants(t *testing.T, srv *git.Server) {
 // oldProtocolVenv returns an OS-backed environment that pins git to the
 // pre-v2 wire protocol. The runner passes git only the venv's environment,
 // which has no HOME here, so the setting goes in through GIT_CONFIG_COUNT.
-//
-// Automatic maintenance is off as well. The full-history fallback brings in
-// more commits than the commit-graph task's threshold, and the write it
-// detaches can still be running when t.TempDir cleanup removes the store.
 func oldProtocolVenv() *venv.Venv {
 	return venv.OSVenv().WithEnv(map[string]string{
-		"GIT_CONFIG_COUNT":   "2",
+		"GIT_CONFIG_COUNT":   "1",
 		"GIT_CONFIG_KEY_0":   "protocol.version",
 		"GIT_CONFIG_VALUE_0": "0",
-		"GIT_CONFIG_KEY_1":   "maintenance.auto",
-		"GIT_CONFIG_VALUE_1": "false",
 	})
 }

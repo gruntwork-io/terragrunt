@@ -1,0 +1,8 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Negative error patterns apply regardless of their position in the list
+
+A negative pattern in `ignorable_errors` or `retryable_errors`, written with a leading `!`, only took effect when it came before every positive pattern the error also matched. An error matching both `".*Error: safe warning.*"` and `"!.*Error: do not ignore.*"`, listed in that order, was ignored anyway. A matching negative pattern now keeps the error from being ignored or retried, wherever it sits in the list.

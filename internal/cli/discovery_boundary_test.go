@@ -121,19 +121,33 @@ func TestDiscoveryBoundaryKeepsEdgesToWithheldDependencies(t *testing.T) {
 }
 
 // TestDiscoveryBoundaryRejectsDependentTraversalOutsideIt pins the refusal of
-// a boundary that excludes the working directory. Filters that traverse
-// dependents search upward from the working directory, so such a boundary
-// could never take effect.
+// a boundary that neither contains the working directory nor sits inside it.
+// Filters that traverse dependents search from the working directory, so such
+// a boundary could never take effect.
 func TestDiscoveryBoundaryRejectsDependentTraversalOutsideIt(t *testing.T) {
 	t.Parallel()
 
-	_, err := runInBoundaryFixture(t, ".", "find", "--filter", "...{./prod/db}", "--discovery-boundary", "./prod")
+	_, err := runInBoundaryFixture(t, "prod", "find", "--filter", "...{./db}", "--discovery-boundary", "../shared")
 
 	var scopeErr discovery.DiscoveryBoundaryScopeError
 
 	require.ErrorAs(t, err, &scopeErr)
-	assert.Equal(t, filepath.Join(discoveryRoot, "prod"), scopeErr.Boundary)
-	assert.Equal(t, discoveryRoot, scopeErr.WorkingDir)
+	assert.Equal(t, filepath.Join(discoveryRoot, "shared"), scopeErr.Boundary)
+	assert.Equal(t, filepath.Join(discoveryRoot, "prod"), scopeErr.WorkingDir)
+}
+
+// TestDiscoveryBoundaryWalksDependentsFromBoundaryInsideIt pins dependents confined to a boundary under the working dir.
+func TestDiscoveryBoundaryWalksDependentsFromBoundaryInsideIt(t *testing.T) {
+	t.Parallel()
+
+	out, err := runInBoundaryFixture(t, ".", "find", "--filter", "...{./prod/db}", "--discovery-boundary", "./prod")
+	require.NoError(t, err)
+
+	assert.ElementsMatch(
+		t,
+		[]string{filepath.FromSlash("prod/app"), filepath.FromSlash("prod/db")},
+		discoveredPaths(out),
+	)
 }
 
 // regionUnits puts each unit in its own region directory, with the dependency

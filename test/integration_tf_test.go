@@ -609,7 +609,8 @@ func TestTFLogWithRelPath(t *testing.T) {
 				assert.Contains(
 					t,
 					stderr,
-					"Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache",
+					"Downloading OpenTofu/Terraform configurations "+
+						"from .. into ./bbb/ccc/workspace/.terragrunt-cache",
 				)
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
 				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
@@ -3753,8 +3754,9 @@ func TestTFTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
-//nolint:paralleltest // it overrides the global version.Version
 func TestTFTerragruntValidateAllWithVersionChecks(t *testing.T) {
+	t.Parallel()
+
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/version-check")
 
 	stdout := bytes.Buffer{}
@@ -3788,8 +3790,9 @@ func TestTFTerragruntIncludeParentHclFile(t *testing.T) {
 	assert.Contains(t, stderr, "common_hcl")
 }
 
-//nolint:paralleltest // runTerragruntVersionCommand overrides the global version.Version
 func TestTFTerragruntVersionConstraints(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name                 string
 		terragruntVersion    string
@@ -3840,8 +3843,10 @@ func TestTFTerragruntVersionConstraints(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases { //nolint:paralleltest // the parent test overrides the global version.Version
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_constraints")
 
@@ -4084,8 +4089,9 @@ func TestTFIamRolesLoadingFromDifferentModules(t *testing.T) {
 	assert.NotEmptyf(t, component2, "Missing role for component 2")
 }
 
-//nolint:paralleltest // it overrides the global version.Version
 func TestTFTerragruntVersionConstraintsPartialParse(t *testing.T) {
+	t.Parallel()
+
 	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
 	helpers.CleanupTerragruntFolder(t, fixturePath)
 
@@ -4124,7 +4130,7 @@ func TestTFLogFailingDependencies(t *testing.T) {
 	)
 	require.Error(t, err)
 
-	// Check that the error output contains terraform/tofu error details
+	// Check that the error output contains tofu/terraform error details
 	assert.Contains(t, stderr, "Getting output of dependency ../dependency/terragrunt.hcl")
 	assert.Contains(t, stderr, "Error: Failed to download module")
 }
@@ -4916,7 +4922,7 @@ func TestTFLogFormatJSONOutput(t *testing.T) {
 	assert.Contains(
 		t,
 		strings.Join(msgs, ""),
-		"Downloading Terraform configurations from git::"+mirror.URL,
+		"Downloading OpenTofu/Terraform configurations from git::"+mirror.URL,
 	)
 	assert.Contains(t, strings.Join(msgs, ""), "ref=v0.83.2")
 }

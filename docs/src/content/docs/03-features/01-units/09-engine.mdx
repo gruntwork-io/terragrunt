@@ -43,7 +43,7 @@ export TG_EXPERIMENTAL_ENGINE=1
 
 IaC Engines were introduced to offer advanced users of Terragrunt a level of customization over how exactly IaC updates are performed with a given set of Terragrunt configurations.
 
-Without usage of IaC Engines, Terragrunt will determine how IaC updates will be performed by doing things like invoking the `tofu` or `terraform` binary directly. For most users, this is fine.
+Without usage of IaC Engines, Terragrunt will determine how IaC updates will be performed by doing things like invoking the `tofu`/`terraform` binary directly. For most users, this is fine.
 
 However, advanced users have more complex use cases that require more control over how those IaC updates are executed, given certain Terragrunt configurations.
 
@@ -89,6 +89,12 @@ engine {
 * `version`: (Optional) The version of the engine to download from GitHub releases. If not specified, the latest release is always downloaded.
 * `type`: (Optional) Currently, the only supported type is `rpc`.
 * `meta`: (Optional) A block for setting engine-specific metadata. This can include various configuration settings required by the engine.
+
+## Version detection
+
+Without an engine, Terragrunt runs `tofu -version` before a run to learn which OpenTofu/Terraform version and implementation it is working with. An engine decides for itself what to execute and how when performing Terragrunt runs, so for units with engines Terragrunt skips that version probe, needs no `tofu` or `terraform` on PATH, and treats the version and implementation as unknown.
+
+Because the version is unknown, Terragrunt cannot check a [`terraform_version_constraint`](/reference/hcl/attributes#terraform_version_constraint) on such a unit and skips it with a warning. The `terragrunt_version_constraint` is checked as usual. Disabling the engine with `--no-engine` restores the probe and the check.
 
 ## Caching
 

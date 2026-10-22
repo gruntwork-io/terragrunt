@@ -62,11 +62,12 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -138,11 +139,12 @@ exclude {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -202,11 +204,12 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -261,11 +264,12 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -319,11 +323,12 @@ include "root" {
 }
 `), 0644))
 
-			ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), childPath)
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, childPath)
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, pctx, l, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 

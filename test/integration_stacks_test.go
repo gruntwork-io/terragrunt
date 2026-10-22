@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -1105,44 +1106,80 @@ func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
 func TestCASInStacksRejectsTerraformUpdateSourceWithCASWithNoCAS(t *testing.T) {
 	t.Parallel()
 
-	catalog := helpers.TmpDirWOSymlinks(t)
-	liveDir := helpers.TmpDirWOSymlinks(t)
-
-	writeFile := func(rel, body string) {
-		full := filepath.Join(catalog, rel)
-		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
-		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
+	testCases := []struct {
+		expectedErr error
+		name        string
+		expr        string
+		rejected    bool
+	}{
+		{name: "true", expr: `true`, rejected: true},
+		{name: "negated false", expr: `!false`, rejected: true},
+		{name: "local", expr: `local.use_cas`, rejected: true},
+		{name: "literal and local", expr: `true && local.use_cas`, rejected: true},
+		{name: "negated true", expr: `!true`},
+		{name: "function call", expr: `tobool("true")`, expectedErr: cas.ErrUpdateSourceWithCASNotConstant},
 	}
 
-	writeFile("modules/baz/main.tf", ``)
-	writeFile("units/bar/terragrunt.hcl", `terraform {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			catalog := helpers.TmpDirWOSymlinks(t)
+			liveDir := helpers.TmpDirWOSymlinks(t)
+
+			writeFile := func(rel, body string) {
+				full := filepath.Join(catalog, rel)
+				require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+				require.NoError(t, os.WriteFile(full, []byte(body), 0644))
+			}
+
+			writeFile("modules/baz/main.tf", ``)
+			writeFile("units/bar/terragrunt.hcl", `locals {
+  use_cas = true
+}
+
+terraform {
   source = "../..//modules/baz"
 
-  update_source_with_cas = true
+  update_source_with_cas = `+tc.expr+`
 }
 `)
 
-	// The unit block itself does NOT set update_source_with_cas, so the only opt-in is the
-	// terraform block inside the materialized unit.
-	liveStack := fmt.Sprintf(`unit "bar" {
+			// The unit block itself does NOT set update_source_with_cas, so the only opt-in is
+			// the terraform block inside the materialized unit.
+			liveStack := fmt.Sprintf(`unit "bar" {
   source = %s
   path   = "bar"
 }
 `, strconv.Quote(filepath.ToSlash(catalog)+"//units/bar"))
-	require.NoError(
-		t,
-		os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644),
-	)
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644),
+			)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt stack generate --no-cas --non-interactive --working-dir "+liveDir,
-	)
-	require.Error(t, err)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt stack generate --no-cas --non-interactive --working-dir "+liveDir,
+			)
 
-	combined := stderr + err.Error()
-	assert.Contains(t, combined, "update_source_with_cas")
-	assert.Contains(t, combined, "terraform")
+			if tc.expectedErr != nil {
+				require.ErrorIs(t, err, tc.expectedErr)
+
+				return
+			}
+
+			if !tc.rejected {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var requiresCASErr *cas.UpdateSourceWithCASRequiresCASError
+
+			require.ErrorAs(t, err, &requiresCASErr)
+			assert.Equal(t, "terraform", requiresCASErr.BlockType)
+		})
+	}
 }
 
 // readCachedFiles returns the contents of every file with the given name

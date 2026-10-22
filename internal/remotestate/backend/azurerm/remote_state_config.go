@@ -38,14 +38,13 @@ var terragruntOnlyConfigs = []string{
 // the Terragrunt-only bootstrap options (location, SKU, skip_* toggles) that
 // are stripped before the config is handed to `tofu init -backend-config`.
 type ExtendedRemoteStateConfigAzurerm struct {
-	Tags                   map[string]string `mapstructure:"tags"`
-	Location               string            `mapstructure:"location"`
-	AccountTier            string            `mapstructure:"account_tier"`
-	AccountReplicationType string            `mapstructure:"account_replication_type"`
-	AccountKind            string            `mapstructure:"account_kind"`
-	AccessTier             string            `mapstructure:"access_tier"`
-	MinimumTLSVersion      string            `mapstructure:"minimum_tls_version"`
-	// PrincipalID defaults to the identity Terragrunt authenticated as.
+	Tags                     map[string]string        `mapstructure:"tags"`
+	Location                 string                   `mapstructure:"location"`
+	AccountTier              string                   `mapstructure:"account_tier"`
+	AccountReplicationType   string                   `mapstructure:"account_replication_type"`
+	AccountKind              string                   `mapstructure:"account_kind"`
+	AccessTier               string                   `mapstructure:"access_tier"`
+	MinimumTLSVersion        string                   `mapstructure:"minimum_tls_version"`
 	PrincipalID              string                   `mapstructure:"principal_id"`
 	RemoteStateConfigAzurerm RemoteStateConfigAzurerm `mapstructure:",squash"`
 	SoftDeleteRetentionDays  int                      `mapstructure:"soft_delete_retention_days"`
@@ -56,12 +55,11 @@ type ExtendedRemoteStateConfigAzurerm struct {
 	SkipVersioning             bool `mapstructure:"skip_versioning"`
 	EnableSoftDelete           bool `mapstructure:"enable_soft_delete"`
 	AllowBlobPublicAccess      bool `mapstructure:"allow_blob_public_access"`
-	// AssignBlobDataRole grants Storage Blob Data Contributor during bootstrap; opt-in because it needs roleAssignments/write.
-	AssignBlobDataRole bool `mapstructure:"assign_blob_data_role"`
+	AssignBlobDataRole         bool `mapstructure:"assign_blob_data_role"`
 }
 
 // RemoteStateConfigAzurerm mirrors the configuration keys accepted by the
-// `azurerm` Terraform/OpenTofu backend. These are forwarded verbatim to
+// `azurerm` OpenTofu/Terraform backend. These are forwarded verbatim to
 // `tofu init -backend-config`.
 type RemoteStateConfigAzurerm struct {
 	// The auth toggles are pointers so an explicitly configured false is

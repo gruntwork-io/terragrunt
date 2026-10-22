@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Summary formats data from a report for output as a summary.
@@ -193,7 +194,6 @@ const (
 	earlyExitLabel             = "Early Exits"
 	excludeLabel               = "Excluded"
 	separatorLineLength        = 28
-	durationAlignmentOffset    = 4
 	headerUnitCountSpacing     = 2
 	defaultUnitNameLength      = 20
 	headerPaddingAdjustment    = 3
@@ -228,9 +228,7 @@ func (s *Summary) writeUnitLevelSummary(w io.Writer, colorizer *Colorizer) error
 			name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
 		}
 
-		if len(name) > maxUnitNameLength {
-			maxUnitNameLength = len(name)
-		}
+		maxUnitNameLength = max(maxUnitNameLength, log.VisibleLength(name))
 	}
 
 	headerPadding := 0
@@ -373,18 +371,11 @@ func (s *Summary) writeUnitDuration(
 }
 
 func (s *Summary) padding(label string) string {
-	headerUnitCountVisualPosition := s.visualLength(runSummaryHeader) + headerUnitCountSpacing
+	headerUnitCountVisualPosition := log.VisibleLength(runSummaryHeader) + headerUnitCountSpacing
 
-	currentLabelLength := s.visualLength(label)
-	currentPosition := len(prefix) + currentLabelLength
+	currentPosition := len(prefix) + log.VisibleLength(label)
 
-	paddingNeeded := headerUnitCountVisualPosition - currentPosition
-
-	paddingNeeded -= 4
-
-	if paddingNeeded < 0 {
-		paddingNeeded = 0
-	}
+	paddingNeeded := max(0, headerUnitCountVisualPosition-currentPosition)
 
 	padding := strings.Repeat(s.padder, paddingNeeded)
 
@@ -399,17 +390,6 @@ func (s *Summary) padding(label string) string {
 	return strings.ReplaceAll(padding, s.padder, " ")
 }
 
-// ansiRegex is used to remove ANSI escape codes from strings.
-// We compile it here to avoid re-compiling it on every call to visualLength.
-var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-
-// visualLength calculates the visual length of a string by removing ANSI escape codes
-func (s *Summary) visualLength(text string) int {
-	cleanText := ansiRegex.ReplaceAllString(text, "")
-
-	return len(cleanText)
-}
-
 // unitDurationPadding calculates padding for unit names to align durations with header
 func (s *Summary) unitDurationPadding(name string, colorizer *Colorizer) string {
 	maxUnitNameLength := 0
@@ -420,9 +400,7 @@ func (s *Summary) unitDurationPadding(name string, colorizer *Colorizer) string 
 			runName = strings.TrimPrefix(runName, s.workingDir+string(os.PathSeparator))
 		}
 
-		if len(runName) > maxUnitNameLength {
-			maxUnitNameLength = len(runName)
-		}
+		maxUnitNameLength = max(maxUnitNameLength, log.VisibleLength(runName))
 	}
 
 	headerPadding := 0
@@ -431,12 +409,12 @@ func (s *Summary) unitDurationPadding(name string, colorizer *Colorizer) string 
 	}
 
 	headerPrefix := fmt.Sprintf("%s  %d units  ", runSummaryHeader, s.TotalUnits())
-	headerDurationColumn := len(headerPrefix) + headerPadding
+	headerDurationColumn := log.VisibleLength(headerPrefix) + headerPadding
 
 	unitPrefix := strings.Repeat(prefix, unitPrefixMultiplier)
-	currentPosition := len(unitPrefix) + len(name)
+	currentPosition := len(unitPrefix) + log.VisibleLength(name)
 
-	paddingNeeded := max(1, headerDurationColumn-currentPosition-durationAlignmentOffset)
+	paddingNeeded := max(1, headerDurationColumn-currentPosition)
 
 	padding := strings.Repeat(s.padder, paddingNeeded)
 

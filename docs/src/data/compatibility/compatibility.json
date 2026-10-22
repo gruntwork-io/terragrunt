@@ -1,5 +1,13 @@
 [
   {
+    "id": "opentofu-1.13.x",
+    "tool": "opentofu",
+    "version": "1.13.x",
+    "terragrunt_min": "1.2.0",
+    "terragrunt_max": null,
+    "order": 28
+  },
+  {
     "id": "opentofu-1.12.x",
     "tool": "opentofu",
     "version": "1.12.x",

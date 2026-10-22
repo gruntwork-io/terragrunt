@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
-	"github.com/gruntwork-io/terragrunt/internal/multierror"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -180,9 +179,10 @@ func Run(
 		return err
 	}
 
-	// When skipCache is true (the no-dot-terragrunt-cache experiment is enabled and no_dot_terragrunt_cache is set), updatedOpts keeps pointing at the
-	// unit directory, so the unit runs in place. Otherwise download/copy the source into .terragrunt-cache for
-	// consistency; when no source is specified, sourceURL is "." (the current directory).
+	// When skipCache is true (the no-dot-terragrunt-cache experiment is enabled and no_dot_terragrunt_cache is
+	// set), updatedOpts keeps pointing at the unit directory, so the unit runs in place. Otherwise download/copy
+	// the source into .terragrunt-cache for consistency; when no source is specified, sourceURL is "." (the
+	// current directory).
 	if !skipCache {
 		err = telemetry.TelemeterFromContext(ctx).
 			Collect(ctx, l, "download_terraform_source", map[string]any{
@@ -300,7 +300,7 @@ func runTerragruntWithConfig(
 ) error {
 	v.RequireEnv()
 
-	if cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
+	if cfg.Exclude.ShouldPreventRun(opts.TerraformCliArgs.CommandName(opts.TerraformCommand)) {
 		l.Infof(
 			"Early exit in terragrunt unit %s due to exclude block with no_run = true",
 			opts.CacheDir,
@@ -311,10 +311,10 @@ func runTerragruntWithConfig(
 
 	if len(cfg.Terraform.ExtraArgs) > 0 {
 		args := FilterTerraformExtraArgs(l, v.FS, opts, cfg)
+		extraEnvVars := filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg)
 
 		opts.InsertTerraformCliArgs(args...)
 
-		extraEnvVars := filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg)
 		if _, set := extraEnvVars[tf.EnvNameTofuCPUProfile]; set {
 			opts.TofuCPUProfileUserSet = true
 		}
@@ -354,7 +354,7 @@ func runTerragruntWithConfig(
 	}()
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
-	if err := checkProtectedModuleRunCfg(opts, cfg); err != nil {
+	if err := CheckProtectedModuleRunCfg(opts, cfg); err != nil {
 		return err
 	}
 
@@ -405,7 +405,7 @@ func runTerragruntWithConfig(
 				}
 			}
 
-			return multierror.Join(runTerraformError, lockFileError)
+			return errors.Join(runTerraformError, lockFileError)
 		},
 	)
 }
@@ -498,7 +498,7 @@ func RunActionWithHooks(
 		allErrors = append(allErrors, errorHookErrors)
 	}
 
-	return multierror.Join(allErrors...)
+	return errors.Join(allErrors...)
 }
 
 // SetTerragruntInputsAsEnvVars merges the inputs from Terragrunt
@@ -536,7 +536,7 @@ func SetTerragruntInputsAsEnvVars(
 	return nil
 }
 
-// CheckFolderContainsTerraformCode checks if the folder contains Terraform/OpenTofu code
+// CheckFolderContainsTerraformCode checks if the folder contains OpenTofu/Terraform code
 func CheckFolderContainsTerraformCode(fsys vfs.FS, opts *Options) error {
 	found, err := util.DirContainsTFFiles(fsys, opts.CacheDir)
 	if err != nil {
@@ -690,7 +690,7 @@ func remoteStateNeedsInit(
 // FilterTerraformExtraArgs extracts terraform extra arguments using runcfg types.
 func FilterTerraformExtraArgs(l log.Logger, fsys vfs.FS, opts *Options, cfg *runcfg.RunConfig) []string {
 	out := []string{}
-	cmd := opts.TerraformCliArgs.First()
+	cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
 
 	for i := range cfg.Terraform.ExtraArgs {
 		arg := &cfg.Terraform.ExtraArgs[i]
@@ -801,7 +801,7 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(
 	cfg *runcfg.RunConfig,
 ) map[string]string {
 	out := map[string]string{}
-	cmd := opts.TerraformCliArgs.First()
+	cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
 
 	for i := range cfg.Terraform.ExtraArgs {
 		arg := &cfg.Terraform.ExtraArgs[i]
@@ -921,7 +921,9 @@ func runTerraformInitRunCfg(
 ) error {
 	if opts.TerraformCliArgs.First() != tf.CommandNameInit && !opts.AutoInit {
 		l.Warnf(
-			"Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.",
+			"Detected that init is needed, but Auto-Init is disabled. "+
+				"Continuing with further actions, but subsequent %s commands may fail.",
+			opts.TofuImplementation.DisplayName(),
 		)
 
 		return nil
@@ -957,18 +959,11 @@ func runTerraformInitRunCfg(
 	return nil
 }
 
-// checkProtectedModuleRunCfg checks if module is protected using runcfg types.
-func checkProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
-	var destroyFlag = false
-	if opts.TerraformCliArgs.First() == tf.CommandNameDestroy {
-		destroyFlag = true
-	}
-
-	if opts.TerraformCliArgs.Contains("-" + tf.CommandNameDestroy) {
-		destroyFlag = true
-	}
-
-	if !destroyFlag {
+// CheckProtectedModuleRunCfg rejects a destroy of a unit that sets `prevent_destroy`.
+//
+// Returns [ModuleIsProtected] when the args in opts are a destroy and cfg sets `prevent_destroy`.
+func CheckProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
+	if !opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCliArgs.First()) {
 		return nil
 	}
 

@@ -58,10 +58,8 @@ func (file *File) Update(content []byte) error {
 // we first see if there are any include blocks without any labels, and if there is, we modify it in the file object to
 // inject the label as "".
 func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
-	if file.fileUpdateHandlerFunc != nil {
-		if err := file.fileUpdateHandlerFunc(file); err != nil {
-			return err
-		}
+	if err := file.ApplyFileUpdate(); err != nil {
+		return err
 	}
 
 	diags := gohcl.DecodeBody(file.Body, evalContext, out)
@@ -70,6 +68,16 @@ func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 	}
 
 	return nil
+}
+
+// ApplyFileUpdate runs the file update handler that [File.Decode] runs before it decodes, such as the one that
+// labels a bare include block. It does nothing when the parser sets no handler.
+func (file *File) ApplyFileUpdate() error {
+	if file.fileUpdateHandlerFunc == nil {
+		return nil
+	}
+
+	return file.fileUpdateHandlerFunc(file)
 }
 
 // Blocks takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.

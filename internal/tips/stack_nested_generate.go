@@ -1,6 +1,7 @@
 package tips
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 // whose nested stacks were not themselves recursively generated.
 // The user likely expected the whole subtree, so the tip shows how to include it.
 func GiveStackNestedGenerateTip(
+	ctx context.Context,
 	l log.Logger,
 	fsys vfs.FS,
 	funcsFor inthclparse.StackFuncFactory,
@@ -45,7 +47,7 @@ func GiveStackNestedGenerateTip(
 			dir = filepath.Join(workingDir, dir)
 		}
 
-		if !stackHasUngeneratedNestedStacks(l, fsys, funcsFor, dir) {
+		if !stackHasUngeneratedNestedStacks(ctx, l, fsys, funcsFor, dir) {
 			continue
 		}
 
@@ -93,19 +95,20 @@ func literalStackFilterPath(f *filter.Filter) string {
 // stack the parent generated, it checks whether that nested stack's own components
 // exist on disk (honoring no_dot_terragrunt_stack).
 func stackHasUngeneratedNestedStacks(
+	ctx context.Context,
 	l log.Logger,
 	fsys vfs.FS,
 	funcsFor inthclparse.StackFuncFactory,
 	dir string,
 ) bool {
-	_, nestedStackDirs, err := inthclparse.DirectComponentPaths(fsys, dir, funcsFor)
+	_, nestedStackDirs, err := inthclparse.DirectComponentPaths(ctx, fsys, dir, funcsFor)
 	if err != nil {
 		l.Debugf("stack-nested-generate tip: skipping %q: %v", dir, err)
 		return false
 	}
 
 	for _, nestedDir := range nestedStackDirs {
-		if !nestedStackGenerated(l, fsys, funcsFor, nestedDir) {
+		if !nestedStackGenerated(ctx, l, fsys, funcsFor, nestedDir) {
 			return true
 		}
 	}
@@ -116,12 +119,13 @@ func stackHasUngeneratedNestedStacks(
 // nestedStackGenerated reports whether every direct component of the nested stack
 // generated at nestedDir exists on disk, i.e. the nested stack was itself generated.
 func nestedStackGenerated(
+	ctx context.Context,
 	l log.Logger,
 	fsys vfs.FS,
 	funcsFor inthclparse.StackFuncFactory,
 	nestedDir string,
 ) bool {
-	unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(fsys, nestedDir, funcsFor)
+	unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(ctx, fsys, nestedDir, funcsFor)
 	if err != nil {
 		l.Debugf("stack-nested-generate tip: skipping %q: %v", nestedDir, err)
 		return true

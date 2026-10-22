@@ -27,12 +27,10 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	t.Parallel()
 
 	opts := optionsWithDistinctValues(t)
-	v := venvtest.New()
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), v, opts)
+	pctx := configbridge.NewParsingContext(opts)
 	require.NotNil(t, pctx)
 
-	assert.Same(t, v, pctx.Venv, "HCL helpers shell out and read files through the venv handed to the bridge")
 	assert.Equal(t, opts.TerragruntConfigPath, pctx.TerragruntConfigPath)
 	assert.Equal(t, opts.OriginalTerragruntConfigPath, pctx.OriginalTerragruntConfigPath)
 	assert.Equal(t, opts.WorkingDir, pctx.WorkingDir)
@@ -90,7 +88,7 @@ func TestNewParsingContextPropagatesStrictControls(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, opts.StrictControls.EnableControl(controls.BareInclude))
 
-	_, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), venvtest.New(), opts)
+	pctx := configbridge.NewParsingContext(opts)
 
 	ctrl := pctx.StrictControls.Find(controls.BareInclude)
 	require.NotNil(t, ctrl, "strict controls must reach the parsing context")

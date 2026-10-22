@@ -147,7 +147,7 @@ func discoveredToListed(
 		if opts.QueueConstructAs != "" {
 			if unit, ok := c.(*component.Unit); ok {
 				if cfg := unit.Config(); cfg != nil && cfg.Exclude != nil {
-					if cfg.Exclude.IsActionListed(opts.QueueConstructAs) {
+					if cfg.Exclude.Excludes(opts.QueueConstructAs) {
 						if opts.Format != FormatDot {
 							continue
 						}
@@ -179,7 +179,7 @@ func discoveredToListed(
 			if opts.QueueConstructAs != "" {
 				if depUnit, ok := dep.(*component.Unit); ok {
 					if depCfg := depUnit.Config(); depCfg != nil && depCfg.Exclude != nil {
-						if depCfg.Exclude.IsActionListed(opts.QueueConstructAs) {
+						if depCfg.Exclude.Excludes(opts.QueueConstructAs) {
 							depExcluded = true
 						}
 					}

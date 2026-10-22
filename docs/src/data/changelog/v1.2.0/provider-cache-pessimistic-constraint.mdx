@@ -1,0 +1,19 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Provider cache lock file constraints match `tofu init`
+
+With the [Provider Cache Server](/features/caching/provider-cache-server), a provider declared with `version = "~> 3.0"` got `constraints = "~> 3.0.0"` in `.terraform.lock.hcl`. `~> 3.0` allows any 3.x release and `~> 3.0.0` allows only 3.0.x, so the lock file recorded a version that its own constraint excluded:
+
+```hcl
+provider "registry.opentofu.org/hashicorp/null" {
+  version     = "3.2.4"
+  constraints = "~> 3.0.0"
+}
+```
+
+Terragrunt now writes the `constraints` value the same way `tofu init` does. A `~>` declared with one or two parts keeps two, so `~> 3.0` stays `~> 3.0` and `~> 3` becomes `~> 3.0`. Every other term gets three parts, so `>= 3.0` becomes `>= 3.0.0`. Repeated terms are written once, and terms are sorted by version, so `< 4.0, >= 3.0` becomes `>= 3.0.0, < 4.0.0`.
+
+To repair a lock file written by an earlier version, run `terragrunt init -upgrade`. It rewrites the `constraints` value of any entry whose version falls outside it.

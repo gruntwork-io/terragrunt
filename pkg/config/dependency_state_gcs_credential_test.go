@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -24,7 +25,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const gcsStatePath = "storage.googleapis.com/state-bucket/environment/service/default.tfstate"
+const (
+	gcsStatePath = "storage.googleapis.com/state-bucket/environment/service/default.tfstate"
+
+	// gcsImpersonatedTokenResponse is the IAM Credentials reply that returns impersonated-token.
+	gcsImpersonatedTokenResponse = `{"accessToken":"impersonated-token","expireTime":"2099-01-01T00:00:00Z"}`
+)
 
 var gcsCredentialPath = venvtest.Root("/credentials/service-account.json")
 
@@ -177,6 +183,223 @@ func TestDependencyStateEligibilityExternalAccountCredentialIOFailure(t *testing
 	assert.Equal(t, int32(1), fsys.closes.Load())
 }
 
+// TestDependencyStateEligibilityImpersonatesLikeNativeBackend checks impersonated reads stay direct and match the native identity.
+func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
+	t.Parallel()
+
+	serviceAccount := testGCSServiceAccountJSON(t)
+	configuredAccount := map[string]string{"impersonate_service_account": `"config@example.com"`}
+	readWriteScope := []string{"https://www.googleapis.com/auth/devstorage.read_write"}
+	signedByTestToken := []string{"Bearer test-token", "Bearer impersonated-token"}
+
+	testCases := []struct {
+		name              string
+		backendConfig     map[string]string
+		env               map[string]string
+		files             map[string]string
+		removeConfig      []string
+		wantRequests      []string
+		wantAuthorization []string
+		wantScope         []string
+		wantDelegates     []string
+	}{
+		{
+			name:              "configured service account remains direct",
+			backendConfig:     configuredAccount,
+			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+		},
+		{
+			name:              "GOOGLE_IMPERSONATE_SERVICE_ACCOUNT remains direct",
+			env:               map[string]string{"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT": "env@example.com"},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("env@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+		},
+		{
+			name: "GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT wins over GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
+			env: map[string]string{
+				"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT": "backend@example.com",
+				"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT":         "env@example.com",
+			},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("backend@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+		},
+		{
+			name:              "configured service account wins over the environment",
+			backendConfig:     configuredAccount,
+			env:               map[string]string{"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT": "backend@example.com"},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+		},
+		{
+			name:              "configured empty service account without environment reads without impersonating",
+			backendConfig:     map[string]string{"impersonate_service_account": `""`},
+			wantRequests:      []string{gcsStatePath},
+			wantAuthorization: []string{"Bearer test-token"},
+		},
+		{
+			name: "configured delegates are forwarded",
+			backendConfig: map[string]string{
+				"impersonate_service_account":           `"config@example.com"`,
+				"impersonate_service_account_delegates": `["delegate@example.com"]`,
+			},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+			wantDelegates:     []string{"projects/-/serviceAccounts/delegate@example.com"},
+		},
+		{
+			name:              "configured delegates apply to an account from the environment",
+			backendConfig:     map[string]string{"impersonate_service_account_delegates": `["delegate@example.com"]`},
+			env:               map[string]string{"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT": "backend@example.com"},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("backend@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+			wantDelegates:     []string{"projects/-/serviceAccounts/delegate@example.com"},
+		},
+		{
+			name: "null delegates remain direct",
+			backendConfig: map[string]string{
+				"impersonate_service_account":           `"config@example.com"`,
+				"impersonate_service_account_delegates": "null",
+			},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+		},
+		{
+			name: "empty delegates remain direct",
+			backendConfig: map[string]string{
+				"impersonate_service_account":           `"config@example.com"`,
+				"impersonate_service_account_delegates": "[]",
+			},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+		},
+		{
+			// OpenTofu and Terraform ignore these variables.
+			name:          "delegates environment variables are ignored like the native backend",
+			backendConfig: configuredAccount,
+			env: map[string]string{
+				"GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES": "backend-delegate@example.com",
+				"GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES":         "delegate@example.com",
+			},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
+			wantAuthorization: signedByTestToken,
+			wantScope:         readWriteScope,
+		},
+		{
+			name: "credentials file signs the impersonation call",
+			backendConfig: map[string]string{
+				"credentials":                 strconv.Quote(gcsCredentialPath),
+				"impersonate_service_account": `"config@example.com"`,
+			},
+			removeConfig: []string{"access_token"},
+			files:        map[string]string{gcsCredentialPath: serviceAccount},
+			wantRequests: []string{
+				"oauth2.googleapis.com/token",
+				gcsGenerateAccessTokenPath("config@example.com"),
+				gcsStatePath,
+			},
+			wantAuthorization: []string{"", "Bearer service-account-token", "Bearer impersonated-token"},
+			wantScope:         readWriteScope,
+		},
+		{
+			name:          "GOOGLE_APPLICATION_CREDENTIALS signs the impersonation call",
+			backendConfig: configuredAccount,
+			removeConfig:  []string{"access_token"},
+			env:           map[string]string{"GOOGLE_APPLICATION_CREDENTIALS": gcsCredentialPath},
+			files:         map[string]string{gcsCredentialPath: serviceAccount},
+			wantRequests: []string{
+				"oauth2.googleapis.com/token",
+				gcsGenerateAccessTokenPath("config@example.com"),
+				gcsStatePath,
+			},
+			wantAuthorization: []string{"", "Bearer service-account-token", "Bearer impersonated-token"},
+			wantScope:         readWriteScope,
+		},
+		{
+			name:              "GOOGLE_OAUTH_ACCESS_TOKEN signs the impersonation call",
+			backendConfig:     configuredAccount,
+			removeConfig:      []string{"access_token"},
+			env:               map[string]string{"GOOGLE_OAUTH_ACCESS_TOKEN": "environment-token"},
+			wantRequests:      []string{gcsGenerateAccessTokenPath("config@example.com"), gcsStatePath},
+			wantAuthorization: []string{"Bearer environment-token", "Bearer impersonated-token"},
+			wantScope:         readWriteScope,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := dependencyStateEligibilityTestCase{
+				backend:       "gcs",
+				backendConfig: eligibilityConfig(eligibilityGCSConfig(), testCase.backendConfig, testCase.removeConfig...),
+				env:           testCase.env,
+				files:         testCase.files,
+			}
+
+			cfg, recorder, request := parseGCSImpersonationFixture(t, &fixture)
+
+			request.mu.Lock()
+			defer request.mu.Unlock()
+
+			require.NoError(t, request.decodeErr, "decoding generateAccessToken request")
+			assert.Equal(t, "from-direct", cfg.Inputs["result"])
+			assert.Empty(t, recorder.invocations(), "a direct read must not run the native output command")
+			require.Equal(t, testCase.wantRequests, recorder.requestPaths())
+
+			authorization := make([]string, 0, len(testCase.wantRequests))
+			for _, header := range recorder.requestHeaders() {
+				authorization = append(authorization, header.Get("Authorization"))
+			}
+
+			assert.Equal(t, testCase.wantAuthorization, authorization, "the source identity signs the IAM call and the impersonated token reads the state")
+			assert.Equal(t, testCase.wantScope, request.Scope, "the native backend requests read_write")
+			assert.Equal(t, testCase.wantDelegates, request.Delegates)
+		})
+	}
+}
+
+// TestDependencyStateEligibilityImpersonationDeniedFallsBack checks a denied IAM token falls back to native output.
+func TestDependencyStateEligibilityImpersonationDeniedFallsBack(t *testing.T) {
+	t.Parallel()
+
+	recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("from-direct"))
+	recorder.respond = func(req *http.Request) *http.Response {
+		if req.URL.Host == "iamcredentials.googleapis.com" {
+			return vhttp.Respond(
+				http.StatusForbidden,
+				[]byte(`{"error":{"code":403,"message":"Permission 'iam.serviceAccounts.getAccessToken' denied","status":"PERMISSION_DENIED"}}`),
+				nil,
+			)
+		}
+
+		return vhttp.Respond(http.StatusOK, terraformState("from-direct"), nil)
+	}
+
+	fixture := dependencyStateEligibilityTestCase{
+		backend: "gcs",
+		backendConfig: eligibilityConfig(
+			eligibilityGCSConfig(),
+			map[string]string{"impersonate_service_account": `"config@example.com"`},
+		),
+	}
+
+	cfg, err := parseDependencyStateEligibilityFixture(t, recorder, &fixture)
+	require.NoError(t, err, "a denied impersonation must fall back instead of aborting")
+
+	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+	assert.Len(t, recorder.outputInvocations(), 1, "a denied impersonation must run the native output command once")
+	assert.Equal(t, []string{gcsGenerateAccessTokenPath("config@example.com")}, recorder.requestPaths(), "the state must not be read with the source token")
+}
+
 func parseGCSCredentialEligibilityFixture(
 	t *testing.T,
 	credentials string,
@@ -322,11 +545,7 @@ func parseGCSExternalAccountFixture(
 				nil,
 			)
 		case "iamcredentials.googleapis.com":
-			return vhttp.Respond(
-				http.StatusOK,
-				[]byte(`{"accessToken":"impersonated-token","expireTime":"2099-01-01T00:00:00Z"}`),
-				nil,
-			)
+			return vhttp.Respond(http.StatusOK, []byte(gcsImpersonatedTokenResponse), nil)
 		case "storage.googleapis.com":
 			return vhttp.Respond(http.StatusOK, terraformState("from-direct"), nil)
 		default:
@@ -356,4 +575,57 @@ func parseGCSExternalAccountFixture(
 	require.NoError(t, err)
 
 	return cfg, recorder
+}
+
+// gcsGenerateAccessTokenRequest is the body of the IAM Credentials generateAccessToken request.
+type gcsGenerateAccessTokenRequest struct {
+	decodeErr error
+	Delegates []string `json:"delegates"`
+	Scope     []string `json:"scope"`
+	mu        sync.Mutex
+}
+
+// parseGCSImpersonationFixture serves OAuth, IAM and storage in memory and returns the IAM request it saw.
+func parseGCSImpersonationFixture(
+	t *testing.T,
+	testCase *dependencyStateEligibilityTestCase,
+) (*config.TerragruntConfig, *dependencyStateRecorder, *gcsGenerateAccessTokenRequest) {
+	t.Helper()
+
+	request := &gcsGenerateAccessTokenRequest{}
+
+	recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("from-direct"))
+	recorder.respond = func(req *http.Request) *http.Response {
+		switch req.URL.Host {
+		case "oauth2.googleapis.com":
+			return vhttp.Respond(
+				http.StatusOK,
+				[]byte(`{"access_token":"service-account-token","token_type":"Bearer","expires_in":3600}`),
+				nil,
+			)
+		case "iamcredentials.googleapis.com":
+			request.mu.Lock()
+			request.decodeErr = json.NewDecoder(req.Body).Decode(request)
+			request.mu.Unlock()
+
+			return vhttp.Respond(http.StatusOK, []byte(gcsImpersonatedTokenResponse), nil)
+		case "storage.googleapis.com":
+			return vhttp.Respond(http.StatusOK, terraformState("from-direct"), nil)
+		default:
+			assert.Fail(t, "unexpected request to "+req.URL.Host)
+
+			// The storage client retries a 5xx forever, so a 500 would hang the test.
+			return vhttp.Respond(http.StatusBadRequest, nil, nil)
+		}
+	}
+
+	cfg, err := parseDependencyStateEligibilityFixture(t, recorder, testCase)
+	require.NoError(t, err)
+
+	return cfg, recorder, request
+}
+
+// gcsGenerateAccessTokenPath returns the IAM Credentials request path that impersonates principal.
+func gcsGenerateAccessTokenPath(principal string) string {
+	return "iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/" + principal + ":generateAccessToken"
 }

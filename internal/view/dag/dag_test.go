@@ -1,6 +1,7 @@
 package dag_test
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -355,4 +356,329 @@ func TestListedComponentsSort(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{"a", "b", "c"}, paths)
+}
+
+// SGR sequences lipgloss emits for the colorizer styles in NewColorizer.
+const (
+	unitSGR    = "\x1b[1;94m"
+	stackSGR   = "\x1b[1;92m"
+	headingSGR = "\x1b[1;93m"
+	pathSGR    = "\x1b[2;37m"
+	resetSGR   = "\x1b[m"
+)
+
+func TestColorizer(t *testing.T) {
+	t.Parallel()
+
+	const otherKind = component.Kind("file")
+
+	testCases := []struct {
+		render      func(c *dag.Colorizer) string
+		name        string
+		expected    string
+		shouldColor bool
+	}{
+		{
+			name:        "colorize bare unit path",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.Colorize(&dag.ListedComponent{Type: component.UnitKind, Path: "a"})
+			},
+			expected: unitSGR + "a" + resetSGR,
+		},
+		{
+			name:        "colorize bare stack path",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.Colorize(&dag.ListedComponent{Type: component.StackKind, Path: "a"})
+			},
+			expected: stackSGR + "a" + resetSGR,
+		},
+		{
+			name:        "colorize bare path of other kind stays plain",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.Colorize(&dag.ListedComponent{Type: otherKind, Path: "a"})
+			},
+			expected: "a",
+		},
+		{
+			name:        "colorize nested unit path dims the directory",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.Colorize(&dag.ListedComponent{Type: component.UnitKind, Path: "live/a"})
+			},
+			expected: pathSGR + "live/" + resetSGR + unitSGR + "a" + resetSGR,
+		},
+		{
+			name:        "colorize nested stack path dims the directory",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.Colorize(&dag.ListedComponent{Type: component.StackKind, Path: "live/a"})
+			},
+			expected: pathSGR + "live/" + resetSGR + stackSGR + "a" + resetSGR,
+		},
+		{
+			name:        "colorize nested path of other kind stays plain",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.Colorize(&dag.ListedComponent{Type: otherKind, Path: "live/a"})
+			},
+			expected: "live/a",
+		},
+		{
+			name:        "colorize kind unit",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeKind("live/a", component.UnitKind)
+			},
+			expected: unitSGR + "live/a" + resetSGR,
+		},
+		{
+			name:        "colorize kind stack",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeKind("live/a", component.StackKind)
+			},
+			expected: stackSGR + "live/a" + resetSGR,
+		},
+		{
+			name:        "colorize kind other uses path color",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeKind("live", otherKind)
+			},
+			expected: pathSGR + "live" + resetSGR,
+		},
+		{
+			name:        "colorize type unit is padded to stack width",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeType(component.UnitKind)
+			},
+			expected: unitSGR + "unit " + resetSGR,
+		},
+		{
+			name:        "colorize type stack",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeType(component.StackKind)
+			},
+			expected: stackSGR + "stack" + resetSGR,
+		},
+		{
+			name:        "colorize type other returns the raw kind",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeType(otherKind)
+			},
+			expected: "file",
+		},
+		{
+			name:        "colorize heading",
+			shouldColor: true,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeHeading("Dependencies")
+			},
+			expected: headingSGR + "Dependencies" + resetSGR,
+		},
+		{
+			name:        "no color colorize nested unit path",
+			shouldColor: false,
+			render: func(c *dag.Colorizer) string {
+				return c.Colorize(&dag.ListedComponent{Type: component.UnitKind, Path: "live/a"})
+			},
+			expected: "live/a",
+		},
+		{
+			name:        "no color colorize nested stack path",
+			shouldColor: false,
+			render: func(c *dag.Colorizer) string {
+				return c.Colorize(&dag.ListedComponent{Type: component.StackKind, Path: "live/a"})
+			},
+			expected: "live/a",
+		},
+		{
+			name:        "no color colorize bare stack path",
+			shouldColor: false,
+			render: func(c *dag.Colorizer) string {
+				return c.Colorize(&dag.ListedComponent{Type: component.StackKind, Path: "a"})
+			},
+			expected: "a",
+		},
+		{
+			name:        "no color colorize kind other",
+			shouldColor: false,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeKind("live", otherKind)
+			},
+			expected: "live",
+		},
+		{
+			name:        "no color colorize type unit keeps padding",
+			shouldColor: false,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeType(component.UnitKind)
+			},
+			expected: "unit ",
+		},
+		{
+			name:        "no color colorize heading",
+			shouldColor: false,
+			render: func(c *dag.Colorizer) string {
+				return c.ColorizeHeading("Dependencies")
+			},
+			expected: "Dependencies",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expected, tc.render(dag.NewColorizer(tc.shouldColor)))
+		})
+	}
+}
+
+func TestTreeStylerColorizerFollowsColorSetting(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		expected    string
+		shouldColor bool
+	}{
+		{
+			name:        "colored styler",
+			shouldColor: true,
+			expected:    headingSGR + "deps" + resetSGR,
+		},
+		{
+			name:        "plain styler",
+			shouldColor: false,
+			expected:    "deps",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			colorizer := dag.NewTreeStyler(tc.shouldColor).Colorizer()
+			require.NotNil(t, colorizer)
+
+			assert.Equal(t, tc.expected, colorizer.ColorizeHeading("deps"))
+		})
+	}
+}
+
+func TestRenderDot(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		components func() dag.ListedComponents
+		name       string
+		expected   string
+	}{
+		{
+			name: "no components",
+			components: func() dag.ListedComponents {
+				return nil
+			},
+			expected: "digraph {\n}\n",
+		},
+		{
+			name: "components and dependencies are sorted by path",
+			components: func() dag.ListedComponents {
+				vpc := &dag.ListedComponent{Type: component.UnitKind, Path: "vpc"}
+				db := &dag.ListedComponent{Type: component.UnitKind, Path: "db"}
+				app := &dag.ListedComponent{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []*dag.ListedComponent{vpc, db},
+				}
+
+				return dag.ListedComponents{vpc, app, db}
+			},
+			expected: strings.Join([]string{
+				"digraph {",
+				"\t\"app\" ;",
+				"\t\"app\" -> \"db\";",
+				"\t\"app\" -> \"vpc\";",
+				"\t\"db\" ;",
+				"\t\"vpc\" ;",
+				"}",
+				"",
+			}, "\n"),
+		},
+		{
+			name: "excluded components are colored red",
+			components: func() dag.ListedComponents {
+				vpc := &dag.ListedComponent{Type: component.UnitKind, Path: "vpc", Excluded: true}
+				app := &dag.ListedComponent{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []*dag.ListedComponent{vpc},
+				}
+
+				return dag.ListedComponents{app, vpc}
+			},
+			expected: strings.Join([]string{
+				"digraph {",
+				"\t\"app\" ;",
+				"\t\"app\" -> \"vpc\";",
+				"\t\"vpc\" [color=red];",
+				"}",
+				"",
+			}, "\n"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buf strings.Builder
+
+			require.NoError(t, dag.RenderDot(&buf, tc.components()))
+			assert.Equal(t, tc.expected, buf.String())
+		})
+	}
+}
+
+func TestRenderDotKeepsCallerComponentOrder(t *testing.T) {
+	t.Parallel()
+
+	b := &dag.ListedComponent{Type: component.UnitKind, Path: "b"}
+	a := &dag.ListedComponent{Type: component.UnitKind, Path: "a"}
+	components := dag.ListedComponents{b, a}
+
+	var buf strings.Builder
+
+	require.NoError(t, dag.RenderDot(&buf, components))
+
+	assert.Same(t, b, components[0])
+	assert.Same(t, a, components[1])
+}
+
+func TestRenderDotReturnsWriterError(t *testing.T) {
+	t.Parallel()
+
+	errWrite := errors.New("write failed")
+
+	err := dag.RenderDot(failingWriter{err: errWrite}, dag.ListedComponents{
+		&dag.ListedComponent{Type: component.UnitKind, Path: "a"},
+	})
+
+	require.ErrorIs(t, err, errWrite)
+}
+
+// failingWriter is an io.Writer that always returns err.
+type failingWriter struct {
+	err error
+}
+
+func (w failingWriter) Write([]byte) (int, error) {
+	return 0, w.err
 }

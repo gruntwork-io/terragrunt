@@ -1,40 +1,44 @@
 package middleware
 
 import (
-	"errors"
+	"crypto/subtle"
+	"net/http"
+	"strings"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 )
 
-type Authorization struct {
-	Token string
-}
+const bearerScheme = "Bearer "
 
-// Validator validates tokens.
+// KeyAuth returns middleware that admits only requests carrying token as a
+// bearer token in the Authorization header. A request whose header is missing
+// or uses another scheme gets a 400, and one with the wrong token a 401.
 //
-// To enhance security, we use token-based authentication to connect to
-// the cache server in order to prevent unauthorized connections from
-// third-party applications.
-// Currently, the cache server only supports `x-api-key` token, the value of which can be any text.
-func (auth *Authorization) Validator(bearerToken string, ctx echo.Context) (bool, error) {
-	if bearerToken != auth.Token {
-		return false, errors.New("authorization: token either expired or inexistent")
-	}
+// The token guards the cache server against connections from other processes
+// on the same host. Its value can be any text.
+func KeyAuth(token string) router.MiddlewareFunc {
+	return func(w router.ResponseWriter, r *http.Request, next router.HandlerFunc) error {
+		if err := authorize(r, token); err != nil {
+			return err
+		}
 
-	return true, nil
+		return next(w, r)
+	}
 }
 
-// KeyAuth returns an KeyAuth middleware.
-func KeyAuth(token string) echo.MiddlewareFunc {
-	auth := Authorization{
-		Token: token,
+func authorize(r *http.Request, token string) error {
+	header := r.Header.Get("Authorization")
+	if len(header) <= len(bearerScheme) || !strings.EqualFold(header[:len(bearerScheme)], bearerScheme) {
+		return &router.HTTPError{
+			Code:    http.StatusBadRequest,
+			Message: "missing key in request header",
+		}
 	}
 
-	return middleware.KeyAuthWithConfig(middleware.KeyAuthConfig{
-		Skipper:    middleware.DefaultSkipper,
-		KeyLookup:  "header:" + echo.HeaderAuthorization,
-		AuthScheme: "Bearer",
-		Validator:  auth.Validator,
-	})
+	key := header[len(bearerScheme):]
+	if subtle.ConstantTimeCompare([]byte(key), []byte(token)) != 1 {
+		return router.NewHTTPError(http.StatusUnauthorized)
+	}
+
+	return nil
 }

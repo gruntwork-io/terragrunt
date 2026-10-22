@@ -429,10 +429,11 @@ unit "extra" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
 	require.Error(
 		t,
 		err,
@@ -503,12 +504,14 @@ unit "extra" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		stackFilePath,
 		nil,
@@ -559,12 +562,14 @@ unit "added" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		stackFilePath,
 		nil,
@@ -652,12 +657,14 @@ stack "added" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		stackFilePath,
 		nil,
@@ -734,10 +741,11 @@ unit "extra" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
 	require.Error(
 		t,
 		err,
@@ -775,10 +783,11 @@ unit "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
 	require.Error(
 		t,
 		err,
@@ -814,9 +823,9 @@ unit "vpc" {
 }
 `), 0o644))
 
-	ctx, pctx := newTestParsingContext(t, v, stackFilePath)
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), pctx, stackFilePath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
 	require.NoError(t, err)
 	assert.Len(t, stackCfg.Units, 1)
 }
@@ -854,12 +863,14 @@ unit "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		stackFilePath,
 		nil,
@@ -919,12 +930,14 @@ unit "vpc" {
 }
 `), 0644))
 
-	ctx, pctx := newTestParsingContext(t, venvtest.NewWithOSFS(), stackFilePath)
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
 	stackConfig, err := config.ReadStackConfigFile(
 		ctx,
 		logger.CreateLogger(),
+		v,
 		pctx,
 		stackFilePath,
 		nil,

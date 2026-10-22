@@ -175,3 +175,63 @@ func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
 		)
 	}
 }
+
+func TestNewBlobClient_UnknownAuthorityHost(t *testing.T) {
+	t.Parallel()
+
+	// An unrecognized cloud must fail loudly rather than silently point the
+	// blob endpoint at the public cloud.
+	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
+		Method:      azurehelper.AuthMethodSasToken,
+		SasToken:    testSASToken,
+		AccountName: testAccount,
+		CloudConfig: cloud.Configuration{ActiveDirectoryAuthorityHost: "https://login.example.invalid/"},
+	})
+
+	var unknown *azurehelper.UnknownAuthorityHostError
+	require.ErrorAs(t, err, &unknown)
+	assert.Equal(t, "https://login.example.invalid/", unknown.Host)
+}
+
+func TestNewBlobClient_UnsupportedAuthMethod(t *testing.T) {
+	t.Parallel()
+
+	// Build never produces an unknown method, so reaching one is a caller bug.
+	assert.PanicsWithError(t, `unsupported azure auth method "bogus"`, func() {
+		_, _ = azurehelper.NewBlobClient(&azurehelper.AzureConfig{
+			Method:      "bogus",
+			AccountName: testAccount,
+		})
+	})
+}
+
+func TestNewBlobClient_AccessKeyErrorNamesMethod(t *testing.T) {
+	t.Parallel()
+
+	_, err := azurehelper.NewBlobClient(&azurehelper.AzureConfig{
+		Method:      azurehelper.AuthMethodAccessKey,
+		AccessKey:   "!!!not-base64!!!",
+		AccountName: testAccount,
+	})
+	require.ErrorContains(t, err, "creating blob client for access-key auth")
+}
+
+func TestContainerClient_Name(t *testing.T) {
+	t.Parallel()
+
+	c := newRoutedBlobClient(t, &routeTransport{})
+
+	assert.Equal(t, "state", c.Container("state").Name())
+}
+
+// TestBlobClient_CopyBlob_NamesEveryMissingArg pins that the panic lists every
+// missing argument at once, including a nil destination container.
+func TestBlobClient_CopyBlob_NamesEveryMissingArg(t *testing.T) {
+	t.Parallel()
+
+	c := newRoutedBlobClient(t, &routeTransport{})
+
+	assert.PanicsWithError(t, "copy blob requires source key, destination container, destination key", func() {
+		_ = c.Container("src").CopyBlob(t.Context(), log.New(), "", nil, "")
+	})
+}

@@ -13,9 +13,11 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"runtime"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -47,8 +49,8 @@ const memPID = 1
 
 // New returns an in-memory venv: a fail-closed exec, an in-memory filesystem,
 // a fail-closed no-network HTTP client, a mem SOPS decrypter yielding empty
-// cleartext, a fail-closed browser opener, an empty (non-nil) environment,
-// deterministic platform handles,
+// cleartext, a fail-closed browser opener, a signal notifier that never
+// delivers, an empty (non-nil) environment, deterministic platform handles,
 // an empty console reader, a console that is no stream's terminal and has no
 // width, and both writers wired to [io.Discard]. Refine it with venv.Venv's
 // fluent With methods.
@@ -72,8 +74,9 @@ func New() *venv.Venv {
 		Listen: func(context.Context, string, string) (net.Listener, error) {
 			return nil, ErrNoListen
 		},
-		Stdin: strings.NewReader(""),
-		Env:   map[string]string{},
+		Signals: func(context.Context, signal.NotifyFunc, ...os.Signal) {},
+		Stdin:   strings.NewReader(""),
+		Env:     map[string]string{},
 		Platform: &venv.Platform{
 			UserHomeDir: func() (string, error) {
 				return "", nil

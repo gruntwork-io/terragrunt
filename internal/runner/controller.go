@@ -2,12 +2,12 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/multierror"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -210,7 +210,6 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 					earlyExit++
 				case queue.StatusPending,
 					queue.StatusBlocked,
-					queue.StatusUnsorted,
 					queue.StatusReady,
 					queue.StatusRunning:
 					// Non-terminal states are not counted in the summary.
@@ -247,6 +246,6 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 				)
 			}
 
-			return multierror.Join(errCollector...)
+			return errors.Join(errCollector...)
 		})
 }

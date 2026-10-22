@@ -33,7 +33,7 @@ func jsonSource(tb testing.TB, src string) (*hclparse.SourceBlock, *jsonBlock, e
 		return nil, nil, err
 	}
 
-	instances, err := file.ExpandBlocks("dependency", new(jsonBlock), nil)
+	instances, err := file.ExpandBlocks(tb.Context(), "dependency", new(jsonBlock), nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -163,7 +163,7 @@ func TestExpandBlocksTranscodesOnlyExpandedJSONBlocks(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	instances, err := file.ExpandBlocks("dependency", new(remainBlock), nil)
+	instances, err := file.ExpandBlocks(t.Context(), "dependency", new(remainBlock), nil)
 	require.NoError(t, err)
 	require.Len(t, instances, 1)
 	assert.Nil(t, instances[0].Source)
@@ -177,7 +177,7 @@ func TestExpandBlocksTranscodesOnlyExpandedJSONBlocks(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	withExpansion, err := expanded.ExpandBlocks("dependency", new(remainBlock), nil)
+	withExpansion, err := expanded.ExpandBlocks(t.Context(), "dependency", new(remainBlock), nil)
 	require.NoError(t, err, "a block Terragrunt cannot quote must not fail the parse")
 	require.Len(t, withExpansion, 1)
 

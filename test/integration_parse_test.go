@@ -41,6 +41,7 @@ var knownBadFiles = []string{
 	"fixtures/scaffold/with-shell-and-hooks/.boilerplate/terragrunt.hcl",
 	"fixtures/scaffold/with-shell-commands/.boilerplate/terragrunt.hcl",
 	"fixtures/stacks/errors/unknown-value/units/bad-unit/terragrunt.hcl",
+	"fixtures/telemetry-error-status/bad-config/terragrunt.hcl",
 	"fixtures/regressions/terraform-source-references-dependency/live/module-b/terragrunt.hcl",
 	"fixtures/find/source-references-dependency/app/terragrunt.hcl",
 	// Files that require AWS credentials (will fail/timeout without them)
@@ -83,14 +84,12 @@ func TestParseAllFixtureFiles(t *testing.T) {
 
 			l := logger.CreateLogger()
 
-			ctx, pctx := configbridge.NewParsingContext(
-				context.TODO(), // Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
-				l,
-				venv.OSVenv(),
-				opts,
-			)
+			// Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
+			ctx := context.TODO()
+			v := venv.OSVenv()
+			pctx := configbridge.NewParsingContext(opts)
 
-			cfg, _ := config.ParseConfigFile(ctx, pctx, l, file, nil)
+			cfg, _ := config.ParseConfigFile(ctx, l, v, pctx, file, nil)
 
 			assert.NotNil(t, cfg)
 

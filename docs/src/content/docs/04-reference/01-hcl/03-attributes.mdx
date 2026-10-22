@@ -252,6 +252,8 @@ Example:
 terraform_version_constraint = ">= 0.11"
 ```
 
+Terragrunt checks the constraint against the version of OpenTofu/Terraform it finds in `PATH` or is set by `terraform_binary`/`--tf-path`. A unit with an [IaC engine](/features/units/engine/) could be anything, so its constraint is skipped with a warning.
+
 ## terragrunt_version_constraint
 
 The terragrunt `terragrunt_version_constraint` string can be used to specify which versions of the Terragrunt CLI can be used with your configuration. If the running version of Terragrunt doesn't match the constraints specified, Terragrunt will produce an error and exit without taking any further actions.

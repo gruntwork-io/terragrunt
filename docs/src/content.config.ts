@@ -137,8 +137,12 @@ const strictControls = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/strict-controls" }),
 	schema: z.object({
 		name: z.string(),
-		status: z.enum(["active", "completed"]),
+		// `since` is the release a strict control became available.
+		// `completedSince` is the release in which the behavior it enforces
+		// became the default; once that release ships, the control is treated
+		// as completed.
 		since: releaseVersion.optional(),
+		completedSince: releaseVersion.optional(),
 	}),
 });
 

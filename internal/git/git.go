@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -146,6 +147,58 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 	}
 
 	return results, nil
+}
+
+// FetchMatch returns the entry of results that `git fetch` selects for ref.
+//
+// [GitRunner.LsRemote] matches ref against the tail of each advertised name,
+// so v1.2.3 also matches refs/heads/release/v1.2.3, which ls-remote lists
+// before refs/tags/v1.2.3. `git fetch` expands ref through the rules in
+// gitrevisions(7) instead and takes the first rule that names an advertised
+// ref, so a tag wins over a branch of the same name. It also returns the rule
+// that matched. It reports false when no entry is a name `git fetch` would
+// accept for ref.
+func FetchMatch(results []LsRemoteResult, ref string) (LsRemoteResult, FetchRule, bool) {
+	for _, rule := range fetchRefRules {
+		want := rule.Expand(ref)
+
+		if i := slices.IndexFunc(results, func(res LsRemoteResult) bool { return res.Ref == want }); i >= 0 {
+			return results[i], rule, true
+		}
+	}
+
+	return LsRemoteResult{}, "", false
+}
+
+// FetchRule is one of the patterns `git fetch` expands a short ref name
+// through, as gitrevisions(7) lists them.
+type FetchRule string
+
+// ParseFetchRule returns s as a [FetchRule], reporting false when s is not
+// one of the rules `git fetch` tries.
+func ParseFetchRule(s string) (FetchRule, bool) {
+	rule := FetchRule(s)
+
+	return rule, slices.Contains(fetchRefRules, rule)
+}
+
+// Expand returns the full ref name r makes of ref.
+//
+// Fetching the full name selects the ref [FetchMatch] matched. Fetching ref
+// alone can miss it, because `git fetch` reads a 40-hex name as an object ID.
+func (r FetchRule) Expand(ref string) string {
+	return fmt.Sprintf(string(r), ref)
+}
+
+// fetchRefRules are the rules `git fetch` tries for a ref, most preferred
+// first.
+var fetchRefRules = []FetchRule{
+	"%s",
+	"refs/%s",
+	"refs/tags/%s",
+	"refs/heads/%s",
+	"refs/remotes/%s",
+	"refs/remotes/%s/HEAD",
 }
 
 const refsTags = "refs/tags/"
@@ -912,7 +965,17 @@ func (g *GitRunner) GetDefaultBranchRemote(ctx context.Context) (string, error) 
 		return "", err
 	}
 
-	cmd := g.prepareCommand(ctx, "ls-remote", "--symref", "origin", "HEAD")
+	return g.LsRemoteDefaultBranch(ctx, "origin")
+}
+
+// LsRemoteDefaultBranch asks remote for the branch its HEAD points at, using
+// `git ls-remote --symref`. remote is a URL or the name of a remote in the
+// working-directory repository.
+//
+// Returns [ErrCommandSpawn] when git fails, and [ErrNoMatchingReference] when
+// remote does not advertise HEAD as a symbolic ref to a branch.
+func (g *GitRunner) LsRemoteDefaultBranch(ctx context.Context, remote string) (string, error) {
+	cmd := g.prepareCommand(ctx, "ls-remote", "--symref", "--", remote, "HEAD")
 
 	var stdout, stderr bytes.Buffer
 
@@ -1102,15 +1165,100 @@ func (g *GitRunner) ConfigSet(ctx context.Context, name, value string) error {
 	return nil
 }
 
+// RemoteAdd runs `git remote add` in the working directory, naming url as the
+// remote called name.
+func (g *GitRunner) RemoteAdd(ctx context.Context, name, url string) error {
+	return g.runInWorkDir(ctx, "git_remote_add", "remote", "add", name, "--", url)
+}
+
+// FetchTags runs `git fetch --tags` against remote in the working directory.
+func (g *GitRunner) FetchTags(ctx context.Context, remote string) error {
+	return g.runInWorkDir(ctx, "git_fetch_tags", "fetch", "--tags", "--", remote)
+}
+
+// ResetHard runs `git reset --hard` to ref in the working directory.
+func (g *GitRunner) ResetHard(ctx context.Context, ref string) error {
+	return g.runInWorkDir(ctx, "git_reset_hard", "reset", "--hard", ref)
+}
+
+// PullFastForward runs `git pull --ff-only` for ref from remote in the working
+// directory. A positive depth adds --depth.
+func (g *GitRunner) PullFastForward(ctx context.Context, remote, ref string, depth int) error {
+	args := []string{"pull", remote}
+
+	if depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(depth))
+	}
+
+	args = append(args, "--ff-only", "--", ref)
+
+	return g.runInWorkDir(ctx, "git_pull", args...)
+}
+
+// SubmoduleUpdate runs `git submodule update --init --recursive` in the
+// working directory. A positive depth adds --depth.
+func (g *GitRunner) SubmoduleUpdate(ctx context.Context, depth int) error {
+	args := []string{"submodule", "update", "--init", "--recursive"}
+
+	if depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(depth))
+	}
+
+	return g.runInWorkDir(ctx, "git_submodule_update", args...)
+}
+
+// Version returns the version `git version` reports. A Git for Windows suffix
+// such as .windows.1 is dropped, since it does not parse as a version.
+func (g *GitRunner) Version(ctx context.Context) (*semver.Version, error) {
+	cmd := g.prepareCommand(ctx, "version")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_version",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
+		}
+	}
+
+	const versionField = 2
+
+	fields := strings.Fields(stdout.String())
+	if len(fields) <= versionField {
+		return nil, &WrappedError{Op: "git_version", Context: stdout.String(), Err: ErrParseVersion}
+	}
+
+	raw, _, _ := strings.Cut(fields[versionField], ".windows.")
+
+	version, err := semver.Parse(raw)
+	if err != nil {
+		return nil, &WrappedError{Op: "git_version", Context: raw, Err: errors.Join(ErrParseVersion, err)}
+	}
+
+	return version, nil
+}
+
 // fetch runs `git fetch` with args placed ahead of the remote and refspec.
 func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
 
-	args = append(args, "--", repo, ref)
+	// Git detaches `maintenance run --auto` after a fetch, and that process
+	// writes commit graphs under objects/ after the fetch has returned, past
+	// the lock the caller held for it or into a directory the caller has
+	// removed. Older git runs `gc --auto` in its place.
+	args = slices.Concat(
+		[]string{"-c", "maintenance.auto=false", "-c", "gc.auto=0", "fetch"},
+		args,
+		[]string{"--", repo, ref},
+	)
 
-	cmd := g.prepareCommand(ctx, "fetch", args...)
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
 
 	var stderr bytes.Buffer
 
@@ -1121,6 +1269,30 @@ func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) 
 			Op:      "git_fetch",
 			Context: stderr.String(),
 			Err:     errors.Join(ErrGitFetch, err),
+		}
+	}
+
+	return nil
+}
+
+// runInWorkDir runs git with args in the working directory, reporting a
+// failure as op with git's stderr attached.
+func (g *GitRunner) runInWorkDir(ctx context.Context, op string, args ...string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      op,
+			Context: stderr.String(),
+			Err:     errors.Join(ErrCommandSpawn, err),
 		}
 	}
 

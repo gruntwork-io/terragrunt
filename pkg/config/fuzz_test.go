@@ -71,10 +71,11 @@ func FuzzHCLRunCommand(f *testing.F) {
 			return vexec.Result{Stdout: []byte(mockOutput)}
 		})
 
-		ctx, pctx := newTestParsingContext(t, venvtest.New().WithExec(memExec), "")
+		v := venvtest.New().WithExec(memExec)
+		ctx, pctx := newTestParsingContext(t, "")
 
 		l := logger.CreateLogger()
-		out, err := config.RunCommand(ctx, pctx, l, argsForCall)
+		out, err := config.RunCommand(ctx, l, v, pctx, argsForCall)
 
 		stripped, conflict := strippedRunCmdArgs(original)
 

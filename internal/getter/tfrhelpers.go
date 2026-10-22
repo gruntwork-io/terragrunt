@@ -218,7 +218,7 @@ func BuildRequestURL(
 	return &url.URL{Scheme: SchemeHTTPS, Host: registryDomain, Path: moduleFullPath}, nil
 }
 
-// GetLatestModuleVersion queries the OpenTofu or Terraform module registry to
+// GetLatestModuleVersion queries the OpenTofu/Terraform module registry to
 // list available versions for the given module and returns the latest stable
 // (non-prerelease) version. Prereleases are excluded to match OpenTofu and
 // Terraform's default behavior when resolving an unconstrained module
@@ -268,7 +268,7 @@ func GetLatestModuleVersion(
 	return latest.Original(), nil
 }
 
-// GetMatchingModuleVersion queries the OpenTofu or Terraform module registry
+// GetMatchingModuleVersion queries the OpenTofu/Terraform module registry
 // and returns the highest published version of the module that satisfies
 // constraint (for example "~> 3.3" or ">= 1.0.0, < 2.0.0").
 //
@@ -322,7 +322,7 @@ func GetMatchingModuleVersion(
 	return match.Original(), nil
 }
 
-// PinModuleVersion resolves constraint against the OpenTofu or Terraform module
+// PinModuleVersion resolves constraint against the OpenTofu/Terraform module
 // registry addressed by the tfr:// source and returns the source URL rewritten
 // to pin the exact version that satisfies the constraint. tofuImpl selects the
 // default registry host when the source omits it, and which implementation's

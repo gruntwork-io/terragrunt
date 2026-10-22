@@ -11,6 +11,4 @@ The [`--no-hooks`](/reference/cli/commands/run#no-hooks) flag (env: `TG_NO_HOOKS
 terragrunt run --no-hooks -- plan
 ```
 
-Commands that pass `--no-hooks` or set `TG_NO_HOOKS=true` without the experiment enabled now skip hooks, where they returned an error before. Commands that set neither run hooks as before.
-
 Previously gated behind the `optional-hooks` experiment, `--no-hooks` no longer requires `--experiment optional-hooks`.

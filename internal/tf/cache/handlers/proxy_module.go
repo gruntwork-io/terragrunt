@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/labstack/echo/v4"
 )
 
 // RegistryURLDiscoverer resolves the registry's well-known service endpoints for a given registry name.
@@ -54,15 +54,15 @@ func NewProxyModuleHandler(
 }
 
 // Proxy forwards a module-registry request to the upstream registry.
-func (h *ProxyModuleHandler) Proxy(ctx echo.Context, registryName, restPath string) error {
+func (h *ProxyModuleHandler) Proxy(w router.ResponseWriter, r *http.Request, registryName, restPath string) error {
 	if !slices.Contains(h.registryNames, registryName) {
-		return echo.NewHTTPError(
-			http.StatusNotFound,
-			fmt.Sprintf("registry %q is not configured for module proxying", registryName),
-		)
+		return &router.HTTPError{
+			Code:    http.StatusNotFound,
+			Message: fmt.Sprintf("registry %q is not configured for module proxying", registryName),
+		}
 	}
 
-	apiURLs, err := h.discoverer.DiscoveryURL(ctx.Request().Context(), registryName)
+	apiURLs, err := h.discoverer.DiscoveryURL(r.Context(), registryName)
 	if err != nil {
 		return err
 	}
@@ -72,16 +72,16 @@ func (h *ProxyModuleHandler) Proxy(ctx echo.Context, registryName, restPath stri
 		return err
 	}
 
-	if q := ctx.Request().URL.RawQuery; q != "" {
+	if q := r.URL.RawQuery; q != "" {
 		upstream.RawQuery = q
 	}
 
 	// Drop the inbound cache-server bearer so it can't leak upstream when the
 	// user has no credentials configured for the target host. The ReverseProxy
 	// then injects the user's upstream credentials based on the target host.
-	ctx.Request().Header.Del(echo.HeaderAuthorization)
+	r.Header.Del("Authorization")
 
-	return h.ReverseProxy.NewRequest(ctx, upstream)
+	return h.ReverseProxy.NewRequest(w, r, upstream)
 }
 
 // buildModulesUpstreamURL constructs the upstream URL for a module-registry request.

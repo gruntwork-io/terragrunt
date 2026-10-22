@@ -110,7 +110,7 @@ type CantParseTerraformStateFileError struct {
 
 func (err CantParseTerraformStateFileError) Error() string {
 	return fmt.Sprintf(
-		"Error parsing Terraform state file %s: %s",
+		"Error parsing OpenTofu/Terraform state file %s: %s",
 		err.Path,
 		err.UnderlyingErr.Error(),
 	)

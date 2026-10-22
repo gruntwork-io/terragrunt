@@ -133,7 +133,7 @@ func TestTFRunVersionFilesCacheKey(t *testing.T) {
 	t.Parallel()
 
 	// The cache key incorporates the resolved binary path, so the expected
-	// hash differs depending on whether tofu or terraform is wrapped.
+	// hash differs depending on which tofu/terraform binary is wrapped.
 	testdata := []struct {
 		expect       map[string]string
 		name         string

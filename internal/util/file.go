@@ -191,7 +191,7 @@ func RegexFoundInTFFiles(fsys vfs.FS, workingDir string, pattern *regexp.Regexp)
 }
 
 // DirContainsTFFiles checks if the given directory contains any
-// Terraform/OpenTofu files (.tf, .tofu, .tf.json, .tofu.json)
+// OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
 func DirContainsTFFiles(fsys vfs.FS, dirPath string) (bool, error) {
 	var found bool
 

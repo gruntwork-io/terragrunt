@@ -805,3 +805,167 @@ func newTestLogger(t *testing.T) log.Logger {
 
 	return l
 }
+
+// TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse pins that an exclude
+// block only drops a unit from the output when its `if` is true.
+func TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse(t *testing.T) {
+	t.Parallel()
+
+	root := "/find-exclude-if"
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"dropped/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"kept/terragrunt.hcl": `
+exclude {
+  if      = false
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"plain/terragrunt.hcl": "",
+	})
+
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	opts := find.NewOptions(tgOpts)
+	opts.Format = find.FormatText
+	opts.QueueConstructAs = "apply"
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+
+	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
+}
+
+// TestRunFileDependency pins how find reports a `dependency` whose `config_path` names a configuration
+// file: the dependency is a unit at the path of that file, so it is not the unit in the directory the
+// file is in, and a filter for the dependents of that directory does not reach the dependent.
+//
+// This is deprecated functionality: a file `config_path` is undocumented and deprecated behind the
+// dependency-config-path-file strict control. This output stays as it is for backwards compatibility
+// through Terragrunt 1.x, including the dependents it leaves out.
+func TestRunFileDependency(t *testing.T) {
+	t.Parallel()
+
+	const (
+		fileDependency = "dependency \"db\" {\n  config_path = \"../db/custom.hcl\"\n}\n"
+		dirDependency  = "dependency \"db\" {\n  config_path = \"../db\"\n}\n"
+	)
+
+	testCases := []struct {
+		files   map[string]string
+		name    string
+		queries []string
+		want    find.FoundComponents
+	}{
+		{
+			name: "file dependency is listed at the path of the file",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+			},
+			want: find.FoundComponents{
+				{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []string{filepath.Join("db", "custom.hcl")},
+				},
+			},
+		},
+		{
+			name: "dependency filter reaches the file",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+			},
+			queries: []string{"{./app}..."},
+			want: find.FoundComponents{
+				{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []string{filepath.Join("db", "custom.hcl")},
+				},
+				{Type: component.UnitKind, Path: filepath.Join("db", "custom.hcl")},
+			},
+		},
+		{
+			name: "file dependency is not the unit in its directory",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+				"db/terragrunt.hcl":  "",
+			},
+			want: find.FoundComponents{
+				{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []string{filepath.Join("db", "custom.hcl")},
+				},
+				{Type: component.UnitKind, Path: "db"},
+			},
+		},
+		{
+			name: "dependents filter on the directory misses a file dependency",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+				"db/terragrunt.hcl":  "",
+			},
+			queries: []string{"...{./db}"},
+			want: find.FoundComponents{
+				{Type: component.UnitKind, Path: "db"},
+			},
+		},
+		{
+			name: "dependents filter on the directory reaches a directory dependency",
+			files: map[string]string{
+				"app/terragrunt.hcl": dirDependency,
+				"db/terragrunt.hcl":  "",
+			},
+			queries: []string{"...{./db}"},
+			want: find.FoundComponents{
+				{Type: component.UnitKind, Path: "app", Dependencies: []string{"db"}},
+				{Type: component.UnitKind, Path: "db"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/repo")
+			l := newTestLogger(t)
+
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			filters, err := filter.ParseFilterQueries(l, tc.queries)
+			require.NoError(t, err)
+
+			tgOpts.Filters = filters
+
+			opts := find.NewOptions(tgOpts)
+			opts.Format = find.FormatJSON
+			opts.Dependencies = true
+
+			var buf strings.Builder
+
+			v := venvtest.New().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
+			require.NoError(t, find.Run(t.Context(), l, v, opts))
+
+			var found find.FoundComponents
+
+			require.NoError(t, json.Unmarshal([]byte(buf.String()), &found))
+			assert.Equal(t, tc.want, found)
+		})
+	}
+}

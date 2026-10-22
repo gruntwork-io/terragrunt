@@ -1279,3 +1279,100 @@ func treeLabels(output string) []string {
 
 	return labels
 }
+
+// TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse pins that an exclude
+// block only drops a unit from the output when its `if` is true.
+func TestRunQueueConstructAsKeepsUnitsWhoseExcludeIfIsFalse(t *testing.T) {
+	t.Parallel()
+
+	root := "/list-exclude-if"
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"dropped/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"kept/terragrunt.hcl": `
+exclude {
+  if      = false
+  actions = ["plan", "apply", "destroy"]
+}
+`,
+		"plain/terragrunt.hcl": "",
+	})
+
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	opts := list.NewOptions(tgOpts)
+	opts.Format = list.FormatText
+	opts.QueueConstructAs = "apply"
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+
+	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
+}
+
+// TestDotFormatOnlyColorsDependenciesWhoseExcludeIfIsTrue pins that a dependency
+// with a false `if` in its exclude block is drawn as a plain node.
+func TestDotFormatOnlyColorsDependenciesWhoseExcludeIfIsTrue(t *testing.T) {
+	t.Parallel()
+
+	root := "/list-exclude-if-dot"
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"app/terragrunt.hcl": `
+dependency "dropped" {
+  config_path = "../dropped"
+}
+
+dependency "kept" {
+  config_path = "../kept"
+}
+`,
+		"dropped/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["apply"]
+}
+`,
+		"kept/terragrunt.hcl": `
+exclude {
+  if      = false
+  actions = ["apply"]
+}
+`,
+	})
+
+	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	opts := list.NewOptions(tgOpts)
+	opts.Format = list.FormatDot
+	opts.Mode = list.ModeDAG
+	opts.Dependencies = true
+	opts.QueueConstructAs = "apply"
+
+	var buf strings.Builder
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+
+	assert.Equal(
+		t,
+		`digraph {
+	"app" ;
+	"app" -> "dropped";
+	"app" -> "kept";
+	"dropped" [color=red];
+	"kept" ;
+}
+`,
+		buf.String(),
+	)
+}

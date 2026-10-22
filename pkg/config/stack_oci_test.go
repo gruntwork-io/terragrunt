@@ -59,7 +59,7 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string) (string, error) {
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
 
-	_, pctx := config.NewParsingContext(t.Context(), l, v, config.WithStrictControls(controls.New()))
+	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.TerragruntStackConfigPath = stackPath
 	pctx.RootWorkingDir = filepath.Dir(stackPath)
 	pctx.WorkingDir = filepath.Dir(stackPath)
@@ -75,7 +75,7 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string) (string, error) {
 	defer pool.Stop()
 
 	// Components are generated on the pool, so the fetch error surfaces from Wait.
-	genErr := config.GenerateStackFile(t.Context(), l, pctx, pool, stackPath)
+	genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
 
 	// Drain the pool before reading the buffer the workers log into.
 	waitErr := pool.Wait()

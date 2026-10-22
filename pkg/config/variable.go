@@ -44,7 +44,7 @@ func ParseVariables(
 		return nil, err
 	}
 
-	parser := hclparse.NewParser(DefaultParserOptions(l, v, strictControls)...)
+	parser := hclparse.NewParser(ParserOptions(l, v, DefaultParserSettings(strictControls))...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable

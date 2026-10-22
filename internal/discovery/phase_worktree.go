@@ -18,6 +18,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -87,6 +88,8 @@ func (p *WorktreePhase) Run(
 
 	discoveredComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
 
+	boundary := discovery.worktreeBoundary(ctx, l, v)
+
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
 	discoveryGroup.SetLimit(p.numWorkers)
 
@@ -102,7 +105,7 @@ func (p *WorktreePhase) Run(
 			if len(removalFilters) > 0 {
 				fromToG.Go(func() error {
 					components, err := p.discoverInWorktree(
-						fromToCtx, l, v, input, pair.FromWorktree, removalFilters, FromWorktreeKind,
+						fromToCtx, l, v, input, pair.FromWorktree, removalFilters, FromWorktreeKind, boundary,
 					)
 					if err != nil {
 						return err
@@ -122,7 +125,7 @@ func (p *WorktreePhase) Run(
 
 					if len(deletedReadFilters) > 0 {
 						translated, err := p.deletedReadingComponentsToFilters(
-							fromToCtx, l, v, input, pair.FromWorktree, deletedReadFilters,
+							fromToCtx, l, v, input, pair.FromWorktree, deletedReadFilters, boundary,
 						)
 						if err != nil {
 							return err
@@ -143,6 +146,7 @@ func (p *WorktreePhase) Run(
 						pair.ToWorktree,
 						finalToFilters,
 						ToWorktreeKind,
+						boundary,
 					)
 					if err != nil {
 						return err
@@ -161,7 +165,7 @@ func (p *WorktreePhase) Run(
 	}
 
 	discoveryGroup.Go(func() error {
-		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, v, input, w)
+		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, v, input, w, boundary)
 		if err != nil {
 			return err
 		}
@@ -206,7 +210,7 @@ func (p *WorktreePhase) Run(
 	return results, nil
 }
 
-// discoverInWorktree discovers components in a single worktree.
+// discoverInWorktree discovers components in a single worktree, narrowed to boundary when set.
 func (p *WorktreePhase) discoverInWorktree(
 	ctx context.Context,
 	l log.Logger,
@@ -215,6 +219,7 @@ func (p *WorktreePhase) discoverInWorktree(
 	wt worktrees.Worktree,
 	filters filter.Filters,
 	kind WorktreeKind,
+	boundary string,
 ) (component.Components, error) {
 	discovery := input.Discovery
 
@@ -243,16 +248,23 @@ func (p *WorktreePhase) discoverInWorktree(
 	subDiscovery := NewDiscovery(wt.Path).
 		WithFilters(allFilters).
 		WithDiscoveryContext(discoveryContext).
-		WithNumWorkers(p.numWorkers)
+		WithNumWorkers(p.numWorkers).
+		withParseSettingsFrom(discovery)
 
-	subDiscovery = subDiscovery.withParseSettingsFrom(discovery)
+	if boundary != "" {
+		walkRoot, ok, err := WorktreeWalkRoot(v.FS, wt.Path, boundary)
+		if err != nil {
+			return nil, err
+		}
 
-	components, err := subDiscovery.Discover(ctx, l, v, input.Opts)
-	if err != nil {
-		return components, err
+		if !ok {
+			return component.Components{}, nil
+		}
+
+		subDiscovery = subDiscovery.WithWalkRoot(walkRoot)
 	}
 
-	return components, nil
+	return subDiscovery.Discover(ctx, l, v, input.Opts)
 }
 
 // withParseSettingsFrom carries a parent discovery's parse settings onto a worktree
@@ -261,10 +273,6 @@ func (p *WorktreePhase) discoverInWorktree(
 func (d *Discovery) withParseSettingsFrom(parent *Discovery) *Discovery {
 	if parent.suppressParseErrors {
 		d = d.WithSuppressParseErrors()
-	}
-
-	if len(parent.parserOptions) > 0 {
-		d = d.WithParserOptions(parent.parserOptions)
 	}
 
 	if parent.trackReads {
@@ -288,6 +296,7 @@ func (p *WorktreePhase) deletedReadingComponentsToFilters(
 	input *PhaseInput,
 	fromWorktree worktrees.Worktree,
 	readingFilters filter.Filters,
+	boundary string,
 ) (filter.Filters, error) {
 	affected, err := p.discoverInWorktree(
 		ctx,
@@ -297,6 +306,7 @@ func (p *WorktreePhase) deletedReadingComponentsToFilters(
 		fromWorktree,
 		readingFilters,
 		FromWorktreeKind,
+		boundary,
 	)
 	if err != nil {
 		return nil, err
@@ -340,6 +350,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	v *venv.Venv,
 	input *PhaseInput,
 	w *worktrees.Worktrees,
+	boundary string,
 ) (component.Components, error) {
 	discoveredComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
 
@@ -350,8 +361,14 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 		0,
 		len(stackDiff.Changed)+len(stackDiff.ReadingAffected),
 	)
-	allChanged = append(allChanged, stackDiff.Changed...)
-	allChanged = append(allChanged, stackDiff.ReadingAffected...)
+
+	for _, pairs := range [][]worktrees.StackDiffChangedPair{stackDiff.Changed, stackDiff.ReadingAffected} {
+		for _, changed := range pairs {
+			if WithinWorktreeBoundary(v.FS, changed.ToStack, boundary) {
+				allChanged = append(allChanged, changed)
+			}
+		}
+	}
 
 	g, ctx := errgroup.WithContext(ctx)
 	// Cap workers to the total number of diff operations, but no more than available CPUs (at least 1).
@@ -646,7 +663,7 @@ func TranslateDiscoveryContextArgsForWorktree(
 	case FromWorktreeKind:
 		switch {
 		case (discoveryContext.Cmd == "plan" || discoveryContext.Cmd == "apply") &&
-			!slices.Contains(discoveryContext.Args, "-destroy"):
+			!iacargs.HasDestroyFlag(discoveryContext.Args):
 			discoveryContext.Args = append(discoveryContext.Args, "-destroy")
 		case discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0:
 			// Discovery commands like find or list - no args needed
@@ -662,7 +679,7 @@ func TranslateDiscoveryContextArgsForWorktree(
 	case ToWorktreeKind:
 		switch {
 		case (discoveryContext.Cmd == "plan" || discoveryContext.Cmd == "apply") &&
-			!slices.Contains(discoveryContext.Args, "-destroy"):
+			!iacargs.HasDestroyFlag(discoveryContext.Args):
 			// No -destroy flag needed for to worktrees
 		case discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0:
 			// Discovery commands like find or list - no args needed

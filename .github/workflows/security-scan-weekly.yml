@@ -22,16 +22,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           # The trunk commit that triggered the scheduled run.
           ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
-          version: 2026.5.12
+          version: 2026.9.12
           cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -79,6 +79,8 @@ jobs:
 
       - name: Compare findings
         # A missing/empty previous summary yields a baseline (current-only) report.
+        # Findings listed in .github/scripts/security-scan/report-suppressions.json are
+        # dropped from the diff and reported under "suppressed" instead.
         run: ./.github/scripts/security-scan/security-scan-report.sh compare current/scan-summary.json previous/scan-summary.json security-scan-report.json
 
       - name: Write step summary
@@ -87,7 +89,7 @@ jobs:
 
       - name: Upload raw scan (current)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scan-current.json
           path: current/scan.json
@@ -95,7 +97,7 @@ jobs:
 
       - name: Upload raw scan (previous)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scan-previous.json
           path: previous/scan.json
@@ -104,7 +106,7 @@ jobs:
 
       - name: Upload scan summary (current)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scan-summary-current.json
           path: current/scan-summary.json
@@ -112,7 +114,7 @@ jobs:
 
       - name: Upload scan summary (previous)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scan-summary-previous.json
           path: previous/scan-summary.json
@@ -121,7 +123,7 @@ jobs:
 
       - name: Upload security-scan-report.json
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-scan-report.json
           path: security-scan-report.json

@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,15 +43,15 @@ terraform {
 	constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
 	require.NoError(t, err)
 
-	assert.Equal(t, "~> 5.0.0", constraints["registry.terraform.io/hashicorp/aws"])
-	assert.Equal(t, "~> 4.0.0", constraints["registry.terraform.io/cloudflare/cloudflare"])
+	assert.Equal(t, "~> 5.0", constraints["registry.terraform.io/hashicorp/aws"])
+	assert.Equal(t, "~> 4.0", constraints["registry.terraform.io/cloudflare/cloudflare"])
 
 	// Test parsing with OpenTofu implementation
 	constraints, err = getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.OpenTofu, testDir)
 	require.NoError(t, err)
 
-	assert.Equal(t, "~> 5.0.0", constraints["registry.opentofu.org/hashicorp/aws"])
-	assert.Equal(t, "~> 4.0.0", constraints["registry.opentofu.org/cloudflare/cloudflare"])
+	assert.Equal(t, "~> 5.0", constraints["registry.opentofu.org/hashicorp/aws"])
+	assert.Equal(t, "~> 4.0", constraints["registry.opentofu.org/cloudflare/cloudflare"])
 }
 
 func TestParseProviderConstraintsWithImplicitProvider(t *testing.T) {
@@ -78,14 +79,79 @@ terraform {
 	require.NoError(t, err)
 
 	// Verify the parsed constraints default to terraform registry and are normalized
-	assert.Equal(t, "~> 5.0.0", constraints["registry.terraform.io/hashicorp/aws"])
+	assert.Equal(t, "~> 5.0", constraints["registry.terraform.io/hashicorp/aws"])
 
 	// Test parsing with OpenTofu implementation
 	constraints, err = getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.OpenTofu, testDir)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints default to OpenTofu registry and are normalized
-	assert.Equal(t, "~> 5.0.0", constraints["registry.opentofu.org/hashicorp/aws"])
+	assert.Equal(t, "~> 5.0", constraints["registry.opentofu.org/hashicorp/aws"])
+}
+
+// TestParseProviderConstraintsWithShorthand pins that a shorthand entry and an object
+// entry in the same block both reach the constraint map.
+func TestParseProviderConstraintsWithShorthand(t *testing.T) {
+	t.Parallel()
+
+	testDir := venvtest.Root("/module")
+	fsys := vfs.NewMemMapFS()
+
+	terraformContent := `
+terraform {
+  required_providers {
+    aws = ">= 5.0"
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
+  }
+}
+`
+
+	require.NoError(t, fsys.MkdirAll(testDir, 0o755))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(testDir, "main.tf"), []byte(terraformContent), 0o644))
+
+	constraints, err := getproviders.ParseProviderConstraints(fsys, map[string]string{}, tfimpl.Terraform, testDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, ">= 5.0.0", constraints["registry.terraform.io/hashicorp/aws"])
+	assert.Equal(t, "~> 4.0", constraints["registry.terraform.io/cloudflare/cloudflare"])
+
+	constraints, err = getproviders.ParseProviderConstraints(fsys, map[string]string{}, tfimpl.OpenTofu, testDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, ">= 5.0.0", constraints["registry.opentofu.org/hashicorp/aws"])
+	assert.Equal(t, "~> 4.0", constraints["registry.opentofu.org/cloudflare/cloudflare"])
+}
+
+// TestParseProviderConstraintsWithShorthandVariants pins the normalization of a
+// shorthand constraint.
+func TestParseProviderConstraintsWithShorthandVariants(t *testing.T) {
+	t.Parallel()
+
+	testDir := venvtest.Root("/module")
+	fsys := vfs.NewMemMapFS()
+
+	terraformContent := `
+terraform {
+  required_providers {
+    aws      = "= 5.100.0"
+    time     = "0.10"
+    external = ">= 2.0, < 3.0"
+  }
+}
+`
+
+	require.NoError(t, fsys.MkdirAll(testDir, 0o755))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(testDir, "main.tf"), []byte(terraformContent), 0o644))
+
+	constraints, err := getproviders.ParseProviderConstraints(fsys, map[string]string{}, tfimpl.OpenTofu, testDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, "5.100.0", constraints["registry.opentofu.org/hashicorp/aws"])
+	assert.Equal(t, "0.10.0", constraints["registry.opentofu.org/hashicorp/time"])
+	assert.Equal(t, ">= 2.0.0, < 3.0.0", constraints["registry.opentofu.org/hashicorp/external"])
 }
 
 func TestParseProviderConstraintsWithEnvironmentOverride(t *testing.T) {
@@ -120,17 +186,17 @@ terraform {
 	require.NoError(t, err)
 
 	// Verify the parsed constraints use custom registry for implicit providers and are normalized
-	assert.Equal(t, "~> 5.0.0", constraints[customRegistry+"/hashicorp/aws"])
+	assert.Equal(t, "~> 5.0", constraints[customRegistry+"/hashicorp/aws"])
 	// Explicit source should use custom registry too and be normalized
-	assert.Equal(t, "~> 1.0.0", constraints[customRegistry+"/example/custom"])
+	assert.Equal(t, "~> 1.0", constraints[customRegistry+"/example/custom"])
 
 	// Test parsing with OpenTofu implementation - should also use custom registry (environment override takes precedence)
 	constraints, err = getproviders.ParseProviderConstraints(vfs.NewOSFS(), env, tfimpl.OpenTofu, testDir)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints use custom registry even with OpenTofu and are normalized
-	assert.Equal(t, "~> 5.0.0", constraints[customRegistry+"/hashicorp/aws"])
-	assert.Equal(t, "~> 1.0.0", constraints[customRegistry+"/example/custom"])
+	assert.Equal(t, "~> 5.0", constraints[customRegistry+"/hashicorp/aws"])
+	assert.Equal(t, "~> 1.0", constraints[customRegistry+"/example/custom"])
 }
 
 func TestParseProviderConstraintsWithTofuFiles(t *testing.T) {
@@ -172,16 +238,16 @@ terraform {
 	require.NoError(t, err)
 
 	// Verify constraints from both .tf and .tofu files are parsed and normalized
-	assert.Equal(t, "~> 5.0.0", constraints["registry.opentofu.org/hashicorp/aws"])
-	assert.Equal(t, "~> 3.0.0", constraints["registry.opentofu.org/hashicorp/azurerm"])
+	assert.Equal(t, "~> 5.0", constraints["registry.opentofu.org/hashicorp/aws"])
+	assert.Equal(t, "~> 3.0", constraints["registry.opentofu.org/hashicorp/azurerm"])
 
 	// Test parsing with Terraform implementation
 	constraints, err = getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
 	require.NoError(t, err)
 
 	// Verify constraints from both .tf and .tofu files are parsed with Terraform registry and normalized
-	assert.Equal(t, "~> 5.0.0", constraints["registry.terraform.io/hashicorp/aws"])
-	assert.Equal(t, "~> 3.0.0", constraints["registry.terraform.io/hashicorp/azurerm"])
+	assert.Equal(t, "~> 5.0", constraints["registry.terraform.io/hashicorp/aws"])
+	assert.Equal(t, "~> 3.0", constraints["registry.terraform.io/hashicorp/azurerm"])
 }
 
 // TestParseProviderConstraintsTofuWins pins which constraint survives when the
@@ -215,7 +281,7 @@ terraform {
 		testDir,
 	)
 	require.NoError(t, err)
-	assert.Equal(t, "~> 6.0.0", constraints["registry.opentofu.org/hashicorp/aws"])
+	assert.Equal(t, "~> 6.0", constraints["registry.opentofu.org/hashicorp/aws"])
 }
 
 func TestParseProviderConstraintsWithEqualsPrefix(t *testing.T) {
@@ -280,9 +346,59 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 			expected: ">= 2.2.0",
 		},
 		{
-			name:     "normalize pessimistic constraint",
+			name:     "pessimistic constraint keeps two parts",
 			input:    "~> 4.0",
+			expected: "~> 4.0",
+		},
+		{
+			name:     "pessimistic constraint with a nonzero minor",
+			input:    "~> 4.40",
+			expected: "~> 4.40",
+		},
+		{
+			name:     "pessimistic constraint with one part",
+			input:    "~> 4",
+			expected: "~> 4.0",
+		},
+		{
+			name:     "pessimistic constraint with three zero parts",
+			input:    "~> 4.0.0",
 			expected: "~> 4.0.0",
+		},
+		{
+			name:     "pessimistic constraint without a space",
+			input:    "~>4.0",
+			expected: "~> 4.0",
+		},
+		{
+			name:     "pessimistic constraint with extra spaces returned as-is",
+			input:    "~>   4.0",
+			expected: "~>   4.0",
+		},
+		{
+			name:     "pessimistic constraint with a prerelease",
+			input:    "~> 4.0-beta1",
+			expected: "~> 4.0-beta1",
+		},
+		{
+			name:     "pessimistic constraint with three parts and a prerelease",
+			input:    "~> 4.0.1-beta1",
+			expected: "~> 4.0.1-beta1",
+		},
+		{
+			name:     "operator without a space",
+			input:    ">=2.2",
+			expected: ">= 2.2.0",
+		},
+		{
+			name:     "unknown operator returned as-is",
+			input:    "=> 2.2",
+			expected: "=> 2.2",
+		},
+		{
+			name:     "operator without a version returned as-is",
+			input:    "~>",
+			expected: "~>",
 		},
 		{
 			name:     "already normalized constraint unchanged",
@@ -337,7 +453,12 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 		{
 			name:     "multi-part with mixed operators",
 			input:    "~> 5.0, != 5.3",
-			expected: "~> 5.0.0, != 5.3.0",
+			expected: "~> 5.0, != 5.3.0",
+		},
+		{
+			name:     "multi-part with an unrecognized term returned as-is",
+			input:    "< 7.0, => 2.2, < 7.0",
+			expected: "< 7.0, => 2.2, < 7.0",
 		},
 	}
 

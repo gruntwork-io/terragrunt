@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/hcl/v2"
@@ -19,6 +18,11 @@ import (
 // that answers with them rather than letting the parser's default diagnostics
 // writer print them.
 type DiagnosticsCollector struct {
+	// missingDependencyUnits has the directory of each unit that has a diagnostic for a missing dependency.
+	missingDependencyUnits map[string]struct{}
+	// owners maps each diagnostic to the directory of the component whose validation collected it.
+	owners map[*diagnostic.Diagnostic]string
+	// diags are the diagnostics collected so far, without repeats.
 	diags diagnostic.Diagnostics
 }
 
@@ -27,9 +31,21 @@ func (c *DiagnosticsCollector) Diagnostics() diagnostic.Diagnostics {
 	return c.diags
 }
 
-// Option returns the [hclparse.Option] that feeds c.
-func (c *DiagnosticsCollector) Option() hclparse.Option {
-	return hclparse.WithDiagnosticsHandler(c.collect)
+// owner returns the directory of the component whose validation collected diag.
+func (c *DiagnosticsCollector) owner(diag *diagnostic.Diagnostic) string {
+	return c.owners[diag]
+}
+
+// attribute records dir as the owner of every diagnostic collected since the collector held from
+// of them. A repeat that [DiagnosticsCollector.add] dropped keeps the owner of the first.
+func (c *DiagnosticsCollector) attribute(from int, dir string) {
+	if c.owners == nil {
+		c.owners = make(map[*diagnostic.Diagnostic]string)
+	}
+
+	for _, diag := range c.diags[from:] {
+		c.owners[diag] = dir
+	}
 }
 
 // collect keeps the diagnostics raised for the file being parsed. It reports
@@ -44,7 +60,12 @@ func (c *DiagnosticsCollector) collect(
 			continue
 		}
 
-		c.add(diagnostic.NewDiagnostic(file, hclDiag))
+		diag, err := diagnostic.NewDiagnostic(file, hclDiag)
+		if err != nil {
+			return nil, err
+		}
+
+		c.add(diag)
 	}
 
 	return nil, nil
@@ -77,6 +98,9 @@ func (c *DiagnosticsCollector) has(diag *diagnostic.Diagnostic) bool {
 // raisedElsewhere reports whether diag points at a file other than the one
 // being parsed. A parse raises what its dependencies and includes report too,
 // and those belong to whichever file declared them.
+//
+// A diagnostic with a Subject and no file is not dismissed here, so that
+// [diagnostic.NewDiagnostic] rejects it.
 func raisedElsewhere(file *hcl.File, diag *hcl.Diagnostic) bool {
 	if diag.Subject == nil || file == nil {
 		return false
@@ -115,16 +139,34 @@ func (p ComponentParser) Unit(
 	opts *options.TerragruntOptions,
 	unitDir string,
 ) error {
+	from := len(p.Collector.diags)
+	defer p.Collector.attribute(from, unitDir)
+
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = unitDir
 	parseOpts.TerragruntConfigPath = filepath.Join(unitDir, unitConfigFilename(opts))
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-	_, pctx := configbridge.NewParsingContext(ctx, l, v, parseOpts)
+	pctx := configbridge.NewParsingContext(parseOpts)
 
-	_, err := config.ReadTerragruntConfig(ctx, l, pctx, p.parseOptions(pctx.ParserOptions))
+	configPath := parseOpts.TerragruntConfigPath
 
-	return err
+	cfg, err := config.ReadTerragruntConfig(
+		ctx,
+		l,
+		v,
+		pctx.WithParserSettings(p.parserSettings(pctx.Parser)),
+	)
+	if err != nil {
+		return p.Collector.pointAtDependencyErrors(v.FS, unitDir, []string{configPath}, err)
+	}
+
+	return p.Collector.pointAtDependencyErrors(
+		v.FS,
+		unitDir,
+		dependencyConfigPaths(configPath, cfg),
+		config.ValidateDependencyConfigPaths(v.FS, cfg, configPath),
+	)
 }
 
 // Stack parses the stack configuration in stackDir, returning every error the
@@ -136,32 +178,35 @@ func (p ComponentParser) Stack(
 	opts *options.TerragruntOptions,
 	stackDir string,
 ) []error {
+	from := len(p.Collector.diags)
+	defer p.Collector.attribute(from, stackDir)
+
 	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
 
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = stackDir
 	parseOpts.TerragruntConfigPath = stackFilePath
 
-	sctx, parser := configbridge.NewParsingContext(ctx, l, v, parseOpts)
+	parser := configbridge.NewParsingContext(parseOpts)
 
 	var parseErrs []error
 
-	values, err := config.ReadValues(sctx, parser, l, stackDir)
+	values, err := config.ReadValues(ctx, l, v, parser, stackDir)
 	if err != nil {
 		parseErrs = append(parseErrs, err)
 	}
 
-	parser = parser.WithParseOption(p.parseOptions(parser.ParserOptions))
+	parser = parser.WithParserSettings(p.parserSettings(parser.Parser))
 	if values != nil {
 		parser = parser.WithValues(values)
 	}
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(v.FS, stackFilePath)
+	file, err := parser.NewParser(l, v).ParseFromFile(v.FS, stackFilePath)
 	if err != nil {
 		return append(parseErrs, err)
 	}
 
-	stackCfg, err := config.ParseStackConfig(sctx, l, parser, file, values)
+	stackCfg, err := config.ParseStackConfig(ctx, l, v, parser, file, values)
 	if err != nil {
 		return append(parseErrs, err)
 	}
@@ -171,7 +216,7 @@ func (p ComponentParser) Stack(
 	// the stack-dependencies experiment is enabled and the config declares
 	// autoinclude.
 	autoIncludeErr := config.ValidateStackAutoIncludes(
-		sctx, l, parser, stackFilePath, stackCfg, values,
+		ctx, l, v, parser, stackFilePath, stackCfg, values,
 	)
 	if autoIncludeErr != nil {
 		parseErrs = append(parseErrs, autoIncludeErr)
@@ -180,17 +225,17 @@ func (p ComponentParser) Stack(
 	return parseErrs
 }
 
-func (p ComponentParser) parseOptions(defaults []hclparse.Option) []hclparse.Option {
+func (p ComponentParser) parserSettings(defaults config.ParserSettings) config.ParserSettings {
 	if p.Options != CollectorAndDefaults {
-		return []hclparse.Option{p.Collector.Option()}
+		return config.ParserSettings{
+			DiagnosticsHandler: p.Collector.collect,
+			SkipDefaults:       true,
+		}
 	}
 
-	// A fresh slice, since appending to the parsing context's own would write
-	// into whatever else shares its backing array.
-	opts := make([]hclparse.Option, 0, len(defaults)+1)
-	opts = append(opts, defaults...)
+	defaults.DiagnosticsHandler = p.Collector.collect
 
-	return append(opts, p.Collector.Option())
+	return defaults
 }
 
 // unitConfigFilename is the file name a unit parse looks for, which follows

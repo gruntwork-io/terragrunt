@@ -60,7 +60,7 @@ func TestGenerateStackCASOfflineMissFails(t *testing.T) {
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(io.Discard))
 
-	_, pctx := config.NewParsingContext(t.Context(), l, v, config.WithStrictControls(controls.New()))
+	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.TerragruntStackConfigPath = stackPath
 	pctx.RootWorkingDir = stackDir
 	pctx.WorkingDir = stackDir
@@ -75,7 +75,7 @@ func TestGenerateStackCASOfflineMissFails(t *testing.T) {
 	defer pool.Stop()
 
 	// Components are generated on the pool, so the fetch error surfaces from Wait.
-	genErr := config.GenerateStackFile(t.Context(), l, pctx, pool, stackPath)
+	genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
 	waitErr := pool.Wait()
 
 	require.ErrorIs(t, errors.Join(genErr, waitErr), cas.ErrCASOffline)
@@ -125,7 +125,7 @@ func TestGenerateStackCASOfflineSetupFailureFails(t *testing.T) {
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(io.Discard))
 
-	_, pctx := config.NewParsingContext(t.Context(), l, v, config.WithStrictControls(controls.New()))
+	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.TerragruntStackConfigPath = stackPath
 	pctx.RootWorkingDir = stackDir
 	pctx.WorkingDir = stackDir
@@ -139,7 +139,7 @@ func TestGenerateStackCASOfflineSetupFailureFails(t *testing.T) {
 
 	defer pool.Stop()
 
-	genErr := config.GenerateStackFile(t.Context(), l, pctx, pool, stackPath)
+	genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
 	waitErr := pool.Wait()
 
 	require.ErrorIs(t, errors.Join(genErr, waitErr), errNoCacheDir)

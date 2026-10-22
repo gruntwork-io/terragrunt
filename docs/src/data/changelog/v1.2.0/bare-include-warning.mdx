@@ -1,0 +1,16 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Bare `include` blocks warn again
+
+Terragrunt stopped logging the deprecation warning for an `include` block without a label, so a configuration using one gave no hint that the `bare-include` strict control would reject it. The parser setup suppressed the warning on the shared control before any file was read, and the check that finds the bare include then had nothing left to log.
+
+A run over a configuration with a bare include now logs the warning once:
+
+```
+WARN  Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://docs.terragrunt.com/migrate/bare-include/
+```
+
+With `--strict-mode` or `--strict-control bare-include`, the run still fails with an error and logs no warning. See the [bare include migration guide](/migrate/bare-include) for how to label the block.

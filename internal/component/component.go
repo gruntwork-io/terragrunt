@@ -14,6 +14,7 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
@@ -100,6 +101,12 @@ func (dc *DiscoveryContext) CopyWithNewOrigin(origin Origin) *DiscoveryContext {
 	c.origin = origin
 
 	return c
+}
+
+// RemovedInRef reports whether the component was removed in the Git reference Ref.
+// Worktree translation marks such a component with the destroy flag.
+func (dc *DiscoveryContext) RemovedInRef() bool {
+	return dc.Ref != "" && iacargs.HasDestroyFlag(dc.Args)
 }
 
 // Origin returns the origin of the DiscoveryContext.

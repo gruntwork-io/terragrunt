@@ -545,19 +545,8 @@ func initialSetup(
 		args = append([]string{cmdName}, args...)
 	}
 
-	// `terraform apply -destroy` is an alias for `terraform destroy`.
-	// It is important to resolve the alias because `run --all` relies on
-	// the OpenTofu/Terraform command to determine the order, and for
-	// `destroy` the reverse order is used.
-	if cmdName == tf.CommandNameApply && slices.Contains(args, tf.FlagNameDestroy) {
-		cmdName = tf.CommandNameDestroy
-		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
-		args = slices.DeleteFunc(args, func(arg string) bool { return arg == tf.FlagNameDestroy })
-	}
-
-	// Since Terragrunt and Terraform have the same `-no-color` flag,
-	// if a user specifies `-no-color` for Terragrunt, we should propagate it to Terraform as well.
-	if l.Formatter().DisabledColors() {
+	// Terragrunt's `--no-color` propagates to tofu unless the user already passed it after `--`.
+	if l.Formatter().DisabledColors() && !slices.Contains(args, tf.FlagNameNoColor) {
 		args = append(args, tf.FlagNameNoColor)
 	}
 
@@ -692,7 +681,7 @@ func initialSetup(
 	}
 
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
-	opts.OriginalTerraformCommand = opts.TerraformCommand
+	opts.OriginalTerraformCommand = opts.TerraformCliArgs.CommandName(opts.TerraformCommand)
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 	if !exec.PrepareConsole(l) {

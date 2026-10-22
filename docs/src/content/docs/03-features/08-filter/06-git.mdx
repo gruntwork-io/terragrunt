@@ -8,8 +8,6 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 
 Match units and stacks based on changes between Git references. This is useful for targeting infrastructure that has been modified, added, or removed between commits, branches, or tags.
 
@@ -253,17 +251,7 @@ locals {
 }
 ```
 
-<Before version="v1.2.0">
-
-The stack in `HEAD^` generates `app/us-west-2` and the stack in `HEAD` does not, so `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy --experiment block-iteration -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
-
-</Before>
-
-<Since version="v1.2.0">
-
 The stack in `HEAD^` generates `app/us-west-2` and the stack in `HEAD` does not, so `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
-
-</Since>
 
 <FileTree>
 
@@ -315,17 +303,7 @@ locals {
 }
 ```
 
-<Before version="v1.2.0">
-
-Removing `"us-west-2"` from `regions.hcl` orphans `app/us-west-2` in the same way, and `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy --experiment block-iteration -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
-
-</Before>
-
-<Since version="v1.2.0">
-
 Removing `"us-west-2"` from `regions.hcl` orphans `app/us-west-2` in the same way, and `terragrunt run --filter '[HEAD^...HEAD]' --filter-allow-destroy -- plan` runs the equivalent of `terragrunt run -- plan -destroy` in `app/us-west-2` in the temporary worktree generated for `HEAD^`:
-
-</Since>
 
 <FileTree>
 
@@ -406,23 +384,10 @@ Consider a branch that removes `"us-west-2"` and `"eu-west-1"` from `local.regio
 
 To limit the search to part of the repository, intersect the Git expression with another expression using `|` in the same `--filter`. The intersection applies to every component the Git expression selects, including orphans, which you can select by their generated path:
 
-<Before version="v1.2.0">
-
-```bash
-terragrunt run --all --filter '[main...HEAD] | ./live/**' --filter-allow-destroy --experiment block-iteration -- apply
-terragrunt run --all --filter '[main...HEAD] | ./live/.terragrunt-stack/app/us-west-2' --filter-allow-destroy --experiment block-iteration -- apply
-```
-
-</Before>
-
-<Since version="v1.2.0">
-
 ```bash
 terragrunt run --all --filter '[main...HEAD] | ./live/**' --filter-allow-destroy -- apply
 terragrunt run --all --filter '[main...HEAD] | ./live/.terragrunt-stack/app/us-west-2' --filter-allow-destroy -- apply
 ```
-
-</Since>
 
 The first command destroys `app/us-west-2` and `app/eu-west-1`, and skips `staging/cache`. The second destroys only `app/us-west-2`.
 
@@ -458,6 +423,8 @@ The worktree for `main` has no `live/prod` directory to resolve a relative path 
 </FileTree>
 
 Resolving from the worktree root keeps every path valid in both references, so `--filter '[main...HEAD] | ./live/staging/**'` selects `live/staging/cache` from any directory.
+
+An inline `(dir)` [boundary](/features/filter/graph) on a Git expression resolves the same way. `--filter '(./live/staging)...[main...HEAD]'` limits discovery to `live/staging` from any directory, even when that directory exists in only one of the references. A boundary that is not a directory in either reference is an error.
 
 </Aside>
 

@@ -7,8 +7,6 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 import { Aside } from '@astrojs/starlight/components';
 
 OpenTofu/Terraform supports [remote state storage](https://opentofu.org/docs/language/state/remote/) via various [backends](https://opentofu.org/docs/language/settings/backends/configuration/) that you normally configure in your `.tf` files as follows:
@@ -41,7 +39,7 @@ Unfortunately, the `backend` configuration does not currently support expression
 
 </FileTree>
 
-To use remote state with each of these modules, you would have to copy/paste the identical `backend` configuration into each of the `main.tf` files. The only thing that would differ between the configurations would be the `key` parameter: e.g., the `key` for `mysql/main.tf` might be `mysql/terraform.tfstate` and the `key` for `frontend-app/main.tf` might be `frontend-app/terraform.tfstate`.
+To use remote state with each of these modules, you would have to copy/paste the identical `backend` configuration into each of the `main.tf` files. The only thing that would differ between the configurations would be the `key` parameter: e.g., the `key` for `mysql/main.tf` might be `mysql/tofu.tfstate` and the `key` for `frontend-app/main.tf` might be `frontend-app/tofu.tfstate`.
 
 In addition, the resources used for remote state will be provisioned _somewhere else_, and that _somewhere else_ needs to be managed. Most users end up using "click-ops" to provision the S3 bucket and DynamoDB table used for AWS remote state (clicking around in the AWS console until they have what they need). This is error-prone, difficult to reproduce, and makes it hard to do the _right thing_ consistently (e.g., enabling versioning, encryption, and access logging).
 
@@ -169,7 +167,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
-- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm)<Before version="v1.2.0"> (experimental; bootstrap, delete, and migrate require the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)</Before>
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm)
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -185,8 +183,8 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    bucket         = "my-terraform-state"
-    key            = "${path_relative_to_include()}/terraform.tfstate"
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "my-lock-table"
@@ -196,7 +194,7 @@ remote_state {
 
 Like the approach with `generate` blocks, this will generate a `backend.tf` file that contains the remote state
 configuration. However, in addition to that, Terragrunt will also now manage the S3 bucket and DynamoDB table for you.
-This means that if the S3 bucket `my-terraform-state` and DynamoDB table `my-lock-table` does not exist in your account,
+This means that if the S3 bucket `my-tofu-state` and DynamoDB table `my-lock-table` does not exist in your account,
 Terragrunt will automatically create these resources before calling `terraform` and configure them based on the
 specified configuration parameters.
 
@@ -216,21 +214,9 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 - **Access logging bucket**: If you specify an `accesslogging_bucket_name` in `remote_state.config` and that bucket doesn't already exist, Terragrunt will create it automatically. You can tag the access logging bucket with custom tags using `remote_state.config.accesslogging_bucket_tags`, and control the log object prefix using `accesslogging_target_prefix`.
 
-  <Before version="v1.2.0">
-
-  Terragrunt grants S3 permission to deliver logs into this bucket with a bucket ACL, granting `WRITE` and `READ_ACP` to the S3 log delivery group. It does this every run, on a bucket it creates and on one that already exists. A bucket with ACLs disabled rejects the grant.
-
-  </Before>
-
-  <Since version="v1.2.0">
-
   A bucket Terragrunt creates here gets a bucket policy letting S3 deliver access logs into it on behalf of buckets in the same AWS account. AWS [recommends a bucket policy over the log delivery group ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general) for this, and documents the [policy to use](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-bucket-policy). Terragrunt also creates buckets with ACLs disabled, [which AWS recommends](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html) and applies by default to new buckets.
 
   A bucket that already exists keeps the permissions it has: Terragrunt reads and writes nothing on its policy, so if access logs don't arrive, grant `s3:PutObject` to `logging.s3.amazonaws.com` on that bucket yourself.
-
-  </Since>
-
-<Since version="v1.2.0">
 
 Terragrunt creates a bucket in your [account regional namespace](https://docs.aws.amazon.com/AmazonS3/latest/userguide/gpbucketnamespaces.html) when you name it using a name that's reserved for the account regional namespace. That namespace is a reserved subdivision of the S3 namespace that only your account can create buckets in, and its names end with your account ID, the region, and `-an`:
 
@@ -239,16 +225,14 @@ Terragrunt creates a bucket in your [account regional namespace](https://docs.aw
 remote_state {
   backend = "s3"
   config = {
-    bucket = "my-terraform-state-111122223333-us-east-1-an"
-    key    = "${path_relative_to_include()}/terraform.tfstate"
+    bucket = "my-tofu-state-111122223333-us-east-1-an"
+    key    = "${path_relative_to_include()}/tofu.tfstate"
     region = "us-east-1"
   }
 }
 ```
 
 `accesslogging_bucket_name` follows the same rule. A name that fits the convention but names a region other than the one you are deploying to is refused before Terragrunt offers to create the bucket.
-
-</Since>
 
 <Aside type="tip" title="Using profiles">
 
@@ -362,7 +346,7 @@ remote_state {
 - `skip_metadata_api_check` — Skip the AWS metadata API check.
 - `force_path_style` — Force S3 path-style URLs instead of virtual-hosted-style.
 
-If you experience an error for any of these configurations, confirm you are using OpenTofu or Terraform v0.12.2 or greater.
+If you experience an error for any of these configurations, confirm you are using OpenTofu/Terraform v0.12.2 or greater.
 
 The following config options are only valid for the `s3` backend and are used by Terragrunt — they are **not** passed on to OpenTofu/Terraform:
 
@@ -418,17 +402,8 @@ The following config options are only valid for the `gcs` backend and are used b
 
 ### Azure Storage (azurerm) Backend
 
-<Before version="v1.2.0">
-<Aside type="caution" title="Experimental">
-Azure backend support is delivered through the [`azure-backend`](/reference/experiments/active#azure-backend) experiment.
-
-With the experiment enabled, Terragrunt bootstraps, deletes, and migrates Azure Storage state resources.
-Otherwise, these operations return an error. OpenTofu/Terraform's native azurerm backend handles normal state reads and writes.
-</Aside>
-</Before>
-
 <Aside type="note">
-<Before version="v1.2.0">When `azure-backend` is enabled and the</Before><Since version="v1.2.0">When the</Since> Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
+When the Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
 </Aside>
 
 Example configuration:
@@ -440,8 +415,8 @@ remote_state {
   config = {
     storage_account_name = "myterragruntstate"
     container_name       = "tfstate"
-    key                  = "${path_relative_to_include()}/terraform.tfstate"
-    resource_group_name  = "terraform-rg"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    resource_group_name  = "tofu-rg"
     subscription_id      = "00000000-0000-0000-0000-000000000000"
     use_azuread_auth     = true
   }
@@ -503,9 +478,9 @@ The following config options are only valid for the `azurerm` backend and are us
 - `account_tier` - Storage account tier, `Standard` or `Premium`. Defaults to `Standard`.
 - `account_replication_type` - Replication type, e.g. `LRS`, `GRS`, `ZRS`. Defaults to `LRS`.
 - `access_tier` - Blob access tier, `Hot`, `Cool`, `Cold`, or `Premium`. Defaults to `Hot`.
-<Since version="v1.2.0">
+
 - `minimum_tls_version` - Minimum TLS version permitted on requests to the storage account, `TLS1_2` or `TLS1_3`. Defaults to `TLS1_2`. The deprecated `TLS1_0` and `TLS1_1` are not accepted. Applies only when Terragrunt creates the account.
-</Since>
+
 - `tags` - Map of tags applied to the storage account on creation.
 - `skip_resource_group_creation` - When `true`, never create the resource group.
 - `skip_storage_account_creation` - When `true`, never create the storage account; it must already exist.

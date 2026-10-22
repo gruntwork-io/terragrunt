@@ -11,9 +11,28 @@ import (
 )
 
 const (
-	testFixtureMarkManyAsReadRelpath = "fixtures/mark-many-as-read-relpath"
-	testFixtureMarkGlobAsRead        = "fixtures/mark-glob-as-read"
+	testFixtureMarkManyAsReadRelpath        = "fixtures/mark-many-as-read-relpath"
+	testFixtureMarkManyAsReadIncludedSource = "fixtures/mark-many-as-read-included-source"
+	testFixtureMarkGlobAsRead               = "fixtures/mark-glob-as-read"
 )
+
+// TestMarkManyAsReadIncludedRelativeSource pins that a relative terraform source
+// inherited through include resolves against the unit, where a run resolves it,
+// so a reading= filter naming the module file selects the unit.
+func TestMarkManyAsReadIncludedRelativeSource(t *testing.T) {
+	t.Parallel()
+
+	workingDir, err := filepath.Abs(testFixtureMarkManyAsReadIncludedSource)
+	require.NoError(t, err)
+
+	helpers.CleanupTerraformFolder(t, workingDir)
+
+	cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter 'reading=modules/foo/main.tf'"
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err, "stderr: %s", stderr)
+
+	assert.ElementsMatch(t, []string{filepath.FromSlash("live/unit")}, strings.Fields(stdout))
+}
 
 // TestMarkGlobAsReadReadingFilter exercises mark_glob_as_read() end-to-end:
 // the unit's terragrunt.hcl globs a sibling data file, and a reading= filter

@@ -12,8 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,7 +69,7 @@ func TestRunOptionsFromParsingContextCopiesEveryOption(t *testing.T) {
 func parsingContextWithDistinctValues(t *testing.T) *config.ParsingContext {
 	t.Helper()
 
-	_, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), venvtest.New())
+	pctx := config.NewParsingContext()
 
 	pctx.TerragruntConfigPath = "/dep/unit/terragrunt.hcl"
 	pctx.OriginalTerragruntConfigPath = "/dep/original/terragrunt.hcl"

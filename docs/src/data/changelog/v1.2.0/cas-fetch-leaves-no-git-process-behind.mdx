@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### CAS fetches leave no git process behind
+
+After a fetch that brings in more than about a hundred commits, git starts `git maintenance run --auto` in the background and returns without waiting for it. That process kept writing commit graphs into the [CAS](/features/caching/cas) git store for a few seconds after Terragrunt had moved on, outside the lock Terragrunt holds on that store entry, and into temporary clones Terragrunt was already deleting.
+
+Every `git fetch` Terragrunt runs now turns automatic maintenance off, so the fetch is finished when it returns.

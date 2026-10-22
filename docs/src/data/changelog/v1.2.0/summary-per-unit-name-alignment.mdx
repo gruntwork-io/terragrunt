@@ -1,0 +1,30 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Unit names with non-ASCII characters no longer break run summary alignment
+
+With [`--summary-per-unit`](/reference/cli/commands/run#summary-per-unit), Terragrunt prints each unit with a dotted leader running from its name to its duration. Terragrunt measured names in bytes, so a name with non-ASCII characters got a shorter leader than it needed, and its duration landed left of the others:
+
+```
+❯❯ Run Summary  3 units  6s
+   ────────────────────────────
+   Succeeded (3)
+      database ......... 4s
+      base-de-données . 4s
+      データベース  4s
+```
+
+Terragrunt now measures unit names by the terminal columns they fill, so the durations line up again. A character that fills two columns, as in Japanese or Chinese, counts as two:
+
+```
+❯❯ Run Summary  3 units  6s
+   ────────────────────────────
+   Succeeded (3)
+      database ......... 4s
+      base-de-données .. 4s
+      データベース ..... 4s
+```
+
+The `width` option in a [custom log format](/reference/logging/formatting#options) measures the same way, so a column padded to a width stays aligned when a value fills two columns per character.

@@ -77,6 +77,9 @@ type StackCASResult struct {
 // Requires v.FS unconditionally. Remote sources additionally require
 // v.Exec for the git runner; the assertion fires once dispatch picks
 // the remote branch.
+//
+// Returns the [NewGitStoreVenv] error for a remote source when v cannot
+// back the git store.
 func (c *CAS) ProcessStackComponent(
 	ctx context.Context,
 	l log.Logger,
@@ -107,13 +110,18 @@ func (c *CAS) ProcessStackComponent(
 
 	cleanURL := redact.NewURL(strings.TrimPrefix(strippedURL.String(), "git::"))
 
+	gv, err := NewGitStoreVenv(v)
+	if err != nil {
+		return nil, err
+	}
+
 	// Stack processing derives deterministic CAS keys from refHash, so
 	// abbreviated SHAs would produce keys that depend on the input
 	// shape. Full SHAs are the supported form for commit refs in
 	// stacks; CommitHash returns the user input as-is for the
 	// commit-ref path, and the canonical hash for the symbolic-ref
 	// path.
-	resolved, err := c.resolveReference(ctx, l, v, cleanURL, ref)
+	resolved, err := c.resolveReference(ctx, l, gv, cleanURL, ref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve reference %q: %w", ref, err)
 	}
@@ -275,7 +283,8 @@ func (c *CAS) processDirectory(
 }
 
 // processStackFile processes a terragrunt.stack.hcl file, rewriting sources
-// for blocks that have update_source_with_cas = true.
+// for blocks that have update_source_with_cas = true, including the blocks a
+// stack block's autoinclude injects into its nested stack.
 func (c *CAS) processStackFile(
 	ctx context.Context, l log.Logger, v *venv.Venv,
 	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm,
@@ -285,7 +294,7 @@ func (c *CAS) processStackFile(
 		return fmt.Errorf("failed to read stack file %s: %w", stackFile, err)
 	}
 
-	blocks, err := ReadStackBlocks(content)
+	f, blocks, err := ReadStackBlocks(content)
 	if err != nil {
 		return fmt.Errorf("failed to parse stack file %s: %w", stackFile, err)
 	}
@@ -337,15 +346,7 @@ func (c *CAS) processStackFile(
 
 		newSource := FormatCASRef(synthHash)
 
-		content, err = RewriteStackBlockSource(content, block.BlockType, block.Name, newSource)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to rewrite source for %s %q: %w",
-				block.BlockType,
-				block.Name,
-				err,
-			)
-		}
+		block.SetSource(newSource)
 
 		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
 	}
@@ -357,7 +358,7 @@ func (c *CAS) processStackFile(
 		return fmt.Errorf("failed to remove stack file before rewrite %s: %w", stackFile, err)
 	}
 
-	return vfs.WriteFile(v.FS, stackFile, content, RegularFilePerms)
+	return vfs.WriteFile(v.FS, stackFile, f.Bytes(), RegularFilePerms)
 }
 
 // processUnitFile processes a terragrunt.hcl file, rewriting the

@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Provider cache requires checksums from registries
+
+The [Provider Cache Server](/features/caching/provider-cache-server) checks each provider archive it downloads against the checksum its registry publishes. When a registry's download response left out `shasums_url` or `shasums_signature_url`, the cache server skipped that check, cached the archive, and logged it as `unauthenticated`.
+
+The cache server now requires `shasum` and `shasums_url` in a registry's download response, and `shasums_signature_url` when the response includes signing keys. A response without them fails the run with an error naming the missing field. The provider registry protocol requires all three, so a registry that implements it is unaffected. Providers installed through a network or filesystem mirror are cached as before.

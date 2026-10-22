@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -25,18 +26,6 @@ const defaultDirPerms = 0o755
 
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
-}
-
-// FileURL returns the file:// URL for an absolute host path. A Windows path
-// needs a slash ahead of the drive letter ("file:///C:/tmp/x", RFC 8089);
-// without it go-getter reads "C:" as the host and the source is not found.
-func FileURL(absPath string) string {
-	p := filepath.ToSlash(absPath)
-	if !strings.HasPrefix(p, "/") {
-		p = "/" + p
-	}
-
-	return "file://" + p
 }
 
 // ToSlashAll returns paths with every separator turned into a slash, so
@@ -158,13 +147,22 @@ func CreateGitRepo(t *testing.T, path string) {
 func InitGitRepoWithBranchRef(t *testing.T, dir, ref string) {
 	t.Helper()
 
-	runGitCmd(t, dir, "init", "-b", "main")
+	InitGitRepoOnBranch(t, dir, "main")
+	runGitCmd(t, dir, "update-ref", "refs/heads/"+ref, "HEAD")
+}
+
+// InitGitRepoOnBranch initializes a git repo at dir whose HEAD is branch and
+// commits every file already present. Callers write their fixture files into
+// dir before calling this.
+func InitGitRepoOnBranch(t *testing.T, dir, branch string) {
+	t.Helper()
+
+	runGitCmd(t, dir, "init", "-b", branch)
 	runGitCmd(t, dir, "config", "user.email", "test@example.com")
 	runGitCmd(t, dir, "config", "user.name", "Terragrunt Test")
 	runGitCmd(t, dir, "config", "commit.gpgsign", "false")
 	runGitCmd(t, dir, "add", "-A")
 	runGitCmd(t, dir, "commit", "-m", "initial commit")
-	runGitCmd(t, dir, "update-ref", "refs/heads/"+ref, "HEAD")
 }
 
 func runGitCmd(t *testing.T, dir string, args ...string) {
@@ -535,5 +533,5 @@ func LocalGitRemote(t *testing.T, fixturePath string) string {
 
 	InitGitRepoWithBranchRef(t, repoDir, "main")
 
-	return FileURL(repoDir)
+	return getter.FileURL(repoDir).String()
 }

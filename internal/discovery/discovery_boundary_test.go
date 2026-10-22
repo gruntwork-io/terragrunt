@@ -299,6 +299,14 @@ func TestNewForDiscoveryCommand_DiscoveryBoundaryValidation(t *testing.T) {
 		require.NotNil(t, d)
 	})
 
+	t.Run("dependent direction accepts a boundary inside the working directory", func(t *testing.T) {
+		t.Parallel()
+
+		d, err := newForDiscoveryCommand(t, "...{"+f.vpcDir+"}", f.vpcDir)
+		require.NoError(t, err)
+		require.NotNil(t, d)
+	})
+
 	t.Run(
 		"dependency direction accepts a boundary outside the working directory",
 		func(t *testing.T) {
@@ -626,10 +634,12 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 	repoRoot := venvtest.Root("/monorepo")
 	liveDir := filepath.Join(repoRoot, "live")
 	catalogDir := filepath.Join(repoRoot, "catalog", "stacks")
+	otherDir := filepath.Join(repoRoot, "other")
+	liveSubDir := filepath.Join(liveDir, "sub")
 
 	v := memRepoRootVenv(t, repoRoot)
 
-	for _, dir := range []string{liveDir, catalogDir} {
+	for _, dir := range []string{liveDir, catalogDir, otherDir} {
 		require.NoError(t, vfs.WriteFile(
 			v.FS,
 			filepath.Join(dir, "terragrunt.stack.hcl"),
@@ -637,6 +647,8 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			0o644,
 		))
 	}
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(liveSubDir, ".keep"), nil, 0o644))
 
 	l := logger.CreateLogger()
 
@@ -657,7 +669,7 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 		{
 			name:     "no boundary discovers all stacks",
 			workDir:  repoRoot,
-			expected: []string{liveDir, catalogDir},
+			expected: []string{liveDir, catalogDir, otherDir},
 		},
 		{
 			name:     "flag boundary restricts to child directory",
@@ -669,7 +681,7 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			name:     "boundary equal to working dir discovers everything",
 			workDir:  repoRoot,
 			boundary: repoRoot,
-			expected: []string{liveDir, catalogDir},
+			expected: []string{liveDir, catalogDir, otherDir},
 		},
 		{
 			name:     "boundary wider than working dir keeps working dir scope",
@@ -691,13 +703,72 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			expected: []string{liveDir},
 		},
 		{
+			name:    "nested inline boundaries narrow to the outermost",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveDir+")...[main...HEAD]",
+				"("+liveSubDir+")...[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:    "nested inline boundaries narrow to the outermost in child-first order",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveSubDir+")...[main...HEAD]",
+				"("+liveDir+")...[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:    "an unbounded filter does not narrow",
+			workDir: repoRoot,
+			filters: parseFilters(
+				"("+liveDir+")...[main...HEAD]",
+				"[main...HEAD]",
+			),
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+		{
+			name:     "an unbounded filter narrows to the flag",
+			workDir:  repoRoot,
+			boundary: liveDir,
+			filters: parseFilters(
+				"("+liveSubDir+")...[main...HEAD]",
+				"[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:     "the flag narrows a dependents filter without an inline boundary",
+			workDir:  repoRoot,
+			boundary: liveDir,
+			filters: parseFilters(
+				"("+liveSubDir+")...[main...HEAD]",
+				"...[main...HEAD]",
+			),
+			expected: []string{liveDir},
+		},
+		{
+			name:     "a negated boundary does not narrow",
+			workDir:  repoRoot,
+			filters:  parseFilters("!(" + liveDir + ")...{" + liveDir + "}"),
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+		{
+			name:     "a dependency-side boundary does not narrow",
+			workDir:  repoRoot,
+			filters:  parseFilters("[main...HEAD]...(" + liveDir + ")"),
+			expected: []string{liveDir, catalogDir, otherDir},
+		},
+		{
 			name:    "disjoint inline boundaries do not narrow",
 			workDir: repoRoot,
 			filters: parseFilters(
 				"("+liveDir+")...[main...HEAD]",
 				"("+catalogDir+")...[main...HEAD]",
 			),
-			expected: []string{liveDir, catalogDir},
+			expected: []string{liveDir, catalogDir, otherDir},
 		},
 	}
 

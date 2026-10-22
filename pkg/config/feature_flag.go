@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/pkg/errors"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -129,7 +128,7 @@ func flagToTypedCtyValue(name string, ctyType cty.Type, value any) (cty.Value, e
 		// convert value to boolean even if it is string
 		parsedValue, err := strconv.ParseBool(fmt.Sprintf("%v", flagValue))
 		if err != nil {
-			return cty.NilVal, errors.WithStack(err)
+			return cty.NilVal, err
 		}
 
 		flagValue = parsedValue
@@ -137,7 +136,7 @@ func flagToTypedCtyValue(name string, ctyType cty.Type, value any) (cty.Value, e
 
 	ctyOut, err := GoTypeToCty(flagValue)
 	if err != nil {
-		return cty.NilVal, errors.WithStack(err)
+		return cty.NilVal, err
 	}
 
 	ctyFlag := ctyFeatureFlag{

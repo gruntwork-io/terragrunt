@@ -1,0 +1,8 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Catalog clone directories drop the `.git` suffix
+
+The [catalog](/features/catalog) named each clone directory after the clone URL without removing the `.git` suffix, so `https://github.com/acme/terraform-aws-modules.git` cloned into a directory called `terraform-aws-modules.git`. That name appeared in the log line reporting where the repository was cloned, and in the module paths the catalog shows when a repository has no remote to link to. Terragrunt now strips the suffix for HTTPS and SSH clone URLs, `git::` sources, and URLs that carry a `ref` query parameter or a fragment.

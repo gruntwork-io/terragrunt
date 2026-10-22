@@ -1,0 +1,14 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Units with identical configs each resolve their own `iam_role`
+
+When two units had the same `terragrunt.hcl` content, Terragrunt could assume the first unit's IAM role for both. This hit any `iam_role` that depends on the unit's directory, such as:
+
+```hcl
+iam_role = "arn:aws:iam::123456789012:role/${basename(get_terragrunt_dir())}"
+```
+
+With this config in `a/` and `b/`, `b` assumed `role/a` instead of `role/b`. Terragrunt now evaluates `iam_role` in each unit's own directory, so `get_terragrunt_dir()`, `find_in_parent_folders()`, and similar functions return that unit's paths.

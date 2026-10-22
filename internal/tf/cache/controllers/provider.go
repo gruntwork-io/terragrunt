@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -23,7 +22,7 @@ type ProviderController struct {
 	Logger               log.Logger
 	DownloaderController router.Controller
 	*router.Router
-	AuthMiddleware              echo.MiddlewareFunc
+	AuthMiddleware              router.MiddlewareFunc
 	ProxyProviderHandler        *handlers.ProxyProviderHandler
 	ProviderService             *services.ProviderService
 	ProviderHandlers            []handlers.ProviderHandler
@@ -46,12 +45,19 @@ func (controller *ProviderController) Register(router *router.Router) {
 
 	// Api should be compliant with the Terraform Registry Protocol for providers.
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms
+	//
+	// Each endpoint is registered twice: under a cache request id, which makes
+	// the server cache the provider, and without one, which makes it proxy.
 
 	// Get All Versions for a Single Provider
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/
 	// provider-versions-platforms#get-all-versions-for-a-single-provider
 	controller.GET(
-		"/:cache_request_id/:registry_name/:namespace/:name/versions",
+		"/{cache_request_id}/{registry_name}/{namespace}/{name}/versions",
+		controller.getVersionsAction,
+	)
+	controller.GET(
+		"/{registry_name}/{namespace}/{name}/versions",
 		controller.getVersionsAction,
 	)
 
@@ -59,16 +65,20 @@ func (controller *ProviderController) Register(router *router.Router) {
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/
 	// provider-versions-platforms#get-a-platform
 	controller.GET(
-		"/:cache_request_id/:registry_name/:namespace/:name/:version/download/:os/:arch",
+		"/{cache_request_id}/{registry_name}/{namespace}/{name}/{version}/download/{os}/{arch}",
+		controller.getPlatformsAction,
+	)
+	controller.GET(
+		"/{registry_name}/{namespace}/{name}/{version}/download/{os}/{arch}",
 		controller.getPlatformsAction,
 	)
 }
 
-func (controller *ProviderController) getVersionsAction(ctx echo.Context) error {
+func (controller *ProviderController) getVersionsAction(w router.ResponseWriter, r *http.Request) error {
 	var (
-		registryName = ctx.Param("registry_name")
-		namespace    = ctx.Param("namespace")
-		name         = ctx.Param("name")
+		registryName = r.PathValue("registry_name")
+		namespace    = r.PathValue("namespace")
+		name         = r.PathValue("name")
 	)
 
 	provider := &models.Provider{
@@ -81,7 +91,7 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			versions, err := handler.GetVersions(ctx.Request().Context(), provider)
+			versions, err := handler.GetVersions(r.Context(), provider)
 			if err != nil {
 				controller.Logger.Errorf(
 					"Failed to get provider versions from %q: %s",
@@ -113,18 +123,18 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 		Versions: validVersions,
 	}
 
-	return ctx.JSON(http.StatusOK, versions)
+	return router.JSON(w, http.StatusOK, versions)
 }
 
-func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er error) {
+func (controller *ProviderController) getPlatformsAction(w router.ResponseWriter, r *http.Request) error {
 	var (
-		registryName   = ctx.Param("registry_name")
-		namespace      = ctx.Param("namespace")
-		name           = ctx.Param("name")
-		version        = ctx.Param("version")
-		os             = ctx.Param("os")
-		arch           = ctx.Param("arch")
-		cacheRequestID = ctx.Param("cache_request_id")
+		registryName   = r.PathValue("registry_name")
+		namespace      = r.PathValue("namespace")
+		name           = r.PathValue("name")
+		version        = r.PathValue("version")
+		os             = r.PathValue("os")
+		arch           = r.PathValue("arch")
+		cacheRequestID = r.PathValue("cache_request_id")
 	)
 
 	provider := &models.Provider{
@@ -138,7 +148,8 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 
 	if cacheRequestID == "" {
 		return controller.ProxyProviderHandler.GetPlatform(
-			ctx,
+			w,
+			r,
 			provider,
 			controller.DownloaderController,
 		)
@@ -151,7 +162,7 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			resp, err = handler.GetPlatform(ctx.Request().Context(), provider)
+			resp, err = handler.GetPlatform(r.Context(), provider)
 			if err != nil {
 				controller.Logger.Errorf(
 					"Failed to get provider platform from %q: %s",
@@ -169,7 +180,9 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 	provider.ResponseBody = resp
 
 	// start caching and return 423 status
-	controller.ProviderService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
+	controller.ProviderService.CacheProvider(r.Context(), cacheRequestID, provider)
 
-	return ctx.NoContent(controller.CacheProviderHTTPStatusCode)
+	w.WriteHeader(controller.CacheProviderHTTPStatusCode)
+
+	return nil
 }

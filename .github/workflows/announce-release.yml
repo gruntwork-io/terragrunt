@@ -8,12 +8,15 @@ on:
       tag_name:
         description: 'The tag name of the release'
         required: true
+permissions:
+  contents: read
+
 jobs:
   release:
     runs-on: ubuntu-slim
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Announce Release
         run: ./.github/scripts/announce-release.sh
@@ -34,7 +37,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           sparse-checkout: .github/scripts
 

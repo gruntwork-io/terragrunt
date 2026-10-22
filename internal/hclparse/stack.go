@@ -1,6 +1,7 @@
 package hclparse
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -128,6 +129,7 @@ func componentBlocksSchema() *hcl.BodySchema {
 //
 // Panics when [pkghclparse.ExpandBlock] returns a value that is not the *T it was given.
 func expandComponentBlocks[T any, P expandedComponent[T]](
+	ctx context.Context,
 	blocks hcl.Blocks,
 	evalCtx *hcl.EvalContext,
 ) ([]P, error) {
@@ -138,7 +140,7 @@ func expandComponentBlocks[T any, P expandedComponent[T]](
 	)
 
 	for _, block := range blocks {
-		instances, err := pkghclparse.ExpandBlock(block, new(T), evalCtx)
+		instances, err := pkghclparse.ExpandBlock(ctx, block, new(T), evalCtx)
 		if err != nil {
 			if blockDiags, ok := errors.AsType[hcl.Diagnostics](err); ok {
 				diags = append(diags, blockDiags...)
@@ -174,9 +176,17 @@ func expandComponentBlocks[T any, P expandedComponent[T]](
 
 // decodeComponentPaths decodes the discovery shape of every unit and stack block, once per
 // expansion element.
-func decodeComponentPaths(blocks hcl.Blocks, evalCtx *hcl.EvalContext) (*discoveryDecode, error) {
-	units, unitErr := expandComponentBlocks[unitPathOnlyHCL](blocks.OfType(blockUnit), evalCtx)
-	stacks, stackErr := expandComponentBlocks[stackPathOnlyHCL](blocks.OfType(blockStack), evalCtx)
+func decodeComponentPaths(
+	ctx context.Context,
+	blocks hcl.Blocks,
+	evalCtx *hcl.EvalContext,
+) (*discoveryDecode, error) {
+	units, unitErr := expandComponentBlocks[unitPathOnlyHCL](ctx, blocks.OfType(blockUnit), evalCtx)
+	stacks, stackErr := expandComponentBlocks[stackPathOnlyHCL](
+		ctx,
+		blocks.OfType(blockStack),
+		evalCtx,
+	)
 
 	return &discoveryDecode{Units: units, Stacks: stacks}, errors.Join(unitErr, stackErr)
 }
@@ -323,7 +333,11 @@ type discoveryDecode struct {
 
 // ParseStackFileFromPath reads a terragrunt.stack.hcl from disk and runs ParseStackFile; returns (nil, nil) when the file is absent.
 // A stackDir that is a regular file returns a [FileReadError] wrapping syscall.ENOTDIR on every platform.
-func ParseStackFileFromPath(fsys vfs.FS, stackDir string) (*ParseResult, error) {
+func ParseStackFileFromPath(
+	ctx context.Context,
+	fsys vfs.FS,
+	stackDir string,
+) (*ParseResult, error) {
 	if fsys == nil {
 		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fsys is nil (stackDir=%q)", stackDir))
 	}
@@ -353,7 +367,7 @@ func ParseStackFileFromPath(fsys vfs.FS, stackDir string) (*ParseResult, error) 
 		return nil, nil
 	}
 
-	return ParseStackFile(fsys, &ParseStackFileInput{
+	return ParseStackFile(ctx, fsys, &ParseStackFileInput{
 		Src:      data,
 		Filename: stackFileName,
 		StackDir: stackDir,
@@ -395,6 +409,7 @@ func (args *StackDirArgs) maxDepth() int {
 // args.FuncsFor builds the dir-scoped HCL function map for each stack directory visited; it
 // must be non-nil and must return a non-nil map.
 func UnitPathsFromStackDir(
+	ctx context.Context,
 	fsys vfs.FS,
 	stackDir string,
 	args *StackDirArgs,
@@ -417,7 +432,7 @@ func UnitPathsFromStackDir(
 		)
 	}
 
-	return unitPathsFromStackDir(fsys, stackDir, args, make(map[string]struct{}), 0)
+	return unitPathsFromStackDir(ctx, fsys, stackDir, args, make(map[string]struct{}), 0)
 }
 
 // DirectComponentPaths returns the generated on-disk paths of the direct enabled unit and
@@ -426,6 +441,7 @@ func UnitPathsFromStackDir(
 // file yields empty slices and a nil error. funcsFor must be non-nil and return a
 // non-nil map.
 func DirectComponentPaths(
+	ctx context.Context,
 	fsys vfs.FS,
 	stackDir string,
 	funcsFor StackFuncFactory,
@@ -459,7 +475,7 @@ func DirectComponentPaths(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(fsys, stackDir, stackFile, funcs)
+	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, funcs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -480,6 +496,7 @@ func DirectComponentPaths(
 // ancestor symlink loops), and depth caps the chain length (backstop for symlink cycles
 // EvalSymlinks reports as errors and therefore cannot collapse to a seen path).
 func unitPathsFromStackDir(
+	ctx context.Context,
 	fsys vfs.FS,
 	stackDir string,
 	args *StackDirArgs,
@@ -519,7 +536,7 @@ func unitPathsFromStackDir(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(fsys, stackDir, stackFile, funcs)
+	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, funcs)
 	if err != nil {
 		return nil, err
 	}
@@ -542,7 +559,14 @@ func unitPathsFromStackDir(
 			stack.NoStack != nil && *stack.NoStack,
 		)
 
-		nestedPaths, nestedErr := unitPathsFromStackDir(fsys, nestedDir, args, visited, depth+1)
+		nestedPaths, nestedErr := unitPathsFromStackDir(
+			ctx,
+			fsys,
+			nestedDir,
+			args,
+			visited,
+			depth+1,
+		)
 		if nestedErr != nil {
 			return nil, nestedErr
 		}
@@ -560,6 +584,7 @@ func unitPathsFromStackDir(
 // funcs is the function map injected into the discovery eval context; callers
 // must supply a non-nil map (validated at the public entrypoint).
 func decodeDiscovery(
+	ctx context.Context,
 	fsys vfs.FS,
 	stackDir, stackFile string,
 	funcs map[string]function.Function,
@@ -614,7 +639,7 @@ func decodeDiscovery(
 		return nil, nil, FileDecodeError{Name: stackFile, Err: diags}
 	}
 
-	decoded, err := decodeComponentPaths(content.Blocks, evalCtx)
+	decoded, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
 	if err != nil {
 		return nil, nil, FileDecodeError{Name: stackFile, Err: err}
 	}
@@ -636,7 +661,7 @@ func decodeDiscovery(
 	// Merge units and stacks injected by a sibling terragrunt.autoinclude.stack.hcl, overriding same-name
 	// base blocks the same way a full stack parse does. The autoinclude file's own names are validated for
 	// uniqueness inside the merge.
-	if err := mergeDiscoveryStackAutoInclude(fsys, stackDir, evalCtx, decoded); err != nil {
+	if err := mergeDiscoveryStackAutoInclude(ctx, fsys, stackDir, evalCtx, decoded); err != nil {
 		return nil, nil, err
 	}
 
@@ -703,6 +728,7 @@ func readDiscoveryValues(
 // edges the full parse would reject: the dependency-values backstop, and a strict decode that allows only
 // unit and stack blocks at the top level.
 func mergeDiscoveryStackAutoInclude(
+	ctx context.Context,
 	fsys vfs.FS,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
@@ -743,7 +769,7 @@ func mergeDiscoveryStackAutoInclude(
 		return FileDecodeError{Name: autoIncludePath, Err: diags}
 	}
 
-	autoDecoded, err := decodeComponentPaths(content.Blocks, evalCtx)
+	autoDecoded, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
 	if err != nil {
 		return FileDecodeError{Name: autoIncludePath, Err: err}
 	}

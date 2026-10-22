@@ -6,6 +6,7 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -262,6 +263,32 @@ func TestDuplicateDependencyLabelsControlIsRegistered(t *testing.T) {
 	}
 }
 
+// TestDependencyConfigPathFileControlIsRegistered pins that the control the dependency decoder
+// looks up by name is one the registry hands back, both standalone and under `deprecated-configs`.
+func TestDependencyConfigPathFileControlIsRegistered(t *testing.T) {
+	t.Parallel()
+
+	registry := controls.New()
+
+	ctrl := registry.Find(controls.DependencyConfigPathFile)
+
+	if assert.NotNil(t, ctrl, "dependency-config-path-file must be registered") {
+		assert.Equal(t, strict.ActiveStatus, ctrl.GetStatus())
+		assert.Error(t, ctrl.(*controls.Control).Error)
+		assert.NotEmpty(t, ctrl.(*controls.Control).Warning)
+	}
+
+	parent := registry.Find(controls.DeprecatedConfigs)
+
+	if assert.NotNil(t, parent, "deprecated-configs must be registered") {
+		assert.NotNil(
+			t,
+			parent.GetSubcontrols().Find(controls.DependencyConfigPathFile),
+			"dependency-config-path-file must be a deprecated-configs subcontrol",
+		)
+	}
+}
+
 // TestSkipAccessLoggingBucketACLControlIsRegistered pins that the control the S3 backend looks
 // up by name is one the registry hands back, both standalone and under `deprecated-configs`.
 func TestSkipAccessLoggingBucketACLControlIsRegistered(t *testing.T) {
@@ -285,5 +312,19 @@ func TestSkipAccessLoggingBucketACLControlIsRegistered(t *testing.T) {
 			parent.GetSubcontrols().Find(controls.SkipAccessLoggingBucketACL),
 			"skip-accesslogging-bucket-acl must be a deprecated-configs subcontrol",
 		)
+	}
+}
+
+// TestLegacyBase64GzipControlNamesCompatExperiment pins that the completed legacy-base64gzip
+// control tells users `base64gzip_compat()` is gated by the `base64gzip-compat` experiment,
+// matching the gate in the config package.
+func TestLegacyBase64GzipControlNamesCompatExperiment(t *testing.T) {
+	t.Parallel()
+
+	ctrl := controls.New().Find(controls.LegacyBase64Gzip)
+
+	if assert.NotNil(t, ctrl, "legacy-base64gzip must be registered") {
+		assert.Equal(t, strict.CompletedStatus, ctrl.GetStatus())
+		assert.Contains(t, ctrl.GetDescription(), "--experiment "+experiment.Base64GzipCompat)
 	}
 }

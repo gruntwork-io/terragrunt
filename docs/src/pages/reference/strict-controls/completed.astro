@@ -2,11 +2,15 @@
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import StrictControlEntries from '@components/StrictControlEntries.astro';
 import { getCollection } from 'astro:content';
+import { getLatestVersion } from '@lib/release';
+import { isCompleted } from '@lib/strict-controls';
+
+const latestVersion = await getLatestVersion();
 
 const entries = await getCollection('strictControls');
 
 const completed = entries
-	.filter((e) => e.data.status === 'completed')
+	.filter((e) => isCompleted(e, latestVersion))
 	.sort((a, b) => a.data.name.localeCompare(b.data.name));
 
 const headings: { depth: number; slug: string; text: string }[] = [];

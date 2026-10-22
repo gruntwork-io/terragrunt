@@ -11,6 +11,9 @@ on:
         description: 'Latest release tag to clean up against (e.g. v1.0.7)'
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   cleanup:
     name: Remove obsolete docs version gates
@@ -20,15 +23,15 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: main
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
-          version: 2026.5.12
+          version: 2026.9.12
           cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

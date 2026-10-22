@@ -399,6 +399,382 @@ func TestFindResourceGroupForAccount_BoundsPages(t *testing.T) {
 	assert.Equal(t, 100, tooMany.MaxPages)
 }
 
+// TestARMClients_RejectCloudWithoutResourceManager verifies every ARM client
+// constructor surfaces the SDK's refusal of a cloud that has no Resource
+// Manager endpoint, rather than silently targeting the public cloud.
+func TestARMClients_RejectCloudWithoutResourceManager(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		build func(cfg *azurehelper.AzureConfig) error
+		name  string
+		want  string
+	}{
+		{
+			name: "rbac",
+			build: func(cfg *azurehelper.AzureConfig) error {
+				_, err := azurehelper.NewRBACClient(cfg)
+				return err
+			},
+			want: "creating armauthorization client factory",
+		},
+		{
+			name: "resource group",
+			build: func(cfg *azurehelper.AzureConfig) error {
+				_, err := azurehelper.NewResourceGroupClient(cfg)
+				return err
+			},
+			want: "creating resource groups client",
+		},
+		{
+			name: "storage account",
+			build: func(cfg *azurehelper.AzureConfig) error {
+				_, err := azurehelper.NewStorageAccountClient(cfg)
+				return err
+			},
+			want: "creating armstorage client factory",
+		},
+		{
+			name: "resource group lookup",
+			build: func(cfg *azurehelper.AzureConfig) error {
+				_, err := azurehelper.FindResourceGroupForAccount(t.Context(), cfg, testAccount)
+				return err
+			},
+			want: "creating armstorage accounts client",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := cfgWithTransport(&stubTransport{status: http.StatusOK})
+			cfg.ClientOptions.Cloud = cloud.Configuration{
+				ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
+			}
+
+			err := tc.build(cfg)
+			require.ErrorContains(t, err, tc.want)
+			require.ErrorContains(t, err, "Resource Manager")
+		})
+	}
+}
+
+// TestStorageAccount_WrapsServiceFailures verifies every control-plane call
+// surfaces an unexpected answer as a wrapped error naming the account, and
+// that the Azure error code survives the wrapping.
+func TestStorageAccount_WrapsServiceFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		call func(ctx context.Context, sc *azurehelper.StorageAccountClient) error
+		name string
+		want string
+	}{
+		{
+			name: "exists",
+			call: func(ctx context.Context, sc *azurehelper.StorageAccountClient) error {
+				_, err := sc.Exists(ctx)
+				return err
+			},
+			want: `get storage account "acct"`,
+		},
+		{
+			name: "create",
+			call: func(ctx context.Context, sc *azurehelper.StorageAccountClient) error {
+				return sc.Create(ctx, log.New(), &azurehelper.StorageAccountConfig{Location: "eastus"})
+			},
+			want: `begin create storage account "acct"`,
+		},
+		{
+			name: "ensure deleted",
+			call: func(ctx context.Context, sc *azurehelper.StorageAccountClient) error {
+				return sc.EnsureDeleted(ctx, log.New())
+			},
+			want: `delete storage account "acct"`,
+		},
+		{
+			name: "enable versioning",
+			call: func(ctx context.Context, sc *azurehelper.StorageAccountClient) error {
+				return sc.EnableVersioning(ctx, log.New())
+			},
+			want: `get blob service properties for "acct"`,
+		},
+		{
+			name: "is versioning enabled",
+			call: func(ctx context.Context, sc *azurehelper.StorageAccountClient) error {
+				_, err := sc.IsVersioningEnabled(ctx)
+				return err
+			},
+			want: `get blob service properties for "acct"`,
+		},
+		{
+			name: "soft delete retention",
+			call: func(ctx context.Context, sc *azurehelper.StorageAccountClient) error {
+				_, _, err := sc.SoftDeleteRetention(ctx)
+				return err
+			},
+			want: `get blob service properties for "acct"`,
+		},
+		{
+			name: "get keys",
+			call: func(ctx context.Context, sc *azurehelper.StorageAccountClient) error {
+				_, err := sc.GetKeys(ctx)
+				return err
+			},
+			want: `list keys for "acct"`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// 403 is terminal for the SDK retry policy, so each call fails fast.
+			tr := &stubTransport{status: http.StatusForbidden, body: jsonBody(map[string]any{
+				"error": map[string]string{"code": "AuthorizationFailed", "message": "no permission"},
+			})}
+
+			sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+			require.NoError(t, err, "setup")
+
+			err = tc.call(t.Context(), sc)
+			require.ErrorContains(t, err, tc.want)
+
+			var respErr *azcore.ResponseError
+			require.ErrorAs(t, err, &respErr)
+			assert.Equal(t, "AuthorizationFailed", respErr.ErrorCode)
+		})
+	}
+}
+
+func TestStorageAccount_Create_FailedProvisioning(t *testing.T) {
+	t.Parallel()
+
+	// ARM accepts the request but the operation ends in a Failed state.
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{"provisioningState": "Failed"},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	err = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{Location: "eastus"})
+	require.ErrorContains(t, err, `create storage account "acct"`)
+	assert.NotContains(t, err.Error(), "begin create", "the failure must come from the poll, not the request")
+}
+
+func TestStorageAccount_Create_ResourceGroupMismatch(t *testing.T) {
+	t.Parallel()
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(&stubTransport{status: http.StatusOK}))
+	require.NoError(t, err, "setup")
+
+	// The client is bound to one resource group, so a different one is a caller bug.
+	assert.Panics(t, func() {
+		_ = sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+			ResourceGroupName: "other-rg",
+			Location:          "eastus",
+		})
+	})
+}
+
+func TestStorageAccount_Create_SetsAccessTier(t *testing.T) {
+	t.Parallel()
+
+	for _, tier := range []string{"Hot", "Cool", "Cold", "Premium"} {
+		t.Run(tier, func(t *testing.T) {
+			t.Parallel()
+
+			tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+				"properties": map[string]any{"provisioningState": "Succeeded"},
+			})}
+
+			sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+			require.NoError(t, err, "setup")
+
+			require.NoError(t, sc.Create(t.Context(), log.New(), &azurehelper.StorageAccountConfig{
+				Location:   "eastus",
+				AccessTier: tier,
+			}))
+			assert.Contains(t, tr.lastPutBody(), `"accessTier":"`+tier+`"`, "configured access tier must reach the request")
+		})
+	}
+}
+
+func TestStorageAccount_EnsureDeleted(t *testing.T) {
+	t.Parallel()
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(&stubTransport{status: http.StatusOK}))
+	require.NoError(t, err, "setup")
+
+	require.NoError(t, sc.EnsureDeleted(t.Context(), log.New()))
+}
+
+// TestStorageAccount_UpdateBlobServiceProperties_WriteFailure verifies a
+// failed write after a successful read is reported as the write that failed.
+func TestStorageAccount_UpdateBlobServiceProperties_WriteFailure(t *testing.T) {
+	t.Parallel()
+
+	rt := &routeTransport{routes: []stubRoute{
+		{method: http.MethodGet, status: http.StatusOK, body: "{}"},
+		{method: http.MethodPut, status: http.StatusForbidden, code: "AuthorizationFailed"},
+	}}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(rt))
+	require.NoError(t, err, "setup")
+
+	require.ErrorContains(t, sc.EnableVersioning(t.Context(), log.New()), `set blob service properties for "acct"`)
+}
+
+// TestStorageAccount_BlobServicePropertiesAbsent verifies a blob service with
+// no properties reads as versioning off and soft delete off.
+func TestStorageAccount_BlobServicePropertiesAbsent(t *testing.T) {
+	t.Parallel()
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(&stubTransport{status: http.StatusOK, body: []byte("{}")}))
+	require.NoError(t, err, "setup")
+
+	on, err := sc.IsVersioningEnabled(t.Context())
+	require.NoError(t, err)
+	assert.False(t, on)
+
+	blobDays, containerDays, err := sc.SoftDeleteRetention(t.Context())
+	require.NoError(t, err)
+	assert.Zero(t, blobDays)
+	assert.Zero(t, containerDays)
+}
+
+func TestStorageAccount_GetKeys_AllEmpty(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: listKeysBody("key1", "", "key2", "")}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	require.NoError(t, err, "setup")
+
+	_, err = sc.GetKeys(t.Context())
+	require.ErrorIs(t, err, azurehelper.ErrAllAccessKeysEmpty)
+}
+
+func TestFindResourceGroupForAccount_RequiresARMConfig(t *testing.T) {
+	t.Parallel()
+
+	// The account name comes from validated config, so an empty one is a caller bug.
+	assert.Panics(t, func() {
+		_, _ = azurehelper.FindResourceGroupForAccount(t.Context(), cfgWithTransport(&stubTransport{}), "")
+	})
+
+	noSub := cfgWithTransport(&stubTransport{})
+	noSub.SubscriptionID = ""
+
+	_, err := azurehelper.FindResourceGroupForAccount(t.Context(), noSub, testAccount)
+	require.ErrorIs(t, err, azurehelper.ErrSubscriptionIDRequired)
+
+	_, err = azurehelper.FindResourceGroupForAccount(t.Context(), &azurehelper.AzureConfig{
+		SubscriptionID: testSub,
+		Method:         azurehelper.AuthMethodSasToken,
+	}, testAccount)
+
+	var unsupported *azurehelper.UnsupportedAuthForOpError
+	require.ErrorAs(t, err, &unsupported)
+	assert.Equal(t, "resource group lookup", unsupported.Operation)
+}
+
+func TestFindResourceGroupForAccount(t *testing.T) {
+	t.Parallel()
+
+	accountID := func(group string) string {
+		return "/subscriptions/" + testSub + group + "/providers/Microsoft.Storage/storageAccounts/" + testAccount
+	}
+
+	tests := []struct {
+		check    func(t *testing.T, group string, err error)
+		name     string
+		accounts []any
+	}{
+		{
+			name: "found",
+			accounts: []any{
+				map[string]any{"name": "other", "id": accountID("/resourceGroups/other-rg")},
+				map[string]any{"name": testAccount, "id": accountID("/resourceGroups/state-rg")},
+			},
+			check: func(t *testing.T, group string, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "state-rg", group)
+			},
+		},
+		{
+			// ARM is inconsistent about the segment's case.
+			name:     "found with lowercase segment",
+			accounts: []any{map[string]any{"name": testAccount, "id": accountID("/resourcegroups/state-rg")}},
+			check: func(t *testing.T, group string, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "state-rg", group)
+			},
+		},
+		{
+			name:     "id without a resource group",
+			accounts: []any{map[string]any{"name": testAccount, "id": accountID("")}},
+			check: func(t *testing.T, _ string, err error) {
+				t.Helper()
+
+				var unparsable *azurehelper.UnparsableResourceIDError
+				require.ErrorAs(t, err, &unparsable)
+				assert.Equal(t, accountID(""), unparsable.ID)
+			},
+		},
+		{
+			name:     "id ending at the resource group segment",
+			accounts: []any{map[string]any{"name": testAccount, "id": "/subscriptions/" + testSub + "/resourceGroups"}},
+			check: func(t *testing.T, _ string, err error) {
+				t.Helper()
+
+				var unparsable *azurehelper.UnparsableResourceIDError
+				require.ErrorAs(t, err, &unparsable)
+			},
+		},
+		{
+			name:     "not found",
+			accounts: []any{map[string]any{"name": "other", "id": accountID("/resourceGroups/other-rg")}},
+			check: func(t *testing.T, _ string, err error) {
+				t.Helper()
+
+				var notFound *azurehelper.StorageAccountNotFoundError
+				require.ErrorAs(t, err, &notFound)
+				assert.Equal(t, testAccount, notFound.Account)
+				assert.Equal(t, testSub, notFound.SubscriptionID)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{"value": tc.accounts})}
+
+			group, err := azurehelper.FindResourceGroupForAccount(t.Context(), cfgWithTransport(tr), testAccount)
+			tc.check(t, group, err)
+		})
+	}
+}
+
+func TestFindResourceGroupForAccount_ListFailure(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusForbidden, body: jsonBody(map[string]any{
+		"error": map[string]string{"code": "AuthorizationFailed", "message": "no permission"},
+	})}
+
+	_, err := azurehelper.FindResourceGroupForAccount(t.Context(), cfgWithTransport(tr), testAccount)
+	require.ErrorContains(t, err, `listing storage accounts in subscription "sub"`)
+}
+
 // jsonBody marshals body to JSON, panicking on error since test inputs are literals.
 func jsonBody(body any) []byte {
 	b, err := json.Marshal(body)

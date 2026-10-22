@@ -12,8 +12,8 @@ This directory holds code copied from [OpenTofu](https://github.com/opentofu/ope
 
 | | |
 | --- | --- |
-| Tag | `v1.13.0-beta1` |
-| Commit | `cfe442d449412bcc76e9d36f4a0cef19483c3eb2` |
+| Tag | `v1.13.0` |
+| Commit | `2b6193043d500dcfef1f3b4f4819b938b667099f` |
 
 `vend` reads the release to regenerate from this table, and updates it when it vendors a new tag.
 

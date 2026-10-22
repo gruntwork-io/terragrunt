@@ -1,0 +1,22 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### A relative `source` inherited through `include` is marked as read from the unit's directory
+
+When a `terraform` block with a relative `source` lived in an included config, `find --reading` and `reading=` filters resolved the path against the included file instead of the unit, which is where a run resolves it. The module's files went missing from the unit's `reading` list, so a change to the module did not select the unit:
+
+```hcl
+# root.hcl
+terraform {
+  source = "${path_relative_from_include()}/modules//foo"
+}
+```
+
+```bash
+$ terragrunt find --json --reading
+[{"type":"unit","path":"live/unit","reading":["root.hcl"]}]
+```
+
+Terragrunt now resolves the source against the unit's directory, so `modules/foo/main.tf` appears in `reading` and [reading-based filters](/features/filter/attributes#reading-based-expressions) select the unit the same way they do for an absolute source.

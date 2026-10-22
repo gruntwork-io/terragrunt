@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/cgi"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -278,6 +280,27 @@ func (s *Server) Branch(ctx context.Context, name string) error {
 // advance that branch — it will only advance main.
 func (s *Server) SetBranch(ctx context.Context, name, hash string) error {
 	return s.gitIn(ctx, s.bareDir, "update-ref", "refs/heads/"+name, hash)
+}
+
+// SetRefs points each full ref name in refs at its hash with one git update-ref call.
+func (s *Server) SetRefs(ctx context.Context, refs map[string]string) error {
+	if len(refs) == 0 {
+		return nil
+	}
+
+	updates := make([]string, 0, len(refs))
+	for _, name := range slices.Sorted(maps.Keys(refs)) {
+		updates = append(updates, "update "+name+" "+refs[name])
+	}
+
+	cmd := s.gitCommand(ctx, s.bareDir, "update-ref", "--stdin")
+	cmd.Stdin = strings.NewReader(strings.Join(updates, "\n") + "\n")
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git update-ref --stdin: %w\n%s", err, strings.TrimSpace(string(out)))
+	}
+
+	return nil
 }
 
 // SetConfig writes a config value into the served bare repository. The CGI

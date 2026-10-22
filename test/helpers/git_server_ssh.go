@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	gliderssh "github.com/gliderlabs/ssh"
 	cryptossh "golang.org/x/crypto/ssh"
@@ -21,6 +23,14 @@ const (
 	sshDirPerm        fs.FileMode = 0o755
 	sshOutputFilePerm fs.FileMode = 0o644
 )
+
+// gitRepoEnvVars are the variables that point git at a repository or alter its object store: the entries git
+// itself clears for a local repository, minus the config injection ones.
+var gitRepoEnvVars = []string{
+	"GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_DIR", "GIT_WORK_TREE", "GIT_IMPLICIT_WORK_TREE",
+	"GIT_GRAFT_FILE", "GIT_INDEX_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX",
+	"GIT_SHALLOW_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY",
+}
 
 // sshMirror is a running localhost SSH git server together with the
 // resources that must be released when the owning test finishes: the
@@ -221,14 +231,24 @@ func populateBareRepo(fixturesDir string, dirs []string, bareDir, httpURL, sshUR
 
 	defer func() { _ = os.RemoveAll(workDir) }()
 
-	initCmds := [][]string{
-		{"init", "-b", "main"},
-		{"config", "user.email", "test@test.com"},
-		{"config", "user.name", "Test"},
-		{"config", "commit.gpgSign", "false"},
-		{"config", "tag.gpgSign", "false"},
+	// Identity and signing are pinned, and the per-user ignore and attributes files, which git reads even
+	// with config files suppressed, are pointed at nothing.
+	settings := []struct{ key, value string }{
+		{key: "user.email", value: "test@test.com"},
+		{key: "user.name", value: "Test"},
+		{key: "commit.gpgSign", value: "false"},
+		{key: "tag.gpgSign", value: "false"},
+		{key: "core.excludesFile", value: os.DevNull},
+		{key: "core.attributesFile", value: os.DevNull},
 	}
-	for _, args := range initCmds {
+
+	// An empty template keeps the host's template hooks out of the work repo.
+	cmds := [][]string{{"init", "-b", "main", "--template="}}
+	for _, setting := range settings {
+		cmds = append(cmds, []string{"config", setting.key, setting.value})
+	}
+
+	for _, args := range cmds {
 		if err := runGit(workDir, args...); err != nil {
 			return err
 		}
@@ -263,7 +283,7 @@ func populateBareRepo(fixturesDir string, dirs []string, bareDir, httpURL, sshUR
 		}
 	}
 
-	if err := runGit("", "init", "--bare", "-b", "main", bareDir); err != nil {
+	if err := runGit("", "init", "--bare", "-b", "main", "--template=", bareDir); err != nil {
 		return err
 	}
 
@@ -274,11 +294,23 @@ func populateBareRepo(fixturesDir string, dirs []string, bareDir, httpURL, sshUR
 	return nil
 }
 
+// runGit runs git with the host's global and system config files and system attributes suppressed and any
+// inherited repository selection dropped, so the mirror cannot vary with developer settings or with the
+// repository a caller runs in. GIT_CONFIG_COUNT and GIT_CONFIG_PARAMETERS are inherited on purpose, so tests
+// can inject config into the work repo steps. They never reach the bare repo: git drops both before it starts
+// the receive-pack for a local push, so the bare repo's own hooks stay in charge.
 func runGit(dir string, args ...string) error {
 	cmd := exec.CommandContext(context.Background(), "git", args...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
+
+	cmd.Env = slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		name, _, _ := strings.Cut(kv, "=")
+
+		return slices.Contains(gitRepoEnvVars, name)
+	})
+	cmd.Env = append(cmd.Env, "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", "GIT_ATTR_NOSYSTEM=1")
 
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git %v: %w: %s", args, err, out)

@@ -10,7 +10,7 @@ function collect_executed_tests {
 	local file
 
 	{
-		# Match the name attribute, not classname (go-junit-report emits name="Test" classname="pkg").
+		# Match the name attribute, not classname (gotestsum emits name="Test" classname="pkg").
 		grep -rhoE '<testcase[^>]*>' "$outputs_dir" 2>/dev/null | grep -oE '[[:space:]]name="[^"]+"' | sed -E 's/.*name="([^"]+)".*/\1/' || true
 
 		while IFS= read -r file; do

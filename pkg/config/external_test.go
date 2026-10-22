@@ -434,11 +434,13 @@ inputs = {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 	cfg, err := config.ParseConfigString(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		config.DefaultTerragruntConfigPath,
 		hclConfig,
 		nil,
@@ -469,17 +471,19 @@ unit "db" {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
-	v := cty.ObjectVal(map[string]cty.Value{})
+	stackValues := cty.ObjectVal(map[string]cty.Value{})
 
 	sc, err := config.ReadStackConfigString(
 		ctx,
 		l,
+		v,
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
-		&v,
+		&stackValues,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
@@ -511,11 +515,13 @@ unit "db" {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
 	sc, err := config.ReadStackConfigString(
 		ctx,
 		l,
+		v,
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
@@ -551,19 +557,21 @@ unit "db" {
 `
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
-	v := cty.ObjectVal(map[string]cty.Value{
+	stackValues := cty.ObjectVal(map[string]cty.Value{
 		"app_path": cty.StringVal("foo"),
 	})
 
 	sc, err := config.ReadStackConfigString(
 		ctx,
 		l,
+		v,
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
-		&v,
+		&stackValues,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
@@ -595,10 +603,11 @@ region   = "us-west-2"
 	)
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
 	// Read values from the file on disk.
-	values, err := config.ReadValues(ctx, pctx, l, dir)
+	values, err := config.ReadValues(ctx, l, v, pctx, dir)
 	require.NoError(t, err)
 	require.NotNil(t, values)
 
@@ -609,7 +618,7 @@ unit "app" {
   path   = values.app_path
 }
 `
-	sc, err := config.ReadStackConfigString(ctx, l, pctx, config.DefaultStackFile, stackHCL, values)
+	sc, err := config.ReadStackConfigString(ctx, l, v, pctx, config.DefaultStackFile, stackHCL, values)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
 	require.Len(t, sc.Units, 1)
@@ -641,7 +650,8 @@ region = "eu-west-1"
 	)
 
 	ctx := t.Context()
-	ctx, pctx := config.NewParsingContext(ctx, l, venvtest.NewWithOSFS())
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
 
 	// Use a configPath inside the temp dir so ParseConfig discovers the
 	// adjacent terragrunt.values.hcl automatically.
@@ -653,7 +663,7 @@ inputs = {
   region = values.region
 }
 `
-	cfg, err := config.ParseConfigString(ctx, pctx, l, configPath, hclConfig, nil)
+	cfg, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hclConfig, nil)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, "staging", cfg.Inputs["env"])

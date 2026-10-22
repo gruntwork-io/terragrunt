@@ -121,25 +121,18 @@ func NewStorageAccountClient(cfg *AzureConfig) (*StorageAccountClient, error) {
 		return nil, ErrResourceGroupNameRequired
 	}
 
-	armOpts := &arm.ClientOptions{ClientOptions: cfg.ClientOptions}
-
-	accounts, err := armstorage.NewAccountsClient(cfg.SubscriptionID, cfg.Credential, armOpts)
+	// One factory builds both clients from the same pipeline, so the options
+	// are validated once rather than once per client.
+	factory, err := armstorage.NewClientFactory(cfg.SubscriptionID, cfg.Credential, &arm.ClientOptions{
+		ClientOptions: cfg.ClientOptions,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("creating armstorage accounts client: %w", err)
-	}
-
-	blobServices, err := armstorage.NewBlobServicesClient(
-		cfg.SubscriptionID,
-		cfg.Credential,
-		armOpts,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating armstorage blob services client: %w", err)
+		return nil, fmt.Errorf("creating armstorage client factory: %w", err)
 	}
 
 	return &StorageAccountClient{
-		accounts:       accounts,
-		blobServices:   blobServices,
+		accounts:       factory.NewAccountsClient(),
+		blobServices:   factory.NewBlobServicesClient(),
 		subscriptionID: cfg.SubscriptionID,
 		resourceGroup:  cfg.ResourceGroup,
 		accountName:    cfg.AccountName,

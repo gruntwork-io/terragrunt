@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -208,7 +209,10 @@ func (p *GraphPhase) processGraphTarget(
 		// An inline "(dir)" operand overrides --discovery-boundary for this expression.
 		boundary := state.discovery.discoveryBoundary
 
-		if graphExpr.Dependencies.Boundary != "" {
+		switch {
+		case isWorktreeComponent(c):
+			boundary = state.discovery.evaluationContext().TargetBoundary(graphExpr.Dependencies, c)
+		case graphExpr.Dependencies.Boundary != "":
 			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
 			if err != nil {
 				return err
@@ -234,6 +238,10 @@ func (p *GraphPhase) processGraphTarget(
 			return err
 		}
 
+		if isWorktreeComponent(c) {
+			return p.discoverWorktreeDependents(ctx, l, v, state, c, graphExpr, depth)
+		}
+
 		// The upstream dependent walk is capped by an explicit boundary when the
 		// expression carries one, otherwise by --discovery-boundary, otherwise by
 		// the detected git root.
@@ -246,7 +254,7 @@ func (p *GraphPhase) processGraphTarget(
 				return rerr
 			}
 
-			if isExternal(v.FS, resolved, startDir) {
+			if isExternal(v.FS, resolved, startDir) && isExternal(v.FS, startDir, resolved) {
 				return NewDiscoveryBoundaryScopeError(resolved, startDir)
 			}
 
@@ -262,6 +270,11 @@ func (p *GraphPhase) processGraphTarget(
 				startDir = dCtx.WorkingDir
 				boundaryRoot = dCtx.WorkingDir
 			}
+		}
+
+		// A boundary inside the working directory starts the walk at itself.
+		if boundaryRoot != "" && isExternal(v.FS, boundaryRoot, startDir) && !isExternal(v.FS, startDir, boundaryRoot) {
+			startDir = boundaryRoot
 		}
 
 		if boundaryRoot != "" {
@@ -291,6 +304,31 @@ func (p *GraphPhase) processGraphTarget(
 	}
 
 	return nil
+}
+
+// discoverWorktreeDependents searches a Git target's own worktree for dependents, within its boundary there.
+func (p *GraphPhase) discoverWorktreeDependents(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	state *graphTraversalState,
+	c component.Component,
+	graphExpr *filter.GraphExpressionInfo,
+	depth int,
+) error {
+	root := state.discovery.evaluationContext().TargetBoundary(graphExpr.Dependents, c)
+	if root == "" {
+		root = c.DiscoveryContext().WorkingDir
+	}
+
+	if _, ok, err := WorktreeWalkRoot(v.FS, root, ""); err != nil || !ok {
+		l.Debugf("Boundary %s is not a directory at %s; no dependents of %s there", root, c.DiscoveryContext().Ref, c.Path())
+		return err
+	}
+
+	l.Debugf("Starting worktree dependent discovery for %s within %s", c.Path(), root)
+
+	return p.discoverDependentsUpstream(ctx, l, v, state, c, newStringSet(), root, root, depth)
 }
 
 // discoverDependencies recursively discovers dependencies of a component.
@@ -763,14 +801,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 	}
 
 	if dCtx := state.target.DiscoveryContext(); dCtx != nil {
-		copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-		copiedCtx.Ref = ""
-		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-			return arg == "-destroy"
-		})
-
-		candidate.SetDiscoveryContext(copiedCtx)
+		candidate.SetDiscoveryContext(graphDiscoveryContext(dCtx))
 	}
 
 	canonicalCandidate, _ := graphState.threadSafeComponents.EnsureComponent(
@@ -898,18 +929,32 @@ func assignGraphDiscoveryContext(
 		return
 	}
 
-	copiedCtx := parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-	copiedCtx.Ref = ""
-	copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-		return arg == "-destroy"
-	})
-
-	dep.SetDiscoveryContext(copiedCtx)
+	dep.SetDiscoveryContext(graphDiscoveryContext(parentCtx))
 
 	if isExternal(fsys, parentCtx.WorkingDir, depPath) {
 		if ext, ok := dep.(*component.Unit); ok {
 			ext.SetExternal()
 		}
 	}
+}
+
+// graphDiscoveryContext returns the discovery context for a unit that graph discovery
+// reaches from the unit that owns ctx. The copy has no Git reference.
+func graphDiscoveryContext(ctx *component.DiscoveryContext) *component.DiscoveryContext {
+	copiedCtx := ctx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+
+	if ctx.RemovedInRef() {
+		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, iacargs.IsDestroyFlag)
+	}
+
+	copiedCtx.Ref = ""
+
+	return copiedCtx
+}
+
+// isWorktreeComponent reports whether c was discovered in a Git worktree rather than the working tree.
+func isWorktreeComponent(c component.Component) bool {
+	dctx := c.DiscoveryContext()
+
+	return dctx != nil && dctx.Ref != "" && dctx.WorkingDir != ""
 }

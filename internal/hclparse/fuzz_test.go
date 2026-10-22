@@ -110,7 +110,7 @@ unit "env" {
 	f.Fuzz(func(t *testing.T, input string) {
 		fs := vfs.NewMemMapFS()
 
-		_, _ = hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		_, _ = hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 			Src:      []byte(input),
 			Filename: "fuzz.hcl",
 			StackDir: "/fuzz",
@@ -212,7 +212,7 @@ unit "app" { source = "."; path = "app"
 		srcBytes := []byte(input)
 		fs := vfs.NewMemMapFS()
 
-		result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
 			Src:      srcBytes,
 			Filename: "fuzz.hcl",
 			StackDir: "/fuzz",
@@ -395,7 +395,7 @@ func FuzzAutoIncludeResolve(f *testing.F) {
 		}
 
 		autoInclude := &hclparse.AutoIncludeHCL{Remain: file.Body}
-		_, _ = autoInclude.Resolve(evalCtx)
+		_, _ = autoInclude.Resolve(t.Context(), evalCtx)
 	})
 }
 
@@ -427,7 +427,7 @@ func FuzzParseStackFileFromPath_ArgPanics(f *testing.F) {
 			}
 		}()
 
-		_, _ = hclparse.ParseStackFileFromPath(fs, stackDir)
+		_, _ = hclparse.ParseStackFileFromPath(t.Context(), fs, stackDir)
 	})
 }
 
@@ -455,6 +455,7 @@ func FuzzUnitPathsFromStackDir_ArgPanics(f *testing.F) {
 		}()
 
 		_, _ = hclparse.UnitPathsFromStackDir(
+			t.Context(),
 			fs,
 			stackDir,
 			&hclparse.StackDirArgs{FuncsFor: noFuncs},
@@ -567,7 +568,7 @@ unit "extra" { source = "."; path = "extra"; values = { v = dependency.foo.outpu
 		}
 
 		autoInclude := &hclparse.AutoIncludeHCL{Remain: file.Body}
-		_, _ = autoInclude.ResolveForKind(evalCtx, hclparse.KindStack, "fuzz")
+		_, _ = autoInclude.ResolveForKind(t.Context(), evalCtx, hclparse.KindStack, "fuzz")
 	})
 }
 
@@ -612,6 +613,7 @@ func FuzzUnitPathsFromStackDir_AutoIncludeContent(f *testing.F) {
 		)
 
 		_, _ = hclparse.UnitPathsFromStackDir(
+			t.Context(),
 			fs,
 			"/fuzz",
 			&hclparse.StackDirArgs{FuncsFor: noFuncs},

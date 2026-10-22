@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -114,7 +115,7 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 		dep.Expansion = sourceDepConfig.Expansion
 	}
 
-	if sourceDepConfig.ConfigPath.AsString() != "" {
+	if configPath, ok := sourceDepConfig.configPathString(); ok && configPath != "" {
 		dep.ConfigPath = sourceDepConfig.ConfigPath
 	}
 
@@ -260,15 +261,16 @@ func (dep *Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool
 
 func (dep *Dependency) setRenderedOutputs(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 ) error {
 	if dep == nil {
 		return nil
 	}
 
 	if dep.shouldGetOutputs(pctx) || dep.shouldReturnMockOutputs(pctx) {
-		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, pctx, l, dep)
+		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, l, v, pctx, dep)
 		if err != nil {
 			return err
 		}
@@ -295,11 +297,17 @@ func decodeDependencyBlocks(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
+	fsys vfs.FS,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
 	opts ...hclparse.ExpandOption,
 ) (Dependencies, error) {
-	instances, err := file.ExpandBlocks(MetadataDependency, &Dependency{}, evalContext, opts...)
+	instances, err := file.ExpandBlocks(
+		ctx,
+		MetadataDependency,
+		&Dependency{},
+		evalContext,
+		opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +332,61 @@ func decodeDependencyBlocks(
 		return nil, err
 	}
 
+	if err := validateDependencyConfigPathDirs(
+		ctx,
+		pctx,
+		l,
+		fsys,
+		file.ConfigPath,
+		dependencies,
+	); err != nil {
+		return nil, err
+	}
+
 	return dependencies, nil
+}
+
+// validateDependencyConfigPathDirs reports the first enabled dependency block whose config_path
+// names an existing file. A config_path that does not exist is not reported here.
+//
+// A relative config_path is resolved against the unit being parsed, as it is when the dependency
+// is read, and not against cfgPath, which is an included file when that is where the block is.
+//
+// Whether that is an error or a warning is left to the dependency-config-path-file strict
+// control.
+func validateDependencyConfigPathDirs(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	fsys vfs.FS,
+	cfgPath string,
+	deps Dependencies,
+) error {
+	for i := range deps {
+		dep := &deps[i]
+
+		path, ok := dep.configPathFrom(pctx.TerragruntConfigPath)
+		if !ok {
+			continue
+		}
+
+		info, err := fsys.Stat(path)
+		if err != nil || info.IsDir() {
+			continue
+		}
+
+		return evaluateDependencyControl(
+			ctx, pctx, l,
+			controls.DependencyConfigPathFile,
+			DependencyConfigPathFileError{
+				ConfigPath:     cfgPath,
+				Address:        dep.mergeKey(),
+				DependencyPath: dep.ConfigPath.AsString(),
+			},
+		)
+	}
+
+	return nil
 }
 
 // validateUniqueDependencies reports two dependency blocks in one config that address the
@@ -344,35 +406,48 @@ func validateUniqueDependencies(
 	deps Dependencies,
 ) error {
 	if address, found := duplicateDependencyAddress(deps); found {
-		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyError{
-			ConfigPath: cfgPath,
-			Address:    address,
-		})
+		return evaluateDependencyControl(
+			ctx,
+			pctx,
+			l,
+			controls.DuplicateDependencyLabels,
+			DuplicateDependencyError{
+				ConfigPath: cfgPath,
+				Address:    address,
+			},
+		)
 	}
 
 	if dup, found := duplicateDependencyConfigPath(cfgPath, deps); found {
-		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyConfigPathError{
-			ConfigPath:     cfgPath,
-			DependencyPath: dup.path,
-			FirstAddress:   dup.first,
-			SecondAddress:  dup.second,
-		})
+		return evaluateDependencyControl(
+			ctx,
+			pctx,
+			l,
+			controls.DuplicateDependencyLabels,
+			DuplicateDependencyConfigPathError{
+				ConfigPath:     cfgPath,
+				DependencyPath: dup.path,
+				FirstAddress:   dup.first,
+				SecondAddress:  dup.second,
+			},
+		)
 	}
 
 	return nil
 }
 
-// evaluateDuplicateDependency returns strictErr when the duplicate-dependency-labels control
-// is enabled, and otherwise lets the control log its warning.
-func evaluateDuplicateDependency(
+// evaluateDependencyControl returns strictErr when the strict control called name is enabled,
+// and otherwise lets the control log its warning.
+func evaluateDependencyControl(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
+	name string,
 	strictErr error,
 ) error {
-	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
+	control := pctx.StrictControls.Find(name)
 	if control == nil {
-		return errors.New("failed to find control " + controls.DuplicateDependencyLabels)
+		return errors.New("failed to find control " + name)
 	}
 
 	if control.GetEnabled() {
@@ -419,17 +494,10 @@ func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDep
 	for i := range deps {
 		dep := &deps[i]
 
-		if !dep.isEnabled() || !dep.ConfigPath.IsWhollyKnown() || dep.ConfigPath.IsNull() ||
-			!dep.ConfigPath.Type().Equals(cty.String) {
+		path, ok := dep.configPathFrom(cfgPath)
+		if !ok {
 			continue
 		}
-
-		path := dep.ConfigPath.AsString()
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(filepath.Dir(cfgPath), path)
-		}
-
-		path = filepath.Clean(path)
 
 		if first, duplicate := seen[path]; duplicate {
 			return sharedDependencyPath{
@@ -445,27 +513,46 @@ func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDep
 	return sharedDependencyPath{}, false
 }
 
-// Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
-// resulting map as a cty.Value object.
+// configPathFrom returns the config_path of an enabled dependency, resolved against the directory
+// of cfgPath. It returns false for a disabled dependency, which reads nothing, and for a
+// config_path that is not yet a known string.
+func (dep *Dependency) configPathFrom(cfgPath string) (string, bool) {
+	if !dep.isEnabled() || !dep.ConfigPath.IsWhollyKnown() || dep.ConfigPath.IsNull() ||
+		!dep.ConfigPath.Type().Equals(cty.String) {
+		return "", false
+	}
+
+	path := dep.ConfigPath.AsString()
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(filepath.Dir(cfgPath), path)
+	}
+
+	return filepath.Clean(path), true
+}
+
+// DecodeTerragruntDependencies decodes the dependency blocks of file, folds in sibling autoinclude dependencies,
+// validates config paths, checks for cycles, and merges in the dependency blocks of included configs.
 // TODO: In the future, consider allowing importing dependency blocks from included config
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
-func decodeAndRetrieveOutputs(
+func DecodeTerragruntDependencies(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
-) (*cty.Value, error) {
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+) (*TerragruntDependency, error) {
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
 	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		file,
 		evalParsingContext,
 	)
@@ -481,8 +568,9 @@ func decodeAndRetrieveOutputs(
 	// Fold sibling autoinclude dependency blocks in before output retrieval so the unit body can reference them, like a regular include.
 	decodedDependency.Dependencies, err = foldSiblingAutoIncludeDeps(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		decodedDependency.Dependencies,
 	)
 	if err != nil {
@@ -499,7 +587,7 @@ func decodeAndRetrieveOutputs(
 		if !IsValidConfigPath(dep.ConfigPath) {
 			// During hcl validate, config_path may be unresolvable (e.g., references an
 			// unavailable local). Skip the invalid dependency instead of aborting — it will
-			// get a cty.DynamicVal placeholder in dependencyBlocksToCtyValue.
+			// get a cty.DynamicVal placeholder in DependencyBlocksToCtyValue.
 			if pctx.SkipOutput {
 				continue
 			}
@@ -510,15 +598,16 @@ func decodeAndRetrieveOutputs(
 
 	if err := checkForDependencyBlockCycles(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		pctx.TerragruntConfigPath,
 		decodedDependency,
 	); err != nil {
 		return nil, err
 	}
 
-	updatedDependencies, err := decodeDependencies(ctx, pctx, l, decodedDependency)
+	updatedDependencies, err := decodeDependencies(ctx, l, v, pctx, decodedDependency)
 	if err != nil {
 		return nil, err
 	}
@@ -527,12 +616,35 @@ func decodeAndRetrieveOutputs(
 
 	// Merge in included dependencies
 	if pctx.TrackInclude != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(ctx, pctx, l, decodedDependency)
+		mergedDecodedDependency, err := handleIncludeForDependency(
+			ctx,
+			l,
+			v,
+			pctx,
+			decodedDependency,
+		)
 		if err != nil {
 			return nil, err
 		}
 
 		decodedDependency = *mergedDecodedDependency
+	}
+
+	return &decodedDependency, nil
+}
+
+// decodeAndRetrieveOutputs decodes the dependency blocks from the file, then retrieves all the outputs from the
+// remote state and encodes the resulting map as a cty.Value object.
+func decodeAndRetrieveOutputs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	file *hclparse.File,
+) (*cty.Value, error) {
+	decodedDependency, err := DecodeTerragruntDependencies(ctx, l, v, pctx, file)
+	if err != nil {
+		return nil, err
 	}
 
 	// Extract dependency names for tracing
@@ -553,10 +665,11 @@ func decodeAndRetrieveOutputs(
 		func(ctx context.Context, l log.Logger) error {
 			var depErr error
 
-			result, depErr = dependencyBlocksToCtyValue(
+			result, depErr = DependencyBlocksToCtyValue(
 				ctx,
-				pctx,
 				l,
+				v,
+				pctx,
 				decodedDependency.Dependencies,
 			)
 
@@ -570,8 +683,9 @@ func decodeAndRetrieveOutputs(
 // decodeDependencies decode dependencies and fetch inputs
 func decodeDependencies(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	decodedDependency TerragruntDependency,
 ) (*TerragruntDependency, error) {
 	updatedDependencies := TerragruntDependency{}
@@ -593,12 +707,12 @@ func decodeDependencies(
 		}
 
 		depPath := getCleanedTargetConfigPath(
-			pctx.Venv.FS,
+			v.FS,
 			dep.ConfigPath.AsString(),
 			pctx.TerragruntConfigPath,
 		)
 
-		if !vfs.Exists(pctx.Venv.FS, depPath) {
+		if !vfs.Exists(v.FS, depPath) {
 			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 
 			continue
@@ -633,9 +747,9 @@ func decodeDependencies(
 			depCtx.IAMRoleOptions = iam.RoleOptions{}
 		}
 
-		depCtx = depCtx.WithDecodeList(TerragruntFlags).WithDiagnosticsSuppressed(l)
+		depCtx = depCtx.WithDecodeList(TerragruntFlags).WithDiagnosticsSuppressed()
 
-		depConfig, err := PartialParseConfigFile(ctx, depCtx, l, depPath, nil)
+		depConfig, err := PartialParseConfigFile(ctx, l, v, depCtx, depPath, nil)
 		if err != nil {
 			l.Warnf(
 				"Error reading partial config for dependency %s at %s: %v",
@@ -707,8 +821,9 @@ func dependencyBlocksToModuleDependencies(
 // kickstart the initial loop using what we already decoded.
 func checkForDependencyBlockCycles(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	cfgPath string,
 	decodedDependency TerragruntDependency,
 ) error {
@@ -729,13 +844,13 @@ func checkForDependencyBlockCycles(
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(
-			pctx.Venv.FS,
+			v.FS,
 			dependency.ConfigPath.AsString(),
 			cfgPath,
 		)
 
 		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
-		if !vfs.Exists(pctx.Venv.FS, dependencyPath) {
+		if !vfs.Exists(v.FS, dependencyPath) {
 			continue
 		}
 
@@ -746,8 +861,9 @@ func checkForDependencyBlockCycles(
 
 		if err := checkForDependencyBlockCyclesUsingDFS(
 			ctx,
-			dependencyContext,
 			l,
+			v,
+			dependencyContext,
 			dependencyPath,
 			&visitedPaths,
 			&currentTraversalPaths,
@@ -765,8 +881,9 @@ func checkForDependencyBlockCycles(
 // dependencies by `dependency` blocks (which make explicit `terragrunt output` calls) instead of explicit dependencies.
 func checkForDependencyBlockCyclesUsingDFS(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	dependencyPath string,
 	visitedPaths *[]string,
 	currentTraversalPaths *[]string,
@@ -781,16 +898,16 @@ func checkForDependencyBlockCyclesUsingDFS(
 
 	*currentTraversalPaths = append(*currentTraversalPaths, dependencyPath)
 
-	dependencyPaths, err := getDependencyBlockConfigPathsByFilepath(ctx, pctx, l, dependencyPath)
+	dependencyPaths, err := getDependencyBlockConfigPathsByFilepath(ctx, l, v, pctx, dependencyPath)
 	if err != nil {
 		return err
 	}
 
 	for _, dependency := range dependencyPaths {
-		dependencyPath := getCleanedTargetConfigPath(pctx.Venv.FS, dependency, dependencyPath)
+		dependencyPath := getCleanedTargetConfigPath(v.FS, dependency, dependencyPath)
 
 		// Skip cycle checking for nonexistent dependency targets such as stack directories.
-		if !vfs.Exists(pctx.Venv.FS, dependencyPath) {
+		if !vfs.Exists(v.FS, dependencyPath) {
 			continue
 		}
 
@@ -801,8 +918,9 @@ func checkForDependencyBlockCyclesUsingDFS(
 
 		if err := checkForDependencyBlockCyclesUsingDFS(
 			ctx,
-			dependencyContext,
 			l,
+			v,
+			dependencyContext,
 			dependencyPath,
 			visitedPaths,
 			currentTraversalPaths,
@@ -823,8 +941,9 @@ func checkForDependencyBlockCyclesUsingDFS(
 // Given the config path, return the list of config paths that are specified as dependency blocks in the config
 func getDependencyBlockConfigPathsByFilepath(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	cfgPath string,
 ) ([]string, error) {
 	// This will automatically parse everything needed to parse the dependency block configs, and load them as
@@ -833,8 +952,9 @@ func getDependencyBlockConfigPathsByFilepath(
 	// dependencies block.
 	tgConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(l),
 		l,
+		v,
+		pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(),
 		cfgPath,
 		nil,
 	)
@@ -849,8 +969,8 @@ func getDependencyBlockConfigPathsByFilepath(
 	return tgConfig.Dependencies.Paths, nil
 }
 
-// Encode the list of dependency blocks into a single cty.Value object that maps the dependency block name to the
-// encoded dependency mapping. The encoded dependency mapping should have the attributes:
+// DependencyBlocksToCtyValue encodes the list of dependency blocks into a single cty.Value object that maps the
+// dependency block name to the encoded dependency mapping. The encoded dependency mapping should have the attributes:
 //   - outputs: The map of outputs of the corresponding terraform module that lives at the target config of the
 //     dependency.
 //
@@ -860,10 +980,11 @@ func getDependencyBlockConfigPathsByFilepath(
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
 // The traceCtx parameter is the trace context from the parent span (parse_dependencies) to establish parent-child
 // relationship for individual dependency traces.
-func dependencyBlocksToCtyValue(
+func DependencyBlocksToCtyValue(
 	traceCtx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	dependencyConfigs []Dependency,
 ) (*cty.Value, error) {
 	paths := []string{}
@@ -885,7 +1006,7 @@ func dependencyBlocksToCtyValue(
 			dependencyEncodingMap := map[string]cty.Value{}
 
 			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
-			if err := dependencyConfig.setRenderedOutputs(ctx, pctx, l); err != nil {
+			if err := dependencyConfig.setRenderedOutputs(ctx, l, v, pctx); err != nil {
 				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
@@ -992,8 +1113,9 @@ func dependencyBlocksToCtyValue(
 //   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	dependencyConfig *Dependency,
 ) (*cty.Value, error) {
 	if dependencyConfig.isDisabled() {
@@ -1002,7 +1124,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	}
 
 	if dependencyConfig.shouldGetOutputs(pctx) {
-		outputVal, isEmpty, err := getTerragruntOutput(ctx, pctx, l, dependencyConfig)
+		outputVal, isEmpty, err := getTerragruntOutput(ctx, l, v, pctx, dependencyConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -1042,7 +1164,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	}
 
 	targetConfig := getCleanedTargetConfigPath(
-		pctx.Venv.FS,
+		v.FS,
 		configPath,
 		pctx.TerragruntConfigPath,
 	)
@@ -1092,29 +1214,37 @@ func (dep *Dependency) shouldReturnMockOutputs(pctx *ParsingContext) bool {
 // module hasn't been applied yet.
 func getTerragruntOutput(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(
-		pctx.Venv.FS,
+		v.FS,
 		dependencyConfig.ConfigPath.AsString(),
 		pctx.TerragruntConfigPath,
 	)
 
 	// Check if config_path points to a directory containing a stack file. If so,
 	// resolve outputs from all units in the stack as a nested map.
-	stackOutput, handled, err := tryGetStackOutput(ctx, pctx, l, targetConfigPath, dependencyConfig)
+	stackOutput, handled, err := tryGetStackOutput(
+		ctx,
+		l,
+		v,
+		pctx,
+		targetConfigPath,
+		dependencyConfig,
+	)
 	if handled {
 		return stackOutput, stackOutput == nil, err
 	}
 
-	if !vfs.Exists(pctx.Venv.FS, targetConfigPath) {
+	if !vfs.Exists(v.FS, targetConfigPath) {
 		return nil, true, DependencyConfigNotFound{Path: targetConfigPath}
 	}
 
-	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
+	jsonBytes, err := getOutputJSONWithCaching(ctx, l, v, pctx, targetConfigPath)
 	if err != nil {
 		if !shouldFallBackToMockOutputs(pctx, err) {
 			return nil, true, err
@@ -1167,22 +1297,34 @@ func getTerragruntOutput(
 // Nested stacks deeper than maxDepth return [inthclparse.StackRecursionDepthExceededError].
 func CollectStackOutputs(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	stackDir string,
 	stackConfig *StackConfig,
 	dependencyConfig *Dependency,
 	maxDepth int,
 ) (map[string]cty.Value, error) {
-	return collectStackOutputs(ctx, pctx, l, dependencyConfig, maxDepth, stackDir, stackConfig, nil)
+	return collectStackOutputs(
+		ctx,
+		l,
+		v,
+		pctx,
+		dependencyConfig,
+		maxDepth,
+		stackDir,
+		stackConfig,
+		nil,
+	)
 }
 
 // collectStackOutputs collects one stack level for [CollectStackOutputs] and recurses into the
 // nested stacks it declares.
 func collectStackOutputs(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	dependencyConfig *Dependency,
 	maxDepth int,
 	stackDir string,
@@ -1207,8 +1349,9 @@ func collectStackOutputs(
 
 		value, ok, err := collectUnitOutput(
 			ctx,
-			pctx,
 			l,
+			v,
+			pctx,
 			dependencyConfig,
 			stackDir,
 			unit,
@@ -1236,21 +1379,22 @@ func collectStackOutputs(
 		nestedDir := stack.GeneratedPath(stackDir)
 		nestedFile := filepath.Join(nestedDir, DefaultStackFile)
 
-		if !vfs.Exists(pctx.Venv.FS, nestedFile) {
+		if !vfs.Exists(v.FS, nestedFile) {
 			l.Warnf("Nested stack %s config not found at %s, skipping", stack.Name, nestedFile)
 
 			continue
 		}
 
-		nestedConfig, err := readStackConfigWithValues(ctx, pctx, l, nestedFile)
+		nestedConfig, err := readStackConfigWithValues(ctx, l, v, pctx, nestedFile)
 		if err != nil {
 			return nil, err
 		}
 
 		nested, err := collectStackOutputs(
 			ctx,
-			pctx,
 			l,
+			v,
+			pctx,
 			dependencyConfig,
 			maxDepth,
 			nestedDir,
@@ -1279,8 +1423,9 @@ func collectStackOutputs(
 // contributes nothing: its config is not generated, it has no outputs, or it has no state and no mock.
 func collectUnitOutput(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	dependencyConfig *Dependency,
 	stackDir string,
 	unit *Unit,
@@ -1288,13 +1433,13 @@ func collectUnitOutput(
 ) (cty.Value, bool, error) {
 	unitConfigPath := filepath.Join(unit.GeneratedPath(stackDir), DefaultTerragruntConfigPath)
 
-	if !vfs.Exists(pctx.Venv.FS, unitConfigPath) {
+	if !vfs.Exists(v.FS, unitConfigPath) {
 		l.Warnf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
 
 		return cty.NilVal, false, nil
 	}
 
-	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
+	jsonBytes, err := getOutputJSONWithCaching(ctx, l, v, pctx, unitConfigPath)
 	if err != nil {
 		if !shouldFallBackToMockOutputs(pctx, err) ||
 			!dependencyConfig.shouldReturnMockOutputs(pctx) {
@@ -1442,16 +1587,17 @@ func stackMockOutput(dep *Dependency, address []string) (cty.Value, bool, error)
 // generated beside it, as stack generation does, so a stack whose locals read values.* parses.
 func readStackConfigWithValues(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	stackFilePath string,
 ) (*StackConfig, error) {
-	values, err := ReadValues(ctx, pctx, l, filepath.Dir(stackFilePath))
+	values, err := ReadValues(ctx, l, v, pctx, filepath.Dir(stackFilePath))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
 	}
 
-	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, values)
+	stackConfig, err := ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
@@ -1465,8 +1611,9 @@ func readStackConfigWithValues(
 // means the path was a stack and was processed (even if there was an error).
 func tryGetStackOutput(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	targetConfigPath string,
 	dependencyConfig *Dependency,
 ) (*cty.Value, bool, error) {
@@ -1478,7 +1625,7 @@ func tryGetStackOutput(
 		return nil, false, nil
 	}
 
-	if !vfs.Exists(pctx.Venv.FS, stackFilePath) {
+	if !vfs.Exists(v.FS, stackFilePath) {
 		return nil, false, nil
 	}
 
@@ -1488,15 +1635,16 @@ func tryGetStackOutput(
 		stackFilePath,
 	)
 
-	stackConfig, err := readStackConfigWithValues(ctx, pctx, l, stackFilePath)
+	stackConfig, err := readStackConfigWithValues(ctx, l, v, pctx, stackFilePath)
 	if err != nil {
 		return nil, true, err
 	}
 
 	stackOutputs, err := CollectStackOutputs(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		filepath.Dir(stackFilePath),
 		stackConfig,
 		dependencyConfig,
@@ -1598,8 +1746,9 @@ func dependencyNameFromContext(ctx context.Context) string {
 // getOutputJSONWithCaching will run terragrunt output on the target config if it is not already cached.
 func getOutputJSONWithCaching(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	targetConfig string,
 ) ([]byte, error) {
 	locks := outputLocksFromContext(ctx)
@@ -1638,7 +1787,7 @@ func getOutputJSONWithCaching(
 				return nil
 			}
 
-			fetched, strategy, fetchErr := resolveOutputJSON(fetchCtx, pctx, l, targetConfig)
+			fetched, strategy, fetchErr := resolveOutputJSON(fetchCtx, l, v, pctx, targetConfig)
 
 			if span := trace.SpanFromContext(fetchCtx); span.IsRecording() {
 				span.SetAttributes(attribute.Bool("cache_hit", false))
@@ -1719,14 +1868,17 @@ func adjustSourceForTargetModule(
 // annotation on the caller's span; callers should not branch on it.
 func resolveOutputJSON(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	targetConfig string,
 ) ([]byte, string, error) {
 	l, pctx, err := pctx.WithDependencyConfigPath(l, targetConfig)
 	if err != nil {
 		return nil, "", err
 	}
+
+	v = v.WithEnvCloned()
 
 	callerIsRenderCommand := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 
@@ -1746,23 +1898,24 @@ func resolveOutputJSON(
 	credentialGetter, err := creds.ObtainCredsForParsing(
 		ctx,
 		l,
-		pctx.Venv,
+		v,
 		pctx.AuthProviderCmd,
-		shellRunOptsFromPctx(pctx),
+		shellRunOptsFromPctx(v, pctx),
 	)
 	if err != nil {
 		return nil, "", err
 	}
 
-	authProviderEnv := maps.Clone(pctx.Venv.Env)
+	authProviderEnv := maps.Clone(v.Env)
 
 	// Decode dependency blocks, terraform source and extra_arguments, and terraform_binary, skipping hooks that may
 	// reference the dependency namespace.
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).
-			WithDiagnosticsSuppressed(l),
 		l,
+		v,
+		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).
+			WithDiagnosticsSuppressed(),
 		targetConfig,
 		nil,
 	)
@@ -1780,7 +1933,7 @@ func resolveOutputJSON(
 		)
 		l.Debugf("Falling back to terragrunt output.")
 
-		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig, credentialGetter)
+		out, runErr := runTerragruntOutputJSON(ctx, l, v, pctx, targetConfig, credentialGetter)
 
 		return out, "run", runErr
 	}
@@ -1791,7 +1944,7 @@ func resolveOutputJSON(
 	}
 
 	// Apply extra_arguments env_vars for the output command so env dependent backends can be read.
-	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)
+	applyExtraArgsEnvVarsForOutput(v, pctx, partialTerragruntConfig.Terraform)
 
 	// If the Source is set, then we need to recompute it in the ctx of the target config.
 	if err := adjustSourceForTargetModule(pctx, targetConfig, partialTerragruntConfig); err != nil {
@@ -1803,19 +1956,15 @@ func resolveOutputJSON(
 	// directly.
 
 	// we need to suspend logging diagnostic errors on this attempt
-	parseOptions := slices.Concat(
-		pctx.ParserOptions,
-		[]hclparse.Option{hclparse.WithDiagnosticsWriter(pctx.Venv, io.Discard, true)},
-	)
-
 	remoteStateTGConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithParseOption(parseOptions).WithDecodeList(
+		l,
+		v,
+		pctx.WithDiagnosticsDiscarded().WithDecodeList(
 			RemoteStateBlock,
 			TerragruntFlags,
 			EngineBlock,
 		),
-		l,
 		targetConfig,
 		nil,
 	)
@@ -1829,14 +1978,14 @@ func resolveOutputJSON(
 		)
 		l.Debugf("Falling back to terragrunt output.")
 
-		out, runErr := runTerragruntOutputJSON(ctx, pctx, l, targetConfig, credentialGetter)
+		out, runErr := runTerragruntOutputJSON(ctx, l, v, pctx, targetConfig, credentialGetter)
 
 		return out, "run", runErr
 	}
 
 	// In optimization mode, see if there is already an init-ed folder that terragrunt can use, and if so, run
 	// `terraform output` in the working directory.
-	isInit, workingDir, err := terragruntAlreadyInit(ctx, l, pctx, targetConfig)
+	isInit, workingDir, err := terragruntAlreadyInit(ctx, l, v, pctx, targetConfig)
 	if err != nil {
 		return nil, "", err
 	}
@@ -1850,8 +1999,8 @@ func resolveOutputJSON(
 	pctx.EngineConfig = engineOpts
 
 	// Keep output-specific environment variables out of the IAM credential source.
-	clear(pctx.Venv.Env)
-	maps.Copy(pctx.Venv.Env, authProviderEnv)
+	clear(v.Env)
+	maps.Copy(v.Env, authProviderEnv)
 
 	mergedIAM := iam.MergeRoleOptions(
 		remoteStateTGConfig.GetIAMRoleOptions(),
@@ -1860,8 +2009,8 @@ func resolveOutputJSON(
 	if err = credentialGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
-		pctx.Venv,
-		amazonsts.NewProvider(l, mergedIAM, pctx.Venv.Env),
+		v,
+		amazonsts.NewProvider(l, mergedIAM, v.Env),
 	); err != nil {
 		return nil, "", err
 	}
@@ -1871,11 +2020,11 @@ func resolveOutputJSON(
 
 	// Match the normal runner: output-specific environment variables are the
 	// final override after auth-provider and IAM/STS credentials.
-	applyExtraArgsEnvVarsForOutput(pctx, partialTerragruntConfig.Terraform)
+	applyExtraArgsEnvVarsForOutput(v, pctx, partialTerragruntConfig.Terraform)
 
 	workspace := ""
-	if ShouldFetchDependencyOutputFromState(pctx, remoteStateTGConfig.RemoteState) {
-		workspace, err = dependencyStateWorkspace(pctx, workingDir)
+	if ShouldFetchDependencyOutputFromState(v, pctx, remoteStateTGConfig.RemoteState) {
+		workspace, err = dependencyStateWorkspace(v, workingDir)
 		if err != nil {
 			l.Debugf("Could not determine dependency workspace for direct state retrieval: %v", err)
 			l.Debugf("Falling back to native output retrieval.")
@@ -1885,8 +2034,9 @@ func resolveOutputJSON(
 	if workspace != "" {
 		out, fetchErr := getTerragruntOutputJSONFromRemoteState(
 			ctx,
-			pctx,
 			l,
+			v,
+			pctx,
 			targetConfig,
 			remoteStateTGConfig.RemoteState,
 			workspace,
@@ -1909,8 +2059,9 @@ func resolveOutputJSON(
 	if isInit {
 		out, fetchErr := getTerragruntOutputJSONFromInitFolder(
 			ctx,
-			pctx,
 			l,
+			v,
+			pctx,
 			workingDir,
 		)
 
@@ -1919,8 +2070,9 @@ func resolveOutputJSON(
 
 	out, fetchErr := getTerragruntOutputJSONFromRemoteState(
 		ctx,
-		pctx,
 		l,
+		v,
+		pctx,
 		targetConfig,
 		remoteStateTGConfig.RemoteState,
 		workspace,
@@ -1936,8 +2088,15 @@ func canGetRemoteState(remoteState *remotestate.RemoteState) bool {
 
 // directStateBackend groups direct-state eligibility and retrieval for one backend.
 type directStateBackend struct {
-	supported func(*ParsingContext, *remotestate.RemoteState) bool
-	read      func(context.Context, log.Logger, *ParsingContext, *remotestate.RemoteState, string) ([]byte, error)
+	supported func(*venv.Venv, *ParsingContext, *remotestate.RemoteState) bool
+	read      func(
+		context.Context,
+		log.Logger,
+		*venv.Venv,
+		*ParsingContext,
+		*remotestate.RemoteState,
+		string,
+	) ([]byte, error)
 }
 
 // directStateBackends contains the backends with direct dependency-state support.
@@ -1960,6 +2119,7 @@ var directStateBackends = map[string]directStateBackend{
 // The set of backends and their per-configuration rules live in [directStateBackends], so callers outside
 // this package ask here rather than testing a backend name themselves.
 func ShouldFetchDependencyOutputFromState(
+	v *venv.Venv,
 	pctx *ParsingContext,
 	remoteState *remotestate.RemoteState,
 ) bool {
@@ -1972,7 +2132,7 @@ func ShouldFetchDependencyOutputFromState(
 		return false
 	}
 
-	return stateBackend.supported(pctx, remoteState)
+	return stateBackend.supported(v, pctx, remoteState)
 }
 
 func backendConfigValueSet(config backend.Config, key string) bool {
@@ -2003,6 +2163,27 @@ func backendConfigString(config backend.Config, key string) backendConfigStringR
 	parsed, valid := value.(string)
 
 	return backendConfigStringResult{value: parsed, configured: true, valid: valid}
+}
+
+// backendConfigStringListValid reports whether key is absent, null, or a list of strings.
+func backendConfigStringListValid(config backend.Config, key string) bool {
+	value, configured := config[key]
+	if !configured || value == nil {
+		return true
+	}
+
+	switch value := value.(type) {
+	case []any:
+		for _, element := range value {
+			if _, ok := element.(string); !ok {
+				return false
+			}
+		}
+
+		return true
+	default:
+		return false
+	}
 }
 
 func backendConfigStringWithEnv(
@@ -2104,12 +2285,8 @@ func firstNonEmptyFromMap(env map[string]string, keys ...string) string {
 // TF_WORKSPACE overrides the selection persisted in TF_DATA_DIR/environment, and an absent
 // or empty selection means the default workspace. Errors are returned so callers can keep
 // the native output path rather than guessing a state object.
-func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, error) {
-	if pctx.Venv == nil {
-		panic(ErrParsingContextVenvNil)
-	}
-
-	if workspace := pctx.Venv.Env["TF_WORKSPACE"]; workspace != "" {
+func dependencyStateWorkspace(v *venv.Venv, workingDir string) (string, error) {
+	if workspace := v.Env["TF_WORKSPACE"]; workspace != "" {
 		// PathEscape leaves "." and ".." unchanged, but path.Join then drops those
 		// segments and can select the wrong state object.
 		if workspace == "." || workspace == ".." || url.PathEscape(workspace) != workspace {
@@ -2119,10 +2296,10 @@ func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, 
 		return workspace, nil
 	}
 
-	dataDir := dependencyStateDataDir(pctx, workingDir)
+	dataDir := dependencyStateDataDir(v, workingDir)
 	workspaceFile := filepath.Join(dataDir, "environment")
 
-	exists, err := vfs.FileExists(pctx.Venv.FS, workspaceFile)
+	exists, err := vfs.FileExists(v.FS, workspaceFile)
 	if err != nil {
 		return "", fmt.Errorf("checking dependency workspace file %s: %w", workspaceFile, err)
 	}
@@ -2131,7 +2308,7 @@ func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, 
 		return defaultStateWorkspace, nil
 	}
 
-	contents, err := vfs.ReadFile(pctx.Venv.FS, workspaceFile)
+	contents, err := vfs.ReadFile(v.FS, workspaceFile)
 	if err != nil {
 		return "", fmt.Errorf("reading dependency workspace file %s: %w", workspaceFile, err)
 	}
@@ -2144,9 +2321,9 @@ func dependencyStateWorkspace(pctx *ParsingContext, workingDir string) (string, 
 	return workspace, nil
 }
 
-func dependencyStateDataDir(pctx *ParsingContext, workingDir string) string {
+func dependencyStateDataDir(v *venv.Venv, workingDir string) string {
 	dataDir := tf.DefaultTFDataDir
-	if configured := pctx.Venv.Env["TF_DATA_DIR"]; configured != "" {
+	if configured := v.Env["TF_DATA_DIR"]; configured != "" {
 		dataDir = configured
 	}
 
@@ -2158,17 +2335,21 @@ func dependencyStateDataDir(pctx *ParsingContext, workingDir string) string {
 }
 
 // dependencyInitDataDir returns the dir whose existence shows workingDir itself was initialized.
-func dependencyInitDataDir(pctx *ParsingContext, workingDir string) string {
-	dataDir := filepath.Clean(dependencyStateDataDir(pctx, workingDir))
-	if dataDir != filepath.Clean(workingDir) && vfs.Within(pctx.Venv.FS, workingDir, dataDir) {
+func dependencyInitDataDir(v *venv.Venv, workingDir string) string {
+	dataDir := filepath.Clean(dependencyStateDataDir(v, workingDir))
+	if dataDir != filepath.Clean(workingDir) && vfs.Within(v.FS, workingDir, dataDir) {
 		return dataDir
 	}
 
 	return filepath.Join(workingDir, tf.DefaultTFDataDir)
 }
 
-// applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into pctx.Venv.Env
-func applyExtraArgsEnvVarsForOutput(pctx *ParsingContext, terraformConfig *TerraformConfig) {
+// applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into v.Env.
+func applyExtraArgsEnvVarsForOutput(
+	v *venv.Venv,
+	pctx *ParsingContext,
+	terraformConfig *TerraformConfig,
+) {
 	if terraformConfig == nil {
 		return
 	}
@@ -2183,7 +2364,7 @@ func applyExtraArgsEnvVarsForOutput(pctx *ParsingContext, terraformConfig *Terra
 			pctx.markDependencyOutputEnvKey(key)
 		}
 
-		maps.Copy(pctx.Venv.Env, *arg.EnvVars)
+		maps.Copy(v.Env, *arg.EnvVars)
 	}
 }
 
@@ -2211,6 +2392,7 @@ func (ctx *ParsingContext) dependencyOutputEnvOverridden(key string) bool {
 func terragruntAlreadyInit(
 	ctx context.Context,
 	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	cfgPath string,
 ) (bool, string, error) {
@@ -2218,8 +2400,9 @@ func terragruntAlreadyInit(
 	// on the source field of the terraform block in the config.
 	terraformBlockTGConfig, err := PartialParseConfigFile(
 		ctx,
-		pctx.WithDecodeList(TerraformSource),
 		l,
+		v,
+		pctx.WithDecodeList(TerraformSource),
 		cfgPath,
 		nil,
 	)
@@ -2248,7 +2431,7 @@ func terragruntAlreadyInit(
 
 	terraformSource, err := tf.NewSource(
 		l,
-		pctx.Venv.FS,
+		v.FS,
 		sourceURL,
 		pctx.DownloadDir,
 		pctx.WorkingDir,
@@ -2263,21 +2446,22 @@ func terragruntAlreadyInit(
 	// NOTE: if the ref changes, the workingDir would be different as the download dir includes a base64 encoded hash of
 	// the source URL with ref. This would ensure that this routine would not return true if the new ref is not already
 	// init-ed.
-	return vfs.Exists(pctx.Venv.FS, dependencyInitDataDir(pctx, workingDir)), workingDir, nil
+	return vfs.Exists(v.FS, dependencyInitDataDir(v, workingDir)), workingDir, nil
 }
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
-// running init. Callers must populate pctx.Venv.Env with auth-provider-cmd credentials and any
+// running init. Callers must populate v.Env with auth-provider-cmd credentials and any
 // TG_IAM_ROLE assumption beforehand.
 func getTerragruntOutputJSONFromInitFolder(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	terraformWorkingDir string,
 ) ([]byte, error) {
 	targetConfigPath := pctx.TerragruntConfigPath
 
-	tfRunOpts := setupTFRunOptsForBareTerraform(pctx, terraformWorkingDir)
+	tfRunOpts := setupTFRunOptsForBareTerraform(v, pctx, terraformWorkingDir)
 
 	l.Debugf(
 		"Unit '%s' is already init-ed. "+
@@ -2292,7 +2476,7 @@ func getTerragruntOutputJSONFromInitFolder(
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	// Discard streamed stdout; the JSON is read from the returned CmdOutput.
-	discardV := pctx.Venv.WithWriter(io.Discard)
+	discardV := v.WithWriter(io.Discard)
 
 	out, err := tf.RunCommandWithOutput(
 		bareCtx,
@@ -2334,8 +2518,9 @@ func getTerragruntOutputJSONFromInitFolder(
 // NOTE: terragruntOptions should be in the ctx of the targetConfig already.
 func getTerragruntOutputJSONFromRemoteState(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	targetConfigPath string,
 	remoteState *remotestate.RemoteState,
 	workspace string,
@@ -2350,17 +2535,17 @@ func getTerragruntOutputJSONFromRemoteState(
 	// The parent has to be created on the venv filesystem rather than the host:
 	// MkdirTemp below and CopyLockFile further down both work through it, and a
 	// memory-backed filesystem has no parent to place the temp dir in otherwise.
-	if err := pctx.Venv.FS.MkdirAll(pctx.DownloadDir, downloadDirPerms); err != nil {
+	if err := v.FS.MkdirAll(pctx.DownloadDir, downloadDirPerms); err != nil {
 		return nil, err
 	}
 
-	tempWorkDir, err := vfs.MkdirTemp(pctx.Venv.FS, pctx.DownloadDir, "")
+	tempWorkDir, err := vfs.MkdirTemp(v.FS, pctx.DownloadDir, "")
 	if err != nil {
 		return nil, err
 	}
 
 	defer func(path string) {
-		err := pctx.Venv.FS.RemoveAll(path)
+		err := v.FS.RemoveAll(path)
 		if err != nil {
 			l.Warnf("Failed to remove %s: %v", path, err)
 		}
@@ -2368,14 +2553,14 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	l.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
-	tfRunOpts := setupTFRunOptsForBareTerraform(pctx, tempWorkDir)
+	tfRunOpts := setupTFRunOptsForBareTerraform(v, pctx, tempWorkDir)
 
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
 	// A non-empty workspace means the caller already found a supported backend, so
 	// the reader lookup below cannot miss.
 	if stateBackend, supported := directStateBackends[remoteState.BackendName]; supported &&
 		workspace != "" {
-		jsonBytes, readErr := stateBackend.read(ctx, l, pctx, remoteState, workspace)
+		jsonBytes, readErr := stateBackend.read(ctx, l, v, pctx, remoteState, workspace)
 		if readErr != nil {
 			return nil, readErr
 		}
@@ -2398,7 +2583,7 @@ func getTerragruntOutputJSONFromRemoteState(
 		}
 	}
 
-	if err := remoteState.GenerateOpenTofuCode(ctx, l, pctx.Venv, tempWorkDir); err != nil {
+	if err := remoteState.GenerateOpenTofuCode(ctx, l, v, tempWorkDir); err != nil {
 		return nil, err
 	}
 
@@ -2408,7 +2593,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	terragruntDir := filepath.Dir(pctx.TerragruntConfigPath)
 	if err := runcfg.CopyLockFile(
 		l,
-		pctx.Venv.FS,
+		v.FS,
 		pctx.RootWorkingDir,
 		pctx.LogShowAbsPaths,
 		terragruntDir,
@@ -2419,18 +2604,17 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
 
-	// Clone pctx and discard init stdout so it doesn't leak into the caller's output buffer.
-	initPctx := pctx.Clone()
-	initPctx.Venv.Writers = initPctx.Venv.Writers.WithWriter(io.Discard)
+	// Discard init stdout so it doesn't leak into the caller's output buffer.
+	initV := v.WithWriter(io.Discard)
 
 	// First run init to setup the backend configuration so that we can run output.
-	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
+	runTerraformInitForDependencyOutput(ctx, l, initV, pctx, tempWorkDir)
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	// Discard streamed stdout; the JSON is read from the returned CmdOutput.
-	discardV := pctx.Venv.WithWriter(io.Discard)
+	discardV := v.WithWriter(io.Discard)
 
 	out, err := tf.RunCommandWithOutput(
 		bareCtx,
@@ -2455,8 +2639,12 @@ func getTerragruntOutputJSONFromRemoteState(
 // going through the full RunTerragrunt operation. Callers must obtain credentials
 // (auth-provider-cmd and any TG_IAM_ROLE assumption) before invoking, so those steps
 // run from the unit's directory rather than the bare-terraform working directory.
-func setupTFRunOptsForBareTerraform(pctx *ParsingContext, workingDir string) *tf.TFOptions {
-	shellOpts := shellRunOptsFromPctx(pctx)
+func setupTFRunOptsForBareTerraform(
+	v *venv.Venv,
+	pctx *ParsingContext,
+	workingDir string,
+) *tf.TFOptions {
+	shellOpts := shellRunOptsFromPctx(v, pctx)
 	shellOpts.WorkingDir = workingDir
 
 	return &tf.TFOptions{
@@ -2469,8 +2657,9 @@ func setupTFRunOptsForBareTerraform(pctx *ParsingContext, workingDir string) *tf
 // runTerragruntOutputJSON uses terragrunt running functions to extract the json output from the target config.
 func runTerragruntOutputJSON(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	targetConfig string,
 	credentialGetter *creds.Getter,
 ) ([]byte, error) {
@@ -2483,9 +2672,9 @@ func runTerragruntOutputJSON(
 	pctx = pctx.Clone()
 	pctx.ForwardTFStdout = false
 	pctx.JSONLogFormat = false
-	pctx.Venv.Writers = pctx.Venv.Writers.WithWriter(stdoutBufferWriter)
+	v = v.WithEnvCloned().WithWriter(stdoutBufferWriter)
 
-	cfg, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
+	cfg, err := ParseConfigFile(ctx, l, v, pctx, pctx.TerragruntConfigPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2506,12 +2695,12 @@ func runTerragruntOutputJSON(
 		return nil, err
 	}
 
-	runCfg := cfg.ToRunConfig(l, pctx.Venv.FS)
+	runCfg := cfg.ToRunConfig(l, v.FS)
 
 	err = run.Run(
 		ctx,
 		l,
-		pctx.Venv,
+		v,
 		RunOptionsFromParsingContext(pctx),
 		report.NewReport(),
 		runCfg,
@@ -2580,8 +2769,8 @@ func RunOptionsFromParsingContext(pctx *ParsingContext) *run.Options {
 }
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
-func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
-	s := shell.NewShellOptions(pctx.Venv.Env).
+func shellRunOptsFromPctx(v *venv.Venv, pctx *ParsingContext) *shell.ShellOptions {
+	s := shell.NewShellOptions(v.Env).
 		WithWorkingDir(pctx.WorkingDir).
 		WithTelemetry(pctx.Telemetry).
 		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
@@ -2597,11 +2786,11 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
 }
 
 // tfRunOptsFromPctx builds a *tf.RunOptions from ParsingContext flat fields.
-func tfRunOptsFromPctx(pctx *ParsingContext) *tf.TFOptions {
+func tfRunOptsFromPctx(v *venv.Venv, pctx *ParsingContext) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                pctx.JSONLogFormat,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
-		ShellOptions:                 shellRunOptsFromPctx(pctx),
+		ShellOptions:                 shellRunOptsFromPctx(v, pctx),
 	}
 }
 
@@ -2653,16 +2842,17 @@ func TerraformOutputJSONToCtyValueMap(
 // To help with debuggability, the errors will be printed to the console when TG_LOG=debug is set.
 func runTerraformInitForDependencyOutput(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	workingDir string,
 ) {
 	stderr := bytes.Buffer{}
 
-	initRunOpts := tfRunOptsFromPctx(pctx)
+	initRunOpts := tfRunOptsFromPctx(v, pctx)
 	initRunOpts.ShellOptions.WorkingDir = workingDir
 
-	initV := pctx.Venv.WithErrWriter(&stderr)
+	initV := v.WithErrWriter(&stderr)
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
@@ -2695,8 +2885,9 @@ func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 // foldSiblingAutoIncludeDeps merges the registered sibling autoinclude dependency blocks over the unit's own same-name blocks (shallow, by name, with the autoinclude winning), mirroring a regular include's default merge strategy.
 func foldSiblingAutoIncludeDeps(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	deps []Dependency,
 ) ([]Dependency, error) {
 	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
@@ -2705,7 +2896,7 @@ func foldSiblingAutoIncludeDeps(
 
 	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
 
-	autoFile, err := parseAutoIncludeFileCached(ctx, pctx, autoIncludePath)
+	autoFile, err := parseAutoIncludeFileCached(ctx, l, v, pctx, autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
@@ -2713,9 +2904,9 @@ func foldSiblingAutoIncludeDeps(
 	// Rescope to the autoinclude's own locals so the unit's locals do not leak into the autoinclude decode.
 	autoPctx := pctx.Clone()
 	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
-	autoPctx.skipAutoIncludeMerge = true
+	autoPctx.SkipAutoIncludeMerge = true
 
-	baseBlocks, err := DecodeBaseBlocks(ctx, autoPctx, l, autoFile, nil)
+	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, autoPctx, autoFile, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2726,12 +2917,12 @@ func foldSiblingAutoIncludeDeps(
 		autoPctx = autoPctx.WithLocals(baseBlocks.Locals)
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, autoPctx, l, autoIncludePath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, autoPctx, autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
 
-	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, autoFile, evalCtx)
+	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, v.FS, autoFile, evalCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2740,7 +2931,7 @@ func foldSiblingAutoIncludeDeps(
 
 	// Fold in dependency blocks the autoinclude inherits through its own include blocks, mirroring the unit decode path so inherited deps resolve before the unit body is evaluated.
 	if autoPctx.TrackInclude != nil && len(autoPctx.TrackInclude.CurrentList) > 0 {
-		merged, err := handleIncludeForDependency(ctx, autoPctx, l, decoded)
+		merged, err := handleIncludeForDependency(ctx, l, v, autoPctx, decoded)
 		if err != nil {
 			return nil, err
 		}
@@ -2759,10 +2950,12 @@ func foldSiblingAutoIncludeDeps(
 // parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file cache so repeated dependency-output decodes reuse one parse, rebinding the shared AST to a fresh parser per call.
 func parseAutoIncludeFileCached(
 	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 	autoIncludePath string,
 ) (*hclparse.File, error) {
-	fileInfo, err := pctx.Venv.FS.Stat(autoIncludePath)
+	fileInfo, err := v.FS.Stat(autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
@@ -2772,11 +2965,11 @@ func parseAutoIncludeFileCached(
 	cacheKey := fmt.Sprintf("autoinclude-%v-%v", autoIncludePath, fileInfo.ModTime().UnixMicro())
 
 	if cached, found := hclCache.Get(ctx, cacheKey); found {
-		return cached.Rebind(hclparse.NewParser(pctx.ParserOptions...)), nil
+		return cached.Rebind(pctx.NewParser(l, v)), nil
 	}
 
-	file, err := hclparse.NewParser(pctx.ParserOptions...).
-		ParseFromFile(pctx.Venv.FS, autoIncludePath)
+	file, err := pctx.NewParser(l, v).
+		ParseFromFile(v.FS, autoIncludePath)
 	if err != nil {
 		return nil, err
 	}
@@ -2794,12 +2987,13 @@ func parseAutoIncludeFileCached(
 // values attribute the stack stopped setting hits exactly that.
 func decodeDependencyBlocksWithAutoIncludeOverrides(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
 ) (Dependencies, error) {
-	overrides, err := siblingAutoIncludeDepOverrides(ctx, pctx)
+	overrides, err := siblingAutoIncludeDepOverrides(ctx, l, v, pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -2808,6 +3002,7 @@ func decodeDependencyBlocksWithAutoIncludeOverrides(
 		ctx,
 		pctx,
 		l,
+		v.FS,
 		file,
 		evalContext,
 		hclparse.WithSkipLabels(overrides),
@@ -2824,6 +3019,8 @@ func decodeDependencyBlocksWithAutoIncludeOverrides(
 // reports only the unexpanded names for that reason.
 func siblingAutoIncludeDepOverrides(
 	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
 	pctx *ParsingContext,
 ) (map[string]struct{}, error) {
 	if !hasSiblingAutoInclude(pctx) {
@@ -2832,6 +3029,8 @@ func siblingAutoIncludeDepOverrides(
 
 	autoFile, err := parseAutoIncludeFileCached(
 		ctx,
+		l,
+		v,
 		pctx,
 		pctx.TrackInclude.AutoIncludeOverride.Path,
 	)
@@ -2854,4 +3053,41 @@ func IsValidConfigPath(v cty.Value) bool {
 	}
 
 	return true
+}
+
+// ValidateDependencyConfigPaths reports each enabled dependency block whose config_path has no Terragrunt config.
+func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPath string) error {
+	var errs []error
+
+	for i := range cfg.TerragruntDependencies {
+		dep := &cfg.TerragruntDependencies[i]
+		if !dep.isEnabled() || !IsValidConfigPath(dep.ConfigPath) {
+			continue
+		}
+
+		rawPath := dep.ConfigPath.AsString()
+		targetConfigPath := getCleanedTargetConfigPath(fsys, rawPath, configPath)
+
+		if stackFilePath, ok := resolveStackFilePath(
+			rawPath,
+			targetConfigPath,
+		); ok &&
+			vfs.Exists(fsys, stackFilePath) {
+			continue
+		}
+
+		exists, err := vfs.FileExists(fsys, targetConfigPath)
+		if err == nil && !exists {
+			err = DependencyConfigNotFound{Path: targetConfigPath}
+		}
+
+		if err != nil {
+			errs = append(
+				errs,
+				DependencyBlockError{Name: dep.Name, ConfigPath: configPath, Err: err},
+			)
+		}
+	}
+
+	return errors.Join(errs...)
 }

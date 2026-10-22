@@ -2,7 +2,9 @@ package azurerm_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -239,6 +241,80 @@ func TestNeedsBootstrap_RoleOnlyDriftRequiresBootstrap(t *testing.T) {
 	})
 }
 
+// TestBootstrap_AssignBlobDataRolePrincipalType verifies the role assignment
+// sends the principal type read from the caller's token, and sends none when
+// the token omits idtyp or principal_id is configured.
+func TestBootstrap_AssignBlobDataRolePrincipalType(t *testing.T) {
+	t.Parallel()
+
+	const callerOID = "99999999-8888-7777-6666-555555555555"
+
+	testCases := []struct {
+		name            string
+		idtyp           string
+		principalID     string
+		wantPrincipalID string
+		wantType        string
+	}{
+		{
+			name:            "resolved caller keeps its token type",
+			idtyp:           "app",
+			wantPrincipalID: callerOID,
+			wantType:        azurehelper.PrincipalTypeServicePrincipal,
+		},
+		{
+			name:            "resolved caller without idtyp stays untyped",
+			wantPrincipalID: callerOID,
+		},
+		{
+			name:            "configured principal stays untyped",
+			idtyp:           "app",
+			principalID:     "11111111-2222-3333-4444-555555555555",
+			wantPrincipalID: "11111111-2222-3333-4444-555555555555",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := roleOnlyDriftConfig()
+			delete(cfg, "principal_id")
+
+			if tc.principalID != "" {
+				cfg["principal_id"] = tc.principalID
+			}
+
+			var created []byte
+
+			client := vhttp.NewMemClient(roleDriftHandler(
+				fakeAccessToken(t, callerOID, tc.idtyp), false, func(body []byte) { created = body },
+			))
+
+			err := azurerm.NewBackend().Bootstrap(
+				t.Context(),
+				logger.CreateLogger(),
+				venvtest.New().WithHTTP(client),
+				backend.Config(cfg),
+				testBackendOptions(t),
+			)
+			require.NoError(t, err)
+			require.NotNil(t, created, "bootstrap must create the role assignment")
+
+			var got struct {
+				Properties struct {
+					PrincipalID   string `json:"principalId"`
+					PrincipalType string `json:"principalType"`
+				} `json:"properties"`
+			}
+
+			require.NoError(t, json.Unmarshal(created, &got))
+			assert.Equal(t, tc.wantPrincipalID, got.Properties.PrincipalID)
+			assert.Equal(t, tc.wantType, got.Properties.PrincipalType)
+		})
+	}
+}
+
 // TestIsVersionControlEnabled_NoResourceGroupDegrades verifies the versioning
 // check degrades to false instead of erroring when no resource group is known.
 func TestIsVersionControlEnabled_NoResourceGroupDegrades(t *testing.T) {
@@ -305,9 +381,16 @@ func roleOnlyDriftConfig() azurerm.Config {
 // role-assignment list so NeedsBootstrap can exercise blobDataRoleMissing
 // without a live subscription.
 func roleDriftHTTP(rolePresent bool) vhttp.Client {
+	return vhttp.NewMemClient(roleDriftHandler("test-token", rolePresent, nil))
+}
+
+// roleDriftHandler serves the token and ARM requests of NeedsBootstrap and
+// Bootstrap. It issues accessToken and passes the body of a role-assignment
+// create to onCreate when one is set.
+func roleDriftHandler(accessToken string, rolePresent bool, onCreate func(body []byte)) vhttp.Handler {
 	jsonHeaders := http.Header{"Content-Type": []string{"application/json"}}
 
-	return vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+	return func(_ context.Context, req *http.Request) (*http.Response, error) {
 		path := req.URL.Path
 
 		switch {
@@ -321,8 +404,19 @@ func roleDriftHTTP(rolePresent bool) vhttp.Client {
 			), jsonHeaders), nil
 		case strings.HasSuffix(path, "/token"):
 			return vhttp.Respond(http.StatusOK, []byte(
-				`{"token_type":"Bearer","expires_in":3600,"access_token":"test-token"}`,
+				`{"token_type":"Bearer","expires_in":3600,"access_token":"`+accessToken+`"}`,
 			), jsonHeaders), nil
+		case req.Method == http.MethodPut && strings.Contains(path, "/roleAssignments/"):
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				return nil, err
+			}
+
+			if onCreate != nil {
+				onCreate(body)
+			}
+
+			return vhttp.Respond(http.StatusCreated, body, jsonHeaders), nil
 		case strings.Contains(path, "/roleAssignments"):
 			body := map[string]any{"value": []any{}}
 			if rolePresent {
@@ -355,7 +449,25 @@ func roleDriftHTTP(rolePresent bool) vhttp.Client {
 				`{"error":{"code":"UnmatchedTestRequest","message":"`+path+`"}}`,
 			), jsonHeaders), nil
 		}
-	})
+	}
+}
+
+// fakeAccessToken builds an unsigned JWT carrying the oid and idtyp claims
+// ResolvePrincipal reads; an empty idtyp omits the claim.
+func fakeAccessToken(t *testing.T, oid, idtyp string) string {
+	t.Helper()
+
+	claims := map[string]string{"oid": oid}
+	if idtyp != "" {
+		claims["idtyp"] = idtyp
+	}
+
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
+
+	enc := base64.RawURLEncoding
+
+	return enc.EncodeToString([]byte(`{"alg":"none"}`)) + "." + enc.EncodeToString(payload) + ".sig"
 }
 
 // TestMigrate_CrossCloudFromDestinationEnvRefused pins the case a config-only

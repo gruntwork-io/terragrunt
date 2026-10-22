@@ -24,16 +24,16 @@ $ terragrunt info print --all
 }
 ```
 
-This made reading any single entry harder, as more sophisticated JSON stream handling is required to properly interact with just one of the JSON objects.
+A line-oriented reader could not take one entry at a time:
 
 ```bash
 $ terragrunt info print --all | head -1 | jq .
 jq: parse error: Unfinished JSON term at EOF at line 2, column 0
 ```
 
-The `download_dir` was wrong as well. `run --all` creates a download directory (`.terragrunt-cache`) next to the configuration for the unit (`.terragrunt.cache`), so the directory reported here was not the one the unit runs against.
+The `download_dir` was wrong as well. `run --all` creates each unit's `.terragrunt-cache` next to that unit's configuration, so the directory reported here was not the one the unit runs against.
 
-Terragrunt now writes one object per line with `--all`, as a proper JSONL stream, and builds each unit's context the way `run --all` does:
+With `--all`, Terragrunt now writes one object per line, so the output is JSON Lines, and builds each unit's context the way `run --all` does:
 
 ```bash
 $ terragrunt info print --all | jq -c '{config_path, download_dir}'

@@ -23,16 +23,25 @@
 // Use [CheckConstraint] for the semver_check HCL function, which reads its
 // version argument more strictly than [Parse] does.
 //
+// Use [LockFileConstraint] when a result has to match what tofu does with a
+// provider's `version` argument: whether tofu accepts it, and the
+// `constraints` value tofu writes for it to a dependency lock file.
+//
 // # Backing libraries
 //
 // [Parse], [MustParse] and [ParseConstraint] are [go-version], which is
 // forgiving about partial and unseparated versions. [IsExact] is
-// [Masterminds/semver], whose strict parser is the only one of the two that
-// tells `v1` from `v1.0.0`: go-version pads the missing parts and does not
-// expose how many were given.
+// [Masterminds/semver], whose strict parser tells `v1` from `v1.0.0`, where
+// go-version pads the missing parts and does not expose how many were given.
+//
+// [LockFileConstraint] is go-version followed by [go-versions], the two
+// libraries tofu runs a provider's `version` argument through. They read
+// some prerelease shapes differently, and go-versions orders prerelease and
+// build metadata its own way, so no other function here matches tofu.
 //
 // [go-version]: https://pkg.go.dev/github.com/hashicorp/go-version
 // [Masterminds/semver]: https://pkg.go.dev/github.com/Masterminds/semver/v3
+// [go-versions]: https://pkg.go.dev/github.com/apparentlymart/go-versions
 package semver
 
 import (

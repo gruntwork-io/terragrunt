@@ -6,11 +6,16 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -18,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -327,6 +333,107 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 
 	assert.Contains(t, invoked, "custom-tofu", "the version probe runs the unit's terraform_binary")
 }
+
+// TestNew_EngineSkipsVersionProbe pins that units an engine runs need no OpenTofu/Terraform binary
+// for the version check: venvtest's fail-closed exec errors on any spawn, so success proves no
+// probe ran.
+func TestNew_EngineSkipsVersionProbe(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+	writeUnit(t, v, memRoot, "vpc", engineBlock)
+	writeUnit(t, v, memRoot, "app", engineBlock+"\n"+dependencyBlock("../vpc"))
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.IacEngine))
+
+	rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+	require.NoError(t, err)
+	assert.Len(t, rnr.GetStack().Units, 2)
+}
+
+func TestNew_DependencyCycle(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	writeUnit(t, v, memRoot, "vpc", dependencyBlock("../app"))
+	writeUnit(t, v, memRoot, "app", dependencyBlock("../vpc"))
+
+	rnr, err := runner.New(
+		t.Context(),
+		thlogger.CreateLogger(),
+		v,
+		newStackOpts(t, memRoot, tf.CommandNamePlan),
+	)
+	require.Error(t, err, "units that depend on each other cannot be ordered")
+	assert.Nil(t, rnr)
+}
+
+func TestNew_UnparsableUnitSource(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	writeUnit(t, v, memRoot, "vpc", `terraform {
+  source = "no-slashes-here"
+}`)
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.Source = "/local/modules"
+
+	rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+
+	var target config.ParsingModulePathError
+
+	require.ErrorAs(t, err, &target)
+	assert.Nil(t, rnr)
+}
+
+func TestCheckUnitVersionConstraints_UnparsableConfig(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	unit := component.NewUnit(writeUnit(t, v, memRoot, "vpc", invalidHCL))
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	l := thlogger.CreateLogger()
+
+	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
+	require.NoError(t, err)
+
+	err = runner.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags, "the parse failure is returned with its diagnostics")
+}
+
+func TestCheckUnitVersionConstraints_InvalidEngineMeta(t *testing.T) {
+	t.Parallel()
+
+	meta := cty.ObjectVal(map[string]cty.Value{"n": cty.MustParseNumberVal("9e9999999")})
+
+	v := memVenv(tfVersionOutput)
+	unit := component.NewUnit(writeUnit(t, v, memRoot, "vpc", "")).WithConfig(&config.TerragruntConfig{
+		Engine: &config.EngineConfig{Source: "github.com/example/engine", Meta: &meta},
+	})
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	l := thlogger.CreateLogger()
+
+	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
+	require.NoError(t, err)
+
+	err = runner.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+
+	var target ctyhelper.NumberOutOfRangeError
+
+	require.ErrorAs(t, err, &target)
+}
+
+// engineBlock is an engine block for units whose commands must not spawn a local binary.
+const engineBlock = `engine {
+  source = "github.com/example/engine"
+}`
 
 // dependencyBlock returns a dependency block pointing at configPath.
 func dependencyBlock(configPath string) string {

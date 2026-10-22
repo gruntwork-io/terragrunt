@@ -29,7 +29,7 @@ Point an MCP client at the Terragrunt binary and make sure that it enables the e
 }
 ```
 
-By default, the server refuses to start any subprocess (e.g. `tofu`, `terraform`, `git`, or a `run_cmd` program). Wherever Terragrunt would have started one, the result substitutes something for its output and lists the substitution in a `degraded` field, such as `mock_outputs` standing in for a dependency output that `tofu output -json` would have fetched. Agents read that field to identify how and when a subprocess execution was degraded to substituted mock values.
+By default, the server refuses to start any subprocess (e.g. `tofu`, `terraform`, `git`, or a `run_cmd` program). Wherever Terragrunt would have started one, the result substitutes a stand-in for its output, such as `mock_outputs` for a dependency output that `tofu output -json` would have fetched, and lists each substitution in a `degraded` field.
 
 Pass `--allow=exec` to let the server run the `tofu`, `terraform`, and `git` that Terragrunt starts on its own during a run. A program a configuration names, through `run_cmd()`, a `before_hook`, or `--auth-provider-cmd`, is still refused, including a `tofu`, `terraform`, or `git` the configuration names for itself, so pointing the server at a repository does not hand it those programs. Allow the commands you want with `--allow-cmd`, a pattern matched against the program and each of its arguments (e.g. `--allow-cmd='jq **'`), or let the read-only tools ask: when `discover`, `render_config`, `validate`, or `run_order` meets a refused program, it sends the client an elicitation naming it, which the client usually shows the person operating the agent, and runs again with whatever they accept. `plan`, `apply`, and `destroy` never ask, since answering would mean running them a second time.
 
@@ -71,7 +71,7 @@ A separate flag, `--dangerously-allow-apply`, adds `apply` and `destroy` tools o
 
 With it, the tool calls return an elicitation (the protocol's way for a server to ask the client's user a question) naming the units that would be run, and the run starts only once the person operating the client accepts it. A decline ends the tool call, and a client with no way to ask anyone is refused. The approval names the units, not the changes: nothing is planned to build that list, since a plan costs a full run that the acceptance then repeats. Call the plan tool first if you want the changes in front of you before accepting.
 
-Your client forwards that prompt to you, over the connection the agent is already on. Only grant this capability on infrastructure you are willing to lose.
+Only grant this capability on infrastructure you are willing to lose.
 
 Passing it without `--allow=exec` is refused at startup, since applying means running OpenTofu/Terraform. Launch the server in the environment directory you are willing to have changed rather than at the repository root, because that directory is as far as any tool call can reach:
 
@@ -108,4 +108,4 @@ The tools that run OpenTofu/Terraform use the binary named by `--tf-path`, and i
 
 The tools the server offers, the arguments they take, and what each capability grants are documented with the [`mcp` command](/reference/cli/commands/mcp).
 
-This will not stabilize before v1.3, so treat the tool set, the flag names, and the shape of every result as subject to change until then. The [experiment documentation](/reference/experiments/active#mcp-command) carries the criteria that have to be met first.
+This will not stabilize before v1.3, so treat the tool set, the flag names, and the shape of every result as subject to change until then. The [experiment documentation](/reference/experiments/active#mcp-command) lists the criteria that have to be met first.

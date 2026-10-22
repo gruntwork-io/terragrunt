@@ -5,10 +5,10 @@ import (
 	"net/http/httputil"
 	"net/url"
 
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	svchost "github.com/hashicorp/terraform-svchost"
-	"github.com/labstack/echo/v4"
 )
 
 type ReverseProxy struct {
@@ -29,59 +29,63 @@ type ReverseProxy struct {
 	Logger log.Logger
 }
 
-func (reverseProxy ReverseProxy) WithModifyResponse(
+func (rp ReverseProxy) WithModifyResponse(
 	fn func(resp *http.Response) error,
 ) *ReverseProxy {
-	reverseProxy.ModifyResponse = fn
-	return &reverseProxy
+	rp.ModifyResponse = fn
+	return &rp
 }
 
-func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.URL) (er error) {
-	if reverseProxy.Transport == nil {
+// NewRequest forwards r to targetURL and streams the answer to w. A target
+// that cannot be reached is answered with a 503.
+//
+// Panics when rp.Transport is nil.
+func (rp *ReverseProxy) NewRequest(w router.ResponseWriter, r *http.Request, targetURL *url.URL) error {
+	if rp.Transport == nil {
 		panic(
 			"helpers.ReverseProxy: nil Transport; wire the vhttp client's transport at construction",
 		)
 	}
 
 	proxy := &httputil.ReverseProxy{
-		Transport: reverseProxy.Transport,
+		Transport: rp.Transport,
 		Rewrite: func(req *httputil.ProxyRequest) {
 			req.Out.Host = targetURL.Host
 			req.Out.URL = targetURL
 
-			if reverseProxy.CredsSource != nil {
+			if rp.CredsSource != nil {
 				hostname := svchost.Hostname(req.Out.URL.Hostname())
-				if creds := reverseProxy.CredsSource.ForHost(hostname); creds != nil {
+				if creds := rp.CredsSource.ForHost(hostname); creds != nil {
 					creds.PrepareRequest(req.Out)
 				}
 			}
 
-			if reverseProxy.Rewrite != nil {
-				reverseProxy.Rewrite(req)
+			if rp.Rewrite != nil {
+				rp.Rewrite(req)
 			}
 		},
 		ModifyResponse: func(resp *http.Response) error {
-			if reverseProxy.ModifyResponse != nil {
-				return reverseProxy.ModifyResponse(resp)
+			if rp.ModifyResponse != nil {
+				return rp.ModifyResponse(resp)
 			}
 
 			return nil
 		},
 		ErrorHandler: func(resp http.ResponseWriter, req *http.Request, err error) {
-			reverseProxy.Logger.Errorf(
+			rp.Logger.Errorf(
 				"remote %s unreachable, could not forward: %v",
 				targetURL,
 				err,
 			)
-			ctx.Error(echo.NewHTTPError(http.StatusServiceUnavailable))
+			router.WriteError(w, router.NewHTTPError(http.StatusServiceUnavailable))
 
-			if reverseProxy.ErrorHandler != nil {
-				reverseProxy.ErrorHandler(resp, req, err)
+			if rp.ErrorHandler != nil {
+				rp.ErrorHandler(resp, req, err)
 			}
 		},
 	}
 
-	proxy.ServeHTTP(ctx.Response(), ctx.Request())
+	proxy.ServeHTTP(w, r)
 
 	return nil
 }

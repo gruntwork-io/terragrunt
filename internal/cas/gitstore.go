@@ -100,6 +100,32 @@ func (r *GitStoreRepo) Release(l log.Logger) {
 	}
 }
 
+// GitStoreVenv is a [venv.Venv] the git store can run git against. Only
+// [NewGitStoreVenv] builds one, so every [GitStore] method receives a venv
+// that passed its checks.
+type GitStoreVenv struct {
+	v      *venv.Venv
+	runner *git.GitRunner
+}
+
+// NewGitStoreVenv returns v as a [GitStoreVenv].
+//
+// Returns [ErrGitStoreFSNotOS] when v.FS is not the OS filesystem, because the
+// git subprocesses the store runs only see the real disk. Returns the
+// [git.NewGitRunner] error when v cannot run git.
+func NewGitStoreVenv(v *venv.Venv) (*GitStoreVenv, error) {
+	if !vfs.IsOSFS(v.FS) {
+		return nil, ErrGitStoreFSNotOS
+	}
+
+	runner, err := git.NewGitRunner(v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GitStoreVenv{v: v, runner: runner}, nil
+}
+
 // NewGitStore returns a [GitStore] rooted at rootPath. The directory is
 // created lazily on first write.
 func NewGitStore(rootPath string) *GitStore {
@@ -107,19 +133,20 @@ func NewGitStore(rootPath string) *GitStore {
 }
 
 // EnsureRef ensures the bare repository for u contains the object at
-// hash, fetching ref at the requested depth on a cache miss. The returned
+// hash, fetching ref, such as HEAD or refs/tags/v1.2.3, at the requested
+// depth on a cache miss. The returned
 // handle holds the per-URL flock; the caller must release it via
 // [GitStoreRepo.Unlock] or [GitStoreRepo.Release]. On error the lock is
 // released before returning.
 func (s *GitStore) EnsureRef(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
+	gv *GitStoreVenv,
 	u redact.URL,
 	ref, hash string,
 	depth int,
 ) (*GitStoreRepo, error) {
-	session, err := s.acquire(ctx, v, l, u)
+	session, err := s.acquire(ctx, gv, l, u)
 	if err != nil {
 		return nil, err
 	}
@@ -132,12 +159,7 @@ func (s *GitStore) EnsureRef(
 	}
 
 	if !has {
-		fetchRef := ref
-		if fetchRef == "" {
-			fetchRef = "HEAD"
-		}
-
-		if err := session.runner.Fetch(ctx, u.Reveal(), fetchRef, depth); err != nil {
+		if err := session.runner.Fetch(ctx, u.Reveal(), ref, depth); err != nil {
 			return nil, err
 		}
 
@@ -147,7 +169,7 @@ func (s *GitStore) EnsureRef(
 		}
 
 		if !has {
-			return nil, &GitStoreObjectMissingError{Hash: hash, Ref: fetchRef, URL: u}
+			return nil, &GitStoreObjectMissingError{Hash: hash, Ref: ref, URL: u}
 		}
 	}
 
@@ -170,11 +192,11 @@ func (s *GitStore) EnsureRef(
 func (s *GitStore) EnsureCommit(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
+	gv *GitStoreVenv,
 	u redact.URL,
 	rawRef, knownHash string,
 ) (*GitStoreRepo, error) {
-	session, err := s.acquire(ctx, v, l, u)
+	session, err := s.acquire(ctx, gv, l, u)
 	if err != nil {
 		return nil, err
 	}
@@ -268,31 +290,20 @@ func (s *GitStore) ensureKnownCommit(
 // both updated atomically by git. Acquiring the per-URL flock here would
 // queue every probe behind any in-flight fetch and erase the offline
 // win.
-//
-// Panics when v.FS is not OS-backed; git only sees the real disk.
 func (s *GitStore) ProbeCachedCommit(
 	ctx context.Context,
-	v *venv.Venv,
+	gv *GitStoreVenv,
 	u redact.URL,
 	rawRef string,
 ) (string, bool) {
-	if !vfs.IsOSFS(v.FS) {
-		panic(ErrGitStoreFSNotOS)
-	}
-
 	_, repoPath, _ := s.repoPaths(u)
 
-	initialized, err := bareRepoInitialized(v.FS, repoPath)
+	initialized, err := bareRepoInitialized(gv.v.FS, repoPath)
 	if err != nil || !initialized {
 		return "", false
 	}
 
-	runner, err := git.NewGitRunner(v)
-	if err != nil {
-		return "", false
-	}
-
-	hash, err := runner.WithWorkDir(repoPath).RevParseCommit(ctx, rawRef)
+	hash, err := gv.runner.WithWorkDir(repoPath).RevParseCommit(ctx, rawRef)
 	if err != nil {
 		return "", false
 	}
@@ -472,18 +483,11 @@ func (s *repoSession) cleanup() {
 // entry; subsequent calls detect HEAD and skip the spawn.
 func (s *GitStore) acquire(
 	ctx context.Context,
-	v *venv.Venv,
+	gv *GitStoreVenv,
 	l log.Logger,
 	u redact.URL,
 ) (*repoSession, error) {
-	if !vfs.IsOSFS(v.FS) {
-		return nil, ErrGitStoreFSNotOS
-	}
-
-	runner, err := git.NewGitRunner(v)
-	if err != nil {
-		return nil, err
-	}
+	v := gv.v
 
 	if err := v.FS.MkdirAll(s.rootPath, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf(
@@ -514,7 +518,7 @@ func (s *GitStore) acquire(
 	session := &repoSession{
 		l:      l,
 		repo:   &GitStoreRepo{unlocker: unlocker, url: u, Path: repoPath},
-		runner: runner.WithWorkDir(repoPath),
+		runner: gv.runner.WithWorkDir(repoPath),
 	}
 
 	if err := v.FS.MkdirAll(repoPath, DefaultDirPerms); err != nil {

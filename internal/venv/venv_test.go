@@ -3,71 +3,24 @@ package venv_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
-	"runtime"
+	"os"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-func TestParseEnviron(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		want    map[string]string
-		name    string
-		environ []string
-	}{
-		{
-			name:    "standard entries",
-			environ: []string{"FOO=bar", "BAZ=qux"},
-			want:    map[string]string{"FOO": "bar", "BAZ": "qux"},
-		},
-		{
-			name:    "value contains equals",
-			environ: []string{"URL=https://example.com/?a=b"},
-			want:    map[string]string{"URL": "https://example.com/?a=b"},
-		},
-		{
-			name:    "empty value",
-			environ: []string{"EMPTY="},
-			want:    map[string]string{"EMPTY": ""},
-		},
-		{
-			name:    "entry without separator is dropped",
-			environ: []string{"NOSEP"},
-			want:    map[string]string{},
-		},
-		{
-			name:    "empty entry is dropped",
-			environ: []string{"", "FOO=bar"},
-			want:    map[string]string{"FOO": "bar"},
-		},
-		{
-			name:    "windows per-drive key keeps leading equals",
-			environ: []string{`=C:=C:\Users\alice`},
-			want:    map[string]string{`=C:`: `C:\Users\alice`},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tc.want, venv.ParseEnviron(tc.environ))
-		})
-	}
-}
 
 // TestVenvRequireFS pins the FS contract: the zero Venv panics with the
 // sentinel, a populated Venv passes.
@@ -95,74 +48,6 @@ func TestVenvRequireExec(t *testing.T) {
 	assert.NotPanics(t, func() {
 		(&venv.Venv{Exec: vexec.NewOSExec()}).RequireExec()
 	})
-}
-
-// TestWithEnvRejectsNil pins the argument contract: WithEnv asserts a
-// non-nil env instead of silently substituting an empty map, and
-// WithEnvCloned asserts a non-nil receiver Env before cloning.
-func TestWithEnvRejectsNil(t *testing.T) {
-	t.Parallel()
-
-	assert.PanicsWithValue(t, venv.ErrVenvEnvNil, func() {
-		(&venv.Venv{}).WithEnv(nil)
-	})
-
-	assert.PanicsWithValue(t, venv.ErrVenvEnvUnset, func() {
-		(&venv.Venv{}).WithEnvCloned()
-	})
-}
-
-func TestWithEnvClonedIsolatesMutations(t *testing.T) {
-	t.Parallel()
-
-	v := &venv.Venv{
-		Env: map[string]string{"FOO": "bar"},
-	}
-
-	clone := v.WithEnvCloned()
-	clone.Env["AWS_ACCESS_KEY_ID"] = "leaked"
-	clone.Env["FOO"] = "changed"
-
-	assert.Equal(t, map[string]string{"FOO": "bar"}, v.Env)
-
-	v.Env["BAZ"] = "qux"
-
-	assert.NotContains(t, clone.Env, "BAZ")
-	assert.Equal(t, "changed", clone.Env["FOO"])
-}
-
-func TestOSVenvProvidesPlatformHandles(t *testing.T) {
-	t.Parallel()
-
-	v := venv.OSVenv()
-
-	require.NotNil(t, v.Platform)
-	assert.Equal(t, runtime.GOOS, v.Platform.GOOS)
-	assert.Equal(t, runtime.GOARCH, v.Platform.GOARCH)
-	assert.NotNil(t, v.Platform.UserHomeDir)
-	assert.NotNil(t, v.Platform.UserConfigDir)
-}
-
-func TestVenvPlatformBuilders(t *testing.T) {
-	t.Parallel()
-
-	wantHomeErr := errors.New("home lookup failed")
-	homeDir := func() (string, error) { return "", wantHomeErr }
-	configDir := func() (string, error) { return "/tmp/config", nil }
-	original := venv.OSVenv()
-
-	got := original.WithGOOS("plan9").WithGOARCH("mips").WithUserHomeDir(homeDir).WithUserConfigDir(configDir)
-
-	require.NotNil(t, got.Platform)
-	assert.Equal(t, "plan9", got.Platform.GOOS)
-	assert.Equal(t, "mips", got.Platform.GOARCH)
-	_, err := got.Platform.UserHomeDir()
-	require.ErrorIs(t, err, wantHomeErr)
-	gotConfigDir, err := got.Platform.UserConfigDir()
-	require.NoError(t, err)
-	assert.Equal(t, "/tmp/config", gotConfigDir)
-	assert.Equal(t, runtime.GOOS, original.Platform.GOOS)
-	assert.Equal(t, runtime.GOARCH, original.Platform.GOARCH)
 }
 
 func TestVenvWriterBuildersIsolateCopies(t *testing.T) {
@@ -214,6 +99,9 @@ func TestVenvPlatformRequirements(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvListenUnset, func() {
 		(&venv.Venv{}).RequireListen()
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvSignalsUnset, func() {
+		(&venv.Venv{}).RequireSignals()
+	})
 	assert.PanicsWithValue(t, venv.ErrVenvStdinUnset, func() {
 		(&venv.Venv{}).RequireStdin()
 	})
@@ -221,30 +109,6 @@ func TestVenvPlatformRequirements(t *testing.T) {
 		// A non-nil Writers whose fields are nil is the case a bare nil check
 		// would wave through, and the one that fails furthest from its cause.
 		(&venv.Venv{Writers: &writer.Writers{}}).RequireWriters()
-	})
-}
-
-// TestVenvPlatformBuildersRequireAPlatform pins that refining one platform
-// handle on a Venv carrying no platform fails at the builder. Filling in a
-// blank platform instead would hand back a Venv whose other handles are nil,
-// and the nil would surface somewhere else entirely.
-func TestVenvPlatformBuildersRequireAPlatform(t *testing.T) {
-	t.Parallel()
-
-	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
-		(&venv.Venv{}).WithGOOS("plan9")
-	})
-	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
-		(&venv.Venv{}).WithGOARCH("mips")
-	})
-	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
-		(&venv.Venv{}).WithUserHomeDir(func() (string, error) { return "", nil })
-	})
-	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
-		(&venv.Venv{}).WithUserConfigDir(func() (string, error) { return "", nil })
-	})
-	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
-		(&venv.Venv{}).WithTempDir(func() string { return "" })
 	})
 }
 
@@ -257,6 +121,7 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 	require.NoError(t, vfs.WriteFile(memFS, "/tracer.txt", []byte("tracer"), 0o644))
 
 	wantSopsErr := errors.New("decrypt failed")
+	wantBrowserErr := errors.New("browser opened")
 	echo := vexec.Handler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte(inv.Name + " " + strings.Join(inv.Args, " "))}
 	})
@@ -301,6 +166,57 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 				require.ErrorIs(t, err, wantSopsErr)
 			},
 		},
+		{
+			name: "WithHTTP",
+			build: func(v *venv.Venv) *venv.Venv {
+				return v.WithHTTP(vhttp.NewMemClient(teapotHandler))
+			},
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com", nil)
+				require.NoError(t, err)
+
+				resp, err := got.HTTP.Do(req)
+				require.NoError(t, err)
+
+				defer resp.Body.Close()
+
+				assert.Equal(t, http.StatusTeapot, resp.StatusCode)
+			},
+		},
+		{
+			name: "WithBrowser",
+			build: func(v *venv.Venv) *venv.Venv {
+				return v.WithBrowser(vbrowser.NewMemOpener(func(_ context.Context, rawURL string) error {
+					return fmt.Errorf("%w: %s", wantBrowserErr, rawURL)
+				}))
+			},
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				err := got.Browser.Open(t.Context(), "https://example.com/login")
+				require.ErrorIs(t, err, wantBrowserErr)
+				assert.ErrorContains(t, err, "https://example.com/login")
+			},
+		},
+		{
+			name: "WithSignals",
+			build: func(v *venv.Venv) *venv.Venv {
+				return v.WithSignals(func(_ context.Context, notifyFn signal.NotifyFunc, _ ...os.Signal) {
+					notifyFn(os.Interrupt)
+				})
+			},
+			verify: func(t *testing.T, got *venv.Venv) {
+				t.Helper()
+
+				var received os.Signal
+
+				got.Signals(t.Context(), func(sig os.Signal) { received = sig }, os.Interrupt)
+
+				assert.Equal(t, os.Interrupt, received)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -314,6 +230,9 @@ func TestVenvHandleBuildersReturnCopies(t *testing.T) {
 			assert.Nil(t, original.FS)
 			assert.Nil(t, original.Exec)
 			assert.Nil(t, original.Sops)
+			assert.Nil(t, original.HTTP)
+			assert.Nil(t, original.Browser)
+			assert.Nil(t, original.Signals)
 			tc.verify(t, got)
 		})
 	}
@@ -363,6 +282,73 @@ func TestVenvRequireStdinAndHTTP(t *testing.T) {
 	})
 }
 
+// TestVenvRequireHandles checks each Require method panics when its handle is missing and passes when set.
+func TestVenvRequireHandles(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		wantPanic error
+		require   func(v *venv.Venv)
+		present   *venv.Venv
+		name      string
+		missing   []*venv.Venv
+	}{
+		{
+			name:      "Browser",
+			wantPanic: venv.ErrVenvBrowserUnset,
+			require:   (*venv.Venv).RequireBrowser,
+			missing:   []*venv.Venv{{}},
+			present:   &venv.Venv{Browser: vbrowser.NewNoBrowserOpener()},
+		},
+		{
+			name:      "Terminal",
+			wantPanic: venv.ErrVenvTerminalUnset,
+			require:   (*venv.Venv).RequireTerminal,
+			missing:   []*venv.Venv{{}},
+			present:   &venv.Venv{Terminal: &venv.Terminal{}},
+		},
+		{
+			name:      "UserCacheDir",
+			wantPanic: venv.ErrVenvUserCacheDirUnset,
+			require:   (*venv.Venv).RequireUserCacheDir,
+			missing:   []*venv.Venv{{}, {Platform: &venv.Platform{}}},
+			present: &venv.Venv{Platform: &venv.Platform{
+				UserCacheDir: func() (string, error) { return "/cache", nil },
+			}},
+		},
+		{
+			name:      "ReplaceEnviron",
+			wantPanic: venv.ErrVenvReplaceEnvironUnset,
+			require:   (*venv.Venv).RequireReplaceEnviron,
+			missing:   []*venv.Venv{{}, {Platform: &venv.Platform{}}},
+			present: &venv.Venv{Platform: &venv.Platform{
+				ReplaceEnviron: func(map[string]string) error { return nil },
+			}},
+		},
+		{
+			name:      "TempDir",
+			wantPanic: venv.ErrVenvTempDirUnset,
+			require:   (*venv.Venv).RequireTempDir,
+			missing:   []*venv.Venv{{}, {Platform: &venv.Platform{}}},
+			present: &venv.Venv{Platform: &venv.Platform{
+				TempDir: func() string { return "/scratch" },
+			}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, v := range tc.missing {
+				assert.PanicsWithValue(t, tc.wantPanic, func() { tc.require(v) })
+			}
+
+			assert.NotPanics(t, func() { tc.require(tc.present) })
+		})
+	}
+}
+
 func assertExecEchoes(t *testing.T, got *venv.Venv) {
 	t.Helper()
 
@@ -373,4 +359,8 @@ func assertExecEchoes(t *testing.T, got *venv.Venv) {
 
 func okHandler(_ context.Context, _ *http.Request) (*http.Response, error) {
 	return vhttp.Respond(http.StatusOK, nil, nil), nil
+}
+
+func teapotHandler(_ context.Context, _ *http.Request) (*http.Response, error) {
+	return vhttp.Respond(http.StatusTeapot, nil, nil), nil
 }

@@ -52,7 +52,7 @@ Placeholders have preset names:
 
 * `%msg` - Log message.
 
-* `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [tf-path](https://docs.terragrunt.com/reference/cli-options/#tf-path)).
+* `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [tf-path](/reference/cli/commands/run#tf-path)).
 
 * `%tf-command` - Executed OpenTofu/Terraform command, e.g. `apply`.
 
@@ -172,7 +172,7 @@ Common options:
 
   * `preset` - Specifies to use preset colors. For example, each log level name has its own preset color.
 
-  * `disable` - Disables color, also removes colors set in terraform/tofu output.
+  * `disable` - Disables color, also removes colors set in tofu/terraform output.
 
 Specific options for placeholders:
 

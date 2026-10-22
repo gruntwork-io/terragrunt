@@ -127,10 +127,12 @@ inputs = {
 `), 0o644))
 
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), config.WithStrictControls(controls.New()))
+	ctx := t.Context()
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir
 
-	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)
+	urls, err := tui.DiscoverSourceURLs(ctx, l, v, pctx)
 	require.NoError(t, err)
 
 	// Should have 2 unique repo URLs (repo-a deduplicated, repo-b, interpolated and no-source skipped)
@@ -145,10 +147,12 @@ func TestDiscoverSourceURLs_EmptyDir(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, venvtest.NewWithOSFS(), config.WithStrictControls(controls.New()))
+	ctx := t.Context()
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir
 
-	urls, err := tui.DiscoverSourceURLs(ctx, l, pctx)
+	urls, err := tui.DiscoverSourceURLs(ctx, l, v, pctx)
 	require.NoError(t, err)
 	assert.Empty(t, urls)
 }

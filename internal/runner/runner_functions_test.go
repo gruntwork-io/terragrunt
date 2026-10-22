@@ -84,41 +84,6 @@ func TestListStackDependentUnits_WithDeps(t *testing.T) {
 	assert.Contains(t, deps["/tmp/test/vpc"], "/tmp/test/app")
 }
 
-func TestFilterDiscoveredUnits_ExcludesExcluded(t *testing.T) {
-	t.Parallel()
-
-	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
-	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
-	app.SetExcluded(true)
-
-	units := []*component.Unit{vpc, app}
-	discovered := component.Components{vpc, app}
-
-	filtered := runner.FilterDiscoveredUnits(discovered, units)
-	require.Len(t, filtered, 1)
-	assert.Equal(t, "/tmp/test/vpc", filtered[0].Path())
-}
-
-func TestFilterDiscoveredUnits_AllIncluded(t *testing.T) {
-	t.Parallel()
-
-	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
-	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
-
-	units := []*component.Unit{vpc, app}
-	discovered := component.Components{vpc, app}
-
-	filtered := runner.FilterDiscoveredUnits(discovered, units)
-	require.Len(t, filtered, 2)
-}
-
-func TestFilterDiscoveredUnits_Empty(t *testing.T) {
-	t.Parallel()
-
-	filtered := runner.FilterDiscoveredUnits(nil, nil)
-	assert.Empty(t, filtered)
-}
-
 func TestNewFromComponents_Empty(t *testing.T) {
 	t.Parallel()
 
@@ -239,57 +204,6 @@ func TestNewFromComponents_FilterAllowDestroy(t *testing.T) {
 	require.True(t, foundVPC, "expected /tmp/test/vpc unit in stack")
 }
 
-func TestFilterDiscoveredUnits_PrunesAndAugments(t *testing.T) {
-	t.Parallel()
-
-	const root = "/tmp/test"
-
-	unitPath := func(name string) string { return filepath.Join(root, name) }
-
-	// Resolved units: old is excluded, app was never discovered.
-	vpc := component.NewUnit(unitPath("vpc"))
-	db := component.NewUnit(unitPath("db"))
-	old := component.NewUnit(unitPath("old"))
-	app := component.NewUnit(unitPath("app"))
-
-	old.SetExcluded(true)
-	db.AddDependency(vpc)
-	app.AddDependency(db)
-	app.AddDependency(old)
-	app.AddDependency(component.NewStack(unitPath("stack")))
-
-	// Discovered components: a stack that must be dropped, an external vpc, and
-	// a db whose dependency on the excluded unit must be pruned.
-	discVPC := component.NewUnit(unitPath("vpc"))
-	discVPC.SetExternal()
-	discVPC.SetReading("shared.hcl")
-
-	discDB := component.NewUnit(unitPath("db"))
-	discDB.AddDependency(component.NewUnit(unitPath("vpc")))
-	discDB.AddDependency(component.NewUnit(unitPath("old")))
-
-	filtered := runner.FilterDiscoveredUnits(
-		component.Components{component.NewStack(unitPath("stack")), discVPC, discDB},
-		[]*component.Unit{vpc, db, old, app},
-	)
-
-	byPath := make(map[string]component.Component, len(filtered))
-	for _, c := range filtered {
-		byPath[c.Path()] = c
-	}
-
-	require.Len(t, byPath, 3)
-	require.Contains(t, byPath, unitPath("vpc"))
-	require.Contains(t, byPath, unitPath("db"))
-	require.Contains(t, byPath, unitPath("app"))
-
-	assert.True(t, byPath[unitPath("vpc")].External())
-	assert.Equal(t, []string{"shared.hcl"}, byPath[unitPath("vpc")].Reading())
-
-	assert.Equal(t, []string{unitPath("vpc")}, dependencyPaths(byPath[unitPath("db")]))
-	assert.Equal(t, []string{unitPath("db")}, dependencyPaths(byPath[unitPath("app")]))
-}
-
 func TestNewFromComponents_PreventDestroyExcludesDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -376,8 +290,12 @@ func TestNewFromComponents_UnitWithoutParsedConfig(t *testing.T) {
 		opts,
 		component.Components{component.NewUnit("/tmp/test/vpc")},
 	)
-	require.NoError(t, err)
-	assert.Len(t, rnr.GetStack().Units, 1)
+
+	var target runner.UnitNotParsedError
+
+	require.ErrorAs(t, err, &target, "discovery parses every unit, so an unparsed one is a bug")
+	assert.Equal(t, "/tmp/test/vpc", target.UnitPath)
+	assert.Nil(t, rnr)
 }
 
 func TestListStackDependentUnits_Transitive(t *testing.T) {
@@ -554,10 +472,6 @@ func TestNewFromComponents_WithGitRefsAndStateBackends(t *testing.T) {
 			discoveryContext: &component.DiscoveryContext{},
 		},
 		{
-			name:             "no parsed config",
-			discoveryContext: &component.DiscoveryContext{Ref: "HEAD~1"},
-		},
-		{
 			name: "remote state is configured",
 			unitConfig: &config.TerragruntConfig{
 				RemoteState: remotestate.New(&remotestate.Config{BackendName: "s3"}),
@@ -623,6 +537,51 @@ func TestNewFromComponents_IgnoresStackComponents(t *testing.T) {
 	units := rnr.GetStack().Units
 	require.Len(t, units, 1)
 	assert.Equal(t, "/tmp/test/vpc", units[0].Path())
+}
+
+func TestNewFromComponents_DependencyCycle(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	a := component.NewUnit("/tmp/test/a").WithConfig(&config.TerragruntConfig{})
+	b := component.NewUnit("/tmp/test/b").WithConfig(&config.TerragruntConfig{})
+	a.AddDependency(b)
+	b.AddDependency(a)
+
+	rnr, err := runner.NewFromComponents(
+		t.Context(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{a, b},
+	)
+	require.Error(t, err, "units that wait on each other cannot be ordered")
+	assert.Nil(t, rnr)
+}
+
+func TestNewFromComponents_FilterAllowDestroyWithoutDiscoveryContext(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	vpc.SetDiscoveryContext(nil)
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	opts.TerraformCommand = "plan"
+
+	rnr, err := runner.NewFromComponents(
+		t.Context(),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{vpc},
+	)
+	require.NoError(t, err)
+
+	units := rnr.GetStack().Units
+	require.Len(t, units, 1)
+	assert.False(t, units[0].Excluded(), "a unit no Git filter selected is never excluded as a removed unit")
 }
 
 // unitPathAt returns the path of the i-th unit in a dependency chain.

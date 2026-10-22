@@ -159,63 +159,75 @@ func (cache *ProviderCache) RegistryHashes() map[string][]getproviders.Hash {
 	return out
 }
 
+// AuthenticatePackage verifies the downloaded archive against the checksum the
+// registry published for it, and verifies the signature of the checksum
+// document when the registry published signing keys.
+//
+// Returns a nil result for a package described by a mirror.
+//
+// Returns [ChecksumFieldMissingError] when the registry's download response
+// leaves out a field the verification depends on, and [InvalidChecksumError]
+// when its `shasum` is not a SHA-256 hash.
 func (cache *ProviderCache) AuthenticatePackage(
 	ctx context.Context,
 ) (*getproviders.PackageAuthenticationResult, error) {
-	var (
-		checksum           [sha256.Size]byte
-		documentSHA256Sums []byte
-		signature          []byte
-		err                error
+	if cache.Origin == models.OriginMirror {
+		return nil, nil
+	}
+
+	checksum, err := cache.registryChecksum()
+	if err != nil {
+		return nil, err
+	}
+
+	if cache.SHA256SumsURL == "" {
+		return nil, &ChecksumFieldMissingError{
+			Provider: cache.Provider.String(),
+			Field:    FieldSHA256SumsURL,
+		}
+	}
+
+	documentSHA256Sums, err := cache.DocumentSHA256Sums(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	documentCheck := getproviders.NewMatchingChecksumAuthentication(
+		documentSHA256Sums,
+		cache.Filename,
+		checksum,
 	)
+	archiveCheck := getproviders.NewArchiveChecksumAuthentication(checksum)
 
-	if documentSHA256Sums, err = cache.DocumentSHA256Sums(
-		ctx,
-	); err != nil ||
-		documentSHA256Sums == nil {
-		return nil, err
-	}
-
-	if signature, err = cache.Signature(ctx); err != nil || signature == nil {
-		return nil, err
-	}
-
-	if _, err := hex.Decode(checksum[:], []byte(cache.SHA256Sum)); err != nil {
-		return nil, fmt.Errorf(
-			"registry response includes invalid SHA256 hash %q for provider %q: %w",
-			cache.SHA256Sum,
-			cache.Provider,
-			err,
-		)
-	}
-
-	checks := []getproviders.PackageAuthentication{
-		getproviders.NewMatchingChecksumAuthentication(
-			documentSHA256Sums,
-			cache.Filename,
-			checksum,
-		),
-		getproviders.NewArchiveChecksumAuthentication(checksum),
-	}
-
-	if len(cache.SigningKeys.Keys()) != 0 {
-		checks = append(
-			checks,
-			getproviders.NewSignatureAuthentication(
-				documentSHA256Sums,
-				signature,
-				cache.SigningKeys.Keys(),
-			),
-		)
-	} else {
+	keys := cache.SigningKeys.Keys()
+	if len(keys) == 0 {
 		// `registry.opentofu.org` does not have signatures for some providers.
 		cache.logger.Warnf(
 			"Signature validation was skipped due to the registry not containing GPG keys for the provider %s",
 			cache.Provider,
 		)
+
+		return getproviders.PackageAuthenticationAll(documentCheck, archiveCheck).
+			Authenticate(cache.ProviderService.FS(), cache.archivePath)
 	}
 
-	return getproviders.PackageAuthenticationAll(checks...).Authenticate(cache.ProviderService.FS(), cache.archivePath)
+	if cache.SHA256SumsSignatureURL == "" {
+		return nil, &ChecksumFieldMissingError{
+			Provider: cache.Provider.String(),
+			Field:    FieldSHA256SumsSignatureURL,
+		}
+	}
+
+	signature, err := cache.Signature(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return getproviders.PackageAuthenticationAll(
+		documentCheck,
+		archiveCheck,
+		getproviders.NewSignatureAuthentication(documentSHA256Sums, signature, keys),
+	).Authenticate(cache.ProviderService.FS(), cache.archivePath)
 }
 
 func (cache *ProviderCache) ArchivePath() string {
@@ -230,6 +242,29 @@ func (cache *ProviderCache) ArchivePath() string {
 	}
 
 	return ""
+}
+
+// registryChecksum decodes the archive's SHA-256 hash from the registry's
+// download response.
+func (cache *ProviderCache) registryChecksum() ([sha256.Size]byte, error) {
+	var checksum [sha256.Size]byte
+
+	if cache.SHA256Sum == "" {
+		return checksum, &ChecksumFieldMissingError{
+			Provider: cache.Provider.String(),
+			Field:    FieldSHA256Sum,
+		}
+	}
+
+	if len(cache.SHA256Sum) != hex.EncodedLen(sha256.Size) {
+		return checksum, &InvalidChecksumError{Provider: cache.Provider.String()}
+	}
+
+	if _, err := hex.Decode(checksum[:], []byte(cache.SHA256Sum)); err != nil {
+		return checksum, &InvalidChecksumError{Provider: cache.Provider.String()}
+	}
+
+	return checksum, nil
 }
 
 func (cache *ProviderCache) addRequestID(requestID string) {
@@ -292,7 +327,13 @@ func (cache *ProviderCache) setDocumentSHA256Sums(ctx context.Context) ([]byte, 
 		return nil, err
 	}
 
-	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, documentSHA256Sums, maxProviderMetadataBytes); err != nil {
+	if err := helpers.Fetch(
+		ctx,
+		cache.HTTPClient(),
+		req,
+		documentSHA256Sums,
+		maxProviderMetadataBytes,
+	); err != nil {
 		return nil, fmt.Errorf(
 			"failed to retrieve authentication checksums for provider %q: %w",
 			cache.Provider,
@@ -327,7 +368,13 @@ func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := helpers.Fetch(ctx, cache.HTTPClient(), req, signature, maxProviderMetadataBytes); err != nil {
+	if err := helpers.Fetch(
+		ctx,
+		cache.HTTPClient(),
+		req,
+		signature,
+		maxProviderMetadataBytes,
+	); err != nil {
 		return nil, fmt.Errorf(
 			"failed to retrieve authentication signature for provider %q: %w",
 			cache.Provider,
@@ -882,7 +929,11 @@ func (service *ProviderService) startProviderCaching(
 
 	defer func() {
 		if unlockErr := lockfile.Unlock(); unlockErr != nil {
-			service.logger.Errorf("Failed to release lock file for %s: %v", cache.Provider, unlockErr)
+			service.logger.Errorf(
+				"Failed to release lock file for %s: %v",
+				cache.Provider,
+				unlockErr,
+			)
 		}
 	}()
 
