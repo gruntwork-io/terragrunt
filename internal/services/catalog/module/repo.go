@@ -1,15 +1,18 @@
 package module
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -49,6 +52,23 @@ const (
 // converge with the cloned files.
 var ErrRemoteCloneFSNotOS = errors.New("remote clone requires an OS-backed filesystem")
 
+// cloneError is a failed clone whose text leaves out the credentials of the
+// clone URL, which the download layers repeat in their own messages.
+type cloneError struct {
+	err    error
+	hidden *strings.Replacer
+}
+
+// Error returns the text of the failure with the credentials replaced.
+func (err cloneError) Error() string {
+	return err.hidden.Replace(err.err.Error())
+}
+
+// Unwrap returns the failure the clone reported.
+func (err cloneError) Unwrap() error {
+	return err.err
+}
+
 var (
 	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
 	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+?)(?:\.git)?(?:[?#].*)?$`)
@@ -74,7 +94,6 @@ type Repo struct {
 	casOffline       bool
 	casRefresh       bool
 	casProbeCache    bool
-	slowReporting    bool
 	isLocal          bool
 }
 
@@ -90,7 +109,6 @@ type RepoOpts struct {
 	CASOffline       bool
 	CASRefresh       bool
 	CASProbeCache    bool
-	SlowReporting    bool
 }
 
 // NewRepo constructs a Repo, cloning if needed.
@@ -118,7 +136,6 @@ func NewRepo(ctx context.Context, l log.Logger, v *venv.Venv, opts *RepoOpts) (*
 		casOffline:       opts.CASOffline,
 		casRefresh:       opts.CASRefresh,
 		casProbeCache:    opts.CASProbeCache,
-		slowReporting:    opts.SlowReporting,
 		rootWorkingDir:   opts.RootWorkingDir,
 	}
 
@@ -556,7 +573,9 @@ func (repo *Repo) performClone(
 	}
 
 	repo.cloneURL = cloneURLString(sourceURL)
-	l.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
+	shownURL := redact.NewURL(repo.cloneURL)
+
+	l.Infof("Cloning repository %q to temporary directory %q", shownURL, repo.path)
 
 	// Check first if the query param ref is already set
 	q := sourceURL.Query()
@@ -578,17 +597,13 @@ func (repo *Repo) performClone(
 		return err
 	}
 
-	if repo.slowReporting {
-		err = spinner.ShowAfter(ctx, l, spinner.Writer(v), time.Second, spinner.Messages{
-			Working: "Cloning repository " + repo.cloneURL + "...",
-			Done:    "Cloned repository " + repo.cloneURL,
-		}, cloneFunc)
-	} else {
-		err = cloneFunc()
-	}
-
+	err = spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Cloning repository " + shownURL.String() + "...",
+		Done:    "Cloned repository " + shownURL.String(),
+		Started: true,
+	}, cloneFunc)
 	if err != nil {
-		return err
+		return hideCredentials(err, sourceURL)
 	}
 
 	f, err := v.FS.Create(filepath.Join(repo.path, CloneCompleteSentinel))
@@ -601,6 +616,54 @@ func (repo *Repo) performClone(
 	}
 
 	return nil
+}
+
+// hideCredentials returns `err` with the user, the password and the query
+// values that [redact.URL] hides in `sourceURL` left out of its text.
+// `errors.Is` and `errors.As` still reach `err`.
+func hideCredentials(err error, sourceURL *url.URL) error {
+	hidden := make(map[string]string)
+
+	if sourceURL.User != nil {
+		hidden[sourceURL.User.String()+"@"] = ""
+	}
+
+	shown, parseErr := url.Parse(redact.NewURL(sourceURL.String()).String())
+	if parseErr == nil {
+		shownQuery := shown.Query()
+
+		for key, values := range sourceURL.Query() {
+			for i, value := range values {
+				if value == "" || i >= len(shownQuery[key]) || shownQuery[key][i] == value {
+					continue
+				}
+
+				shownPair := key + "=" + url.QueryEscape(shownQuery[key][i])
+
+				// The value can be repeated in any of the forms a URL is written in.
+				for _, written := range []string{url.QueryEscape(value), url.PathEscape(value), value} {
+					hidden[key+"="+written] = shownPair
+				}
+			}
+		}
+	}
+
+	if len(hidden) == 0 {
+		return err
+	}
+
+	// The longest text is replaced first, so a value that starts with another one is hidden whole.
+	texts := slices.SortedFunc(maps.Keys(hidden), func(a, b string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
+	})
+
+	replacements := make([]string, 0, len(texts)+len(texts))
+
+	for _, text := range texts {
+		replacements = append(replacements, text, hidden[text])
+	}
+
+	return cloneError{err: err, hidden: strings.NewReplacer(replacements...)}
 }
 
 // newCloneClient builds the getter client that performClone fetches the

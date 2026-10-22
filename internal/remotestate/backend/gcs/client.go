@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -150,7 +151,13 @@ func (client *Client) CreateGCSBucketWithVersioning(
 		return err
 	}
 
-	if err := client.WaitUntilGCSBucketExists(ctx, l, bucketName); err != nil {
+	err := spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Waiting for GCS bucket " + bucketName + " to be created...",
+		Done:    "GCS bucket " + bucketName + " is ready",
+	}, func() error {
+		return client.WaitUntilGCSBucketExists(ctx, l, bucketName)
+	})
+	if err != nil {
 		return err
 	}
 

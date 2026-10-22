@@ -269,6 +269,7 @@ func OSVenv() *Venv {
 			StdoutIsTTY: func() bool { return term.IsTerminal(int(os.Stdout.Fd())) },
 			StderrIsTTY: func() bool { return term.IsTerminal(int(os.Stderr.Fd())) },
 			Width:       osTerminalWidth,
+			ErrWidth:    osTerminalErrWidth,
 		},
 		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}

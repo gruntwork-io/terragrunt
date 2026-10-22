@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -589,7 +590,9 @@ func generateUnits(
 					"unit_source": unit.Source,
 					"unit_path":   unit.Path,
 				}, func(ctx context.Context, l log.Logger) error {
-					return generateComponent(ctx, l, v, opts, &item)
+					return spinner.ShowAfter(ctx, l, generateMessages(opts, &item), func() error {
+						return generateComponent(ctx, l, v, opts, &item)
+					})
 				})
 		})
 	}
@@ -642,7 +645,9 @@ func generateStacks(
 					"stack_source": stack.Source,
 					"stack_path":   stack.Path,
 				}, func(ctx context.Context, l log.Logger) error {
-					return generateComponent(ctx, l, v, opts, &item)
+					return spinner.ShowAfter(ctx, l, generateMessages(opts, &item), func() error {
+						return generateComponent(ctx, l, v, opts, &item)
+					})
 				})
 		})
 	}
@@ -672,6 +677,25 @@ type componentToGenerate struct {
 	noValidation bool
 	mutable      bool
 	kind         componentKind
+}
+
+// generateMessages returns the progress messages for generating cmp, worded like the log line that announces it.
+func generateMessages(opts *generateOpts, cmp *componentToGenerate) spinner.Messages {
+	kindStr := "unit"
+	if cmp.kind == stackKind {
+		kindStr = "stack"
+	}
+
+	return spinner.Messages{
+		Working: fmt.Sprintf(
+			"Generating %s %s from %s...",
+			kindStr,
+			cmp.address,
+			util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths),
+		),
+		Done:    fmt.Sprintf("Generated %s %s", kindStr, cmp.address),
+		Started: true,
+	}
 }
 
 // resolveDestPath builds and validates the destination path for a generated component.
