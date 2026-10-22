@@ -1,0 +1,16 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### `read_terragrunt_config` no longer leaks the reading unit's locals into the file it reads
+
+A file read with [`read_terragrunt_config`](/reference/hcl/functions#read_terragrunt_config) evaluated its `include` and `feature` blocks with the reading unit's `local` and `feature` values still in scope, so a `feature` block in the file could reference a local the file never defined, and parse or fail depending on which unit read it. The file now evaluates those blocks with only its own values in scope, as it always did for the rest of its contents.
+
+A file that referenced the reader's values this way fails with:
+
+```text
+Unsupported attribute; This object does not have an attribute named "region".
+```
+
+Define the value in the file being read, or move it to the unit and reference it there. To build a path from the reading unit's directory, call [`get_original_terragrunt_dir()`](/reference/hcl/functions#get_original_terragrunt_dir) in the file.
