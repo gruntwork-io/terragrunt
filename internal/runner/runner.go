@@ -14,7 +14,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -529,6 +531,19 @@ func (rnr *Runner) Run(
 
 				if !unitOpts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
 					unitOpts.TFPath = cfg.TerraformBinary
+					// The unit's binary differs from the inherited probe, so its implementation must be re-detected.
+					unitOpts.TofuImplementation = tfimpl.Unknown
+					unitOpts.TerraformVersion = nil
+				}
+
+				// An engine-backed unit never probes a local binary, which setting the engine config first ensures.
+				if engineCfg, engineErr := cfg.EngineOptions(); engineErr == nil {
+					unitOpts.EngineConfig = engineCfg
+				}
+
+				// Runs against the unit's cloned environment and resolved binary, so mixed stacks get per-unit decisions.
+				if err := prepare.SetupAutoProviderCacheDir(childCtx, unitLogger, unitV, unitOpts); err != nil {
+					unitLogger.Debugf("Auto provider cache dir setup failed for unit %s: %v", unitPath, err)
 				}
 
 				discoveryCtx := u.DiscoveryContext()

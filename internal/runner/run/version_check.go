@@ -83,13 +83,30 @@ func PopulateTFVersion(
 		return l, terraformVersion, tfImplementation, nil
 	}
 
-	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, v, in.TFOpts)
+	// Concurrent same-key misses from parallel units share one probe through singleflight.
+	cacheData, err, _ := GetRunVersionFlight(ctx).Do(cacheKey, func() (any, error) {
+		if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
+			return cachedOutput, nil
+		}
+
+		_, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, v, in.TFOpts)
+		if err != nil {
+			return "", err
+		}
+
+		data := formatVersionForCache(tfImplementation, terraformVersion)
+		versionCache.Put(ctx, cacheKey, data)
+
+		return data, nil
+	})
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}
 
-	cacheData := formatVersionForCache(tfImplementation, terraformVersion)
-	versionCache.Put(ctx, cacheKey, cacheData)
+	tfImplementation, terraformVersion, err := parseVersionFromCache(cacheData.(string))
+	if err != nil {
+		return l, nil, tfimpl.Unknown, err
+	}
 
 	return l, terraformVersion, tfImplementation, nil
 }

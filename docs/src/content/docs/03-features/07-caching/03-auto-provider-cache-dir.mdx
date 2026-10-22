@@ -6,6 +6,8 @@ sidebar:
   order: 3
 ---
 
+import Since from '@components/Since.astro';
+
 This feature has been stabilized and is now enabled by default when using OpenTofu >= 1.10.
 
 *Automatic Provider Cache Dir* is a feature of Terragrunt that automatically configures OpenTofu's native provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This enables efficient provider caching without the need to manually configure provider cache directories or use Terragrunt's provider cache server.
@@ -32,6 +34,12 @@ When using OpenTofu >= 1.10, this feature is enabled by default. No additional c
 ```bash
 terragrunt run --all apply
 ```
+
+<Since version="v1.2.1">
+
+Only commands that can run OpenTofu/Terraform set up this feature: `run` and its shortcuts, `run --all`, `run --graph`, `stack run`, and `exec`. For a single-unit `run`, the setup happens after the configuration is read, so `terraform_binary` and `--tf-path` are honored. Commands that never run the binary, such as `hcl format` and `hcl validate`, skip the setup entirely and don't probe the binary version at startup. Commands that download `tfr:///` sources, such as `hcl validate --inputs`, still detect the implementation to pick the default registry.
+
+</Since>
 
 ## How it Works
 

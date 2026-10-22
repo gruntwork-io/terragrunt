@@ -172,7 +172,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoAutoProviderCacheDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoAutoProviderCacheDirFlagName),
-			Destination: &opts.NoAutoProviderCacheDir,
+			Destination: &opts.ProviderCacheOptions.NoAutoCacheDir,
 			Usage:       "Disable the auto-provider-cache-dir feature even when the experiment is enabled.",
 		}),
 

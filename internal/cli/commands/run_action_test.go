@@ -8,6 +8,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -36,13 +38,31 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 	}
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	opts.NoAutoProviderCacheDir = true
 
 	l := logger.CreateLogger()
 
 	require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, venvtest.New(), action))
 	assert.True(t, hasRunCmd, "RunCmdCacheContextKey missing from action context")
 	assert.True(t, hasRepoRoots, "RepoRootCacheContextKey missing from action context")
+}
+
+// TestRunActionDoesNotSetUpAutoProviderCacheDir pins that RunAction leaves the
+// auto provider cache dir setup to the run paths: no version probe runs and
+// TF_PLUGIN_CACHE_DIR stays unset for commands that never run the binary (#7094).
+func TestRunActionDoesNotSetUpAutoProviderCacheDir(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.TFPath = "tofu"
+
+	// venvtest's fail-closed exec errors on any spawn, so success proves no probe ran.
+	v := venvtest.New()
+
+	action := func(context.Context, *clihelper.Context) error { return nil }
+
+	require.NoError(t, commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, v, action))
+	assert.Empty(t, v.Env[tf.EnvNameTFPluginCacheDir])
+	assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
 }
 
 func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
@@ -53,7 +73,6 @@ func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
 	}
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	opts.NoAutoProviderCacheDir = true
 
 	err := commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venvtest.New(), action)
 	require.Error(t, err)

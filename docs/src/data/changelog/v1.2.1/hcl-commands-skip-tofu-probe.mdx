@@ -1,0 +1,10 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### Startup OpenTofu/Terraform probe removed from commands that don't run it
+
+Terragrunt used to initialize Automatic Provider Cache Dir at startup for every command. That initialization probed the configured OpenTofu/Terraform binary with `-version` before any other work. A slow binary on `PATH`, such as a version-manager shim, delayed every invocation, including `hcl format` and `hcl validate`, which never run the binary.
+
+The setup now runs only on commands that can run the binary: `run`, its shortcuts, `run --all`, `run --graph`, `stack run`, and `exec`. For a single-unit `run` it happens after the configuration is read, so it also honors `terraform_binary` and `--tf-path`. Commands that download `tfr:///` sources, such as `hcl validate --inputs`, still detect the implementation to pick the default registry.
