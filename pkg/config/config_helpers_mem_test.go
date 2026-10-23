@@ -2,7 +2,9 @@ package config_test
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -455,4 +457,102 @@ func TestRunCommandReceivesVenvEnv(t *testing.T) {
 		"TG_TEST_TOKEN=abc123",
 		"v.Env must propagate to the spawned subprocess environment",
 	)
+}
+
+// TestRunCommandCacheKeyKeepsArgBoundaries pins that the cache key preserves
+// argv element boundaries: ("x y") and ("x", "y") are different commands and
+// must not share one cache entry.
+func TestRunCommandCacheKeyKeepsArgBoundaries(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		calls.Add(1)
+		return vexec.Result{Stdout: []byte(strings.Join(inv.Args, "|") + "\n")}
+	})
+
+	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
+	ctx, pctx := newTestParsingContext(t, t.TempDir())
+	ctx = config.WithCaches(ctx)
+
+	joined, err := config.RunCommand(ctx, l, v, pctx, []string{"printf", "%s", "x y"})
+	require.NoError(t, err)
+	assert.Equal(t, "%s|x y", joined)
+
+	split, err := config.RunCommand(ctx, l, v, pctx, []string{"printf", "%s", "x", "y"})
+	require.NoError(t, err)
+	assert.Equal(t, "%s|x|y", split, "a different argv must not replay another command's output")
+
+	assert.Equal(t, int32(2), calls.Load(), "distinct argv must not share a cache entry")
+}
+
+// TestRunCommandCacheKeyIncludesEnv pins that the cache key covers the
+// environment the subprocess inherits. Two units reading one shared file via
+// read_terragrunt_config evaluate run_cmd under the same config path. With
+// per-unit credentials in v.Env (--auth-provider-cmd), each must get the output
+// its own environment produces; identical environments still share one run.
+// The same holds under --terragrunt-global-cache.
+func TestRunCommandCacheKeyIncludesEnv(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "default scope",
+			args: []string{"whoami"},
+		},
+		{
+			name: "global cache",
+			args: []string{"--terragrunt-global-cache", "whoami"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+
+			exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				calls.Add(1)
+
+				for _, kv := range inv.Env {
+					if account, ok := strings.CutPrefix(kv, "ACCOUNT="); ok {
+						return vexec.Result{Stdout: []byte(account + "\n")}
+					}
+				}
+
+				return vexec.Result{ExitCode: 1, Stderr: []byte("ACCOUNT unset\n")}
+			})
+
+			l := logger.CreateLogger()
+			sharedConfig := filepath.Join(t.TempDir(), "common.hcl")
+			ctx, pctx := newTestParsingContext(t, sharedConfig)
+			ctx = config.WithCaches(ctx)
+
+			unitA := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
+			unitB := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "222"})
+
+			gotA, err := config.RunCommand(ctx, l, unitA, pctx, tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, "111", gotA)
+
+			gotB, err := config.RunCommand(ctx, l, unitB, pctx, tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, "222", gotB, "unit B must not receive unit A's cached output")
+
+			assert.Equal(t, int32(2), calls.Load(), "a different environment must run the command again")
+
+			unitC := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
+
+			gotC, err := config.RunCommand(ctx, l, unitC, pctx, tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, "111", gotC)
+			assert.Equal(t, int32(2), calls.Load(), "an identical environment must reuse the cached result")
+		})
+	}
 }

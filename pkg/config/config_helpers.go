@@ -652,9 +652,10 @@ func runCommandImpl(
 		)
 	}
 
-	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
+	// To avoid re-running the same run_cmd command, results are memoized in an in-memory cache
+	// keyed by the directory scope, the configured environment, and the exact argv.
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
+	cacheKey := runCmdCacheKey(cachePath, v.Env, args)
 
 	if disableCache {
 		markNotShareable(ctx)
@@ -1889,4 +1890,15 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 	}
 
 	return semver.CheckConstraint(args[0], args[1])
+}
+
+// runCmdCacheKey identifies one run_cmd result by its directory scope (the directory the command
+// runs in, or the global scope), the configured environment, and the exact argv. The environment
+// is hashed because Terragrunt injects per-unit credentials into it (--auth-provider-cmd): a
+// command evaluated from a shared file under two units must not replay the first unit's output
+// for the second, and the hash keeps secrets out of the key. The args are %q-formatted so every
+// element boundary survives: ("x y") and ("x", "y") get different keys. NUL separates the parts
+// because it cannot occur in a path, in hex, or unescaped inside a %q string.
+func runCmdCacheKey(scope string, env map[string]string, args []string) string {
+	return fmt.Sprintf("%s\x00%x\x00%q", scope, hashEnv(env), args)
 }
