@@ -1518,12 +1518,13 @@ func ParseConfigFile(
 		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
 
-	cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v",
+	cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v-%v",
 		cfgPath,
 		pctx.WorkingDir,
 		childKey,
 		decodeListKey,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
 	// Check cache hit status before tracing

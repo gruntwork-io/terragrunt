@@ -2973,7 +2973,12 @@ func parseAutoIncludeFileCached(
 
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 	// Prefix the key so it cannot collide with the unit-config keys ParseConfigFile stores.
-	cacheKey := fmt.Sprintf("autoinclude-%v-%v", autoIncludePath, fileInfo.ModTime().UnixMicro())
+	cacheKey := fmt.Sprintf(
+		"autoinclude-%v-%v-%v",
+		autoIncludePath,
+		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
+	)
 
 	if cached, found := hclCache.Get(ctx, cacheKey); found {
 		return cached.Rebind(pctx.NewParser(l, v)), nil
