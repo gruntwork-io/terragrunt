@@ -1,0 +1,43 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### S3 backend bootstrap works with Cloudflare R2 and other strict S3-compatible object stores
+
+When Terragrunt creates an S3 state bucket, it sends `ObjectOwnership`, a `LocationConstraint` for any region other than `us-east-1`, and bucket tags. Some S3-compatible object stores, such as Cloudflare R2, reject these parameters, so `--backend-bootstrap` failed. Three new `remote_state` config options leave them out:
+
+- `skip_object_ownership`: do not set `ObjectOwnership` on the new bucket.
+- `skip_location_constraint`: do not set `LocationConstraint` on the new bucket.
+- `skip_bucket_tagging`: do not tag the state bucket or the access logging bucket.
+
+Cloudflare R2 also needs the existing options for the features it does not implement:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket   = "my-tofu-state"
+    key      = "${path_relative_to_include()}/tofu.tfstate"
+    region   = "auto"
+    endpoint = "https://<account-id>.r2.cloudflarestorage.com"
+
+    force_path_style                   = true
+    skip_credentials_validation        = true
+    skip_region_validation             = true
+    disable_aws_client_checksums       = true
+    disable_bucket_update              = true
+    skip_bucket_versioning             = true
+    skip_bucket_ssencryption           = true
+    skip_bucket_enforced_tls           = true
+    skip_bucket_public_access_blocking = true
+
+    skip_object_ownership    = true
+    skip_location_constraint = true
+    skip_bucket_tagging      = true
+  }
+}
+```
+
+All three default to `false`, so existing configurations are unaffected.
