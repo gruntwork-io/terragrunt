@@ -528,7 +528,7 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `impersonate_service_account`: The service account to impersonate. Terragrunt creates and checks the bucket as this account, and passes the setting on to OpenTofu/Terraform.
 - `impersonate_service_account_delegates`: The delegation chain to use when impersonating `impersonate_service_account`.
 
-See the [GCS backend](/features/units/state-backend/#gcs-backend) documentation for the authentication order and known limitations.
+See the [GCS backend](/features/units/state-backend/gcs) documentation for the authentication order and known limitations.
 
 For the `azurerm` backend, Terragrunt accepts these additional `config` properties for setup and authentication. It does not pass them to OpenTofu/Terraform:
 
@@ -552,7 +552,7 @@ For the `azurerm` backend, Terragrunt accepts these additional `config` properti
 
 For a premium account that can store state as block blobs, set `account_kind = "BlockBlobStorage"`, `account_tier = "Premium"`, and `access_tier = "Premium"`. Use `LRS` or `ZRS` replication. Setting only `account_tier = "Premium"` leaves the `StorageV2` and `Hot` defaults, which do not form a valid block blob account.
 
-See the [Azure Storage backend](/features/units/state-backend/#azure-storage-azurerm-backend) documentation for the authentication order and known limitations.
+See the [Azure Storage backend](/features/units/state-backend/azurerm) documentation for the authentication order and known limitations.
 
 Example with S3:
 

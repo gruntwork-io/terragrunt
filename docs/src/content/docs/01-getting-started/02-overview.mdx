@@ -323,7 +323,7 @@ If you want to try this configuration locally:
    gcloud services enable compute.googleapis.com --project my-project
    ```
 
-   Terragrunt and the Google provider both read these Application Default Credentials, so one login covers creating the state bucket and the network. Your account needs permission to create Cloud Storage buckets and VPC networks in the project (e.g. the **Storage Admin** and **Compute Network Admin** roles). See the [GCS backend](/features/units/state-backend/#gcs-backend) documentation for other ways to authenticate.
+   Terragrunt and the Google provider both read these Application Default Credentials, so one login covers creating the state bucket and the network. Your account needs permission to create Cloud Storage buckets and VPC networks in the project (e.g. the **Storage Admin** and **Compute Network Admin** roles). See the [GCS backend](/features/units/state-backend/gcs) documentation for other ways to authenticate.
 
 5. Run `terragrunt run --backend-bootstrap -- apply -auto-approve` in the directory where you created the `terragrunt.hcl` file.
 
