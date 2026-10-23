@@ -346,3 +346,16 @@ func TestValuesBlockIsOngoing(t *testing.T) {
 	require.NoError(t, exps.EnableExperiment(experiment.ValuesBlock))
 	assert.True(t, got.Evaluate(), "values-block must be enabled once explicitly requested")
 }
+
+func TestLogFormatOptionsIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.LogFormatOptions)
+	require.NotNil(t, got, "log-format-options experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "log-format-options must be ongoing")
+	assert.False(t, got.Evaluate(), "log-format-options must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.LogFormatOptions))
+	assert.True(t, got.Evaluate(), "log-format-options must be enabled once explicitly requested")
+}

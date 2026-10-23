@@ -6,4 +6,10 @@ env:
   - TG_LOG_CUSTOM_FORMAT
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+The `minimal` value of the `path` option, e.g. `%prefix(path=minimal)`, is gated behind the [`log-format-options`](/reference/experiments/active#log-format-options) experiment. Enable it with `--experiment=log-format-options` or `TG_EXPERIMENT=log-format-options`; otherwise a format that uses it returns an error. Its behavior may change before the experiment graduates.
+</Aside>
+
 For more information, see the [log formatting documentation](/reference/logging/formatting).

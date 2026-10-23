@@ -282,6 +282,70 @@ func TestExperimentModeFlagEnablesOngoingExperiments(t *testing.T) {
 	}
 }
 
+// TestLogCustomFormatMinimalPathRequiresExperiment pins that `path=minimal`
+// is rejected unless the log-format-options experiment is enabled, whatever
+// order the flags come in.
+func TestLogCustomFormatMinimalPathRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	const minimalFormat = "%prefix(path=minimal) %msg"
+
+	testCases := []struct {
+		env     map[string]string
+		name    string
+		args    clihelper.Args
+		wantErr bool
+	}{
+		{
+			name:    "without experiment",
+			args:    clihelper.Args{"--log-custom-format", minimalFormat},
+			wantErr: true,
+		},
+		{
+			name:    "env var without experiment",
+			env:     map[string]string{"TG_LOG_CUSTOM_FORMAT": minimalFormat},
+			wantErr: true,
+		},
+		{
+			name: "experiment after format",
+			args: clihelper.Args{"--log-custom-format", minimalFormat, "--experiment", experiment.LogFormatOptions},
+		},
+		{
+			name: "experiment before format",
+			args: clihelper.Args{"--experiment", experiment.LogFormatOptions, "--log-custom-format", minimalFormat},
+		},
+		{
+			name: "experiment mode",
+			args: clihelper.Args{"--experiment-mode", "--log-custom-format", minimalFormat},
+		},
+		{
+			name: "other path format without experiment",
+			args: clihelper.Args{"--log-custom-format", "%prefix(path=short-relative) %msg"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			env := tc.env
+			if env == nil {
+				env = map[string]string{}
+			}
+
+			err := parseAndRunActions(t, global.NewFlags(newInfoLogger(), options.NewTerragruntOptions(), nil), tc.args, env)
+			if !tc.wantErr {
+				require.NoError(t, err)
+				return
+			}
+
+			var target *global.LogFormatExperimentRequiredError
+			require.ErrorAs(t, err, &target)
+			assert.Contains(t, err.Error(), experiment.LogFormatOptions)
+		})
+	}
+}
+
 // TestStrictFlagsEnableControls pins that --strict-mode enables every active control and --strict-control enables one.
 func TestStrictFlagsEnableControls(t *testing.T) {
 	t.Parallel()

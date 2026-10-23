@@ -156,6 +156,9 @@ const (
 	// ValuesBlock gates the values block, which declares the values a unit or stack accepts, each with an optional type,
 	// default, description, and nullable setting.
 	ValuesBlock = "values-block"
+	// LogFormatOptions gates the log format options that older Terragrunt
+	// versions reject, such as `path=minimal` on the `%prefix` placeholder.
+	LogFormatOptions = "log-format-options"
 )
 
 const (
@@ -315,6 +318,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: ValuesBlock,
+		},
+		{
+			Name: LogFormatOptions,
 		},
 	}
 }

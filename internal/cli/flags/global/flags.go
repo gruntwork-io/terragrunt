@@ -15,6 +15,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	logoptions "github.com/gruntwork-io/terragrunt/pkg/log/format/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -269,6 +271,22 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				EnvVars: tgPrefix.EnvVars(LogCustomFormatFlagName),
 				Usage:   "Set the custom log formatting.",
 				Setter:  l.Formatter().SetCustomFormat,
+				Action: func(_ context.Context, _ *clihelper.Context, val string) error {
+					if opts.Experiments.Evaluate(experiment.LogFormatOptions) {
+						return nil
+					}
+
+					phs, err := placeholders.Parse(val)
+					if err != nil {
+						return err
+					}
+
+					if phs.UsesPathFormat(logoptions.MinimalPath) {
+						return &LogFormatExperimentRequiredError{Option: "path=minimal"}
+					}
+
+					return nil
+				},
 			},
 			flags.WithDeprecatedEnvVars(
 				terragruntPrefix.EnvVars(DeprecatedLogCustomFormatFlagName),

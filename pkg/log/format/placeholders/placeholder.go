@@ -33,7 +33,7 @@ func NewPlaceholderRegister() Placeholders {
 		Level(),
 		Message(),
 		Field(WorkDirKeyName, options.PathFormat(
-			options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath,
+			options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath, options.MinimalPath,
 		)),
 		Field(
 			TFPathKeyName,
@@ -64,6 +64,17 @@ func (phs Placeholders) Names() []string {
 	}
 
 	return names
+}
+
+// UsesPathFormat reports whether any of the placeholders sets the `path` option to val.
+func (phs Placeholders) UsesPathFormat(val options.PathFormatValue) bool {
+	for _, ph := range phs {
+		if opt, ok := ph.Options().Get(options.PathFormatOptionName).(*options.PathFormatOption); ok && opt.Value() == val {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Format returns a formatted string that is the concatenation of the formatted placeholder values.
