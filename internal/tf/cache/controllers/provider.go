@@ -2,9 +2,13 @@
 package controllers
 
 import (
+	"errors"
+	"math"
 	"net/http"
+	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
@@ -87,7 +91,10 @@ func (controller *ProviderController) getVersionsAction(w router.ResponseWriter,
 		Name:         name,
 	}
 
-	var allVersions models.Versions
+	var (
+		allVersions models.Versions
+		refusal     *helpers.StatusError
+	)
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
@@ -98,12 +105,20 @@ func (controller *ProviderController) getVersionsAction(w router.ResponseWriter,
 					handler,
 					err.Error(),
 				)
+
+				refusal = transientRefusal(err, refusal)
 			}
 
 			if versions != nil {
 				allVersions = append(allVersions, versions...)
 			}
 		}
+	}
+
+	// An empty list would tell OpenTofu/Terraform the provider has no
+	// releases, when the registry only asked to be tried again later.
+	if len(allVersions) == 0 && refusal != nil {
+		return registryUnavailable(w, refusal)
 	}
 
 	validVersions, invalidVersions := allVersions.FilterValid()
@@ -156,8 +171,10 @@ func (controller *ProviderController) getPlatformsAction(w router.ResponseWriter
 	}
 
 	var (
-		resp *models.ResponseBody
-		err  error
+		resp    *models.ResponseBody
+		err     error
+		refusal *helpers.StatusError
+		failed  bool
 	)
 
 	for _, handler := range controller.ProviderHandlers {
@@ -169,11 +186,27 @@ func (controller *ProviderController) getPlatformsAction(w router.ResponseWriter
 					handler,
 					err.Error(),
 				)
+
+				failed = true
+				refusal = transientRefusal(err, refusal)
 			}
 
 			if resp != nil {
 				break
 			}
+		}
+	}
+
+	// Without a download response there is nothing to cache, and the
+	// provider service cannot take a provider that lacks one.
+	if resp == nil {
+		switch {
+		case refusal != nil:
+			return registryUnavailable(w, refusal)
+		case failed:
+			return router.NewHTTPError(http.StatusBadGateway)
+		default:
+			return router.NewHTTPError(http.StatusNotFound)
 		}
 	}
 
@@ -185,4 +218,28 @@ func (controller *ProviderController) getPlatformsAction(w router.ResponseWriter
 	w.WriteHeader(controller.CacheProviderHTTPStatusCode)
 
 	return nil
+}
+
+// transientRefusal returns err's [helpers.StatusError] when the registry
+// refused the request for now, and last otherwise.
+func transientRefusal(err error, last *helpers.StatusError) *helpers.StatusError {
+	var statusErr *helpers.StatusError
+	if errors.As(err, &statusErr) && statusErr.Transient() {
+		return statusErr
+	}
+
+	return last
+}
+
+// registryUnavailable answers 503 Service Unavailable for a registry that
+// went on refusing requests through every try, passing on the wait it asked
+// for, so OpenTofu/Terraform tries again rather than reading the answer as
+// final.
+func registryUnavailable(w router.ResponseWriter, refusal *helpers.StatusError) error {
+	if refusal.RetryAfter > 0 {
+		seconds := int64(math.Ceil(refusal.RetryAfter.Seconds()))
+		w.Header().Set("Retry-After", strconv.FormatInt(seconds, 10))
+	}
+
+	return router.NewHTTPError(http.StatusServiceUnavailable)
 }

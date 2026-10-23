@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -84,4 +88,48 @@ func BenchmarkClientDo(b *testing.B) {
 			}
 		})
 	}
+}
+
+// BenchmarkClientDoConcurrent measures a cache miss that many callers hit at
+// once, the shape a `run --all` gives the cache server when its units start
+// together and ask for the same provider. The registry takes a millisecond to
+// answer, so the callers overlap. requests/op reports how many registry
+// requests each round of callers cost.
+func BenchmarkClientDoConcurrent(b *testing.B) {
+	const callers = 64
+
+	body := providerVersionsJSON(b, 200)
+
+	var requests atomic.Int64
+
+	c := vhttp.NewMemClient(
+		func(_ context.Context, _ *http.Request) (*http.Response, error) {
+			requests.Add(1)
+			time.Sleep(time.Millisecond)
+
+			return vhttp.Respond(http.StatusOK, body, nil), nil
+		},
+	)
+
+	ctx := b.Context()
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		client := helpers.NewClient(c, nil)
+
+		var wg sync.WaitGroup
+
+		for range callers {
+			wg.Go(func() {
+				var value map[string]any
+
+				assert.NoError(b, client.Do(ctx, http.MethodGet, "https://registry.test/v1/providers/hashicorp/aws/versions", &value))
+			})
+		}
+
+		wg.Wait()
+	}
+
+	b.ReportMetric(float64(requests.Load())/float64(b.N), "requests/op")
 }
