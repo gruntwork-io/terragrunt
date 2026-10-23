@@ -103,7 +103,7 @@ func (cfg *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSess
 		ExternalID:              cfg.RemoteStateConfigS3.GetExternalID(),
 		SessionName:             cfg.RemoteStateConfigS3.GetSessionName(),
 		CredsFilename:           cfg.RemoteStateConfigS3.CredsFilename,
-		S3ForcePathStyle:        cfg.RemoteStateConfigS3.S3ForcePathStyle,
+		S3ForcePathStyle:        cfg.RemoteStateConfigS3.S3ForcePathStyle || cfg.RemoteStateConfigS3.UsePathStyle,
 		DisableComputeChecksums: cfg.DisableAWSClientChecksums,
 	}
 }
@@ -193,6 +193,7 @@ type RemoteStateConfigS3 struct {
 	AssumeRole       RemoteStateConfigS3AssumeRole `mapstructure:"assume_role"`
 	Encrypt          bool                          `mapstructure:"encrypt"`
 	S3ForcePathStyle bool                          `mapstructure:"force_path_style"`
+	UsePathStyle     bool                          `mapstructure:"use_path_style"`
 	UseLockfile      bool                          `mapstructure:"use_lockfile"`
 }
 
