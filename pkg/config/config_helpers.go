@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/gzipcompat"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -45,7 +46,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -610,7 +610,7 @@ func runCommandImpl(
 	// HCL evaluator) would see post-strip residue.
 	args = slices.Clone(args)
 
-	suppressOutput := false
+	mode := runCmdEchoOutput
 	disableCache := false
 	useGlobalCache := false
 	currentPath := filepath.Dir(pctx.TerragruntConfigPath)
@@ -620,7 +620,7 @@ func runCommandImpl(
 	for checkOptions && len(args) > 0 {
 		switch args[0] {
 		case "--terragrunt-quiet":
-			suppressOutput = true
+			mode = runCmdQuiet
 
 			args = slices.Delete(args, 0, 1)
 		case "--terragrunt-global-cache":
@@ -652,73 +652,159 @@ func runCommandImpl(
 		)
 	}
 
-	// To avoid re-running the same run_cmd command, successful results are memoized in an in-memory
-	// cache keyed by the directory scope, the configured environment, and the exact argv.
+	// To avoid re-running the same run_cmd command, results are memoized in an in-memory cache
+	// keyed by the directory scope, the configured environment, and the exact argv.
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	if disableCache {
-		markNotShareable(ctx)
-
-		entry, err := runCmd(ctx, l, v, pctx, currentPath, args, suppressOutput)
-		if err != nil {
-			return "", err
-		}
-
-		return entry.Value(), nil
-	}
-
 	cacheKey := runCmdCacheKey(cachePath, v.Env, args)
 
-	if cachedEntry, found := runCommandCache.Get(ctx, cacheKey); found {
-		return replayCachedRunCmd(l, v, cachedEntry, suppressOutput)
+	if disableCache {
+		markNotShareable(ctx)
 	}
 
-	// Units are parsed concurrently, so several goroutines can miss on the same key at once. The
-	// flight runs the command once and hands every waiter the same result, error included, so
-	// waiters do not retry a failing command one after another. Only a success is stored, so a
-	// later independent call runs the command again. The command runs under the first caller's
-	// context, as singleflight does, which is fine here because unit contexts are cancelled
-	// together with the run rather than one at a time.
-	ran := false
-
-	entryAny, err, _ := runCmdFlightsFromContext(ctx).Do(cacheKey, func() (any, error) {
-		// Whoever ran the previous flight for this key may have stored it in the meantime.
-		if cachedEntry, found := runCommandCache.Get(ctx, cacheKey); found {
-			return cachedEntry, nil
-		}
-
-		ran = true
-
-		entry, err := runCmd(ctx, l, v, pctx, currentPath, args, suppressOutput)
+	// Skip cache lookup if --terragrunt-no-cache is set
+	if !disableCache {
+		value, ok, err := cachedRunCmdOutput(ctx, l, v, runCommandCache, cacheKey, mode)
 		if err != nil {
-			return nil, err
-		}
-
-		runCommandCache.Put(ctx, cacheKey, entry)
-
-		return entry, nil
-	})
-	if err != nil {
-		// Only the global scope lets a waiter sit in a different directory from the one the
-		// command ran in, so only there does the error need the caller's directory as well.
-		if ran || !useGlobalCache {
 			return "", err
 		}
 
-		return "", RunCmdSharedAttemptError{
-			Err: err,
-			Dir: util.RelPathForLog(pctx.RootWorkingDir, currentPath, pctx.LogShowAbsPaths),
+		if ok {
+			return value, nil
+		}
+
+		runCmdLocks := runCmdLocksFromContext(ctx)
+
+		if err := runCmdLocks.LockContext(ctx, cacheKey); err != nil {
+			return "", fmt.Errorf("waiting for an identical run_cmd: %w", err)
+		}
+		defer runCmdLocks.Unlock(cacheKey)
+
+		value, ok, err = cachedRunCmdOutput(ctx, l, v, runCommandCache, cacheKey, mode)
+		if err != nil {
+			return "", err
+		}
+
+		if ok {
+			return value, nil
 		}
 	}
 
-	// The flight function returns only a *RunCmdCacheEntry on success.
-	entry := entryAny.(*RunCmdCacheEntry)
-
-	// The caller that ran the command has already logged and replayed its output.
-	if ran {
-		return entry.Value(), nil
+	cmdOutput, err := shell.RunCommandWithOutput(
+		ctx,
+		l,
+		v,
+		shellRunOptsFromPctx(v, pctx),
+		currentPath,
+		true,
+		false,
+		args[0],
+		args[1:]...,
+	)
+	if err != nil {
+		return "", fmt.Errorf("running command: %w", err)
 	}
 
-	return replayCachedRunCmd(l, v, entry, suppressOutput)
+	entry := &RunCmdCacheEntry{
+		Stdout: cmdOutput.Stdout.String(),
+		Stderr: cmdOutput.Stderr.String(),
+	}
+
+	value := entry.Value()
+
+	l.Debugf("run_cmd output: [%s]", mode.loggable(value))
+
+	if err := entry.replay(v, mode); err != nil {
+		return "", err
+	}
+
+	if !disableCache {
+		runCommandCache.Put(ctx, cacheKey, entry)
+	}
+
+	return value, nil
+}
+
+// runCmdOutputMode is whether a run_cmd call shows its command's stdout.
+type runCmdOutputMode int
+
+const (
+	// runCmdEchoOutput writes stdout to the caller's writer and logs it.
+	runCmdEchoOutput runCmdOutputMode = iota
+	// runCmdQuiet, set by --terragrunt-quiet, keeps stdout out of both.
+	runCmdQuiet
+)
+
+// loggable wraps value in a [redact.Secret] under runCmdQuiet and returns it
+// unchanged otherwise.
+func (m runCmdOutputMode) loggable(value string) any {
+	if m == runCmdQuiet {
+		return redact.NewSecret(value)
+	}
+
+	return value
+}
+
+// replay writes e's output to v's writers the first time a caller with a
+// real writer reaches e. The command may first have run during discovery,
+// whose writers are [io.Discard], so a later caller writes what it printed.
+func (e *RunCmdCacheEntry) replay(v *venv.Venv, mode runCmdOutputMode) error {
+	w := v.Writers.Writer
+	if w == io.Discard {
+		return nil
+	}
+
+	var err error
+
+	e.replayOnce.Do(func() {
+		if mode == runCmdEchoOutput && e.Stdout != "" {
+			if _, err = io.WriteString(w, e.Stdout); err != nil {
+				return
+			}
+		}
+
+		if e.Stderr != "" {
+			_, err = io.WriteString(v.Writers.ErrWriter, e.Stderr)
+		}
+	})
+
+	return err
+}
+
+// cachedRunCmdOutput returns the cached stdout of a run_cmd invocation and
+// whether one was cached under cacheKey. It errors when replaying the cached
+// output to v's writers fails.
+func cachedRunCmdOutput(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	runCommandCache *cache.Cache[*RunCmdCacheEntry],
+	cacheKey string,
+	mode runCmdOutputMode,
+) (string, bool, error) {
+	cachedEntry, foundInCache := runCommandCache.Get(ctx, cacheKey)
+	if !foundInCache {
+		return "", false, nil
+	}
+
+	if err := cachedEntry.replay(v, mode); err != nil {
+		return "", false, err
+	}
+
+	value := cachedEntry.Value()
+
+	l.Debugf("run_cmd, cached output: [%s]", mode.loggable(value))
+
+	return value, true, nil
+}
+
+// runCmdLocksFromContext returns the locks that make units with the same
+// run_cmd wait for its first run.
+func runCmdLocksFromContext(ctx context.Context) *util.KeyLocks {
+	if val, ok := ctx.Value(RunCmdLocksContextKey).(*util.KeyLocks); ok && val != nil {
+		return val
+	}
+
+	return util.NewKeyLocks()
 }
 
 func getEnvironmentVariable(
@@ -1815,111 +1901,4 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 // because it cannot occur in a path, in hex, or unescaped inside a %q string.
 func runCmdCacheKey(scope string, env map[string]string, args []string) string {
 	return fmt.Sprintf("%s\x00%x\x00%q", scope, hashEnv(env), args)
-}
-
-// replayCachedRunCmd replays a cached entry's output to v's writers, logs the hit, and returns
-// the value run_cmd evaluates to.
-func replayCachedRunCmd(l log.Logger, v *venv.Venv, entry *RunCmdCacheEntry, suppressOutput bool) (string, error) {
-	if err := replayRunCmdOutput(v, entry, suppressOutput); err != nil {
-		return "", err
-	}
-
-	logRunCmdOutput(l, "run_cmd, cached output", entry, suppressOutput)
-
-	return entry.Value(), nil
-}
-
-// replayRunCmdOutput writes entry's captured output to v's writers, unless they discard output as
-// the discovery phase does. The entry writes only once, so a later call with real writers still
-// shows the output to the user.
-func replayRunCmdOutput(v *venv.Venv, entry *RunCmdCacheEntry, suppressOutput bool) error {
-	w := v.Writers.Writer
-	if w == io.Discard {
-		return nil
-	}
-
-	return entry.replay(w, v.Writers.ErrWriter, suppressOutput)
-}
-
-// logRunCmdOutput debug-logs a run_cmd value under prefix, redacted when the call was quiet.
-func logRunCmdOutput(l log.Logger, prefix string, entry *RunCmdCacheEntry, suppressOutput bool) {
-	if suppressOutput {
-		l.Debugf("%s: [REDACTED]", prefix)
-
-		return
-	}
-
-	l.Debugf("%s: [%s]", prefix, entry.Value())
-}
-
-// runCmd executes a run_cmd command in dir and returns its captured output as a cache entry, after
-// logging the output and replaying it to v's writers.
-func runCmd(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *ParsingContext,
-	dir string,
-	args []string,
-	suppressOutput bool,
-) (*RunCmdCacheEntry, error) {
-	cmdOutput, err := shell.RunCommandWithOutput(
-		ctx,
-		l,
-		v,
-		shellRunOptsFromPctx(v, pctx),
-		dir,
-		true,
-		false,
-		args[0],
-		args[1:]...,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("running command: %w", err)
-	}
-
-	entry := &RunCmdCacheEntry{
-		Stdout: cmdOutput.Stdout.String(),
-		Stderr: cmdOutput.Stderr.String(),
-	}
-
-	logRunCmdOutput(l, "run_cmd output", entry, suppressOutput)
-
-	if err := replayRunCmdOutput(v, entry, suppressOutput); err != nil {
-		return nil, err
-	}
-
-	return entry, nil
-}
-
-// runCmdFlightsFromContext returns the per-key run_cmd flights, so concurrent misses on one key run
-// the command once and share the result. A context without them (tests calling RunCommand
-// directly) gets a detached group, which coalesces nothing, matching the detached cache that
-// cache.ContextCache hands out in the same situation.
-func runCmdFlightsFromContext(ctx context.Context) *singleflight.Group {
-	if val, ok := ctx.Value(RunCmdFlightsContextKey).(*singleflight.Group); ok && val != nil {
-		return val
-	}
-
-	return new(singleflight.Group)
-}
-
-// replay writes the entry's stdout to w, unless suppressOutput is set, and its
-// stderr to errW. Only the first call on an entry writes anything.
-func (e *RunCmdCacheEntry) replay(w, errW io.Writer, suppressOutput bool) error {
-	var err error
-
-	e.replayOnce.Do(func() {
-		if !suppressOutput && e.Stdout != "" {
-			if _, err = w.Write([]byte(e.Stdout)); err != nil {
-				return
-			}
-		}
-
-		if e.Stderr != "" {
-			_, err = errW.Write([]byte(e.Stderr))
-		}
-	})
-
-	return err
 }

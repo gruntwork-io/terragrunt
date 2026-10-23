@@ -24,7 +24,7 @@ remote_state {
 }
 ```
 
-Buckets that already have the statement keep it. The [state backend docs](/features/units/state-backend#root-user-access-to-the-state-bucket) cover how to remove it yourself.
+Buckets that already have the statement keep it. The [state backend docs](/features/units/state-backend/s3#root-user-access-to-the-state-bucket) cover how to remove it yourself.
 
 <WithinGuarantees>
   The bucket policy Terragrunt writes is not part of the CLI, HCL, or output schemas the guarantees pin, and `skip_bucket_root_access` remains valid configuration. Removing the statement is a bug fix, and `enable_bucket_root_access` restores it. See [Bugs](/process/1-0-guarantees#bugs) in the guarantees for how a bug fix in 1.x can change your workflows.

@@ -1,17 +1,15 @@
 ---
-title: Authentication
-description: Learn how Terragrunt helps you automate authentication workflows.
-slug: features/units/authentication
+title: Authenticating with AWS
+description: Learn how Terragrunt assumes IAM roles, including through OIDC, and which permissions it needs in AWS.
+slug: features/units/authentication/aws
 sidebar:
-  order: 5
+  label: AWS
+  order: 6
 ---
 
-import { Aside, Code } from '@astrojs/starlight/components';
-import StatefulTabs from '@components/StatefulTabs.astro';
+import { Aside } from '@astrojs/starlight/components';
 
-import authProviderCmdSchema from '../../../../../public/schemas/auth-provider-cmd/v2/schema.json?raw';
-
-AWS is by far the most popular OpenTofu/Terraform provider, and most Terragrunt users are using it to manage AWS infrastructure, at least in part. As a consequence, Terragrunt has a number of features that make it easier to work with AWS. If you are on Azure, skip ahead to [Authenticating with Azure](#authenticating-with-azure).
+AWS is by far the most popular OpenTofu/Terraform provider, and most Terragrunt users are using it to manage AWS infrastructure, at least in part. As a consequence, Terragrunt has a number of features that make it easier to work with AWS.
 
 The most secure way to manage multiple AWS accounts is to segment infrastructure between [multiple AWS accounts](https://aws.amazon.com/organizations/getting-started/best-practices). Segmenting infrastructure in this way can ensure that developers are not granted permissions they don't need on infrastructure they don't manage. It's also a best practice from a safety perspective, as it helps to prevent accidental changes to sensitive resources like production infrastructure.
 
@@ -45,7 +43,7 @@ Temporary credentials obtained via `assume-role` can expire during long-running 
 
 To avoid these frustrating trade-offs, you can configure Terragrunt to assume an IAM role for you.
 
-## Configuring Terragrunt to assume an IAM role
+## Configuring an IAM role
 
 To tell Terragrunt to assume an IAM role, just set the [`--iam-assume-role`](/reference/cli/commands/run#iam-assume-role) command line argument:
 
@@ -72,7 +70,7 @@ Terragrunt will resolve the value of the option by first looking for the cli arg
 
 Terragrunt will call the `sts assume-role` API on your behalf and expose the credentials it gets back as environment variables when running OpenTofu/Terraform. The advantage of this approach is that you can store your AWS credentials in a secret store and never write them to disk in plaintext, you get fresh credentials on every run of Terragrunt, without the complexity of calling `assume-role` yourself, and you don't have to modify your OpenTofu/Terraform code or backend configuration at all.
 
-## Leveraging OIDC role assumption
+## Leveraging OIDC
 
 In addition, you can combine the `--iam-assume-role` flag with the [`--iam-assume-role-web-identity-token`](/reference/cli/commands/run#iam-assume-role-web-identity-token) to use the `AssumeRoleWithWebIdentity` API instead of the `AssumeRole` API.
 
@@ -107,46 +105,9 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 iam_web_identity_token = get_env("AN_OIDC_TOKEN")
 ```
 
-## Auth provider command
+To pick a different role per unit or per pipeline stage at runtime, use the [auth provider command](/features/units/authentication#auth-provider-command).
 
-Finally, there is also a special flag that allows you to use an external command to provide the role assumption credentials. This is the most powerful and flexible option for setting up Terragrunt authentication, but it does require a bit more setup.
-
-This technique is especially useful in the following circumstances:
-
-- In a CI/CD pipelines, where you might want to use different role assumption mechanisms for different stages of the pipeline (like a read-only, plan role during pull request open, and a read-write, apply role during merge).
-- On a shared development repository, where you might want to use different roles for different developers, or even different roles for the same developer, depending on the task at hand.
-- In a setup where units in different accounts depend on each other, and you want to assume a different role for each account.
-
-The [`--auth-provider-cmd`](/reference/cli/commands/run#auth-provider-cmd) flag allows you to specify a command that can be executed by Terragrunt to fetch credentials at runtime.
-
-```bash
-terragrunt apply --auth-provider-cmd /path/to/auth-script.sh
-```
-
-As with all other flags, you can also set this as an environment variable:
-
-```bash
-export TG_AUTH_PROVIDER_CMD="/path/to/auth-script.sh"
-terragrunt apply
-```
-
-When Terragrunt executes this script, it will expect a response in stdout that obeys the following schema:
-
-<Code title="auth-provider-cmd/v2/schema.json" lang="json" code={authProviderCmdSchema} />
-
-All top-level objects are optional, and you can provide multiple.
-
-- `awsCredentials` is the standard AWS credential object, which can be used to set the `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and (optionally) `AWS_SESSION_TOKEN` environment variables before running OpenTofu/Terraform.
-- `awsRole` is the role assumption object, which can be used to dynamically perform role assumption on the `roleARN` role with the `roleSessionName` session name, for a `duration` of time, and with a `webIdentityToken` if needed. Terragrunt will automatically refresh this role assumption when the duration expires.
-- `envs` is a map of environment variables that will be set before running OpenTofu/Terraform.
-
-<Aside type="note">
-The auth provider command runs in the context of the Terragrunt working directory. You can use this to author logic in your script that determines which credentials to return based on the context of the Terragrunt run.
-</Aside>
-
-This feature is integrated with the [Gruntwork Pipelines](https://www.gruntwork.io/platform/pipelines) product to provide a secure and flexible way to manage assumption of different roles in different accounts based on context.
-
-## Required Permissions
+## Required permissions
 
 You are ultimately responsible for ensuring that the IAM role you are assuming has the minimal and necessary permissions required to perform the activity you are attempting.
 
@@ -293,87 +254,8 @@ Additionally, while Terragrunt _can_ provision the S3 bucket and DynamoDB table 
 
 You'll want to make sure that you set configurations like `skip_bucket_versioning` in [remote_state](/reference/hcl/blocks#remote_state) to prevent Terragrunt from attempting to validate the bucket or table is in the proper configuration without requisite permissions.
 
-## Authenticating with Azure
-
-Terragrunt has no Azure equivalent of `--iam-assume-role`. It supports the credential sources below for bootstrap, migration, and deletion of the [`azurerm` state backend](/features/units/state-backend/#azure-storage-azurerm-backend). Set the same `ARM_*` variables for the OpenTofu/Terraform backend and providers.
-
-Set the subscription, then pick whichever credential source fits where Terragrunt is running:
-
-<StatefulTabs syncKey="azure-auth" tabs={['Azure CLI', 'Service principal', 'OIDC', 'Managed identity']}>
-<Fragment slot="azure-cli">
-
-On a workstation, log in with the Azure CLI. Terragrunt and the providers pick the session up from the default credential chain:
-
-```bash
-az login
-export ARM_SUBSCRIPTION_ID="$(az account show --query id --output tsv)"
-terragrunt apply
-```
-
-</Fragment>
-<Fragment slot="service-principal">
-
-In CI, a service principal with a client secret:
-
-```bash
-export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
-export ARM_TENANT_ID="00000000-0000-0000-0000-000000000000"
-export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000000"
-export ARM_CLIENT_SECRET="..."
-terragrunt apply
-```
-
-</Fragment>
-<Fragment slot="oidc">
-
-In GitHub Actions, configure a federated credential in Azure for the job and grant the workflow or job `id-token: write` permission. GitHub then injects `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`. With `ARM_USE_OIDC` set, Terragrunt uses them to request an Azure access token:
-
-```yaml
-permissions:
-  id-token: write
-  contents: read
-```
-
-```bash
-export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
-export ARM_TENANT_ID="00000000-0000-0000-0000-000000000000"
-export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000000"
-export ARM_USE_OIDC=true
-terragrunt apply
-```
-
-On AKS, the workload identity webhook injects `AZURE_FEDERATED_TOKEN_FILE`, which Terragrunt also accepts.
-
-</Fragment>
-<Fragment slot="managed-identity">
-
-On an Azure VM or in AKS, a managed identity needs no credentials at all. For a user-assigned identity, set `ARM_CLIENT_ID` to the identity's client id, which both Terragrunt and the `azurerm` backend honor. `ARM_MSI_RESOURCE_ID` also selects it, but only for Terragrunt's own work, so it is not enough on its own:
-
-```bash
-export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
-export ARM_USE_MSI=true
-export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000000" # user-assigned identity only
-terragrunt apply
-```
-
-</Fragment>
-</StatefulTabs>
-
-The non-secret values can also be set in the `remote_state` config (`subscription_id`, `tenant_id`, `client_id`, `use_oidc`, `use_msi`, `msi_resource_id`), and environment variables fill in whatever the config leaves unset. Keep `ARM_CLIENT_SECRET` in the environment: OpenTofu/Terraform copies backend configuration into `.terraform/terraform.tfstate` and into saved plan files, so a secret placed in `remote_state.config` ends up on disk in plain text.
-
-Use the `ARM_*` names. Terragrunt also accepts the `AZURE_*` spellings used by the Azure SDKs (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and so on) for its own work, but the `azurerm` backend inside OpenTofu/Terraform reads only `ARM_*`, so a run that also initializes the backend fails with `AZURE_*` alone.
-
-The [auth provider command](#auth-provider-command) works for Azure too: return the `ARM_*` variables in its `envs` map to select credentials per unit at runtime.
-
-### Required Azure permissions
-
-Reading and writing state with `use_azuread_auth` requires the **Storage Blob Data Contributor** role on the storage account. Holding Contributor or Owner on the subscription is not enough on its own, because those are control-plane roles. Either grant the data-plane role out of band, or set `assign_blob_data_role = true` so that `backend bootstrap` grants it to the identity Terragrunt runs as. The latter needs permission to create role assignments (`Microsoft.Authorization/roleAssignments/write`), which Owner and User Access Administrator hold and Contributor does not.
-
-Bootstrapping the backend additionally needs permission to create the resource group, storage account and container. If the identity must not create them, create them in advance and set `skip_resource_group_creation`, `skip_storage_account_creation` and `skip_container_creation` in the `remote_state` config.
-
 ## Further Reading
 
-- [Units Overview](/features/units) — for context on how units work with remote modules and source URLs
-- [State Backend](/features/units/state-backend) — remote state also requires credentials
-- [`--iam-assume-role` CLI reference](/reference/cli/commands/run#iam-assume-role) — CLI flag for IAM role assumption
-- [`--auth-provider-cmd` CLI reference](/reference/cli/commands/run#auth-provider-cmd) — CLI flag for external auth provider commands
+- [`--iam-assume-role`](/reference/cli/commands/run#iam-assume-role)
+- [`--iam-assume-role-web-identity-token`](/reference/cli/commands/run#iam-assume-role-web-identity-token)
+- [S3 backend](/features/units/state-backend/s3)

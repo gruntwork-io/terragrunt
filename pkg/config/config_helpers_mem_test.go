@@ -79,6 +79,179 @@ func TestRunCommandCacheHitsCollapseSubprocessForks(t *testing.T) {
 	)
 }
 
+// TestRunCommandConcurrentCallersSpawnOnceWithRacing pins that units
+// evaluating the same run_cmd at once share one subprocess. Discovery parses
+// units concurrently, and units share a run_cmd result under
+// --terragrunt-global-cache or when the call is in a file they read with
+// read_terragrunt_config.
+//
+// The first subprocess keeps running until every caller is blocked, so the
+// others arrive while it is still running.
+func TestRunCommandConcurrentCallersSpawnOnceWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const numCallers = 2
+
+		var (
+			calls   atomic.Int32
+			release = make(chan struct{})
+		)
+
+		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			calls.Add(1)
+
+			<-release
+
+			return vexec.Result{Stdout: []byte("shared\n")}
+		})
+
+		l := logger.CreateLogger()
+		v := venvtest.New().WithExec(exec)
+		ctx, pctx := newTestParsingContext(t, t.TempDir())
+		ctx = config.WithCaches(ctx)
+
+		var (
+			wg   sync.WaitGroup
+			outs = make([]string, numCallers)
+			errs = make([]error, numCallers)
+		)
+
+		for i := range numCallers {
+			wg.Go(func() {
+				outs[i], errs[i] = config.RunCommand(ctx, l, v, pctx, []string{"shared-cmd"})
+			})
+		}
+
+		synctest.Wait()
+		close(release)
+
+		wg.Wait()
+
+		for i := range numCallers {
+			require.NoError(t, errs[i])
+			assert.Equal(t, "shared", outs[i])
+		}
+
+		assert.Equal(t, int32(1), calls.Load())
+	})
+}
+
+// TestRunCommandWaiterStopsWhenContextEndsWithRacing pins that a caller
+// waiting on an identical run_cmd returns its context's error when the
+// context ends, while the first run carries on.
+func TestRunCommandWaiterStopsWhenContextEndsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			calls   atomic.Int32
+			release = make(chan struct{})
+		)
+
+		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			calls.Add(1)
+
+			<-release
+
+			return vexec.Result{Stdout: []byte("slow\n")}
+		})
+
+		l := logger.CreateLogger()
+		v := venvtest.New().WithExec(exec)
+		ctx, pctx := newTestParsingContext(t, t.TempDir())
+		ctx = config.WithCaches(ctx)
+
+		waiterCtx, cancelWaiter := context.WithCancel(ctx)
+
+		var (
+			wg        sync.WaitGroup
+			firstOut  string
+			firstErr  error
+			waiterErr error
+		)
+
+		wg.Go(func() {
+			firstOut, firstErr = config.RunCommand(ctx, l, v, pctx, []string{"slow-cmd"})
+		})
+
+		synctest.Wait()
+
+		wg.Go(func() {
+			_, waiterErr = config.RunCommand(waiterCtx, l, v, pctx, []string{"slow-cmd"})
+		})
+
+		synctest.Wait()
+		cancelWaiter()
+		synctest.Wait()
+
+		require.ErrorIs(t, waiterErr, context.Canceled)
+
+		close(release)
+		wg.Wait()
+
+		require.NoError(t, firstErr)
+		assert.Equal(t, "slow", firstOut)
+		assert.Equal(t, int32(1), calls.Load())
+	})
+}
+
+// TestRunCommandFailedRunIsNotSharedWithRacing pins that a caller waiting on
+// an identical run_cmd runs the command itself when the first run fails. A
+// run can fail for reasons private to its caller, such as a cancelled context.
+func TestRunCommandFailedRunIsNotSharedWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			calls   atomic.Int32
+			release = make(chan struct{})
+		)
+
+		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			if calls.Add(1) > 1 {
+				return vexec.Result{Stdout: []byte("recovered\n")}
+			}
+
+			<-release
+
+			return vexec.Result{ExitCode: 1, Stderr: []byte("transient\n")}
+		})
+
+		l := logger.CreateLogger()
+		v := venvtest.New().WithExec(exec)
+		ctx, pctx := newTestParsingContext(t, t.TempDir())
+		ctx = config.WithCaches(ctx)
+
+		var (
+			wg        sync.WaitGroup
+			firstErr  error
+			secondOut string
+			secondErr error
+		)
+
+		wg.Go(func() {
+			_, firstErr = config.RunCommand(ctx, l, v, pctx, []string{"flaky-cmd"})
+		})
+
+		synctest.Wait()
+
+		wg.Go(func() {
+			secondOut, secondErr = config.RunCommand(ctx, l, v, pctx, []string{"flaky-cmd"})
+		})
+
+		synctest.Wait()
+		close(release)
+
+		wg.Wait()
+
+		require.Error(t, firstErr)
+		require.NoError(t, secondErr)
+		assert.Equal(t, "recovered", secondOut)
+		assert.Equal(t, int32(2), calls.Load())
+	})
+}
+
 // TestRunCommandNoCacheRefuses pins the contract that
 // --terragrunt-no-cache forces re-execution on every call.
 func TestRunCommandNoCacheRefuses(t *testing.T) {
@@ -380,176 +553,6 @@ func TestRunCommandCacheKeyIncludesEnv(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "111", gotC)
 			assert.Equal(t, int32(2), calls.Load(), "an identical environment must reuse the cached result")
-		})
-	}
-}
-
-// TestRunCommandConcurrentMissesRunOnce pins the flight around the cache
-// miss window. Goroutines that miss on the same key must run the command once
-// and all see that one result, instead of each spawning the subprocess and
-// racing to Put. synctest parks every worker
-// before the command is released, so the one-call check proves that the
-// others joined the in-flight attempt rather than arriving after it finished.
-func TestRunCommandConcurrentMissesRunOnce(t *testing.T) {
-	t.Parallel()
-
-	synctest.Test(t, func(t *testing.T) {
-		const workers = 8
-
-		var calls atomic.Int32
-
-		release := make(chan struct{})
-
-		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
-			calls.Add(1)
-
-			<-release
-
-			return vexec.Result{Stdout: []byte("shared\n")}
-		})
-
-		l := logger.CreateLogger()
-		ctx, _ := newTestParsingContext(t, t.TempDir())
-		ctx = config.WithCaches(ctx)
-
-		results := make([]string, workers)
-
-		var wg sync.WaitGroup
-
-		for i := range workers {
-			v := venvtest.New().WithExec(exec)
-			_, pctx := newTestParsingContext(t, t.TempDir())
-
-			wg.Go(func() {
-				out, err := config.RunCommand(ctx, l, v, pctx, []string{"--terragrunt-global-cache", "slow-cmd"})
-				assert.NoError(t, err)
-
-				results[i] = out
-			})
-		}
-
-		synctest.Wait()
-		require.Equal(t, int32(1), calls.Load(), "every worker must be parked on one in-flight command")
-
-		close(release)
-		wg.Wait()
-
-		assert.Equal(t, int32(1), calls.Load(), "concurrent misses on one key must coalesce into a single run")
-
-		for i, got := range results {
-			assert.Equal(t, "shared", got, "worker %d must see the single shared result", i)
-		}
-	})
-}
-
-// TestRunCommandConcurrentFailuresShareOneAttempt pins that concurrent
-// callers of one key share a single failing attempt and each receive its error,
-// instead of retrying the command one after another. Under
-// --terragrunt-global-cache the callers sit in different directories, so a
-// waiter's error names its own directory next to the one the command ran in.
-// In the default scope the directory is part of the key, so every caller gets
-// the plain error. A failure is not stored, so a later independent call runs
-// the command again.
-func TestRunCommandConcurrentFailuresShareOneAttempt(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name      string
-		args      []string
-		sharedDir bool
-	}{
-		{
-			name: "global cache names each waiter's directory",
-			args: []string{"--terragrunt-global-cache", "failing-cmd"},
-		},
-		{
-			name:      "default scope returns the leader's error",
-			args:      []string{"failing-cmd"},
-			sharedDir: true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			synctest.Test(t, func(t *testing.T) {
-				const workers = 8
-
-				var (
-					calls     atomic.Int32
-					leaderDir string
-				)
-
-				release := make(chan struct{})
-
-				exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-					if calls.Add(1) == 1 {
-						leaderDir = inv.Dir
-					}
-
-					<-release
-
-					return vexec.Result{ExitCode: 1, Stderr: []byte("boom\n")}
-				})
-
-				l := logger.CreateLogger()
-				ctx, _ := newTestParsingContext(t, t.TempDir())
-				ctx = config.WithCaches(ctx)
-
-				sharedDir := t.TempDir()
-				dirs := make([]string, workers)
-				errs := make([]error, workers)
-
-				var wg sync.WaitGroup
-
-				for i := range workers {
-					v := venvtest.New().WithExec(exec)
-
-					dirs[i] = t.TempDir()
-					if tc.sharedDir {
-						dirs[i] = sharedDir
-					}
-
-					_, pctx := newTestParsingContext(t, filepath.Join(dirs[i], "terragrunt.hcl"))
-
-					wg.Go(func() {
-						_, errs[i] = config.RunCommand(ctx, l, v, pctx, tc.args)
-					})
-				}
-
-				synctest.Wait()
-				require.Equal(t, int32(1), calls.Load(), "every worker must be parked on one in-flight command")
-
-				close(release)
-				wg.Wait()
-
-				assert.Equal(t, int32(1), calls.Load(), "concurrent callers must share one failing attempt")
-				assert.Contains(t, dirs, leaderDir, "the command must run in one of the workers' directories")
-
-				for i, err := range errs {
-					require.Error(t, err, "worker %d must receive the shared failure", i)
-					require.ErrorContains(t, err, "Failed to execute \"failing-cmd\" in "+leaderDir, "worker %d", i)
-
-					var shared config.RunCmdSharedAttemptError
-
-					if dirs[i] == leaderDir {
-						assert.NotErrorAs(t, err, &shared, "worker %d shares the leader's directory", i)
-
-						continue
-					}
-
-					require.ErrorAs(t, err, &shared, "worker %d", i)
-					assert.Equal(t, dirs[i], shared.Dir, "worker %d must see its own directory", i)
-				}
-
-				v := venvtest.New().WithExec(exec)
-				_, pctx := newTestParsingContext(t, filepath.Join(sharedDir, "terragrunt.hcl"))
-
-				_, err := config.RunCommand(ctx, l, v, pctx, tc.args)
-				require.Error(t, err)
-				assert.Equal(t, int32(2), calls.Load(), "a failure must not be cached, so a later call runs the command again")
-			})
 		})
 	}
 }
