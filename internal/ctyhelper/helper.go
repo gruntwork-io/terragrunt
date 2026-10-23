@@ -52,12 +52,18 @@ type CtyJSONOutput struct {
 	Type  any            `json:"Type"`
 }
 
-// UpdateUnknownCtyValValues deeply updates unknown values with default value
+// UpdateUnknownCtyValValues deeply replaces unknown values with known placeholders. An unknown
+// string or dynamic value becomes an empty string, and an unknown of any other type becomes a
+// null of that type.
 func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	var updatedValue any
 
 	switch {
 	case !value.IsKnown():
+		if ty := value.Type(); ty != cty.String && ty != cty.DynamicPseudoType {
+			return cty.NullVal(ty), nil
+		}
+
 		return cty.StringVal(""), nil
 	case value.IsNull():
 		return value, nil
