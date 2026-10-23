@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
@@ -74,6 +75,16 @@ func TestPathFormatOptionFormat(t *testing.T) {
 
 	withPather := &options.Data{RelativePather: pather, BaseDir: base}
 	withoutPather := &options.Data{BaseDir: base}
+	withLabels := &options.Data{BaseDir: base, PathLabels: map[string]string{unit: "app/unit"}}
+
+	unitFile := filepath.Join(unit, "a.hcl")
+	withUnitFile := func(unitPath string) *options.Data {
+		return &options.Data{
+			Entry:      &log.Entry{Fields: log.Fields{options.UnitPathFieldName: unitPath}},
+			BaseDir:    base,
+			PathLabels: map[string]string{unitFile: "unit/a.hcl"},
+		}
+	}
 
 	tests := []struct {
 		data     *options.Data
@@ -151,6 +162,48 @@ func TestPathFormatOptionFormat(t *testing.T) {
 			data:     withoutPather,
 			value:    file,
 			expected: unit,
+		},
+		{
+			name:     "basename_base_dir_is_empty",
+			format:   options.BasenamePath,
+			data:     withLabels,
+			value:    base,
+			expected: "",
+		},
+		{
+			name:     "basename_working_dir_display_path_is_empty",
+			format:   options.BasenamePath,
+			data:     withLabels,
+			value:    ".",
+			expected: "",
+		},
+		{
+			name:     "basename_uses_label",
+			format:   options.BasenamePath,
+			data:     withLabels,
+			value:    unit,
+			expected: "app/unit",
+		},
+		{
+			name:     "basename_without_label_is_last_element",
+			format:   options.BasenamePath,
+			data:     withLabels,
+			value:    sibling,
+			expected: "db",
+		},
+		{
+			name:     "basename_uses_label_of_unit_file_in_prefix_dir",
+			format:   options.BasenamePath,
+			data:     withUnitFile(unitFile),
+			value:    unit,
+			expected: "unit/a.hcl",
+		},
+		{
+			name:     "basename_ignores_unit_file_outside_prefix_dir",
+			format:   options.BasenamePath,
+			data:     withUnitFile(unitFile),
+			value:    sibling,
+			expected: "db",
 		},
 		{
 			name:     "none_is_passthrough",
