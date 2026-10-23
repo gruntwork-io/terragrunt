@@ -523,8 +523,12 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `project`: The GCP project where the bucket will be created.
 - `location`: The GCP location where the bucket will be created.
 - `gcs_bucket_labels`: A map of key value pairs to associate as labels on the created GCS bucket.
-- `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
-- `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
+- `credentials`: Local path to Google Cloud Platform account credentials in JSON format. Terragrunt accepts only a path here.
+- `access_token`: A temporary [OAuth 2.0 access token](https://developers.google.com/identity/protocols/oauth2) obtained from the Google Authorization server.
+- `impersonate_service_account`: The service account to impersonate. Terragrunt creates and checks the bucket as this account, and passes the setting on to OpenTofu/Terraform.
+- `impersonate_service_account_delegates`: The delegation chain to use when impersonating `impersonate_service_account`.
+
+See the [GCS backend](/features/units/state-backend/gcs) documentation for the authentication order and known limitations.
 
 For the `azurerm` backend, Terragrunt accepts these additional `config` properties for setup and authentication. It does not pass them to OpenTofu/Terraform:
 
@@ -548,7 +552,7 @@ For the `azurerm` backend, Terragrunt accepts these additional `config` properti
 
 For a premium account that can store state as block blobs, set `account_kind = "BlockBlobStorage"`, `account_tier = "Premium"`, and `access_tier = "Premium"`. Use `LRS` or `ZRS` replication. Setting only `account_tier = "Premium"` leaves the `StorageV2` and `Hot` defaults, which do not form a valid block blob account.
 
-See the [Azure Storage backend](/features/units/state-backend/#azure-storage-azurerm-backend) documentation for the authentication order and known limitations.
+See the [Azure Storage backend](/features/units/state-backend/azurerm) documentation for the authentication order and known limitations.
 
 Example with S3:
 
@@ -612,11 +616,11 @@ Example with GCS:
 #     ├── main.tf
 #     └── terragrunt.hcl
 #
-# And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
-# child module will be stored at the key "child/tofu.tfstate".
+# And the following is defined in the root.hcl config that is included in the child, the state file for the
+# child module will be stored at the key "child/default.tfstate".
 #
-# Note that since we are not using any of the skip args, this will automatically create the GCS bucket
-# "my-tofu-state" if it does not already exist.
+# Run `terragrunt backend bootstrap`, or pass `--backend-bootstrap` on the first run, and Terragrunt creates the
+# GCS bucket "my-tofu-state" when it is missing.
 remote_state {
   backend = "gcs"
 
@@ -624,7 +628,7 @@ remote_state {
     project  = "my-tofu"
     location = "eu"
     bucket   = "my-tofu-state"
-    prefix   = "${path_relative_to_include()}/tofu.tfstate"
+    prefix   = path_relative_to_include()
 
     gcs_bucket_labels = {
       owner = "terragrunt_test"

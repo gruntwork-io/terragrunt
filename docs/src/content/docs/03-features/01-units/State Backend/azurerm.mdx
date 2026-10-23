@@ -1,0 +1,142 @@
+---
+title: Azure Storage (azurerm) Backend
+description: Learn what Terragrunt creates for the azurerm backend, which settings it accepts, and how it resolves credentials.
+slug: features/units/state-backend/azurerm
+sidebar:
+  label: Azure Storage
+  order: 6
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Example configuration:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name = "myterragruntstate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    resource_group_name  = "tofu-rg"
+    subscription_id      = "00000000-0000-0000-0000-000000000000"
+    use_azuread_auth     = true
+  }
+}
+```
+
+Terragrunt-only bootstrap settings are set in the same `config` block:
+
+```hcl
+# root.hcl
+remote_state {
+  # ...
+
+  config = {
+    # ...
+
+    location                   = "eastus"
+    enable_soft_delete         = true
+    soft_delete_retention_days = 14
+  }
+}
+```
+
+Creating a storage account grants no access to the blobs inside it, so an identity using
+`use_azuread_auth` can create the account and still read state as unauthorized.
+
+Set `assign_blob_data_role` to have bootstrap grant **Storage Blob Data Contributor** on the
+account, which closes that gap:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    # ...
+
+    use_azuread_auth      = true
+    assign_blob_data_role = true
+  }
+}
+```
+
+The role is granted to the identity Terragrunt authenticated as. Set `principal_id` to
+the object id of a user, group, or service principal to grant it to someone else instead.
+The assignment is skipped when it already exists, so reruns need no write permission.
+
+This is opt-in because creating a role assignment requires
+`Microsoft.Authorization/roleAssignments/write` (held by Owner and User Access
+Administrator, but not Contributor), which many CI identities deliberately lack.
+
+When bootstrapping (`terragrunt backend bootstrap` or `--backend-bootstrap`), Terragrunt creates the resource group,
+storage account, and blob container when they do not exist (each step can be skipped with the `skip_*` options below),
+then enables blob versioning and, when requested, soft delete on both new and pre-existing accounts.
+
+The following config options are only valid for the `azurerm` backend and are used by Terragrunt; they are **not** passed on to OpenTofu/Terraform:
+
+- `location` - Azure region for the resource group and storage account (e.g. `eastus`). Required when Terragrunt creates them.
+- `account_kind` - Storage account kind. Defaults to `StorageV2`.
+- `account_tier` - Storage account tier, `Standard` or `Premium`. Defaults to `Standard`.
+- `account_replication_type` - Replication type, e.g. `LRS`, `GRS`, `ZRS`. Defaults to `LRS`.
+- `access_tier` - Blob access tier, `Hot`, `Cool`, `Cold`, or `Premium`. Defaults to `Hot`.
+
+- `minimum_tls_version` - Minimum TLS version permitted on requests to the storage account, `TLS1_2` or `TLS1_3`. Defaults to `TLS1_2`. The deprecated `TLS1_0` and `TLS1_1` are not accepted. Applies only when Terragrunt creates the account.
+
+- `tags` - Map of tags applied to the storage account on creation.
+- `skip_resource_group_creation` - When `true`, never create the resource group.
+- `skip_storage_account_creation` - When `true`, never create the storage account; it must already exist.
+- `skip_container_creation` - When `true`, never create the blob container; it must already exist.
+- `skip_versioning` - When `true`, do not enable blob versioning on the account.
+- `enable_soft_delete` - When `true`, enable blob and container soft delete.
+- `soft_delete_retention_days` - Soft delete retention in days, 1 to 365. Defaults to 7 when unset; values outside 1 to 365 are clamped to 7 at bootstrap (a warning is logged).
+- `allow_blob_public_access` - When `true`, allow containers on the account to permit anonymous access. Defaults to `false`.
+- `msi_resource_id` - Resource ID of a user-assigned managed identity to use with `use_msi`.
+- `environment` - Azure cloud partition: `public` (default), `usgovernment` (Azure Government), or `china`. Also accepted via `ARM_ENVIRONMENT`.
+
+- `assign_blob_data_role` - When `true`, bootstrap grants **Storage Blob Data Contributor** on the storage account to `principal_id` (or to the identity Terragrunt authenticated as when unset). Opt-in because it requires `Microsoft.Authorization/roleAssignments/write`.
+- `principal_id` - Microsoft Entra object id that receives the data-plane role when `assign_blob_data_role` is `true`. Defaults to the caller resolved from the access token.
+
+Authentication is resolved in the following order, with `ARM_*` and `AZURE_*` environment variable fallbacks applied
+to any values not set in the config:
+
+1. SAS token (`sas_token`)
+2. Storage account access key (`access_key`)
+3. Service principal (`client_id`, `client_secret`, `tenant_id`)
+4. Managed identity (`use_msi`, optionally `msi_resource_id`)
+5. OIDC / workload identity (`use_oidc`, `oidc_token_file_path`)
+6. Azure AD (`use_azuread_auth`, or the default credential chain, which honors `az login`)
+
+For Azure Government, set `environment = "usgovernment"` (or `ARM_ENVIRONMENT=usgovernment`) so Terragrunt
+talks to the Government endpoints for auth, ARM, and blob storage. Credentials must come from that partition
+(for example `az cloud set --name AzureUSGovernment` then `az login`, or a Government tenant service principal).
+Bootstrap and `assign_blob_data_role` use the same keys as public cloud; built-in role definition IDs
+(including **Storage Blob Data Contributor**) are the same across partitions per
+[Understand Azure role definitions](https://learn.microsoft.com/en-us/azure/role-based-access-control/role-definitions).
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    # ...
+
+    environment           = "usgovernment"
+    use_azuread_auth      = true
+    assign_blob_data_role = true
+  }
+}
+```
+
+<Aside type="note" title="Known limitations">
+- SAS token and access key authentication are data-plane only: Terragrunt can create the blob container but not the resource group or storage account, which must already exist.
+- With SAS token or access key authentication, `assign_blob_data_role = true` errors because role assignment needs Microsoft Entra / ARM authentication (`use_azuread_auth`, a service principal, managed identity, or OIDC). Grant **Storage Blob Data Contributor** out of band and unset `assign_blob_data_role`, or switch auth.
+- With SAS token or access key authentication, or when `resource_group_name` is not set, Terragrunt cannot verify blob versioning (it is an ARM management-plane property), so `backend delete` and `backend migrate` treat the account as unversioned and require the `--force` flag even when versioning is enabled.
+- With `use_azuread_auth`, reading and writing state requires the **Storage Blob Data Contributor** role on the storage account; the control-plane Contributor role alone is not sufficient. Set `assign_blob_data_role = true` to have bootstrap assign it, or grant it out of band.
+- State migration is supported within a single storage account; cross-account migration must be performed manually (init, state pull, state push).
+</Aside>
+
+<Aside type="note" title="Dependency outputs">
+When the Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it runs `tofu output` or `terraform output`.
+</Aside>

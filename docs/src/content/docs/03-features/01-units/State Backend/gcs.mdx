@@ -1,0 +1,90 @@
+---
+title: GCS Backend
+description: Learn what Terragrunt creates for the gcs backend, which settings it accepts, and how it resolves credentials.
+slug: features/units/state-backend/gcs
+sidebar:
+  label: GCS
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Example configuration:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "gcs"
+  config = {
+    project  = "my-project"
+    location = "us-central1"
+    bucket   = "my-tofu-state"
+    prefix   = path_relative_to_include()
+  }
+}
+```
+
+When you [bootstrap](/reference/cli/commands/backend/bootstrap) the backend, Terragrunt creates the following resources if they don't already exist:
+
+- **GCS bucket**: If you are using the [GCS backend](https://opentofu.org/docs/language/settings/backends/gcs) for remote state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to create the bucket. You will also need valid credentials, as described in [Authenticating with GCP](/features/units/authentication/gcp). If you want to skip creating the bucket entirely, simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you don't specify `bucket` in `remote_state` then Terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
+
+  You are strongly advised to enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit and track API operations performed against the state bucket.
+
+  In addition, you can let Terragrunt label the bucket with custom labels that you specify in `remote_state.config.gcs_bucket_labels`.
+
+## Advanced configuration
+
+For the `gcs` backend, the following additional config options can be used for GCS-compatible object stores, as necessary:
+
+```hcl
+# root.hcl
+remote_state {
+  # ...
+
+  config = {
+    skip_bucket_versioning    = true
+    enable_bucket_policy_only = false
+    encryption_key            = "GOOGLE_ENCRYPTION_KEY"
+  }
+}
+```
+
+- `skip_bucket_versioning` — Skip versioning on the state bucket. Use only if the object store does not support versioning.
+- `enable_bucket_policy_only` — Enable uniform bucket-level access. See [uniform bucket-level access](https://cloud.google.com/storage/docs/uniform-bucket-level-access) for details.
+- `encryption_key` — A base64-encoded 32-byte customer-supplied encryption key used to read and write state objects.
+
+If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
+
+The following config options are only valid for the `gcs` backend and are used by Terragrunt — they are **not** passed on to OpenTofu/Terraform:
+
+- `project` - GCP project to create the bucket in. Required when Terragrunt creates it.
+- `location` - Location to create the bucket in, e.g. `us-central1` or the multi-region `US`. Required when Terragrunt creates it.
+- `gcs_bucket_labels` - Map of labels applied to the bucket on creation.
+- `skip_bucket_creation` - When `true`, never create the bucket; it must already exist.
+- `skip_bucket_versioning` - When `true`, do not enable versioning on a bucket Terragrunt creates, and do not warn when an existing bucket has it off.
+- `enable_bucket_policy_only` - When `true`, enable uniform bucket-level access on a bucket Terragrunt creates.
+
+Terragrunt applies these settings only when it creates the bucket. It leaves an existing bucket as it is, and logs a warning if versioning is off.
+
+Terragrunt resolves credentials in this order:
+
+1. The credentials file named by `GOOGLE_APPLICATION_CREDENTIALS`
+2. The credentials file named by `credentials`
+3. An access token (`access_token`)
+4. An access token in `GOOGLE_OAUTH_ACCESS_TOKEN`
+5. A service account key in `GOOGLE_CREDENTIALS`, as a file path or as the key's JSON
+6. Application Default Credentials, which honor `gcloud auth application-default login` and the metadata server on GCP
+
+When `impersonate_service_account` is set, Terragrunt uses the credentials it found to impersonate that service account, through the accounts in `impersonate_service_account_delegates` if any.
+
+<Aside type="note" title="Known limitations">
+- Terragrunt prefers `GOOGLE_APPLICATION_CREDENTIALS` over the `credentials` config, while the `gcs` backend in OpenTofu/Terraform prefers `credentials`. With both set to different files, Terragrunt manages the bucket as one identity and OpenTofu/Terraform reads state as another. Set only one of them.
+- Terragrunt reads `credentials` only as a file path. OpenTofu/Terraform also accepts the JSON itself there, but Terragrunt fails to read it.
+- `GOOGLE_CREDENTIALS` must hold a service account key. For Workload Identity Federation and other credential types, use `GOOGLE_APPLICATION_CREDENTIALS`.
+- Terragrunt ignores `GOOGLE_BACKEND_CREDENTIALS`, `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT`, and `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`. Set `impersonate_service_account` in the config instead.
+- `backend migrate` moves only the `default` workspace's state, `<prefix>/default.tfstate`. `backend delete` removes every object whose name starts with `prefix`.
+</Aside>
+
+<Aside type="note" title="Dependency outputs">
+When the GCS backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the GCS state object. Otherwise it runs `tofu output` or `terraform output`.
+</Aside>
