@@ -503,10 +503,12 @@ func SetTerragruntInputsAsEnvVars(
 		panic(venv.ErrVenvEnvUnset)
 	}
 
+	inputs := inputsWithoutSkipped(cfg)
+
 	asEnvVars, err := ToTerraformEnvVars(
 		l,
-		cfg.Inputs,
-		declaredVariables(l, fsys, modulePath, cfg.Inputs),
+		inputs,
+		declaredVariables(l, fsys, modulePath, inputs),
 	)
 	if err != nil {
 		return err
@@ -967,7 +969,7 @@ func CheckProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
 func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunConfig) (string, error) {
 	jsonEmptyVars := make(map[string]any)
 
-	for varName, varValue := range cfg.Inputs {
+	for varName, varValue := range inputsWithoutSkipped(cfg) {
 		if varValue == nil {
 			jsonEmptyVars[varName] = nil
 		}
@@ -996,6 +998,23 @@ func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunC
 	}
 
 	return varFile, nil
+}
+
+// inputsWithoutSkipped drops the inputs left unset because dependency output resolution was skipped.
+func inputsWithoutSkipped(cfg *runcfg.RunConfig) map[string]any {
+	if len(cfg.SkippedInputs) == 0 {
+		return cfg.Inputs
+	}
+
+	inputs := make(map[string]any, len(cfg.Inputs))
+
+	for name, value := range cfg.Inputs {
+		if !slices.Contains(cfg.SkippedInputs, name) {
+			inputs[name] = value
+		}
+	}
+
+	return inputs
 }
 
 // SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.

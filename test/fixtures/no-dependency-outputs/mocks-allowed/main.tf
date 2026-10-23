@@ -1,5 +1,6 @@
 variable "x" {
-  type = string
+  type    = string
+  default = "unset"
 }
 
 output "x" {

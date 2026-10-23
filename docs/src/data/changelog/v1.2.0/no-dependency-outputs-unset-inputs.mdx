@@ -1,0 +1,16 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `--no-dependency-outputs` leaves skipped inputs unset instead of passing `""`
+
+With [`--no-dependency-outputs`](/reference/cli/commands/run#no-dependency-outputs), any input referencing an unmocked `dependency` output was passed to OpenTofu/Terraform as `TF_VAR_<name>=""`. An empty string fails to parse for typed variables, so `init` and `validate` errored on units with list, map or object inputs derived from dependency outputs:
+
+```
+Error: Missing expression
+  on <value for var.ips> line 1:
+Expected the start of an expression, but found the end of the file.
+```
+
+Inputs whose value depends on a skipped dependency output are now left out of the variables Terragrunt passes, so the run behaves as if those inputs were unset: `init` and `validate` succeed, and commands that read the variable use its default or report a missing required variable instead of silently receiving `""`.

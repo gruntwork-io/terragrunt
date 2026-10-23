@@ -430,6 +430,8 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		cfg.Inputs = mergeInputs(sourceConfig.Inputs, cfg.Inputs)
 	}
 
+	cfg.SkippedInputs = mergeSkippedInputs(sourceConfig, cfg)
+
 	CopyFieldsMetadata(sourceConfig, cfg)
 
 	return nil
@@ -630,6 +632,8 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		cfg.Inputs = mergedInputs
 	}
 
+	cfg.SkippedInputs = mergeSkippedInputs(sourceConfig, cfg)
+
 	// MAINTAINER'S NOTE: The following structs cannot be deep merged due to an implementation detail (they do not
 	// support nil attributes, so we can't determine if an attribute was intentionally set, or was defaulted from
 	// unspecified - this is especially problematic for bool attributes).
@@ -801,6 +805,23 @@ func mergeExtraArgs(
 	}
 
 	*parentExtraArgs = result
+}
+
+// mergeSkippedInputs keeps the child's skipped input names plus the parent's skipped names the child does not define.
+func mergeSkippedInputs(childConfig, parentConfig *TerragruntConfig) []string {
+	var out []string
+
+	for _, name := range parentConfig.SkippedInputs {
+		if _, ok := childConfig.Inputs[name]; !ok {
+			out = append(out, name)
+		}
+	}
+
+	out = append(out, childConfig.SkippedInputs...)
+
+	slices.Sort(out)
+
+	return slices.Compact(out)
 }
 
 func mergeInputs(childInputs map[string]any, parentInputs map[string]any) map[string]any {

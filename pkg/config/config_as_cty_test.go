@@ -392,6 +392,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "iam_web_identity_token", true
 	case "Inputs":
 		return "inputs", true
+	case "SkippedInputs":
+		return "", false
 	case "Locals":
 		return "locals", true
 	case "TerragruntDependencies":

@@ -13,4 +13,4 @@ Skip all dependency output resolution during a run.
 
 When enabled, Terragrunt does not resolve any `dependency` block outputs and will not call `tofu`/`terraform output`. This mirrors the existing `skip_outputs = true` attribute on individual `dependency` blocks, applied globally to the run.
 
-A `dependency` block whose `mock_outputs` are allowed for the current command still returns its mocks. Any other reference to a dependency output gets no real value, so use the flag with commands that do not read dependency outputs, such as `init` and `validate`.
+A `dependency` block whose `mock_outputs` are allowed for the current command still returns its mocks. Any input whose value depends on an unmocked dependency output is left unset: when a command such as `plan` or `apply` reads variables, OpenTofu/Terraform fall back to the variable default, or report a missing required variable. Use the flag with commands that do not read dependency outputs, such as `init` and `validate`.

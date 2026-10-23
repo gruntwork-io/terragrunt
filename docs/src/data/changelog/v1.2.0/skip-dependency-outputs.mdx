@@ -14,7 +14,7 @@ terragrunt run --all --no-dependency-outputs -- validate
 ```
 
 <Aside type="caution">
-  Use this flag with commands that do not read dependency outputs, such as `init` and `validate`. While it is set, references to dependency outputs get no real value, so `plan` and `apply` can pass empty values to OpenTofu/Terraform in their place.
+  Use this flag with commands that do not read dependency outputs, such as `init` and `validate`. While it is set, inputs that depend on dependency outputs are left unset, so `plan` and `apply` fall back to variable defaults or fail on missing required variables.
 </Aside>
 
 Previously gated behind the `optional-dependency-outputs` experiment, the flag no longer requires `--experiment optional-dependency-outputs`.

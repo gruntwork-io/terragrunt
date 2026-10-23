@@ -134,6 +134,7 @@ type TerragruntConfig struct {
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	IamAssumeRoleDuration       *int64
 	Inputs                      map[string]any
+	SkippedInputs               []string
 	Engine                      *EngineConfig
 	Catalog                     *CatalogConfig
 	IamWebIdentityToken         string
@@ -2017,7 +2018,8 @@ func CompleteTerragruntConfigFile(
 
 	cfgFile.TerragruntDependencies = dependencies
 
-	if cfgFile.Inputs != nil {
+	// When output resolution is skipped, unknown values survive to ConvertToTerragruntConfig, which records and nulls them.
+	if cfgFile.Inputs != nil && !pctx.SkipOutput {
 		inputs, err := ctyhelper.UpdateUnknownCtyValValues(*cfgFile.Inputs)
 		if err != nil {
 			return nil, err
@@ -2351,7 +2353,23 @@ func ConvertToTerragruntConfig(
 	}
 
 	if cfgFromFile.Inputs != nil {
-		inputs, err := ctyhelper.ParseCtyValueToMap(*cfgFromFile.Inputs)
+		inputsCty := *cfgFromFile.Inputs
+
+		// With skipped output resolution, record the inputs left unknown so the runner keeps them unset, then null their unknowns.
+		if pctx.SkipOutput {
+			cfg.SkippedInputs = skippedInputNames(inputsCty)
+
+			nulledInputs, err := ctyhelper.UpdateUnknownCtyValValuesToNull(inputsCty)
+			if err != nil {
+				errs = append(errs, err)
+			}
+
+			if err == nil {
+				inputsCty = nulledInputs
+			}
+		}
+
+		inputs, err := ctyhelper.ParseCtyValueToMap(inputsCty)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -2378,6 +2396,26 @@ func ConvertToTerragruntConfig(
 	}
 
 	return cfg, errors.Join(errs...)
+}
+
+// skippedInputNames returns the sorted top-level input names whose value is not wholly known,
+// which happens when the inputs reference dependency outputs skipped during resolution.
+func skippedInputNames(inputs cty.Value) []string {
+	if inputs.IsNull() || !inputs.IsKnown() || !inputs.CanIterateElements() {
+		return nil
+	}
+
+	var names []string
+
+	for name, value := range inputs.AsValueMap() {
+		if !value.IsWhollyKnown() {
+			names = append(names, name)
+		}
+	}
+
+	slices.Sort(names)
+
+	return names
 }
 
 // moduleSourceReadExtensions lists file extensions within a local terraform module
