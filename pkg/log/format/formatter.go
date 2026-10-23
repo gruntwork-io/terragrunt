@@ -2,7 +2,9 @@ package format
 
 import (
 	"bytes"
+	"maps"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
@@ -14,6 +16,7 @@ var _ log.Formatter = new(Formatter)
 
 type Formatter struct {
 	relativePather *options.RelativePather
+	pathLabels     atomic.Pointer[map[string]string]
 	baseDir        string
 	placeholders   placeholders.Placeholders
 	mu             sync.Mutex
@@ -44,6 +47,7 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 		BaseDir:        formatter.baseDir,
 		DisabledColors: formatter.disabledColors,
 		RelativePather: formatter.relativePather,
+		PathLabels:     formatter.loadPathLabels(),
 	})
 	if err != nil {
 		return nil, err
@@ -74,6 +78,31 @@ func (formatter *Formatter) SetBaseDir(baseDir string) error {
 
 	formatter.relativePather = pather
 	formatter.baseDir = baseDir
+
+	return nil
+}
+
+// SetUnitPaths adds the paths of discovered units, which the `minimal` path
+// format tells apart. A long-lived process can run more than one stack, so the
+// labels of earlier runs are kept.
+func (formatter *Formatter) SetUnitPaths(paths []string) {
+	formatter.mu.Lock()
+	defer formatter.mu.Unlock()
+
+	earlier := formatter.loadPathLabels()
+	labels := options.PathLabels(formatter.baseDir, paths)
+
+	merged := make(map[string]string, len(earlier)+len(labels))
+	maps.Copy(merged, earlier)
+	maps.Copy(merged, labels)
+
+	formatter.pathLabels.Store(&merged)
+}
+
+func (formatter *Formatter) loadPathLabels() map[string]string {
+	if labels := formatter.pathLabels.Load(); labels != nil {
+		return *labels
+	}
 
 	return nil
 }

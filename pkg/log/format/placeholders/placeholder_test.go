@@ -81,9 +81,19 @@ func TestParse(t *testing.T) {
 			expectCount: 1,
 		},
 		{
+			name:        "field_prefix_minimal",
+			input:       "%prefix(path=minimal)",
+			expectCount: 1,
+		},
+		{
 			name:        "field_tf_path",
 			input:       "%tf-path",
 			expectCount: 1,
+		},
+		{
+			name:      "field_tf_path_rejects_minimal",
+			input:     "%tf-path(path=minimal)",
+			expectErr: true,
 		},
 		{
 			name:        "field_tf_command_args",

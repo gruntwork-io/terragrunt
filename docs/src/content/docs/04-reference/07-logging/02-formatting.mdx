@@ -6,6 +6,9 @@ sidebar:
   order: 2
 ---
 
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
 Using the `--log-custom-format <format>` flag you can customize the way Terragrunt logs with total control over the logging format.
 
 The argument passed to this flag is a Terragrunt native format string that has special syntax, as described below.
@@ -244,6 +247,8 @@ Specific options for placeholders:
 
     * `O` - Difference to Greenwich time (GMT) without colon between hours and minutes, e.g. `+0200`
 
+<Before version="v1.2.1">
+
 * `%prefix`
 
   * `path=[relative|short-relative|short]`
@@ -253,6 +258,24 @@ Specific options for placeholders:
     * `short-relative` - Outputs a relative path to the working directory, trims the leading slash `./` and hides the working directory path `.`
 
     * `short` - Outputs an absolute path, but hides the working directory path.
+
+</Before>
+
+<Since version="v1.2.1">
+
+* `%prefix`
+
+  * `path=[relative|short-relative|short|minimal]`
+
+    * `relative` - Outputs a relative path to the working directory.
+
+    * `short-relative` - Outputs a relative path to the working directory, trims the leading slash `./` and hides the working directory path `.`
+
+    * `short` - Outputs an absolute path, but hides the working directory path.
+
+    * `minimal` - Outputs only the last element of the path and hides the working directory path. When several units share a name, it adds parent directories until each one is unique, e.g. `app-a/.terragrunt-stack/db` and `app-b/.terragrunt-stack/db`.
+
+</Since>
 
 * `%tf-path`
 

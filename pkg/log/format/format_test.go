@@ -1,12 +1,14 @@
 package format_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -236,4 +238,39 @@ func TestFormatterPlaceholderRegisterNames(t *testing.T) {
 	assert.Contains(t, names, "msg")
 	assert.Contains(t, names, "time")
 	assert.Contains(t, names, "interval")
+}
+
+// TestFormatterSetUnitPathsKeepsEarlierUnits checks the unit paths set on the
+// formatter reach the `minimal` prefix, and that a second run in the same
+// process does not drop the labels of the first.
+func TestFormatterSetUnitPathsKeepsEarlierUnits(t *testing.T) {
+	t.Parallel()
+
+	baseDir := venvtest.Root("/work/live")
+	firstUnit := filepath.Join(baseDir, "app-a", "db")
+	secondUnit := filepath.Join(baseDir, "app-b", "db")
+
+	fmtr := format.NewFormatter(nil)
+	fmtr.SetDisabledColors(true)
+	require.NoError(t, fmtr.SetCustomFormat("%prefix(path=minimal)"))
+	require.NoError(t, fmtr.SetBaseDir(baseDir))
+
+	fmtr.SetUnitPaths([]string{firstUnit, filepath.Join(baseDir, "app-c", "db")})
+	fmtr.SetUnitPaths([]string{secondUnit})
+
+	for _, tc := range []struct {
+		unit     string
+		expected string
+	}{
+		{unit: firstUnit, expected: filepath.Join("app-a", "db")},
+		{unit: secondUnit, expected: "db"},
+	} {
+		output, err := fmtr.Format(&log.Entry{
+			Entry:  logrus.NewEntry(logrus.New()),
+			Level:  log.InfoLevel,
+			Fields: log.Fields{placeholders.WorkDirKeyName: tc.unit},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, tc.expected+"\n", string(output))
+	}
 }
