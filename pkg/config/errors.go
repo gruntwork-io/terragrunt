@@ -532,8 +532,9 @@ func (err DuplicateDependencyConfigPathError) Error() string {
 	)
 }
 
-// DependencyConfigPathFileError is returned when a dependency block sets config_path to a
-// file while the dependency-config-path-file strict control is enabled.
+// DependencyConfigPathFileError reports a dependency block that sets config_path to a file. It
+// is returned when the dependency-config-path-file strict control is enabled, and its message
+// is logged as a warning otherwise.
 type DependencyConfigPathFileError struct {
 	// ConfigPath is the configuration file that declares the block.
 	ConfigPath string

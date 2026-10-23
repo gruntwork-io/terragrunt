@@ -447,8 +447,9 @@ func validateUniqueDependencies(
 	return nil
 }
 
-// evaluateDependencyControl returns strictErr when the strict control called name is enabled,
-// and otherwise lets the control log its warning.
+// evaluateDependencyControl returns strictErr when the strict control called name is enabled.
+// Otherwise it logs the control's warning and the message of strictErr, each once per command,
+// so every config the control would reject is named.
 func evaluateDependencyControl(
 	ctx context.Context,
 	pctx *ParsingContext,
@@ -465,7 +466,13 @@ func evaluateDependencyControl(
 		return strictErr
 	}
 
-	return control.Evaluate(log.ContextWithLogger(ctx, l))
+	if err := control.Evaluate(log.ContextWithLogger(ctx, l)); err != nil {
+		return err
+	}
+
+	control.WarnDetail(l, strictErr.Error())
+
+	return nil
 }
 
 // duplicateDependencyAddress returns the first address that two dependency blocks both

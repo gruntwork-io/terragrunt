@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,6 +26,7 @@ func (panickyControl) GetSubcontrols() strict.Controls  { panic("boom") }
 func (panickyControl) AddSubcontrols(...strict.Control) {}
 func (panickyControl) SuppressWarning()                 {}
 func (panickyControl) Evaluate(context.Context) error   { return nil }
+func (panickyControl) WarnDetail(log.Logger, string)    {}
 
 func TestRenderListExecuteError(t *testing.T) {
 	t.Parallel()

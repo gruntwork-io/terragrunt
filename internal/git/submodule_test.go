@@ -176,7 +176,7 @@ func TestGitRunner_SubmoduleURLs(t *testing.T) {
 		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
 
 		_, err := runner.SubmoduleURLs(t.Context(), headHash)
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
+		require.ErrorIs(t, err, git.ErrGitCommand)
 	})
 
 	t.Run("missing workdir", func(t *testing.T) {
