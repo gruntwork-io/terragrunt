@@ -11,7 +11,8 @@
  * Once a version ships, its gates are dead weight: a <Before> block can never
  * render again, and a <Since> block is now permanent content needlessly wrapped
  * in a conditional. After a release, this script rewrites every .mdx file under
- * the docs content tree, for every gate whose version is at or below the latest
+ * docs/src, which holds both the page tree (content) and the collection entries
+ * pages render (data), for every gate whose version is at or below the latest
  * release:
  *
  *   - <Before version="X">…</Before>  ->  removed entirely (content included).
@@ -192,11 +193,15 @@ export function pruneImports(source: string): string {
     if (new RegExp(`<${tag}\\b`).test(result)) {
       continue;
     }
-    const importLine = new RegExp(
-      `^import ${tag} from ['"]@components/${tag}\\.astro['"];?\\n`,
-      "m",
-    );
-    result = result.replace(importLine, "");
+    const importLine = `import ${tag} from ['"]@components/${tag}\\.astro['"];?\\n`;
+    // An import alone between blank lines takes one of them with it, so the
+    // content below doesn't end up two blank lines from the frontmatter.
+    const isolated = new RegExp(`(\\n\\n)${importLine}\\n`);
+    if (isolated.test(result)) {
+      result = result.replace(isolated, "$1");
+      continue;
+    }
+    result = result.replace(new RegExp(`^${importLine}`, "m"), "");
   }
   return result;
 }
@@ -248,6 +253,12 @@ function reclaimWhitespace(source: string): string {
     }
   }
 
+  // A run at the end of the file also consumed the empty element that the
+  // file's final newline leaves after split.
+  if (source.endsWith("\n") && out[out.length - 1] !== "") {
+    out.push("");
+  }
+
   return out.join("\n");
 }
 
@@ -297,7 +308,7 @@ export function listMdxFiles(dir: string, fsImpl: Filesystem): string[] {
 }
 
 /**
- * Walks the docs content tree and rewrites every file with obsolete gates.
+ * Walks contentDir and rewrites every .mdx file with obsolete gates.
  *
  * Returns the paths of the files that changed.
  */
@@ -340,7 +351,7 @@ if (import.meta.main) {
   const contentDir =
     process.env.CONTENT_DIR ||
     process.argv[3] ||
-    path.join(import.meta.dir, "..", "..", "docs", "src", "content");
+    path.join(import.meta.dir, "..", "..", "docs", "src");
 
   if (!latestTag) {
     console.error("LATEST_TAG is required.");
