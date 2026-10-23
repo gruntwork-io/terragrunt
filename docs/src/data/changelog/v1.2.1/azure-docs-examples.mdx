@@ -5,15 +5,18 @@ category: "documentation-updates"
 
 #### Azure examples across the docs
 
-The [Overview](/getting-started/overview/) now has an Azure version of every example. It builds a resource group and a virtual network in `eastus` and `westus2`, and keeps state in an `azurerm` backend. The code for each step is in [`test/fixtures/docs/02-overview-azure`](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview-azure). Terragrunt's integration tests apply and destroy each step, so a broken example fails CI.
+The [Overview](/getting-started/overview/) now has Azure examples for every step. They create a resource group and a virtual network in `eastus` and `westus2`, and keep state in an `azurerm` backend.
+
+The code for each step is in [`test/fixtures/docs/02-overview-azure`](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview-azure). An integration test applies and destroys each step in that directory.
 
 These pages also have Azure examples now:
 
-- [Units](/features/units) and [Includes](/features/units/includes) generate an `azurerm` backend and provider from a shared configuration.
-- [Importing](/features/units/importing) imports Azure resources by their resource ID.
+- [Units](/features/units) shows an `env.hcl` that generates the `azurerm` provider for every unit in an environment.
+- [Includes](/features/units/includes) shows a `root.hcl` that configures the `azurerm` backend and generates the provider.
+- [Importing](/features/units/importing) shows how to import Azure resources by resource ID.
 - [`backend bootstrap`](/reference/cli/commands/backend/bootstrap), [`backend migrate`](/reference/cli/commands/backend/migrate), and [`backend delete`](/reference/cli/commands/backend/delete) show what each command creates, moves, or deletes for an `azurerm` backend.
 - In [Patterns](/guides/patterns), the "Keep your backend configuration DRY" pattern sets an `azurerm` backend once in `root.hcl`.
 
 [Authentication](/features/units/authentication#authenticating-with-azure) has a new section on signing in to Azure with the Azure CLI, a service principal, OIDC, or a managed identity. It also lists the [roles the `azurerm` backend needs](/features/units/authentication#required-azure-permissions).
 
-Pick a cloud provider in any example tab. The choice applies to every tab on the page and stays selected on the other pages you visit.
+Pick a cloud provider in any example tab, and every tab on the page switches with it. Other pages open on the same provider when they have a tab for it, and show AWS when they don't.
