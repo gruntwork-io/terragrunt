@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -527,6 +529,77 @@ func TestRunOrderRejectsAnUnknownFormat(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.True(t, res.IsError)
+}
+
+// TestRunOrderDescriptionNamesOnlyArgumentsItAccepts pins that every
+// name=value the description tells a client to pass names an argument in the
+// input schema. The schema is closed, so a call with any other name fails.
+func TestRunOrderDescriptionNamesOnlyArgumentsItAccepts(t *testing.T) {
+	t.Parallel()
+
+	session := newTestSession(t, newTestTree(t))
+
+	res, err := session.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+
+	idx := slices.IndexFunc(res.Tools, func(tool *mcp.Tool) bool { return tool.Name == "run_order" })
+	require.GreaterOrEqual(t, idx, 0, "run_order must be advertised")
+
+	tool := res.Tools[idx]
+
+	raw, err := json.Marshal(tool.InputSchema)
+	require.NoError(t, err)
+
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+
+	require.NoError(t, json.Unmarshal(raw, &schema))
+
+	arguments := slices.Sorted(maps.Keys(schema.Properties))
+	require.NotEmpty(t, arguments)
+
+	// A leading dash marks a server flag such as --allow=exec.
+	mentions := regexp.MustCompile(`(?:^|[^-\w])([a-z_]+)=\w`).FindAllStringSubmatch(tool.Description, -1)
+	require.NotEmpty(t, mentions)
+
+	for _, mention := range mentions {
+		assert.Contains(t, arguments, mention[1])
+	}
+}
+
+// TestPlanInputSchemaHasEveryArgument pins that the plan tool's input schema
+// has the arguments it shares with apply and destroy, and its own.
+func TestPlanInputSchemaHasEveryArgument(t *testing.T) {
+	t.Parallel()
+
+	session := newTestSessionWith(
+		t,
+		newTestTree(t),
+		venvtest.NewWithOSFS(),
+		func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+		nil,
+	)
+
+	res, err := session.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+
+	idx := slices.IndexFunc(res.Tools, func(tool *mcp.Tool) bool { return tool.Name == "plan" })
+	require.GreaterOrEqual(t, idx, 0, "plan must be advertised")
+
+	raw, err := json.Marshal(res.Tools[idx].InputSchema)
+	require.NoError(t, err)
+
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+
+	require.NoError(t, json.Unmarshal(raw, &schema))
+	assert.ElementsMatch(
+		t,
+		[]string{"working_dir", "filter", "parallelism", "include_sensitive"},
+		slices.Collect(maps.Keys(schema.Properties)),
+	)
 }
 
 func TestValidateToolSeparatesCleanAndBrokenTrees(t *testing.T) {

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/require"
@@ -83,8 +82,8 @@ func TestAWSS3GetterRejectsEscapingKey(t *testing.T) {
 	client := helpers.CreateS3ClientForTest(t, region)
 
 	_, err := client.PutObject(t.Context(), &s3.PutObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(escaping),
+		Bucket: new(bucket),
+		Key:    new(escaping),
 		Body:   strings.NewReader("escape"),
 	})
 	if err != nil {
@@ -112,7 +111,7 @@ func provisionS3GetterLayout(t *testing.T, region string, layout map[string]stri
 	client := helpers.CreateS3ClientForTest(t, region)
 
 	_, err := client.CreateBucket(t.Context(), &s3.CreateBucketInput{
-		Bucket: aws.String(bucket),
+		Bucket: new(bucket),
 		CreateBucketConfiguration: &types.CreateBucketConfiguration{
 			LocationConstraint: types.BucketLocationConstraint(region),
 		},
@@ -127,8 +126,8 @@ func provisionS3GetterLayout(t *testing.T, region string, layout map[string]stri
 
 	for key, body := range layout {
 		_, err := client.PutObject(t.Context(), &s3.PutObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(key),
+			Bucket: new(bucket),
+			Key:    new(key),
 			Body:   strings.NewReader(body),
 		})
 		require.NoError(t, err, "putting %s", key)

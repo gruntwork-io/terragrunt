@@ -11,6 +11,7 @@ const (
 	TFCmdKeyName     = "tf-command"
 
 	// Terragrunt Provider Cache Server fields.
+
 	CacheServerURLKeyName    = "url"
 	CacheServerStatusKeyName = "status"
 )

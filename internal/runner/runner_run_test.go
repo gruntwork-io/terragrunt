@@ -1,9 +1,14 @@
 package runner_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"io"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -11,14 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -44,7 +52,7 @@ func TestRunnerRun_ExcludedUnitsAreReported(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc, app},
@@ -53,7 +61,7 @@ func TestRunnerRun_ExcludedUnitsAreReported(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.NoError(t, rnr.Run(t.Context(), l, v, opts, r))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r))
 
 	for _, unit := range []*component.Unit{vpc, app} {
 		run, err := r.GetRun(unit.Path())
@@ -84,7 +92,7 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc, db, app},
@@ -93,7 +101,7 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, r))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r))
 
 	vpcRun, err := r.GetRun(vpc.Path())
 	require.NoError(t, err)
@@ -114,7 +122,8 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 	}
 }
 
-// TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit pins that a failure behind a failed dependency is an early exit.
+// TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit pins that a failure
+// behind a failed dependency is an early exit.
 func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 	t.Parallel()
 
@@ -129,12 +138,12 @@ func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc, app})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc, app})
 	require.NoError(t, err)
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, r))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r))
 
 	appRun, err := r.GetRun(app.Path())
 	require.NoError(t, err)
@@ -155,10 +164,10 @@ func TestRunnerRun_WithoutReport(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, nil))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
 	assert.Contains(
 		t,
 		opts.TerraformCliArgs.Slice(),
@@ -188,10 +197,10 @@ func TestRunnerRun_AuthProviderFailureFailsUnit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), vexec.ErrNoSpawn)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), vexec.ErrNoSpawn)
 }
 
 // TestRunnerRun_UnitRunFailsWithoutBinary pins the error a parsed unit hits when no binary may be spawned.
@@ -205,10 +214,10 @@ func TestRunnerRun_UnitRunFailsWithoutBinary(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), vexec.ErrNoSpawn)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), vexec.ErrNoSpawn)
 }
 
 // TestRunnerRun_UnitTerraformBinaryOverride pins that the unit run spawns a unit's terraform_binary.
@@ -222,9 +231,9 @@ func TestRunnerRun_UnitTerraformBinaryOverride(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
-	require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
 
 	plan := commandInvocation(t, invocations(), tf.CommandNamePlan)
 	assert.Equal(t, "custom-tofu", plan.Name, "the plan runs the unit's terraform_binary")
@@ -239,12 +248,12 @@ func TestRunnerRun_EmptyStack(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{})
 	require.NoError(t, err)
 
 	require.NoError(
 		t,
-		rnr.Run(t.Context(), l, v, opts, report.NewReport().WithWorkingDir(memRoot)),
+		rnr.Run(config.WithCaches(t.Context()), l, v, opts, report.NewReport().WithWorkingDir(memRoot)),
 	)
 }
 
@@ -341,13 +350,13 @@ func TestRunnerRun_SyncsUnitCliArgs(t *testing.T) {
 			l := thlogger.CreateLogger()
 
 			rnr, err := runner.NewFromComponents(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				l,
 				opts,
 				component.Components{vpc},
 			)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
 
 			if tc.jsonOutput {
 				exists, err := vfs.FileExists(v.FS, vpc.OutputJSONFile(memRoot, opts.JSONOutputFolder))
@@ -429,11 +438,391 @@ func TestRunnerRun_PlanWithRemoteStateErrors(t *testing.T) {
 
 			l := thlogger.CreateLogger()
 
-			rnr, err := runner.NewFromComponents(t.Context(), l, opts, components)
+			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, components)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
 		})
 	}
+}
+
+// The in-memory exec's exit code is invisible to util.GetExitCode, so the fake plan fails with an ExitStatus error.
+func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		wantResult report.Result
+		exitCode   int
+		wantErr    bool
+	}{
+		{
+			name:       "plan with changes",
+			exitCode:   tf.DetailedExitCodeChanges,
+			wantResult: report.ResultSucceeded,
+		},
+		{
+			name:       "plan that fails",
+			exitCode:   tf.DetailedExitCodeError,
+			wantResult: report.ResultFailed,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				if slices.Contains(inv.Args, tf.FlagNameDetailedExitCode) {
+					return vexec.Result{Err: exitStatusErr{code: tc.exitCode}}
+				}
+
+				return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+			})
+
+			vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+			opts.TerraformCliArgs = iacargs.New(tf.CommandNamePlan, tf.FlagNameDetailedExitCode)
+
+			l := thlogger.CreateLogger()
+
+			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
+			require.NoError(t, err)
+
+			exitCodes := tf.NewDetailedExitCodeMap()
+			ctx := tf.ContextWithDetailedExitCode(config.WithCaches(t.Context()), exitCodes)
+			r := report.NewReport().WithWorkingDir(memRoot)
+
+			err = rnr.Run(ctx, l, v, opts, r)
+			assert.Equal(t, tc.wantErr, err != nil, "run error: %v", err)
+
+			run, err := r.GetRun(vpc.Path())
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantResult, run.Result)
+			assert.Equal(t, tc.exitCode, exitCodes.Get(vpc.Path()), "the unit exit code reaches the caller")
+		})
+	}
+}
+
+// TestRunnerRun_SplitsUnitOutput pins that a venv writer implementing
+// [runner.UnitOutputSplitter] receives each unit's stdout on the writer it
+// gave that unit, and none of it on the shared stream, and that the runner
+// closes each unit's writer.
+func TestRunnerRun_SplitsUnitOutput(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		switch inv.Args[0] {
+		case tf.CommandNamePlan:
+			return vexec.Result{Stdout: []byte("planned in " + inv.Dir + "\n")}
+		case tf.CommandNameInit:
+			return vexec.Result{}
+		}
+
+		return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+	})
+
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+	app := newTestUnit(t, v, memRoot, "app", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.ForwardTFStdout = true
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc, app})
+	require.NoError(t, err)
+
+	splitter := &recordingSplitter{units: map[string]*bytes.Buffer{}, closed: map[string]struct{}{}}
+
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v.WithWriter(splitter), opts, nil))
+
+	assert.Empty(t, splitter.shared.String(), "unit output must not reach the shared stream")
+
+	for _, unit := range []*component.Unit{vpc, app} {
+		require.Contains(t, splitter.units, unit.Path())
+		assert.Contains(t, splitter.closed, unit.Path(), "%s's writer is closed", unit.Path())
+		assert.True(
+			t,
+			strings.HasPrefix(
+				splitter.units[unit.Path()].String(),
+				"planned in "+unit.Path()+string(filepath.Separator),
+			),
+			"%s got %q",
+			unit.Path(),
+			splitter.units[unit.Path()].String(),
+		)
+	}
+}
+
+func TestRunnerRun_OutputFolderCannotBeCreated(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.OutputFolder = filepath.Join(memRoot, "out")
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	faulty := *v
+	faulty.FS = &faultFS{FS: v.FS, op: faultMkdirAll, under: opts.OutputFolder}
+
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, &faulty, opts, nil), errInjected)
+}
+
+// The report refuses relative paths, so those units are left out and the run goes on.
+func TestRunnerRun_RelativeUnitPathsAreLeftOutOfTheReport(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+
+	reported := newTestUnit(t, v, memRoot, "db", "")
+	reported.SetExcluded(true)
+
+	excluded := component.NewUnit("vpc").WithConfig(&config.TerragruntConfig{})
+	excluded.SetExcluded(true)
+
+	failing := component.NewUnit("app").WithConfig(&config.TerragruntConfig{})
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(
+		config.WithCaches(t.Context()),
+		l,
+		opts,
+		component.Components{reported, excluded, failing},
+	)
+	require.NoError(t, err)
+
+	r := report.NewReport().WithWorkingDir(memRoot)
+
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r), "the unit without a config file fails")
+
+	require.Len(t, r.Runs, 1, "the report only records absolute unit paths")
+	assert.Equal(t, reported.Path(), r.Runs[0].Path)
+}
+
+func TestRunnerRun_UnitOptionsCannotBeBuilt(t *testing.T) {
+	t.Parallel()
+
+	badSource := "no-slashes-here"
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "").WithConfig(&config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{Source: &badSource},
+	})
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.Source = "/local/modules"
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	var target config.ParsingModulePathError
+
+	require.ErrorAs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), &target)
+}
+
+// Two units run in each case, so a warning given per unit instead of per run would be counted twice.
+func TestRunnerRun_WarnsOnLocalStateWithGitRef(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		unitBody string
+		mainTF   string
+		ref      string
+		want     int
+	}{
+		{
+			name: "no remote state",
+			ref:  "HEAD~1",
+			want: 1,
+		},
+		{
+			name: "local backend",
+			unitBody: `remote_state {
+  backend = "local"
+  config = {
+    path = "terraform.tfstate"
+  }
+}`,
+			mainTF: `terraform {
+  backend "local" {}
+}`,
+			ref:  "HEAD~1",
+			want: 1,
+		},
+		{
+			name: "remote backend",
+			unitBody: `remote_state {
+  backend = "http"
+  disable_init = true
+  config = {
+    address = "http://127.0.0.1:1/state"
+  }
+}`,
+			mainTF: `terraform {
+  backend "http" {}
+}`,
+			ref: "HEAD~1",
+		},
+		{
+			name: "no git ref",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := memVenv(tfVersionOutput)
+
+			names := []string{"vpc", "app"}
+			units := make(component.Components, 0, len(names))
+
+			for _, name := range names {
+				dir := writeUnit(t, v, memRoot, name, tc.unitBody)
+				require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(dir, "main.tf"), []byte(tc.mainTF), 0o644))
+
+				unit := component.NewUnit(dir).WithConfig(&config.TerragruntConfig{})
+				unit.SetDiscoveryContext(&component.DiscoveryContext{WorkingDir: memRoot, Ref: tc.ref})
+
+				units = append(units, unit)
+			}
+
+			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+
+			var out bytes.Buffer
+
+			l := thlogger.CreateLogger().WithOptions(log.WithOutput(&out))
+
+			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, units)
+			require.NoError(t, err)
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+
+			assert.Equal(
+				t,
+				tc.want,
+				strings.Count(out.String(), "do not have a remote_state configuration"),
+				"the warning is given at most once per run",
+			)
+		})
+	}
+}
+
+// No engine clients are set up, so releasing the unit's engine fails.
+func TestRunnerRun_EngineShutdownFailureKeepsUnitResult(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.IacEngine))
+
+	var out bytes.Buffer
+
+	l := thlogger.CreateLogger().WithOptions(log.WithOutput(&out))
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+	assert.Contains(t, out.String(), "Error shutting down engine for unit", "no engine clients were set up to release")
+}
+
+// Output without a trailing newline stays buffered until the final flush, which is the write that fails.
+func TestRunnerRun_OutputFlushFailureFailsUnit(t *testing.T) {
+	t.Parallel()
+
+	writeErr := errors.New("write failed")
+
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if slices.Contains(inv.Args, "-version") {
+			return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+		}
+
+		return vexec.Result{Stdout: []byte("partial line")}
+	}).WithWriter(&failingWriter{err: writeErr})
+
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), writeErr)
+}
+
+func TestRunnerRun_RecordsTaskOutcomeOnSpan(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+	app := newTestUnit(t, v, memRoot, "app", invalidHCL)
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc, app})
+	require.NoError(t, err)
+
+	buf, tlm := newConsoleTelemeter(t)
+	ctx := telemetry.ContextWithTelemeter(config.WithCaches(t.Context()), tlm)
+
+	require.Error(t, rnr.Run(ctx, l, v, opts, nil))
+	require.NoError(t, tlm.Shutdown(ctx))
+
+	outcomes := map[any]any{}
+	for _, span := range spansNamed(decodeSpans(t, buf), "runner_pool_task") {
+		outcomes[span.Attrs["unit_path"]] = span.Attrs["outcome"]
+	}
+
+	assert.Equal(t, map[any]any{vpc.Path(): "succeeded", app.Path(): "failed"}, outcomes)
+}
+
+func TestRunnerRun_JSONOutputCannotBeWritten(t *testing.T) {
+	t.Parallel()
+
+	v := memVenv(tfVersionOutput)
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.JSONOutputFolder = filepath.Join(memRoot, "json")
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
+	require.NoError(t, err)
+
+	faulty := *v
+	faulty.FS = &faultFS{FS: v.FS, op: faultMkdirAll, under: opts.JSONOutputFolder}
+
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, &faulty, opts, nil), errInjected)
+}
+
+func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
+	t.Parallel()
+
+	unitRunner := runner.NewUnitRunner(component.NewUnit(memRoot))
+
+	require.NoError(t, unitRunner.Run(config.WithCaches(t.Context()), thlogger.CreateLogger(), venvtest.New(), nil, nil, nil, nil))
+	assert.Equal(t, runner.Running, unitRunner.Status)
 }
 
 // newTestUnit writes a unit directory into the in-memory filesystem of v and returns the matching component.
@@ -469,6 +858,63 @@ func recordingVenv(stdout, stderr string) (*venv.Venv, func() []vexec.Invocation
 
 		return slices.Clone(recorded)
 	}
+}
+
+// exitStatusErr fails a fake OpenTofu/Terraform process with code, as an exited process does.
+type exitStatusErr struct {
+	code int
+}
+
+func (e exitStatusErr) Error() string { return "exit status " + strconv.Itoa(e.code) }
+
+func (e exitStatusErr) ExitStatus() (int, error) { return e.code, nil }
+
+// recordingSplitter is a [runner.UnitOutputSplitter] that records what each
+// unit writes, and what reaches the shared stream, in memory.
+type recordingSplitter struct {
+	units  map[string]*bytes.Buffer
+	closed map[string]struct{}
+	shared bytes.Buffer
+	mu     sync.Mutex
+}
+
+func (s *recordingSplitter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.shared.Write(p)
+}
+
+func (s *recordingSplitter) ForUnit(_ vfs.FS, unitPath string) io.WriteCloser {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	buf := &bytes.Buffer{}
+	s.units[unitPath] = buf
+
+	return &lockedWriter{w: buf, s: s, unitPath: unitPath}
+}
+
+type lockedWriter struct {
+	w        io.Writer
+	s        *recordingSplitter
+	unitPath string
+}
+
+func (w *lockedWriter) Write(p []byte) (int, error) {
+	w.s.mu.Lock()
+	defer w.s.mu.Unlock()
+
+	return w.w.Write(p)
+}
+
+func (w *lockedWriter) Close() error {
+	w.s.mu.Lock()
+	defer w.s.mu.Unlock()
+
+	w.s.closed[w.unitPath] = struct{}{}
+
+	return nil
 }
 
 // commandInvocation returns the first invocation of command.

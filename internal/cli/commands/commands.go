@@ -180,7 +180,9 @@ func WrapWithTelemetry(
 
 		defer func() {
 			if err := telemeter.Shutdown(ctx); err != nil {
-				_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+				if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
+					l.Debugf("Failed to report telemetry shutdown error %v: %v", err, writeErr)
+				}
 			}
 		}()
 
@@ -205,7 +207,9 @@ func WrapWithTelemetry(
 					opts.Experiments,
 					opts.EngineOptions.NoEngine,
 				); err != nil {
-					_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+					if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
+						l.Debugf("Failed to report engine shutdown error %v: %v", err, writeErr)
+					}
 				}
 			}()
 
@@ -545,16 +549,6 @@ func initialSetup(
 		args = append([]string{cmdName}, args...)
 	}
 
-	// `terraform apply -destroy` is an alias for `terraform destroy`.
-	// It is important to resolve the alias because `run --all` relies on
-	// the OpenTofu/Terraform command to determine the order, and for
-	// `destroy` the reverse order is used.
-	if cmdName == tf.CommandNameApply && slices.Contains(args, tf.FlagNameDestroy) {
-		cmdName = tf.CommandNameDestroy
-		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
-		args = slices.DeleteFunc(args, func(arg string) bool { return arg == tf.FlagNameDestroy })
-	}
-
 	// Terragrunt's `--no-color` propagates to tofu unless the user already passed it after `--`.
 	if l.Formatter().DisabledColors() && !slices.Contains(args, tf.FlagNameNoColor) {
 		args = append(args, tf.FlagNameNoColor)
@@ -691,7 +685,7 @@ func initialSetup(
 	}
 
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
-	opts.OriginalTerraformCommand = opts.TerraformCommand
+	opts.OriginalTerraformCommand = opts.TerraformCliArgs.CommandName(opts.TerraformCommand)
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 	if !exec.PrepareConsole(l) {

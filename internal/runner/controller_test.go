@@ -15,6 +15,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -77,7 +79,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(2),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.NoError(t, err)
 }
 
@@ -112,7 +114,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(2),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.NoError(t, err)
 }
 
@@ -150,7 +152,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(2),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.Error(t, err)
 
 	for _, want := range []string{"unit A failed", "Unit 'B' did not run", "Unit 'C' did not run"} {
@@ -167,7 +169,7 @@ func TestRunnerPool_RunnerNotSet(t *testing.T) {
 	q, err := queue.NewQueue(component.Components{units[0]})
 	require.NoError(t, err)
 
-	err = runner.NewController(q, units).Run(t.Context(), logger.CreateLogger())
+	err = runner.NewController(q, units).Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.ErrorIs(t, err, runner.ErrRunnerNotSet)
 }
 
@@ -221,7 +223,7 @@ func TestRunnerPool_NonPositiveConcurrencyRunsSerially(t *testing.T) {
 			}),
 			runner.WithMaxConcurrency(0),
 		)
-		require.NoError(t, dagRunner.Run(t.Context(), logger.CreateLogger()))
+		require.NoError(t, dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger()))
 
 		mu.Lock()
 		defer mu.Unlock()
@@ -247,7 +249,7 @@ func TestRunnerPool_UnitMissingFromDiscoveredUnits(t *testing.T) {
 		runner.WithRunner(func(context.Context, *component.Unit) error { return nil }),
 	)
 
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 
 	var target runner.UnitNotDiscoveredError
 
@@ -263,7 +265,7 @@ func TestRunnerPool_ContextCancelled(t *testing.T) {
 	q, err := queue.NewQueue(component.Components{units[0]})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(config.WithCaches(t.Context()))
 	started := make(chan struct{})
 	release := make(chan struct{})
 
@@ -338,7 +340,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(8),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.Error(t, err)
 
 	for _, want := range []string{"unit B failed", "Unit 'D' did not run", "Unit 'E' did not run"} {
@@ -374,7 +376,7 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(8),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.Error(t, err)
 
 	for _, want := range []string{
@@ -416,10 +418,144 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(8),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.Error(t, err)
 
 	for _, want := range []string{"unit B failed", "Unit 'D' did not run", "Unit 'E' did not run"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
+}
+
+// A fails only once fake time advances, after the loop has claimed B and blocked on the one worker.
+func TestRunnerPool_FailFastSkipsEntriesCancelledBeforeDispatch(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		units := buildComponentUnits([]string{"A", "B", "C"}, nil)
+
+		q, err := queue.NewQueue(component.Components{units[0], units[1], units[2]})
+		require.NoError(t, err)
+
+		q.FailFast = true
+
+		errA := errors.New("unit A failed")
+
+		var (
+			mu  sync.Mutex
+			ran []string
+		)
+
+		record := func(path string) {
+			mu.Lock()
+			defer mu.Unlock()
+
+			ran = append(ran, path)
+		}
+
+		dagRunner := runner.NewController(
+			q,
+			units,
+			runner.WithRunner(func(_ context.Context, u *component.Unit) error {
+				record(u.Path())
+
+				if u.Path() != "A" {
+					return nil
+				}
+
+				time.Sleep(time.Second)
+
+				return errA
+			}),
+			runner.WithMaxConcurrency(1),
+		)
+
+		err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
+		require.ErrorIs(t, err, errA)
+
+		var earlyExit runner.UnitEarlyExitError
+
+		require.ErrorAs(t, err, &earlyExit)
+		assert.Equal(t, "C", earlyExit.UnitPath)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		assert.Equal(t, []string{"A", "B"}, ran, "B was claimed before A failed, so only C is skipped")
+		assert.Equal(t, queue.StatusSucceeded, q.EntryByPath("B").Status)
+	})
+}
+
+func TestRunnerPool_ReportsEntryFailedBeforeRun(t *testing.T) {
+	t.Parallel()
+
+	units := buildComponentUnits([]string{"A", "B"}, nil)
+
+	q, err := queue.NewQueue(component.Components{units[0], units[1]})
+	require.NoError(t, err)
+
+	q.EntryByPath("A").Status = queue.StatusFailed
+
+	var ran []string
+
+	dagRunner := runner.NewController(
+		q,
+		units,
+		runner.WithRunner(func(_ context.Context, u *component.Unit) error {
+			ran = append(ran, u.Path())
+
+			return nil
+		}),
+		runner.WithMaxConcurrency(1),
+	)
+
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
+
+	var failed runner.UnitFailedError
+
+	require.ErrorAs(t, err, &failed)
+	assert.Equal(t, "A", failed.UnitPath)
+	assert.Equal(t, []string{"B"}, ran, "an entry that already failed is not run again")
+}
+
+func TestRunnerPool_RecordsOutcomeCountsOnSpan(t *testing.T) {
+	t.Parallel()
+
+	units := buildComponentUnits([]string{"A", "B", "C"}, map[string][]string{"C": {"B"}})
+
+	q, err := queue.NewQueue(component.Components{units[0], units[1], units[2]})
+	require.NoError(t, err)
+
+	errB := errors.New("unit B failed")
+
+	buf, tlm := newConsoleTelemeter(t)
+	ctx := telemetry.ContextWithTelemeter(config.WithCaches(t.Context()), tlm)
+
+	dagRunner := runner.NewController(
+		q,
+		units,
+		runner.WithRunner(func(_ context.Context, u *component.Unit) error {
+			if u.Path() == "B" {
+				return errB
+			}
+
+			return nil
+		}),
+	)
+
+	require.ErrorIs(t, dagRunner.Run(ctx, logger.CreateLogger()), errB)
+	require.NoError(t, tlm.Shutdown(ctx))
+
+	spans := spansNamed(decodeSpans(t, buf), "runner_pool_controller")
+	require.Len(t, spans, 1)
+
+	counts := map[string]any{}
+	for _, key := range []string{"tasks_succeeded", "tasks_failed", "tasks_early_exit"} {
+		counts[key] = spans[0].Attrs[key]
+	}
+
+	assert.Equal(t, map[string]any{
+		"tasks_succeeded":  float64(1),
+		"tasks_failed":     float64(1),
+		"tasks_early_exit": float64(1),
+	}, counts)
 }

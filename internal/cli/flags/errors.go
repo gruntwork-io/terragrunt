@@ -2,8 +2,6 @@ package flags
 
 import "fmt"
 
-var _ error = new(GlobalFlagHintError)
-
 type GlobalFlagHintError struct {
 	undefFlag string
 	cmdHint   string
@@ -26,8 +24,6 @@ func (err GlobalFlagHintError) Error() string {
 		err.flagHint,
 	)
 }
-
-var _ error = new(CommandFlagHintError)
 
 type CommandFlagHintError struct {
 	undefFlag string
@@ -54,8 +50,6 @@ func (err CommandFlagHintError) Error() string {
 		err.flagHint,
 	)
 }
-
-var _ error = new(PassthroughFlagHintError)
 
 type PassthroughFlagHintError struct {
 	undefFlag string

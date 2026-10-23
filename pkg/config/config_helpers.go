@@ -161,6 +161,9 @@ type TrackInclude struct {
 	Original *IncludeConfig
 	// AutoIncludeOverride is the sibling terragrunt.autoinclude.hcl registered as a high-priority override that is merged on top and wins, kept off CurrentList/CurrentMap so include-identity readers never see it.
 	AutoIncludeOverride *IncludeConfig
+	// parsedForMerge holds, by include name, the included configs [DecodeBaseBlocks] parsed with
+	// [IncludeParseForMerge], so the partial merge uses them instead of parsing the includes again.
+	parsedForMerge map[string]*TerragruntConfig
 	// CurrentList is used to track the list of configs that should be imported and merged before the final
 	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
 	// merge the included config in the right order.
@@ -189,6 +192,10 @@ func CreateTerragruntEvalContext(
 		func() map[string]function.Function { return tfFunctions },
 		pctx.FilesRead.Add,
 	))
+
+	for _, name := range perCallFunctionNames {
+		tfFunctions[name] = markingNotShareable(ctx, tfFunctions[name])
+	}
 
 	terragruntFunctions := map[string]function.Function{
 		FuncNameFindInParentFolders: wrapStringSliceToStringAsFuncImpl(
@@ -519,6 +526,8 @@ func getOriginalTerragruntDir(
 	_ *venv.Venv,
 	pctx *ParsingContext,
 ) (string, error) {
+	markNotShareable(ctx)
+
 	return filepath.Dir(pctx.OriginalTerragruntConfigPath), nil
 }
 
@@ -646,6 +655,10 @@ func runCommandImpl(
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
 
+	if disableCache {
+		markNotShareable(ctx)
+	}
+
 	// Skip cache lookup if --terragrunt-no-cache is set
 	if !disableCache {
 		cachedEntry, foundInCache := runCommandCache.Get(ctx, cacheKey)
@@ -655,15 +668,9 @@ func runCommandImpl(
 			// with io.Discard writers, so we need to replay the output during execution phase.
 			// We only call Do() when we have a real writer, so it won't fire during discovery.
 			if w := v.Writers.Writer; w != io.Discard {
-				cachedEntry.replayOnce.Do(func() {
-					if !suppressOutput && cachedEntry.Stdout != "" {
-						_, _ = w.Write([]byte(cachedEntry.Stdout))
-					}
-
-					if cachedEntry.Stderr != "" {
-						_, _ = v.Writers.ErrWriter.Write([]byte(cachedEntry.Stderr))
-					}
-				})
+				if err := cachedEntry.replay(w, v.Writers.ErrWriter, suppressOutput); err != nil {
+					return "", err
+				}
 			}
 
 			if suppressOutput {
@@ -705,15 +712,9 @@ func runCommandImpl(
 	}
 
 	if w := v.Writers.Writer; w != io.Discard {
-		entry.replayOnce.Do(func() {
-			if !suppressOutput && entry.Stdout != "" {
-				_, _ = w.Write([]byte(entry.Stdout))
-			}
-
-			if entry.Stderr != "" {
-				_, _ = v.Writers.ErrWriter.Write([]byte(entry.Stderr))
-			}
-		})
+		if err := entry.replay(w, v.Writers.ErrWriter, suppressOutput); err != nil {
+			return "", err
+		}
 	}
 
 	if !disableCache {
@@ -968,13 +969,15 @@ func PathRelativeFromInclude(
 
 // getTerraformCommand returns the current terraform command in execution
 func getTerraformCommand(ctx context.Context, l log.Logger, _ *venv.Venv, pctx *ParsingContext) (string, error) {
-	return pctx.TerraformCommand, nil
+	return pctx.TerraformCliArgs.CommandName(pctx.TerraformCommand), nil
 }
 
 // getWorkingDir returns the current working dir
 func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error) {
 	l.Debugf("Start processing get_working_dir built-in function")
 	defer l.Debugf("Complete processing get_working_dir built-in function")
+
+	markNotShareable(ctx)
 
 	sourcePctx := pctx.Clone()
 	sourcePctx.stubWorkingDirFunc = true
@@ -1165,14 +1168,7 @@ func ParseTerragruntConfig(
 
 	pctx.readConfigChain = slices.Concat(chain, []readConfigFrame{target})
 
-	pctx = pctx.WithDiagnosticsSuppressed()
-
-	// The parent's decoded dependencies are not the target config's. Reset so the
-	// target config decodes its own dependency blocks. Also reset SkipOutputsResolution
-	// so that dependency tracing accurately reflects that resolution is happening.
-	// See: https://github.com/gruntwork-io/terragrunt/issues/5624
-	pctx.DecodedDependencies = nil
-	pctx.SkipOutputsResolution = false
+	pctx = pctx.WithDiagnosticsSuppressed().forReadTarget()
 
 	// check if file is stack file, decode as stack file
 	//
@@ -1217,24 +1213,7 @@ func ParseTerragruntConfig(
 		return *unitValues, nil
 	}
 
-	config, err := ParseConfigFile(ctx, l, v, pctx, targetConfig, nil)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	// We have to set the rendered outputs here because ParseConfigFile will not do so on the TerragruntConfig. The
-	// outputs are stored in a special map that is used only for rendering and thus is not available when we try to
-	// serialize the config for consumption.
-	// NOTE: this will not call terragrunt output, since all the values are cached from the ParseConfigFile call
-	// NOTE: we don't use range here because range will copy the slice, thereby undoing the set attribute.
-	for i := range len(config.TerragruntDependencies) {
-		err := config.TerragruntDependencies[i].setRenderedOutputs(ctx, l, v, pctx)
-		if err != nil {
-			return cty.NilVal, err
-		}
-	}
-
-	return TerragruntConfigAsCty(config)
+	return readTerragruntConfigCached(ctx, l, v, pctx)
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.
@@ -1828,4 +1807,24 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 	}
 
 	return semver.CheckConstraint(args[0], args[1])
+}
+
+// replay writes the entry's stdout to w, unless suppressOutput is set, and its
+// stderr to errW. Only the first call on an entry writes anything.
+func (e *RunCmdCacheEntry) replay(w, errW io.Writer, suppressOutput bool) error {
+	var err error
+
+	e.replayOnce.Do(func() {
+		if !suppressOutput && e.Stdout != "" {
+			if _, err = w.Write([]byte(e.Stdout)); err != nil {
+				return
+			}
+		}
+
+		if e.Stderr != "" {
+			_, err = errW.Write([]byte(e.Stderr))
+		}
+	})
+
+	return err
 }

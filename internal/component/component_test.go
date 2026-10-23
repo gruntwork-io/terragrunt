@@ -12,6 +12,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDiscoveryContextRemovedInRef(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		ctx      component.DiscoveryContext
+		expected bool
+	}{
+		{name: "ref with -destroy", ctx: component.DiscoveryContext{Ref: "main", Cmd: "plan", Args: []string{"-destroy"}}, expected: true},
+		{name: "ref with -destroy=true", ctx: component.DiscoveryContext{Ref: "main", Cmd: "apply", Args: []string{"-destroy=true"}}, expected: true},
+		{name: "ref without -destroy", ctx: component.DiscoveryContext{Ref: "main", Cmd: "apply"}, expected: false},
+		{name: "ref with -destroy=false", ctx: component.DiscoveryContext{Ref: "main", Cmd: "apply", Args: []string{"-destroy=false"}}, expected: false},
+		{name: "-destroy without ref", ctx: component.DiscoveryContext{Cmd: "apply", Args: []string{"-destroy"}}, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, tt.ctx.RemovedInRef())
+		})
+	}
+}
+
 func TestComponentsSort(t *testing.T) {
 	t.Parallel()
 

@@ -21,7 +21,11 @@ To opt-out of this behavior, pass `--no-dependency-fetch-output-from-state` (env
 
 Azure state protected with `customer_provided_key`, and Azure configurations that rely on native-only authentication, `metadata_host`, or `timeout_seconds`, also use the normal method.
 
-GCS configurations that rely on backend-only credential environment variables, inline credentials or relative credential-file paths, the `impersonate_service_account` setting, custom storage endpoints, custom universe domains, or competing credential sources with different precedence also use the normal method. This preserves the native backend's authentication and endpoint behavior.
+GCS configurations that rely on backend-only credential environment variables, inline credentials or relative credential-file paths,<Before version="v1.2.0"> the `impersonate_service_account` setting,</Before> custom storage endpoints, custom universe domains, or competing credential sources with different precedence also use the normal method. This preserves the native backend's authentication and endpoint behavior.
+
+<Since version="v1.2.0">
+When a GCS backend impersonates a service account, Terragrunt still reads its state directly. The account comes from `impersonate_service_account`, then `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT`, then `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`. An empty `impersonate_service_account` reads the state directly without impersonation. When it is empty and one of those variables is set, Terragrunt uses the normal method. OpenTofu and Terraform disagree on that input, so the binary decides. Delegates come from `impersonate_service_account_delegates` only. Like the native backend, Terragrunt ignores `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES` and `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES`.
+</Since>
 
 The `credentials` backend setting is a local path to a Google Cloud credentials file in JSON format. `GOOGLE_APPLICATION_CREDENTIALS` points to the same kind of file. Neither is the same thing as `access_token`, which is a temporary OAuth 2.0 access token used as-is rather than a file.
 

@@ -1,0 +1,152 @@
+---
+/**
+ * Tabs whose selection is shared across the page and remembered across pages.
+ *
+ * A thin wrapper around Starlight's synced `<Tabs>`: every `StatefulTabs` with
+ * the same `syncKey` switches together, and Starlight persists the selected
+ * tab label in `localStorage` (`starlight-synced-tabs__<syncKey>`), so the
+ * choice survives navigation and reloads. Keep the labels for a given
+ * `syncKey` identical everywhere it is used, or the restore stops matching.
+ *
+ * Usage in MDX:
+ *
+ *   import StatefulTabs from '@components/StatefulTabs.astro';
+ *
+ *   <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+ *   <Fragment slot="aws">
+ *
+ *   ```hcl
+ *   # AWS version
+ *   ```
+ *
+ *   </Fragment>
+ *   <Fragment slot="azure">
+ *
+ *   ```hcl
+ *   # Azure version
+ *   ```
+ *
+ *   </Fragment>
+ *   </StatefulTabs>
+ *
+ * Each tab reads its content from a slot named after its label, lowercased
+ * with runs of non-alphanumeric characters replaced by `-` ("AWS" -> "aws",
+ * "Google Cloud" -> "google-cloud"). A declared tab with no matching slot
+ * fails the build, so a forgotten variant can't ship as an empty panel.
+ *
+ * A link can pick the tab with a query parameter named after the `syncKey`
+ * and set to a slot name, e.g. `/getting-started/overview/?cloud-provider=azure`.
+ * The choice is saved as if the reader had clicked the tab.
+ *
+ * Each page load reports a `docs_tabs_viewed` event to PostHog per `syncKey`,
+ * and each tab switch reports `docs_tab_selected`.
+ */
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { tabSlug } from '@lib/tab-telemetry';
+
+interface Props {
+	/** Shared key: all `StatefulTabs` with this key switch and persist together. */
+	syncKey: string;
+	/** Tab labels, in display order. Shown as-is and used to derive slot names. */
+	tabs: string[];
+}
+
+const { syncKey, tabs } = Astro.props;
+
+if (!syncKey) {
+	throw new Error('Missing prop `syncKey` on `<StatefulTabs>` component.');
+}
+
+if (!Array.isArray(tabs) || tabs.length === 0) {
+	throw new Error('Missing prop `tabs` on `<StatefulTabs>` component.');
+}
+
+const panels = await Promise.all(
+	tabs.map(async (label) => {
+		const slot = tabSlug(label);
+		if (!Astro.slots.has(slot)) {
+			throw new Error(
+				`<StatefulTabs syncKey="${syncKey}">: tab "${label}" has no content. Add <Fragment slot="${slot}">.`,
+			);
+		}
+		return { label, slot, html: await Astro.slots.render(slot) };
+	}),
+);
+
+const linkedSyncKeysSymbol = Symbol.for('terragrunt:stateful-tabs-linked-sync-keys');
+// @ts-expect-error - Untyped symbol key, as Starlight's `Tabs` does for its restore script.
+const linkedSyncKeys: Set<string> = (Astro.locals[linkedSyncKeysSymbol] ??= new Set());
+const shouldRenderLinkScript = !linkedSyncKeys.has(syncKey);
+linkedSyncKeys.add(syncKey);
+
+const slugLabels = panels.map(({ slot, label }) => [slot, label]);
+---
+
+{shouldRenderLinkScript && (
+	<script is:inline define:vars={{ syncKey, slugLabels }}>
+		const value = new URLSearchParams(location.search).get(syncKey);
+		const label = value && new Map(slugLabels).get(value.toLowerCase());
+		if (label) {
+			try {
+				localStorage.setItem(`starlight-synced-tabs__${syncKey}`, label);
+			} catch {}
+		}
+	</script>
+)}
+
+<stateful-tabs data-sync-key={syncKey}>
+	<Tabs syncKey={syncKey}>
+		{panels.map(({ label, html }) => (
+			<TabItem label={label}>
+				<Fragment set:html={html} />
+			</TabItem>
+		))}
+	</Tabs>
+</stateful-tabs>
+
+<style>
+	stateful-tabs {
+		display: block;
+	}
+</style>
+
+<script>
+	import { capture } from '@lib/analytics';
+	import { createTabTracker, labelForSlug, viewSource } from '@lib/tab-telemetry';
+
+	const tracker = createTabTracker(capture);
+
+	class StatefulTabs extends HTMLElement {
+		connectedCallback() {
+			const syncKey = this.dataset.syncKey;
+			const tablist = this.querySelector('[role="tablist"]');
+			if (!syncKey || !tablist) return;
+
+			const labels = [...tablist.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim() ?? '');
+			const active = () => tablist.querySelector('[aria-selected="true"]')?.textContent?.trim();
+
+			const shown = active();
+			if (shown) {
+				const linked = labelForSlug(labels, new URLSearchParams(location.search).get(syncKey));
+				tracker.viewed(syncKey, shown, viewSource(shown, linked, savedLabel(syncKey)));
+			}
+
+			const reportSelection = () => {
+				const selected = active();
+				if (selected) tracker.selected(syncKey, selected);
+			};
+			this.addEventListener('click', reportSelection);
+			this.addEventListener('keydown', reportSelection);
+		}
+	}
+
+	function savedLabel(syncKey: string): string | null {
+		try {
+			return localStorage.getItem(`starlight-synced-tabs__${syncKey}`);
+		} catch {
+			return null;
+		}
+	}
+
+	customElements.define('stateful-tabs', StatefulTabs);
+</script>

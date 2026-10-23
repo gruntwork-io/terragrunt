@@ -19,6 +19,9 @@ on:
         type: string
         default: ""
 
+permissions:
+  contents: read
+
 jobs:
   detect_release:
     name: Detect if this is a release build
@@ -27,7 +30,7 @@ jobs:
       is_release: ${{ steps.check.outputs.is_release }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           ref: ${{ inputs.ref || '' }}
           sparse-checkout: .github/scripts/build
@@ -47,12 +50,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           ref: ${{ inputs.ref || '' }}
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           version: 2026.9.12
           cache_save: ${{ github.ref == 'refs/heads/main' }}
@@ -70,43 +73,43 @@ jobs:
           BUILD_VERSION: ${{ inputs.version || github.ref_name }}
 
       - name: Upload darwin/amd64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_darwin_amd64
           path: bin/terragrunt_darwin_amd64*
 
       - name: Upload darwin/arm64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_darwin_arm64
           path: bin/terragrunt_darwin_arm64*
 
       - name: Upload linux/386
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_linux_386
           path: bin/terragrunt_linux_386*
 
       - name: Upload linux/amd64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_linux_amd64
           path: bin/terragrunt_linux_amd64*
 
       - name: Upload linux/arm64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_linux_arm64
           path: bin/terragrunt_linux_arm64*
 
       - name: Upload windows/386
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_windows_386
           path: bin/terragrunt_windows_386*
 
       - name: Upload windows/amd64
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terragrunt_windows_amd64
           path: bin/terragrunt_windows_amd64*
@@ -137,12 +140,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           ref: ${{ inputs.ref || '' }}
 
       - name: Download macOS signed binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: macos-signed-files
           path: bin/
@@ -151,13 +154,13 @@ jobs:
         run: ./.github/scripts/release/verify-macos-artifacts.sh
 
       - name: Download Windows signed binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: windows-signed-files
           path: bin/
 
       - name: Download Linux binaries (unsigned)
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: terragrunt_linux_*
           path: bin/
@@ -167,7 +170,7 @@ jobs:
         run: ./.github/scripts/release/list-binaries.sh
 
       - name: Upload All Signed Binaries
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: all-signed-binaries
           path: bin/*

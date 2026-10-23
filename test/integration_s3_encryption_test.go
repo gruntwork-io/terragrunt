@@ -54,7 +54,7 @@ func TestAWSS3SSEAES(t *testing.T) {
 	client := helpers.CreateS3ClientForTest(t, helpers.TerraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(
 		t.Context(),
-		&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)},
+		&s3.GetBucketEncryptionInput{Bucket: new(s3BucketName)},
 	)
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -94,7 +94,7 @@ func TestAWSS3SSECustomKey(t *testing.T) {
 	client := helpers.CreateS3ClientForTest(t, helpers.TerraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(
 		t.Context(),
-		&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)},
+		&s3.GetBucketEncryptionInput{Bucket: new(s3BucketName)},
 	)
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -124,7 +124,7 @@ func TestAWSS3SSECustomKey(t *testing.T) {
 
 	resp, err = client.GetBucketEncryption(
 		t.Context(),
-		&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)},
+		&s3.GetBucketEncryptionInput{Bucket: new(s3BucketName)},
 	)
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -205,7 +205,7 @@ func TestAWSS3SSEKeyNotReverted(t *testing.T) {
 	client := helpers.CreateS3ClientForTest(t, helpers.TerraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(
 		t.Context(),
-		&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)},
+		&s3.GetBucketEncryptionInput{Bucket: new(s3BucketName)},
 	)
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -260,7 +260,7 @@ func TestAWSS3EncryptionWarning(t *testing.T) {
 	client := helpers.CreateS3ClientForTest(t, helpers.TerraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(
 		t.Context(),
-		&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)},
+		&s3.GetBucketEncryptionInput{Bucket: new(s3BucketName)},
 	)
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)

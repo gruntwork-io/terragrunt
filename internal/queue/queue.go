@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/topo"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -61,22 +62,16 @@ const (
 func (e *Entry) IsUp() bool {
 	// If we don't have a discovery context,
 	// we should assume the command is an "up" command.
-	if e.Component.DiscoveryContext() == nil {
+	discoveryCtx := e.Component.DiscoveryContext()
+	if discoveryCtx == nil {
 		return true
 	}
 
-	if e.Component.DiscoveryContext().Cmd == "destroy" {
+	switch discoveryCtx.Cmd {
+	case "destroy":
 		return false
-	}
-
-	if e.Component.DiscoveryContext().Cmd == "apply" &&
-		slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
-		return false
-	}
-
-	if e.Component.DiscoveryContext().Cmd == "plan" &&
-		slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
-		return false
+	case "apply", "plan":
+		return !iacargs.HasDestroyFlag(discoveryCtx.Args)
 	}
 
 	return true
@@ -98,17 +93,6 @@ type Queue struct {
 }
 
 type Entries []*Entry
-
-// Entry returns a given entry from the queue.
-func (e Entries) Entry(cfg component.Component) *Entry {
-	for _, entry := range e {
-		if entry.Component.Path() == cfg.Path() {
-			return entry
-		}
-	}
-
-	return nil
-}
 
 // Components returns the queue components.
 func (q *Queue) Components() component.Components {
@@ -506,27 +490,6 @@ func (q *Queue) Finished() bool {
 	}
 
 	return true
-}
-
-// RemainingDeps Helper to calculate remaining dependencies for an entry.
-func (q *Queue) RemainingDeps(e *Entry) int {
-	if e.Component == nil || len(e.Component.Dependencies()) == 0 {
-		return 0
-	}
-
-	q.mu.RLock()
-	defer q.mu.RUnlock()
-
-	count := 0
-
-	for _, dep := range e.Component.Dependencies() {
-		depEntry := q.entryByPathUnsafe(dep.Path())
-		if depEntry == nil || depEntry.Status != StatusSucceeded {
-			count++
-		}
-	}
-
-	return count
 }
 
 // isTerminal returns true if the status is terminal.

@@ -286,7 +286,7 @@ func runTerragruntWithConfig(
 ) error {
 	v.RequireEnv()
 
-	if cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
+	if cfg.Exclude.ShouldPreventRun(opts.TerraformCliArgs.CommandName(opts.TerraformCommand)) {
 		l.Infof(
 			"Early exit in terragrunt unit %s due to exclude block with no_run = true",
 			opts.CacheDir,
@@ -297,10 +297,10 @@ func runTerragruntWithConfig(
 
 	if len(cfg.Terraform.ExtraArgs) > 0 {
 		args := FilterTerraformExtraArgs(l, v.FS, opts, cfg)
+		extraEnvVars := filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg)
 
 		opts.InsertTerraformCliArgs(args...)
 
-		extraEnvVars := filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg)
 		if _, set := extraEnvVars[tf.EnvNameTofuCPUProfile]; set {
 			opts.TofuCPUProfileUserSet = true
 		}
@@ -340,7 +340,7 @@ func runTerragruntWithConfig(
 	}()
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
-	if err := checkProtectedModuleRunCfg(opts, cfg); err != nil {
+	if err := CheckProtectedModuleRunCfg(opts, cfg); err != nil {
 		return err
 	}
 
@@ -676,7 +676,7 @@ func remoteStateNeedsInit(
 // FilterTerraformExtraArgs extracts terraform extra arguments using runcfg types.
 func FilterTerraformExtraArgs(l log.Logger, fsys vfs.FS, opts *Options, cfg *runcfg.RunConfig) []string {
 	out := []string{}
-	cmd := opts.TerraformCliArgs.First()
+	cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
 
 	for i := range cfg.Terraform.ExtraArgs {
 		arg := &cfg.Terraform.ExtraArgs[i]
@@ -787,7 +787,7 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(
 	cfg *runcfg.RunConfig,
 ) map[string]string {
 	out := map[string]string{}
-	cmd := opts.TerraformCliArgs.First()
+	cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
 
 	for i := range cfg.Terraform.ExtraArgs {
 		arg := &cfg.Terraform.ExtraArgs[i]
@@ -945,18 +945,11 @@ func runTerraformInitRunCfg(
 	return nil
 }
 
-// checkProtectedModuleRunCfg checks if module is protected using runcfg types.
-func checkProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
-	var destroyFlag = false
-	if opts.TerraformCliArgs.First() == tf.CommandNameDestroy {
-		destroyFlag = true
-	}
-
-	if opts.TerraformCliArgs.Contains("-" + tf.CommandNameDestroy) {
-		destroyFlag = true
-	}
-
-	if !destroyFlag {
+// CheckProtectedModuleRunCfg rejects a destroy of a unit that sets `prevent_destroy`.
+//
+// Returns [ModuleIsProtected] when the args in opts are a destroy and cfg sets `prevent_destroy`.
+func CheckProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
+	if !opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCliArgs.First()) {
 		return nil
 	}
 

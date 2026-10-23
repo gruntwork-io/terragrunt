@@ -3,6 +3,9 @@ name: Lint
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
@@ -12,12 +15,12 @@ jobs:
       GOGC: "400"
 
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
       with:
         fetch-depth: 0
 
     - name: Set up mise
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
       with:
         version: 2026.9.12
         cache_save: ${{ github.ref == 'refs/heads/main' }}

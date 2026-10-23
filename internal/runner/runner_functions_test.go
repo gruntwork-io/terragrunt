@@ -93,7 +93,7 @@ func TestNewFromComponents_Empty(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{},
@@ -135,7 +135,7 @@ func TestNewFromComponents_WithPreventDestroy(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc, app},
@@ -178,7 +178,7 @@ func TestNewFromComponents_FilterAllowDestroy(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc},
@@ -220,7 +220,7 @@ func TestNewFromComponents_PreventDestroyExcludesDependencies(t *testing.T) {
 	opts.TerraformCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc, app},
@@ -243,7 +243,7 @@ func TestNewFromComponents_DestroyWithoutProtectedUnits(t *testing.T) {
 	opts.TerraformCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},
@@ -269,7 +269,7 @@ func TestNewFromComponents_FilterAllowDestroyKeepsUnit(t *testing.T) {
 	opts.FilterAllowDestroy = true
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},
@@ -285,13 +285,17 @@ func TestNewFromComponents_UnitWithoutParsedConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{component.NewUnit("/tmp/test/vpc")},
 	)
-	require.NoError(t, err)
-	assert.Len(t, rnr.GetStack().Units, 1)
+
+	var target runner.UnitNotParsedError
+
+	require.ErrorAs(t, err, &target, "discovery parses every unit, so an unparsed one is a bug")
+	assert.Equal(t, "/tmp/test/vpc", target.UnitPath)
+	assert.Nil(t, rnr)
 }
 
 func TestListStackDependentUnits_Transitive(t *testing.T) {
@@ -380,7 +384,7 @@ func TestNewFromComponents_PreventDestroyWalksTheDependencyGraph(t *testing.T) {
 			opts.TerraformCommand = tf.CommandNameDestroy
 
 			rnr, err := runner.NewFromComponents(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				thlogger.CreateLogger(),
 				opts,
 				tc.components(),
@@ -433,7 +437,7 @@ func TestNewFromComponents_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	opts.TerraformCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		components,
@@ -468,10 +472,6 @@ func TestNewFromComponents_WithGitRefsAndStateBackends(t *testing.T) {
 			discoveryContext: &component.DiscoveryContext{},
 		},
 		{
-			name:             "no parsed config",
-			discoveryContext: &component.DiscoveryContext{Ref: "HEAD~1"},
-		},
-		{
 			name: "remote state is configured",
 			unitConfig: &config.TerragruntConfig{
 				RemoteState: remotestate.New(&remotestate.Config{BackendName: "s3"}),
@@ -504,7 +504,7 @@ func TestNewFromComponents_WithGitRefsAndStateBackends(t *testing.T) {
 			require.NoError(t, err)
 
 			rnr, err := runner.NewFromComponents(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				thlogger.CreateLogger(),
 				opts,
 				component.Components{unit},
@@ -527,7 +527,7 @@ func TestNewFromComponents_IgnoresStackComponents(t *testing.T) {
 	}
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		discovered,
@@ -537,6 +537,51 @@ func TestNewFromComponents_IgnoresStackComponents(t *testing.T) {
 	units := rnr.GetStack().Units
 	require.Len(t, units, 1)
 	assert.Equal(t, "/tmp/test/vpc", units[0].Path())
+}
+
+func TestNewFromComponents_DependencyCycle(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	a := component.NewUnit("/tmp/test/a").WithConfig(&config.TerragruntConfig{})
+	b := component.NewUnit("/tmp/test/b").WithConfig(&config.TerragruntConfig{})
+	a.AddDependency(b)
+	b.AddDependency(a)
+
+	rnr, err := runner.NewFromComponents(
+		config.WithCaches(t.Context()),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{a, b},
+	)
+	require.Error(t, err, "units that wait on each other cannot be ordered")
+	assert.Nil(t, rnr)
+}
+
+func TestNewFromComponents_FilterAllowDestroyWithoutDiscoveryContext(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	vpc.SetDiscoveryContext(nil)
+
+	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
+	require.NoError(t, err)
+
+	opts.TerraformCommand = "plan"
+
+	rnr, err := runner.NewFromComponents(
+		config.WithCaches(t.Context()),
+		thlogger.CreateLogger(),
+		opts,
+		component.Components{vpc},
+	)
+	require.NoError(t, err)
+
+	units := rnr.GetStack().Units
+	require.Len(t, units, 1)
+	assert.False(t, units[0].Excluded(), "a unit no Git filter selected is never excluded as a removed unit")
 }
 
 // unitPathAt returns the path of the i-th unit in a dependency chain.
@@ -591,7 +636,7 @@ func buildTestRunnerFromUnits(
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, components)
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, components)
 	require.NoError(t, err)
 
 	return rnr

@@ -357,3 +357,20 @@ func readConfigChainPaths(chain []readConfigFrame, last readConfigFrame) []strin
 
 	return append(paths, last.path)
 }
+
+// forReadTarget returns a copy for parsing a config that read_terragrunt_config reads, without the evaluation state
+// of the config that reads it.
+//
+// The reading config's dependency outputs are not the target's, so the target decodes its own dependency blocks, and
+// dependency tracing reports that their outputs resolve (https://github.com/gruntwork-io/terragrunt/issues/5624). The
+// target evaluates its own locals and feature flags, and its include and feature blocks would otherwise see the
+// reading config's values.
+func (ctx *ParsingContext) forReadTarget() *ParsingContext {
+	c := ctx.Clone()
+	c.DecodedDependencies = nil
+	c.SkipOutputsResolution = false
+	c.Locals = nil
+	c.Features = nil
+
+	return c
+}

@@ -18,6 +18,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -662,7 +663,7 @@ func TranslateDiscoveryContextArgsForWorktree(
 	case FromWorktreeKind:
 		switch {
 		case (discoveryContext.Cmd == "plan" || discoveryContext.Cmd == "apply") &&
-			!slices.Contains(discoveryContext.Args, "-destroy"):
+			!iacargs.HasDestroyFlag(discoveryContext.Args):
 			discoveryContext.Args = append(discoveryContext.Args, "-destroy")
 		case discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0:
 			// Discovery commands like find or list - no args needed
@@ -678,7 +679,7 @@ func TranslateDiscoveryContextArgsForWorktree(
 	case ToWorktreeKind:
 		switch {
 		case (discoveryContext.Cmd == "plan" || discoveryContext.Cmd == "apply") &&
-			!slices.Contains(discoveryContext.Args, "-destroy"):
+			!iacargs.HasDestroyFlag(discoveryContext.Args):
 			// No -destroy flag needed for to worktrees
 		case discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0:
 			// Discovery commands like find or list - no args needed

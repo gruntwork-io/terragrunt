@@ -586,6 +586,74 @@ func TestProcessStackComponent_LocalSource_CacheDirsDoNotAffectCASRefs(t *testin
 	)
 }
 
+// TestProcessStackComponent_LocalSource_StackOutputDirIgnored exercises the
+// same-repo consumer layout from issue #6663: a catalog repository that also
+// contains a live stack (examples/live) consuming it through a local "../.."
+// source, which makes the repository root the tree CAS copies and hashes.
+// Running Terragrunt in the consumer generates .terragrunt-stack output
+// inside that tree, and generated units embed the previous run's cas:: refs,
+// so hashing it would change the CAS key of an unchanged source on every
+// regeneration. Tool-managed links inside the generated tree can also point
+// anywhere on the host, so the walk must not descend into it at all.
+func TestProcessStackComponent_LocalSource_StackOutputDirIgnored(t *testing.T) {
+	t.Parallel()
+
+	clean := buildLocalStackFixture(t)
+	consumed := buildLocalStackFixture(t)
+
+	// Leftover output of a previous Terragrunt run in the same-repo consumer:
+	// a generated unit embedding that run's cas:: ref, plus a link escaping
+	// the source tree (e.g. a provider-cache or kubeconfig link).
+	generated := filepath.Join(consumed, "examples", "live", ".terragrunt-stack", "service")
+	require.NoError(t, os.MkdirAll(generated, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(generated, "terragrunt.hcl"),
+		[]byte(`terraform {
+  source = "cas::sha256:previous-generation//modules/vpc"
+}
+`),
+		0o644,
+	))
+
+	// os.Symlink requires special permissions on Windows
+	if runtime.GOOS != osWindows {
+		require.NoError(t, os.Symlink(
+			filepath.Join(t.TempDir(), "outside"),
+			filepath.Join(generated, "kubeconfig.yml"),
+		))
+	}
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	result, err := c.ProcessStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		consumed+"//stacks/my-stack",
+		"stack",
+	)
+	require.NoError(t, err, "generated stack output must not break processing the source that contains it")
+
+	defer result.Cleanup()
+
+	// contentDir = <tmp>/repo/stacks/my-stack, so repo root is two dirs up.
+	repoCopy := filepath.Dir(filepath.Dir(result.ContentDir))
+	assert.NoDirExists(
+		t,
+		filepath.Join(repoCopy, "examples", "live", ".terragrunt-stack"),
+		"generated stack output must not be copied into the snapshot",
+	)
+
+	assert.Equal(
+		t,
+		serviceUnitCASRef(t, clean),
+		serviceUnitCASRef(t, consumed),
+		"generated stack output must not change the CAS ref of unchanged source",
+	)
+}
+
 // serviceUnitCASRef processes the stack in a fixture built by
 // buildLocalStackFixture and returns the rewritten source of its "service"
 // unit, using a store of its own so nothing is read from an earlier run.
@@ -610,7 +678,7 @@ func serviceUnitCASRef(t *testing.T, root string) string {
 	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(content)
+	_, blocks, err := cas.ReadStackBlocks(content)
 	require.NoError(t, err)
 
 	for _, b := range blocks {
@@ -755,7 +823,7 @@ func TestProcessStackComponent_LocalSource_MaterializeSynthTree(t *testing.T) {
 	stackContent, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(stackContent)
+	_, blocks, err := cas.ReadStackBlocks(stackContent)
 	require.NoError(t, err)
 
 	var serviceSource string
@@ -999,7 +1067,7 @@ func TestProcessStackComponent_LocalSource_SharedUnitTemplate(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(content)
+	_, blocks, err := cas.ReadStackBlocks(content)
 	require.NoError(t, err)
 
 	sources := map[string]string{}
@@ -1051,7 +1119,7 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(content)
+	_, blocks, err := cas.ReadStackBlocks(content)
 	require.NoError(t, err)
 
 	sources := map[string]string{}
@@ -1077,4 +1145,66 @@ func TestProcessStackComponent_LocalSource_SharedNestedStack(t *testing.T) {
 		sources["beta"],
 		"two stack blocks sharing one nested-stack template must resolve to the same synthetic tree",
 	)
+}
+
+// TestProcessStackComponent_LocalSource_RewritesInjectedSources pins that CAS rewrites the source of
+// a flagged block in a stack-level autoinclude and leaves a same-named unflagged top-level block alone.
+func TestProcessStackComponent_LocalSource_RewritesInjectedSources(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+
+	for rel, body := range map[string]string{
+		"units/function/terragrunt.hcl":  "",
+		"units/override/terragrunt.hcl":  "",
+		"stacks/fn/terragrunt.stack.hcl": "",
+		"stacks/wrap/terragrunt.stack.hcl": `unit "function" {
+  source = "../..//units/function"
+  path   = "function"
+}
+
+stack "fn" {
+  source                 = "../..//stacks/fn"
+  update_source_with_cas = true
+  path                   = "fn"
+
+  autoinclude {
+    unit "function" {
+      source                 = "../..//units/override"
+      update_source_with_cas = true
+      path                   = "function"
+    }
+  }
+}
+`,
+	} {
+		full := filepath.Join(root, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0o644))
+	}
+
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	result, err := c.ProcessStackComponent(t.Context(), l, v, root+"//stacks/wrap", "stack")
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	_, blocks, err := cas.ReadStackBlocks(content)
+	require.NoError(t, err)
+	require.Len(t, blocks, 3)
+
+	assert.Equal(t, "../..//units/function", blocks[0].Source, "the unflagged top-level unit must stay unchanged")
+	assert.True(t, strings.HasPrefix(blocks[1].Source, cas.CASProtocolPrefix), "the stack must be rewritten")
+	assert.True(t, strings.HasPrefix(blocks[2].Source, cas.CASProtocolPrefix), "the injected unit must be rewritten")
+	assert.NotEqual(t, blocks[1].Source, blocks[2].Source)
 }

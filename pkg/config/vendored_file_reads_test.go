@@ -20,7 +20,7 @@ func parseTrackingReads(t *testing.T, files map[string]string, hcl string) []str
 	l := logger.CreateLogger()
 	v := venvtest.New().WithFS(memUnitFS(t, files))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.FilesRead = config.NewFilesRead()
 
 	_, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
@@ -119,7 +119,7 @@ func TestHCLFileReadsAreUnrecordedWithoutTracking(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithFS(memUnitFS(t, map[string]string{"data.txt": "contents\n"}))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   data = file("data.txt")

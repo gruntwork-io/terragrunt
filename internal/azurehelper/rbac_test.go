@@ -353,7 +353,7 @@ func TestResolvePrincipal(t *testing.T) {
 	}{
 		{name: "app-only token is a service principal", idtyp: "app", wantType: azurehelper.PrincipalTypeServicePrincipal},
 		{name: "signed-in human is a user", idtyp: "user", wantType: azurehelper.PrincipalTypeUser},
-		{name: "absent idtyp defaults to user", idtyp: "", wantType: azurehelper.PrincipalTypeUser},
+		{name: "absent idtyp stays untyped", idtyp: "", wantType: ""},
 	}
 
 	for _, tc := range tt {

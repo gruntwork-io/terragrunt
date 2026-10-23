@@ -283,7 +283,8 @@ func (c *CAS) processDirectory(
 }
 
 // processStackFile processes a terragrunt.stack.hcl file, rewriting sources
-// for blocks that have update_source_with_cas = true.
+// for blocks that have update_source_with_cas = true, including the blocks a
+// stack block's autoinclude injects into its nested stack.
 func (c *CAS) processStackFile(
 	ctx context.Context, l log.Logger, v *venv.Venv,
 	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm,
@@ -293,7 +294,7 @@ func (c *CAS) processStackFile(
 		return fmt.Errorf("failed to read stack file %s: %w", stackFile, err)
 	}
 
-	blocks, err := ReadStackBlocks(content)
+	f, blocks, err := ReadStackBlocks(content)
 	if err != nil {
 		return fmt.Errorf("failed to parse stack file %s: %w", stackFile, err)
 	}
@@ -345,15 +346,7 @@ func (c *CAS) processStackFile(
 
 		newSource := FormatCASRef(synthHash)
 
-		content, err = RewriteStackBlockSource(content, block.BlockType, block.Name, newSource)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to rewrite source for %s %q: %w",
-				block.BlockType,
-				block.Name,
-				err,
-			)
-		}
+		block.SetSource(newSource)
 
 		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
 	}
@@ -365,7 +358,7 @@ func (c *CAS) processStackFile(
 		return fmt.Errorf("failed to remove stack file before rewrite %s: %w", stackFile, err)
 	}
 
-	return vfs.WriteFile(v.FS, stackFile, content, RegularFilePerms)
+	return vfs.WriteFile(v.FS, stackFile, f.Bytes(), RegularFilePerms)
 }
 
 // processUnitFile processes a terragrunt.hcl file, rewriting the
@@ -756,22 +749,15 @@ func (c *CAS) copyFileInFS(v *venv.Venv, srcPath, dstPath string, perm fs.FileMo
 
 	out, err := v.FS.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
-		_ = in.Close()
-
-		return err
+		return errors.Join(err, in.Close())
 	}
 
 	if _, err := io.Copy(out, in); err != nil {
-		_ = in.Close()
-		_ = out.Close()
-
-		return err
+		return errors.Join(err, in.Close(), out.Close())
 	}
 
 	if err := in.Close(); err != nil {
-		_ = out.Close()
-
-		return err
+		return errors.Join(err, out.Close())
 	}
 
 	return out.Close()

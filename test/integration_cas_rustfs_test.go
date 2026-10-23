@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -135,7 +134,7 @@ func newRustFSClientFor(ctx context.Context, endpoint string) (*s3.Client, error
 	}
 
 	return s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(endpoint)
+		o.BaseEndpoint = new(endpoint)
 		o.UsePathStyle = true
 	}), nil
 }
@@ -160,7 +159,7 @@ func createRustFSBucket(t *testing.T, c *s3.Client, bucket string) {
 	t.Helper()
 
 	_, err := c.CreateBucket(t.Context(), &s3.CreateBucketInput{
-		Bucket: aws.String(bucket),
+		Bucket: new(bucket),
 	})
 	require.NoError(t, err)
 }
@@ -169,8 +168,8 @@ func uploadRustFSObject(t *testing.T, c *s3.Client, bucket, key string, body []b
 	t.Helper()
 
 	_, err := c.PutObject(t.Context(), &s3.PutObjectInput{
-		Bucket:            aws.String(bucket),
-		Key:               aws.String(key),
+		Bucket:            new(bucket),
+		Key:               new(key),
 		Body:              bytes.NewReader(body),
 		ChecksumAlgorithm: types.ChecksumAlgorithmSha256,
 	})

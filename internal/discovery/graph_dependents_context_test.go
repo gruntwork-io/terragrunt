@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -62,7 +63,7 @@ func TestGraphPhase_UpstreamCandidateContextOwnership(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
-		Discover(t.Context(), l, v, opts)
+		Discover(config.WithCaches(t.Context()), l, v, opts)
 	require.NoError(t, err)
 
 	origins := make(map[string]component.Origin, len(components))
@@ -76,6 +77,65 @@ func TestGraphPhase_UpstreamCandidateContextOwnership(t *testing.T) {
 		repoPath("svc", "noise"): component.OriginPathDiscovery,
 		repoPath("above"):        component.OriginGraphDiscovery,
 	}, origins)
+}
+
+func TestGraphPhase_UpstreamCandidateKeepsDestroyFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "-destroy", args: []string{"-destroy", "-lock=false"}},
+		{name: "-destroy=true", args: []string{"-destroy=true", "-lock=false"}},
+		{name: "--destroy=true", args: []string{"--destroy=true", "-lock=false"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			workingDir := repoPath("svc")
+
+			v := memRepoRootVenv(t, corpusRepoRoot)
+
+			writeFixture(t, v, map[string]string{
+				repoPath("svc", "vpc", "terragrunt.hcl"): "",
+				repoPath("above", "terragrunt.hcl"):      unitHCL("../svc/vpc"),
+			})
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = workingDir
+			opts.RootWorkingDir = workingDir
+
+			l := logger.CreateLogger()
+
+			filters, err := filter.ParseFilterQueries(l, []string{
+				"...{" + repoPath("svc", "vpc") + "}",
+			})
+			require.NoError(t, err)
+
+			components, err := discovery.NewDiscovery(workingDir).
+				WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: workingDir,
+					Cmd:        "apply",
+					Args:       tt.args,
+				}).
+				WithGitRoot(corpusRepoRoot).
+				WithFilters(filters).
+				Discover(config.WithCaches(t.Context()), l, v, opts)
+			require.NoError(t, err)
+
+			idx := slices.IndexFunc(components, func(c component.Component) bool {
+				return c.Path() == repoPath("above")
+			})
+			require.NotEqual(t, -1, idx)
+
+			dctx := components[idx].DiscoveryContext()
+			require.NotNil(t, dctx)
+			assert.Equal(t, tt.args, dctx.Args)
+		})
+	}
 }
 
 // TestGraphPhase_UpstreamCandidateBailKeepsExternalMark pins that a candidate
@@ -130,7 +190,7 @@ func TestGraphPhase_UpstreamCandidateBailKeepsExternalMark(t *testing.T) {
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
 		WithSuppressParseErrors().
-		Discover(t.Context(), l, v, opts)
+		Discover(config.WithCaches(t.Context()), l, v, opts)
 	require.NoError(t, err)
 
 	paths := components.Paths()

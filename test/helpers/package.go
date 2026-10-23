@@ -6,21 +6,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"io/fs"
-	"math/big"
 	mathRand "math/rand"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,7 +63,8 @@ const (
 
 	TerragruntDebugFile = "terragrunt-debug.tfvars.json"
 
-	// Repeated right now, but it might not be later.
+	// TestFixtureOutDir is the out-dir fixture path. It duplicates testFixtureOutDir in the test package for now,
+	// but the two might diverge later.
 	TestFixtureOutDir = "fixtures/out-dir"
 
 	ReportFile = "report.json"
@@ -81,16 +73,11 @@ const (
 	readWritePermissions = 0o666
 	allPermissions       = 0o777
 
-	caKeyBits = 4096
-
 	// argsPerModulePath is the flag and value each module path adds to a command line.
 	argsPerModulePath = 2
 
 	// fakeProviderBinarySize is the size of the dummy binary FakeProvider packs into its archive.
 	fakeProviderBinarySize = 1e7
-
-	// certValidityYears is how long the test CA and its leaf certificate stay valid.
-	certValidityYears = 10
 
 	semverPartsLen = 3
 
@@ -323,7 +310,7 @@ func DeleteS3Bucket(
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
 	// First check if bucket exists
-	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: new(bucketName)})
 	if err != nil {
 		if isAWSResourceNotFoundError(err) {
 			t.Logf("S3 bucket %s does not exist, cleanup already complete", bucketName)
@@ -337,7 +324,7 @@ func DeleteS3Bucket(
 
 	if _, err := client.DeleteBucket(
 		ctx,
-		&s3.DeleteBucketInput{Bucket: aws.String(bucketName)},
+		&s3.DeleteBucketInput{Bucket: new(bucketName)},
 	); err != nil {
 		if isAWSResourceNotFoundError(err) {
 			t.Logf("S3 bucket %s was already deleted", bucketName)
@@ -355,7 +342,7 @@ func DeleteS3Bucket(
 
 		if _, err = client.DeleteBucket(
 			ctx,
-			&s3.DeleteBucketInput{Bucket: aws.String(bucketName)},
+			&s3.DeleteBucketInput{Bucket: new(bucketName)},
 		); err != nil {
 			if isAWSResourceNotFoundError(err) {
 				t.Logf("S3 bucket %s was already deleted", bucketName)
@@ -377,7 +364,7 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 	t.Helper()
 
 	versionsInput := &s3.ListObjectVersionsInput{
-		Bucket: aws.String(bucketName),
+		Bucket: new(bucketName),
 	}
 
 	for {
@@ -395,62 +382,30 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 			break
 		}
 
-		if len(out.Versions) > 0 {
-			var objectsToDelete []s3types.ObjectIdentifier
+		objects := make([]s3types.ObjectIdentifier, 0, len(out.Versions)+len(out.DeleteMarkers))
 
-			for i := range out.Versions {
-				version := &out.Versions[i]
-				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
-					Key:       version.Key,
-					VersionId: version.VersionId,
-				})
-			}
-
-			deleteInput := &s3.DeleteObjectsInput{
-				Bucket: aws.String(bucketName),
-				Delete: &s3types.Delete{
-					Objects: objectsToDelete,
-				},
-			}
-
-			_, err := client.DeleteObjects(ctx, deleteInput)
-			if err != nil {
-				if isAWSResourceNotFoundError(err) {
-					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
-					return
-				}
-
-				require.NoError(t, err)
-			}
+		for i := range out.Versions {
+			objects = append(objects, s3types.ObjectIdentifier{Key: out.Versions[i].Key, VersionId: out.Versions[i].VersionId})
 		}
 
-		if len(out.DeleteMarkers) > 0 {
-			var objectsToDelete []s3types.ObjectIdentifier
-
-			for _, marker := range out.DeleteMarkers {
-				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
-					Key:       marker.Key,
-					VersionId: marker.VersionId,
-				})
-			}
-
-			deleteInput := &s3.DeleteObjectsInput{
-				Bucket: aws.String(bucketName),
-				Delete: &s3types.Delete{
-					Objects: objectsToDelete,
-				},
-			}
-
-			_, err := client.DeleteObjects(ctx, deleteInput)
-			if err != nil {
-				if isAWSResourceNotFoundError(err) {
-					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
-					return
-				}
-
-				require.NoError(t, err)
-			}
+		for i := range out.DeleteMarkers {
+			objects = append(objects, s3types.ObjectIdentifier{Key: out.DeleteMarkers[i].Key, VersionId: out.DeleteMarkers[i].VersionId})
 		}
+
+		deleted, err := client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+			Bucket: new(bucketName),
+			Delete: &s3types.Delete{Objects: objects},
+		})
+		if err != nil {
+			if isAWSResourceNotFoundError(err) {
+				t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
+				return
+			}
+
+			require.NoError(t, err)
+		}
+
+		logS3DeleteErrors(t, bucketName, deleted.Errors)
 
 		if out.IsTruncated == nil || !*out.IsTruncated {
 			break
@@ -610,80 +565,6 @@ func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 	return relPaths
 }
 
-func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
-	t.Helper()
-
-	tmpEnvPath := CopyEnvironment(t, TestFixtureOutDir)
-	CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := filepath.Join(tmpEnvPath, TestFixtureOutDir)
-
-	// run plan with output directory
-	stdout, stderr, err := RunTerragruntCommandWithOutput(
-		t,
-		fmt.Sprintf(
-			"terraform run --all plan --non-interactive --working-dir %s %s",
-			testPath,
-			args,
-		),
-	)
-
-	return tmpEnvPath, stdout, stderr, err
-}
-
-func RunNetworkMirrorServer(
-	t *testing.T,
-	ctx context.Context,
-	urlPrefix, providerDir, token string,
-) *url.URL {
-	t.Helper()
-
-	serverTLSConf, clientTLSConf := certSetup(t)
-
-	http.DefaultTransport = &http.Transport{
-		TLSClientConfig: clientTLSConf,
-	}
-
-	mux := http.NewServeMux()
-
-	fs := http.FileServer(http.Dir(providerDir))
-
-	withGz := GzipHandler(http.StripPrefix(urlPrefix, fs))
-
-	mux.HandleFunc(urlPrefix, func(resp http.ResponseWriter, req *http.Request) {
-		if token != "" {
-			authHeaders := req.Header.Values("Authorization")
-			assert.Contains(t, authHeaders, "Bearer "+token)
-		}
-
-		withGz.ServeHTTP(resp, req)
-	})
-
-	ln, err := tls.Listen("tcp", "localhost:8888", serverTLSConf)
-	require.NoError(t, err)
-
-	server := &http.Server{
-		Addr:    ln.Addr().String(),
-		Handler: mux,
-	}
-
-	go func() {
-		err := server.Serve(ln)
-		assert.NoError(t, err)
-	}()
-
-	go func() {
-		<-ctx.Done()
-		err := server.Shutdown(ctx)
-		assert.NoError(t, err)
-	}()
-
-	return &url.URL{
-		Scheme: "https",
-		Host:   ln.Addr().String(),
-		Path:   urlPrefix,
-	}
-}
-
 type FakeProvider struct {
 	RegistryName string
 	Namespace    string
@@ -763,7 +644,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 	require.NoError(t, err)
 
 	defer func() {
-		file.Close()
+		require.NoError(t, file.Close())
 		require.NoError(t, os.Remove(filepath.Join(providerDir, provider.filename())))
 	}()
 
@@ -776,7 +657,9 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 	zipFile, err := os.Create(filepath.Join(providerDir, provider.archiveName()))
 	require.NoError(t, err)
 
-	defer zipFile.Close()
+	defer func() {
+		require.NoError(t, zipFile.Close())
+	}()
 
 	zipWriter := zip.NewWriter(zipFile)
 	defer require.NoError(t, zipWriter.Close())
@@ -817,115 +700,6 @@ func marshalFile(t *testing.T, filename string, dest any) {
 	require.NoError(t, err)
 	err = os.WriteFile(filename, data, readWritePermissions)
 	require.NoError(t, err)
-}
-
-func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
-	t.Helper()
-
-	// set up our CA certificate
-	serialNumber, err := strconv.ParseInt(time.Now().Format("20060102150405"), 10, 64)
-	require.NoError(t, err)
-
-	ca := &x509.Certificate{
-		SerialNumber: big.NewInt(serialNumber),
-		Subject: pkix.Name{
-			Organization:  []string{"Company, INC."},
-			Country:       []string{"US"},
-			Province:      []string{""},
-			Locality:      []string{"San Francisco"},
-			StreetAddress: []string{"Golden Gate Bridge"},
-			PostalCode:    []string{"94016"},
-		},
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().AddDate(certValidityYears, 0, 0),
-		IsCA:      true,
-		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageClientAuth,
-			x509.ExtKeyUsageServerAuth,
-		},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
-
-	// create our private and public key
-	caPrivKey, err := rsa.GenerateKey(rand.Reader, caKeyBits)
-	require.NoError(t, err)
-
-	// create the CA
-	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
-	require.NoError(t, err)
-
-	// pem encode
-	caPEM := new(bytes.Buffer)
-	require.NoError(t, pem.Encode(caPEM, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: caBytes,
-	}))
-
-	caPrivKeyPEM := new(bytes.Buffer)
-	require.NoError(t, pem.Encode(caPrivKeyPEM, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
-	}))
-
-	// set up our server certificate
-	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(serialNumber),
-		Subject: pkix.Name{
-			Organization:  []string{"Company, INC."},
-			Country:       []string{"US"},
-			Province:      []string{""},
-			Locality:      []string{"San Francisco"},
-			StreetAddress: []string{"Golden Gate Bridge"},
-			PostalCode:    []string{"94016"},
-		},
-		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.IPv6loopback},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().AddDate(certValidityYears, 0, 0),
-		SubjectKeyId: []byte{1, 2, 3, 4, 6},
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-	}
-
-	certPrivKey, err := rsa.GenerateKey(rand.Reader, caKeyBits)
-	require.NoError(t, err)
-
-	certBytes, err := x509.CreateCertificate(
-		rand.Reader,
-		cert,
-		ca,
-		&certPrivKey.PublicKey,
-		caPrivKey,
-	)
-	require.NoError(t, err)
-
-	certPEM := new(bytes.Buffer)
-	require.NoError(t, pem.Encode(certPEM, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certBytes,
-	}))
-
-	certPrivKeyPEM := new(bytes.Buffer)
-	require.NoError(t, pem.Encode(certPrivKeyPEM, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
-	}))
-
-	serverCert, err := tls.X509KeyPair(certPEM.Bytes(), certPrivKeyPEM.Bytes())
-	require.NoError(t, err)
-
-	serverTLSConf := &tls.Config{
-		Certificates: []tls.Certificate{serverCert},
-	}
-
-	certpool := x509.NewCertPool()
-	certpool.AppendCertsFromPEM(caPEM.Bytes())
-	clientTLSConf := &tls.Config{
-		RootCAs:            certpool,
-		InsecureSkipVerify: true,
-	}
-
-	return serverTLSConf, clientTLSConf
 }
 
 func ValidateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value any) {
@@ -1157,14 +931,21 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
-// RunVenv returns [venv.OSVenv] with the user configuration directory set to a
-// temporary directory of the test's own.
+// RunVenv returns [venv.OSVenv] with the user configuration and cache
+// directories set to temporary directories of the test's own, so a run never
+// reads or writes the stores of the machine running the suite.
+//
+// Each call gets directories of its own. A test whose runs must share a store
+// builds one with RunVenv and passes it to each run.
 func RunVenv(t *testing.T) *venv.Venv {
 	t.Helper()
 
 	configDir := t.TempDir()
+	cacheDir := t.TempDir()
 
-	return venv.OSVenv().WithUserConfigDir(func() (string, error) { return configDir, nil })
+	return venv.OSVenv().
+		WithUserConfigDir(func() (string, error) { return configDir, nil }).
+		WithUserCacheDir(func() (string, error) { return cacheDir, nil })
 }
 
 func RunTerragruntCommandWithContext(
@@ -1547,15 +1328,15 @@ func CopyFile(t *testing.T, src, dst string) {
 	sourceFile, err := os.Open(src)
 	require.NoError(t, err)
 
-	defer sourceFile.Close()
+	defer func() {
+		require.NoError(t, sourceFile.Close())
+	}()
 
 	destFile, err := os.Create(dst)
 	require.NoError(t, err)
 
-	defer destFile.Close()
-
 	_, err = io.Copy(destFile, sourceFile)
-	require.NoError(t, err)
+	require.NoError(t, errors.Join(err, destFile.Close()))
 
 	sourceInfo, err := os.Stat(src)
 	require.NoError(t, err)
@@ -1573,7 +1354,7 @@ func isAWSResourceNotFoundError(err error) bool {
 }
 
 // GzipHandler gzip-compresses responses when the client accepts gzip encoding.
-func GzipHandler(h http.Handler) http.Handler {
+func GzipHandler(l log.Logger, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		if !strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
 			h.ServeHTTP(resp, req)
@@ -1582,7 +1363,11 @@ func GzipHandler(h http.Handler) http.Handler {
 
 		gz := gzip.NewWriter(resp)
 
-		defer func() { _ = gz.Close() }()
+		defer func() {
+			if err := gz.Close(); err != nil {
+				l.Debugf("Failed to finish gzip response for %s: %v", req.URL.Path, err)
+			}
+		}()
 
 		h.ServeHTTP(&gzipResponseWriter{ResponseWriter: resp, gz: gz}, req)
 	})
@@ -1613,4 +1398,15 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	}
 
 	return w.gz.Write(b)
+}
+
+// logS3DeleteErrors reports every object a DeleteObjects call refused to delete, so a bucket that stays
+// non-empty names its leftover versions in the test log.
+func logS3DeleteErrors(t *testing.T, bucketName string, errs []s3types.Error) {
+	t.Helper()
+
+	for _, e := range errs {
+		t.Logf("S3 bucket %s: could not delete %s version %s: %s: %s",
+			bucketName, aws.ToString(e.Key), aws.ToString(e.VersionId), aws.ToString(e.Code), aws.ToString(e.Message))
+	}
 }

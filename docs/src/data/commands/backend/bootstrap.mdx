@@ -19,6 +19,7 @@ flags:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 ## Provision remote_state
 
@@ -27,6 +28,9 @@ Using this command bootstraps the resources described in your [`remote_state` bl
 If any of the resources described in the `remote_state` block need provisioning, `bootstrap` will provision them. If they are present, but configured in a way that differs from `remote_state` configuration, Terragrunt will attempt to update them when it is safe to do so.
 
 For example, if you have the following `remote_state` block:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<Fragment slot="aws">
 
 ```hcl
 # terragrunt.hcl
@@ -60,6 +64,45 @@ You'll ensure the availability of:
   - TLS Enforcement
 - A DynamoDB table named `tf-lock` in the `us-east-1` region with SSE.
 - An S3 bucket named `mybucket-logs` configured as the access log destination for the `mybucket` bucket.
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# terragrunt.hcl
+
+remote_state {
+  backend = "azurerm"
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "path/to/my/key"
+
+    location              = "eastus"
+    use_azuread_auth      = true
+    assign_blob_data_role = true
+  }
+}
+```
+
+Then run the following:
+
+```bash
+terragrunt backend bootstrap
+```
+
+You'll ensure the availability of:
+
+- A resource group named `my-tofu-state`, created in `eastus` when missing.
+- A storage account named `mytofustate` in that resource group with blob versioning enabled.
+- A blob container named `tfstate` in that storage account.
+- A **Storage Blob Data Contributor** role assignment on the storage account for the identity Terragrunt authenticated as. Creating it needs permission to create role assignments, which Owner and User Access Administrator hold and Contributor does not.
+
+Azure may take several minutes to apply a new role assignment. If Terragrunt just assigned the role and the first run fails with a 403 while checking the container, wait and run `terragrunt backend bootstrap` again.
+
+</Fragment>
+</StatefulTabs>
 
 The `bootstrap` command is idempotent. If the resources already exist, `bootstrap` will not provision them again.
 

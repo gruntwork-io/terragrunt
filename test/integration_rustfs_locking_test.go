@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -78,8 +77,8 @@ func TestRustFSNativeS3Locking(t *testing.T) {
 			`"Info":"","Who":"someone@elsewhere","Version":"1.10.0","Created":"2026-01-01T00:00:00Z",` +
 			`"Path":"` + bucket + `/` + rustfsLockStateKey + `"}`)
 		_, err = c.PutObject(t.Context(), &s3.PutObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(rustfsLockKey),
+			Bucket: new(bucket),
+			Key:    new(rustfsLockKey),
 			Body:   bytes.NewReader(foreignLock),
 		})
 		require.NoError(t, err)
@@ -100,8 +99,8 @@ func TestRustFSNativeS3Locking(t *testing.T) {
 
 		// Once the foreign lock is released, the same apply goes through.
 		_, err = c.DeleteObject(t.Context(), &s3.DeleteObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(rustfsLockKey),
+			Bucket: new(bucket),
+			Key:    new(rustfsLockKey),
 		})
 		require.NoError(t, err)
 
@@ -226,8 +225,8 @@ func rustfsObjectExists(t *testing.T, c *s3.Client, bucket, key string) bool {
 	t.Helper()
 
 	_, err := c.HeadObject(t.Context(), &s3.HeadObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
+		Bucket: new(bucket),
+		Key:    new(key),
 	})
 	if err == nil {
 		return true
@@ -244,8 +243,8 @@ func rustfsObjectBody(t *testing.T, c *s3.Client, bucket, key string) string {
 	t.Helper()
 
 	out, err := c.GetObject(t.Context(), &s3.GetObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
+		Bucket: new(bucket),
+		Key:    new(key),
 	})
 	require.NoError(t, err)
 

@@ -2159,16 +2159,20 @@ EOF
 
 	devDir := filepath.Join(tmp, "live", "dev")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
+	v := helpers.RunVenv(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
+		v,
 		"terragrunt stack generate --working-dir "+devDir,
 	)
 	require.NoError(t, err)
 
 	// The second run covers the cache-reuse path that overwrites the previously generated file.
 	for range 2 {
-		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		stdout, stderr, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 			t,
+			v,
 			"terragrunt run --all plan --no-stack-generate --non-interactive --working-dir "+devDir,
 		)
 		require.NoError(
@@ -2397,14 +2401,18 @@ provider "registry.opentofu.org/hashicorp/null" {
 		os.WriteFile(filepath.Join(tmp, "live", "terragrunt.stack.hcl"), []byte(liveStack), 0644),
 	)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
+	v := helpers.RunVenv(t)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
+		v,
 		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
 	)
 	require.NoError(t, err)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
+		v,
 		"terragrunt run --all plan --no-stack-generate --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
 	)
 	require.NoError(

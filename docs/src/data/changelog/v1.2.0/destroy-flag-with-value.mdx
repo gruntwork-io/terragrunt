@@ -1,0 +1,12 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### `-destroy=true` is treated like `-destroy`
+
+Terragrunt recognized a destroy only when the argument was exactly `-destroy`. With `-destroy=true`, which OpenTofu and Terraform accept as the same flag, `terragrunt plan -destroy=true` and `terragrunt apply -destroy=true` were not stopped by [`prevent_destroy`](/reference/hcl/attributes#prevent_destroy), and `run --all` did not use the reverse order.
+
+Terragrunt now recognizes `-destroy=<value>` as a destroy when the value is true, parsed the way OpenTofu and Terraform parse boolean flags (`1`, `t`, `T`, `TRUE`, `true` and `True`), whether the argument comes from the command line or from [`extra_arguments`](/features/units/extra-arguments). A false value, such as `-destroy=false`, is not considered a destroy. The flag is recognized with one dash or two: `extra_arguments` passes `--destroy` and `--destroy=true` to OpenTofu and Terraform as they are written.
+
+Wherever Terragrunt configuration references a command as `destroy`, `apply` with the destroy flag counts as `destroy` and not as `apply`. That covers [`exclude`](/reference/hcl/blocks#exclude) actions, the `commands` of hooks and `extra_arguments`, `mock_outputs_allowed_terraform_commands` in a [`dependency`](/reference/hcl/blocks#dependency) block, and the value of [`get_terraform_command()`](/reference/hcl/functions#get_terraform_command). A [Git-based filter](/features/filter/git) rejects `-destroy=true` with the same error it gives for `-destroy`.

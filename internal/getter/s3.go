@@ -119,8 +119,8 @@ func (g *S3Getter) Mode(ctx context.Context, u *url.URL) (getter.Mode, error) {
 	// Without MaxKeys a scan limit above the page size ends at the page
 	// boundary, and ScanMode reads the truncated listing as a file.
 	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket:  aws.String(target.Bucket),
-		Prefix:  aws.String(target.Key),
+		Bucket:  new(target.Bucket),
+		Prefix:  new(target.Key),
 		MaxKeys: aws.Int32(int32(min(g.modeScanLimit, math.MaxInt32))),
 	})
 	if err != nil {
@@ -166,8 +166,8 @@ func (g *S3Getter) Get(ctx context.Context, req *getter.Request) error {
 	prefix := ListPrefix(target.Key)
 
 	pages := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
-		Bucket: aws.String(target.Bucket),
-		Prefix: aws.String(prefix),
+		Bucket: new(target.Bucket),
+		Prefix: new(prefix),
 	})
 
 	for pages.HasMorePages() {
@@ -309,11 +309,11 @@ func (g *S3Getter) object(
 	key, version string,
 ) (io.ReadCloser, error) {
 	in := &s3.GetObjectInput{
-		Bucket: aws.String(target.Bucket),
-		Key:    aws.String(key),
+		Bucket: new(target.Bucket),
+		Key:    new(key),
 	}
 	if version != "" {
-		in.VersionId = aws.String(version)
+		in.VersionId = new(version)
 	}
 
 	out, err := client.GetObject(ctx, in)

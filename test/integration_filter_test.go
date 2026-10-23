@@ -983,111 +983,6 @@ func TestFilterFlagWithFindGitFilterRelativeInclude(t *testing.T) {
 	assert.ElementsMatch(t, []string{"level1/level2/level3/nested-unit"}, results)
 }
 
-func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name          string
-		unitConfig    string
-		description   string
-		expectWarning bool
-	}{
-		{
-			name:          "warning fires when unit has no remote_state",
-			unitConfig:    `# Unit with no remote_state`,
-			expectWarning: true,
-			description:   "Warning should fire when unit discovered via Git ref has no remote_state configuration",
-		},
-		{
-			name: "warning fires when unit has local backend",
-			unitConfig: `remote_state {
-  backend = "local"
-  config = {
-    path = "terraform.tfstate"
-  }
-}
-# Unit with local backend`,
-			expectWarning: true,
-			description:   "Warning should fire when unit discovered via Git ref has local backend",
-		},
-		{
-			name: "no warning when unit has remote state backend",
-			unitConfig: `remote_state {
-  backend = "s3"
-  config = {
-    bucket = "test-bucket"
-    key    = "terraform.tfstate"
-    region = "us-east-1"
-  }
-}
-# Unit with remote state`,
-			expectWarning: false,
-			description:   "Warning should not fire when unit discovered via Git ref has remote state backend",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			tmpDir := t.TempDir()
-			tmpDir, err := filepath.EvalSymlinks(tmpDir)
-			require.NoError(t, err)
-
-			runner := helpers.InitTestGitRunner(t, tmpDir)
-
-			// Create a unit with the specified configuration
-			unitDir := filepath.Join(tmpDir, "test-unit")
-			unitHCLPath := createTestUnit(t, unitDir, tc.unitConfig)
-
-			// Initial commit
-			require.NoError(t, runner.Add(t.Context(), "."))
-			require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
-
-			// Modify the unit to trigger Git filter detection
-			err = os.WriteFile(unitHCLPath, []byte(tc.unitConfig+"\n# Modified"), 0644)
-			require.NoError(t, err)
-
-			// Commit the modification
-			require.NoError(t, runner.Add(t.Context(), "."))
-			require.NoError(t, runner.Commit(t.Context(), "Modify unit"))
-
-			// Run terragrunt run --all --filter with git filter
-			cmd := "terragrunt run --all --no-color --working-dir " + tmpDir + " --filter '[HEAD~1...HEAD]' --report-file " + helpers.ReportFile + " -- plan"
-
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-
-			// Check for the warning in stderr
-			// The warning message should contain this unique substring
-			warningMessage := "do not have a remote_state configuration"
-			hasWarning := strings.Contains(stderr, warningMessage) &&
-				strings.Contains(stderr, "Git-based filter expressions")
-
-			if tc.expectWarning {
-				assert.True(
-					t,
-					hasWarning,
-					"Expected warning message in stderr. stderr: %s\nstdout: %s",
-					stderr,
-					stdout,
-				)
-			} else {
-				assert.False(
-					t,
-					hasWarning,
-					"Did not expect warning message in stderr. stderr: %s\nstdout: %s",
-					stderr,
-					stdout,
-				)
-			}
-
-			// The command may fail due to the backend not being bootstrapped, but that's okay.
-			// We're just checking for the warning
-			_ = err
-		})
-	}
-}
-
 func TestFiltersFileFlag(t *testing.T) {
 	t.Parallel()
 
@@ -1503,9 +1398,17 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 		"terragrunt run --all --non-interactive --filter-allow-destroy"+filterArgs+" -- plan",
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "a dependency points at dep, which exists at HEAD~1 but was deleted or moved")
+	assert.Contains(
+		t,
+		err.Error(),
+		"a dependency points at dep, which exists at HEAD~1 but was deleted or moved",
+	)
 	assert.Contains(t, stderr, "TIP (missing-dependency-config)")
-	assert.Contains(t, stderr, "points at dep, which exists at HEAD~1 but was deleted or moved in the Git diff")
+	assert.Contains(
+		t,
+		stderr,
+		"points at dep, which exists at HEAD~1 but was deleted or moved in the Git diff",
+	)
 
 	// Without a Git-based filter there is no diff to blame, so the tip stays quiet.
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
@@ -1513,17 +1416,35 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 		"terragrunt run --all --non-interactive --no-color --working-dir "+tmpDir+" -- plan",
 	)
 	require.Error(t, err)
-	require.Contains(t, stderr, "TIP (debugging-docs)", "tips must reach stderr for the next check to mean anything")
+	require.Contains(
+		t,
+		stderr,
+		"TIP (debugging-docs)",
+		"tips must reach stderr for the next check to mean anything",
+	)
 	assert.NotContains(t, stderr, "TIP (missing-dependency-config)")
 
 	for _, cmd := range []string{"find", "list"} {
-		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+cmd+filterArgs)
-		require.NoError(t, err, "%s must keep tolerating the dangling reference\nstderr: %s", cmd, stderr)
+		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt "+cmd+filterArgs,
+		)
+		require.NoError(
+			t,
+			err,
+			"%s must keep tolerating the dangling reference\nstderr: %s",
+			cmd,
+			stderr,
+		)
 		assert.ElementsMatch(t, []string{"consumer", "dep"}, strings.Fields(stdout), cmd)
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --no-color --working-dir "+tmpDir)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt hcl validate --no-color --working-dir "+tmpDir,
+	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `dependency "dep"`)
-	assert.Contains(t, err.Error(), "does not exist")
+	assert.Contains(t, stdout, "error: Missing dependency")
+	assert.Contains(t, stdout, " --> "+filepath.Join("consumer", "terragrunt.hcl")+":2:")
+	assert.Contains(t, stdout, "This directory does not exist.")
 }
