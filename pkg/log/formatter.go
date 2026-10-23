@@ -18,6 +18,8 @@ type Formatter interface {
 	DisabledOutput() bool
 	// SetBaseDir creates a set of relative paths that are used to convert full paths to relative ones.
 	SetBaseDir(baseDir string) error
+	// SetUnitPaths adds the paths of discovered units, which the `minimal` path format tells apart.
+	SetUnitPaths(paths []string)
 	// DisableRelativePaths disables the conversion of absolute paths to relative ones.
 	DisableRelativePaths()
 	// SetFormat parses and sets log format.

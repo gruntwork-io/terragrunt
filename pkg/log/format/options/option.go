@@ -43,6 +43,7 @@ type Option interface {
 type Data struct {
 	*log.Entry
 	RelativePather *RelativePather
+	PathLabels     map[string]string
 	PresetColorFn  func() ColorValue
 	BaseDir        string
 	DisabledColors bool
