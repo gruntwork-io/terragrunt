@@ -29,7 +29,7 @@ If any of the resources described in the `remote_state` block need provisioning,
 
 For example, if you have the following `remote_state` block:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">
 
 ```hcl
@@ -100,6 +100,44 @@ You'll ensure the availability of:
 - A **Storage Blob Data Contributor** role assignment on the storage account for the identity Terragrunt authenticated as. Creating it needs permission to create role assignments, which Owner and User Access Administrator hold and Contributor does not.
 
 Azure may take several minutes to apply a new role assignment. If Terragrunt just assigned the role and the first run fails with a 403 while checking the container, wait and run `terragrunt backend bootstrap` again.
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# terragrunt.hcl
+
+remote_state {
+  backend = "gcs"
+  config = {
+    project  = "my-project"
+    location = "us-central1"
+    bucket   = "my-tofu-state"
+    prefix   = "path/to/my/prefix"
+
+    enable_bucket_policy_only = true
+
+    gcs_bucket_labels = {
+      owner = "platform-team"
+    }
+  }
+}
+```
+
+Then run the following:
+
+```bash
+terragrunt backend bootstrap
+```
+
+You'll ensure the availability of:
+
+- A Cloud Storage bucket named `my-tofu-state` in the `my-project` project and the `us-central1` location with the following enabled:
+  - Object Versioning
+  - Uniform bucket-level access
+- The `owner = "platform-team"` label on that bucket.
+
+Terragrunt uses `project`, `location`, and the settings above only when it creates the bucket. It leaves an existing bucket as it is, and logs a warning if versioning is off there.
 
 </Fragment>
 </StatefulTabs>

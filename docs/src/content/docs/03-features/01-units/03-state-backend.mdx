@@ -305,14 +305,6 @@ Before you apply this, confirm that the principals you expect can still reach th
 
 #### Advanced configuration
 
-<Aside type="caution" title="DEPRECATED">
-The `skip_bucket_accesslogging` option, which previously disabled access logging on the state bucket, is now deprecated. Use `accesslogging_bucket_name` instead to explicitly configure the target logging bucket.
-</Aside>
-
-<Aside type="caution" title="DEPRECATED">
-The `skip_bucket_root_access` option no longer has any effect and is now deprecated. Terragrunt does not grant the AWS account root user access to the state bucket, so there is nothing left to skip. Use `enable_bucket_root_access` if you need that access granted. Terragrunt warns about the option when it bootstraps the backend; enable the [`skip-bucket-root-access`](/reference/strict-controls/active#skip-bucket-root-access) strict control to turn that warning into an error.
-</Aside>
-
 For the `s3` backend, the following additional config options can be used for S3-compatible object stores, as necessary:
 
 ```hcl
@@ -363,9 +355,36 @@ The following config options are only valid for the `s3` backend and are used by
 - `accesslogging_target_prefix`
 - `enable_lock_table_ssencryption`
 
+<Aside type="caution" title="DEPRECATED">
+The `skip_bucket_accesslogging` option, which previously disabled access logging on the state bucket, is now deprecated. Use `accesslogging_bucket_name` instead to explicitly configure the target logging bucket.
+</Aside>
+
+<Aside type="caution" title="DEPRECATED">
+The `skip_bucket_root_access` option no longer has any effect and is now deprecated. Terragrunt does not grant the AWS account root user access to the state bucket, so there is nothing left to skip. Use `enable_bucket_root_access` if you need that access granted. Terragrunt warns about the option when it bootstraps the backend; enable the [`skip-bucket-root-access`](/reference/strict-controls/active#skip-bucket-root-access) strict control to turn that warning into an error.
+</Aside>
+
+<Aside type="note" title="Dependency outputs">
+When the S3 backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the S3 state object. Otherwise it runs `tofu output` or `terraform output`.
+</Aside>
+
 ### GCS Backend
 
-- **GCS bucket**: If you are using the [GCS backend](https://opentofu.org/docs/language/settings/backends/gcs) for remote state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to create the bucket. You will also need to supply valid credentials using either `remote_state.config.credentials` or by setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely, simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you don't specify `bucket` in `remote_state` then Terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
+Example configuration:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "gcs"
+  config = {
+    project  = "my-project"
+    location = "us-central1"
+    bucket   = "my-tofu-state"
+    prefix   = path_relative_to_include()
+  }
+}
+```
+
+- **GCS bucket**: If you are using the [GCS backend](https://opentofu.org/docs/language/settings/backends/gcs) for remote state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to create the bucket. You will also need valid credentials, as described in [Authenticating with GCP](/features/units/authentication/gcp). If you want to skip creating the bucket entirely, simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you don't specify `bucket` in `remote_state` then Terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
 
   You are strongly advised to enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit and track API operations performed against the state bucket.
 
@@ -396,15 +415,39 @@ If you experience an error for any of these configurations, confirm you are usin
 
 The following config options are only valid for the `gcs` backend and are used by Terragrunt — they are **not** passed on to OpenTofu/Terraform:
 
-- `gcs_bucket_labels`
-- `skip_bucket_versioning`
-- `enable_bucket_policy_only`
+- `project` - GCP project to create the bucket in. Required when Terragrunt creates it.
+- `location` - Location to create the bucket in, e.g. `us-central1` or the multi-region `US`. Required when Terragrunt creates it.
+- `gcs_bucket_labels` - Map of labels applied to the bucket on creation.
+- `skip_bucket_creation` - When `true`, never create the bucket; it must already exist.
+- `skip_bucket_versioning` - When `true`, do not enable versioning on a bucket Terragrunt creates, and do not warn when an existing bucket has it off.
+- `enable_bucket_policy_only` - When `true`, enable uniform bucket-level access on a bucket Terragrunt creates.
+
+Terragrunt applies these settings only when it creates the bucket. It leaves an existing bucket as it is, and logs a warning if versioning is off.
+
+Terragrunt resolves credentials in this order:
+
+1. The credentials file named by `GOOGLE_APPLICATION_CREDENTIALS`
+2. The credentials file named by `credentials`
+3. An access token (`access_token`)
+4. An access token in `GOOGLE_OAUTH_ACCESS_TOKEN`
+5. A service account key in `GOOGLE_CREDENTIALS`, as a file path or as the key's JSON
+6. Application Default Credentials, which honor `gcloud auth application-default login` and the metadata server on GCP
+
+When `impersonate_service_account` is set, Terragrunt uses the credentials it found to impersonate that service account, through the accounts in `impersonate_service_account_delegates` if any.
+
+<Aside type="note" title="Known limitations">
+- Terragrunt prefers `GOOGLE_APPLICATION_CREDENTIALS` over the `credentials` config, while the `gcs` backend in OpenTofu/Terraform prefers `credentials`. With both set to different files, Terragrunt manages the bucket as one identity and OpenTofu/Terraform reads state as another. Set only one of them.
+- Terragrunt reads `credentials` only as a file path. OpenTofu/Terraform also accepts the JSON itself there, but Terragrunt fails to read it.
+- `GOOGLE_CREDENTIALS` must hold a service account key. For Workload Identity Federation and other credential types, use `GOOGLE_APPLICATION_CREDENTIALS`.
+- Terragrunt ignores `GOOGLE_BACKEND_CREDENTIALS`, `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT`, and `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`. Set `impersonate_service_account` in the config instead.
+- `backend migrate` moves only the `default` workspace's state, `<prefix>/default.tfstate`. `backend delete` removes every object whose name starts with `prefix`.
+</Aside>
+
+<Aside type="note" title="Dependency outputs">
+When the GCS backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the GCS state object. Otherwise it runs `tofu output` or `terraform output`.
+</Aside>
 
 ### Azure Storage (azurerm) Backend
-
-<Aside type="note">
-When the Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it uses the native output path.
-</Aside>
 
 Example configuration:
 
@@ -532,6 +575,10 @@ remote_state {
 - With SAS token or access key authentication, or when `resource_group_name` is not set, Terragrunt cannot verify blob versioning (it is an ARM management-plane property), so `backend delete` and `backend migrate` treat the account as unversioned and require the `--force` flag even when versioning is enabled.
 - With `use_azuread_auth`, reading and writing state requires the **Storage Blob Data Contributor** role on the storage account; the control-plane Contributor role alone is not sufficient. Set `assign_blob_data_role = true` to have bootstrap assign it, or grant it out of band.
 - State migration is supported within a single storage account; cross-account migration must be performed manually (init, state pull, state push).
+</Aside>
+
+<Aside type="note" title="Dependency outputs">
+When the Azure backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the Azure state blob. Otherwise it runs `tofu output` or `terraform output`.
 </Aside>
 
 ### Disabling automatic remote state bootstrapping

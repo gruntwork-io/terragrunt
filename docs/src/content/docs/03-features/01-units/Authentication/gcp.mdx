@@ -1,0 +1,89 @@
+---
+title: Authenticating with GCP
+description: Learn which credential sources Terragrunt accepts for GCP, and which roles the gcs backend needs.
+slug: features/units/authentication/gcp
+sidebar:
+  label: GCP
+  order: 8
+---
+
+import StatefulTabs from '@components/StatefulTabs.astro';
+
+Terragrunt reads GCP credentials from the sources below to bootstrap, migrate, and delete the [`gcs` state backend](/features/units/state-backend/#gcs-backend). The `gcs` backend in OpenTofu/Terraform and the Google provider read the same sources.
+
+Pick whichever credential source fits where Terragrunt is running:
+
+<StatefulTabs syncKey="gcp-auth" tabs={['gcloud', 'Service account key', 'Workload Identity Federation', 'Attached service account']}>
+<Fragment slot="gcloud">
+
+On a workstation, log in with Application Default Credentials. Terragrunt and the providers pick them up from the default credential chain:
+
+```bash
+gcloud auth application-default login
+terragrunt apply
+```
+
+`gcloud auth login` on its own is not enough. It signs in the `gcloud` CLI, but it does not write the Application Default Credentials that Terragrunt and the providers read.
+
+</Fragment>
+<Fragment slot="service-account-key">
+
+In CI, a service account key file:
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"
+terragrunt apply
+```
+
+A key file is a long-lived secret. Where the CI system can issue OIDC tokens, use Workload Identity Federation instead.
+
+</Fragment>
+<Fragment slot="workload-identity-federation">
+
+In GitHub Actions, configure a Workload Identity Federation pool and provider that trust your repository, and grant the workflow or job `id-token: write` permission. The [`google-github-actions/auth`](https://github.com/google-github-actions/auth) action exchanges the GitHub token for GCP credentials, writes them to a file, and points `GOOGLE_APPLICATION_CREDENTIALS` at it:
+
+```yaml
+permissions:
+  id-token: write
+  contents: read
+
+steps:
+  # ... check out the repository and install Terragrunt ...
+  - uses: google-github-actions/auth@v3
+    with:
+      workload_identity_provider: projects/123456789/locations/global/workloadIdentityPools/github/providers/my-repo
+      service_account: terragrunt@my-project.iam.gserviceaccount.com
+  - run: terragrunt apply
+```
+
+With `service_account` set, the credentials impersonate that service account. Without it, they act as the federated identity, which then needs its own roles on the project and bucket.
+
+</Fragment>
+<Fragment slot="attached-service-account">
+
+On Compute Engine, Cloud Run, or GKE with Workload Identity Federation for GKE, the metadata server supplies credentials for the service account attached to the workload, so there is nothing to set:
+
+```bash
+terragrunt apply
+```
+
+Leave `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CREDENTIALS`, and `GOOGLE_OAUTH_ACCESS_TOKEN` unset. Terragrunt uses any of them before it asks the metadata server.
+
+</Fragment>
+</StatefulTabs>
+
+To act as a different service account than the one you signed in as, set `impersonate_service_account` in the `remote_state` config. Terragrunt and the `gcs` backend both use it. The identity you signed in as needs the **Service Account Token Creator** role (`roles/iam.serviceAccountTokenCreator`) on that service account. For a delegation chain, also set `impersonate_service_account_delegates`. The Google provider takes its own `impersonate_service_account` argument, as in the [provider `generate` example](/features/units#generate-blocks).
+
+Set impersonation and credentials in the `remote_state` config or the variables above. Terragrunt does not read `GOOGLE_BACKEND_CREDENTIALS`, `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT`, or `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`. The `gcs` backend in OpenTofu/Terraform does. With only those set, Terragrunt creates and checks the bucket as one identity, and OpenTofu/Terraform reads state as another.
+
+Keep access tokens in `GOOGLE_OAUTH_ACCESS_TOKEN` rather than in the `access_token` config. OpenTofu/Terraform copies backend configuration into `.terraform/terraform.tfstate` and into saved plan files, so a token placed in `remote_state.config` ends up on disk in plain text.
+
+The [auth provider command](/features/units/authentication#auth-provider-command) works for GCP too. Return `GOOGLE_OAUTH_ACCESS_TOKEN` or `GOOGLE_APPLICATION_CREDENTIALS` in its `envs` map to select credentials per unit at runtime.
+
+## Required permissions
+
+Reading, writing, and locking state needs object access on the bucket, e.g. the **Storage Object User** role (`roles/storage.objectUser`).
+
+`backend bootstrap`, `backend migrate`, and `backend delete` also read the bucket's metadata, which needs `storage.buckets.get`. Object roles do not include it. Without it, Terragrunt cannot tell the bucket exists, so bootstrap offers to create it and `migrate` and `delete` refuse to run without `--force`. The **Storage Legacy Bucket Reader** role (`roles/storage.legacyBucketReader`) on the bucket grants it.
+
+Creating the bucket needs `storage.buckets.create` on the project, and applying `gcs_bucket_labels` needs `storage.buckets.update`. The **Storage Admin** role (`roles/storage.admin`) on the project covers both. If the identity must not create buckets, create the bucket in advance and set `skip_bucket_creation` in the `remote_state` config.

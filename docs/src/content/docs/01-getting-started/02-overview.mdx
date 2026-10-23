@@ -299,7 +299,7 @@ If you want to try this configuration locally:
 
    The example sets `assign_blob_data_role = true`. To use it, your identity needs permission to create role assignments, such as subscription **Owner**.
 
-   If you cannot assign roles, remove the option. Ask an **Owner** or **User Access Administrator** to grant you **Storage Blob Data Contributor** before you apply. They can grant it on the subscription or on a resource group they create first and name in `resource_group_name`. The storage account does not exist until bootstrap runs. A Contributor cannot assign roles to itself. See [Required Azure permissions](/features/units/authentication/#required-azure-permissions).
+   If you cannot assign roles, remove the option. Ask an **Owner** or **User Access Administrator** to grant you **Storage Blob Data Contributor** before you apply. They can grant it on the subscription or on a resource group they create first and name in `resource_group_name`. The storage account does not exist until bootstrap runs. A Contributor cannot assign roles to itself. See [Required Azure permissions](/features/units/authentication/azure/#required-permissions).
 
    The [Azure Verified Modules](https://azure.github.io/Azure-Verified-Modules/) used in this guide require OpenTofu/Terraform 1.9 or newer.
 
