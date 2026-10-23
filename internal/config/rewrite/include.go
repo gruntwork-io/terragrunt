@@ -6,21 +6,32 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// includeSource is where an assembly gets the config of each file it merges.
+// includeSource is where an assembly gets the config of each file it merges, and whether it decodes the run parts of
+// each one: the parse presents the queue parts it decoded, and ToV1 adds the run parts.
 type includeSource interface {
-	// included returns the config of the file c's include block i names.
+	// file builds the v1 file of c from its queue parts, decoding the run parts with evalCtx when the assembly
+	// reaches them, and returns the diagnostics of that decode.
+	file(c *UnitConfig, evalCtx *hcl.EvalContext) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics)
+	// dependencies returns the `dependency` value c decodes with.
+	dependencies(ctx context.Context, l log.Logger, v *venv.Venv, c *UnitConfig) (*cty.Value, error)
+	// included returns the config of the file c's include block i names, which decodes with deps, the `dependency`
+	// value of c, and resolves its own dependencies when deps is nil.
 	included(
 		ctx context.Context,
 		l log.Logger,
 		v *venv.Venv,
 		c *UnitConfig,
 		i int,
+		deps *cty.Value,
 	) (*pkgconfig.TerragruntConfig, error)
 	// autoIncluded returns the config of c's autoinclude at path.
 	autoIncluded(
@@ -37,12 +48,29 @@ type includeParser struct {
 	store *hclparse.Store
 }
 
+func (p includeParser) file(
+	c *UnitConfig,
+	evalCtx *hcl.EvalContext,
+) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
+	return c.queueFile(&c.Queue), nil
+}
+
+func (p includeParser) dependencies(
+	_ context.Context,
+	_ log.Logger,
+	_ *venv.Venv,
+	c *UnitConfig,
+) (*cty.Value, error) {
+	return c.pc.file.decodedDeps, nil
+}
+
 func (p includeParser) included(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	c *UnitConfig,
 	i int,
+	_ *cty.Value,
 ) (*pkgconfig.TerragruntConfig, error) {
 	include := c.pc.file.includes.List[i]
 
@@ -69,7 +97,35 @@ func (p includeParser) autoIncluded(
 // from the same config reaches the same files, so a kept file is never missing.
 //
 // Panics when the config has no kept file for an include the assembly reaches.
-type keptIncludes struct{}
+type keptIncludes struct {
+	// inherited is the `dependency` value of the including file, nil when the assembled file resolves its own.
+	inherited *cty.Value
+}
+
+func (k keptIncludes) file(
+	c *UnitConfig,
+	evalCtx *hcl.EvalContext,
+) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
+	run, diags := c.decodeRun(evalCtx)
+
+	file := c.queueFile(&c.Queue)
+	run.fill(c, file)
+
+	return file, diags
+}
+
+func (k keptIncludes) dependencies(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	c *UnitConfig,
+) (*cty.Value, error) {
+	if k.inherited != nil {
+		return k.inherited, nil
+	}
+
+	return c.dependencyValue(ctx, l, v)
+}
 
 func (k keptIncludes) included(
 	ctx context.Context,
@@ -77,6 +133,7 @@ func (k keptIncludes) included(
 	v *venv.Venv,
 	c *UnitConfig,
 	i int,
+	deps *cty.Value,
 ) (*pkgconfig.TerragruntConfig, error) {
 	included := c.includedFiles[i]
 	if included == nil {
@@ -87,7 +144,7 @@ func (k keptIncludes) included(
 		return nil, included.err
 	}
 
-	cfg, err := included.cfg.assemble(ctx, l, v, k)
+	cfg, err := included.cfg.assemble(ctx, l, v, keptIncludes{inherited: deps})
 	if err != nil {
 		include := c.pc.file.includes.List[i]
 
@@ -112,18 +169,17 @@ func (k keptIncludes) autoIncluded(
 		return nil, c.autoInclude.err
 	}
 
-	return c.autoInclude.cfg.assemble(ctx, l, v, k)
+	return c.autoInclude.cfg.assemble(ctx, l, v, keptIncludes{})
 }
 
 // mergeIncludes merges each file c includes into cfg by its merge strategy, last include first, so later include
-// blocks win.
-//
-// Included files parse with c's file state, so they use c's dependencies unless c's resolution returned none.
+// blocks win. Each included file decodes with deps, the `dependency` value of c.
 func (c *UnitConfig) mergeIncludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	src includeSource,
+	deps *cty.Value,
 	cfg *pkgconfig.TerragruntConfig,
 ) (*pkgconfig.TerragruntConfig, error) {
 	baseCfg := cfg
@@ -136,16 +192,22 @@ func (c *UnitConfig) mergeIncludes(
 
 		c.pc.run.FilesRead.Add(include.Path)
 
-		includedCfg, err := src.included(ctx, l, v, c, i)
+		includedCfg, err := src.included(ctx, l, v, c, i, deps)
 		if err != nil {
 			return baseCfg, err
 		}
 
 		switch mergeStrategy {
 		case pkgconfig.NoMerge:
-			l.Debugf("Included config %s has strategy no merge: not merging config in.", include.Path)
+			l.Debugf(
+				"Included config %s has strategy no merge: not merging config in.",
+				include.Path,
+			)
 		case pkgconfig.ShallowMerge:
-			l.Debugf("Included config %s has strategy shallow merge: merging config in (shallow).", include.Path)
+			l.Debugf(
+				"Included config %s has strategy shallow merge: merging config in (shallow).",
+				include.Path,
+			)
 
 			if err := includedCfg.Merge(l, baseCfg); err != nil {
 				return nil, err
@@ -153,7 +215,10 @@ func (c *UnitConfig) mergeIncludes(
 
 			baseCfg = includedCfg
 		case pkgconfig.DeepMerge:
-			l.Debugf("Included config %s has strategy deep merge: merging config in (deep).", include.Path)
+			l.Debugf(
+				"Included config %s has strategy deep merge: merging config in (deep).",
+				include.Path,
+			)
 
 			if err := includedCfg.DeepMerge(l, baseCfg); err != nil {
 				return nil, err

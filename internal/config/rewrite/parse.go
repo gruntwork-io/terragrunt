@@ -7,6 +7,9 @@ import (
 	"io/fs"
 	"path/filepath"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
+
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
@@ -14,8 +17,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// ParseConfigFile parses the config file at cfgPath and the files it merges in, caching nothing. It returns the
-// error [UnitConfig.ToV1] returns, and nil where [pkgconfig.ParseConfigFile] returns no config.
+// ParseConfigFile parses the config file at cfgPath and the files it merges in, caching nothing and fetching no
+// dependency outputs. It returns the errors of the parse, which [UnitConfig.ToV1] returns again with those of
+// resolving the outputs, and nil when the parse produced no config.
 func ParseConfigFile(
 	ctx context.Context,
 	l log.Logger,
@@ -32,8 +36,7 @@ func ParseConfigFile(
 	return c, err
 }
 
-// ParseConfig parses the config in file and the files it merges in. It returns the error [UnitConfig.ToV1]
-// returns, and nil where [pkgconfig.ParseConfig] returns no config.
+// ParseConfig parses the config in file and the files it merges in, as [ParseConfigFile] does.
 func ParseConfig(
 	ctx context.Context,
 	l log.Logger,
@@ -93,7 +96,8 @@ func parseFile(
 		pc.file.include,
 		false,
 		func(childCtx context.Context, l log.Logger) error {
-			file, parseErr := pkghclparse.NewParser(pc.parserOptions(l, v)...).ParseFromFile(v.FS, cfgPath)
+			file, parseErr := pkghclparse.NewParser(pc.parserOptions(l, v)...).
+				ParseFromFile(v.FS, cfgPath)
 			if parseErr != nil {
 				return parseErr
 			}
@@ -112,8 +116,8 @@ func parseFile(
 	return c, cfg, err
 }
 
-// prepare runs the stages of [pkgconfig.ParseConfig] through the block decode, resolving file's dependencies
-// unless pc already has them.
+// prepare runs the stages of [pkgconfig.ParseConfig] through the block decode. It decodes file's dependency
+// blocks when file resolves its own dependencies, and every part when the run supplied the `dependency` value.
 //
 // Returns an error and no config where pkg/config returns no config.
 func prepare(
@@ -180,14 +184,16 @@ func prepare(
 		c.includedFiles = make([]*includedFile, len(includes.List))
 	}
 
-	if pc.file.decodedDeps == nil {
-		decodedDeps, blocks, err := resolveDependencies(ctx, l, v, pc.parsingContext(), file)
+	if pc.file.decodedDeps == nil && !pc.file.inheritsDependencies {
+		set, err := newDependencySet(ctx, l, v, pc.parsingContext(), file)
 		if err != nil {
 			errs = append(errs, err)
 		}
 
-		pc = pc.withDecodedDependencies(decodedDeps)
-		c.DependencyConfigs = blocks
+		if set != nil {
+			c.deps = set
+			c.DependencyConfigs = set.blocks
+		}
 	}
 
 	pctx = pc.parsingContext()
@@ -206,7 +212,12 @@ func prepare(
 
 	c.decodeErr = file.ApplyFileUpdate()
 	if c.decodeErr == nil {
-		c.decodeErr = file.HandleDiagnostics(c.decode(evalCtx))
+		diags := gohcl.DecodeBody(file.Body, evalCtx, c)
+
+		var queueDiags hcl.Diagnostics
+
+		c.Queue, queueDiags = c.decodeQueue(evalCtx)
+		c.decodeErr = file.HandleDiagnostics(append(diags, queueDiags...))
 	}
 
 	return c, nil
