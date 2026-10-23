@@ -3,6 +3,7 @@ package run
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -45,6 +46,31 @@ func TestWriteNullVarsFile(t *testing.T) {
 		assert.Equal(t, path, exists.Path)
 
 		contents, err := vfs.ReadFile(fsys, path)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"keep": "original"}`, string(contents))
+	})
+
+	t.Run("in place keeps an existing symlink", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		target := filepath.Join(dir, "target.json")
+		link := filepath.Join(dir, ".terragrunt-null-vars.auto.tfvars.json")
+
+		require.NoError(t, os.WriteFile(target, []byte(`{"keep": "original"}`), 0644))
+		require.NoError(t, os.Symlink("target.json", link))
+
+		err := writeNullVarsFile(vfs.NewOSFS(), link, []byte(`{"var1": null}`), true)
+
+		var exists NullVarsFileExists
+
+		require.ErrorAs(t, err, &exists)
+
+		info, err := os.Lstat(link)
+		require.NoError(t, err)
+		assert.NotZero(t, info.Mode()&os.ModeSymlink)
+
+		contents, err := os.ReadFile(target)
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"keep": "original"}`, string(contents))
 	})

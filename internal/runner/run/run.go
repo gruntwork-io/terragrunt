@@ -1009,21 +1009,34 @@ func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunC
 }
 
 // writeNullVarsFile writes contents to path atomically, so path never holds a partial file and nothing is left
-// behind when the write fails. In place, anything already at path, file or symlink, stops the write with
-// NullVarsFileExists rather than being replaced.
+// behind when the write fails. In place, the name is first reserved with an exclusive create, so anything already
+// at path, file or symlink, or created concurrently, stops the write with NullVarsFileExists rather than being
+// replaced; the atomic write then replaces only that reservation.
 func writeNullVarsFile(fsys vfs.FS, path string, contents []byte, inPlace bool) error {
 	if inPlace {
-		_, err := vfs.Lstat(fsys, path)
-		if err == nil {
-			return NullVarsFileExists{Path: path}
+		reservation, err := fsys.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, nullTFVarsFileMode)
+		if err != nil {
+			if errors.Is(err, os.ErrExist) {
+				return NullVarsFileExists{Path: path}
+			}
+
+			return err
 		}
 
-		if !errors.Is(err, os.ErrNotExist) {
-			return err
+		if err := reservation.Close(); err != nil {
+			return errors.Join(err, fsys.Remove(path))
 		}
 	}
 
-	return vfs.WriteFileAtomic(fsys, path, contents, nullTFVarsFileMode)
+	if err := vfs.WriteFileAtomic(fsys, path, contents, nullTFVarsFileMode); err != nil {
+		if inPlace {
+			return errors.Join(err, fsys.Remove(path))
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.
