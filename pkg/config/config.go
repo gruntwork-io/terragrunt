@@ -1727,7 +1727,9 @@ func ParseConfig(
 	}
 
 	if cfgFile == nil {
-		return nil, CouldNotResolveTerragruntConfigInFileError(file.ConfigPath)
+		errs = append(errs, CouldNotResolveTerragruntConfigInFileError(file.ConfigPath))
+
+		return nil, errors.Join(errs...)
 	}
 
 	config, err := ConvertToTerragruntConfig(v, pctx, file.ConfigPath, cfgFile)
