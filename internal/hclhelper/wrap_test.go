@@ -4,7 +4,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWrapMapToSingleLineHcl(t *testing.T) {
@@ -48,6 +51,21 @@ func TestWrapMapToSingleLineHcl(t *testing.T) {
 			input:    map[string]any{"files": []any{}},
 			expected: `{files=[]}`,
 		},
+		{
+			name:     "KeysThatAreNotIdentifiers",
+			input:    map[string]any{"team:name": "core", "Cost Center": "42", "plain-key": "x"},
+			expected: `{"Cost Center"="42","team:name"="core",plain-key="x"}`,
+		},
+		{
+			name:     "TemplateSequencesEscaped",
+			input:    map[string]any{"policy": "a/${aws:username}/%{x}"},
+			expected: `{policy="a/$${aws:username}/%%{x}"}`,
+		},
+		{
+			name:     "NilValueOmitted",
+			input:    map[string]any{"role_arn": "r", "external_id": nil},
+			expected: `{role_arn="r"}`,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -56,6 +74,13 @@ func TestWrapMapToSingleLineHcl(t *testing.T) {
 
 			result := hclhelper.WrapMapToSingleLineHcl(tc.input)
 			assert.Equal(t, tc.expected, result)
+
+			// OpenTofu/Terraform parse map-valued -backend-config arguments as HCL expressions.
+			expr, diags := hclsyntax.ParseExpression([]byte(result), "test.hcl", hcl.InitialPos)
+			require.False(t, diags.HasErrors(), diags.Error())
+
+			_, diags = expr.Value(nil)
+			require.False(t, diags.HasErrors(), diags.Error())
 		})
 	}
 }
@@ -98,6 +123,11 @@ func TestWrapListToSingleLineHcl(t *testing.T) {
 			input:    []any{[]any{"a", "b"}, []any{1, 2}},
 			expected: `[["a","b"],[1,2]]`,
 		},
+		{
+			name:     "NilElement",
+			input:    []any{"a", nil},
+			expected: `["a",null]`,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -127,6 +157,8 @@ func TestFormatValueToSingleLineHcl(t *testing.T) {
 		{name: "Float", input: 2.5, expected: `2.5`},
 		{name: "Map", input: map[string]any{"k": "v"}, expected: `{k="v"}`},
 		{name: "Slice", input: []any{"a", 1}, expected: `["a",1]`},
+		{name: "Nil", input: nil, expected: `null`},
+		{name: "StringWithInterpolation", input: "${x}", expected: `"$${x}"`},
 	}
 
 	for _, tc := range testCases {

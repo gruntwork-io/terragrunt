@@ -144,6 +144,22 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 			shouldBeEqual: true,
 		},
 		{
+			name: "assume-role-with-quoted-tag-keys-and-null",
+			config: backend.Config{
+				"bucket": "foo",
+				"assume_role": map[string]any{
+					"role_arn":    "arn:aws:iam::123:role/role",
+					"external_id": nil,
+					"tags":        map[string]any{"team:name": "core"},
+				},
+			},
+			expected: map[string]any{
+				"bucket":      "foo",
+				"assume_role": "{role_arn=\"arn:aws:iam::123:role/role\",tags={\"team:name\"=\"core\"}}",
+			},
+			shouldBeEqual: true,
+		},
+		{
 			name: "use-lockfile-native-s3-locking",
 			config: backend.Config{
 				"bucket":       "foo",
