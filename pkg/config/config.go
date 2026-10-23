@@ -1645,6 +1645,10 @@ func ParseConfig(
 		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 	}
 
+	if err := ValidateExcludeReferences(file); err != nil {
+		return nil, err
+	}
+
 	if includeFromChild != nil && includeFromChild.Path != "" &&
 		!filepath.IsAbs(includeFromChild.Path) {
 		includeFromChild.Path = filepath.Clean(
