@@ -458,10 +458,18 @@ For the `s3` backend, the following additional properties are supported in the `
 
 - `region` - (Optional) The region of the S3 bucket.
 - `profile` - (Optional) This is the AWS profile name as set in the shared credentials file.
-- `endpoint` - (Optional) A custom endpoint for the S3 API.
+- `endpoint` - (Optional) A custom endpoint for the S3 API. OpenTofu deprecates it in favor of `endpoints.s3`.
 - `endpoints`: (Optional) A configuration `map` for custom service API (starting with Terraform 1.6).
-  - `s3` - (Optional) A custom endpoint for the S3 API. Overrides `endpoint` argument.
-  - `dynamodb` - (Optional) A custom endpoint for the DynamoDB API. Overrides `dynamodb_endpoint` argument.
+  - `s3` - (Optional) A custom endpoint for the S3 API. Set this or `endpoint`, because OpenTofu rejects both together.
+  - `dynamodb` - (Optional) A custom endpoint for the DynamoDB API. Set this or `dynamodb_endpoint`, because OpenTofu rejects both together.
+- `force_path_style` - (Optional) When `true`, Terragrunt and OpenTofu/Terraform address the bucket with path-style URLs, which most S3-compatible object stores need. OpenTofu deprecates it in favor of `use_path_style`.
+
+<Since version="v1.2.1">
+
+- `use_path_style` - (Optional) The newer name for `force_path_style`. Set this or `force_path_style`, because OpenTofu rejects both together.
+
+</Since>
+
 - `encrypt` - (Optional) Whether to enable server-side encryption of the state file. If disabled, a log warning will be issued in the console output to notify the user. If `skip_bucket_ssencryption` is enabled, the log will be written as a debug log.
 - `role_arn` - (Optional) The role to be assumed.
 - `shared_credentials_file` - (Optional) This is the path to the shared credentials file. If this is not set and a profile is specified, `~/.aws/credentials` will be used.

@@ -8,6 +8,8 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 Example configuration:
 
@@ -163,6 +165,12 @@ remote_state {
 - `skip_metadata_api_check` — Skip the AWS metadata API check.
 - `force_path_style` — Force S3 path-style URLs instead of virtual-hosted-style.
 
+<Since version="v1.2.1">
+
+- `use_path_style` — The newer name for `force_path_style`. Set only one of them, because OpenTofu rejects both together.
+
+</Since>
+
 If you experience an error for any of these configurations, confirm you are using OpenTofu/Terraform v0.12.2 or greater.
 
 The following config options are only valid for the `s3` backend and are used by Terragrunt — they are **not** passed on to OpenTofu/Terraform:
@@ -190,7 +198,9 @@ The `skip_bucket_root_access` option no longer has any effect and is now depreca
 
 ## S3-compatible object stores
 
-Terragrunt can bootstrap and use state buckets in object stores that implement the S3 API, such as [RustFS](https://github.com/rustfs/rustfs), which Terragrunt's integration tests run against. Point `endpoint` at the store and turn off the steps that need AWS services the store doesn't have:
+Terragrunt can bootstrap and use state buckets in object stores that implement the S3 API, such as [RustFS](https://github.com/rustfs/rustfs), which Terragrunt's integration tests run against. Point `endpoints.s3` at the store and turn off the steps that need AWS services the store doesn't have:
+
+<Since version="v1.2.1">
 
 ```hcl
 # root.hcl
@@ -200,8 +210,43 @@ remote_state {
     bucket       = "my-tofu-state"
     key          = "${path_relative_to_include()}/tofu.tfstate"
     region       = "us-east-1"
-    endpoint     = "http://localhost:9000"
     use_lockfile = true
+
+    endpoints = {
+      s3 = "http://localhost:9000"
+    }
+
+    use_path_style              = true
+    skip_credentials_validation = true
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+    encrypt                     = false
+
+    skip_bucket_versioning             = true
+    skip_bucket_ssencryption           = true
+    skip_bucket_enforced_tls           = true
+    skip_bucket_public_access_blocking = true
+  }
+}
+```
+
+</Since>
+
+<Before version="v1.2.1">
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket       = "my-tofu-state"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true
+
+    endpoints = {
+      s3 = "http://localhost:9000"
+    }
 
     force_path_style            = true
     skip_credentials_validation = true
@@ -217,8 +262,22 @@ remote_state {
 }
 ```
 
-- `endpoint` sends both Terragrunt's and OpenTofu/Terraform's S3 requests to the store. `endpoints = { s3 = "..." }` works too, and avoids OpenTofu's deprecation warning for `endpoint`. Set only one of them, because OpenTofu rejects both together.
+</Before>
+
+- `endpoints.s3` sends both Terragrunt's and OpenTofu/Terraform's S3 requests to the store. The older `endpoint` setting works too, but OpenTofu warns that it is deprecated. Set only one of them, because OpenTofu rejects both together.
+
+<Since version="v1.2.1">
+
+- `use_path_style` puts the bucket name in the URL path (`http://localhost:9000/my-tofu-state/...`) in place of the hostname, which most self-hosted stores need. The older `force_path_style` does the same, but OpenTofu warns that it is deprecated. Set only one of them, because OpenTofu rejects both together.
+
+</Since>
+
+<Before version="v1.2.1">
+
 - `force_path_style` puts the bucket name in the URL path (`http://localhost:9000/my-tofu-state/...`) in place of the hostname, which most self-hosted stores need. OpenTofu warns that it is deprecated in favor of `use_path_style`, but keep `force_path_style`: Terragrunt reads only `force_path_style` for its own requests, and OpenTofu rejects the two together.
+
+</Before>
+
 - `skip_credentials_validation` stops Terragrunt and OpenTofu/Terraform from checking the credentials against AWS STS. `skip_requesting_account_id` stops OpenTofu/Terraform from looking up an AWS account ID, and `skip_metadata_api_check` stops it from querying the EC2 instance metadata service.
 - `use_lockfile` locks state with a `.tflock` object that OpenTofu writes with a conditional `PutObject` (`If-None-Match`), so the store must support conditional writes. It needs OpenTofu 1.10 or later, and replaces the DynamoDB table these stores don't have.
 - `encrypt = false` and `skip_bucket_ssencryption` turn off server-side encryption. Leave them out if the store supports it.
