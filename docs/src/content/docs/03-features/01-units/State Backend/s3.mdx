@@ -130,7 +130,7 @@ Before you apply this, confirm that the principals you expect can still reach th
 
 ## Advanced configuration
 
-For the `s3` backend, the following additional config options can be used for S3-compatible object stores, as necessary:
+For the `s3` backend, the following additional config options can be used for [S3-compatible object stores](#s3-compatible-object-stores), as necessary:
 
 ```hcl
 # root.hcl
@@ -187,6 +187,47 @@ The `skip_bucket_accesslogging` option, which previously disabled access logging
 <Aside type="caution" title="DEPRECATED">
 The `skip_bucket_root_access` option no longer has any effect and is now deprecated. Terragrunt does not grant the AWS account root user access to the state bucket, so there is nothing left to skip. Use `enable_bucket_root_access` if you need that access granted. Terragrunt warns about the option when it bootstraps the backend; enable the [`skip-bucket-root-access`](/reference/strict-controls/active#skip-bucket-root-access) strict control to turn that warning into an error.
 </Aside>
+
+## S3-compatible object stores
+
+Terragrunt can bootstrap and use state buckets in object stores that implement the S3 API, such as [RustFS](https://github.com/rustfs/rustfs), which Terragrunt's integration tests run against. Point `endpoint` at the store and turn off the steps that need AWS services the store doesn't have:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket       = "my-tofu-state"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "us-east-1"
+    endpoint     = "http://localhost:9000"
+    use_lockfile = true
+
+    force_path_style            = true
+    skip_credentials_validation = true
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+    encrypt                     = false
+
+    skip_bucket_versioning             = true
+    skip_bucket_ssencryption           = true
+    skip_bucket_enforced_tls           = true
+    skip_bucket_public_access_blocking = true
+  }
+}
+```
+
+- `endpoint` sends both Terragrunt's and OpenTofu/Terraform's S3 requests to the store. `endpoints = { s3 = "..." }` works too, and avoids OpenTofu's deprecation warning for `endpoint`. Set only one of them, because OpenTofu rejects both together.
+- `force_path_style` puts the bucket name in the URL path (`http://localhost:9000/my-tofu-state/...`) in place of the hostname, which most self-hosted stores need. OpenTofu warns that it is deprecated in favor of `use_path_style`, but keep `force_path_style`: Terragrunt reads only `force_path_style` for its own requests, and OpenTofu rejects the two together.
+- `skip_credentials_validation` stops Terragrunt and OpenTofu/Terraform from checking the credentials against AWS STS. `skip_requesting_account_id` stops OpenTofu/Terraform from looking up an AWS account ID, and `skip_metadata_api_check` stops it from querying the EC2 instance metadata service.
+- `use_lockfile` locks state with a `.tflock` object that OpenTofu writes with a conditional `PutObject` (`If-None-Match`), so the store must support conditional writes. It needs OpenTofu 1.10 or later, and replaces the DynamoDB table these stores don't have.
+- `encrypt = false` and `skip_bucket_ssencryption` turn off server-side encryption. Leave them out if the store supports it.
+- `skip_bucket_versioning` leaves versioning off. If the store supports versioning, keep it on: `backend delete` and `backend migrate` refuse to run against an unversioned bucket unless you pass `--force`.
+- `skip_bucket_enforced_tls` and `skip_bucket_public_access_blocking` stop Terragrunt from adding the TLS-only bucket policy and the public access block when it creates the bucket.
+
+Terragrunt sends any `region` other than `us-east-1` as the new bucket's location constraint, so set a region the store accepts.
+
+Pass the store's access key in `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. Terragrunt and OpenTofu/Terraform read them the same way they read AWS credentials. Leave `AWS_PROFILE` unset, or set it to a profile that exists on the machine, or the AWS SDK fails to load its configuration.
 
 <Aside type="note" title="Dependency outputs">
 When the S3 backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the S3 state object. Otherwise it runs `tofu output` or `terraform output`.
