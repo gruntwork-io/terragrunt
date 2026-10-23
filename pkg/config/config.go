@@ -1496,7 +1496,7 @@ func ParseConfigFile(
 
 	var config *TerragruntConfig
 
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
 
 	// Build cache key components before tracing to determine cache hit status
 	childKey := "nil"
@@ -1527,8 +1527,7 @@ func ParseConfigFile(
 		fileInfo.Size(),
 	)
 
-	// Check cache hit status before tracing
-	_, cacheHit := hclCache.Get(ctx, cacheKey)
+	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, cfgPath)
 
 	isPartial := len(pctx.PartialParseDecodeList) > 0
 
@@ -1540,26 +1539,22 @@ func ParseConfigFile(
 		isPartial,
 		pctx.PartialParseDecodeList,
 		includeFromChild,
-		cacheHit,
+		cached != nil,
 		func(childCtx context.Context, l log.Logger) error {
-			var file *hclparse.File
-
-			if cacheConfig, found := hclCache.Get(childCtx, cacheKey); found {
-				file = cacheConfig.Rebind(pctx.NewParser(l, v))
-			} else {
-				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-				var parseErr error
-
-				file, parseErr = pctx.NewParser(l, v).
-					ParseFromFile(v.FS, cfgPath)
-				if parseErr != nil {
-					return parseErr
-				}
-
-				hclCache.Put(childCtx, cacheKey, file)
+			file, parseErr := rebindOrParseHCLFile(
+				childCtx,
+				l,
+				v,
+				pctx,
+				hclCache,
+				cached,
+				cacheKey,
+				cfgPath,
+				fileInfo.ModTime(),
+			)
+			if parseErr != nil {
+				return parseErr
 			}
-
-			var parseErr error
 
 			config, parseErr = ParseConfig(childCtx, l, v, pctx, file, includeFromChild)
 			if parseErr != nil {

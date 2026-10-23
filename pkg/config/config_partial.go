@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -515,7 +516,7 @@ func PartialParseConfigFile(
 	cfgPath string,
 	include *IncludeConfig,
 ) (*TerragruntConfig, error) {
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
 
 	fileInfo, err := v.FS.Stat(cfgPath)
 	if err != nil {
@@ -533,8 +534,7 @@ func PartialParseConfigFile(
 		fileInfo.Size(),
 	)
 
-	// Check cache hit status before tracing
-	_, cacheHit := hclCache.Get(ctx, cacheKey)
+	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, cfgPath)
 
 	var config *TerragruntConfig
 
@@ -546,25 +546,12 @@ func PartialParseConfigFile(
 		true, // isPartial
 		pctx.PartialParseDecodeList,
 		include,
-		cacheHit,
+		cached != nil,
 		func(ctx context.Context, l log.Logger) error {
-			var file *hclparse.File
-
-			if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
-				file = cacheConfig.Rebind(pctx.NewParser(l, v))
-			} else {
-				var parseErr error
-
-				file, parseErr = pctx.NewParser(l, v).
-					ParseFromFile(v.FS, cfgPath)
-				if parseErr != nil {
-					return parseErr
-				}
-
-				hclCache.Put(ctx, cacheKey, file)
+			file, parseErr := rebindOrParseHCLFile(ctx, l, v, pctx, hclCache, cached, cacheKey, cfgPath, fileInfo.ModTime())
+			if parseErr != nil {
+				return parseErr
 			}
-
-			var parseErr error
 
 			config, parseErr = TerragruntConfigFromPartialConfig(ctx, l, v, pctx, file, include)
 
@@ -1239,9 +1226,16 @@ func autoIncludeCacheKeySuffix(
 
 	memo := cache.ContextCache[string](ctx, AutoIncludeSuffixCacheContextKey)
 
+	statAt := time.Now()
+
+	info, statErr := v.FS.Stat(autoIncludePath)
+	if statErr == nil && isRacyModTime(info.ModTime(), statAt) {
+		return autoIncludeContentSuffix(v.FS, autoIncludePath)
+	}
+
 	// Fingerprint the sibling cheaply so a cache hit reuses the content based suffix without re-reading the file.
 	fingerprint := autoIncludePath
-	if info, statErr := v.FS.Stat(autoIncludePath); statErr == nil {
+	if statErr == nil {
 		fingerprint = fmt.Sprintf(
 			"%s-%d-%d",
 			autoIncludePath,

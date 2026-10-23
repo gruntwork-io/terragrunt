@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -752,7 +751,7 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 	)
 
 	// Setup cache and context
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -795,7 +794,7 @@ func TestPartialParseCacheHitOnSecondParse(t *testing.T) {
 		fileInfo.Size(),
 	)
 
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -836,7 +835,7 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 		fileInfo.Size(),
 	)
 
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -889,7 +888,7 @@ func TestPartialParseCacheWithInvalidFile(t *testing.T) {
 	invalidContent := `invalid hcl syntax {`
 	require.NoError(t, os.WriteFile(configPath, []byte(invalidContent), 0644))
 
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -933,7 +932,7 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 		fileInfo.Size(),
 	)
 
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -1016,7 +1015,7 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	require.NoError(t, os.WriteFile(moduleBConfigPath, []byte(""), 0644))
 
 	// Setup shared caches in context so both modules use the same config cache.
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	configCache := cache.NewCache[*config.TerragruntConfig]("test-config-cache")
 	l := logger.CreateLogger()
 

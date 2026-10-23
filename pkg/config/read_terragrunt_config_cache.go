@@ -30,32 +30,96 @@ type readTerragruntConfigResult struct {
 }
 
 // fileStamp is what a stat of a file said about it. Two stamps that differ mean the file changed in between.
+//
+// A file whose mtime was racy when it was read also gets a digest of its contents, since a same-size rewrite of it
+// can keep the stat unchanged.
 type fileStamp struct {
-	modTime time.Time
-	size    int64
-	exists  bool
+	modTime  time.Time
+	digest   uint64
+	size     int64
+	exists   bool
+	digested bool
 }
 
-// stampFile stats path. A file that is missing or unreadable gets the zero stamp.
-func stampFile(fsys vfs.FS, path string) fileStamp {
+// stampFile stats path, and digests the file when its mtime is racy as of readAt, a time taken before the file was
+// read. A file that is missing or unreadable gets the zero stamp.
+func stampFile(fsys vfs.FS, path string, readAt time.Time) fileStamp {
 	info, err := fsys.Stat(path)
 	if err != nil {
 		return fileStamp{}
 	}
 
-	return fileStamp{modTime: info.ModTime(), size: info.Size(), exists: true}
+	stamp := fileStamp{modTime: info.ModTime(), size: info.Size(), exists: true}
+	if !isRacyModTime(stamp.modTime, readAt) {
+		return stamp
+	}
+
+	digest, err := digestFile(fsys, path)
+	if err != nil {
+		return fileStamp{}
+	}
+
+	stamp.digest = digest
+	stamp.digested = true
+
+	return stamp
 }
 
-// current reports whether every file the parse read still has the stamp it had right after the parse.
+// matches reports whether the file at path still has stamp, reading the file back when stamp has a digest.
+func (stamp fileStamp) matches(fsys vfs.FS, path string) bool {
+	info, err := fsys.Stat(path)
+	if err != nil {
+		return !stamp.exists
+	}
+
+	if !stamp.exists || info.Size() != stamp.size || !info.ModTime().Equal(stamp.modTime) {
+		return false
+	}
+
+	if !stamp.digested {
+		return true
+	}
+
+	digest, err := digestFile(fsys, path)
+
+	return err == nil && digest == stamp.digest
+}
+
+// current reports whether every file the parse read still matches the stamp it had right after the parse.
 func (r *readTerragruntConfigResult) current(fsys vfs.FS) bool {
 	for path, stamp := range r.files {
-		now := stampFile(fsys, path)
-		if now.exists != stamp.exists || now.size != stamp.size || !now.modTime.Equal(stamp.modTime) {
+		if !stamp.matches(fsys, path) {
 			return false
 		}
 	}
 
 	return true
+}
+
+// settled returns r without the digests of the stamps whose mtime is no longer racy as of checkedAt, a time taken
+// before [readTerragruntConfigResult.current] confirmed r. It returns nil when no digest is dropped.
+func (r *readTerragruntConfigResult) settled(checkedAt time.Time) *readTerragruntConfigResult {
+	var files map[string]fileStamp
+
+	for path, stamp := range r.files {
+		if !stamp.digested || isRacyModTime(stamp.modTime, checkedAt) {
+			continue
+		}
+
+		if files == nil {
+			files = maps.Clone(r.files)
+		}
+
+		stamp.digest = 0
+		stamp.digested = false
+		files[path] = stamp
+	}
+
+	if files == nil {
+		return nil
+	}
+
+	return &readTerragruntConfigResult{value: r.value, files: files}
 }
 
 // filesRead returns the paths of the files the parse read, in lexical order.
@@ -155,8 +219,7 @@ func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext) ReadTerragru
 // as not shareable, and its value is not shared. That covers reading the reading config's path, a target with
 // dependency blocks, run_cmd with --terragrunt-no-cache, and the functions in perCallFunctionNames.
 //
-// The parse records the files it reads whether or not pctx does, so the result knows which files to check. A file
-// rewritten within the resolution of the filesystem's timestamps, to the same size, is not seen as changed.
+// The parse records the files it reads whether or not pctx does, so the result knows which files to check.
 func readTerragruntConfigCached(
 	ctx context.Context,
 	l log.Logger,
@@ -170,9 +233,15 @@ func readTerragruntConfigCached(
 	key := fmt.Sprintf("%#v", NewReadTerragruntConfigKey(v, pctx))
 	results := cache.ContextCache[*readTerragruntConfigResult](ctx, ReadTerragruntConfigCacheContextKey)
 
+	checkedAt := time.Now()
+
 	if result, found := results.Get(ctx, key); found && result.current(v.FS) {
 		for _, path := range result.filesRead() {
 			pctx.FilesRead.Add(path)
+		}
+
+		if settled := result.settled(checkedAt); settled != nil {
+			results.Put(ctx, key, settled)
 		}
 
 		return result.value, nil
@@ -183,14 +252,15 @@ func readTerragruntConfigCached(
 	parsePctx := pctx.Clone()
 	parsePctx.FilesRead = NewFilesRead()
 
+	readAt := time.Now()
 	value, err := parseTerragruntConfigAsCty(parseCtx, l, v, parsePctx)
 
-	files := map[string]fileStamp{pctx.TerragruntConfigPath: stampFile(v.FS, pctx.TerragruntConfigPath)}
+	files := map[string]fileStamp{pctx.TerragruntConfigPath: stampFile(v.FS, pctx.TerragruntConfigPath, readAt)}
 
 	for _, path := range parsePctx.FilesRead.Paths() {
 		pctx.FilesRead.Add(path)
 
-		files[path] = stampFile(v.FS, path)
+		files[path] = stampFile(v.FS, path, readAt)
 	}
 
 	if err != nil {
