@@ -1,0 +1,14 @@
+---
+version: "v1.2.1"
+category: "documentation-updates"
+---
+
+#### GCP examples in the Overview
+
+The [Overview](/getting-started/overview/) now has GCP examples for every step. They create a VPC network and a Cloud Router in `us-central1` and `us-east1`, and keep state in a `gcs` backend.
+
+The code for each step is in [`test/fixtures/docs/02-overview-gcp`](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview-gcp). An integration test applies and destroys each step in that directory.
+
+[Try it out](/getting-started/overview/#try-it-out) covers signing in with Application Default Credentials, enabling the Compute Engine API, and the roles you need to create the state bucket and the network.
+
+In [Patterns](/guides/patterns), the "Keep your backend configuration DRY" pattern also shows how to set a `gcs` backend once in `root.hcl`.

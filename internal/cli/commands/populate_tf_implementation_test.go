@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -45,7 +46,7 @@ func TestPopulateTFImplementation(t *testing.T) {
 		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.TFPath = "terraform"
 
-		require.NoError(t, commands.PopulateTFImplementation(t.Context(), logger.CreateLogger(), opts, v))
+		require.NoError(t, commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, v))
 		assert.Equal(t, tfimpl.Terraform, opts.TofuImplementation)
 		assert.NotNil(t, opts.TerraformVersion)
 	})
@@ -58,7 +59,7 @@ func TestPopulateTFImplementation(t *testing.T) {
 		opts.TerraformVersion = version.Must(version.NewVersion("1.0.0"))
 
 		// venvtest's fail-closed exec errors on any spawn, so success proves no probe ran.
-		require.NoError(t, commands.PopulateTFImplementation(t.Context(), logger.CreateLogger(), opts, venvtest.New()))
+		require.NoError(t, commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venvtest.New()))
 		assert.Equal(t, tfimpl.OpenTofu, opts.TofuImplementation)
 	})
 
@@ -68,7 +69,7 @@ func TestPopulateTFImplementation(t *testing.T) {
 		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.TFPath = "terraform"
 
-		require.Error(t, commands.PopulateTFImplementation(t.Context(), logger.CreateLogger(), opts, venvtest.New()))
+		require.Error(t, commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venvtest.New()))
 		assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
 		assert.Nil(t, opts.TerraformVersion)
 	})
@@ -112,7 +113,7 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 
 		l, output := newTestLogger()
 
-		require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, v, action))
+		require.NoError(t, commands.RunAction(config.WithCaches(t.Context()), nil, l, opts, v, action))
 		assert.Equal(t, tfimpl.Terraform, opts.TofuImplementation)
 		assert.NotContains(t, output.String(), "falls back to OpenTofu's CLI config file locations")
 	})
@@ -127,7 +128,7 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 
 		l, output := newDebugTestLogger()
 
-		require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, v, action))
+		require.NoError(t, commands.RunAction(config.WithCaches(t.Context()), nil, l, opts, v, action))
 		assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
 		assert.Contains(t, output.String(), "falls back to OpenTofu's CLI config file locations")
 	})
@@ -198,7 +199,7 @@ provider_installation {
 		return err
 	}
 
-	require.NoError(t, commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, v, action))
+	require.NoError(t, commands.RunAction(config.WithCaches(t.Context()), nil, logger.CreateLogger(), opts, v, action))
 
 	generated, err := vfs.ReadFile(v.FS, workDir+"/.terraformrc")
 	require.NoError(t, err, "a matching implementation must go through the cache and generate its CLI config")

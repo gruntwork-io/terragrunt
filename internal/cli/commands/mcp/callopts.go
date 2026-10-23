@@ -26,7 +26,7 @@ import (
 // stub approximated on one call would be reused by later calls, degrading
 // them without the note that says so.
 func freshCallContext(ctx context.Context) context.Context {
-	return cache.ContextWithCache(config.WithConfigValues(ctx))
+	return cache.ContextWithCache(config.WithCaches(ctx))
 }
 
 // resolveWorkingDir turns a tool-call working_dir argument into an absolute,

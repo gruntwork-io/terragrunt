@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -99,7 +100,7 @@ func TestRunLoadsARepoNamedByThePortalAndTheConfigOnceWithRacing(t *testing.T) {
 			writeCatalogBlock(t, v, rootDir, repoURL)
 
 			err := catalog.Run(
-				t.Context(), logger.CreateLogger(), v,
+				config.WithCaches(t.Context()), logger.CreateLogger(), v,
 				newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 			)
 
@@ -135,7 +136,7 @@ func TestRunWithoutTheExperimentLeavesThePortalAlone(t *testing.T) {
 	opts := newOptions(t, t.TempDir(), catalog.FormatJSONL)
 	opts.PortalBaseURL = portalBaseURL
 
-	require.NoError(t, catalog.Run(t.Context(), logger.CreateLogger(), v, opts, ""))
+	require.NoError(t, catalog.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, ""))
 	assert.Empty(t, buf.String())
 }
 
@@ -163,7 +164,7 @@ func TestRunFetchesEveryOrganizationsCatalogWithRacing(t *testing.T) {
 	writeLocalRepo(t, v, second)
 
 	require.NoError(t, catalog.Run(
-		t.Context(), logger.CreateLogger(), v,
+		config.WithCaches(t.Context()), logger.CreateLogger(), v,
 		newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 	))
 
@@ -189,7 +190,7 @@ func TestRunWithoutACredentialLeavesThePortalAlone(t *testing.T) {
 		))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v,
+		config.WithCaches(t.Context()), logger.CreateLogger(), v,
 		newPortalOptions(t, t.TempDir(), catalog.FormatJSONL), "",
 	)
 
@@ -250,7 +251,7 @@ func TestRunSurvivesAPortalThatServesNoCatalog(t *testing.T) {
 			writeCatalogBlock(t, v, rootDir, filepath.ToSlash(repoDir))
 
 			err := catalog.Run(
-				t.Context(), logger.CreateLogger(), v,
+				config.WithCaches(t.Context()), logger.CreateLogger(), v,
 				newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 			)
 
@@ -267,7 +268,7 @@ func TestRunSurvivesAPortalThatServesNoCatalog(t *testing.T) {
 func TestRunEndsWhenTheRunIsAbandonedMidFetchWithRacing(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(config.WithCaches(t.Context()))
 	defer cancel()
 
 	v := newPortalVenv(t).WithHTTP(vhttp.NewMemClient(
@@ -306,7 +307,7 @@ func TestRunNamesTheRepositoriesItCouldNotClone(t *testing.T) {
 	v := withPortalCatalog(t, newPortalVenv(t), repoURL)
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v,
+		config.WithCaches(t.Context()), logger.CreateLogger(), v,
 		newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
@@ -331,7 +332,7 @@ func renderCatalog(
 	writeLocalRepo(t, v, repoDir)
 
 	require.NoError(t, catalog.Run(
-		t.Context(), logger.CreateLogger(), v,
+		config.WithCaches(t.Context()), logger.CreateLogger(), v,
 		newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 	))
 

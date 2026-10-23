@@ -3,7 +3,6 @@ package s3
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
@@ -37,15 +36,12 @@ var terragruntOnlyConfigs = []string{
 	"bucket_sse_kms_key_id",
 }
 
-/* ExtendedRemoteStateConfigS3 is a struct that contains the RemoteStateConfigS3 struct and additional
- * configuration options that are specific to the S3 backend. This struct is used to parse the configuration
- * from the Terragrunt configuration file.
- *
- * We use this construct to separate the three config keys 's3_bucket_tags', 'dynamodb_table_tags'
- * and 'accesslogging_bucket_tags' from the others, as they are specific to the s3 backend,
- * but only used by terragrunt to tag the s3 bucket, the dynamo db and the s3 bucket used to the
- * access logs, in case it has to create them.
- */
+// ExtendedRemoteStateConfigS3 holds RemoteStateConfigS3 plus the configuration options specific to the S3
+// backend, parsed from the Terragrunt configuration file.
+//
+// It keeps the three config keys 's3_bucket_tags', 'dynamodb_table_tags' and 'accesslogging_bucket_tags' apart
+// from the others, as they are specific to the s3 backend and only used by terragrunt to tag the s3 bucket, the
+// DynamoDB table and the access log bucket in case it has to create them.
 type ExtendedRemoteStateConfigS3 struct {
 	S3BucketTags                                 map[string]string   `mapstructure:"s3_bucket_tags"`
 	DynamotableTags                              map[string]string   `mapstructure:"dynamodb_table_tags"`
@@ -115,16 +111,16 @@ func (cfg *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSess
 // CreateS3LoggingInput builds AWS S3 logging input struct from the configuration.
 func (cfg *ExtendedRemoteStateConfigS3) CreateS3LoggingInput() s3.PutBucketLoggingInput {
 	loggingInput := s3.PutBucketLoggingInput{
-		Bucket: aws.String(cfg.RemoteStateConfigS3.Bucket),
+		Bucket: new(cfg.RemoteStateConfigS3.Bucket),
 		BucketLoggingStatus: &s3types.BucketLoggingStatus{
 			LoggingEnabled: &s3types.LoggingEnabled{
-				TargetBucket: aws.String(cfg.AccessLoggingBucketName),
+				TargetBucket: new(cfg.AccessLoggingBucketName),
 			},
 		},
 	}
 
 	if cfg.AccessLoggingTargetPrefix != "" {
-		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetPrefix = aws.String(
+		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetPrefix = new(
 			cfg.AccessLoggingTargetPrefix,
 		)
 	}

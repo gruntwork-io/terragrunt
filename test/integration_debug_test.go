@@ -273,6 +273,44 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	}
 }
 
+// TestRenderAllReadConfigUsesPerUnitAuthProviderCredentials pins that a file every unit reads with
+// read_terragrunt_config sees the credentials the auth provider command gives each unit.
+func TestRenderAllReadConfigUsesPerUnitAuthProviderCredentials(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "per-unit-read-config")
+	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
+
+	// With one unit at a time, the second unit reads common.hcl after the first has finished reading it.
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt render --all --json --write --non-interactive --parallelism 1 --working-dir %s "+
+				"--auth-provider-cmd %s",
+			rootPath,
+			authProviderCmd,
+		),
+	)
+
+	for _, unit := range []string{"unit-a", "unit-b"} {
+		renderedBytes, err := os.ReadFile(filepath.Join(rootPath, unit, "terragrunt.rendered.json"))
+		require.NoError(t, err)
+
+		var rendered struct {
+			Inputs map[string]any `json:"inputs"`
+		}
+
+		require.NoError(t, json.Unmarshal(renderedBytes, &rendered))
+		assert.Equal(t, unit, rendered.Inputs["secret"])
+	}
+}
+
 func TestRenderJSONConfigRunAll(t *testing.T) {
 	t.Parallel()
 

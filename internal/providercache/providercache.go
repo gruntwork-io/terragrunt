@@ -40,11 +40,11 @@ const (
 	// The paths to the automatically generated local CLI configs
 	localCLIFilename = ".terraformrc"
 
-	// The status returned when making a request to the caching provider.
-	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
+	// CacheProviderHTTPStatusCode is the status returned when making a request to the caching provider.
+	// It stops tofu from loading the provider any further while confirming that the request was processed successfully.
 	CacheProviderHTTPStatusCode = http.StatusLocked
 
-	// Authentication type on the Terragrunt Provider Cache server.
+	// APIKeyAuth is the authentication type on the Terragrunt Provider Cache server.
 	APIKeyAuth = "x-api-key"
 
 	// Retry configuration for registry operations during cache warm-up

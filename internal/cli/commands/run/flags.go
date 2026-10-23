@@ -1,4 +1,3 @@
-// Package run provides Terragrunt command flags.
 package run
 
 import (
@@ -70,17 +69,21 @@ const (
 	JSONOutDirFlagName = "json-out-dir"
 
 	// `--graph` related flags.
+
 	GraphRootFlagName = "graph-root"
 
 	// Config and download flags - use shared package constants
+
 	ConfigFlagName = shared.ConfigFlagName
 
 	// Source and auto-init flags - use shared package constants
+
 	NoAutoInitFlagName = shared.NoAutoInitFlagName
 	SourceFlagName     = shared.SourceFlagName
 	SourceMapFlagName  = shared.SourceMapFlagName
 
 	// Auth and IAM flags - use shared package constants
+
 	InputsDebugFlagName                   = shared.InputsDebugFlagName
 	IAMAssumeRoleFlagName                 = shared.IAMAssumeRoleFlagName
 	IAMAssumeRoleDurationFlagName         = shared.IAMAssumeRoleDurationFlagName

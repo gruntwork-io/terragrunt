@@ -135,9 +135,9 @@ func TestCatalogParseConfigFile(t *testing.T) {
 
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS()
-			_, catalogPctx := newTestParsingContext(t, tt.configPath)
+			ctx, catalogPctx := newTestParsingContext(t, tt.configPath)
 			catalogPctx.ScaffoldRootFileName = filepath.Base(tt.configPath)
-			config, err := config.ReadCatalogConfig(t.Context(), l, v, catalogPctx)
+			config, err := config.ReadCatalogConfig(ctx, l, v, catalogPctx)
 
 			if tt.expectedErr == nil {
 				require.NoError(t, err)

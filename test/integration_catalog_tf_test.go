@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -20,7 +21,7 @@ import (
 func TestTFScaffoldGitModuleHttps(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 

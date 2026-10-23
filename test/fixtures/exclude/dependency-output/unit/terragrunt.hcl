@@ -10,7 +10,7 @@ dependency "dep" {
   }
 }
 
-# Discovery can't read dependency outputs, so it skips this block with a warning
+# Every parse rejects this config, because exclude reads a dependency output
 exclude {
   if      = tostring(dependency.dep.outputs.flag)
   actions = ["all"]

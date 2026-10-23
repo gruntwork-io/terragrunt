@@ -281,6 +281,17 @@ func (dep *Dependency) setRenderedOutputs(
 	return nil
 }
 
+// LockDependencyOutputs waits for any fetch of the outputs of the unit at configPath to finish, and holds new fetches
+// back until the returned unlock is called. A runner holds it while it runs that unit, because a fetch runs OpenTofu in
+// the unit's cache directory too.
+func LockDependencyOutputs(ctx context.Context, configPath string) (unlock func()) {
+	key := filepath.Clean(configPath)
+	locks := outputLocksFromContext(ctx)
+	locks.Lock(key)
+
+	return func() { locks.Unlock(key) }
+}
+
 // outputLocksFromContext retrieves the KeyLocks from the context for synchronizing output retrieval.
 // If not present in context, returns a new KeyLocks instance.
 func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
@@ -1691,7 +1702,7 @@ func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool)
 // containing bucket/container does not exist yet.
 func isRemoteStateMissing(err error) bool {
 	// A client-construction failure is not an absent state, so it must not yield mock outputs.
-	if _, ok := errors.AsType[*azurermbackend.StateClientSetupError](err); ok {
+	if errors.As(err, new(*azurermbackend.StateClientSetupError)) {
 		return false
 	}
 
@@ -2906,7 +2917,7 @@ func foldSiblingAutoIncludeDeps(
 	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
 	autoPctx.SkipAutoIncludeMerge = true
 
-	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, autoPctx, autoFile, nil)
+	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, autoPctx, autoFile, nil, IncludeParseFeatureFlags)
 	if err != nil {
 		return nil, err
 	}

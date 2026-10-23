@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
@@ -1357,8 +1358,21 @@ locals {
 }
 ```
 
+<Before version="v1.2.1">
+
 Note that this can be a powerful feature, but it can easily lead to performance issues if you are not careful,
 as each read will require a full parse of the HCL file and potentially execute expensive computation.
+
+</Before>
+
+<Since version="v1.2.1">
+
+Note that this can be a powerful feature, but it can easily lead to performance issues if you are not careful.
+Terragrunt shares one parse of the file between the units that read it, but a file whose result
+[depends on the unit reading it](/reference/hcl/functions#read_terragrunt_config) is parsed and computed for
+every unit.
+
+</Since>
 
 Use this feature judiciously.
 
@@ -2184,6 +2198,12 @@ Attributes:
 | `actions`              | list(string) | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
 | `exclude_dependencies` | boolean      | Indicates whether the dependencies of the excluded unit should also be excluded (default: `false`).                     |
 | `no_run`               | boolean      | When `true` and `if` is `true`, prevents the unit from running entirely for single unit commands (e.g., `terragrunt run -- plan`), but only when the current action matches the `actions` list. This attribute is ignored for `run --all` commands. |
+
+<Since version="v1.2.1">
+
+The attributes of an `exclude` block can't reference `dependency` outputs. Terragrunt evaluates the block while it builds the run queue, before any dependency has run, so it rejects a configuration that tries.
+
+</Since>
 
 Examples:
 

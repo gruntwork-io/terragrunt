@@ -30,7 +30,8 @@ func ContExecNoOutput(
 	c, output, err := container.Exec(ctx, args, options...)
 	require.NoError(tb, err)
 
-	outbytes, _ := io.ReadAll(output)
+	outbytes, err := io.ReadAll(output)
+	require.NoError(tb, err)
 	require.Zero(tb, c, string(outbytes))
 }
 

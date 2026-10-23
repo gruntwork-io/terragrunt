@@ -2,8 +2,6 @@ package config
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -71,27 +69,6 @@ type RunCmdCacheEntry struct {
 // Value returns the whitespace-trimmed stdout, which is the return value of run_cmd.
 func (e *RunCmdCacheEntry) Value() string {
 	return strings.TrimSuffix(e.Stdout, "\n")
-}
-
-// replay writes the captured output to v's writers exactly once, and only when
-// they are real (non-Discard) writers. The command may first run during the
-// discovery phase with io.Discard writers, so its output has to reach the user
-// when the entry is reused during the execution phase.
-func (e *RunCmdCacheEntry) replay(v *venv.Venv, suppressOutput bool) {
-	w := v.Writers.Writer
-	if w == io.Discard {
-		return
-	}
-
-	e.replayOnce.Do(func() {
-		if !suppressOutput && e.Stdout != "" {
-			_, _ = w.Write([]byte(e.Stdout))
-		}
-
-		if e.Stderr != "" {
-			_, _ = v.Writers.ErrWriter.Write([]byte(e.Stderr))
-		}
-	})
 }
 
 const (
@@ -185,6 +162,9 @@ type TrackInclude struct {
 	Original *IncludeConfig
 	// AutoIncludeOverride is the sibling terragrunt.autoinclude.hcl registered as a high-priority override that is merged on top and wins, kept off CurrentList/CurrentMap so include-identity readers never see it.
 	AutoIncludeOverride *IncludeConfig
+	// parsedForMerge holds, by include name, the included configs [DecodeBaseBlocks] parsed with
+	// [IncludeParseForMerge], so the partial merge uses them instead of parsing the includes again.
+	parsedForMerge map[string]*TerragruntConfig
 	// CurrentList is used to track the list of configs that should be imported and merged before the final
 	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
 	// merge the included config in the right order.
@@ -213,6 +193,10 @@ func CreateTerragruntEvalContext(
 		func() map[string]function.Function { return tfFunctions },
 		pctx.FilesRead.Add,
 	))
+
+	for _, name := range perCallFunctionNames {
+		tfFunctions[name] = markingNotShareable(ctx, tfFunctions[name])
+	}
 
 	terragruntFunctions := map[string]function.Function{
 		FuncNameFindInParentFolders: wrapStringSliceToStringAsFuncImpl(
@@ -543,6 +527,8 @@ func getOriginalTerragruntDir(
 	_ *venv.Venv,
 	pctx *ParsingContext,
 ) (string, error) {
+	markNotShareable(ctx)
+
 	return filepath.Dir(pctx.OriginalTerragruntConfigPath), nil
 }
 
@@ -670,6 +656,8 @@ func runCommandImpl(
 	// cache keyed by the directory scope, the configured environment, and the exact argv.
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	if disableCache {
+		markNotShareable(ctx)
+
 		entry, err := runCmd(ctx, l, v, pctx, currentPath, args, suppressOutput)
 		if err != nil {
 			return "", err
@@ -681,7 +669,7 @@ func runCommandImpl(
 	cacheKey := runCmdCacheKey(cachePath, v.Env, args)
 
 	if cachedEntry, found := runCommandCache.Get(ctx, cacheKey); found {
-		return replayCachedRunCmd(l, v, cachedEntry, suppressOutput), nil
+		return replayCachedRunCmd(l, v, cachedEntry, suppressOutput)
 	}
 
 	// Units are parsed concurrently, so several goroutines can miss on the same key at once. The
@@ -730,7 +718,7 @@ func runCommandImpl(
 		return entry.Value(), nil
 	}
 
-	return replayCachedRunCmd(l, v, entry, suppressOutput), nil
+	return replayCachedRunCmd(l, v, entry, suppressOutput)
 }
 
 func getEnvironmentVariable(
@@ -986,6 +974,8 @@ func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *Parsin
 	l.Debugf("Start processing get_working_dir built-in function")
 	defer l.Debugf("Complete processing get_working_dir built-in function")
 
+	markNotShareable(ctx)
+
 	sourcePctx := pctx.Clone()
 	sourcePctx.stubWorkingDirFunc = true
 
@@ -1175,14 +1165,7 @@ func ParseTerragruntConfig(
 
 	pctx.readConfigChain = slices.Concat(chain, []readConfigFrame{target})
 
-	pctx = pctx.WithDiagnosticsSuppressed()
-
-	// The parent's decoded dependencies are not the target config's. Reset so the
-	// target config decodes its own dependency blocks. Also reset SkipOutputsResolution
-	// so that dependency tracing accurately reflects that resolution is happening.
-	// See: https://github.com/gruntwork-io/terragrunt/issues/5624
-	pctx.DecodedDependencies = nil
-	pctx.SkipOutputsResolution = false
+	pctx = pctx.WithDiagnosticsSuppressed().forReadTarget()
 
 	// check if file is stack file, decode as stack file
 	//
@@ -1227,24 +1210,7 @@ func ParseTerragruntConfig(
 		return *unitValues, nil
 	}
 
-	config, err := ParseConfigFile(ctx, l, v, pctx, targetConfig, nil)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	// We have to set the rendered outputs here because ParseConfigFile will not do so on the TerragruntConfig. The
-	// outputs are stored in a special map that is used only for rendering and thus is not available when we try to
-	// serialize the config for consumption.
-	// NOTE: this will not call terragrunt output, since all the values are cached from the ParseConfigFile call
-	// NOTE: we don't use range here because range will copy the slice, thereby undoing the set attribute.
-	for i := range len(config.TerragruntDependencies) {
-		err := config.TerragruntDependencies[i].setRenderedOutputs(ctx, l, v, pctx)
-		if err != nil {
-			return cty.NilVal, err
-		}
-	}
-
-	return TerragruntConfigAsCty(config)
+	return readTerragruntConfigCached(ctx, l, v, pctx)
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.
@@ -1841,31 +1807,38 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 }
 
 // runCmdCacheKey identifies one run_cmd result by its directory scope (the directory the command
-// runs in, or the global scope), the configured environment, and the exact argv. The args are
-// %q-formatted so every element boundary survives: ("x y") and ("x", "y") get different keys. NUL
-// separates the parts because it cannot occur in a path, in hex, or unescaped inside a %q string.
+// runs in, or the global scope), the configured environment, and the exact argv. The environment
+// is hashed because Terragrunt injects per-unit credentials into it (--auth-provider-cmd): a
+// command evaluated from a shared file under two units must not replay the first unit's output
+// for the second, and the hash keeps secrets out of the key. The args are %q-formatted so every
+// element boundary survives: ("x y") and ("x", "y") get different keys. NUL separates the parts
+// because it cannot occur in a path, in hex, or unescaped inside a %q string.
 func runCmdCacheKey(scope string, env map[string]string, args []string) string {
-	return fmt.Sprintf("%s\x00%s\x00%q", scope, envFingerprint(env), args)
-}
-
-// envFingerprint hashes the environment Terragrunt has configured for a run_cmd subprocess (v.Env;
-// the shell layer may add a trace parent on top). Terragrunt injects per-unit credentials into
-// v.Env (--auth-provider-cmd), so the same command evaluated from a shared file
-// (read_terragrunt_config) under two units must not replay the first unit's output for the second.
-// Hashing rather than embedding keeps secrets out of the key.
-func envFingerprint(env map[string]string) string {
-	sum := sha256.Sum256([]byte(strings.Join(venv.Environ(env), "\x00")))
-
-	return hex.EncodeToString(sum[:])
+	return fmt.Sprintf("%s\x00%x\x00%q", scope, hashEnv(env), args)
 }
 
 // replayCachedRunCmd replays a cached entry's output to v's writers, logs the hit, and returns
 // the value run_cmd evaluates to.
-func replayCachedRunCmd(l log.Logger, v *venv.Venv, entry *RunCmdCacheEntry, suppressOutput bool) string {
-	entry.replay(v, suppressOutput)
+func replayCachedRunCmd(l log.Logger, v *venv.Venv, entry *RunCmdCacheEntry, suppressOutput bool) (string, error) {
+	if err := replayRunCmdOutput(v, entry, suppressOutput); err != nil {
+		return "", err
+	}
+
 	logRunCmdOutput(l, "run_cmd, cached output", entry, suppressOutput)
 
-	return entry.Value()
+	return entry.Value(), nil
+}
+
+// replayRunCmdOutput writes entry's captured output to v's writers, unless they discard output as
+// the discovery phase does. The entry writes only once, so a later call with real writers still
+// shows the output to the user.
+func replayRunCmdOutput(v *venv.Venv, entry *RunCmdCacheEntry, suppressOutput bool) error {
+	w := v.Writers.Writer
+	if w == io.Discard {
+		return nil
+	}
+
+	return entry.replay(w, v.Writers.ErrWriter, suppressOutput)
 }
 
 // logRunCmdOutput debug-logs a run_cmd value under prefix, redacted when the call was quiet.
@@ -1911,7 +1884,10 @@ func runCmd(
 	}
 
 	logRunCmdOutput(l, "run_cmd output", entry, suppressOutput)
-	entry.replay(v, suppressOutput)
+
+	if err := replayRunCmdOutput(v, entry, suppressOutput); err != nil {
+		return nil, err
+	}
 
 	return entry, nil
 }
@@ -1926,4 +1902,24 @@ func runCmdFlightsFromContext(ctx context.Context) *singleflight.Group {
 	}
 
 	return new(singleflight.Group)
+}
+
+// replay writes the entry's stdout to w, unless suppressOutput is set, and its
+// stderr to errW. Only the first call on an entry writes anything.
+func (e *RunCmdCacheEntry) replay(w, errW io.Writer, suppressOutput bool) error {
+	var err error
+
+	e.replayOnce.Do(func() {
+		if !suppressOutput && e.Stdout != "" {
+			if _, err = w.Write([]byte(e.Stdout)); err != nil {
+				return
+			}
+		}
+
+		if e.Stderr != "" {
+			_, err = errW.Write([]byte(e.Stderr))
+		}
+	})
+
+	return err
 }
