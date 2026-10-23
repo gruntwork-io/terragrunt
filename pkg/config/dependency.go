@@ -281,6 +281,17 @@ func (dep *Dependency) setRenderedOutputs(
 	return nil
 }
 
+// LockDependencyOutputs waits for any fetch of the outputs of the unit at configPath to finish, and holds new fetches
+// back until the returned unlock is called. A runner holds it while it runs that unit, because a fetch runs OpenTofu in
+// the unit's cache directory too.
+func LockDependencyOutputs(ctx context.Context, configPath string) (unlock func()) {
+	key := filepath.Clean(configPath)
+	locks := outputLocksFromContext(ctx)
+	locks.Lock(key)
+
+	return func() { locks.Unlock(key) }
+}
+
 // outputLocksFromContext retrieves the KeyLocks from the context for synchronizing output retrieval.
 // If not present in context, returns a new KeyLocks instance.
 func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
