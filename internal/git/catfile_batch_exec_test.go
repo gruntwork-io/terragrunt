@@ -183,7 +183,7 @@ func TestExecCatFileBatch_CloseReportsExit(t *testing.T) {
 	require.ErrorIs(t, err, git.ErrCatFileShortRead)
 
 	err = batch.Close()
-	require.ErrorIs(t, err, git.ErrCommandSpawn)
+	require.ErrorIs(t, err, git.ErrGitCommand)
 
 	var wrappedErr *git.WrappedError
 

@@ -1,0 +1,41 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### `hcl validate` errors point at the code that caused them
+
+`terragrunt hcl validate` printed each error in a box, with the absolute path of the file and the whole source line:
+
+```text
+╷
+│ Error: Unsupported argument
+│
+│   on /path/to/live/app/terragrunt.hcl line 1:
+│    1: foo = 1
+│
+│ An argument named "foo" is not expected here.
+╵
+```
+
+It now prints the path relative to the working directory, with the line and column, and underlines the part of the line the error is about:
+
+```text
+error: Unsupported argument
+ --> app/terragrunt.hcl:1:1
+  |
+1 | foo = 1
+  | ^^^ An argument named "foo" is not expected here.
+```
+
+A `dependency` block whose `config_path` names a directory that does not exist is reported the same way, pointing at the `config_path`:
+
+```text
+error: Missing dependency
+ --> app/terragrunt.hcl:2:17
+  |
+2 |   config_path = "../nonexistent"
+  |                 ^^^^^^^^^^^^^^^^ This directory does not exist.
+```
+
+Scripts that read `hcl validate` output should use `--json`, whose fields have not changed.
