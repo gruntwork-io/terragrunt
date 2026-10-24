@@ -161,7 +161,7 @@ func componentFromDependencyPath(
 	path string,
 	components *component.ThreadSafeComponents,
 ) component.Component {
-	if existing := components.FindByPath(fsys, path); existing != nil {
+	if existing := components.FindByPath(path); existing != nil {
 		return existing
 	}
 
@@ -276,7 +276,7 @@ func sanitizeReadFiles(files []string) []string {
 // extractDependencyPaths extracts all dependency paths from a Terragrunt
 // configuration, sorted and deduplicated.
 func extractDependencyPaths(
-	fsys vfs.FS,
+	paths *vfs.PathResolver,
 	cfg *config.TerragruntConfig,
 	c component.Component,
 ) ([]string, error) {
@@ -312,7 +312,7 @@ func extractDependencyPaths(
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
 
-		depPaths = append(depPaths, vfs.ResolveForCompare(fsys, depPath))
+		depPaths = append(depPaths, paths.Resolve(depPath))
 	}
 
 	if cfg.Dependencies != nil {
@@ -321,7 +321,7 @@ func extractDependencyPaths(
 				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
 			}
 
-			depPaths = append(depPaths, vfs.ResolveForCompare(fsys, dependency))
+			depPaths = append(depPaths, paths.Resolve(dependency))
 		}
 	}
 
