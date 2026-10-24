@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -35,6 +36,12 @@ func CopyLockFile(
 	logShowAbsPaths bool,
 	sourceFolder, destinationFolder string,
 ) error {
+	// When a unit runs in place, source and destination are the same directory and there is nothing to copy.
+	// Copying the lock file onto itself would also replace a symlinked lock file with a regular file.
+	if filepath.Clean(sourceFolder) == filepath.Clean(destinationFolder) {
+		return nil
+	}
+
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 
@@ -81,6 +88,33 @@ func GetTerraformSourceURL(
 	default:
 		return ".", nil
 	}
+}
+
+// ShouldSkipCache reports whether a unit should run in place, skipping the copy of its source into the
+// .terragrunt-cache directory.
+//
+// terraform.no_dot_terragrunt_cache requires the no-dot-terragrunt-cache experiment; setting it without the
+// experiment returns a NoDotTerragruntCacheRequiresExperimentError. Setting it together with an external source
+// (via the terraform block or the --source flag) returns a NoDotTerragruntCacheWithSourceError, because an
+// external source has to be fetched into the cache directory.
+func ShouldSkipCache(noCacheEnabled bool, source, configPath string, cfg *RunConfig) (bool, error) {
+	if cfg == nil || !cfg.Terraform.NoDotTerragruntCache {
+		return false, nil
+	}
+
+	if !noCacheEnabled {
+		return false, NoDotTerragruntCacheRequiresExperimentError{ConfigPath: configPath}
+	}
+
+	if source != "" {
+		return false, NoDotTerragruntCacheWithSourceError{Source: source}
+	}
+
+	if cfg.Terraform.Source != "" {
+		return false, NoDotTerragruntCacheWithSourceError{Source: cfg.Terraform.Source}
+	}
+
+	return true, nil
 }
 
 // AdjustSourceWithMap implements the --terragrunt-source-map feature. This function will check if the URL portion of a
@@ -178,6 +212,40 @@ func (err ParsingModulePathError) Error() string {
 		"Unable to obtain the module path from the source URL '%s'."+
 			" Ensure that the URL is in a supported format.",
 		err.ModuleSourceURL,
+	)
+}
+
+// NoDotTerragruntCacheRequiresExperimentError is returned when terraform.no_dot_terragrunt_cache is set without
+// the no-dot-terragrunt-cache experiment enabled.
+type NoDotTerragruntCacheRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err NoDotTerragruntCacheRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"terraform.no_dot_terragrunt_cache in %s requires the 'no-dot-terragrunt-cache' experiment;"+
+			" enable it with --experiment no-dot-terragrunt-cache",
+		err.ConfigPath,
+	)
+}
+
+// NoDotTerragruntCacheWithSourceError is returned when terraform.no_dot_terragrunt_cache is set on a unit that
+// also configures an external source. no_dot_terragrunt_cache runs a unit in place, which is incompatible with a
+// source that must be fetched into the cache directory.
+//
+// Source holds the raw source so callers can inspect it; Error renders it through redact so credentials embedded in the
+// source URL do not leak into logs.
+type NoDotTerragruntCacheWithSourceError struct {
+	Source string
+}
+
+func (err NoDotTerragruntCacheWithSourceError) Error() string {
+	return fmt.Sprintf(
+		"terraform.no_dot_terragrunt_cache cannot be combined with an external source ('%s')."+
+			" no_dot_terragrunt_cache runs the unit in place and only applies when no source is configured."+
+			" Remove the source to run from the unit directory,"+
+			" or remove no_dot_terragrunt_cache to run from .terragrunt-cache.",
+		redact.NewURL(err.Source).String(),
 	)
 }
 

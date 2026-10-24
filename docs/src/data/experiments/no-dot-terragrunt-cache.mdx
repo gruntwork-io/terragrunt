@@ -1,0 +1,40 @@
+---
+name: no-dot-terragrunt-cache
+since: "v1.2.1"
+---
+
+Support for the `terraform.no_dot_terragrunt_cache` attribute, which runs a unit from its own directory instead of a copy in `.terragrunt-cache`.
+
+This experiment is ongoing and disabled by default. Setting the attribute to `true` without the experiment enabled returns an error. It becomes generally available once every item in the stabilization criteria below is met.
+
+### `no-dot-terragrunt-cache` - What it does
+
+Terragrunt normally copies a unit into `.terragrunt-cache` and runs OpenTofu/Terraform there. With this experiment enabled, `terraform.no_dot_terragrunt_cache = true` runs it in the unit directory instead. Local module paths resolve as written, and editors see the files Terragrunt runs.
+
+```hcl
+terraform {
+  no_dot_terragrunt_cache = true
+}
+```
+
+```bash
+terragrunt run --experiment no-dot-terragrunt-cache -- plan
+```
+
+Files that a run creates stay in the unit directory: the output of `generate` blocks, the `.terraform` directory, `.terraform.lock.hcl`, and local state. Add the ones you do not want to commit to `.gitignore`. When an input is `null`, Terragrunt writes a temporary `.terragrunt-null-vars.auto.tfvars.json` for the run and removes it afterwards. If a file with that name already exists, the run stops with an error rather than replacing it.
+
+The attribute is merged through `include` like the other `terraform` attributes: a root configuration found with `find_in_parent_folders()` can set it for every unit, and a unit can override it in its own `terraform` block.
+
+The attribute only applies to units without a `source`. Combined with `terraform.source` or `--source`, Terragrunt returns an error, because an external source has to be fetched into `.terragrunt-cache`.
+
+### `no-dot-terragrunt-cache` - How to provide feedback
+
+Provide your feedback on the [`no-dot-terragrunt-cache` GitHub issue](https://github.com/gruntwork-io/terragrunt/issues/6199).
+
+### `no-dot-terragrunt-cache` - Criteria for stabilization
+
+To transition the `no-dot-terragrunt-cache` feature to a stable release, the following must be addressed:
+
+- [ ] Validate `before_hook` and `after_hook` blocks that use relative paths.
+- [ ] Validate `generate` blocks that write into the unit directory.
+- [ ] Validate runs where `--working-dir` is not the unit directory.
