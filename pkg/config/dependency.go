@@ -2978,7 +2978,7 @@ func parseAutoIncludeFileCached(
 		return nil, err
 	}
 
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
 	// Prefix the key so it cannot collide with the unit-config keys ParseConfigFile stores.
 	cacheKey := fmt.Sprintf(
 		"autoinclude-%v-%v-%v",
@@ -2987,19 +2987,9 @@ func parseAutoIncludeFileCached(
 		fileInfo.Size(),
 	)
 
-	if cached, found := hclCache.Get(ctx, cacheKey); found {
-		return cached.Rebind(pctx.NewParser(l, v)), nil
-	}
+	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, autoIncludePath)
 
-	file, err := pctx.NewParser(l, v).
-		ParseFromFile(v.FS, autoIncludePath)
-	if err != nil {
-		return nil, err
-	}
-
-	hclCache.Put(ctx, cacheKey, file)
-
-	return file, nil
+	return rebindOrParseHCLFile(ctx, l, v, pctx, hclCache, cached, cacheKey, autoIncludePath, fileInfo.ModTime())
 }
 
 // decodeDependencyBlocksWithAutoIncludeOverrides decodes the file's dependency blocks, leaving

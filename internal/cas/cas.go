@@ -1320,7 +1320,7 @@ func hashFile(fsys vfs.FS, path string) (string, error) {
 	h := sha1.New()
 
 	if _, err := io.Copy(h, file); err != nil {
-		return "", err
+		return "", errors.Join(err, file.Close())
 	}
 
 	hash := hex.EncodeToString(h.Sum(nil))
