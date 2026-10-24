@@ -1107,7 +1107,12 @@ remote_state {
 	require.NotNil(t, first.RemoteState)
 	assert.Equal(t, "first", first.RemoteState.BackendConfig["path"])
 
-	// Edit the autoinclude in-process; the changed content must change the cache key.
+	firstInfo, err := v.FS.Stat(autoIncludePath)
+	require.NoError(t, err)
+
+	firstModTime := firstInfo.ModTime()
+
+	// Edit the autoinclude in-process at the same mtime; the changed content must change the cache key.
 	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
 remote_state {
   backend = "local"
@@ -1120,6 +1125,7 @@ remote_state {
   }
 }
 `), 0644))
+	require.NoError(t, v.FS.Chtimes(autoIncludePath, firstModTime, firstModTime))
 
 	second, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	require.NoError(t, err)
