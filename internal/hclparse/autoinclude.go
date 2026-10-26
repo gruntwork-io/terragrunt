@@ -168,6 +168,14 @@ func (a *AutoIncludeHCL) ResolveForKind(
 		return nil, diags
 	}
 
+	// Reject reading on stack autoincludes: the generated stack file does not
+	// support a locals block, and stack-level reads have no defined unit owner.
+	if kind == KindStack {
+		if diags := rejectStackAutoIncludeReadingAttribute(body, name); diags.HasErrors() {
+			return nil, diags
+		}
+	}
+
 	// Resolve the optional reading attribute so the generator can write mark_as_read
 	// calls in the generated file, assigning reads to the unit instead of the stack.
 	readFiles, readDiags := resolveReadingAttribute(body, evalCtx)
@@ -704,6 +712,25 @@ func rejectStackAutoIncludeDependencyBlocks(
 	return diags
 }
 
+// rejectStackAutoIncludeReadingAttribute rejects a reading attribute on a stack autoinclude.
+// The generated stack file does not support a locals block, and stack-level reads have no
+// defined unit owner.
+func rejectStackAutoIncludeReadingAttribute(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
+	attr, exists := body.Attributes[attrReading]
+	if !exists {
+		return nil
+	}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "reading is not allowed in a stack autoinclude",
+		Detail: "stack " + stackName + " autoinclude declares reading, but reading " +
+			"is only supported in unit autoincludes; declare reads inside the " +
+			"target unit's own autoinclude instead",
+		Subject: attr.Expr.Range().Ptr(),
+	}}
+}
+
 // valuesReferenceDependency reports whether expr references the dependency namespace in any form.
 // RootName matches every traversal uniformly: dependency.foo, dependency["foo"], and the dynamic
 // dependency[values.x] all report "dependency" as the root, so no per-form handling is needed.
@@ -759,8 +786,22 @@ func resolveReadingAttribute(
 	for it := val.ElementIterator(); it.Next(); {
 		_, elem := it.Element()
 
-		if elem.IsNull() || !elem.IsKnown() {
-			continue
+		if elem.IsNull() {
+			return nil, hcl.Diagnostics{{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid reading element",
+				Detail:   "reading elements must not be null",
+				Subject:  attr.Expr.Range().Ptr(),
+			}}
+		}
+
+		if !elem.IsKnown() {
+			return nil, hcl.Diagnostics{{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid reading element",
+				Detail:   "reading elements must be known at generate time",
+				Subject:  attr.Expr.Range().Ptr(),
+			}}
 		}
 
 		if elem.Type() != cty.String {

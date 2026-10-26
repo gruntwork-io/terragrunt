@@ -5,9 +5,9 @@ category: "new-features"
 
 #### Autoinclude `reading` attribute for unit read tracking
 
-The `autoinclude` block in `terragrunt.stack.hcl` now accepts a `reading` attribute: a list of file paths that the generated unit reads. Terragrunt writes `mark_as_read()` calls into the generated `terragrunt.autoinclude.hcl` so that `terragrunt find --reading` and `--filter reading=<file>` attribute the reads to the unit instead of the stack.
+The `autoinclude` block in unit declarations inside `terragrunt.stack.hcl` now accepts a `reading` attribute: a list of file paths that the generated unit reads. Terragrunt writes `mark_as_read()` calls into the generated `terragrunt.autoinclude.hcl` so that `terragrunt find --reading` and `--filter reading=<file>` assign the reads to the unit instead of the stack.
 
-This solves the case where an autoinclude's `inputs` uses `templatefile()` with a dependency output: the template file read was invisible to affected-unit detection because `templatefile()` resolves at generate time and inputs are not evaluated during discovery.
+This covers autoinclude inputs that call `templatefile()` or `file()` with dependency outputs. Discovery does not evaluate inputs, so it cannot infer those file reads.
 
 ```hcl
 unit "render" {

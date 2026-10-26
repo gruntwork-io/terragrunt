@@ -51,7 +51,7 @@ unit "app" {
 
 #### Declaring file reads with `reading`
 
-When an autoinclude's `inputs` reads a file via `templatefile()` or `file()` whose arguments depend on `dependency.*.outputs.*`, the file read is invisible to `terragrunt find --reading` and `--filter reading=<file>`. The `reading` attribute declares these files so discovery attributes them to the generated unit:
+When a unit autoinclude's `inputs` reads a file via `templatefile()` or `file()` whose arguments depend on `dependency.*.outputs.*`, the file read is invisible to `terragrunt find --reading` and `--filter reading=<file>`. The `reading` attribute declares these files so discovery assigns them to the generated unit. The attribute is supported only in unit autoincludes, not stack autoincludes:
 
 ```hcl
 unit "render" {

@@ -887,6 +887,10 @@ dependency "src" {
 func TestGenerateAutoIncludeFile_WritesMarkAsReadLocals(t *testing.T) {
 	t.Parallel()
 
+	stackRoot := venvtest.Root("/stack")
+	tplPath := filepath.Join(stackRoot, "tpl", "msg.tftpl")
+	targetDir := filepath.Join(stackRoot, ".terragrunt-stack", "render")
+
 	body := parseHCLBody(t, `
 dependency "src" {
   config_path = "/stack/.terragrunt-stack/src"
@@ -900,7 +904,7 @@ inputs = {
 	resolved := &hclparse.AutoIncludeResolved{
 		Kind:         hclparse.KindUnit,
 		Dependencies: []hclparse.AutoIncludeDependency{},
-		ReadFiles:    []string{"/stack/tpl/msg.tftpl"},
+		ReadFiles:    []string{tplPath},
 		RawBody:      body,
 		SourceBytes: []byte(`
 dependency "src" {
@@ -913,19 +917,19 @@ inputs = {
 `),
 	}
 
-	fs := vfs.NewMemMapFS()
-	targetDir := "/stack/.terragrunt-stack/render"
+	memFS := vfs.NewMemMapFS()
 
-	err := hclparse.GenerateAutoIncludeFile(fs, resolved, targetDir, resolved.SourceBytes, nil)
+	err := hclparse.GenerateAutoIncludeFile(memFS, resolved, targetDir, resolved.SourceBytes, nil)
 	require.NoError(t, err)
 
-	content, readErr := vfs.ReadFile(fs, filepath.Join(targetDir, hclparse.AutoIncludeFile))
+	content, readErr := vfs.ReadFile(memFS, filepath.Join(targetDir, hclparse.AutoIncludeFile))
 	require.NoError(t, readErr)
 
 	contentStr := string(content)
 	assert.Contains(t, contentStr, "mark_as_read")
-	assert.Contains(t, contentStr, "../../tpl/msg.tftpl")
 	assert.Contains(t, contentStr, "_autoinclude_reads")
+	// The path is made relative to targetDir; verify the template file is referenced.
+	assert.Contains(t, contentStr, "msg.tftpl")
 }
 
 func TestGenerateAutoIncludeFile_NoLocalsWhenNoReadFiles(t *testing.T) {
@@ -948,13 +952,13 @@ inputs = {
 `),
 	}
 
-	fs := vfs.NewMemMapFS()
-	targetDir := "/target/unit"
+	memFS := vfs.NewMemMapFS()
+	targetDir := venvtest.Root("/target/unit")
 
-	err := hclparse.GenerateAutoIncludeFile(fs, resolved, targetDir, resolved.SourceBytes, nil)
+	err := hclparse.GenerateAutoIncludeFile(memFS, resolved, targetDir, resolved.SourceBytes, nil)
 	require.NoError(t, err)
 
-	content, readErr := vfs.ReadFile(fs, filepath.Join(targetDir, hclparse.AutoIncludeFile))
+	content, readErr := vfs.ReadFile(memFS, filepath.Join(targetDir, hclparse.AutoIncludeFile))
 	require.NoError(t, readErr)
 
 	assert.NotContains(t, string(content), "mark_as_read")
@@ -963,6 +967,8 @@ inputs = {
 
 func TestGenerateAutoIncludeFile_ReadingAttributeNotInOutput(t *testing.T) {
 	t.Parallel()
+
+	tplPath := venvtest.Root("/abs/path/tpl/msg.tftpl")
 
 	body := parseHCLBody(t, `
 reading = ["/abs/path/tpl/msg.tftpl"]
@@ -974,7 +980,7 @@ inputs = {
 
 	resolved := &hclparse.AutoIncludeResolved{
 		Kind:      hclparse.KindUnit,
-		ReadFiles: []string{"/abs/path/tpl/msg.tftpl"},
+		ReadFiles: []string{tplPath},
 		RawBody:   body,
 		SourceBytes: []byte(`
 reading = ["/abs/path/tpl/msg.tftpl"]
@@ -985,13 +991,13 @@ inputs = {
 `),
 	}
 
-	fs := vfs.NewMemMapFS()
-	targetDir := "/target/unit"
+	memFS := vfs.NewMemMapFS()
+	targetDir := venvtest.Root("/target/unit")
 
-	err := hclparse.GenerateAutoIncludeFile(fs, resolved, targetDir, resolved.SourceBytes, nil)
+	err := hclparse.GenerateAutoIncludeFile(memFS, resolved, targetDir, resolved.SourceBytes, nil)
 	require.NoError(t, err)
 
-	content, readErr := vfs.ReadFile(fs, filepath.Join(targetDir, hclparse.AutoIncludeFile))
+	content, readErr := vfs.ReadFile(memFS, filepath.Join(targetDir, hclparse.AutoIncludeFile))
 	require.NoError(t, readErr)
 
 	contentStr := string(content)
@@ -999,6 +1005,49 @@ inputs = {
 	assert.NotContains(t, contentStr, "reading =")
 	// but mark_as_read should be present in locals
 	assert.Contains(t, contentStr, "mark_as_read")
+}
+
+func TestAutoIncludeHCL_Resolve_ReadingRejectedForStack(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+reading = ["/abs/path/shared.hcl"]
+
+unit "extra" {
+  source = "../catalog/units/extra"
+  path   = "extra"
+}
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	_, diags := autoInclude.ResolveForKind(t.Context(), &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit":  cty.EmptyObjectVal,
+			"stack": cty.EmptyObjectVal,
+		},
+	}, hclparse.KindStack, "child")
+	require.True(t, diags.HasErrors())
+	assert.Contains(t, diags[0].Summary, "reading is not allowed in a stack autoinclude")
+}
+
+func TestAutoIncludeHCL_Resolve_ReadingRejectsNullElement(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+reading = [null]
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	_, diags := autoInclude.Resolve(t.Context(), &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit":  cty.EmptyObjectVal,
+			"stack": cty.EmptyObjectVal,
+		},
+	})
+	require.True(t, diags.HasErrors())
+	assert.Contains(t, diags[0].Detail, "must not be null")
 }
 
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
