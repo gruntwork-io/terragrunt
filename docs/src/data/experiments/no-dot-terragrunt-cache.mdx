@@ -25,7 +25,7 @@ Files that a run creates stay in the unit directory: the output of `generate` bl
 
 The attribute is merged through `include` like the other `terraform` attributes: a root configuration found with `find_in_parent_folders()` can set it for every unit, and a unit can override it in its own `terraform` block.
 
-The attribute only applies to units without a `source`. Combined with `terraform.source` or `--source`, Terragrunt returns an error, because an external source has to be fetched into `.terragrunt-cache`.
+Setting the attribute to `true` on a unit that also has a `terraform.source` or `--source` returns an error, because an external source has to be fetched into `.terragrunt-cache`.
 
 ### `no-dot-terragrunt-cache` - How to provide feedback
 

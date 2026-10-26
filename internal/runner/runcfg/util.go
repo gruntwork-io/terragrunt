@@ -93,10 +93,10 @@ func GetTerraformSourceURL(
 // ShouldSkipCache reports whether a unit should run in place, skipping the copy of its source into the
 // .terragrunt-cache directory.
 //
-// terraform.no_dot_terragrunt_cache requires the no-dot-terragrunt-cache experiment; setting it without the
-// experiment returns a NoDotTerragruntCacheRequiresExperimentError. Setting it together with an external source
-// (via the terraform block or the --source flag) returns a NoDotTerragruntCacheWithSourceError, because an
-// external source has to be fetched into the cache directory.
+// A unit runs in place only when terraform.no_dot_terragrunt_cache is true. Setting it to true without the
+// no-dot-terragrunt-cache experiment returns a NoDotTerragruntCacheRequiresExperimentError. Setting it to true
+// together with an external source (via the terraform block or the --source flag) returns a
+// NoDotTerragruntCacheWithSourceError, because an external source has to be fetched into the cache directory.
 func ShouldSkipCache(noCacheEnabled bool, source, configPath string, cfg *RunConfig) (bool, error) {
 	if cfg == nil || !cfg.Terraform.NoDotTerragruntCache {
 		return false, nil
@@ -215,7 +215,7 @@ func (err ParsingModulePathError) Error() string {
 	)
 }
 
-// NoDotTerragruntCacheRequiresExperimentError is returned when terraform.no_dot_terragrunt_cache is set without
+// NoDotTerragruntCacheRequiresExperimentError is returned when terraform.no_dot_terragrunt_cache is true without
 // the no-dot-terragrunt-cache experiment enabled.
 type NoDotTerragruntCacheRequiresExperimentError struct {
 	ConfigPath string
@@ -229,7 +229,7 @@ func (err NoDotTerragruntCacheRequiresExperimentError) Error() string {
 	)
 }
 
-// NoDotTerragruntCacheWithSourceError is returned when terraform.no_dot_terragrunt_cache is set on a unit that
+// NoDotTerragruntCacheWithSourceError is returned when terraform.no_dot_terragrunt_cache is true on a unit that
 // also configures an external source. no_dot_terragrunt_cache runs a unit in place, which is incompatible with a
 // source that must be fetched into the cache directory.
 //

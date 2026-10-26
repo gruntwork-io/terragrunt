@@ -105,9 +105,9 @@ The `terraform` block supports the following arguments:
 <Since version="v1.2.2">
 
 - `no_dot_terragrunt_cache` (attribute): Run OpenTofu/Terraform in the unit directory instead of a copy in
-  `.terragrunt-cache`, the way `no_dot_terragrunt_stack` skips `.terragrunt-stack` for stacks. Only applies to units
-  without a `source`; combined with `source` or `--source` it is an error. Files a run creates stay in the unit
-  directory. Merged through `include` like the other `terraform` attributes. Default is `false`.
+  `.terragrunt-cache`, the way `no_dot_terragrunt_stack` skips `.terragrunt-stack` for stacks. Setting it to `true`
+  together with `source` or `--source` is an error. Files a run creates stay in the unit directory. Merged through
+  `include` like the other `terraform` attributes. Default is `false`.
 
   <Aside type="tip" title="Experimental">
     The `no_dot_terragrunt_cache` attribute is gated behind the `no-dot-terragrunt-cache` experiment. Enable it with `--experiment no-dot-terragrunt-cache` (or `TG_EXPERIMENT=no-dot-terragrunt-cache`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#no-dot-terragrunt-cache).
