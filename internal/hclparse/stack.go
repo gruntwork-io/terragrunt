@@ -406,8 +406,8 @@ func (args *StackDirArgs) maxDepth() int {
 // UnitPathsFromStackDir returns the generated paths of the enabled units from discovery parsing.
 // Enabled nested stacks are expanded recursively so a stack composed of sub-stacks yields the
 // sub-stacks' units.
-// args.FuncsFor builds the dir-scoped HCL function map for each stack directory visited; it
-// must be non-nil and must return a non-nil map.
+// args.FuncsFor builds the dir-scoped HCL function map for each visited directory that
+// contains a stack file; it must be non-nil and must return a non-nil map.
 func UnitPathsFromStackDir(
 	ctx context.Context,
 	fsys vfs.FS,
@@ -438,8 +438,8 @@ func UnitPathsFromStackDir(
 // DirectComponentPaths returns the generated on-disk paths of the direct enabled unit and
 // stack components declared in stackDir's terragrunt.stack.hcl, honoring
 // no_dot_terragrunt_stack. It does not recurse into nested stacks; an absent stack
-// file yields empty slices and a nil error. funcsFor must be non-nil and return a
-// non-nil map.
+// file yields empty slices and a nil error without calling funcsFor. funcsFor must be
+// non-nil and return a non-nil map.
 func DirectComponentPaths(
 	ctx context.Context,
 	fsys vfs.FS,
@@ -461,6 +461,15 @@ func DirectComponentPaths(
 	stackDir = vfs.ResolveForCompare(fsys, stackDir)
 	stackFile := filepath.Join(stackDir, stackFileName)
 
+	data, found, err := readDiscoveryStackFile(fsys, stackFile)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !found {
+		return nil, nil, nil
+	}
+
 	funcs, err := funcsFor(stackDir)
 	if err != nil {
 		return nil, nil, err
@@ -475,7 +484,7 @@ func DirectComponentPaths(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, funcs)
+	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -521,6 +530,15 @@ func unitPathsFromStackDir(
 
 	stackFile := filepath.Join(stackDir, stackFileName)
 
+	data, found, err := readDiscoveryStackFile(fsys, stackFile)
+	if err != nil {
+		return nil, err
+	}
+
+	if !found {
+		return nil, nil
+	}
+
 	// Rebuild the function map for this dir so dir-sensitive functions resolve against it.
 	funcs, err := args.FuncsFor(stackDir)
 	if err != nil {
@@ -536,7 +554,7 @@ func unitPathsFromStackDir(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, funcs)
+	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs)
 	if err != nil {
 		return nil, err
 	}
@@ -577,9 +595,25 @@ func unitPathsFromStackDir(
 	return paths, nil
 }
 
-// decodeDiscovery parses discovery targets and returns the path-only data of every enabled unit
-// and stack. A disabled component still publishes its unit.<name>.path or stack.<name>.path ref,
-// as it does in the full stack parse.
+// readDiscoveryStackFile reads stackFile. An absent file returns found as false and a nil error.
+//
+// Returns a [FileReadError] when the read fails for any reason other than [fs.ErrNotExist].
+func readDiscoveryStackFile(fsys vfs.FS, stackFile string) (data []byte, found bool, err error) {
+	data, err = vfs.ReadFile(fsys, stackFile)
+	if err == nil {
+		return data, true, nil
+	}
+
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil
+	}
+
+	return nil, false, FileReadError{FilePath: stackFile, Err: err}
+}
+
+// decodeDiscovery parses discovery targets from data, the contents of stackFile, and returns the
+// path-only data of every enabled unit and stack. A disabled component still publishes its
+// unit.<name>.path or stack.<name>.path ref, as it does in the full stack parse.
 //
 // funcs is the function map injected into the discovery eval context; callers
 // must supply a non-nil map (validated at the public entrypoint).
@@ -587,17 +621,9 @@ func decodeDiscovery(
 	ctx context.Context,
 	fsys vfs.FS,
 	stackDir, stackFile string,
+	data []byte,
 	funcs map[string]function.Function,
 ) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
-	data, err := vfs.ReadFile(fsys, stackFile)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil, nil
-		}
-
-		return nil, nil, FileReadError{FilePath: stackFile, Err: err}
-	}
-
 	parsedFile, err := parseStackFileRoot(data, stackFile)
 	if err != nil {
 		return nil, nil, err

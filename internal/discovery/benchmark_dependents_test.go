@@ -11,7 +11,7 @@ import (
 
 // dependentUnitCounts sizes the dependents fixtures: every unit but the target
 // depends on the target, so the count is also the size of the selection.
-var dependentUnitCounts = []int{10, 50, 200}
+var dependentUnitCounts = []int{10, 100, 1000}
 
 // BenchmarkDependentsFilter benchmarks a dependents query against a target that
 // every other unit in the fixture depends on. The dependents sit at four
