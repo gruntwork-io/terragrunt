@@ -2,9 +2,13 @@ package config_test
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -73,6 +77,179 @@ func TestRunCommandCacheHitsCollapseSubprocessForks(t *testing.T) {
 		calls.Load(),
 		"run_cmd cache must collapse repeated invocations to a single subprocess fork",
 	)
+}
+
+// TestRunCommandConcurrentCallersSpawnOnceWithRacing pins that units
+// evaluating the same run_cmd at once share one subprocess. Discovery parses
+// units concurrently, and units share a run_cmd result under
+// --terragrunt-global-cache or when the call is in a file they read with
+// read_terragrunt_config.
+//
+// The first subprocess keeps running until every caller is blocked, so the
+// others arrive while it is still running.
+func TestRunCommandConcurrentCallersSpawnOnceWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const numCallers = 2
+
+		var (
+			calls   atomic.Int32
+			release = make(chan struct{})
+		)
+
+		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			calls.Add(1)
+
+			<-release
+
+			return vexec.Result{Stdout: []byte("shared\n")}
+		})
+
+		l := logger.CreateLogger()
+		v := venvtest.New().WithExec(exec)
+		ctx, pctx := newTestParsingContext(t, t.TempDir())
+		ctx = config.WithCaches(ctx)
+
+		var (
+			wg   sync.WaitGroup
+			outs = make([]string, numCallers)
+			errs = make([]error, numCallers)
+		)
+
+		for i := range numCallers {
+			wg.Go(func() {
+				outs[i], errs[i] = config.RunCommand(ctx, l, v, pctx, []string{"shared-cmd"})
+			})
+		}
+
+		synctest.Wait()
+		close(release)
+
+		wg.Wait()
+
+		for i := range numCallers {
+			require.NoError(t, errs[i])
+			assert.Equal(t, "shared", outs[i])
+		}
+
+		assert.Equal(t, int32(1), calls.Load())
+	})
+}
+
+// TestRunCommandWaiterStopsWhenContextEndsWithRacing pins that a caller
+// waiting on an identical run_cmd returns its context's error when the
+// context ends, while the first run carries on.
+func TestRunCommandWaiterStopsWhenContextEndsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			calls   atomic.Int32
+			release = make(chan struct{})
+		)
+
+		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			calls.Add(1)
+
+			<-release
+
+			return vexec.Result{Stdout: []byte("slow\n")}
+		})
+
+		l := logger.CreateLogger()
+		v := venvtest.New().WithExec(exec)
+		ctx, pctx := newTestParsingContext(t, t.TempDir())
+		ctx = config.WithCaches(ctx)
+
+		waiterCtx, cancelWaiter := context.WithCancel(ctx)
+
+		var (
+			wg        sync.WaitGroup
+			firstOut  string
+			firstErr  error
+			waiterErr error
+		)
+
+		wg.Go(func() {
+			firstOut, firstErr = config.RunCommand(ctx, l, v, pctx, []string{"slow-cmd"})
+		})
+
+		synctest.Wait()
+
+		wg.Go(func() {
+			_, waiterErr = config.RunCommand(waiterCtx, l, v, pctx, []string{"slow-cmd"})
+		})
+
+		synctest.Wait()
+		cancelWaiter()
+		synctest.Wait()
+
+		require.ErrorIs(t, waiterErr, context.Canceled)
+
+		close(release)
+		wg.Wait()
+
+		require.NoError(t, firstErr)
+		assert.Equal(t, "slow", firstOut)
+		assert.Equal(t, int32(1), calls.Load())
+	})
+}
+
+// TestRunCommandFailedRunIsNotSharedWithRacing pins that a caller waiting on
+// an identical run_cmd runs the command itself when the first run fails. A
+// run can fail for reasons private to its caller, such as a cancelled context.
+func TestRunCommandFailedRunIsNotSharedWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			calls   atomic.Int32
+			release = make(chan struct{})
+		)
+
+		exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+			if calls.Add(1) > 1 {
+				return vexec.Result{Stdout: []byte("recovered\n")}
+			}
+
+			<-release
+
+			return vexec.Result{ExitCode: 1, Stderr: []byte("transient\n")}
+		})
+
+		l := logger.CreateLogger()
+		v := venvtest.New().WithExec(exec)
+		ctx, pctx := newTestParsingContext(t, t.TempDir())
+		ctx = config.WithCaches(ctx)
+
+		var (
+			wg        sync.WaitGroup
+			firstErr  error
+			secondOut string
+			secondErr error
+		)
+
+		wg.Go(func() {
+			_, firstErr = config.RunCommand(ctx, l, v, pctx, []string{"flaky-cmd"})
+		})
+
+		synctest.Wait()
+
+		wg.Go(func() {
+			secondOut, secondErr = config.RunCommand(ctx, l, v, pctx, []string{"flaky-cmd"})
+		})
+
+		synctest.Wait()
+		close(release)
+
+		wg.Wait()
+
+		require.Error(t, firstErr)
+		require.NoError(t, secondErr)
+		assert.Equal(t, "recovered", secondOut)
+		assert.Equal(t, int32(2), calls.Load())
+	})
 }
 
 // TestRunCommandNoCacheRefuses pins the contract that
@@ -280,4 +457,102 @@ func TestRunCommandReceivesVenvEnv(t *testing.T) {
 		"TG_TEST_TOKEN=abc123",
 		"v.Env must propagate to the spawned subprocess environment",
 	)
+}
+
+// TestRunCommandCacheKeyKeepsArgBoundaries pins that the cache key preserves
+// argv element boundaries: ("x y") and ("x", "y") are different commands and
+// must not share one cache entry.
+func TestRunCommandCacheKeyKeepsArgBoundaries(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		calls.Add(1)
+		return vexec.Result{Stdout: []byte(strings.Join(inv.Args, "|") + "\n")}
+	})
+
+	l := logger.CreateLogger()
+	v := venvtest.New().WithExec(exec)
+	ctx, pctx := newTestParsingContext(t, t.TempDir())
+	ctx = config.WithCaches(ctx)
+
+	joined, err := config.RunCommand(ctx, l, v, pctx, []string{"printf", "%s", "x y"})
+	require.NoError(t, err)
+	assert.Equal(t, "%s|x y", joined)
+
+	split, err := config.RunCommand(ctx, l, v, pctx, []string{"printf", "%s", "x", "y"})
+	require.NoError(t, err)
+	assert.Equal(t, "%s|x|y", split, "a different argv must not replay another command's output")
+
+	assert.Equal(t, int32(2), calls.Load(), "distinct argv must not share a cache entry")
+}
+
+// TestRunCommandCacheKeyIncludesEnv pins that the cache key covers the
+// environment the subprocess inherits. Two units reading one shared file via
+// read_terragrunt_config evaluate run_cmd under the same config path. With
+// per-unit credentials in v.Env (--auth-provider-cmd), each must get the output
+// its own environment produces; identical environments still share one run.
+// The same holds under --terragrunt-global-cache.
+func TestRunCommandCacheKeyIncludesEnv(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "default scope",
+			args: []string{"whoami"},
+		},
+		{
+			name: "global cache",
+			args: []string{"--terragrunt-global-cache", "whoami"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+
+			exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				calls.Add(1)
+
+				for _, kv := range inv.Env {
+					if account, ok := strings.CutPrefix(kv, "ACCOUNT="); ok {
+						return vexec.Result{Stdout: []byte(account + "\n")}
+					}
+				}
+
+				return vexec.Result{ExitCode: 1, Stderr: []byte("ACCOUNT unset\n")}
+			})
+
+			l := logger.CreateLogger()
+			sharedConfig := filepath.Join(t.TempDir(), "common.hcl")
+			ctx, pctx := newTestParsingContext(t, sharedConfig)
+			ctx = config.WithCaches(ctx)
+
+			unitA := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
+			unitB := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "222"})
+
+			gotA, err := config.RunCommand(ctx, l, unitA, pctx, tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, "111", gotA)
+
+			gotB, err := config.RunCommand(ctx, l, unitB, pctx, tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, "222", gotB, "unit B must not receive unit A's cached output")
+
+			assert.Equal(t, int32(2), calls.Load(), "a different environment must run the command again")
+
+			unitC := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
+
+			gotC, err := config.RunCommand(ctx, l, unitC, pctx, tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, "111", gotC)
+			assert.Equal(t, int32(2), calls.Load(), "an identical environment must reuse the cached result")
+		})
+	}
 }

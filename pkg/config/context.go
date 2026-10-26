@@ -25,6 +25,7 @@ const (
 	AutoIncludeSuffixCacheContextKey    configKey = iota
 	ParentFileProbeCacheContextKey      configKey = iota
 	ReadTerragruntConfigCacheContextKey configKey = iota
+	RunCmdLocksContextKey               configKey = iota
 
 	hclCacheName               = "hclCache"
 	configCacheName            = "configCache"
@@ -55,6 +56,7 @@ func withConfigValues(ctx context.Context) context.Context {
 		RunCmdCacheContextKey,
 		cache.NewCache[*RunCmdCacheEntry](runCmdCacheName),
 	)
+	ctx = context.WithValue(ctx, RunCmdLocksContextKey, util.NewKeyLocks())
 	ctx = azurermbackend.WithStateClientCache(ctx)
 	ctx = context.WithValue(
 		ctx,

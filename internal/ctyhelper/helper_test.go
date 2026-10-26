@@ -71,6 +71,22 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 			cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.String)}),
 			cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("")}),
 		},
+		{
+			cty.ObjectVal(map[string]cty.Value{"key": cty.DynamicVal}),
+			cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("")}),
+		},
+		{
+			cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.Bool)}),
+			cty.ObjectVal(map[string]cty.Value{"key": cty.NullVal(cty.Bool)}),
+		},
+		{
+			cty.ListVal([]cty.Value{cty.NumberIntVal(1), cty.UnknownVal(cty.Number)}),
+			cty.ListVal([]cty.Value{cty.NumberIntVal(1), cty.NullVal(cty.Number)}),
+		},
+		{
+			cty.MapVal(map[string]cty.Value{"key": cty.UnknownVal(cty.List(cty.Bool))}),
+			cty.MapVal(map[string]cty.Value{"key": cty.NullVal(cty.List(cty.Bool))}),
+		},
 	}
 
 	for i, tc := range testCases {

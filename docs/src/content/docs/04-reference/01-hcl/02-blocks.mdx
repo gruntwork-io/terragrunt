@@ -8,7 +8,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
@@ -103,7 +102,7 @@ The `terraform` block supports the following arguments:
   [Lock File Handling](/features/units/lock-files). This attribute allows you to disable the copy
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
-<Since version="v1.2.1">
+<Since version="v1.2.2">
 
 - `no_dot_terragrunt_cache` (attribute): Run OpenTofu/Terraform in the unit directory instead of a copy in
   `.terragrunt-cache`, the way `no_dot_terragrunt_stack` skips `.terragrunt-stack` for stacks. Only applies to units
@@ -471,10 +470,14 @@ For the `s3` backend, the following additional properties are supported in the `
 
 - `region` - (Optional) The region of the S3 bucket.
 - `profile` - (Optional) This is the AWS profile name as set in the shared credentials file.
-- `endpoint` - (Optional) A custom endpoint for the S3 API.
+- `endpoint` - (Optional) A custom endpoint for the S3 API. OpenTofu deprecates it in favor of `endpoints.s3`.
 - `endpoints`: (Optional) A configuration `map` for custom service API (starting with Terraform 1.6).
-  - `s3` - (Optional) A custom endpoint for the S3 API. Overrides `endpoint` argument.
-  - `dynamodb` - (Optional) A custom endpoint for the DynamoDB API. Overrides `dynamodb_endpoint` argument.
+  - `s3` - (Optional) A custom endpoint for the S3 API. Set this or `endpoint`, because OpenTofu rejects both together.
+  - `dynamodb` - (Optional) A custom endpoint for the DynamoDB API. Set this or `dynamodb_endpoint`, because OpenTofu rejects both together.
+- `force_path_style` - (Optional) When `true`, Terragrunt and OpenTofu/Terraform address the bucket with path-style URLs, which most S3-compatible object stores need. OpenTofu deprecates it in favor of `use_path_style`.
+
+- `use_path_style` - (Optional) The newer name for `force_path_style`. Set this or `force_path_style`, because OpenTofu rejects both together.
+
 - `encrypt` - (Optional) Whether to enable server-side encryption of the state file. If disabled, a log warning will be issued in the console output to notify the user. If `skip_bucket_ssencryption` is enabled, the log will be written as a debug log.
 - `role_arn` - (Optional) The role to be assumed.
 - `shared_credentials_file` - (Optional) This is the path to the shared credentials file. If this is not set and a profile is specified, `~/.aws/credentials` will be used.
@@ -536,8 +539,12 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `project`: The GCP project where the bucket will be created.
 - `location`: The GCP location where the bucket will be created.
 - `gcs_bucket_labels`: A map of key value pairs to associate as labels on the created GCS bucket.
-- `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
-- `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
+- `credentials`: Local path to Google Cloud Platform account credentials in JSON format. Terragrunt accepts only a path here.
+- `access_token`: A temporary [OAuth 2.0 access token](https://developers.google.com/identity/protocols/oauth2) obtained from the Google Authorization server.
+- `impersonate_service_account`: The service account to impersonate. Terragrunt creates and checks the bucket as this account, and passes the setting on to OpenTofu/Terraform.
+- `impersonate_service_account_delegates`: The delegation chain to use when impersonating `impersonate_service_account`.
+
+See the [GCS backend](/features/units/state-backend/gcs) documentation for the authentication order and known limitations.
 
 For the `azurerm` backend, Terragrunt accepts these additional `config` properties for setup and authentication. It does not pass them to OpenTofu/Terraform:
 
@@ -561,7 +568,7 @@ For the `azurerm` backend, Terragrunt accepts these additional `config` properti
 
 For a premium account that can store state as block blobs, set `account_kind = "BlockBlobStorage"`, `account_tier = "Premium"`, and `access_tier = "Premium"`. Use `LRS` or `ZRS` replication. Setting only `account_tier = "Premium"` leaves the `StorageV2` and `Hot` defaults, which do not form a valid block blob account.
 
-See the [Azure Storage backend](/features/units/state-backend/#azure-storage-azurerm-backend) documentation for the authentication order and known limitations.
+See the [Azure Storage backend](/features/units/state-backend/azurerm) documentation for the authentication order and known limitations.
 
 Example with S3:
 
@@ -625,11 +632,11 @@ Example with GCS:
 #     ├── main.tf
 #     └── terragrunt.hcl
 #
-# And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
-# child module will be stored at the key "child/tofu.tfstate".
+# And the following is defined in the root.hcl config that is included in the child, the state file for the
+# child module will be stored at the key "child/default.tfstate".
 #
-# Note that since we are not using any of the skip args, this will automatically create the GCS bucket
-# "my-tofu-state" if it does not already exist.
+# Run `terragrunt backend bootstrap`, or pass `--backend-bootstrap` on the first run, and Terragrunt creates the
+# GCS bucket "my-tofu-state" when it is missing.
 remote_state {
   backend = "gcs"
 
@@ -637,7 +644,7 @@ remote_state {
     project  = "my-tofu"
     location = "eu"
     bucket   = "my-tofu-state"
-    prefix   = "${path_relative_to_include()}/tofu.tfstate"
+    prefix   = path_relative_to_include()
 
     gcs_bucket_labels = {
       owner = "terragrunt_test"
@@ -1371,21 +1378,10 @@ locals {
 }
 ```
 
-<Before version="v1.2.1">
-
-Note that this can be a powerful feature, but it can easily lead to performance issues if you are not careful,
-as each read will require a full parse of the HCL file and potentially execute expensive computation.
-
-</Before>
-
-<Since version="v1.2.1">
-
 Note that this can be a powerful feature, but it can easily lead to performance issues if you are not careful.
 Terragrunt shares one parse of the file between the units that read it, but a file whose result
 [depends on the unit reading it](/reference/hcl/functions#read_terragrunt_config) is parsed and computed for
 every unit.
-
-</Since>
 
 Use this feature judiciously.
 
@@ -1407,7 +1403,7 @@ The `dependency` block supports the following arguments:
   reference the specific dependency output by the name. E.g if you had a block `dependency "vpc"`, you can reference the
   outputs of this dependency with the expression `dependency.vpc.outputs`.
 - `config_path` (attribute): Path to a Terragrunt unit (folder with a `terragrunt.hcl` file) that should be included
-  as a dependency in this configuration. The path can also point at a stack (folder with a `terragrunt.stack.hcl` file). See [Depending on a stack](#depending-on-a-stack). <Since version="v1.2.1">Setting it to a file is deprecated. See the [`dependency-config-path-file`](/reference/strict-controls/active#dependency-config-path-file) strict control.</Since>
+  as a dependency in this configuration. The path can also point at a stack (folder with a `terragrunt.stack.hcl` file). See [Depending on a stack](#depending-on-a-stack). Setting it to a file is deprecated. See the [`dependency-config-path-file`](/reference/strict-controls/active#dependency-config-path-file) strict control.
 - `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
 - `expansion` (block, optional): Iterates the `dependency` block, producing one dependency per element of a `count` or `for_each`. Each instance is referenced by key, as in `dependency.aurora["web"].outputs.id`. See [`expansion`](#expansion).
 
@@ -2211,6 +2207,8 @@ Attributes:
 | `actions`              | list(string) | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
 | `exclude_dependencies` | boolean      | Indicates whether the dependencies of the excluded unit should also be excluded (default: `false`).                     |
 | `no_run`               | boolean      | When `true` and `if` is `true`, prevents the unit from running entirely for single unit commands (e.g., `terragrunt run -- plan`), but only when the current action matches the `actions` list. This attribute is ignored for `run --all` commands. |
+
+The attributes of an `exclude` block can't reference `dependency` outputs. Terragrunt evaluates the block while it builds the run queue, before any dependency has run, so it rejects a configuration that tries.
 
 Examples:
 

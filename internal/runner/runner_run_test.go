@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -556,6 +557,60 @@ func TestRunnerRun_SplitsUnitOutput(t *testing.T) {
 	}
 }
 
+// TestRunnerRun_DependencyOutputFetchWaitsForUnitRunWithRacing pins that fetching a dependency's outputs never runs
+// OpenTofu in the dependency's directory while the dependency's own run does, even when the queue starts both at once.
+func TestRunnerRun_DependencyOutputFetchWaitsForUnitRunWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const hold = 100 * time.Millisecond
+
+	calls := &dirCalls{inFlight: map[string]int{}, peak: map[string]int{}, commands: map[string][]string{}}
+
+	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if slices.Contains(inv.Args, "-version") {
+			return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+		}
+
+		calls.enter(inv.Dir, inv.Args[0])
+		time.Sleep(hold)
+		calls.exit(inv.Dir)
+
+		if inv.Args[0] == tf.CommandNameOutput {
+			return vexec.Result{Stdout: []byte(`{"value":{"sensitive":false,"type":"string","value":"dep"}}`)}
+		}
+
+		return vexec.Result{}
+	})
+
+	dep := newTestUnit(t, v, memRoot, "dep", "")
+	app := newTestUnit(t, v, memRoot, "app", dependencyBlock("../dep")+`
+inputs = {
+  value = dependency.dep.outputs.value
+}`)
+	app.AddDependency(dep)
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.IgnoreDependencyOrder = true
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{dep, app})
+	require.NoError(t, err)
+
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+
+	depDirs := calls.dirsUnder(dep.Path())
+	require.Len(t, depDirs, 1, "the dependency's plan and the fetch of its outputs share one working directory")
+
+	assert.Subset(
+		t,
+		calls.commands[depDirs[0]],
+		[]string{tf.CommandNamePlan, tf.CommandNameOutput},
+		"both the dependency's plan and the fetch of its outputs ran in its working directory",
+	)
+	assert.Equal(t, 1, calls.peak[depDirs[0]], "OpenTofu ran twice at once in the dependency's working directory")
+}
+
 func TestRunnerRun_OutputFolderCannotBeCreated(t *testing.T) {
 	t.Parallel()
 
@@ -858,6 +913,46 @@ func recordingVenv(stdout, stderr string) (*venv.Venv, func() []vexec.Invocation
 
 		return slices.Clone(recorded)
 	}
+}
+
+// dirCalls records, per working directory, the commands a fake OpenTofu ran there and the most it ran at once.
+type dirCalls struct {
+	inFlight map[string]int
+	peak     map[string]int
+	commands map[string][]string
+	mu       sync.Mutex
+}
+
+func (c *dirCalls) enter(dir, command string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.inFlight[dir]++
+	c.peak[dir] = max(c.peak[dir], c.inFlight[dir])
+	c.commands[dir] = append(c.commands[dir], command)
+}
+
+func (c *dirCalls) exit(dir string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.inFlight[dir]--
+}
+
+// dirsUnder returns the recorded working directories inside dir, such as the unit's .terragrunt-cache copies.
+func (c *dirCalls) dirsUnder(dir string) []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var dirs []string
+
+	for d := range c.commands {
+		if d == dir || strings.HasPrefix(d, dir+string(filepath.Separator)) {
+			dirs = append(dirs, d)
+		}
+	}
+
+	return dirs
 }
 
 // exitStatusErr fails a fake OpenTofu/Terraform process with code, as an exited process does.

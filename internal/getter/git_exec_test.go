@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -82,4 +84,29 @@ func TestExecGitGetterClonesAtDepthOne(t *testing.T) {
 	shallow, err := runner.WithWorkDir(dst).IsShallow(ctx)
 	require.NoError(t, err)
 	assert.True(t, shallow, "depth=1 must produce a shallow clone")
+}
+
+func TestExecGitGetterFailureExitsWithGeneralError(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, srv.Close()) })
+
+	require.NoError(t, srv.CommitFile(ctx, "main.tf", []byte("# v1"), "v1"))
+
+	url, err := srv.Start(ctx)
+	require.NoError(t, err)
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tmp })
+
+	err = download(t, getter.NewGitGetter(v), "git::"+url+"/missing.git", filepath.Join(tmp, "module"), getter.ModeDir)
+	require.ErrorIs(t, err, git.ErrGitClone)
+
+	code, err := util.GetExitCode(err)
+	require.NoError(t, err)
+	assert.Equal(t, int(clihelper.ExitCodeGeneralError), code)
 }

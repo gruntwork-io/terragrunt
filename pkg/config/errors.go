@@ -532,8 +532,9 @@ func (err DuplicateDependencyConfigPathError) Error() string {
 	)
 }
 
-// DependencyConfigPathFileError is returned when a dependency block sets config_path to a
-// file while the dependency-config-path-file strict control is enabled.
+// DependencyConfigPathFileError reports a dependency block that sets config_path to a file. It
+// is returned when the dependency-config-path-file strict control is enabled, and its message
+// is logged as a warning otherwise.
 type DependencyConfigPathFileError struct {
 	// ConfigPath is the configuration file that declares the block.
 	ConfigPath string
@@ -631,6 +632,20 @@ type TerraformSourceReferencesDependencyError struct {
 func (err TerraformSourceReferencesDependencyError) Error() string {
 	return fmt.Sprintf(
 		"terraform.source in %s cannot reference dependency outputs; the module source must be resolvable before dependencies are evaluated",
+		err.ConfigPath,
+	)
+}
+
+// ExcludeReferencesDependencyError is returned when an `exclude` block references the `dependency` namespace.
+// Discovery evaluates exclude blocks to build the run queue before any dependency has run, so the reference can
+// never be satisfied there.
+type ExcludeReferencesDependencyError struct {
+	ConfigPath string
+}
+
+func (err ExcludeReferencesDependencyError) Error() string {
+	return fmt.Sprintf(
+		"exclude block in %s cannot reference dependency outputs; exclude blocks are evaluated before dependencies run",
 		err.ConfigPath,
 	)
 }

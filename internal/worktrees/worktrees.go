@@ -1086,7 +1086,7 @@ func worktreeTempDir(v *venv.Venv, ref string) (string, error) {
 	tmpDir, err := vfs.MkdirTemp(
 		v.FS,
 		v.Platform.TempDir(),
-		"terragrunt-worktree-"+sanitizeRef(ref)+"-",
+		"terragrunt-worktree-"+git.SanitizeRef(ref)+"-",
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary directory for worktree: %w", err)
@@ -1190,23 +1190,4 @@ func unregisterWorktree(
 // `.git/worktrees/` after the directory is deleted.
 func removalContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), worktreeRemoveTimeout)
-}
-
-// sanitizeRef sanitizes a Git reference string for use in file paths.
-// It replaces invalid characters with underscores.
-func sanitizeRef(ref string) string {
-	result := strings.Builder{}
-
-	for _, r := range ref {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' ||
-			r == '_' {
-			result.WriteRune(r)
-
-			continue
-		}
-
-		result.WriteRune('_')
-	}
-
-	return result.String()
 }

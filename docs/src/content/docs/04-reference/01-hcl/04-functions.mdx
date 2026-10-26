@@ -8,7 +8,6 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import Since from '@components/Since.astro';
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
@@ -730,10 +729,10 @@ The `run_cmd` function accepts some special flags that can alter how the functio
 | Parameter                   | Description                                                                                                                                                                                   | Example                                                                                                               |
 |-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | `--terragrunt-quiet`        | Redacts `run_cmd` stdout from Terragrunt logs while still returning the value to HCL. This keeps sensitive information out of log files.                                                      | `run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")`                                                         |
-| `--terragrunt-global-cache` | Stores and reuses results in a global cache so the command only runs once per set of arguments, no matter which configuration references it. Useful when the output is directory-independent. | `run_cmd("--terragrunt-global-cache", "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")` |
+| `--terragrunt-global-cache` | Stores and reuses results in a global cache so the command only runs once per set of arguments and configured environment, no matter which configuration references it. Useful when the output is directory-independent. | `run_cmd("--terragrunt-global-cache", "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")` |
 | `--terragrunt-no-cache`     | Skips the cache entirely and forces the command to run on every evaluation. Use this when the output changes frequently (timestamps, tokens, random IDs, etc.).                               | `run_cmd("--terragrunt-no-cache", "date", "+%s")`                                                                     |
 
-Terragrunt caches `run_cmd` results by default to avoid running the same command multiple times during parsing. The cache key includes the directory of the `terragrunt.hcl` file and the command arguments unless you opt into global caching or disable caching entirely.
+Terragrunt caches `run_cmd` results by default to avoid running the same command multiple times during parsing. The cache key is the directory of the file being evaluated, the command arguments, and the environment Terragrunt configures for the command. A unit whose `--auth-provider-cmd` credentials differ from another unit's therefore runs the command itself. `--terragrunt-global-cache` drops the directory from the key and `--terragrunt-no-cache` skips the cache.
 Parameters `--terragrunt-global-cache` and `--terragrunt-no-cache` are mutually exclusive, Terragrunt will return an error if both are provided.
 
 #### Examples
@@ -773,7 +772,7 @@ session_token = run_cmd("--terragrunt-no-cache", "--terragrunt-quiet", "./genera
 
 ### Caching Behavior
 
-By default, invocations of `run_cmd` are cached based on the current directory and executed command, so cached values are reused later rather than executed multiple times. Here's an example:
+By default, Terragrunt caches each `run_cmd` result by the directory of the file being evaluated, the exact command arguments, and the configured environment. A repeated call reuses the cached value instead of running the command again. Here's an example:
 
 ```hcl
 # terragrunt.hcl
@@ -861,15 +860,11 @@ inputs = local.config
 result into a map that can be used to reference the values of the parsed config. This function will expose all blocks
 and attributes of a terragrunt config.
 
-<Since version="v1.2.1">
-
 The file can't see the locals or feature flags of the unit reading it, and relative paths resolve from the file's own directory. Use [`get_original_terragrunt_dir()`](#get_original_terragrunt_dir) to get the reading unit's directory.
 
 Terragrunt parses the file once and gives every unit the same result. It parses the file again when the file, or a file it reads, changes during the command, and `run --all` parses it a second time when the run starts, after discovering units. It parses the file for each unit if the file has `dependency` blocks or calls `get_original_terragrunt_dir()`, [`get_working_dir()`](#get_working_dir), `uuid()`, `timestamp()`, `bcrypt()`, or [`run_cmd`](#run_cmd) with `--terragrunt-no-cache`. The same goes for any file that reads one of those.
 
-An [auth provider command](/features/units/authentication/) runs for each unit and can set different environment variables for each one, such as its own credentials. Units whose environment variables differ get separate results.
-
-</Since>
+An [auth provider command](/features/units/authentication/#auth-provider-command) runs for each unit and can set different environment variables for each one, such as its own credentials. Units whose environment variables differ get separate results.
 
 For example, suppose you had a config file called `common.hcl` that contains common input variables:
 

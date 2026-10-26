@@ -312,7 +312,7 @@ Each `env.hcl` file (the one at the environment level, e.g `prod/env.hcl`) shoul
 `generate` block to generate the provider configuration for that environment. For example, `prod/env.hcl` can give
 every production unit the same provider settings:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">
 
 ```hcl
@@ -343,6 +343,25 @@ provider "azurerm" {
   features {}
 
   subscription_id = "00000000-0000-0000-0000-000000000000"
+}
+EOF
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# prod/env.hcl
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "google" {
+  project = "my-project"
+  region  = "us-central1"
+
+  impersonate_service_account = "terragrunt@my-project.iam.gserviceaccount.com"
 }
 EOF
 }

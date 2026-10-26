@@ -15,13 +15,14 @@ dependency "db" {
 
 This was never documented, and Terragrunt supported it inconsistently. Existing support will be retained for v1.x for backwards compatibility, to obey the [Terragrunt 1.0 guarantees](/process/1-0-guarantees#hcl-configurations).
 
-Setting `config_path` to a file is now deprecated. Terragrunt warns when it finds one:
+Setting `config_path` to a file is now deprecated. Terragrunt warns when it finds one, then names each block once:
 
 ```
 WARN  Setting the `config_path` of a `dependency` block to a file is deprecated and will be removed in a future version of Terragrunt. Set it to the directory of the unit or stack instead.
+WARN  /path/to/terragrunt.hcl: dependency db sets config_path to the file ../db/terragrunt.hcl; set it to the directory of the unit or stack
 ```
 
-With the new [`dependency-config-path-file`](/reference/strict-controls/active#dependency-config-path-file) strict control enabled, the warning becomes an error naming the block and the path:
+With the new [`dependency-config-path-file`](/reference/strict-controls/active#dependency-config-path-file) strict control enabled, each of those blocks is an error instead:
 
 ```bash
 terragrunt run plan --strict-control dependency-config-path-file

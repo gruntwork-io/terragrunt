@@ -1646,6 +1646,10 @@ func ParseConfig(
 		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 	}
 
+	if err := ValidateExcludeReferences(file); err != nil {
+		return nil, err
+	}
+
 	if includeFromChild != nil && includeFromChild.Path != "" &&
 		!filepath.IsAbs(includeFromChild.Path) {
 		includeFromChild.Path = filepath.Clean(
@@ -1697,12 +1701,12 @@ func ParseConfig(
 		if err != nil {
 			errs = append(errs, err)
 
-			// During hcl validate, dependency resolution can fail for many reasons (invalid
-			// config_path, target parse errors, etc.). Use cty.DynamicVal as a fallback so
-			// that the "dependency" variable still exists in the eval context — otherwise every
-			// dependency.x.outputs.y reference cascades into a confusing "dependency is not
-			// defined" error that obscures the real problem.
-			if pctx.SkipOutput && retrievedOutputs == nil {
+			// Dependency resolution can fail for many reasons (invalid config_path, target
+			// parse errors, an enabled strict control, etc.). Use cty.DynamicVal as a fallback
+			// so that the "dependency" variable still exists in the eval context — otherwise
+			// every dependency.x.outputs.y reference cascades into a confusing "dependency is
+			// not defined" error that obscures the real problem.
+			if retrievedOutputs == nil {
 				dynamicVal := cty.DynamicVal
 				retrievedOutputs = &dynamicVal
 			}
@@ -1719,7 +1723,9 @@ func ParseConfig(
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
 	cfgFile, err := decodeAsTerragruntConfigFile(ctx, l, v, pctx, file, evalContext)
-	if err != nil {
+	// The dependency blocks are decoded again here, so a dependency error already in errs
+	// comes back a second time.
+	if err != nil && !slices.ContainsFunc(errs, func(seen error) bool { return errors.Is(err, seen) }) {
 		errs = append(errs, err)
 	}
 

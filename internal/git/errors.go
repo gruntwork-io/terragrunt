@@ -52,7 +52,7 @@ func (e *WrappedError) Unwrap() error {
 
 // Git operation errors
 var (
-	ErrCommandSpawn        = errors.New("failed to spawn git command")
+	ErrGitCommand          = errors.New("git command failed")
 	ErrNoMatchingReference = errors.New("no matching reference")
 	ErrReadTree            = errors.New("failed to read tree")
 	ErrNoWorkDir           = errors.New("working directory not set")

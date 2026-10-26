@@ -544,6 +544,9 @@ func (rnr *Runner) Run(
 						"unit_name":         unitName,
 						"terraform_command": unitOpts.TerraformCommand,
 					}, func(runCtx context.Context, unitLogger log.Logger) error {
+						unlockOutputs := config.LockDependencyOutputs(runCtx, unitOpts.TerragruntConfigPath)
+						defer unlockOutputs()
+
 						return unitRunner.Run(
 							runCtx,
 							unitLogger,
