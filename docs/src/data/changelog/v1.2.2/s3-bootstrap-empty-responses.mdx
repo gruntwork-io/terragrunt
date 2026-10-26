@@ -1,0 +1,12 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### S3 backend bootstrap handles missing encryption and table descriptions
+
+Some S3-compatible object stores answer `GetBucketEncryption` with HTTP 200 and an empty body instead of a `ServerSideEncryptionConfigurationNotFoundError`. Terragrunt then crashed with a nil pointer dereference while checking the bucket, which stopped every unit in the run.
+
+Terragrunt now treats a bucket with no encryption document as unencrypted, the same as the not-found error. It lists `Bucket Server-Side Encryption` in the bucket update prompt, unless `skip_bucket_ssencryption` or `disable_bucket_update` is set. With `--non-interactive`, the update is applied.
+
+During lock table setup, a `DescribeTable` response without a table description now returns an error that names the table and points at `dynamodb_endpoint`, instead of crashing.
