@@ -64,6 +64,7 @@ func (err TableDoesNotExist) Error() string {
 	)
 }
 
+// TableDescriptionMissingError is returned when DescribeTable succeeds but has no table in the response.
 type TableDescriptionMissingError struct {
 	TableName string
 }

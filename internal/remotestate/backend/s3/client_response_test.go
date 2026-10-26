@@ -28,7 +28,7 @@ const (
 		`</GetCallerIdentityResult></GetCallerIdentityResponse>`
 )
 
-// TestUpdateS3BucketIfNecessaryEncryptionResponseWithoutConfiguration treats an empty GetBucketEncryption body as unencrypted.
+// TestUpdateS3BucketIfNecessaryEncryptionResponseWithoutConfiguration checks that an empty GetBucketEncryption body enables encryption.
 func TestUpdateS3BucketIfNecessaryEncryptionResponseWithoutConfiguration(t *testing.T) {
 	t.Parallel()
 
@@ -36,6 +36,7 @@ func TestUpdateS3BucketIfNecessaryEncryptionResponseWithoutConfiguration(t *test
 
 	client := newMemS3Client(t, func(_ context.Context, req *http.Request) (*http.Response, error) {
 		switch {
+		// EnableSSEForS3BucketWide reads the account ID and partition from STS.
 		case strings.HasPrefix(req.URL.Host, "sts."):
 			return vhttp.Respond(http.StatusOK, []byte(testCallerIdentityXML), nil), nil
 		case req.Method == http.MethodHead && req.URL.Path == "/"+testBucketName:
@@ -58,10 +59,10 @@ func TestUpdateS3BucketIfNecessaryEncryptionResponseWithoutConfiguration(t *test
 		require.NoError(t, err)
 	})
 
-	assert.Equal(t, int32(1), putEncryptionCalls.Load(), "bucket without an encryption document must be re-encrypted")
+	assert.Equal(t, int32(1), putEncryptionCalls.Load(), "a bucket with no encryption document must get encryption enabled")
 }
 
-// TestLockTableDescribeResponseWithoutTable returns `TableDescriptionMissingError` when DescribeTable has no table.
+// TestLockTableDescribeResponseWithoutTable checks that both lock table checks return `TableDescriptionMissingError`.
 func TestLockTableDescribeResponseWithoutTable(t *testing.T) {
 	t.Parallel()
 
@@ -90,6 +91,7 @@ func TestLockTableDescribeResponseWithoutTable(t *testing.T) {
 
 				headers := http.Header{"Content-Type": []string{"application/x-amz-json-1.0"}}
 
+				// Valid JSON with no Table field.
 				return vhttp.Respond(http.StatusOK, []byte(`{}`), headers), nil
 			})
 
@@ -128,9 +130,11 @@ func newMemS3Client(t *testing.T, h vhttp.Handler) *s3backend.Client {
 			Bucket:           testBucketName,
 			Endpoint:         "https://s3.example.test",
 			DynamoDBEndpoint: "https://dynamodb.example.test",
-			UsePathStyle:     true,
+			// Path style puts the bucket in req.URL.Path, where the handlers match it.
+			UsePathStyle: true,
 		},
-		SkipCredentialsValidation:      true,
+		SkipCredentialsValidation: true,
+		// Skip the other bucket checks so only the encryption check sends requests.
 		SkipBucketVersioning:           true,
 		SkipBucketEnforcedTLS:          true,
 		SkipBucketPublicAccessBlocking: true,
