@@ -30,6 +30,7 @@ const (
 	blockUnit        = "unit"
 	blockStack       = "stack"
 	attrConfigPath   = "config_path"
+	attrReading      = "reading"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"

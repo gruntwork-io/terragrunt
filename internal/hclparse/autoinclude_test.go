@@ -755,6 +755,252 @@ unit "extra" {
 	assert.Contains(t, diags[0].Detail, "supported cross-level pattern")
 }
 
+func TestAutoIncludeHCL_Resolve_ReadingAttribute(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+reading = ["/abs/path/tpl/msg.tftpl", "/abs/path/tpl/other.tftpl"]
+
+dependency "src" {
+  config_path = unit.src.path
+}
+
+inputs = {
+  content = dependency.src.outputs.content
+}
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"src": cty.ObjectVal(map[string]cty.Value{
+					"path": cty.StringVal("/stack/src"),
+				}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
+	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
+	require.NotNil(t, result)
+	assert.Equal(t, []string{"/abs/path/tpl/msg.tftpl", "/abs/path/tpl/other.tftpl"}, result.ReadFiles)
+	require.Len(t, result.Dependencies, 1)
+}
+
+func TestAutoIncludeHCL_Resolve_ReadingAttributeAbsent(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+dependency "src" {
+  config_path = unit.src.path
+}
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"src": cty.ObjectVal(map[string]cty.Value{
+					"path": cty.StringVal("/stack/src"),
+				}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	result, diags := autoInclude.Resolve(t.Context(), evalCtx)
+	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
+	require.NotNil(t, result)
+	assert.Empty(t, result.ReadFiles)
+}
+
+func TestAutoIncludeHCL_Resolve_ReadingRejectsNonStringElement(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+reading = [42]
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	_, diags := autoInclude.Resolve(t.Context(), &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit":  cty.EmptyObjectVal,
+			"stack": cty.EmptyObjectVal,
+		},
+	})
+	require.True(t, diags.HasErrors())
+	assert.Contains(t, diags[0].Summary, "Invalid reading element")
+}
+
+func TestAutoIncludeHCL_Resolve_ReadingRejectsNonListType(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+reading = "single-string"
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	_, diags := autoInclude.Resolve(t.Context(), &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit":  cty.EmptyObjectVal,
+			"stack": cty.EmptyObjectVal,
+		},
+	})
+	require.True(t, diags.HasErrors())
+	assert.Contains(t, diags[0].Summary, "Invalid reading type")
+}
+
+func TestAutoIncludeHCL_Resolve_ReadingEmptyList(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+reading = []
+
+dependency "src" {
+  config_path = unit.src.path
+}
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	result, diags := autoInclude.Resolve(t.Context(), &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"src": cty.ObjectVal(map[string]cty.Value{
+					"path": cty.StringVal("/stack/src"),
+				}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	})
+	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
+	require.NotNil(t, result)
+	assert.Empty(t, result.ReadFiles)
+}
+
+func TestGenerateAutoIncludeFile_WritesMarkAsReadLocals(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+dependency "src" {
+  config_path = "/stack/.terragrunt-stack/src"
+}
+
+inputs = {
+  content = dependency.src.outputs.content
+}
+`)
+
+	resolved := &hclparse.AutoIncludeResolved{
+		Kind:         hclparse.KindUnit,
+		Dependencies: []hclparse.AutoIncludeDependency{},
+		ReadFiles:    []string{"/stack/tpl/msg.tftpl"},
+		RawBody:      body,
+		SourceBytes: []byte(`
+dependency "src" {
+  config_path = "/stack/.terragrunt-stack/src"
+}
+
+inputs = {
+  content = dependency.src.outputs.content
+}
+`),
+	}
+
+	fs := vfs.NewMemMapFS()
+	targetDir := "/stack/.terragrunt-stack/render"
+
+	err := hclparse.GenerateAutoIncludeFile(fs, resolved, targetDir, resolved.SourceBytes, nil)
+	require.NoError(t, err)
+
+	content, readErr := vfs.ReadFile(fs, filepath.Join(targetDir, hclparse.AutoIncludeFile))
+	require.NoError(t, readErr)
+
+	contentStr := string(content)
+	assert.Contains(t, contentStr, "mark_as_read")
+	assert.Contains(t, contentStr, "../../tpl/msg.tftpl")
+	assert.Contains(t, contentStr, "_autoinclude_reads")
+}
+
+func TestGenerateAutoIncludeFile_NoLocalsWhenNoReadFiles(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+inputs = {
+  key = "value"
+}
+`)
+
+	resolved := &hclparse.AutoIncludeResolved{
+		Kind:      hclparse.KindUnit,
+		ReadFiles: nil,
+		RawBody:   body,
+		SourceBytes: []byte(`
+inputs = {
+  key = "value"
+}
+`),
+	}
+
+	fs := vfs.NewMemMapFS()
+	targetDir := "/target/unit"
+
+	err := hclparse.GenerateAutoIncludeFile(fs, resolved, targetDir, resolved.SourceBytes, nil)
+	require.NoError(t, err)
+
+	content, readErr := vfs.ReadFile(fs, filepath.Join(targetDir, hclparse.AutoIncludeFile))
+	require.NoError(t, readErr)
+
+	assert.NotContains(t, string(content), "mark_as_read")
+	assert.NotContains(t, string(content), "_autoinclude_reads")
+}
+
+func TestGenerateAutoIncludeFile_ReadingAttributeNotInOutput(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+reading = ["/abs/path/tpl/msg.tftpl"]
+
+inputs = {
+  key = "value"
+}
+`)
+
+	resolved := &hclparse.AutoIncludeResolved{
+		Kind:      hclparse.KindUnit,
+		ReadFiles: []string{"/abs/path/tpl/msg.tftpl"},
+		RawBody:   body,
+		SourceBytes: []byte(`
+reading = ["/abs/path/tpl/msg.tftpl"]
+
+inputs = {
+  key = "value"
+}
+`),
+	}
+
+	fs := vfs.NewMemMapFS()
+	targetDir := "/target/unit"
+
+	err := hclparse.GenerateAutoIncludeFile(fs, resolved, targetDir, resolved.SourceBytes, nil)
+	require.NoError(t, err)
+
+	content, readErr := vfs.ReadFile(fs, filepath.Join(targetDir, hclparse.AutoIncludeFile))
+	require.NoError(t, readErr)
+
+	contentStr := string(content)
+	// reading attribute should NOT appear as a top-level attribute in output
+	assert.NotContains(t, contentStr, "reading =")
+	// but mark_as_read should be present in locals
+	assert.Contains(t, contentStr, "mark_as_read")
+}
+
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
 func parseHCLBody(t *testing.T, src string) hcl.Body {
 	t.Helper()
