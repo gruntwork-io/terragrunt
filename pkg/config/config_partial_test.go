@@ -745,9 +745,10 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedCacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v",
+		"configPath-%v-modTime-%v-size-%v",
 		configPath,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
 	// Setup cache and context
@@ -787,7 +788,12 @@ func TestPartialParseCacheHitOnSecondParse(t *testing.T) {
 	fileInfo, err := os.Stat(configPath)
 	require.NoError(t, err)
 
-	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	cacheKey := fmt.Sprintf(
+		"configPath-%v-modTime-%v-size-%v",
+		configPath,
+		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
+	)
 
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
 	l := logger.CreateLogger()
@@ -824,9 +830,10 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	require.NoError(t, err)
 
 	originalCacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v",
+		"configPath-%v-modTime-%v-size-%v",
 		configPath,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
@@ -861,9 +868,10 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	require.NoError(t, err)
 
 	newCacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v",
+		"configPath-%v-modTime-%v-size-%v",
 		configPath,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
 	// Verify new file is cached with different content
@@ -896,7 +904,12 @@ func TestPartialParseCacheWithInvalidFile(t *testing.T) {
 	fileInfo, err := os.Stat(configPath)
 	require.NoError(t, err)
 
-	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	cacheKey := fmt.Sprintf(
+		"configPath-%v-modTime-%v-size-%v",
+		configPath,
+		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
+	)
 
 	_, found := hclCache.Get(ctx, cacheKey)
 	require.False(t, found, "invalid file should not be cached")
@@ -914,9 +927,10 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedCacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v",
+		"configPath-%v-modTime-%v-size-%v",
 		configPath,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
@@ -932,7 +946,7 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 	// Verify cache key format matches the expected pattern
 	assert.Regexp(
 		t,
-		`^configPath-.*-modTime-\d+$`,
+		`^configPath-.*-modTime-\d+-size-\d+$`,
 		expectedCacheKey,
 		"cache key should match expected format",
 	)
@@ -942,6 +956,12 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 		expectedCacheKey,
 		strconv.FormatInt(fileInfo.ModTime().UnixMicro(), 10),
 		"cache key should contain mod time",
+	)
+	assert.Contains(
+		t,
+		expectedCacheKey,
+		strconv.FormatInt(fileInfo.Size(), 10),
+		"cache key should contain file size",
 	)
 
 	// Verify we can retrieve using the expected key
