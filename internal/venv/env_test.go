@@ -91,6 +91,42 @@ func TestWithEnvClonedIsolatesMutations(t *testing.T) {
 	assert.Equal(t, "changed", clone.Env["FOO"])
 }
 
+// TestWithoutAuthProviderEnvRestoresPriorValues checks that values set through SetAuthProviderEnv,
+// across several calls, are undone to what Env held before the first call, leaving other keys alone.
+func TestWithoutAuthProviderEnvRestoresPriorValues(t *testing.T) {
+	t.Parallel()
+
+	v := &venv.Venv{
+		Env: map[string]string{"SHARED": "original", "OTHER": "kept"},
+	}
+
+	v.SetAuthProviderEnv(map[string]string{"SHARED": "first", "ADDED": "first"})
+	v.SetAuthProviderEnv(map[string]string{"SHARED": "second"})
+	v.Env["LATER"] = "set-after-auth"
+
+	assert.Equal(t, map[string]string{
+		"SHARED": "second",
+		"ADDED":  "first",
+		"OTHER":  "kept",
+		"LATER":  "set-after-auth",
+	}, v.Env)
+
+	clean := v.WithoutAuthProviderEnv()
+
+	assert.Equal(t, map[string]string{
+		"SHARED": "original",
+		"OTHER":  "kept",
+		"LATER":  "set-after-auth",
+	}, clean.Env)
+	assert.Equal(t, "second", v.Env["SHARED"], "the original Env must be left untouched")
+
+	clean.SetAuthProviderEnv(map[string]string{"ADDED": "dependency"})
+
+	assert.Equal(t, "original", clean.WithoutAuthProviderEnv().Env["SHARED"])
+	assert.NotContains(t, clean.WithoutAuthProviderEnv().Env, "ADDED")
+	assert.NotContains(t, v.WithoutAuthProviderEnv().Env, "ADDED")
+}
+
 // TestEnviron checks Environ returns sorted KEY=VALUE entries and is the inverse of ParseEnviron.
 func TestEnviron(t *testing.T) {
 	t.Parallel()

@@ -62,6 +62,10 @@ type Venv struct {
 	Platform *Platform
 	Terminal *Terminal
 	Writers  *writer.Writers
+
+	// authProviderPriorEnv maps each Env key set by [Venv.SetAuthProviderEnv] to the value it
+	// replaced, nil when the key was unset. It is never mutated in place, since copies share it.
+	authProviderPriorEnv map[string]*string
 }
 
 // Listener opens a socket to serve on. Terragrunt listens for one thing, the

@@ -56,6 +56,14 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(
 
 		getter.obtainedCreds[provider.Name()] = creds
 
+		// Auth provider command values belong to the unit they were obtained for;
+		// recording them lets dependency output reads drop them.
+		if _, ok := provider.(*externalcmd.Provider); ok {
+			v.SetAuthProviderEnv(creds.Envs)
+
+			continue
+		}
+
 		maps.Copy(v.Env, creds.Envs)
 	}
 
