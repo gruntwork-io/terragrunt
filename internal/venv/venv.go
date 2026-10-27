@@ -64,8 +64,15 @@ type Venv struct {
 	Writers  *writer.Writers
 
 	// authProviderPriorEnv maps each Env key set by [Venv.SetAuthProviderEnv] to the value it
-	// replaced, nil when the key was unset. It is never mutated in place, since copies share it.
-	authProviderPriorEnv map[string]*string
+	// replaced and the value it was set to. It is never mutated in place, since copies share it.
+	authProviderPriorEnv map[string]authProviderEnvValue
+}
+
+// authProviderEnvValue records an Env key written by [Venv.SetAuthProviderEnv]: prior is the
+// value it replaced, nil when the key was unset, and set is the last value the auth provider wrote.
+type authProviderEnvValue struct {
+	prior *string
+	set   string
 }
 
 // Listener opens a socket to serve on. Terragrunt listens for one thing, the

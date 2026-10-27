@@ -127,6 +127,25 @@ func TestWithoutAuthProviderEnvRestoresPriorValues(t *testing.T) {
 	assert.NotContains(t, v.WithoutAuthProviderEnv().Env, "ADDED")
 }
 
+// TestWithoutAuthProviderEnvKeepsLaterOverrides checks that a key written again after
+// SetAuthProviderEnv set it keeps that later value instead of being restored.
+func TestWithoutAuthProviderEnvKeepsLaterOverrides(t *testing.T) {
+	t.Parallel()
+
+	v := &venv.Venv{
+		Env: map[string]string{"SHARED": "original"},
+	}
+
+	v.SetAuthProviderEnv(map[string]string{"SHARED": "from-auth", "ADDED": "from-auth"})
+	v.Env["SHARED"] = "from-extra-args"
+	v.Env["ADDED"] = "from-extra-args"
+
+	assert.Equal(t, map[string]string{
+		"SHARED": "from-extra-args",
+		"ADDED":  "from-extra-args",
+	}, v.WithoutAuthProviderEnv().Env)
+}
+
 // TestEnviron checks Environ returns sorted KEY=VALUE entries and is the inverse of ParseEnviron.
 func TestEnviron(t *testing.T) {
 	t.Parallel()
