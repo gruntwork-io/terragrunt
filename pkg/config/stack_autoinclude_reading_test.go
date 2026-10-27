@@ -114,12 +114,12 @@ unit "render" {
 	unitReads := pctx.FilesRead.Paths()
 	assert.Contains(t, unitReads, tplPath, "template path must be tracked as read on the unit")
 
-	// Parse the stack and verify it does NOT record the template as read.
-	stackConfig := filepath.Join(generationParityLiveDir, config.DefaultStackFile)
-	stackCtx, stackPctx := newTestParsingContext(t, stackConfig)
+	// Parse the stack via ReadStackConfigFile and verify it does NOT record the template.
+	stackConfigPath := filepath.Join(generationParityLiveDir, config.DefaultStackFile)
+	stackCtx, stackPctx := newTestParsingContext(t, stackConfigPath)
 	stackPctx.FilesRead = config.NewFilesRead()
 
-	_, stackParseErr := config.PartialParseConfigFile(stackCtx, l, v, stackPctx, stackConfig, nil)
+	_, stackParseErr := config.ReadStackConfigFile(stackCtx, l, v, stackPctx, stackConfigPath, nil)
 	require.NoError(t, stackParseErr)
 
 	stackReads := stackPctx.FilesRead.Paths()

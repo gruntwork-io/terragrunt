@@ -1050,6 +1050,26 @@ reading = [null]
 	assert.Contains(t, diags[0].Detail, "must not be null")
 }
 
+func TestAutoIncludeHCL_Resolve_ReadingRejectsUnknownElement(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+reading = [candidate]
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	_, diags := autoInclude.Resolve(t.Context(), &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit":      cty.EmptyObjectVal,
+			"stack":     cty.EmptyObjectVal,
+			"candidate": cty.UnknownVal(cty.String),
+		},
+	})
+	require.True(t, diags.HasErrors())
+	assert.Contains(t, diags[0].Detail, "must be known at generate time")
+}
+
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
 func parseHCLBody(t *testing.T, src string) hcl.Body {
 	t.Helper()
