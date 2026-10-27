@@ -768,8 +768,17 @@ func resolveReadingAttribute(
 		return nil, diags
 	}
 
-	if val.IsNull() || !val.IsKnown() {
+	if val.IsNull() {
 		return nil, nil
+	}
+
+	if !val.IsKnown() {
+		return nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  diagSummaryInvalidReadingElement,
+			Detail:   "reading must be known at generate time",
+			Subject:  attr.Expr.Range().Ptr(),
+		}}
 	}
 
 	if !val.Type().IsListType() && !val.Type().IsTupleType() && !val.Type().IsSetType() {
@@ -789,7 +798,7 @@ func resolveReadingAttribute(
 		if elem.IsNull() {
 			return nil, hcl.Diagnostics{{
 				Severity: hcl.DiagError,
-				Summary:  "Invalid reading element",
+				Summary:  diagSummaryInvalidReadingElement,
 				Detail:   "reading elements must not be null",
 				Subject:  attr.Expr.Range().Ptr(),
 			}}
@@ -798,7 +807,7 @@ func resolveReadingAttribute(
 		if !elem.IsKnown() {
 			return nil, hcl.Diagnostics{{
 				Severity: hcl.DiagError,
-				Summary:  "Invalid reading element",
+				Summary:  diagSummaryInvalidReadingElement,
 				Detail:   "reading elements must be known at generate time",
 				Subject:  attr.Expr.Range().Ptr(),
 			}}
@@ -807,7 +816,7 @@ func resolveReadingAttribute(
 		if elem.Type() != cty.String {
 			return nil, hcl.Diagnostics{{
 				Severity: hcl.DiagError,
-				Summary:  "Invalid reading element",
+				Summary:  diagSummaryInvalidReadingElement,
 				Detail:   "each reading element must be a string, got " + elem.Type().FriendlyName(),
 				Subject:  attr.Expr.Range().Ptr(),
 			}}
