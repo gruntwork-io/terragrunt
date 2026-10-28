@@ -359,11 +359,12 @@ func terminalRun(t *testing.T) (log.Logger, *options.TerragruntOptions, *venv.Ve
 		"LANG": "en_US.UTF-8",
 	})
 	v.Terminal = &venv.Terminal{
-		StdinIsTTY:  func() bool { return true },
-		StdoutIsTTY: func() bool { return true },
-		StderrIsTTY: func() bool { return true },
-		Width:       func() int { return 120 },
-		ErrWidth:    func() int { return 120 },
+		StdinIsTTY:           func() bool { return true },
+		StdoutIsTTY:          func() bool { return true },
+		StderrIsTTY:          func() bool { return true },
+		StderrHandlesEscapes: func() bool { return true },
+		Width:                func() int { return 120 },
+		ErrWidth:             func() int { return 120 },
 	}
 
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())

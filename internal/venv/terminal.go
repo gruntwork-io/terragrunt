@@ -10,13 +10,15 @@ import (
 // standard stream is attached to a terminal, and how wide that terminal is.
 // Width reports the width behind stdout and ErrWidth the width behind stderr.
 // Each reports 0 when no width is available, which callers read as "do not
-// wrap" or replace with a default of their own.
+// wrap" or replace with a default of their own. StderrHandlesEscapes reports
+// whether the terminal behind stderr acts on ANSI escape sequences.
 type Terminal struct {
-	StdinIsTTY  func() bool
-	StdoutIsTTY func() bool
-	StderrIsTTY func() bool
-	Width       func() int
-	ErrWidth    func() int
+	StdinIsTTY           func() bool
+	StdoutIsTTY          func() bool
+	StderrIsTTY          func() bool
+	StderrHandlesEscapes func() bool
+	Width                func() int
+	ErrWidth             func() int
 }
 
 // RequireTerminal panics with [ErrVenvTerminalUnset] when Terminal is nil.

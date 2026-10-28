@@ -58,7 +58,7 @@ INFO   Fetched outputs of dependency ../vpc (41.7s)
 Terragrunt draws the progress line only when all of the following are true, and writes log lines otherwise:
 
 - Standard error is a terminal that reports its width, and the terminal is at least 20 columns wide.
-- `TERM` is set to something other than `dumb`. Windows consoles do not need `TERM`.
+- `TERM` is set to something other than `dumb`. Windows consoles do not need `TERM`, but they must handle ANSI escape sequences, which Terragrunt turns on when it starts.
 - No CI environment is detected. Terragrunt checks `CI`, `TF_BUILD`, `TEAMCITY_VERSION`, `JENKINS_URL` and `TF_IN_AUTOMATION`. This covers CI systems that give a job a pseudo-terminal.
 - The log format is not `json`, logging is not disabled, and the log level is `info` or lower.
 

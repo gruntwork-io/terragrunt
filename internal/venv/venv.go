@@ -265,11 +265,12 @@ func OSVenv() *Venv {
 			GOARCH:         runtime.GOARCH,
 		},
 		Terminal: &Terminal{
-			StdinIsTTY:  func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
-			StdoutIsTTY: func() bool { return term.IsTerminal(int(os.Stdout.Fd())) },
-			StderrIsTTY: func() bool { return term.IsTerminal(int(os.Stderr.Fd())) },
-			Width:       osTerminalWidth,
-			ErrWidth:    osTerminalErrWidth,
+			StdinIsTTY:           func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
+			StdoutIsTTY:          func() bool { return term.IsTerminal(int(os.Stdout.Fd())) },
+			StderrIsTTY:          func() bool { return term.IsTerminal(int(os.Stderr.Fd())) },
+			StderrHandlesEscapes: osStderrHandlesEscapes,
+			Width:                osTerminalWidth,
+			ErrWidth:             osTerminalErrWidth,
 		},
 		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}

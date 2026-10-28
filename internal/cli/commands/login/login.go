@@ -65,8 +65,10 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		Done:    "Approved",
 	}
 
+	// The run's reporter is used only when it draws, since the wait is shown on
+	// a terminal at every log level.
 	reporter := spinner.ReporterFromContext(ctx)
-	if reporter == nil {
+	if reporter == nil || !reporter.Animated() {
 		reporter = newApprovalReporter(l, v, opts)
 
 		defer reporter.GuardLogger(l)()

@@ -152,6 +152,67 @@ func TestShowAfterRepeatsWorkingLineAsKeepalive(t *testing.T) {
 	})
 }
 
+func TestShowAfterRepeatsFromTheStartOfTheOperation(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		want    []string
+		started bool
+	}{
+		{
+			name: "announced once slow",
+			want: []string{
+				"msg=working...",
+				`msg="working... (30s elapsed)"`,
+				`msg="working... (60s elapsed)"`,
+				`msg="finished (61.0s)"`,
+			},
+		},
+		{
+			name:    "announced by the caller",
+			started: true,
+			want: []string{
+				`msg="working... (30s elapsed)"`,
+				`msg="working... (60s elapsed)"`,
+				`msg="finished (61.0s)"`,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				logs := new(bytes.Buffer)
+				l := newLogger(logs)
+
+				reporter := spinner.New(spinner.Options{Threshold: spinner.DefaultThreshold})
+
+				err := reporter.ShowAfter(t.Context(), l, spinner.Messages{
+					Working: "working...",
+					Done:    "finished",
+					Started: tc.started,
+				}, func() error {
+					time.Sleep(61 * time.Second)
+
+					return nil
+				})
+
+				require.NoError(t, err)
+
+				lines := logLines(logs)
+				require.Len(t, lines, len(tc.want), lines)
+
+				for i, want := range tc.want {
+					assert.True(t, strings.HasSuffix(lines[i], want), lines[i])
+				}
+			})
+		})
+	}
+}
+
 func TestShowAfterStartedOperationIsNotAnnouncedTwice(t *testing.T) {
 	t.Parallel()
 
@@ -852,10 +913,16 @@ func TestTerminalOptionsDescribeTheRun(t *testing.T) {
 	testCases := []struct {
 		change            func(l log.Logger)
 		name              string
+		noEscapes         bool
 		wantLogsForHumans bool
 	}{
 		{
 			name:              "info logs",
+			wantLogsForHumans: true,
+		},
+		{
+			name:              "console without escape sequences",
+			noEscapes:         true,
 			wantLogsForHumans: true,
 		},
 		{
@@ -884,9 +951,10 @@ func TestTerminalOptionsDescribeTheRun(t *testing.T) {
 				Env:      env,
 				Platform: &venv.Platform{GOOS: "linux"},
 				Terminal: &venv.Terminal{
-					StdinIsTTY:  func() bool { return true },
-					StderrIsTTY: func() bool { return true },
-					ErrWidth:    func() int { return 132 },
+					StdinIsTTY:           func() bool { return true },
+					StderrIsTTY:          func() bool { return true },
+					StderrHandlesEscapes: func() bool { return !tc.noEscapes },
+					ErrWidth:             func() int { return 132 },
 				},
 				Writers: &writer.Writers{Writer: new(bytes.Buffer), ErrWriter: errWriter},
 			}
@@ -907,9 +975,10 @@ func TestTerminalOptionsDescribeTheRun(t *testing.T) {
 			assert.Equal(t, env, opts.Env)
 			assert.Equal(t, "linux", opts.GOOS)
 			assert.Equal(t, spinner.DefaultThreshold, opts.Threshold)
-			assert.True(t, opts.OutIsTTY)
+			assert.Equal(t, !tc.noEscapes, opts.OutIsTTY, "progress is drawn only where escape sequences work")
 			assert.True(t, opts.InIsTTY)
 			assert.Equal(t, tc.wantLogsForHumans, opts.LogsForHumans)
+			assert.Equal(t, !tc.noEscapes && tc.wantLogsForHumans, spinner.New(opts).Animated())
 		})
 	}
 }

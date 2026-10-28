@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/login"
 	"github.com/gruntwork-io/terragrunt/internal/portal"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -167,12 +168,13 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 	const waiting = "Waiting for you to approve the login"
 
 	testCases := []struct {
-		name       string
-		level      log.Level
-		terminal   bool
-		jsonLogs   bool
-		wantDrawn  bool
-		wantLogged bool
+		name        string
+		level       log.Level
+		terminal    bool
+		jsonLogs    bool
+		runReporter bool
+		wantDrawn   bool
+		wantLogged  bool
 	}{
 		{
 			name:      "terminal",
@@ -185,6 +187,20 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 			level:     log.ErrorLevel,
 			terminal:  true,
 			wantDrawn: true,
+		},
+		{
+			name:        "terminal with only warnings logged and a run reporter",
+			level:       log.WarnLevel,
+			terminal:    true,
+			runReporter: true,
+			wantDrawn:   true,
+		},
+		{
+			name:        "terminal with a run reporter",
+			level:       log.InfoLevel,
+			terminal:    true,
+			runReporter: true,
+			wantDrawn:   true,
 		},
 		{
 			name:       "terminal with JSON logs",
@@ -219,11 +235,12 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 					WithErrWriter(&term).
 					WithEnv(map[string]string{"TERM": "xterm-256color", "LANG": "en_US.UTF-8"})
 				v.Terminal = &venv.Terminal{
-					StdinIsTTY:  func() bool { return tc.terminal },
-					StdoutIsTTY: func() bool { return tc.terminal },
-					StderrIsTTY: func() bool { return tc.terminal },
-					Width:       func() int { return 120 },
-					ErrWidth:    func() int { return 120 },
+					StdinIsTTY:           func() bool { return tc.terminal },
+					StdoutIsTTY:          func() bool { return tc.terminal },
+					StderrIsTTY:          func() bool { return tc.terminal },
+					StderrHandlesEscapes: func() bool { return true },
+					Width:                func() int { return 120 },
+					ErrWidth:             func() int { return 120 },
 				}
 
 				l := logger.CreateLogger()
@@ -232,7 +249,13 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 				opts := newOptions(portalBaseURL)
 				opts.JSONLogFormat = tc.jsonLogs
 
-				require.NoError(t, login.Run(t.Context(), l, v, opts))
+				ctx := t.Context()
+				if tc.runReporter {
+					// The reporter a run with the slow-task-reporting experiment carries.
+					ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.TerminalOptions(v, l)))
+				}
+
+				require.NoError(t, login.Run(ctx, l, v, opts))
 
 				assert.Equal(t, tc.wantDrawn, strings.Contains(term.String(), waiting), term.String())
 				assert.Equal(t, tc.wantLogged, strings.Contains(logs.String(), waiting), logs.String())

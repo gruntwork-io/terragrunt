@@ -50,7 +50,7 @@ type Options struct {
 	GOOS string
 	// Threshold is how long an operation runs before it is reported.
 	Threshold time.Duration
-	// OutIsTTY says that `Out` is a terminal.
+	// OutIsTTY says that `Out` is a terminal that acts on the ANSI escape sequences the progress line is erased with.
 	OutIsTTY bool
 	// InIsTTY says that the input of the run is a terminal, which echoes what the user types.
 	InIsTTY bool
@@ -79,7 +79,7 @@ func TerminalOptions(v *venv.Venv, l log.Logger) Options {
 		Env:           v.Env,
 		GOOS:          v.Platform.GOOS,
 		Threshold:     DefaultThreshold,
-		OutIsTTY:      v.Terminal.StderrIsTTY(),
+		OutIsTTY:      v.Terminal.StderrIsTTY() && v.Terminal.StderrHandlesEscapes(),
 		InIsTTY:       v.Terminal.StdinIsTTY(),
 		LogsForHumans: !l.Formatter().DisabledOutput() && l.Level() >= log.InfoLevel,
 	}
@@ -308,7 +308,8 @@ func waitTick(ctx context.Context, tick <-chan time.Time, finished <-chan struct
 }
 
 // logProgress logs the working message, then repeats it with the elapsed time
-// until the operation finishes or `ctx` ends.
+// until the operation finishes or `ctx` ends. The repeats are counted from
+// `start`, so the first comes a keepalive interval after the operation started.
 func logProgress(
 	ctx context.Context,
 	l log.Logger,
@@ -320,11 +321,16 @@ func logProgress(
 		l.Info(msgs.Working)
 	}
 
-	ticker := time.NewTicker(keepaliveInterval)
-	defer ticker.Stop()
+	next := start.Add(keepaliveInterval)
 
-	for waitTick(ctx, ticker.C, finished) {
+	timer := time.NewTimer(time.Until(next))
+	defer timer.Stop()
+
+	for waitTick(ctx, timer.C, finished) {
 		l.Infof("%s (%.0fs elapsed)", msgs.Working, time.Since(start).Seconds())
+
+		next = next.Add(keepaliveInterval)
+		timer.Reset(time.Until(next))
 	}
 }
 
