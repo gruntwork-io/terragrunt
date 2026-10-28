@@ -165,6 +165,53 @@ func TestFlag_ValueKeepsExplicitOverDeprecatedAlias(t *testing.T) {
 	}
 }
 
+// TestDeprecateEnvVarPrefix pins that a flag reads its environment variable
+// under both its current name and the prefixed name the helper deprecates.
+func TestDeprecateEnvVarPrefix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		env      map[string]string
+		name     string
+		expected bool
+	}{
+		{
+			name:     "current name",
+			env:      map[string]string{"TG_DAG": "true"},
+			expected: true,
+		},
+		{
+			name:     "deprecated prefixed name",
+			env:      map[string]string{"TG_LIST_DAG": "true"},
+			expected: true,
+		},
+		{
+			name:     "no variable set",
+			env:      map[string]string{},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dest := new(false)
+			testFlag := flags.NewFlag(&clihelper.BoolFlag{
+				Name:        "dag",
+				EnvVars:     []string{"TG_DAG"},
+				Destination: dest,
+			})
+
+			flags.DeprecateEnvVarPrefix(clihelper.Flags{testFlag}, flags.Prefix{flags.TgPrefix, "list"}, strict.Controls{})
+
+			require.NoError(t, testFlag.Parse(nil, tc.env))
+
+			assert.Equal(t, tc.expected, *dest)
+		})
+	}
+}
+
 func TestFlag_Evaluate(t *testing.T) {
 	t.Parallel()
 

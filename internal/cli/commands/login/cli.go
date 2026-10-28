@@ -38,18 +38,24 @@ func Command(exps experiment.Experiments) string {
 // NewCommand returns the login command.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
-	tgPrefix := flags.Prefix{CommandName}.Prepend(flags.TgPrefix)
+	tgPrefix := flags.Prefix{flags.TgPrefix}
 
 	return &clihelper.Command{
 		Name:  CommandName,
 		Usage: "Sign in to the Gruntwork Developer Portal.",
 		Flags: clihelper.Flags{
-			flags.NewFlag(&clihelper.BoolFlag{
-				Name:        ForceFlagName,
-				EnvVars:     tgPrefix.EnvVars(ForceFlagName),
-				Usage:       "Replace the credential from an existing, unexpired login.",
-				Destination: &cmdOpts.Force,
-			}),
+			flags.NewFlag(
+				&clihelper.BoolFlag{
+					Name:        ForceFlagName,
+					EnvVars:     tgPrefix.EnvVars(ForceFlagName),
+					Usage:       "Replace the credential from an existing, unexpired login.",
+					Destination: &cmdOpts.Force,
+				},
+				flags.WithDeprecatedEnvVars(
+					tgPrefix.Append(CommandName).EnvVars(ForceFlagName),
+					opts.StrictControls,
+				), // `TG_LOGIN_FORCE`
+			),
 		},
 		Before: func(_ context.Context, _ *clihelper.Context) error {
 			if !opts.Experiments.Evaluate(experiment.TGLogin) {

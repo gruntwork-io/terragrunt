@@ -25,11 +25,11 @@ const (
 	DisableDependentModulesFlagName = "disable-dependent-modules"
 )
 
-func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
+func NewFlags(opts *Options) clihelper.Flags {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
-	return clihelper.Flags{
+	renderFlags := clihelper.Flags{
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
@@ -121,15 +121,18 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 				opts.StrictControls,
 			), // `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES`
 		),
+		shared.NewAllFlag(opts.TerragruntOptions, nil),
 	}
+
+	flags.DeprecateEnvVarPrefix(renderFlags, flags.Prefix{flags.TgPrefix, CommandName}, opts.StrictControls)
+
+	return renderFlags
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
-	prefix := flags.Prefix{CommandName}
 	renderOpts := NewOptions(opts)
 
-	cmdFlags := append(runcmd.NewFlags(l, opts, v, nil), NewFlags(renderOpts, prefix)...)
-	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, prefix))
+	cmdFlags := append(runcmd.NewFlags(l, opts, v, nil), NewFlags(renderOpts)...)
 
 	cmd := &clihelper.Command{
 		Name:        CommandName,
