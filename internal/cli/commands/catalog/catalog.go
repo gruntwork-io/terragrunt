@@ -141,7 +141,7 @@ func newLoadFunc(
 		ctx = spinner.ContextWithLogOnly(ctx)
 
 		if repoURL != "" {
-			status("Loading " + tui.DisplayURL(repoURL) + "...")
+			status("Loading " + repoURL + "...")
 
 			return tui.LoadURL(ctx, l, v, opts.TerragruntOptions, tempDirs, repoURL, componentCh)
 		}
@@ -223,7 +223,7 @@ func discoverAndLoad(
 			failuresMu.Lock()
 			defer failuresMu.Unlock()
 
-			failures = append(failures, tui.SourceFailure{URL: tui.DisplayURL(repoURL), Err: err})
+			failures = append(failures, tui.SourceFailure{URL: repoURL, Err: err})
 
 			return nil
 		})

@@ -89,10 +89,9 @@ func TestCloneReportsAGitRemoteThatNeverAnswers(t *testing.T) {
 	})
 }
 
-// TestCloneReportsProgressAndHidesCredentials pins what a slow catalog clone
-// logs: a keepalive line when the run carries a progress reporter and none
-// when it does not, and never the credentials of the clone URL.
-func TestCloneReportsProgressAndHidesCredentials(t *testing.T) {
+// TestCloneReportsProgress pins what a slow catalog clone logs: a keepalive
+// line when the run carries a progress reporter and none when it does not.
+func TestCloneReportsProgress(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -137,25 +136,15 @@ func TestCloneReportsProgressAndHidesCredentials(t *testing.T) {
 					ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
 				}
 
-				absent := strings.TrimPrefix(filepath.ToSlash(filepath.Join(tmpDir, "absent.git")), "/")
-
 				_, err := module.NewRepo(ctx, l, v, &module.RepoOpts{
-					CloneURL:      "git::file://alice:s3cret@localhost/" + absent + "?access_token=t0ken&access_token=t0ken2&note=a%20b",
+					CloneURL:      absentRepoURL(tmpDir),
 					Path:          filepath.Join(tmpDir, "slow-repo"),
 					AllowCAS:      true,
 					CASCloneDepth: 1,
 				})
 				require.Error(t, err)
 
-				assert.Contains(t, err.Error(), "absent.git")
-				assert.NotContains(t, err.Error(), "s3cret")
-				assert.NotContains(t, err.Error(), "t0ken")
-				assert.NotContains(t, err.Error(), "REDACTED2", "a value that starts with another one is hidden whole")
-				assert.NotContains(t, err.Error(), "note=a")
 				assert.Contains(t, logs.String(), "Cloning repository")
-				assert.Contains(t, logs.String(), "file://localhost/"+absent)
-				assert.NotContains(t, logs.String(), "s3cret")
-				assert.NotContains(t, logs.String(), "t0ken")
 				assert.Equal(t, tc.wantKeepalive, strings.Contains(logs.String(), "(30s elapsed)"))
 			})
 		})

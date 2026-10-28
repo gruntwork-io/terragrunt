@@ -3,10 +3,8 @@ package tui
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -25,16 +23,6 @@ func CreateCatalogTempPath(v *venv.Venv, repoURL string) (string, error) {
 	prefix := "catalog-" + util.EncodeBase64Sha1(repoURL) + "-"
 
 	return vfs.MkdirTemp(v.FS, vfs.ResolveForCompare(v.FS, v.Platform.TempDir()), prefix)
-}
-
-// DisplayURL returns repoURL as it is shown to the user: a URL without the
-// credentials it carries, and a local path as it is written.
-func DisplayURL(repoURL string) string {
-	if !strings.Contains(repoURL, "://") {
-		return repoURL
-	}
-
-	return redact.NewURL(repoURL).String()
 }
 
 // LoadURL clones repoURL via module.NewRepo, walks it with a
@@ -58,11 +46,9 @@ func LoadURL(
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 	allowCAS := !opts.NoCAS
 
-	shownURL := DisplayURL(repoURL)
-
 	tempPath, err := CreateCatalogTempPath(v, repoURL)
 	if err != nil {
-		return fmt.Errorf("failed to create catalog temporary directory for %s: %w", shownURL, err)
+		return fmt.Errorf("failed to create catalog temporary directory for %s: %w", repoURL, err)
 	}
 
 	keepDir := false
@@ -87,7 +73,7 @@ func LoadURL(
 		}
 	}()
 
-	l.Debugf("Processing repository %s in temporary path %s", shownURL, tempPath)
+	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
 	repo, err := module.NewRepo(ctx, l, v, &module.RepoOpts{
 		CloneURL:         repoURL,
@@ -102,7 +88,7 @@ func LoadURL(
 		RootWorkingDir:   opts.RootWorkingDir,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to initialize repository %s: %w", shownURL, err)
+		return fmt.Errorf("failed to initialize repository %s: %w", repoURL, err)
 	}
 
 	discovery := NewComponentDiscovery().WithExtraIgnoreFile(opts.CatalogIgnoreFile)
@@ -112,15 +98,15 @@ func LoadURL(
 
 	components, err := discovery.Discover(v.FS, repo)
 	if err != nil {
-		return fmt.Errorf("failed to discover components in repository %s: %w", shownURL, err)
+		return fmt.Errorf("failed to discover components in repository %s: %w", repoURL, err)
 	}
 
 	if len(components) == 0 {
-		l.Debugf("No components found in repository %q", shownURL)
+		l.Debugf("No components found in repository %q", repoURL)
 		return nil
 	}
 
-	l.Debugf("Found %d component(s) in repository %q", len(components), shownURL)
+	l.Debugf("Found %d component(s) in repository %q", len(components), repoURL)
 
 	// Resolve the latest release tag once per repo. All components from the
 	// same repo share the Repo, so the tag is set for everyone.
