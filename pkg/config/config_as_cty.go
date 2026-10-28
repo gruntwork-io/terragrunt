@@ -651,6 +651,16 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		val = ctyObjectAddField(val, "version", gostringToCty(*config.Version))
 	}
 
+	// Only include no_dot_terragrunt_cache when explicitly set, so rendered output for configs that do not use it
+	// stays unchanged.
+	if config.NoDotTerragruntCache != nil {
+		val = ctyObjectAddField(
+			val,
+			"no_dot_terragrunt_cache",
+			goboolToCty(*config.NoDotTerragruntCache),
+		)
+	}
+
 	return val, nil
 }
 
