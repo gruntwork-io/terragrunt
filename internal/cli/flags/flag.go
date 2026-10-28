@@ -73,6 +73,28 @@ func (newFlag *Flag) DeprecatedNames() []string {
 	return names
 }
 
+// DeprecatedEnvVars returns all deprecated environment variables this flag
+// reads. A deprecated flag that wraps a flag of its own reads that flag's
+// environment variables, as [Flag.Apply] registers it as is.
+func (newFlag *Flag) DeprecatedEnvVars() []string {
+	var envVars []string
+
+	if flag, ok := newFlag.Flag.(interface{ DeprecatedEnvVars() []string }); ok {
+		envVars = flag.DeprecatedEnvVars()
+	}
+
+	for _, deprecated := range newFlag.deprecatedFlags {
+		if deprecated.Flag == newFlag.Flag {
+			envVars = append(envVars, deprecated.GetEnvVars()...)
+			continue
+		}
+
+		envVars = append(envVars, deprecated.Flag.GetEnvVars()...)
+	}
+
+	return envVars
+}
+
 // Value implements `clihelper.Flag` interface.
 //
 // A deprecated flag's value is carried over to this flag, so that reading this
