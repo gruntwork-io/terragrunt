@@ -718,7 +718,9 @@ func newProgressReporter(l log.Logger, opts *options.TerragruntOptions, v *venv.
 // undoes it. A reporter that draws no progress line changes nothing.
 func guardTerminal(l log.Logger, v *venv.Venv, reporter *spinner.Reporter) func() {
 	if !reporter.Animated() {
-		return func() {}
+		return func() {
+			// Nothing was guarded, so there is nothing to restore.
+		}
 	}
 
 	writers := v.Writers

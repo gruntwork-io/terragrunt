@@ -176,7 +176,9 @@ func (reporter *Reporter) Guard(w io.Writer) io.Writer {
 // the function that undoes it. A reporter that is not animated changes nothing.
 func (reporter *Reporter) GuardLogger(l log.Logger) func() {
 	if reporter.term == nil {
-		return func() {}
+		return func() {
+			// The logger was never guarded, so there is nothing to restore.
+		}
 	}
 
 	l.SetOptions(log.WithOutputWrapper(reporter.Guard))
