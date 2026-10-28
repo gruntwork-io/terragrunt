@@ -5,7 +5,7 @@ category: "experiments-updated"
 
 #### `slow-task-reporting` - One progress line that fits the terminal, and log lines everywhere else
 
-The `slow-task-reporting` experiment drew a spinner for each slow operation straight onto the terminal. A message wider than the terminal left a stale row behind on every frame, output from other units of a `run --all` was appended to the spinner text, and the spinner drew over the `terragrunt catalog` TUI. On CI systems that give a job a pseudo-terminal, the spinner animated into the job log.
+The `slow-task-reporting` experiment drew a spinner for each slow operation straight onto the terminal. A message wider than the terminal left a stale row behind on every frame. Output from other units of a `run --all` was appended to the spinner text. The spinner also drew over the `terragrunt catalog` TUI. On CI systems that give a job a pseudo-terminal, the spinner animated into the job log.
 
 The experiment now draws a single progress line that is shared by every operation in flight, is cut to the width of the terminal, and steps out of the way of log lines:
 

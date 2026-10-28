@@ -21,6 +21,13 @@ const frameInterval = 100 * time.Millisecond
 // ellipsis ends a message that was cut to fit the terminal.
 const ellipsis = "..."
 
+// gutter is the column the cursor rests in, so a terminal that re-wraps the
+// line when it is made narrower moves the rest of it below the cursor.
+const gutter = " "
+
+// eraseDown erases from the cursor to the end of the screen.
+const eraseDown = "\x1b[J"
+
 // minMessageWidth is the fewest columns a message is cut down to. With less
 // room the line shows the frame and the elapsed time alone.
 const minMessageWidth = len(ellipsis) + 1
@@ -35,8 +42,8 @@ type terminal struct {
 	last          string
 	frames        []string
 	ops           []*operation
-	drawn         int
 	mu            sync.Mutex
+	shown         bool
 	midLine       bool
 	failureLogged bool
 	echoesInput   bool
@@ -159,15 +166,15 @@ func (term *terminal) redraw(l log.Logger) {
 	logFailure(l, failure)
 }
 
-// draw puts the progress line for `now` on the screen. The caller holds the lock.
+// draw puts the progress line for `now` on the screen, erases what is left of
+// the line drawn before, and leaves the cursor at the start of the row. The
+// caller holds the lock.
 func (term *terminal) draw(now time.Time) {
 	if term.midLine || len(term.ops) == 0 {
 		return
 	}
 
-	width := term.width()
-
-	line := term.line(now, width)
+	line := term.line(now, term.width())
 	if line == "" {
 		term.clear()
 
@@ -178,38 +185,29 @@ func (term *terminal) draw(now time.Time) {
 		return
 	}
 
-	columns := runewidth.StringWidth(line)
-	leftover := max(min(term.drawn, width-1)-columns, 0)
+	term.write("\r" + line + eraseDown + "\r")
 
-	term.write("\r" + line + strings.Repeat(" ", leftover))
-
-	term.drawn = columns
+	term.shown = true
 	term.last = line
 }
 
-// clear wipes the progress line and leaves the cursor at the start of its row.
-// It never writes more than the terminal is wide now, so a terminal that got
-// narrower since the line was drawn is not made to wrap. What that terminal
-// re-wrapped from the old line stays on screen. The caller holds the lock.
+// clear wipes the progress line, with what a terminal that was made narrower
+// re-wrapped from it, and leaves the cursor at the start of its row. It writes
+// no columns, so it cannot make the terminal wrap. The caller holds the lock.
 func (term *terminal) clear() {
-	if term.drawn == 0 {
+	if !term.shown {
 		return
 	}
 
-	columns := term.drawn
-	if width := term.width(); width > 0 {
-		columns = min(columns, width-1)
-	}
+	term.write("\r" + eraseDown)
 
-	term.write("\r" + strings.Repeat(" ", columns) + "\r")
-
-	term.drawn = 0
+	term.shown = false
 	term.last = ""
 }
 
 // line returns the progress line for `now` on a terminal `width` columns wide,
-// cut to one column less than that so it never wraps. It is empty when the
-// terminal is too narrow to draw on.
+// starting with the gutter and cut to one column less than that so it never
+// wraps. It is empty when the terminal is too narrow to draw on.
 func (term *terminal) line(now time.Time, width int) string {
 	if width < minWidth {
 		return ""
@@ -223,12 +221,12 @@ func (term *terminal) line(now time.Time, width int) string {
 		suffix += fmt.Sprintf(" +%d more", more)
 	}
 
-	room := width - 1 - runewidth.StringWidth(frame) - 1 - runewidth.StringWidth(suffix)
+	room := width - 1 - len(gutter) - runewidth.StringWidth(frame) - 1 - runewidth.StringWidth(suffix)
 	if room < minMessageWidth {
-		return runewidth.Truncate(frame+suffix, width-1, "")
+		return runewidth.Truncate(gutter+frame+suffix, width-1, "")
 	}
 
-	return frame + " " + runewidth.Truncate(printable(head.text), room, ellipsis) + suffix
+	return gutter + frame + " " + runewidth.Truncate(printable(head.text), room, ellipsis) + suffix
 }
 
 // write sends `s` to the terminal. A failed write ends all further drawing.

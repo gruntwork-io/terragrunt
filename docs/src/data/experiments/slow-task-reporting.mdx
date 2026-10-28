@@ -45,9 +45,9 @@ These operations are reported:
 | Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
 ```
 
-The line is cut to the width of the terminal, so it never wraps. Log lines are written above it. When the operation succeeds, the line is replaced with an INFO log line that includes the elapsed time.
+The line is cut to the width of the terminal, so it does not wrap. When the terminal is resized, the line is drawn again at the new width, and nothing of the old line is left on screen. Log lines are written above it. When the operation succeeds, the line is replaced with an INFO log line that includes the elapsed time.
 
-**Everywhere else**, Terragrunt writes INFO log lines: one when the operation becomes slow, one every 30 seconds while it runs so that CI systems do not end the job for being silent, and one when it succeeds:
+**Everywhere else**, Terragrunt writes INFO log lines. Source downloads, provider caching, `stack generate` fetches and catalog clones log a line as soon as they start. The other operations log their first line once they have run for 1 second. While an operation runs, its line is repeated every 30 seconds so that CI systems do not end the job for being silent, and one more line is logged when it succeeds:
 
 ```text
 INFO   Fetching outputs of dependency ../vpc...

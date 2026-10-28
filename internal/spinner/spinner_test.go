@@ -5,12 +5,15 @@ import (
 	"context"
 	"errors"
 	"io"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -27,6 +30,9 @@ const testThreshold = 50 * time.Millisecond
 // firstFrame is the first frame drawn on a UTF-8 terminal: the bottom dot of
 // the braille T at the top of the cell.
 const firstFrame = "\u2801"
+
+// gutter is the column left of the frame that the cursor rests in.
+const gutter = " "
 
 func TestShowAfterFastOperationIsNotReported(t *testing.T) {
 	t.Parallel()
@@ -349,7 +355,7 @@ func TestProgressLineShowsFrameMessageAndElapsedTime(t *testing.T) {
 
 		frames := drawnLines(term.Bytes())
 		require.NotEmpty(t, frames)
-		assert.Equal(t, firstFrame+" Cloning repository... (0s)", frames[0])
+		assert.Equal(t, gutter+firstFrame+" Cloning repository... (0s)", frames[0])
 		assert.True(t, slices.ContainsFunc(frames, func(frame string) bool {
 			return strings.HasSuffix(frame, " Cloning repository... (2s)")
 		}), frames)
@@ -412,17 +418,17 @@ func TestProgressLineStaysOnOneRowWhateverTheMessageHolds(t *testing.T) {
 		{
 			name:    "tab and line breaks",
 			working: "Reading a\tb\nc\r\nd",
-			want:    firstFrame + " Reading a b c  d (0s)",
+			want:    gutter + firstFrame + " Reading a b c  d (0s)",
 		},
 		{
 			name:    "wide characters are counted as two columns",
 			working: "Downloading " + strings.Repeat("\uff21\uff22", 10),
-			want:    firstFrame + " Downloading " + strings.Repeat("\uff21\uff22", 4) + "... (0s)",
+			want:    gutter + firstFrame + " Downloading " + strings.Repeat("\uff21\uff22", 4) + "... (0s)",
 		},
 		{
 			name:    "combining marks take no column",
 			working: "Cloning cafe\u0301 repo 0123456789 0123456789 0123456789",
-			want:    firstFrame + " Cloning cafe\u0301 repo 0123456789 ... (0s)",
+			want:    gutter + firstFrame + " Cloning cafe\u0301 repo 0123456789... (0s)",
 		},
 	}
 
@@ -494,7 +500,7 @@ func TestProgressLineIsSharedAndLogsAreWrittenAroundIt(t *testing.T) {
 		require.Len(t, during, 2)
 		assert.True(t, strings.HasPrefix(during[0], "time="), during[0])
 		assert.Contains(t, during[0], `msg="unit-c: tofu init finished"`)
-		assert.Equal(t, "\u2812 Downloading source... (1s) +1 more", during[1])
+		assert.Equal(t, gutter+"\u2812 Downloading source... (1s) +1 more", during[1])
 
 		after := screenRows(term.Bytes(), 200)
 		require.Len(t, after, 3)
@@ -631,7 +637,7 @@ func TestProgressFramesFollowTheTerminal(t *testing.T) {
 
 				frames := drawnLines(term.Bytes())
 				require.NotEmpty(t, frames)
-				assert.Equal(t, tc.wantFrame+" working (0s)", frames[0])
+				assert.Equal(t, gutter+tc.wantFrame+" working (0s)", frames[0])
 			})
 		})
 	}
@@ -659,7 +665,7 @@ func TestProgressFramesDropTThenGInOneCell(t *testing.T) {
 		var drawn []string
 
 		for _, line := range drawnLines(term.Bytes()) {
-			frame, _, _ := strings.Cut(line, " ")
+			frame, _, _ := strings.Cut(strings.TrimPrefix(line, gutter), " ")
 			if len(drawn) == 0 || drawn[len(drawn)-1] != frame {
 				drawn = append(drawn, frame)
 			}
@@ -1001,6 +1007,63 @@ func TestProgressLineDoesNotWrapWhenTheTerminalShrinks(t *testing.T) {
 	})
 }
 
+func TestProgressLineLeavesNothingBehindWhenTheTerminalShrinks(t *testing.T) {
+	t.Parallel()
+
+	const (
+		wide   = 120
+		narrow = 30
+	)
+
+	synctest.Test(t, func(t *testing.T) {
+		term := new(syncBuffer)
+
+		var width atomic.Int64
+
+		width.Store(wide)
+
+		opts := terminalOptions(term, wide)
+		opts.Width = func() int { return int(width.Load()) }
+
+		reporter := spinner.New(opts)
+		l := newLogger(reporter.Guard(term))
+
+		var shrunk int
+
+		err := reporter.ShowAfter(t.Context(), l, spinner.Messages{
+			Working: "Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.3...",
+			Done:    "Downloaded source",
+		}, func() error {
+			time.Sleep(1550 * time.Millisecond)
+
+			shrunk = len(term.Bytes())
+
+			width.Store(narrow)
+
+			time.Sleep(time.Second)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+
+		screen := newScreen(wide)
+		screen.write(term.Bytes()[:shrunk])
+		require.Len(t, screen.rows(), 1)
+
+		screen.resize(narrow)
+		require.Greater(t, len(screen.rows()), 1, "the terminal re-wraps the wide line onto more rows")
+
+		screen.write(term.Bytes()[shrunk:])
+
+		rows := screen.rows()
+		require.NotEmpty(t, rows)
+		assert.True(t, strings.HasPrefix(rows[0], "time="), rows)
+		assert.Contains(t, strings.Join(rows, ""), `msg="Downloaded source (`)
+		assert.NotContains(t, strings.Join(rows, ""), "acme/modules", "no part of the progress line is left on screen")
+	})
+}
+
 // syncBuffer is a buffer safe for the concurrent writes a terminal receives.
 type syncBuffer struct {
 	buf bytes.Buffer
@@ -1073,11 +1136,18 @@ func loggerOutput(l log.Logger) io.Writer {
 	return output
 }
 
-// drawnSegments returns what was written to `stream` between carriage returns, log lines left out.
+// csiPrefix matches a control sequence at the start of a text.
+var csiPrefix = regexp.MustCompile(`^\x1b\[[0-9;?]*[@-~]`)
+
+// csi matches every control sequence in a text.
+var csi = regexp.MustCompile(`\x1b\[[0-9;?]*[@-~]`)
+
+// drawnSegments returns the text written to `stream` between carriage returns,
+// control sequences and log lines left out.
 func drawnSegments(stream []byte) []string {
 	var segments []string
 
-	for segment := range strings.SplitSeq(string(stream), "\r") {
+	for segment := range strings.SplitSeq(csi.ReplaceAllString(string(stream), ""), "\r") {
 		if segment != "" && !strings.Contains(segment, "\n") {
 			segments = append(segments, segment)
 		}
@@ -1101,49 +1171,111 @@ func drawnLines(stream []byte) []string {
 
 // screenRows replays `stream` on a terminal `width` columns wide and returns the rows that are not blank.
 func screenRows(stream []byte, width int) []string {
-	rows := [][]rune{{}}
-	row, col := 0, 0
+	screen := newScreen(width)
+	screen.write(stream)
 
-	for _, char := range string(stream) {
-		switch char {
-		case '\r':
-			col = 0
+	return screen.rows()
+}
+
+// screen is a terminal that re-wraps what it shows to its width when it is
+// resized, the way most terminals do. It keeps logical lines, and the cursor
+// as a line and an offset into it, so the cursor stays on the character it was
+// on when the rows are re-wrapped.
+type screen struct {
+	lines [][]rune
+	line  int
+	col   int
+	width int
+}
+
+// newScreen returns an empty screen `width` columns wide.
+func newScreen(width int) *screen {
+	return &screen{lines: [][]rune{{}}, width: width}
+}
+
+// resize makes the screen `width` columns wide.
+func (screen *screen) resize(width int) {
+	screen.width = width
+}
+
+// write replays `stream` on the screen. It knows carriage returns, line
+// breaks, erasing to the end of the screen, and printable characters.
+func (screen *screen) write(stream []byte) {
+	text := string(stream)
+
+	for text != "" {
+		if sequence := csiPrefix.FindString(text); sequence != "" {
+			if strings.HasSuffix(sequence, "J") {
+				screen.lines[screen.line] = screen.lines[screen.line][:min(screen.col, len(screen.lines[screen.line]))]
+				screen.lines = screen.lines[:screen.line+1]
+			}
+
+			text = text[len(sequence):]
 
 			continue
-		case '\n':
-			row++
-			col = 0
-
-			rows = append(rows, []rune{})
-
-			continue
 		}
 
-		columns := runewidth.RuneWidth(char)
-		if columns == 0 {
-			continue
+		char, size := utf8.DecodeRuneInString(text)
+		text = text[size:]
+
+		screen.put(char)
+	}
+}
+
+// put writes `char` at the cursor.
+func (screen *screen) put(char rune) {
+	switch char {
+	case '\r':
+		// A cursor just past the last column is still on that row.
+		if screen.col > 0 {
+			screen.col = (screen.col - 1) / screen.width * screen.width
 		}
 
-		if col+columns > width {
-			row++
-			col = 0
+		return
+	case '\n':
+		screen.line++
+		screen.col = 0
 
-			rows = append(rows, []rune{})
+		if screen.line == len(screen.lines) {
+			screen.lines = append(screen.lines, []rune{})
 		}
 
-		for len(rows[row]) <= col {
-			rows[row] = append(rows[row], ' ')
-		}
-
-		rows[row][col] = char
-		col += columns
+		return
 	}
 
-	shown := make([]string, 0, len(rows))
+	columns := runewidth.RuneWidth(char)
+	if columns == 0 {
+		return
+	}
 
-	for _, cells := range rows {
-		if text := strings.TrimRight(string(cells), " "); text != "" {
-			shown = append(shown, text)
+	if screen.col%screen.width+columns > screen.width {
+		screen.col += screen.width - screen.col%screen.width
+	}
+
+	cells := screen.lines[screen.line]
+	for len(cells) < screen.col+columns {
+		cells = append(cells, ' ')
+	}
+
+	cells[screen.col] = char
+	for i := 1; i < columns; i++ {
+		cells[screen.col+i] = 0
+	}
+
+	screen.lines[screen.line] = cells
+	screen.col += columns
+}
+
+// rows returns the rows of the screen that are not blank.
+func (screen *screen) rows() []string {
+	var shown []string
+
+	for _, cells := range screen.lines {
+		for start := 0; start < len(cells); start += screen.width {
+			row := strings.ReplaceAll(string(cells[start:min(start+screen.width, len(cells))]), "\x00", "")
+			if text := strings.TrimRight(row, " "); text != "" {
+				shown = append(shown, text)
+			}
 		}
 	}
 
