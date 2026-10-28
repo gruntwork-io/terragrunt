@@ -8,21 +8,14 @@ import (
 // minWidth is the narrowest terminal a progress line is drawn on.
 const minWidth = 20
 
-// windows is the GOOS value of the one platform whose consoles set no TERM.
-const windows = "windows"
-
-// unicodeFrames animate the progress line on a terminal that shows UTF-8: the
-// braille letters T and G fall into the cell one after the other.
-var unicodeFrames = []string{
-	"⠁", "⠂", "⠄", "⠍", "⠖", "⠞", "⠞", "⠞", "⠞", "⠞", "⠞", "⠴", "⠠", "⠀",
-	"⠉", "⠒", "⠛", "⠛", "⠛", "⠛", "⠛", "⠛", "⠶", "⠤", "⠀",
-}
-
-// asciiFrames animate the progress line on every other terminal.
-var asciiFrames = []string{"|", "/", "-", "\\"}
-
-// ciMarkers are the variables build systems set, on top of CI itself.
-var ciMarkers = []string{"TF_BUILD", "TEAMCITY_VERSION", "JENKINS_URL", "TF_IN_AUTOMATION"}
+var (
+	unicodeFrames = []string{
+		"⠁", "⠂", "⠄", "⠍", "⠖", "⠞", "⠞", "⠞", "⠞", "⠞", "⠞", "⠴", "⠠", "⠀",
+		"⠉", "⠒", "⠛", "⠛", "⠛", "⠛", "⠛", "⠛", "⠶", "⠤", "⠀",
+	}
+	asciiFrames = []string{"|", "/", "-", "\\"}
+	ciMarkers   = []string{"TF_BUILD", "TEAMCITY_VERSION", "JENKINS_URL", "TF_IN_AUTOMATION"}
+)
 
 // animatable reports whether progress can be drawn as a line that is redrawn in place.
 func animatable(opts *Options) bool {
@@ -39,7 +32,7 @@ func animatable(opts *Options) bool {
 		return false
 	}
 
-	if opts.GOOS != windows && term == "" {
+	if opts.GOOS != "windows" && term == "" {
 		return false
 	}
 
@@ -48,7 +41,7 @@ func animatable(opts *Options) bool {
 
 // frames returns the animation frames the terminal of the run can show.
 func frames(env map[string]string, goos string) []string {
-	if goos == windows {
+	if goos == "windows" {
 		if env["WT_SESSION"] != "" {
 			return slices.Clone(unicodeFrames)
 		}
