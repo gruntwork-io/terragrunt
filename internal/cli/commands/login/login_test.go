@@ -171,10 +171,12 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 		name        string
 		level       log.Level
 		terminal    bool
+		dumb        bool
+		noEscapes   bool
 		jsonLogs    bool
 		runReporter bool
 		wantDrawn   bool
-		wantLogged  bool
+		wantPrinted bool
 	}{
 		{
 			name:      "terminal",
@@ -203,16 +205,30 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 			wantDrawn:   true,
 		},
 		{
-			name:       "terminal with JSON logs",
-			level:      log.InfoLevel,
-			terminal:   true,
-			jsonLogs:   true,
-			wantLogged: true,
+			name:        "dumb terminal with only warnings logged",
+			level:       log.WarnLevel,
+			terminal:    true,
+			dumb:        true,
+			wantPrinted: true,
 		},
 		{
-			name:       "no terminal",
-			level:      log.InfoLevel,
-			wantLogged: true,
+			name:        "console without escape sequences and only warnings logged",
+			level:       log.WarnLevel,
+			terminal:    true,
+			noEscapes:   true,
+			wantPrinted: true,
+		},
+		{
+			name:        "terminal with JSON logs",
+			level:       log.InfoLevel,
+			terminal:    true,
+			jsonLogs:    true,
+			wantPrinted: true,
+		},
+		{
+			name:        "no terminal",
+			level:       log.InfoLevel,
+			wantPrinted: true,
 		},
 	}
 
@@ -234,11 +250,15 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 					WithWriter(&out).
 					WithErrWriter(&term).
 					WithEnv(map[string]string{"TERM": "xterm-256color", "LANG": "en_US.UTF-8"})
+				if tc.dumb {
+					v.Env["TERM"] = "dumb"
+				}
+
 				v.Terminal = &venv.Terminal{
 					StdinIsTTY:           func() bool { return tc.terminal },
 					StdoutIsTTY:          func() bool { return tc.terminal },
 					StderrIsTTY:          func() bool { return tc.terminal },
-					StderrHandlesEscapes: func() bool { return true },
+					StderrHandlesEscapes: func() bool { return !tc.noEscapes },
 					Width:                func() int { return 120 },
 					ErrWidth:             func() int { return 120 },
 				}
@@ -258,7 +278,8 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 				require.NoError(t, login.Run(ctx, l, v, opts))
 
 				assert.Equal(t, tc.wantDrawn, strings.Contains(term.String(), waiting), term.String())
-				assert.Equal(t, tc.wantLogged, strings.Contains(logs.String(), waiting), logs.String())
+				assert.Equal(t, tc.wantPrinted, strings.Contains(out.String(), waiting+"..."), out.String())
+				assert.NotContains(t, logs.String(), waiting, "the start of the wait is shown once")
 				assert.Contains(t, out.String(), "Signed in as "+accountEmail)
 			})
 		})

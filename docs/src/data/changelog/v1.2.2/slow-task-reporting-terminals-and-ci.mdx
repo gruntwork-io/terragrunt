@@ -19,6 +19,6 @@ More operations are reported: unit discovery, fetching the outputs of `dependenc
 
 Creating a Git worktree no longer logs that it succeeded when it failed.
 
-The wait for approval in `terragrunt login` is drawn the same way, with or without this experiment: the line shows the elapsed time, and it becomes a log line in a CI environment, with `TERM=dumb`, and with `json` logs.
+The wait for approval in `terragrunt login` is drawn the same way, with or without this experiment, and the line shows the elapsed time. Where it cannot be drawn, such as in a CI environment, with `TERM=dumb`, or with `json` logs, Terragrunt prints that it is waiting after the one-time code and URL, at every log level, and repeats it in log lines every 30 seconds.
 
 To learn more, see the [experiment documentation](/reference/experiments/active#slow-task-reporting).

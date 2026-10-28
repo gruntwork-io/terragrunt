@@ -74,6 +74,16 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		defer reporter.GuardLogger(l)()
 	}
 
+	// Where the wait cannot be drawn, it is printed with the code and the URL,
+	// so it shows at every log level.
+	if !reporter.Animated() {
+		if err := writeLine(w, msgs.Working+"..."); err != nil {
+			return err
+		}
+
+		msgs.Started = true
+	}
+
 	if err := reporter.Show(ctx, l, msgs, poll); err != nil {
 		return approvalFailure(err, Command(opts.Experiments))
 	}
