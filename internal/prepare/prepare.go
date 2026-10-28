@@ -15,6 +15,7 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -153,12 +154,27 @@ func PrepareSource(
 		return nil, err
 	}
 
+	if opts.Experiments.Evaluate(experiment.NoCache) && runCfg.Terraform.NoCache && runCfg.Terraform.Source != "" {
+		return nil, runcfg.NoCacheWithSourceError{Source: runCfg.Terraform.Source}
+	}
+
+	if sourceURL == "" && !opts.Experiments.Evaluate(experiment.NoCache) {
+		sourceURL = "."
+	}
+
+	if sourceURL == "" {
+		_, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		return updatedTerragruntOptions, nil
+	}
+
 	runOpts := configbridge.NewRunOptions(opts)
 
 	var updatedRunOpts *run.Options
 
-	// Always download/copy source to cache directory for consistency.
-	// When no source is specified, sourceURL will be "." (current directory).
 	err = telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "download_terraform_source", map[string]any{
 			"sourceUrl": redact.NewURL(sourceURL),

@@ -70,6 +70,9 @@ func CopyLockFile(
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL. If neither is specified, returns "." to indicate the current directory should be
 // used as the source, ensuring a .terragrunt-cache directory is always created for consistency.
+//
+// When terraform.no_cache is true and no external source is configured, returns "" to signal that the unit directory
+// should be used directly without copying to .terragrunt-cache.
 func GetTerraformSourceURL(
 	source string, sourceMap map[string]string, originalConfigPath string, cfg *RunConfig,
 ) (string, error) {
@@ -79,6 +82,10 @@ func GetTerraformSourceURL(
 	case cfg != nil && cfg.Terraform.Source != "":
 		return AdjustSourceWithMap(sourceMap, cfg.Terraform.Source, originalConfigPath)
 	default:
+		if cfg != nil && cfg.Terraform.NoCache {
+			return "", nil
+		}
+
 		return ".", nil
 	}
 }
@@ -151,6 +158,18 @@ func AdjustSourceWithMap(
 	}
 
 	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
+}
+
+// NoCacheWithSourceError is returned when no_cache is set together with terraform.source.
+type NoCacheWithSourceError struct {
+	Source string
+}
+
+func (err NoCacheWithSourceError) Error() string {
+	return fmt.Sprintf(
+		"no_cache is not compatible with terraform.source (%s) — no_cache can only be used when running directly from the unit directory without an external source",
+		err.Source,
+	)
 }
 
 // InvalidSourceURLWithMapError is an error type for invalid source URLs when using source map.
