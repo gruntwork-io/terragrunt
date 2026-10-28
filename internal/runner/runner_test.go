@@ -35,7 +35,7 @@ func TestDiscoveryResolverMatchesLegacyPaths(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, discovered)
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, discovered)
 	require.NoError(t, err)
 
 	units := rnr.GetStack().Units

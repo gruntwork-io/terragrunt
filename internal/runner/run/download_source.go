@@ -577,7 +577,7 @@ func downloadSource(
 			return err
 		}
 
-		_, err = client.Get(ctx, &getter.Request{
+		_, err = getter.Download(ctx, client, &getter.Request{
 			Src:     src.CanonicalSourceURL.String(),
 			Dst:     src.DownloadDir,
 			GetMode: getter.ModeAny,
@@ -697,7 +697,7 @@ func tryCASDownload(
 		},
 	}
 
-	if _, err := client.Get(ctx, &getter.Request{
+	if _, err := getter.Download(ctx, client, &getter.Request{
 		Src: canonicalSourceURL,
 		Dst: src.DownloadDir,
 		Pwd: opts.CacheDir,

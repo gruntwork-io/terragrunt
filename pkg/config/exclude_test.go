@@ -1,15 +1,13 @@
 package config_test
 
 import (
-	"bytes"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -37,37 +35,106 @@ exclude {
 	require.ErrorAs(t, err, new(config.InvalidExcludeBlockError))
 }
 
-// TestPartialParseExcludeReadingDependencyOutputDuringDiscovery pins that
-// discovery, which parses without dependency outputs, skips an exclude block
-// that reads one and still parses the rest of the config.
-func TestPartialParseExcludeReadingDependencyOutputDuringDiscovery(t *testing.T) {
+// TestParseConfigFileExcludeReferencingDependencyErrors pins that a full parse
+// rejects an exclude block that references a dependency output, even when the
+// output resolves.
+func TestParseConfigFileExcludeReferencingDependencyErrors(t *testing.T) {
 	t.Parallel()
 
-	cfgPath := writeExcludeUnit(t, `
+	const dependencyBlock = `
 dependency "dep" {
   config_path  = "../dep"
   mock_outputs = { flag = true }
 }
+`
 
+	tests := []struct {
+		files   map[string]string
+		name    string
+		cfgFile string
+		errFile string
+	}{
+		{
+			name:    "unit",
+			cfgFile: filepath.Join("unit", config.DefaultTerragruntConfigPath),
+			errFile: filepath.Join("unit", config.DefaultTerragruntConfigPath),
+			files: map[string]string{
+				filepath.Join("unit", config.DefaultTerragruntConfigPath): dependencyBlock + `
 exclude {
   if      = dependency.dep.outputs.flag
   actions = ["plan"]
 }
-`)
+`,
+			},
+		},
+		{
+			name:    "no_run",
+			cfgFile: filepath.Join("unit", config.DefaultTerragruntConfigPath),
+			errFile: filepath.Join("unit", config.DefaultTerragruntConfigPath),
+			files: map[string]string{
+				filepath.Join("unit", config.DefaultTerragruntConfigPath): dependencyBlock + `
+exclude {
+  if      = true
+  no_run  = dependency.dep.outputs.flag
+  actions = ["plan"]
+}
+`,
+			},
+		},
+		{
+			name:    "json",
+			cfgFile: filepath.Join("unit", config.DefaultTerragruntJSONConfigPath),
+			errFile: filepath.Join("unit", config.DefaultTerragruntJSONConfigPath),
+			files: map[string]string{
+				filepath.Join("unit", config.DefaultTerragruntJSONConfigPath): `{
+  "dependency": {"dep": {"config_path": "../dep", "mock_outputs": {"flag": true}}},
+  "exclude": {"if": "${dependency.dep.outputs.flag}", "actions": ["plan"]}
+}`,
+			},
+		},
+		{
+			name:    "included",
+			cfgFile: filepath.Join("unit", config.DefaultTerragruntConfigPath),
+			errFile: "root.hcl",
+			files: map[string]string{
+				"root.hcl": dependencyBlock + `
+exclude {
+  if      = dependency.dep.outputs.flag
+  actions = ["plan"]
+}
+`,
+				filepath.Join("unit", config.DefaultTerragruntConfigPath): `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`,
+			},
+		},
+	}
 
-	v := venvtest.NewWithOSFS()
-	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock)
-	pctx.SkipOutputsResolution = true
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	parsed, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
-	require.NoError(t, err)
-	assert.Nil(t, parsed.Exclude)
-	assert.Len(t, parsed.TerragruntDependencies, 1)
+			root := venvtest.Root("/live")
+			files := map[string]string{filepath.Join("dep", config.DefaultTerragruntConfigPath): ""}
+			maps.Copy(files, tt.files)
+
+			cfgPath := filepath.Join(root, tt.cfgFile)
+			v := venvtest.New().WithFS(venvtest.NewFS(t, root, files))
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+
+			var excludeErr config.ExcludeReferencesDependencyError
+			require.ErrorAs(t, err, &excludeErr)
+			assert.Equal(t, filepath.Join(root, tt.errFile), excludeErr.ConfigPath)
+		})
+	}
 }
 
-// TestPartialParseExcludeWithNullUnknownOrSensitiveString pins that discovery parses null, unknown and sensitive string flags like bools instead of panicking.
-func TestPartialParseExcludeWithNullUnknownOrSensitiveString(t *testing.T) {
+// TestPartialParseExcludeWithNullSensitiveOrDependencyString pins that discovery parses null and sensitive string flags like bools, and rejects dependency outputs, instead of panicking.
+func TestPartialParseExcludeWithNullSensitiveOrDependencyString(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -75,7 +142,6 @@ func TestPartialParseExcludeWithNullUnknownOrSensitiveString(t *testing.T) {
 		wantErrAs any
 		name      string
 		exclude   string
-		wantWarn  bool
 	}{
 		{
 			name:    "null bool if",
@@ -98,29 +164,29 @@ func TestPartialParseExcludeWithNullUnknownOrSensitiveString(t *testing.T) {
 			want:    &config.ExcludeConfig{If: true, Actions: []string{"plan"}},
 		},
 		{
-			name:     "unknown dependency output if",
-			exclude:  `if = dependency.dep.outputs.flag`,
-			wantWarn: true,
+			name:      "dependency output if",
+			exclude:   `if = dependency.dep.outputs.flag`,
+			wantErrAs: new(config.ExcludeReferencesDependencyError),
 		},
 		{
-			name:     "unknown string if",
-			exclude:  `if = tostring(dependency.dep.outputs.flag)`,
-			wantWarn: true,
+			name:      "dependency output string if",
+			exclude:   `if = tostring(dependency.dep.outputs.flag)`,
+			wantErrAs: new(config.ExcludeReferencesDependencyError),
 		},
 		{
-			name:     "unknown interpolated string if",
-			exclude:  `if = "${dependency.dep.outputs.flag}"`,
-			wantWarn: true,
+			name:      "dependency output interpolated string if",
+			exclude:   `if = "${dependency.dep.outputs.flag}"`,
+			wantErrAs: new(config.ExcludeReferencesDependencyError),
 		},
 		{
-			name:     "unknown string no_run",
-			exclude:  "if = true\nno_run = tostring(dependency.dep.outputs.flag)",
-			wantWarn: true,
+			name:      "dependency output string no_run",
+			exclude:   "if = true\nno_run = tostring(dependency.dep.outputs.flag)",
+			wantErrAs: new(config.ExcludeReferencesDependencyError),
 		},
 		{
-			name:     "unknown string exclude_dependencies",
-			exclude:  "if = true\nexclude_dependencies = tostring(dependency.dep.outputs.flag)",
-			wantWarn: true,
+			name:      "dependency output string exclude_dependencies",
+			exclude:   "if = true\nexclude_dependencies = tostring(dependency.dep.outputs.flag)",
+			wantErrAs: new(config.ExcludeReferencesDependencyError),
 		},
 		{
 			name:      "sensitive bool if",
@@ -138,9 +204,9 @@ func TestPartialParseExcludeWithNullUnknownOrSensitiveString(t *testing.T) {
 			wantErrAs: new(config.InvalidExcludeBlockError),
 		},
 		{
-			name:     "sensitive unknown string if",
-			exclude:  `if = sensitive(tostring(dependency.dep.outputs.flag))`,
-			wantWarn: true,
+			name:      "sensitive dependency output string if",
+			exclude:   `if = sensitive(tostring(dependency.dep.outputs.flag))`,
+			wantErrAs: new(config.ExcludeReferencesDependencyError),
 		},
 		{
 			name:    "known string flags",
@@ -180,16 +246,11 @@ exclude {
 `,
 			})
 
-			var logBuf bytes.Buffer
-
-			l := logger.CreateLogger()
-			l.SetOptions(log.WithOutput(&logBuf))
-
 			v := venvtest.New().WithFS(fsys)
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
 
-			parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			parsed, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
 			if tt.wantErrAs != nil {
 				require.ErrorAs(t, err, tt.wantErrAs)
 				return
@@ -197,12 +258,6 @@ exclude {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, parsed.Exclude)
-			assert.Equal(
-				t,
-				tt.wantWarn,
-				strings.Contains(logBuf.String(), "Ignoring the exclude block in "+cfgPath),
-				logBuf.String(),
-			)
 		})
 	}
 }

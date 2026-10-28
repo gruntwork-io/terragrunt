@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -95,7 +96,7 @@ func TestGraphPhase_ConcurrentDependentsSharedParseWithRacing(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithGitRoot(gitRoot).
 		WithFilters(filters).
-		Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+		Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	require.ElementsMatch(t, expected, components.Filter(component.UnitKind).Paths())

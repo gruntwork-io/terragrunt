@@ -65,10 +65,10 @@ func TestAWSNegativePublicAccessResponse(t *testing.T) {
 			name: "false-response",
 			response: &s3.GetPublicAccessBlockOutput{
 				PublicAccessBlockConfiguration: &s3types.PublicAccessBlockConfiguration{
-					BlockPublicAcls:       aws.Bool(false),
-					BlockPublicPolicy:     aws.Bool(false),
-					IgnorePublicAcls:      aws.Bool(false),
-					RestrictPublicBuckets: aws.Bool(false),
+					BlockPublicAcls:       new(false),
+					BlockPublicPolicy:     new(false),
+					IgnorePublicAcls:      new(false),
+					RestrictPublicBuckets: new(false),
 				},
 			},
 		},

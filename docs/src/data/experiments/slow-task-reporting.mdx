@@ -10,7 +10,7 @@ Progress reporting for long-running Terragrunt operations.
 
 ### `slow-task-reporting` - What it does
 
-<Before version="v1.2.1">
+<Before version="v1.2.2">
 
 When enabled, Terragrunt displays animated progress spinners for operations that take longer than 1 second (e.g., Git worktree creation). Once the operation completes, the spinner is replaced with an INFO log line showing the operation result and elapsed time.
 
@@ -24,7 +24,7 @@ In non-interactive environments (CI/CD, piped output), spinners are suppressed a
 
 </Before>
 
-<Since version="v1.2.1">
+<Since version="v1.2.2">
 
 When enabled, Terragrunt reports operations that run for more than 1 second, so a long wait is not mistaken for a hang.
 
@@ -66,7 +66,7 @@ To get log lines on a terminal, set `TERM=dumb` or `CI=true`.
 
 The units of a `run --all` share the one progress line: it names the operation that has been running the longest and counts the others, and the output of every unit is written above it. The repositories `terragrunt catalog` loads always report as log lines, because the catalog TUI owns the terminal while they load.
 
-The animation uses braille characters on terminals with a UTF-8 locale and on Windows Terminal, and the characters `|`, `/`, `-` and `\` elsewhere.
+On terminals with a UTF-8 locale and on Windows Terminal, the animation drops the letters T and G into place in braille dots, one after the other, and loops. Elsewhere it uses the characters `|`, `/`, `-` and `\`.
 
 The log lines are written at the INFO level. With `--log-level warn` or higher, or with `--log-disable`, nothing is reported, including the lines that keep a CI job alive.
 
@@ -84,7 +84,7 @@ Provide your feedback on the [`slow-task-reporting` GitHub Discussion](https://g
 
 To transition the `slow-task-reporting` feature to a stable release, the following must be addressed:
 
-<Before version="v1.2.1">
+<Before version="v1.2.2">
 
 - [ ] Validate spinner rendering across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, GNOME Terminal)
 - [ ] Extend progress reporting to additional slow operations (e.g., provider caching)
@@ -93,7 +93,7 @@ To transition the `slow-task-reporting` feature to a stable release, the followi
 
 </Before>
 
-<Since version="v1.2.1">
+<Since version="v1.2.2">
 
 - [ ] Validate the progress line across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, the Windows console, GNOME Terminal)
 - [x] Extend progress reporting to additional slow operations (e.g., provider caching)

@@ -38,6 +38,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -360,7 +361,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 	terraformSource.VersionFile = filepath.Join(downloadDir, ".terragrunt-source-version")
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
@@ -428,7 +429,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	require.NoError(t, err)
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
@@ -477,7 +478,7 @@ func TestDownloadTerraformSourceIfNecessaryRedactsSourceCredentials(t *testing.T
 	)
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
@@ -638,7 +639,7 @@ func testDownloadTerraformSourceIfNecessary(
 	require.NoError(t, err)
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
@@ -726,7 +727,7 @@ func createConfig(
 
 	versionV := venvtest.New().WithExec(versionExec).WithEnv(venvtest.NewOSWithEmptyEnv().Env)
 	_, ver, impl, err := run.PopulateTFVersion(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		versionV,
 		run.PopulateTFVersionInput{
@@ -983,7 +984,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 
 	// sourceURL "." represents the current directory (no terraform.source specified)
 	updatedOpts, err := run.DownloadTerraformSource(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		".",
@@ -1112,7 +1113,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	r := report.NewReport()
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		src,
@@ -1160,7 +1161,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	r := report.NewReport()
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		src,
@@ -1220,7 +1221,7 @@ func TestDownloadSourceOCIEntersCASPath(t *testing.T) {
 		WithUserHomeDir(func() (string, error) { return hermeticHome, nil })
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		v,
 		src,
@@ -1280,7 +1281,7 @@ func TestDownloadSourceOCIAgainstLocalRegistry(t *testing.T) {
 	v.HTTP = registry.Client()
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		v,
 		src,
@@ -1326,7 +1327,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	r := report.NewReport()
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		src,
@@ -1390,7 +1391,7 @@ func TestDownloadSourceWithCASOfflineDamagedStoreFails(t *testing.T) {
 
 	online := newSource("online")
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(), l, v, online, configbridge.NewRunOptions(opts), cfg, report.NewReport(),
+		config.WithCaches(t.Context()), l, v, online, configbridge.NewRunOptions(opts), cfg, report.NewReport(),
 	)
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(online.DownloadDir, "main.tf"))
@@ -1401,7 +1402,7 @@ func TestDownloadSourceWithCASOfflineDamagedStoreFails(t *testing.T) {
 
 	offline := newSource("offline")
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(), l, v, offline, configbridge.NewRunOptions(opts), cfg, report.NewReport(),
+		config.WithCaches(t.Context()), l, v, offline, configbridge.NewRunOptions(opts), cfg, report.NewReport(),
 	)
 	require.Error(t, err)
 	require.NotErrorIs(t, err, cas.ErrCASOffline, "the probe is answered; the store fails on the content behind it")
@@ -1456,7 +1457,7 @@ func TestDownloadSourceWithCASOfflineMissFails(t *testing.T) {
 	v.Platform = &platform
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		v,
 		src,
@@ -1514,7 +1515,7 @@ func TestDownloadSourceWithCASOfflineInitFailureFails(t *testing.T) {
 	v.Platform = &platform
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		v,
 		src,
@@ -1558,7 +1559,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	r := report.NewReport()
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		src,
@@ -1604,7 +1605,7 @@ func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
 	l.SetOptions(log.WithOutput(io.Discard))
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(), l, venvtest.NewOSWithEmptyEnv(), src,
+		config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), src,
 		configbridge.NewRunOptions(opts),
 		cfg, report.NewReport(),
 	)
@@ -1668,7 +1669,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 			}
 
 			_, err = run.DownloadTerraformSourceIfNecessary(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				l,
 				venvtest.NewOSWithEmptyEnv(),
 				src,
@@ -1736,7 +1737,7 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = client.Get(t.Context(), &getter.Request{
+	_, err = client.Get(config.WithCaches(t.Context()), &getter.Request{
 		Src:     server.URL + "/module.tf",
 		Dst:     dst,
 		GetMode: getter.ModeFile,
@@ -1813,7 +1814,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 			l.SetOptions(log.WithOutput(io.Discard))
 
 			_, err = run.DownloadTerraformSource(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				l,
 				v,
 				tc.source,
@@ -1844,7 +1845,7 @@ func TestDownloadTerraformSourceIfNecessaryPanicsOnNilSource(t *testing.T) {
 
 	require.PanicsWithValue(t, run.ErrNilSource, func() {
 		run.DownloadTerraformSourceIfNecessary(
-			t.Context(),
+			config.WithCaches(t.Context()),
 			logger.CreateLogger(),
 			venvtest.NewOSWithEmptyEnv(),
 			nil,
@@ -1877,7 +1878,7 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 	require.NoError(t, err)
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
 		src,
@@ -1910,7 +1911,7 @@ func TestBuildDownloadClientRegistersOCIGetter(t *testing.T) {
 
 	dst := filepath.Join(t.TempDir(), "module")
 
-	_, err = client.Get(t.Context(), &getter.Request{
+	_, err = client.Get(config.WithCaches(t.Context()), &getter.Request{
 		Src:     "oci://127.0.0.1:5000/terraform-modules/vpc?bogus=1",
 		Dst:     dst,
 		GetMode: getter.ModeDir,
@@ -1960,7 +1961,7 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	ociGetter, found := findGetter[*getter.OCIGetter](client.Getters)
 	require.True(t, found, "the oci getter must be registered when the experiment is on")
 
-	store, err := ociGetter.NewStore(t.Context(), "registry.example.com", "modules/vpc")
+	store, err := ociGetter.NewStore(config.WithCaches(t.Context()), "registry.example.com", "modules/vpc")
 	require.NoError(t, err)
 
 	remoteStore, castOK := store.(getter.OCIRemoteStore)
@@ -1969,7 +1970,7 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	authClient, castOK := remoteStore.Repo.Client.(*auth.Client)
 	require.True(t, castOK)
 
-	cred, err := authClient.Credential(t.Context(), "registry.example.com")
+	cred, err := authClient.Credential(config.WithCaches(t.Context()), "registry.example.com")
 	require.NoError(t, err)
 	assert.Equal(t, "wired", cred.Username,
 		"BuildDownloadClient must thread the run's venv into the OCI credential store")

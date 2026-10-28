@@ -173,8 +173,10 @@ func discoverAndLoad(
 		return discoverPortalURLs(gctx, l, v, opts, urlCh)
 	})
 
+	discoverErrCh := make(chan error, 1)
+
 	go func() {
-		_ = g.Wait()
+		discoverErrCh <- g.Wait()
 
 		close(urlCh)
 	}()
@@ -239,7 +241,7 @@ func discoverAndLoad(
 		return &tui.SourceLoadError{Failures: failures, Attempted: len(seen)}
 	}
 
-	if err := g.Wait(); err != nil {
+	if err := <-discoverErrCh; err != nil {
 		return fmt.Errorf("discovering sources: %w", err)
 	}
 

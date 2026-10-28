@@ -24,6 +24,13 @@ import (
 
 const testThreshold = 50 * time.Millisecond
 
+// firstFrame is the first frame drawn on a UTF-8 terminal: the bottom dot of
+// the T at the top of the line.
+const firstFrame = "\u2808\u2800\u2800\u2800"
+
+// lettersFrame is the frame with the T and the G in place.
+const lettersFrame = "\u2839\u2801\u282f\u2837"
+
 func TestShowAfterFastOperationIsNotReported(t *testing.T) {
 	t.Parallel()
 
@@ -345,7 +352,7 @@ func TestProgressLineShowsFrameMessageAndElapsedTime(t *testing.T) {
 
 		frames := drawnLines(term.Bytes())
 		require.NotEmpty(t, frames)
-		assert.Equal(t, "⠋ Cloning repository... (0s)", frames[0])
+		assert.Equal(t, firstFrame+" Cloning repository... (0s)", frames[0])
 		assert.True(t, slices.ContainsFunc(frames, func(frame string) bool {
 			return strings.HasSuffix(frame, " Cloning repository... (2s)")
 		}), frames)
@@ -408,17 +415,17 @@ func TestProgressLineStaysOnOneRowWhateverTheMessageHolds(t *testing.T) {
 		{
 			name:    "tab and line breaks",
 			working: "Reading a\tb\nc\r\nd",
-			want:    "⠋ Reading a b c  d (0s)",
+			want:    firstFrame + " Reading a b c  d (0s)",
 		},
 		{
 			name:    "wide characters are counted as two columns",
 			working: "Downloading " + strings.Repeat("\uff21\uff22", 10),
-			want:    "\u280b Downloading " + strings.Repeat("\uff21\uff22", 4) + "... (0s)",
+			want:    firstFrame + " Downloading " + strings.Repeat("\uff21\uff22", 3) + "\uff21... (0s)",
 		},
 		{
 			name:    "combining marks take no column",
 			working: "Cloning cafe\u0301 repo 0123456789 0123456789 0123456789",
-			want:    "\u280b Cloning cafe\u0301 repo 0123456789 ... (0s)",
+			want:    firstFrame + " Cloning cafe\u0301 repo 01234567... (0s)",
 		},
 	}
 
@@ -490,7 +497,7 @@ func TestProgressLineIsSharedAndLogsAreWrittenAroundIt(t *testing.T) {
 		require.Len(t, during, 2)
 		assert.True(t, strings.HasPrefix(during[0], "time="), during[0])
 		assert.Contains(t, during[0], `msg="unit-c: tofu init finished"`)
-		assert.Equal(t, "⠴ Downloading source... (1s) +1 more", during[1])
+		assert.Equal(t, lettersFrame+" Downloading source... (1s) +1 more", during[1])
 
 		after := screenRows(term.Bytes(), 200)
 		require.Len(t, after, 3)
@@ -546,7 +553,7 @@ func TestProgressFramesFollowTheTerminal(t *testing.T) {
 			name:      "linux with a UTF-8 locale",
 			goos:      "linux",
 			env:       map[string]string{"TERM": "xterm", "LANG": "en_US.UTF-8"},
-			wantFrame: "⠋",
+			wantFrame: firstFrame,
 		},
 		{
 			name:      "linux with the C locale",
@@ -570,13 +577,13 @@ func TestProgressFramesFollowTheTerminal(t *testing.T) {
 			name:      "LC_CTYPE wins over LANG",
 			goos:      "linux",
 			env:       map[string]string{"TERM": "xterm", "LANG": "C", "LC_CTYPE": "en_US.utf8"},
-			wantFrame: "⠋",
+			wantFrame: firstFrame,
 		},
 		{
 			name:      "macOS terminal",
 			goos:      "darwin",
 			env:       map[string]string{"TERM": "xterm-256color", "LANG": "en_US.UTF-8"},
-			wantFrame: "⠋",
+			wantFrame: firstFrame,
 		},
 		{
 			name:      "windows console",
@@ -594,7 +601,7 @@ func TestProgressFramesFollowTheTerminal(t *testing.T) {
 			name:      "windows terminal",
 			goos:      "windows",
 			env:       map[string]string{"WT_SESSION": "c4a9a1b2"},
-			wantFrame: "⠋",
+			wantFrame: firstFrame,
 		},
 	}
 
@@ -631,6 +638,55 @@ func TestProgressFramesFollowTheTerminal(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestProgressFramesDropTThenGAndLoop(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		term := new(syncBuffer)
+		reporter := spinner.New(terminalOptions(term, 120))
+		l := newLogger(reporter.Guard(term))
+
+		err := reporter.Show(t.Context(), l, spinner.Messages{
+			Working: "working",
+			Done:    "done",
+		}, func() error {
+			time.Sleep(2150 * time.Millisecond)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+
+		var drawn []string
+
+		for _, line := range drawnLines(term.Bytes()) {
+			frame, _, _ := strings.Cut(line, " ")
+			if len(drawn) == 0 || drawn[len(drawn)-1] != frame {
+				drawn = append(drawn, frame)
+			}
+		}
+
+		assert.Equal(t, []string{
+			firstFrame,
+			"⠐⠀⠀⠀",
+			"⠠⠀⠀⠀",
+			"⠨⠀⠀⠀",
+			"⠰⠀⠀⠀",
+			"⠹⠁⠀⠀",
+			"⠹⠁⠉⠉",
+			"⠹⠁⠒⠒",
+			"⠹⠁⠤⠤",
+			"⠹⠁⠥⠭",
+			"⠹⠁⠦⠶",
+			lettersFrame,
+			"⠲⠂⠖⠦",
+			"⠤⠄⠤⠄",
+			"⠀⠀⠀⠀",
+			firstFrame,
+		}, drawn)
+	})
 }
 
 func TestProgressWriteFailureIsLoggedOnceAndTheOperationCompletes(t *testing.T) {

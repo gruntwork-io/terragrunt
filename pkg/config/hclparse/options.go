@@ -64,7 +64,10 @@ func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 					}
 
 					for _, block := range blocks {
-						blockAttrs, _ := block.Body.JustAttributes()
+						blockAttrs, attrDiags := block.Body.JustAttributes()
+						if attrDiags.HasErrors() {
+							return diags, nil
+						}
 
 						for _, blokcAttr := range blockAttrs {
 							for _, diag := range diags {

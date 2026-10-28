@@ -188,5 +188,5 @@ func discoverForRunAll(t *testing.T, workingDir string, filterQueries ...string)
 		d = d.WithWorktrees(w)
 	}
 
-	return d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	return d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 }

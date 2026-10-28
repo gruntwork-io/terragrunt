@@ -109,7 +109,8 @@ reviews:
         "v1.2.3") and a `category` (one of: breaking-changes, new-features,
         performance-improvements, tips-added, bug-fixes,
         documentation-updates, experiments-added, experiments-updated,
-        process-updates), followed by a `#### Title` heading and prose
+        strict-controls-added, strict-controls-updated, process-updates),
+        followed by a `#### Title` heading and prose
         describing the user-visible effect. Note: changes that are gated
         behind an experiment must be categorized as `experiments-updated`
         (or `experiments-added`), NOT `breaking-changes`. If a user-facing

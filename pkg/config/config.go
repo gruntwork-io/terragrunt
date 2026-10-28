@@ -91,7 +91,8 @@ const (
 )
 
 var (
-	// Order matters, for example if none of the files are found `GetDefaultConfigPath` func returns the last element.
+	// DefaultTerragruntConfigPaths lists the default config file names in lookup order. Order matters: if none of
+	// the files are found, `GetDefaultConfigPath` returns the last element.
 	DefaultTerragruntConfigPaths = []string{
 		DefaultTerragruntJSONConfigPath,
 		DefaultTerragruntConfigPath,
@@ -106,6 +107,17 @@ type DecodedBaseBlocks struct {
 	Locals       *cty.Value
 	FeatureFlags *cty.Value
 }
+
+// IncludeParse selects how [DecodeBaseBlocks] parses the included configs it reads feature defaults from.
+type IncludeParse int
+
+const (
+	// IncludeParseFeatureFlags decodes only the feature blocks of each included config.
+	IncludeParseFeatureFlags IncludeParse = iota
+	// IncludeParseForMerge decodes the sections the parsing context's decode list names along with the feature
+	// blocks, and keeps the parsed configs so a partial parse merges them without parsing them again.
+	IncludeParseForMerge
+)
 
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
@@ -147,6 +159,8 @@ func (cfg *TerragruntConfig) GetRemoteState(
 
 		return nil, nil
 	}
+
+	markNotShareable(ctx)
 
 	sourceURL, err := GetTerraformSourceURL(
 		pctx.Source,
@@ -1110,6 +1124,7 @@ type TerraformConfig struct {
 	ExcludeFromCopy *[]string `hcl:"exclude_from_copy,attr"`
 
 	CopyTerraformLockFile *bool                     `hcl:"copy_terraform_lock_file,attr"`
+	NoDotTerragruntCache  *bool                     `hcl:"no_dot_terragrunt_cache,attr"`
 	ExtraArgs             []TerraformExtraArguments `hcl:"extra_arguments,block"`
 	BeforeHooks           []Hook                    `hcl:"before_hook,block"`
 	AfterHooks            []Hook                    `hcl:"after_hook,block"`
@@ -1482,7 +1497,7 @@ func ParseConfigFile(
 
 	var config *TerragruntConfig
 
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
 
 	// Build cache key components before tracing to determine cache hit status
 	childKey := "nil"
@@ -1504,16 +1519,16 @@ func ParseConfigFile(
 		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
 
-	cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v",
+	cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v-%v",
 		cfgPath,
 		pctx.WorkingDir,
 		childKey,
 		decodeListKey,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
-	// Check cache hit status before tracing
-	_, cacheHit := hclCache.Get(ctx, cacheKey)
+	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, cfgPath)
 
 	isPartial := len(pctx.PartialParseDecodeList) > 0
 
@@ -1525,26 +1540,22 @@ func ParseConfigFile(
 		isPartial,
 		pctx.PartialParseDecodeList,
 		includeFromChild,
-		cacheHit,
+		cached != nil,
 		func(childCtx context.Context, l log.Logger) error {
-			var file *hclparse.File
-
-			if cacheConfig, found := hclCache.Get(childCtx, cacheKey); found {
-				file = cacheConfig.Rebind(pctx.NewParser(l, v))
-			} else {
-				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-				var parseErr error
-
-				file, parseErr = pctx.NewParser(l, v).
-					ParseFromFile(v.FS, cfgPath)
-				if parseErr != nil {
-					return parseErr
-				}
-
-				hclCache.Put(childCtx, cacheKey, file)
+			file, parseErr := rebindOrParseHCLFile(
+				childCtx,
+				l,
+				v,
+				pctx,
+				hclCache,
+				cached,
+				cacheKey,
+				cfgPath,
+				fileInfo.ModTime(),
+			)
+			if parseErr != nil {
+				return parseErr
 			}
-
-			var parseErr error
 
 			config, parseErr = ParseConfig(childCtx, l, v, pctx, file, includeFromChild)
 			if parseErr != nil {
@@ -1631,6 +1642,10 @@ func ParseConfig(
 		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 	}
 
+	if err := ValidateExcludeReferences(file); err != nil {
+		return nil, err
+	}
+
 	if includeFromChild != nil && includeFromChild.Path != "" &&
 		!filepath.IsAbs(includeFromChild.Path) {
 		includeFromChild.Path = filepath.Clean(
@@ -1660,7 +1675,7 @@ func ParseConfig(
 	pctx = pctx.WithValues(unitValues)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, pctx, file, includeFromChild)
+	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, pctx, file, includeFromChild, IncludeParseFeatureFlags)
 	if err != nil {
 		// Surface the error here so it reaches stderr; the multi-error returned at
 		// the function end is not always rendered to the user by the CLI's final
@@ -1682,12 +1697,12 @@ func ParseConfig(
 		if err != nil {
 			errs = append(errs, err)
 
-			// During hcl validate, dependency resolution can fail for many reasons (invalid
-			// config_path, target parse errors, etc.). Use cty.DynamicVal as a fallback so
-			// that the "dependency" variable still exists in the eval context — otherwise every
-			// dependency.x.outputs.y reference cascades into a confusing "dependency is not
-			// defined" error that obscures the real problem.
-			if pctx.SkipOutput && retrievedOutputs == nil {
+			// Dependency resolution can fail for many reasons (invalid config_path, target
+			// parse errors, an enabled strict control, etc.). Use cty.DynamicVal as a fallback
+			// so that the "dependency" variable still exists in the eval context — otherwise
+			// every dependency.x.outputs.y reference cascades into a confusing "dependency is
+			// not defined" error that obscures the real problem.
+			if retrievedOutputs == nil {
 				dynamicVal := cty.DynamicVal
 				retrievedOutputs = &dynamicVal
 			}
@@ -1704,7 +1719,9 @@ func ParseConfig(
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
 	cfgFile, err := decodeAsTerragruntConfigFile(ctx, l, v, pctx, file, evalContext)
-	if err != nil {
+	// The dependency blocks are decoded again here, so a dependency error already in errs
+	// comes back a second time.
+	if err != nil && !slices.ContainsFunc(errs, func(seen error) bool { return errors.Is(err, seen) }) {
 		errs = append(errs, err)
 	}
 
@@ -2149,7 +2166,9 @@ func ConvertToTerragruntConfig(
 		// FilesRead, so this hook is how files read via read_terragrunt_config of
 		// a config with a local module source reach reading= filters.
 		if cfg.Terraform.Source != nil {
-			markLocalModuleSourceAsRead(v, pctx, *cfg.Terraform.Source)
+			if err := markLocalModuleSourceAsRead(v, pctx, *cfg.Terraform.Source); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 
@@ -2371,9 +2390,10 @@ var moduleSourceReadExtensions = map[string]struct{}{
 }
 
 // markLocalModuleSourceAsRead walks the local terraform module pointed to by
-// rawSource and marks its configuration files as read in pctx.FilesRead. It is a
-// best-effort annotation: non-local sources are skipped and walk errors are
-// swallowed, since a genuinely broken source will surface during download.
+// rawSource and marks its configuration files as read in pctx.FilesRead. Sources
+// that are not local or do not parse are skipped, since a genuinely broken source
+// will surface during download, and so are entries the walk cannot read. It
+// returns the error that stops the walk itself.
 //
 // A relative source resolves against pctx.WorkingDir. For a unit that is the
 // unit's directory, where a run resolves the source, even when an included
@@ -2383,29 +2403,14 @@ var moduleSourceReadExtensions = map[string]struct{}{
 // A pctx that keeps no record of its reads gets no walk. The walk feeds nothing
 // but that record, and is the most expensive thing a parse does for it, so this
 // is where the cost of tracking goes when nobody is asking.
-func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, rawSource string) {
+func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, rawSource string) error {
 	if !pctx.FilesRead.Tracking() {
-		return
+		return nil
 	}
 
-	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
-
-	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, pctx.WorkingDir)
-	if err != nil || !tf.IsLocalSource(sourceURL) {
-		return
-	}
-
-	moduleDir := filepath.Clean(sourceURL.Path)
-	if subdir != "" {
-		moduleDir = filepath.Clean(filepath.Join(moduleDir, subdir))
-	}
-
-	if !filepath.IsAbs(moduleDir) {
-		moduleDir = filepath.Clean(filepath.Join(pctx.WorkingDir, moduleDir))
-	}
-
-	if !pctx.FilesRead.MarkDirIfNew(moduleDir) {
-		return
+	moduleDir, ok := localModuleDir(pctx.WorkingDir, rawSource)
+	if !ok || !pctx.FilesRead.MarkDirIfNew(moduleDir) {
+		return nil
 	}
 
 	walkFunc := vfs.WalkDir
@@ -2413,7 +2418,7 @@ func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, rawSource s
 		walkFunc = vfs.WalkDirWithSymlinks
 	}
 
-	_ = walkFunc(v.FS, moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
+	err := walkFunc(v.FS, moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip unreadable entries rather than aborting the whole walk.
 			if d != nil && d.IsDir() {
@@ -2436,6 +2441,34 @@ func markLocalModuleSourceAsRead(v *venv.Venv, pctx *ParsingContext, rawSource s
 
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("marking files of module source %s as read: %w", moduleDir, err)
+	}
+
+	return nil
+}
+
+// localModuleDir returns the absolute directory rawSource names, resolving a
+// relative source against workingDir. It reports false for a source that is not
+// local or does not parse.
+func localModuleDir(workingDir, rawSource string) (string, bool) {
+	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
+
+	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, workingDir)
+	if err != nil || !tf.IsLocalSource(sourceURL) {
+		return "", false
+	}
+
+	moduleDir := filepath.Clean(sourceURL.Path)
+	if subdir != "" {
+		moduleDir = filepath.Clean(filepath.Join(moduleDir, subdir))
+	}
+
+	if !filepath.IsAbs(moduleDir) {
+		moduleDir = filepath.Clean(filepath.Join(workingDir, moduleDir))
+	}
+
+	return moduleDir, true
 }
 
 // moduleSourceFileExtension returns the extension used for matching module source

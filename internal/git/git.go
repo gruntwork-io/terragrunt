@@ -52,7 +52,7 @@ func NewGitRunner(v *venv.Venv) (*GitRunner, error) {
 		return nil, &WrappedError{
 			Op:      "git",
 			Context: "git not found",
-			Err:     ErrCommandSpawn,
+			Err:     ErrGitCommand,
 		}
 	}
 
@@ -116,7 +116,7 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 		return nil, &WrappedError{
 			Op:      "git_ls_remote",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -232,7 +232,7 @@ func (g *GitRunner) LocalTags(ctx context.Context) ([]LsRemoteResult, error) {
 		return nil, &WrappedError{
 			Op:      "git_for_each_ref",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -408,7 +408,7 @@ func (g *GitRunner) IsShallow(ctx context.Context) (bool, error) {
 		return false, &WrappedError{
 			Op:      "git_rev_parse",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -448,7 +448,7 @@ func (g *GitRunner) RevParseCommit(ctx context.Context, ref string) (string, err
 		return "", &WrappedError{
 			Op:      "git_rev_parse",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -479,7 +479,7 @@ func (g *GitRunner) HasObject(ctx context.Context, hash string) (bool, error) {
 		return false, &WrappedError{
 			Op:      "git_cat_file_exists",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -671,7 +671,7 @@ func (g *GitRunner) CreateDetachedWorktree(
 		return &WrappedError{
 			Op:      "git_create_detached_worktree",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -719,7 +719,7 @@ func (g *GitRunner) CheckoutPaths(
 		return &WrappedError{
 			Op:      "git_checkout_paths",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -743,7 +743,7 @@ func (g *GitRunner) RemoveWorktree(ctx context.Context, path string) error {
 		return &WrappedError{
 			Op:      "git_remove_worktree",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -767,7 +767,7 @@ func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, er
 		return nil, &WrappedError{
 			Op:      "git_diff",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -790,7 +790,7 @@ func (g *GitRunner) Init(ctx context.Context) error {
 		return &WrappedError{
 			Op:      "git_init",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -832,7 +832,7 @@ func (g *GitRunner) Config(ctx context.Context, name string) (string, error) {
 		return "", &WrappedError{
 			Op:      "git_config",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     ErrGitCommand,
 		}
 	}
 
@@ -841,7 +841,11 @@ func (g *GitRunner) Config(ctx context.Context, name string) (string, error) {
 
 // GetRemoteURL returns the origin remote URL, or empty string on error.
 func (g *GitRunner) GetRemoteURL(ctx context.Context) string {
-	remote, _ := g.Config(ctx, "remote.origin.url")
+	remote, err := g.Config(ctx, "remote.origin.url")
+	if err != nil {
+		return ""
+	}
+
 	return remote
 }
 
@@ -935,7 +939,7 @@ func (g *GitRunner) GetDefaultBranchLocal(ctx context.Context) (string, error) {
 		return "", &WrappedError{
 			Op:      "git_rev_parse_origin_head",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     ErrGitCommand,
 		}
 	}
 
@@ -972,7 +976,7 @@ func (g *GitRunner) GetDefaultBranchRemote(ctx context.Context) (string, error) 
 // `git ls-remote --symref`. remote is a URL or the name of a remote in the
 // working-directory repository.
 //
-// Returns [ErrCommandSpawn] when git fails, and [ErrNoMatchingReference] when
+// Returns [ErrGitCommand] when git fails, and [ErrNoMatchingReference] when
 // remote does not advertise HEAD as a symbolic ref to a branch.
 func (g *GitRunner) LsRemoteDefaultBranch(ctx context.Context, remote string) (string, error) {
 	cmd := g.prepareCommand(ctx, "ls-remote", "--symref", "--", remote, "HEAD")
@@ -986,7 +990,7 @@ func (g *GitRunner) LsRemoteDefaultBranch(ctx context.Context, remote string) (s
 		return "", &WrappedError{
 			Op:      "git_ls_remote_symref",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     ErrGitCommand,
 		}
 	}
 
@@ -1032,7 +1036,7 @@ func (g *GitRunner) SetRemoteHeadAuto(ctx context.Context) error {
 		return &WrappedError{
 			Op:      "git_remote_set_head",
 			Context: stderr.String(),
-			Err:     ErrCommandSpawn,
+			Err:     ErrGitCommand,
 		}
 	}
 
@@ -1077,7 +1081,7 @@ func (g *GitRunner) Add(ctx context.Context, paths ...string) error {
 		return &WrappedError{
 			Op:      "git_add",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -1106,7 +1110,7 @@ func (g *GitRunner) Commit(ctx context.Context, message string, flags ...string)
 		return &WrappedError{
 			Op:      "git_commit",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -1135,7 +1139,7 @@ func (g *GitRunner) Checkout(ctx context.Context, branch string, create bool) er
 		return &WrappedError{
 			Op:      "git_checkout",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
@@ -1158,11 +1162,88 @@ func (g *GitRunner) ConfigSet(ctx context.Context, name, value string) error {
 		return &WrappedError{
 			Op:      "git_config_set",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
 	return nil
+}
+
+// RemoteAdd runs `git remote add` in the working directory, naming url as the
+// remote called name.
+func (g *GitRunner) RemoteAdd(ctx context.Context, name, url string) error {
+	return g.runInWorkDir(ctx, "git_remote_add", "remote", "add", name, "--", url)
+}
+
+// FetchTags runs `git fetch --tags` against remote in the working directory.
+func (g *GitRunner) FetchTags(ctx context.Context, remote string) error {
+	return g.runInWorkDir(ctx, "git_fetch_tags", "fetch", "--tags", "--", remote)
+}
+
+// ResetHard runs `git reset --hard` to ref in the working directory.
+func (g *GitRunner) ResetHard(ctx context.Context, ref string) error {
+	return g.runInWorkDir(ctx, "git_reset_hard", "reset", "--hard", ref)
+}
+
+// PullFastForward runs `git pull --ff-only` for ref from remote in the working
+// directory. A positive depth adds --depth.
+func (g *GitRunner) PullFastForward(ctx context.Context, remote, ref string, depth int) error {
+	args := []string{"pull", remote}
+
+	if depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(depth))
+	}
+
+	args = append(args, "--ff-only", "--", ref)
+
+	return g.runInWorkDir(ctx, "git_pull", args...)
+}
+
+// SubmoduleUpdate runs `git submodule update --init --recursive` in the
+// working directory. A positive depth adds --depth.
+func (g *GitRunner) SubmoduleUpdate(ctx context.Context, depth int) error {
+	args := []string{"submodule", "update", "--init", "--recursive"}
+
+	if depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(depth))
+	}
+
+	return g.runInWorkDir(ctx, "git_submodule_update", args...)
+}
+
+// Version returns the version `git version` reports. A Git for Windows suffix
+// such as .windows.1 is dropped, since it does not parse as a version.
+func (g *GitRunner) Version(ctx context.Context) (*semver.Version, error) {
+	cmd := g.prepareCommand(ctx, "version")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_version",
+			Context: stderr.String(),
+			Err:     errors.Join(ErrGitCommand, err),
+		}
+	}
+
+	const versionField = 2
+
+	fields := strings.Fields(stdout.String())
+	if len(fields) <= versionField {
+		return nil, &WrappedError{Op: "git_version", Context: stdout.String(), Err: ErrParseVersion}
+	}
+
+	raw, _, _ := strings.Cut(fields[versionField], ".windows.")
+
+	version, err := semver.Parse(raw)
+	if err != nil {
+		return nil, &WrappedError{Op: "git_version", Context: raw, Err: errors.Join(ErrParseVersion, err)}
+	}
+
+	return version, nil
 }
 
 // fetch runs `git fetch` with args placed ahead of the remote and refspec.
@@ -1192,6 +1273,30 @@ func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) 
 			Op:      "git_fetch",
 			Context: stderr.String(),
 			Err:     errors.Join(ErrGitFetch, err),
+		}
+	}
+
+	return nil
+}
+
+// runInWorkDir runs git with args in the working directory, reporting a
+// failure as op with git's stderr attached.
+func (g *GitRunner) runInWorkDir(ctx context.Context, op string, args ...string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
+	cmd := g.prepareCommand(ctx, args[0], args[1:]...)
+
+	var stderr bytes.Buffer
+
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		return &WrappedError{
+			Op:      op,
+			Context: stderr.String(),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 

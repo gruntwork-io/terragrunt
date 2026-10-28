@@ -413,7 +413,12 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger, v *venv.Venv) error {
 		Context:    ctx,
 	}
 
-	if repo.cloneCompleted(v.FS) {
+	completed, err := repo.cloneCompleted(v.FS)
+	if err != nil {
+		return err
+	}
+
+	if completed {
 		l.Debugf("The repo dir exists and %q exists. Skipping cloning.", CloneCompleteSentinel)
 
 		return nil
@@ -457,7 +462,12 @@ func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
 	repo.path = filepath.Join(cloneRoot, repoName)
 
 	// Clean up incomplete clones
-	if repo.shouldCleanupIncompleteClone(fsys) {
+	cleanup, err := repo.shouldCleanupIncompleteClone(fsys)
+	if err != nil {
+		return err
+	}
+
+	if cleanup {
 		l.Debugf(
 			"The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.",
 			CloneCompleteSentinel,
@@ -542,14 +552,22 @@ func (repo *Repo) extractRepoName() string {
 	return repoName
 }
 
-func (repo *Repo) shouldCleanupIncompleteClone(fsys vfs.FS) bool {
-	exists, _ := vfs.FileExists(fsys, repo.path)
-	return exists && !repo.cloneCompleted(fsys)
+func (repo *Repo) shouldCleanupIncompleteClone(fsys vfs.FS) (bool, error) {
+	exists, err := vfs.FileExists(fsys, repo.path)
+	if err != nil || !exists {
+		return false, err
+	}
+
+	completed, err := repo.cloneCompleted(fsys)
+	if err != nil {
+		return false, err
+	}
+
+	return !completed, nil
 }
 
-func (repo *Repo) cloneCompleted(fsys vfs.FS) bool {
-	exists, _ := vfs.FileExists(fsys, filepath.Join(repo.path, CloneCompleteSentinel))
-	return exists
+func (repo *Repo) cloneCompleted(fsys vfs.FS) (bool, error) {
+	return vfs.FileExists(fsys, filepath.Join(repo.path, CloneCompleteSentinel))
 }
 
 func (repo *Repo) performClone(
@@ -588,7 +606,7 @@ func (repo *Repo) performClone(
 	sourceURL.RawQuery = q.Encode()
 
 	cloneFunc := func() error {
-		_, err = client.Get(ctx, &getter.Request{
+		_, err = getter.Download(ctx, client, &getter.Request{
 			Src:     sourceURL.String(),
 			Dst:     repo.path,
 			GetMode: getter.ModeDir,

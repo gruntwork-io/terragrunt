@@ -134,6 +134,11 @@ const (
 	// MCPCommand gates the `terragrunt mcp` command, which serves Terragrunt
 	// operations to AI agents over the Model Context Protocol.
 	MCPCommand = "mcp-command"
+	// NoDotTerragruntCache gates the terraform.no_dot_terragrunt_cache
+	// attribute, which skips copying the unit source to .terragrunt-cache and
+	// runs OpenTofu/Terraform directly from the unit directory when no source
+	// is configured.
+	NoDotTerragruntCache = "no-dot-terragrunt-cache"
 )
 
 const (
@@ -274,6 +279,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: MCPCommand,
+		},
+		{
+			Name: NoDotTerragruntCache,
 		},
 	}
 }

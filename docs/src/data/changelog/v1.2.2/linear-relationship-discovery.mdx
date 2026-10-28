@@ -1,0 +1,19 @@
+---
+version: "v1.2.2"
+category: "performance-improvements"
+---
+
+#### Faster dependency discovery in large repositories
+
+`run --all`, and `find` or `list` with `--dependencies`, are faster in large repositories, including ones with no `dependency` blocks. The time spent linking units to their dependencies now grows linearly with the number of units instead of quadratically.
+
+In [benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/discovery/benchmark_relationship_test.go) on an AMD Ryzen AI Max+ 395, discovering units and their dependencies in a generated repository of 10-unit dependency chains:
+
+| units | before | after |
+| --- | --- | --- |
+| 10 | 0.63ms | 0.63ms |
+| 100 | 5.2ms | 5.0ms |
+| 1,000 | 56ms | 47ms |
+| 10,000 | 1.32s | 443ms |
+
+At 10,000 units, memory allocated during discovery dropped from 8.6 GB to 1.9 GB.

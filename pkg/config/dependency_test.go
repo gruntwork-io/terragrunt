@@ -565,3 +565,129 @@ dependency "vpc" {
 	assert.Equal(t, "vpc[a]", typed.FirstAddress)
 	assert.Equal(t, "vpc[b]", typed.SecondAddress)
 }
+
+// parseDependencyConfigPath parses a unit at /repo/app whose dependency "db" has the given
+// config_path arguments, over a tree that holds files. It enables the strict controls named.
+func parseDependencyConfigPath(
+	t *testing.T,
+	files map[string]string,
+	args string,
+	strictControls ...string,
+) (*config.TerragruntConfig, error) {
+	t.Helper()
+
+	root := venvtest.Root("/repo")
+	configPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+
+	v := venvtest.New().WithFS(venvtest.NewFS(t, root, files))
+	ctx, pctx := newTestParsingContext(t, configPath)
+
+	for _, name := range strictControls {
+		control := pctx.StrictControls.Find(name)
+		require.NotNil(t, control)
+		control.Enable()
+	}
+
+	return config.PartialParseConfigString(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		pctx.WithDecodeList(config.DependencyBlock),
+		configPath,
+		"dependency \"db\" {\n"+args+"\n}\n",
+		nil,
+	)
+}
+
+// TestDependencyConfigPathFileWarnsByDefault pins that a config_path naming a file still
+// parses, since such configs have always run.
+//
+// This is deprecated functionality: a file config_path is undocumented and deprecated behind the
+// dependency-config-path-file strict control. It stays working for backwards compatibility
+// through Terragrunt 1.x.
+func TestDependencyConfigPathFileWarnsByDefault(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseDependencyConfigPath(
+		t,
+		map[string]string{"db/custom.hcl": ""},
+		`config_path = "../db/custom.hcl"`,
+	)
+
+	require.NoError(t, err)
+	assert.Len(t, cfg.TerragruntDependencies, 1)
+}
+
+// TestDependencyConfigPathFileStrictControl pins which config_path values the
+// dependency-config-path-file strict control rejects.
+func TestDependencyConfigPathFileStrictControl(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		files    map[string]string
+		name     string
+		args     string
+		wantFile string
+	}{
+		{
+			name:     "configuration with another name",
+			files:    map[string]string{"db/custom.hcl": ""},
+			args:     `config_path = "../db/custom.hcl"`,
+			wantFile: "../db/custom.hcl",
+		},
+		{
+			name:     "configuration with the default name",
+			files:    map[string]string{"db/terragrunt.hcl": ""},
+			args:     `config_path = "../db/terragrunt.hcl"`,
+			wantFile: "../db/terragrunt.hcl",
+		},
+		{
+			name:     "stack file",
+			files:    map[string]string{"db/terragrunt.stack.hcl": ""},
+			args:     `config_path = "../db/terragrunt.stack.hcl"`,
+			wantFile: "../db/terragrunt.stack.hcl",
+		},
+		{
+			name:  "unit directory",
+			files: map[string]string{"db/terragrunt.hcl": ""},
+			args:  `config_path = "../db"`,
+		},
+		{
+			name:  "stack directory",
+			files: map[string]string{"db/terragrunt.stack.hcl": ""},
+			args:  `config_path = "../db"`,
+		},
+		{
+			name: "path that does not exist",
+			args: `config_path = "../db/custom.hcl"`,
+		},
+		{
+			name:  "disabled dependency",
+			files: map[string]string{"db/custom.hcl": ""},
+			args:  "config_path = \"../db/custom.hcl\"\nenabled = false",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := parseDependencyConfigPath(
+				t,
+				tc.files,
+				tc.args,
+				controls.DependencyConfigPathFile,
+			)
+			if tc.wantFile == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var typed config.DependencyConfigPathFileError
+			require.ErrorAs(t, err, &typed)
+			assert.Equal(t, "db", typed.Address)
+			assert.Equal(t, tc.wantFile, typed.DependencyPath)
+		})
+	}
+}

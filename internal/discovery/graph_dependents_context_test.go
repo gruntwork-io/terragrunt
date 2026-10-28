@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -62,7 +63,7 @@ func TestGraphPhase_UpstreamCandidateContextOwnership(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
-		Discover(t.Context(), l, v, opts)
+		Discover(config.WithCaches(t.Context()), l, v, opts)
 	require.NoError(t, err)
 
 	origins := make(map[string]component.Origin, len(components))
@@ -122,7 +123,7 @@ func TestGraphPhase_UpstreamCandidateKeepsDestroyFlag(t *testing.T) {
 				}).
 				WithGitRoot(corpusRepoRoot).
 				WithFilters(filters).
-				Discover(t.Context(), l, v, opts)
+				Discover(config.WithCaches(t.Context()), l, v, opts)
 			require.NoError(t, err)
 
 			idx := slices.IndexFunc(components, func(c component.Component) bool {
@@ -189,7 +190,7 @@ func TestGraphPhase_UpstreamCandidateBailKeepsExternalMark(t *testing.T) {
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
 		WithSuppressParseErrors().
-		Discover(t.Context(), l, v, opts)
+		Discover(config.WithCaches(t.Context()), l, v, opts)
 	require.NoError(t, err)
 
 	paths := components.Paths()

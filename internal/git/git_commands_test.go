@@ -44,7 +44,7 @@ func TestNewGitRunner(t *testing.T) {
 		)
 
 		runner, err := git.NewGitRunner(venvtest.New().WithExec(e))
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
+		require.ErrorIs(t, err, git.ErrGitCommand)
 		assert.Nil(t, runner)
 	})
 }
@@ -74,7 +74,7 @@ func TestGitRunner_LsRemoteTags(t *testing.T) {
 		{
 			name:    "command failure",
 			exit:    128,
-			wantErr: git.ErrCommandSpawn,
+			wantErr: git.ErrGitCommand,
 		},
 	}
 
@@ -126,7 +126,7 @@ func TestGitRunner_LocalTags(t *testing.T) {
 		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
 
 		_, err := runner.LocalTags(t.Context())
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
+		require.ErrorIs(t, err, git.ErrGitCommand)
 	})
 }
 
@@ -339,7 +339,7 @@ func TestGitRunner_RevParseCommit(t *testing.T) {
 			name:    "spawn failure",
 			workDir: "/repo",
 			result:  vexec.Result{Err: errors.New("spawn failed")},
-			wantErr: git.ErrCommandSpawn,
+			wantErr: git.ErrGitCommand,
 		},
 		{
 			name:    "missing workdir",
@@ -405,7 +405,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
 				"worktree", "add", "--detach", "/worktree", "HEAD",
 			},
-			wantErr: git.ErrCommandSpawn,
+			wantErr: git.ErrGitCommand,
 		},
 		{
 			name: "create detached without checkout",
@@ -422,7 +422,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
 				"worktree", "add", "--detach", "--no-checkout", "/worktree", "HEAD",
 			},
-			wantErr: git.ErrCommandSpawn,
+			wantErr: git.ErrGitCommand,
 		},
 		{
 			name: "checkout paths",
@@ -433,7 +433,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
 				"checkout", "HEAD", "--", "unit",
 			},
-			wantErr: git.ErrCommandSpawn,
+			wantErr: git.ErrGitCommand,
 		},
 		{
 			name: "checkout whole tree",
@@ -444,7 +444,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
 				"checkout", "--force", "HEAD",
 			},
-			wantErr: git.ErrCommandSpawn,
+			wantErr: git.ErrGitCommand,
 		},
 		{
 			name: "remove",
@@ -452,7 +452,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 				return runner.RemoveWorktree(ctx, "/worktree")
 			},
 			args:    []string{"worktree", "remove", "--force", "/worktree"},
-			wantErr: git.ErrCommandSpawn,
+			wantErr: git.ErrGitCommand,
 		},
 	}
 
@@ -507,7 +507,7 @@ func TestGitRunner_Init(t *testing.T) {
 
 		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
 		err := runner.Init(t.Context())
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
+		require.ErrorIs(t, err, git.ErrGitCommand)
 	})
 
 	t.Run("missing workdir", func(t *testing.T) {
@@ -585,7 +585,7 @@ func TestGitRunner_ConfigAndRepositoryState(t *testing.T) {
 		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 1})).WithWorkDir("/repo")
 
 		_, err := runner.Config(t.Context(), "test.key")
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
+		require.ErrorIs(t, err, git.ErrGitCommand)
 	})
 
 	t.Run("config missing workdir", func(t *testing.T) {
@@ -712,7 +712,7 @@ func TestGitRunner_GetDefaultBranchLocal(t *testing.T) {
 			name:    "command failure",
 			workDir: "/repo",
 			result:  vexec.Result{ExitCode: 128},
-			wantErr: git.ErrCommandSpawn,
+			wantErr: git.ErrGitCommand,
 		},
 		{
 			name:    "missing workdir",
@@ -775,7 +775,7 @@ func TestGitRunner_GetDefaultBranchRemote(t *testing.T) {
 			name:    "command failure",
 			workDir: "/repo",
 			result:  vexec.Result{ExitCode: 128},
-			wantErr: git.ErrCommandSpawn,
+			wantErr: git.ErrGitCommand,
 		},
 		{
 			name:    "missing workdir",
@@ -913,7 +913,7 @@ func TestGitRunner_SetRemoteHeadAuto(t *testing.T) {
 
 		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 1})).WithWorkDir("/repo")
 		err := runner.SetRemoteHeadAuto(t.Context())
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
+		require.ErrorIs(t, err, git.ErrGitCommand)
 	})
 
 	t.Run("missing workdir", func(t *testing.T) {
@@ -999,7 +999,7 @@ func TestGitRunner_MutationCommandFailures(t *testing.T) {
 
 			runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 1})).WithWorkDir("/repo")
 			err := tc.invoke(t.Context(), runner)
-			require.ErrorIs(t, err, git.ErrCommandSpawn)
+			require.ErrorIs(t, err, git.ErrGitCommand)
 		})
 
 		t.Run(tc.name+" missing workdir", func(t *testing.T) {

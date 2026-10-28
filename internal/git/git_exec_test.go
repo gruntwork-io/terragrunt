@@ -52,7 +52,7 @@ func TestExecGitRunner_LsRemote(t *testing.T) {
 
 		var wrappedErr *git.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, git.ErrCommandSpawn)
+		assert.ErrorIs(t, wrappedErr.Err, git.ErrGitCommand)
 	})
 
 	t.Run("nonexistent reference", func(t *testing.T) {

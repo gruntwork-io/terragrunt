@@ -1160,7 +1160,7 @@ inputs = {
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
 	ctx, pctx := newTestParsingContext(t, consumerPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 
 	return ctx, v, pctx, consumerPath

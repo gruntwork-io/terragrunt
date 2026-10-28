@@ -18,6 +18,7 @@ linters:
     - contextcheck
     - depguard
     - dupl
+    - dupword
     - durationcheck
     - errchkjson
     - errorlint
@@ -25,15 +26,18 @@ linters:
     - fatcontext
     - forbidigo
     - gocheckcompilerdirectives
+    - godoclint
     - gochecksumtype
     - goconst
     - gocritic
     - gosmopolitan
+    - intrange
     - lll
     - loggercheck
     - makezero
     - misspell
     - mnd
+    - modernize
     - musttag
     - nilerr
     - nilnesserr
@@ -42,8 +46,10 @@ linters:
     - paralleltest
     - perfsprint
     - prealloc
+    - predeclared
     - protogetter
     - reassign
+    - revive
     - rowserrcheck
     - spancheck
     - sqlclosecheck
@@ -55,6 +61,7 @@ linters:
     - tparallel
     - unconvert
     - unparam
+    - usestdlibvars
     - usetesting
     - wastedassign
     - wsl_v5
@@ -205,14 +212,15 @@ linters:
         - pattern: ^storage\.NewClient$
           pkg: ^cloud.google.com/go/storage$
           msg: build the GCS client via gcphelper.NewGCPConfigBuilder so requests ride the venv's HTTP client
+        - pattern: ^aws\.(String|Bool)$
+          pkg: ^github.com/aws/aws-sdk-go-v2/aws$
+          msg: build the pointer with new("value") or new(true) instead of an aws pointer helper
         - pattern: ^testing\.(T|B|F|TB)\.(Error|Errorf|Fatal|Fatalf|Fail|FailNow)$
           pkg: ^testing$
           msg: fail through testify's require or assert instead of the testing.TB failure methods
     errcheck:
       check-type-assertions: false
-      check-blank: false
-      exclude-functions:
-        - (*os.File).Close
+      check-blank: true
     errorlint:
       errorf: true
       asserts: true
@@ -236,11 +244,13 @@ linters:
         - fieldalignment
         - printf
         - unusedwrite
-    nakedret:
-      max-func-lines: 20
     nolintlint:
       require-explanation: true
       require-specific: true
+    revive:
+      rules:
+        - name: early-return
+        - name: indent-error-flow
     staticcheck:
       checks:
         - all
@@ -260,10 +270,8 @@ linters:
       - linters:
           - dupl
           - errcheck
-          - gocyclo
           - mnd
           - unparam
-          - wsl
         path: _test\.go
       # Tests frequently drive real fixtures on disk, so tests
       # are allowed to bypass venv. The text match lifts only the venv rules,
@@ -331,6 +339,13 @@ linters:
           - unused
           - wsl_v5
         path: ^(internal/github/|test/integration_docs_test\.go$)
+
+      # Command packages are named after the subcommand they implement, and
+      # these two subcommands share a name with a builtin.
+      - linters:
+          - predeclared
+        text: "^package name (delete|print) "
+        path: ^internal/cli/commands/(backend/delete|info/print)/
 
       # We end up with duplicated content in this package to save us from duplicating code in other packages.
       - linters:

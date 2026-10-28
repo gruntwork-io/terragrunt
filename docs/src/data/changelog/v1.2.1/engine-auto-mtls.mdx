@@ -1,0 +1,12 @@
+---
+version: "v1.2.1"
+category: "experiments-updated"
+---
+
+#### `iac-engine` — Terragrunt and engines authenticate each other with mutual TLS
+
+Terragrunt now starts each engine with a one-time client certificate in `PLUGIN_CLIENT_CERT`, and the engine replies with a one-time certificate of its own. The connection is encrypted, and each side accepts only the other's certificate. Engines built on the `hashicorp/go-plugin` server, including `terragrunt-engine-opentofu`, need no changes. An engine that implements the handshake itself must support this, or its runs fail with:
+
+```
+rpc error: code = Unavailable desc = connection error: desc = "transport: authentication handshake failed: tls: first record does not look like a TLS handshake"
+```

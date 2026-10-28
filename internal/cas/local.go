@@ -3,6 +3,7 @@ package cas
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -233,9 +234,7 @@ func hashFileAlg(fsys vfs.FS, path string, alg HashAlgorithm) (string, error) {
 	h := alg.NewHash()
 
 	if _, err := io.Copy(h, file); err != nil {
-		_ = file.Close()
-
-		return "", err
+		return "", errors.Join(err, file.Close())
 	}
 
 	if err := file.Close(); err != nil {

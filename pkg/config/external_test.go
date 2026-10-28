@@ -433,7 +433,7 @@ inputs = {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 	cfg, err := config.ParseConfigString(
@@ -470,7 +470,7 @@ unit "db" {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
@@ -514,7 +514,7 @@ unit "db" {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
@@ -556,7 +556,7 @@ unit "db" {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
@@ -602,7 +602,7 @@ region   = "us-west-2"
 		os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644),
 	)
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
@@ -649,7 +649,7 @@ region = "eu-west-1"
 		os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644),
 	)
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 

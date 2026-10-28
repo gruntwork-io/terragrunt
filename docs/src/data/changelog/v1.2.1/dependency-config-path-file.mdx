@@ -1,0 +1,35 @@
+---
+version: "v1.2.1"
+category: "strict-controls-added"
+---
+
+#### `dependency-config-path-file` strict control
+
+A `dependency` block could set `config_path` to a configuration file instead of the directory of a unit or stack:
+
+```hcl
+dependency "db" {
+  config_path = "../db/terragrunt.hcl"
+}
+```
+
+This was never documented, and Terragrunt supported it inconsistently. Existing support will be retained for v1.x for backwards compatibility, to obey the [Terragrunt 1.0 guarantees](/process/1-0-guarantees#hcl-configurations).
+
+Setting `config_path` to a file is now deprecated. Terragrunt warns when it finds one, then names each block once:
+
+```
+WARN  Setting the `config_path` of a `dependency` block to a file is deprecated and will be removed in a future version of Terragrunt. Set it to the directory of the unit or stack instead.
+WARN  /path/to/terragrunt.hcl: dependency db sets config_path to the file ../db/terragrunt.hcl; set it to the directory of the unit or stack
+```
+
+With the new [`dependency-config-path-file`](/reference/strict-controls/active#dependency-config-path-file) strict control enabled, each of those blocks is an error instead:
+
+```bash
+terragrunt run plan --strict-control dependency-config-path-file
+```
+
+```text
+/path/to/terragrunt.hcl: dependency db sets config_path to the file ../db/terragrunt.hcl; set it to the directory of the unit or stack
+```
+
+Set `config_path` to the directory of the configuration, e.g. `../db`. The `dependency-config-path-file` control is also part of the `deprecated-configs` group.

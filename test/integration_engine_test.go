@@ -3,6 +3,7 @@
 package test_test
 
 import (
+	"encoding/pem"
 	"fmt"
 
 	"os"
@@ -609,6 +610,38 @@ func setupLocalEngine(t *testing.T) string {
 	)
 
 	return rootPath
+}
+
+func TestEngineReceivesAutoMTLSClientCertificate(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalEngine)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalEngine)
+
+	certFile := filepath.Join(rootPath, "client-cert")
+	enginePath := filepath.Join(rootPath, "record-cert-engine")
+	script := "#!/bin/sh\nprintf '%s' \"$PLUGIN_CLIENT_CERT\" > '" + certFile + "'\n"
+	require.NoError(t, os.WriteFile(enginePath, []byte(script), 0o755))
+
+	helpers.CopyAndFillMapPlaceholders(
+		t,
+		filepath.Join(testFixtureLocalEngine, "terragrunt.hcl"),
+		filepath.Join(rootPath, config.DefaultTerragruntConfigPath),
+		map[string]string{"__engine_source__": enginePath},
+	)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --experiment iac-engine --non-interactive --working-dir "+rootPath+" -- plan",
+	)
+	require.Error(t, err)
+
+	cert, err := os.ReadFile(certFile)
+	require.NoError(t, err)
+
+	block, _ := pem.Decode(cert)
+	require.NotNil(t, block, "the engine was given no PEM client certificate")
+	assert.Equal(t, "CERTIFICATE", block.Type)
 }
 
 // testEngineVersion returns the version of the engine to be used in the test

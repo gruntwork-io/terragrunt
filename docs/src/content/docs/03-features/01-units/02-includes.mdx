@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 ## Motivation
 
@@ -15,6 +16,9 @@ it quickly becomes important to define base Terragrunt configuration files that 
 that all units have a consistent configuration, and to avoid repeating the same configuration across multiple units.
 
 For example, you might have a **root** Terragrunt configuration that defines the remote state and provider configurations for all your units:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
 
 ```hcl
 # root.hcl
@@ -41,6 +45,68 @@ provider "aws" {
 EOF
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    location             = "eastus"
+    use_azuread_auth     = true
+  }
+}
+
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "azurerm" {
+  features {}
+
+  subscription_id = "00000000-0000-0000-0000-000000000000"
+}
+EOF
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "gcs"
+  config = {
+    project  = "my-project"
+    location = "us-central1"
+    bucket   = "my-tofu-state"
+    prefix   = path_relative_to_include()
+  }
+}
+
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "google" {
+  project = "my-project"
+  region  = "us-central1"
+
+  impersonate_service_account = "terragrunt@my-project.iam.gserviceaccount.com"
+}
+EOF
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 You can then include this in each of your **unit** `terragrunt.hcl` files using the `include` block for each
 infrastructure module you need to deploy:

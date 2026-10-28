@@ -154,7 +154,9 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 		})
 	}
 
-	_ = g.Wait()
+	if err := g.Wait(); err != nil {
+		return err
+	}
 
 	return errors.Join(errs...)
 }
@@ -202,7 +204,9 @@ func RunForFiles(
 		})
 	}
 
-	_ = g.Wait()
+	if err := g.Wait(); err != nil {
+		return err
+	}
 
 	return errors.Join(errs...)
 }

@@ -40,7 +40,7 @@ const ContextKey ctxKey = iota
 const (
 	DefaultMaxFoldersToCheck = 100
 
-	// no limits on parallelism by default (limited by GOPROCS)
+	// DefaultParallelism sets no limit on parallelism.
 	DefaultParallelism = math.MaxInt32
 
 	// TofuDefaultPath command to run tofu
@@ -49,7 +49,7 @@ const (
 	// TerraformDefaultPath just takes terraform from the path
 	TerraformDefaultPath = "terraform"
 
-	// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
+	// DefaultJSONOutName is the default name of the rendered JSON file written to the terragrunt config directory.
 	DefaultJSONOutName = "terragrunt_rendered.json"
 
 	DefaultSignalsFile = "error-signals.json"
