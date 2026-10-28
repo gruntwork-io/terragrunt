@@ -13,7 +13,7 @@ The experiment now draws a single progress line that is shared by every operatio
 | Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
 ```
 
-Terragrunt writes INFO log lines instead of drawing when it detects a CI environment, when `TERM` is `dumb`, when logs are in the `json` format, and for the repositories of `terragrunt catalog`. The animation drops the letters T and G into place in braille dots, and falls back to ASCII characters on terminals without a UTF-8 locale and on Windows consoles other than Windows Terminal.
+Terragrunt writes INFO log lines instead of drawing when it detects a CI environment, when `TERM` is `dumb`, when logs are in the `json` format, and for the repositories of `terragrunt catalog`. The animation drops the braille letters T (`⠞`) and G (`⠛`) into one character, and falls back to ASCII characters on terminals without a UTF-8 locale and on Windows consoles other than Windows Terminal.
 
 More operations are reported: unit discovery, fetching the outputs of `dependency` blocks, provider caching, waiting for new remote state resources, `stack generate` fetches, and lock waits.
 

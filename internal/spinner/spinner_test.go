@@ -25,11 +25,8 @@ import (
 const testThreshold = 50 * time.Millisecond
 
 // firstFrame is the first frame drawn on a UTF-8 terminal: the bottom dot of
-// the T at the top of the line.
-const firstFrame = "\u2808\u2800\u2800\u2800"
-
-// lettersFrame is the frame with the T and the G in place.
-const lettersFrame = "\u2839\u2801\u282f\u2837"
+// the braille T at the top of the cell.
+const firstFrame = "\u2801"
 
 func TestShowAfterFastOperationIsNotReported(t *testing.T) {
 	t.Parallel()
@@ -420,12 +417,12 @@ func TestProgressLineStaysOnOneRowWhateverTheMessageHolds(t *testing.T) {
 		{
 			name:    "wide characters are counted as two columns",
 			working: "Downloading " + strings.Repeat("\uff21\uff22", 10),
-			want:    firstFrame + " Downloading " + strings.Repeat("\uff21\uff22", 3) + "\uff21... (0s)",
+			want:    firstFrame + " Downloading " + strings.Repeat("\uff21\uff22", 4) + "... (0s)",
 		},
 		{
 			name:    "combining marks take no column",
 			working: "Cloning cafe\u0301 repo 0123456789 0123456789 0123456789",
-			want:    firstFrame + " Cloning cafe\u0301 repo 01234567... (0s)",
+			want:    firstFrame + " Cloning cafe\u0301 repo 0123456789 ... (0s)",
 		},
 	}
 
@@ -497,7 +494,7 @@ func TestProgressLineIsSharedAndLogsAreWrittenAroundIt(t *testing.T) {
 		require.Len(t, during, 2)
 		assert.True(t, strings.HasPrefix(during[0], "time="), during[0])
 		assert.Contains(t, during[0], `msg="unit-c: tofu init finished"`)
-		assert.Equal(t, lettersFrame+" Downloading source... (1s) +1 more", during[1])
+		assert.Equal(t, "\u2812 Downloading source... (1s) +1 more", during[1])
 
 		after := screenRows(term.Bytes(), 200)
 		require.Len(t, after, 3)
@@ -640,7 +637,7 @@ func TestProgressFramesFollowTheTerminal(t *testing.T) {
 	}
 }
 
-func TestProgressFramesDropTThenGAndLoop(t *testing.T) {
+func TestProgressFramesDropTThenGInOneCell(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -652,7 +649,7 @@ func TestProgressFramesDropTThenGAndLoop(t *testing.T) {
 			Working: "working",
 			Done:    "done",
 		}, func() error {
-			time.Sleep(2150 * time.Millisecond)
+			time.Sleep(2550 * time.Millisecond)
 
 			return nil
 		})
@@ -670,20 +667,20 @@ func TestProgressFramesDropTThenGAndLoop(t *testing.T) {
 
 		assert.Equal(t, []string{
 			firstFrame,
-			"⠐⠀⠀⠀",
-			"⠠⠀⠀⠀",
-			"⠨⠀⠀⠀",
-			"⠰⠀⠀⠀",
-			"⠹⠁⠀⠀",
-			"⠹⠁⠉⠉",
-			"⠹⠁⠒⠒",
-			"⠹⠁⠤⠤",
-			"⠹⠁⠥⠭",
-			"⠹⠁⠦⠶",
-			lettersFrame,
-			"⠲⠂⠖⠦",
-			"⠤⠄⠤⠄",
-			"⠀⠀⠀⠀",
+			"\u2802",
+			"\u2804",
+			"\u280d",
+			"\u2816",
+			"\u281e",
+			"\u2834",
+			"\u2820",
+			"\u2800",
+			"\u2809",
+			"\u2812",
+			"\u281b",
+			"\u2836",
+			"\u2824",
+			"\u2800",
 			firstFrame,
 		}, drawn)
 	})

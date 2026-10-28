@@ -1,7 +1,6 @@
 package spinner
 
 import (
-	"bytes"
 	"slices"
 	"strings"
 )
@@ -12,36 +11,28 @@ const minWidth = 20
 // windows is the GOOS value of the one platform whose consoles set no TERM.
 const windows = "windows"
 
-// dotRows is how many dots high a letter is: the rows of a six-dot braille cell.
+// dotRows is how many rows of dots a six-dot braille cell has.
 const dotRows = 3
 
-// holdFrames is how many frames the letters stay in place before they fall away.
-const holdFrames = 6
+// holdFrames is how many frames a letter stays in place before it falls away.
+const holdFrames = 5
 
 // blankCell is the braille cell with no dot raised.
 const blankCell = rune(0x2800)
 
-// cellDots are the bits a braille cell raises its dots with, by column of the
-// cell, then by row.
-var cellDots = [...][dotRows]rune{
-	{0x01, 0x02, 0x04},
-	{0x08, 0x10, 0x20},
+// cellDots are the bits a braille cell raises its dots with, by row of the
+// cell, then by column.
+var cellDots = [dotRows][2]rune{
+	{0x01, 0x08},
+	{0x02, 0x10},
+	{0x04, 0x20},
 }
 
-// letters are T and G, which fall onto the progress line one after the other,
-// drawn as rows of dots where '#' is a raised dot. Each is as wide as a whole
-// number of braille cells.
+// letters are the braille letters T (U+281E) and G (U+281B), drawn as rows of
+// dots where '#' is a raised dot. They fall into the cell one after the other.
 var letters = [][dotRows]string{
-	{
-		"###.",
-		".#..",
-		".#..",
-	},
-	{
-		"###.",
-		"#.##",
-		"####",
-	},
+	{".#", "##", "#."},
+	{"##", "##", ".."},
 }
 
 // unicodeFrames animate the progress line on a terminal that shows UTF-8.
@@ -106,93 +97,55 @@ func inCI(env map[string]string) bool {
 }
 
 // fallingFrames returns frames in which each of `letters` in turn falls into
-// place one row of dots at a time, the bottom row first. Once all of them are
-// in place they hold, then fall away through the bottom of the line.
+// the cell one row of dots at a time, the bottom row first, stays in place,
+// then falls away through the bottom of the cell.
 func fallingFrames(letters [][dotRows]string) []string {
-	var canvas [dotRows][]byte
-
-	for _, letter := range letters {
-		for row := range dotRows {
-			canvas[row] = append(canvas[row], bytes.Repeat([]byte{'.'}, len(letter[row]))...)
-		}
-	}
-
 	var frames []string
 
-	left := 0
-
 	for _, letter := range letters {
-		for row := dotRows - 1; row >= 0; row-- {
-			for at := range row + 1 {
-				falling := cloneCanvas(canvas)
-				copy(falling[at][left:], letter[row])
+		var landed rune
 
-				frames = append(frames, brailleCells(falling))
+		for row := dotRows - 1; row >= 0; row-- {
+			if !strings.Contains(letter[row], "#") {
+				continue
 			}
 
-			copy(canvas[row][left:], letter[row])
+			for at := range row + 1 {
+				frames = append(frames, string(blankCell|landed|rowDots(letter[row], at)))
+			}
+
+			landed |= rowDots(letter[row], row)
 		}
 
-		left += len(letter[0])
-	}
+		for range holdFrames {
+			frames = append(frames, string(blankCell|landed))
+		}
 
-	for range holdFrames {
-		frames = append(frames, brailleCells(canvas))
-	}
+		for drop := 1; drop <= dotRows; drop++ {
+			shifted := blankCell
 
-	for drop := 1; drop <= dotRows; drop++ {
-		frames = append(frames, brailleCells(shiftDown(canvas, drop)))
+			for row := range dotRows - drop {
+				shifted |= rowDots(letter[row], row+drop)
+			}
+
+			frames = append(frames, string(shifted))
+		}
 	}
 
 	return frames
 }
 
-// cloneCanvas returns a copy of `canvas` that can be drawn on without changing it.
-func cloneCanvas(canvas [dotRows][]byte) [dotRows][]byte {
-	var clone [dotRows][]byte
+// rowDots returns the bits that raise the dots of `pattern` on row `row` of a cell.
+func rowDots(pattern string, row int) rune {
+	var bits rune
 
-	for row := range dotRows {
-		clone[row] = slices.Clone(canvas[row])
-	}
-
-	return clone
-}
-
-// shiftDown returns `canvas` moved down by `drop` rows, with what moves past
-// the bottom row gone and the rows above it blank.
-func shiftDown(canvas [dotRows][]byte, drop int) [dotRows][]byte {
-	var shifted [dotRows][]byte
-
-	for row := range dotRows {
-		shifted[row] = bytes.Repeat([]byte{'.'}, len(canvas[row]))
-
-		if row >= drop {
-			copy(shifted[row], canvas[row-drop])
+	for column, bit := range cellDots[row] {
+		if pattern[column] == '#' {
+			bits |= bit
 		}
 	}
 
-	return shifted
-}
-
-// brailleCells returns `canvas` as braille cells, each one two columns of dots wide.
-func brailleCells(canvas [dotRows][]byte) string {
-	var cells strings.Builder
-
-	for left := 0; left < len(canvas[0]); left += len(cellDots) {
-		cell := blankCell
-
-		for column, bits := range cellDots {
-			for row, bit := range bits {
-				if left+column < len(canvas[row]) && canvas[row][left+column] == '#' {
-					cell |= bit
-				}
-			}
-		}
-
-		cells.WriteRune(cell)
-	}
-
-	return cells.String()
+	return bits
 }
 
 // firstSet returns the value of the first of names that env sets, or the empty string.
