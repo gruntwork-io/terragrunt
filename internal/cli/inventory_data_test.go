@@ -446,7 +446,7 @@ var cliInventory = cliCommand{
 		},
 		{
 			name:     "login",
-			category: commands.CatalogCommandsCategoryName,
+			category: commands.PortalCommandsCategoryName,
 			flags: []cliFlag{
 				{
 					names:             []string{"force"},
