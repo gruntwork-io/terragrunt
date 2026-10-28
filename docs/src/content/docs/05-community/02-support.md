@@ -8,7 +8,7 @@ sidebar:
 
 ## Github Discussions
 
-Search [Terragrunt GitHub Discussions](https://gruntwork-io/terragrunt/discussions) for existing questions or ask your own. [Gruntwork GitHub Discussions](https://github.com/gruntwork-io/knowledge-base/discussions) is a good place for general discussions and questions about Gruntwork tools.
+Search [Terragrunt GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) for existing questions or ask your own. [Gruntwork GitHub Discussions](https://github.com/gruntwork-io/knowledge-base/discussions) is a good place for general discussions and questions about Gruntwork tools.
 
 ## Join the Discord Community
 
