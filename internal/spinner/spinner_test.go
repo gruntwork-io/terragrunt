@@ -25,14 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testThreshold = 50 * time.Millisecond
-
-// firstFrame is the first frame drawn on a UTF-8 terminal: the bottom dot of
-// the braille T at the top of the cell.
-const firstFrame = "\u2801"
-
-// gutter is the column left of the frame that the cursor rests in.
-const gutter = " "
+const (
+	testThreshold = 50 * time.Millisecond
+	firstFrame    = "\u2801"
+	gutter        = " "
+)
 
 func TestShowAfterFastOperationIsNotReported(t *testing.T) {
 	t.Parallel()
@@ -1205,11 +1202,10 @@ func loggerOutput(l log.Logger) io.Writer {
 	return output
 }
 
-// csiPrefix matches a control sequence at the start of a text.
-var csiPrefix = regexp.MustCompile(`^\x1b\[[0-9;?]*[@-~]`)
-
-// csi matches every control sequence in a text.
-var csi = regexp.MustCompile(`\x1b\[[0-9;?]*[@-~]`)
+var (
+	csiPrefix = regexp.MustCompile(`^\x1b\[[0-9;?]*[@-~]`)
+	csi       = regexp.MustCompile(`\x1b\[[0-9;?]*[@-~]`)
+)
 
 // drawnSegments returns the text written to `stream` between carriage returns,
 // control sequences and log lines left out.

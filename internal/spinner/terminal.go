@@ -15,22 +15,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// frameInterval is how often the progress line is redrawn.
-const frameInterval = 100 * time.Millisecond
-
-// ellipsis ends a message that was cut to fit the terminal.
-const ellipsis = "..."
-
-// gutter is the column the cursor rests in, so a terminal that re-wraps the
-// line when it is made narrower moves the rest of it below the cursor.
-const gutter = " "
-
-// eraseDown erases from the cursor to the end of the screen.
-const eraseDown = "\x1b[J"
-
-// minMessageWidth is the fewest columns a message is cut down to. With less
-// room the line shows the frame and the elapsed time alone.
-const minMessageWidth = len(ellipsis) + 1
+const (
+	frameInterval   = 100 * time.Millisecond
+	ellipsis        = "..."
+	gutter          = " "
+	eraseDown       = "\x1b[J"
+	minMessageWidth = len(ellipsis) + 1
+)
 
 // terminal is the one progress line of a run. Every operation being reported
 // shares it, and so does every [guard] writing around it.
@@ -167,7 +158,9 @@ func (term *terminal) redraw(l log.Logger) {
 }
 
 // draw puts the progress line for `now` on the screen, erases what is left of
-// the line drawn before, and leaves the cursor at the start of the row. The
+// the line drawn before, and leaves the cursor in the gutter at the start of
+// the row. A terminal that re-wraps the line when it is made narrower then
+// moves the rest of it below the cursor, where the next erase reaches it. The
 // caller holds the lock.
 func (term *terminal) draw(now time.Time) {
 	if term.midLine || len(term.ops) == 0 {

@@ -18,12 +18,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// DefaultThreshold is how long an operation runs before it is reported.
-const DefaultThreshold = time.Second
+const (
+	// DefaultThreshold is how long an operation runs before it is reported.
+	DefaultThreshold = time.Second
 
-// keepaliveInterval is how often a log line repeats while an operation runs
-// with no progress line, so a CI system does not end the job for being silent.
-const keepaliveInterval = 30 * time.Second
+	keepaliveInterval = 30 * time.Second
+)
 
 // reporterKey is the context key a run's [Reporter] is stored under.
 type reporterKey struct{}

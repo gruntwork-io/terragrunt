@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// minWidth is the narrowest terminal a progress line is drawn on.
 const minWidth = 20
 
 var (

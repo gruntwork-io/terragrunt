@@ -66,7 +66,7 @@ To get log lines on a terminal, set `TERM=dumb` or `CI=true`.
 
 The units of a `run --all` share the one progress line: it names the operation that has been running the longest and counts the others, and the output of every unit is written above it. The repositories `terragrunt catalog` loads always report as log lines, because the catalog TUI owns the terminal while they load.
 
-On terminals with a UTF-8 locale and on Windows Terminal, the animation drops the braille letters T (`⠞`) and G (`⠛`) into one character, one after the other, and loops. Elsewhere it uses the characters `|`, `/`, `-` and `\`.
+The animation uses Unicode characters on terminals with a UTF-8 locale and on Windows Terminal, and the characters `|`, `/`, `-` and `\` elsewhere.
 
 The log lines are written at the INFO level. With `--log-level warn` or higher, or with `--log-disable`, nothing is reported, including the lines that keep a CI job alive.
 
