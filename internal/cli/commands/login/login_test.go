@@ -280,6 +280,11 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 				assert.Equal(t, tc.wantDrawn, strings.Contains(term.String(), waiting), term.String())
 				assert.Equal(t, tc.wantPrinted, strings.Contains(out.String(), waiting+"..."), out.String())
 				assert.NotContains(t, logs.String(), waiting, "the start of the wait is shown once")
+
+				if !tc.wantDrawn {
+					assert.NotContains(t, term.String(), "\x1b", "nothing is drawn where the wait cannot be drawn")
+				}
+
 				assert.Contains(t, out.String(), "Signed in as "+accountEmail)
 			})
 		})
