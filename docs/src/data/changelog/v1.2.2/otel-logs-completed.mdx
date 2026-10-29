@@ -19,7 +19,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.example.com:4318
 terragrunt run --all -- apply
 ```
 
-The OTLP exporters read the standard `OTEL_EXPORTER_OTLP_*` environment variables, and the `OTEL_BLRP_*` variables tune batching. See [OpenTelemetry](/troubleshooting/open-telemetry) for a local collector example, and [Debugging](/troubleshooting/debugging#logs-and-traces-in-grafana) to read logs next to traces in Grafana.
+The OTLP exporters read the standard `OTEL_EXPORTER_OTLP_*` environment variables, and the `OTEL_BLRP_*` variables tune batching. See [OpenTelemetry](/troubleshooting/open-telemetry#example-collection-of-traces-metrics-and-logs-in-grafana) for a Docker Compose example that shows traces, metrics, and logs in Grafana.
 
 Changes since the experiment:
 
