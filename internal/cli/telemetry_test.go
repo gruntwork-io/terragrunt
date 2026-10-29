@@ -44,6 +44,7 @@ func TestWrapWithTelemetryExportsLogsOfInterruptedRun(t *testing.T) {
 	testV := venvtest.New()
 	testV.Env["TG_TELEMETRY_TRACE_EXPORTER"] = "console"
 	testV.Env["TG_TELEMETRY_LOGS_EXPORTER"] = "console"
+	testV.Env["TG_EXPERIMENT"] = "otel-logs"
 
 	terragruntCommands := commands.New(l, opts, testV)
 	setCommandAction(func(context.Context, *clihelper.Context) error {
@@ -125,6 +126,7 @@ func TestWrapWithTelemetryBoundsShutdownWhenExportStalls(t *testing.T) {
 
 		testV := venvtest.New()
 		testV.Env["TG_TELEMETRY_LOGS_EXPORTER"] = "console"
+		testV.Env["TG_EXPERIMENT"] = "otel-logs"
 
 		terragruntCommands := commands.New(l, opts, testV)
 		setCommandAction(func(context.Context, *clihelper.Context) error {

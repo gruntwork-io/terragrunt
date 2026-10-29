@@ -168,7 +168,7 @@ func TestTFTelemetryLogsCorrelateWithSpans(t *testing.T) {
 			stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 				t,
 				v,
-				"terragrunt "+tt.args+" --non-interactive -no-color --working-dir "+workingDir,
+				"terragrunt "+tt.args+" --non-interactive --experiment otel-logs -no-color --working-dir "+workingDir,
 			)
 			require.Error(t, err)
 

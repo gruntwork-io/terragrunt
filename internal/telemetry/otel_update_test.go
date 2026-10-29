@@ -30,7 +30,7 @@ func TestCollectEmitsSpanAndMetric(t *testing.T) {
 	opts.Telemetry.MetricExporter = consoleExporter
 
 	tlm, err := telemetry.NewTelemeter(
-		t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry,
+		t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, tlm)
@@ -58,7 +58,7 @@ func TestCollectPropagatesError(t *testing.T) {
 	opts.Telemetry.MetricExporter = consoleExporter
 
 	tlm, err := telemetry.NewTelemeter(
-		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry,
+		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry, false,
 	)
 	require.NoError(t, err)
 
@@ -81,7 +81,7 @@ func TestCollectWithLoggerBindsContext(t *testing.T) {
 	l := logger.CreateLogger()
 
 	tlm, err := telemetry.NewTelemeter(
-		t.Context(), l, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry,
+		t.Context(), l, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry, false,
 	)
 	require.NoError(t, err)
 
@@ -113,7 +113,7 @@ func TestShutdownIdempotent(t *testing.T) {
 	opts.Telemetry.MetricExporter = consoleExporter
 
 	tlm, err := telemetry.NewTelemeter(
-		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry,
+		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry, false,
 	)
 	require.NoError(t, err)
 
@@ -155,7 +155,7 @@ func TestContextWithTelemeterRoundtrip(t *testing.T) {
 	opts.Telemetry.TraceExporter = consoleExporter
 
 	tlm, err := telemetry.NewTelemeter(
-		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry,
+		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry, false,
 	)
 	require.NoError(t, err)
 
@@ -175,7 +175,7 @@ func TestTelemeterConsoleOutputValidJSON(t *testing.T) {
 	opts.Telemetry.MetricExporter = consoleExporter
 
 	tlm, err := telemetry.NewTelemeter(
-		t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry,
+		t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, false,
 	)
 	require.NoError(t, err)
 
@@ -205,7 +205,7 @@ func TestNewTelemeterNoExporters(t *testing.T) {
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
 	tlm, err := telemetry.NewTelemeter(
-		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry,
+		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry, false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, tlm)

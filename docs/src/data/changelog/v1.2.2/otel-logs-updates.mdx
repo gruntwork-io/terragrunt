@@ -1,0 +1,15 @@
+---
+version: "v1.2.2"
+category: "experiments-updated"
+---
+
+#### `otel-logs` - More reliable log export
+
+The [`otel-logs`](/reference/experiments/active#otel-logs) experiment exports Terragrunt's logs as OpenTelemetry log records. This release makes the export more reliable:
+
+- Records logged outside a unit, such as by the run queue or the OpenTofu/Terraform output of a single-unit `run`, now link to the root command span instead of carrying no trace ID.
+- Buffered records are flushed when a run is interrupted, and the flush waits at most 30 seconds.
+- A failed trace or metric flush no longer drops buffered log records.
+- Record bodies no longer include ANSI color codes.
+
+The OTLP exporters read the standard `OTEL_EXPORTER_OTLP_*` environment variables, and the `OTEL_BLRP_*` variables tune batching. See [OpenTelemetry](/troubleshooting/open-telemetry#example-collection-of-traces-metrics-and-logs-with-docker-compose) for a Docker Compose example that sends traces to an OpenTelemetry collector and logs to Quickwit.

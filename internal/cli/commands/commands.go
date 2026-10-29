@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
@@ -156,7 +157,8 @@ const telemetryShutdownTimeout = 30 * time.Second
 // context setting and labels. If telemetry is disabled, just runs the command.
 //
 // The telemeter is created here rather than at app startup because command
-// actions run after the full CLI parse, so telemetry flags and env vars both apply.
+// actions run after the full CLI parse, so telemetry options and experiments
+// (such as otel-logs) are honored whether they were set via flags or env vars.
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -174,6 +176,7 @@ func WrapWithTelemetry(
 			cliCtx.App.Version,
 			cliCtx.App.Writer,
 			opts.Telemetry,
+			opts.Experiments.Evaluate(experiment.OtelLogs),
 		)
 		if err != nil {
 			return err

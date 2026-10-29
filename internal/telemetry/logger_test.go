@@ -455,7 +455,7 @@ func discardLogger() log.Logger {
 func newTestTelemeter(t *testing.T, l log.Logger, opts *options.TerragruntOptions) *telemetry.Telemeter {
 	t.Helper()
 
-	tlm, err := telemetry.NewTelemeter(t.Context(), l, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry)
+	tlm, err := telemetry.NewTelemeter(t.Context(), l, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry, true)
 	require.NoError(t, err)
 
 	return tlm

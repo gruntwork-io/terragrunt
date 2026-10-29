@@ -18,13 +18,16 @@ type Telemeter struct {
 	l log.Logger
 }
 
-// NewTelemeter sets up traces, metrics, and logs, skipping signals without an exporter.
+// NewTelemeter initializes the telemetry collector. The logs signal is gated by
+// enableLogs (wired to the otel-logs experiment) and stays inert when disabled,
+// regardless of any configured logs exporter.
 func NewTelemeter(
 	ctx context.Context,
 	l log.Logger,
 	appName, appVersion string,
 	writer io.Writer,
 	opts *Options,
+	enableLogs bool,
 ) (*Telemeter, error) {
 	tlm := &Telemeter{l: l}
 
@@ -44,16 +47,21 @@ func NewTelemeter(
 
 	tlm.Meter = meter
 
-	logger, err := NewLogger(ctx, appName, appVersion, writer, opts)
-	if err != nil {
-		return nil, errors.Join(err, tlm.Shutdown(ctx))
-	}
+	if enableLogs {
+		logger, err := NewLogger(ctx, appName, appVersion, writer, opts)
+		if err != nil {
+			return nil, errors.Join(err, tlm.Shutdown(ctx))
+		}
 
-	tlm.Logger = logger
+		tlm.Logger = logger
 
-	// Attach the hook to the root logger before commands clone it, so every logger exports.
-	if logger != nil {
-		l.SetOptions(log.WithHooks(logger.hook))
+		// Bridge Terragrunt's logrus-backed logger into the OpenTelemetry logs signal.
+		// We attach to the root logger before any command loggers are cloned from it
+		// (clones copy hooks by reference at clone time), so every downstream logger
+		// inherits the hook and emits records correlated to the active span.
+		if logger != nil {
+			l.SetOptions(log.WithHooks(logger.hook))
+		}
 	}
 
 	return tlm, nil

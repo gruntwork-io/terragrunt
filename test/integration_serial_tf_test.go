@@ -632,7 +632,7 @@ func TestTFTerragruntProduceTelemetryLogs(t *testing.T) {
 
 	output, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+		"terragrunt apply -auto-approve --non-interactive --experiment otel-logs --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
