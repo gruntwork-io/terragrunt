@@ -16,7 +16,6 @@ var (
 	ciMarkers   = []string{"TF_BUILD", "TEAMCITY_VERSION", "JENKINS_URL", "TF_IN_AUTOMATION"}
 )
 
-// animatable reports whether the progress line can be drawn.
 func animatable(opts *Options) bool {
 	if !opts.OutIsTTY || !opts.LogsForHumans {
 		return false
@@ -56,7 +55,6 @@ func frames(env map[string]string, goos string) []string {
 	return slices.Clone(asciiFrames)
 }
 
-// inCI reports whether env is from a CI system.
 func inCI(env map[string]string) bool {
 	switch strings.ToLower(strings.TrimSpace(env["CI"])) {
 	case "", "0", "false", "no", "off":

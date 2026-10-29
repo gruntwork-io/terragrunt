@@ -20,6 +20,7 @@ import (
 
 const progressBucket = "progress-state-bucket"
 
+// TestGCSBucketWaitProgress checks that the GCS bucket wait is reported only with a reporter.
 func TestGCSBucketWaitProgress(t *testing.T) {
 	t.Parallel()
 

@@ -790,7 +790,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 	}
 }
 
-// TestRunDiscoveryProgress checks that discovery is reported only with a reporter.
+// TestRunDiscoveryProgress checks that unit discovery is reported only with a reporter.
 func TestRunDiscoveryProgress(t *testing.T) {
 	t.Parallel()
 

@@ -902,7 +902,6 @@ func (client *Client) WaitUntilS3BucketExists(
 	})
 }
 
-// pollUntilS3BucketExists checks for the bucket until it exists or the retries run out.
 func (client *Client) pollUntilS3BucketExists(
 	ctx context.Context,
 	l log.Logger,

@@ -217,6 +217,7 @@ func newTestLogger(level log.Level) (log.Logger, *bytes.Buffer) {
 	return logger, buf
 }
 
+// TestWithOutputWrapper checks that the wrapper receives the current logger output.
 func TestWithOutputWrapper(t *testing.T) {
 	t.Parallel()
 

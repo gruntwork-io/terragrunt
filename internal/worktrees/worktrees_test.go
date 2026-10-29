@@ -954,7 +954,7 @@ func TestWorktreeCleanupWithCancelledContextWithRacing(t *testing.T) {
 	}
 }
 
-// TestNewWorktreesComparisonProgress checks that the Git comparison is reported only with a reporter.
+// TestNewWorktreesComparisonProgress checks that the Git reference comparison is reported only with a reporter.
 func TestNewWorktreesComparisonProgress(t *testing.T) {
 	t.Parallel()
 
@@ -1055,7 +1055,6 @@ func TestNewWorktreesFailedCheckoutProgress(t *testing.T) {
 	assert.Empty(t, registeredWorktrees(t, tmpDir))
 }
 
-// failOnCheckoutExec fails every `git checkout` and passes other commands to the wrapped Exec.
 type failOnCheckoutExec struct {
 	vexec.Exec
 }

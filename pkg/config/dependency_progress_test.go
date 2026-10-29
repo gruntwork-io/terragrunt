@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDependencyOutputFetchProgress checks that only an uncached fetch with a reporter is reported.
+// TestDependencyOutputFetchProgress checks that only an uncached dependency fetch with a reporter is reported.
 func TestDependencyOutputFetchProgress(t *testing.T) {
 	t.Parallel()
 

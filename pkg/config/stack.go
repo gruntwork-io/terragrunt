@@ -679,7 +679,6 @@ type componentToGenerate struct {
 	kind         componentKind
 }
 
-// generateMessages returns the progress messages for generating cmp.
 func generateMessages(opts *generateOpts, cmp *componentToGenerate) spinner.Messages {
 	kindStr := "unit"
 	if cmp.kind == stackKind {

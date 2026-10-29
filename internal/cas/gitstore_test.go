@@ -192,7 +192,7 @@ func TestGitStoreEnsureRefLockReleaseAllowsWaiterToProceedWithRacing(t *testing.
 	require.NoError(t, repo2.Unlock())
 }
 
-// TestGitStoreEnsureRefLockWaitProgress checks that the lock wait is reported only with a reporter.
+// TestGitStoreEnsureRefLockWaitProgress checks that the Git store lock wait is reported only with a reporter.
 func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
 	t.Parallel()
 

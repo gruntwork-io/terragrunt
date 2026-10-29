@@ -1012,7 +1012,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	assert.Equal(t, mainTfContent, string(cachedContent), "File contents should match")
 }
 
-// TestDownloadTerraformSourceLockWaitProgress checks that the lock wait is reported only with a reporter.
+// TestDownloadTerraformSourceLockWaitProgress checks that the download dir lock wait is reported only with a reporter.
 func TestDownloadTerraformSourceLockWaitProgress(t *testing.T) {
 	t.Parallel()
 

@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestTerraformCommandHookProgress checks that the done line is logged only with a reporter.
+// TestTerraformCommandHookProgress checks that provider caching is reported only with a reporter.
 func TestTerraformCommandHookProgress(t *testing.T) {
 	t.Parallel()
 

@@ -94,7 +94,6 @@ stack "team" {
 				defer pool.Stop()
 
 				require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
-				// Wait for the workers before reading their logs.
 				require.NoError(t, pool.Wait())
 
 				lines := strings.Split(logs.String(), "\n")
@@ -119,7 +118,6 @@ stack "team" {
 	}
 }
 
-// slowDirFS sleeps for delay when creating each of dirs.
 type slowDirFS struct {
 	vfs.FS
 	dirs  []string

@@ -73,7 +73,6 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		defer reporter.GuardLogger(l)()
 	}
 
-	// If the wait cannot be drawn, print it so it shows at every log level.
 	if !reporter.Animated() {
 		if err := writeLine(w, msgs.Working+"..."); err != nil {
 			return err

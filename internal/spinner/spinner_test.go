@@ -31,6 +31,7 @@ const (
 	gutter        = " "
 )
 
+// TestShowAfterFastOperationIsNotReported checks that an operation faster than the threshold logs nothing.
 func TestShowAfterFastOperationIsNotReported(t *testing.T) {
 	t.Parallel()
 
@@ -50,6 +51,7 @@ func TestShowAfterFastOperationIsNotReported(t *testing.T) {
 	})
 }
 
+// TestShowAfterSlowOperationLogsWorkingThenDone checks that a slow operation logs the working line, then the done line.
 func TestShowAfterSlowOperationLogsWorkingThenDone(t *testing.T) {
 	t.Parallel()
 
@@ -75,6 +77,7 @@ func TestShowAfterSlowOperationLogsWorkingThenDone(t *testing.T) {
 	})
 }
 
+// TestShowAfterFailureLogsNoDone checks that a failed operation logs no done line.
 func TestShowAfterFailureLogsNoDone(t *testing.T) {
 	t.Parallel()
 
@@ -101,6 +104,7 @@ func TestShowAfterFailureLogsNoDone(t *testing.T) {
 	})
 }
 
+// TestShowAfterDoneHasElapsedTime checks that the done line has the elapsed time.
 func TestShowAfterDoneHasElapsedTime(t *testing.T) {
 	t.Parallel()
 
@@ -122,6 +126,7 @@ func TestShowAfterDoneHasElapsedTime(t *testing.T) {
 	})
 }
 
+// TestShowAfterKeepalive checks that the working line is repeated every 30 seconds.
 func TestShowAfterKeepalive(t *testing.T) {
 	t.Parallel()
 
@@ -149,6 +154,7 @@ func TestShowAfterKeepalive(t *testing.T) {
 	})
 }
 
+// TestShowAfterKeepaliveCountsFromStart checks that the 30-second lines are counted from the start of the operation.
 func TestShowAfterKeepaliveCountsFromStart(t *testing.T) {
 	t.Parallel()
 
@@ -210,6 +216,7 @@ func TestShowAfterKeepaliveCountsFromStart(t *testing.T) {
 	}
 }
 
+// TestShowAfterStartedLogsWorkingOnce checks that a working line already logged by the caller is not logged again.
 func TestShowAfterStartedLogsWorkingOnce(t *testing.T) {
 	t.Parallel()
 
@@ -236,6 +243,7 @@ func TestShowAfterStartedLogsWorkingOnce(t *testing.T) {
 	})
 }
 
+// TestShowAfterCancelledBeforeThreshold checks that an operation cancelled before the threshold logs nothing.
 func TestShowAfterCancelledBeforeThreshold(t *testing.T) {
 	t.Parallel()
 
@@ -260,6 +268,7 @@ func TestShowAfterCancelledBeforeThreshold(t *testing.T) {
 	})
 }
 
+// TestShowAfterCancelledLogsNoDone checks that an operation cancelled after it was reported logs no done line.
 func TestShowAfterCancelledLogsNoDone(t *testing.T) {
 	t.Parallel()
 
@@ -288,6 +297,7 @@ func TestShowAfterCancelledLogsNoDone(t *testing.T) {
 	})
 }
 
+// TestShowReportsImmediately checks that Show reports the operation without waiting for the threshold.
 func TestShowReportsImmediately(t *testing.T) {
 	t.Parallel()
 
@@ -311,6 +321,7 @@ func TestShowReportsImmediately(t *testing.T) {
 	}
 }
 
+// TestShowAfterWithoutReporter checks that without a reporter the operation only runs.
 func TestShowAfterWithoutReporter(t *testing.T) {
 	t.Parallel()
 
@@ -340,6 +351,7 @@ func TestShowAfterWithoutReporter(t *testing.T) {
 	})
 }
 
+// TestShowAfterUsesContextReporter checks that the package ShowAfter reports through the reporter on the context.
 func TestShowAfterUsesContextReporter(t *testing.T) {
 	t.Parallel()
 
@@ -363,6 +375,7 @@ func TestShowAfterUsesContextReporter(t *testing.T) {
 	})
 }
 
+// TestContextWithLogOnlyNeverDraws checks that a log-only context writes log lines and never draws.
 func TestContextWithLogOnlyNeverDraws(t *testing.T) {
 	t.Parallel()
 
@@ -392,6 +405,7 @@ func TestContextWithLogOnlyNeverDraws(t *testing.T) {
 	})
 }
 
+// TestProgressLineFormat checks that the line shows the frame, the message and the elapsed time.
 func TestProgressLineFormat(t *testing.T) {
 	t.Parallel()
 
@@ -424,6 +438,7 @@ func TestProgressLineFormat(t *testing.T) {
 	})
 }
 
+// TestProgressLineNeverWraps checks that a long message is cut to the terminal width.
 func TestProgressLineNeverWraps(t *testing.T) {
 	t.Parallel()
 
@@ -463,6 +478,7 @@ func TestProgressLineNeverWraps(t *testing.T) {
 	})
 }
 
+// TestProgressLineControlChars checks that tabs, line breaks and wide characters keep the line on one row.
 func TestProgressLineControlChars(t *testing.T) {
 	t.Parallel()
 
@@ -519,6 +535,7 @@ func TestProgressLineControlChars(t *testing.T) {
 	}
 }
 
+// TestProgressLineShared checks that running operations share one line and logs are written above it.
 func TestProgressLineShared(t *testing.T) {
 	t.Parallel()
 
@@ -570,6 +587,7 @@ func TestProgressLineShared(t *testing.T) {
 	})
 }
 
+// TestProgressLineClearedOnPanic checks that the line is cleared when the operation panics.
 func TestProgressLineClearedOnPanic(t *testing.T) {
 	t.Parallel()
 
@@ -601,6 +619,7 @@ func TestProgressLineClearedOnPanic(t *testing.T) {
 	})
 }
 
+// TestProgressFrames checks that the frames match the locale and the terminal.
 func TestProgressFrames(t *testing.T) {
 	t.Parallel()
 
@@ -701,6 +720,7 @@ func TestProgressFrames(t *testing.T) {
 	}
 }
 
+// TestProgressFramesUnicode checks that the Unicode frames draw T, then G, in one cell.
 func TestProgressFramesUnicode(t *testing.T) {
 	t.Parallel()
 
@@ -750,6 +770,7 @@ func TestProgressFramesUnicode(t *testing.T) {
 	})
 }
 
+// TestProgressWriteFailure checks that a failed terminal write is logged once and the operation still completes.
 func TestProgressWriteFailure(t *testing.T) {
 	t.Parallel()
 
@@ -777,6 +798,7 @@ func TestProgressWriteFailure(t *testing.T) {
 	})
 }
 
+// TestProgressLineTooNarrow checks that the line is not drawn once the terminal is too narrow.
 func TestProgressLineTooNarrow(t *testing.T) {
 	t.Parallel()
 
@@ -826,6 +848,7 @@ func TestProgressLineTooNarrow(t *testing.T) {
 	})
 }
 
+// TestProgressLineWaitsForPrompt checks that the line is held back until a prompt is answered.
 func TestProgressLineWaitsForPrompt(t *testing.T) {
 	t.Parallel()
 
@@ -896,6 +919,7 @@ func TestProgressLineWaitsForPrompt(t *testing.T) {
 	}
 }
 
+// TestGuardLogReporter checks that Guard of a log reporter returns the writer unchanged.
 func TestGuardLogReporter(t *testing.T) {
 	t.Parallel()
 
@@ -904,6 +928,7 @@ func TestGuardLogReporter(t *testing.T) {
 	assert.Same(t, w, logReporter().Guard(w))
 }
 
+// TestTerminalOptions checks that TerminalOptions reads the terminal, the env and the log settings.
 func TestTerminalOptions(t *testing.T) {
 	t.Parallel()
 
@@ -980,6 +1005,7 @@ func TestTerminalOptions(t *testing.T) {
 	}
 }
 
+// TestGuardIsNotStacked checks that guarding a guarded writer does not wrap it twice.
 func TestGuardIsNotStacked(t *testing.T) {
 	t.Parallel()
 
@@ -989,6 +1015,7 @@ func TestGuardIsNotStacked(t *testing.T) {
 	assert.Same(t, guarded, reporter.Guard(guarded))
 }
 
+// TestGuardLoggerRestore checks that the restore function puts back the original logger output.
 func TestGuardLoggerRestore(t *testing.T) {
 	t.Parallel()
 
@@ -1026,6 +1053,7 @@ func TestGuardLoggerRestore(t *testing.T) {
 	}
 }
 
+// TestProgressLineShrinkNoWrap checks that the line still fits after the terminal shrinks.
 func TestProgressLineShrinkNoWrap(t *testing.T) {
 	t.Parallel()
 
@@ -1073,6 +1101,7 @@ func TestProgressLineShrinkNoWrap(t *testing.T) {
 	})
 }
 
+// TestProgressLineShrinkNoLeftovers checks that no rows are left behind after the terminal shrinks.
 func TestProgressLineShrinkNoLeftovers(t *testing.T) {
 	t.Parallel()
 
@@ -1130,7 +1159,6 @@ func TestProgressLineShrinkNoLeftovers(t *testing.T) {
 	})
 }
 
-// syncBuffer is a buffer safe for concurrent writes.
 type syncBuffer struct {
 	buf bytes.Buffer
 	mu  sync.Mutex
@@ -1177,7 +1205,6 @@ func terminalOptions(out interface{ Write([]byte) (int, error) }, width int) spi
 	}
 }
 
-// newLogger returns an info level logger that writes to out.
 func newLogger(out interface{ Write([]byte) (int, error) }) log.Logger {
 	return log.New(log.WithLevel(log.InfoLevel), log.WithOutput(out))
 }
@@ -1216,7 +1243,6 @@ func drawnSegments(stream []byte) []string {
 	return segments
 }
 
-// drawnLines returns the progress lines drawn in stream, in order.
 func drawnLines(stream []byte) []string {
 	var lines []string
 

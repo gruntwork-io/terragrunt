@@ -44,7 +44,6 @@ type operation struct {
 	text  string
 }
 
-// guard writes to w without overwriting the progress line.
 type guard struct {
 	term *terminal
 	w    io.Writer
@@ -77,7 +76,6 @@ func newTerminal(out io.Writer, width func() int, frames []string) *terminal {
 	}
 }
 
-// animate shows text on the progress line until the operation finishes or ctx is cancelled.
 func (term *terminal) animate(
 	ctx context.Context,
 	l log.Logger,
@@ -100,7 +98,6 @@ func (term *terminal) animate(
 	}
 }
 
-// inputRead draws the progress line again after the user answered a prompt.
 func (term *terminal) inputRead() {
 	if !term.echoesInput {
 		return

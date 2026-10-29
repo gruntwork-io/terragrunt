@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestNewAnimated checks when a reporter can animate.
+// TestNewAnimated checks which terminals and environments get the progress line.
 func TestNewAnimated(t *testing.T) {
 	t.Parallel()
 

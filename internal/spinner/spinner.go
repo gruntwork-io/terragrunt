@@ -19,7 +19,6 @@ const (
 
 type reporterKey struct{}
 
-// Messages holds the messages for an operation.
 type Messages struct {
 	// Working is shown while the operation runs (e.g. "Creating Git worktree for ref main...").
 	Working string
@@ -29,9 +28,7 @@ type Messages struct {
 	Started bool
 }
 
-// Options configures a [Reporter].
 type Options struct {
-	// Out is where the progress line is drawn.
 	Out io.Writer
 	// Width returns the terminal width of Out, or 0 if unknown.
 	Width     func() int
@@ -40,13 +37,11 @@ type Options struct {
 	Threshold time.Duration
 	// OutIsTTY is true when Out is a terminal that supports ANSI escape sequences.
 	OutIsTTY bool
-	// InIsTTY is true when stdin is a terminal.
-	InIsTTY bool
+	InIsTTY  bool
 	// LogsForHumans is true when logs are enabled, at info level or lower, and not JSON.
 	LogsForHumans bool
 }
 
-// Reporter reports operations that run longer than its threshold.
 type Reporter struct {
 	term      *terminal
 	threshold time.Duration
@@ -85,7 +80,6 @@ func ContextWithReporter(ctx context.Context, reporter *Reporter) context.Contex
 	return context.WithValue(ctx, reporterKey{}, reporter)
 }
 
-// ContextWithLogOnly returns a copy of ctx whose reporter only writes log lines.
 func ContextWithLogOnly(ctx context.Context) context.Context {
 	reporter := ReporterFromContext(ctx)
 	if reporter == nil {
@@ -95,7 +89,6 @@ func ContextWithLogOnly(ctx context.Context) context.Context {
 	return ContextWithReporter(ctx, reporter.LogOnly())
 }
 
-// ReporterFromContext returns the reporter stored on ctx, or nil.
 func ReporterFromContext(ctx context.Context) *Reporter {
 	reporter, ok := ctx.Value(reporterKey{}).(*Reporter)
 	if !ok {
@@ -125,12 +118,10 @@ func ShowAfter(ctx context.Context, l log.Logger, msgs Messages, fn func() error
 	return reporter.ShowAfter(ctx, l, msgs, fn)
 }
 
-// Animated reports whether the reporter draws a progress line instead of log lines.
 func (reporter *Reporter) Animated() bool {
 	return reporter.term != nil
 }
 
-// LogOnly returns a reporter with the same threshold that only writes log lines.
 func (reporter *Reporter) LogOnly() *Reporter {
 	return &Reporter{threshold: reporter.threshold}
 }
@@ -175,7 +166,6 @@ func (reporter *Reporter) guards(w io.Writer) bool {
 	return ok && guarded.term == reporter.term
 }
 
-// unguard returns the writer wrapped by w, or w if this reporter did not wrap it.
 func (reporter *Reporter) unguard(w io.Writer) io.Writer {
 	guarded, ok := w.(*guard)
 	if !ok || guarded.term != reporter.term {
@@ -185,7 +175,6 @@ func (reporter *Reporter) unguard(w io.Writer) io.Writer {
 	return guarded.w
 }
 
-// show runs fn, reports it after threshold, and logs the done message if it was reported and succeeded.
 func (reporter *Reporter) show(
 	ctx context.Context,
 	l log.Logger,

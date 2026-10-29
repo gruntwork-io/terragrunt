@@ -26,6 +26,7 @@ const (
 	progressTable  = "progress-lock-table"
 )
 
+// TestRemoteStateWaitProgress checks that the S3 bucket and DynamoDB table waits are reported only with a reporter.
 func TestRemoteStateWaitProgress(t *testing.T) {
 	t.Parallel()
 

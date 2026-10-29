@@ -131,7 +131,7 @@ func TestRunActionProgressReporter(t *testing.T) {
 	}
 }
 
-// TestRunActionProgressReporterAnimated checks which runs draw the progress line.
+// TestRunActionProgressReporterAnimated checks that only a terminal with text logs at info level, outside CI, draws.
 func TestRunActionProgressReporterAnimated(t *testing.T) {
 	t.Parallel()
 
@@ -340,7 +340,6 @@ func loggerOutput(l log.Logger) io.Writer {
 	return output
 }
 
-// terminalRun returns a run with the experiment on and a buffer standing in for the stderr terminal.
 func terminalRun(t *testing.T) (log.Logger, *options.TerragruntOptions, *venv.Venv, *bytes.Buffer) {
 	t.Helper()
 

@@ -704,7 +704,6 @@ func initialSetup(
 	return nil
 }
 
-// newProgressReporter returns the reporter for slow operations of the run.
 func newProgressReporter(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *spinner.Reporter {
 	reporterOpts := spinner.TerminalOptions(v, l)
 	reporterOpts.LogsForHumans = reporterOpts.LogsForHumans && !opts.JSONLogFormat
