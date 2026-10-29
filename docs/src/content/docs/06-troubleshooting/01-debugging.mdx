@@ -33,7 +33,47 @@ Terragrunt has a fairly sophisticated logging system, and it can be helpful to r
 
 ## Telemetry
 
-Terragrunt can send traces, metrics, and logs in [OpenTelemetry](https://opentelemetry.io/) format, so you can see what it does and when. See [OpenTelemetry](/troubleshooting/open-telemetry) for the settings and a Docker Compose example that shows them in Grafana.
+If you have [Docker](https://www.docker.com/) installed, and you want to gain deeper insight as to what Terragrunt is doing, you can also enable the [OpenTelemetry](https://opentelemetry.io/) integration in Terragrunt to send telemetry data to a locally running container to better visualize what Terragrunt is doing and when.
+
+First, run the following in a terminal:
+
+```bash
+docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4317:4317 -p 4318:4318 jaegertracing/all-in-one:1.54.0
+```
+
+This spins up a local instance of [Jaeger](https://www.jaegertracing.io/), which is a distributed tracing system that can be used to see what Terragrunt is doing.
+
+Next, run the following in the terminal where you want to run Terragrunt:
+
+```bash
+export TG_TELEMETRY_TRACE_EXPORTER=http
+export TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
+export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+```
+
+This tells Terragrunt that it should send telemetry data to the Jaeger instance running in the Docker container.
+
+Now you'll want to do whatever you want to trace with Terragrunt by running Terragrunt normally.
+
+```bash
+terragrunt run -- plan
+```
+
+Finally, visit the Jaeger UI at [http://localhost:16686](http://localhost:16686/) to see traces of your runs.
+
+<Aside type="tip" title="Exporting traces">
+
+You can export traces using the "Download Results" button in the UI and upload them using the "Upload" pane on the left.
+
+This can be useful if you want to share traces with others, though you should be mindful that you might have sensitive data in these traces you don't want shared with untrusted parties. Sharing traces with other trusted members of your team can be a good way to visually analyze the results of runs in addition to reading through logs.
+
+</Aside>
+
+<Aside type="note" title="Learn More About OpenTelemetry">
+
+To learn more about Terragrunt's integration with OpenTelemetry, see the dedicated [OpenTelemetry documentation](/troubleshooting/open-telemetry/).
+
+</Aside>
 
 ## Debugging OpenTofu/Terraform Behavior
 
