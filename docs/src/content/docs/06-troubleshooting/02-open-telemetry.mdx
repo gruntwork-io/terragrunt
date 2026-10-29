@@ -184,7 +184,7 @@ This example runs an OpenTelemetry collector that receives Terragrunt's traces, 
   Value: 4
   ```
 
-- Check the logs in the Quickwit UI at [http://localhost:7280/ui](http://localhost:7280/ui). Quickwit stores the log records it receives in an index whose name starts with `otel-logs-`. New records can take about 10 seconds to appear. In **Query editor**, pick that index, type a query, and select **Run**:
+- Check the logs in the Quickwit UI at [http://localhost:7280/ui](http://localhost:7280/ui). New records can take about 10 seconds to appear. In **Query editor**, pick the index whose name starts with `otel-logs-`, type a query, and select **Run**:
   - `*` shows all log records.
   - `severity_text:error` shows errors only.
   - `attributes.prefix:app` shows the logs of the `app` unit.

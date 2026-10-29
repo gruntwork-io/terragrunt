@@ -12,4 +12,4 @@ The [`otel-logs`](/reference/experiments/active#otel-logs) experiment exports Te
 - A slow or failed trace or metric flush no longer drops buffered log records.
 - Record bodies no longer include ANSI color codes.
 
-The OTLP exporters read the standard `OTEL_EXPORTER_OTLP_*` environment variables, and the `OTEL_BLRP_*` variables tune batching. See [OpenTelemetry](/troubleshooting/open-telemetry#example-collection-of-traces-metrics-and-logs-with-docker-compose) for a Docker Compose example that sends traces to an OpenTelemetry collector and logs to Quickwit.
+See [OpenTelemetry](/troubleshooting/open-telemetry) for the settings and a Docker Compose example that sends traces to an OpenTelemetry collector and logs to Quickwit.
