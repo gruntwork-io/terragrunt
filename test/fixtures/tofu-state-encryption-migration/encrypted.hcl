@@ -13,5 +13,6 @@ remote_state {
   encryption = {
     key_provider = "pbkdf2"
     passphrase   = "randompassphrase123456"
+    enforced     = true
   }
 }

@@ -1,6 +1,20 @@
 package codegen
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var (
+	// ErrInvalidEncryptionFallback is returned when the remote_state encryption fallback is not
+	// a map holding only method = "unencrypted".
+	ErrInvalidEncryptionFallback = errors.New(
+		`remote_state encryption fallback must be { method = "unencrypted" }`,
+	)
+
+	// ErrInvalidEncryptionEnforced is returned when the remote_state encryption enforced entry is not a bool.
+	ErrInvalidEncryptionEnforced = errors.New("remote_state encryption enforced must be a bool")
+)
 
 // Custom error types
 
