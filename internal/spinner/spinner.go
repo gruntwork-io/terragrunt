@@ -20,7 +20,7 @@ import (
 
 const (
 	// DefaultThreshold is how long an operation runs before it is reported.
-	DefaultThreshold = time.Second
+	DefaultThreshold = 100 * time.Millisecond
 
 	keepaliveInterval = 30 * time.Second
 )
