@@ -227,6 +227,54 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 	}
 }
 
+// TestRemoteStateConfigToTerraformCodeEncryptionFallback verifies that a fallback map produces
+// the unencrypted fallback method OpenTofu needs to read pre-existing plaintext state.
+func TestRemoteStateConfigToTerraformCodeEncryptionFallback(t *testing.T) {
+	t.Parallel()
+
+	expected := `terraform {
+  backend "local" {
+  }
+  encryption {
+    key_provider "pbkdf2" "default" {
+      passphrase = "randompassphrase123456"
+    }
+    method "aes_gcm" "default" {
+      keys = key_provider.pbkdf2.default
+    }
+    method "unencrypted" "fallback" {
+    }
+    state {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+    plan {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+  }
+}
+`
+
+	output, err := codegen.RemoteStateConfigToTerraformCode(
+		"local",
+		map[string]any{},
+		map[string]any{
+			"key_provider": "pbkdf2",
+			"passphrase":   "randompassphrase123456",
+			"fallback": map[string]any{
+				"method": "unencrypted",
+			},
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(output))
+}
+
 // TestRemoteStateConfigToTerraformCode_BoolValues verifies that native bool
 // values in the config map produce unquoted true/false in the generated HCL.
 // This is the expected output when string booleans from HCL ternary type
