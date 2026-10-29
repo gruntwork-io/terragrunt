@@ -24,7 +24,7 @@ The OTLP exporters read the standard `OTEL_EXPORTER_OTLP_*` and `OTEL_EXPORTER_O
 Correlation and delivery are more reliable than they were under the experiment:
 
 - Records from code outside a unit's span, such as the run queue and the OpenTofu/Terraform output of a single-unit `run`, carry the IDs of the root command span instead of none.
-- Records still buffered when a run is interrupted are flushed instead of lost.
+- Records still buffered when a run is interrupted are flushed instead of lost. Flushing telemetry at exit waits at most 30 seconds, so an unreachable collector cannot stall exit.
 - A failed traces or metrics flush at exit no longer stops buffered log records from exporting.
 
 Commands that set `TG_TELEMETRY_LOGS_EXPORTER` without the experiment enabled now export logs, where the exporter stayed inert before. Commands that leave it unset or set it to `none` behave as before.

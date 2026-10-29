@@ -72,7 +72,7 @@ The OTLP log exporters read their settings from the standard [OTLP exporter envi
 
 Records emitted while a span is active carry its trace and span IDs, so those logs and traces correlate in the backend. <Since version="v1.2.2">Records from code that runs outside a narrower span, such as the run queue, carry the IDs of the root command span, so every record of a traced run belongs to its trace.</Since> Trace and span IDs are only present when a trace exporter is configured too.
 
-Only records at or above the configured [log level](/reference/logging) are exported, so `--log-level` also sets how many records reach the backend. Records are exported in batches, and any records still buffered are flushed when the command exits. <Since version="v1.2.2">This includes a run that is interrupted.</Since> A large stack can emit records faster than the backend accepts them, and records that do not fit in the buffer are dropped. The standard batch environment variables tune the buffer:
+Only records at or above the configured [log level](/reference/logging) are exported, so `--log-level` also sets how many records reach the backend. Records are exported in batches, and any records still buffered are flushed when the command exits. <Since version="v1.2.2">This includes a run that is interrupted. Flushing waits at most 30 seconds, so an unreachable collector cannot stall exit.</Since> A large stack can emit records faster than the backend accepts them, and records that do not fit in the buffer are dropped. The standard batch environment variables tune the buffer:
 
 - `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records buffered before new records are dropped. Defaults to `2048`.
 - `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to `512`.
@@ -293,6 +293,8 @@ This example runs an OpenTelemetry collector that receives Terragrunt's traces a
 
   To use gRPC instead, set both exporters to `otlpGrpc` and `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
 
+  <Before version="v1.2.2">Before v1.2.2, also run `export TG_EXPERIMENT=otel-logs`, or the collector receives traces but no logs.</Before>
+
 - Run terragrunt, for example `terragrunt run --all plan`.
 - Check the records the collector received:
 
@@ -319,16 +321,38 @@ This example runs an OpenTelemetry collector that receives Terragrunt's traces a
 
 Example configuration to export logs to console:
 
-- Set env variables to enable telemetry:
+- Set the exporters, then run a command such as `terragrunt run --all plan`:
 
 ```bash
 export TG_TELEMETRY_TRACE_EXPORTER=console
 export TG_TELEMETRY_LOGS_EXPORTER=console
+terragrunt run --all plan
 ```
 
-- Run terragrunt
-- In output will be printed log records like:
+<Before version="v1.2.2">Before v1.2.2, also run `export TG_EXPERIMENT=otel-logs`, or no log records are printed.</Before>
+
+- The output includes JSON log records like this one, trimmed to its main fields. `TraceID` and `SpanID` name the span the record was emitted in:
 
 ```json
-{"Timestamp":"2026-10-29T15:34:19.795498058Z","ObservedTimestamp":"2026-10-29T15:34:19.795505108Z","Severity":9,"SeverityText":"info","Body":{"Type":"STRING","Value":"Downloading OpenTofu/Terraform configurations from ./ok into ./ok/.terragrunt-cache/zOwx6vspRK4iFBWL7RDE23qW7QE/QrSqLdfQQUbThlZTLEiDDT7m5Qw"},"Attributes":[{"Key":"prefix","Value":{"Type":"STRING","Value":"ok"}}],"TraceID":"56c8ea967915b9fea49e90b5430e9a12","SpanID":"e59c6df680b99208","TraceFlags":"01","Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"latest"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.47.0"}}],"Scope":{"Name":"terragrunt","Version":"","SchemaURL":"","Attributes":{}},"DroppedAttributes":0}
+{
+  "Timestamp": "2026-10-29T15:34:19.795498058Z",
+  "Severity": 9,
+  "SeverityText": "info",
+  "Body": {
+    "Type": "STRING",
+    "Value": "Downloading OpenTofu/Terraform configurations from ./ok into ./ok/.terragrunt-cache/zOwx6vspRK4iFBWL7RDE23qW7QE/QrSqLdfQQUbThlZTLEiDDT7m5Qw"
+  },
+  "Attributes": [
+    {
+      "Key": "prefix",
+      "Value": {
+        "Type": "STRING",
+        "Value": "ok"
+      }
+    }
+  ],
+  "TraceID": "56c8ea967915b9fea49e90b5430e9a12",
+  "SpanID": "e59c6df680b99208",
+  "TraceFlags": "01"
+}
 ```

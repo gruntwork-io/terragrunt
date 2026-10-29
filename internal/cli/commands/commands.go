@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -148,6 +149,10 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	return allCommands
 }
 
+// telemetryShutdownTimeout bounds how long flushing telemetry can delay exit,
+// matching the provider cache server's shutdown timeout.
+const telemetryShutdownTimeout = 30 * time.Second
+
 // WrapWithTelemetry wraps CLI command execution with telemetry initialization,
 // context setting and labels. If telemetry is disabled, just runs the command.
 //
@@ -178,8 +183,12 @@ func WrapWithTelemetry(
 
 		// An interrupt cancels ctx, so flush with a context that keeps its values
 		// but not its cancellation, or the records of an interrupted run are lost.
+		// The timeout keeps an unreachable collector from stalling exit.
 		defer func() {
-			if err := telemeter.Shutdown(context.WithoutCancel(ctx)); err != nil {
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), telemetryShutdownTimeout)
+			defer cancel()
+
+			if err := telemeter.Shutdown(shutdownCtx); err != nil {
 				if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
 					l.Debugf("Failed to report telemetry shutdown error %v: %v", err, writeErr)
 				}

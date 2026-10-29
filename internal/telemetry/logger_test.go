@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -197,17 +198,20 @@ func TestOTLPLogsExport(t *testing.T) {
 // TestOTLPLogsExportBatchesLargeVolume emits more records than one export
 // batch holds, from many goroutines, and checks every record arrives once.
 func TestOTLPLogsExportBatchesLargeVolume(t *testing.T) {
-	// The SDK defaults are a 512 record batch and a 2048 record queue, so
-	// 1500 records span several batches and none can be dropped.
+	// With a 512 record batch and a 2048 record queue, 1500 records span
+	// several batches and none can be dropped.
 	const (
 		goroutines   = 10
 		perGoroutine = 150
 		maxBatchSize = 512
+		maxQueueSize = 2048
 		total        = goroutines * perGoroutine
 	)
 
 	collector := newHTTPCollector(t)
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", collector.endpoint)
+	t.Setenv("OTEL_BLRP_MAX_EXPORT_BATCH_SIZE", strconv.Itoa(maxBatchSize))
+	t.Setenv("OTEL_BLRP_MAX_QUEUE_SIZE", strconv.Itoa(maxQueueSize))
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.Telemetry.LogsExporter = "otlpHttp"

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
@@ -106,6 +108,58 @@ func TestWrapWithTelemetryExportsLogsOfInterruptedRun(t *testing.T) {
 	assert.Equal(t, rootIDs[0], found[0].SpanID)
 }
 
+// TestWrapWithTelemetryBoundsShutdownWhenExportStalls runs a command whose
+// logs export never completes and checks that flushing delays exit by the
+// shutdown timeout and no longer.
+func TestWrapWithTelemetryBoundsShutdownWhenExportStalls(t *testing.T) {
+	t.Parallel()
+
+	// The CLI's telemetry shutdown timeout.
+	const shutdownTimeout = 30 * time.Second
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(config.WithCaches(t.Context()))
+		defer cancel()
+
+		l := logger.CreateLogger()
+		l.SetOptions(log.WithOutput(io.Discard))
+
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts.NoAutoProviderCacheDir = true
+
+		testV := venvtest.New()
+		testV.Env["TG_TELEMETRY_LOGS_EXPORTER"] = "console"
+
+		terragruntCommands := commands.New(l, opts, testV)
+		setCommandAction(func(context.Context, *clihelper.Context) error {
+			l.Infof("record of interrupted run")
+			cancel()
+
+			return nil
+		}, terragruntCommands...)
+
+		stdout := &stalledWriter{release: make(chan struct{})}
+		stderr := &lockedWriter{}
+
+		app := clihelper.NewApp(testV.Env)
+		app.Writer = stdout
+		app.ErrWriter = stderr
+
+		app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, testV, nil)...)
+		app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts, testV))
+
+		start := time.Now()
+		err := app.RunContext(ctx, []string{"terragrunt", "run", "--", "plan"})
+		elapsed := time.Since(start)
+
+		close(stdout.release)
+
+		require.NoError(t, err)
+		assert.Equal(t, shutdownTimeout, elapsed)
+		assert.Contains(t, stderr.String(), context.DeadlineExceeded.Error())
+	})
+}
+
 // consoleLogRecord is the part of a record printed by the console logs
 // exporter that these tests read.
 type consoleLogRecord struct {
@@ -145,4 +199,16 @@ func (w *lockedWriter) String() string {
 	defer w.mu.Unlock()
 
 	return w.buf.String()
+}
+
+// stalledWriter blocks every write until release is closed, like a collector
+// that accepts a connection but never answers.
+type stalledWriter struct {
+	release chan struct{}
+}
+
+func (w *stalledWriter) Write(p []byte) (int, error) {
+	<-w.release
+
+	return len(p), nil
 }
