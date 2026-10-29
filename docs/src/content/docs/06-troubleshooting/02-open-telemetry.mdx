@@ -72,7 +72,7 @@ The OTLP log exporters read their settings from the standard [OTLP exporter envi
 
 Records emitted while a span is active carry its trace and span IDs, so those logs and traces correlate in the backend. <Since version="v1.2.2">Records from code that runs outside a narrower span, such as the run queue, carry the IDs of the root command span, so every record of a traced run belongs to its trace.</Since> Trace and span IDs are only present when a trace exporter is configured too.
 
-Only records at or above the configured [log level](/reference/logging) are exported, so `--log-level` also sets how many records reach the backend. Records are exported in batches, and any records still buffered are flushed when the command exits. <Since version="v1.2.2">This includes a run that is interrupted. Flushing waits at most 30 seconds, so an unreachable collector cannot stall exit.</Since> A large stack can emit records faster than the backend accepts them, and records that do not fit in the buffer are dropped. The standard batch environment variables tune the buffer:
+Only records at or above the configured [log level](/reference/logging) are exported, so `--log-level` also sets how many records reach the backend. <Since version="v1.2.2">ANSI color codes are removed from record bodies, so OpenTofu/Terraform output reads as plain text in the backend.</Since> Records are exported in batches, and any records still buffered are flushed when the command exits. <Since version="v1.2.2">This includes a run that is interrupted. Flushing waits at most 30 seconds, so an unreachable collector cannot stall exit.</Since> A large stack can emit records faster than the backend accepts them, and records that do not fit in the buffer are dropped. The standard batch environment variables tune the buffer:
 
 - `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records buffered before new records are dropped. Defaults to `2048`.
 - `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to `512`.
@@ -143,97 +143,9 @@ export TG_TELEMETRY_TRACE_EXPORTER=console
 {"Name":"run --all apply","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"00000000000000000000000000000000","SpanID":"0000000000000000","TraceFlags":"00","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:26.388519019Z","EndTime":"2024-02-08T12:32:31.793405603Z","Attributes":[{"Key":"terraformCommand","Value":{"Type":"STRING","Value":"apply"}},{"Key":"args","Value":{"Type":"STRING","Value":"[apply]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":28,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 ```
 
-## Collection of metrics with OpenTelemetry collector and Prometheus
+## Example collection of metrics and logs with Docker Compose
 
-- Start OpenTelemetry collector with Prometheus receiver.
-
-  Example setup through `docker-compose.yml`:
-
-  ```yaml
-  version: '3'
-  services:
-    otel-collector:
-      image: otel/opentelemetry-collector:0.94.0
-      volumes:
-        - ./otel-collector-config.yaml:/etc/otelcol/config.yaml
-      ports:
-        - "4317:4317" # OTLP gRPC receiver
-        - "4318:4318" # OTLP HTTP receiver
-        - "8889:8889" # Prometheus exporter
-    prometheus:
-      image: prom/prometheus:v2.45.3
-      volumes:
-        - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      ports:
-        - "9090:9090"
-      depends_on:
-        - otel-collector
-  ```
-
-OpenTelemetry collector configuration `otel-collector-config.yaml`:
-
-```yaml
-receivers:
-  otlp:
-    protocols:
-      grpc:
-      http:
-processors:
-  batch:
-exporters:
-  prometheus:
-    endpoint: "0.0.0.0:8889" # Prometheus exporter endpoint
-service:
-  pipelines:
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [prometheus]
-```
-
-Prometheus configuration file `prometheus.yml`:
-
-```yaml
-global:
-  scrape_interval: 15s
-scrape_configs:
-  - job_name: 'opentelemetry'
-    scrape_interval: 5s
-    static_configs:
-      - targets: ['otel-collector:8889']
-```
-
-- Confirm that Prometheus is available at [http://localhost:9090/](http://localhost:9090/)
-- Define environment variables for Terragrunt to report metrics to OpenTelemetry collector:
-
-```bash
-export TG_TELEMETRY_METRIC_EXPORTER=grpcHttp
-export TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-```
-
-- Run terragrunt
-- Verify that metrics are available in Prometheus UI
-
-Example configuration to export metrics to console:
-
-- Set env variable to enable telemetry:
-
-```bash
-export TG_TELEMETRY_METRIC_EXPORTER=console
-```
-
-- Run terragrunt
-- In output will be printed messages like:
-
-```json
-{"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-41-g7185318bb11b"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.1"}}],"ScopeMetrics":[]}
-{"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-41-g7185318bb11b"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.1"}}],"ScopeMetrics":[{"Scope":{"Name":"terragrunt","Version":"","SchemaURL":""},"Metrics":[{"Name":"run_bash_duration","Description":"","Unit":"","Data":{"DataPoints":[{"Attributes":[{"Key":"args","Value":{"Type":"STRING","Value":"[-c sleep 2]"}},{"Key":"command","Value":{"Type":"STRING","Value":"bash"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod3"}}],"StartTime":"2024-02-12T14:38:14.85578658Z","Time":"2024-02-12T14:38:17.853165589Z","Count":1,"Bounds":[0,5,10,25,50,75,100,250,500,750,1000,2500,5000,7500,10000],"BucketCounts":[0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],"Min":2005,"Max":2005,"Sum":2005}],"Temporality":"CumulativeTemporality"}},{"Name":"run_bash_success_count","Description":"","Unit":"","Data":{"DataPoints":[{"Attributes":[],"StartTime":"2024-02-12T14:38:16.860878555Z","Time":"2024-02-12T14:38:17.853169359Z","Value":1}],"Temporality":"CumulativeTemporality","IsMonotonic":true}}]}]}
-```
-
-## Collection of logs with an OpenTelemetry collector in Docker Compose
-
-This example runs an OpenTelemetry collector that receives Terragrunt's traces and logs and prints them, so you can confirm that log records arrive with the trace and span IDs of the run. Replace the `debug` exporter with your backend's exporter to keep the data.
+This example runs one OpenTelemetry collector that receives Terragrunt's traces, metrics, and logs and prints them. Replace the `debug` exporter with your backend's exporter to keep the data. To browse the data in a UI instead, see [Logs and traces in Grafana](/troubleshooting/debugging#logs-and-traces-in-grafana).
 
 - Create `docker-compose.yml`. The ports are published on `127.0.0.1` only, since the connection is not encrypted:
 
@@ -269,6 +181,10 @@ This example runs an OpenTelemetry collector that receives Terragrunt's traces a
         receivers: [otlp]
         processors: [batch]
         exporters: [debug]
+      metrics:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [debug]
       logs:
         receivers: [otlp]
         processors: [batch]
@@ -281,25 +197,37 @@ This example runs an OpenTelemetry collector that receives Terragrunt's traces a
   docker compose up -d
   ```
 
-- Define environment variables for Terragrunt to send traces and logs to the collector over HTTP:
+- Define environment variables for Terragrunt to send traces, metrics, and logs to the collector over HTTP:
 
   ```bash
   export TG_TELEMETRY_TRACE_EXPORTER=otlpHttp
   export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+  export TG_TELEMETRY_METRIC_EXPORTER=otlpHttp
+  export TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
   export TG_TELEMETRY_LOGS_EXPORTER=otlpHttp
   export TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true
   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
   ```
 
-  To use gRPC instead, set both exporters to `otlpGrpc` and `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
+  To use gRPC instead, set the trace and logs exporters to `otlpGrpc`, the metrics exporter to `grpcHttp`, and `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
 
-  <Before version="v1.2.2">Before v1.2.2, also run `export TG_EXPERIMENT=otel-logs`, or the collector receives traces but no logs.</Before>
+  <Before version="v1.2.2">Before v1.2.2, also run `export TG_EXPERIMENT=otel-logs`, or the collector receives no logs.</Before>
 
 - Run terragrunt, for example `terragrunt run --all plan`.
-- Check the records the collector received:
+- Check what the collector received:
 
   ```bash
   docker compose logs otel-collector
+  ```
+
+  Each metric shows its name and values, trimmed here to its main fields:
+
+  ```text
+  Descriptor:
+       -> Name: run_tofu_success_count
+       -> DataType: Sum
+  NumberDataPoints #0
+  Value: 4
   ```
 
   Each log record shows its severity, body, and the trace and span IDs of the span it was emitted in:
@@ -319,40 +247,4 @@ This example runs an OpenTelemetry collector that receives Terragrunt's traces a
 
 - Stop the collector with `docker compose down`.
 
-Example configuration to export logs to console:
-
-- Set the exporters, then run a command such as `terragrunt run --all plan`:
-
-```bash
-export TG_TELEMETRY_TRACE_EXPORTER=console
-export TG_TELEMETRY_LOGS_EXPORTER=console
-terragrunt run --all plan
-```
-
-<Before version="v1.2.2">Before v1.2.2, also run `export TG_EXPERIMENT=otel-logs`, or no log records are printed.</Before>
-
-- The output includes JSON log records like this one, trimmed to its main fields. `TraceID` and `SpanID` name the span the record was emitted in:
-
-```json
-{
-  "Timestamp": "2026-10-29T15:34:19.795498058Z",
-  "Severity": 9,
-  "SeverityText": "info",
-  "Body": {
-    "Type": "STRING",
-    "Value": "Downloading OpenTofu/Terraform configurations from ./ok into ./ok/.terragrunt-cache/zOwx6vspRK4iFBWL7RDE23qW7QE/QrSqLdfQQUbThlZTLEiDDT7m5Qw"
-  },
-  "Attributes": [
-    {
-      "Key": "prefix",
-      "Value": {
-        "Type": "STRING",
-        "Value": "ok"
-      }
-    }
-  ],
-  "TraceID": "56c8ea967915b9fea49e90b5430e9a12",
-  "SpanID": "e59c6df680b99208",
-  "TraceFlags": "01"
-}
-```
+To print metrics and logs to the terminal instead, set `TG_TELEMETRY_METRIC_EXPORTER=console` and `TG_TELEMETRY_LOGS_EXPORTER=console`. Each metric batch and log record is printed as a line of JSON.

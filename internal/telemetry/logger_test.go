@@ -116,8 +116,7 @@ func TestNewLogger(t *testing.T) {
 	assert.Nil(t, logger)
 }
 
-// TestOTLPLogsExport sends records through each OTLP exporter to a fake
-// collector and checks what the collector decodes from the wire.
+// TestOTLPLogsExport checks what a fake collector receives from each OTLP exporter.
 func TestOTLPLogsExport(t *testing.T) {
 	tests := []struct {
 		newCollector func(t *testing.T) *otlpCollector
@@ -185,7 +184,7 @@ func TestOTLPLogsExport(t *testing.T) {
 			assert.Equal(t, unitSpan.TraceID(), unitRecord.traceID)
 			assert.Equal(t, unitSpan.SpanID(), unitRecord.spanID)
 
-			// A logger that is not bound to a span falls back to the root command span.
+			// A logger without a span uses the root command span.
 			unboundRecord, ok := byBody["unbound record"]
 			require.True(t, ok, "unbound record not exported: %v", records)
 			assert.Equal(t, logspb.SeverityNumber_SEVERITY_NUMBER_INFO, unboundRecord.severity)
@@ -195,11 +194,9 @@ func TestOTLPLogsExport(t *testing.T) {
 	}
 }
 
-// TestOTLPLogsExportBatchesLargeVolume emits more records than one export
-// batch holds, from many goroutines, and checks every record arrives once.
+// TestOTLPLogsExportBatchesLargeVolume checks that records spread over several batches all arrive once.
 func TestOTLPLogsExportBatchesLargeVolume(t *testing.T) {
-	// With a 512 record batch and a 2048 record queue, 1500 records span
-	// several batches and none can be dropped.
+	// 1500 records fill several 512 record batches and fit in the 2048 record queue.
 	const (
 		goroutines   = 10
 		perGoroutine = 150
@@ -251,8 +248,7 @@ func TestOTLPLogsExportBatchesLargeVolume(t *testing.T) {
 	}
 }
 
-// TestTelemeterShutdownFlushesLogsWhenMetricExportFails checks that a failed
-// metrics flush at shutdown does not stop the buffered logs from exporting.
+// TestTelemeterShutdownFlushesLogsWhenMetricExportFails checks that a failed metrics flush does not drop logs.
 func TestTelemeterShutdownFlushesLogsWhenMetricExportFails(t *testing.T) {
 	collector := newHTTPCollector(t, "/v1/metrics")
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", collector.endpoint)
@@ -276,8 +272,7 @@ func TestTelemeterShutdownFlushesLogsWhenMetricExportFails(t *testing.T) {
 	assert.Equal(t, "record before shutdown", records[0].body)
 }
 
-// otlpCollector is a fake OpenTelemetry collector that records the OTLP log
-// export requests it receives over HTTP or gRPC.
+// otlpCollector is a fake collector that records OTLP log exports over HTTP or gRPC.
 type otlpCollector struct {
 	collogspb.UnimplementedLogsServiceServer
 	failPaths map[string]bool
@@ -296,8 +291,7 @@ type exportedLog struct {
 	spanID      trace.SpanID
 }
 
-// newHTTPCollector starts a fake OTLP/HTTP collector that rejects requests to
-// failPaths.
+// newHTTPCollector starts a fake OTLP/HTTP collector that fails requests to failPaths.
 func newHTTPCollector(t *testing.T, failPaths ...string) *otlpCollector {
 	t.Helper()
 
@@ -450,7 +444,7 @@ func resourceAttribute(resource *resourcepb.Resource, key string) string {
 	return ""
 }
 
-// discardLogger returns a debug level logger that writes nothing to the terminal.
+// discardLogger returns a debug level logger that writes nothing.
 func discardLogger() log.Logger {
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(io.Discard))

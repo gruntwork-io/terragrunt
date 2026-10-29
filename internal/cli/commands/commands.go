@@ -149,16 +149,14 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	return allCommands
 }
 
-// telemetryShutdownTimeout bounds how long flushing telemetry can delay exit,
-// matching the provider cache server's shutdown timeout.
+// telemetryShutdownTimeout limits how long the telemetry flush can delay exit.
 const telemetryShutdownTimeout = 30 * time.Second
 
 // WrapWithTelemetry wraps CLI command execution with telemetry initialization,
 // context setting and labels. If telemetry is disabled, just runs the command.
 //
 // The telemeter is created here rather than at app startup because command
-// actions run after the full CLI parse, so telemetry options are honored
-// whether they were set via flags or env vars.
+// actions run after the full CLI parse, so telemetry flags and env vars both apply.
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -181,9 +179,7 @@ func WrapWithTelemetry(
 			return err
 		}
 
-		// An interrupt cancels ctx, so flush with a context that keeps its values
-		// but not its cancellation, or the records of an interrupted run are lost.
-		// The timeout keeps an unreachable collector from stalling exit.
+		// Flush even after an interrupt cancels ctx, but do not wait forever.
 		defer func() {
 			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), telemetryShutdownTimeout)
 			defer cancel()

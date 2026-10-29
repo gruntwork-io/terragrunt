@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 
 ## Support
 
@@ -68,6 +69,52 @@ You can export traces using the "Download Results" button in the UI and upload t
 This can be useful if you want to share traces with others, though you should be mindful that you might have sensitive data in these traces you don't want shared with untrusted parties. Sharing traces with other trusted members of your team can be a good way to visually analyze the results of runs in addition to reading through logs.
 
 </Aside>
+
+### Logs and traces in Grafana
+
+Terragrunt can also send its logs, so you can read the logs of a run next to its trace. The [Grafana LGTM](https://github.com/grafana/docker-otel-lgtm) image runs an OpenTelemetry collector, Loki for logs, Tempo for traces, and Grafana in one container.
+
+Stop the Jaeger container first, since both use ports 4317 and 4318. Then run:
+
+```bash
+docker run --rm --name lgtm -p 127.0.0.1:3000:3000 -p 127.0.0.1:4317:4317 -p 127.0.0.1:4318:4318 grafana/otel-lgtm:0.38.1
+```
+
+The ports are published on `127.0.0.1` only, since the connection is not encrypted. The container is ready when it prints `The OpenTelemetry collector and the Grafana LGTM stack are up and running.`
+
+Next, send traces and logs to it:
+
+```bash
+export TG_TELEMETRY_TRACE_EXPORTER=otlpHttp
+export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+export TG_TELEMETRY_LOGS_EXPORTER=otlpHttp
+export TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+```
+
+<Before version="v1.2.2">Before v1.2.2, also run `export TG_EXPERIMENT=otel-logs`, and pass `--no-color` to keep color codes out of the log records.</Before>
+
+Run Terragrunt as usual:
+
+```bash
+terragrunt run --all -- plan
+```
+
+Open Grafana at [http://localhost:3000](http://localhost:3000/) and sign in as `admin` with the password `admin`. In **Explore**, pick the **Loki** data source and run this query to see the logs of your runs:
+
+```text
+{service_name="terragrunt"}
+```
+
+Add a filter to narrow the results:
+
+- `{service_name="terragrunt"} | severity_text="error"` shows errors only.
+- `{service_name="terragrunt"} | prefix="app"` shows the logs of the `app` unit. The `prefix` field holds the unit path that Terragrunt shows in brackets in its log output, such as `[app]`.
+- `{service_name="terragrunt"} | trace_id="<trace ID>"` shows the logs of one run.
+
+Each record has `trace_id` and `span_id` fields. Expand a record and select the `Trace:` link to open the trace of that run in Tempo. In Tempo, select a span and then **Related logs** to see the logs of the run next to the trace.
+
+Stop the container with `docker stop lgtm`.
 
 <Aside type="note" title="Learn More About OpenTelemetry">
 

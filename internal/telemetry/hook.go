@@ -35,7 +35,7 @@ var stdLogrusLevels = map[log.Level]logrus.Level{
 // directly, the otellogrus bridge would export errors with info severity and
 // never fire for debug or trace records. This hook registers for the shifted
 // levels and restores the standard logrus level on each entry before handing
-// it to the bridge.
+// it to the bridge, and strips ANSI color codes.
 func NewOtelLogHook(name string, provider otellog.LoggerProvider) logrus.Hook {
 	return newOtelLogHook(name, provider)
 }
@@ -47,10 +47,9 @@ func newOtelLogHook(name string, provider otellog.LoggerProvider) *otelLogHook {
 }
 
 type otelLogHook struct {
-	// inner is the otellogrus bridge that turns entries into log records.
+	// inner is the otellogrus bridge.
 	inner *otellogrus.Hook
-	// rootSpan holds the root span used for entries whose logger is not bound
-	// to a span.
+	// rootSpan is used for entries whose logger has no span.
 	rootSpan atomic.Pointer[trace.SpanContext]
 }
 
@@ -63,6 +62,8 @@ func (hook *otelLogHook) Levels() []logrus.Level {
 func (hook *otelLogHook) Fire(entry *logrus.Entry) error {
 	e := *entry
 	e.Level = stdLogrusLevels[log.FromLogrusLevel(entry.Level)]
+	// Strip the ANSI color codes in OpenTofu/Terraform output.
+	e.Message = log.RemoveAllASCISeq(entry.Message)
 
 	if rootSpan := hook.rootSpan.Load(); rootSpan != nil && !trace.SpanContextFromContext(e.Context).IsValid() {
 		e.Context = trace.ContextWithSpanContext(context.Background(), *rootSpan)
@@ -71,13 +72,12 @@ func (hook *otelLogHook) Fire(entry *logrus.Entry) error {
 	return hook.inner.Fire(&e)
 }
 
-// bindRootSpan correlates entries whose logger is not bound to a span with
-// span, until [otelLogHook.unbindRootSpan] is called.
+// bindRootSpan sets the span used for entries whose logger has no span.
 func (hook *otelLogHook) bindRootSpan(span trace.SpanContext) {
 	hook.rootSpan.Store(&span)
 }
 
-// unbindRootSpan stops correlating entries whose logger is not bound to a span.
+// unbindRootSpan clears the span set by bindRootSpan.
 func (hook *otelLogHook) unbindRootSpan() {
 	hook.rootSpan.Store(nil)
 }

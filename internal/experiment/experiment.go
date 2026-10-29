@@ -92,10 +92,7 @@ const (
 	// block, which resolves a tfr:// registry module from a version constraint.
 	// It is enabled by default.
 	VersionAttribute = "version-attribute"
-	// OtelLogs names the now-stable OpenTelemetry logs signal, which exports
-	// Terragrunt's log records through the logs exporter configured with
-	// TG_TELEMETRY_LOGS_EXPORTER and correlates them with traces via the active
-	// span. It is enabled by default.
+	// OtelLogs names the now-stable OpenTelemetry logs signal, enabled by default.
 	OtelLogs = "otel-logs"
 	// CatalogFormat names the now-stable non-interactive output formats for the
 	// catalog command, which render discovered components as JSON Lines or

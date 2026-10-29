@@ -619,6 +619,31 @@ func TestTFTerragruntProduceTelemetryMetrics(t *testing.T) {
 	assert.Contains(t, output, ",\"IsMonotonic\":true}}")
 }
 
+func TestTFTerragruntProduceTelemetryLogs(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
+	t.Setenv("TG_TELEMETRY_LOGS_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
+
+	output, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	// check that output has Telemetry JSON log records without ANSI color codes
+	assert.Contains(t, output, "{\"Timestamp\":")
+	assert.Contains(t, output, "\"SeverityText\":\"info\"")
+	assert.Contains(t, output, "\"Value\":\"Executing hook: after_hook_2\"")
+	assert.Contains(t, output, "\"Value\":\"Apply complete!")
+	assert.NotContains(t, output, "\\u001b")
+}
+
 func TestTFTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows since bash script execution is not supported")

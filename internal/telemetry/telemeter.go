@@ -18,8 +18,7 @@ type Telemeter struct {
 	l log.Logger
 }
 
-// NewTelemeter initializes the telemetry collector for traces, metrics, and logs.
-// Each signal stays inert when its exporter is not configured.
+// NewTelemeter sets up traces, metrics, and logs, skipping signals without an exporter.
 func NewTelemeter(
 	ctx context.Context,
 	l log.Logger,
@@ -52,10 +51,7 @@ func NewTelemeter(
 
 	tlm.Logger = logger
 
-	// Bridge Terragrunt's logrus-backed logger into the OpenTelemetry logs signal.
-	// We attach to the root logger before any command loggers are cloned from it
-	// (clones copy hooks by reference at clone time), so every downstream logger
-	// inherits the hook and emits records correlated to the active span.
+	// Attach the hook to the root logger before commands clone it, so every logger exports.
 	if logger != nil {
 		l.SetOptions(log.WithHooks(logger.hook))
 	}
@@ -63,8 +59,7 @@ func NewTelemeter(
 	return tlm, nil
 }
 
-// Shutdown flushes and shuts down every telemetry provider. A failure in one
-// provider does not stop the others from flushing; all failures are returned.
+// Shutdown flushes every provider, even if one fails, and returns all errors.
 func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 	if tlm == nil {
 		return nil
@@ -97,9 +92,7 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 // OpenTelemetry log bridge derives trace and span IDs from the logger's context,
 // so records correlate with their span only when the logger carries it. Pass
 // childL onward to any code whose logs should resolve to this span.
-//
-// When ctx carries no span, the new span is the root span, and records from
-// loggers not bound to any span correlate with it until fn returns.
+// If ctx has no span, records from loggers without a span use the new root span.
 func (tlm *Telemeter) Collect(
 	ctx context.Context, l log.Logger, name string, attrs map[string]any,
 	fn func(childCtx context.Context, childL log.Logger) error,

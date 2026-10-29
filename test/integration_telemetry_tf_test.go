@@ -39,8 +39,7 @@ type consoleAttribute struct {
 	Key string `json:"Key"`
 }
 
-// consoleLogRecord is the part of a record printed by the console logs
-// exporter that these tests read.
+// consoleLogRecord holds the console log record fields these tests read.
 type consoleLogRecord struct {
 	Body struct {
 		Value string `json:"Value"`
@@ -133,10 +132,7 @@ func TestTFTelemetryTracesMarkFailedSpans(t *testing.T) {
 	}
 }
 
-// TestTFTelemetryLogsCorrelateWithSpans runs real failing commands with the
-// console logs and trace exporters and checks that every exported record
-// carries the trace ID of the run and the span ID of an exported span, and
-// that the OpenTofu error reaches the logs signal.
+// TestTFTelemetryLogsCorrelateWithSpans checks that every exported record links to a span of the run.
 func TestTFTelemetryLogsCorrelateWithSpans(t *testing.T) {
 	t.Parallel()
 
@@ -229,8 +225,7 @@ func parseConsoleSpans(t *testing.T, stdout string) []consoleSpan {
 	return spans
 }
 
-// parseConsoleLogs returns the records the console logs exporter printed to
-// stdout, skipping the lines tofu and Terragrunt printed around them.
+// parseConsoleLogs returns the console log records in stdout, skipping other lines.
 func parseConsoleLogs(t *testing.T, stdout string) []consoleLogRecord {
 	t.Helper()
 

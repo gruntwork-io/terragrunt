@@ -28,9 +28,7 @@ import (
 
 const zeroSpanID = "0000000000000000"
 
-// TestWrapWithTelemetryExportsLogsOfInterruptedRun runs a command whose action
-// logs through the root logger and then cancels the run, as an interrupt does,
-// and checks the record is still exported and linked to the command span.
+// TestWrapWithTelemetryExportsLogsOfInterruptedRun checks that an interrupted run still exports its logs.
 func TestWrapWithTelemetryExportsLogsOfInterruptedRun(t *testing.T) {
 	t.Parallel()
 
@@ -108,9 +106,7 @@ func TestWrapWithTelemetryExportsLogsOfInterruptedRun(t *testing.T) {
 	assert.Equal(t, rootIDs[0], found[0].SpanID)
 }
 
-// TestWrapWithTelemetryBoundsShutdownWhenExportStalls runs a command whose
-// logs export never completes and checks that flushing delays exit by the
-// shutdown timeout and no longer.
+// TestWrapWithTelemetryBoundsShutdownWhenExportStalls checks that a stalled export delays exit by the timeout only.
 func TestWrapWithTelemetryBoundsShutdownWhenExportStalls(t *testing.T) {
 	t.Parallel()
 
@@ -160,8 +156,7 @@ func TestWrapWithTelemetryBoundsShutdownWhenExportStalls(t *testing.T) {
 	})
 }
 
-// consoleLogRecord is the part of a record printed by the console logs
-// exporter that these tests read.
+// consoleLogRecord holds the console log record fields these tests read.
 type consoleLogRecord struct {
 	Body struct {
 		Value string `json:"Value"`
@@ -170,8 +165,7 @@ type consoleLogRecord struct {
 	SpanID  string `json:"SpanID"`
 }
 
-// consoleSpan is the part of a span printed by the console trace exporter
-// that these tests read.
+// consoleSpan holds the console span fields these tests read.
 type consoleSpan struct {
 	SpanContext struct {
 		SpanID string `json:"SpanID"`
@@ -201,8 +195,7 @@ func (w *lockedWriter) String() string {
 	return w.buf.String()
 }
 
-// stalledWriter blocks every write until release is closed, like a collector
-// that accepts a connection but never answers.
+// stalledWriter blocks writes until release is closed, like a collector that never answers.
 type stalledWriter struct {
 	release chan struct{}
 }

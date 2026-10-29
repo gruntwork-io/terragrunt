@@ -23,8 +23,7 @@ const (
 
 type logsExporterType string
 
-// Logger holds the OpenTelemetry logs signal provider, exporter, and the hook
-// that bridges Terragrunt's logger into the provider.
+// Logger holds the OpenTelemetry logs provider, exporter, and log hook.
 type Logger struct {
 	provider *log.LoggerProvider
 	exporter log.Exporter

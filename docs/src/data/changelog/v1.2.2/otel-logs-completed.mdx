@@ -19,13 +19,15 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.example.com:4318
 terragrunt run --all -- apply
 ```
 
-The OTLP exporters read the standard `OTEL_EXPORTER_OTLP_*` and `OTEL_EXPORTER_OTLP_LOGS_*` environment variables for the endpoint, headers, TLS certificates, compression, and timeout, and the `OTEL_BLRP_*` variables tune batching. The [OpenTelemetry](/troubleshooting/open-telemetry) page now includes a Docker Compose example of a local collector.
+The OTLP exporters read the standard `OTEL_EXPORTER_OTLP_*` and `OTEL_EXPORTER_OTLP_LOGS_*` environment variables for the endpoint, headers, TLS certificates, compression, and timeout, and the `OTEL_BLRP_*` variables tune batching. The [OpenTelemetry](/troubleshooting/open-telemetry) page now includes a Docker Compose example of a local collector, and the [Debugging](/troubleshooting/debugging#logs-and-traces-in-grafana) page shows how to read logs next to traces in Grafana.
 
 Correlation and delivery are more reliable than they were under the experiment:
 
 - Records from code outside a unit's span, such as the run queue and the OpenTofu/Terraform output of a single-unit `run`, carry the IDs of the root command span instead of none.
 - Records still buffered when a run is interrupted are flushed instead of lost. Flushing telemetry at exit waits at most 30 seconds, so an unreachable collector cannot stall exit.
 - A failed traces or metrics flush at exit no longer stops buffered log records from exporting.
+
+Record bodies no longer include the ANSI color codes of OpenTofu/Terraform output.
 
 Commands that set `TG_TELEMETRY_LOGS_EXPORTER` without the experiment enabled now export logs, where the exporter stayed inert before. Commands that leave it unset or set it to `none` behave as before.
 
