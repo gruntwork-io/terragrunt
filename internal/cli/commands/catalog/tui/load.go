@@ -45,7 +45,6 @@ func LoadURL(
 
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 	allowCAS := !opts.NoCAS
-	slowReporting := opts.Experiments.Evaluate(experiment.SlowTaskReporting)
 
 	tempPath, err := CreateCatalogTempPath(v, repoURL)
 	if err != nil {
@@ -86,7 +85,6 @@ func LoadURL(
 		CASOffline:       opts.CASOffline,
 		CASRefresh:       opts.CASRefresh,
 		CASProbeCache:    opts.Experiments.Evaluate(experiment.OfflineCAS),
-		SlowReporting:    slowReporting,
 		RootWorkingDir:   opts.RootWorkingDir,
 	})
 	if err != nil {

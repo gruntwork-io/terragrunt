@@ -103,10 +103,12 @@ func New() *venv.Venv {
 			GOARCH: runtime.GOARCH,
 		},
 		Terminal: &venv.Terminal{
-			StdinIsTTY:  func() bool { return false },
-			StdoutIsTTY: func() bool { return false },
-			StderrIsTTY: func() bool { return false },
-			Width:       func() int { return 0 },
+			StdinIsTTY:           func() bool { return false },
+			StdoutIsTTY:          func() bool { return false },
+			StderrIsTTY:          func() bool { return false },
+			StderrHandlesEscapes: func() bool { return false },
+			Width:                func() int { return 0 },
+			ErrWidth:             func() int { return 0 },
 		},
 		Writers: &writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}

@@ -1,16 +1,22 @@
 package module_test
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -81,4 +87,65 @@ func TestCloneReportsAGitRemoteThatNeverAnswers(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+}
+
+// TestCloneProgress checks that a slow clone logs a keepalive line only with a reporter.
+func TestCloneProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		withReporter  bool
+		wantKeepalive bool
+	}{
+		{
+			name:          "experiment on",
+			withReporter:  true,
+			wantKeepalive: true,
+		},
+		{
+			name: "experiment off",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			synctest.Test(t, func(t *testing.T) {
+				hangGit := func(ctx context.Context, _ vexec.Invocation) vexec.Result {
+					<-ctx.Done()
+
+					return vexec.Result{Err: ctx.Err()}
+				}
+
+				v := venvtest.NewWithOSFS().
+					WithExec(vexec.NewMemExec(hangGit)).
+					WithUserCacheDir(func() (string, error) { return filepath.Join(tmpDir, "cache"), nil })
+
+				logs := new(bytes.Buffer)
+				l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
+
+				ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+				defer cancel()
+
+				if tc.withReporter {
+					ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+				}
+
+				_, err := module.NewRepo(ctx, l, v, &module.RepoOpts{
+					CloneURL:      absentRepoURL(tmpDir),
+					Path:          filepath.Join(tmpDir, "slow-repo"),
+					AllowCAS:      true,
+					CASCloneDepth: 1,
+				})
+				require.Error(t, err)
+
+				assert.Contains(t, logs.String(), "Cloning repository")
+				assert.Equal(t, tc.wantKeepalive, strings.Contains(logs.String(), "(30s elapsed)"))
+			})
+		})
+	}
 }

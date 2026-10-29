@@ -1,6 +1,7 @@
 package runner_test
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"sync"
@@ -19,11 +20,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -196,6 +200,55 @@ func TestNew(t *testing.T) {
 		_, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
 		require.Error(t, err)
 	})
+}
+
+// TestNew_DiscoveryProgress checks that unit discovery is reported only with a reporter.
+func TestNew_DiscoveryProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := memVenv(tfVersionOutput)
+			writeUnit(t, v, memRoot, "vpc", "")
+
+			logs := new(bytes.Buffer)
+			l := thlogger.CreateLogger()
+			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)))
+
+			ctx := config.WithCaches(t.Context())
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+			}
+
+			rnr, err := runner.New(ctx, l, v, newStackOpts(t, memRoot, tf.CommandNamePlan))
+			require.NoError(t, err)
+			require.Len(t, rnr.GetStack().Units, 1, "the unit is discovered with and without a reporter")
+			require.Contains(t, logs.String(), "Runner pool discovery found 1 configs")
+
+			working := "Discovering units in " + memRoot + "..."
+			done := "Discovered units in " + memRoot
+
+			if !tc.reported {
+				assert.NotContains(t, logs.String(), working)
+				assert.NotContains(t, logs.String(), done)
+
+				return
+			}
+
+			assert.Contains(t, logs.String(), working)
+			assert.Contains(t, logs.String(), done)
+		})
+	}
 }
 
 // TestBuild_VersionConstraints pins the typed errors Build returns for unsatisfied version constraints.

@@ -65,7 +65,23 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		Done:    "Approved",
 	}
 
-	if err := spinner.Show(ctx, l, spinner.Writer(v), msgs, poll); err != nil {
+	// Use the run's reporter only if it draws. The wait must show at every log level.
+	reporter := spinner.ReporterFromContext(ctx)
+	if reporter == nil || !reporter.Animated() {
+		reporter = newApprovalReporter(l, v, opts)
+
+		defer reporter.GuardLogger(l)()
+	}
+
+	if !reporter.Animated() {
+		if err := writeLine(w, msgs.Working+"..."); err != nil {
+			return err
+		}
+
+		msgs.Started = true
+	}
+
+	if err := reporter.Show(ctx, l, msgs, poll); err != nil {
 		return approvalFailure(err, Command(opts.Experiments))
 	}
 
@@ -135,6 +151,14 @@ func startFailure(err error) error {
 	}
 
 	return fmt.Errorf("%w: %w", ErrLoginUnavailable, err)
+}
+
+// newApprovalReporter returns a reporter for the approval wait that draws at every log level.
+func newApprovalReporter(l log.Logger, v *venv.Venv, opts *Options) *spinner.Reporter {
+	reporterOpts := spinner.TerminalOptions(v, l)
+	reporterOpts.LogsForHumans = !opts.JSONLogFormat && !l.Formatter().DisabledOutput()
+
+	return spinner.New(reporterOpts)
 }
 
 func writeLine(w io.Writer, line string) error {

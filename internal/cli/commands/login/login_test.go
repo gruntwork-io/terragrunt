@@ -12,10 +12,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/login"
 	"github.com/gruntwork-io/terragrunt/internal/portal"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -155,6 +158,135 @@ func TestRunSignsInAndKeepsTheCredential(t *testing.T) {
 		require.Len(t, credentials.Valid, 1)
 		assert.Equal(t, "fake-access-token", credentials.Valid[organizationID].AccessToken.Reveal())
 	})
+}
+
+// TestRunApprovalWaitProgress checks that the approval wait is drawn on a terminal and printed otherwise.
+func TestRunApprovalWaitProgress(t *testing.T) {
+	t.Parallel()
+
+	const waiting = "Waiting for you to approve the login"
+
+	testCases := []struct {
+		name        string
+		level       log.Level
+		terminal    bool
+		dumb        bool
+		noEscapes   bool
+		jsonLogs    bool
+		runReporter bool
+		wantDrawn   bool
+		wantPrinted bool
+	}{
+		{
+			name:      "terminal",
+			level:     log.InfoLevel,
+			terminal:  true,
+			wantDrawn: true,
+		},
+		{
+			name:      "terminal with only errors logged",
+			level:     log.ErrorLevel,
+			terminal:  true,
+			wantDrawn: true,
+		},
+		{
+			name:        "terminal with only warnings logged and a run reporter",
+			level:       log.WarnLevel,
+			terminal:    true,
+			runReporter: true,
+			wantDrawn:   true,
+		},
+		{
+			name:        "terminal with a run reporter",
+			level:       log.InfoLevel,
+			terminal:    true,
+			runReporter: true,
+			wantDrawn:   true,
+		},
+		{
+			name:        "dumb terminal with only warnings logged",
+			level:       log.WarnLevel,
+			terminal:    true,
+			dumb:        true,
+			wantPrinted: true,
+		},
+		{
+			name:        "console without escape sequences and only warnings logged",
+			level:       log.WarnLevel,
+			terminal:    true,
+			noEscapes:   true,
+			wantPrinted: true,
+		},
+		{
+			name:        "terminal with JSON logs",
+			level:       log.InfoLevel,
+			terminal:    true,
+			jsonLogs:    true,
+			wantPrinted: true,
+		},
+		{
+			name:        "no terminal",
+			level:       log.InfoLevel,
+			wantPrinted: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				var (
+					out    bytes.Buffer
+					term   bytes.Buffer
+					logs   bytes.Buffer
+					opened string
+				)
+
+				v := venvtest.New().
+					WithHTTP(approvingPortal(t, issuedTokenBody)).
+					WithBrowser(recordingBrowser(&opened)).
+					WithWriter(&out).
+					WithErrWriter(&term).
+					WithEnv(map[string]string{"TERM": "xterm-256color", "LANG": "en_US.UTF-8"})
+				if tc.dumb {
+					v.Env["TERM"] = "dumb"
+				}
+
+				v.Terminal = &venv.Terminal{
+					StdinIsTTY:           func() bool { return tc.terminal },
+					StdoutIsTTY:          func() bool { return tc.terminal },
+					StderrIsTTY:          func() bool { return tc.terminal },
+					StderrHandlesEscapes: func() bool { return !tc.noEscapes },
+					Width:                func() int { return 120 },
+					ErrWidth:             func() int { return 120 },
+				}
+
+				l := logger.CreateLogger()
+				l.SetOptions(log.WithOutput(util.NewSyncWriter(&logs)), log.WithLevel(tc.level))
+
+				opts := newOptions(portalBaseURL)
+				opts.JSONLogFormat = tc.jsonLogs
+
+				ctx := t.Context()
+				if tc.runReporter {
+					ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.TerminalOptions(v, l)))
+				}
+
+				require.NoError(t, login.Run(ctx, l, v, opts))
+
+				assert.Equal(t, tc.wantDrawn, strings.Contains(term.String(), waiting), term.String())
+				assert.Equal(t, tc.wantPrinted, strings.Contains(out.String(), waiting+"..."), out.String())
+				assert.NotContains(t, logs.String(), waiting, "the start of the wait is shown once")
+
+				if !tc.wantDrawn {
+					assert.NotContains(t, term.String(), "\x1b", "nothing is drawn where the wait cannot be drawn")
+				}
+
+				assert.Contains(t, out.String(), "Signed in as "+accountEmail)
+			})
+		})
+	}
 }
 
 // TestRunDoesNotPrintTheCredential pins that the token the portal issued stays
