@@ -8,22 +8,26 @@ Export Terragrunt's logs as an OpenTelemetry logs signal.
 
 ### `otel-logs` - What it does
 
-This experiment flag is no longer needed, as Terragrunt now exports its logs as OpenTelemetry log records by default whenever a logs exporter is configured, in addition to the existing traces and metrics signals. The exporter is selected with `TG_TELEMETRY_LOGS_EXPORTER`:
+Terragrunt exports its logs as OpenTelemetry log records, next to traces and metrics, when `TG_TELEMETRY_LOGS_EXPORTER` is set. From v1.2.2 the experiment flag is not needed. Before v1.2.2, also pass `--experiment otel-logs`.
 
 - `none` - no log exporting (the default).
 - `console` - write log records to the console as JSON.
 - `otlpHttp` - export logs to an OpenTelemetry collector over HTTP.
 - `otlpGrpc` - export logs to an OpenTelemetry collector over gRPC.
 
-The OTLP exporters read their endpoint, headers, and TLS settings from the standard `OTEL_EXPORTER_OTLP_*` environment variables. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to disable TLS and send logs over an insecure connection. Only use this for local collection.
+The OTLP exporters read the endpoint, headers, and TLS settings from the standard `OTEL_EXPORTER_OTLP_*` environment variables. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to turn off TLS for a local collector.
 
 ```bash
+# v1.2.2 and later
 TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all -- apply
+
+# Before v1.2.2
+TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all --experiment otel-logs -- apply
 ```
 
-Records emitted while a unit's span is active carry that span's trace and span IDs, so a failed unit's logs link back to its span in the backend. Records from code outside a unit's span, such as the run queue, carry the IDs of the root command span.
+Each record carries the trace and span IDs of the span it was logged in, so a unit's logs link to its span in the backend. From v1.2.2, records logged outside a unit, such as by the run queue, link to the root command span.
 
-See [OpenTelemetry](/troubleshooting/open-telemetry) for the full configuration and a local collector example.
+See [OpenTelemetry](/troubleshooting/open-telemetry) for all settings and a local collector example.
 
 ### `otel-logs` - How to provide feedback
 
@@ -31,9 +35,9 @@ Now that the `otel-logs` experiment is complete, please provide feedback in the 
 
 ### `otel-logs` - Criteria for stabilization
 
-Criteria for moving `otel-logs` to a stable release:
+To transition the `otel-logs` feature to a stable release, the following must be addressed:
 
 - [x] Confirm the exporter types and configuration cover common collector setups.
 - [x] Validate log volume and batching behavior on large stacks.
 - [x] Confirm trace/span correlation is reliable across the run lifecycle, including run-level logs emitted outside a unit span.
-- [x] Settle on the dependency stability story for the OpenTelemetry log exporters and logrus bridge, which are still pre-1.0. The logs API and SDK are stable.
+- [x] Settle on the dependency stability story for the OpenTelemetry logs SDK, which is still pre-1.0.
