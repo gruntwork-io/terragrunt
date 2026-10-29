@@ -3,30 +3,30 @@ name: slow-task-reporting
 since: "v1.0.1"
 ---
 
-Shows progress for slow Terragrunt operations, so a long wait does not look like a hang.
+Shows progress for slow operations, so a long wait does not look like a hang.
 
 ### `slow-task-reporting` - What it does
 
-Terragrunt reports an operation once it has run for 100ms. These operations are reported:
+Terragrunt reports an operation after it runs for 100ms. These operations are reported:
 
-- Source downloads, and waits for the lock on the download directory or on the shared Git store
-- Git worktree creation and Git reference comparison for `--filter` with Git references
+- Source downloads, and waits for the download directory lock or the Git store lock
+- Git worktree creation and Git reference comparison for `--filter`
 - Unit discovery for `run --all`, `find` and `list`
 - `dependency` output fetches
 - Provider caching
-- Waits for a new S3 bucket, DynamoDB table or GCS bucket to become ready
-- Unit and stack source fetches during `stack generate`
-- Catalog repository clones in `terragrunt catalog`
+- Waits for a new S3 bucket, DynamoDB table or GCS bucket to be ready
+- Unit and stack fetches during `stack generate`
+- Repository clones in `terragrunt catalog`
 
-On a terminal, Terragrunt draws one progress line. It shows the operation, how long it has run, and how many other operations are running:
+On a terminal, Terragrunt draws one progress line with the operation, its elapsed time, and the number of other running operations:
 
 ```text
 | Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
 ```
 
-The line fits the terminal width and is redrawn when the terminal is resized. Log lines appear above it. When the operation succeeds, an INFO log line with the elapsed time replaces it. In a `run --all`, all units share the line. It shows the operation that has run the longest and counts the others.
+The line is cut to the terminal width. Log lines are written above it. When the operation succeeds, Terragrunt replaces the line with an INFO log line that has the elapsed time. In `run --all`, all units share the line, and it shows the oldest running operation.
 
-Everywhere else, Terragrunt writes INFO log lines. It logs one when the operation starts or reaches 100ms, one every 30 seconds while it runs, and one when it succeeds. The 30-second line stops CI systems from ending a job that looks silent.
+Otherwise, Terragrunt writes INFO log lines: one when the operation is reported, one every 30 seconds while it runs, and one when it succeeds. The 30-second lines keep CI systems from stopping a job that looks idle.
 
 ```text
 INFO   Fetching outputs of dependency ../vpc...
@@ -34,18 +34,18 @@ INFO   Fetching outputs of dependency ../vpc... (30s elapsed)
 INFO   Fetched outputs of dependency ../vpc (41.7s)
 ```
 
-Terragrunt writes log lines instead of the progress line when any of these is true:
+Terragrunt writes log lines instead of the progress line when:
 
-- Standard error is not a terminal, or the terminal is narrower than 20 columns.
-- `TERM` is unset or `dumb`. Windows does not need `TERM`, but its console must support ANSI escape sequences.
-- A CI environment is detected through `CI`, `TF_BUILD`, `TEAMCITY_VERSION`, `JENKINS_URL` or `TF_IN_AUTOMATION`.
-- Logs use the `json` format, logging is disabled, or the log level is `warn` or higher.
+- Stderr is not a terminal, or the terminal is narrower than 20 columns.
+- `TERM` is unset or `dumb`. On Windows, `TERM` is not needed, but the console must support ANSI escape sequences.
+- `CI`, `TF_BUILD`, `TEAMCITY_VERSION`, `JENKINS_URL` or `TF_IN_AUTOMATION` is set.
+- Logs use the `json` format.
 
-To get log lines on a terminal, set `TERM=dumb` or `CI=true`. `terragrunt catalog` always writes log lines, because its TUI owns the terminal.
+To get log lines on a terminal, set `TERM=dumb` or `CI=true`. `terragrunt catalog` always writes log lines, because its TUI uses the terminal.
 
-With `--log-level warn` or higher, or with `--log-disable`, nothing is reported, not even the 30-second lines.
+With `--log-level warn` or higher, or with `--log-disable`, nothing is reported.
 
-The animation uses Unicode characters on terminals with a UTF-8 locale and in Windows Terminal. Other terminals get `|`, `/`, `-` and `\`.
+The spinner uses Unicode characters on UTF-8 terminals and in Windows Terminal, and `|`, `/`, `-`, `\` elsewhere.
 
 ```bash
 terragrunt run --all --experiment slow-task-reporting -- plan

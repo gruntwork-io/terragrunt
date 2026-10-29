@@ -1,12 +1,4 @@
-// Package spinner reports the progress of operations the user is waiting on.
-//
-// A [Reporter] is built once for a run. On a terminal it animates one progress
-// line that every operation in flight shares. Anywhere else it writes log
-// lines, repeated with an elapsed time so a CI system watching for output does
-// not take the wait for a hang.
-//
-// A run carries its reporter on the context. [ShowAfter] reports through that
-// reporter, and only runs the operation when the context carries none.
+// Package spinner reports slow operations as a progress line on a terminal and as log lines elsewhere.
 package spinner
 
 import (
@@ -25,49 +17,42 @@ const (
 	keepaliveInterval = 30 * time.Second
 )
 
-// reporterKey is the context key a run's [Reporter] is stored under.
 type reporterKey struct{}
 
-// Messages are the texts an operation is reported with.
+// Messages holds the messages for an operation.
 type Messages struct {
-	// Working is shown while the operation runs, e.g. "Creating Git worktree for reference main...".
+	// Working is shown while the operation runs (e.g. "Creating Git worktree for ref main...").
 	Working string
-	// Done is logged once the operation succeeds, e.g. "Created Git worktree for reference main".
+	// Done is logged when the operation succeeds (e.g. "Created Git worktree for ref main").
 	Done string
-	// Started says the caller already logged that the operation started, so `Working` is not logged a second time.
+	// Started means the caller already logged Working, so it is not logged again.
 	Started bool
 }
 
-// Options describe the terminal and the run a [Reporter] reports for.
+// Options configures a [Reporter].
 type Options struct {
-	// Out is the stream the progress line is drawn on.
+	// Out is where the progress line is drawn.
 	Out io.Writer
-	// Width reports how many columns the terminal behind `Out` has, or 0 when that is not known.
-	Width func() int
-	// Env is the environment of the run.
-	Env map[string]string
-	// GOOS is the operating system the run is on.
-	GOOS string
-	// Threshold is how long an operation runs before it is reported.
+	// Width returns the terminal width of Out, or 0 if unknown.
+	Width     func() int
+	Env       map[string]string
+	GOOS      string
 	Threshold time.Duration
-	// OutIsTTY says that `Out` is a terminal that acts on the ANSI escape sequences the progress line is erased with.
+	// OutIsTTY is true when Out is a terminal that supports ANSI escape sequences.
 	OutIsTTY bool
-	// InIsTTY says that the input of the run is a terminal, which echoes what the user types.
+	// InIsTTY is true when stdin is a terminal.
 	InIsTTY bool
-	// LogsForHumans says that log output is on, shows the info level, and is not a format a program reads.
+	// LogsForHumans is true when logs are enabled, at info level or lower, and not JSON.
 	LogsForHumans bool
 }
 
-// Reporter reports the operations of a run that take longer than its threshold.
+// Reporter reports operations that run longer than its threshold.
 type Reporter struct {
 	term      *terminal
 	threshold time.Duration
 }
 
-// TerminalOptions returns the options for a run that logs with `l` and whose
-// error stream, the one of `v`, is where progress is drawn. `LogsForHumans`
-// covers what `l` knows: the caller clears it for a log format a program reads.
-// `l` must have a formatter.
+// TerminalOptions returns options for drawing on the stderr of v. Callers clear LogsForHumans for JSON logs.
 func TerminalOptions(v *venv.Venv, l log.Logger) Options {
 	v.RequireTerminal()
 	v.RequireWriters()
@@ -85,7 +70,6 @@ func TerminalOptions(v *venv.Venv, l log.Logger) Options {
 	}
 }
 
-// New returns a reporter for the run `opts` describe.
 func New(opts Options) *Reporter {
 	reporter := &Reporter{threshold: opts.Threshold}
 
@@ -97,15 +81,11 @@ func New(opts Options) *Reporter {
 	return reporter
 }
 
-// ContextWithReporter returns a copy of `ctx` that carries `reporter`.
 func ContextWithReporter(ctx context.Context, reporter *Reporter) context.Context {
 	return context.WithValue(ctx, reporterKey{}, reporter)
 }
 
-// ContextWithLogOnly returns a copy of `ctx` whose reporter writes log lines
-// and never draws a progress line. Use it for work whose output reaches the
-// terminal while other operations are reported, such as units running
-// concurrently. A `ctx` with no reporter is returned as it is.
+// ContextWithLogOnly returns a copy of ctx whose reporter only writes log lines.
 func ContextWithLogOnly(ctx context.Context) context.Context {
 	reporter := ReporterFromContext(ctx)
 	if reporter == nil {
@@ -115,7 +95,7 @@ func ContextWithLogOnly(ctx context.Context) context.Context {
 	return ContextWithReporter(ctx, reporter.LogOnly())
 }
 
-// ReporterFromContext returns the reporter `ctx` carries, or nil when it carries none.
+// ReporterFromContext returns the reporter stored on ctx, or nil.
 func ReporterFromContext(ctx context.Context) *Reporter {
 	reporter, ok := ctx.Value(reporterKey{}).(*Reporter)
 	if !ok {
@@ -125,10 +105,7 @@ func ReporterFromContext(ctx context.Context) *Reporter {
 	return reporter
 }
 
-// InputRead tells the reporter `ctx` carries that the user answered a prompt.
-// On a terminal the answer ends with a line break the terminal echoes itself,
-// so the cursor is at the start of a row again and the progress line can be
-// drawn. With no reporter, or one that draws nothing, it does nothing.
+// InputRead tells the reporter on ctx that a prompt was answered, so the progress line can be drawn again.
 func InputRead(ctx context.Context) {
 	reporter := ReporterFromContext(ctx)
 	if reporter == nil || reporter.term == nil {
@@ -138,8 +115,7 @@ func InputRead(ctx context.Context) {
 	reporter.term.inputRead()
 }
 
-// ShowAfter runs `fn` and reports it through the reporter `ctx` carries once it
-// has run for the reporter's threshold. With no reporter it only runs `fn`.
+// ShowAfter runs fn and reports it through the reporter on ctx, or only runs fn when there is none.
 func ShowAfter(ctx context.Context, l log.Logger, msgs Messages, fn func() error) error {
 	reporter := ReporterFromContext(ctx)
 	if reporter == nil {
@@ -149,21 +125,17 @@ func ShowAfter(ctx context.Context, l log.Logger, msgs Messages, fn func() error
 	return reporter.ShowAfter(ctx, l, msgs, fn)
 }
 
-// Animated reports whether `reporter` draws a progress line rather than writing log lines.
+// Animated reports whether the reporter draws a progress line instead of log lines.
 func (reporter *Reporter) Animated() bool {
 	return reporter.term != nil
 }
 
-// LogOnly returns a reporter with the threshold of `reporter` that writes log lines.
+// LogOnly returns a reporter with the same threshold that only writes log lines.
 func (reporter *Reporter) LogOnly() *Reporter {
 	return &Reporter{threshold: reporter.threshold}
 }
 
-// Guard returns a writer to `w` that takes the progress line off the screen
-// before each write and puts it back after, so the two never share a row. A
-// reporter that is not animated returns `w` itself. `w` must reach the
-// terminal directly: a `w` that logs, or that writes through another guard of
-// `reporter`, would wait on the lock its own write holds.
+// Guard wraps w so each write clears and redraws the progress line. A w that logs would deadlock.
 func (reporter *Reporter) Guard(w io.Writer) io.Writer {
 	if reporter.term == nil || reporter.guards(w) {
 		return w
@@ -172,12 +144,11 @@ func (reporter *Reporter) Guard(w io.Writer) io.Writer {
 	return &guard{term: reporter.term, w: w}
 }
 
-// GuardLogger routes the output of `l` through [Reporter.Guard] and returns
-// the function that undoes it. A reporter that is not animated changes nothing.
+// GuardLogger wraps the output of l with [Reporter.Guard] and returns a restore function.
 func (reporter *Reporter) GuardLogger(l log.Logger) func() {
 	if reporter.term == nil {
 		return func() {
-			// The logger was never guarded, so there is nothing to restore.
+			// Nothing to restore, the logger was not wrapped.
 		}
 	}
 
@@ -188,29 +159,23 @@ func (reporter *Reporter) GuardLogger(l log.Logger) func() {
 	}
 }
 
-// ShowAfter runs `fn` and reports it once it has run for the reporter's
-// threshold, so an operation that is usually quick stays unreported. When `fn`
-// succeeds after it was reported, the done message is logged with the time it
-// took. When `fn` fails or `ctx` ends first, no done message is logged. The
-// error of `fn` is returned as it is.
+// ShowAfter runs fn, reports it after the threshold, and logs the done message if it succeeds.
 func (reporter *Reporter) ShowAfter(ctx context.Context, l log.Logger, msgs Messages, fn func() error) error {
 	return reporter.show(ctx, l, reporter.threshold, msgs, fn)
 }
 
-// Show runs `fn` and reports it from the moment it starts, for an operation
-// already known to be slow.
+// Show runs fn and reports it from the start, for operations known to be slow.
 func (reporter *Reporter) Show(ctx context.Context, l log.Logger, msgs Messages, fn func() error) error {
 	return reporter.show(ctx, l, 0, msgs, fn)
 }
 
-// guards reports whether `w` is already a guard for the progress line of `reporter`.
 func (reporter *Reporter) guards(w io.Writer) bool {
 	guarded, ok := w.(*guard)
 
 	return ok && guarded.term == reporter.term
 }
 
-// unguard returns the writer that `w` guards for `reporter`, and any other writer as it is.
+// unguard returns the writer wrapped by w, or w if this reporter did not wrap it.
 func (reporter *Reporter) unguard(w io.Writer) io.Writer {
 	guarded, ok := w.(*guard)
 	if !ok || guarded.term != reporter.term {
@@ -220,8 +185,7 @@ func (reporter *Reporter) unguard(w io.Writer) io.Writer {
 	return guarded.w
 }
 
-// show runs `fn`, has it watched from `threshold` on, and logs the done message
-// when a reported `fn` succeeds before `ctx` ends.
+// show runs fn, reports it after threshold, and logs the done message if it was reported and succeeded.
 func (reporter *Reporter) show(
 	ctx context.Context,
 	l log.Logger,
@@ -240,7 +204,7 @@ func (reporter *Reporter) show(
 	shown := false
 
 	err := func() error {
-		// Runs when `fn` panics too, so the progress line is gone before the panic reaches the caller.
+		// Also runs on panic, so the progress line is cleared first.
 		defer func() {
 			close(finished)
 
@@ -257,8 +221,7 @@ func (reporter *Reporter) show(
 	return err
 }
 
-// watch waits for `threshold`, then reports the operation until it finishes or
-// `ctx` ends. It returns whether the operation was reported.
+// watch reports the operation from threshold until it finishes and returns whether it was reported.
 func (reporter *Reporter) watch(
 	ctx context.Context,
 	l log.Logger,
@@ -287,9 +250,7 @@ func (reporter *Reporter) watch(
 	return true
 }
 
-// waitTick blocks until `tick` fires and returns true. It returns false as
-// soon as the operation finishes or `ctx` ends, and those win over a tick that
-// fires at the same moment.
+// waitTick returns true when tick fires first, false when the operation finishes or ctx is cancelled.
 func waitTick(ctx context.Context, tick <-chan time.Time, finished <-chan struct{}) bool {
 	select {
 	case <-tick:
@@ -309,9 +270,7 @@ func waitTick(ctx context.Context, tick <-chan time.Time, finished <-chan struct
 	}
 }
 
-// logProgress logs the working message, then repeats it with the elapsed time
-// until the operation finishes or `ctx` ends. The repeats are counted from
-// `start`, so the first comes a keepalive interval after the operation started.
+// logProgress logs the working message, then repeats it every keepaliveInterval counted from start.
 func logProgress(
 	ctx context.Context,
 	l log.Logger,
@@ -336,7 +295,7 @@ func logProgress(
 	}
 }
 
-// logDone logs the done message, with the elapsed time once it reaches a second.
+// logDone logs the done message, with the elapsed time if it is 1s or more.
 func logDone(l log.Logger, msg string, start time.Time) {
 	elapsed := time.Since(start)
 	if elapsed < time.Second {

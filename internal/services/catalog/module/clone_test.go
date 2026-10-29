@@ -89,9 +89,8 @@ func TestCloneReportsAGitRemoteThatNeverAnswers(t *testing.T) {
 	})
 }
 
-// TestCloneReportsProgress pins what a slow catalog clone logs: a keepalive
-// line when the run carries a progress reporter and none when it does not.
-func TestCloneReportsProgress(t *testing.T) {
+// TestCloneProgress checks that a slow clone logs a keepalive line only with a reporter.
+func TestCloneProgress(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {

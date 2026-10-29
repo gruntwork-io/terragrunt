@@ -8,8 +8,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// osStderrHandlesEscapes reports whether the console behind stderr has virtual
-// terminal processing on, which Terragrunt asks for when it starts.
+// osStderrHandlesEscapes reports whether the stderr console has virtual terminal processing enabled.
 func osStderrHandlesEscapes() bool {
 	var mode uint32
 	if err := windows.GetConsoleMode(windows.Handle(os.Stderr.Fd()), &mode); err != nil {

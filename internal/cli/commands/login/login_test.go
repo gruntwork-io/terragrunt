@@ -160,9 +160,8 @@ func TestRunSignsInAndKeepsTheCredential(t *testing.T) {
 	})
 }
 
-// TestRunShowsTheWaitForApproval pins how the wait for approval is shown: a
-// progress line on a terminal at any log level, and log lines everywhere else.
-func TestRunShowsTheWaitForApproval(t *testing.T) {
+// TestRunApprovalWaitProgress checks that the approval wait is drawn on a terminal and printed otherwise.
+func TestRunApprovalWaitProgress(t *testing.T) {
 	t.Parallel()
 
 	const waiting = "Waiting for you to approve the login"
@@ -271,7 +270,6 @@ func TestRunShowsTheWaitForApproval(t *testing.T) {
 
 				ctx := t.Context()
 				if tc.runReporter {
-					// The reporter a run with the slow-task-reporting experiment carries.
 					ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.TerminalOptions(v, l)))
 				}
 

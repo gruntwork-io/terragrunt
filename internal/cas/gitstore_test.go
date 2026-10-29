@@ -192,8 +192,8 @@ func TestGitStoreEnsureRefLockReleaseAllowsWaiterToProceedWithRacing(t *testing.
 	require.NoError(t, repo2.Unlock())
 }
 
-// TestGitStoreEnsureRefReportsLockWaitWithRacing pins that only a run with a reporter reports the lock wait.
-func TestGitStoreEnsureRefReportsLockWaitWithRacing(t *testing.T) {
+// TestGitStoreEnsureRefLockWaitProgress checks that the lock wait is reported only with a reporter.
+func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
 	t.Parallel()
 
 	const password = "not-a-real-password"
@@ -224,7 +224,7 @@ func TestGitStoreEnsureRefReportsLockWaitWithRacing(t *testing.T) {
 			holder, err := store.EnsureRef(t.Context(), logger.CreateLogger(), gv, shownURL, "main", hash, 0)
 			require.NoError(t, err)
 
-			// Release the holder after a short delay so the waiter finds the lock taken.
+			// Release the lock after a short delay, so the waiter has to wait.
 			released := make(chan error, 1)
 
 			go func() {

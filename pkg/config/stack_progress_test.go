@@ -22,10 +22,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// slowGenerateDelay is how long each component takes to fetch, one second past the first keepalive line.
+// slowGenerateDelay is how long each component takes to fetch, 1s past the first keepalive line.
 const slowGenerateDelay = 31 * time.Second
 
-// TestGenerateStackProgress pins that a slow unit or stack is reported without repeating the line that announces it.
+// TestGenerateStackProgress checks that a slow unit or stack is reported without a second generate line.
 func TestGenerateStackProgress(t *testing.T) {
 	t.Parallel()
 
@@ -94,7 +94,7 @@ stack "team" {
 				defer pool.Stop()
 
 				require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
-				// Drain the pool before reading the buffer the workers log into.
+				// Wait for the workers before reading their logs.
 				require.NoError(t, pool.Wait())
 
 				lines := strings.Split(logs.String(), "\n")
@@ -119,7 +119,7 @@ stack "team" {
 	}
 }
 
-// slowDirFS takes delay to create each of dirs and delegates every other call.
+// slowDirFS sleeps for delay when creating each of dirs.
 type slowDirFS struct {
 	vfs.FS
 	dirs  []string
@@ -134,7 +134,6 @@ func (fsys slowDirFS) MkdirAll(path string, perm os.FileMode) error {
 	return fsys.FS.MkdirAll(path, perm)
 }
 
-// countSuffix returns how many of lines end with suffix.
 func countSuffix(lines []string, suffix string) int {
 	count := 0
 

@@ -20,8 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestTerraformCommandHookReportsProviderCaching pins that only a run with a reporter logs the done line.
-func TestTerraformCommandHookReportsProviderCaching(t *testing.T) {
+// TestTerraformCommandHookProgress checks that the done line is logged only with a reporter.
+func TestTerraformCommandHookProgress(t *testing.T) {
 	t.Parallel()
 
 	const (

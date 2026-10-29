@@ -20,7 +20,7 @@ import (
 
 const progressBucket = "progress-state-bucket"
 
-func TestGCSBucketWaitIsReported(t *testing.T) {
+func TestGCSBucketWaitProgress(t *testing.T) {
 	t.Parallel()
 
 	working := "Waiting for GCS bucket " + progressBucket + " to be created..."

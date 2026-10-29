@@ -8,10 +8,8 @@ import (
 
 // Terminal reports the console a run's output is adapting to: whether each
 // standard stream is attached to a terminal, and how wide that terminal is.
-// Width reports the width behind stdout and ErrWidth the width behind stderr.
-// Each reports 0 when no width is available, which callers read as "do not
-// wrap" or replace with a default of their own. StderrHandlesEscapes reports
-// whether the terminal behind stderr acts on ANSI escape sequences.
+// Width reports 0 when no width is available, which callers read as "do not
+// wrap" or replace with a default of their own.
 type Terminal struct {
 	StdinIsTTY           func() bool
 	StdoutIsTTY          func() bool
@@ -43,8 +41,7 @@ func osTerminalWidth() int {
 	return width
 }
 
-// osTerminalErrWidth returns the width of the terminal behind stderr, or 0
-// when stderr is not a terminal.
+// osTerminalErrWidth returns the width of stderr, or 0 if it is not a terminal.
 func osTerminalErrWidth() int {
 	width, _, err := term.GetSize(int(os.Stderr.Fd()))
 	if err != nil {

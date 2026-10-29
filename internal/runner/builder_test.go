@@ -202,7 +202,7 @@ func TestNew(t *testing.T) {
 	})
 }
 
-// TestNew_DiscoveryProgress pins that discovery is reported only when the run carries a reporter.
+// TestNew_DiscoveryProgress checks that discovery is reported only with a reporter.
 func TestNew_DiscoveryProgress(t *testing.T) {
 	t.Parallel()
 

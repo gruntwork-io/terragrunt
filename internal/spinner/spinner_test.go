@@ -101,7 +101,7 @@ func TestShowAfterFailureLogsNoDone(t *testing.T) {
 	})
 }
 
-func TestShowAfterDoneCarriesElapsedTime(t *testing.T) {
+func TestShowAfterDoneHasElapsedTime(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestShowAfterDoneCarriesElapsedTime(t *testing.T) {
 	})
 }
 
-func TestShowAfterRepeatsWorkingLineAsKeepalive(t *testing.T) {
+func TestShowAfterKeepalive(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -149,7 +149,7 @@ func TestShowAfterRepeatsWorkingLineAsKeepalive(t *testing.T) {
 	})
 }
 
-func TestShowAfterRepeatsFromTheStartOfTheOperation(t *testing.T) {
+func TestShowAfterKeepaliveCountsFromStart(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -210,7 +210,7 @@ func TestShowAfterRepeatsFromTheStartOfTheOperation(t *testing.T) {
 	}
 }
 
-func TestShowAfterStartedOperationIsNotAnnouncedTwice(t *testing.T) {
+func TestShowAfterStartedLogsWorkingOnce(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -236,7 +236,7 @@ func TestShowAfterStartedOperationIsNotAnnouncedTwice(t *testing.T) {
 	})
 }
 
-func TestShowAfterCancelledBeforeThresholdIsNotReported(t *testing.T) {
+func TestShowAfterCancelledBeforeThreshold(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -260,7 +260,7 @@ func TestShowAfterCancelledBeforeThresholdIsNotReported(t *testing.T) {
 	})
 }
 
-func TestShowAfterCancelledWhileReportedLogsNoDone(t *testing.T) {
+func TestShowAfterCancelledLogsNoDone(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -288,7 +288,7 @@ func TestShowAfterCancelledWhileReportedLogsNoDone(t *testing.T) {
 	})
 }
 
-func TestShowReportsFromTheStart(t *testing.T) {
+func TestShowReportsImmediately(t *testing.T) {
 	t.Parallel()
 
 	for range 200 {
@@ -311,7 +311,7 @@ func TestShowReportsFromTheStart(t *testing.T) {
 	}
 }
 
-func TestShowAfterWithoutReporterOnlyRunsTheOperation(t *testing.T) {
+func TestShowAfterWithoutReporter(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -340,7 +340,7 @@ func TestShowAfterWithoutReporterOnlyRunsTheOperation(t *testing.T) {
 	})
 }
 
-func TestShowAfterReportsThroughTheContextReporter(t *testing.T) {
+func TestShowAfterUsesContextReporter(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -392,7 +392,7 @@ func TestContextWithLogOnlyNeverDraws(t *testing.T) {
 	})
 }
 
-func TestProgressLineShowsFrameMessageAndElapsedTime(t *testing.T) {
+func TestProgressLineFormat(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -463,7 +463,7 @@ func TestProgressLineNeverWraps(t *testing.T) {
 	})
 }
 
-func TestProgressLineStaysOnOneRowWhateverTheMessageHolds(t *testing.T) {
+func TestProgressLineControlChars(t *testing.T) {
 	t.Parallel()
 
 	const width = 40
@@ -519,7 +519,7 @@ func TestProgressLineStaysOnOneRowWhateverTheMessageHolds(t *testing.T) {
 	}
 }
 
-func TestProgressLineIsSharedAndLogsAreWrittenAroundIt(t *testing.T) {
+func TestProgressLineShared(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -570,7 +570,7 @@ func TestProgressLineIsSharedAndLogsAreWrittenAroundIt(t *testing.T) {
 	})
 }
 
-func TestProgressLineIsClearedWhenTheOperationPanics(t *testing.T) {
+func TestProgressLineClearedOnPanic(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -601,7 +601,7 @@ func TestProgressLineIsClearedWhenTheOperationPanics(t *testing.T) {
 	})
 }
 
-func TestProgressFramesFollowTheTerminal(t *testing.T) {
+func TestProgressFrames(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -701,7 +701,7 @@ func TestProgressFramesFollowTheTerminal(t *testing.T) {
 	}
 }
 
-func TestProgressFramesDropTThenGInOneCell(t *testing.T) {
+func TestProgressFramesUnicode(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -750,7 +750,7 @@ func TestProgressFramesDropTThenGInOneCell(t *testing.T) {
 	})
 }
 
-func TestProgressWriteFailureIsLoggedOnceAndTheOperationCompletes(t *testing.T) {
+func TestProgressWriteFailure(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -777,7 +777,7 @@ func TestProgressWriteFailureIsLoggedOnceAndTheOperationCompletes(t *testing.T) 
 	})
 }
 
-func TestProgressLineIsNotDrawnOnATerminalThatGotTooNarrow(t *testing.T) {
+func TestProgressLineTooNarrow(t *testing.T) {
 	t.Parallel()
 
 	const narrow = 10
@@ -826,7 +826,7 @@ func TestProgressLineIsNotDrawnOnATerminalThatGotTooNarrow(t *testing.T) {
 	})
 }
 
-func TestProgressLineWaitsForAPromptToBeAnswered(t *testing.T) {
+func TestProgressLineWaitsForPrompt(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -896,7 +896,7 @@ func TestProgressLineWaitsForAPromptToBeAnswered(t *testing.T) {
 	}
 }
 
-func TestGuardOfALogReporterIsTheWriterItself(t *testing.T) {
+func TestGuardLogReporter(t *testing.T) {
 	t.Parallel()
 
 	w := new(bytes.Buffer)
@@ -904,7 +904,7 @@ func TestGuardOfALogReporterIsTheWriterItself(t *testing.T) {
 	assert.Same(t, w, logReporter().Guard(w))
 }
 
-func TestTerminalOptionsDescribeTheRun(t *testing.T) {
+func TestTerminalOptions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -989,7 +989,7 @@ func TestGuardIsNotStacked(t *testing.T) {
 	assert.Same(t, guarded, reporter.Guard(guarded))
 }
 
-func TestGuardLoggerIsUndone(t *testing.T) {
+func TestGuardLoggerRestore(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -1026,7 +1026,7 @@ func TestGuardLoggerIsUndone(t *testing.T) {
 	}
 }
 
-func TestProgressLineDoesNotWrapWhenTheTerminalShrinks(t *testing.T) {
+func TestProgressLineShrinkNoWrap(t *testing.T) {
 	t.Parallel()
 
 	const narrow = 30
@@ -1073,7 +1073,7 @@ func TestProgressLineDoesNotWrapWhenTheTerminalShrinks(t *testing.T) {
 	})
 }
 
-func TestProgressLineLeavesNothingBehindWhenTheTerminalShrinks(t *testing.T) {
+func TestProgressLineShrinkNoLeftovers(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -1130,7 +1130,7 @@ func TestProgressLineLeavesNothingBehindWhenTheTerminalShrinks(t *testing.T) {
 	})
 }
 
-// syncBuffer is a buffer safe for the concurrent writes a terminal receives.
+// syncBuffer is a buffer safe for concurrent writes.
 type syncBuffer struct {
 	buf bytes.Buffer
 	mu  sync.Mutex
@@ -1154,19 +1154,17 @@ func (buffer *syncBuffer) String() string {
 	return string(buffer.Bytes())
 }
 
-// failingWriter is a terminal that went away.
 type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) {
 	return 0, errors.New("terminal is gone")
 }
 
-// logReporter returns a reporter that writes log lines.
 func logReporter() *spinner.Reporter {
 	return spinner.New(spinner.Options{Threshold: testThreshold})
 }
 
-// terminalOptions returns the options of a UTF-8 terminal `width` columns wide that draws on `out`.
+// terminalOptions returns options for a UTF-8 terminal of width columns that draws on out.
 func terminalOptions(out interface{ Write([]byte) (int, error) }, width int) spinner.Options {
 	return spinner.Options{
 		Out:           out,
@@ -1179,17 +1177,15 @@ func terminalOptions(out interface{ Write([]byte) (int, error) }, width int) spi
 	}
 }
 
-// newLogger returns a logger that writes info lines to `out`.
+// newLogger returns an info level logger that writes to out.
 func newLogger(out interface{ Write([]byte) (int, error) }) log.Logger {
 	return log.New(log.WithLevel(log.InfoLevel), log.WithOutput(out))
 }
 
-// logLines returns the lines written to `logs`.
 func logLines(logs *bytes.Buffer) []string {
 	return strings.Split(strings.TrimSuffix(logs.String(), "\n"), "\n")
 }
 
-// loggerOutput returns the writer `l` writes to.
 func loggerOutput(l log.Logger) io.Writer {
 	var output io.Writer
 
@@ -1207,8 +1203,7 @@ var (
 	csi       = regexp.MustCompile(`\x1b\[[0-9;?]*[@-~]`)
 )
 
-// drawnSegments returns the text written to `stream` between carriage returns,
-// control sequences and log lines left out.
+// drawnSegments returns the text between carriage returns in stream, without escapes and log lines.
 func drawnSegments(stream []byte) []string {
 	var segments []string
 
@@ -1221,7 +1216,7 @@ func drawnSegments(stream []byte) []string {
 	return segments
 }
 
-// drawnLines returns every progress line drawn in `stream`, in order.
+// drawnLines returns the progress lines drawn in stream, in order.
 func drawnLines(stream []byte) []string {
 	var lines []string
 
@@ -1234,7 +1229,7 @@ func drawnLines(stream []byte) []string {
 	return lines
 }
 
-// screenRows replays `stream` on a terminal `width` columns wide and returns the rows that are not blank.
+// screenRows replays stream on a screen of width columns and returns the non-blank rows.
 func screenRows(stream []byte, width int) []string {
 	screen := newScreen(width)
 	screen.write(stream)
@@ -1242,10 +1237,7 @@ func screenRows(stream []byte, width int) []string {
 	return screen.rows()
 }
 
-// screen is a terminal that re-wraps what it shows to its width when it is
-// resized, the way most terminals do. It keeps logical lines, and the cursor
-// as a line and an offset into it, so the cursor stays on the character it was
-// on when the rows are re-wrapped.
+// screen is a fake terminal that re-wraps its lines when resized, like most terminals.
 type screen struct {
 	lines [][]rune
 	line  int
@@ -1253,18 +1245,15 @@ type screen struct {
 	width int
 }
 
-// newScreen returns an empty screen `width` columns wide.
 func newScreen(width int) *screen {
 	return &screen{lines: [][]rune{{}}, width: width}
 }
 
-// resize makes the screen `width` columns wide.
 func (screen *screen) resize(width int) {
 	screen.width = width
 }
 
-// write replays `stream` on the screen. It knows carriage returns, line
-// breaks, erasing to the end of the screen, and printable characters.
+// write replays stream, handling \r, \n, erase down and printable characters.
 func (screen *screen) write(stream []byte) {
 	text := string(stream)
 
@@ -1287,7 +1276,6 @@ func (screen *screen) write(stream []byte) {
 	}
 }
 
-// put writes `char` at the cursor.
 func (screen *screen) put(char rune) {
 	switch char {
 	case '\r':
@@ -1331,7 +1319,6 @@ func (screen *screen) put(char rune) {
 	screen.col += columns
 }
 
-// rows returns the rows of the screen that are not blank.
 func (screen *screen) rows() []string {
 	var shown []string
 

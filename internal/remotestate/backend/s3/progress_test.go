@@ -26,7 +26,7 @@ const (
 	progressTable  = "progress-lock-table"
 )
 
-func TestRemoteStateWaitsAreReported(t *testing.T) {
+func TestRemoteStateWaitProgress(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -110,7 +110,7 @@ func TestRemoteStateWaitsAreReported(t *testing.T) {
 	}
 }
 
-// awsStub answers the S3 and DynamoDB calls the waits make.
+// awsStub answers the S3 and DynamoDB calls made by the waits.
 type awsStub struct {
 	requests  atomic.Int64
 	created   atomic.Bool

@@ -65,8 +65,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		Done:    "Approved",
 	}
 
-	// The run's reporter is used only when it draws, since the wait is shown on
-	// a terminal at every log level.
+	// Use the run's reporter only if it draws. The wait must show at every log level.
 	reporter := spinner.ReporterFromContext(ctx)
 	if reporter == nil || !reporter.Animated() {
 		reporter = newApprovalReporter(l, v, opts)
@@ -74,8 +73,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		defer reporter.GuardLogger(l)()
 	}
 
-	// Where the wait cannot be drawn, it is printed with the code and the URL,
-	// so it shows at every log level.
+	// If the wait cannot be drawn, print it so it shows at every log level.
 	if !reporter.Animated() {
 		if err := writeLine(w, msgs.Working+"..."); err != nil {
 			return err
@@ -156,9 +154,7 @@ func startFailure(err error) error {
 	return fmt.Errorf("%w: %w", ErrLoginUnavailable, err)
 }
 
-// newApprovalReporter returns the reporter the wait for approval is shown
-// with when the run carries none. On a terminal the wait is drawn at every log
-// level, since the user has to act on it.
+// newApprovalReporter returns a reporter for the approval wait that draws at every log level.
 func newApprovalReporter(l log.Logger, v *venv.Venv, opts *Options) *spinner.Reporter {
 	reporterOpts := spinner.TerminalOptions(v, l)
 	reporterOpts.LogsForHumans = !opts.JSONLogFormat && !l.Formatter().DisabledOutput()

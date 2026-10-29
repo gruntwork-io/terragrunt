@@ -23,8 +23,7 @@ const (
 	minMessageWidth = len(ellipsis) + 1
 )
 
-// terminal is the one progress line of a run. Every operation being reported
-// shares it, and so does every [guard] writing around it.
+// terminal is the progress line of a run, shared by all reported operations.
 type terminal struct {
 	epoch         time.Time
 	out           io.Writer
@@ -40,20 +39,18 @@ type terminal struct {
 	echoesInput   bool
 }
 
-// operation is one operation on the progress line.
 type operation struct {
 	start time.Time
 	text  string
 }
 
-// guard writes to `w` around the progress line of `term`.
+// guard writes to w without overwriting the progress line.
 type guard struct {
 	term *terminal
 	w    io.Writer
 }
 
-// Write takes the progress line off the screen, writes `p`, and draws the line
-// again once the cursor is back at the start of a row.
+// Write clears the progress line, writes p, and draws the line again if p ends with a line break.
 func (guard *guard) Write(p []byte) (int, error) {
 	guard.term.mu.Lock()
 	defer guard.term.mu.Unlock()
@@ -71,7 +68,6 @@ func (guard *guard) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// newTerminal returns the progress line drawn on `out` with `frames`.
 func newTerminal(out io.Writer, width func() int, frames []string) *terminal {
 	return &terminal{
 		epoch:  time.Now(),
@@ -81,7 +77,7 @@ func newTerminal(out io.Writer, width func() int, frames []string) *terminal {
 	}
 }
 
-// animate keeps `text` on the progress line until the operation finishes or `ctx` ends.
+// animate shows text on the progress line until the operation finishes or ctx is cancelled.
 func (term *terminal) animate(
 	ctx context.Context,
 	l log.Logger,
@@ -104,8 +100,7 @@ func (term *terminal) animate(
 	}
 }
 
-// inputRead records that the terminal echoed the line break of an answer, which
-// leaves the cursor at the start of a row.
+// inputRead draws the progress line again after the user answered a prompt.
 func (term *terminal) inputRead() {
 	if !term.echoesInput {
 		return
@@ -118,7 +113,6 @@ func (term *terminal) inputRead() {
 	term.draw(time.Now())
 }
 
-// add puts `op` on the progress line.
 func (term *terminal) add(op *operation) {
 	term.mu.Lock()
 	defer term.mu.Unlock()
@@ -126,9 +120,7 @@ func (term *terminal) add(op *operation) {
 	term.ops = append(term.ops, op)
 }
 
-// remove takes `op` off the progress line and clears the line, so what is
-// logged next starts on an empty row. Operations still running draw it again
-// on their next frame.
+// remove removes op and clears the line, which other running operations draw again.
 func (term *terminal) remove(l log.Logger, op *operation) {
 	term.mu.Lock()
 
@@ -144,7 +136,6 @@ func (term *terminal) remove(l log.Logger, op *operation) {
 	logFailure(l, failure)
 }
 
-// redraw draws the progress line for the current time.
 func (term *terminal) redraw(l log.Logger) {
 	term.mu.Lock()
 
@@ -157,11 +148,7 @@ func (term *terminal) redraw(l log.Logger) {
 	logFailure(l, failure)
 }
 
-// draw puts the progress line for `now` on the screen, erases what is left of
-// the line drawn before, and leaves the cursor in the gutter at the start of
-// the row. A terminal that re-wraps the line when it is made narrower then
-// moves the rest of it below the cursor, where the next erase reaches it. The
-// caller holds the lock.
+// draw writes the line and erases below it, which also removes rows a resize re-wrapped. Caller holds the lock.
 func (term *terminal) draw(now time.Time) {
 	if term.midLine || len(term.ops) == 0 {
 		return
@@ -184,9 +171,7 @@ func (term *terminal) draw(now time.Time) {
 	term.last = line
 }
 
-// clear wipes the progress line, with what a terminal that was made narrower
-// re-wrapped from it, and leaves the cursor at the start of its row. It writes
-// no columns, so it cannot make the terminal wrap. The caller holds the lock.
+// clear erases the progress line and everything below it. Caller holds the lock.
 func (term *terminal) clear() {
 	if !term.shown {
 		return
@@ -198,9 +183,7 @@ func (term *terminal) clear() {
 	term.last = ""
 }
 
-// line returns the progress line for `now` on a terminal `width` columns wide,
-// starting with the gutter and cut to one column less than that so it never
-// wraps. It is empty when the terminal is too narrow to draw on.
+// line returns the progress line cut to width-1 columns, or "" if the terminal is too narrow.
 func (term *terminal) line(now time.Time, width int) string {
 	if width < minWidth {
 		return ""
@@ -222,8 +205,7 @@ func (term *terminal) line(now time.Time, width int) string {
 	return gutter + frame + " " + runewidth.Truncate(printable(head.text), room, ellipsis) + suffix
 }
 
-// write sends `s` to the terminal. A failed write ends all further drawing.
-// The caller holds the lock.
+// write writes s to the terminal and stops drawing after a failed write. Caller holds the lock.
 func (term *terminal) write(s string) {
 	if term.failure != nil {
 		return
@@ -234,8 +216,7 @@ func (term *terminal) write(s string) {
 	}
 }
 
-// unloggedFailure returns the write failure that ended drawing, once. The
-// caller holds the lock.
+// unloggedFailure returns the write error only the first time. Caller holds the lock.
 func (term *terminal) unloggedFailure() error {
 	if term.failure == nil || term.failureLogged {
 		return nil
@@ -246,8 +227,7 @@ func (term *terminal) unloggedFailure() error {
 	return term.failure
 }
 
-// printable returns `text` with every control character replaced by a space,
-// so a tab or a line break in a message cannot move the cursor off the row.
+// printable replaces control characters with spaces so the line stays on one row.
 func printable(text string) string {
 	return strings.Map(func(char rune) rune {
 		if unicode.IsControl(char) {
@@ -258,7 +238,6 @@ func printable(text string) string {
 	}, text)
 }
 
-// logFailure logs why the progress line is no longer drawn.
 func logFailure(l log.Logger, failure error) {
 	if failure == nil {
 		return

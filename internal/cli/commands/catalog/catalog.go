@@ -137,7 +137,7 @@ func newLoadFunc(
 	return func(
 		ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 	) error {
-		// Loaders run while the TUI or the entry stream owns the terminal, so their progress is logged, never drawn.
+		// The TUI owns the terminal, so progress is only logged.
 		ctx = spinner.ContextWithLogOnly(ctx)
 
 		if repoURL != "" {

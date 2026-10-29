@@ -954,7 +954,7 @@ func TestWorktreeCleanupWithCancelledContextWithRacing(t *testing.T) {
 	}
 }
 
-// TestNewWorktreesComparisonProgress pins that the Git comparison is reported only when the run carries a reporter.
+// TestNewWorktreesComparisonProgress checks that the Git comparison is reported only with a reporter.
 func TestNewWorktreesComparisonProgress(t *testing.T) {
 	t.Parallel()
 
@@ -1023,9 +1023,8 @@ func TestNewWorktreesComparisonProgress(t *testing.T) {
 	}
 }
 
-// TestNewWorktreesFailedCheckoutReportsNoSuccess pins that a worktree whose
-// checkout fails is reported as started and never as created.
-func TestNewWorktreesFailedCheckoutReportsNoSuccess(t *testing.T) {
+// TestNewWorktreesFailedCheckoutProgress checks that a failed checkout is not logged as created.
+func TestNewWorktreesFailedCheckoutProgress(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -1056,13 +1055,11 @@ func TestNewWorktreesFailedCheckoutReportsNoSuccess(t *testing.T) {
 	assert.Empty(t, registeredWorktrees(t, tmpDir))
 }
 
-// failOnCheckoutExec makes every `git checkout` fail and prepares every other
-// command through the wrapped Exec.
+// failOnCheckoutExec fails every `git checkout` and passes other commands to the wrapped Exec.
 type failOnCheckoutExec struct {
 	vexec.Exec
 }
 
-// Command prepares a `git checkout` that exits with an error.
 func (e *failOnCheckoutExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
 	if !slices.Contains(args, "checkout") {
 		return e.Exec.Command(ctx, name, args...)

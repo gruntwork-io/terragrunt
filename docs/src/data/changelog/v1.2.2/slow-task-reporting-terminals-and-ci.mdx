@@ -3,22 +3,24 @@ version: "v1.2.2"
 category: "experiments-updated"
 ---
 
-#### `slow-task-reporting` - One progress line that fits the terminal, and log lines everywhere else
+#### `slow-task-reporting` - One progress line on terminals, log lines in CI
 
-The experiment drew a spinner for each slow operation. A message wider than the terminal left a stale row on every frame. Output from other units of a `run --all` was appended to the spinner text. The spinner drew over the `terragrunt catalog` TUI. On CI systems that give a job a pseudo-terminal, it animated into the job log.
-
-Now all slow operations share one progress line. The line is cut to the terminal width, and log lines are written above it:
+Slow operations now share one progress line, cut to the terminal width. Log lines are written above it:
 
 ```text
 | Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
 ```
 
-Terragrunt writes INFO log lines instead in CI, with `TERM=dumb`, with `json` logs, and while `terragrunt catalog` loads repositories.
+This fixes stale rows when a message was wider than the terminal, `run --all` output mixed into the spinner text, and the spinner drawing over the `terragrunt catalog` TUI.
+
+In CI, with `TERM=dumb`, with `json` logs, and in `terragrunt catalog`, Terragrunt writes INFO log lines instead.
+
+Operations are now reported after 100ms instead of 1 second.
 
 More operations are reported: unit discovery, `dependency` output fetches, provider caching, waits for new remote state resources, `stack generate` fetches, and lock waits.
 
-A failed Git worktree creation no longer logs that it succeeded.
+`terragrunt login` shows the wait for approval the same way, with or without the experiment. If the line cannot be drawn, Terragrunt prints that it is waiting, at every log level.
 
-`terragrunt login` shows its wait for approval the same way, with or without the experiment. Where the line can't be drawn, Terragrunt prints that it is waiting after the one-time code and URL, at every log level.
+A failed Git worktree creation no longer logs that it succeeded.
 
 To learn more, see the [experiment documentation](/reference/experiments/active#slow-task-reporting).

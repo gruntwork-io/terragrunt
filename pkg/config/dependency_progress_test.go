@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDependencyOutputFetchProgress pins that only a real fetch with a reporter on the context is reported.
+// TestDependencyOutputFetchProgress checks that only an uncached fetch with a reporter is reported.
 func TestDependencyOutputFetchProgress(t *testing.T) {
 	t.Parallel()
 
@@ -120,12 +120,10 @@ func TestDependencyOutputFetchProgress(t *testing.T) {
 	}
 }
 
-// logProgressReporter returns a reporter that reports at once and writes log lines.
 func logProgressReporter(io.Writer) *spinner.Reporter {
 	return spinner.New(spinner.Options{})
 }
 
-// terminalProgressReporter returns a reporter that reports at once and draws its progress line on term.
 func terminalProgressReporter(term io.Writer) *spinner.Reporter {
 	return spinner.New(spinner.Options{
 		Out:           term,

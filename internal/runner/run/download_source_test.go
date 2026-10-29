@@ -1012,8 +1012,8 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	assert.Equal(t, mainTfContent, string(cachedContent), "File contents should match")
 }
 
-// TestDownloadTerraformSourceReportsDownloadDirLockWait pins that only a run with a reporter reports the lock wait.
-func TestDownloadTerraformSourceReportsDownloadDirLockWait(t *testing.T) {
+// TestDownloadTerraformSourceLockWaitProgress checks that the lock wait is reported only with a reporter.
+func TestDownloadTerraformSourceLockWaitProgress(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -1063,7 +1063,7 @@ func TestDownloadTerraformSourceReportsDownloadDirLockWait(t *testing.T) {
 			require.True(t, strings.HasPrefix(updatedOpts.CacheDir, opts.DownloadDir), updatedOpts.CacheDir)
 			assert.True(t, vfs.Exists(v.FS, filepath.Join(updatedOpts.CacheDir, "main.tf")))
 
-			// A source with no module subdirectory is downloaded straight into the locked directory.
+			// A source without a subdirectory is downloaded into the locked directory.
 			working := "Waiting for the lock on " + updatedOpts.CacheDir + "..."
 			done := "Got the lock on " + updatedOpts.CacheDir
 

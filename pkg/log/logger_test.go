@@ -217,7 +217,7 @@ func newTestLogger(level log.Level) (log.Logger, *bytes.Buffer) {
 	return logger, buf
 }
 
-func TestWithOutputWrapperWrapsTheCurrentOutput(t *testing.T) {
+func TestWithOutputWrapper(t *testing.T) {
 	t.Parallel()
 
 	output := new(bytes.Buffer)

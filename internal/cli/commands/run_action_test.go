@@ -75,9 +75,8 @@ func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
 	assert.Contains(t, string(stack), "run_action_test.go")
 }
 
-// TestRunActionInstallsProgressReporterForTheExperiment pins that the action
-// context carries a progress reporter only when `slow-task-reporting` is on.
-func TestRunActionInstallsProgressReporterForTheExperiment(t *testing.T) {
+// TestRunActionProgressReporter checks that the context has a reporter only with the experiment on.
+func TestRunActionProgressReporter(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -132,10 +131,8 @@ func TestRunActionInstallsProgressReporterForTheExperiment(t *testing.T) {
 	}
 }
 
-// TestRunActionProgressReporterFollowsTheRun pins which runs draw a progress
-// line: a terminal with human-readable logs does, and JSON logs, disabled
-// logs, a quieter log level and a CI environment do not.
-func TestRunActionProgressReporterFollowsTheRun(t *testing.T) {
+// TestRunActionProgressReporterAnimated checks which runs draw the progress line.
+func TestRunActionProgressReporterAnimated(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -204,9 +201,8 @@ func TestRunActionProgressReporterFollowsTheRun(t *testing.T) {
 	}
 }
 
-// TestRunActionWritesLogsAroundTheProgressLine pins that a log line written
-// while a progress line is on screen gets a row of its own.
-func TestRunActionWritesLogsAroundTheProgressLine(t *testing.T) {
+// TestRunActionLogsAroundProgressLine checks that log lines do not share a row with the progress line.
+func TestRunActionLogsAroundProgressLine(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -247,10 +243,8 @@ func TestRunActionWritesLogsAroundTheProgressLine(t *testing.T) {
 	})
 }
 
-// TestRunActionDrawsProgressAfterAPromptIsAnswered pins that a prompt, which
-// leaves the cursor in the middle of a row, holds the progress line back only
-// until the user answers it.
-func TestRunActionDrawsProgressAfterAPromptIsAnswered(t *testing.T) {
+// TestRunActionProgressAfterPrompt checks that the progress line waits for a prompt to be answered.
+func TestRunActionProgressAfterPrompt(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -284,9 +278,8 @@ func TestRunActionDrawsProgressAfterAPromptIsAnswered(t *testing.T) {
 	})
 }
 
-// TestRunActionGuardsTheTerminalOnlyForTheAction pins that the streams and the
-// logger of the run are put back as they were once the action ends.
-func TestRunActionGuardsTheTerminalOnlyForTheAction(t *testing.T) {
+// TestRunActionRestoresTerminal checks that the streams and the logger are restored after the action.
+func TestRunActionRestoresTerminal(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -335,7 +328,6 @@ func TestRunActionGuardsTheTerminalOnlyForTheAction(t *testing.T) {
 	}
 }
 
-// loggerOutput returns the writer l writes to.
 func loggerOutput(l log.Logger) io.Writer {
 	var output io.Writer
 
@@ -348,7 +340,7 @@ func loggerOutput(l log.Logger) io.Writer {
 	return output
 }
 
-// terminalRun returns a logger, options and venv for a run with the experiment on whose stderr is a terminal, and the buffer standing in for it.
+// terminalRun returns a run with the experiment on and a buffer standing in for the stderr terminal.
 func terminalRun(t *testing.T) (log.Logger, *options.TerragruntOptions, *venv.Venv, *bytes.Buffer) {
 	t.Helper()
 

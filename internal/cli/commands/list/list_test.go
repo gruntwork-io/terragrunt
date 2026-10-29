@@ -1241,7 +1241,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 	}
 }
 
-// TestRunDiscoveryProgress pins that discovery is reported only when the run carries a reporter.
+// TestRunDiscoveryProgress checks that discovery is reported only with a reporter.
 func TestRunDiscoveryProgress(t *testing.T) {
 	t.Parallel()
 

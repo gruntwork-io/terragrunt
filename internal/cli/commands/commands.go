@@ -704,8 +704,7 @@ func initialSetup(
 	return nil
 }
 
-// newProgressReporter returns the reporter that slow operations of the run
-// are reported through.
+// newProgressReporter returns the reporter for slow operations of the run.
 func newProgressReporter(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *spinner.Reporter {
 	reporterOpts := spinner.TerminalOptions(v, l)
 	reporterOpts.LogsForHumans = reporterOpts.LogsForHumans && !opts.JSONLogFormat
@@ -713,13 +712,11 @@ func newProgressReporter(l log.Logger, opts *options.TerragruntOptions, v *venv.
 	return spinner.New(reporterOpts)
 }
 
-// guardTerminal makes the log output and the standard streams of the run step
-// around the progress line `reporter` draws, and returns the function that
-// undoes it. A reporter that draws no progress line changes nothing.
+// guardTerminal wraps the logger, stderr and stdout around the progress line and returns a restore function.
 func guardTerminal(l log.Logger, v *venv.Venv, reporter *spinner.Reporter) func() {
 	if !reporter.Animated() {
 		return func() {
-			// Nothing was guarded, so there is nothing to restore.
+			// Nothing to restore, nothing was wrapped.
 		}
 	}
 

@@ -16,7 +16,7 @@ var (
 	ciMarkers   = []string{"TF_BUILD", "TEAMCITY_VERSION", "JENKINS_URL", "TF_IN_AUTOMATION"}
 )
 
-// animatable reports whether progress can be drawn as a line that is redrawn in place.
+// animatable reports whether the progress line can be drawn.
 func animatable(opts *Options) bool {
 	if !opts.OutIsTTY || !opts.LogsForHumans {
 		return false
@@ -38,7 +38,7 @@ func animatable(opts *Options) bool {
 	return !inCI(opts.Env)
 }
 
-// frames returns the animation frames the terminal of the run can show.
+// frames returns Unicode frames for UTF-8 terminals and Windows Terminal, ASCII otherwise.
 func frames(env map[string]string, goos string) []string {
 	if goos == "windows" {
 		if env["WT_SESSION"] != "" {
@@ -56,7 +56,7 @@ func frames(env map[string]string, goos string) []string {
 	return slices.Clone(asciiFrames)
 }
 
-// inCI reports whether env carries the mark of a build system.
+// inCI reports whether env is from a CI system.
 func inCI(env map[string]string) bool {
 	ci := strings.TrimSpace(env["CI"])
 	if ci != "" && ci != "0" && !strings.EqualFold(ci, "false") {
@@ -68,7 +68,6 @@ func inCI(env map[string]string) bool {
 	})
 }
 
-// firstSet returns the value of the first of names that env sets, or the empty string.
 func firstSet(env map[string]string, names ...string) string {
 	for _, name := range names {
 		if value := env[name]; value != "" {
