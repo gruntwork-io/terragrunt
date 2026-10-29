@@ -73,31 +73,70 @@ Resource attributes:
 - `OTEL_SERVICE_NAME` - overrides the `service.name` resource attribute attached to every span, metric, and log record. Defaults to `terragrunt`. Useful for distinguishing multiple Terragrunt invocations in the same backend (e.g. per-environment or per-user).
 - `OTEL_RESOURCE_ATTRIBUTES` - additional resource attributes to attach to every span, metric, and log record, formatted as a comma-separated list of `key=value` pairs (e.g. `deployment.environment=local,service.namespace=tensho`). Values set here override Terragrunt's defaults; if both `OTEL_SERVICE_NAME` and `service.name` in `OTEL_RESOURCE_ATTRIBUTES` are set, `OTEL_SERVICE_NAME` takes precedence per the [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/resource/sdk/).
 
-## Example collection of traces, metrics, and logs in Grafana
+## Example collection of traces, metrics, and logs with Docker Compose
 
-This example starts Grafana and an OpenTelemetry collector in one container, so you can see Terragrunt's traces, metrics, and logs in a browser. It uses the [Grafana LGTM](https://github.com/grafana/docker-otel-lgtm) image, which bundles an OpenTelemetry collector, Tempo for traces, Prometheus for metrics, Loki for logs, and Grafana.
+This example runs an OpenTelemetry collector that receives Terragrunt's traces, metrics, and logs. The collector prints traces and metrics, and forwards logs to [Quickwit](https://quickwit.io/), which stores them and shows them in a web UI.
 
 - Create `docker-compose.yml`. The ports are published on `127.0.0.1` only, since the connection is not encrypted:
 
   ```yaml
   services:
-    lgtm:
-      image: grafana/otel-lgtm:0.38.1
+    otel-collector:
+      image: otel/opentelemetry-collector:0.164.0
+      volumes:
+        - ./otel-collector-config.yaml:/etc/otelcol/config.yaml
       ports:
-        - "127.0.0.1:3000:3000" # Grafana UI
         - "127.0.0.1:4317:4317" # OTLP gRPC receiver
         - "127.0.0.1:4318:4318" # OTLP HTTP receiver
+    quickwit:
+      image: quickwit/quickwit:0.9.3
+      command: run
+      ports:
+        - "127.0.0.1:7280:7280" # Quickwit UI
   ```
 
-- Start it:
+- Create `otel-collector-config.yaml`:
+
+  ```yaml
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  processors:
+    batch:
+  exporters:
+    debug:
+      verbosity: detailed
+    otlp_grpc/quickwit:
+      endpoint: quickwit:7281
+      tls:
+        insecure: true
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [debug]
+      metrics:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [debug]
+      logs:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [otlp_grpc/quickwit]
+  ```
+
+- Start both services:
 
   ```bash
   docker compose up -d
   ```
 
-  It is ready when `docker compose logs lgtm` prints `The OpenTelemetry collector and the Grafana LGTM stack are up and running.`
-
-- Define environment variables for Terragrunt to send traces, metrics, and logs to it over HTTP:
+- Define environment variables for Terragrunt to send traces, metrics, and logs to the collector over HTTP:
 
   ```bash
   export TG_TELEMETRY_TRACE_EXPORTER=otlpHttp
@@ -112,10 +151,44 @@ This example starts Grafana and an OpenTelemetry collector in one container, so 
   To use gRPC instead, set the trace and logs exporters to `otlpGrpc`, the metrics exporter to `grpcHttp`, and `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
 
 - Run terragrunt, for example `terragrunt run --all plan`.
-- Open Grafana at [http://localhost:3000](http://localhost:3000/) and sign in as `admin` with the password `admin`. Go to **Explore** and pick a data source:
-  - **Loki** for logs. Run `{service_name="terragrunt"}` to see the logs of your runs. Add `| severity_text="error"` to see errors only, or `| prefix="app"` to see the logs of the `app` unit.
-  - **Tempo** for traces. Expand a log record and select its `Trace:` link to open the trace of that run. Select a span and then **Related logs** to see the logs of the run next to the trace.
-  - **Prometheus** for metrics. Query a metric such as `run_tofu_success_count_total`.
-- Stop it with `docker compose down`.
+- Check the traces and metrics the collector printed:
+
+  ```bash
+  docker compose logs otel-collector
+  ```
+
+  Each span shows its name and the trace and span IDs, trimmed here to its main fields:
+
+  ```text
+  Span #28
+      Trace ID       : 15cb00e41f8533116fdd86b348e97054
+      Parent ID      : 366e2f8dd84da254
+      ID             : d523f63b92d576c9
+      Name           : unit_run
+  ```
+
+  Each metric shows its name and values:
+
+  ```text
+  Descriptor:
+       -> Name: run_tofu_success_count
+       -> DataType: Sum
+  NumberDataPoints #0
+  Value: 4
+  ```
+
+- Check the logs in the Quickwit UI at [http://localhost:7280/ui](http://localhost:7280/ui). Quickwit stores the log records it receives in an index whose name starts with `otel-logs-`. In **Query editor**, pick that index, type a query, and select **Run**:
+  - `*` shows all log records.
+  - `severity_text:error` shows errors only.
+  - `attributes.prefix:app` shows the logs of the `app` unit.
+  - `trace_id:15cb00e41f8533116fdd86b348e97054` shows the logs of one run. Use a trace ID from the collector output.
+
+  The same queries work from the command line, where `otel-logs-*` matches the index by name:
+
+  ```bash
+  curl -G 'http://localhost:7280/api/v1/otel-logs-*/search' --data-urlencode 'query=severity_text:error'
+  ```
+
+- Stop both services with `docker compose down`.
 
 To print traces, metrics, and logs to the terminal instead, set the exporters to `console`.
