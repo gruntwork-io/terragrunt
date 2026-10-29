@@ -87,3 +87,33 @@ func TestOtelLogHookSeverities(t *testing.T) {
 		})
 	}
 }
+
+// TestOtelLogHookHonorsLogLevel checks that records below the logger's level
+// are not exported, so the log level bounds the exported volume.
+func TestOtelLogHookHonorsLogLevel(t *testing.T) {
+	t.Parallel()
+
+	exporter := &recordingExporter{}
+	provider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter)),
+	)
+
+	t.Cleanup(func() {
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+
+	l := logger.CreateLogger()
+	l.SetOptions(
+		log.WithLevel(log.InfoLevel),
+		log.WithOutput(io.Discard),
+		log.WithHooks(telemetry.NewOtelLogHook("terragrunt", provider)),
+	)
+
+	l.Tracef("trace record")
+	l.Debugf("debug record")
+	l.Infof("info record")
+
+	records := exporter.Records()
+	require.Len(t, records, 1)
+	assert.Equal(t, "info record", records[0].Body().AsString())
+}

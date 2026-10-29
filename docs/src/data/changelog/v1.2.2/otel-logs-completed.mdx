@@ -1,0 +1,32 @@
+---
+version: "v1.2.2"
+category: "new-features"
+---
+
+#### Export logs to OpenTelemetry
+
+Terragrunt now exports its log output as OpenTelemetry log records, next to traces and metrics, when [`TG_TELEMETRY_LOGS_EXPORTER`](/troubleshooting/open-telemetry) is set:
+
+- `none` - no log exporting, the default.
+- `console` - write log records to the console as JSON.
+- `otlpHttp` - export logs to an OpenTelemetry collector over HTTP.
+- `otlpGrpc` - export logs to an OpenTelemetry collector over gRPC.
+
+```bash
+export TG_TELEMETRY_TRACE_EXPORTER=otlpHttp
+export TG_TELEMETRY_LOGS_EXPORTER=otlpHttp
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.example.com:4318
+terragrunt run --all -- apply
+```
+
+The OTLP exporters read the standard `OTEL_EXPORTER_OTLP_*` and `OTEL_EXPORTER_OTLP_LOGS_*` environment variables for the endpoint, headers, TLS certificates, compression, and timeout, and the `OTEL_BLRP_*` variables tune batching. The [OpenTelemetry](/troubleshooting/open-telemetry) page now includes a Docker Compose example of a local collector.
+
+Correlation and delivery are more reliable than they were under the experiment:
+
+- Records from code outside a unit's span, such as the run queue and the OpenTofu/Terraform output of a single-unit `run`, carry the IDs of the root command span instead of none.
+- Records still buffered when a run is interrupted are flushed instead of lost.
+- A failed traces or metrics flush at exit no longer stops buffered log records from exporting.
+
+Commands that set `TG_TELEMETRY_LOGS_EXPORTER` without the experiment enabled now export logs, where the exporter stayed inert before. Commands that leave it unset or set it to `none` behave as before.
+
+Previously gated behind the `otel-logs` experiment, the logs signal no longer requires `--experiment otel-logs`.

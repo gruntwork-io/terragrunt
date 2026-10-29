@@ -1,36 +1,39 @@
 ---
 name: otel-logs
 since: "v1.1.2"
+completedSince: "v1.2.2"
 ---
 
 Export Terragrunt's logs as an OpenTelemetry logs signal.
 
 ### `otel-logs` - What it does
 
-When enabled, Terragrunt emits its log output as OpenTelemetry log records in addition to the existing traces and metrics signals. The exporter is selected with `TG_TELEMETRY_LOGS_EXPORTER`:
+This experiment flag is no longer needed, as Terragrunt now exports its logs as OpenTelemetry log records by default whenever a logs exporter is configured, in addition to the existing traces and metrics signals. The exporter is selected with `TG_TELEMETRY_LOGS_EXPORTER`:
 
 - `none` - no log exporting (the default).
 - `console` - write log records to the console as JSON.
 - `otlpHttp` - export logs to an OpenTelemetry collector over HTTP.
 - `otlpGrpc` - export logs to an OpenTelemetry collector over gRPC.
 
-The OTLP exporters read their endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to disable TLS and send logs over an insecure connection. Only use this for local collection.
+The OTLP exporters read their endpoint, headers, and TLS settings from the standard `OTEL_EXPORTER_OTLP_*` environment variables. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to disable TLS and send logs over an insecure connection. Only use this for local collection.
 
 ```bash
-TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all --experiment otel-logs -- apply
+TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all -- apply
 ```
 
-Records emitted while a unit's span is active carry that span's trace and span IDs, so a failed unit's logs link back to its span in the backend: clicking a unit's span in the trace view surfaces exactly the logs it produced. Run-level records emitted outside any span are exported without correlation IDs. Without the experiment enabled, the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
+Records emitted while a unit's span is active carry that span's trace and span IDs, so a failed unit's logs link back to its span in the backend. Records from code outside a unit's span, such as the run queue, carry the IDs of the root command span.
+
+See [OpenTelemetry](/troubleshooting/open-telemetry) for the full configuration and a local collector example.
 
 ### `otel-logs` - How to provide feedback
 
-Provide your feedback in the [`otel-logs` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/7117).
+Now that the `otel-logs` experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
 
 ### `otel-logs` - Criteria for stabilization
 
-To transition the `otel-logs` feature to a stable release, the following must be addressed:
+Criteria for moving `otel-logs` to a stable release:
 
-- [ ] Confirm the exporter types and configuration cover common collector setups.
-- [ ] Validate log volume and batching behavior on large stacks.
-- [ ] Confirm trace/span correlation is reliable across the run lifecycle, including run-level logs emitted outside a unit span.
-- [ ] Settle on the dependency stability story for the OpenTelemetry logs SDK, which is still pre-1.0.
+- [x] Confirm the exporter types and configuration cover common collector setups.
+- [x] Validate log volume and batching behavior on large stacks.
+- [x] Confirm trace/span correlation is reliable across the run lifecycle, including run-level logs emitted outside a unit span.
+- [x] Settle on the dependency stability story for the OpenTelemetry logs SDK, which is still pre-1.0.

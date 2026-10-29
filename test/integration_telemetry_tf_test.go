@@ -19,6 +19,10 @@ const testFixtureTelemetryErrorStatus = "fixtures/telemetry-error-status"
 // consoleSpan is the part of a span printed by the console trace exporter that
 // these tests read.
 type consoleSpan struct {
+	SpanContext struct {
+		TraceID string `json:"TraceID"`
+		SpanID  string `json:"SpanID"`
+	} `json:"SpanContext"`
 	Name   string `json:"Name"`
 	Status struct {
 		Code        string `json:"Code"`
@@ -33,6 +37,17 @@ type consoleAttribute struct {
 		Value any `json:"Value"`
 	} `json:"Value"`
 	Key string `json:"Key"`
+}
+
+// consoleLogRecord is the part of a record printed by the console logs
+// exporter that these tests read.
+type consoleLogRecord struct {
+	Body struct {
+		Value string `json:"Value"`
+	} `json:"Body"`
+	SeverityText string `json:"SeverityText"`
+	TraceID      string `json:"TraceID"`
+	SpanID       string `json:"SpanID"`
 }
 
 // TestTFTelemetryTracesMarkFailedSpans runs real failing commands with the
@@ -118,6 +133,74 @@ func TestTFTelemetryTracesMarkFailedSpans(t *testing.T) {
 	}
 }
 
+// TestTFTelemetryLogsCorrelateWithSpans runs real failing commands with the
+// console logs and trace exporters and checks that every exported record
+// carries the trace ID of the run and the span ID of an exported span, and
+// that the OpenTofu error reaches the logs signal.
+func TestTFTelemetryLogsCorrelateWithSpans(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args string
+		dir  string
+	}{
+		{
+			name: "single unit",
+			args: "run plan",
+			dir:  "run-all/fails",
+		},
+		{
+			name: "run all",
+			args: "run --all plan",
+			dir:  "run-all",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureTelemetryErrorStatus)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTelemetryErrorStatus)
+			workingDir := filepath.Join(tmpEnvPath, testFixtureTelemetryErrorStatus, tt.dir)
+
+			v := helpers.RunVenv(t)
+			v.Env["TG_TELEMETRY_TRACE_EXPORTER"] = "console"
+			v.Env["TG_TELEMETRY_LOGS_EXPORTER"] = "console"
+
+			stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+				t,
+				v,
+				"terragrunt "+tt.args+" --non-interactive -no-color --working-dir "+workingDir,
+			)
+			require.Error(t, err)
+
+			traceIDs := map[string]struct{}{}
+			spanIDs := map[string]struct{}{}
+
+			for _, span := range parseConsoleSpans(t, stdout) {
+				traceIDs[span.SpanContext.TraceID] = struct{}{}
+				spanIDs[span.SpanContext.SpanID] = struct{}{}
+			}
+
+			require.Len(t, traceIDs, 1, "all spans of one run must share a trace")
+
+			records := parseConsoleLogs(t, stdout)
+
+			for _, record := range records {
+				require.Contains(t, traceIDs, record.TraceID, "record %q", record.Body.Value)
+				require.Contains(t, spanIDs, record.SpanID, "record %q", record.Body.Value)
+			}
+
+			require.True(t, slices.ContainsFunc(records, func(record consoleLogRecord) bool {
+				return record.SeverityText == "error" &&
+					strings.Contains(record.Body.Value, "Reference to undeclared input variable")
+			}), "the OpenTofu error must be exported as an error record")
+		})
+	}
+}
+
 // parseConsoleSpans returns the spans the console trace exporter printed to
 // stdout, skipping the lines tofu and Terragrunt printed around them.
 func parseConsoleSpans(t *testing.T, stdout string) []consoleSpan {
@@ -146,9 +229,37 @@ func parseConsoleSpans(t *testing.T, stdout string) []consoleSpan {
 	return spans
 }
 
+// parseConsoleLogs returns the records the console logs exporter printed to
+// stdout, skipping the lines tofu and Terragrunt printed around them.
+func parseConsoleLogs(t *testing.T, stdout string) []consoleLogRecord {
+	t.Helper()
+
+	var records []consoleLogRecord
+
+	scanner := bufio.NewScanner(strings.NewReader(stdout))
+	scanner.Buffer(nil, 1<<20)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, `{"Timestamp":`) {
+			continue
+		}
+
+		var record consoleLogRecord
+		require.NoError(t, json.Unmarshal([]byte(line), &record), line)
+
+		records = append(records, record)
+	}
+
+	require.NoError(t, scanner.Err())
+	require.NotEmpty(t, records, "no log records in stdout")
+
+	return records
+}
+
 // attribute returns the value of the span attribute named key, or nil when the
 // span has no such attribute.
-func (span consoleSpan) attribute(key string) any {
+func (span *consoleSpan) attribute(key string) any {
 	i := slices.IndexFunc(span.Attributes, func(attr consoleAttribute) bool {
 		return attr.Key == key
 	})

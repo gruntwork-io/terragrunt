@@ -1,10 +1,14 @@
 package telemetry
 
 import (
+	"context"
+	"sync/atomic"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/bridges/otellogrus"
 	otellog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // stdLogrusLevels maps Terragrunt levels to the standard logrus levels that
@@ -33,13 +37,21 @@ var stdLogrusLevels = map[log.Level]logrus.Level{
 // levels and restores the standard logrus level on each entry before handing
 // it to the bridge.
 func NewOtelLogHook(name string, provider otellog.LoggerProvider) logrus.Hook {
+	return newOtelLogHook(name, provider)
+}
+
+func newOtelLogHook(name string, provider otellog.LoggerProvider) *otelLogHook {
 	return &otelLogHook{
 		inner: otellogrus.NewHook(name, otellogrus.WithLoggerProvider(provider)),
 	}
 }
 
 type otelLogHook struct {
+	// inner is the otellogrus bridge that turns entries into log records.
 	inner *otellogrus.Hook
+	// rootSpan holds the root span used for entries whose logger is not bound
+	// to a span.
+	rootSpan atomic.Pointer[trace.SpanContext]
 }
 
 // Levels implements the [logrus.Hook] interface method.
@@ -52,5 +64,20 @@ func (hook *otelLogHook) Fire(entry *logrus.Entry) error {
 	e := *entry
 	e.Level = stdLogrusLevels[log.FromLogrusLevel(entry.Level)]
 
+	if rootSpan := hook.rootSpan.Load(); rootSpan != nil && !trace.SpanContextFromContext(e.Context).IsValid() {
+		e.Context = trace.ContextWithSpanContext(context.Background(), *rootSpan)
+	}
+
 	return hook.inner.Fire(&e)
+}
+
+// bindRootSpan correlates entries whose logger is not bound to a span with
+// span, until [otelLogHook.unbindRootSpan] is called.
+func (hook *otelLogHook) bindRootSpan(span trace.SpanContext) {
+	hook.rootSpan.Store(&span)
+}
+
+// unbindRootSpan stops correlating entries whose logger is not bound to a span.
+func (hook *otelLogHook) unbindRootSpan() {
+	hook.rootSpan.Store(nil)
 }

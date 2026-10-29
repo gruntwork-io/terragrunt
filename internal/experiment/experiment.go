@@ -92,9 +92,10 @@ const (
 	// block, which resolves a tfr:// registry module from a version constraint.
 	// It is enabled by default.
 	VersionAttribute = "version-attribute"
-	// OtelLogs enables the OpenTelemetry logs signal, exporting Terragrunt's log
-	// records through the configured logs exporter and correlating them with
-	// traces via the active span.
+	// OtelLogs names the now-stable OpenTelemetry logs signal, which exports
+	// Terragrunt's log records through the logs exporter configured with
+	// TG_TELEMETRY_LOGS_EXPORTER and correlates them with traces via the active
+	// span. It is enabled by default.
 	OtelLogs = "otel-logs"
 	// CatalogFormat names the now-stable non-interactive output formats for the
 	// catalog command, which render discovered components as JSON Lines or
@@ -243,7 +244,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: OtelLogs,
+			Name:   OtelLogs,
+			Status: StatusCompleted,
 		},
 		{
 			Name:   CatalogFormat,

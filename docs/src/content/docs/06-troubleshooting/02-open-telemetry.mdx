@@ -7,8 +7,10 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
-Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format in the form of traces and metrics.
+Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format in the form of traces, metrics, and logs.
 
 OpenTelemetry tracing is typically used in Terragrunt to analyze performance. For more details on analyzing and optimizing performance, read the dedicated [Performance documentation](/troubleshooting/performance).
 
@@ -19,6 +21,7 @@ The following are concepts and technologies that are important to be aware of wh
 - [OpenTelemetry](https://opentelemetry.io/)
 - [Traces](https://opentelemetry.io/docs/concepts/signals/traces/)
 - [Metrics](https://opentelemetry.io/docs/concepts/signals/metrics/)
+- [Logs](https://opentelemetry.io/docs/concepts/signals/logs/)
 - [Jaeger](https://www.jaegertracing.io/)
 
 Tracing configuration:
@@ -44,9 +47,13 @@ Metrics configuration:
 
 Logs configuration:
 
+<Before version="v1.2.2">
+
 <Aside type="tip" title="Experimental">
 The logs signal is gated behind the [`otel-logs`](/reference/experiments/active#otel-logs) experiment. Enable it with `--experiment otel-logs` (or `TG_EXPERIMENT=otel-logs`); otherwise the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
 </Aside>
+
+</Before>
 
 - `TG_TELEMETRY_LOGS_EXPORTER` - logs exporter type to be used. Currently supported values are:
   - `none` - no log exporting, default value.
@@ -55,12 +62,27 @@ The logs signal is gated behind the [`otel-logs`](/reference/experiments/active#
   - `otlpGrpc` - export logs to an OpenTelemetry collector over gRPC [otlploggrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc)
 - `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter disables TLS and sends logs over an insecure connection, for local logs collection only.
 
-The OTLP log exporters read their endpoint from the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. Records emitted while a span is active carry its trace and span IDs, so those logs and traces correlate in the backend.
+The OTLP log exporters read their settings from the standard [OTLP exporter environment variables](https://opentelemetry.io/docs/specs/otel/protocol/exporter/). The `OTEL_EXPORTER_OTLP_LOGS_*` form applies to logs only and takes precedence over the shared `OTEL_EXPORTER_OTLP_*` form:
+
+- `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` - the collector address, e.g. `http://localhost:4318` for `otlpHttp` or `http://localhost:4317` for `otlpGrpc`. A signal-specific HTTP endpoint is used as is, so it must include the `/v1/logs` path.
+- `OTEL_EXPORTER_OTLP_HEADERS` or `OTEL_EXPORTER_OTLP_LOGS_HEADERS` - headers sent with every export, such as credentials for a hosted backend, formatted as comma-separated `key=value` pairs with URL-encoded values (e.g. `authorization=Bearer%20<token>`).
+- `OTEL_EXPORTER_OTLP_CERTIFICATE`, `OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE`, and `OTEL_EXPORTER_OTLP_CLIENT_KEY` (and their `_LOGS_` forms) - TLS certificate files for collectors that use a private CA or mutual TLS.
+- `OTEL_EXPORTER_OTLP_COMPRESSION` or `OTEL_EXPORTER_OTLP_LOGS_COMPRESSION` - set to `gzip` to compress exports.
+- `OTEL_EXPORTER_OTLP_TIMEOUT` or `OTEL_EXPORTER_OTLP_LOGS_TIMEOUT` - the export timeout in milliseconds.
+
+Records emitted while a span is active carry its trace and span IDs, so those logs and traces correlate in the backend. <Since version="v1.2.2">Records from code that runs outside a narrower span, such as the run queue, carry the IDs of the root command span, so every record of a traced run belongs to its trace.</Since> Trace and span IDs are only present when a trace exporter is configured too.
+
+Only records at or above the configured [log level](/reference/logging) are exported, so `--log-level` also sets how many records reach the backend. Records are exported in batches, and any records still buffered are flushed when the command exits. <Since version="v1.2.2">This includes a run that is interrupted.</Since> A large stack can emit records faster than the backend accepts them, and records that do not fit in the buffer are dropped. The standard batch environment variables tune the buffer:
+
+- `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records buffered before new records are dropped. Defaults to `2048`.
+- `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to `512`.
+- `OTEL_BLRP_SCHEDULE_DELAY` - the delay in milliseconds between exports. Defaults to `1000`.
+- `OTEL_BLRP_EXPORT_TIMEOUT` - the timeout in milliseconds for one export. Defaults to `30000`.
 
 Resource attributes:
 
-- `OTEL_SERVICE_NAME` - overrides the `service.name` resource attribute attached to every span and metric. Defaults to `terragrunt`. Useful for distinguishing multiple Terragrunt invocations in the same backend (e.g. per-environment or per-user).
-- `OTEL_RESOURCE_ATTRIBUTES` - additional resource attributes to attach to every span and metric, formatted as a comma-separated list of `key=value` pairs (e.g. `deployment.environment=local,service.namespace=tensho`). Values set here override Terragrunt's defaults; if both `OTEL_SERVICE_NAME` and `service.name` in `OTEL_RESOURCE_ATTRIBUTES` are set, `OTEL_SERVICE_NAME` takes precedence per the [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/resource/sdk/).
+- `OTEL_SERVICE_NAME` - overrides the `service.name` resource attribute attached to every span, metric, and log record. Defaults to `terragrunt`. Useful for distinguishing multiple Terragrunt invocations in the same backend (e.g. per-environment or per-user).
+- `OTEL_RESOURCE_ATTRIBUTES` - additional resource attributes to attach to every span, metric, and log record, formatted as a comma-separated list of `key=value` pairs (e.g. `deployment.environment=local,service.namespace=tensho`). Values set here override Terragrunt's defaults; if both `OTEL_SERVICE_NAME` and `service.name` in `OTEL_RESOURCE_ATTRIBUTES` are set, `OTEL_SERVICE_NAME` takes precedence per the [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/resource/sdk/).
 
 ## Example configurations for trace collection
 
@@ -207,4 +229,106 @@ export TG_TELEMETRY_METRIC_EXPORTER=console
 ```json
 {"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-41-g7185318bb11b"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.1"}}],"ScopeMetrics":[]}
 {"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-41-g7185318bb11b"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.1"}}],"ScopeMetrics":[{"Scope":{"Name":"terragrunt","Version":"","SchemaURL":""},"Metrics":[{"Name":"run_bash_duration","Description":"","Unit":"","Data":{"DataPoints":[{"Attributes":[{"Key":"args","Value":{"Type":"STRING","Value":"[-c sleep 2]"}},{"Key":"command","Value":{"Type":"STRING","Value":"bash"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod3"}}],"StartTime":"2024-02-12T14:38:14.85578658Z","Time":"2024-02-12T14:38:17.853165589Z","Count":1,"Bounds":[0,5,10,25,50,75,100,250,500,750,1000,2500,5000,7500,10000],"BucketCounts":[0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],"Min":2005,"Max":2005,"Sum":2005}],"Temporality":"CumulativeTemporality"}},{"Name":"run_bash_success_count","Description":"","Unit":"","Data":{"DataPoints":[{"Attributes":[],"StartTime":"2024-02-12T14:38:16.860878555Z","Time":"2024-02-12T14:38:17.853169359Z","Value":1}],"Temporality":"CumulativeTemporality","IsMonotonic":true}}]}]}
+```
+
+## Collection of logs with an OpenTelemetry collector in Docker Compose
+
+This example runs an OpenTelemetry collector that receives Terragrunt's traces and logs and prints them, so you can confirm that log records arrive with the trace and span IDs of the run. Replace the `debug` exporter with your backend's exporter to keep the data.
+
+- Create `docker-compose.yml`. The ports are published on `127.0.0.1` only, since the connection is not encrypted:
+
+  ```yaml
+  services:
+    otel-collector:
+      image: otel/opentelemetry-collector:0.164.0
+      volumes:
+        - ./otel-collector-config.yaml:/etc/otelcol/config.yaml
+      ports:
+        - "127.0.0.1:4317:4317" # OTLP gRPC receiver
+        - "127.0.0.1:4318:4318" # OTLP HTTP receiver
+  ```
+
+- Create `otel-collector-config.yaml`:
+
+  ```yaml
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  processors:
+    batch:
+  exporters:
+    debug:
+      verbosity: detailed
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [debug]
+      logs:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [debug]
+  ```
+
+- Start the collector:
+
+  ```bash
+  docker compose up -d
+  ```
+
+- Define environment variables for Terragrunt to send traces and logs to the collector over HTTP:
+
+  ```bash
+  export TG_TELEMETRY_TRACE_EXPORTER=otlpHttp
+  export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+  export TG_TELEMETRY_LOGS_EXPORTER=otlpHttp
+  export TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true
+  export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+  ```
+
+  To use gRPC instead, set both exporters to `otlpGrpc` and `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
+
+- Run terragrunt, for example `terragrunt run --all plan`.
+- Check the records the collector received:
+
+  ```bash
+  docker compose logs otel-collector
+  ```
+
+  Each log record shows its severity, body, and the trace and span IDs of the span it was emitted in:
+
+  ```text
+  LogRecord #0
+  ObservedTimestamp: 2026-10-29 15:48:54.756824783 +0000 UTC
+  Timestamp: 2026-10-29 15:48:54.756818594 +0000 UTC
+  SeverityText: info
+  SeverityNumber: Info(9)
+  Body: Str(The following units will be run, starting with dependencies and then their dependents:
+  ...)
+  Trace ID: 1e9130e42765d78fcea532c721b73228
+  Span ID: 602af3693f2b2a9d
+  Flags: 1
+  ```
+
+- Stop the collector with `docker compose down`.
+
+Example configuration to export logs to console:
+
+- Set env variables to enable telemetry:
+
+```bash
+export TG_TELEMETRY_TRACE_EXPORTER=console
+export TG_TELEMETRY_LOGS_EXPORTER=console
+```
+
+- Run terragrunt
+- In output will be printed log records like:
+
+```json
+{"Timestamp":"2026-10-29T15:34:19.795498058Z","ObservedTimestamp":"2026-10-29T15:34:19.795505108Z","Severity":9,"SeverityText":"info","Body":{"Type":"STRING","Value":"Downloading OpenTofu/Terraform configurations from ./ok into ./ok/.terragrunt-cache/zOwx6vspRK4iFBWL7RDE23qW7QE/QrSqLdfQQUbThlZTLEiDDT7m5Qw"},"Attributes":[{"Key":"prefix","Value":{"Type":"STRING","Value":"ok"}}],"TraceID":"56c8ea967915b9fea49e90b5430e9a12","SpanID":"e59c6df680b99208","TraceFlags":"01","Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"latest"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.47.0"}}],"Scope":{"Name":"terragrunt","Version":"","SchemaURL":"","Attributes":{}},"DroppedAttributes":0}
 ```

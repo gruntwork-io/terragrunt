@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
@@ -153,8 +152,8 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 // context setting and labels. If telemetry is disabled, just runs the command.
 //
 // The telemeter is created here rather than at app startup because command
-// actions run after the full CLI parse, so telemetry options and experiments
-// (such as otel-logs) are honored whether they were set via flags or env vars.
+// actions run after the full CLI parse, so telemetry options are honored
+// whether they were set via flags or env vars.
 func WrapWithTelemetry(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -172,14 +171,15 @@ func WrapWithTelemetry(
 			cliCtx.App.Version,
 			cliCtx.App.Writer,
 			opts.Telemetry,
-			opts.Experiments.Evaluate(experiment.OtelLogs),
 		)
 		if err != nil {
 			return err
 		}
 
+		// An interrupt cancels ctx, so flush with a context that keeps its values
+		// but not its cancellation, or the records of an interrupted run are lost.
 		defer func() {
-			if err := telemeter.Shutdown(ctx); err != nil {
+			if err := telemeter.Shutdown(context.WithoutCancel(ctx)); err != nil {
 				if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
 					l.Debugf("Failed to report telemetry shutdown error %v: %v", err, writeErr)
 				}
