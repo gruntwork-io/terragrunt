@@ -64,6 +64,8 @@ const (
 	MainCommandsCategoryName = "Main commands"
 	// CatalogCommandsCategoryName represents commands for managing Terragrunt catalogs.
 	CatalogCommandsCategoryName = "Catalog commands"
+	// PortalCommandsCategoryName represents commands for the Gruntwork Developer Portal.
+	PortalCommandsCategoryName = "Gruntwork Developer Portal commands"
 	// DiscoveryCommandsCategoryName represents commands for discovering Terragrunt configurations.
 	DiscoveryCommandsCategoryName = "Discovery commands"
 	// ConfigurationCommandsCategoryName represents commands for managing Terragrunt configurations.
@@ -76,6 +78,7 @@ const (
 const (
 	mainCommandsOrder = iota + 1
 	catalogCommandsOrder
+	portalCommandsOrder
 	discoveryCommandsOrder
 	configurationCommandsOrder
 	shortcutsCommandsOrder
@@ -98,11 +101,19 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	catalogCommands := clihelper.Commands{
 		catalog.NewCommand(l, opts, v),  // catalog
 		scaffold.NewCommand(l, opts, v), // scaffold
-		login.NewCommand(l, opts, v),    // login
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
 			Order: catalogCommandsOrder,
+		},
+	)
+
+	portalCommands := clihelper.Commands{
+		login.NewCommand(l, opts, v), // login
+	}.SetCategory(
+		&clihelper.Category{
+			Name:  PortalCommandsCategoryName,
+			Order: portalCommandsOrder,
 		},
 	)
 
@@ -142,6 +153,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 
 	allCommands := mainCommands.
 		Merge(catalogCommands...).
+		Merge(portalCommands...).
 		Merge(discoveryCommands...).
 		Merge(configurationCommands...).
 		Merge(shortcutsCommands...)
