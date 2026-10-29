@@ -42,7 +42,7 @@ func TestRemoteStateWaitProgress(t *testing.T) {
 			},
 			messages: []string{
 				"Waiting for S3 bucket " + progressBucket + " to be created...",
-				"S3 bucket " + progressBucket + " is ready",
+				"S3 bucket " + progressBucket + " exists",
 			},
 		},
 		{

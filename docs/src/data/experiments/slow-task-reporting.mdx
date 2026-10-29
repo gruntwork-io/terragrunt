@@ -26,7 +26,7 @@ On a terminal, Terragrunt draws one progress line with the operation, its elapse
 
 The line is cut to the terminal width. Log lines are written above it. When the operation succeeds, Terragrunt replaces the line with an INFO log line that has the elapsed time. In `run --all`, all units share the line, and it shows the oldest running operation.
 
-Otherwise, Terragrunt writes INFO log lines: one when the operation is reported, one every 30 seconds while it runs, and one when it succeeds. The 30-second lines keep CI systems from stopping a job that looks idle.
+Otherwise, Terragrunt writes INFO log lines: one after 100ms, one every 30 seconds while it runs, and one when it succeeds. The 30-second lines keep CI systems from stopping a job that looks idle.
 
 ```text
 INFO   Fetching outputs of dependency ../vpc...
@@ -38,10 +38,10 @@ Terragrunt writes log lines instead of the progress line when:
 
 - Stderr is not a terminal, or the terminal is narrower than 20 columns.
 - `TERM` is unset or `dumb`. On Windows, `TERM` is not needed, but the console must support ANSI escape sequences.
-- `CI`, `TF_BUILD`, `TEAMCITY_VERSION`, `JENKINS_URL` or `TF_IN_AUTOMATION` is set.
+- `CI` is set to anything but `false`, `0`, `no` or `off`, or `TF_BUILD`, `TEAMCITY_VERSION`, `JENKINS_URL` or `TF_IN_AUTOMATION` is set.
 - Logs use the `json` format.
 
-To get log lines on a terminal, set `TERM=dumb` or `CI=true`. `terragrunt catalog` always writes log lines, because its TUI uses the terminal.
+To get log lines on a terminal, set `TERM=dumb` or `CI=true`. `terragrunt catalog` never draws the progress line, because its TUI uses the terminal.
 
 With `--log-level warn` or higher, or with `--log-disable`, nothing is reported.
 

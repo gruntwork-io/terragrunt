@@ -1820,8 +1820,28 @@ func getOutputJSONWithCaching(
 				var err error
 
 				fetched, strategy, err = resolveOutputJSON(fetchCtx, l, v, pctx, targetConfig)
+				if err != nil {
+					return err
+				}
 
-				return err
+				// `tofu/terraform output -json` stdout can be polluted with non-JSON text on either side of the JSON object:
+				//   - Leading: AWS Client Side Monitoring (CSM) logs (e.g., "2023/05/04 20:22:43 Enabling CSM"),
+				//     ANSI color escape sequences from warning blocks.
+				//     Refs: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
+				//           https://github.com/gruntwork-io/terragrunt/issues/2233
+				//   - Trailing: Terraform 1.15+ emits backend deprecation warnings (e.g., for the S3
+				//     `dynamodb_table` parameter) on stdout after the JSON has already been printed.
+				//     Refs: https://github.com/gruntwork-io/terragrunt/issues/6001
+				//
+				// To make parsing robust to either, isolate the first JSON object in the buffer.
+				trimmed, trimErr := tf.ExtractFirstJSONObject(fetched)
+				if trimErr != nil {
+					return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
+				}
+
+				fetched = trimmed
+
+				return nil
 			})
 
 			if span := trace.SpanFromContext(fetchCtx); span.IsRecording() {
@@ -1836,22 +1856,7 @@ func getOutputJSONWithCaching(
 				return fetchErr
 			}
 
-			// `tofu/terraform output -json` stdout can be polluted with non-JSON text on either side of the JSON object:
-			//   - Leading: AWS Client Side Monitoring (CSM) logs (e.g., "2023/05/04 20:22:43 Enabling CSM"),
-			//     ANSI color escape sequences from warning blocks.
-			//     Refs: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
-			//           https://github.com/gruntwork-io/terragrunt/issues/2233
-			//   - Trailing: Terraform 1.15+ emits backend deprecation warnings (e.g., for the S3
-			//     `dynamodb_table` parameter) on stdout after the JSON has already been printed.
-			//     Refs: https://github.com/gruntwork-io/terragrunt/issues/6001
-			//
-			// To make parsing robust to either, isolate the first JSON object in the buffer.
-			trimmed, trimErr := tf.ExtractFirstJSONObject(fetched)
-			if trimErr != nil {
-				return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
-			}
-
-			newJSONBytes = trimmed
+			newJSONBytes = fetched
 			jsonCache.Put(fetchCtx, targetConfig, newJSONBytes)
 
 			return nil

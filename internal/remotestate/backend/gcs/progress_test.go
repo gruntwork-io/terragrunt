@@ -24,7 +24,7 @@ func TestGCSBucketWaitProgress(t *testing.T) {
 	t.Parallel()
 
 	working := "Waiting for GCS bucket " + progressBucket + " to be created..."
-	done := "GCS bucket " + progressBucket + " is ready"
+	done := "GCS bucket " + progressBucket + " exists"
 
 	t.Run("experiment on", func(t *testing.T) {
 		t.Parallel()

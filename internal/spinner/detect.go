@@ -58,8 +58,9 @@ func frames(env map[string]string, goos string) []string {
 
 // inCI reports whether env is from a CI system.
 func inCI(env map[string]string) bool {
-	ci := strings.TrimSpace(env["CI"])
-	if ci != "" && ci != "0" && !strings.EqualFold(ci, "false") {
+	switch strings.ToLower(strings.TrimSpace(env["CI"])) {
+	case "", "0", "false", "no", "off":
+	default:
 		return true
 	}
 

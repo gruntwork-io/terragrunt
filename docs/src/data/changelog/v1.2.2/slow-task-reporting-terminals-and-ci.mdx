@@ -13,7 +13,7 @@ Slow operations now share one progress line, cut to the terminal width. Log line
 
 This fixes stale rows when a message was wider than the terminal, `run --all` output mixed into the spinner text, and the spinner drawing over the `terragrunt catalog` TUI.
 
-In CI, with `TERM=dumb`, with `json` logs, and in `terragrunt catalog`, Terragrunt writes INFO log lines instead.
+In CI, with `TERM=dumb`, and with `json` logs, Terragrunt writes INFO log lines instead.
 
 Operations are now reported after 100ms instead of 1 second.
 

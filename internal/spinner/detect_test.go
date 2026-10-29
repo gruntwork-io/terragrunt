@@ -42,6 +42,8 @@ func TestNewAnimated(t *testing.T) {
 		{name: "CI 0", change: func(o *spinner.Options) { o.Env["CI"] = "0" }, want: true},
 		{name: "CI empty", change: func(o *spinner.Options) { o.Env["CI"] = "" }, want: true},
 		{name: "CI spaced false", change: func(o *spinner.Options) { o.Env["CI"] = " false " }, want: true},
+		{name: "CI no", change: func(o *spinner.Options) { o.Env["CI"] = "no" }, want: true},
+		{name: "CI OFF", change: func(o *spinner.Options) { o.Env["CI"] = "OFF" }, want: true},
 		{name: "TF_BUILD", change: func(o *spinner.Options) { o.Env["TF_BUILD"] = "True" }},
 		{name: "TEAMCITY_VERSION", change: func(o *spinner.Options) { o.Env["TEAMCITY_VERSION"] = "1" }},
 		{name: "JENKINS_URL", change: func(o *spinner.Options) { o.Env["JENKINS_URL"] = "url" }},

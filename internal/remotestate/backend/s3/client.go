@@ -896,7 +896,7 @@ func (client *Client) WaitUntilS3BucketExists(
 ) error {
 	return spinner.ShowAfter(ctx, l, spinner.Messages{
 		Working: "Waiting for S3 bucket " + bucketName + " to be created...",
-		Done:    "S3 bucket " + bucketName + " is ready",
+		Done:    "S3 bucket " + bucketName + " exists",
 	}, func() error {
 		return client.pollUntilS3BucketExists(ctx, l, bucketName)
 	})
