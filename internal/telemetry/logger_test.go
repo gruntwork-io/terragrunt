@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -272,6 +273,40 @@ func TestTelemeterShutdownFlushesLogsWhenMetricExportFails(t *testing.T) {
 	assert.Equal(t, "record before shutdown", records[0].body)
 }
 
+// TestTelemeterShutdownFlushesLogsWhenTraceExportHangs checks that a trace flush that hangs until the deadline does not drop logs.
+func TestTelemeterShutdownFlushesLogsWhenTraceExportHangs(t *testing.T) {
+	collector := newHTTPCollector(t)
+	traceCollector := newHangingCollector(t)
+
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", traceCollector.URL+"/v1/traces")
+	t.Setenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", collector.endpoint+"/v1/logs")
+	t.Setenv("OTEL_BLRP_SCHEDULE_DELAY", "60000")
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.Telemetry.TraceExporter = "otlpHttp"
+	opts.Telemetry.TraceExporterInsecureEndpoint = true
+	opts.Telemetry.LogsExporter = "otlpHttp"
+	opts.Telemetry.LogsExporterInsecureEndpoint = true
+
+	l := discardLogger()
+	tlm := newTestTelemeter(t, l, opts)
+
+	require.NoError(t, tlm.Collect(t.Context(), l, "test_span", nil, func(_ context.Context, childL log.Logger) error {
+		childL.Infof("record before shutdown")
+
+		return nil
+	}))
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+
+	require.ErrorIs(t, tlm.Shutdown(ctx), context.DeadlineExceeded)
+
+	records := collector.records()
+	require.Len(t, records, 1)
+	assert.Equal(t, "record before shutdown", records[0].body)
+}
+
 // otlpCollector is a fake collector that records OTLP log exports over HTTP or gRPC.
 type otlpCollector struct {
 	collogspb.UnimplementedLogsServiceServer
@@ -306,6 +341,27 @@ func newHTTPCollector(t *testing.T, failPaths ...string) *otlpCollector {
 	collector.endpoint = srv.URL
 
 	return collector
+}
+
+// newHangingCollector starts an OTLP/HTTP server that never answers until the client gives up.
+func newHangingCollector(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	release := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+
+	t.Cleanup(func() {
+		close(release)
+		srv.Close()
+	})
+
+	return srv
 }
 
 // newGRPCCollector starts a fake OTLP/gRPC collector.

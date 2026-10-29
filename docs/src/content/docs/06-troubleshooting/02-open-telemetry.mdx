@@ -58,7 +58,8 @@ The logs signal is gated behind the [`otel-logs`](/reference/experiments/active#
 
 The OTLP log exporters read the standard [OTLP exporter environment variables](https://opentelemetry.io/docs/specs/otel/protocol/exporter/). The `OTEL_EXPORTER_OTLP_LOGS_*` variables apply to logs only and override the shared `OTEL_EXPORTER_OTLP_*` ones:
 
-- `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` - the collector address, e.g. `http://localhost:4318` for `otlpHttp` or `http://localhost:4317` for `otlpGrpc`. The `_LOGS_` HTTP endpoint is used as is, so it must end with `/v1/logs`.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` - the collector address, e.g. `http://localhost:4318` for `otlpHttp` or `http://localhost:4317` for `otlpGrpc`. The HTTP exporter adds the `/v1/logs` path.
+- `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` - the collector address for logs only. For `otlpHttp` it is used as is, so include the path, e.g. `http://localhost:4318/v1/logs`. For `otlpGrpc`, use `http://localhost:4317`.
 - `OTEL_EXPORTER_OTLP_HEADERS` or `OTEL_EXPORTER_OTLP_LOGS_HEADERS` - headers for every export, such as credentials, as comma-separated `key=value` pairs with URL-encoded values (e.g. `authorization=Bearer%20<token>`).
 - `OTEL_EXPORTER_OTLP_CERTIFICATE`, `OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE`, and `OTEL_EXPORTER_OTLP_CLIENT_KEY` (and their `_LOGS_` forms) - TLS certificate files for collectors that use a private CA or mutual TLS.
 - `OTEL_EXPORTER_OTLP_COMPRESSION` or `OTEL_EXPORTER_OTLP_LOGS_COMPRESSION` - set to `gzip` to compress exports.
@@ -183,7 +184,7 @@ This example runs an OpenTelemetry collector that receives Terragrunt's traces, 
   Value: 4
   ```
 
-- Check the logs in the Quickwit UI at [http://localhost:7280/ui](http://localhost:7280/ui). Quickwit stores the log records it receives in an index whose name starts with `otel-logs-`. In **Query editor**, pick that index, type a query, and select **Run**:
+- Check the logs in the Quickwit UI at [http://localhost:7280/ui](http://localhost:7280/ui). Quickwit stores the log records it receives in an index whose name starts with `otel-logs-`. New records can take about 10 seconds to appear. In **Query editor**, pick that index, type a query, and select **Run**:
   - `*` shows all log records.
   - `severity_text:error` shows errors only.
   - `attributes.prefix:app` shows the logs of the `app` unit.

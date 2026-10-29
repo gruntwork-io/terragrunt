@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"runtime/debug"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel/trace"
@@ -67,28 +68,40 @@ func NewTelemeter(
 	return tlm, nil
 }
 
-// Shutdown flushes every provider, even if one fails, and returns all errors.
+// Shutdown flushes all providers at once, so one hung flush cannot use up the others' deadline.
 func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 	if tlm == nil {
 		return nil
 	}
 
-	var errs []error
+	var shutdowns []func(context.Context) error
 
 	if tlm.Tracer != nil && tlm.Tracer.provider != nil {
-		errs = append(errs, tlm.Tracer.provider.Shutdown(ctx))
+		shutdowns = append(shutdowns, tlm.Tracer.provider.Shutdown)
 		tlm.Tracer.provider = nil
 	}
 
 	if tlm.Meter != nil && tlm.Meter.provider != nil {
-		errs = append(errs, tlm.Meter.provider.Shutdown(ctx))
+		shutdowns = append(shutdowns, tlm.Meter.provider.Shutdown)
 		tlm.Meter.provider = nil
 	}
 
 	if tlm.Logger != nil && tlm.Logger.provider != nil {
-		errs = append(errs, tlm.Logger.provider.Shutdown(ctx))
+		shutdowns = append(shutdowns, tlm.Logger.provider.Shutdown)
 		tlm.Logger.provider = nil
 	}
+
+	errs := make([]error, len(shutdowns))
+
+	var wg sync.WaitGroup
+
+	for i, shutdown := range shutdowns {
+		wg.Go(func() {
+			errs[i] = shutdown(ctx)
+		})
+	}
+
+	wg.Wait()
 
 	return errors.Join(errs...)
 }
