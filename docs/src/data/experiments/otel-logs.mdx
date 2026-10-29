@@ -8,7 +8,7 @@ Export Terragrunt's logs as an OpenTelemetry logs signal.
 
 ### `otel-logs` - What it does
 
-Terragrunt exports its logs as OpenTelemetry log records, next to traces and metrics, when `TG_TELEMETRY_LOGS_EXPORTER` is set. From v1.2.2 the experiment flag is not needed. Before v1.2.2, also pass `--experiment otel-logs`.
+This experiment flag is no longer needed. Terragrunt exports its logs as OpenTelemetry log records, next to traces and metrics, when `TG_TELEMETRY_LOGS_EXPORTER` is set:
 
 - `none` - no log exporting (the default).
 - `console` - write log records to the console as JSON.
@@ -18,14 +18,10 @@ Terragrunt exports its logs as OpenTelemetry log records, next to traces and met
 The OTLP exporters read the endpoint, headers, and TLS settings from the standard `OTEL_EXPORTER_OTLP_*` environment variables. Set `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true` to turn off TLS for a local collector.
 
 ```bash
-# v1.2.2 and later
 TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all -- apply
-
-# Before v1.2.2
-TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all --experiment otel-logs -- apply
 ```
 
-Each record carries the trace and span IDs of the span it was logged in, so a unit's logs link to its span in the backend. From v1.2.2, records logged outside a unit, such as by the run queue, link to the root command span.
+Each record carries the trace and span IDs of the span it was logged in, so a unit's logs link to its span in the backend. Records logged outside a unit, such as by the run queue, link to the root command span.
 
 See [OpenTelemetry](/troubleshooting/open-telemetry) for all settings and a local collector example.
 

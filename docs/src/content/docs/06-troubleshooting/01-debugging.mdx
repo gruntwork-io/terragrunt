@@ -8,7 +8,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
 
 ## Support
 
@@ -91,8 +90,6 @@ export TG_TELEMETRY_LOGS_EXPORTER=otlpHttp
 export TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT=true
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 ```
-
-<Before version="v1.2.2">Before v1.2.2, also run `export TG_EXPERIMENT=otel-logs`, and pass `--no-color` to keep color codes out of the log records.</Before>
 
 Run Terragrunt as usual:
 
