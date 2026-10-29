@@ -87,3 +87,59 @@ func TestOtelLogHookSeverities(t *testing.T) {
 		})
 	}
 }
+
+// TestOtelLogHookHonorsLogLevel checks that records below the log level are not exported.
+func TestOtelLogHookHonorsLogLevel(t *testing.T) {
+	t.Parallel()
+
+	exporter := &recordingExporter{}
+	provider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter)),
+	)
+
+	t.Cleanup(func() {
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+
+	l := logger.CreateLogger()
+	l.SetOptions(
+		log.WithLevel(log.InfoLevel),
+		log.WithOutput(io.Discard),
+		log.WithHooks(telemetry.NewOtelLogHook("terragrunt", provider)),
+	)
+
+	l.Tracef("trace record")
+	l.Debugf("debug record")
+	l.Infof("info record")
+
+	records := exporter.Records()
+	require.Len(t, records, 1)
+	assert.Equal(t, "info record", records[0].Body().AsString())
+}
+
+// TestOtelLogHookStripsColorCodes checks that exported bodies have no ANSI color codes.
+func TestOtelLogHookStripsColorCodes(t *testing.T) {
+	t.Parallel()
+
+	exporter := &recordingExporter{}
+	provider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter)),
+	)
+
+	t.Cleanup(func() {
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+
+	l := logger.CreateLogger()
+	l.SetOptions(
+		log.WithLevel(log.InfoLevel),
+		log.WithOutput(io.Discard),
+		log.WithHooks(telemetry.NewOtelLogHook("terragrunt", provider)),
+	)
+
+	l.Logf(log.StderrLevel, "\x1b[31m\x1b[1mError: \x1b[0m\x1b[0mReference to undeclared input variable")
+
+	records := exporter.Records()
+	require.Len(t, records, 1)
+	assert.Equal(t, "Error: Reference to undeclared input variable", records[0].Body().AsString())
+}

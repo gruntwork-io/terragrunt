@@ -6,8 +6,10 @@ import (
 	"errors"
 	"io"
 	"runtime/debug"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Telemeter struct {
@@ -59,44 +61,49 @@ func NewTelemeter(
 		// (clones copy hooks by reference at clone time), so every downstream logger
 		// inherits the hook and emits records correlated to the active span.
 		if logger != nil {
-			l.SetOptions(log.WithHooks(NewOtelLogHook(appName, logger.provider)))
+			l.SetOptions(log.WithHooks(logger.hook))
 		}
 	}
 
 	return tlm, nil
 }
 
-// Shutdown shutdowns the telemetry provider.
+// Shutdown flushes all providers at once, so one hung flush cannot use up the others' deadline.
 func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 	if tlm == nil {
 		return nil
 	}
 
-	if tlm.Tracer != nil && tlm.Tracer.provider != nil {
-		if err := tlm.Tracer.provider.Shutdown(ctx); err != nil {
-			return err
-		}
+	var shutdowns []func(context.Context) error
 
+	if tlm.Tracer != nil && tlm.Tracer.provider != nil {
+		shutdowns = append(shutdowns, tlm.Tracer.provider.Shutdown)
 		tlm.Tracer.provider = nil
 	}
 
 	if tlm.Meter != nil && tlm.Meter.provider != nil {
-		if err := tlm.Meter.provider.Shutdown(ctx); err != nil {
-			return err
-		}
-
+		shutdowns = append(shutdowns, tlm.Meter.provider.Shutdown)
 		tlm.Meter.provider = nil
 	}
 
 	if tlm.Logger != nil && tlm.Logger.provider != nil {
-		if err := tlm.Logger.provider.Shutdown(ctx); err != nil {
-			return err
-		}
-
+		shutdowns = append(shutdowns, tlm.Logger.provider.Shutdown)
 		tlm.Logger.provider = nil
 	}
 
-	return nil
+	errs := make([]error, len(shutdowns))
+
+	var wg sync.WaitGroup
+
+	for i, shutdown := range shutdowns {
+		wg.Go(func() {
+			errs[i] = shutdown(ctx)
+		})
+	}
+
+	wg.Wait()
+
+	return errors.Join(errs...)
 }
 
 // Collect collects telemetry from function execution metrics and traces.
@@ -106,6 +113,7 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 // OpenTelemetry log bridge derives trace and span IDs from the logger's context,
 // so records correlate with their span only when the logger carries it. Pass
 // childL onward to any code whose logs should resolve to this span.
+// If ctx has no span, records from loggers without a span use the new root span.
 func (tlm *Telemeter) Collect(
 	ctx context.Context, l log.Logger, name string, attrs map[string]any,
 	fn func(childCtx context.Context, childL log.Logger) error,
@@ -124,8 +132,15 @@ func (tlm *Telemeter) Collect(
 		return fn(ctx, l)
 	}
 
+	isRoot := !trace.SpanContextFromContext(ctx).IsValid()
+
 	// wrap telemetry collection with trace and time metric
 	return tlm.Trace(ctx, name, attrs, func(ctx context.Context) error {
+		if span := trace.SpanContextFromContext(ctx); isRoot && tlm.Logger != nil && span.IsValid() {
+			tlm.Logger.hook.bindRootSpan(span)
+			defer tlm.Logger.hook.unbindRootSpan()
+		}
+
 		return tlm.Time(ctx, name, attrs, func(ctx context.Context) error {
 			// Pure-data spans (e.g. discovery, filtering) have no logger to correlate
 			// and pass nil; only bind the span context when a logger is supplied.

@@ -142,6 +142,7 @@ export default defineConfig({
             // Used in the docs for OpenTelemetry
             "http://localhost:16686/",
             "http://localhost:9090/",
+            "http://localhost:7280/ui",
 
             // Command pages are assembled by `src/pages/reference/cli/commands/[...slug].astro`
             // from the `commands` and `flags` collections, so the validator never sees the

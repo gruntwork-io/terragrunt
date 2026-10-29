@@ -23,10 +23,11 @@ const (
 
 type logsExporterType string
 
-// Logger holds the OpenTelemetry logs signal provider and exporter.
+// Logger holds the OpenTelemetry logs provider, exporter, and log hook.
 type Logger struct {
 	provider *log.LoggerProvider
 	exporter log.Exporter
+	hook     *otelLogHook
 }
 
 // NewLogger creates and configures the logs collection. It returns nil when no
@@ -56,6 +57,7 @@ func NewLogger(
 	return &Logger{
 		provider: provider,
 		exporter: exporter,
+		hook:     newOtelLogHook(appName, provider),
 	}, nil
 }
 
