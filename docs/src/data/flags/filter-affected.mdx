@@ -2,6 +2,8 @@
 name: filter-affected
 description: Filter components affected by changes between the default branch and HEAD
 type: bool
+env:
+  - TG_FILTER_AFFECTED
 ---
 
 import { Aside } from '@astrojs/starlight/components';

@@ -273,7 +273,7 @@ func TestTelemeterShutdownFlushesLogsWhenMetricExportFails(t *testing.T) {
 	assert.Equal(t, "record before shutdown", records[0].body)
 }
 
-// TestTelemeterShutdownFlushesLogsWhenTraceExportHangs checks that a trace flush that hangs until the deadline does not drop logs.
+// TestTelemeterShutdownFlushesLogsWhenTraceExportHangs checks that a hung trace flush does not drop logs.
 func TestTelemeterShutdownFlushesLogsWhenTraceExportHangs(t *testing.T) {
 	collector := newHTTPCollector(t)
 	traceCollector := newHangingCollector(t)
