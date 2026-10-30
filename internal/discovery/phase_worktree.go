@@ -471,12 +471,10 @@ func (p *WorktreePhase) walkChangedStack(
 		errs = make([]error, 0, fromToTasks)
 	)
 
-	parentFilters := discovery.filters.ExcludingGitFilters()
-
+	// Parent non-git filters are not passed here; the final Filters.Evaluate handles them.
 	discoveryGroup.Go(func() error {
 		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
-			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers).
 			withParseSettingsFrom(discovery)
 
@@ -505,7 +503,6 @@ func (p *WorktreePhase) walkChangedStack(
 	discoveryGroup.Go(func() error {
 		toDiscovery := NewDiscovery(toStack.Path()).
 			WithDiscoveryContext(toDiscoveryContext).
-			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers).
 			withParseSettingsFrom(discovery)
 
