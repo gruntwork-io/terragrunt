@@ -31,6 +31,60 @@ func (v *Venv) WithEnvCloned() *Venv {
 	return v.WithEnv(maps.Clone(v.Env))
 }
 
+// SetAuthProviderEnv writes the environment variables an auth provider command
+// returned into Env, remembering the values they replace so
+// [Venv.WithoutAuthProviderEnv] can undo them. It panics with
+// [ErrVenvEnvUnset], per [Venv.RequireEnv], when Env is nil.
+func (v *Venv) SetAuthProviderEnv(envs map[string]string) {
+	v.RequireEnv()
+
+	prior := maps.Clone(v.authProviderPriorEnv)
+	if prior == nil {
+		prior = make(map[string]authProviderEnvValue, len(envs))
+	}
+
+	for key, val := range envs {
+		entry, recorded := prior[key]
+		if !recorded {
+			if old, ok := v.Env[key]; ok {
+				entry.prior = &old
+			}
+		}
+
+		entry.set = val
+		prior[key] = entry
+		v.Env[key] = val
+	}
+
+	v.authProviderPriorEnv = prior
+}
+
+// WithoutAuthProviderEnv returns a copy of v whose Env is an independent clone
+// with every value set through [Venv.SetAuthProviderEnv] restored to what it
+// was before, so one unit's auth provider values do not reach another unit. A
+// key that was written again after the auth provider set it keeps that later
+// value.
+// It panics with [ErrVenvEnvUnset], per [Venv.RequireEnv], when Env is nil.
+func (v *Venv) WithoutAuthProviderEnv() *Venv {
+	c := v.WithEnvCloned()
+
+	for key, entry := range v.authProviderPriorEnv {
+		if cur, ok := c.Env[key]; !ok || cur != entry.set {
+			continue
+		}
+
+		if entry.prior == nil {
+			delete(c.Env, key)
+		} else {
+			c.Env[key] = *entry.prior
+		}
+	}
+
+	c.authProviderPriorEnv = nil
+
+	return c
+}
+
 // RequireEnv panics with [ErrVenvEnvUnset] when Env is nil, guarding
 // functions that write into the shared environment.
 func (v *Venv) RequireEnv() {
