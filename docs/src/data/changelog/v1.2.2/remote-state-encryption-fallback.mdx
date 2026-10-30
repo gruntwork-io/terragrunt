@@ -1,0 +1,35 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `remote_state` encryption works for units with existing unencrypted state
+
+Adding `encryption` to a `remote_state` block for a unit that already had state failed in `tofu init`, and Terragrunt could not generate the fallback OpenTofu needs to read it:
+
+```
+Error: Error refreshing state
+
+encountered unencrypted payload without unencrypted method configured
+```
+
+Set `fallback = { method = "unencrypted" }` in the `encryption` map for one `terragrunt apply`. OpenTofu reads the plaintext state and writes it back encrypted. Then remove `fallback`, and optionally set `enforced = true` so OpenTofu errors instead of writing unencrypted state or plan files.
+
+```hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+
+  encryption = {
+    key_provider = "pbkdf2"
+    passphrase   = get_env("PBKDF2_PASSPHRASE")
+    fallback     = { method = "unencrypted" }
+  }
+}
+```
+
+See [`encryption`](/reference/hcl/blocks#encryption) for the generated OpenTofu configuration.

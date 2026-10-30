@@ -3,6 +3,7 @@ package codegen_test
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -223,6 +224,157 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 				)
 				assert.Equal(t, output, actual)
 			}
+		})
+	}
+}
+
+// TestRemoteStateConfigToTerraformCodeEncryptionFallback verifies that a fallback map produces
+// the unencrypted fallback method OpenTofu needs to read pre-existing plaintext state.
+func TestRemoteStateConfigToTerraformCodeEncryptionFallback(t *testing.T) {
+	t.Parallel()
+
+	expected := `terraform {
+  backend "local" {
+  }
+  encryption {
+    key_provider "pbkdf2" "default" {
+      passphrase = "randompassphrase123456"
+    }
+    method "aes_gcm" "default" {
+      keys = key_provider.pbkdf2.default
+    }
+    method "unencrypted" "fallback" {
+    }
+    state {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+    plan {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+  }
+}
+`
+
+	output, err := codegen.RemoteStateConfigToTerraformCode(
+		"local",
+		map[string]any{},
+		map[string]any{
+			"key_provider": "pbkdf2",
+			"passphrase":   "randompassphrase123456",
+			"fallback": map[string]any{
+				"method": "unencrypted",
+			},
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(output))
+}
+
+// TestRemoteStateConfigToTerraformCodeEncryptionEnforced verifies that enforced is set on the
+// state and plan blocks rather than passed to the key provider.
+func TestRemoteStateConfigToTerraformCodeEncryptionEnforced(t *testing.T) {
+	t.Parallel()
+
+	expected := `terraform {
+  backend "local" {
+  }
+  encryption {
+    key_provider "pbkdf2" "default" {
+      passphrase = "randompassphrase123456"
+    }
+    method "aes_gcm" "default" {
+      keys = key_provider.pbkdf2.default
+    }
+    state {
+      method   = method.aes_gcm.default
+      enforced = true
+    }
+    plan {
+      method   = method.aes_gcm.default
+      enforced = true
+    }
+  }
+}
+`
+
+	output, err := codegen.RemoteStateConfigToTerraformCode(
+		"local",
+		map[string]any{},
+		map[string]any{
+			"key_provider": "pbkdf2",
+			"passphrase":   "randompassphrase123456",
+			"enforced":     true,
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(output))
+}
+
+func TestRemoteStateConfigToTerraformCodeEncryptionInvalidTarget(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		entries map[string]any
+		wantErr error
+		name    string
+	}{
+		{
+			name:    "fallback-string",
+			entries: map[string]any{"fallback": "unencrypted"},
+			wantErr: codegen.ErrInvalidEncryptionFallback,
+		},
+		{
+			name:    "fallback-other-method",
+			entries: map[string]any{"fallback": map[string]any{"method": "aes_gcm"}},
+			wantErr: codegen.ErrInvalidEncryptionFallback,
+		},
+		{
+			name: "fallback-key-provider",
+			entries: map[string]any{
+				"fallback": map[string]any{"key_provider": "pbkdf2", "passphrase": "oldpassphrase123456"},
+			},
+			wantErr: codegen.ErrInvalidEncryptionFallback,
+		},
+		{
+			name: "fallback-extra-key",
+			entries: map[string]any{
+				"fallback": map[string]any{"method": "unencrypted", "passphrase": "oldpassphrase123456"},
+			},
+			wantErr: codegen.ErrInvalidEncryptionFallback,
+		},
+		{
+			name:    "enforced-string",
+			entries: map[string]any{"enforced": "true"},
+			wantErr: codegen.ErrInvalidEncryptionEnforced,
+		},
+		{
+			name: "fallback-with-enforced",
+			entries: map[string]any{
+				"fallback": map[string]any{"method": "unencrypted"},
+				"enforced": true,
+			},
+			wantErr: codegen.ErrEncryptionFallbackEnforced,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			encryption := map[string]any{
+				"key_provider": "pbkdf2",
+				"passphrase":   "randompassphrase123456",
+			}
+			maps.Copy(encryption, tc.entries)
+
+			_, err := codegen.RemoteStateConfigToTerraformCode("local", map[string]any{}, encryption)
+			require.ErrorIs(t, err, tc.wantErr)
 		})
 	}
 }
@@ -554,7 +706,10 @@ func TestWriteToFileOverwritesReadOnlyTarget(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
+			require.NoError(
+				t,
+				codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+			)
 
 			fileContent, err := os.ReadFile(path)
 			require.NoError(t, err)
@@ -608,7 +763,13 @@ func TestWriteToFileSkipAndErrorLeaveExistingFileIntact(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
+			writeErr := codegen.WriteToFile(
+				t.Context(),
+				l,
+				venvtest.NewOSWithEmptyEnv(),
+				"",
+				&config,
+			)
 
 			if tc.wantErr {
 				var existsErr codegen.GenerateFileExistsError
@@ -657,7 +818,10 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
+	require.NoError(
+		t,
+		codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+	)
 
 	storeContentAfter, err := os.ReadFile(storePath)
 	require.NoError(t, err)
@@ -854,7 +1018,10 @@ func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
+	require.NoError(
+		t,
+		codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+	)
 	assert.NoFileExists(t, targetPath)
 }
 
@@ -899,7 +1066,10 @@ func TestWriteToFileSignatureWithoutTrailingNewline(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
+			require.NoError(
+				t,
+				codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+			)
 
 			if tc.disable {
 				assert.NoFileExists(t, path)
@@ -966,7 +1136,13 @@ func TestWriteToFileUnsignedFileWithoutTrailingNewline(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
+			writeErr := codegen.WriteToFile(
+				t.Context(),
+				l,
+				venvtest.NewOSWithEmptyEnv(),
+				"",
+				&config,
+			)
 
 			if tc.disable {
 				var removeErr codegen.GenerateFileRemoveError
@@ -1015,7 +1191,12 @@ func TestWriteToFileWithContentStoreDeduplicates(t *testing.T) {
 
 		l := logger.CreateLogger()
 		require.NoError(t, codegen.WriteToFile(
-			t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config, codegen.WithContentStore(store),
+			t.Context(),
+			l,
+			venvtest.NewOSWithEmptyEnv(),
+			"",
+			&config,
+			codegen.WithContentStore(store),
 		))
 	}
 
@@ -1071,7 +1252,12 @@ func TestWriteToFileWithContentStoreMutableOptsOut(t *testing.T) {
 
 		l := logger.CreateLogger()
 		require.NoError(t, codegen.WriteToFile(
-			t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config, codegen.WithContentStore(store),
+			t.Context(),
+			l,
+			venvtest.NewOSWithEmptyEnv(),
+			"",
+			&config,
+			codegen.WithContentStore(store),
 		))
 	}
 
@@ -1237,7 +1423,13 @@ func TestWriteToFileSymlinkIsNotTerragruntGenerated(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
+			writeErr := codegen.WriteToFile(
+				t.Context(),
+				l,
+				venvtest.NewOSWithEmptyEnv(),
+				"",
+				&config,
+			)
 
 			if tc.disable {
 				var removeErr codegen.GenerateFileRemoveError
@@ -1258,7 +1450,12 @@ func TestWriteToFileSymlinkIsNotTerragruntGenerated(t *testing.T) {
 			if tc.destination != "" {
 				destination, err := os.ReadFile(destinationPath)
 				require.NoError(t, err)
-				assert.Equal(t, tc.destination, string(destination), "the destination must stay intact")
+				assert.Equal(
+					t,
+					tc.destination,
+					string(destination),
+					"the destination must stay intact",
+				)
 			}
 		})
 	}
@@ -1295,7 +1492,11 @@ func TestGenerateConfigDisabledFromString(t *testing.T) {
 	}{
 		{name: "skip", input: "skip", expected: codegen.DisabledSkip},
 		{name: "remove", input: "remove", expected: codegen.DisabledRemove},
-		{name: "remove_terragrunt", input: "remove_terragrunt", expected: codegen.DisabledRemoveTerragrunt},
+		{
+			name:     "remove_terragrunt",
+			input:    "remove_terragrunt",
+			expected: codegen.DisabledRemoveTerragrunt,
+		},
 		{name: "invalid", input: "invalid", expected: codegen.DisabledUnknown, wantErr: true},
 		{name: "true", input: "true", expected: codegen.DisabledUnknown, wantErr: true},
 		{name: "empty", input: "", expected: codegen.DisabledUnknown, wantErr: true},
