@@ -13,6 +13,7 @@ import (
 )
 
 const testFixtureNoDependencyOutputs = "fixtures/no-dependency-outputs"
+const testFixtureDependencyMockOnBackendError = "fixtures/dependency-mock-on-backend-error"
 
 func TestTFDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
 	t.Parallel()
@@ -50,6 +51,19 @@ func TestTFDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestTFDependencyMockOutputsOnBackendError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyMockOnBackendError)
+	consumerPath := filepath.Join(tmpEnvPath, testFixtureDependencyMockOnBackendError, "consumer")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt validate --non-interactive --working-dir "+consumerPath,
+	)
+	require.NoError(t, err, "validate should succeed using mock outputs when the dependency backend is unreachable; stderr=%s", stderr)
 }
 
 func TestTFDependencyOutputSkipDependencyOutputsFlagWithApplyAndDestroy(t *testing.T) {

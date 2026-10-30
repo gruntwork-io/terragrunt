@@ -1264,7 +1264,7 @@ func getTerragruntOutput(
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, l, v, pctx, targetConfigPath)
 	if err != nil {
-		if !shouldFallBackToMockOutputs(pctx, err) {
+		if !shouldFallBackToMockOutputs(pctx, err) && !dependencyConfig.shouldReturnMockOutputs(pctx) {
 			return nil, true, err
 		}
 
