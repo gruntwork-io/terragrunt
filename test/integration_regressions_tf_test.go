@@ -131,6 +131,65 @@ func TestTFAutoInitSkippedWhenOnlyUncopiedFilesChange(t *testing.T) {
 	)
 }
 
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/7220
+func TestTFAutoInitIgnoresModuleBlocksInSubdirectories(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitNestedModuleBlock)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitNestedModuleBlock)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		1,
+		strings.Count(stdout.String(), "has been successfully initialized!"),
+		"first plan should run init",
+	)
+
+	// The root module calls no modules, so OpenTofu never creates .terraform/modules.
+	// The module block in examples/ is never loaded and must not trigger init.
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+	require.NoError(t, err)
+	assert.NotContains(
+		t,
+		stdout.String(),
+		"has been successfully initialized!",
+		"second plan should not re-run init for a module block outside the root module",
+	)
+
+	// With auto-init disabled, Terragrunt must not warn that init is needed either.
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt plan --no-auto-init --non-interactive --tf-forward-stdout --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+	require.NoError(t, err)
+	assert.NotContains(
+		t,
+		stderr.String(),
+		"Detected that init is needed",
+		"plan with --no-auto-init should not warn that init is needed",
+	)
+}
+
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
 func TestTFYamlDecodeRegressions(t *testing.T) {
 	t.Parallel()

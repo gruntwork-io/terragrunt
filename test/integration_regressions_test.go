@@ -33,6 +33,7 @@ const (
 	testFixtureExposedIncludePartialParseError   = "fixtures/regressions/exposed-include-partial-parse-error"
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
+	testFixtureAutoInitNestedModuleBlock         = "fixtures/regressions/auto-init-nested-module-block"
 	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
 	testFixtureDependencyHookOutput              = "fixtures/regressions/dependency-hook-output"
 	testFixtureDependencyExtraArgsOutput         = "fixtures/regressions/dependency-extra-args-output"

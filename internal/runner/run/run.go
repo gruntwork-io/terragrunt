@@ -643,13 +643,26 @@ func modulesNeedInit(fsys vfs.FS, opts *Options, env map[string]string) (bool, e
 		return false, nil
 	}
 
-	// Check for module definitions in .tf and .tofu files using WalkDir
-	hasModuleDefinition, err := util.RegexFoundInTFFiles(fsys, opts.CacheDir, ModuleRegex)
+	// Only the root module's own files count: OpenTofu/Terraform never loads subdirectories
+	// (e.g. examples/) unless they are called, and the module directory is only created
+	// when the root module calls a module. Refs: #7220.
+	tfFiles, err := util.ListTfFiles(fsys, opts.CacheDir)
 	if err != nil {
 		return false, err
 	}
 
-	return hasModuleDefinition, nil
+	for _, tfFile := range tfFiles {
+		content, err := vfs.ReadFile(fsys, tfFile)
+		if err != nil {
+			return false, err
+		}
+
+		if ModuleRegex.Match(content) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // remoteStateNeedsInit determines whether remote state initialization is required before running a Terraform command.
