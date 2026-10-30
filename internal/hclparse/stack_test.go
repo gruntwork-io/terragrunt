@@ -998,6 +998,54 @@ func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	assert.Nil(t, paths)
 }
 
+// TestUnitPathsFromStackDir_NotAStackSkipsFuncFactory pins that a directory without a stack file
+// never builds a function map.
+func TestUnitPathsFromStackDir_NotAStackSkipsFuncFactory(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+
+	var calls int
+
+	funcsFor := func(string) (map[string]function.Function, error) {
+		calls++
+		return map[string]function.Function{}, nil
+	}
+
+	paths, err := hclparse.UnitPathsFromStackDir(
+		t.Context(),
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: funcsFor},
+	)
+	require.NoError(t, err)
+	assert.Nil(t, paths)
+	assert.Zero(t, calls)
+}
+
+// TestDirectComponentPaths_NotAStackSkipsFuncFactory pins that a directory without a stack file
+// never builds a function map.
+func TestDirectComponentPaths_NotAStackSkipsFuncFactory(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+
+	var calls int
+
+	funcsFor := func(string) (map[string]function.Function, error) {
+		calls++
+		return map[string]function.Function{}, nil
+	}
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fs, "/test", funcsFor)
+	require.NoError(t, err)
+	assert.Nil(t, unitPaths)
+	assert.Nil(t, stackPaths)
+	assert.Zero(t, calls)
+}
+
 func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 	t.Parallel()
 
