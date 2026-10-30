@@ -171,6 +171,23 @@ func TestTFAutoInitIgnoresModuleBlocksInSubdirectories(t *testing.T) {
 		"has been successfully initialized!",
 		"second plan should not re-run init for a module block outside the root module",
 	)
+
+	// With auto-init disabled, Terragrunt must not warn that init is needed either.
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = helpers.RunTerragruntCommand(
+		t,
+		"terragrunt plan --no-auto-init --non-interactive --tf-forward-stdout --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+	require.NoError(t, err)
+	assert.NotContains(
+		t,
+		stderr.String(),
+		"Detected that init is needed",
+		"plan with --no-auto-init should not warn that init is needed",
+	)
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
