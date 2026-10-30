@@ -3,6 +3,7 @@ package codegen_test
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -319,40 +320,46 @@ func TestRemoteStateConfigToTerraformCodeEncryptionInvalidTarget(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		value   any
+		entries map[string]any
 		wantErr error
 		name    string
-		key     string
 	}{
 		{
 			name:    "fallback-string",
-			key:     "fallback",
-			value:   "unencrypted",
+			entries: map[string]any{"fallback": "unencrypted"},
 			wantErr: codegen.ErrInvalidEncryptionFallback,
 		},
 		{
 			name:    "fallback-other-method",
-			key:     "fallback",
-			value:   map[string]any{"method": "aes_gcm"},
+			entries: map[string]any{"fallback": map[string]any{"method": "aes_gcm"}},
 			wantErr: codegen.ErrInvalidEncryptionFallback,
 		},
 		{
-			name:    "fallback-key-provider",
-			key:     "fallback",
-			value:   map[string]any{"key_provider": "pbkdf2", "passphrase": "oldpassphrase123456"},
+			name: "fallback-key-provider",
+			entries: map[string]any{
+				"fallback": map[string]any{"key_provider": "pbkdf2", "passphrase": "oldpassphrase123456"},
+			},
 			wantErr: codegen.ErrInvalidEncryptionFallback,
 		},
 		{
-			name:    "fallback-extra-key",
-			key:     "fallback",
-			value:   map[string]any{"method": "unencrypted", "passphrase": "oldpassphrase123456"},
+			name: "fallback-extra-key",
+			entries: map[string]any{
+				"fallback": map[string]any{"method": "unencrypted", "passphrase": "oldpassphrase123456"},
+			},
 			wantErr: codegen.ErrInvalidEncryptionFallback,
 		},
 		{
 			name:    "enforced-string",
-			key:     "enforced",
-			value:   "true",
+			entries: map[string]any{"enforced": "true"},
 			wantErr: codegen.ErrInvalidEncryptionEnforced,
+		},
+		{
+			name: "fallback-with-enforced",
+			entries: map[string]any{
+				"fallback": map[string]any{"method": "unencrypted"},
+				"enforced": true,
+			},
+			wantErr: codegen.ErrEncryptionFallbackEnforced,
 		},
 	}
 
@@ -360,15 +367,13 @@ func TestRemoteStateConfigToTerraformCodeEncryptionInvalidTarget(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := codegen.RemoteStateConfigToTerraformCode(
-				"local",
-				map[string]any{},
-				map[string]any{
-					"key_provider": "pbkdf2",
-					"passphrase":   "randompassphrase123456",
-					tc.key:         tc.value,
-				},
-			)
+			encryption := map[string]any{
+				"key_provider": "pbkdf2",
+				"passphrase":   "randompassphrase123456",
+			}
+			maps.Copy(encryption, tc.entries)
+
+			_, err := codegen.RemoteStateConfigToTerraformCode("local", map[string]any{}, encryption)
 			require.ErrorIs(t, err, tc.wantErr)
 		})
 	}

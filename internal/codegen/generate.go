@@ -399,7 +399,8 @@ const (
 // The fallback and enforced entries of encryption configure the generated state and plan blocks.
 // Every other entry except key_provider becomes an argument of the key provider.
 //
-// Returns [ErrInvalidEncryptionFallback] or [ErrInvalidEncryptionEnforced] when those entries are malformed.
+// Returns [ErrInvalidEncryptionFallback] or [ErrInvalidEncryptionEnforced] when those entries are malformed,
+// and [ErrEncryptionFallbackEnforced] when fallback is set together with enforced = true.
 func RemoteStateConfigToTerraformCode(
 	backend string,
 	config map[string]any,
@@ -694,7 +695,8 @@ type encryptionTarget struct {
 // parseEncryptionTarget reads the fallback and enforced entries of a remote_state encryption map.
 //
 // Returns [ErrInvalidEncryptionEnforced] when enforced is set to anything but a bool, and
-// [ErrInvalidEncryptionFallback] when fallback is anything but a map holding only method = "unencrypted".
+// [ErrInvalidEncryptionFallback] when fallback is anything but a map holding only method = "unencrypted",
+// and [ErrEncryptionFallbackEnforced] when fallback is set together with enforced = true.
 func parseEncryptionTarget(
 	encryption map[string]any,
 	method hcl.Traversal,
@@ -723,6 +725,10 @@ func parseEncryptionTarget(
 		}
 	default:
 		return target, ErrInvalidEncryptionFallback
+	}
+
+	if target.fallback != nil && target.enforced != nil && *target.enforced {
+		return target, ErrEncryptionFallbackEnforced
 	}
 
 	return target, nil
