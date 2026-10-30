@@ -249,6 +249,39 @@ func TestTFDependencyOutputInGenerateBlock(t *testing.T) {
 		"Should not fail with 'Unsuitable value type' error")
 }
 
+// TestTFDependencyOutputInGenerateBlockOfExposedInclude tests that a generate block in an exposed include can reference a
+// dependency block declared in the unit including it, while the unit also reads the include in its terraform source.
+//
+// This is a regression test for issue #6831, where discovery failed on the generate block because it has no outputs
+// available to it, which left the include unavailable to the unit.
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/6831
+func TestTFDependencyOutputInGenerateBlockOfExposedInclude(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerateExposedInclude)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyGenerateExposedInclude)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan",
+	)
+	require.NoError(t, err)
+	assert.NotContains(t, stderr, "Unsuitable value")
+
+	generated, err := filepath.Glob(
+		filepath.Join(rootPath, "app", helpers.TerragruntCache, "*", "*", "generated.tf"),
+	)
+	require.NoError(t, err)
+	require.Len(t, generated, 1)
+
+	contents, err := os.ReadFile(generated[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(contents), `from_dep = "hello"`)
+}
+
 // TestTFDependencyOutputInGenerateBlockDirectRun tests that dependency outputs work when running directly
 // This test verifies that even in the broken version, running directly (without --all) works
 func TestTFDependencyOutputInGenerateBlockDirectRun(t *testing.T) {
