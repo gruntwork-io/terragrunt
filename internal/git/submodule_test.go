@@ -73,6 +73,12 @@ func TestResolveSubmoduleURL(t *testing.T) {
 			url:       "./../sibling.git",
 			want:      "https://example.com/org/sibling.git",
 		},
+		{
+			name:      "parent with no components to remove",
+			parentURL: "repo",
+			url:       "../sibling.git",
+			want:      "./sibling.git",
+		},
 	}
 
 	for _, tt := range tests {
