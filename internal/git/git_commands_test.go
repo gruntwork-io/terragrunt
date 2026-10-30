@@ -3,10 +3,13 @@ package git_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -120,6 +123,18 @@ func TestGitRunner_LocalTags(t *testing.T) {
 		}, got)
 	})
 
+	t.Run("skips lines without a hash and a ref", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, staticResult(vexec.Result{
+			Stdout: []byte("incomplete\na refs/tags/v1.0.0\n"),
+		})).WithWorkDir("/repo")
+
+		got, err := runner.LocalTags(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, []git.LsRemoteResult{{Hash: "a", Ref: "refs/tags/v1.0.0"}}, got)
+	})
+
 	t.Run("command failure", func(t *testing.T) {
 		t.Parallel()
 
@@ -128,6 +143,264 @@ func TestGitRunner_LocalTags(t *testing.T) {
 		_, err := runner.LocalTags(t.Context())
 		require.ErrorIs(t, err, git.ErrGitCommand)
 	})
+
+	t.Run("missing workdir", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, failIfSpawned(t))
+
+		_, err := runner.LocalTags(t.Context())
+		require.ErrorIs(t, err, git.ErrNoWorkDir)
+	})
+}
+
+func TestGitRunner_IsShallow(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		wantErr error
+		name    string
+		stdout  string
+		exit    int
+		want    bool
+	}{
+		{name: "shallow", stdout: "true\n", want: true},
+		{name: "complete", stdout: "false\n"},
+		{name: "command failure", exit: 128, wantErr: git.ErrGitCommand},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				assert.Equal(t, []string{"rev-parse", "--is-shallow-repository"}, inv.Args)
+
+				return vexec.Result{Stdout: []byte(tc.stdout), ExitCode: tc.exit}
+			}).WithWorkDir("/repo")
+
+			got, err := runner.IsShallow(t.Context())
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+
+	t.Run("missing workdir", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, failIfSpawned(t))
+
+		_, err := runner.IsShallow(t.Context())
+		require.ErrorIs(t, err, git.ErrNoWorkDir)
+	})
+}
+
+func TestTreePaths(t *testing.T) {
+	t.Parallel()
+
+	tree := git.TreePaths{"a/b.txt": {}, "file": {}}
+
+	testCases := []struct {
+		name         string
+		path         string
+		wantHas      bool
+		wantContains bool
+	}{
+		{name: "top level file", path: "file", wantHas: true, wantContains: true},
+		{name: "nested file", path: "a/b.txt", wantHas: true, wantContains: true},
+		{name: "directory", path: "a", wantContains: true},
+		{name: "prefix that stops mid name", path: "a/b"},
+		{name: "absent path", path: "missing"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.wantHas, tree.Has(tc.path))
+			assert.Equal(t, tc.wantContains, tree.HasOrContains(tc.path))
+		})
+	}
+}
+
+func TestGitRunner_LsTreeNames(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+
+	t.Run("lists from the repository root", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := venvtest.NewFS(t, root, map[string]string{".git": "gitdir: /elsewhere\n", "sub/file": ""})
+
+		runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			assert.Equal(t, []string{"ls-tree", "-r", "--name-only", "-z", "HEAD"}, inv.Args)
+			assert.Equal(t, root, inv.Dir, "git limits a listing to the directory it runs in")
+
+			return vexec.Result{Stdout: []byte("a.txt\x00dir/with space.txt\x00")}
+		}).WithWorkDir(filepath.Join(root, "sub"))
+
+		tree, err := runner.LsTreeNames(t.Context(), venvtest.New().WithFS(fsys), "HEAD")
+		require.NoError(t, err)
+		assert.Equal(t, git.TreePaths{"a.txt": {}, "dir/with space.txt": {}}, tree)
+	})
+
+	t.Run("empty tree", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := venvtest.NewFS(t, root, map[string]string{".git": "gitdir: /elsewhere\n"})
+		runner := newMemRunner(t, staticResult(vexec.Result{})).WithWorkDir(root)
+
+		tree, err := runner.LsTreeNames(t.Context(), venvtest.New().WithFS(fsys), "HEAD")
+		require.NoError(t, err)
+		assert.Empty(t, tree)
+	})
+
+	t.Run("command failure", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := venvtest.NewFS(t, root, map[string]string{".git": "gitdir: /elsewhere\n"})
+		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir(root)
+
+		_, err := runner.LsTreeNames(t.Context(), venvtest.New().WithFS(fsys), "HEAD")
+		require.ErrorIs(t, err, git.ErrReadTree)
+	})
+
+	t.Run("outside a repository", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := venvtest.NewFS(t, root, map[string]string{"file": ""})
+		runner := newMemRunner(t, failIfSpawned(t)).WithWorkDir(root)
+
+		_, err := runner.LsTreeNames(t.Context(), venvtest.New().WithFS(fsys), "HEAD")
+		require.ErrorIs(t, err, git.ErrNoRepoRoot)
+	})
+
+	t.Run("missing workdir", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, failIfSpawned(t))
+
+		_, err := runner.LsTreeNames(t.Context(), venvtest.New(), "HEAD")
+		require.ErrorIs(t, err, git.ErrNoWorkDir)
+	})
+}
+
+func TestGitRunner_Version(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		wantErr error
+		name    string
+		stdout  string
+		want    string
+		exit    int
+	}{
+		{name: "release", stdout: "git version 2.47.1\n", want: "2.47.1"},
+		{name: "git for windows suffix", stdout: "git version 2.47.1.windows.2\n", want: "2.47.1"},
+		{name: "command failure", exit: 1, wantErr: git.ErrGitCommand},
+		{name: "no version field", stdout: "git version\n", wantErr: git.ErrParseVersion},
+		{name: "unparsable version", stdout: "git version unknown\n", wantErr: git.ErrParseVersion},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runner := newMemRunner(t, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				assert.Equal(t, []string{"version"}, inv.Args)
+
+				return vexec.Result{Stdout: []byte(tc.stdout), ExitCode: tc.exit}
+			})
+
+			got, err := runner.Version(t.Context())
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.String())
+		})
+	}
+}
+
+// TestGitRunner_CancelSignalsTheCommand pins what a cancelled context sends a running git, and which failures count.
+func TestGitRunner_CancelSignalsTheCommand(t *testing.T) {
+	t.Parallel()
+
+	errSignal := errors.New("signal failed")
+
+	testCases := []struct {
+		signalErr error
+		cause     error
+		wantErr   error
+		wantSig   os.Signal
+		name      string
+	}{
+		{
+			name:    "plain cancel kills",
+			wantSig: os.Kill,
+		},
+		{
+			name:    "cancel by a signal forwards it",
+			cause:   signal.NewContextCanceledError(os.Interrupt),
+			wantSig: os.Interrupt,
+		},
+		{
+			name:      "a process that never started is not a failure",
+			signalErr: vexec.ErrProcessNotStarted,
+			wantSig:   os.Kill,
+		},
+		{
+			name:      "failing to signal is reported",
+			signalErr: errSignal,
+			wantErr:   errSignal,
+			wantSig:   os.Kill,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancelCause(t.Context())
+			sent := make(chan os.Signal, 1)
+
+			var got os.Signal
+
+			e := &signalRecordingExec{
+				Exec: vexec.NewMemExec(func(context.Context, vexec.Invocation) vexec.Result {
+					cancel(tc.cause)
+
+					got = <-sent
+
+					return vexec.Result{}
+				}),
+				sent:      sent,
+				signalErr: tc.signalErr,
+			}
+
+			runner, err := git.NewGitRunner(venvtest.New().WithExec(e))
+			require.NoError(t, err)
+
+			err = runner.WithWorkDir("/repo").ResetHard(ctx, "main")
+
+			assert.Equal(t, tc.wantSig, got)
+
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestReleaseTags(t *testing.T) {
@@ -991,6 +1264,36 @@ func TestGitRunner_MutationCommandFailures(t *testing.T) {
 				return runner.ConfigSet(ctx, "user.name", "Terragrunt")
 			},
 		},
+		{
+			name: "remote add",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.RemoteAdd(ctx, "origin", "https://example.com/repo.git")
+			},
+		},
+		{
+			name: "fetch tags",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.FetchTags(ctx, "origin")
+			},
+		},
+		{
+			name: "reset hard",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.ResetHard(ctx, "main")
+			},
+		},
+		{
+			name: "pull fast forward",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.PullFastForward(ctx, "origin", "main", 0)
+			},
+		},
+		{
+			name: "submodule update",
+			invoke: func(ctx context.Context, runner *git.GitRunner) error {
+				return runner.SubmoduleUpdate(ctx, 0)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1010,6 +1313,30 @@ func TestGitRunner_MutationCommandFailures(t *testing.T) {
 			require.ErrorIs(t, err, git.ErrNoWorkDir)
 		})
 	}
+}
+
+// signalRecordingExec hands out commands that report the signal they are sent on sent.
+type signalRecordingExec struct {
+	vexec.Exec
+	signalErr error
+	sent      chan<- os.Signal
+}
+
+// Command prepares every command through the wrapped Exec.
+func (e *signalRecordingExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
+	return &signalRecordingCmd{Cmd: e.Exec.Command(ctx, name, args...), exec: e}
+}
+
+// signalRecordingCmd is a command whose Signal reports to its [signalRecordingExec].
+type signalRecordingCmd struct {
+	vexec.Cmd
+	exec *signalRecordingExec
+}
+
+func (c *signalRecordingCmd) Signal(sig os.Signal) error {
+	c.exec.sent <- sig
+
+	return c.exec.signalErr
 }
 
 // failIfSpawned returns a handler that fails the test if git is ever executed.
