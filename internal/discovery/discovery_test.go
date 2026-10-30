@@ -760,3 +760,263 @@ func TestDiscovery_TracksReadsOnlyWhenRequested(t *testing.T) {
 		})
 	}
 }
+
+func TestDiscovery_TracksStackReads(t *testing.T) {
+	t.Parallel()
+
+	const includedStackFile = `
+unit "included" {
+  source = "../units/echo"
+  path   = "included"
+
+  values = {
+    message = yamldecode(file("shared.yml")).message
+  }
+}
+`
+
+	testCases := []struct {
+		name      string
+		stackFile string
+		wantReads []string
+	}{
+		{
+			name: "file in locals",
+			stackFile: `
+locals {
+  config = yamldecode(file("shared.yml"))
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    message = local.config.message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in values",
+			stackFile: `
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    message = yamldecode(file("shared.yml")).message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "mark_as_read in values",
+			stackFile: `
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    config = mark_as_read("shared.yml")
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in stack values",
+			stackFile: `
+stack "nested" {
+  source = "../stacks/nested"
+  path   = "nested"
+
+  values = {
+    message = yamldecode(file("shared.yml")).message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in expansion",
+			stackFile: `
+unit "echo" {
+  expansion {
+    for_each = toset([yamldecode(file("shared.yml")).message])
+  }
+
+  source = "../units/echo"
+  path   = "echo-${each.key}"
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in values referencing a sibling path",
+			stackFile: `
+unit "vpc" {
+  source = "../units/echo"
+  path   = "vpc"
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    vpc_path = unit.vpc.path
+    message  = yamldecode(file("shared.yml")).message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in values beside an autoinclude dependency",
+			stackFile: `
+unit "vpc" {
+  source = "../units/echo"
+  path   = "vpc"
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    message = yamldecode(file("shared.yml")).message
+  }
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs = {
+        vpc_id = "vpc-mock"
+      }
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in autoinclude dependency expansion",
+			stackFile: `
+unit "vpc" {
+  expansion {
+    for_each = toset(["v2"])
+  }
+
+  source = "../units/echo"
+  path   = "vpc-${each.key}"
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  autoinclude {
+    dependency "vpc" {
+      expansion {
+        for_each = toset([yamldecode(file("shared.yml")).message])
+      }
+
+      config_path = unit.vpc[each.key].path
+    }
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "included stack file",
+			stackFile: `
+include "shared" {
+  path = "shared.stack.hcl"
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+}
+`,
+			wantReads: []string{"shared.stack.hcl", "shared.yml"},
+		},
+		{
+			name: "file in values beside a values reference with no values file",
+			stackFile: `
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    region  = values.region
+    message = yamldecode(file("shared.yml")).message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+			liveDir := filepath.Join(tmpDir, "live")
+
+			files := map[string]string{
+				filepath.Join(liveDir, "shared.yml"):                              "message: v2\n",
+				filepath.Join(liveDir, "shared.stack.hcl"):                        includedStackFile,
+				filepath.Join(liveDir, "terragrunt.stack.hcl"):                    tc.stackFile,
+				filepath.Join(tmpDir, "units", "echo", "terragrunt.hcl"):          "",
+				filepath.Join(tmpDir, "stacks", "nested", "terragrunt.stack.hcl"): "",
+			}
+
+			for path, contents := range files {
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+				require.NoError(t, os.WriteFile(path, []byte(contents), 0644))
+			}
+
+			opts := &options.TerragruntOptions{
+				WorkingDir:     tmpDir,
+				RootWorkingDir: tmpDir,
+			}
+
+			components, err := discovery.NewDiscovery(tmpDir).
+				WithReadFiles().
+				Discover(
+					config.WithCaches(t.Context()),
+					logger.CreateLogger(),
+					venvtest.NewOSWithEmptyEnv(),
+					opts,
+				)
+			require.NoError(t, err)
+
+			var live component.Component
+
+			for _, c := range components {
+				if c.Path() == liveDir {
+					live = c
+
+					break
+				}
+			}
+
+			require.NotNil(t, live, "live stack should be discovered")
+
+			for _, read := range tc.wantReads {
+				assert.Contains(t, live.Reading(), filepath.Join(liveDir, read))
+			}
+		})
+	}
+}
