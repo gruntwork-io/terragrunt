@@ -64,6 +64,19 @@ func (err TableDoesNotExist) Error() string {
 	)
 }
 
+// TableDescriptionMissingError is returned when DescribeTable succeeds but has no table in the response.
+type TableDescriptionMissingError struct {
+	TableName string
+}
+
+func (err TableDescriptionMissingError) Error() string {
+	return fmt.Sprintf(
+		"DynamoDB DescribeTable returned no table description for table %s. "+
+			"Check that dynamodb_endpoint points at a DynamoDB-compatible service.",
+		err.TableName,
+	)
+}
+
 type TableEncryptedRetriesExceeded struct {
 	TableName string
 	Retries   int
