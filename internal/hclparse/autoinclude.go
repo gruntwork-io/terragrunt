@@ -57,7 +57,11 @@ type AutoIncludeResolved struct {
 	// SourceBytes are the bytes of the file RawBody was parsed from. Generation slices expressions by HCL byte ranges and must use these bytes, not the root stack file's bytes, when the autoinclude originated in an included file.
 	SourceBytes []byte
 	// Kind is KindUnit or KindStack and drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
-	Kind         AutoIncludeKind
+	Kind AutoIncludeKind
+	// ReadFiles lists paths the autoinclude's reading attribute declared.
+	// The generator writes mark_as_read() calls for them so discovery assigns
+	// the reads to the generated unit rather than the stack.
+	ReadFiles    []string
 	Dependencies []AutoIncludeDependency
 }
 
@@ -164,9 +168,21 @@ func (a *AutoIncludeHCL) ResolveForKind(
 		return nil, diags
 	}
 
+	// Reject reading on stack autoincludes: the generated stack file does not
+	// support a locals block, and stack-level reads have no defined unit owner.
+	if kind == KindStack {
+		if diags := rejectStackAutoIncludeReadingAttribute(body, name); diags.HasErrors() {
+			return nil, diags
+		}
+	}
+
+	// Resolve the optional reading attribute so the generator can write mark_as_read
+	// calls in the generated file, assigning reads to the unit instead of the stack.
+	readFiles, readDiags := resolveReadingAttribute(body, evalCtx)
+
 	deps := make([]AutoIncludeDependency, 0, len(body.Blocks))
 
-	var diags hcl.Diagnostics
+	diags := readDiags
 
 	for _, block := range body.Blocks {
 		if block.Type != blockDependency {
@@ -201,6 +217,7 @@ func (a *AutoIncludeHCL) ResolveForKind(
 	return &AutoIncludeResolved{
 		EvalCtx:      evalCtx,
 		Dependencies: deps,
+		ReadFiles:    readFiles,
 		RawBody:      a.Remain,
 	}, diags
 }
@@ -695,6 +712,25 @@ func rejectStackAutoIncludeDependencyBlocks(
 	return diags
 }
 
+// rejectStackAutoIncludeReadingAttribute rejects a reading attribute on a stack autoinclude.
+// The generated stack file does not support a locals block, and stack-level reads have no
+// defined unit owner.
+func rejectStackAutoIncludeReadingAttribute(body *hclsyntax.Body, stackName string) hcl.Diagnostics {
+	attr, exists := body.Attributes[attrReading]
+	if !exists {
+		return nil
+	}
+
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "reading is not allowed in a stack autoinclude",
+		Detail: "stack " + stackName + " autoinclude declares reading, but reading " +
+			"is only supported in unit autoincludes; declare reads inside the " +
+			"target unit's own autoinclude instead",
+		Subject: attr.Expr.Range().Ptr(),
+	}}
+}
+
 // valuesReferenceDependency reports whether expr references the dependency namespace in any form.
 // RootName matches every traversal uniformly: dependency.foo, dependency["foo"], and the dynamic
 // dependency[values.x] all report "dependency" as the root, so no per-form handling is needed.
@@ -711,6 +747,85 @@ func referencesRoot(expr hclsyntax.Expression, root string) bool {
 	}
 
 	return false
+}
+
+// resolveReadingAttribute evaluates the optional reading attribute on the autoinclude body
+// and returns the resolved paths. Returns (nil, nil) when the attribute is absent.
+// Paths should be absolute (use get_terragrunt_dir() in the stack file); relative paths
+// are accepted but resolve against the generated unit directory at discovery time, which
+// may differ from the stack directory.
+func resolveReadingAttribute(
+	body *hclsyntax.Body,
+	evalCtx *hcl.EvalContext,
+) ([]string, hcl.Diagnostics) {
+	attr, exists := body.Attributes[attrReading]
+	if !exists {
+		return nil, nil
+	}
+
+	val, diags := attr.Expr.Value(evalCtx)
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	if val.IsNull() {
+		return nil, nil
+	}
+
+	if !val.IsKnown() {
+		return nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  diagSummaryInvalidReadingElement,
+			Detail:   "reading must be known at generate time",
+			Subject:  attr.Expr.Range().Ptr(),
+		}}
+	}
+
+	if !val.Type().IsListType() && !val.Type().IsTupleType() && !val.Type().IsSetType() {
+		return nil, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid reading type",
+			Detail:   "reading must be a list of strings",
+			Subject:  attr.Expr.Range().Ptr(),
+		}}
+	}
+
+	var paths []string
+
+	for it := val.ElementIterator(); it.Next(); {
+		_, elem := it.Element()
+
+		if elem.IsNull() {
+			return nil, hcl.Diagnostics{{
+				Severity: hcl.DiagError,
+				Summary:  diagSummaryInvalidReadingElement,
+				Detail:   "reading elements must not be null",
+				Subject:  attr.Expr.Range().Ptr(),
+			}}
+		}
+
+		if !elem.IsKnown() {
+			return nil, hcl.Diagnostics{{
+				Severity: hcl.DiagError,
+				Summary:  diagSummaryInvalidReadingElement,
+				Detail:   "reading elements must be known at generate time",
+				Subject:  attr.Expr.Range().Ptr(),
+			}}
+		}
+
+		if elem.Type() != cty.String {
+			return nil, hcl.Diagnostics{{
+				Severity: hcl.DiagError,
+				Summary:  diagSummaryInvalidReadingElement,
+				Detail:   "each reading element must be a string, got " + elem.Type().FriendlyName(),
+				Subject:  attr.Expr.Range().Ptr(),
+			}}
+		}
+
+		paths = append(paths, elem.AsString())
+	}
+
+	return paths, nil
 }
 
 // rejectAutoIncludeLocalsBlock rejects a locals block defined anywhere in the autoinclude body for both kinds.

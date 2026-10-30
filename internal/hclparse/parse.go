@@ -30,6 +30,10 @@ const (
 	blockUnit        = "unit"
 	blockStack       = "stack"
 	attrConfigPath   = "config_path"
+	attrReading      = "reading"
+
+	// Diagnostic summary constants.
+	diagSummaryInvalidReadingElement = "Invalid reading element"
 
 	// HCL variable root names used in eval context.
 	varLocal      = "local"

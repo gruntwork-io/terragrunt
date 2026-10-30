@@ -154,6 +154,10 @@ func GenerateAutoIncludeFile(
 		return err
 	}
 
+	// Write mark_as_read calls in a locals block so discovery assigns reads
+	// to the generated unit rather than the stack.
+	writeReadFilesLocals(outBody, resolved.ReadFiles, targetDir)
+
 	filePath := filepath.Join(targetDir, AutoIncludeFileNameForKind(resolved.Kind))
 
 	if err := fsys.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
@@ -424,6 +428,10 @@ func writeNonDependencyContent(
 	evalCtx *hcl.EvalContext,
 ) error {
 	for _, attr := range SortedAttributes(body.Attributes) {
+		if attr.Name == attrReading {
+			continue
+		}
+
 		if err := writeAttribute(outBody, attr, srcBytes, evalCtx, deferredRoots); err != nil {
 			return err
 		}
@@ -440,6 +448,38 @@ func writeNonDependencyContent(
 	}
 
 	return nil
+}
+
+// writeReadFilesLocals writes a locals block with mark_as_read() calls so
+// discovery assigns the reads to the generated unit. Paths are made
+// relative to targetDir so the generated file stays relocatable.
+func writeReadFilesLocals(outBody *hclwrite.Body, readFiles []string, targetDir string) {
+	if len(readFiles) == 0 {
+		return
+	}
+
+	outBody.AppendNewline()
+
+	localsBlock := outBody.AppendNewBlock(blockLocals, nil)
+	localsBody := localsBlock.Body()
+
+	elements := make([]cty.Value, 0, len(readFiles))
+
+	for _, p := range readFiles {
+		elements = append(elements, cty.StringVal(relativeConfigPath(targetDir, p)))
+	}
+
+	// Build: _autoinclude_reads = [for _r in ["path1","path2"] : mark_as_read(_r)]
+	listTokens := hclwrite.TokensForValue(cty.TupleVal(elements))
+
+	localsBody.SetAttributeRaw(
+		"_autoinclude_reads",
+		slices.Concat(
+			RawTokens([]byte("[for _r in ")),
+			listTokens,
+			RawTokens([]byte(" : mark_as_read(_r)]")),
+		),
+	)
 }
 
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.
