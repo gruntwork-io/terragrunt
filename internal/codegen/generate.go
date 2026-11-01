@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"errors"
@@ -84,6 +85,11 @@ const (
 
 	encryptionStateBlockName = "state"
 	encryptionPlanBlockName  = "plan"
+
+	encryptionFallbackKey          = "fallback"
+	encryptionEnforcedKey          = "enforced"
+	encryptionUnencryptedMethod    = "unencrypted"
+	encryptionFallbackResourceName = "fallback"
 )
 
 // GenerateConfig is configuration for generating code
@@ -389,6 +395,12 @@ const (
 // RemoteStateConfigToTerraformCode converts the arbitrary map that
 // represents a remote state config into HCL code to configure that
 // remote state.
+//
+// The fallback and enforced entries of encryption configure the generated state and plan blocks.
+// Every other entry except key_provider becomes an argument of the key provider.
+//
+// Returns [ErrInvalidEncryptionFallback] or [ErrInvalidEncryptionEnforced] when those entries are malformed,
+// and [ErrEncryptionFallbackEnforced] when fallback is set together with enforced = true.
 func RemoteStateConfigToTerraformCode(
 	backend string,
 	config map[string]any,
@@ -602,6 +614,11 @@ func RemoteStateConfigToTerraformCode(
 		hcl.TraverseAttr{Name: encryptionResourceName},
 	}
 
+	target, err := parseEncryptionTarget(encryption, methodTraversal)
+	if err != nil {
+		return nil, err
+	}
+
 	// encryption block
 	encryptionBlock := terraformBlock.AppendNewBlock(encryptionBlockName, nil)
 	encryptionBlockBody := encryptionBlock.Body()
@@ -620,13 +637,15 @@ func RemoteStateConfigToTerraformCode(
 	).Body()
 	methodBlock.SetAttributeTraversal(encryptionKeysAttributeName, keyProviderTraversal)
 
-	// Append state block
-	stateBlock := encryptionBlockBody.AppendNewBlock(encryptionStateBlockName, nil).Body()
-	stateBlock.SetAttributeTraversal(encryptionMethodKey, methodTraversal)
+	if target.fallback != nil {
+		encryptionBlockBody.AppendNewBlock(
+			encryptionMethodKey,
+			[]string{encryptionUnencryptedMethod, encryptionFallbackResourceName},
+		)
+	}
 
-	// Append plan block
-	planBlock := encryptionBlockBody.AppendNewBlock(encryptionPlanBlockName, nil).Body()
-	planBlock.SetAttributeTraversal(encryptionMethodKey, methodTraversal)
+	appendEncryptionTarget(encryptionBlockBody, encryptionStateBlockName, target)
+	appendEncryptionTarget(encryptionBlockBody, encryptionPlanBlockName, target)
 
 	var encryptionKeys = make([]string, 0, len(encryption))
 
@@ -638,7 +657,8 @@ func RemoteStateConfigToTerraformCode(
 
 	// Fill key_provider block with ordered attributes
 	for _, key := range encryptionKeys {
-		if key == EncryptionKeyProviderKey {
+		switch key {
+		case EncryptionKeyProviderKey, encryptionFallbackKey, encryptionEnforcedKey:
 			continue
 		}
 
@@ -663,6 +683,71 @@ func RemoteStateConfigToTerraformCode(
 	}
 
 	return f.Bytes(), nil
+}
+
+// encryptionTarget holds the attributes shared by the generated state and plan encryption blocks.
+type encryptionTarget struct {
+	enforced *bool
+	method   hcl.Traversal
+	fallback hcl.Traversal
+}
+
+// parseEncryptionTarget reads the fallback and enforced entries of a remote_state encryption map.
+//
+// Returns [ErrInvalidEncryptionEnforced] when enforced is set to anything but a bool, and
+// [ErrInvalidEncryptionFallback] when fallback is anything but a map holding only method = "unencrypted",
+// and [ErrEncryptionFallbackEnforced] when fallback is set together with enforced = true.
+func parseEncryptionTarget(
+	encryption map[string]any,
+	method hcl.Traversal,
+) (encryptionTarget, error) {
+	target := encryptionTarget{method: method}
+
+	switch enforced := encryption[encryptionEnforcedKey].(type) {
+	case nil:
+	case bool:
+		target.enforced = new(enforced)
+	default:
+		return target, ErrInvalidEncryptionEnforced
+	}
+
+	switch fallback := encryption[encryptionFallbackKey].(type) {
+	case nil:
+	case map[string]any:
+		if len(fallback) != 1 || fallback[encryptionMethodKey] != encryptionUnencryptedMethod {
+			return target, ErrInvalidEncryptionFallback
+		}
+
+		target.fallback = hcl.Traversal{
+			hcl.TraverseRoot{Name: encryptionMethodKey},
+			hcl.TraverseAttr{Name: encryptionUnencryptedMethod},
+			hcl.TraverseAttr{Name: encryptionFallbackResourceName},
+		}
+	default:
+		return target, ErrInvalidEncryptionFallback
+	}
+
+	if target.fallback != nil && target.enforced != nil && *target.enforced {
+		return target, ErrEncryptionFallbackEnforced
+	}
+
+	return target, nil
+}
+
+// appendEncryptionTarget appends a state or plan block named name to body.
+func appendEncryptionTarget(body *hclwrite.Body, name string, target encryptionTarget) {
+	block := body.AppendNewBlock(name, nil).Body()
+	block.SetAttributeTraversal(encryptionMethodKey, target.method)
+
+	if target.enforced != nil {
+		block.SetAttributeValue(encryptionEnforcedKey, cty.BoolVal(*target.enforced))
+	}
+
+	if target.fallback != nil {
+		block.AppendNewBlock(encryptionFallbackKey, nil).
+			Body().
+			SetAttributeTraversal(encryptionMethodKey, target.fallback)
+	}
 }
 
 func convertValue(v any) (ctyjson.SimpleJSONValue, error) {
