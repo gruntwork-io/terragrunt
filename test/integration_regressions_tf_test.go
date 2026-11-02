@@ -264,12 +264,15 @@ func TestTFDependencyOutputInGenerateBlockOfExposedInclude(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan",
 	)
 	require.NoError(t, err)
 	assert.NotContains(t, stderr, "Unsuitable value")
+
+	// The hook comes from the same include, so it has to survive discovery and run with the real output.
+	assert.Contains(t, stdout+stderr, "hook saw hello")
 
 	generated, err := filepath.Glob(
 		filepath.Join(rootPath, "app", helpers.TerragruntCache, "*", "*", "generated.tf"),
