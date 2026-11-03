@@ -502,6 +502,8 @@ func getPathFromRepoRoot(ctx context.Context, _ log.Logger, v *venv.Venv, pctx *
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
 
+	repoAbsPath = logicalRepoRoot(v.FS, repoAbsPath, pctx.WorkingDir)
+
 	repoRelPath, err := filepath.Rel(repoAbsPath, pctx.WorkingDir)
 	if err != nil {
 		return "", fmt.Errorf("computing path relative to repo root: %w", err)
@@ -517,12 +519,29 @@ func getPathToRepoRoot(ctx context.Context, _ log.Logger, v *venv.Venv, pctx *Pa
 		return "", fmt.Errorf("getting git top level dir: %w", err)
 	}
 
+	repoAbsPath = logicalRepoRoot(v.FS, repoAbsPath, pctx.WorkingDir)
+
 	repoRootPathAbs, err := filepath.Rel(pctx.WorkingDir, repoAbsPath)
 	if err != nil {
 		return "", fmt.Errorf("computing path to repo root: %w", err)
 	}
 
 	return strings.TrimSpace(repoRootPathAbs), nil
+}
+
+// logicalRepoRoot returns the ancestor of workingDir that resolves to repoRoot, so the repository root is spelled
+// the way workingDir spells it. [git.GoRepoRoot] resolves symlinks, so for a working directory reached through a
+// symlink its answer shares no prefix with workingDir. Returns repoRoot when no ancestor of workingDir resolves to it.
+func logicalRepoRoot(fsys vfs.FS, repoRoot, workingDir string) string {
+	for dir := filepath.Clean(workingDir); ; dir = filepath.Dir(dir) {
+		if dir == repoRoot || vfs.ResolveForCompare(fsys, dir) == repoRoot {
+			return dir
+		}
+
+		if filepath.Dir(dir) == dir {
+			return repoRoot
+		}
+	}
 }
 
 // GetTerragruntDir returns the directory where the Terragrunt configuration file lives.
