@@ -50,6 +50,7 @@ type Terraform struct {
 	IncludeInCopy         *[]string        `hcl:"include_in_copy,attr"`
 	ExcludeFromCopy       *[]string        `hcl:"exclude_from_copy,attr"`
 	CopyTerraformLockFile *bool            `hcl:"copy_terraform_lock_file,attr"`
+	NoDotTerragruntCache  *bool            `hcl:"no_dot_terragrunt_cache,attr"`
 	ExtraArgs             []ExtraArguments `hcl:"extra_arguments,block"`
 	BeforeHooks           []Hook           `hcl:"before_hook,block"`
 	AfterHooks            []Hook           `hcl:"after_hook,block"`
