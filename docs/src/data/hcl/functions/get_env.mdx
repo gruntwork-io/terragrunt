@@ -1,0 +1,38 @@
+---
+name: get_env
+description: Returns the value of an environment variable.
+configs: [unit, stack]
+params:
+  - name: name
+    type: string
+    description: Name of the environment variable.
+  - name: default
+    type: string
+    optional: true
+    description: Value to return when the variable is not set. Without it, an unset variable is an error.
+returns:
+  type: string
+  description: The variable's value, or `default` when the variable is not set.
+---
+
+`get_env(NAME)` returns the value of the environment variable named `NAME`, and fails if that variable is not set:
+
+```hcl
+# terragrunt.hcl
+
+inputs = {
+  image_tag = get_env("IMAGE_TAG")
+}
+```
+
+`get_env(NAME, DEFAULT)` returns the value of the environment variable named `NAME`, or `DEFAULT` if that variable is not set:
+
+```hcl
+# terragrunt.hcl
+
+inputs = {
+  image_tag = get_env("IMAGE_TAG", "latest")
+}
+```
+
+[OpenTofu/Terraform read environment variables](https://opentofu.org/docs/cli/config/environment-variables/#tf_var_name) that start with the prefix `TF_VAR_`. To share a variable named `foo` between OpenTofu/Terraform and Terragrunt, set it as the environment variable `TF_VAR_foo` and read it in Terragrunt with `get_env()`.

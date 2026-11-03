@@ -148,6 +148,11 @@ export default defineConfig({
             // headings these anchors point at. Page paths themselves are still validated.
             "/reference/cli/commands/**/*#*",
 
+            // HCL block, attribute, and function pages are assembled by
+            // `src/pages/reference/hcl/[kind]/[name].astro` from the `hclBlocks`,
+            // `hclAttributes`, and `hclFunctions` collections, for the same reason.
+            "/reference/hcl/{blocks,attributes,functions}/*#*",
+
             // Custom .astro pages — can't be validated statically
             "/reference/experiments/active",
             "/reference/experiments/active#*",

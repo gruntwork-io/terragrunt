@@ -1,0 +1,53 @@
+---
+import { render, type CollectionEntry } from 'astro:content';
+import HclUsedIn from '@components/HclUsedIn.astro';
+import { renderMarkdownField } from '@lib/hcl/markdown';
+
+interface Props {
+	entry: CollectionEntry<'hclBlocks'>;
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+
+const attributes = await Promise.all(
+	(entry.data.attributes ?? []).map(async (attr) => ({
+		...attr,
+		html: await renderMarkdownField(attr.description),
+	})),
+);
+---
+
+<HclUsedIn configs={entry.data.configs} />
+
+<Content />
+
+{
+	attributes.length > 0 && (
+		<>
+			<h2 id="attributes">Attributes</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Type</th>
+						<th>Required</th>
+						<th>Default</th>
+						<th>Description</th>
+					</tr>
+				</thead>
+				<tbody>
+					{attributes.map((attr) => (
+						<tr>
+							<td><code>{attr.name}</code></td>
+							<td><code>{attr.type}</code></td>
+							<td>{attr.required ? 'Yes' : 'No'}</td>
+							<td>{attr.default !== undefined && <code>{attr.default}</code>}</td>
+							<td set:html={attr.html} />
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</>
+	)
+}

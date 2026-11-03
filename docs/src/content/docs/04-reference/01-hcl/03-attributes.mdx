@@ -7,10 +7,13 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import HclItemTable from '@components/HclItemTable.astro';
 
 Terragrunt HCL configuration uses [attributes](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#attribute-definitions) when there are values that need to be defined for Terragrunt as a whole.
 
 Think of attributes as the values used for Terragrunt configuration, such as the inputs to pass an orchestrated OpenTofu/Terraform binary, or the download directory to use.
+
+<HclItemTable kind="attributes" />
 
 ## inputs
 
@@ -122,24 +125,6 @@ The precedence is as follows: `--download-dir` command line option → `TG_DOWNL
 `terragrunt.hcl`.
 
 It supports all terragrunt functions, i.e. `path_relative_from_include()`.
-
-## prevent_destroy
-
-Terragrunt `prevent_destroy` boolean flag allows you to protect selected OpenTofu/Terraform module. It will prevent `destroy` or
-`run --all destroy` command from actually destroying resources of the protected module. This is useful for modules you want to
-carefully protect, such as a database, or a module that provides auth.
-
-Example:
-
-```hcl
-# terragrunt.hcl
-
-terraform {
-  source = "git::git@github.com:foo/modules.git//app?ref=v0.0.3"
-}
-
-prevent_destroy = true
-```
 
 ## iam_role
 

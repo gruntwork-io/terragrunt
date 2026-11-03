@@ -1,0 +1,30 @@
+---
+import { Badge } from '@astrojs/starlight/components';
+import { render, type CollectionEntry } from 'astro:content';
+import HclUsedIn from '@components/HclUsedIn.astro';
+
+interface Props {
+	entry: CollectionEntry<'hclAttributes'>;
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<HclUsedIn configs={entry.data.configs} />
+
+<div>
+	<span>Type: </span>
+	<Badge text={entry.data.type} variant="note" />
+</div>
+
+{
+	entry.data.default !== undefined && (
+		<div>
+			<span>Default: </span>
+			<Badge text={entry.data.default} variant="tip" />
+		</div>
+	)
+}
+
+<Content />

@@ -8,8 +8,11 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import HclItemTable from '@components/HclItemTable.astro';
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
+
+<HclItemTable kind="functions" />
 
 ## OpenTofu/Terraform built-in functions
 
@@ -271,30 +274,6 @@ terraform {
   source = "../modules/${path_relative_from_include("root")}"
 }
 ```
-
-## get_env
-
-`get_env(NAME)` return the value of variable named `NAME` or throws exceptions if that variable is not set. Example:
-
-```hcl
-# terragrunt.hcl
-
-inputs = {
-  image_tag = get_env("IMAGE_TAG")
-}
-```
-
-`get_env(NAME, DEFAULT)` returns the value of the environment variable named `NAME` or `DEFAULT` if that environment variable is not set. Example:
-
-```hcl
-# terragrunt.hcl
-
-inputs = {
-  image_tag = get_env("IMAGE_TAG", "latest")
-}
-```
-
-Note that [OpenTofu/Terraform will read environment variables](https://opentofu.org/docs/cli/config/environment-variables/#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between OpenTofu/Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
 
 ## get_platform
 

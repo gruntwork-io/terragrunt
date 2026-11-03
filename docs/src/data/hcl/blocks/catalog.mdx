@@ -1,0 +1,37 @@
+---
+name: catalog
+description: Configures the module catalogs that the catalog and scaffold commands read.
+configs: [unit]
+attributes:
+  - name: urls
+    type: list(string)
+    required: true
+    description: URLs of module catalogs. Each is a local path or a remote URL, e.g. a GitHub repository. Relative paths resolve against the configuration file.
+  - name: default_template
+    type: string
+    description: Path to the [Boilerplate](https://github.com/gruntwork-io/boilerplate) template to scaffold with when a module has no `.boilerplate` directory of its own.
+  - name: no_shell
+    type: bool
+    default: "false"
+    description: Disables shell commands in Boilerplate templates during scaffolding. The `--no-shell` flag overrides it.
+  - name: no_hooks
+    type: bool
+    default: "false"
+    description: Disables hooks in Boilerplate templates during scaffolding. The `--no-hooks` flag overrides it.
+---
+
+The `catalog` block configures IaC catalogs for the [`catalog`](/reference/cli/commands/catalog) and [`scaffold`](/reference/cli/commands/scaffold) commands. It defines where Terragrunt looks for reusable patterns like OpenTofu/Terraform modules and Boilerplate templates, and how scaffolding behaves.
+
+```hcl
+# terragrunt.hcl
+
+catalog {
+  urls = [
+    "/Users/acme/modules",
+    "github.com/acme/infrastructure-modules",
+  ]
+  default_template = "/Users/acme/templates/default"
+}
+```
+
+For more details, see the [Catalog feature documentation](/features/catalog).

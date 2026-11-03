@@ -1,0 +1,60 @@
+---
+import { Code } from '@astrojs/starlight/components';
+import { render, type CollectionEntry } from 'astro:content';
+import HclUsedIn from '@components/HclUsedIn.astro';
+import { functionSignature } from '@lib/hcl';
+import { renderMarkdownField } from '@lib/hcl/markdown';
+
+interface Props {
+	entry: CollectionEntry<'hclFunctions'>;
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+
+const params = await Promise.all(
+	entry.data.params.map(async (param) => ({
+		...param,
+		html: await renderMarkdownField(param.description),
+	})),
+);
+
+const returnsHtml = await renderMarkdownField(`\`${entry.data.returns.type}\`: ${entry.data.returns.description}`);
+---
+
+<HclUsedIn configs={entry.data.configs} />
+
+<Code code={functionSignature(entry.data)} lang="hcl" />
+
+<Content />
+
+{
+	params.length > 0 && (
+		<>
+			<h2 id="parameters">Parameters</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Type</th>
+						<th>Required</th>
+						<th>Description</th>
+					</tr>
+				</thead>
+				<tbody>
+					{params.map((param) => (
+						<tr>
+							<td><code>{param.name}</code></td>
+							<td><code>{param.type}</code></td>
+							<td>{param.optional ? 'No' : 'Yes'}</td>
+							<td set:html={param.html} />
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</>
+	)
+}
+
+<h2 id="returns">Returns</h2>
+<Fragment set:html={returnsHtml} />

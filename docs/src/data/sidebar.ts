@@ -69,7 +69,33 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
       {
         label: "HCL",
         collapsed: true,
-        items: [{ autogenerate: { directory: "04-reference/01-hcl", collapsed: true } }],
+        items: [
+          { label: "Overview", slug: "reference/hcl" },
+          {
+            label: "Blocks",
+            collapsed: true,
+            items: [
+              { label: "Overview", slug: "reference/hcl/blocks" },
+              { autogenerate: { directory: "04-reference/01-hcl/blocks", collapsed: true } },
+            ],
+          },
+          {
+            label: "Attributes",
+            collapsed: true,
+            items: [
+              { label: "Overview", slug: "reference/hcl/attributes" },
+              { autogenerate: { directory: "04-reference/01-hcl/attributes", collapsed: true } },
+            ],
+          },
+          {
+            label: "Functions",
+            collapsed: true,
+            items: [
+              { label: "Overview", slug: "reference/hcl/functions" },
+              { autogenerate: { directory: "04-reference/01-hcl/functions", collapsed: true } },
+            ],
+          },
+        ],
       },
       {
         label: "CLI",

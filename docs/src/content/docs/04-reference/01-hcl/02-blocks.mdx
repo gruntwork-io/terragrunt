@@ -9,10 +9,13 @@ sidebar:
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
 import Since from '@components/Since.astro';
+import HclItemTable from '@components/HclItemTable.astro';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
 Think of configuration blocks as a way to control different systems used by Terragrunt, whereas [attributes](/reference/hcl/attributes) are used to define values for those systems.
+
+<HclItemTable kind="blocks" />
 
 ## terraform
 
@@ -2139,33 +2142,6 @@ locals {
 # Set the generate config dynamically to the generate config in common.hcl
 generate = local.common.generate
 ```
-
-## catalog
-
-The `catalog` block is used to configure IaC catalogs for use with the [`catalog`](/reference/cli/commands/catalog) and [`scaffold`](/reference/cli/commands/scaffold) commands. It defines where Terragrunt should look for reusable patterns like OpenTofu/Terraform modules and Boilerplate templates, in addition to configuring behavior for scaffolding.
-
-The `catalog` block supports the following attributes:
-
-- `urls` (attribute, required): A list of URLs pointing to module catalogs. These can be local file paths or remote URLs (e.g., GitHub repositories). Relative paths are resolved relative to the configuration file.
-- `default_template` (attribute, optional): Path to a default [Boilerplate](https://github.com/gruntwork-io/boilerplate) template to use when scaffolding modules that don't include their own `.boilerplate` directory.
-- `no_shell` (attribute, optional): When `true`, disables shell command execution in Boilerplate templates during scaffolding. Defaults to `false`. Can be overridden via the `--no-shell` CLI flag.
-- `no_hooks` (attribute, optional): When `true`, disables hook execution in Boilerplate templates during scaffolding. Defaults to `false`. Can be overridden via the `--no-hooks` CLI flag.
-
-Example:
-
-```hcl
-# terragrunt.hcl
-
-catalog {
-  urls = [
-    "/Users/acme/modules",
-    "github.com/acme/infrastructure-modules",
-  ]
-  default_template = "/Users/acme/templates/default"
-}
-```
-
-For more details, see the [Catalog feature documentation](/features/catalog).
 
 ## engine
 
