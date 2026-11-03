@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Provider cache copes with registry rate limits
+
+When many units initialized at once, the [Provider Cache Server](/features/caching/provider-cache-server) sent the registry one request per unit and remembered a `429 Too Many Requests` as an empty answer for the rest of the run, so units were told the provider had no versions or failed with `not found provider download url`.
+
+Units asking for the same versions, download details or discovery document at once now share one registry request, and at most eight version and download-details requests run at once per installation method. A `429` or a server error such as `502`, `503` or `504` is retried, waiting for the registry's `Retry-After` (up to 10 seconds), and is no longer cached. If the registry is still refusing, OpenTofu/Terraform gets `503 Service Unavailable` instead of an empty result.
