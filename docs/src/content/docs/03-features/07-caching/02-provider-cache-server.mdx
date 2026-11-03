@@ -117,7 +117,7 @@ terragrunt apply
 
 Units that need the same provider at once share one registry request for its versions, one per platform for download details, and one for the registry's discovery document. At most eight version and download-details requests run at once per provider installation method.
 
-A `429 Too Many Requests` or a server error such as `502`, `503` or `504` is tried up to four times, waiting for the registry's `Retry-After` (up to 10 seconds), and is never cached. If the registry still refuses, OpenTofu/Terraform gets `503 Service Unavailable` and can try again. If you keep hitting a rate limit, lower [`--parallelism`](/reference/cli/commands/run#parallelism).
+A `429 Too Many Requests` or a server error such as `502`, `503` or `504` is tried up to four times, waiting for the registry's `Retry-After` (up to 10 seconds), and is never cached. If the registry still refuses and no other installation method has the provider, OpenTofu/Terraform gets `503 Service Unavailable` and can try again. If you keep hitting a rate limit, lower [`--parallelism`](/reference/cli/commands/run#parallelism).
 
 </Since>
 
