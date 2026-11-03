@@ -42,6 +42,7 @@ func (r *RunBodies) fill(c *UnitConfig, file *pkgconfig.TerragruntConfigFile) {
 	file.RemoteState = c.RemoteState.v1(r.RemoteState)
 	file.Engine = c.Engine.v1(r.Engine)
 	file.GenerateBlocks = convertEach(c.GenerateBlocks, r.Generate, (*GenerateHCL).v1)
+	file.Variables = convertEach(c.VariablesBlocks, r.Variables, (*VariablesHCL).v1)
 
 	if c.Terraform == nil {
 		return
@@ -235,6 +236,15 @@ func (g *GenerateHCL) v1(body *GenerateBody) pkgconfig.TerragruntGenerateBlock {
 		Path:             body.Path,
 		IfExists:         body.IfExists,
 		Contents:         body.Contents,
+	}
+}
+
+func (*VariablesHCL) v1(body *VariablesBody) pkgconfig.VariablesBlock {
+	return pkgconfig.VariablesBlock{
+		Kind:     clonePtr(body.Kind),
+		Nullable: clonePtr(body.Nullable),
+		Validate: clonePtr(body.Validate),
+		Inputs:   body.Inputs,
 	}
 }
 

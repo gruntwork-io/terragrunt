@@ -74,6 +74,7 @@ const (
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
 	MetadataIamWebIdentityToken         = "iam_web_identity_token"
 	MetadataInputs                      = "inputs"
+	MetadataVariables                   = "variables"
 	MetadataLocals                      = "locals"
 	MetadataLocal                       = "local"
 	MetadataCatalog                     = "catalog"
@@ -134,6 +135,7 @@ type TerragruntConfig struct {
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	IamAssumeRoleDuration       *int64
 	Inputs                      map[string]any
+	Variables                   []VariablesConfig
 	Engine                      *EngineConfig
 	Catalog                     *CatalogConfig
 	IamWebIdentityToken         string
@@ -280,6 +282,13 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 	if cfg.Catalog != nil {
 		rootBody.AppendBlock(catalogBlock(cfg.Catalog, cfgAsCty.GetAttr("catalog")))
+	}
+
+	if len(cfg.Variables) > 0 {
+		for it := cfgAsCty.GetAttr(MetadataVariables).ElementIterator(); it.Next(); {
+			_, block := it.Element()
+			rootBody.AppendBlock(variablesBlock(block))
+		}
 	}
 
 	appendRootAttributes(rootBody, cfg, cfgAsCty)
@@ -884,6 +893,7 @@ type TerragruntConfigFile struct {
 	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
 	TerragruntVersionConstraint *string          `hcl:"terragrunt_version_constraint,attr"`
 	Inputs                      *cty.Value       `hcl:"inputs,attr"`
+	Variables                   []VariablesBlock `hcl:"variables,block"`
 
 	// We allow users to configure remote state (backend) via blocks:
 	//
@@ -1786,6 +1796,10 @@ func ParseConfig(
 		if err := config.Terraform.ValidateVersion(file.ConfigPath); err != nil {
 			errs = append(errs, err)
 		}
+
+		if err := ValidateInputDefinitions(v, file, config); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return config, errors.Join(errs...)
@@ -2023,6 +2037,15 @@ func CompleteTerragruntConfigFile(
 		}
 
 		cfgFile.Inputs = &inputs
+	}
+
+	for i := range cfgFile.Variables {
+		inputs, err := ctyhelper.UpdateUnknownCtyValValues(cfgFile.Variables[i].Inputs)
+		if err != nil {
+			return nil, err
+		}
+
+		cfgFile.Variables[i].Inputs = inputs
 	}
 
 	return cfgFile, nil
@@ -2362,6 +2385,13 @@ func ConvertToTerragruntConfig(
 			defaultMetadata,
 		)
 	}
+
+	variables, err := convertVariablesBlocks(pctx, cfgPath, cfgFromFile.Variables)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	cfg.Variables = variables
 
 	if pctx.Locals != nil && *pctx.Locals != cty.NilVal {
 		localsParsed, err := ctyhelper.ParseCtyValueToMap(*pctx.Locals)

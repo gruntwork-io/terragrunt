@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -853,6 +854,172 @@ generate "backend" {
 				cfgPath:   filepath.Join(root, file),
 				configure: func(*pkgconfig.ParsingContext) {},
 				drift:     tc.drift,
+			})
+		})
+	}
+}
+
+func TestParityVariablesBlock(t *testing.T) {
+	t.Parallel()
+
+	rootConfig := `
+variables {
+  kind   = "tfvar"
+  inputs = { from_root = "root", shared = "root" }
+}
+`
+
+	testCases := []struct {
+		files map[string]string
+		name  string
+	}{
+		{
+			name: "a block reached through two includes",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				pkgconfig.DefaultTerragruntConfigPath: `
+include "one" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+include "two" {
+  path = find_in_parent_folders("root.hcl")
+}
+`,
+			},
+		},
+		{
+			name: "every attribute",
+			files: map[string]string{
+				pkgconfig.DefaultTerragruntConfigPath: `
+inputs = { attr = "attr" }
+
+variables {
+  kind     = "json"
+  nullable = true
+  validate = true
+  inputs   = { kept = null, object = { nested = [1, 2] } }
+}
+
+variables {
+  inputs = { dropped = null, env = "env" }
+}
+`,
+			},
+		},
+		{
+			name: "dependency outputs",
+			files: map[string]string{
+				pkgconfig.DefaultTerragruntConfigPath: `
+dependency "dep" {
+  config_path  = "../dep"
+  mock_outputs = { id = "mock-id" }
+}
+
+variables {
+  kind   = "tfvar"
+  inputs = { dep_id = dependency.dep.outputs.id }
+}
+`,
+			},
+		},
+		{
+			name: "shallow merge include",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				pkgconfig.DefaultTerragruntConfigPath: `
+include "root" {
+  path = "{{root}}/root.hcl"
+}
+
+variables {
+  inputs = { from_child = "child" }
+}
+`,
+			},
+		},
+		{
+			name: "duplicate input through an include",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				pkgconfig.DefaultTerragruntConfigPath: `
+include "root" {
+  path = "{{root}}/root.hcl"
+}
+
+variables {
+  inputs = { shared = "child" }
+}
+`,
+			},
+		},
+		{
+			name: "duplicate input in one file",
+			files: map[string]string{
+				pkgconfig.DefaultTerragruntConfigPath: `
+inputs = { name = "attr" }
+
+variables {
+  inputs = { name = "block" }
+}
+`,
+			},
+		},
+		{
+			name: "deep merge include",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				pkgconfig.DefaultTerragruntConfigPath: `
+include "root" {
+  path           = "{{root}}/root.hcl"
+  merge_strategy = "deep"
+}
+
+variables {
+  kind   = "json"
+  inputs = { from_child = "child" }
+}
+`,
+			},
+		},
+		{
+			name: "missing inputs",
+			files: map[string]string{
+				pkgconfig.DefaultTerragruntConfigPath: `
+variables {
+  kind = "tfvar"
+}
+`,
+			},
+		},
+		{
+			name: "invalid kind",
+			files: map[string]string{
+				pkgconfig.DefaultTerragruntConfigPath: `
+variables {
+  kind   = "yaml"
+  inputs = { name = "value" }
+}
+`,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/fixture")
+
+			assertParity(t, parityCase{
+				newFS:   memFS(root, tc.files),
+				cfgPath: filepath.Join(root, pkgconfig.DefaultTerragruntConfigPath),
+				configure: func(pctx *pkgconfig.ParsingContext) {
+					pctx.SkipOutput = true
+					pctx.OriginalTerraformCommand = "plan"
+
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VariablesBlock))
+				},
 			})
 		})
 	}

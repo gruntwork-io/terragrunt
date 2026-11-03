@@ -420,6 +420,8 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		cfg.Inputs = mergeInputs(sourceConfig.Inputs, cfg.Inputs)
 	}
 
+	cfg.Variables = mergeVariablesBlocks(cfg.Variables, sourceConfig.Variables)
+
 	CopyFieldsMetadata(sourceConfig, cfg)
 
 	return nil
@@ -609,6 +611,8 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 		cfg.Inputs = mergedInputs
 	}
+
+	cfg.Variables = mergeVariablesBlocks(cfg.Variables, sourceConfig.Variables)
 
 	// MAINTAINER'S NOTE: The following structs cannot be deep merged due to an implementation detail (they do not
 	// support nil attributes, so we can't determine if an attribute was intentionally set, or was defaulted from

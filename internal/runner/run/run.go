@@ -41,7 +41,7 @@ import (
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
-	nullTFVarsFileMode              = 0o600
+	varsFileMode                    = 0o600
 	tofuCPUProfileName              = "tofu_cpu.prof"
 	tofuProfileDirMode              = 0o700
 )
@@ -324,6 +324,10 @@ func runTerragruntWithConfig(
 		return err
 	}
 
+	if err := validateDeclaredInputs(v.FS, opts.CacheDir, cfg.ValidatedInputs); err != nil {
+		return err
+	}
+
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
 		if err := prepareInitCommandRunCfg(ctx, l, v, opts, cfg); err != nil {
 			return err
@@ -334,22 +338,31 @@ func runTerragruntWithConfig(
 		}
 	}
 
-	// Write null-valued inputs to a tfvars.json file that OpenTofu/Terraform will auto-load.
+	var runVarFiles []string
+
+	defer func() {
+		for _, path := range runVarFiles {
+			if removeErr := v.FS.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				l.Debugf("Failed to remove variables file %s: %v", path, removeErr)
+			}
+		}
+	}()
+
 	nullVarsFile, err := setTerragruntNullValuesRunCfg(v, opts, cfg)
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		if nullVarsFile != "" {
-			if removeErr := v.FS.Remove(
-				nullVarsFile,
-			); removeErr != nil &&
-				!errors.Is(removeErr, os.ErrNotExist) {
-				l.Debugf("Failed to remove null values file %s: %v", nullVarsFile, removeErr)
-			}
-		}
-	}()
+	if nullVarsFile != "" {
+		runVarFiles = append(runVarFiles, nullVarsFile)
+	}
+
+	inPlaceVarFiles, err := writeVarFiles(v.FS, opts, cfg)
+	runVarFiles = append(runVarFiles, inPlaceVarFiles...)
+
+	if err != nil {
+		return err
+	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
 	if err := CheckProtectedModuleRunCfg(opts, cfg); err != nil {
@@ -978,7 +991,7 @@ func CheckProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
 // from .auto.tfvars.json files.
 //
 // The file is removed after the run. When the unit runs in place, the file lands in the user's unit directory,
-// so an existing file there is never replaced and the run stops with NullVarsFileExists. In the cache directory
+// so an existing file there is never replaced and the run stops with VarsFileExists. In the cache directory
 // the file is a disposable copy and is overwritten.
 func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunConfig) (string, error) {
 	jsonEmptyVars := make(map[string]any)
@@ -999,41 +1012,66 @@ func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunC
 	}
 
 	varFile := filepath.Join(opts.CacheDir, NullTFVarsFile)
-	inPlace := filepath.Clean(opts.CacheDir) == filepath.Clean(opts.UnitDir)
 
-	if err := writeNullVarsFile(v.FS, varFile, jsonContents, inPlace); err != nil {
+	if err := writeVarsFile(v.FS, varFile, jsonContents, varsFileDirOf(opts)); err != nil {
 		return "", err
 	}
 
 	return varFile, nil
 }
 
-// writeNullVarsFile writes contents to path atomically, so path never holds a partial file and nothing is left
-// behind when the write fails. In place, the name is first reserved with an exclusive create, so anything already
-// at path, file or symlink, or created concurrently, stops the write with NullVarsFileExists rather than being
-// replaced; the atomic write then replaces only that reservation.
-func writeNullVarsFile(fsys vfs.FS, path string, contents []byte, inPlace bool) error {
-	if inPlace {
-		reservation, err := fsys.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, nullTFVarsFileMode)
-		if err != nil {
-			if errors.Is(err, os.ErrExist) {
-				return NullVarsFileExists{Path: path}
-			}
+// varsFileDir is the kind of directory a run writes its variable files to.
+type varsFileDir int
 
-			return err
-		}
+const (
+	// varsFileDirCache is a cache directory, where variable files are disposable and are overwritten.
+	varsFileDirCache varsFileDir = iota
+	// varsFileDirUnit is the user's unit directory, where a run never replaces an existing file.
+	varsFileDirUnit
+)
 
-		if err := reservation.Close(); err != nil {
-			return errors.Join(err, fsys.Remove(path))
-		}
+// varsFileDirOf returns the kind of directory opts.CacheDir is. It is the unit directory when the unit runs in place.
+func varsFileDirOf(opts *Options) varsFileDir {
+	if filepath.Clean(opts.CacheDir) == filepath.Clean(opts.UnitDir) {
+		return varsFileDirUnit
 	}
 
-	if err := vfs.WriteFileAtomic(fsys, path, contents, nullTFVarsFileMode); err != nil {
-		if inPlace {
-			return errors.Join(err, fsys.Remove(path))
-		}
+	return varsFileDirCache
+}
 
+// writeVarsFile writes contents to path atomically, so path never holds a partial file and nothing is left
+// behind when the write fails. In the unit directory, it first reserves path with reserveVarsFile, and the atomic
+// write then replaces only that reservation.
+func writeVarsFile(fsys vfs.FS, path string, contents []byte, dir varsFileDir) error {
+	if dir == varsFileDirCache {
+		return vfs.WriteFileAtomic(fsys, path, contents, varsFileMode)
+	}
+
+	if err := reserveVarsFile(fsys, path); err != nil {
 		return err
+	}
+
+	if err := vfs.WriteFileAtomic(fsys, path, contents, varsFileMode); err != nil {
+		return errors.Join(err, fsys.Remove(path))
+	}
+
+	return nil
+}
+
+// reserveVarsFile creates an empty file at path with an exclusive create, so anything already at path, file or
+// symlink, or created concurrently, stops the write with VarsFileExists rather than being replaced.
+func reserveVarsFile(fsys vfs.FS, path string) error {
+	reservation, err := fsys.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, varsFileMode)
+	if errors.Is(err, os.ErrExist) {
+		return VarsFileExists{Path: path}
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if err := reservation.Close(); err != nil {
+		return errors.Join(err, fsys.Remove(path))
 	}
 
 	return nil

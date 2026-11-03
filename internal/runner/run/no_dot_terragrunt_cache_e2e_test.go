@@ -200,7 +200,7 @@ func TestRunNoDotTerragruntCacheNullInputKeepsExistingFile(t *testing.T) {
 
 			err := run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter())
 
-			var exists run.NullVarsFileExists
+			var exists run.VarsFileExists
 
 			require.ErrorAs(t, err, &exists)
 			assert.Equal(t, nullVarsPath, exists.Path)

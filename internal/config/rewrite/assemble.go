@@ -110,6 +110,10 @@ func (c *UnitConfig) assemble(
 		if err := cfg.Terraform.ValidateVersion(c.file.ConfigPath); err != nil {
 			errs = append(errs, err)
 		}
+
+		if err := pkgconfig.ValidateInputDefinitions(v, c.file, cfg); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return cfg, errors.Join(errs...)

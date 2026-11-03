@@ -17,6 +17,7 @@ import (
 
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -48,6 +49,17 @@ dependency "a" {
 
 inputs = {
   a_id = dependency.a.outputs.id
+}
+`
+
+const unitVariablesConfig = `
+inputs = {
+  from_attr = "attr"
+}
+
+variables {
+  kind   = "tfvar"
+  inputs = { from_block = "block" }
 }
 `
 
@@ -433,6 +445,28 @@ func TestDiscoverToolReportsUnitsAndDependencies(t *testing.T) {
 		{Path: "b", Dependencies: []string{"a"}},
 	}, out.Units)
 	assert.Empty(t, out.Degraded)
+}
+
+func TestRenderConfigToolSummarizesVariablesBlocks(t *testing.T) {
+	t.Parallel()
+
+	dir := newTestTree(t)
+	require.NoError(t, vfs.WriteFile(
+		vfs.NewOSFS(),
+		filepath.Join(dir, "a", "terragrunt.hcl"),
+		[]byte(unitVariablesConfig),
+		0o644,
+	))
+
+	session := newTestSessionWithOptions(t, dir, func(o *tgmcp.Options) {
+		require.NoError(t, o.Experiments.EnableExperiment(experiment.VariablesBlock))
+	})
+
+	var out renderConfigOutput
+
+	callTool(t, session, "render_config", map[string]any{"working_dir": "a"}, &out)
+
+	assert.Equal(t, []string{"from_attr", "from_block"}, out.Summary.InputKeys)
 }
 
 func TestRenderConfigToolSummarizesAUnit(t *testing.T) {

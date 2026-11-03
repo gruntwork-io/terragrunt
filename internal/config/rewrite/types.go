@@ -61,6 +61,8 @@ type UnitConfig struct {
 	GenerateAttrs *hcl.Attribute `hcl:"generate,optional"`
 	// GenerateBlocks is the generate blocks, in source order.
 	GenerateBlocks []GenerateHCL `hcl:"generate,block"`
+	// VariablesBlocks is the variables blocks, in source order.
+	VariablesBlocks []VariablesHCL `hcl:"variables,block"`
 	// LocalsBlock is the locals block.
 	LocalsBlock *LocalsHCL `hcl:"locals,block"`
 	// IncludeBlocks is the include blocks, in source order.
