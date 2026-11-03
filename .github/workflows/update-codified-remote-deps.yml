@@ -21,18 +21,7 @@ jobs:
 
       - name: Check for update
         id: check
-        run: |
-          LATEST_COMMIT=$(git ls-remote https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example.git HEAD | awk '{print $1}')
-          CURRENT_COMMIT=$(grep -oP 'git", "checkout", "\K[0-9a-f]{40}' test/integration_example_live_stacks_test.go)
-
-          echo "latest=$LATEST_COMMIT" >> "$GITHUB_OUTPUT"
-          echo "current=$CURRENT_COMMIT" >> "$GITHUB_OUTPUT"
-
-          if [[ "$LATEST_COMMIT" == "$CURRENT_COMMIT" ]]; then
-            echo "needs_update=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "needs_update=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: .github/scripts/update-codified-remote-deps/check-live-stacks-example.sh
 
       - name: Update commit hash
         if: steps.check.outputs.needs_update == 'true'
@@ -82,23 +71,7 @@ jobs:
         id: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          LATEST_VERSION=$(mise latest --minimum-release-age 7d opentofu)
-          CURRENT_VERSION=$(grep -oP '^opentofu = "\K[^"]+' mise.toml)
-
-          if [[ ! "$LATEST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Unexpected latest OpenTofu version: $LATEST_VERSION" >&2
-            exit 1
-          fi
-
-          echo "latest=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-          echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
-
-          if [[ "$LATEST_VERSION" == "$CURRENT_VERSION" ]]; then
-            echo "needs_update=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "needs_update=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: .github/scripts/update-codified-remote-deps/check-opentofu.sh
 
       - name: Update version
         if: steps.check.outputs.needs_update == 'true'
@@ -147,23 +120,7 @@ jobs:
         id: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          LATEST_VERSION=$(mise latest --minimum-release-age 7d terraform)
-          CURRENT_VERSION=$(grep -oP 'terraform-switch\.sh \K[0-9.]+' .github/scripts/setup/terraform-switch-latest.sh)
-
-          if [[ ! "$LATEST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Unexpected latest Terraform version: $LATEST_VERSION" >&2
-            exit 1
-          fi
-
-          echo "latest=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-          echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
-
-          if [[ "$LATEST_VERSION" == "$CURRENT_VERSION" ]]; then
-            echo "needs_update=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "needs_update=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: .github/scripts/update-codified-remote-deps/check-terraform.sh
 
       - name: Update version
         if: steps.check.outputs.needs_update == 'true'
