@@ -1,0 +1,16 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Provider cache works for several users sharing a temp directory
+
+With `--provider-cache`, Terragrunt kept its lock files and downloaded provider archives in a `terragrunt` folder of the temp directory. Once one user created that folder, `init` failed for every other user on the machine:
+
+```
+mkdir /tmp/terragrunt/providers/archives-032480544: permission denied
+```
+
+Terragrunt now uses `terragrunt-<uid>` in the temp directory, created so only the current user can write to it. It refuses to use that path if it is a symlink, belongs to another user, or other users can write to it.
+
+See [Provider Cache Server](/features/caching/provider-cache-server) for where these files are kept.

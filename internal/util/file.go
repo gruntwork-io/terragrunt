@@ -1752,18 +1752,30 @@ func EnsureCacheDir(v *venv.Venv) (string, error) {
 	return cacheDir, nil
 }
 
-// EnsureTempDir returns the global terragrunt temp directory.
+// EnsureTempDir returns the terragrunt temp directory of the current user,
+// creating it when it is missing. The path is the same in every Terragrunt
+// process the user runs, and other users sharing the temp directory cannot
+// write into it.
 func EnsureTempDir(v *venv.Venv) (string, error) {
 	v.RequireFS()
 	v.RequireTempDir()
 
-	tempDir := filepath.Join(v.Platform.TempDir(), "terragrunt")
+	return ensureTempDir(v)
+}
 
-	if err := v.FS.MkdirAll(tempDir, os.ModePerm); err != nil {
-		return "", err
-	}
+// UnsafeTempDirError is returned when [EnsureTempDir] finds something at the
+// path of the user's temp directory that another user could control.
+type UnsafeTempDirError struct {
+	Path   string
+	Reason string
+}
 
-	return tempDir, nil
+func (err UnsafeTempDirError) Error() string {
+	return fmt.Sprintf(
+		"refusing to use temp directory %s: %s. Remove it, or set TMPDIR to a directory only you can write to",
+		err.Path,
+		err.Reason,
+	)
 }
 
 // ExcludeFiltersFromFile returns a list of filters from the given filename, where each filter starts on a new line.

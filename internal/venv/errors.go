@@ -85,6 +85,10 @@ var ErrVenvUserConfigDirUnset = errors.New("venv.Venv.Platform.UserConfigDir is 
 // TempDir is nil.
 var ErrVenvTempDirUnset = errors.New("venv.Venv.Platform.TempDir is required but unset")
 
+// ErrVenvGetUIDUnset is the panic value [Venv.RequireGetUID] raises when
+// GetUID is nil.
+var ErrVenvGetUIDUnset = errors.New("venv.Venv.Platform.GetUID is required but unset")
+
 // ErrVenvReplaceEnvironUnset is the panic value [Venv.RequireReplaceEnviron]
 // raises when ReplaceEnviron is nil.
 var ErrVenvReplaceEnvironUnset = errors.New("venv.Venv.Platform.ReplaceEnviron is required but unset")
