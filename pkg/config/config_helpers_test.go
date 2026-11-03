@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -2678,4 +2679,46 @@ func assertRootTerragruntHCLLookup(
 	ctrl.OnceWarn.Do(func() { warned = false })
 
 	assert.Equal(t, want.outcome == rootWarned, warned, "the disabled control should warn only for a terragrunt.hcl root")
+}
+
+// TestHCLRepoRootPathsThroughSymlink pins that get_path_from_repo_root() and
+// get_path_to_repo_root() return paths inside the repository when the working
+// directory is reached through a symlink to the repository. The repository
+// root lookup resolves symlinks, so the working directory has to be compared
+// in the same form.
+func TestHCLRepoRootPathsThroughSymlink(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("os.Symlink on Windows requires special permissions")
+	}
+
+	tmpDir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	repoDir := filepath.Join(tmpDir, "repo")
+	unitDir := filepath.Join(repoDir, "live", "app")
+	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(unitDir, 0o755))
+
+	linkDir := filepath.Join(tmpDir, "workspace", "link")
+	require.NoError(t, os.MkdirAll(filepath.Dir(linkDir), 0o755))
+	require.NoError(t, os.Symlink(repoDir, linkDir))
+
+	workingDir := filepath.Join(linkDir, "live", "app")
+
+	l := logger.CreateLogger()
+	v := venvtest.NewWithOSFS()
+	ctx, pctx := newTestParsingContext(t, filepath.Join(workingDir, "terragrunt.hcl"))
+	pctx.WorkingDir = workingDir
+
+	const hcl = `locals {
+  from = get_path_from_repo_root()
+  to   = get_path_to_repo_root()
+}`
+
+	out, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join("live", "app"), out.Locals["from"])
+	assert.Equal(t, filepath.Join("..", ".."), out.Locals["to"])
 }
