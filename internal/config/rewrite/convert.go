@@ -75,6 +75,7 @@ func (t *Terraform) v1() *pkgconfig.TerraformConfig {
 		IncludeInCopy:         cloneSlicePtr(t.IncludeInCopy),
 		ExcludeFromCopy:       cloneSlicePtr(t.ExcludeFromCopy),
 		CopyTerraformLockFile: clonePtr(t.CopyTerraformLockFile),
+		NoDotTerragruntCache:  clonePtr(t.NoDotTerragruntCache),
 		ExtraArgs:             convertAll(t.ExtraArgs, (*ExtraArguments).v1),
 		BeforeHooks:           convertAll(t.BeforeHooks, (*Hook).v1),
 		AfterHooks:            convertAll(t.AfterHooks, (*Hook).v1),
