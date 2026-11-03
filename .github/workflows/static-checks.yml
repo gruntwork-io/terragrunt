@@ -86,7 +86,13 @@ jobs:
 
       - name: Run bats
         if: ${{ !cancelled() }}
-        run: bats --print-output-on-failure .github/scripts/ci/tests/ .github/scripts/release/tests/ .github/scripts/coverage/tests/ .github/scripts/security-scan/tests/
+        run: |
+          bats --print-output-on-failure \
+            .github/scripts/ci/tests/ \
+            .github/scripts/release/tests/ \
+            .github/scripts/coverage/tests/ \
+            .github/scripts/security-scan/tests/ \
+            .github/scripts/update-codified-remote-deps/tests/
 
       - name: Install script dependencies
         id: bun-install
