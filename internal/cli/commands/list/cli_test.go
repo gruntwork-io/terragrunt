@@ -230,7 +230,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 				)
 			}
 
-			flags := list.NewFlags(newTestLogger(t), list.NewOptions(tgOpts), venvtest.New(), nil)
+			flags := list.NewFlags(newTestLogger(t), list.NewOptions(tgOpts), venvtest.New())
 			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := flags.RunActions(config.WithCaches(t.Context()), &clihelper.Context{})
@@ -272,7 +272,7 @@ func TestNewFlagsExternalFlagAddsAGraphFilter(t *testing.T) {
 
 			opts := list.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
 
-			flags := list.NewFlags(newTestLogger(t), opts, venvtest.New(), nil)
+			flags := list.NewFlags(newTestLogger(t), opts, venvtest.New())
 			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, flags.RunActions(config.WithCaches(t.Context()), &clihelper.Context{}))
 			assert.Len(t, opts.Filters, tc.wantFilters)
