@@ -23,7 +23,7 @@ jobs:
       - name: Use mise to install dependencies
         uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
-          version: 2026.9.12
+          version: 2026.11.0
           cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
