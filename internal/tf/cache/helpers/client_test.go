@@ -494,6 +494,40 @@ func TestClientDoGivesUpOnARegistryThatNeverAnswers(t *testing.T) {
 	})
 }
 
+// TestClientDoReturnsTheRefusalWhenTimeRunsOutDuringAWait pins that a shared
+// request whose minute ends while it waits to try again returns the
+// registry's refusal, not the timeout. The cache server can then tell
+// OpenTofu/Terraform to try again, where a timeout would leave it an empty
+// list of versions.
+func TestClientDoReturnsTheRefusalWhenTimeRunsOutDuringAWait(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// The registry takes 55 seconds to refuse and asks for a 10 second
+		// wait, which the minute cuts short.
+		client := helpers.NewClient(vhttp.NewMemClient(
+			func(_ context.Context, _ *http.Request) (*http.Response, error) {
+				time.Sleep(55 * time.Second)
+
+				return vhttp.Respond(http.StatusTooManyRequests, nil, http.Header{"Retry-After": {"10"}}), nil
+			},
+		), nil)
+
+		start := time.Now()
+
+		var value versionsValue
+
+		err := client.Do(t.Context(), http.MethodGet, versionsURL, &value)
+
+		var statusErr *helpers.StatusError
+
+		require.ErrorAs(t, err, &statusErr)
+		assert.True(t, statusErr.Transient())
+		assert.Equal(t, 10*time.Second, statusErr.RetryAfter)
+		assert.Equal(t, time.Minute, time.Since(start))
+	})
+}
+
 // TestClientDoRemembersANotFound pins that a 404 stays a quiet answer: no
 // error, the value left as it was, and no second request for the URL. A
 // network mirror that lacks a provider answers this way, and the server then

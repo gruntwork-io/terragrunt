@@ -249,9 +249,16 @@ func (client *Client) load(reqURL string) ([]byte, bool) {
 // [StatusError.Transient]), or until it has been tried four times. Between
 // tries it waits as long as the registry asked, up to 10 seconds, or backs off
 // from half a second when the registry named no wait. It returns fn's last
-// error, or ctx's error when ctx ends during a wait.
+// error, also when ctx ends during a wait, so the caller still learns that
+// the registry refused the request for now.
 func RetryRefusals(ctx context.Context, fn func(ctx context.Context) error) error {
-	return retry.Do(ctx, maxAttempts, fn, func(attempt int, err error) (time.Duration, bool) {
+	var last error
+
+	err := retry.Do(ctx, maxAttempts, func(ctx context.Context) error {
+		last = fn(ctx)
+
+		return last
+	}, func(attempt int, err error) (time.Duration, bool) {
 		var statusErr *StatusError
 		if !errors.As(err, &statusErr) || !statusErr.Transient() {
 			return 0, false
@@ -259,6 +266,13 @@ func RetryRefusals(ctx context.Context, fn func(ctx context.Context) error) erro
 
 		return retryDelay(statusErr, attempt), true
 	})
+	if err != nil {
+		// retry.Do returns ctx's error when ctx ends a wait, which would hide
+		// the refusal being waited out.
+		return last
+	}
+
+	return nil
 }
 
 // retryDelay is how long to wait before trying a refused request again: the

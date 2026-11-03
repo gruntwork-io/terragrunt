@@ -121,6 +121,22 @@ func TestCommonProviderHandlerDiscoveryURLRetriesARefusal(t *testing.T) {
 			wantWait:     3 * time.Second,
 		},
 		{
+			// The registry takes 55 seconds to refuse and asks for a 10 second
+			// wait, which the minute discovery is given cuts short. The
+			// caller still gets the refusal rather than the timeout.
+			name: "the registry refuses as discovery runs out of time",
+			answers: []func() *http.Response{
+				func() *http.Response {
+					time.Sleep(55 * time.Second)
+
+					return vhttp.Respond(http.StatusTooManyRequests, nil, http.Header{"Retry-After": {"10"}})
+				},
+			},
+			wantStatus:   http.StatusTooManyRequests,
+			wantRequests: 1,
+			wantWait:     time.Minute,
+		},
+		{
 			name: "the registry has no discovery document",
 			answers: []func() *http.Response{
 				func() *http.Response { return vhttp.Respond(http.StatusNotFound, nil, nil) },
