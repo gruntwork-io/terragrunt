@@ -809,6 +809,62 @@ terraform {
 }
 ```
 
+<Since version="v1.2.2">
+
+Two keys in the `encryption` map go to the generated `state` and `plan` blocks instead of the key provider:
+
+- `fallback`: Set to `{ method = "unencrypted" }` to let OpenTofu read state and plan files written before encryption was enabled. Any other value is an error.
+- `enforced`: Set to `true` to make OpenTofu error instead of writing unencrypted state or plan files.
+
+Once encryption is configured, OpenTofu refuses to read plaintext state. A unit with existing state therefore needs the fallback for one run, as described under [pre-existing project](https://opentofu.org/docs/language/state/encryption/#pre-existing-project) in the OpenTofu docs:
+
+```hcl
+# terragrunt.hcl
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+
+  encryption = {
+    key_provider = "pbkdf2"
+    passphrase   = get_env("PBKDF2_PASSPHRASE")
+    fallback     = { method = "unencrypted" }
+  }
+}
+```
+
+Terragrunt adds an `unencrypted` method and points both blocks at it:
+
+```hcl
+# backend.tf
+
+  encryption {
+    # key_provider and method "aes_gcm" as above
+    method "unencrypted" "fallback" {
+    }
+    state {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+    plan {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+  }
+```
+
+Run `terragrunt apply` so OpenTofu writes the state back encrypted. Then replace `fallback` with `enforced = true`.
+
+</Since>
+
 ## include
 
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called

@@ -1,7 +1,9 @@
 package worktrees_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -10,12 +12,19 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -23,6 +32,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// unexpandableDir is a directory name the filter glob cannot compile.
+const unexpandableDir = "bad[dir"
 
 func TestNewWorktrees(t *testing.T) {
 	t.Parallel()
@@ -256,6 +268,24 @@ func TestNewWorktreesFilteredPathsOnly(t *testing.T) {
 			changed:     "unit/terragrunt.hcl",
 			wantPresent: []string{"unit/terragrunt.hcl", "live/terragrunt.stack.hcl"},
 		},
+		{
+			name: "a unit at the repository root checks out the whole tree",
+			files: map[string]string{
+				"terragrunt.hcl":       "inputs = {}\n",
+				"other/terragrunt.hcl": "inputs = {}\n",
+			},
+			changed:     "terragrunt.hcl",
+			wantPresent: []string{"terragrunt.hcl", "other/terragrunt.hcl"},
+		},
+		{
+			name: "a directory git reads as a pattern checks out the whole tree",
+			files: map[string]string{
+				"unit[1]/terragrunt.hcl": "inputs = {}\n",
+				"other/terragrunt.hcl":   "inputs = {}\n",
+			},
+			changed:     "unit[1]/terragrunt.hcl",
+			wantPresent: []string{"unit[1]/terragrunt.hcl", "other/terragrunt.hcl"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -393,6 +423,16 @@ func TestExpressionExpansion(t *testing.T) {
 			expectedFrom:       0,
 			expectedTo:         2,
 			expectedToPaths:    []string{"app1", "app2"},
+			expectedToReadings: []string{},
+		},
+		{
+			name: "added stack file selects the stack and everything under it",
+			diffs: &git.Diffs{
+				Added: []string{"stack/terragrunt.stack.hcl"},
+			},
+			expectedFrom:       0,
+			expectedTo:         2,
+			expectedToPaths:    []string{"stack", "stack/**"},
 			expectedToReadings: []string{},
 		},
 		{
@@ -950,6 +990,447 @@ func TestWorktreeCleanupWithCancelledContextWithRacing(t *testing.T) {
 	}
 }
 
+// TestNewWorktreesWithoutExpressions pins that a run with no Git expressions needs no git at all.
+func TestNewWorktreesWithoutExpressions(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+
+	w, err := worktrees.NewWorktrees(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.New(),
+		worktrees.WorktreeOpts{WorkingDir: root},
+	)
+	require.NoError(t, err)
+	assert.Empty(t, w.WorktreePairs)
+	assert.Equal(t, root, w.OriginalWorkingDir)
+}
+
+// TestGitNotFound pins that creating and cleaning up worktrees both report a missing git binary.
+func TestGitNotFound(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	v := venvtest.New().WithExec(vexec.NewMemExec(
+		func(context.Context, vexec.Invocation) vexec.Result { return vexec.Result{} },
+		vexec.WithLookPath(func(string) (string, error) { return "", errors.New("not found") }),
+	))
+
+	t.Run("create", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := worktrees.NewWorktrees(t.Context(), logger.CreateLogger(), v, worktrees.WorktreeOpts{
+			WorkingDir:     root,
+			GitExpressions: gitExpressions(t),
+		})
+		require.ErrorIs(t, err, git.ErrGitCommand)
+	})
+
+	t.Run("cleanup", func(t *testing.T) {
+		t.Parallel()
+
+		w := worktreesAt(root, filepath.Join(root, "worktree"))
+
+		require.ErrorIs(t, w.Cleanup(t.Context(), logger.CreateLogger(), v), git.ErrGitCommand)
+	})
+}
+
+// TestNewWorktreesReportsSlowCreation pins the progress messages for one reference and for several.
+func TestNewWorktreesReportsSlowCreation(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		diff        string
+		wantWorking string
+		wantDone    string
+	}{
+		{
+			name:        "one reference",
+			diff:        "A\tunit/terragrunt.hcl\n",
+			wantWorking: "Creating Git worktree for reference HEAD...",
+			wantDone:    "Created Git worktree for reference HEAD",
+		},
+		{
+			name:        "several references",
+			diff:        "A\tunit/terragrunt.hcl\nD\told/terragrunt.hcl\n",
+			wantWorking: "Creating Git worktrees for 2 references...",
+			wantDone:    "Created Git worktrees for 2 references",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				buf := new(bytes.Buffer)
+				l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(buf))
+
+				root := venvtest.Root("/repo")
+				v := memRepoVenv(t, root, tc.diff, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+					// Sleeping in the worktree add would hold a mutex, which stops the bubble's clock.
+					if slices.Contains(inv.Args, "checkout") {
+						time.Sleep(2 * time.Second)
+					}
+
+					return vexec.Result{}
+				})
+
+				experiments := experiment.NewExperiments()
+				require.NoError(t, experiments.EnableExperiment(experiment.SlowTaskReporting))
+
+				_, err := worktrees.NewWorktrees(t.Context(), l, v, worktrees.WorktreeOpts{
+					WorkingDir:     root,
+					GitExpressions: gitExpressions(t),
+					Experiments:    experiments,
+				})
+				require.NoError(t, err)
+
+				assert.Contains(t, buf.String(), tc.wantWorking)
+				assert.Contains(t, buf.String(), tc.wantDone)
+			})
+		})
+	}
+}
+
+// TestNewWorktreesCreationFailures pins that a reference that cannot be materialized fails the run.
+func TestNewWorktreesCreationFailures(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		fails        func(args []string) bool
+		name         string
+		diff         string
+		wantTempDirs int
+	}{
+		{
+			name: "registering fails",
+			diff: "A\tunit/terragrunt.hcl\n",
+			fails: func(args []string) bool {
+				return slices.Contains(args, "add")
+			},
+		},
+		{
+			name: "filling fails",
+			diff: "A\tunit/terragrunt.hcl\n",
+			fails: func(args []string) bool {
+				return slices.Contains(args, "checkout")
+			},
+		},
+		{
+			name: "filling and unregistering both fail",
+			diff: "A\tunit/terragrunt.hcl\n",
+			fails: func(args []string) bool {
+				return slices.Contains(args, "checkout") || slices.Contains(args, "remove")
+			},
+		},
+		{
+			name: "one reference fails and the other cannot be cleaned up",
+			diff: "A\tunit/terragrunt.hcl\nD\told/terragrunt.hcl\n",
+			fails: func(args []string) bool {
+				return slices.Contains(args, "remove") || (slices.Contains(args, "add") && args[len(args)-1] == "HEAD")
+			},
+			wantTempDirs: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/repo")
+			v := memRepoVenv(t, root, tc.diff, func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				if tc.fails(inv.Args) {
+					return vexec.Result{ExitCode: 1}
+				}
+
+				return vexec.Result{}
+			})
+
+			_, err := worktrees.NewWorktrees(t.Context(), logger.CreateLogger(), v, worktrees.WorktreeOpts{
+				WorkingDir:     root,
+				GitExpressions: gitExpressions(t),
+			})
+			require.ErrorIs(t, err, git.ErrGitCommand)
+
+			entries, err := vfs.ReadDir(v.FS, v.Platform.TempDir())
+			require.NoError(t, err)
+			assert.Len(t, entries, tc.wantTempDirs, "a failed reference should not leave its directory behind")
+		})
+	}
+}
+
+// TestNewWorktreesTempDirFailure pins that a temporary directory that cannot be created fails the run.
+func TestNewWorktreesTempDirFailure(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	notADir := filepath.Join(root, "not-a-directory")
+
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: /elsewhere\n"), 0o600))
+	require.NoError(t, os.WriteFile(notADir, nil, 0o600))
+
+	v := venvtest.NewWithOSFS().
+		WithHandler(memRepoHandler("A\tunit/terragrunt.hcl\n", noopGit)).
+		WithTempDir(func() string { return notADir })
+
+	_, err := worktrees.NewWorktrees(t.Context(), logger.CreateLogger(), v, worktrees.WorktreeOpts{
+		WorkingDir:     root,
+		GitExpressions: gitExpressions(t),
+	})
+	require.Error(t, err)
+}
+
+// TestNewWorktreesUnexpandableDiff pins that a diff path no filter can match fails the run instead of dropping it.
+func TestNewWorktreesUnexpandableDiff(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	v := memRepoVenv(t, root, "A\t"+unexpandableDir+"/terragrunt.hcl\n", noopGit)
+
+	_, err := worktrees.NewWorktrees(t.Context(), logger.CreateLogger(), v, worktrees.WorktreeOpts{
+		WorkingDir:     root,
+		GitExpressions: gitExpressions(t),
+	})
+	require.Error(t, err)
+}
+
+// TestNewWorktreesRecordsDiffTelemetry pins the diff sizes reported to the configured meter.
+func TestNewWorktreesRecordsDiffTelemetry(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	buf := new(bytes.Buffer)
+
+	tlm, err := telemetry.NewTelemeter(t.Context(), l, "terragrunt", "v0.0.0-test", buf, &telemetry.Options{
+		MetricExporter: "console",
+	}, false)
+	require.NoError(t, err)
+
+	diff := "A\ta/terragrunt.hcl\nA\tb/terragrunt.hcl\n" +
+		"D\tc/terragrunt.hcl\n" +
+		"M\td/terragrunt.hcl\nM\te/terragrunt.hcl\nM\tf/terragrunt.hcl\n"
+
+	root := venvtest.Root("/repo")
+	v := memRepoVenv(t, root, diff, noopGit)
+
+	ctx := telemetry.ContextWithTelemeter(t.Context(), tlm)
+
+	_, err = worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
+		WorkingDir:     root,
+		GitExpressions: gitExpressions(t),
+	})
+	require.NoError(t, err)
+	require.NoError(t, tlm.Shutdown(ctx))
+
+	counts := metricCounts(t, buf)
+
+	assert.Equal(t, int64(2), counts["git_diff_files_added_count"])
+	assert.Equal(t, int64(1), counts["git_diff_files_removed_count"])
+	assert.Equal(t, int64(3), counts["git_diff_files_changed_count"])
+}
+
+// TestNewWorktreesStackFileMaterializesBothReferences pins that an added stack file selects both sides of the diff.
+func TestNewWorktreesStackFileMaterializesBothReferences(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	v := memRepoVenv(t, root, "A\tstack/terragrunt.stack.hcl\n", noopGit)
+
+	w, err := worktrees.NewWorktrees(t.Context(), logger.CreateLogger(), v, worktrees.WorktreeOpts{
+		WorkingDir:     root,
+		GitExpressions: gitExpressions(t),
+	})
+	require.NoError(t, err)
+	require.Len(t, w.WorktreePairs, 1)
+
+	for _, pair := range w.WorktreePairs {
+		assert.NotEmpty(t, pair.FromWorktree.Path)
+		assert.NotEmpty(t, pair.ToWorktree.Path)
+	}
+}
+
+// TestExpandRejectsPathsThatDoNotCompile pins that every place a diff path becomes a filter reports a bad path.
+func TestExpandRejectsPathsThatDoNotCompile(t *testing.T) {
+	t.Parallel()
+
+	unitConfig := unexpandableDir + "/terragrunt.hcl"
+	stackFile := unexpandableDir + "/terragrunt.stack.hcl"
+	beside := unexpandableDir + "/main.tf"
+
+	testCases := []struct {
+		diffs *git.Diffs
+		tree  git.TreePaths
+		name  string
+	}{
+		{name: "removed unit", diffs: &git.Diffs{Removed: []string{unitConfig}}},
+		{name: "added unit", diffs: &git.Diffs{Added: []string{unitConfig}}},
+		{name: "added stack", diffs: &git.Diffs{Added: []string{stackFile}}},
+		{name: "added file beside a unit", diffs: &git.Diffs{Added: []string{beside}}, tree: treePaths(unitConfig)},
+		{name: "added file read by a unit", diffs: &git.Diffs{Added: []string{beside}}},
+		{name: "changed unit", diffs: &git.Diffs{Changed: []string{unitConfig}}},
+		{name: "changed file beside a unit", diffs: &git.Diffs{Changed: []string{beside}}, tree: treePaths(unitConfig)},
+		{name: "changed file read by a unit", diffs: &git.Diffs{Changed: []string{beside}}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			pair := &worktrees.WorktreePair{Diffs: tc.diffs}
+
+			_, _, err := pair.Expand(tc.tree)
+			require.Error(t, err)
+		})
+	}
+}
+
+// TestWorktreesDisplayPath pins the translation of worktree paths back to the user's working directory.
+func TestWorktreesDisplayPath(t *testing.T) {
+	t.Parallel()
+
+	repo := venvtest.Root("/repo")
+	from := venvtest.Root("/tmp/from")
+	to := venvtest.Root("/tmp/to")
+
+	w := &worktrees.Worktrees{
+		OriginalWorkingDir: repo,
+		WorktreePairs: map[string]*worktrees.WorktreePair{
+			"both sides": {
+				FromWorktree: worktrees.Worktree{Ref: "HEAD~1", Path: from},
+				ToWorktree:   worktrees.Worktree{Ref: "HEAD", Path: to},
+			},
+			"never materialized": {
+				FromWorktree: worktrees.Worktree{Ref: "main"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "inside the from worktree", path: filepath.Join(from, "unit"), want: filepath.Join(repo, "unit")},
+		{name: "inside the to worktree", path: filepath.Join(to, "a", "b"), want: filepath.Join(repo, "a", "b")},
+		{name: "the worktree itself", path: to, want: repo},
+		{name: "sibling sharing a prefix", path: to + "-other", want: to + "-other"},
+		{name: "outside every worktree", path: filepath.Join(repo, "unit"), want: filepath.Join(repo, "unit")},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, w.DisplayPath(tc.path))
+		})
+	}
+}
+
+// TestWorktreesStacks pins which side of the diff each changed stack is read from.
+func TestWorktreesStacks(t *testing.T) {
+	t.Parallel()
+
+	from := venvtest.Root("/tmp/from")
+	to := venvtest.Root("/tmp/to")
+
+	readingAffected := worktrees.StackDiffChangedPair{
+		FromStack: component.NewStack(filepath.Join(from, "reader")),
+		ToStack:   component.NewStack(filepath.Join(to, "reader")),
+	}
+
+	w := &worktrees.Worktrees{
+		ReadingAffectedStacks: []worktrees.StackDiffChangedPair{readingAffected},
+		WorktreePairs: map[string]*worktrees.WorktreePair{
+			"pair": {
+				FromWorktree: worktrees.Worktree{Ref: "HEAD~1", Path: from},
+				ToWorktree:   worktrees.Worktree{Ref: "HEAD", Path: to},
+				Diffs: &git.Diffs{
+					Added:   []string{"added/terragrunt.stack.hcl", "added/terragrunt.hcl"},
+					Removed: []string{"removed/terragrunt.stack.hcl", "removed/main.tf"},
+					Changed: []string{"changed/terragrunt.stack.hcl", "changed/terragrunt.hcl"},
+				},
+			},
+		},
+	}
+
+	stacks := w.Stacks()
+
+	require.Len(t, stacks.Added, 1)
+	assertStackAt(t, stacks.Added[0], to, "HEAD", "added")
+
+	require.Len(t, stacks.Removed, 1)
+	assertStackAt(t, stacks.Removed[0], from, "HEAD~1", "removed")
+
+	require.Len(t, stacks.Changed, 1)
+	assertStackAt(t, stacks.Changed[0].FromStack, from, "HEAD~1", "changed")
+	assertStackAt(t, stacks.Changed[0].ToStack, to, "HEAD", "changed")
+
+	assert.Equal(t, []worktrees.StackDiffChangedPair{readingAffected}, stacks.ReadingAffected)
+}
+
+// TestWorktreeCleanupFailures pins which failures to remove a worktree Cleanup forgives.
+func TestWorktreeCleanupFailures(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	path := filepath.Join(root, "worktree")
+
+	testCases := []struct {
+		wantErr error
+		name    string
+		stderr  string
+		exit    int
+		missing bool
+	}{
+		{
+			name:    "already gone from disk",
+			missing: true,
+			exit:    1,
+		},
+		{
+			name:   "git reports it gone",
+			stderr: "fatal: '" + path + "' does not exist",
+			exit:   128,
+		},
+		{
+			name:    "any other failure",
+			stderr:  "fatal: the worktree is locked",
+			exit:    128,
+			wantErr: git.ErrGitCommand,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				if slices.Contains(inv.Args, "worktree") {
+					return vexec.Result{ExitCode: tc.exit, Stderr: []byte(tc.stderr)}
+				}
+
+				return vexec.Result{}
+			})
+
+			if !tc.missing {
+				require.NoError(t, v.FS.MkdirAll(path, 0o755))
+			}
+
+			err := worktreesAt(root, path).Cleanup(t.Context(), logger.CreateLogger(), v)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
 // cancelOnCheckoutExec cancels a context when a `git checkout` is prepared,
 // which is after a worktree is registered and before it is filled.
 type cancelOnCheckoutExec struct {
@@ -1006,6 +1487,100 @@ func registeredWorktrees(t *testing.T, repoDir string) []string {
 	}
 
 	return names
+}
+
+// assertStackAt asserts that stack sits at dir under worktree and was discovered there at ref.
+func assertStackAt(t *testing.T, stack *component.Stack, worktree, ref, dir string) {
+	t.Helper()
+
+	assert.Equal(t, filepath.Join(worktree, dir), stack.Path())
+	assert.Equal(t, worktree, stack.DiscoveryContext().WorkingDir)
+	assert.Equal(t, ref, stack.DiscoveryContext().Ref)
+}
+
+// gitExpressions returns the Git expressions of a filter comparing HEAD with its parent.
+func gitExpressions(t *testing.T) filter.GitExpressions {
+	t.Helper()
+
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	return filters.UniqueGitFilters()
+}
+
+// metricCounts reads back each counter the console metric exporter wrote into buf.
+func metricCounts(t *testing.T, buf *bytes.Buffer) map[string]int64 {
+	t.Helper()
+
+	type exported struct {
+		ScopeMetrics []struct {
+			Metrics []struct {
+				Name string `json:"Name"`
+				Data struct {
+					DataPoints []struct {
+						Value int64 `json:"Value"`
+					} `json:"DataPoints"`
+				} `json:"Data"`
+			} `json:"Metrics"`
+		} `json:"ScopeMetrics"`
+	}
+
+	counts := map[string]int64{}
+
+	dec := json.NewDecoder(buf)
+	for dec.More() {
+		var e exported
+
+		require.NoError(t, dec.Decode(&e))
+
+		for _, scope := range e.ScopeMetrics {
+			for _, metric := range scope.Metrics {
+				for _, point := range metric.Data.DataPoints {
+					counts[metric.Name] = point.Value
+				}
+			}
+		}
+	}
+
+	return counts
+}
+
+// memRepoVenv returns a venv with an in-memory repository at root, answered by [memRepoHandler].
+func memRepoVenv(t *testing.T, root, diff string, other vexec.Handler) *venv.Venv {
+	t.Helper()
+
+	fsys := venvtest.NewFS(t, root, map[string]string{".git": "gitdir: /elsewhere\n"})
+
+	return venvtest.New().WithFS(fsys).WithHandler(memRepoHandler(diff, other))
+}
+
+// memRepoHandler answers git diff with diff, git ls-tree with an empty tree, and anything else with other.
+func memRepoHandler(diff string, other vexec.Handler) vexec.Handler {
+	return func(ctx context.Context, inv vexec.Invocation) vexec.Result {
+		switch {
+		case slices.Contains(inv.Args, "diff"):
+			return vexec.Result{Stdout: []byte(diff)}
+		case slices.Contains(inv.Args, "ls-tree"):
+			return vexec.Result{}
+		}
+
+		return other(ctx, inv)
+	}
+}
+
+// noopGit succeeds at every command with no output.
+func noopGit(context.Context, vexec.Invocation) vexec.Result {
+	return vexec.Result{}
+}
+
+// worktreesAt returns a Worktrees for repo with one materialized worktree at path.
+func worktreesAt(repo, path string) *worktrees.Worktrees {
+	return &worktrees.Worktrees{
+		OriginalWorkingDir: repo,
+		WorktreePairs: map[string]*worktrees.WorktreePair{
+			"pair": {ToWorktree: worktrees.Worktree{Ref: "HEAD", Path: path}},
+		},
+	}
 }
 
 // treePaths returns the paths of a reference, as [git.GitRunner.LsTreeNames]
