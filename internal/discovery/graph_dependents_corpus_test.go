@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -84,7 +85,7 @@ func (tc *dependentsCase) run(t *testing.T) []string {
 		d = d.WithNoHidden()
 	}
 
-	components, err := d.Discover(t.Context(), l, v, opts)
+	components, err := d.Discover(config.WithCaches(t.Context()), l, v, opts)
 	require.NoError(t, err)
 
 	paths := components.Paths()

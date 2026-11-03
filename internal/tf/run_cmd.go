@@ -112,7 +112,11 @@ func RunCommandWithOutput(
 		code := 0
 
 		if err != nil {
-			code, _ = util.GetExitCode(err)
+			code = 1
+
+			if exitCode, codeErr := util.GetExitCode(err); codeErr == nil {
+				code = exitCode
+			}
 		}
 
 		if exitCode := DetailedExitCodeFromContext(ctx); exitCode != nil {

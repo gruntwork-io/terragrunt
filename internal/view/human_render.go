@@ -1,10 +1,10 @@
 package view
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
-	"sort"
+	"slices"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -19,19 +19,26 @@ const (
 
 	// ansiReset clears any pending styling so that subsequent output is not
 	// tinted by ANSI codes inherited from earlier writers (notably the
-	// Terraform UI helper).
+	// OpenTofu/Terraform UI helper).
 	ansiReset = "\x1b[0m"
 )
 
 var (
-	redStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	yellowStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	boldStyle          = lipgloss.NewStyle().Bold(true)
-	boldRedStyle       = boldStyle.Foreground(lipgloss.Color("1"))
-	boldYellowStyle    = boldStyle.Foreground(lipgloss.Color("3"))
-	darkGrayStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	underlineWhiteText = lipgloss.NewStyle().Underline(true).Foreground(lipgloss.Color("7"))
+	boldStyle       = lipgloss.NewStyle().Bold(true)
+	boldRedStyle    = boldStyle.Foreground(lipgloss.Color("1"))
+	boldYellowStyle = boldStyle.Foreground(lipgloss.Color("3"))
+	boldBlueStyle   = boldStyle.Foreground(lipgloss.Color("4"))
 )
+
+// MissingSnippetError reports a diagnostic that points at a position in Filename without the source
+// snippet the human rendering draws under it.
+type MissingSnippetError struct {
+	Filename string
+}
+
+func (err MissingSnippetError) Error() string {
+	return fmt.Sprintf("diagnostic points into %s but has no source snippet to show", err.Filename)
+}
 
 type HumanRender struct {
 	width        int
@@ -75,60 +82,65 @@ func (render *HumanRender) ShowConfigPath(filenames []string) (string, error) {
 	return buf.String(), nil
 }
 
+// Diagnostics formats diags one after another, as [HumanRender.Diagnostic] formats each.
+//
+// Returns [MissingSnippetError] when one of diags has a Range and no Snippet, before formatting any.
 func (render *HumanRender) Diagnostics(diags diagnostic.Diagnostics) (string, error) {
+	for _, diag := range diags {
+		if diag.Range != nil && diag.Snippet == nil {
+			return "", MissingSnippetError{Filename: diag.Range.Filename}
+		}
+	}
+
 	var buf bytes.Buffer
 
 	for _, diag := range diags {
-		str, err := render.Diagnostic(diag)
-		if err != nil {
-			return "", err
-		}
-
-		if str != "" {
-			buf.WriteString(str)
-			buf.WriteByte('\n')
-		}
+		buf.WriteString(render.Diagnostic(diag))
+		buf.WriteByte('\n')
 	}
 
 	return buf.String(), nil
 }
 
-// Diagnostic formats a single diagnostic message.
-func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, error) {
-	var buf bytes.Buffer
+// Diagnostic formats a single diagnostic message, pointing at the source it reports.
+//
+// These diagnostics are formatted like so:
+//
+//	error: Missing dependency
+//	 --> app/terragrunt.hcl:2:17
+//	  |
+//	2 |   config_path = "../db"
+//	  |                 ^^^^^^^ This directory does not exist.
+//
+// The first line of the detail sits beside the pointer when it fits the terminal width. The rest of the
+// detail follows the source on lines that start with `=`, as does a first line that does not fit.
+//
+// Panics when diag has a Range and no Snippet. [HumanRender.Diagnostics] returns [MissingSnippetError]
+// for such a diagnostic first, and [diagnostic.NewDiagnostic] never builds one.
+func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) string {
+	if diag.Range != nil && diag.Snippet == nil {
+		panic("view: Diagnostic called with a Range and no Snippet; Diagnostics rejects that first")
+	}
 
-	// these leftRule* variables are markers for the beginning of the lines
-	// containing the diagnostic that are intended to help sighted users
-	// better understand the information hierarchy when diagnostics appear
-	// alongside other information or alongside other diagnostics.
-	//
-	// Without this, it seems (based on folks sharing incomplete messages when
-	// asking questions, or including extra content that's not part of the
-	// diagnostic) that some readers have trouble easily identifying which
-	// text belongs to the diagnostic and which does not.
 	var (
-		leftRuleLine, leftRuleStart, leftRuleEnd string
-		leftRuleWidth                            int // in visual character cells
+		buf   strings.Builder
+		style = &boldStyle
 	)
 
 	switch hcl.DiagnosticSeverity(diag.Severity) {
 	case hcl.DiagError:
-		buf.WriteString(render.styled(&boldRedStyle, "Error: "))
-		leftRuleLine = render.styled(&redStyle, "│") + " "
-		leftRuleStart = render.styled(&redStyle, "╷")
-		leftRuleEnd = render.styled(&redStyle, "╵")
-		leftRuleWidth = 2
+		style = &boldRedStyle
+
+		buf.WriteString(render.styled(style, "error"))
+		buf.WriteString(render.styled(&boldStyle, ": "))
 	case hcl.DiagWarning:
-		buf.WriteString(render.styled(&boldYellowStyle, "Warning: "))
-		leftRuleLine = render.styled(&yellowStyle, "│") + " "
-		leftRuleStart = render.styled(&yellowStyle, "╷")
-		leftRuleEnd = render.styled(&yellowStyle, "╵")
-		leftRuleWidth = 2
+		style = &boldYellowStyle
+
+		buf.WriteString(render.styled(style, "warning"))
+		buf.WriteString(render.styled(&boldStyle, ": "))
 	case hcl.DiagInvalid:
 		fallthrough
 	default:
-		// Clear out any coloring that might be applied by Terraform's UI helper,
-		// so our result is not context-sensitive.
 		buf.WriteByte('\n')
 
 		if !render.disableColor {
@@ -136,205 +148,275 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 		}
 	}
 
-	// We don't wrap the summary, since we expect it to be terse, and since
-	// this is where we put the text of a native Go error it may not always
-	// be pure text that lends itself well to word-wrapping.
-	if _, err := fmt.Fprintf(&buf, "%s\n\n", render.styled(&boldStyle, diag.Summary)); err != nil {
-		return "", err
-	}
+	buf.WriteString(render.styled(&boldStyle, diag.Summary))
+	buf.WriteByte('\n')
 
-	sourceSnippets, err := render.SourceSnippets(diag)
-	if err != nil {
-		return "", err
-	}
+	source := render.source(diag, style)
 
-	buf.WriteString(sourceSnippets)
+	buf.WriteString(source.text)
+	buf.WriteString(render.notes(diag, source))
 
-	if diag.Detail != "" {
-		paraWidth := render.width - leftRuleWidth - 1 // leave room for the left rule
-		if paraWidth > 0 {
-			lines := strings.SplitSeq(diag.Detail, "\n")
-			for line := range lines {
-				if !strings.HasPrefix(line, " ") {
-					line = wordwrap.WrapString(line, uint(paraWidth))
-				}
-
-				if _, err := fmt.Fprintf(&buf, "%s\n", line); err != nil {
-					return "", err
-				}
-			}
-		} else {
-			if _, err := fmt.Fprintf(&buf, "%s\n", diag.Detail); err != nil {
-				return "", err
-			}
-		}
-	}
-
-	// Before we return, we'll finally add the left rule prefixes to each
-	// line so that the overall message is visually delimited from what's
-	// around it. We'll do that by scanning over what we already generated
-	// and adding the prefix for each line.
-	var ruleBuf strings.Builder
-
-	sc := bufio.NewScanner(&buf)
-
-	ruleBuf.WriteString(leftRuleStart)
-	ruleBuf.WriteByte('\n')
-
-	for sc.Scan() {
-		prefix := leftRuleLine
-
-		line := sc.Text()
-		if line == "" {
-			// Don't print the space after the line if there would be nothing
-			// after it anyway.
-			prefix = strings.TrimSpace(prefix)
-		}
-
-		ruleBuf.WriteString(prefix)
-		ruleBuf.WriteString(line)
-		ruleBuf.WriteByte('\n')
-	}
-
-	ruleBuf.WriteString(leftRuleEnd)
-
-	return ruleBuf.String(), nil
+	return buf.String()
 }
 
-func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, error) {
+// renderedSource is the source excerpt of a diagnostic.
+type renderedSource struct {
+	// text is the rendered location and source lines.
+	text string
+	// gutter is the width of the line number column.
+	gutter int
+	// labelShown reports whether the first line of the detail is beside the pointer.
+	labelShown bool
+}
+
+// source renders the location of diag and the source lines it points at.
+func (render *HumanRender) source(
+	diag *diagnostic.Diagnostic,
+	pointerStyle *lipgloss.Style,
+) renderedSource {
 	// [diagnostic.NewDiagnostic] leaves Range nil for an HCL diagnostic that has no
 	// Subject, meaning it points at no position in the configuration.
 	if diag.Range == nil {
-		return "", nil
-	}
-
-	// [diagnostic.NewDiagnostic] fills Range and Snippet together, so only a
-	// diagnostic built elsewhere reaches here with a position and no snippet.
-	if diag.Snippet == nil {
-		return fmt.Sprintf(
-			"  on %s line %d:\n  (source code not available)\n",
-			diag.Range.Filename,
-			diag.Range.Start.Line,
-		), nil
+		return renderedSource{gutter: 1}
 	}
 
 	var (
-		buf     = new(bytes.Buffer)
-		snippet = diag.Snippet
-		code    = snippet.Code
+		buf      strings.Builder
+		snippet  = diag.Snippet
+		lastLine = snippet.StartLine + strings.Count(snippet.Code, "\n")
+		gutter   = len(strconv.Itoa(lastLine))
 	)
 
-	var contextStr string
-	if snippet.Context != "" {
-		contextStr = ", in " + snippet.Context
-	}
+	margin := strings.Repeat(" ", gutter)
 
-	if _, err := fmt.Fprintf(
-		buf,
-		"  on %s line %d%s:\n",
+	fmt.Fprintf(
+		&buf,
+		"%s%s %s:%d:%d\n",
+		margin,
+		render.styled(&boldBlueStyle, "-->"),
 		diag.Range.Filename,
 		diag.Range.Start.Line,
-		contextStr,
-	); err != nil {
-		return "", err
+		diag.Range.Start.Column,
+	)
+
+	bar := render.styled(&boldBlueStyle, "|")
+
+	fmt.Fprintf(&buf, "%s %s\n", margin, bar)
+
+	var (
+		lines    = strings.Split(snippet.Code, "\n")
+		pointers = sourcePointers(
+			lines,
+			snippet.HighlightStartOffset,
+			snippet.HighlightEndOffset,
+		)
+		detail, _, _ = strings.Cut(diag.Detail, "\n")
+		labelAt      = -1
+		shown        bool
+	)
+
+	for i, pointer := range pointers {
+		if pointer.carets != "" {
+			labelAt = i
+		}
 	}
 
-	// Split the snippet and render the highlighted section with underlines
-	start := snippet.HighlightStartOffset
-	end := snippet.HighlightEndOffset
-
-	// Only buggy diagnostics can have an end range before the start, but
-	// we need to ensure we don't crash here if that happens.
-	if end < start {
-		end = min(start+1, len(code))
-	}
-
-	// If either start or end is out of range for the code buffer then
-	// we'll cap them at the bounds just to avoid a panic, although
-	// this would happen only if there's a bug in the code generating
-	// the snippet objects.
-	if start < 0 {
-		start = 0
-	} else if start > len(code) {
-		start = len(code)
-	}
-
-	if end < 0 {
-		end = 0
-	} else if end > len(code) {
-		end = len(code)
-	}
-
-	before, highlight, after := code[0:start], code[start:end], code[end:]
-	code = before + render.styled(&underlineWhiteText, highlight) + after
-
-	// Split the snippet into lines and render one at a time
-	lines := strings.Split(code, "\n")
 	for i, line := range lines {
-		if _, err := fmt.Fprintf(
-			buf, "%4d: %s\n",
-			snippet.StartLine+i,
-			line,
-		); err != nil {
-			return "", err
+		number := fmt.Sprintf("%*d", gutter, snippet.StartLine+i)
+
+		fmt.Fprintf(&buf, "%s %s %s\n", render.styled(&boldBlueStyle, number), bar, line)
+
+		pointer := pointers[i]
+		if pointer.carets == "" {
+			continue
+		}
+
+		label := ""
+
+		if i == labelAt && render.fitsBeside(gutter, pointer, detail) {
+			label = " " + detail
+			shown = true
+		}
+
+		fmt.Fprintf(
+			&buf,
+			"%s %s %s%s\n",
+			margin,
+			bar,
+			pointer.padding,
+			render.styled(pointerStyle, pointer.carets+label),
+		)
+	}
+
+	return renderedSource{text: buf.String(), gutter: gutter, labelShown: shown}
+}
+
+// fitsBeside reports whether label fits on the pointer line within the terminal width.
+func (render *HumanRender) fitsBeside(gutter int, pointer sourcePointer, label string) bool {
+	if label == "" {
+		return false
+	}
+
+	const separators = len(" | ") + len(" ")
+
+	used := gutter + separators + lipgloss.Width(pointer.padding) + len(pointer.carets)
+
+	return used+lipgloss.Width(label) <= render.width
+}
+
+// notes renders what follows the source: the part of the detail that is not beside the pointer, then the
+// function call and the expression values that led to the diagnostic.
+func (render *HumanRender) notes(diag *diagnostic.Diagnostic, source renderedSource) string {
+	var notes []string
+
+	detail := diag.Detail
+	if source.labelShown {
+		_, detail, _ = strings.Cut(detail, "\n")
+	}
+
+	if detail != "" {
+		notes = append(notes, detail)
+	}
+
+	notes = append(notes, snippetNotes(diag.Snippet)...)
+	if len(notes) == 0 {
+		return ""
+	}
+
+	var (
+		buf    strings.Builder
+		margin = strings.Repeat(" ", source.gutter)
+		indent = margin + "   "
+	)
+
+	if diag.Snippet != nil {
+		fmt.Fprintf(&buf, "%s %s\n", margin, render.styled(&boldBlueStyle, "|"))
+	}
+
+	for _, note := range notes {
+		prefix := margin + " " + render.styled(&boldBlueStyle, "=") + " "
+
+		for _, line := range render.wrap(note, len(indent)) {
+			buf.WriteString(strings.TrimRight(prefix+line, " "))
+			buf.WriteByte('\n')
+
+			prefix = indent
 		}
 	}
 
-	if len(snippet.Values) > 0 ||
-		(snippet.FunctionCall != nil && snippet.FunctionCall.Signature != nil) {
-		// The diagnostic may also have information about the dynamic
-		// values of relevant variables at the point of evaluation.
-		// This is particularly useful for expressions that get evaluated
-		// multiple times with different values, such as blocks using
-		// "count" and "for_each", or within "for" expressions.
-		values := make([]diagnostic.ExpressionValue, len(snippet.Values))
-		copy(values, snippet.Values)
-		sort.Slice(values, func(i, j int) bool {
-			return values[i].Traversal < values[j].Traversal
-		})
+	return buf.String()
+}
 
-		fmt.Fprintf(buf, "    %s\n", render.styled(&darkGrayStyle, "├────────────────"))
-
-		if callInfo := snippet.FunctionCall; callInfo != nil && callInfo.Signature != nil {
-			if _, err := fmt.Fprintf(buf, "    %s while calling %s(",
-				render.styled(&darkGrayStyle, "│"),
-				render.styled(&boldStyle, callInfo.CalledAs),
-			); err != nil {
-				return "", err
-			}
-
-			for i, param := range callInfo.Signature.Params {
-				if i > 0 {
-					buf.WriteString(", ")
-				}
-
-				buf.WriteString(param.Name)
-			}
-
-			if param := callInfo.Signature.VariadicParam; param != nil {
-				if len(callInfo.Signature.Params) > 0 {
-					buf.WriteString(", ")
-				}
-
-				buf.WriteString(param.Name)
-				buf.WriteString("...")
-			}
-
-			buf.WriteString(")\n")
-		}
-
-		for _, value := range values {
-			if _, err := fmt.Fprintf(buf, "    %s %s %s\n",
-				render.styled(&darkGrayStyle, "│"),
-				render.styled(&boldStyle, value.Traversal),
-				value.Statement,
-			); err != nil {
-				return "", err
-			}
-		}
+// snippetNotes returns the function call and the expression values that snippet records, one per note.
+func snippetNotes(snippet *diagnostic.Snippet) []string {
+	if snippet == nil {
+		return nil
 	}
 
-	buf.WriteByte('\n')
+	var notes []string
 
-	return buf.String(), nil
+	if call := snippet.FunctionCall; call != nil && call.Signature != nil {
+		notes = append(notes, "while calling "+callSignature(call))
+	}
+
+	values := slices.Clone(snippet.Values)
+	slices.SortFunc(values, func(a, b diagnostic.ExpressionValue) int {
+		return strings.Compare(a.Traversal, b.Traversal)
+	})
+
+	for _, value := range values {
+		notes = append(notes, value.Traversal+" "+value.Statement)
+	}
+
+	return notes
+}
+
+// wrap splits text into lines that fit the terminal width after an indent. A line that starts with a
+// space is preformatted and stays as it is.
+func (render *HumanRender) wrap(text string, indent int) []string {
+	width := render.width - indent
+
+	var lines []string
+
+	for line := range strings.SplitSeq(text, "\n") {
+		if width <= 0 || strings.HasPrefix(line, " ") {
+			lines = append(lines, line)
+
+			continue
+		}
+
+		lines = append(lines, strings.Split(wordwrap.WrapString(line, uint(width)), "\n")...)
+	}
+
+	return lines
+}
+
+// callSignature returns the name a function was called as with its parameter names.
+func callSignature(call *diagnostic.FunctionCall) string {
+	params := make([]string, 0, len(call.Signature.Params)+1)
+
+	for _, param := range call.Signature.Params {
+		params = append(params, param.Name)
+	}
+
+	if param := call.Signature.VariadicParam; param != nil {
+		params = append(params, param.Name+"...")
+	}
+
+	return call.CalledAs + "(" + strings.Join(params, ", ") + ")"
+}
+
+// sourcePointer underlines part of a source line. It has no carets for a line that is not pointed at.
+type sourcePointer struct {
+	padding string
+	carets  string
+}
+
+// sourcePointers returns, for each line, the pointer that underlines the part of it between the offsets
+// start and end into the joined lines. An end before start points at start.
+func sourcePointers(lines []string, start, end int) []sourcePointer {
+	pointers := make([]sourcePointer, len(lines))
+	lineStart := 0
+	end = max(end, start)
+
+	for i, line := range lines {
+		lineEnd := lineStart + len(line)
+		from := min(max(start, lineStart), lineEnd)
+		to := min(max(end, lineStart), lineEnd)
+
+		pointsPastEnd := from == to && start >= lineStart && start <= lineEnd
+
+		if trimmed := strings.TrimLeft(line[from-lineStart:to-lineStart], " \t"); trimmed != "" {
+			from = to - len(trimmed)
+		}
+
+		if from < to || pointsPastEnd {
+			carets := max(lipgloss.Width(line[from-lineStart:to-lineStart]), 1)
+			pointers[i] = sourcePointer{
+				padding: pointerPadding(line[:from-lineStart]),
+				carets:  strings.Repeat("^", carets),
+			}
+		}
+
+		lineStart = lineEnd + len("\n")
+	}
+
+	return pointers
+}
+
+// pointerPadding returns whitespace as wide as prefix. Tabs stay tabs so the carets line up at any tab width.
+func pointerPadding(prefix string) string {
+	var padding strings.Builder
+
+	for _, r := range prefix {
+		if r == '\t' {
+			padding.WriteRune(r)
+
+			continue
+		}
+
+		padding.WriteString(strings.Repeat(" ", lipgloss.Width(string(r))))
+	}
+
+	return padding.String()
 }

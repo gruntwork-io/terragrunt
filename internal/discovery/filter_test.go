@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -30,7 +31,7 @@ func TestDiscovery_GraphExpressionFilters(t *testing.T) {
 
 	runner = runner.WithWorkDir(tmpDir)
 
-	err = runner.Init(t.Context())
+	err = runner.Init(config.WithCaches(t.Context()))
 	require.NoError(t, err)
 
 	// Create dependency graph: vpc -> db -> app
@@ -70,7 +71,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	tests := []struct {
 		name          string
@@ -121,7 +122,7 @@ func TestDiscovery_GraphExpressionFilters_ComplexGraph(t *testing.T) {
 
 	runner = runner.WithWorkDir(tmpDir)
 
-	err = runner.Init(t.Context())
+	err = runner.Init(config.WithCaches(t.Context()))
 	require.NoError(t, err)
 
 	// Create complex graph: vpc -> [db, cache] -> app
@@ -170,7 +171,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	t.Run("dependency traversal from app finds all dependencies", func(t *testing.T) {
 		t.Parallel()
@@ -228,7 +229,7 @@ dependency "db" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	t.Run("graph expression only discovers dependencies of matching component", func(t *testing.T) {
 		t.Parallel()
@@ -293,7 +294,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	t.Run("additional filters applied after graph discovery", func(t *testing.T) {
 		t.Parallel()
@@ -410,7 +411,7 @@ locals {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	tests := []struct {
 		name          string
@@ -531,7 +532,7 @@ locals {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Test with absolute path filter
 	filterQueries := []string{"reading=" + sharedFile}
@@ -657,7 +658,7 @@ unit "test" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	tests := []struct {
 		name          string
@@ -781,7 +782,7 @@ func TestDiscovery_FilterEdgeCases(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	tests := []struct {
 		name       string
@@ -908,7 +909,7 @@ func TestDiscovery_FilterErrorHandling(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -986,7 +987,7 @@ dependency "external" {
 		RootWorkingDir: internalDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	t.Run("external=true filter", func(t *testing.T) {
 		t.Parallel()
@@ -1036,7 +1037,7 @@ func TestDiscovery_DependentDiscovery_Standalone(t *testing.T) {
 
 	runner = runner.WithWorkDir(tmpDir)
 
-	err = runner.Init(t.Context())
+	err = runner.Init(config.WithCaches(t.Context()))
 	require.NoError(t, err)
 
 	// Create dependency graph: app -> db -> vpc
@@ -1076,7 +1077,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use ...vpc to find all dependents of vpc
 	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
@@ -1108,7 +1109,7 @@ func TestDiscovery_DependentDiscovery_ExcludeTarget(t *testing.T) {
 
 	runner = runner.WithWorkDir(tmpDir)
 
-	err = runner.Init(t.Context())
+	err = runner.Init(config.WithCaches(t.Context()))
 	require.NoError(t, err)
 
 	// Create dependency graph: app -> vpc
@@ -1141,7 +1142,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use ...^vpc to find dependents but exclude the target (vpc)
 	filters, err := filter.ParseFilterQueries(l, []string{"...^vpc"})
@@ -1179,7 +1180,7 @@ func TestDiscovery_DependencyDiscovery_ExcludeTarget(t *testing.T) {
 
 	runner = runner.WithWorkDir(tmpDir)
 
-	err = runner.Init(t.Context())
+	err = runner.Init(config.WithCaches(t.Context()))
 	require.NoError(t, err)
 
 	// Create dependency graph: app -> db -> vpc
@@ -1218,7 +1219,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use ^app... to find dependencies but exclude the target (app)
 	filters, err := filter.ParseFilterQueries(l, []string{"^app..."})
@@ -1254,7 +1255,7 @@ func TestDiscovery_DependentDiscovery_Bidirectional(t *testing.T) {
 
 	runner = runner.WithWorkDir(tmpDir)
 
-	err = runner.Init(t.Context())
+	err = runner.Init(config.WithCaches(t.Context()))
 	require.NoError(t, err)
 
 	// Create dependency graph: app -> db -> vpc
@@ -1293,7 +1294,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use ...db... to find both dependencies and dependents of db
 	filters, err := filter.ParseFilterQueries(l, []string{"...db..."})
@@ -1327,7 +1328,7 @@ func TestDiscovery_DependentDiscovery_OutsideWorkingDir(t *testing.T) {
 
 	runner = runner.WithWorkDir(tmpDir)
 
-	err = runner.Init(t.Context())
+	err = runner.Init(config.WithCaches(t.Context()))
 	require.NoError(t, err)
 
 	// Create structure:
@@ -1371,7 +1372,7 @@ dependency "vpc" {
 		RootWorkingDir: appDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use ...vpc to find dependents of vpc
 	// consumer is outside the working directory (app/) but should be found
@@ -1413,7 +1414,7 @@ func TestDiscovery_DependentDiscovery_OutsideWorkingDir_MultipleLevels(t *testin
 
 	runner = runner.WithWorkDir(tmpDir)
 
-	err = runner.Init(t.Context())
+	err = runner.Init(config.WithCaches(t.Context()))
 	require.NoError(t, err)
 
 	// Create structure:
@@ -1467,7 +1468,7 @@ dependency "api" {
 		RootWorkingDir: infraDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use ...vpc to find dependents of vpc
 	// api and frontend are both outside the working directory (infra/)
@@ -1512,7 +1513,7 @@ func TestDiscovery_DependentDiscovery_DirectDependentOnly(t *testing.T) {
 
 	runner = runner.WithWorkDir(tmpDir)
 
-	err = runner.Init(t.Context())
+	err = runner.Init(config.WithCaches(t.Context()))
 	require.NoError(t, err)
 
 	// Create dependency graph: api -> db, web -> db
@@ -1554,7 +1555,7 @@ dependency "db" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use ...db to find all dependents of db
 	filters, err := filter.ParseFilterQueries(l, []string{"...db"})
@@ -1631,7 +1632,7 @@ func TestDiscovery_NegatedGraphFilters(t *testing.T) {
 
 			runner = runner.WithWorkDir(tmpDir)
 
-			err = runner.Init(t.Context())
+			err = runner.Init(config.WithCaches(t.Context()))
 			require.NoError(t, err)
 
 			vpcDir := filepath.Join(tmpDir, "vpc")
@@ -1669,7 +1670,7 @@ dependency "vpc" {
 				RootWorkingDir: tmpDir,
 			}
 
-			ctx := t.Context()
+			ctx := config.WithCaches(t.Context())
 
 			filters, err := filter.ParseFilterQueries(l, tt.filters)
 			require.NoError(t, err)

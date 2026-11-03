@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -55,7 +56,7 @@ dependencies {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithRelationships()
 
-	components, err := d.Discover(t.Context(), logger.CreateLogger(), v, opts)
+	components, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 	require.NoError(t, err)
 
 	app := components.FilterByPath(appDir)

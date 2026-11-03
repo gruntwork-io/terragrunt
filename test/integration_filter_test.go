@@ -1439,11 +1439,12 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 		assert.ElementsMatch(t, []string{"consumer", "dep"}, strings.Fields(stdout), cmd)
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt hcl validate --no-color --working-dir "+tmpDir,
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `dependency "dep"`)
-	assert.Contains(t, err.Error(), "does not exist")
+	assert.Contains(t, stdout, "error: Missing dependency")
+	assert.Contains(t, stdout, " --> "+filepath.Join("consumer", "terragrunt.hcl")+":2:")
+	assert.Contains(t, stdout, "This directory does not exist.")
 }

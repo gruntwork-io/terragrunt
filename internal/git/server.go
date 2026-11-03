@@ -25,6 +25,7 @@ const (
 type Server struct {
 	ln          net.Listener
 	srv         *http.Server
+	serveErrCh  chan error
 	projectRoot string // root temp dir removed in Close
 	bareDir     string // projectRoot/repo.git — the repo served over HTTP
 	workDir     string // non-bare clone used for mutations
@@ -343,7 +344,13 @@ func (s *Server) Start(ctx context.Context) (string, error) {
 		mounts:      s.mounts,
 	}}
 
-	go func() { _ = s.srv.Serve(ln) }()
+	s.serveErrCh = make(chan error, 1)
+
+	go func() {
+		s.serveErrCh <- s.srv.Serve(ln)
+
+		close(s.serveErrCh)
+	}()
 
 	return "http://" + ln.Addr().String() + "/" + filepath.Base(s.bareDir), nil
 }
@@ -431,6 +438,10 @@ func (s *Server) Close() (retErr error) {
 		// http.Server.Close closes the listener; don't close s.ln separately.
 		if err := s.srv.Close(); err != nil {
 			retErr = fmt.Errorf("close http server: %w", err)
+		}
+
+		if err := <-s.serveErrCh; err != nil && !errors.Is(err, http.ErrServerClosed) && retErr == nil {
+			retErr = fmt.Errorf("serve http: %w", err)
 		}
 	}
 

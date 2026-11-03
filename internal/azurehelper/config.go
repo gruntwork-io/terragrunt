@@ -480,7 +480,11 @@ func firstEnv(env map[string]string, keys ...string) string {
 // value yields false, matching the convention used by the OpenTofu azurerm
 // backend for ARM_USE_MSI / ARM_USE_OIDC.
 func parseBool(s string) bool {
-	v, _ := strconv.ParseBool(strings.TrimSpace(s))
+	v, err := strconv.ParseBool(strings.TrimSpace(s))
+	if err != nil {
+		return false
+	}
+
 	return v
 }
 

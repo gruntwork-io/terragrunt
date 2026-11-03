@@ -282,9 +282,10 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	// Fields that are intentionally excluded from CtyTerraformConfig because
 	// they use omit-when-nil semantics via ctyObjectAddField.
 	omitWhenNilFields := map[string]bool{
-		"UpdateSourceWithCAS": true,
-		"Mutable":             true,
-		"Version":             true,
+		"UpdateSourceWithCAS":  true,
+		"Mutable":              true,
+		"Version":              true,
+		"NoDotTerragruntCache": true,
 	}
 
 	var terraformConfigFields []string
@@ -460,6 +461,60 @@ func structFieldNames(v any) []string {
 	}
 
 	return names
+}
+
+func TestTerraformConfigAsCtyNoDotTerragruntCache(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		value *bool
+		want  cty.Value
+		name  string
+	}{
+		{
+			name:  "absent is omitted from the terraform object",
+			value: nil,
+			want:  cty.NilVal,
+		},
+		{
+			name:  "true is rendered",
+			value: new(true),
+			want:  cty.True,
+		},
+		{
+			name:  "false is rendered",
+			value: new(false),
+			want:  cty.False,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{NoDotTerragruntCache: tc.value},
+			}
+
+			ctyVal, err := config.TerragruntConfigAsCty(&cfg)
+			require.NoError(t, err)
+
+			terraform := ctyVal.GetAttr(config.MetadataTerraform)
+
+			if tc.want == cty.NilVal {
+				assert.False(
+					t,
+					terraform.Type().HasAttribute("no_dot_terragrunt_cache"),
+					"an unset no_dot_terragrunt_cache must not surface as null in rendered output",
+				)
+
+				return
+			}
+
+			require.True(t, terraform.Type().HasAttribute("no_dot_terragrunt_cache"))
+			assert.True(t, tc.want.RawEquals(terraform.GetAttr("no_dot_terragrunt_cache")))
+		})
+	}
 }
 
 func TestTerragruntConfigAsCtyEngineWithoutMeta(t *testing.T) {

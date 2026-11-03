@@ -141,18 +141,18 @@ func notifyLoop(
 
 	frame := 0
 
-	writeSpinnerFrame(spinnerW, spinnerFrames[0], msgs.Working)
+	writeSpinnerFrame(l, spinnerW, spinnerFrames[0], msgs.Working)
 
 	frame++
 
 	for {
 		select {
 		case <-ticker.C:
-			writeSpinnerFrame(spinnerW, spinnerFrames[frame%len(spinnerFrames)], msgs.Working)
+			writeSpinnerFrame(l, spinnerW, spinnerFrames[frame%len(spinnerFrames)], msgs.Working)
 
 			frame++
 		case err := <-result:
-			clearSpinner(spinnerW, msgs.Working)
+			clearSpinner(l, spinnerW, msgs.Working)
 
 			if err == nil {
 				logDone(l, msgs.Done, start)
@@ -160,7 +160,7 @@ func notifyLoop(
 
 			return
 		case <-ctx.Done():
-			clearSpinner(spinnerW, msgs.Working)
+			clearSpinner(l, spinnerW, msgs.Working)
 
 			return
 		}
@@ -179,13 +179,17 @@ func logDone(l log.Logger, msg string, start time.Time) {
 }
 
 // writeSpinnerFrame writes a single spinner frame to the writer.
-func writeSpinnerFrame(w io.Writer, frame, msg string) {
-	_, _ = fmt.Fprintf(w, "\r%s %s", frame, msg)
+func writeSpinnerFrame(l log.Logger, w io.Writer, frame, msg string) {
+	if _, err := fmt.Fprintf(w, "\r%s %s", frame, msg); err != nil {
+		l.Debugf("Failed to write spinner frame: %v", err)
+	}
 }
 
 // clearSpinner overwrites the spinner line with spaces and returns the cursor to the start.
-func clearSpinner(w io.Writer, msg string) {
+func clearSpinner(l log.Logger, w io.Writer, msg string) {
 	blank := strings.Repeat(" ", len(msg)+spinnerLineOverhead)
 
-	_, _ = fmt.Fprintf(w, "\r%s\r", blank)
+	if _, err := fmt.Fprintf(w, "\r%s\r", blank); err != nil {
+		l.Debugf("Failed to clear spinner: %v", err)
+	}
 }

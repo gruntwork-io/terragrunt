@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -129,7 +130,7 @@ func discoverWithCountingFS(
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
-		Discover(t.Context(), l, v, opts)
+		Discover(config.WithCaches(t.Context()), l, v, opts)
 	require.NoError(t, err)
 
 	return components.Filter(component.UnitKind).Paths(), counting

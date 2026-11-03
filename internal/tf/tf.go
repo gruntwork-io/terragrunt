@@ -45,13 +45,13 @@ const (
 	FlagNameVersion          = "-version"
 	FlagNameJSON             = "-json"
 	FlagNameNoColor          = "-no-color"
-	// `apply -destroy` is alias for `destroy`
+	// FlagNameDestroy is the `-destroy` flag. `apply -destroy` is an alias for `destroy`.
 	FlagNameDestroy = "-destroy"
 
-	// `platform` is a flag used with the `providers lock` command.
+	// FlagNamePlatform is the `-platform` flag used with the `providers lock` command.
 	FlagNamePlatform = "-platform"
 
-	// `lockfile` is a flag used with the `init` command to control how the
+	// FlagNameLockfile is the `-lockfile` flag used with the `init` command to control how the
 	// dependency lock file is handled. The `readonly` mode tells OpenTofu/Terraform
 	// to fail rather than create or update `.terraform.lock.hcl`.
 	FlagNameLockfile     = "-lockfile"
@@ -61,8 +61,8 @@ const (
 	EnvNameTFPluginCacheDir = "TF_PLUGIN_CACHE_DIR"
 	EnvNameTFTokenFmt       = "TF_TOKEN_%s"
 	EnvNameTFVarFmt         = "TF_VAR_%s"
-	// `TF_CLI_ARGS` and `TF_CLI_ARGS_init` are read by OpenTofu/Terraform to inject
-	// extra arguments. The suffixed form applies only to the `init` command.
+	// EnvNameTFCLIArgs and EnvNameTFCLIArgsInit name `TF_CLI_ARGS` and `TF_CLI_ARGS_init`, which
+	// OpenTofu/Terraform read to inject extra arguments. The suffixed form applies only to the `init` command.
 	EnvNameTFCLIArgs     = "TF_CLI_ARGS"
 	EnvNameTFCLIArgsInit = "TF_CLI_ARGS_init"
 

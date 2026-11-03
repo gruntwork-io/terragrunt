@@ -1,4 +1,3 @@
-// common integration test functions
 package test_test
 
 import (
@@ -28,6 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -81,7 +81,7 @@ func runNetworkMirrorServer(
 
 	fs := http.FileServer(http.Dir(providerDir))
 
-	withGz := helpers.GzipHandler(http.StripPrefix(urlPrefix, fs))
+	withGz := helpers.GzipHandler(logger.CreateLogger(), http.StripPrefix(urlPrefix, fs))
 
 	mux.HandleFunc(urlPrefix, func(resp http.ResponseWriter, req *http.Request) {
 		if token != "" {

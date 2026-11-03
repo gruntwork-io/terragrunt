@@ -34,40 +34,6 @@ func TestRootFolder(t *testing.T) {
 	assert.Equal(t, "/", helpers.RootFolder)
 }
 
-func TestFileURL(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name     string
-		path     string
-		expected string
-	}{
-		{
-			name:     "rooted slash path",
-			path:     "/tmp/module",
-			expected: "file:///tmp/module",
-		},
-		{
-			name:     "drive letter path gets a leading slash",
-			path:     "C:/tmp/module",
-			expected: "file:///C:/tmp/module",
-		},
-		{
-			name:     "native separators become slashes",
-			path:     filepath.Join("C:"+string(filepath.Separator), "tmp", "module"),
-			expected: "file:///C:/tmp/module",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tc.expected, helpers.FileURL(tc.path))
-		})
-	}
-}
-
 func TestToSlashAll(t *testing.T) {
 	t.Parallel()
 

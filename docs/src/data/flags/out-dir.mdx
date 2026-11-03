@@ -26,6 +26,8 @@ Specifies where Terragrunt writes native OpenTofu/Terraform plan files for each 
 - If the directory does not exist, Terragrunt creates it.
 - Relative paths are resolved against the root working directory, and Terragrunt mirrors the unit path under this directory (e.g. `<out-dir>/<relative-unit-path>/tfplan.tfplan`).
 
+- A unit that a Git filter selects at a reference goes under a directory named for the reference, with `@` in front and every character other than a letter, digit, `-`, or `_` replaced by `_` (e.g. `<out-dir>/@HEAD_1/<relative-unit-path>/tfplan.tfplan` for `HEAD~1`). The same unit at two references in one run gets a file for each.
+
 <Aside type="caution">
 
 `--out-dir` controls **where** Terragrunt reads and writes per-unit plan files, but it does **not** restrict which units `run --all apply` discovers. If your plan was scoped with `--filter`, you must reuse the same `--filter` on

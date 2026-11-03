@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
@@ -74,7 +73,7 @@ func provisionS3ModuleArchive(t *testing.T, region, key string) string {
 	s3Client := helpers.CreateS3ClientForTest(t, region)
 
 	_, err := s3Client.CreateBucket(t.Context(), &s3.CreateBucketInput{
-		Bucket: aws.String(bucket),
+		Bucket: new(bucket),
 		CreateBucketConfiguration: &types.CreateBucketConfiguration{
 			LocationConstraint: types.BucketLocationConstraint(region),
 		},
@@ -89,8 +88,8 @@ func provisionS3ModuleArchive(t *testing.T, region, key string) string {
 
 	body := makeModuleArchive(t)
 	_, err = s3Client.PutObject(t.Context(), &s3.PutObjectInput{
-		Bucket:            aws.String(bucket),
-		Key:               aws.String(key),
+		Bucket:            new(bucket),
+		Key:               new(key),
 		Body:              bytes.NewReader(body),
 		ChecksumAlgorithm: types.ChecksumAlgorithmSha256,
 	})

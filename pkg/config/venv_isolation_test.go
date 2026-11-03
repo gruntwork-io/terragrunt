@@ -39,7 +39,7 @@ func TestRunCommandTraceParentLeavesCallerEnvWithRacing(t *testing.T) {
 	want := maps.Clone(v.Env)
 
 	ctx, pctx := newTestParsingContext(t, venvtest.Root("/repo/unit/terragrunt.hcl"))
-	ctx = contextWithTraceParent(config.WithConfigValues(ctx))
+	ctx = contextWithTraceParent(config.WithCaches(ctx))
 	l := logger.CreateLogger()
 
 	const calls = 8
@@ -229,7 +229,7 @@ terraform {
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
 	ctx, pctx := newTestParsingContext(t, consumerPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.AuthProviderCmd = isolationAuthCmd
 

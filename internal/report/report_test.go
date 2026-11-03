@@ -1200,13 +1200,13 @@ func TestSchemaIsValid(t *testing.T) {
 	assert.False(t, simple.Ended.IsZero())
 
 	// Verify complex run
-	complex := findRun("complex-run")
-	require.NotNil(t, complex)
-	assert.Equal(t, "failed", complex.Result)
-	assert.Equal(t, "run error", *complex.Reason)
-	assert.Equal(t, "some-error", *complex.Cause)
-	assert.False(t, complex.Started.IsZero())
-	assert.False(t, complex.Ended.IsZero())
+	complexResult := findRun("complex-run")
+	require.NotNil(t, complexResult)
+	assert.Equal(t, "failed", complexResult.Result)
+	assert.Equal(t, "run error", *complexResult.Reason)
+	assert.Equal(t, "some-error", *complexResult.Cause)
+	assert.False(t, complexResult.Started.IsZero())
+	assert.False(t, complexResult.Ended.IsZero())
 
 	// Verify excluded run
 	excluded := findRun("excluded-run")

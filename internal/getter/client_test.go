@@ -87,7 +87,7 @@ func TestGetAnyConvenience(t *testing.T) {
 		logger.CreateLogger(),
 		venvtest.NewWithOSFS(),
 		dst,
-		helpers.FileURL(src),
+		getter.FileURL(src).String(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	require.NoError(t, err)
@@ -110,12 +110,35 @@ func TestGetConvenience(t *testing.T) {
 		logger.CreateLogger(),
 		venvtest.NewWithOSFS(),
 		dst,
-		helpers.FileURL(src),
+		getter.FileURL(src).String(),
 		getter.WithFileCopy(getter.NewFileCopyGetter(vfs.NewOSFS())),
 	)
 	require.NoError(t, err)
 
 	assert.FileExists(t, filepath.Join(dst, "main.tf"))
+}
+
+// TestGetCopiesHiddenFilesByDefault pins that the default file getter copies
+// hidden files and directories, so a local git repository keeps its .git.
+func TestGetCopiesHiddenFilesByDefault(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+	src := venvtest.Root("/src/repo")
+	dst := venvtest.Root("/dst/repo")
+
+	require.NoError(t, v.FS.MkdirAll(filepath.Join(src, ".git"), 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(src, ".git", "config"), []byte("[core]\n"), 0o644))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(src, ".tflint.hcl"), []byte("# lint\n"), 0o644))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(src, "main.tf"), []byte("# main\n"), 0o644))
+
+	_, err := getter.Get(t.Context(), logger.CreateLogger(), v, dst, getter.FileURL(src).String())
+	require.NoError(t, err)
+
+	for _, name := range []string{filepath.Join(".git", "config"), ".tflint.hcl", "main.tf"} {
+		_, err := v.FS.Stat(filepath.Join(dst, name))
+		require.NoError(t, err, name)
+	}
 }
 
 // TestNewClientWithDecompressorsEmptyMap verifies that passing a non-nil empty

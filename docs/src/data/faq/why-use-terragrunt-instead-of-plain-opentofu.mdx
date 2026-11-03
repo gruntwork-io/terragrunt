@@ -66,7 +66,7 @@ Large runs fail for boring reasons: rate limits, eventual consistency, an API ha
 
 ## Authentication that differs by context
 
-Terragrunt can acquire credentials as part of a run rather than expecting them to already exist in the environment. It can [assume an IAM role](/features/units/authentication/) via `--iam-assume-role` or the `iam_role` attribute, including through OIDC. For anything more involved, [`--auth-provider-cmd`](/features/units/authentication/) runs a program of your choosing to produce credentials at runtime, which is how you give different units, accounts, and pipeline stages different roles: a read-only role on pull requests and a read-write role on merge, for example.
+Terragrunt can acquire credentials as part of a run rather than expecting them to already exist in the environment. It can [assume an IAM role](/features/units/authentication/aws/) via `--iam-assume-role` or the `iam_role` attribute, including through OIDC. For anything more involved, [`--auth-provider-cmd`](/features/units/authentication/#auth-provider-command) runs a program of your choosing to produce credentials at runtime, which is how you give different units, accounts, and pipeline stages different roles: a read-only role on pull requests and a read-write role on merge, for example.
 
 ## Caching
 

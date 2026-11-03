@@ -133,3 +133,30 @@ type erroringDetector struct{ err error }
 func (d erroringDetector) Detect(_, _ string) (string, bool, error) {
 	return "", false, d.err
 }
+
+func TestFileURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "rooted slash path", path: "/tmp/module", want: "file:///tmp/module"},
+		{name: "drive letter path gets a leading slash", path: "C:/tmp/module", want: "file:///C:/tmp/module"},
+		{
+			name: "native separators become slashes",
+			path: filepath.Join("C:"+string(filepath.Separator), "tmp", "module"),
+			want: "file:///C:/tmp/module",
+		},
+		{name: "a percent sign is escaped", path: "/tmp/100%/module", want: "file:///tmp/100%25/module"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, getter.FileURL(tc.path).String())
+		})
+	}
+}

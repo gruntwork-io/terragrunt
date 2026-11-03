@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -66,7 +67,7 @@ func TestRelationshipPhase_ConcurrentSharedDependencyWithRacing(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithRelationships()
 
-	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	sharedPath := filepath.Join(extDir, "shared")

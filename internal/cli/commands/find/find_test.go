@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -519,7 +520,7 @@ locals {
 			r, w, err := os.Pipe()
 			require.NoError(t, err)
 
-			err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+			err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return
@@ -581,7 +582,7 @@ dependency "target" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())
@@ -696,7 +697,7 @@ exclude {
 	var buf strings.Builder
 
 	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
 	var found find.FoundComponents
 
@@ -735,7 +736,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			opts.Format = tc.format
 
 			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
-			require.ErrorIs(t, find.Run(t.Context(), newTestLogger(t), v, opts), errWriteFailed)
+			require.ErrorIs(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts), errWriteFailed)
 		})
 	}
 }
@@ -780,7 +781,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
 
-			require.Error(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+			require.Error(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 			assert.Empty(t, buf.String())
 		})
 	}
@@ -839,7 +840,133 @@ exclude {
 	var buf strings.Builder
 
 	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
 	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
+}
+
+// TestRunFileDependency pins how find reports a `dependency` whose `config_path` names a configuration
+// file: the dependency is a unit at the path of that file, so it is not the unit in the directory the
+// file is in, and a filter for the dependents of that directory does not reach the dependent.
+//
+// This is deprecated functionality: a file `config_path` is undocumented and deprecated behind the
+// dependency-config-path-file strict control. This output stays as it is for backwards compatibility
+// through Terragrunt 1.x, including the dependents it leaves out.
+func TestRunFileDependency(t *testing.T) {
+	t.Parallel()
+
+	const (
+		fileDependency = "dependency \"db\" {\n  config_path = \"../db/custom.hcl\"\n}\n"
+		dirDependency  = "dependency \"db\" {\n  config_path = \"../db\"\n}\n"
+	)
+
+	testCases := []struct {
+		files   map[string]string
+		name    string
+		queries []string
+		want    find.FoundComponents
+	}{
+		{
+			name: "file dependency is listed at the path of the file",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+			},
+			want: find.FoundComponents{
+				{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []string{filepath.Join("db", "custom.hcl")},
+				},
+			},
+		},
+		{
+			name: "dependency filter reaches the file",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+			},
+			queries: []string{"{./app}..."},
+			want: find.FoundComponents{
+				{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []string{filepath.Join("db", "custom.hcl")},
+				},
+				{Type: component.UnitKind, Path: filepath.Join("db", "custom.hcl")},
+			},
+		},
+		{
+			name: "file dependency is not the unit in its directory",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+				"db/terragrunt.hcl":  "",
+			},
+			want: find.FoundComponents{
+				{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []string{filepath.Join("db", "custom.hcl")},
+				},
+				{Type: component.UnitKind, Path: "db"},
+			},
+		},
+		{
+			name: "dependents filter on the directory misses a file dependency",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+				"db/terragrunt.hcl":  "",
+			},
+			queries: []string{"...{./db}"},
+			want: find.FoundComponents{
+				{Type: component.UnitKind, Path: "db"},
+			},
+		},
+		{
+			name: "dependents filter on the directory reaches a directory dependency",
+			files: map[string]string{
+				"app/terragrunt.hcl": dirDependency,
+				"db/terragrunt.hcl":  "",
+			},
+			queries: []string{"...{./db}"},
+			want: find.FoundComponents{
+				{Type: component.UnitKind, Path: "app", Dependencies: []string{"db"}},
+				{Type: component.UnitKind, Path: "db"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/repo")
+			l := newTestLogger(t)
+
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			filters, err := filter.ParseFilterQueries(l, tc.queries)
+			require.NoError(t, err)
+
+			tgOpts.Filters = filters
+
+			opts := find.NewOptions(tgOpts)
+			opts.Format = find.FormatJSON
+			opts.Dependencies = true
+
+			var buf strings.Builder
+
+			v := venvtest.New().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
+			require.NoError(t, find.Run(config.WithCaches(t.Context()), l, v, opts))
+
+			var found find.FoundComponents
+
+			require.NoError(t, json.Unmarshal([]byte(buf.String()), &found))
+			assert.Equal(t, tc.want, found)
+		})
+	}
 }

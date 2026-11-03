@@ -330,6 +330,24 @@ func (err DependencyConfigNotFound) Error() string {
 	return err.Path + " does not exist"
 }
 
+// DependencyBlockError reports a failure in one dependency block of a configuration file.
+type DependencyBlockError struct {
+	// Err is what went wrong with the dependency.
+	Err error
+	// Name is the label of the dependency block.
+	Name string
+	// ConfigPath is the configuration file that declares the block.
+	ConfigPath string
+}
+
+func (err DependencyBlockError) Error() string {
+	return fmt.Sprintf("dependency %q in %s: %v", err.Name, err.ConfigPath, err.Err)
+}
+
+func (err DependencyBlockError) Unwrap() error {
+	return err.Err
+}
+
 // DependencyStateReadError reports a failure while reading a dependency's remote state body.
 type DependencyStateReadError struct {
 	// Err is the underlying reader failure.
@@ -514,6 +532,27 @@ func (err DuplicateDependencyConfigPathError) Error() string {
 	)
 }
 
+// DependencyConfigPathFileError reports a dependency block that sets config_path to a file. It
+// is returned when the dependency-config-path-file strict control is enabled, and its message
+// is logged as a warning otherwise.
+type DependencyConfigPathFileError struct {
+	// ConfigPath is the configuration file that declares the block.
+	ConfigPath string
+	// Address names the dependency block, as its label and any expansion key.
+	Address string
+	// DependencyPath is the config_path of the block, as written.
+	DependencyPath string
+}
+
+func (err DependencyConfigPathFileError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependency %s sets config_path to the file %s; set it to the directory of the unit or stack",
+		err.ConfigPath,
+		err.Address,
+		err.DependencyPath,
+	)
+}
+
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string
@@ -593,6 +632,20 @@ type TerraformSourceReferencesDependencyError struct {
 func (err TerraformSourceReferencesDependencyError) Error() string {
 	return fmt.Sprintf(
 		"terraform.source in %s cannot reference dependency outputs; the module source must be resolvable before dependencies are evaluated",
+		err.ConfigPath,
+	)
+}
+
+// ExcludeReferencesDependencyError is returned when an `exclude` block references the `dependency` namespace.
+// Discovery evaluates exclude blocks to build the run queue before any dependency has run, so the reference can
+// never be satisfied there.
+type ExcludeReferencesDependencyError struct {
+	ConfigPath string
+}
+
+func (err ExcludeReferencesDependencyError) Error() string {
+	return fmt.Sprintf(
+		"exclude block in %s cannot reference dependency outputs; exclude blocks are evaluated before dependencies run",
 		err.ConfigPath,
 	)
 }

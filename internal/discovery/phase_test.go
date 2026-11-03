@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -49,7 +50,7 @@ func TestFilesystemPhase_BasicDiscovery(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Run filesystem phase via full discovery
 	d := discovery.NewDiscovery(tmpDir).
@@ -93,7 +94,7 @@ func TestFilesystemPhase_SkipsIgnorableDirs(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
@@ -127,7 +128,7 @@ func TestFilesystemPhase_WithNoHidden(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	t.Run("without noHidden", func(t *testing.T) {
 		t.Parallel()
@@ -183,7 +184,7 @@ locals {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Filter with reading= attribute requires parsing
 	filters, err := filter.ParseFilterQueries(l, []string{"reading=shared.hcl"})
@@ -243,7 +244,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use graph filter to trigger graph phase
 	filters, err := filter.ParseFilterQueries(l, []string{"app..."})
@@ -320,7 +321,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Using dependent filter (...vpc) without pre-built relationships
 	// Currently, the implementation requires relationships to be built
@@ -377,7 +378,7 @@ dependency "db" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use WithRelationships to enable relationship phase
 	d := discovery.NewDiscovery(tmpDir).
@@ -774,7 +775,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Using dependent filter (...vpc) should now work with pre-built graph
 	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})

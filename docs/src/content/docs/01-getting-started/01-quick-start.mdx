@@ -48,7 +48,7 @@ This tutorial will not assume the following:
 
 \* Note that if you have _both_ OpenTofu and Terraform installed, you'll want to read the [tf-path](/reference/cli/commands/run#tf-path) docs to understand how Terragrunt determines which binary to use.
 
-If you would like a less gentle introduction geared towards users with an active AWS account, familiarity with OpenTofu/Terraform, and potentially a team actively using Terragrunt, consider starting with the [Overview](/getting-started/overview/).
+If you already use OpenTofu/Terraform with a cloud account, start with the [Overview](/getting-started/overview/).
 
 If you start to feel lost, or don't understand a concept, consider reading the [Terminology](/getting-started/terminology/) page before continuing with this tutorial. It has a brief overview of most of the common terms used when discussing Terragrunt.
 
@@ -290,13 +290,11 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    ```bash
    $ terragrunt run --all apply
-   08:42:00.150 INFO   The stack at . will be processed in the following order for command apply:
-   Group 1
-   - Module ./bar
-   - Module ./foo
-
-
-   Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n) y
+   08:42:00.150 INFO   The following units will be run, starting with dependencies and then their dependents:
+   .
+   ├── bar
+   ╰── foo
+   Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above? (y/n) y
    08:43:10.702 STDOUT [foo] tofu: local_file.file: Refreshing state... [id=c4ae21736a6297f44ea86791e528338e9d14a0e9]
    08:43:10.702 STDOUT [bar] tofu: local_file.file: Refreshing state... [id=f855394a0316da09618c8b1fde7b91e00e759f80]
    08:43:10.708 STDOUT [bar] tofu: No changes. Your infrastructure matches the configuration.
@@ -393,19 +391,20 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    ```bash
    $ terragrunt run --all plan
-   08:57:09.271 INFO   The stack at . will be processed in the following order for command plan:
-   Group 1
-   - Module ./foo
-
-   Group 2
-   - Module ./bar
+   08:57:09.271 INFO   The following units will be run, starting with dependencies and then their dependents:
+   .
+   ╰── foo
+       ╰── bar
 
    ...
 
-   08:57:09.936 ERROR  [bar] Module ./bar has finished with an error
-   08:57:09.936 ERROR  error occurred:
+   08:57:09.936 ERROR  [bar] Error: Unknown variable
+   08:57:09.936 ERROR  [bar]   on /path/to/project/bar/terragrunt.hcl line 12:
+   08:57:09.936 ERROR  [bar]   12:   content = "Foo content: ${dependency.foo.outputs.content}"
+   08:57:09.936 ERROR  [bar] There is no variable named "dependency".
+   08:57:09.936 ERROR  Run failed: 2 errors occurred:
 
-   * ./foo/terragrunt.hcl is a dependency of ./bar/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs.
+   * resolving dependency "foo" outputs: /path/to/project/foo/terragrunt.hcl is a dependency of /path/to/project/bar/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs.
 
      If this dependency is accessed before the outputs are ready (which can happen during the planning phase of an unapplied stack), consider using mock_outputs:
 
@@ -457,12 +456,10 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    ```bash
    $ terragrunt run --all plan
-   09:29:03.461 INFO   The stack at . will be processed in the following order for command plan:
-   Group 1
-   - Module ./foo
-
-   Group 2
-   - Module ./bar
+   09:29:03.461 INFO   The following units will be run, starting with dependencies and then their dependents:
+   .
+   ╰── foo
+       ╰── bar
 
    ...
 
@@ -548,7 +545,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    Hopefully, following this simple tutorial has given you confidence in integrating Terragrunt into your existing OpenTofu/Terraform projects. Starting small, and gradually introducing more complex Terragrunt features is a great way to learn how Terragrunt can help you manage your infrastructure more effectively.
 
-   The next step of the Getting Started guide is to follow the [Overview](/getting-started/overview/) guide. This guide will introduce you to more advanced Terragrunt features, and show you how to use Terragrunt to manage your infrastructure across multiple environments in a real-world AWS account.
+   Next, follow the [Overview](/getting-started/overview/) to use Terragrunt across multiple environments in a cloud account.
 
    If you're ready to get your hands dirty with more advanced Terragrunt features yourself, you can skip ahead to the [Features](/features/units) section of the documentation.
 

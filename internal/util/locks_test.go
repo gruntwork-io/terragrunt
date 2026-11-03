@@ -1,6 +1,7 @@
 package util_test
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -94,6 +95,61 @@ func TestKeyLocksUnlockWithoutLock(t *testing.T) {
 	require.NotPanics(t, func() {
 		kl.Unlock("nonexistent_key")
 	}, "Unlocking without locking should not panic")
+}
+
+// TestKeyLocksLockContextStopsWaitingWhenContextEnds pins that a caller
+// waiting on a held key returns its context's error once the context ends,
+// and that the key stays with its holder.
+func TestKeyLocksLockContextStopsWaitingWhenContextEnds(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		kl := util.NewKeyLocks()
+		kl.Lock("key1")
+
+		ctx, cancel := context.WithCancel(t.Context())
+
+		errCh := make(chan error, 1)
+
+		go func() {
+			errCh <- kl.LockContext(ctx, "key1")
+		}()
+
+		synctest.Wait()
+		cancel()
+
+		require.ErrorIs(t, <-errCh, context.Canceled)
+		require.NotPanics(t, func() { kl.Unlock("key1") })
+	})
+}
+
+// TestKeyLocksLockContextEndedContext pins that an ended context returns its
+// error even when the key is free.
+func TestKeyLocksLockContextEndedContext(t *testing.T) {
+	t.Parallel()
+
+	kl := util.NewKeyLocks()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	require.ErrorIs(t, kl.LockContext(ctx, "key1"), context.Canceled)
+	require.NoError(t, kl.LockContext(t.Context(), "key1"))
+}
+
+// TestKeyLocksUnlockOfUnlockedKeyPanics pins that unlocking a key twice
+// panics, as unlocking a sync.Mutex twice does.
+func TestKeyLocksUnlockOfUnlockedKeyPanics(t *testing.T) {
+	t.Parallel()
+
+	kl := util.NewKeyLocks()
+
+	kl.Lock("key1")
+	kl.Unlock("key1")
+
+	require.Panics(t, func() {
+		kl.Unlock("key1")
+	})
 }
 
 // TestKeyLocksLockUnlockStressWithSharedKey tests a shared key under high concurrent load.

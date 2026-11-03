@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -319,26 +320,44 @@ func execProgram(name string) string {
 	return strings.TrimSuffix(path, ".exe")
 }
 
-// execCmdline renders an invocation for a note. The dir is deliberately left
-// out: the same command evaluated from a root config included by N units
-// differs only by dir, and per-dir notes would defeat the recorder's dedup.
+// execCmdline renders an invocation for a note, with the credentials taken out
+// of every argument that is a URL. The dir is deliberately left out: the same
+// command evaluated from a root config included by N units differs only by
+// dir, and per-dir notes would defeat the recorder's dedup.
 func execCmdline(inv *vexec.Invocation) string {
-	return tui.SanitizeLabel(strings.TrimSpace(inv.Name + " " + strings.Join(inv.Args, " ")))
+	words := make([]string, 0, len(inv.Args)+1)
+	words = append(words, inv.Name)
+
+	for _, arg := range inv.Args {
+		if strings.Contains(arg, "://") {
+			arg = redact.NewURL(arg).String()
+		}
+
+		words = append(words, arg)
+	}
+
+	return tui.SanitizeLabel(strings.TrimSpace(strings.Join(words, " ")))
 }
 
 // denyAllHandler returns a [vexec.Handler] that never spawns a process. Each
 // shape of invocation gets the answer that degrades its caller least. A tofu
 // invocation fails with [ErrExecDenied], so a dependency fetch falls back to
 // mock_outputs. So does an invocation of tfPath, the binary the operator named
-// with --tf-path, whatever its file is called. A run_cmd invocation returns
-// empty output and a zero exit, because a run_cmd error aborts the whole HCL
-// parse. A git invocation answers with the dir it was called from, so the
-// repo-root HCL functions keep working.
+// with --tf-path, whatever its file is called.
+//
+// Any other command Terragrunt starts on its own account (see
+// [vexec.WithTrustedCommand]), such as the git, hg or smbclient that downloads
+// a source, fails with [ErrExecDenied] too.
+//
+// A run_cmd invocation returns empty output and a zero exit, because a run_cmd
+// error aborts the whole HCL parse. A git command from a configuration
+// answers with the dir it was called from, standing in for `git rev-parse
+// --show-toplevel`.
 //
 // Nothing here allocates a PTY. Only `tofu console` asks for one, only when
 // stdin is a TTY, and no tool on this server runs console.
 func denyAllHandler(rec *execRecorder, tfPath string) vexec.Handler {
-	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	return func(ctx context.Context, inv vexec.Invocation) vexec.Result {
 		cmdline := execCmdline(&inv)
 		note := truncateRunes(cmdline, execCmdlineMaxLen)
 
@@ -350,6 +369,10 @@ func denyAllHandler(rec *execRecorder, tfPath string) vexec.Handler {
 					note,
 				),
 			)
+
+			return vexec.Result{Err: fmt.Errorf("%w: %s", ErrExecDenied, cmdline)}
+		case vexec.IsTrustedCommand(ctx):
+			rec.record(fmt.Sprintf("denied %q: sources that need it were not downloaded", note))
 
 			return vexec.Result{Err: fmt.Errorf("%w: %s", ErrExecDenied, cmdline)}
 		case binary == "git":

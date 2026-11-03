@@ -1,0 +1,12 @@
+---
+version: "v1.2.1"
+category: "process-updates"
+---
+
+#### Terragrunt runs `git`, `hg`, and `smbclient` source downloads itself
+
+Terragrunt downloaded `git::`, `hg::`, and `smb://` sources through the getters built into the [go-getter](https://github.com/hashicorp/go-getter) library, which started `git`, `hg`, and `smbclient` on their own. Terragrunt now implements these getters itself and starts those programs the same way it runs every other command.
+
+Downloads should behave as they did before. If you find any functional difference, [open an issue](https://github.com/gruntwork-io/terragrunt/issues).
+
+Because the downloads now go through Terragrunt's own command handling, Terragrunt's tests can cover them without a real `git`, `hg`, or `smbclient` install or a remote server, which makes regressions in source downloads easier to catch.

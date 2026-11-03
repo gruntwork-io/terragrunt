@@ -51,11 +51,11 @@ func TestDetectFSKind(t *testing.T) {
 		// The path exists on the real disk, so a probe that ignored fsys
 		// would answer with the host's filesystem instead of admitting
 		// the caller is not on it.
-		real := t.TempDir()
+		realDir := t.TempDir()
 
-		assert.Equal(t, vfs.FSVirtual, vfs.DetectFSKind(vfs.NewMemMapFS(), real))
-		assert.NotEqual(t, vfs.FSVirtual, vfs.DetectFSKind(vfs.NewOSFS(), real))
-		assert.Equal(t, vfs.DefaultFSWorkers, vfs.FSWorkersFor(vfs.NewMemMapFS(), real))
+		assert.Equal(t, vfs.FSVirtual, vfs.DetectFSKind(vfs.NewMemMapFS(), realDir))
+		assert.NotEqual(t, vfs.FSVirtual, vfs.DetectFSKind(vfs.NewOSFS(), realDir))
+		assert.Equal(t, vfs.DefaultFSWorkers, vfs.FSWorkersFor(vfs.NewMemMapFS(), realDir))
 	})
 
 	t.Run("kind names are stable", func(t *testing.T) {

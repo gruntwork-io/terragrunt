@@ -1,0 +1,30 @@
+---
+/**
+ * Redirects links to headings that moved to another page.
+ *
+ * Browsers never send the URL fragment to the server, so `astro.config.mjs`
+ * and `vercel.json` can't redirect `/page/#old-heading`. Render this on the
+ * page that used to hold the headings, and the browser replaces the URL as
+ * soon as it reaches this element.
+ *
+ * Usage in MDX:
+ *
+ *   import AnchorRedirects from '@components/AnchorRedirects.astro';
+ *
+ *   <AnchorRedirects redirects={{
+ *     'old-heading': '/new/page/#new-heading',
+ *   }} />
+ */
+
+interface Props {
+	/** Old fragment, without the leading `#`, mapped to its new path and fragment. */
+	redirects: Record<string, string>;
+}
+
+const { redirects } = Astro.props;
+---
+
+<script is:inline define:vars={{ redirects }}>
+	const fragment = location.hash.slice(1);
+	if (Object.hasOwn(redirects, fragment)) location.replace(redirects[fragment]);
+</script>

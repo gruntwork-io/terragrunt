@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -57,7 +58,7 @@ func TestDiscoverySymlinksExperiment(t *testing.T) {
 		}
 
 		components, err := discovery.NewDiscovery(root).
-			Discover(t.Context(), logger.CreateLogger(), v, opts)
+			Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
 		require.NoError(t, err)
 
 		return components.Filter(component.UnitKind).Paths()
@@ -73,5 +74,57 @@ func TestDiscoverySymlinksExperiment(t *testing.T) {
 		t.Parallel()
 
 		assert.ElementsMatch(t, []string{unitDir, linkDir}, discover(t, experiment.Symlinks))
+	})
+}
+
+// TestDiscoverySymlinkedWorkingDir pins that a working directory reached
+// through a symlink is walked only under the symlinks experiment.
+func TestDiscoverySymlinkedWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping: creating symlinks on Windows requires elevated privileges")
+	}
+
+	root := helpers.TmpDirWOSymlinks(t)
+	v := venvtest.NewOSWithEmptyEnv()
+
+	repoDir := filepath.Join(root, "repo")
+	require.NoError(
+		t,
+		vfs.WriteFile(v.FS, filepath.Join(repoDir, "unit", "terragrunt.hcl"), []byte(``), 0644),
+	)
+
+	linkDir := filepath.Join(root, "link")
+	require.NoError(t, vfs.Symlink(v.FS, repoDir, linkDir))
+
+	discover := func(t *testing.T, experiments ...string) []string {
+		t.Helper()
+
+		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts.WorkingDir = linkDir
+		opts.RootWorkingDir = linkDir
+
+		for _, name := range experiments {
+			require.NoError(t, opts.Experiments.EnableExperiment(name))
+		}
+
+		components, err := discovery.NewDiscovery(linkDir).
+			Discover(t.Context(), logger.CreateLogger(), v, opts)
+		require.NoError(t, err)
+
+		return components.Filter(component.UnitKind).Paths()
+	}
+
+	t.Run("experiment disabled", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Empty(t, discover(t))
+	})
+
+	t.Run("experiment enabled", func(t *testing.T) {
+		t.Parallel()
+
+		assert.ElementsMatch(t, []string{filepath.Join(linkDir, "unit")}, discover(t, experiment.Symlinks))
 	})
 }

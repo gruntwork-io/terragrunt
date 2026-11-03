@@ -1,0 +1,86 @@
+---
+title: Authenticating with Azure
+description: Learn which credential sources Terragrunt accepts for Azure, and which roles the azurerm backend needs.
+slug: features/units/authentication/azure
+sidebar:
+  label: Azure
+  order: 7
+---
+
+import StatefulTabs from '@components/StatefulTabs.astro';
+
+Terragrunt reads Azure credentials from the sources below to bootstrap, migrate, and delete the [`azurerm` state backend](/features/units/state-backend/azurerm). Set the same `ARM_*` variables for the OpenTofu/Terraform backend and providers.
+
+Set the subscription, then pick whichever credential source fits where Terragrunt is running:
+
+<StatefulTabs syncKey="azure-auth" tabs={['Azure CLI', 'Service principal', 'OIDC', 'Managed identity']}>
+<Fragment slot="azure-cli">
+
+On a workstation, log in with the Azure CLI. Terragrunt and the providers pick the session up from the default credential chain:
+
+```bash
+az login
+export ARM_SUBSCRIPTION_ID="$(az account show --query id --output tsv)"
+terragrunt apply
+```
+
+</Fragment>
+<Fragment slot="service-principal">
+
+In CI, a service principal with a client secret:
+
+```bash
+export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
+export ARM_TENANT_ID="00000000-0000-0000-0000-000000000000"
+export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000000"
+export ARM_CLIENT_SECRET="..."
+terragrunt apply
+```
+
+</Fragment>
+<Fragment slot="oidc">
+
+In GitHub Actions, configure a federated credential in Azure for the job and grant the workflow or job `id-token: write` permission. GitHub then injects `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`. With `ARM_USE_OIDC` set, Terragrunt uses them to request an Azure access token:
+
+```yaml
+permissions:
+  id-token: write
+  contents: read
+```
+
+```bash
+export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
+export ARM_TENANT_ID="00000000-0000-0000-0000-000000000000"
+export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000000"
+export ARM_USE_OIDC=true
+terragrunt apply
+```
+
+On AKS, the workload identity webhook injects `AZURE_FEDERATED_TOKEN_FILE`, which Terragrunt also accepts.
+
+</Fragment>
+<Fragment slot="managed-identity">
+
+On an Azure VM or in AKS, a managed identity needs no credentials at all. For a user-assigned identity, set `ARM_CLIENT_ID` to the identity's client id, which both Terragrunt and the `azurerm` backend honor. `ARM_MSI_RESOURCE_ID` also selects it, but only for Terragrunt's own work, so it is not enough on its own:
+
+```bash
+export ARM_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000000"
+export ARM_USE_MSI=true
+export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000000" # user-assigned identity only
+terragrunt apply
+```
+
+</Fragment>
+</StatefulTabs>
+
+The non-secret values can also be set in the `remote_state` config (`subscription_id`, `tenant_id`, `client_id`, `use_oidc`, `use_msi`, `msi_resource_id`), and environment variables fill in whatever the config leaves unset. Keep `ARM_CLIENT_SECRET` in the environment: OpenTofu/Terraform copies backend configuration into `.terraform/terraform.tfstate` and into saved plan files, so a secret placed in `remote_state.config` ends up on disk in plain text.
+
+Use the `ARM_*` names. Terragrunt also accepts the `AZURE_*` spellings used by the Azure SDKs (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and so on) for its own work, but the `azurerm` backend inside OpenTofu/Terraform reads only `ARM_*`, so a run that also initializes the backend fails with `AZURE_*` alone.
+
+The [auth provider command](/features/units/authentication#auth-provider-command) works for Azure too: return the `ARM_*` variables in its `envs` map to select credentials per unit at runtime.
+
+## Required permissions
+
+Reading and writing state with `use_azuread_auth` requires the **Storage Blob Data Contributor** role on the storage account. Holding Contributor or Owner on the subscription is not enough on its own, because those are control-plane roles. Either grant the data-plane role out of band, or set `assign_blob_data_role = true` so that `backend bootstrap` grants it to the identity Terragrunt runs as. The latter needs permission to create role assignments (`Microsoft.Authorization/roleAssignments/write`), which Owner and User Access Administrator hold and Contributor does not.
+
+Bootstrapping the backend additionally needs permission to create the resource group, storage account and container. If the identity must not create them, create them in advance and set `skip_resource_group_creation`, `skip_storage_account_creation` and `skip_container_creation` in the `remote_state` config.

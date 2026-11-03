@@ -6,23 +6,25 @@ import (
 	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 type configKey byte
 
 const (
-	HclCacheContextKey               configKey = iota
-	TerragruntConfigCacheContextKey  configKey = iota
-	RunCmdCacheContextKey            configKey = iota
-	DependencyOutputCacheContextKey  configKey = iota
-	JSONOutputCacheContextKey        configKey = iota
-	OutputLocksContextKey            configKey = iota
-	SopsCacheContextKey              configKey = iota
-	SopsLocksContextKey              configKey = iota
-	AutoIncludeSuffixCacheContextKey configKey = iota
-	ParentFileProbeCacheContextKey   configKey = iota
+	HclCacheContextKey                  configKey = iota
+	TerragruntConfigCacheContextKey     configKey = iota
+	RunCmdCacheContextKey               configKey = iota
+	DependencyOutputCacheContextKey     configKey = iota
+	JSONOutputCacheContextKey           configKey = iota
+	OutputLocksContextKey               configKey = iota
+	SopsCacheContextKey                 configKey = iota
+	SopsLocksContextKey                 configKey = iota
+	AutoIncludeSuffixCacheContextKey    configKey = iota
+	ParentFileProbeCacheContextKey      configKey = iota
+	ReadTerragruntConfigCacheContextKey configKey = iota
+	RunCmdLocksContextKey               configKey = iota
 
 	hclCacheName               = "hclCache"
 	configCacheName            = "configCache"
@@ -32,11 +34,17 @@ const (
 	sopsCacheName              = "sopsCache"
 	autoIncludeSuffixCacheName = "autoIncludeSuffixCache"
 	parentFileProbeCacheName   = "parentFileProbeCache"
+	readTerragruntConfigName   = "readTerragruntConfigCache"
 )
 
-// WithConfigValues add to context default values for configuration.
-func WithConfigValues(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File](hclCacheName))
+// WithCaches installs every cache Terragrunt reads while parsing and running a command.
+func WithCaches(ctx context.Context) context.Context {
+	return run.WithRunVersionCache(withConfigValues(ctx))
+}
+
+// withConfigValues adds to context default values for configuration.
+func withConfigValues(ctx context.Context) context.Context {
+	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*CachedHCLFile](hclCacheName))
 	ctx = context.WithValue(
 		ctx,
 		TerragruntConfigCacheContextKey,
@@ -47,6 +55,7 @@ func WithConfigValues(ctx context.Context) context.Context {
 		RunCmdCacheContextKey,
 		cache.NewCache[*RunCmdCacheEntry](runCmdCacheName),
 	)
+	ctx = context.WithValue(ctx, RunCmdLocksContextKey, util.NewKeyLocks())
 	ctx = azurermbackend.WithStateClientCache(ctx)
 	ctx = context.WithValue(
 		ctx,
@@ -70,6 +79,11 @@ func WithConfigValues(ctx context.Context) context.Context {
 		ctx,
 		ParentFileProbeCacheContextKey,
 		cache.NewCache[bool](parentFileProbeCacheName),
+	)
+	ctx = context.WithValue(
+		ctx,
+		ReadTerragruntConfigCacheContextKey,
+		cache.NewCache[*readTerragruntConfigResult](readTerragruntConfigName),
 	)
 
 	return ctx

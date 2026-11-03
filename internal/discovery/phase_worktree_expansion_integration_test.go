@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -78,7 +79,7 @@ func discoverExpansionChanges(
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
 	w, err := worktrees.NewWorktrees(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions},
@@ -86,7 +87,7 @@ func discoverExpansionChanges(
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, w.Cleanup(context.WithoutCancel(t.Context()), l, venvtest.NewOSWithEmptyEnv()))
+		require.NoError(t, w.Cleanup(context.WithoutCancel(config.WithCaches(t.Context())), l, venvtest.NewOSWithEmptyEnv()))
 	})
 
 	filters := make(filter.Filters, 0, len(gitExpressions)+len(extraFilters))
@@ -103,9 +104,11 @@ func discoverExpansionChanges(
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
 
+	ctx := config.WithCaches(t.Context())
+
 	require.NoError(
 		t,
-		generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, w),
+		generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), opts, w),
 	)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -117,7 +120,7 @@ func discoverExpansionChanges(
 		d = d.WithSuppressParseErrors()
 	}
 
-	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
 	require.NoError(t, err)
 
 	pair, ok := w.WorktreePairs["[HEAD~1...HEAD]"]

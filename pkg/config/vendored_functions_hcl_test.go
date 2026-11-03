@@ -41,7 +41,7 @@ func TestHCLResolvesAVendoredOnlyFunction(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithFS(memUnitFS(t, nil))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   encoded = urlencode("foo/bar")
@@ -61,7 +61,7 @@ func TestHCLFileReadsThroughTheVenv(t *testing.T) {
 		"data.txt": "from the in-memory filesystem\n",
 	}))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   data = file("data.txt")
@@ -81,7 +81,7 @@ func TestHCLTemplateFileReadsThroughTheVenv(t *testing.T) {
 		"greeting.tmpl": "Hello, ${name}! ${urlencode(\"a/b\")}",
 	}))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   greeting = templatefile("greeting.tmpl", { name = "world" })
@@ -99,7 +99,7 @@ func TestHCLBase64GzipUsesTheCurrentEncoder(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.New().WithFS(memUnitFS(t, nil))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   encoded = base64gzip("test")

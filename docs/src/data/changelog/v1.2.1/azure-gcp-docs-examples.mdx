@@ -1,0 +1,24 @@
+---
+version: "v1.2.1"
+category: "documentation-updates"
+---
+
+#### Azure and GCP examples across the docs
+
+The [Overview](/getting-started/overview/) now has Azure and GCP examples for every step. The Azure examples create a resource group and a virtual network in `eastus` and `westus2`, with state in an `azurerm` backend. The GCP examples create a VPC network and a Cloud Router in `us-central1` and `us-east1`, with state in a `gcs` backend.
+
+The code for each step is in [`test/fixtures/docs/02-overview-azure`](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview-azure) and [`test/fixtures/docs/02-overview-gcp`](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview-gcp). Integration tests apply and destroy each step in both directories.
+
+These pages also have Azure and GCP examples now:
+
+- [Units](/features/units) shows an `env.hcl` that generates the provider for every unit in an environment.
+- [Includes](/features/units/includes) shows a `root.hcl` that configures the backend and generates the provider.
+- [Importing](/features/units/importing) shows how to import resources by resource ID.
+- [`backend bootstrap`](/reference/cli/commands/backend/bootstrap), [`backend migrate`](/reference/cli/commands/backend/migrate), and [`backend delete`](/reference/cli/commands/backend/delete) show what each command creates, moves, or deletes for an `azurerm` or `gcs` backend.
+- In [Patterns](/guides/patterns), the "Keep your backend configuration DRY" pattern sets an `azurerm` or `gcs` backend once in `root.hcl`.
+
+[Authentication](/features/units/authentication) now has a page for each cloud provider. The [Azure page](/features/units/authentication/azure) covers signing in with the Azure CLI, a service principal, OIDC, or a managed identity. The [GCP page](/features/units/authentication/gcp) covers `gcloud`, a service account key, Workload Identity Federation, and an attached service account. Each lists the roles its state backend needs. The AWS content moved to the [AWS page](/features/units/authentication/aws), and links to its old headings redirect there.
+
+[State Backend](/features/units/state-backend) also has a page for each backend now: [S3](/features/units/state-backend/s3), [GCS](/features/units/state-backend/gcs), and [Azure Storage](/features/units/state-backend/azurerm). Links to the old backend headings redirect to the new pages. The GCS page now covers what the Azure section already did: the order Terragrunt resolves credentials in, the settings Terragrunt reads without passing them to OpenTofu/Terraform, and the backend's known limitations.
+
+Pick a cloud provider in any example tab, and every tab on the page switches with it. Other pages open on the same provider when they have a tab for it, and show AWS when they don't.

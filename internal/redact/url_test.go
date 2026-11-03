@@ -233,6 +233,14 @@ func FuzzURLString(f *testing.F) {
 			return
 		}
 
+		credentialFree := *parsed
+		credentialFree.User = nil
+
+		roundTripped, err := url.Parse(credentialFree.String())
+		if err != nil || roundTripped.User != nil {
+			return
+		}
+
 		reparsed, err := url.Parse(rendered)
 		if err != nil {
 			assert.NotContains(t, rendered, "@"+parsed.Host)

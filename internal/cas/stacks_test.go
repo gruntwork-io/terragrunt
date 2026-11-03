@@ -679,7 +679,7 @@ func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 
 	_, err = c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 	require.Error(t, err)
-	require.ErrorIs(t, err, git.ErrCommandSpawn, "failure must come from a spawned git command")
+	require.ErrorIs(t, err, git.ErrGitCommand, "failure must come from a spawned git command")
 
 	var wrapped *git.WrappedError
 	require.ErrorAs(t, err, &wrapped)

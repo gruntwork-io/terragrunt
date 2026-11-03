@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
@@ -143,8 +142,8 @@ func (r *S3Resolver) Probe(ctx context.Context, source redact.URL) (string, erro
 	}
 
 	input := &s3.HeadObjectInput{
-		Bucket:       aws.String(target.Bucket),
-		Key:          aws.String(target.Key),
+		Bucket:       new(target.Bucket),
+		Key:          new(target.Key),
 		ChecksumMode: types.ChecksumModeEnabled,
 	}
 
@@ -152,7 +151,7 @@ func (r *S3Resolver) Probe(ctx context.Context, source redact.URL) (string, erro
 	// so HeadObject must too. Without this, the probe describes the
 	// current version while the fetch downloads a different one.
 	if target.Version != "" {
-		input.VersionId = aws.String(target.Version)
+		input.VersionId = new(target.Version)
 	}
 
 	out, err := client.HeadObject(ctx, input)

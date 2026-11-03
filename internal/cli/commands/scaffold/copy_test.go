@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -116,7 +117,7 @@ func TestScaffoldLeavesNoSourceManifestBehind(t *testing.T) {
 				writeFiles(t, dir, nestedFiles)
 				writeFile(t, filepath.Join(dir, "terragrunt.hcl"), "# unit\n")
 
-				return helpers.FileURL(dir), ""
+				return getter.FileURL(dir).String(), ""
 			},
 			want: []string{"terragrunt.hcl", "nested/sub/notes.txt", ".terraform/providers/fake.zip"},
 		},
@@ -154,7 +155,7 @@ func TestScaffoldLeavesNoSourceManifestBehind(t *testing.T) {
 					CombinedOutput()
 				require.NoError(t, err, string(out))
 
-				return "git::" + helpers.FileURL(repoDir) + "//units/app", ""
+				return "git::" + getter.FileURL(repoDir).String() + "//units/app", ""
 			},
 			want: []string{"terragrunt.hcl", "nested/sub/notes.txt"},
 		},
@@ -180,7 +181,7 @@ func TestScaffoldLeavesNoSourceManifestBehind(t *testing.T) {
 				templateDir := helpers.TmpDirWOSymlinks(t)
 				writeFiles(t, templateDir, templateFiles)
 
-				return writeComponent(t, "modules/vpc", moduleFiles), helpers.FileURL(templateDir)
+				return writeComponent(t, "modules/vpc", moduleFiles), getter.FileURL(templateDir).String()
 			},
 			want: []string{"terragrunt.hcl", "nested/sub/doc.md"},
 		},
@@ -307,18 +308,18 @@ dependencies:
 	l := logger.CreateLogger()
 
 	plan, err := scaffold.Prepare(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		v,
 		opts,
-		helpers.FileURL(repoDir)+"//modules/vpc",
-		helpers.FileURL(repoDir)+"//templates/root",
+		getter.FileURL(repoDir).String()+"//modules/vpc",
+		getter.FileURL(repoDir).String()+"//templates/root",
 	)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { plan.Cleanup(v.FS) })
 
-	require.NoError(t, plan.Generate(t.Context(), l, v, opts, nil))
+	require.NoError(t, plan.Generate(config.WithCaches(t.Context()), l, v, opts, nil))
 
 	got := plan.GeneratedFiles()
 	assert.Contains(t, got, "terragrunt.hcl")
@@ -348,12 +349,12 @@ func TestGeneratedFilesEmptyAfterCopyingUnit(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 	l := logger.CreateLogger()
 
-	plan, err := scaffold.Prepare(t.Context(), l, v, opts, source, "")
+	plan, err := scaffold.Prepare(config.WithCaches(t.Context()), l, v, opts, source, "")
 	require.NoError(t, err)
 
 	t.Cleanup(func() { plan.Cleanup(v.FS) })
 
-	require.NoError(t, plan.Generate(t.Context(), l, v, opts, nil))
+	require.NoError(t, plan.Generate(config.WithCaches(t.Context()), l, v, opts, nil))
 
 	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
 	assert.FileExists(t, filepath.Join(outputDir, "extra.hcl"))
@@ -379,7 +380,8 @@ func TestScaffoldRefusesToOverwriteWhenCopying(t *testing.T) {
 	opts.WorkingDir = outputDir
 	opts.NonInteractive = true
 
-	err = scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, "")
+	ctx := config.WithCaches(t.Context())
+	err = scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, "")
 	require.Error(t, err)
 
 	assert.NoFileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
@@ -398,7 +400,7 @@ func writeComponent(t *testing.T, dir string, files map[string]string) string {
 		writeFile(t, filepath.Join(repoDir, filepath.FromSlash(dir), name), contents)
 	}
 
-	return helpers.FileURL(repoDir) + "//" + dir
+	return getter.FileURL(repoDir).String() + "//" + dir
 }
 
 // runScaffold scaffolds source into a fresh output directory and returns it.
@@ -421,9 +423,11 @@ func runScaffoldWithTemplate(t *testing.T, source, templateURL string) string {
 	opts.WorkingDir = outputDir
 	opts.NonInteractive = true
 
+	ctx := config.WithCaches(t.Context())
+
 	require.NoError(
 		t,
-		scaffold.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, templateURL),
+		scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, templateURL),
 	)
 
 	return outputDir

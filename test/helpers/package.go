@@ -63,7 +63,8 @@ const (
 
 	TerragruntDebugFile = "terragrunt-debug.tfvars.json"
 
-	// Repeated right now, but it might not be later.
+	// TestFixtureOutDir is the out-dir fixture path. It duplicates testFixtureOutDir in the test package for now,
+	// but the two might diverge later.
 	TestFixtureOutDir = "fixtures/out-dir"
 
 	ReportFile = "report.json"
@@ -309,7 +310,7 @@ func DeleteS3Bucket(
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
 	// First check if bucket exists
-	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: new(bucketName)})
 	if err != nil {
 		if isAWSResourceNotFoundError(err) {
 			t.Logf("S3 bucket %s does not exist, cleanup already complete", bucketName)
@@ -323,7 +324,7 @@ func DeleteS3Bucket(
 
 	if _, err := client.DeleteBucket(
 		ctx,
-		&s3.DeleteBucketInput{Bucket: aws.String(bucketName)},
+		&s3.DeleteBucketInput{Bucket: new(bucketName)},
 	); err != nil {
 		if isAWSResourceNotFoundError(err) {
 			t.Logf("S3 bucket %s was already deleted", bucketName)
@@ -341,7 +342,7 @@ func DeleteS3Bucket(
 
 		if _, err = client.DeleteBucket(
 			ctx,
-			&s3.DeleteBucketInput{Bucket: aws.String(bucketName)},
+			&s3.DeleteBucketInput{Bucket: new(bucketName)},
 		); err != nil {
 			if isAWSResourceNotFoundError(err) {
 				t.Logf("S3 bucket %s was already deleted", bucketName)
@@ -363,7 +364,7 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 	t.Helper()
 
 	versionsInput := &s3.ListObjectVersionsInput{
-		Bucket: aws.String(bucketName),
+		Bucket: new(bucketName),
 	}
 
 	for {
@@ -392,7 +393,7 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 		}
 
 		deleted, err := client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-			Bucket: aws.String(bucketName),
+			Bucket: new(bucketName),
 			Delete: &s3types.Delete{Objects: objects},
 		})
 		if err != nil {
@@ -643,7 +644,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 	require.NoError(t, err)
 
 	defer func() {
-		file.Close()
+		require.NoError(t, file.Close())
 		require.NoError(t, os.Remove(filepath.Join(providerDir, provider.filename())))
 	}()
 
@@ -656,7 +657,9 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 	zipFile, err := os.Create(filepath.Join(providerDir, provider.archiveName()))
 	require.NoError(t, err)
 
-	defer zipFile.Close()
+	defer func() {
+		require.NoError(t, zipFile.Close())
+	}()
 
 	zipWriter := zip.NewWriter(zipFile)
 	defer require.NoError(t, zipWriter.Close())
@@ -1325,15 +1328,15 @@ func CopyFile(t *testing.T, src, dst string) {
 	sourceFile, err := os.Open(src)
 	require.NoError(t, err)
 
-	defer sourceFile.Close()
+	defer func() {
+		require.NoError(t, sourceFile.Close())
+	}()
 
 	destFile, err := os.Create(dst)
 	require.NoError(t, err)
 
-	defer destFile.Close()
-
 	_, err = io.Copy(destFile, sourceFile)
-	require.NoError(t, err)
+	require.NoError(t, errors.Join(err, destFile.Close()))
 
 	sourceInfo, err := os.Stat(src)
 	require.NoError(t, err)
@@ -1351,7 +1354,7 @@ func isAWSResourceNotFoundError(err error) bool {
 }
 
 // GzipHandler gzip-compresses responses when the client accepts gzip encoding.
-func GzipHandler(h http.Handler) http.Handler {
+func GzipHandler(l log.Logger, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		if !strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
 			h.ServeHTTP(resp, req)
@@ -1360,7 +1363,11 @@ func GzipHandler(h http.Handler) http.Handler {
 
 		gz := gzip.NewWriter(resp)
 
-		defer func() { _ = gz.Close() }()
+		defer func() {
+			if err := gz.Close(); err != nil {
+				l.Debugf("Failed to finish gzip response for %s: %v", req.URL.Path, err)
+			}
+		}()
 
 		h.ServeHTTP(&gzipResponseWriter{ResponseWriter: resp, gz: gz}, req)
 	})

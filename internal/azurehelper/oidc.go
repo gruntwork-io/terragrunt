@@ -11,6 +11,7 @@ package azurehelper
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -62,7 +63,7 @@ func oidcAssertionProvider(v *venv.Venv) assertionProvider {
 
 // fetchOIDCAssertion requests a federated token from requestURL, authorizing
 // with bearerToken, and reads the assertion out of the named JSON field.
-func fetchOIDCAssertion(ctx context.Context, v *venv.Venv, requestURL, bearerToken, field string) (string, error) {
+func fetchOIDCAssertion(ctx context.Context, v *venv.Venv, requestURL, bearerToken, field string) (_ string, err error) {
 	if bearerToken == "" {
 		return "", &OIDCRequestTokenMissingError{RequestURL: requestURL}
 	}
@@ -92,7 +93,11 @@ func fetchOIDCAssertion(ctx context.Context, v *venv.Venv, requestURL, bearerTok
 		return "", fmt.Errorf("requesting OIDC token: %w", err)
 	}
 
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("closing OIDC token response: %w", closeErr))
+		}
+	}()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxOIDCTokenResponseBytes))
 	if err != nil {

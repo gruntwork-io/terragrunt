@@ -38,6 +38,19 @@ func NewClient(l log.Logger, v *venv.Venv, opts ...Option) *getter.Client {
 	return c
 }
 
+// Download runs c.Get for req. When it fails, the error has req's source
+// address redacted, both as the caller wrote it and as go-getter rewrote it.
+func Download(ctx context.Context, c *Client, req *Request) (*GetResult, error) {
+	src := req.Src
+
+	res, err := c.Get(ctx, req)
+	if err != nil {
+		return nil, redactSourceError(err, src, req.Src)
+	}
+
+	return res, nil
+}
+
 // Get is a convenience wrapper for downloading directories.
 func Get(
 	ctx context.Context,
@@ -46,7 +59,7 @@ func Get(
 	dst, src string,
 	opts ...Option,
 ) (*GetResult, error) {
-	return NewClient(l, v, opts...).Get(ctx, &Request{
+	return Download(ctx, NewClient(l, v, opts...), &Request{
 		Src:     src,
 		Dst:     dst,
 		GetMode: ModeDir,
@@ -62,7 +75,7 @@ func GetAny(
 	dst, src string,
 	opts ...Option,
 ) (*GetResult, error) {
-	return NewClient(l, v, opts...).Get(ctx, &Request{
+	return Download(ctx, NewClient(l, v, opts...), &Request{
 		Src:     src,
 		Dst:     dst,
 		GetMode: ModeAny,
@@ -77,7 +90,7 @@ func GetFile(
 	dst, src string,
 	opts ...Option,
 ) (*GetResult, error) {
-	return NewClient(l, v, opts...).Get(ctx, &Request{
+	return Download(ctx, NewClient(l, v, opts...), &Request{
 		Src:     src,
 		Dst:     dst,
 		GetMode: ModeFile,

@@ -8,15 +8,6 @@ env:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
-
-<Before version="v1.2.0">
-
-<Aside type="tip" title="Experimental">
-This flag is gated behind the [`optional-dependency-outputs`](/reference/experiments/active#optional-dependency-outputs) experiment. Enable it with `--experiment=optional-dependency-outputs` or `TG_EXPERIMENT=optional-dependency-outputs`; otherwise setting `--no-dependency-outputs` returns an error.
-</Aside>
-
-</Before>
 
 Skip all dependency output resolution during a run.
 

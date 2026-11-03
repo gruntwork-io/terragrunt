@@ -1,0 +1,10 @@
+---
+version: "v1.2.1"
+category: "process-updates"
+---
+
+#### Go bumped to `v1.27.3` for a security fix
+
+The version of Golang used to compile the Terragrunt binary has been updated from `v1.27.2` to `v1.27.3`.
+
+Go `v1.27.3` is a security release. It fixes [CVE-2026-111943](https://go.dev/issue/82345) in `crypto/x509`: certificate verification now rejects chains that contain a small set of untrusted intermediate certificates. Terragrunt uses this verification for every HTTPS connection it makes, including source downloads, provider registry lookups, and remote state backends. We recommend upgrading.

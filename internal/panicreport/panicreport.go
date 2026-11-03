@@ -267,11 +267,11 @@ func IsPanic(err error) bool {
 		return false
 	}
 
-	if _, ok := stdErrors.AsType[function.PanicError](err); ok {
+	if stdErrors.As(err, new(function.PanicError)) {
 		return true
 	}
 
-	if _, ok := stdErrors.AsType[runtime.Error](err); ok {
+	if stdErrors.As(err, new(runtime.Error)) {
 		return true
 	}
 

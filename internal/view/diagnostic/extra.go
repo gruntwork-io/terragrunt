@@ -31,11 +31,12 @@ func ExtraInfoNext[T any](previous any) T {
 			return ret
 		}
 
-		if unwrapper, ok := extra.(DiagnosticExtraUnwrapper); ok {
-			extra = unwrapper.UnwrapDiagnosticExtra()
-		} else {
+		unwrapper, ok = extra.(DiagnosticExtraUnwrapper)
+		if !ok {
 			return zero
 		}
+
+		extra = unwrapper.UnwrapDiagnosticExtra()
 	}
 }
 

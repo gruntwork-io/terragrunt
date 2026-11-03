@@ -10,14 +10,16 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	testExcludeComprehensive       = "fixtures/exclude/comprehensive"
-	testExcludeNullOrUnknownString = "fixtures/exclude/null-or-unknown-string"
+	testExcludeComprehensive    = "fixtures/exclude/comprehensive"
+	testExcludeNullString       = "fixtures/exclude/null-string"
+	testExcludeDependencyOutput = "fixtures/exclude/dependency-output"
 )
 
 // expectedResult defines the expected outcome for a unit in a test case.
@@ -372,39 +374,34 @@ func TestTFExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
 	)
 }
 
-// TestTFExcludeBlockNullOrUnknownStringDiscovery tests that find and list keep units whose exclude block reads a null or unknown string, where they used to panic.
-func TestTFExcludeBlockNullOrUnknownStringDiscovery(t *testing.T) {
+// TestTFExcludeBlockNullStringDiscovery tests that find and list keep units whose exclude block reads a null string, where they used to panic.
+func TestTFExcludeBlockNullStringDiscovery(t *testing.T) {
 	t.Parallel()
 
 	for _, command := range []string{"find --dag", "list --dag"} {
 		t.Run(command, func(t *testing.T) {
 			t.Parallel()
 
-			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNullOrUnknownString)
-			rootPath := filepath.Join(tmpEnvPath, testExcludeNullOrUnknownString)
+			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNullString)
+			rootPath := filepath.Join(tmpEnvPath, testExcludeNullString)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 				t,
 				"terragrunt "+command+" --no-color --working-dir "+rootPath,
 			)
 			require.NoError(t, err)
-			assert.ElementsMatch(t, []string{"dep", "null-string", "unknown-string"}, strings.Fields(stdout))
-			assert.Contains(
-				t,
-				stderr,
-				"Ignoring the exclude block in "+filepath.Join(rootPath, "unknown-string", "terragrunt.hcl"),
-			)
+			assert.ElementsMatch(t, []string{"dep", "null-string"}, strings.Fields(stdout))
 		})
 	}
 }
 
-// TestTFExcludeBlockNullOrUnknownStringRunAll tests that run --all fails only the null string unit and runs the unit whose exclude block reads a dependency output.
-func TestTFExcludeBlockNullOrUnknownStringRunAll(t *testing.T) {
+// TestTFExcludeBlockNullStringRunAll tests that run --all fails only the null string unit.
+func TestTFExcludeBlockNullStringRunAll(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testExcludeNullOrUnknownString)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNullOrUnknownString)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeNullOrUnknownString)
+	helpers.CleanupTerraformFolder(t, testExcludeNullString)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNullString)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNullString)
 
 	reportFile := filepath.Join(t.TempDir(), "report.json")
 
@@ -417,19 +414,13 @@ func TestTFExcludeBlockNullOrUnknownStringRunAll(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.Error(t, err)
 	assert.Contains(t, stderr, "null value is not allowed")
-	assert.Contains(
-		t,
-		stderr,
-		"Ignoring the exclude block in "+filepath.Join(rootPath, "unknown-string", "terragrunt.hcl"),
-	)
 
 	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err)
 
 	want := map[string]string{
-		"dep":            "succeeded",
-		"null-string":    "failed",
-		"unknown-string": "succeeded",
+		"dep":         "succeeded",
+		"null-string": "failed",
 	}
 	require.Len(t, runs, len(want), "Found: %v", runs.Names())
 
@@ -437,5 +428,37 @@ func TestTFExcludeBlockNullOrUnknownStringRunAll(t *testing.T) {
 		run := runs.FindByName(unit)
 		require.NotNil(t, run, "unit %s not found in report. Found: %v", unit, runs.Names())
 		assert.Equal(t, result, run.Result, "unit %s", unit)
+	}
+}
+
+// TestTFExcludeBlockDependencyOutputErrors tests that run --all and single unit runs reject an exclude block that reads a dependency output.
+func TestTFExcludeBlockDependencyOutputErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		dir     string
+	}{
+		{name: "run all", command: "run --all"},
+		{name: "run", command: "run", dir: "unit"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDependencyOutput)
+			rootPath := filepath.Join(tmpEnvPath, testExcludeDependencyOutput)
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt "+tt.command+" --non-interactive --working-dir "+filepath.Join(rootPath, tt.dir)+" -- plan",
+			)
+
+			var excludeErr config.ExcludeReferencesDependencyError
+			require.ErrorAs(t, err, &excludeErr)
+			assert.Equal(t, filepath.Join(rootPath, "unit", "terragrunt.hcl"), excludeErr.ConfigPath)
+		})
 	}
 }

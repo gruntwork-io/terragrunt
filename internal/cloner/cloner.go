@@ -155,8 +155,8 @@ func (cloner *Cloner[T]) cloneBool(src reflect.Value) reflect.Value {
 }
 
 func (cloner *Cloner[T]) cloneString(src reflect.Value) reflect.Value {
-	if src, ok := src.Interface().(string); ok {
-		return reflect.ValueOf(strings.Clone(src))
+	if s, ok := reflect.TypeAssert[string](src); ok {
+		return reflect.ValueOf(strings.Clone(s))
 	}
 
 	return src

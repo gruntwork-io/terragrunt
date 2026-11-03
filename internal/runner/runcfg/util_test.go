@@ -1,9 +1,14 @@
 package runcfg_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -310,6 +315,128 @@ func TestGetTerraformSourceURL(t *testing.T) {
 	}
 }
 
+func TestShouldSkipCache(t *testing.T) {
+	t.Parallel()
+
+	const (
+		externalSource = "git::ssh://git@github.com/org/repo.git"
+		configPath     = "/live/unit/terragrunt.hcl"
+	)
+
+	testCases := []struct {
+		cfg                       *runcfg.RunConfig
+		name                      string
+		source                    string
+		expectedErrSource         string
+		noCacheEnabled            bool
+		expectedSkip              bool
+		expectedExperimentMissing bool
+	}{
+		{
+			name:                      "experiment disabled with no_dot_terragrunt_cache set errors",
+			noCacheEnabled:            false,
+			cfg:                       &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}},
+			expectedExperimentMissing: true,
+		},
+		{
+			name:           "experiment disabled without no_dot_terragrunt_cache keeps cache",
+			noCacheEnabled: false,
+			cfg:            &runcfg.RunConfig{},
+			expectedSkip:   false,
+		},
+		{
+			name:           "no_dot_terragrunt_cache unset keeps cache",
+			noCacheEnabled: true,
+			cfg:            &runcfg.RunConfig{},
+			expectedSkip:   false,
+		},
+		{
+			name:           "nil config keeps cache",
+			noCacheEnabled: true,
+			cfg:            nil,
+			expectedSkip:   false,
+		},
+		{
+			name:           "no_dot_terragrunt_cache with no source skips cache",
+			noCacheEnabled: true,
+			cfg:            &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}},
+			expectedSkip:   true,
+		},
+		{
+			name:           "no_dot_terragrunt_cache with config source errors",
+			noCacheEnabled: true,
+			cfg: &runcfg.RunConfig{
+				Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true, Source: externalSource},
+			},
+			expectedErrSource: externalSource,
+		},
+		{
+			name:              "no_dot_terragrunt_cache with CLI source errors",
+			noCacheEnabled:    true,
+			source:            externalSource,
+			cfg:               &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}},
+			expectedErrSource: externalSource,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			skip, err := runcfg.ShouldSkipCache(tc.noCacheEnabled, tc.source, configPath, tc.cfg)
+
+			if tc.expectedExperimentMissing {
+				var experimentErr runcfg.NoDotTerragruntCacheRequiresExperimentError
+				require.ErrorAs(t, err, &experimentErr)
+				assert.Equal(t, configPath, experimentErr.ConfigPath)
+				assert.False(t, skip)
+
+				return
+			}
+
+			if tc.expectedErrSource != "" {
+				var noCacheErr runcfg.NoDotTerragruntCacheWithSourceError
+				require.ErrorAs(t, err, &noCacheErr)
+				assert.Equal(t, tc.expectedErrSource, noCacheErr.Source)
+				assert.False(t, skip)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedSkip, skip)
+		})
+	}
+}
+
+func TestNoDotTerragruntCacheRequiresExperimentError(t *testing.T) {
+	t.Parallel()
+
+	err := runcfg.NoDotTerragruntCacheRequiresExperimentError{ConfigPath: "/live/unit/terragrunt.hcl"}
+
+	assert.Contains(t, err.Error(), "/live/unit/terragrunt.hcl")
+	assert.Contains(t, err.Error(), "--experiment no-dot-terragrunt-cache")
+}
+
+func TestNoDotTerragruntCacheWithSourceError(t *testing.T) {
+	t.Parallel()
+
+	const rawSource = "git::https://user:ghp_SECRETTOKEN@github.com/org/repo.git"
+
+	err := runcfg.NoDotTerragruntCacheWithSourceError{Source: rawSource}
+
+	var target runcfg.NoDotTerragruntCacheWithSourceError
+	require.ErrorAs(t, err, &target)
+	assert.Equal(t, rawSource, target.Source, "raw source is preserved for callers that inspect it")
+
+	errorMsg := err.Error()
+	assert.NotContains(t, errorMsg, "ghp_SECRETTOKEN", "credentials must not leak into the error message")
+	assert.NotContains(t, errorMsg, "user:")
+	assert.Contains(t, errorMsg, "github.com/org/repo.git")
+	assert.Contains(t, errorMsg, "no_dot_terragrunt_cache")
+	assert.Contains(t, errorMsg, "Remove the source")
+}
+
 func TestInvalidSourceURLWithMapError(t *testing.T) {
 	t.Parallel()
 
@@ -334,4 +461,52 @@ func TestParsingModulePathError(t *testing.T) {
 	errorMsg := err.Error()
 	assert.Contains(t, errorMsg, "git::invalid-url")
 	assert.Contains(t, errorMsg, "Unable to obtain the module path")
+}
+
+func TestCopyLockFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("same folder keeps a symlinked lock file", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		sharedDir := filepath.Join(tmpDir, "shared")
+		unitDir := filepath.Join(tmpDir, "unit")
+
+		require.NoError(t, os.MkdirAll(sharedDir, 0755))
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+
+		sharedLock := filepath.Join(sharedDir, tf.TerraformLockFile)
+		require.NoError(t, os.WriteFile(sharedLock, []byte("# shared"), 0644))
+
+		unitLock := filepath.Join(unitDir, tf.TerraformLockFile)
+		require.NoError(t, os.Symlink(filepath.Join("..", "shared", tf.TerraformLockFile), unitLock))
+
+		// An in-place run has the unit directory as both source and destination; nothing must be rewritten.
+		err := runcfg.CopyLockFile(logger.CreateLogger(), vfs.NewOSFS(), tmpDir, false, unitDir, unitDir)
+		require.NoError(t, err)
+
+		info, err := os.Lstat(unitLock)
+		require.NoError(t, err)
+		assert.NotZero(t, info.Mode()&os.ModeSymlink, "copying a lock file onto itself must not replace the symlink")
+	})
+
+	t.Run("different folders copy the lock file", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		cacheDir := filepath.Join(tmpDir, "cache")
+		unitDir := filepath.Join(tmpDir, "unit")
+
+		require.NoError(t, os.MkdirAll(cacheDir, 0755))
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(cacheDir, tf.TerraformLockFile), []byte("# cache"), 0644))
+
+		err := runcfg.CopyLockFile(logger.CreateLogger(), vfs.NewOSFS(), tmpDir, false, cacheDir, unitDir)
+		require.NoError(t, err)
+
+		contents, err := os.ReadFile(filepath.Join(unitDir, tf.TerraformLockFile))
+		require.NoError(t, err)
+		assert.Equal(t, "# cache", string(contents))
+	})
 }

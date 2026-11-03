@@ -1,4 +1,3 @@
-// Package filter provides telemetry support for git worktree operations and filter evaluation.
 package filter
 
 import (
@@ -10,6 +9,7 @@ import (
 // Telemetry operation names for git worktree and filter operations.
 const (
 	// Git worktree operations
+
 	TelemetryOpGitWorktreeCreate      = "git_worktree_create"
 	TelemetryOpGitWorktreeRemove      = "git_worktree_remove"
 	TelemetryOpGitWorktreesCreate     = "git_worktrees_create"
@@ -20,6 +20,7 @@ const (
 	TelemetryOpGitWorktreeFilterApply = "git_worktree_filter_apply"
 
 	// Filter evaluation operations
+
 	TelemetryOpFilterEvaluate      = "filter_evaluate"
 	TelemetryOpFilterParse         = "filter_parse"
 	TelemetryOpGitFilterExpand     = "git_filter_expand"
@@ -40,6 +41,7 @@ const (
 	AttrGitDiffChanged = "git.diff.changed_count"
 
 	// Repository identification attributes
+
 	AttrGitRepoRemote = "git.repo.remote"
 	AttrGitRepoBranch = "git.repo.branch"
 	AttrGitRepoCommit = "git.repo.commit"

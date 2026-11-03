@@ -212,12 +212,10 @@ func convertToTerragruntCatalogConfig(
 	}
 
 	if pctx.Locals != nil && *pctx.Locals != cty.NilVal {
-		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
-		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
-		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
-		localsParsed, _ := ctyhelper.ParseCtyValueToMap(*pctx.Locals)
-		// Only set Locals if there are actual values to avoid setting an empty map
-		if len(localsParsed) > 0 {
+		// Parsing may not start from the real root file, so some locals can be
+		// evaluated incorrectly and fail to convert. Such locals are left unset
+		// rather than failing the catalog parse. Empty locals are left unset too.
+		if localsParsed, parseErr := ctyhelper.ParseCtyValueToMap(*pctx.Locals); parseErr == nil && len(localsParsed) > 0 {
 			cfg.Locals = localsParsed
 			cfg.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 		}

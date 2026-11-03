@@ -1,0 +1,10 @@
+---
+version: "v1.2.1"
+category: "performance-improvements"
+---
+
+#### Units that share a `run_cmd` result run the command once
+
+Units share a `run_cmd` result when the call uses `--terragrunt-global-cache`, or when it is in a file they read with `read_terragrunt_config`. Discovery parses units concurrently, so several of them could start the command before any had cached its result, and `run --all` could run a shared command once per unit.
+
+Units now wait for the first run and reuse its result. If that run fails, the next unit runs the command itself.

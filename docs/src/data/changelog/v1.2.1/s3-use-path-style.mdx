@@ -1,0 +1,14 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### `use_path_style` applies to Terragrunt's own S3 requests
+
+OpenTofu deprecates the `s3` backend's `force_path_style` setting in favor of `use_path_style`, but Terragrunt only read `force_path_style`. With `use_path_style = true` in `remote_state`, OpenTofu used path-style URLs while Terragrunt's backend bootstrap and dependency output reads did not. Against an S3-compatible object store, bootstrap then failed with errors such as:
+
+```text
+operation error S3: HeadBucket, https response error StatusCode: 501, RequestID: , HostID: , api error NotImplemented: Not Implemented
+```
+
+Terragrunt now reads `use_path_style` as well as `force_path_style`. See [S3-compatible object stores](/features/units/state-backend/s3#s3-compatible-object-stores) for a working configuration.

@@ -1,0 +1,10 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### `-detailed-exitcode` no longer hides failures without an exit code
+
+With `-detailed-exitcode`, e.g. `terragrunt run --all -- plan -detailed-exitcode`, a failure that came with no exit code from OpenTofu/Terraform, such as the binary failing to start, was recorded as exit code `0`. Terragrunt dropped the error and reported the unit as successful.
+
+Terragrunt now records exit code `1` for these failures and returns the error.

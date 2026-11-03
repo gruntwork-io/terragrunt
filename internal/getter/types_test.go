@@ -1,7 +1,6 @@
 package getter_test
 
 import (
-	"context"
 	"net/url"
 	"testing"
 
@@ -91,84 +90,4 @@ func TestCASProtocolGetterGetFile(t *testing.T) {
 
 	err := g.GetFile(t.Context(), &getter.Request{})
 	require.ErrorIs(t, err, cas.ErrGetFileNotSupported)
-}
-
-// TestGitGetterForcesEnableSymlinks pins the only behavior GitGetter adds on
-// top of the upstream git getter: it forces req.DisableSymlinks to false for
-// the inner Get call and restores the caller's value when Get returns.
-func TestGitGetterForcesEnableSymlinks(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		callerValue bool
-	}{
-		{name: "caller_disabled_symlinks", callerValue: true},
-		{name: "caller_enabled_symlinks", callerValue: false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			stub := &recordingGetter{}
-			g := getter.NewGitGetter().WithInner(stub)
-
-			req := &getter.Request{DisableSymlinks: tc.callerValue}
-			require.NoError(t, g.Get(t.Context(), req))
-
-			assert.False(
-				t,
-				stub.observedDisableSymlinks,
-				"GitGetter must enable symlinks for the inner Get",
-			)
-			assert.Equal(
-				t,
-				tc.callerValue,
-				req.DisableSymlinks,
-				"GitGetter must restore the caller's flag",
-			)
-		})
-	}
-}
-
-// TestGitGetterGetFilePassthrough pins the passthrough so a future refactor
-// can't silently change the contract.
-func TestGitGetterGetFilePassthrough(t *testing.T) {
-	t.Parallel()
-
-	stub := &recordingGetter{}
-	g := getter.NewGitGetter().WithInner(stub)
-
-	require.NoError(t, g.GetFile(t.Context(), &getter.Request{}))
-	assert.Equal(t, 1, stub.getFileCalls)
-}
-
-// recordingGetter is a minimal Getter implementation. Tests use it to
-// observe how GitGetter calls into its inner getter without standing up a
-// real git remote.
-type recordingGetter struct {
-	getCalls                int
-	getFileCalls            int
-	observedDisableSymlinks bool
-}
-
-func (g *recordingGetter) Get(_ context.Context, req *getter.Request) error {
-	g.getCalls++
-	g.observedDisableSymlinks = req.DisableSymlinks
-
-	return nil
-}
-
-func (g *recordingGetter) GetFile(_ context.Context, _ *getter.Request) error {
-	g.getFileCalls++
-	return nil
-}
-
-func (g *recordingGetter) Mode(_ context.Context, _ *url.URL) (getter.Mode, error) {
-	return getter.ModeAny, nil
-}
-
-func (g *recordingGetter) Detect(_ *getter.Request) (bool, error) {
-	return true, nil
 }

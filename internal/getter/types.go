@@ -38,15 +38,3 @@ type (
 	S3Detector     = s3.Detector
 	GCSDetector    = gcs.Detector
 )
-
-// Concrete getter type aliases for callers that need to assert on the
-// underlying getter type (typically tests pinning the protocol set). The
-// git, s3 and gcs slots are intentionally absent: GitGetter, S3Getter and
-// GCSGetter are Terragrunt's own types (defined in git.go, s3.go and gcs.go),
-// not the upstream go-getter/v2 getters.
-type (
-	HgGetter        = getter.HgGetter
-	SmbClientGetter = getter.SmbClientGetter
-	SmbMountGetter  = getter.SmbMountGetter
-	FileGetter      = getter.FileGetter
-)

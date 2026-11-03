@@ -20,6 +20,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
@@ -40,6 +41,7 @@ import (
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+	nullTFVarsFileMode              = 0o600
 	tofuCPUProfileName              = "tofu_cpu.prof"
 	tofuProfileDirMode              = 0o700
 )
@@ -169,17 +171,27 @@ func Run(
 		return err
 	}
 
-	// Always download/copy source to cache directory for consistency.
-	// When no source is specified, sourceURL will be "." (current directory).
-	err = telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "download_terraform_source", map[string]any{
-			"sourceUrl": redact.NewURL(sourceURL),
-		}, func(ctx context.Context, l log.Logger) error {
-			updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
-			return err
-		})
+	skipCache, err := runcfg.ShouldSkipCache(
+		opts.Experiments.Evaluate(experiment.NoDotTerragruntCache),
+		opts.Source,
+		opts.TerragruntConfigPath,
+		cfg,
+	)
 	if err != nil {
 		return err
+	}
+
+	if !skipCache {
+		err = telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "download_terraform_source", map[string]any{
+				"sourceUrl": redact.NewURL(sourceURL),
+			}, func(ctx context.Context, l log.Logger) error {
+				updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
+				return err
+			})
+		if err != nil {
+			return err
+		}
 	}
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
@@ -964,6 +976,10 @@ func CheckProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
 // that OpenTofu/Terraform will auto-load. This is necessary because OpenTofu/Terraform
 // cannot accept null values via environment variables (TF_VAR_*), but it can read them
 // from .auto.tfvars.json files.
+//
+// The file is removed after the run. When the unit runs in place, the file lands in the user's unit directory,
+// so an existing file there is never replaced and the run stops with NullVarsFileExists. In the cache directory
+// the file is a disposable copy and is overwritten.
 func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunConfig) (string, error) {
 	jsonEmptyVars := make(map[string]any)
 
@@ -983,19 +999,44 @@ func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunC
 	}
 
 	varFile := filepath.Join(opts.CacheDir, NullTFVarsFile)
+	inPlace := filepath.Clean(opts.CacheDir) == filepath.Clean(opts.UnitDir)
 
-	const ownerReadWritePermissions = 0600
-
-	if err := vfs.WriteFile(
-		v.FS,
-		varFile,
-		jsonContents,
-		os.FileMode(ownerReadWritePermissions),
-	); err != nil {
+	if err := writeNullVarsFile(v.FS, varFile, jsonContents, inPlace); err != nil {
 		return "", err
 	}
 
 	return varFile, nil
+}
+
+// writeNullVarsFile writes contents to path atomically, so path never holds a partial file and nothing is left
+// behind when the write fails. In place, the name is first reserved with an exclusive create, so anything already
+// at path, file or symlink, or created concurrently, stops the write with NullVarsFileExists rather than being
+// replaced; the atomic write then replaces only that reservation.
+func writeNullVarsFile(fsys vfs.FS, path string, contents []byte, inPlace bool) error {
+	if inPlace {
+		reservation, err := fsys.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, nullTFVarsFileMode)
+		if err != nil {
+			if errors.Is(err, os.ErrExist) {
+				return NullVarsFileExists{Path: path}
+			}
+
+			return err
+		}
+
+		if err := reservation.Close(); err != nil {
+			return errors.Join(err, fsys.Remove(path))
+		}
+	}
+
+	if err := vfs.WriteFileAtomic(fsys, path, contents, nullTFVarsFileMode); err != nil {
+		if inPlace {
+			return errors.Join(err, fsys.Remove(path))
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.

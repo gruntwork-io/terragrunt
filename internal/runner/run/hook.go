@@ -27,6 +27,7 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 
 	// The following are gated behind the hook-context-env experiment.
+
 	HookCtxHookTypeEnvName      = "TG_CTX_HOOK_TYPE"
 	HookCtxSourceEnvName        = "TG_CTX_SOURCE"
 	HookCtxTerragruntDirEnvName = "TG_CTX_TERRAGRUNT_DIR"
@@ -150,7 +151,14 @@ func ProcessErrorHooks(
 	errorMessage := strings.Join(errorMessages, "\n")
 
 	for _, curHook := range hooks {
-		if util.MatchesAny(curHook.OnErrors, errorMessage) &&
+		matched, err := util.MatchesAny(curHook.OnErrors, errorMessage)
+		if err != nil {
+			errorsOccured = append(errorsOccured, fmt.Errorf("matching on_errors of error hook %s: %w", curHook.Name, err))
+
+			continue
+		}
+
+		if matched &&
 			slices.Contains(curHook.Commands, opts.TerraformCliArgs.CommandName(opts.TerraformCommand)) {
 			err := telemetry.TelemeterFromContext(ctx).
 				Collect(ctx, l, "error_hook_"+curHook.Name, map[string]any{

@@ -1,0 +1,37 @@
+---
+name: dependency-config-path-file
+status: active
+since: "v1.2.1"
+---
+
+Throw an error when a `dependency` block sets `config_path` to a file.
+
+### `dependency-config-path-file` - Reason
+
+The `config_path` of a [`dependency`](/reference/hcl/blocks#dependency) block is the directory of a unit or a stack. Terragrunt has also accepted the path of a configuration file there:
+
+```hcl
+dependency "db" {
+  config_path = "../db/terragrunt.hcl"
+}
+```
+
+This was never documented, and Terragrunt supported it inconsistently. Existing support will be retained for v1.x for backwards compatibility, to obey the [Terragrunt 1.0 guarantees](/process/1-0-guarantees#hcl-configurations).
+
+By default, Terragrunt warns once about each block whose `config_path` names a file, naming the block and the path:
+
+```text
+/path/to/terragrunt.hcl: dependency db sets config_path to the file ../db/terragrunt.hcl; set it to the directory of the unit or stack
+```
+
+Enabling the control turns each warning into an error with the same message.
+
+Set `config_path` to the directory:
+
+```hcl
+dependency "db" {
+  config_path = "../db"
+}
+```
+
+Terragrunt looks for `terragrunt.hcl`, `terragrunt.hcl.json`, or `terragrunt.stack.hcl` in that directory. A dependency whose configuration file has another name needs that file renamed before its directory can be used.

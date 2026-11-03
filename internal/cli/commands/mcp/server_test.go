@@ -568,6 +568,40 @@ func TestRunOrderDescriptionNamesOnlyArgumentsItAccepts(t *testing.T) {
 	}
 }
 
+// TestPlanInputSchemaHasEveryArgument pins that the plan tool's input schema
+// has the arguments it shares with apply and destroy, and its own.
+func TestPlanInputSchemaHasEveryArgument(t *testing.T) {
+	t.Parallel()
+
+	session := newTestSessionWith(
+		t,
+		newTestTree(t),
+		venvtest.NewWithOSFS(),
+		func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+		nil,
+	)
+
+	res, err := session.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+
+	idx := slices.IndexFunc(res.Tools, func(tool *mcp.Tool) bool { return tool.Name == "plan" })
+	require.GreaterOrEqual(t, idx, 0, "plan must be advertised")
+
+	raw, err := json.Marshal(res.Tools[idx].InputSchema)
+	require.NoError(t, err)
+
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+
+	require.NoError(t, json.Unmarshal(raw, &schema))
+	assert.ElementsMatch(
+		t,
+		[]string{"working_dir", "filter", "parallelism", "include_sensitive"},
+		slices.Collect(maps.Keys(schema.Properties)),
+	)
+}
+
 func TestValidateToolSeparatesCleanAndBrokenTrees(t *testing.T) {
 	t.Parallel()
 

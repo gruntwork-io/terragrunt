@@ -269,8 +269,12 @@ func CheckWorktreeBoundaries(
 		return nil
 	}
 
-	checker := &boundaryChecker{v: v, w: w, trees: make(map[string]git.TreePaths)}
-	checker.gitRoot, _ = git.GoRepoRoot(ctx, v, workingDir)
+	gitRoot, err := git.GoRepoRoot(ctx, v, workingDir)
+	if err != nil && !errors.Is(err, git.ErrNoRepoRoot) {
+		return err
+	}
+
+	checker := &boundaryChecker{v: v, w: w, trees: make(map[string]git.TreePaths), gitRoot: gitRoot}
 
 	var checkErr error
 

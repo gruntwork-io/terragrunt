@@ -83,13 +83,14 @@ func handleExitCoder(_ *Context, err error, osExiter func(code int)) error {
 
 	var exitErr cli.ExitCoder
 	if ok := errors.As(err, &exitErr); ok {
+		var writeErr error
 		if err.Error() != "" {
-			_, _ = fmt.Fprintln(cli.ErrWriter, err)
+			_, writeErr = fmt.Fprintln(cli.ErrWriter, err)
 		}
 
 		osExiter(exitErr.ExitCode())
 
-		return nil
+		return writeErr
 	}
 
 	return err

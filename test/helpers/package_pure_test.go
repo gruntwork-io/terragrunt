@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +22,7 @@ func TestGzipHandler(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, body)
 	})
-	handler := helpers.GzipHandler(inner)
+	handler := helpers.GzipHandler(logger.CreateLogger(), inner)
 
 	t.Run("compresses when the client accepts gzip", func(t *testing.T) {
 		t.Parallel()
@@ -84,7 +85,7 @@ func TestGzipHandlerKeepsFirstStatus(t *testing.T) {
 	req.Header.Set("Accept-Encoding", "gzip")
 
 	rec := httptest.NewRecorder()
-	helpers.GzipHandler(inner).ServeHTTP(rec, req)
+	helpers.GzipHandler(logger.CreateLogger(), inner).ServeHTTP(rec, req)
 
 	res := rec.Result()
 	defer res.Body.Close()

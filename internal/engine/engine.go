@@ -29,8 +29,6 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
-	"google.golang.org/grpc/credentials/insecure"
-
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt-engine-go/engine"
@@ -38,7 +36,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/hashicorp/go-plugin"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -904,10 +901,8 @@ func createEngine(
 			Plugins: map[string]plugin.Plugin{
 				"plugin": &engine.TerragruntGRPCEngine{},
 			},
-			Cmd: osCmder.OSCmd(),
-			GRPCDialOptions: []grpc.DialOption{
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-			},
+			Cmd:              osCmder.OSCmd(),
+			AutoMTLS:         true,
 			AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 		})
 

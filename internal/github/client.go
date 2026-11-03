@@ -130,7 +130,7 @@ func (c *GitHubAPIClient) GetLatestRelease(
 		return &Release{TagName: cachedTag}, nil
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}

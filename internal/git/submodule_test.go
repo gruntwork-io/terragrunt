@@ -73,6 +73,12 @@ func TestResolveSubmoduleURL(t *testing.T) {
 			url:       "./../sibling.git",
 			want:      "https://example.com/org/sibling.git",
 		},
+		{
+			name:      "parent with no components to remove",
+			parentURL: "repo",
+			url:       "../sibling.git",
+			want:      "./sibling.git",
+		},
 	}
 
 	for _, tt := range tests {
@@ -176,7 +182,7 @@ func TestGitRunner_SubmoduleURLs(t *testing.T) {
 		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
 
 		_, err := runner.SubmoduleURLs(t.Context(), headHash)
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
+		require.ErrorIs(t, err, git.ErrGitCommand)
 	})
 
 	t.Run("missing workdir", func(t *testing.T) {

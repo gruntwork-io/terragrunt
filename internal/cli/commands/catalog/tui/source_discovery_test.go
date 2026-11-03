@@ -127,7 +127,7 @@ inputs = {
 `), 0o644))
 
 	l := logger.CreateLogger()
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir
@@ -147,7 +147,7 @@ func TestDiscoverSourceURLs_EmptyDir(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir

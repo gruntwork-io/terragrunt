@@ -20,9 +20,9 @@ func TestS3Resolver_PrefersSHA256(t *testing.T) {
 	t.Parallel()
 
 	r := newS3ResolverWith(&fakeS3Head{out: &s3.HeadObjectOutput{
-		ChecksumSHA256: aws.String("sha256-token"),
-		ChecksumSHA1:   aws.String("sha1-token"),
-		ETag:           aws.String(`"etag-token"`),
+		ChecksumSHA256: new("sha256-token"),
+		ChecksumSHA1:   new("sha1-token"),
+		ETag:           new(`"etag-token"`),
 	}})
 
 	got, err := r.Probe(t.Context(), redact.NewURL("https://s3-us-east-1.amazonaws.com/bucket/key.tgz"))
@@ -44,32 +44,32 @@ func TestS3Resolver_FallsThroughChecksumCascade(t *testing.T) {
 		{
 			name: "CRC64NVME only",
 			head: &s3.HeadObjectOutput{
-				ChecksumCRC64NVME: aws.String("crc64nvme-token"),
-				ETag:              aws.String(`"etag-token"`),
+				ChecksumCRC64NVME: new("crc64nvme-token"),
+				ETag:              new(`"etag-token"`),
 			},
 			want: cas.ContentKey("crc64nvme", "crc64nvme-token"),
 		},
 		{
 			name: "SHA1 only",
 			head: &s3.HeadObjectOutput{
-				ChecksumSHA1: aws.String("sha1-token"),
-				ETag:         aws.String(`"etag-token"`),
+				ChecksumSHA1: new("sha1-token"),
+				ETag:         new(`"etag-token"`),
 			},
 			want: cas.ContentKey("sha1", "sha1-token"),
 		},
 		{
 			name: "CRC32C only",
 			head: &s3.HeadObjectOutput{
-				ChecksumCRC32C: aws.String("crc32c-token"),
-				ETag:           aws.String(`"etag-token"`),
+				ChecksumCRC32C: new("crc32c-token"),
+				ETag:           new(`"etag-token"`),
 			},
 			want: cas.ContentKey("crc32c", "crc32c-token"),
 		},
 		{
 			name: "CRC32 only",
 			head: &s3.HeadObjectOutput{
-				ChecksumCRC32: aws.String("crc32-token"),
-				ETag:          aws.String(`"etag-token"`),
+				ChecksumCRC32: new("crc32-token"),
+				ETag:          new(`"etag-token"`),
 			},
 			want: cas.ContentKey("crc32", "crc32-token"),
 		},
@@ -92,7 +92,7 @@ func TestS3Resolver_FallsBackToOpaqueETag(t *testing.T) {
 	t.Parallel()
 
 	r := newS3ResolverWith(&fakeS3Head{out: &s3.HeadObjectOutput{
-		ETag: aws.String(`"etag-token"`),
+		ETag: new(`"etag-token"`),
 	}})
 
 	url := "https://s3-us-east-1.amazonaws.com/bucket/key.tgz"
@@ -105,7 +105,7 @@ func TestS3Resolver_MultipartETagStaysOpaque(t *testing.T) {
 	t.Parallel()
 
 	r := newS3ResolverWith(&fakeS3Head{out: &s3.HeadObjectOutput{
-		ETag: aws.String(`"d41d8cd98f00b204e9800998ecf8427e-3"`),
+		ETag: new(`"d41d8cd98f00b204e9800998ecf8427e-3"`),
 	}})
 
 	url := "https://s3-us-east-1.amazonaws.com/bucket/key.tgz"
@@ -161,7 +161,7 @@ func TestS3Resolver_AcceptsModernURLForms(t *testing.T) {
 			t.Parallel()
 
 			head := &fakeS3Head{out: &s3.HeadObjectOutput{
-				ChecksumSHA256: aws.String("sha256-token"),
+				ChecksumSHA256: new("sha256-token"),
 			}}
 
 			var gotRegion string
@@ -237,7 +237,7 @@ func TestS3Resolver_VersionedURLForwardsVersionIDToHeadObject(t *testing.T) {
 			t.Parallel()
 
 			head := &fakeS3Head{out: &s3.HeadObjectOutput{
-				ChecksumSHA256: aws.String("sha256-token"),
+				ChecksumSHA256: new("sha256-token"),
 			}}
 			r := newS3ResolverWith(head)
 
@@ -261,7 +261,7 @@ func TestS3Resolver_UnversionedURLOmitsVersionID(t *testing.T) {
 	t.Parallel()
 
 	head := &fakeS3Head{out: &s3.HeadObjectOutput{
-		ChecksumSHA256: aws.String("sha256-token"),
+		ChecksumSHA256: new("sha256-token"),
 	}}
 	r := newS3ResolverWith(head)
 

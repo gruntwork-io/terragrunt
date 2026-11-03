@@ -228,7 +228,7 @@ export default defineConfig({
     "/reference/config-blocks-and-attributes/": "/reference/hcl/blocks/",
     "/reference/strict-mode/": "/reference/strict-controls/",
     "/reference/log-formatting/": "/reference/logging/formatting/",
-    "/features/aws-authentication/": "/features/units/authentication/",
+    "/features/aws-authentication/": "/features/units/authentication/aws/",
     "/reference/experiment-mode/": "/reference/experiments/",
 
     // Support old doc structure paths
@@ -250,8 +250,8 @@ export default defineConfig({
     "/features/keep-your-terragrunt-architecture-dry/": "/features/units/includes/",
     "/features/keep-your-remote-state-configuration-dry/": "/features/units/state-backend/",
     "/features/keep-your-cli-flags-dry/": "/features/units/extra-arguments/",
-    "/features/aws-auth/": "/features/units/authentication/",
-    "/features/work-with-multiple-aws-accounts/": "/features/units/authentication/",
+    "/features/aws-auth/": "/features/units/authentication/aws/",
+    "/features/work-with-multiple-aws-accounts/": "/features/units/authentication/aws/",
     "/features/auto-retry/": "/features/units/runtime-control/",
     "/features/provider-cache/": "/features/caching/provider-cache-server/",
     "/features/provider-caching/": "/features/caching/provider-cache-server/",

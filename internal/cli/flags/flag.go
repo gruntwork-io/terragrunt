@@ -27,9 +27,9 @@ type Flag struct {
 }
 
 // NewFlag returns a new Flag instance.
-func NewFlag(new clihelper.Flag, opts ...Option) *Flag {
+func NewFlag(cliFlag clihelper.Flag, opts ...Option) *Flag {
 	flag := &Flag{
-		Flag: new,
+		Flag: cliFlag,
 		evaluateWrapper: func(ctx context.Context, evalFn func(ctx context.Context) error) error {
 			return evalFn(ctx)
 		},
@@ -71,6 +71,28 @@ func (newFlag *Flag) DeprecatedNames() []string {
 	}
 
 	return names
+}
+
+// DeprecatedEnvVars returns all deprecated environment variables this flag
+// reads. A deprecated flag that wraps a flag of its own reads that flag's
+// environment variables, as [Flag.Apply] registers it as is.
+func (newFlag *Flag) DeprecatedEnvVars() []string {
+	var envVars []string
+
+	if flag, ok := newFlag.Flag.(interface{ DeprecatedEnvVars() []string }); ok {
+		envVars = flag.DeprecatedEnvVars()
+	}
+
+	for _, deprecated := range newFlag.deprecatedFlags {
+		if deprecated.Flag == newFlag.Flag {
+			envVars = append(envVars, deprecated.GetEnvVars()...)
+			continue
+		}
+
+		envVars = append(envVars, deprecated.Flag.GetEnvVars()...)
+	}
+
+	return envVars
 }
 
 // Value implements `clihelper.Flag` interface.

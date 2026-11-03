@@ -3,6 +3,7 @@ package spinner_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -260,4 +262,118 @@ func TestShowAfterSpinnerNotShownWhenFast(t *testing.T) {
 		assert.Empty(t, logBuf.String())
 		assert.Empty(t, spinnerBuf.String())
 	})
+}
+
+// TestWriter pins that the spinner only draws on an interactive error stream.
+func TestWriter(t *testing.T) {
+	t.Parallel()
+
+	errWriter := new(bytes.Buffer)
+
+	testCases := []struct {
+		want io.Writer
+		name string
+		tty  bool
+	}{
+		{name: "interactive", tty: true, want: errWriter},
+		{name: "not a terminal"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New().WithErrWriter(errWriter)
+			v.Terminal.StderrIsTTY = func() bool { return tc.tty }
+
+			assert.Equal(t, tc.want, spinner.Writer(v))
+		})
+	}
+}
+
+// TestShowReportsFromTheStart pins that Show has no quiet period before it reports.
+func TestShowReportsFromTheStart(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		buf := new(bytes.Buffer)
+		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(buf))
+
+		err := spinner.Show(t.Context(), l, nil, spinner.Messages{
+			Working: "working...",
+			Done:    "finished",
+		}, func() error {
+			time.Sleep(time.Millisecond)
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "working...")
+		assert.Contains(t, buf.String(), "finished")
+	})
+}
+
+// TestShowAfterContextCancelledNonInteractive pins that cancelling mid-wait ends the keepalive without a done line.
+func TestShowAfterContextCancelledNonInteractive(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		buf := new(bytes.Buffer)
+		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(buf))
+
+		ctx, cancel := context.WithCancel(t.Context())
+
+		err := spinner.ShowAfter(ctx, l, nil, 50*time.Millisecond, spinner.Messages{
+			Working: "working...",
+			Done:    "should not appear",
+		}, func() error {
+			// Wait for the working message, then cancel context.
+			time.Sleep(150 * time.Millisecond)
+			cancel()
+			time.Sleep(50 * time.Millisecond)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "working...")
+		assert.NotContains(t, buf.String(), "should not appear")
+	})
+}
+
+// TestShowAfterSpinnerWriteFailure pins that a failing spinner writer costs neither the result nor the done line.
+func TestShowAfterSpinnerWriteFailure(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		logBuf := new(bytes.Buffer)
+		spinnerW := &failingWriter{}
+		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(logBuf))
+
+		err := spinner.ShowAfter(t.Context(), l, spinnerW, 50*time.Millisecond, spinner.Messages{
+			Working: "working...",
+			Done:    "finished",
+		}, func() error {
+			time.Sleep(200 * time.Millisecond)
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, logBuf.String(), "finished")
+
+		require.Greater(t, len(spinnerW.writes), 1, "frames and the final clear should all be attempted")
+		assert.Contains(t, spinnerW.writes[0], "working...")
+		assert.Empty(t, strings.TrimSpace(spinnerW.writes[len(spinnerW.writes)-1]), "the last write should blank the line")
+	})
+}
+
+// failingWriter records every write and refuses all of them.
+type failingWriter struct {
+	writes []string
+}
+
+func (w *failingWriter) Write(p []byte) (int, error) {
+	w.writes = append(w.writes, string(p))
+
+	return 0, errors.New("write failed")
 }

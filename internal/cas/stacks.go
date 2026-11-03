@@ -749,22 +749,15 @@ func (c *CAS) copyFileInFS(v *venv.Venv, srcPath, dstPath string, perm fs.FileMo
 
 	out, err := v.FS.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
-		_ = in.Close()
-
-		return err
+		return errors.Join(err, in.Close())
 	}
 
 	if _, err := io.Copy(out, in); err != nil {
-		_ = in.Close()
-		_ = out.Close()
-
-		return err
+		return errors.Join(err, in.Close(), out.Close())
 	}
 
 	if err := in.Close(); err != nil {
-		_ = out.Close()
-
-		return err
+		return errors.Join(err, out.Close())
 	}
 
 	return out.Close()

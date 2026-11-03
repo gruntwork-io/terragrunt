@@ -52,11 +52,15 @@ func (e *WrappedError) Unwrap() error {
 
 // Git operation errors
 var (
-	ErrCommandSpawn        = errors.New("failed to spawn git command")
+	ErrGitCommand          = errors.New("git command failed")
 	ErrNoMatchingReference = errors.New("no matching reference")
 	ErrReadTree            = errors.New("failed to read tree")
 	ErrNoWorkDir           = errors.New("working directory not set")
 	ErrUnknownRevision     = errors.New("unknown revision")
+
+	// ErrParseVersion is returned when `git version` output has no version
+	// number.
+	ErrParseVersion = errors.New("unexpected git version output")
 
 	// ErrCatFileMissing reports that `git cat-file --batch` knows no object by
 	// the requested name.

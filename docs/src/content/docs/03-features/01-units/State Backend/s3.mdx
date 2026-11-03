@@ -1,0 +1,241 @@
+---
+title: S3 Backend
+description: Learn what Terragrunt creates for the s3 backend, and which settings it accepts.
+slug: features/units/state-backend/s3
+sidebar:
+  label: S3
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Example configuration:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+```
+
+When you [bootstrap](/reference/cli/commands/backend/bootstrap) the backend, Terragrunt creates the following resources if they don't already exist:
+
+- **S3 bucket**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
+
+  In addition, you can let Terragrunt tag the bucket with custom tags that you specify in `remote_state.config.s3_bucket_tags`.
+
+- **DynamoDB table**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and/or you specify a `dynamodb_table` (a [DynamoDB table used for locking](https://opentofu.org/docs/language/settings/backends/s3/#dynamodb-state-locking)) in `remote_state.config`, Terragrunt will create them automatically if they don't already exist. They will be created with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, and the DynamoDB table will use the primary key `LockID`.
+
+  You may configure a custom endpoint for the AWS DynamoDB API using `remote_state.config.dynamodb_endpoint`.
+
+  In addition, you can let Terragrunt tag the DynamoDB table with custom tags that you specify in `remote_state.config.dynamodb_table_tags`.
+
+- **Access logging bucket**: If you specify an `accesslogging_bucket_name` in `remote_state.config` and that bucket doesn't already exist, Terragrunt will create it automatically. You can tag the access logging bucket with custom tags using `remote_state.config.accesslogging_bucket_tags`, and control the log object prefix using `accesslogging_target_prefix`.
+
+  A bucket Terragrunt creates here gets a bucket policy letting S3 deliver access logs into it on behalf of buckets in the same AWS account. AWS [recommends a bucket policy over the log delivery group ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general) for this, and documents the [policy to use](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-bucket-policy). Terragrunt also creates buckets with ACLs disabled, [which AWS recommends](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html) and applies by default to new buckets.
+
+  A bucket that already exists keeps the permissions it has: Terragrunt reads and writes nothing on its policy, so if access logs don't arrive, grant `s3:PutObject` to `logging.s3.amazonaws.com` on that bucket yourself.
+
+Terragrunt creates a bucket in your [account regional namespace](https://docs.aws.amazon.com/AmazonS3/latest/userguide/gpbucketnamespaces.html) when you name it using a name that's reserved for the account regional namespace. That namespace is a reserved subdivision of the S3 namespace that only your account can create buckets in, and its names end with your account ID, the region, and `-an`:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "my-tofu-state-111122223333-us-east-1-an"
+    key    = "${path_relative_to_include()}/tofu.tfstate"
+    region = "us-east-1"
+  }
+}
+```
+
+`accesslogging_bucket_name` follows the same rule. A name that fits the convention but names a region other than the one you are deploying to is refused before Terragrunt offers to create the bucket.
+
+<Aside type="tip" title="Using profiles">
+
+If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile when creating the S3 bucket, DynamoDB table, or access logging bucket.
+
+</Aside>
+
+If you are using an OpenTofu/Terraform version that supports S3-based lockfiles, you can also use the following to only provision the S3 backend:
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket       = "my-tofu-state"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+```
+
+Additionally, for **the S3 backend only**, Terragrunt will automatically update the S3 resource to match the
+configuration specified in the `remote_state` bucket. For example, if you require versioning in the `remote_state`
+block, but the underlying state bucket doesn't have versioning enabled, Terragrunt will automatically turn on versioning
+on the bucket to match the configuration.
+
+If you do not want Terragrunt to automatically apply changes, you can configure the following:
+
+```hcl
+# root.hcl
+remote_state {
+  # ... other args omitted for brevity ...
+  config = {
+    # ... other config omitted for brevity ...
+    disable_bucket_update = true
+  }
+}
+```
+
+## Root user access to the state bucket
+
+Terragrunt used to attach a bucket policy statement with the `Sid` `RootAccess` to every state bucket it bootstrapped, granting `s3:*` on the bucket and its objects to `arn:aws:iam::<account-id>:root`. A resource policy naming that ARN grants access to the AWS account as a whole, not only to its root user. That statement has been removed. The account already owns the bucket, so the statement gave the account no reach it did not have, and state files often contain secrets that belong behind least-privilege access.
+
+If your setup depends on that statement, set `enable_bucket_root_access` to add it back:
+
+```hcl
+# root.hcl
+remote_state {
+  # ... other args omitted for brevity ...
+  config = {
+    # ... other config omitted for brevity ...
+    enable_bucket_root_access = true
+  }
+}
+```
+
+Terragrunt does not strip the statement from buckets that already have it. To drop it, fetch the current policy, delete the statement whose `Sid` is `RootAccess`, and put the policy back:
+
+```bash
+aws s3api get-bucket-policy --bucket my-tofu-state --query Policy --output text \
+  | jq '.Statement |= map(select(.Sid != "RootAccess"))' > policy.json
+
+aws s3api put-bucket-policy --bucket my-tofu-state --policy file://policy.json
+```
+
+Before you apply this, confirm that the principals you expect can still reach the bucket through their own IAM policies.
+
+## Advanced configuration
+
+For the `s3` backend, the following additional config options can be used for [S3-compatible object stores](#s3-compatible-object-stores), as necessary:
+
+```hcl
+# root.hcl
+remote_state {
+  # ...
+
+  config = {
+    skip_bucket_versioning         = true
+    skip_bucket_ssencryption       = true
+    skip_bucket_enforced_tls       = true
+    skip_credentials_validation    = true
+    enable_lock_table_ssencryption = true
+    accesslogging_bucket_name      = "my-logs-bucket"
+    accesslogging_target_prefix    = "TFStateLogs/"
+    shared_credentials_file        = "/path/to/credentials/file"
+    skip_metadata_api_check        = true
+    force_path_style               = true
+  }
+}
+```
+
+- `skip_bucket_versioning` — Skip versioning on the state bucket. Use only if the object store does not support versioning.
+- `skip_bucket_ssencryption` — Skip server-side encryption on the state bucket. Use only if non-encrypted state is required or the object store does not support server-side encryption.
+- `skip_bucket_enforced_tls` — Skip enforcing TLS on the state bucket. Use only if you need to access the S3 bucket without TLS being enforced.
+- `skip_credentials_validation` — Skip validation of AWS credentials. Useful when using S3-compatible object stores other than AWS.
+- `enable_lock_table_ssencryption` — Enable server-side encryption on the DynamoDB lock table.
+- `accesslogging_bucket_name` — Name of the target bucket for server access logging on the state bucket.
+- `accesslogging_target_prefix` — Prefix for access log objects. Defaults to `TFStateLogs/`. Set to an empty string to disable the prefix.
+- `shared_credentials_file` — Path to a shared credentials file for AWS authentication.
+- `skip_metadata_api_check` — Skip the AWS metadata API check.
+- `force_path_style` — Force S3 path-style URLs instead of virtual-hosted-style.
+
+- `use_path_style` — The newer name for `force_path_style`. Set only one of them, because OpenTofu rejects both together.
+
+If you experience an error for any of these configurations, confirm you are using OpenTofu/Terraform v0.12.2 or greater.
+
+The following config options are only valid for the `s3` backend and are used by Terragrunt — they are **not** passed on to OpenTofu/Terraform:
+
+- `s3_bucket_tags`
+- `dynamodb_table_tags`
+- `accesslogging_bucket_tags`
+- `skip_bucket_versioning`
+- `skip_bucket_ssencryption`
+- `skip_bucket_root_access`
+- `enable_bucket_root_access`
+- `skip_bucket_enforced_tls`
+- `skip_bucket_public_access_blocking`
+- `accesslogging_bucket_name`
+- `accesslogging_target_prefix`
+- `enable_lock_table_ssencryption`
+
+<Aside type="caution" title="DEPRECATED">
+The `skip_bucket_accesslogging` option, which previously disabled access logging on the state bucket, is now deprecated. Use `accesslogging_bucket_name` instead to explicitly configure the target logging bucket.
+</Aside>
+
+<Aside type="caution" title="DEPRECATED">
+The `skip_bucket_root_access` option no longer has any effect and is now deprecated. Terragrunt does not grant the AWS account root user access to the state bucket, so there is nothing left to skip. Use `enable_bucket_root_access` if you need that access granted. Terragrunt warns about the option when it bootstraps the backend; enable the [`skip-bucket-root-access`](/reference/strict-controls/active#skip-bucket-root-access) strict control to turn that warning into an error.
+</Aside>
+
+## S3-compatible object stores
+
+Terragrunt can bootstrap and use state buckets in object stores that implement the S3 API, such as [RustFS](https://github.com/rustfs/rustfs), which Terragrunt's integration tests run against. Point `endpoints.s3` at the store and turn off the steps that need AWS services the store doesn't have:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket       = "my-tofu-state"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true
+
+    endpoints = {
+      s3 = "http://localhost:9000"
+    }
+
+    use_path_style              = true
+    skip_credentials_validation = true
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+    encrypt                     = false
+
+    skip_bucket_versioning             = true
+    skip_bucket_ssencryption           = true
+    skip_bucket_enforced_tls           = true
+    skip_bucket_public_access_blocking = true
+  }
+}
+```
+
+- `endpoints.s3` sends both Terragrunt's and OpenTofu/Terraform's S3 requests to the store. The older `endpoint` setting works too, but OpenTofu warns that it is deprecated. Set only one of them, because OpenTofu rejects both together.
+
+- `use_path_style` puts the bucket name in the URL path (`http://localhost:9000/my-tofu-state/...`) in place of the hostname, which most self-hosted stores need. The older `force_path_style` does the same, but OpenTofu warns that it is deprecated. Set only one of them, because OpenTofu rejects both together.
+
+- `skip_credentials_validation` stops Terragrunt and OpenTofu/Terraform from checking the credentials against AWS STS. `skip_requesting_account_id` stops OpenTofu/Terraform from looking up an AWS account ID, and `skip_metadata_api_check` stops it from querying the EC2 instance metadata service.
+- `use_lockfile` locks state with a `.tflock` object that OpenTofu writes with a conditional `PutObject` (`If-None-Match`), so the store must support conditional writes. It needs OpenTofu 1.10 or later, and replaces the DynamoDB table these stores don't have.
+- `encrypt = false` and `skip_bucket_ssencryption` turn off server-side encryption. Leave them out if the store supports it.
+- `skip_bucket_versioning` leaves versioning off. If the store supports versioning, keep it on: `backend delete` and `backend migrate` refuse to run against an unversioned bucket unless you pass `--force`.
+- `skip_bucket_enforced_tls` and `skip_bucket_public_access_blocking` stop Terragrunt from adding the TLS-only bucket policy and the public access block when it creates the bucket.
+
+Terragrunt sends any `region` other than `us-east-1` as the new bucket's location constraint, so set a region the store accepts.
+
+Pass the store's access key in `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. Terragrunt and OpenTofu/Terraform read them the same way they read AWS credentials. Leave `AWS_PROFILE` unset, or set it to a profile that exists on the machine, or the AWS SDK fails to load its configuration.
+
+<Aside type="note" title="Dependency outputs">
+When the S3 backend configuration is [supported by the direct reader](/reference/cli/commands/run#dependency-fetch-output-from-state), Terragrunt reads dependency outputs directly from the S3 state object. Otherwise it runs `tofu output` or `terraform output`.
+</Aside>

@@ -109,11 +109,10 @@ func (app *App) RunContext(
 
 	ctx = app.registerGracefullyShutdown(ctx, l, v)
 
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	// configure engine context
 	ctx = engine.WithEngineValues(ctx)
 
-	ctx = run.WithRunVersionCache(ctx)
 	ctx = run.WithModuleVersionResolver(ctx, v)
 
 	args = RemoveNoColorFlagDuplicates(args)

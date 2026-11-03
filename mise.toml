@@ -1,5 +1,5 @@
 [tools]
-go = "1.27.2"
+go = "1.27.3"
 opentofu = "1.13.0"
 golangci-lint = "2.14.0"
 "go:github.com/goph/licensei/cmd/licensei" = "v0.9.0"

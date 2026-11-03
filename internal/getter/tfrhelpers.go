@@ -700,7 +700,7 @@ func httpGETAndGetResponse(
 		return nil, nil, errors.New("httpGETAndGetResponse received nil getURL")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", getURL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getURL.String(), nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("building registry HTTP request for %s: %w", getURL, err)
 	}

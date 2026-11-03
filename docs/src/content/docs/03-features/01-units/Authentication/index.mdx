@@ -1,0 +1,72 @@
+---
+title: Authentication
+description: Learn how Terragrunt helps you automate authentication workflows.
+slug: features/units/authentication
+sidebar:
+  label: Overview
+  order: 5
+---
+
+import { Aside, Code } from '@astrojs/starlight/components';
+import AnchorRedirects from '@components/AnchorRedirects.astro';
+
+import authProviderCmdSchema from '../../../../../../public/schemas/auth-provider-cmd/v2/schema.json?raw';
+
+<AnchorRedirects redirects={{
+  'configuring-terragrunt-to-assume-an-iam-role': '/features/units/authentication/aws/#configuring-an-iam-role',
+  'leveraging-oidc-role-assumption': '/features/units/authentication/aws/#leveraging-oidc',
+  'required-permissions': '/features/units/authentication/aws/#required-permissions',
+  'authenticating-with-azure': '/features/units/authentication/azure/',
+  'required-azure-permissions': '/features/units/authentication/azure/#required-permissions',
+}} />
+
+Terragrunt and OpenTofu/Terraform need credentials for the cloud that holds your state and infrastructure. How you provide them depends on the cloud provider:
+
+- [AWS](/features/units/authentication/aws)
+- [Azure](/features/units/authentication/azure)
+- [GCP](/features/units/authentication/gcp)
+
+On any of them, an [auth provider command](#auth-provider-command) can supply different credentials to each unit at runtime.
+
+## Auth provider command
+
+The [`--auth-provider-cmd`](/reference/cli/commands/run#auth-provider-cmd) flag tells Terragrunt to run a command for each unit and use the credentials it returns. It takes more setup than the options on those pages, but the credentials can differ from one unit to the next. This is especially useful in the following circumstances:
+
+- In CI/CD pipelines, where you might want to use different role assumption mechanisms for different stages of the pipeline (like a read-only, plan role during pull request open, and a read-write, apply role during merge).
+- On a shared development repository, where you might want to use different roles for different developers, or even different roles for the same developer, depending on the task at hand.
+- In a setup where units in different accounts depend on each other, and you want to assume a different role for each account.
+
+Pass the command with the flag:
+
+```bash
+terragrunt apply --auth-provider-cmd /path/to/auth-script.sh
+```
+
+As with all other flags, you can also set this as an environment variable:
+
+```bash
+export TG_AUTH_PROVIDER_CMD="/path/to/auth-script.sh"
+terragrunt apply
+```
+
+When Terragrunt executes this script, it will expect a response in stdout that obeys the following schema:
+
+<Code title="auth-provider-cmd/v2/schema.json" lang="json" code={authProviderCmdSchema} />
+
+All top-level objects are optional, and you can provide multiple.
+
+- `awsCredentials` is the standard AWS credential object, which can be used to set the `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and (optionally) `AWS_SESSION_TOKEN` environment variables before running OpenTofu/Terraform.
+- `awsRole` is the role assumption object, which can be used to dynamically perform role assumption on the `roleARN` role with the `roleSessionName` session name, for a `duration` of time, and with a `webIdentityToken` if needed. Terragrunt will automatically refresh this role assumption when the duration expires.
+- `envs` is a map of environment variables that will be set before running OpenTofu/Terraform. Return Azure and GCP credentials here, using the variables listed on the [Azure](/features/units/authentication/azure) and [GCP](/features/units/authentication/gcp) pages.
+
+<Aside type="note">
+The auth provider command runs in the context of the Terragrunt working directory. You can use this to author logic in your script that determines which credentials to return based on the context of the Terragrunt run.
+</Aside>
+
+This feature is integrated with the [Gruntwork Pipelines](https://www.gruntwork.io/platform/pipelines) product to provide a secure and flexible way to manage assumption of different roles in different accounts based on context.
+
+## Further Reading
+
+- [Units Overview](/features/units) — for context on how units work with remote modules and source URLs
+- [State Backend](/features/units/state-backend) — remote state also requires credentials
+- [`--auth-provider-cmd` CLI reference](/reference/cli/commands/run#auth-provider-cmd) — CLI flag for external auth provider commands

@@ -17,6 +17,8 @@ export const CHANGELOG_CATEGORIES: readonly ChangelogCategory[] = [
   { slug: "documentation-updates", label: "📖 Documentation Updates" },
   { slug: "experiments-added", label: "🧪 Experiments Added" },
   { slug: "experiments-updated", label: "🧪 Experiments Updated" },
+  { slug: "strict-controls-added", label: "🔒 Strict Controls Added" },
+  { slug: "strict-controls-updated", label: "🔒 Strict Controls Updated" },
   { slug: "process-updates", label: "⚙️ Process Updates" },
 ] as const;
 

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -25,18 +26,6 @@ const defaultDirPerms = 0o755
 
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
-}
-
-// FileURL returns the file:// URL for an absolute host path. A Windows path
-// needs a slash ahead of the drive letter ("file:///C:/tmp/x", RFC 8089);
-// without it go-getter reads "C:" as the host and the source is not found.
-func FileURL(absPath string) string {
-	p := filepath.ToSlash(absPath)
-	if !strings.HasPrefix(p, "/") {
-		p = "/" + p
-	}
-
-	return "file://" + p
 }
 
 // ToSlashAll returns paths with every separator turned into a slash, so
@@ -297,12 +286,12 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 // when using t.TempDir(). It's generally annoying to deal with in tests, as it breaks filepath comparisons, so
 // using this function is preferred over calling t.TempDir() directly unless you are sure it doesn't matter if the
 // temporary directory is a symlink.
-func TmpDirWOSymlinks(t *testing.T) string {
-	t.Helper()
+func TmpDirWOSymlinks(tb testing.TB) string {
+	tb.Helper()
 
-	tmpDir := t.TempDir()
+	tmpDir := tb.TempDir()
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return tmpDir
 }
@@ -544,5 +533,5 @@ func LocalGitRemote(t *testing.T, fixturePath string) string {
 
 	InitGitRepoWithBranchRef(t, repoDir, "main")
 
-	return FileURL(repoDir)
+	return getter.FileURL(repoDir).String()
 }

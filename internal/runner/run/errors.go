@@ -38,6 +38,19 @@ func (path NoTerraformFilesFound) Error() string {
 	return "Did not find any Terraform files (*.tf) or OpenTofu files (*.tofu) in " + string(path)
 }
 
+type NullVarsFileExists struct {
+	Path string
+}
+
+func (err NullVarsFileExists) Error() string {
+	return fmt.Sprintf(
+		"%s already exists in the unit directory. Terragrunt writes null-valued inputs to this file for the run "+
+			"and removes it afterwards, so it does not replace an existing file. Remove it if an interrupted "+
+			"Terragrunt run left it behind; otherwise move or rename it.",
+		err.Path,
+	)
+}
+
 type ModuleIsProtected struct {
 	ConfigPath string
 }

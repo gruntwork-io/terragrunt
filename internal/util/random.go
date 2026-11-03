@@ -43,8 +43,8 @@ func GetRandomTime(lowerBound, upperBound time.Duration) time.Duration {
 }
 
 // Generate a random int between min and max, inclusive
-func random(min int, max int) int {
-	return rand.Intn(max-min) + min
+func random(lo int, hi int) int {
+	return rand.Intn(hi-lo) + lo
 }
 
 const Base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"

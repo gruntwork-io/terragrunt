@@ -1,4 +1,3 @@
-// Package config provides telemetry support for configuration parsing operations.
 package config
 
 import (
