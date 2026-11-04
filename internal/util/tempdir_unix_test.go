@@ -26,7 +26,6 @@ func TestEnsureTempDir(t *testing.T) {
 		check   func(t *testing.T, dir string)
 		name    string
 		uidStep int
-		gidStep int
 		wantErr bool
 	}{
 		{
@@ -55,17 +54,7 @@ func TestEnsureTempDir(t *testing.T) {
 			},
 		},
 		{
-			name: "writable by own group",
-			setup: func(t *testing.T, _, dir string) {
-				t.Helper()
-
-				require.NoError(t, os.Mkdir(dir, 0o700))
-				require.NoError(t, os.Chmod(dir, 0o770))
-			},
-		},
-		{
-			name:    "writable by another group",
-			gidStep: 1,
+			name: "writable by group",
 			setup: func(t *testing.T, _, dir string) {
 				t.Helper()
 
@@ -134,16 +123,7 @@ func TestEnsureTempDir(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "parent writable by own group without sticky bit",
-			setup: func(t *testing.T, parentDir, _ string) {
-				t.Helper()
-
-				require.NoError(t, os.Chmod(parentDir, 0o770))
-			},
-		},
-		{
-			name:    "parent writable by another group without sticky bit",
-			gidStep: 1,
+			name: "parent writable by group without sticky bit",
 			setup: func(t *testing.T, parentDir, _ string) {
 				t.Helper()
 
@@ -181,7 +161,7 @@ func TestEnsureTempDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tempDir := helpers.TmpDirWOSymlinks(t)
+			tempDir := privateTempDir(t)
 
 			uid := os.Getuid() + tc.uidStep
 			want := filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(uid))
@@ -190,12 +170,9 @@ func TestEnsureTempDir(t *testing.T) {
 				tc.setup(t, tempDir, want)
 			}
 
-			gid := os.Getgid() + tc.gidStep
-
 			v := venvtest.NewOSWithEmptyEnv().
 				WithTempDir(func() string { return tempDir }).
-				WithGetUID(func() int { return uid }).
-				WithGetGID(func() int { return gid })
+				WithGetUID(func() int { return uid })
 
 			got, err := util.EnsureTempDir(v)
 
@@ -219,10 +196,38 @@ func TestEnsureTempDir(t *testing.T) {
 	}
 }
 
+func TestEnsureTempDirRejectsParentOwnedByAnotherUser(t *testing.T) {
+	t.Parallel()
+
+	if os.Getuid() == 0 {
+		t.Skip("root owns every test directory and is trusted, so it cannot stand in for another user")
+	}
+
+	parentDir := privateTempDir(t)
+	require.NoError(t, os.Chmod(parentDir, os.ModeSticky|0o777))
+
+	uid := os.Getuid() + 1
+	want := filepath.Join(parentDir, "terragrunt-"+strconv.Itoa(uid))
+
+	got, err := util.EnsureTempDir(
+		venvtest.NewOSWithEmptyEnv().
+			WithTempDir(func() string { return parentDir }).
+			WithGetUID(func() int { return uid }),
+	)
+
+	var unsafeErr util.UnsafeTempDirError
+
+	require.ErrorAs(t, err, &unsafeErr)
+	assert.Equal(t, want, unsafeErr.Path)
+	assert.Contains(t, unsafeErr.Reason, parentDir+" is owned by user id "+strconv.Itoa(os.Getuid()))
+	assert.Empty(t, got)
+	assert.NoDirExists(t, want)
+}
+
 func TestEnsureTempDirCreatesMissingTempDir(t *testing.T) {
 	t.Parallel()
 
-	tempDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "missing", "tmp")
+	tempDir := filepath.Join(privateTempDir(t), "missing", "tmp")
 
 	got, err := util.EnsureTempDir(
 		venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir }),
@@ -235,7 +240,7 @@ func TestEnsureTempDirCreatesMissingTempDir(t *testing.T) {
 func TestEnsureTempDirResolvesSymlinkedTempDir(t *testing.T) {
 	t.Parallel()
 
-	base := helpers.TmpDirWOSymlinks(t)
+	base := privateTempDir(t)
 	realDir := filepath.Join(base, "real")
 	link := filepath.Join(base, "link")
 
@@ -252,7 +257,7 @@ func TestEnsureTempDirResolvesSymlinkedTempDir(t *testing.T) {
 func TestEnsureTempDirResolvesRelativeTempDir(t *testing.T) {
 	t.Parallel()
 
-	base := helpers.TmpDirWOSymlinks(t)
+	base := privateTempDir(t)
 
 	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return "relative" })
 	platform := *v.Platform
@@ -279,4 +284,13 @@ func assertNoDir(t *testing.T, dir string) {
 	t.Helper()
 
 	assert.NoDirExists(t, dir)
+}
+
+func privateTempDir(t *testing.T) string {
+	t.Helper()
+
+	dir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.Chmod(dir, 0o700))
+
+	return dir
 }

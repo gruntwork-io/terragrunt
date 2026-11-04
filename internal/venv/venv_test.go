@@ -335,15 +335,6 @@ func TestVenvRequireHandles(t *testing.T) {
 			}},
 		},
 		{
-			name:      "GetGID",
-			wantPanic: venv.ErrVenvGetGIDUnset,
-			require:   (*venv.Venv).RequireGetGID,
-			missing:   []*venv.Venv{{}, {Platform: &venv.Platform{}}},
-			present: &venv.Venv{Platform: &venv.Platform{
-				GetGID: func() int { return 1000 },
-			}},
-		},
-		{
 			name:      "TempDir",
 			wantPanic: venv.ErrVenvTempDirUnset,
 			require:   (*venv.Venv).RequireTempDir,

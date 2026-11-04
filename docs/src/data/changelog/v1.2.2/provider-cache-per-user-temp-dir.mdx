@@ -3,14 +3,18 @@ version: "v1.2.2"
 category: "bug-fixes"
 ---
 
-#### Provider cache works for several users sharing a temp directory
+#### Provider cache no longer fails when users share a temp directory
 
-With `--provider-cache`, Terragrunt kept lock files and downloaded provider archives in `terragrunt` under the temp directory. After one user created it, `init` could fail for another user sharing that temp directory:
+With `--provider-cache`, Terragrunt kept provider lock files and archives in one shared directory, `$TMPDIR/terragrunt` (usually `/tmp/terragrunt`). Once one user had created it, `init` could fail for another user:
 
 ```
 mkdir /tmp/terragrunt/providers/archives-032480544: permission denied
 ```
 
-On Unix, each user now gets `terragrunt-<uid>` in the temp directory, and only that user can write to it. Terragrunt stops with an error if this path is a symlink, belongs to another user, or another user can write to it or to a parent directory without the sticky bit. A Kubernetes `emptyDir` volume mounted at `/tmp` is such a parent. Run `chmod 1777` on its mount point, or set `TMPDIR` to a directory only you can write to.
+On Unix, each user now gets `$TMPDIR/terragrunt-<uid>`, which only that user can write to. The old `/tmp/terragrunt` directory is no longer used and can be deleted.
+
+Terragrunt stops with an error if this directory is a symlink, belongs to another user, or another user can write to it. Each parent directory must belong to root or to you, and a parent that other users can write to must have the sticky bit, as `/tmp` does.
+
+A Kubernetes `emptyDir` volume mounted at `/tmp` has no sticky bit, so it hits this error. Set `TMPDIR` to a directory only your user can write to, or run `chmod 1777` on the mount from a root init container.
 
 Windows still uses `%TEMP%\terragrunt`, which is private to each user by default.

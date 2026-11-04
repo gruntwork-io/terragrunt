@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -123,6 +124,8 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	// A temp dir of its own keeps the provider lock file away from the sibling test.
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.Chmod(tempDir, 0o700))
+
 	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir })
 
 	providerService := services.NewProviderService(

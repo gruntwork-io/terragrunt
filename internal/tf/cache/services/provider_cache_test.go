@@ -377,6 +377,7 @@ func TestProviderServiceVerifiesRegistryPackages(t *testing.T) {
 			)
 
 			tempDir := t.TempDir()
+			require.NoError(t, os.Chmod(tempDir, 0o700))
 
 			service := services.NewProviderService(
 				helpers.TmpDirWOSymlinks(t),

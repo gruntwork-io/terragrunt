@@ -17,16 +17,16 @@ import (
 
 const (
 	privateDirMode = os.FileMode(0o700)
-	groupWritable  = os.FileMode(0o020)
-	worldWritable  = os.FileMode(0o002)
+	othersWritable = os.FileMode(0o022)
+	rootUID        = 0
+	// A user namespace shows directories of unmapped users, such as a root-owned /tmp, as this user ID.
+	overflowUID = 65534
 )
 
 func ensureTempDir(v *venv.Venv) (string, error) {
 	v.RequireGetUID()
-	v.RequireGetGID()
 
 	uid := v.Platform.GetUID()
-	gid := v.Platform.GetGID()
 
 	parentDir, err := resolveTempDir(v)
 	if err != nil {
@@ -43,7 +43,7 @@ func ensureTempDir(v *venv.Venv) (string, error) {
 		return tempDir, nil
 	}
 
-	if err := checkParentDirs(v.FS, tempDir, gid); err != nil {
+	if err := checkParentDirs(v.FS, tempDir, uid); err != nil {
 		return "", err
 	}
 
@@ -51,7 +51,7 @@ func ensureTempDir(v *venv.Venv) (string, error) {
 		return "", err
 	}
 
-	if err := checkPrivateDir(v.FS, tempDir, uid, gid); err != nil {
+	if err := checkPrivateDir(v.FS, tempDir, uid); err != nil {
 		return "", err
 	}
 
@@ -77,7 +77,7 @@ func resolveTempDir(v *venv.Venv) (string, error) {
 	return vfs.EvalSymlinks(v.FS, dir)
 }
 
-func checkParentDirs(fsys vfs.FS, path string, gid int) error {
+func checkParentDirs(fsys vfs.FS, path string, uid int) error {
 	dir := filepath.Dir(path)
 
 	for range strings.Count(dir, string(filepath.Separator)) + 1 {
@@ -86,7 +86,19 @@ func checkParentDirs(fsys vfs.FS, path string, gid int) error {
 			return err
 		}
 
-		if info.Mode()&os.ModeSticky == 0 && writableByOthers(info, gid) {
+		owner, err := ownerOf(path, dir, info)
+		if err != nil {
+			return err
+		}
+
+		if owner != int64(uid) && owner != rootUID && owner != overflowUID {
+			return UnsafeTempDirError{
+				Path:   path,
+				Reason: fmt.Sprintf("%s is owned by user id %d, who can replace anything in it", dir, owner),
+			}
+		}
+
+		if info.Mode()&os.ModeSticky == 0 && info.Mode().Perm()&othersWritable != 0 {
 			return UnsafeTempDirError{
 				Path:   path,
 				Reason: fmt.Sprintf("other users can write to %s and it has no sticky bit (mode %#o)", dir, info.Mode().Perm()),
@@ -104,7 +116,7 @@ func checkParentDirs(fsys vfs.FS, path string, gid int) error {
 	return nil
 }
 
-func checkPrivateDir(fsys vfs.FS, path string, uid, gid int) error {
+func checkPrivateDir(fsys vfs.FS, path string, uid int) error {
 	info, err := vfs.Lstat(fsys, path)
 	if err != nil {
 		return err
@@ -118,19 +130,19 @@ func checkPrivateDir(fsys vfs.FS, path string, uid, gid int) error {
 		return UnsafeTempDirError{Path: path, Reason: "it is not a directory"}
 	}
 
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return UnsafeTempDirError{Path: path, Reason: "its owner cannot be read"}
+	owner, err := ownerOf(path, path, info)
+	if err != nil {
+		return err
 	}
 
-	if int64(stat.Uid) != int64(uid) {
+	if owner != int64(uid) {
 		return UnsafeTempDirError{
 			Path:   path,
-			Reason: fmt.Sprintf("it is owned by user id %d, not %d", stat.Uid, uid),
+			Reason: fmt.Sprintf("it is owned by user id %d, not %d", owner, uid),
 		}
 	}
 
-	if writableByOthers(info, gid) {
+	if info.Mode().Perm()&othersWritable != 0 {
 		return UnsafeTempDirError{
 			Path:   path,
 			Reason: fmt.Sprintf("other users can write to it (mode %#o)", info.Mode().Perm()),
@@ -140,13 +152,11 @@ func checkPrivateDir(fsys vfs.FS, path string, uid, gid int) error {
 	return nil
 }
 
-func writableByOthers(info os.FileInfo, gid int) bool {
-	perm := info.Mode().Perm()
-	if perm&worldWritable != 0 {
-		return true
+func ownerOf(path, dir string, info os.FileInfo) (int64, error) {
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, UnsafeTempDirError{Path: path, Reason: "the owner of " + dir + " cannot be read"}
 	}
 
-	stat, ok := info.Sys().(*syscall.Stat_t)
-
-	return perm&groupWritable != 0 && (!ok || int64(stat.Gid) != int64(gid))
+	return int64(stat.Uid), nil
 }

@@ -25,6 +25,8 @@ func TestProviderServiceInitWithAnotherUsersTempDir(t *testing.T) {
 	}
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.Chmod(tempDir, os.ModeSticky|0o777))
+
 	sharedDir := filepath.Join(tempDir, "terragrunt")
 	sharedProvidersDir := filepath.Join(sharedDir, "providers")
 

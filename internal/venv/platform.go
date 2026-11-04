@@ -14,7 +14,6 @@ type Platform struct {
 	Getwd          func() (string, error)
 	GetPID         func() int
 	GetUID         func() int
-	GetGID         func() int
 	ReplaceEnviron func(env map[string]string) error
 	GOOS           string
 	GOARCH         string
@@ -111,19 +110,6 @@ func (v *Venv) WithGetUID(getUID func() int) *Venv {
 	return &c
 }
 
-// WithGetGID returns a copy of v whose primary group ID lookup is getGID.
-func (v *Venv) WithGetGID(getGID func() int) *Venv {
-	v.RequirePlatform()
-
-	platform := *v.Platform
-	platform.GetGID = getGID
-
-	c := *v
-	c.Platform = &platform
-
-	return &c
-}
-
 // WithReplaceEnviron returns a copy of v whose process environment
 // replacement is replaceEnviron.
 func (v *Venv) WithReplaceEnviron(replaceEnviron func(env map[string]string) error) *Venv {
@@ -205,13 +191,6 @@ func (v *Venv) RequireTempDir() {
 func (v *Venv) RequireGetUID() {
 	if v.Platform == nil || v.Platform.GetUID == nil {
 		panic(ErrVenvGetUIDUnset)
-	}
-}
-
-// RequireGetGID panics with [ErrVenvGetGIDUnset] when GetGID is nil.
-func (v *Venv) RequireGetGID() {
-	if v.Platform == nil || v.Platform.GetGID == nil {
-		panic(ErrVenvGetGIDUnset)
 	}
 }
 

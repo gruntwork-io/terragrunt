@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -127,6 +128,8 @@ func startProviderCacheRun(t *testing.T, upstreamURL string) *providerCacheRun {
 
 	// A temp dir of its own keeps the provider lock file away from the sibling test.
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.Chmod(tempDir, 0o700))
+
 	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir })
 
 	service := services.NewProviderService(
