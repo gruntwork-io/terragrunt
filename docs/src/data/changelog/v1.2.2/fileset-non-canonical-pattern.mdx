@@ -5,7 +5,7 @@ category: "bug-fixes"
 
 #### `fileset` matches patterns that are not in canonical form
 
-In v1.2.0 and v1.2.1, `fileset` matched its pattern against file paths without cleaning it first. A pattern that relied on a leading `./` or `/`, `//`, `/./`, or `../` returned an empty set, with no error or warning:
+In v1.2.0 and v1.2.1, `fileset` matched its pattern against file paths without cleaning it first. A pattern that relied on a leading `./`, a leading `/`, `//`, `/./`, or `../` returned an empty set, with no error or warning:
 
 ```hcl
 inputs = {
@@ -16,8 +16,10 @@ inputs = {
 
 An input built from that empty set could make OpenTofu/Terraform plan to remove the resources created from those files.
 
-`fileset` now first matches the pattern as written. If that finds no files, it cleans the pattern and matches again. Cleaning works as in OpenTofu/Terraform and in Terragrunt before v1.2.0: it drops `./` and a trailing `/`, turns `//` into `/`, and resolves `../`. The call above returns `["resources/a.json"]` again. A pattern that climbs above the path, such as `../shared/*.json`, returns paths that start with `../`.
+`fileset` now cleans patterns as it did before v1.2.0 and as OpenTofu/Terraform do. Cleaning joins the pattern to the path, which drops `./` and a trailing `/`, turns `//` into `/`, and resolves `../`. A pattern that starts with `./`, `../`, or `/` is cleaned before it is matched. Any other pattern is matched as written first, and cleaned only when that finds no files. The call above returns `["resources/a.json"]` again. A pattern that climbs above the path, such as `../shared/*.json`, returns paths that start with `../`.
 
-Because the pattern as written is tried first, a pattern that returned files in v1.2.1 returns the same files. For the same reason, the result of a pattern that ends with `/`, such as `modules/*/**/`, can change when a file is added to `modules/`. End the pattern with a file glob, such as `modules/*/**/*`, instead.
+A pattern that returned files in v1.2.1 returns the same files, because matches as written take priority.
+
+A pattern that ends with `/`, such as `modules/*/**/`, can match differently when a file is added to `modules/`. End the pattern with a file glob, such as `modules/*/**/*`, instead.
 
 Cleaning stops at the first `{` or `[` that is not escaped with `\`, so `{a,b}/./*.json` returns no files. When Terragrunt cleans a pattern on Windows, a `\` in it is a path separator, as in OpenTofu/Terraform.

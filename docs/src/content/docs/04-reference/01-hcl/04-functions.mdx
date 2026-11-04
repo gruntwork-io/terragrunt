@@ -57,7 +57,9 @@ file("assets/mysql/assets.txt")
 
 <Since version="v1.2.2">
 
-`fileset` resolves its first argument the same way. It first matches the pattern as written. If that finds no files, it joins the pattern to the path and cleans it as OpenTofu/Terraform do: it drops `./` and a trailing `/`, turns `//` into `/`, and resolves `../`. So `./assets/**/*.txt` and `assets/**/*.txt` return the same files:
+`fileset` resolves its path argument the same way.
+
+To clean a pattern, Terragrunt joins it to the path as OpenTofu/Terraform do. That drops `./` and a trailing `/`, turns `//` into `/`, and resolves `../`. A pattern that starts with `./`, `../`, or `/` is cleaned before it is matched. Any other pattern is matched as written first, and cleaned only when that finds no files. So `./assets/**/*.txt` and `assets/**/*.txt` return the same files:
 
 ```hcl
 fileset(".", "./assets/**/*.txt") # ["assets/mysql/assets.txt"]
@@ -65,7 +67,7 @@ fileset(".", "./assets/**/*.txt") # ["assets/mysql/assets.txt"]
 
 A pattern that climbs above the path, such as `../shared/*.json`, returns paths that start with `../`.
 
-Because the pattern as written is tried first, the result of a pattern that ends with `/`, such as `modules/*/**/`, can change when a file is added to `modules/`. End the pattern with a file glob, such as `modules/*/**/*`, instead.
+A pattern that ends with `/`, such as `modules/*/**/`, can match differently when a file is added to `modules/`, because matches as written take priority. End the pattern with a file glob, such as `modules/*/**/*`, instead.
 
 <Aside type="note">
   Cleaning stops at the first `{` or `[` that is not escaped with `\`, so `{a,b}/./*.json` returns no files. On Windows, a `\` is a path separator when Terragrunt cleans a pattern.
