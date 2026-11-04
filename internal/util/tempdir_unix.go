@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -19,8 +20,9 @@ const (
 	privateDirMode = os.FileMode(0o700)
 	othersWritable = os.FileMode(0o022)
 	rootUID        = 0
-	// Inside a user namespace or on root-squashed NFS, root-owned directories show as this user ID.
+	// The kernel shows owners outside the current user namespace, such as host root, as this user ID.
 	overflowUID = 65534
+	uidMapPath  = "/proc/self/uid_map"
 )
 
 func ensureTempDir(v *venv.Venv) (string, error) {
@@ -43,7 +45,12 @@ func ensureTempDir(v *venv.Venv) (string, error) {
 		return tempDir, nil
 	}
 
-	if err := checkParentDirs(v.FS, tempDir, uid); err != nil {
+	trusted, err := trustedOwners(v.FS, uid)
+	if err != nil {
+		return "", err
+	}
+
+	if err := checkParentDirs(v.FS, tempDir, trusted); err != nil {
 		return "", err
 	}
 
@@ -79,7 +86,34 @@ func resolveTempDir(v *venv.Venv) (string, error) {
 	return vfs.EvalSymlinks(v.FS, dir)
 }
 
-func checkParentDirs(fsys vfs.FS, path string, uid int) error {
+func trustedOwners(fsys vfs.FS, uid int) ([]int64, error) {
+	owners := []int64{int64(uid), rootUID}
+
+	uidMap, err := vfs.ReadFile(fsys, uidMapPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return owners, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	for line := range strings.Lines(string(uidMap)) {
+		var inside, outside, count int64
+
+		if _, err := fmt.Sscan(line, &inside, &outside, &count); err != nil {
+			return nil, fmt.Errorf("parsing %s line %q: %w", uidMapPath, line, err)
+		}
+
+		if inside <= overflowUID && overflowUID < inside+count {
+			return owners, nil
+		}
+	}
+
+	return []int64{int64(uid), rootUID, overflowUID}, nil
+}
+
+func checkParentDirs(fsys vfs.FS, path string, trusted []int64) error {
 	dir := filepath.Dir(path)
 
 	for range strings.Count(dir, string(filepath.Separator)) + 1 {
@@ -93,7 +127,7 @@ func checkParentDirs(fsys vfs.FS, path string, uid int) error {
 			return err
 		}
 
-		if owner != int64(uid) && owner != rootUID && owner != overflowUID {
+		if !slices.Contains(trusted, owner) {
 			return UnsafeTempDirError{
 				Path:   path,
 				Reason: fmt.Sprintf("%s is owned by user id %d, who can replace anything in it", dir, owner),

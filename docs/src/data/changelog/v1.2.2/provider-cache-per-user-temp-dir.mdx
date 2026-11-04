@@ -5,10 +5,10 @@ category: "bug-fixes"
 
 #### Provider cache no longer fails when users share a temp directory
 
-With `--provider-cache`, all users on a machine shared one `$TMPDIR/terragrunt` directory, so `init` could fail for anyone except the user who created it:
+With `--provider-cache`, users who shared a temp directory also shared its `terragrunt` folder. After one user created it, `init` could fail for the others:
 
 ```
 mkdir /tmp/terragrunt/providers/archives-032480544: permission denied
 ```
 
-On Unix, each user now gets a `$TMPDIR/terragrunt-<uid>` directory that only they can write to. If that directory is unsafe to use, Terragrunt logs a warning that says why and uses a new directory for that run.
+On Unix, each user now gets a `$TMPDIR/terragrunt-<uid>` directory that only they can write to. If that directory is unsafe to use, Terragrunt logs a warning that says why and uses `terragrunt/tmp` in the user cache directory instead, such as `~/.cache/terragrunt/tmp` on Linux.

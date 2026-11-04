@@ -4,13 +4,15 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -41,13 +43,7 @@ func TestProviderServiceInitWithAnotherUsersTempDir(t *testing.T) {
 		assert.NoError(t, os.Chmod(sharedProvidersDir, 0o755))
 	})
 
-	service := services.NewProviderService(
-		helpers.TmpDirWOSymlinks(t),
-		"",
-		nil,
-		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir }),
-	)
+	service := newProviderService(t, venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir }))
 
 	require.NoError(t, service.Init())
 	assert.DirExists(t, filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(os.Getuid()), "providers"))
@@ -85,42 +81,66 @@ func TestProviderServiceInitFallsBackFromUnsafeTempDir(t *testing.T) {
 			t.Parallel()
 
 			tempDir := helpers.TmpDirWOSymlinks(t)
-			sharedDir := filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(os.Getuid()))
+			userCacheDir := helpers.TmpDirWOSymlinks(t)
 
-			tc.setup(t, tempDir, sharedDir)
+			tc.setup(t, tempDir, filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(os.Getuid())))
 
-			service := services.NewProviderService(
-				helpers.TmpDirWOSymlinks(t),
-				"",
-				nil,
-				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir }),
-			)
+			tempDirEntries := dirNames(t, tempDir)
 
-			require.NoError(t, service.Init())
+			v := venvtest.NewOSWithEmptyEnv().
+				WithTempDir(func() string { return tempDir }).
+				WithUserCacheDir(func() (string, error) { return userCacheDir, nil })
 
-			runDirs, err := filepath.Glob(filepath.Join(tempDir, "terragrunt-*"))
-			require.NoError(t, err)
+			first := newProviderService(t, v)
+			second := newProviderService(t, v)
 
-			runDirs = slices.DeleteFunc(runDirs, func(dir string) bool { return dir == sharedDir })
-			require.Len(t, runDirs, 1)
+			require.NoError(t, first.Init())
+			require.NoError(t, second.Init())
 
-			runDir := runDirs[0]
-
-			info, err := os.Lstat(runDir)
-			require.NoError(t, err)
-			assert.True(t, info.IsDir())
-			assert.Equal(t, os.FileMode(0o700), info.Mode().Perm())
-			assert.DirExists(t, filepath.Join(runDir, "providers"))
+			assert.Equal(t, tempDirEntries, dirNames(t, tempDir))
 			assert.NoDirExists(t, filepath.Join(tempDir, "target", "providers"))
+
+			archiveDirsGlob := filepath.Join(userCacheDir, "terragrunt", "tmp", "providers", "archives-*")
+
+			archiveDirs, err := filepath.Glob(archiveDirsGlob)
+			require.NoError(t, err)
+			assert.Len(t, archiveDirs, 2)
 
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 
-			require.NoError(t, service.Run(ctx))
-			assert.NoDirExists(t, runDir)
+			require.NoError(t, first.Run(ctx))
+			require.NoError(t, second.Run(ctx))
+
+			archiveDirs, err = filepath.Glob(archiveDirsGlob)
+			require.NoError(t, err)
+			assert.Empty(t, archiveDirs)
 		})
 	}
+}
+
+func TestProviderServiceInitFailsWithoutSafeTempDir(t *testing.T) {
+	t.Parallel()
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.Chmod(tempDir, 0o777))
+
+	errNoUserCacheDir := errors.New("no user cache dir")
+
+	service := newProviderService(
+		t,
+		venvtest.NewOSWithEmptyEnv().
+			WithTempDir(func() string { return tempDir }).
+			WithUserCacheDir(func() (string, error) { return "", errNoUserCacheDir }),
+	)
+
+	err := service.Init()
+
+	var unsafeErr util.UnsafeTempDirError
+
+	require.ErrorAs(t, err, &unsafeErr)
+	require.ErrorIs(t, err, errNoUserCacheDir)
+	assert.Empty(t, dirNames(t, tempDir))
 }
 
 func TestProviderServiceInitOnMemFS(t *testing.T) {
@@ -134,4 +154,24 @@ func TestProviderServiceInitOnMemFS(t *testing.T) {
 
 	providersDir := filepath.Join(v.Platform.TempDir(), "terragrunt-"+strconv.Itoa(v.Platform.GetUID()), "providers")
 	assert.True(t, vfs.IsDir(v.FS, providersDir))
+}
+
+func newProviderService(t *testing.T, v *venv.Venv) *services.ProviderService {
+	t.Helper()
+
+	return services.NewProviderService(helpers.TmpDirWOSymlinks(t), "", nil, logger.CreateLogger(), v)
+}
+
+func dirNames(t *testing.T, dir string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+
+	return names
 }

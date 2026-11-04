@@ -3,6 +3,7 @@
 package util_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -226,14 +227,29 @@ func TestEnsureTempDirRejectsDirOwnedByAnotherUser(t *testing.T) {
 		t.Skip("needs a non-root user and a root-owned /tmp with the sticky bit")
 	}
 
-	unusedUID := 1_000_000_000 + os.Getpid()
-	want := filepath.Join(parentDir, "terragrunt-"+strconv.Itoa(unusedUID))
+	unusedUID := 0
+	want := ""
 
-	require.NoError(t, os.RemoveAll(want))
-	require.NoError(t, os.Mkdir(want, 0o700))
-	t.Cleanup(func() {
-		assert.NoError(t, os.Remove(want))
-	})
+	for offset := range 100 {
+		uid := 1_000_000_000 + os.Getpid() + offset
+		dir := filepath.Join(parentDir, "terragrunt-"+strconv.Itoa(uid))
+
+		err := os.Mkdir(dir, 0o700)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			assert.NoError(t, os.Remove(dir))
+		})
+
+		unusedUID, want = uid, dir
+
+		break
+	}
+
+	require.NotEmpty(t, want, "every candidate directory name in %s is taken", parentDir)
 
 	got, err := util.EnsureTempDir(
 		venvtest.NewOSWithEmptyEnv().
@@ -247,6 +263,30 @@ func TestEnsureTempDirRejectsDirOwnedByAnotherUser(t *testing.T) {
 	assert.Equal(t, want, unsafeErr.Path)
 	assert.Equal(t, "it is owned by user id "+strconv.Itoa(os.Getuid())+", not "+strconv.Itoa(unusedUID), unsafeErr.Reason)
 	assert.Empty(t, got)
+}
+
+func TestEnsureTempDirRejectsParentOwnedByMappedUID65534(t *testing.T) {
+	t.Parallel()
+
+	if os.Getuid() != 0 {
+		t.Skip("only root can give a directory to user id 65534")
+	}
+
+	parentDir := privateTempDir(t)
+	require.NoError(t, os.Chmod(parentDir, os.ModeSticky|0o777))
+
+	if err := os.Chown(parentDir, 65534, 65534); err != nil {
+		t.Skipf("user id 65534 is not mapped in this user namespace: %v", err)
+	}
+
+	got, err := util.EnsureTempDir(venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return parentDir }))
+
+	var unsafeErr util.UnsafeTempDirError
+
+	require.ErrorAs(t, err, &unsafeErr)
+	assert.Equal(t, parentDir+" is owned by user id 65534, who can replace anything in it", unsafeErr.Reason)
+	assert.Empty(t, got)
+	assertNoDir(t, filepath.Join(parentDir, "terragrunt-0"))
 }
 
 func TestEnsureTempDirCreatesMissingTempDir(t *testing.T) {

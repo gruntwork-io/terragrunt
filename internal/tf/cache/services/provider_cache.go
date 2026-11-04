@@ -596,10 +596,8 @@ type ProviderService struct {
 	providerCacheWarmUpCh chan *ProviderCache
 	credsSource           *cliconfig.CredentialsSource
 
-	// tempDir holds provider lock files. It is runTempDir when the user's temp dir is unsafe.
+	// tempDir is a predictable temporary directory for provider lock files.
 	tempDir string
-
-	runTempDir string
 
 	archiveDir string
 
@@ -810,14 +808,6 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 func (service *ProviderService) Init() error {
 	service.initOnce.Do(func() {
 		service.initErr = service.init()
-
-		if service.initErr == nil || service.runTempDir == "" {
-			return
-		}
-
-		if err := service.FS().RemoveAll(service.runTempDir); err != nil {
-			service.initErr = errors.Join(service.initErr, err)
-		}
 	})
 
 	return service.initErr
@@ -906,12 +896,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				errs = append(errs, err)
 			}
 
-			scratchDir := service.archiveDir
-			if service.runTempDir != "" {
-				scratchDir = service.runTempDir
-			}
-
-			if err := service.FS().RemoveAll(scratchDir); err != nil {
+			if err := service.FS().RemoveAll(service.archiveDir); err != nil {
 				errs = append(errs, err)
 			}
 
@@ -987,19 +972,14 @@ func (service *ProviderService) ensureTempDir() (string, error) {
 		return tempDir, err
 	}
 
-	runTempDir, err := vfs.MkdirTemp(service.FS(), service.venv.Platform.TempDir(), "terragrunt-")
+	cacheDir, err := util.EnsureCacheDir(service.venv)
 	if err != nil {
 		return "", errors.Join(unsafeErr, err)
 	}
 
-	service.runTempDir = runTempDir
+	tempDir = filepath.Join(cacheDir, "tmp")
 
-	service.logger.Warnf(
-		"%v. Using %s for this run, so provider lock files are not shared with other runs. "+
-			"Set TMPDIR to a directory only you can write to",
-		unsafeErr,
-		runTempDir,
-	)
+	service.logger.Warnf("%v. Using %s instead. Set TMPDIR to a directory only you can write to", unsafeErr, tempDir)
 
-	return runTempDir, nil
+	return tempDir, nil
 }
