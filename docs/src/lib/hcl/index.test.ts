@@ -48,7 +48,7 @@ describe('hclItemPath', () => {
 
 describe('functionSignature', () => {
 	test('renders a function with no parameters', () => {
-		expect(functionSignature(functionEntry({ name: 'get_platform' }).data)).toBe('get_platform()');
+		expect(functionSignature(functionEntry({ name: 'get_platform' }).data)).toBe('get_platform() --> string');
 	});
 
 	test('brackets optional parameters', () => {
@@ -59,7 +59,7 @@ describe('functionSignature', () => {
 				{ name: 'default', type: 'string', optional: true, description: '' },
 			],
 		}).data;
-		expect(functionSignature(data)).toBe('get_env(name, [default])');
+		expect(functionSignature(data)).toBe('get_env(name: string, [default: string]) --> string');
 	});
 });
 
@@ -195,7 +195,7 @@ describe('referenceMarkdown', () => {
 				params: [{ name: 'name', type: 'string', optional: false, description: 'Variable name.' }],
 			}),
 		);
-		expect(before).toBe('**Returns:** `string`\n\n## Usage\n\n```hcl\nget_env(name)\n```');
+		expect(before).toBe('**Returns:** `string`\n\n## Usage\n\n```hcl\nget_env(name: string) --> string\n```');
 		expect(after).toBe(
 			[
 				'## Parameters',
