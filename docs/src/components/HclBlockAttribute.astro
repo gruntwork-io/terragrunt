@@ -1,0 +1,25 @@
+---
+import { Code } from '@astrojs/starlight/components';
+import DefaultValue from '@components/DefaultValue.astro';
+import ReferenceCard from '@components/ReferenceCard.astro';
+import TypeBadge from '@components/TypeBadge.astro';
+import type { BlockAttribute } from '@lib/hcl';
+import { renderMarkdownField } from '@lib/hcl/markdown';
+
+interface Props {
+	attribute: BlockAttribute;
+}
+
+const { attribute } = Astro.props;
+const { name, type, required, default: defaultVal, description, example } = attribute;
+const descriptionHtml = await renderMarkdownField(description);
+---
+
+<section id={name}>
+	<ReferenceCard title={name}>
+		<TypeBadge slot="meta" type={type} optional={!required} defaultVal={defaultVal} />
+		<Fragment set:html={descriptionHtml} />
+		<DefaultValue type={type} value={defaultVal} />
+		<Code code={example.trim()} lang="hcl" />
+	</ReferenceCard>
+</section>

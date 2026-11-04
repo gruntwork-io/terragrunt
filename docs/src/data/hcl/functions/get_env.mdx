@@ -1,0 +1,31 @@
+---
+name: get_env
+description: Returns the value of an environment variable.
+configs: [unit, stack]
+params:
+  - name: name
+    type: string
+    description: Name of the environment variable.
+  - name: default
+    type: string
+    optional: true
+    description: Value to return when the variable is not set. Without it, an unset variable is an error.
+returns: string
+examples:
+  - description: Without `default`, `get_env` fails when the variable is not set.
+    code: |
+      # terragrunt.hcl
+
+      inputs = {
+        image_tag = get_env("IMAGE_TAG")
+      }
+  - description: With `default`, `get_env` returns it when the variable is not set.
+    code: |
+      # terragrunt.hcl
+
+      inputs = {
+        image_tag = get_env("IMAGE_TAG", "latest")
+      }
+---
+
+`get_env` returns the value of the environment variable `name`. If the variable is not set, it returns `default`, and without a `default` it fails.
