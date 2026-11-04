@@ -1,0 +1,35 @@
+---
+import { render, type CollectionEntry } from 'astro:content';
+import HclBlockAttribute from '@components/HclBlockAttribute.astro';
+import HclConfigs from '@components/HclConfigs.astro';
+import HclExamples from '@components/HclExamples.astro';
+
+interface Props {
+	entry: CollectionEntry<'hclBlocks'>;
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const attributes = entry.data.attributes ?? [];
+---
+
+<HclConfigs configs={entry.data.configs} />
+
+<h2 id="usage">Usage</h2>
+
+<Content />
+
+{entry.data.examples && <HclExamples examples={entry.data.examples} />}
+
+{
+	attributes.length > 0 && (
+		<>
+			<h2 id="attributes">Attributes</h2>
+			<div>
+				{attributes.map((attribute) => (
+					<HclBlockAttribute attribute={attribute} />
+				))}
+			</div>
+		</>
+	)
+}

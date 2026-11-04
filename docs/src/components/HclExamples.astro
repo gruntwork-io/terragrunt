@@ -1,0 +1,32 @@
+---
+import { Code } from '@astrojs/starlight/components';
+import ReferenceCard from '@components/ReferenceCard.astro';
+import type { HclEntry } from '@lib/hcl';
+import { renderMarkdownField } from '@lib/hcl/markdown';
+
+interface Props {
+	examples: NonNullable<HclEntry['data']['examples']>;
+}
+
+const examples = await Promise.all(
+	Astro.props.examples.map(async ({ description, code }) => ({
+		code: code.trim(),
+		descriptionHtml: description === undefined ? undefined : await renderMarkdownField(description),
+	})),
+);
+---
+
+<h2 id="examples">Examples</h2>
+
+{
+	examples.map(({ code, descriptionHtml }) =>
+		descriptionHtml === undefined ? (
+			<Code code={code} lang="hcl" />
+		) : (
+			<ReferenceCard>
+				<Fragment set:html={descriptionHtml} />
+				<Code code={code} lang="hcl" />
+			</ReferenceCard>
+		),
+	)
+}

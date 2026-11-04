@@ -1,0 +1,27 @@
+---
+import { render, type CollectionEntry } from 'astro:content';
+import DefaultValue from '@components/DefaultValue.astro';
+import HclConfigs from '@components/HclConfigs.astro';
+import HclExamples from '@components/HclExamples.astro';
+import TypeBadge from '@components/TypeBadge.astro';
+
+interface Props {
+	entry: CollectionEntry<'hclAttributes'>;
+}
+
+const { entry } = Astro.props;
+const { type, default: defaultVal } = entry.data;
+const { Content } = await render(entry);
+---
+
+<HclConfigs configs={entry.data.configs}>
+	<TypeBadge type={type} optional defaultVal={defaultVal} />
+</HclConfigs>
+
+<h2 id="usage">Usage</h2>
+
+<Content />
+
+<DefaultValue type={type} value={defaultVal} />
+
+<HclExamples examples={entry.data.examples} />
