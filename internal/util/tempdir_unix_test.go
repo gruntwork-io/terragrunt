@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -22,11 +23,10 @@ func TestEnsureTempDir(t *testing.T) {
 	const marker = "marker"
 
 	testCases := []struct {
-		setup   func(t *testing.T, parentDir, dir string)
-		check   func(t *testing.T, dir string)
-		name    string
-		uidStep int
-		wantErr bool
+		setup      func(t *testing.T, parentDir, dir string)
+		check      func(t *testing.T, dir string)
+		name       string
+		wantReason string
 	}{
 		{
 			name: "missing is created private",
@@ -61,7 +61,7 @@ func TestEnsureTempDir(t *testing.T) {
 				require.NoError(t, os.Mkdir(dir, 0o700))
 				require.NoError(t, os.Chmod(dir, 0o770))
 			},
-			wantErr: true,
+			wantReason: "it is writable by its group or by others (mode 0770)",
 		},
 		{
 			name: "world writable with sticky bit",
@@ -71,7 +71,7 @@ func TestEnsureTempDir(t *testing.T) {
 				require.NoError(t, os.Mkdir(dir, 0o700))
 				require.NoError(t, os.Chmod(dir, os.ModeSticky|0o777))
 			},
-			wantErr: true,
+			wantReason: "it is writable by its group or by others (mode 0777)",
 		},
 		{
 			name: "symlink to a private directory",
@@ -82,7 +82,7 @@ func TestEnsureTempDir(t *testing.T) {
 				require.NoError(t, os.Mkdir(target, 0o700))
 				require.NoError(t, os.Symlink(target, dir))
 			},
-			wantErr: true,
+			wantReason: "it is a symlink",
 		},
 		{
 			name: "dangling symlink",
@@ -91,7 +91,7 @@ func TestEnsureTempDir(t *testing.T) {
 
 				require.NoError(t, os.Symlink(filepath.Join(filepath.Dir(dir), "missing"), dir))
 			},
-			wantErr: true,
+			wantReason: "it is a symlink",
 		},
 		{
 			name: "regular file",
@@ -100,17 +100,7 @@ func TestEnsureTempDir(t *testing.T) {
 
 				require.NoError(t, os.WriteFile(dir, nil, 0o600))
 			},
-			wantErr: true,
-		},
-		{
-			name:    "owned by another user",
-			uidStep: 1,
-			setup: func(t *testing.T, _, dir string) {
-				t.Helper()
-
-				require.NoError(t, os.Mkdir(dir, 0o700))
-			},
-			wantErr: true,
+			wantReason: "it is not a directory",
 		},
 		{
 			name: "parent writable by others without sticky bit",
@@ -119,8 +109,8 @@ func TestEnsureTempDir(t *testing.T) {
 
 				require.NoError(t, os.Chmod(parentDir, 0o777))
 			},
-			check:   assertNoDir,
-			wantErr: true,
+			check:      assertNoDir,
+			wantReason: "is writable by its group or by others and has no sticky bit (mode 0777)",
 		},
 		{
 			name: "parent writable by group without sticky bit",
@@ -129,8 +119,8 @@ func TestEnsureTempDir(t *testing.T) {
 
 				require.NoError(t, os.Chmod(parentDir, 0o770))
 			},
-			check:   assertNoDir,
-			wantErr: true,
+			check:      assertNoDir,
+			wantReason: "is writable by its group or by others and has no sticky bit (mode 0770)",
 		},
 		{
 			name: "grandparent writable by others without sticky bit",
@@ -139,8 +129,8 @@ func TestEnsureTempDir(t *testing.T) {
 
 				require.NoError(t, os.Chmod(filepath.Dir(parentDir), 0o777))
 			},
-			check:   assertNoDir,
-			wantErr: true,
+			check:      assertNoDir,
+			wantReason: "is writable by its group or by others and has no sticky bit (mode 0777)",
 		},
 		{
 			name: "parent writable by others with sticky bit",
@@ -163,28 +153,26 @@ func TestEnsureTempDir(t *testing.T) {
 
 			tempDir := privateTempDir(t)
 
-			uid := os.Getuid() + tc.uidStep
-			want := filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(uid))
+			want := filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(os.Getuid()))
 
 			if tc.setup != nil {
 				tc.setup(t, tempDir, want)
 			}
 
-			v := venvtest.NewOSWithEmptyEnv().
-				WithTempDir(func() string { return tempDir }).
-				WithGetUID(func() int { return uid })
-
-			got, err := util.EnsureTempDir(v)
+			got, err := util.EnsureTempDir(
+				venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir }),
+			)
 
 			if tc.check != nil {
 				tc.check(t, want)
 			}
 
-			if tc.wantErr {
+			if tc.wantReason != "" {
 				var unsafeErr util.UnsafeTempDirError
 
 				require.ErrorAs(t, err, &unsafeErr)
 				assert.Equal(t, want, unsafeErr.Path)
+				assert.Contains(t, unsafeErr.Reason, tc.wantReason)
 				assert.Empty(t, got)
 
 				return
@@ -222,6 +210,47 @@ func TestEnsureTempDirRejectsParentOwnedByAnotherUser(t *testing.T) {
 	assert.Contains(t, unsafeErr.Reason, parentDir+" is owned by user id "+strconv.Itoa(os.Getuid()))
 	assert.Empty(t, got)
 	assert.NoDirExists(t, want)
+}
+
+// TestEnsureTempDirRejectsDirOwnedByAnotherUser plays the victim of a squatted directory. Only a
+// root-owned parent passes the parent checks for a user id the test does not run as, so it uses /tmp.
+func TestEnsureTempDirRejectsDirOwnedByAnotherUser(t *testing.T) {
+	t.Parallel()
+
+	parentDir, err := filepath.EvalSymlinks("/tmp")
+	require.NoError(t, err)
+
+	info, err := os.Stat(parentDir)
+	require.NoError(t, err)
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if os.Getuid() == 0 || !ok || stat.Uid != 0 || info.Mode()&os.ModeSticky == 0 {
+		t.Skip("needs a non-root user and a root-owned /tmp with the sticky bit")
+	}
+
+	// Far above real account ids and unique per test process, so no real directory is touched.
+	uid := 1_000_000_000 + os.Getpid()
+	want := filepath.Join(parentDir, "terragrunt-"+strconv.Itoa(uid))
+
+	// A run killed before cleanup may have left this directory behind for a reused process id.
+	require.NoError(t, os.RemoveAll(want))
+	require.NoError(t, os.Mkdir(want, 0o700))
+	t.Cleanup(func() {
+		assert.NoError(t, os.Remove(want))
+	})
+
+	got, err := util.EnsureTempDir(
+		venvtest.NewOSWithEmptyEnv().
+			WithTempDir(func() string { return parentDir }).
+			WithGetUID(func() int { return uid }),
+	)
+
+	var unsafeErr util.UnsafeTempDirError
+
+	require.ErrorAs(t, err, &unsafeErr)
+	assert.Equal(t, want, unsafeErr.Path)
+	assert.Equal(t, "it is owned by user id "+strconv.Itoa(os.Getuid())+", not "+strconv.Itoa(uid), unsafeErr.Reason)
+	assert.Empty(t, got)
 }
 
 func TestEnsureTempDirCreatesMissingTempDir(t *testing.T) {

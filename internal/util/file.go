@@ -1768,11 +1768,7 @@ type UnsafeTempDirError struct {
 }
 
 func (err UnsafeTempDirError) Error() string {
-	return fmt.Sprintf(
-		"refusing to use temp directory %s: %s. Set TMPDIR to a directory that only you can write to",
-		err.Path,
-		err.Reason,
-	)
+	return fmt.Sprintf("refusing to use temp directory %s: %s", err.Path, err.Reason)
 }
 
 // ExcludeFiltersFromFile returns a list of filters from the given filename, where each filter starts on a new line.

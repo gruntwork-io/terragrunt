@@ -194,6 +194,13 @@ func (v *Venv) RequireGetUID() {
 	}
 }
 
+// RequireGetwd panics with [ErrVenvGetwdUnset] when Getwd is nil.
+func (v *Venv) RequireGetwd() {
+	if v.Platform == nil || v.Platform.Getwd == nil {
+		panic(ErrVenvGetwdUnset)
+	}
+}
+
 // replaceOSEnviron clears the process environment, then sets every variable
 // in env.
 func replaceOSEnviron(env map[string]string) error {

@@ -13,8 +13,8 @@ mkdir /tmp/terragrunt/providers/archives-032480544: permission denied
 
 On Unix, each user now gets `$TMPDIR/terragrunt-<uid>`, which only that user can write to. The old `/tmp/terragrunt` directory is no longer used and can be deleted.
 
-Terragrunt stops with an error if this directory is a symlink, belongs to another user, or another user can write to it. Each parent directory must belong to root or to you, and a parent that other users can write to must have the sticky bit, as `/tmp` does.
+Terragrunt skips this directory if it is a symlink, belongs to another user, or has group or world write permission. It also skips it if a parent directory belongs to someone other than you, root, or `nobody`, or has group or world write permission without the sticky bit that `/tmp` has. In that case Terragrunt logs a warning and uses a new randomly named directory in the temp directory for that run, so its provider lock files are not shared with other runs. If that directory cannot be created either, `init` fails.
 
-A Kubernetes `emptyDir` volume mounted at `/tmp` has no sticky bit, so it hits this error. Set `TMPDIR` to a directory only your user can write to, or run `chmod 1777` on the mount from a root init container.
+A Kubernetes `emptyDir` volume mounted at `/tmp` has no sticky bit, and a directory created with umask `002` is group-writable, so both cause this warning. To share lock files between runs again, set `TMPDIR` to a directory only your user can write to, run `chmod 700` on your own temp directory, or run `chmod 1777` on the `emptyDir` mount from a root init container.
 
 Windows still uses `%TEMP%\terragrunt`, which is private to each user by default.

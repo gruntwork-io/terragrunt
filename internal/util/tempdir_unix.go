@@ -19,7 +19,9 @@ const (
 	privateDirMode = os.FileMode(0o700)
 	othersWritable = os.FileMode(0o022)
 	rootUID        = 0
-	// A user namespace shows directories of unmapped users, such as a root-owned /tmp, as this user ID.
+	// A user namespace shows directories of unmapped users, such as a root-owned /tmp, as this user ID,
+	// and root-squashed NFS shows root's directories the same way. On a host it is also the nobody
+	// account; trusting it like root is deliberate.
 	overflowUID = 65534
 )
 
@@ -62,6 +64,8 @@ func resolveTempDir(v *venv.Venv) (string, error) {
 	dir := v.Platform.TempDir()
 
 	if !filepath.IsAbs(dir) {
+		v.RequireGetwd()
+
 		wd, err := v.Platform.Getwd()
 		if err != nil {
 			return "", err
@@ -101,7 +105,7 @@ func checkParentDirs(fsys vfs.FS, path string, uid int) error {
 		if info.Mode()&os.ModeSticky == 0 && info.Mode().Perm()&othersWritable != 0 {
 			return UnsafeTempDirError{
 				Path:   path,
-				Reason: fmt.Sprintf("other users can write to %s and it has no sticky bit (mode %#o)", dir, info.Mode().Perm()),
+				Reason: fmt.Sprintf("%s is writable by its group or by others and has no sticky bit (mode %#o)", dir, info.Mode().Perm()),
 			}
 		}
 
@@ -145,7 +149,7 @@ func checkPrivateDir(fsys vfs.FS, path string, uid int) error {
 	if info.Mode().Perm()&othersWritable != 0 {
 		return UnsafeTempDirError{
 			Path:   path,
-			Reason: fmt.Sprintf("other users can write to it (mode %#o)", info.Mode().Perm()),
+			Reason: fmt.Sprintf("it is writable by its group or by others (mode %#o)", info.Mode().Perm()),
 		}
 	}
 

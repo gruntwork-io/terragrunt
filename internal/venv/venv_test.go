@@ -335,6 +335,15 @@ func TestVenvRequireHandles(t *testing.T) {
 			}},
 		},
 		{
+			name:      "Getwd",
+			wantPanic: venv.ErrVenvGetwdUnset,
+			require:   (*venv.Venv).RequireGetwd,
+			missing:   []*venv.Venv{{}, {Platform: &venv.Platform{}}},
+			present: &venv.Venv{Platform: &venv.Platform{
+				Getwd: func() (string, error) { return "/work", nil },
+			}},
+		},
+		{
 			name:      "TempDir",
 			wantPanic: venv.ErrVenvTempDirUnset,
 			require:   (*venv.Venv).RequireTempDir,
