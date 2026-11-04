@@ -13,6 +13,7 @@ type Platform struct {
 	TempDir        func() string
 	Getwd          func() (string, error)
 	GetPID         func() int
+	GetUID         func() int
 	ReplaceEnviron func(env map[string]string) error
 	GOOS           string
 	GOARCH         string
@@ -96,6 +97,19 @@ func (v *Venv) WithTempDir(tempDir func() string) *Venv {
 	return &c
 }
 
+// WithGetUID returns a copy of v whose user ID lookup is getUID.
+func (v *Venv) WithGetUID(getUID func() int) *Venv {
+	v.RequirePlatform()
+
+	platform := *v.Platform
+	platform.GetUID = getUID
+
+	c := *v
+	c.Platform = &platform
+
+	return &c
+}
+
 // WithReplaceEnviron returns a copy of v whose process environment
 // replacement is replaceEnviron.
 func (v *Venv) WithReplaceEnviron(replaceEnviron func(env map[string]string) error) *Venv {
@@ -170,6 +184,20 @@ func (v *Venv) RequireReplaceEnviron() {
 func (v *Venv) RequireTempDir() {
 	if v.Platform == nil || v.Platform.TempDir == nil {
 		panic(ErrVenvTempDirUnset)
+	}
+}
+
+// RequireGetUID panics with [ErrVenvGetUIDUnset] when GetUID is nil.
+func (v *Venv) RequireGetUID() {
+	if v.Platform == nil || v.Platform.GetUID == nil {
+		panic(ErrVenvGetUIDUnset)
+	}
+}
+
+// RequireGetwd panics with [ErrVenvGetwdUnset] when Getwd is nil.
+func (v *Venv) RequireGetwd() {
+	if v.Platform == nil || v.Platform.Getwd == nil {
+		panic(ErrVenvGetwdUnset)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -64,6 +65,10 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	// Blocks the upstream archive handler until every concurrent request has been answered.
 	releaseArchive := make(chan struct{})
 
+	var releaseOnce sync.Once
+
+	release := func() { releaseOnce.Do(func() { close(releaseArchive) }) }
+
 	providerOS := runtime.GOOS
 	providerArch := runtime.GOARCH
 
@@ -115,7 +120,11 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	t.Cleanup(upstream.Close)
+
+	t.Cleanup(func() {
+		release()
+		upstream.Close()
+	})
 
 	l := logger.CreateLogger()
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
@@ -123,6 +132,8 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	// A temp dir of its own keeps the provider lock file away from the sibling test.
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.Chmod(tempDir, 0o700))
+
 	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir })
 
 	providerService := services.NewProviderService(
@@ -193,7 +204,10 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	// A bounded client keeps a stuck cache server from hanging the test
 	// until the suite timeout.
-	client := &http.Client{Timeout: 30 * time.Second}
+	transport := &http.Transport{}
+	t.Cleanup(transport.CloseIdleConnections)
+
+	client := &http.Client{Timeout: 30 * time.Second, Transport: transport}
 
 	for i := range concurrentWarmupRequests {
 		reqGroup.Go(func() error {
@@ -228,7 +242,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	}
 
 	// All requests were answered while the download was blocked; let it finish now.
-	close(releaseArchive)
+	release()
 
 	cachedProviders, err := providerService.WaitForCacheReady(requestID)
 	require.NoError(t, err,

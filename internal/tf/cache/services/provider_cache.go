@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	unzipFileMode = os.FileMode(0000)
+	unzipFileMode  = os.FileMode(0000)
+	privateDirMode = os.FileMode(0o700)
 
 	retryDelayLockFile = time.Second * 5
 	maxRetriesLockFile = 60
@@ -824,7 +825,7 @@ func (service *ProviderService) init() error {
 		return err
 	}
 
-	tempDir, err := util.EnsureTempDir(service.venv)
+	tempDir, err := service.ensureTempDir()
 	if err != nil {
 		return err
 	}
@@ -962,4 +963,32 @@ func (service *ProviderService) startProviderCaching(
 	service.logger.Debugf("Successfully cached provider: %s", cache.Provider)
 
 	return nil
+}
+
+func (service *ProviderService) ensureTempDir() (string, error) {
+	tempDir, err := util.EnsureTempDir(service.venv)
+
+	unsafeErr, ok := errors.AsType[util.UnsafeTempDirError](err)
+	if !ok {
+		return tempDir, err
+	}
+
+	cacheDir, err := util.EnsureCacheDir(service.venv)
+	if err != nil {
+		return "", errors.Join(unsafeErr, err, ErrNoSafeTempDir)
+	}
+
+	tempDir = filepath.Join(cacheDir, "tmp")
+
+	if err := service.FS().MkdirAll(tempDir, privateDirMode); err != nil {
+		return "", errors.Join(unsafeErr, err, ErrNoSafeTempDir)
+	}
+
+	service.logger.Warnf(
+		"%v. Using %s instead. Fix the reason above, or set TMPDIR to a directory only you can write to",
+		unsafeErr,
+		tempDir,
+	)
+
+	return tempDir, nil
 }
