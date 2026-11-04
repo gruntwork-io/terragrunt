@@ -32,11 +32,15 @@ export function hclItemPath(kind: HclKind, name: string): string {
 }
 
 /**
- * Returns how a call to a function reads, with optional parameters in brackets
- * and the return type after an arrow, e.g. `get_env(name, [default]) --> string`.
+ * Returns how a call to a function reads, with each parameter's type after its
+ * name, optional parameters in brackets, and the return type after an arrow,
+ * e.g. `get_env(name: string, [default: string]) --> string`.
  */
 export function functionSignature(data: CollectionEntry<'hclFunctions'>['data']): string {
-	const params = data.params.map((param) => (param.optional ? `[${param.name}]` : param.name));
+	const params = data.params.map((param) => {
+		const typed = `${param.name}: ${param.type}`;
+		return param.optional ? `[${typed}]` : typed;
+	});
 	return `${data.name}(${params.join(', ')}) --> ${data.returns}`;
 }
 
