@@ -27,7 +27,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -50,6 +52,50 @@ const (
 type Runner struct {
 	Stack *component.Stack
 	queue *queue.Queue
+
+	// tfVersions holds the OpenTofu/Terraform version and implementation the version check
+	// detected for each unit, keyed by unit path.
+	tfVersions   map[string]unitTFVersion
+	tfVersionsMu sync.Mutex
+}
+
+// unitTFVersion is the OpenTofu/Terraform version and implementation detected for a unit.
+type unitTFVersion struct {
+	version *semver.Version
+	impl    tfimpl.Type
+}
+
+// recordUnitTFVersion stores the version and implementation detected for the unit at unitPath.
+func (rnr *Runner) recordUnitTFVersion(unitPath string, version *semver.Version, impl tfimpl.Type) {
+	if version == nil {
+		return
+	}
+
+	rnr.tfVersionsMu.Lock()
+	defer rnr.tfVersionsMu.Unlock()
+
+	if rnr.tfVersions == nil {
+		rnr.tfVersions = make(map[string]unitTFVersion)
+	}
+
+	rnr.tfVersions[unitPath] = unitTFVersion{version: version, impl: impl}
+}
+
+// applyUnitTFVersion sets the version and implementation detected for the unit at unitPath on
+// unitOpts. The stack options may not carry them (e.g. with the provider cache disabled), or may
+// carry the stack's binary instead of the unit's terraform_binary, and the unit's config is parsed
+// with these options.
+func (rnr *Runner) applyUnitTFVersion(unitPath string, unitOpts *options.TerragruntOptions) {
+	rnr.tfVersionsMu.Lock()
+	defer rnr.tfVersionsMu.Unlock()
+
+	detected, ok := rnr.tfVersions[unitPath]
+	if !ok {
+		return
+	}
+
+	unitOpts.TerraformVersion = detected.version
+	unitOpts.TofuImplementation = detected.impl
 }
 
 // CloneUnitOptions clones the stack's options and logger for a single unit.
@@ -428,6 +474,8 @@ func (rnr *Runner) Run(
 		if err != nil {
 			return fmt.Errorf("failed to build opts for unit %s: %w", u.Path(), err)
 		}
+
+		rnr.applyUnitTFVersion(u.Path(), unitOpts)
 
 		if needsCliSync {
 			syncUnitCliArgs(l, stackOpts, unitOpts, u)

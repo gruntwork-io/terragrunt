@@ -175,15 +175,18 @@ func createRunner(
 	return rnr, nil
 }
 
-// checkVersionConstraints checks every discovered unit concurrently and returns the
-// first error encountered.
+// checkVersionConstraints checks every unit of rnr concurrently and returns the first error
+// encountered. It records the version and implementation detected for each unit on rnr, so the
+// unit's run parses its config with them.
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
-	units []*component.Unit,
+	rnr *Runner,
 ) error {
+	units := rnr.GetStack().Units
+
 	g, checkCtx := errgroup.WithContext(ctx)
 
 	maxWorkers := min(runtime.GOMAXPROCS(0), opts.Parallelism)
@@ -196,14 +199,20 @@ func checkVersionConstraints(
 				return err
 			}
 
-			return CheckUnitVersionConstraints(
+			if err := CheckUnitVersionConstraints(
 				checkCtx,
 				l,
 				v,
 				unitOpts,
 				unitLogger,
 				unit,
-			)
+			); err != nil {
+				return err
+			}
+
+			rnr.recordUnitTFVersion(unit.Path(), unitOpts.TerraformVersion, unitOpts.TofuImplementation)
+
+			return nil
 		})
 	}
 
