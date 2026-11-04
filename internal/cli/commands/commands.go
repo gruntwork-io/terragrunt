@@ -728,7 +728,7 @@ func setCommandSpanAttributes(ctx context.Context, cliCtx *clihelper.Context, op
 	}
 
 	span.SetAttributes(
-		attribute.String("terraformCommand", opts.TofuCommand),
+		attribute.String("tofu_command", opts.TofuCommand),
 		attribute.StringSlice("args", opts.TerraformCliArgs.Slice()),
 	)
 }

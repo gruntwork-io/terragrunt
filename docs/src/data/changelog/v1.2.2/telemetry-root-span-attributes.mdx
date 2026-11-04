@@ -1,0 +1,27 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### OpenTelemetry command span reports the real command, arguments, and directory
+
+The span that wraps each Terragrunt command had a trailing space in its name and empty or unreadable attributes. A `terragrunt run --all -- plan` exported:
+
+```json
+{
+  "name": "plan ",
+  "attributes": { "args": "&{ [] [] []}", "dir": "", "terraformCommand": "" }
+}
+```
+
+The span is now named `plan`, `args` is a list of the arguments passed to OpenTofu/Terraform, and `dir` is the working directory. Commands that don't run OpenTofu/Terraform, such as `find`, report only `dir`. The `tofu_cli_args` attribute of `runner_pool_task` spans and the `args` attribute of `run_<binary>` spans are lists too, where before they were strings.
+
+Three attributes have new names, so update any queries that filter on them:
+
+- `terraformCommand` is now `tofu_command`.
+- `terraform_command` is now `tofu_command`.
+- `terraform_cli_args` is now `tofu_cli_args`.
+
+Spans, metrics, and log records also report the Terragrunt version as their instrumentation scope version, which was empty.
+
+See [OpenTelemetry](/troubleshooting/open-telemetry) for how to export telemetry.

@@ -448,8 +448,8 @@ func (rnr *Runner) Run(
 			Collect(ctx, unitLogger, "runner_pool_task", map[string]any{
 				"unit_path":              unitPath,
 				"unit_name":              unitName,
-				"terraform_command":      unitOpts.TofuCommand,
-				"terraform_cli_args":     unitOpts.TerraformCliArgs.Slice(),
+				"tofu_command":           unitOpts.TofuCommand,
+				"tofu_cli_args":          unitOpts.TerraformCliArgs.Slice(),
 				"working_dir":            unitOpts.WorkingDir,
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(childCtx context.Context, unitLogger log.Logger) error {
@@ -540,9 +540,9 @@ func (rnr *Runner) Run(
 
 				err = telemetry.TelemeterFromContext(childCtx).
 					Collect(childCtx, unitLogger, "unit_run", map[string]any{
-						"unit_path":         unitPath,
-						"unit_name":         unitName,
-						"terraform_command": unitOpts.TofuCommand,
+						"unit_path":    unitPath,
+						"unit_name":    unitName,
+						"tofu_command": unitOpts.TofuCommand,
 					}, func(runCtx context.Context, unitLogger log.Logger) error {
 						unlockOutputs := config.LockDependencyOutputs(runCtx, unitOpts.TerragruntConfigPath)
 						defer unlockOutputs()

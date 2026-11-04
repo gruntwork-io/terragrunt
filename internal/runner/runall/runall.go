@@ -267,8 +267,8 @@ func RunAllOnStack(
 
 	telemetryErr := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "run_all_on_stack", map[string]any{
-			"terraform_command": opts.TofuCommand,
-			"working_dir":       opts.WorkingDir,
+			"tofu_command": opts.TofuCommand,
+			"working_dir":  opts.WorkingDir,
 		}, func(ctx context.Context, l log.Logger) error {
 			err := rnr.Run(ctx, l, v, opts, r)
 			if err != nil {

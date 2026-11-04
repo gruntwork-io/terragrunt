@@ -37,9 +37,9 @@ func TestWrapWithTelemetryCommandSpan(t *testing.T) {
 			args:     []string{"run", "--", "plan", "-input=false"},
 			wantName: "plan",
 			wantAttrs: map[string]any{
-				"dir":              workDir,
-				"terraformCommand": "plan",
-				"args":             []any{"plan", "-input=false", "-no-color"},
+				"dir":          workDir,
+				"tofu_command": "plan",
+				"args":         []any{"plan", "-input=false", "-no-color"},
 			},
 		},
 		{
@@ -47,9 +47,9 @@ func TestWrapWithTelemetryCommandSpan(t *testing.T) {
 			args:     []string{"run", "--all", "--", "plan"},
 			wantName: "plan",
 			wantAttrs: map[string]any{
-				"dir":              workDir,
-				"terraformCommand": "plan",
-				"args":             []any{"plan", "-no-color"},
+				"dir":          workDir,
+				"tofu_command": "plan",
+				"args":         []any{"plan", "-no-color"},
 			},
 		},
 		{
@@ -57,9 +57,9 @@ func TestWrapWithTelemetryCommandSpan(t *testing.T) {
 			args:     []string{"plan"},
 			wantName: "plan",
 			wantAttrs: map[string]any{
-				"dir":              workDir,
-				"terraformCommand": "plan",
-				"args":             []any{"plan", "-no-color"},
+				"dir":          workDir,
+				"tofu_command": "plan",
+				"args":         []any{"plan", "-no-color"},
 			},
 		},
 		{
