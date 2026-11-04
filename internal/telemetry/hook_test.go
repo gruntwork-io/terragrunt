@@ -75,7 +75,7 @@ func TestOtelLogHookSeverities(t *testing.T) {
 			l.SetOptions(
 				log.WithLevel(log.TraceLevel),
 				log.WithOutput(io.Discard),
-				log.WithHooks(telemetry.NewOtelLogHook("terragrunt", provider)),
+				log.WithHooks(telemetry.NewOtelLogHook("terragrunt", "v0.0.0-test", provider)),
 			)
 
 			l.Logf(tt.level, "message at %s", tt.level)
@@ -105,7 +105,7 @@ func TestOtelLogHookHonorsLogLevel(t *testing.T) {
 	l.SetOptions(
 		log.WithLevel(log.InfoLevel),
 		log.WithOutput(io.Discard),
-		log.WithHooks(telemetry.NewOtelLogHook("terragrunt", provider)),
+		log.WithHooks(telemetry.NewOtelLogHook("terragrunt", "v0.0.0-test", provider)),
 	)
 
 	l.Tracef("trace record")
@@ -134,7 +134,7 @@ func TestOtelLogHookStripsColorCodes(t *testing.T) {
 	l.SetOptions(
 		log.WithLevel(log.InfoLevel),
 		log.WithOutput(io.Discard),
-		log.WithHooks(telemetry.NewOtelLogHook("terragrunt", provider)),
+		log.WithHooks(telemetry.NewOtelLogHook("terragrunt", "v0.0.0-test", provider)),
 	)
 
 	l.Logf(log.StderrLevel, "\x1b[31m\x1b[1mError: \x1b[0m\x1b[0mReference to undeclared input variable")

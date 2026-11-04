@@ -223,3 +223,81 @@ func TestNewTelemeterNoExporters(t *testing.T) {
 	assert.True(t, called)
 	require.NoError(t, tlm.Shutdown(t.Context()))
 }
+
+func TestNewTelemeterSetsScopeVersionOnAllSignals(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.Telemetry.TraceExporter = consoleExporter
+	opts.Telemetry.MetricExporter = consoleExporter
+	opts.Telemetry.LogsExporter = consoleExporter
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	tlm, err := telemetry.NewTelemeter(
+		t.Context(), l, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, true,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, tlm.Collect(
+		t.Context(), l, "scope_test", nil,
+		func(_ context.Context, childL log.Logger) error {
+			childL.Infof("scope test record")
+			return nil
+		},
+	))
+
+	require.NoError(t, tlm.Shutdown(t.Context()))
+
+	type scope struct {
+		Name    string `json:"Name"`
+		Version string `json:"Version"`
+	}
+
+	var spanScopes, metricScopes, logScopes []scope
+
+	dec := json.NewDecoder(&buf)
+
+	for dec.More() {
+		var entry struct {
+			InstrumentationScope *scope `json:"InstrumentationScope"`
+			Scope                *scope `json:"Scope"`
+			ScopeMetrics         []struct {
+				Scope scope `json:"Scope"`
+			} `json:"ScopeMetrics"`
+		}
+		require.NoError(t, dec.Decode(&entry))
+
+		switch {
+		case entry.InstrumentationScope != nil:
+			spanScopes = append(spanScopes, *entry.InstrumentationScope)
+		case entry.Scope != nil:
+			logScopes = append(logScopes, *entry.Scope)
+		}
+
+		for _, sm := range entry.ScopeMetrics {
+			metricScopes = append(metricScopes, sm.Scope)
+		}
+	}
+
+	want := scope{Name: "terragrunt", Version: "v0.0.0-test"}
+
+	require.NotEmpty(t, spanScopes, "expected a span")
+	require.NotEmpty(t, metricScopes, "expected a metric")
+	require.NotEmpty(t, logScopes, "expected a log record")
+
+	for _, got := range spanScopes {
+		assert.Equal(t, want, got, "span scope")
+	}
+
+	for _, got := range metricScopes {
+		assert.Equal(t, want, got, "metric scope")
+	}
+
+	for _, got := range logScopes {
+		assert.Equal(t, want, got, "log scope")
+	}
+}
