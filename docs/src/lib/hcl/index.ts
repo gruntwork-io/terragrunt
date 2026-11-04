@@ -31,10 +31,13 @@ export function hclItemPath(kind: HclKind, name: string): string {
 	return `/${hclItemSlug(kind, name)}/`;
 }
 
-/** Returns how a call to a function reads, with optional parameters in brackets, e.g. `get_env(name, [default])`. */
+/**
+ * Returns how a call to a function reads, with optional parameters in brackets
+ * and the return type after an arrow, e.g. `get_env(name, [default]) --> string`.
+ */
 export function functionSignature(data: CollectionEntry<'hclFunctions'>['data']): string {
 	const params = data.params.map((param) => (param.optional ? `[${param.name}]` : param.name));
-	return `${data.name}(${params.join(', ')})`;
+	return `${data.name}(${params.join(', ')}) --> ${data.returns}`;
 }
 
 /** Returns an item page's headings in page order, given the headings of the entry's body. */
