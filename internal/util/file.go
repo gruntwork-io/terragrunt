@@ -1753,7 +1753,6 @@ func EnsureCacheDir(v *venv.Venv) (string, error) {
 }
 
 // EnsureTempDir returns the current user's terragrunt temp directory, creating it when needed.
-// On Unix it refuses a directory that another user could replace or write to.
 func EnsureTempDir(v *venv.Venv) (string, error) {
 	v.RequireFS()
 	v.RequireTempDir()

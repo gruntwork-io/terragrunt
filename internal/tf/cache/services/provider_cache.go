@@ -596,12 +596,9 @@ type ProviderService struct {
 	providerCacheWarmUpCh chan *ProviderCache
 	credsSource           *cliconfig.CredentialsSource
 
-	// tempDir holds provider lock files. It is the user's shared terragrunt temp
-	// directory, or runTempDir when that directory is unsafe to use.
+	// tempDir holds provider lock files. It is runTempDir when the user's temp dir is unsafe.
 	tempDir string
 
-	// runTempDir is a random directory for this run only, created when the shared
-	// temp directory is unsafe. Run removes it on shutdown.
 	runTempDir string
 
 	archiveDir string
@@ -814,7 +811,6 @@ func (service *ProviderService) Init() error {
 	service.initOnce.Do(func() {
 		service.initErr = service.init()
 
-		// Run never starts after a failed init, so it cannot remove the per-run directory.
 		if service.initErr == nil || service.runTempDir == "" {
 			return
 		}
@@ -983,10 +979,6 @@ func (service *ProviderService) startProviderCaching(
 	return nil
 }
 
-// ensureTempDir returns the user's shared terragrunt temp directory. When that directory is unsafe,
-// it warns and returns a new random directory for this run instead, so provider caching still works.
-// The new directory sits in the same temp directory, so it is no safer from its other writers; it
-// only avoids the shared, predictable name.
 func (service *ProviderService) ensureTempDir() (string, error) {
 	tempDir, err := util.EnsureTempDir(service.venv)
 
@@ -1003,8 +995,8 @@ func (service *ProviderService) ensureTempDir() (string, error) {
 	service.runTempDir = runTempDir
 
 	service.logger.Warnf(
-		"%v; using %s for this run instead, so provider lock files are not shared with other runs. "+
-			"Set TMPDIR to a directory that only you can write to, or fix its permissions, to share them again",
+		"%v. Using %s for this run, so provider lock files are not shared with other runs. "+
+			"Set TMPDIR to a directory only you can write to",
 		unsafeErr,
 		runTempDir,
 	)

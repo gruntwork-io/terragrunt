@@ -53,8 +53,6 @@ func TestProviderServiceInitWithAnotherUsersTempDir(t *testing.T) {
 	assert.DirExists(t, filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(os.Getuid()), "providers"))
 }
 
-// TestProviderServiceInitFallsBackFromUnsafeTempDir checks that an unsafe shared temp dir costs only
-// lock sharing: Init uses a private per-run dir, never touches the unsafe path, and Run removes it.
 func TestProviderServiceInitFallsBackFromUnsafeTempDir(t *testing.T) {
 	t.Parallel()
 
@@ -63,7 +61,6 @@ func TestProviderServiceInitFallsBackFromUnsafeTempDir(t *testing.T) {
 		name  string
 	}{
 		{
-			// A Kubernetes emptyDir mounted at /tmp is world-writable without the sticky bit.
 			name: "world-writable temp dir without sticky bit",
 			setup: func(t *testing.T, tempDir, _ string) {
 				t.Helper()

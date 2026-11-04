@@ -43,8 +43,7 @@ var (
 	memWorkDir   = Root("/venvtest/work")
 )
 
-// memPID and memUID are fixed process and user ids, so a crash report or log
-// line carrying them compares equal between runs.
+// memPID and memUID are fixed, so log lines carrying them compare equal between runs.
 const (
 	memPID = 1
 	memUID = 1000

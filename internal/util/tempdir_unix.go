@@ -19,9 +19,7 @@ const (
 	privateDirMode = os.FileMode(0o700)
 	othersWritable = os.FileMode(0o022)
 	rootUID        = 0
-	// A user namespace shows directories of unmapped users, such as a root-owned /tmp, as this user ID,
-	// and root-squashed NFS shows root's directories the same way. On a host it is also the nobody
-	// account; trusting it like root is deliberate.
+	// Inside a user namespace or on root-squashed NFS, root-owned directories show as this user ID.
 	overflowUID = 65534
 )
 

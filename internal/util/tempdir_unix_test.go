@@ -212,8 +212,6 @@ func TestEnsureTempDirRejectsParentOwnedByAnotherUser(t *testing.T) {
 	assert.NoDirExists(t, want)
 }
 
-// TestEnsureTempDirRejectsDirOwnedByAnotherUser plays the victim of a squatted directory. Only a
-// root-owned parent passes the parent checks for a user id the test does not run as, so it uses /tmp.
 func TestEnsureTempDirRejectsDirOwnedByAnotherUser(t *testing.T) {
 	t.Parallel()
 
@@ -228,11 +226,9 @@ func TestEnsureTempDirRejectsDirOwnedByAnotherUser(t *testing.T) {
 		t.Skip("needs a non-root user and a root-owned /tmp with the sticky bit")
 	}
 
-	// Far above real account ids and unique per test process, so no real directory is touched.
-	uid := 1_000_000_000 + os.Getpid()
-	want := filepath.Join(parentDir, "terragrunt-"+strconv.Itoa(uid))
+	unusedUID := 1_000_000_000 + os.Getpid()
+	want := filepath.Join(parentDir, "terragrunt-"+strconv.Itoa(unusedUID))
 
-	// A run killed before cleanup may have left this directory behind for a reused process id.
 	require.NoError(t, os.RemoveAll(want))
 	require.NoError(t, os.Mkdir(want, 0o700))
 	t.Cleanup(func() {
@@ -242,14 +238,14 @@ func TestEnsureTempDirRejectsDirOwnedByAnotherUser(t *testing.T) {
 	got, err := util.EnsureTempDir(
 		venvtest.NewOSWithEmptyEnv().
 			WithTempDir(func() string { return parentDir }).
-			WithGetUID(func() int { return uid }),
+			WithGetUID(func() int { return unusedUID }),
 	)
 
 	var unsafeErr util.UnsafeTempDirError
 
 	require.ErrorAs(t, err, &unsafeErr)
 	assert.Equal(t, want, unsafeErr.Path)
-	assert.Equal(t, "it is owned by user id "+strconv.Itoa(os.Getuid())+", not "+strconv.Itoa(uid), unsafeErr.Reason)
+	assert.Equal(t, "it is owned by user id "+strconv.Itoa(os.Getuid())+", not "+strconv.Itoa(unusedUID), unsafeErr.Reason)
 	assert.Empty(t, got)
 }
 
