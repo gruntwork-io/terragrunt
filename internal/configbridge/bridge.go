@@ -72,6 +72,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.EngineOptions = opts.EngineOptions
 	pctx.TFPath = opts.TFPath
 	pctx.TofuImplementation = opts.TofuImplementation
+	pctx.TerraformVersion = opts.TerraformVersion
 	pctx.ForwardTFStdout = opts.ForwardTFStdout
 	pctx.JSONLogFormat = opts.JSONLogFormat
 	pctx.Debug = opts.Debug

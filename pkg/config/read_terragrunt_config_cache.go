@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -138,6 +139,8 @@ type ReadTerragruntConfigKey struct {
 	ConfigPath                string
 	TerraformCommand          string
 	OriginalTerraformCommand  string
+	TofuImplementation        tfimpl.Type
+	TerraformVersion          string
 	Source                    string
 	DownloadDir               string
 	OriginalIAMRoleOptions    iam.RoleOptions
@@ -178,6 +181,11 @@ func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext) ReadTerragru
 		cliArgs = pctx.TerraformCliArgs.Slice()
 	}
 
+	var tfVersion string
+	if pctx.TerraformVersion != nil {
+		tfVersion = pctx.TerraformVersion.String()
+	}
+
 	featureFlags := make([]string, 0, len(pctx.FeatureFlags))
 	for _, name := range slices.Sorted(maps.Keys(pctx.FeatureFlags)) {
 		featureFlags = append(featureFlags, name+"="+pctx.FeatureFlags[name])
@@ -189,6 +197,8 @@ func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext) ReadTerragru
 		ConfigPath:                pctx.TerragruntConfigPath,
 		TerraformCommand:          pctx.TerraformCommand,
 		OriginalTerraformCommand:  pctx.OriginalTerraformCommand,
+		TofuImplementation:        pctx.TofuImplementation,
+		TerraformVersion:          tfVersion,
 		Source:                    pctx.Source,
 		DownloadDir:               pctx.DownloadDir,
 		TerragruntStackConfigPath: pctx.TerragruntStackConfigPath,

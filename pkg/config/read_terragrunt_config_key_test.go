@@ -10,6 +10,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -39,6 +41,10 @@ var keyedParsingContextFields = map[string]func(*config.ParsingContext){
 	},
 	"PartialParseDecodeList": func(pctx *config.ParsingContext) {
 		pctx.PartialParseDecodeList = []config.PartialDecodeSectionType{config.FeatureFlagsBlock}
+	},
+	"TofuImplementation": func(pctx *config.ParsingContext) { pctx.TofuImplementation = tfimpl.OpenTofu },
+	"TerraformVersion": func(pctx *config.ParsingContext) {
+		pctx.TerraformVersion = semver.MustParse("1.8.0")
 	},
 	"MaxFoldersToCheck":   func(pctx *config.ParsingContext) { pctx.MaxFoldersToCheck++ },
 	"SkipOutput":          func(pctx *config.ParsingContext) { pctx.SkipOutput = !pctx.SkipOutput },
@@ -106,7 +112,6 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"Telemetry":                        dependencyRunsOnly,
 	"AuthProviderCmd":                  dependencyRunsOnly,
 	"TFPath":                           dependencyRunsOnly,
-	"TofuImplementation":               dependencyRunsOnly,
 	"ForwardTFStdout":                  dependencyRunsOnly,
 	"JSONLogFormat":                    dependencyRunsOnly,
 	"Debug":                            dependencyRunsOnly,

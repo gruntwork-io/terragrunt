@@ -40,6 +40,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/patch"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang"
@@ -128,6 +129,23 @@ var TerraformCommandsNeedVars = []string{
 	"plan",
 	"push",
 	"refresh",
+}
+
+// minTofuVersionForInitVars is the first OpenTofu version whose init command accepts -var and -var-file.
+const minTofuVersionForInitVars = "1.8.0"
+
+// terraformCommandsNeedVars returns TerraformCommandsNeedVars, plus init when the unit runs
+// OpenTofu 1.8.0 or newer, since those versions accept -var and -var-file on init.
+func terraformCommandsNeedVars(pctx *ParsingContext) []string {
+	if pctx.TofuImplementation != tfimpl.OpenTofu || pctx.TerraformVersion == nil {
+		return TerraformCommandsNeedVars
+	}
+
+	if pctx.TerraformVersion.LessThan(semver.MustParse(minTofuVersionForInitVars)) {
+		return TerraformCommandsNeedVars
+	}
+
+	return append(slices.Clone(TerraformCommandsNeedVars), "init")
 }
 
 // TerraformCommandsNeedInput is list of terraform commands that accept -input=
@@ -395,7 +413,7 @@ func TerragruntFunctions(
 			getAWSCallerIdentityUserID,
 		),
 		FuncNameGetTerraformCommandsThatNeedVars: wrapStaticValueToStringSliceAsFuncImpl(
-			TerraformCommandsNeedVars,
+			terraformCommandsNeedVars(pctx),
 		),
 		FuncNameGetTerraformCommandsThatNeedLocking: wrapStaticValueToStringSliceAsFuncImpl(
 			TerraformCommandsNeedLocking,

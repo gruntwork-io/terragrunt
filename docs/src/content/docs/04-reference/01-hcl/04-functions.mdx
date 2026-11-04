@@ -514,6 +514,12 @@ terraform {
 }
 ```
 
+When the unit runs OpenTofu `1.8.0` or newer, the list also includes `init`, since those versions accept `-var` and `-var-file` on `init`. If you appended `init` yourself as a workaround, wrap the list in `toset` so `init` isn't passed the arguments twice:
+
+```hcl
+commands = toset(concat(get_terraform_commands_that_need_vars(), ["init"]))
+```
+
 ## get_terraform_commands_that_need_input
 
 `get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments](/features/units/extra-arguments/#multiple-extra_arguments-blocks).

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
@@ -989,6 +991,57 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 				tc.include,
 				tc.configPath,
 			)
+		})
+	}
+}
+
+func TestGetTerraformCommandsThatNeedVarsIncludesInitForOpenTofu18(t *testing.T) {
+	t.Parallel()
+
+	withInit := append(slices.Clone(config.TerraformCommandsNeedVars), "init")
+
+	testCases := []struct {
+		name     string
+		impl     tfimpl.Type
+		version  string
+		expected []string
+	}{
+		{name: "opentofu 1.8.0", impl: tfimpl.OpenTofu, version: "1.8.0", expected: withInit},
+		{name: "opentofu 1.10.6", impl: tfimpl.OpenTofu, version: "1.10.6", expected: withInit},
+		{name: "opentofu 1.7.3", impl: tfimpl.OpenTofu, version: "1.7.3", expected: config.TerraformCommandsNeedVars},
+		{name: "opentofu 1.8 prerelease", impl: tfimpl.OpenTofu, version: "1.8.0-beta1",
+			expected: config.TerraformCommandsNeedVars},
+		{name: "opentofu unknown version", impl: tfimpl.OpenTofu, expected: config.TerraformCommandsNeedVars},
+		{name: "terraform 1.9.0", impl: tfimpl.Terraform, version: "1.9.0", expected: config.TerraformCommandsNeedVars},
+		{name: "unknown implementation", impl: tfimpl.Unknown, version: "1.9.0",
+			expected: config.TerraformCommandsNeedVars},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			v := venvtest.NewWithOSFS()
+			ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+
+			pctx.TofuImplementation = tc.impl
+			if tc.version != "" {
+				pctx.TerraformVersion = semver.MustParse(tc.version)
+			}
+
+			cfg, err := config.ParseConfigString(
+				ctx,
+				l,
+				v,
+				pctx,
+				"mock-path-for-test.hcl",
+				`inputs = { foo = get_terraform_commands_that_need_vars() }`,
+				nil,
+			)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected, toStringSlice(t, cfg.Inputs["foo"]))
 		})
 	}
 }
