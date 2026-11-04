@@ -4,7 +4,8 @@
 
 import type { APIRoute, GetStaticPaths } from 'astro';
 import { getCollection } from 'astro:content';
-import { entryToSimpleMarkdown, markdownDocument } from '@lib/page-to-markdown';
+import type { FaqEntry } from '@lib/faq';
+import { faqPage, markdownResponse } from '@lib/generated-pages';
 
 export const prerender = true;
 
@@ -14,14 +15,6 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 export const GET: APIRoute = async (context) => {
-  const { entry } = context.props as {
-    entry: Awaited<ReturnType<typeof getCollection<'faq'>>>[number];
-  };
-
-  const body = await entryToSimpleMarkdown(entry, context);
-
-  return new Response(
-    markdownDocument(entry.data.question, entry.data.description, body),
-    { headers: { 'Content-Type': 'text/markdown; charset=utf-8' } },
-  );
+  const { entry } = context.props as { entry: FaqEntry };
+  return markdownResponse(await faqPage(entry, context));
 };
