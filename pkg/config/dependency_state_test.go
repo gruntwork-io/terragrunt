@@ -163,7 +163,7 @@ func TestDependencyStateS3AssumeRoleUsedForDirectRead(t *testing.T) {
 	}
 
 	recorder := newDependencyStateRecorder(t, 0, nil)
-	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // callback, not a response
 
 	cfg, err := parseDependencyStateFixture(
 		t,
@@ -207,7 +207,11 @@ func TestDependencyStateS3AssumeRoleUsedForDirectRead(t *testing.T) {
 }
 
 // stsAndS3Responder returns an HTTP callback handling STS AssumeRole and S3 state requests.
-func stsAndS3Responder(t *testing.T, defaultRoleARN string, onAssumeRole func(string)) func(*http.Request) *http.Response {
+func stsAndS3Responder(
+	t *testing.T,
+	defaultRoleARN string,
+	onAssumeRole func(string),
+) func(*http.Request) *http.Response {
 	t.Helper()
 
 	return func(req *http.Request) *http.Response {
@@ -281,7 +285,7 @@ func TestDependencyStateS3AssumeRoleWithClearedIAMOptions(t *testing.T) {
 	}
 
 	recorder := newDependencyStateRecorder(t, 0, nil)
-	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // callback, not a response
 
 	ctx, v, pctx, configPath := prepareDependencyStateFixture(
 		t,

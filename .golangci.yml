@@ -389,9 +389,13 @@ issues:
 formatters:
   enable:
     - goimports
+    - golines
   settings:
     gofmt:
       simplify: true
+    golines:
+      max-len: 120
+      tab-len: 1
   exclusions:
     generated: lax
     paths:

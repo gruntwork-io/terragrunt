@@ -60,7 +60,9 @@ func PopulateTFVersion(
 	in PopulateTFVersionInput,
 ) (log.Logger, *semver.Version, tfimpl.Type, error) {
 	if in.TFOpts.ShellOptions.EngineEnabled() {
-		l.Debugf("Skipping the OpenTofu/Terraform version probe: an engine runs the commands, so the version and implementation stay unknown")
+		l.Debugf(
+			"Skipping the OpenTofu/Terraform version probe: an engine runs the commands, so the version and implementation stay unknown",
+		)
 
 		return l, nil, tfimpl.Unknown, nil
 	}

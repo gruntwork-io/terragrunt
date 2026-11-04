@@ -20,11 +20,27 @@ func TestDiscoveryContextRemovedInRef(t *testing.T) {
 		ctx      component.DiscoveryContext
 		expected bool
 	}{
-		{name: "ref with -destroy", ctx: component.DiscoveryContext{Ref: "main", Cmd: "plan", Args: []string{"-destroy"}}, expected: true},
-		{name: "ref with -destroy=true", ctx: component.DiscoveryContext{Ref: "main", Cmd: "apply", Args: []string{"-destroy=true"}}, expected: true},
+		{
+			name:     "ref with -destroy",
+			ctx:      component.DiscoveryContext{Ref: "main", Cmd: "plan", Args: []string{"-destroy"}},
+			expected: true,
+		},
+		{
+			name:     "ref with -destroy=true",
+			ctx:      component.DiscoveryContext{Ref: "main", Cmd: "apply", Args: []string{"-destroy=true"}},
+			expected: true,
+		},
 		{name: "ref without -destroy", ctx: component.DiscoveryContext{Ref: "main", Cmd: "apply"}, expected: false},
-		{name: "ref with -destroy=false", ctx: component.DiscoveryContext{Ref: "main", Cmd: "apply", Args: []string{"-destroy=false"}}, expected: false},
-		{name: "-destroy without ref", ctx: component.DiscoveryContext{Cmd: "apply", Args: []string{"-destroy"}}, expected: false},
+		{
+			name:     "ref with -destroy=false",
+			ctx:      component.DiscoveryContext{Ref: "main", Cmd: "apply", Args: []string{"-destroy=false"}},
+			expected: false,
+		},
+		{
+			name:     "-destroy without ref",
+			ctx:      component.DiscoveryContext{Cmd: "apply", Args: []string{"-destroy"}},
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {

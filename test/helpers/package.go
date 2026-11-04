@@ -389,7 +389,10 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 		}
 
 		for i := range out.DeleteMarkers {
-			objects = append(objects, s3types.ObjectIdentifier{Key: out.DeleteMarkers[i].Key, VersionId: out.DeleteMarkers[i].VersionId})
+			objects = append(
+				objects,
+				s3types.ObjectIdentifier{Key: out.DeleteMarkers[i].Key, VersionId: out.DeleteMarkers[i].VersionId},
+			)
 		}
 
 		deleted, err := client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
