@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -208,15 +210,7 @@ func WrapWithTelemetry(
 
 		ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
 
-		cmdName := fmt.Sprintf(
-			"%s %s", cliCtx.Command.Name, opts.TofuCommand,
-		)
-
-		return telemeter.Collect(ctx, l, cmdName, map[string]any{
-			"terraformCommand": opts.TofuCommand,
-			"args":             opts.TerraformCliArgs,
-			"dir":              opts.WorkingDir,
-		}, func(childCtx context.Context, l log.Logger) error {
+		return telemeter.Collect(ctx, l, cliCtx.Command.Name, nil, func(childCtx context.Context, l log.Logger) error {
 			// Engines emit telemetry during shutdown, so stop them while the
 			// command span is still open (and before the telemeter's deferred
 			// Shutdown flushes) to keep their records correlated with it.
@@ -236,6 +230,8 @@ func WrapWithTelemetry(
 			if err := initialSetup(cliCtx, l, v, opts); err != nil {
 				return err
 			}
+
+			setCommandSpanAttributes(childCtx, cliCtx, opts)
 
 			if err := RunAction(childCtx, cliCtx, l, opts, v, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
@@ -714,4 +710,41 @@ func initialSetup(
 	}
 
 	return nil
+}
+
+// setCommandSpanAttributes records on the command span the values initialSetup
+// resolves: the working directory, and for a command that runs OpenTofu/Terraform,
+// the tofu command and its arguments.
+func setCommandSpanAttributes(ctx context.Context, cliCtx *clihelper.Context, opts *options.TerragruntOptions) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	span.SetAttributes(attribute.String("dir", opts.WorkingDir))
+
+	if !runsTofu(cliCtx) || opts.TofuCommand == "" {
+		return
+	}
+
+	span.SetAttributes(
+		attribute.String("terraformCommand", opts.TofuCommand),
+		attribute.StringSlice("args", opts.TerraformCliArgs.Slice()),
+	)
+}
+
+// runsTofu reports whether cliCtx is a command that passes its arguments to
+// OpenTofu/Terraform: run, stack run, a subcommand of run, or a shortcut.
+func runsTofu(cliCtx *clihelper.Context) bool {
+	if cliCtx.Command.Name == runcmd.CommandName {
+		return true
+	}
+
+	if cliCtx.Command.Category != nil && cliCtx.Command.Category.Name == ShortcutsCommandsCategoryName {
+		return true
+	}
+
+	parent := cliCtx.Parent().Command
+
+	return parent != nil && parent.Name == runcmd.CommandName
 }

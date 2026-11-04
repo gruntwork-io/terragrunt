@@ -301,3 +301,41 @@ func TestNewTelemeterSetsScopeVersionOnAllSignals(t *testing.T) {
 		assert.Equal(t, want, got, "log scope")
 	}
 }
+
+func TestCollectRecordsStringSliceAsSliceAttribute(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.Telemetry.TraceExporter = consoleExporter
+
+	tlm, err := telemetry.NewTelemeter(
+		t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, false,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, tlm.Collect(
+		t.Context(), nil, "slice_test", map[string]any{"args": []string{"plan", "-input=false"}},
+		telemetry.WithoutLogger(func(context.Context) error { return nil }),
+	))
+
+	require.NoError(t, tlm.Shutdown(t.Context()))
+
+	var span struct {
+		Attributes []struct {
+			Value struct {
+				Value any    `json:"Value"`
+				Type  string `json:"Type"`
+			} `json:"Value"`
+			Key string `json:"Key"`
+		} `json:"Attributes"`
+	}
+	require.NoError(t, json.NewDecoder(&buf).Decode(&span))
+	require.Len(t, span.Attributes, 1)
+
+	attr := span.Attributes[0]
+	assert.Equal(t, "args", attr.Key)
+	assert.Equal(t, "STRINGSLICE", attr.Value.Type)
+	assert.Equal(t, []any{"plan", "-input=false"}, attr.Value.Value)
+}

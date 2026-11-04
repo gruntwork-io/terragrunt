@@ -449,7 +449,7 @@ func (rnr *Runner) Run(
 				"unit_path":              unitPath,
 				"unit_name":              unitName,
 				"terraform_command":      unitOpts.TofuCommand,
-				"terraform_cli_args":     unitOpts.TerraformCliArgs,
+				"terraform_cli_args":     unitOpts.TerraformCliArgs.Slice(),
 				"working_dir":            unitOpts.WorkingDir,
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(childCtx context.Context, unitLogger log.Logger) error {
