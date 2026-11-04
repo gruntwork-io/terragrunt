@@ -50,6 +50,38 @@ export function itemHeadings(entry: HclEntry, bodyHeadings: Heading[]): Heading[
 }
 
 /**
+ * Returns the fragments an item's page defines besides its fixed sections: the
+ * slugs of the body's headings and, for a block, its attribute names.
+ */
+export function itemAnchors(entry: HclEntry, bodyHeadings: Heading[]): string[] {
+	const attributes = entry.collection === 'hclBlocks' ? (entry.data.attributes ?? []).map((attr) => attr.name) : [];
+	return [...bodyHeadings.map((heading) => heading.slug), ...attributes];
+}
+
+/**
+ * Maps each fragment of a kind's index page to the item page it is on now, for
+ * `AnchorRedirects`. An item's name maps to its page, and each of its anchors
+ * to that fragment on its page. An anchor that more than one item defines, or
+ * that is also an item's name, is left out.
+ */
+export function anchorRedirects(kind: HclKind, items: { name: string; anchors: string[] }[]): Record<string, string> {
+	const names = new Set(items.map((item) => item.name));
+	const owners = new Map<string, string[]>();
+	for (const item of items) {
+		for (const anchor of new Set(item.anchors)) {
+			owners.set(anchor, [...(owners.get(anchor) ?? []), item.name]);
+		}
+	}
+
+	const redirects = Object.fromEntries(items.map((item) => [item.name, hclItemPath(kind, item.name)]));
+	for (const [anchor, [owner, ...others]] of owners) {
+		if (names.has(anchor) || others.length > 0) continue;
+		redirects[anchor] = `${hclItemPath(kind, owner)}#${anchor}`;
+	}
+	return redirects;
+}
+
+/**
  * Returns the Markdown an entry's structured fields render to, split into the
  * part that goes before the entry's body and the part that goes after it.
  */
