@@ -12,7 +12,9 @@ import (
 var ErrCacheDirNotSpecified = errors.New("provider cache directory not specified")
 
 // ErrNoSafeTempDir is returned by [ProviderService.Init] when neither the temp dir nor the user cache dir can be used.
-var ErrNoSafeTempDir = errors.New("no safe directory for provider lock files; set TMPDIR to a directory only you can write to")
+var ErrNoSafeTempDir = errors.New(
+	"no safe directory for provider lock files; set TMPDIR to a directory only you can write to",
+)
 
 // UnexpectedProviderCachePathError is returned when something other than a
 // Terragrunt-managed symlink occupies a provider's package path inside the
