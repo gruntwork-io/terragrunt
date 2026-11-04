@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -16,9 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestProviderServiceInitWithAnotherUsersTempDir covers two users sharing a
-// temp directory: the terragrunt/providers directory the first user left there
-// does not stop the second user's service from starting.
 func TestProviderServiceInitWithAnotherUsersTempDir(t *testing.T) {
 	t.Parallel()
 
@@ -30,7 +28,6 @@ func TestProviderServiceInitWithAnotherUsersTempDir(t *testing.T) {
 	sharedDir := filepath.Join(tempDir, "terragrunt")
 	sharedProvidersDir := filepath.Join(sharedDir, "providers")
 
-	// Read-only directories stand in for ones another user owns.
 	require.NoError(t, os.MkdirAll(sharedProvidersDir, 0o755))
 	require.NoError(t, os.Chmod(sharedProvidersDir, 0o555))
 	require.NoError(t, os.Chmod(sharedDir, 0o555))
@@ -50,4 +47,17 @@ func TestProviderServiceInitWithAnotherUsersTempDir(t *testing.T) {
 
 	require.NoError(t, service.Init())
 	assert.DirExists(t, filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(os.Getuid()), "providers"))
+}
+
+func TestProviderServiceInitOnMemFS(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+
+	service := services.NewProviderService(venvtest.Root("/cache/providers"), "", nil, logger.CreateLogger(), v)
+
+	require.NoError(t, service.Init())
+
+	providersDir := filepath.Join(v.Platform.TempDir(), "terragrunt-"+strconv.Itoa(v.Platform.GetUID()), "providers")
+	assert.True(t, vfs.IsDir(v.FS, providersDir))
 }

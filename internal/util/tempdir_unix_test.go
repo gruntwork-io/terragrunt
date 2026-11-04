@@ -9,25 +9,24 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestEnsureTempDir covers a temp directory shared by several users: each user
-// gets a directory of their own, and one that another user could have planted
-// or can still write to is refused.
 func TestEnsureTempDir(t *testing.T) {
 	t.Parallel()
 
 	const marker = "marker"
 
 	testCases := []struct {
-		setup   func(t *testing.T, dir string)
+		setup   func(t *testing.T, parentDir, dir string)
 		check   func(t *testing.T, dir string)
 		name    string
 		uidStep int
+		gidStep int
 		wantErr bool
 	}{
 		{
@@ -43,7 +42,7 @@ func TestEnsureTempDir(t *testing.T) {
 		},
 		{
 			name: "existing private is reused",
-			setup: func(t *testing.T, dir string) {
+			setup: func(t *testing.T, _, dir string) {
 				t.Helper()
 
 				require.NoError(t, os.Mkdir(dir, 0o700))
@@ -56,8 +55,18 @@ func TestEnsureTempDir(t *testing.T) {
 			},
 		},
 		{
-			name: "group writable",
-			setup: func(t *testing.T, dir string) {
+			name: "writable by own group",
+			setup: func(t *testing.T, _, dir string) {
+				t.Helper()
+
+				require.NoError(t, os.Mkdir(dir, 0o700))
+				require.NoError(t, os.Chmod(dir, 0o770))
+			},
+		},
+		{
+			name:    "writable by another group",
+			gidStep: 1,
+			setup: func(t *testing.T, _, dir string) {
 				t.Helper()
 
 				require.NoError(t, os.Mkdir(dir, 0o700))
@@ -67,7 +76,7 @@ func TestEnsureTempDir(t *testing.T) {
 		},
 		{
 			name: "world writable with sticky bit",
-			setup: func(t *testing.T, dir string) {
+			setup: func(t *testing.T, _, dir string) {
 				t.Helper()
 
 				require.NoError(t, os.Mkdir(dir, 0o700))
@@ -77,7 +86,7 @@ func TestEnsureTempDir(t *testing.T) {
 		},
 		{
 			name: "symlink to a private directory",
-			setup: func(t *testing.T, dir string) {
+			setup: func(t *testing.T, _, dir string) {
 				t.Helper()
 
 				target := filepath.Join(filepath.Dir(dir), "target")
@@ -88,7 +97,7 @@ func TestEnsureTempDir(t *testing.T) {
 		},
 		{
 			name: "dangling symlink",
-			setup: func(t *testing.T, dir string) {
+			setup: func(t *testing.T, _, dir string) {
 				t.Helper()
 
 				require.NoError(t, os.Symlink(filepath.Join(filepath.Dir(dir), "missing"), dir))
@@ -97,7 +106,7 @@ func TestEnsureTempDir(t *testing.T) {
 		},
 		{
 			name: "regular file",
-			setup: func(t *testing.T, dir string) {
+			setup: func(t *testing.T, _, dir string) {
 				t.Helper()
 
 				require.NoError(t, os.WriteFile(dir, nil, 0o600))
@@ -107,12 +116,64 @@ func TestEnsureTempDir(t *testing.T) {
 		{
 			name:    "owned by another user",
 			uidStep: 1,
-			setup: func(t *testing.T, dir string) {
+			setup: func(t *testing.T, _, dir string) {
 				t.Helper()
 
 				require.NoError(t, os.Mkdir(dir, 0o700))
 			},
 			wantErr: true,
+		},
+		{
+			name: "parent writable by others without sticky bit",
+			setup: func(t *testing.T, parentDir, _ string) {
+				t.Helper()
+
+				require.NoError(t, os.Chmod(parentDir, 0o777))
+			},
+			check:   assertNoDir,
+			wantErr: true,
+		},
+		{
+			name: "parent writable by own group without sticky bit",
+			setup: func(t *testing.T, parentDir, _ string) {
+				t.Helper()
+
+				require.NoError(t, os.Chmod(parentDir, 0o770))
+			},
+		},
+		{
+			name:    "parent writable by another group without sticky bit",
+			gidStep: 1,
+			setup: func(t *testing.T, parentDir, _ string) {
+				t.Helper()
+
+				require.NoError(t, os.Chmod(parentDir, 0o770))
+			},
+			check:   assertNoDir,
+			wantErr: true,
+		},
+		{
+			name: "grandparent writable by others without sticky bit",
+			setup: func(t *testing.T, parentDir, _ string) {
+				t.Helper()
+
+				require.NoError(t, os.Chmod(filepath.Dir(parentDir), 0o777))
+			},
+			check:   assertNoDir,
+			wantErr: true,
+		},
+		{
+			name: "parent writable by others with sticky bit",
+			setup: func(t *testing.T, parentDir, _ string) {
+				t.Helper()
+
+				require.NoError(t, os.Chmod(parentDir, os.ModeSticky|0o777))
+			},
+			check: func(t *testing.T, dir string) {
+				t.Helper()
+
+				assert.DirExists(t, dir)
+			},
 		},
 	}
 
@@ -122,21 +183,25 @@ func TestEnsureTempDir(t *testing.T) {
 
 			tempDir := helpers.TmpDirWOSymlinks(t)
 
-			// A uid other than the real one stands in for the user the
-			// directory belongs to, since a test cannot create files as
-			// someone else.
 			uid := os.Getuid() + tc.uidStep
 			want := filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(uid))
 
 			if tc.setup != nil {
-				tc.setup(t, want)
+				tc.setup(t, tempDir, want)
 			}
+
+			gid := os.Getgid() + tc.gidStep
 
 			v := venvtest.NewOSWithEmptyEnv().
 				WithTempDir(func() string { return tempDir }).
-				WithGetUID(func() int { return uid })
+				WithGetUID(func() int { return uid }).
+				WithGetGID(func() int { return gid })
 
 			got, err := util.EnsureTempDir(v)
+
+			if tc.check != nil {
+				tc.check(t, want)
+			}
 
 			if tc.wantErr {
 				var unsafeErr util.UnsafeTempDirError
@@ -150,16 +215,10 @@ func TestEnsureTempDir(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, want, got)
-
-			if tc.check != nil {
-				tc.check(t, got)
-			}
 		})
 	}
 }
 
-// TestEnsureTempDirCreatesMissingTempDir keeps a temp directory that does not
-// exist yet working, as it did before the directory was made per user.
 func TestEnsureTempDirCreatesMissingTempDir(t *testing.T) {
 	t.Parallel()
 
@@ -171,4 +230,53 @@ func TestEnsureTempDirCreatesMissingTempDir(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tempDir, "terragrunt-"+strconv.Itoa(os.Getuid())), got)
 	assert.DirExists(t, got)
+}
+
+func TestEnsureTempDirResolvesSymlinkedTempDir(t *testing.T) {
+	t.Parallel()
+
+	base := helpers.TmpDirWOSymlinks(t)
+	realDir := filepath.Join(base, "real")
+	link := filepath.Join(base, "link")
+
+	require.NoError(t, os.Mkdir(realDir, 0o700))
+	require.NoError(t, os.Symlink(realDir, link))
+
+	got, err := util.EnsureTempDir(
+		venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return link }),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(realDir, "terragrunt-"+strconv.Itoa(os.Getuid())), got)
+}
+
+func TestEnsureTempDirResolvesRelativeTempDir(t *testing.T) {
+	t.Parallel()
+
+	base := helpers.TmpDirWOSymlinks(t)
+
+	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return "relative" })
+	platform := *v.Platform
+	platform.Getwd = func() (string, error) { return base, nil }
+	v.Platform = &platform
+
+	got, err := util.EnsureTempDir(v)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(base, "relative", "terragrunt-"+strconv.Itoa(os.Getuid())), got)
+}
+
+func TestEnsureTempDirOnMemFS(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+
+	got, err := util.EnsureTempDir(v)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(v.Platform.TempDir(), "terragrunt-"+strconv.Itoa(v.Platform.GetUID())), got)
+	assert.True(t, vfs.IsDir(v.FS, got))
+}
+
+func assertNoDir(t *testing.T, dir string) {
+	t.Helper()
+
+	assert.NoDirExists(t, dir)
 }

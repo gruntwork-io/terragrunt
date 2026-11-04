@@ -1752,10 +1752,7 @@ func EnsureCacheDir(v *venv.Venv) (string, error) {
 	return cacheDir, nil
 }
 
-// EnsureTempDir returns the terragrunt temp directory of the current user,
-// creating it when it is missing. The path is the same in every Terragrunt
-// process the user runs, and other users sharing the temp directory cannot
-// write into it.
+// EnsureTempDir returns the current user's terragrunt temp directory, which no other user can write to.
 func EnsureTempDir(v *venv.Venv) (string, error) {
 	v.RequireFS()
 	v.RequireTempDir()
@@ -1763,8 +1760,7 @@ func EnsureTempDir(v *venv.Venv) (string, error) {
 	return ensureTempDir(v)
 }
 
-// UnsafeTempDirError is returned when [EnsureTempDir] finds something at the
-// path of the user's temp directory that another user could control.
+// UnsafeTempDirError reports why [EnsureTempDir] refused a temp directory.
 type UnsafeTempDirError struct {
 	Path   string
 	Reason string
@@ -1772,7 +1768,7 @@ type UnsafeTempDirError struct {
 
 func (err UnsafeTempDirError) Error() string {
 	return fmt.Sprintf(
-		"refusing to use temp directory %s: %s. Remove it, or set TMPDIR to a directory only you can write to",
+		"refusing to use temp directory %s: %s. Set TMPDIR to a directory that only you can write to",
 		err.Path,
 		err.Reason,
 	)

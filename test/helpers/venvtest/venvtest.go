@@ -47,8 +47,9 @@ var (
 // compares equal between runs.
 const memPID = 1
 
-// memUID is a fixed user id, for the same reason as memPID.
 const memUID = 1000
+
+const memGID = 1000
 
 // New returns an in-memory venv: a fail-closed exec, an in-memory filesystem,
 // a fail-closed no-network HTTP client, a mem SOPS decrypter yielding empty
@@ -101,6 +102,9 @@ func New() *venv.Venv {
 			},
 			GetUID: func() int {
 				return memUID
+			},
+			GetGID: func() int {
+				return memGID
 			},
 			ReplaceEnviron: func(map[string]string) error {
 				return nil

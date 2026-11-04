@@ -9,8 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
-// ensureTempDir uses %TEMP%\terragrunt. Windows gives each user a temp
-// directory of their own, so the path needs no user id.
 func ensureTempDir(v *venv.Venv) (string, error) {
 	tempDir := filepath.Join(v.Platform.TempDir(), "terragrunt")
 
