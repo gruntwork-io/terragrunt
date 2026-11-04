@@ -9,6 +9,8 @@ import StrictControlEntries from '@components/StrictControlEntries.astro';
 import { getPublishedCommands } from '@lib/commands/published';
 import { sortFaqEntries, type FaqEntry } from '@lib/faq';
 import { hasRenderableBody } from '@lib/docs-collection';
+import { HCL_KINDS, referenceMarkdown, type HclEntry } from '@lib/hcl';
+import { getPublishedHclItems } from '@lib/hcl/published';
 import { markdownDocument, type MarkdownDetail, type MarkdownPage } from '@lib/markdown-document';
 import {
 	componentToMarkdown,
@@ -125,6 +127,22 @@ export async function commandPage(
 	return { title: data.name, description: data.description, body: sections.join('\n\n') };
 }
 
+/**
+ * Builds an HCL reference page, mirroring `HclBlock.astro`, `HclAttribute.astro`,
+ * and `HclFunction.astro`: the structured fields that lead the page, the entry's
+ * body, then the sections built from its fields.
+ */
+export async function hclPage(
+	entry: HclEntry,
+	context: APIContext,
+	detail: MarkdownDetail = 'full',
+): Promise<MarkdownPage> {
+	const { before, after } = referenceMarkdown(entry);
+	const body = await entryToMarkdownOrSource(entry, context, detail);
+	const sections = [before, body, after].filter((section) => section.trim());
+	return { title: entry.data.name, description: entry.data.description, body: sections.join('\n\n') };
+}
+
 /** Builds the experiments page for a status. */
 export async function experimentsPage(
 	status: EntryStatus,
@@ -203,6 +221,10 @@ export const LLMS_PAGE_SOURCES: LlmsPageSource[] = [
 		const docs = await getRenderableDocs();
 		docs.sort((a, b) => a.id.localeCompare(b.id, 'en'));
 		return mapInOrder(docs, (entry) => docsPage(entry, context, detail));
+	},
+	async (context, detail) => {
+		const entries = (await Promise.all(HCL_KINDS.map((kind) => getPublishedHclItems(kind)))).flat();
+		return mapInOrder(entries, (entry) => hclPage(entry, context, detail));
 	},
 	async (context, detail) => {
 		const commands = await getPublishedCommands();
