@@ -199,13 +199,13 @@
     padding: 0 !important;
   }
 
-  starlight-menu-button button {
+  .sl-menu-button {
     top: 92px;
     position: fixed;
   }
 
   @media (max-width: 767px) {
-    starlight-menu-button button {
+    .sl-menu-button {
       top: 70px;
     }
   }
