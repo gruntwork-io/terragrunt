@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	unzipFileMode = os.FileMode(0000)
+	unzipFileMode  = os.FileMode(0000)
+	privateDirMode = os.FileMode(0o700)
 
 	retryDelayLockFile = time.Second * 5
 	maxRetriesLockFile = 60
@@ -974,12 +975,20 @@ func (service *ProviderService) ensureTempDir() (string, error) {
 
 	cacheDir, err := util.EnsureCacheDir(service.venv)
 	if err != nil {
-		return "", errors.Join(unsafeErr, err)
+		return "", errors.Join(unsafeErr, err, ErrNoSafeTempDir)
 	}
 
 	tempDir = filepath.Join(cacheDir, "tmp")
 
-	service.logger.Warnf("%v. Using %s instead. Set TMPDIR to a directory only you can write to", unsafeErr, tempDir)
+	if err := service.FS().MkdirAll(tempDir, privateDirMode); err != nil {
+		return "", errors.Join(unsafeErr, err, ErrNoSafeTempDir)
+	}
+
+	service.logger.Warnf(
+		"%v. Using %s instead. Fix the reason above, or set TMPDIR to a directory only you can write to",
+		unsafeErr,
+		tempDir,
+	)
 
 	return tempDir, nil
 }

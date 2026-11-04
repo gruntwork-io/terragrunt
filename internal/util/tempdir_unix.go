@@ -25,6 +25,30 @@ const (
 	uidMapPath  = "/proc/self/uid_map"
 )
 
+// TempDirTrustedOwners returns uid and root, plus the overflow user id when the uid map leaves it unmapped.
+func TempDirTrustedOwners(fsys vfs.FS, uid int) []int64 {
+	owners := []int64{int64(uid), rootUID}
+
+	uidMap, err := vfs.ReadFile(fsys, uidMapPath)
+	if err != nil {
+		return owners
+	}
+
+	for line := range strings.Lines(string(uidMap)) {
+		var inside, outside, count int64
+
+		if _, err := fmt.Sscan(line, &inside, &outside, &count); err != nil {
+			return owners
+		}
+
+		if inside <= overflowUID && overflowUID < inside+count {
+			return owners
+		}
+	}
+
+	return []int64{int64(uid), rootUID, overflowUID}
+}
+
 func ensureTempDir(v *venv.Venv) (string, error) {
 	v.RequireGetUID()
 
@@ -45,12 +69,7 @@ func ensureTempDir(v *venv.Venv) (string, error) {
 		return tempDir, nil
 	}
 
-	trusted, err := trustedOwners(v.FS, uid)
-	if err != nil {
-		return "", err
-	}
-
-	if err := checkParentDirs(v.FS, tempDir, trusted); err != nil {
+	if err := checkParentDirs(v.FS, tempDir, TempDirTrustedOwners(v.FS, uid)); err != nil {
 		return "", err
 	}
 
@@ -84,33 +103,6 @@ func resolveTempDir(v *venv.Venv) (string, error) {
 	}
 
 	return vfs.EvalSymlinks(v.FS, dir)
-}
-
-func trustedOwners(fsys vfs.FS, uid int) ([]int64, error) {
-	owners := []int64{int64(uid), rootUID}
-
-	uidMap, err := vfs.ReadFile(fsys, uidMapPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return owners, nil
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	for line := range strings.Lines(string(uidMap)) {
-		var inside, outside, count int64
-
-		if _, err := fmt.Sscan(line, &inside, &outside, &count); err != nil {
-			return nil, fmt.Errorf("parsing %s line %q: %w", uidMapPath, line, err)
-		}
-
-		if inside <= overflowUID && overflowUID < inside+count {
-			return owners, nil
-		}
-	}
-
-	return []int64{int64(uid), rootUID, overflowUID}, nil
 }
 
 func checkParentDirs(fsys vfs.FS, path string, trusted []int64) error {

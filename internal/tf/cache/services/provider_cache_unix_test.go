@@ -100,6 +100,10 @@ func TestProviderServiceInitFallsBackFromUnsafeTempDir(t *testing.T) {
 			assert.Equal(t, tempDirEntries, dirNames(t, tempDir))
 			assert.NoDirExists(t, filepath.Join(tempDir, "target", "providers"))
 
+			fallbackInfo, err := os.Stat(filepath.Join(userCacheDir, "terragrunt", "tmp"))
+			require.NoError(t, err)
+			assert.Equal(t, os.FileMode(0o700), fallbackInfo.Mode().Perm())
+
 			archiveDirsGlob := filepath.Join(userCacheDir, "terragrunt", "tmp", "providers", "archives-*")
 
 			archiveDirs, err := filepath.Glob(archiveDirsGlob)
@@ -140,6 +144,7 @@ func TestProviderServiceInitFailsWithoutSafeTempDir(t *testing.T) {
 
 	require.ErrorAs(t, err, &unsafeErr)
 	require.ErrorIs(t, err, errNoUserCacheDir)
+	require.ErrorIs(t, err, services.ErrNoSafeTempDir)
 	assert.Empty(t, dirNames(t, tempDir))
 }
 

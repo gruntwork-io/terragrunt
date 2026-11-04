@@ -345,6 +345,66 @@ func TestEnsureTempDirOnMemFS(t *testing.T) {
 	assert.True(t, vfs.IsDir(v.FS, got))
 }
 
+func TestTempDirTrustedOwners(t *testing.T) {
+	t.Parallel()
+
+	const (
+		uid         = 1000
+		overflowUID = 65534
+	)
+
+	testCases := []struct {
+		name   string
+		uidMap string
+		want   []int64
+	}{
+		{
+			name:   "host maps every user id",
+			uidMap: "         0          0 4294967295\n",
+			want:   []int64{uid, 0},
+		},
+		{
+			name:   "namespace maps only root",
+			uidMap: "         0       1000          1\n",
+			want:   []int64{uid, 0, overflowUID},
+		},
+		{
+			name:   "subordinate range covers the overflow user id",
+			uidMap: "0 1000 1\n1 100000 65536\n",
+			want:   []int64{uid, 0},
+		},
+		{
+			name:   "range ends just below the overflow user id",
+			uidMap: "0 100000 65534\n",
+			want:   []int64{uid, 0, overflowUID},
+		},
+		{
+			name:   "unparsable line",
+			uidMap: "not a uid map\n",
+			want:   []int64{uid, 0},
+		},
+		{
+			name: "no uid map",
+			want: []int64{uid, 0},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewMemMapFS()
+
+			if tc.uidMap != "" {
+				require.NoError(t, fsys.MkdirAll("/proc/self", 0o755))
+				require.NoError(t, vfs.WriteFile(fsys, "/proc/self/uid_map", []byte(tc.uidMap), 0o444))
+			}
+
+			assert.Equal(t, tc.want, util.TempDirTrustedOwners(fsys, uid))
+		})
+	}
+}
+
 func assertNoDir(t *testing.T, dir string) {
 	t.Helper()
 
