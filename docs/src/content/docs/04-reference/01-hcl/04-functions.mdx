@@ -10,6 +10,7 @@ import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
 import HclItemCards from '@components/HclItemCards.astro';
+import Since from '@components/Since.astro';
 
 <HclAnchorRedirects kind="functions" />
 
@@ -514,11 +515,15 @@ terraform {
 }
 ```
 
+<Since version="v1.2.2">
+
 When the unit runs OpenTofu `1.8.0` or newer, the list also includes `init`, since those versions accept `-var` and `-var-file` on `init`. If you appended `init` yourself as a workaround, wrap the list in `toset` so `init` isn't passed the arguments twice:
 
 ```hcl
 commands = toset(concat(get_terraform_commands_that_need_vars(), ["init"]))
 ```
+
+</Since>
 
 ## get_terraform_commands_that_need_input
 

@@ -1,0 +1,14 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `get_terraform_commands_that_need_vars()` includes `init` on OpenTofu 1.8.0 and newer
+
+OpenTofu 1.8.0 and newer accept `-var` and `-var-file` on `init`, but `get_terraform_commands_that_need_vars()` left `init` out, so `extra_arguments` blocks built from it did not pass variables to `init`. When the unit runs OpenTofu 1.8.0 or newer, the function now returns `init` as well. Terraform and older OpenTofu versions get the same list as before.
+
+If you appended `init` yourself as a workaround, wrap the list in `toset` so `init` is not passed the arguments twice:
+
+```hcl
+commands = toset(concat(get_terraform_commands_that_need_vars(), ["init"]))
+```
