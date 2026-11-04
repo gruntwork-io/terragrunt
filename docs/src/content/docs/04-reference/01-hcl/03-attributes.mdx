@@ -7,13 +7,15 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import HclItemTable from '@components/HclItemTable.astro';
+import { Aside } from '@astrojs/starlight/components';
+import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
+import HclItemCards from '@components/HclItemCards.astro';
+
+<HclAnchorRedirects kind="attributes" />
 
 Terragrunt HCL configuration uses [attributes](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#attribute-definitions) when there are values that need to be defined for Terragrunt as a whole.
 
 Think of attributes as the values used for Terragrunt configuration, such as the inputs to pass an orchestrated OpenTofu/Terraform binary, or the download directory to use.
-
-<HclItemTable kind="attributes" />
 
 ## inputs
 
@@ -250,3 +252,11 @@ Example:
 
 terragrunt_version_constraint = ">= 0.23"
 ```
+
+## Unit attributes
+
+<Aside type="note" title="Moving to individual pages">
+Every attribute is getting its own page soon. Attributes that haven't moved yet are documented on this page, and the attributes below already have their own.
+</Aside>
+
+<HclItemCards kind="attributes" config="unit" />

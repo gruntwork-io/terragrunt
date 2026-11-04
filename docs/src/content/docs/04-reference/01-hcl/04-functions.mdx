@@ -8,11 +8,12 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import HclItemTable from '@components/HclItemTable.astro';
+import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
+import HclItemCards from '@components/HclItemCards.astro';
+
+<HclAnchorRedirects kind="functions" />
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
-
-<HclItemTable kind="functions" />
 
 ## OpenTofu/Terraform built-in functions
 
@@ -1173,3 +1174,11 @@ inputs = {
 ```
 
 Since Terragrunt 1.2, `base64gzip()` returns the current Go encoder's bytes. Call `base64gzip_compat()` where the encoded value must not change.
+
+## Terragrunt functions
+
+<Aside type="note" title="Moving to individual pages">
+Every function is getting its own page soon. Functions that haven't moved yet are documented on this page, and the functions below already have their own.
+</Aside>
+
+<HclItemCards kind="functions" />

@@ -1,7 +1,10 @@
 ---
 import { Code } from '@astrojs/starlight/components';
 import { render, type CollectionEntry } from 'astro:content';
-import HclUsedIn from '@components/HclUsedIn.astro';
+import HclConfigs from '@components/HclConfigs.astro';
+import HclExamples from '@components/HclExamples.astro';
+import ReferenceCard from '@components/ReferenceCard.astro';
+import TypeBadge from '@components/TypeBadge.astro';
 import { functionSignature } from '@lib/hcl';
 import { renderMarkdownField } from '@lib/hcl/markdown';
 
@@ -18,11 +21,13 @@ const params = await Promise.all(
 		html: await renderMarkdownField(param.description),
 	})),
 );
-
-const returnsHtml = await renderMarkdownField(`\`${entry.data.returns.type}\`: ${entry.data.returns.description}`);
 ---
 
-<HclUsedIn configs={entry.data.configs} />
+<HclConfigs configs={entry.data.configs}>
+	<TypeBadge type={entry.data.returns} />
+</HclConfigs>
+
+<h2 id="usage">Usage</h2>
 
 <Code code={functionSignature(entry.data)} lang="hcl" />
 
@@ -32,29 +37,14 @@ const returnsHtml = await renderMarkdownField(`\`${entry.data.returns.type}\`: $
 	params.length > 0 && (
 		<>
 			<h2 id="parameters">Parameters</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>Name</th>
-						<th>Type</th>
-						<th>Required</th>
-						<th>Description</th>
-					</tr>
-				</thead>
-				<tbody>
-					{params.map((param) => (
-						<tr>
-							<td><code>{param.name}</code></td>
-							<td><code>{param.type}</code></td>
-							<td>{param.optional ? 'No' : 'Yes'}</td>
-							<td set:html={param.html} />
-						</tr>
-					))}
-				</tbody>
-			</table>
+			{params.map((param) => (
+				<ReferenceCard title={param.name}>
+					<TypeBadge slot="meta" type={param.type} optional={param.optional} />
+					<Fragment set:html={param.html} />
+				</ReferenceCard>
+			))}
 		</>
 	)
 }
 
-<h2 id="returns">Returns</h2>
-<Fragment set:html={returnsHtml} />
+<HclExamples examples={entry.data.examples} />

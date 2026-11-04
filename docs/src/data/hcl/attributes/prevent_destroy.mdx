@@ -4,16 +4,15 @@ description: Stops the destroy and run --all destroy commands from destroying a 
 configs: [unit]
 type: bool
 default: "false"
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      terraform {
+        source = "git::git@github.com:foo/catalog.git//modules/db?ref=v0.0.3"
+      }
+
+      prevent_destroy = true
 ---
 
 The `prevent_destroy` attribute protects selected units. It stops the `destroy` and `run --all destroy` commands from destroying the unit's resources. Use it for units you want to protect carefully, such as a database or a unit that provides auth.
-
-```hcl
-# terragrunt.hcl
-
-terraform {
-  source = "git::git@github.com:foo/modules.git//app?ref=v0.0.3"
-}
-
-prevent_destroy = true
-```

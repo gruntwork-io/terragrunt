@@ -4,7 +4,7 @@ import { render } from 'astro:content';
 import HclAttribute from '@components/HclAttribute.astro';
 import HclBlock from '@components/HclBlock.astro';
 import HclFunction from '@components/HclFunction.astro';
-import { HCL_KINDS, referenceHeadings, type HclEntry } from '@lib/hcl';
+import { HCL_KINDS, itemHeadings, type HclEntry } from '@lib/hcl';
 import { getPublishedHclItems } from '@lib/hcl/published';
 
 export const prerender = true;
@@ -30,7 +30,7 @@ const { headings } = await render(entry);
 		title: entry.data.name,
 		description: entry.data.description,
 	}}
-	headings={[...headings.filter((heading) => heading.depth <= 3), ...referenceHeadings(entry)]}
+	headings={itemHeadings(entry, headings)}
 >
 	{entry.collection === 'hclBlocks' && <HclBlock entry={entry} />}
 	{entry.collection === 'hclAttributes' && <HclAttribute entry={entry} />}
