@@ -1,0 +1,12 @@
+---
+import { defaultFitsBadge } from '@lib/type-badge';
+
+interface Props {
+	type: string;
+	value: string | undefined;
+}
+
+const { type, value } = Astro.props;
+---
+
+{value !== undefined && !defaultFitsBadge(type, value) && <p>Defaults to <code dir="auto">{value}</code>.</p>}
