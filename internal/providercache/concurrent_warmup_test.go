@@ -120,9 +120,11 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	t.Cleanup(upstream.Close)
-	// Runs before upstream.Close, so an early failure cannot leave the archive handler blocked.
-	t.Cleanup(release)
+
+	t.Cleanup(func() {
+		release()
+		upstream.Close()
+	})
 
 	l := logger.CreateLogger()
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
@@ -202,7 +204,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 
 	// A bounded client keeps a stuck cache server from hanging the test
 	// until the suite timeout.
-	transport := &http.Transport{} // httptest.Server.Close in sibling tests closes idle conns of http.DefaultTransport.
+	transport := &http.Transport{}
 	t.Cleanup(transport.CloseIdleConnections)
 
 	client := &http.Client{Timeout: 30 * time.Second, Transport: transport}

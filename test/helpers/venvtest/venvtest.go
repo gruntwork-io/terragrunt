@@ -43,11 +43,11 @@ var (
 	memWorkDir   = Root("/venvtest/work")
 )
 
-// memPID and memUID are fixed, so log lines carrying them compare equal between runs.
-const (
-	memPID = 1
-	memUID = 1000
-)
+// memPID is a fixed process id, so a crash report or log line carrying it
+// compares equal between runs.
+const memPID = 1
+
+const memUID = 1000
 
 // New returns an in-memory venv: a fail-closed exec, an in-memory filesystem,
 // a fail-closed no-network HTTP client, a mem SOPS decrypter yielding empty

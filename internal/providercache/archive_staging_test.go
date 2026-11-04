@@ -216,7 +216,7 @@ func (run *providerCacheRun) warmUpProviderArchive(t *testing.T) string {
 
 	// A bounded client keeps a stuck cache server from hanging the test
 	// until the suite timeout.
-	transport := &http.Transport{} // httptest.Server.Close in sibling tests closes idle conns of http.DefaultTransport.
+	transport := &http.Transport{}
 	t.Cleanup(transport.CloseIdleConnections)
 
 	client := &http.Client{Timeout: 30 * time.Second, Transport: transport}
