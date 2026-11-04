@@ -155,8 +155,8 @@ func runAllCommand(
 		opts.Parallelism = input.Parallelism
 	}
 
-	opts.TerraformCommand = command
-	opts.OriginalTerraformCommand = command
+	opts.TofuCommand = command
+	opts.OriginalTofuCommand = command
 	opts.TerraformCliArgs = iacargs.New(command)
 	opts.RunAll = true
 	// Stack generation lives in runall.Run, which this bypasses. Running an

@@ -132,7 +132,7 @@ func discoverWithRetry(
 
 	err := doWithTelemetry(ctx, l, telemetryDiscovery, map[string]any{
 		"working_dir":       opts.WorkingDir,
-		"terraform_command": opts.TerraformCommand,
+		"terraform_command": opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
 		var discoveryErr error
 
@@ -160,7 +160,7 @@ func createRunner(
 
 	err := doWithTelemetry(ctx, l, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
-		"terraform_command":  opts.TerraformCommand,
+		"terraform_command":  opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
 		var err2 error
 

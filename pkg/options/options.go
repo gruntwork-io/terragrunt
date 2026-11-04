@@ -99,8 +99,8 @@ type TerragruntOptions struct {
 	IAMRoleOptions iam.RoleOptions
 	// IAM Role options set from command line.
 	OriginalIAMRoleOptions iam.RoleOptions
-	// Current Terraform command being executed by Terragrunt
-	TerraformCommand string
+	// Current tofu command being executed by Terragrunt
+	TofuCommand string
 	// StackOutputFormat format how the stack output is rendered.
 	StackOutputFormat         string
 	TerragruntStackConfigPath string
@@ -117,8 +117,8 @@ type TerragruntOptions struct {
 	TFPath string
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
-	// Original Terraform command being executed by Terragrunt.
-	OriginalTerraformCommand string
+	// Original tofu command being executed by Terragrunt.
+	OriginalTofuCommand string
 	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
 	TofuImplementation tfimpl.Type
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.

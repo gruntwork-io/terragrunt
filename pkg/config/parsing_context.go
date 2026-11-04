@@ -62,7 +62,7 @@ type ParsingContext struct {
 	DownloadDir                  string
 	Source                       string
 	TerraformCommand             string
-	OriginalTerraformCommand     string
+	OriginalTofuCommand          string
 	AuthProviderCmd              string
 	TFPath                       string
 	ScaffoldRootFileName         string

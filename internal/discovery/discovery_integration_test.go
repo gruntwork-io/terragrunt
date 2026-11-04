@@ -1180,9 +1180,9 @@ dependency "dependency" {
 
 			l := logger.CreateLogger()
 			opts := &options.TerragruntOptions{
-				WorkingDir:       tmpDir,
-				RootWorkingDir:   tmpDir,
-				TerraformCommand: "plan",
+				WorkingDir:     tmpDir,
+				RootWorkingDir: tmpDir,
+				TofuCommand:    "plan",
 			}
 
 			ctx := config.WithCaches(t.Context())

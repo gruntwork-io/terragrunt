@@ -754,7 +754,7 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 				map[string]string{},
 				testCase.dependencyExtra,
 			)
-			pctx.OriginalTerraformCommand = "plan"
+			pctx.OriginalTofuCommand = "plan"
 			pctx.TerraformCliArgs = iacargs.New("plan")
 
 			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)

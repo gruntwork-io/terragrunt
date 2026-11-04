@@ -94,7 +94,7 @@ func findMatchingUnitsInPath(
 	}
 
 	cfgOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-	cfgOpts.TerraformCommand = opts.TerraformCommand
+	cfgOpts.TofuCommand = opts.TofuCommand
 	cfgOpts.TerraformCliArgs = opts.TerraformCliArgs
 	cfgOpts.CheckDependentUnits = opts.CheckDependentUnits
 	cfgOpts.NonInteractive = true
