@@ -20,6 +20,7 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -184,8 +185,8 @@ func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) func
 	})
 }
 
-// FileSetFunc returns a function that enumerates the files under a path
-// relative to baseDir whose paths match a glob pattern.
+// FileSetFunc returns a function that lists the regular files matching a glob
+// pattern joined to a path relative to baseDir.
 func FileSetFunc(v *venv.Venv, baseDir string, onRead func(path string)) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
@@ -480,16 +481,63 @@ func hashFile(
 	return h.Sum(nil), nil
 }
 
-// matchFiles returns the regular files under dir whose path relative to dir
-// matches pattern, in the slash-separated form the pattern is written in.
+// matchFiles returns the regular files matching pattern as written, as v1.2.1 did, or else as
+// [cleanPattern] joins it to dir, each relative to dir with forward slashes.
 func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
-	if !doublestar.ValidatePattern(pattern) {
-		return nil, doublestar.ErrBadPattern
+	clean, err := cleanPattern(dir, pattern)
+	if err != nil {
+		return nil, err
 	}
+
+	// A clean pattern climbs above dir only through its leading .. elements.
+	elems := strings.Split(clean, "/")
+
+	up := slices.IndexFunc(elems[:len(elems)-1], func(elem string) bool { return elem != ".." })
+	if up < 0 {
+		up = len(elems) - 1
+	}
+
+	glob := strings.Join(elems[up:], "/")
+
+	// dir is walked as given, as in v1.2.1, so a .. in it resolves through symlinks.
+	root := dir
+	if up > 0 {
+		root = filepath.Join(dir, filepath.FromSlash(strings.Repeat("../", up)))
+	}
+
+	// Try a changed pattern as written first, except one led by ., .. or /, which finds nothing its clean form misses.
+	valid := doublestar.ValidatePattern(pattern)
+	first, _, _ := strings.Cut(pattern, "/")
+
+	if valid && glob != pattern && first != "." && first != ".." && first != "" {
+		asWritten, err := globFiles(fsys, dir, dir, pattern)
+		if err != nil || len(asWritten) > 0 {
+			return asWritten, err
+		}
+	}
+
+	if doublestar.ValidatePattern(glob) {
+		return globFiles(fsys, dir, root, glob)
+	}
+
+	// Cleaning can strand an escape, as in resources\/, where v1.2.1 matched the valid pattern and found nothing.
+	if valid {
+		return nil, nil
+	}
+
+	return nil, doublestar.ErrBadPattern
+}
+
+// globFiles returns the regular files below root whose path from root matches
+// glob, each relative to dir with forward slashes.
+func globFiles(fsys vfs.FS, dir, root, glob string) ([]cty.Value, error) {
+	// Braces, classes and ** can match a separator, so only other globs bound the walk depth.
+	bounded := !strings.Contains(glob, "**") && !strings.ContainsAny(glob, "{[")
+	maxDepth := strings.Count(glob, "/") + 1
 
 	var matches []cty.Value
 
-	err := vfs.WalkDirWithSymlinks(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+	err := vfs.WalkDirWithSymlinks(fsys, root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
@@ -498,18 +546,27 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 			return nil
 		}
 
-		if d.IsDir() {
-			return nil
-		}
-
-		rel, err := filepath.Rel(dir, path)
+		fromRoot, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
 
-		rel = filepath.ToSlash(rel)
+		// The root directory is never a match, and pruning must not skip it.
+		if fromRoot == "." && d.IsDir() {
+			return nil
+		}
 
-		ok, err := doublestar.Match(pattern, rel)
+		fromRoot = filepath.ToSlash(fromRoot)
+
+		if d.IsDir() {
+			if bounded && strings.Count(fromRoot, "/")+1 >= maxDepth {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		ok, err := doublestar.Match(glob, fromRoot)
 		if err != nil {
 			return err
 		}
@@ -518,7 +575,12 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 			return nil
 		}
 
-		matches = append(matches, cty.StringVal(rel))
+		fromDir, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+
+		matches = append(matches, cty.StringVal(filepath.ToSlash(fromDir)))
 
 		return nil
 	})
@@ -527,6 +589,52 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 	}
 
 	return matches, nil
+}
+
+// cleanPattern joins pattern to dir and cleans the part before its first unescaped { or [.
+func cleanPattern(dir, pattern string) (string, error) {
+	pattern = filepath.ToSlash(pattern)
+
+	head, tail := pattern, ""
+	if i := groupStart(pattern); i >= 0 {
+		cut := strings.LastIndexByte(pattern[:i], '/') + 1
+		head, tail = pattern[:cut], pattern[cut:]
+	}
+
+	rel, err := filepath.Rel(dir, filepath.Join(dir, filepath.FromSlash(head)))
+	if err != nil {
+		return "", err
+	}
+
+	rel = filepath.ToSlash(rel)
+
+	if tail == "" {
+		return rel, nil
+	}
+
+	if rel == "." {
+		return tail, nil
+	}
+
+	return rel + "/" + tail, nil
+}
+
+// groupStart returns the index of the first { or [ in pattern that no \ escapes, or -1.
+func groupStart(pattern string) int {
+	escaped := false
+
+	for i, r := range pattern {
+		switch {
+		case escaped:
+			escaped = false
+		case r == '\\':
+			escaped = true
+		case r == '{' || r == '[':
+			return i
+		}
+	}
+
+	return -1
 }
 
 // isRegularFile reports whether the entry d at path is a regular file, or a

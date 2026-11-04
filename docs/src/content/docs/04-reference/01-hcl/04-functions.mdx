@@ -8,6 +8,7 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Since from '@components/Since.astro';
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
@@ -49,6 +50,24 @@ Then `assets.txt` could be read with the following function call:
 ```hcl
 file("assets/mysql/assets.txt")
 ```
+
+<Since version="v1.2.2">
+
+`fileset` resolves its first argument the same way. It first matches the pattern as written. If that finds no files, it joins the pattern to the path and cleans it as OpenTofu/Terraform do: it drops `./` and a trailing `/`, turns `//` into `/`, and resolves `../`. So `./assets/**/*.txt` and `assets/**/*.txt` return the same files:
+
+```hcl
+fileset(".", "./assets/**/*.txt") # ["assets/mysql/assets.txt"]
+```
+
+A pattern that climbs above the path, such as `../shared/*.json`, returns paths that start with `../`.
+
+Because the pattern as written is tried first, the result of a pattern that ends with `/`, such as `modules/*/**/`, can change when a file is added to `modules/`. End the pattern with a file glob, such as `modules/*/**/*`, instead.
+
+<Aside type="note">
+  Cleaning stops at the first `{` or `[` that is not escaped with `\`, so `{a,b}/./*.json` returns no files. On Windows, a `\` is a path separator when Terragrunt cleans a pattern.
+</Aside>
+
+</Since>
 
 **Note:**
 
