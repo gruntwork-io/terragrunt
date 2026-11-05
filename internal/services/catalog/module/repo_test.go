@@ -123,64 +123,37 @@ func TestNewRepoRemoteCloneRejectsNonOSFS(t *testing.T) {
 // from a clone URL. The prepared directory carries the clone-complete marker,
 // so [module.NewRepo] reads the repo in place instead of cloning. Any other
 // derived name sends it down the clone path, which the in-memory filesystem
-// refuses. Markers at the root and its parent catch a name that escapes.
+// refuses.
 func TestNewRepoCloneDirectoryName(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name     string
 		cloneURL string
-		wantDir  string
 	}{
 		{
 			name:     "https",
 			cloneURL: "https://github.com/acme/terraform-aws-modules.git",
-			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "https without .git",
 			cloneURL: "https://github.com/acme/terraform-aws-modules",
-			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "ssh scp-style",
 			cloneURL: "git@github.com:acme/terraform-aws-modules.git",
-			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "forced git getter",
 			cloneURL: "git::https://github.com/acme/terraform-aws-modules.git",
-			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "ref query parameter",
 			cloneURL: "https://github.com/acme/terraform-aws-modules.git?ref=v1.2.3",
-			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "fragment",
 			cloneURL: "https://github.com/acme/terraform-aws-modules.git#v1.2.3",
-			wantDir:  "terraform-aws-modules",
-		},
-		{
-			name:     "dotted name",
-			cloneURL: "https://github.com/acme/my.repo.git",
-			wantDir:  "my.repo",
-		},
-		{
-			name:     "double dot after double slash",
-			cloneURL: "https://github.com/acme/repo//..",
-			wantDir:  "temp",
-		},
-		{
-			name:     "double dot with .git",
-			cloneURL: "https://github.com/acme/...git",
-			wantDir:  "temp",
-		},
-		{
-			name:     "single dot",
-			cloneURL: "https://github.com/acme/repo/.",
-			wantDir:  "temp",
 		},
 	}
 
@@ -189,12 +162,70 @@ func TestNewRepoCloneDirectoryName(t *testing.T) {
 			t.Parallel()
 
 			v := venvtest.New()
-			parent := venvtest.Root("/catalog")
-			cloneRoot := filepath.Join(parent, "clone-root")
-			clonePath := filepath.Join(cloneRoot, tc.wantDir)
+			cloneRoot := venvtest.Root("/catalog")
+			clonePath := filepath.Join(cloneRoot, "terraform-aws-modules")
 
-			for _, dir := range []string{parent, cloneRoot, clonePath} {
-				writeCompletedClone(t, v.FS, dir)
+			writeFakeRepo(t, v.FS, clonePath)
+			require.NoError(t, vfs.WriteFile(
+				v.FS,
+				filepath.Join(clonePath, module.CloneCompleteSentinel),
+				nil,
+				0o644,
+			))
+
+			repo, err := module.NewRepo(
+				t.Context(),
+				logger.CreateLogger(),
+				v,
+				&module.RepoOpts{
+					CloneURL: tc.cloneURL,
+					Path:     cloneRoot,
+				},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, clonePath, repo.Path())
+		})
+	}
+}
+
+// TestNewRepoDotOnlyRepoNameUsesDefaultDir pins that a URL ending in dots clones into the default directory.
+func TestNewRepoDotOnlyRepoNameUsesDefaultDir(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		cloneURL string
+	}{
+		{
+			name:     "double dot after double slash",
+			cloneURL: "https://github.com/acme/repo//..",
+		},
+		{
+			name:     "double dot with .git",
+			cloneURL: "https://github.com/acme/...git",
+		},
+		{
+			name:     "single dot",
+			cloneURL: "https://github.com/acme/repo/.",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New()
+			cloneRoot := venvtest.Root("/catalog/clone-root")
+			clonePath := filepath.Join(cloneRoot, "temp")
+
+			for _, dir := range []string{filepath.Dir(cloneRoot), cloneRoot, clonePath} {
+				writeFakeRepo(t, v.FS, dir)
+				require.NoError(t, vfs.WriteFile(
+					v.FS,
+					filepath.Join(dir, module.CloneCompleteSentinel),
+					nil,
+					0o644,
+				))
 			}
 
 			repo, err := module.NewRepo(
@@ -251,19 +282,6 @@ func writeFakeRepo(t *testing.T, fsys vfs.FS, path string) {
 		t,
 		vfs.WriteFile(fsys, filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644),
 	)
-}
-
-// writeCompletedClone writes a fake repo with the clone-complete marker, which [module.NewRepo] reads in place.
-func writeCompletedClone(t *testing.T, fsys vfs.FS, path string) {
-	t.Helper()
-
-	writeFakeRepo(t, fsys, path)
-	require.NoError(t, vfs.WriteFile(
-		fsys,
-		filepath.Join(path, module.CloneCompleteSentinel),
-		nil,
-		0o644,
-	))
 }
 
 func TestModuleURL(t *testing.T) {
