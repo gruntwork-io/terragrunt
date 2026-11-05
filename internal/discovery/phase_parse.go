@@ -429,11 +429,54 @@ func parseComponent(
 				unit.StoreConfig(cfg)
 			}
 
-			if parsingCtx.FilesRead.Tracking() {
-				readFiles := sanitizeReadFiles(parsingCtx.FilesRead.Paths())
-				c.SetReading(readFiles...)
+			if !parsingCtx.FilesRead.Tracking() {
+				return nil
 			}
+
+			if _, ok := c.(*component.Stack); ok {
+				trackStackComponentReads(ctx, l, parseV, parsingCtx, parseOpts.TerragruntConfigPath)
+			}
+
+			c.SetReading(sanitizeReadFiles(parsingCtx.FilesRead.Paths())...)
 
 			return nil
 		})
+}
+
+// trackStackComponentReads records in pctx.FilesRead the files read by the unit and
+// stack blocks of the stack file at stackFilePath, and by the config_path and expansion
+// of each dependency in their autoinclude blocks. Stack generation evaluates all of
+// these, but the partial parse evaluates only locals.
+//
+// It is best-effort and never fails discovery. Diagnostics are logged at debug level
+// and dropped, and a parse that fails keeps the reads recorded before the failure,
+// since a catalog stack can reference values.* that only the parent stack generating
+// it supplies.
+func trackStackComponentReads(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	stackFilePath string,
+) {
+	pctx = pctx.Clone()
+	pctx.Parser.IgnoreDiagnostics = true
+
+	values, err := config.ReadValues(ctx, l, v, pctx, filepath.Dir(stackFilePath))
+	if err != nil {
+		l.Debugf("Discovery: skipping read tracking for %s: %v", stackFilePath, err)
+
+		return
+	}
+
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
+	if err != nil {
+		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
+
+		return
+	}
+
+	if err := config.ValidateStackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackCfg, values); err != nil {
+		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
+	}
 }
