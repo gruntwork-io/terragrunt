@@ -184,11 +184,15 @@ func (s *Store) resolveFile(
 	}
 
 	key := Key{Path: filepath.Clean(cfgPath), Context: pc.file.key, Stage: StageQueue}
-	flight := pc.forFlight()
+	flight := pc.withOwnReads()
 
 	res, err := s.Memoize(ctx, key, func(ctx context.Context) (*resolvedFile, error) {
 		c, cfg, err := s.resolveFileOnce(ctx, l, v, flight, cfgPath)
 		NoteReads(ctx, flight.sinks.filesRead.Paths()...)
+
+		if c != nil {
+			NoteFiles(ctx, c.dependencyReads...)
+		}
 
 		return &resolvedFile{c: c, cfg: cfg}, err
 	})
@@ -406,7 +410,11 @@ func prepare(
 	}
 
 	if pc.file.decodedDeps == nil && !pc.file.inheritsDependencies {
-		set, err := newDependencySet(ctx, l, v, pc.parsingContext(), file)
+		depPC := pc.withOwnReads()
+
+		set, err := newDependencySet(ctx, l, v, depPC.parsingContext(), file)
+		c.dependencyReads = depPC.sinks.filesRead.Paths()
+
 		if err != nil {
 			errs = append(errs, err)
 		}

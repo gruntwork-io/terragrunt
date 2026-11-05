@@ -88,6 +88,8 @@ type UnitConfig struct {
 	// deps is the dependency blocks of a file that resolves its own dependencies, nil when they failed to decode or
 	// an including file resolves them.
 	deps *dependencySet
+	// dependencyReads is the files decoding the dependency blocks read, which only a run reports.
+	dependencyReads []string
 	// decodeErr is the error of the file update before the decode, which leaves the blocks empty, or of the
 	// parse's decode diagnostics.
 	decodeErr error

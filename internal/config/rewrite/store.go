@@ -84,7 +84,7 @@ type entry struct {
 	err error
 	// reads is the paths [NoteReads] reported to the body.
 	reads map[string]struct{}
-	// files is reads plus the path of every file the body parsed through the Store.
+	// files is reads plus the path of every file the body parsed through the Store or reported through [NoteFiles].
 	files map[string]struct{}
 	// mu guards reads and files.
 	mu sync.Mutex
@@ -185,8 +185,8 @@ func (s *Store) ParseUnitAST(
 }
 
 // Invalidate drops every retained result of the file at path and of every result whose run parsed it through
-// [Store.ParseUnitAST] or reported reading it through [NoteReads]. A run in progress is dropped as well, and the calls
-// already waiting on it still receive its result.
+// [Store.ParseUnitAST] or reported it through [NoteReads] or [NoteFiles]. A run in progress is dropped as well, and
+// the calls already waiting on it still receive its result.
 func (s *Store) Invalidate(path string) {
 	path = filepath.Clean(path)
 
@@ -217,6 +217,22 @@ func NoteReads(ctx context.Context, paths ...string) {
 
 	for _, path := range paths {
 		e.reads[path] = struct{}{}
+		e.files[filepath.Clean(path)] = struct{}{}
+	}
+}
+
+// NoteFiles reports to the run ctx belongs to that its result depends on paths, which [Store.Invalidate] then finds,
+// without reporting them as reads. It does nothing outside a run.
+func NoteFiles(ctx context.Context, paths ...string) {
+	e, ok := ctx.Value(flightKey{}).(*entry)
+	if !ok {
+		return
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, path := range paths {
 		e.files[filepath.Clean(path)] = struct{}{}
 	}
 }

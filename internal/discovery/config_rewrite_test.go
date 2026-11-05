@@ -19,7 +19,8 @@ import (
 
 // rewriteCorpus is a repository whose units use what discovery reads from a parse: includes with locals, a local
 // module source, dependency and dependencies blocks, exclude and errors blocks, feature flags, version
-// constraints, engine blocks, a stack file, and a unit that does not parse.
+// constraints, engine blocks, a dependency that reads files and one reached through an include, a stack file, and a
+// unit that does not parse.
 var rewriteCorpus = map[string]string{
 	"root.hcl": `
 locals {
@@ -94,15 +95,25 @@ engine {
 }
 `,
 	"apps/worker/terragrunt.hcl": `
-dependency "vpc" {
-  config_path = "../../infra/vpc"
+dependency "db" {
+  config_path = "../db"
 }
 
 engine {
   source = "github.com/example/engine"
   meta = {
-    vpc_id = dependency.vpc.outputs.id
+    db_id = dependency.db.outputs.id
   }
+}
+`,
+	"db-dependency.hcl": `
+dependency "db" {
+  config_path = "${get_terragrunt_dir()}/../db"
+}
+`,
+	"apps/job/terragrunt.hcl": `
+include "db" {
+  path = find_in_parent_folders("db-dependency.hcl")
 }
 `,
 	"engine.hcl": `

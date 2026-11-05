@@ -214,6 +214,32 @@ func TestResolveUnitQueueConfigGivesCallersOfAFailedParseTheirOwnConfigWithRacin
 	}
 }
 
+// dependencyReadsRepo returns a filesystem holding a unit whose dependency includes a file, the unit's config path, and
+// the path of the included file, which only the dependency reads.
+func dependencyReadsRepo(t *testing.T, root string) (vfs.FS, string, string) {
+	t.Helper()
+
+	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	readByDependency := filepath.Join(root, "dep.hcl")
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, readByDependency, []byte("locals {}\n"), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+dependency "dep" {
+  config_path  = "../dep"
+  skip_outputs = true
+}
+`), 0o644))
+	require.NoError(t, vfs.WriteFile(
+		fsys,
+		filepath.Join(root, "dep", pkgconfig.DefaultTerragruntConfigPath),
+		[]byte("include \"dep\" {\n  path = find_in_parent_folders(\"dep.hcl\")\n}\n"),
+		0o644,
+	))
+
+	return fsys, path, readByDependency
+}
+
 // missingIncludeRepo returns a filesystem holding a unit that includes a file that does not exist, and the unit's
 // config path.
 func missingIncludeRepo(t *testing.T) (vfs.FS, string) {
@@ -414,6 +440,59 @@ func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
 	).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(run), path)
 	require.ErrorAs(t, err, new(pkgconfig.TerragruntConfigNotFoundError))
 	assert.Nil(t, cfg)
+}
+
+func TestDependencyReadsReachOnlyARun(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	fsys, path, readByDependency := dependencyReadsRepo(t, root)
+	v := venvtest.New().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	ctx, queueRun := newTestParsingContext(t, path)
+	queueRun = queueRun.WithFileReadTracking()
+
+	_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(queueRun), path)
+	require.NoError(t, err)
+	assert.NotContains(t, queueRun.FilesRead.Paths(), readByDependency)
+
+	runCtx, run := newTestParsingContext(t, path)
+	run = run.WithFileReadTracking()
+
+	_, err = store.ResolveRunConfig(runCtx, l, v, config.NewParseContext(run), path)
+	require.NoError(t, err)
+	assert.Contains(t, run.FilesRead.Paths(), readByDependency)
+}
+
+func TestInvalidateFindsAParseByTheFilesItsDependenciesRead(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	fsys, path, readByDependency := dependencyReadsRepo(t, root)
+	v := venvtest.New().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	resolve := func() {
+		ctx, run := newTestParsingContext(t, path)
+		run = run.WithFileReadTracking()
+
+		_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+		require.NoError(t, err)
+	}
+
+	resolve()
+
+	misses := store.Stats().Misses
+
+	resolve()
+	assert.Equal(t, misses, store.Stats().Misses, "the parse is served")
+
+	store.Invalidate(readByDependency)
+	resolve()
+	assert.Greater(t, store.Stats().Misses, misses, "the parse ran again")
 }
 
 func TestResolveUnitBaseVariablesStopsBeforeTheDependencyBlocks(t *testing.T) {
