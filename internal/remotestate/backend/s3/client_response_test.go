@@ -59,7 +59,12 @@ func TestUpdateS3BucketIfNecessaryEncryptionResponseWithoutConfiguration(t *test
 		require.NoError(t, err)
 	})
 
-	assert.Equal(t, int32(1), putEncryptionCalls.Load(), "a bucket with no encryption document must get encryption enabled")
+	assert.Equal(
+		t,
+		int32(1),
+		putEncryptionCalls.Load(),
+		"a bucket with no encryption document must get encryption enabled",
+	)
 }
 
 // TestLockTableDescribeResponseWithoutTable checks that both lock table checks return `TableDescriptionMissingError`.
