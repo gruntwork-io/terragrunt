@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -75,7 +76,7 @@ func (e *EngineHCL) v1(body *EngineBody) *pkgconfig.EngineConfig {
 	return &pkgconfig.EngineConfig{
 		Version: clonePtr(e.Version),
 		Type:    clonePtr(e.Type),
-		Meta:    body.Meta,
+		Meta:    clonePtr(body.Meta),
 		Source:  e.Source,
 	}
 }
@@ -163,9 +164,9 @@ func (e *ExcludeHCL) v1(body *ExcludeBody) *pkgconfig.ExcludeConfig {
 	}
 
 	return &pkgconfig.ExcludeConfig{
-		ExcludeDependencies: body.ExcludeDependencies,
-		NoRun:               body.NoRun,
-		Actions:             body.Actions,
+		ExcludeDependencies: clonePtr(body.ExcludeDependencies),
+		NoRun:               clonePtr(body.NoRun),
+		Actions:             slices.Clone(body.Actions),
 		If:                  body.If,
 	}
 }
@@ -184,7 +185,7 @@ func (e *ErrorsHCL) v1(q *QueueBodies) *pkgconfig.ErrorsConfig {
 func (r *RetryHCL) v1(body *RetryBody) *pkgconfig.RetryBlock {
 	return &pkgconfig.RetryBlock{
 		Label:            r.Label,
-		RetryableErrors:  body.RetryableErrors,
+		RetryableErrors:  slices.Clone(body.RetryableErrors),
 		MaxAttempts:      body.MaxAttempts,
 		SleepIntervalSec: body.SleepIntervalSec,
 	}
@@ -192,10 +193,10 @@ func (r *RetryHCL) v1(body *RetryBody) *pkgconfig.RetryBlock {
 
 func (i *IgnoreHCL) v1(body *IgnoreBody) *pkgconfig.IgnoreBlock {
 	return &pkgconfig.IgnoreBlock{
-		Signals:         body.Signals,
+		Signals:         maps.Clone(body.Signals),
 		Label:           i.Label,
 		Message:         body.Message,
-		IgnorableErrors: body.IgnorableErrors,
+		IgnorableErrors: slices.Clone(body.IgnorableErrors),
 	}
 }
 

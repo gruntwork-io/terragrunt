@@ -84,6 +84,11 @@ func NewParseContext(run *pkgconfig.ParsingContext) *ParseContext {
 	}
 }
 
+// StoreContext returns [Key.Context] for the file pc parses, and false when the parse is not memoized.
+func (pc *ParseContext) StoreContext() (string, bool) {
+	return pc.file.key, pc.memoized
+}
+
 // withInclude returns a copy of pc for the file include pulls in, which has no include blocks until its base
 // blocks decode. The file reads the `dependency` value of the including file unless the run supplied one. A nil
 // include is a file no include block pulls in, which resolves its own dependencies.
@@ -142,11 +147,6 @@ func (pc *ParseContext) withOwnReads() *ParseContext {
 	}
 
 	return &c
-}
-
-// StoreContext returns [Key.Context] for the file pc parses, and false when the parse is not memoized.
-func (pc *ParseContext) StoreContext() (string, bool) {
-	return pc.file.key, pc.memoized
 }
 
 // withBaseBlocks returns a copy of pc with the include blocks, feature flags, and locals baseBlocks decoded.

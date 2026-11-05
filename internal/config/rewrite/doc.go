@@ -12,7 +12,7 @@
 // ToV1 decodes it again with the outputs.
 //
 // Every parse goes through a [Store], which shares a file's syntax tree across the units that include it
-// and serves a unit's whole parse again to a later caller with the same context. What the context covers is the
+// and reuses a unit's parse for a later caller with the same context. What the context covers is the
 // contract of the run digest in profile.go. A memoized result holds nothing of its caller's: each stage takes the
 // settings and sinks of a [ParseContext], and assembles a [pkgconfig.TerragruntConfig] of the caller's own, which the
 // merges change in place. [EnvRewrite] selects this package's parser for discovery.

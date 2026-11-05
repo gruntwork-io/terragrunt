@@ -125,30 +125,6 @@ func (s *Store) ResolveRunConfig(
 	return c.ToV1(ctx, l, v, pc)
 }
 
-// ResolveUnitParsedFile resolves the config in file and the files it merges in, as [Store.ResolveUnitConfig] does. The
-// result for file itself is not memoized.
-func (s *Store) ResolveUnitParsedFile(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pc *ParseContext,
-	file *pkghclparse.File,
-) (*UnitConfig, error) {
-	base, err := prepareBase(ctx, l, v, pc, file)
-	if err != nil {
-		return nil, err
-	}
-
-	c := prepare(ctx, l, v, pc, file, base)
-
-	cfg, err := s.assembleFirst(ctx, l, v, pc, c)
-	if cfg == nil {
-		return nil, err
-	}
-
-	return c, err
-}
-
 // resolvedFile is what a memoized resolution produces.
 type resolvedFile struct {
 	// c is the parse, nil when it failed before decoding the file.

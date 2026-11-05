@@ -51,11 +51,7 @@ type StackGenerateOptions struct {
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
-func NewForDiscoveryCommand(
-	l log.Logger,
-	fsys vfs.FS,
-	opts *DiscoveryCommandOptions,
-) (*Discovery, error) {
+func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors().
 		WithBreakCycles()
@@ -206,39 +202,22 @@ func StackWalkBoundary(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) str
 	root := ""
 
 	for _, dir := range dirs {
-		resolved, err := resolveDiscoveryBoundary(
-			fsys,
-			opts.WorkingDir,
-			dir,
-			boundaryEnclosureOptional,
-		)
+		resolved, err := resolveDiscoveryBoundary(fsys, opts.WorkingDir, dir, boundaryEnclosureOptional)
 		if err != nil {
-			l.Debugf(
-				"Discovery: cannot resolve boundary %s (%v); walking the whole working directory",
-				dir,
-				err,
-			)
+			l.Debugf("Discovery: cannot resolve boundary %s (%v); walking the whole working directory", dir, err)
 			return ""
 		}
 
 		prev := root
 
 		if root, ok = outermost(fsys, root, resolved); !ok {
-			l.Debugf(
-				"Discovery: boundaries %s and %s do not nest; walking the whole working directory",
-				prev,
-				resolved,
-			)
+			l.Debugf("Discovery: boundaries %s and %s do not nest; walking the whole working directory", prev, resolved)
 			return ""
 		}
 	}
 
 	if !vfs.Within(fsys, opts.WorkingDir, root) {
-		l.Debugf(
-			"Discovery: boundary %s is not inside %s; walking the whole working directory",
-			root,
-			opts.WorkingDir,
-		)
+		l.Debugf("Discovery: boundary %s is not inside %s; walking the whole working directory", root, opts.WorkingDir)
 		return ""
 	}
 
@@ -246,12 +225,7 @@ func StackWalkBoundary(l log.Logger, fsys vfs.FS, opts StackGenerateOptions) str
 }
 
 // WorktreeBoundary returns the outermost positive-filter boundary relative to the Git root, or "" when unbounded.
-func WorktreeBoundary(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	opts StackGenerateOptions,
-) string {
+func WorktreeBoundary(ctx context.Context, l log.Logger, v *venv.Venv, opts StackGenerateOptions) string {
 	dirs, ok := positiveBoundaryDirs(opts, true)
 	if !ok {
 		return ""
@@ -259,11 +233,7 @@ func WorktreeBoundary(
 
 	gitRoot, err := git.GoRepoRoot(ctx, v, opts.WorkingDir)
 	if err != nil {
-		l.Debugf(
-			"Discovery: no Git root for %s (%v); not narrowing worktree discovery",
-			opts.WorkingDir,
-			err,
-		)
+		l.Debugf("Discovery: no Git root for %s (%v); not narrowing worktree discovery", opts.WorkingDir, err)
 		return ""
 	}
 
@@ -274,25 +244,14 @@ func WorktreeBoundary(
 		prev := root
 
 		if root, ok = outermost(v.FS, root, path); !ok {
-			l.Debugf(
-				"Discovery: boundaries %s and %s do not nest; not narrowing worktree discovery",
-				prev,
-				path,
-			)
+			l.Debugf("Discovery: boundaries %s and %s do not nest; not narrowing worktree discovery", prev, path)
 			return ""
 		}
 	}
 
-	rel, err := filepath.Rel(
-		vfs.ResolveForCompare(v.FS, gitRoot),
-		vfs.ResolveForCompare(v.FS, root),
-	)
+	rel, err := filepath.Rel(vfs.ResolveForCompare(v.FS, gitRoot), vfs.ResolveForCompare(v.FS, root))
 	if err != nil || rel == "." {
-		l.Debugf(
-			"Discovery: boundary %s covers Git root %s; not narrowing worktree discovery",
-			root,
-			gitRoot,
-		)
+		l.Debugf("Discovery: boundary %s covers Git root %s; not narrowing worktree discovery", root, gitRoot)
 		return ""
 	}
 
@@ -464,11 +423,7 @@ type boundaryChecker struct {
 }
 
 // check fails when boundary is a directory at neither reference of pair; one covering the repository always passes.
-func (b *boundaryChecker) check(
-	ctx context.Context,
-	pair *worktrees.WorktreePair,
-	boundary string,
-) error {
+func (b *boundaryChecker) check(ctx context.Context, pair *worktrees.WorktreePair, boundary string) error {
 	if pair == nil {
 		return nil
 	}
@@ -508,9 +463,7 @@ func (b *boundaryChecker) check(
 
 	return NewDiscoveryBoundaryDirError(
 		boundary,
-		errors.New(
-			"not a directory at either compared reference, resolved against the repository root",
-		),
+		errors.New("not a directory at either compared reference, resolved against the repository root"),
 	)
 }
 
@@ -523,8 +476,7 @@ func (b *boundaryChecker) inTree(ctx context.Context, ref, rel string) (bool, er
 			return false, err
 		}
 
-		if tree, err = runner.WithWorkDir(b.w.OriginalWorkingDir).
-			LsTreeNames(ctx, b.v, ref); err != nil {
+		if tree, err = runner.WithWorkDir(b.w.OriginalWorkingDir).LsTreeNames(ctx, b.v, ref); err != nil {
 			return false, err
 		}
 
