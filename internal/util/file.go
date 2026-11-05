@@ -1752,18 +1752,22 @@ func EnsureCacheDir(v *venv.Venv) (string, error) {
 	return cacheDir, nil
 }
 
-// EnsureTempDir returns the global terragrunt temp directory.
+// EnsureTempDir returns the current user's terragrunt temp directory, creating it when needed.
 func EnsureTempDir(v *venv.Venv) (string, error) {
 	v.RequireFS()
 	v.RequireTempDir()
 
-	tempDir := filepath.Join(v.Platform.TempDir(), "terragrunt")
+	return ensureTempDir(v)
+}
 
-	if err := v.FS.MkdirAll(tempDir, os.ModePerm); err != nil {
-		return "", err
-	}
+// UnsafeTempDirError reports why [EnsureTempDir] refused a temp directory.
+type UnsafeTempDirError struct {
+	Path   string
+	Reason string
+}
 
-	return tempDir, nil
+func (err UnsafeTempDirError) Error() string {
+	return fmt.Sprintf("refusing to use temp directory %s: %s", err.Path, err.Reason)
 }
 
 // ExcludeFiltersFromFile returns a list of filters from the given filename, where each filter starts on a new line.

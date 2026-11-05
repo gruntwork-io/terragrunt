@@ -80,7 +80,10 @@ func BenchmarkClientDo(b *testing.B) {
 				var value map[string]any
 
 				client := helpers.NewClient(c, nil)
-				require.NoError(b, client.Do(ctx, http.MethodGet, "https://registry.test/v1/providers/hashicorp/aws/versions", &value))
+				require.NoError(
+					b,
+					client.Do(ctx, http.MethodGet, "https://registry.test/v1/providers/hashicorp/aws/versions", &value),
+				)
 			}
 		})
 	}

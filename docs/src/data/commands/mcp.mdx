@@ -83,6 +83,8 @@ flags:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 <Aside type="caution" title="This is not a sandbox">
 The flags on this page limit what Terragrunt does when a tool asks it to. They do not contain the programs Terragrunt
@@ -102,6 +104,8 @@ directory that holds the units it needs.
 
 ## Tools
 
+<Before version="v1.2.2">
+
 | Name            | What it does                                                                 | Needs                                                  |
 | --------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `discover`      | Lists the units and stacks under a directory                                 | None                                                   |
@@ -110,6 +114,22 @@ directory that holds the units it needs.
 | `run_order`     | Reports the order units run in, and what blocks each one                     | None                                                   |
 | `get_outputs`   | Reads the applied outputs of one unit                                        | `exec`, or `http` for `s3`, `gcs`, and `azurerm` state |
 | `plan`          | Runs `run --all plan` across the units and returns the per-unit result       | `exec`                                                 |
+
+</Before>
+
+<Since version="v1.2.2">
+
+| Name            | What it does                                                                 | Needs                                                  |
+| --------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `discover`      | Lists the units and stacks under a directory                                 | None                                                   |
+| `render_config` | Evaluates one unit's `terragrunt.hcl` and returns the resolved configuration | `exec` to read dependency outputs                      |
+| `validate`      | Reports syntax and evaluation errors in the configurations under a directory | None                                                   |
+| `run_order`     | Reports the order units run in, and what blocks each one                     | None                                                   |
+| `get_outputs`   | Reads the applied outputs of one unit                                        | `exec`, or `http` for `s3`, `gcs`, and `azurerm` state |
+| `plan`          | Runs `run --all plan` across the units and returns the per-unit result       | `exec`                                                 |
+| `catalog`       | Lists the components in the catalog the configuration names                  | `exec` to clone a remote repository                    |
+
+</Since>
 
 Two more tools are served only under
 [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply). They change real infrastructure.
@@ -273,7 +293,7 @@ To run a program a configuration names, allow it with an [`--allow-cmd`](/refere
 pattern, or accept it when a tool asks. A pattern naming `git` matches the `git` on the server's `PATH`, not a `./git`
 in the tree.
 
-`discover`, `render_config`, `validate`, and `run_order` ask. When a configuration names a refused program, the call
+`discover`, `render_config`, `validate`, <Since version="v1.2.2">`run_order`, and `catalog`</Since><Before version="v1.2.2">and `run_order`</Before> ask. When a configuration names a refused program, the call
 returns an elicitation naming the programs, then runs again with the ones the person operating the client accepts. An
 acceptance covers those programs for that call only. `get_outputs`, `plan`, `apply`, and `destroy` never ask.
 

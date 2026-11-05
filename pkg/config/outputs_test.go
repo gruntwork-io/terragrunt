@@ -83,7 +83,11 @@ func TestParseOutputsBlock(t *testing.T) {
 	mocks := cfg.Outputs.MockValues()
 	require.NotNil(t, mocks)
 	assert.Equal(t, cty.StringVal("vpc-mock"), mocks.GetAttr("vpc_id"))
-	assert.Equal(t, cty.TupleVal([]cty.Value{cty.StringVal("subnet-mock-1"), cty.StringVal("subnet-mock-2")}), mocks.GetAttr("subnet_ids"))
+	assert.Equal(
+		t,
+		cty.TupleVal([]cty.Value{cty.StringVal("subnet-mock-1"), cty.StringVal("subnet-mock-2")}),
+		mocks.GetAttr("subnet_ids"),
+	)
 	assert.False(t, mocks.Type().HasAttribute("undocumented"), "an output without mock_value has no mock")
 
 	found, ok := cfg.GetFieldMetadata(config.MetadataOutputs)
@@ -292,7 +296,8 @@ outputs {
 			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte(rootConfig), 0o644))
 
 			cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
-			require.NoError(t, vfs.WriteFile(fsys, cfgPath, []byte(strings.ReplaceAll(unitConfig, "%s", tc.mergeStrategy)), 0o644))
+			unitHCL := strings.ReplaceAll(unitConfig, "%s", tc.mergeStrategy)
+			require.NoError(t, vfs.WriteFile(fsys, cfgPath, []byte(unitHCL), 0o644))
 
 			l := createLogger()
 			v := venvtest.New().WithFS(fsys)
@@ -552,7 +557,8 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 			root := venvtest.Root("/fixture")
 			fsys := vfs.NewMemMapFS()
 			vpcDir := filepath.Join(root, "vpc")
-			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(vpcDir, config.DefaultTerragruntConfigPath), []byte(tc.vpcConfig), 0o644))
+			vpcCfgPath := filepath.Join(vpcDir, config.DefaultTerragruntConfigPath)
+			require.NoError(t, vfs.WriteFile(fsys, vpcCfgPath, []byte(tc.vpcConfig), 0o644))
 			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(vpcDir, "main.tf"), []byte(vpcModule), 0o644))
 
 			appConfigPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)

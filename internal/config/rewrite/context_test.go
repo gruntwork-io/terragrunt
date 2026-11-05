@@ -104,7 +104,14 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, &hclparse.Store{}, config.NewParseContext(run), cfgPath)
+	parsed, err := config.ParseConfigFile(
+		ctx,
+		l,
+		v,
+		&hclparse.Store{},
+		config.NewParseContext(run),
+		cfgPath,
+	)
 	require.NoError(t, err)
 
 	cfg, err := parsed.ToV1(ctx, l, v)

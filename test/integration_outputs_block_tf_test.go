@@ -116,7 +116,10 @@ func TestTFOutputsBlockHCLValidateChecksContracts(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	invalidPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockInvalid), testFixtureOutputsBlockInvalid)
+	invalidPath := filepath.Join(
+		helpers.CopyEnvironment(t, testFixtureOutputsBlockInvalid),
+		testFixtureOutputsBlockInvalid,
+	)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,

@@ -626,7 +626,14 @@ func runCommandImpl(
 	mode := runCmdEchoOutput
 	disableCache := false
 	useGlobalCache := false
+
 	currentPath := filepath.Dir(pctx.TerragruntConfigPath)
+
+	// The child config [ReadCatalogConfig] generates sits in a directory that doesn't exist.
+	if pctx.catalogOnly && !vfs.IsDir(v.FS, currentPath) {
+		currentPath = filepath.Dir(currentPath)
+	}
+
 	cachePath := currentPath
 
 	checkOptions := true

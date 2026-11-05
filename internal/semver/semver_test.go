@@ -202,7 +202,11 @@ func TestLockFileConstraint(t *testing.T) {
 			in:   ">= 3.0.0-alpha.10, >= 3.0.0-alpha.2",
 			want: ">= 3.0.0-alpha.2, >= 3.0.0-alpha.10",
 		},
-		{name: "prerelease before build metadata", in: ">= 3.0.0-beta+1, >= 3.0.0-alpha+2", want: ">= 3.0.0-alpha+2, >= 3.0.0-beta+1"},
+		{
+			name: "prerelease before build metadata",
+			in:   ">= 3.0.0-beta+1, >= 3.0.0-alpha+2",
+			want: ">= 3.0.0-alpha+2, >= 3.0.0-beta+1",
+		},
 		{name: "pessimistic with a dash and no prerelease after it", in: "~> 3.0-", want: "~> 3.0"},
 		{name: "prerelease of a dash", in: ">= 3.0--", want: ">= 3.0.0--"},
 		{name: "prerelease starting with a dash", in: ">= 3.0.0--a", want: ">= 3.0.0--a"},

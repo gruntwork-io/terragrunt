@@ -1,0 +1,23 @@
+---
+import { LinkCard } from '@astrojs/starlight/components';
+import { hclItemPath, type HclConfig, type HclKind } from '@lib/hcl';
+import { getPublishedHclItems } from '@lib/hcl/published';
+
+interface Props {
+	kind: HclKind;
+	/** Lists only the entries valid in this configuration kind. */
+	config?: HclConfig;
+}
+
+const { kind, config } = Astro.props;
+
+const entries = (await getPublishedHclItems(kind)).filter(
+	(entry) => config === undefined || entry.data.configs.includes(config),
+);
+---
+
+{
+	entries.map((entry) => (
+		<LinkCard title={entry.data.name} href={hclItemPath(kind, entry.data.name)} description={entry.data.description} />
+	))
+}
