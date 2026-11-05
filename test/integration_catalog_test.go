@@ -35,6 +35,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const (
@@ -665,6 +666,37 @@ func catalogManyModulesFixture(t *testing.T, count int) string {
 `)
 
 	return workDir
+}
+
+// TestCatalogDotOnlyRepoNameIgnoresPlantedTempDir pins that a URL ending in `..` never lists what the temp dir holds.
+func TestCatalogDotOnlyRepoNameIgnoresPlantedTempDir(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+	tempDir := v.Platform.TempDir()
+
+	workDir, err := v.Platform.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
+
+	require.NoError(t, vfs.WriteFile(
+		v.FS,
+		filepath.Join(tempDir, module.CloneCompleteSentinel),
+		nil,
+		0o644,
+	))
+	require.NoError(t, vfs.WriteFile(
+		v.FS,
+		filepath.Join(tempDir, "some-module", "terragrunt.hcl"),
+		[]byte("terraform {\n  source = \".\"\n}\n"),
+		0o644,
+	))
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v,
+		"terragrunt catalog --format jsonl --working-dir "+workDir+
+			" https://github.com/example/repo//..")
+	require.ErrorIs(t, err, module.ErrRemoteCloneFSNotOS)
+	assert.Empty(t, stdout)
 }
 
 // catalogFixture builds a repository holding one component of each kind

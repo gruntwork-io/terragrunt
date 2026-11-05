@@ -188,6 +188,61 @@ func TestNewRepoCloneDirectoryName(t *testing.T) {
 	}
 }
 
+// TestNewRepoDotOnlyRepoNameUsesDefaultDir pins that a URL ending in dots clones into the default directory.
+func TestNewRepoDotOnlyRepoNameUsesDefaultDir(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		cloneURL string
+	}{
+		{
+			name:     "double dot after double slash",
+			cloneURL: "https://github.com/acme/repo//..",
+		},
+		{
+			name:     "double dot with .git",
+			cloneURL: "https://github.com/acme/...git",
+		},
+		{
+			name:     "single dot",
+			cloneURL: "https://github.com/acme/repo/.",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New()
+			cloneRoot := venvtest.Root("/catalog/clone-root")
+			clonePath := filepath.Join(cloneRoot, "temp")
+
+			for _, dir := range []string{filepath.Dir(cloneRoot), cloneRoot, clonePath} {
+				writeFakeRepo(t, v.FS, dir)
+				require.NoError(t, vfs.WriteFile(
+					v.FS,
+					filepath.Join(dir, module.CloneCompleteSentinel),
+					nil,
+					0o644,
+				))
+			}
+
+			repo, err := module.NewRepo(
+				t.Context(),
+				logger.CreateLogger(),
+				v,
+				&module.RepoOpts{
+					CloneURL: tc.cloneURL,
+					Path:     cloneRoot,
+				},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, clonePath, repo.Path())
+		})
+	}
+}
+
 // TestNewRepoLocalSourceKeepsPath pins that the catalog reads a local source
 // where it sits, whatever the directory is called.
 func TestNewRepoLocalSourceKeepsPath(t *testing.T) {
