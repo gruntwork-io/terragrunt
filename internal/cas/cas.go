@@ -49,6 +49,10 @@ type CloneOptions struct {
 	// If empty, uses HEAD.
 	Branch string
 
+	// SSHKey is the base64 private key git connects with. If empty, git
+	// uses the SSH identity already available to it.
+	SSHKey string
+
 	// IncludedGitFiles names files from the source repository's git
 	// directory to write under .git in the target directory. If empty,
 	// no .git directory is written. Ingest records each file against the
@@ -101,6 +105,11 @@ func WithDepth(depth int) CloneOption {
 // WithMutable sets [CloneOptions.Mutable].
 func WithMutable(mutable bool) CloneOption {
 	return func(o *CloneOptions) { o.Mutable = mutable }
+}
+
+// WithSSHKey sets [CloneOptions.SSHKey].
+func WithSSHKey(encoded string) CloneOption {
+	return func(o *CloneOptions) { o.SSHKey = encoded }
 }
 
 // CAS clones a git repository using content-addressable storage.
@@ -275,6 +284,9 @@ type GitResolver struct {
 	Cache *ProbeCache
 	// Branch is the ref to query. Empty means HEAD.
 	Branch string
+	// SSHKey is the base64 private key ls-remote connects with. Empty
+	// means the SSH identity already available to git.
+	SSHKey string
 	// fetchRef is the full ref name Probe matched, such as
 	// refs/tags/v1.2.3. It is empty when Probe answered without one.
 	fetchRef string
@@ -382,15 +394,15 @@ func (r *GitResolver) storeProbe(ctx context.Context, u redact.URL) (string, boo
 	return hash, ok, nil
 }
 
-// flightKey identifies the probe of u for r.Branch within the
-// process. See [probeFlightKey] for how the key is built.
+// flightKey identifies the probe of u for r.Branch and r.SSHKey within
+// the process. See [probeFlightKey] for how the key is built.
 func (r *GitResolver) flightKey(u redact.URL) string {
 	root := ""
 	if r.Cache != nil {
 		root = r.Cache.RootPath()
 	}
 
-	return probeFlightKey(root, u, r.Branch)
+	return probeFlightKey(root, u, r.Branch) + sshKeyFlightScope(r.SSHKey)
 }
 
 // probeFlightKey identifies the probe of u for ref within the process.
@@ -422,12 +434,14 @@ func (r *GitResolver) probeUncoalesced(ctx context.Context, u redact.URL) (probe
 		return probeResult{}, &OfflineMissError{Source: u, Ref: probeRefName(r.Branch)}
 	}
 
-	runner, err := git.NewGitRunner(r.Venv)
-	if err != nil {
-		return probeResult{}, err
-	}
+	results, err := withSSHKey(ctx, r.Venv, r.SSHKey, func(v *venv.Venv) ([]git.LsRemoteResult, error) {
+		runner, err := git.NewGitRunner(v)
+		if err != nil {
+			return nil, err
+		}
 
-	results, err := runner.LsRemote(ctx, u.Reveal(), r.Branch)
+		return runner.LsRemote(ctx, u.Reveal(), r.Branch)
+	})
 	if err != nil {
 		if errors.Is(err, git.ErrNoMatchingReference) {
 			return probeResult{}, ErrNoVersionMetadata
@@ -493,9 +507,9 @@ func (r *GitResolver) recordProbe(u redact.URL, res git.LsRemoteResult, rule git
 	}
 }
 
-// newGitResolver builds the [GitResolver] for branch with this CAS's
-// stores, probe cache, and mode.
-func (c *CAS) newGitResolver(l log.Logger, v *venv.Venv, branch string) *GitResolver {
+// newGitResolver builds the [GitResolver] for branch and sshKey with this
+// CAS's stores, probe cache, and mode.
+func (c *CAS) newGitResolver(l log.Logger, v *venv.Venv, branch, sshKey string) *GitResolver {
 	cache := c.probeCache
 	if !c.probeCacheEnabled {
 		cache = nil
@@ -507,6 +521,7 @@ func (c *CAS) newGitResolver(l log.Logger, v *venv.Venv, branch string) *GitReso
 		Store:      c.gitStore,
 		Cache:      cache,
 		Branch:     branch,
+		SSHKey:     sshKey,
 		MutableTTL: c.probeTTL,
 		Mode:       c.probeMode,
 	}
@@ -540,7 +555,7 @@ func (c *CAS) Clone(
 	clonedOpts := opts
 	clonedOpts.Dir = c.prepareTargetDirectory(opts.Dir, u)
 
-	resolver := c.newGitResolver(l, v, opts.Branch)
+	resolver := c.newGitResolver(l, v, opts.Branch, opts.SSHKey)
 
 	return c.FetchSource(ctx, l, v, &clonedOpts, SourceRequest{
 		Scheme:       gitScheme,
@@ -644,7 +659,9 @@ func (c *CAS) populateTreeFromRef(
 	}
 
 	return flights.ingest.do(ctx, c.ingestFlightKey(ref, mode, opts), func(ctx context.Context) (string, error) {
-		return c.ingestRef(ctx, l, v, opts, ref, mode)
+		return withSSHKey(ctx, v, opts.SSHKey, func(v *venv.Venv) (string, error) {
+			return c.ingestRef(ctx, l, v, opts, ref, mode)
+		})
 	})
 }
 
@@ -658,8 +675,11 @@ func (c *CAS) populateTreeFromRef(
 // The mode is part of the key because a repair that joined a cached
 // ingest would get back an ingest that trusted the store hit the repair
 // was started to correct.
+//
+// opts.SSHKey is part of the key because the flight fetches as the caller
+// that started it, and a joiner must not fail on someone else's credentials.
 func (c *CAS) ingestFlightKey(ref resolvedRef, mode IngestMode, opts *CloneOptions) string {
-	scope := c.storePath + "\x00" + strconv.Itoa(int(mode))
+	scope := c.storePath + "\x00" + strconv.Itoa(int(mode)) + sshKeyFlightScope(opts.SSHKey)
 	files := "\x00files\x00" + strings.Join(opts.IncludedGitFiles, "\x00")
 
 	if hash := ref.knownHash(); hash != "" {
@@ -946,7 +966,7 @@ func (c *CAS) resolveReference(
 	l log.Logger,
 	gv *GitStoreVenv,
 	u redact.URL,
-	branch string,
+	branch, sshKey string,
 ) (resolvedRef, error) {
 	if looksLikeFullSHA(branch) || c.probeMode == ProbeModeOffline {
 		if hash, ok := c.gitStore.ProbeCachedCommit(ctx, gv, u, branch); ok {
@@ -954,7 +974,7 @@ func (c *CAS) resolveReference(
 		}
 	}
 
-	resolver := c.newGitResolver(l, gv.v, branch)
+	resolver := c.newGitResolver(l, gv.v, branch, sshKey)
 
 	key, err := resolver.Probe(ctx, u)
 	if err != nil {

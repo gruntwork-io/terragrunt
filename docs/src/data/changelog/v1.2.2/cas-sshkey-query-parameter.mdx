@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### CAS honors the `sshkey` query parameter
+
+A git source with the `sshkey` query parameter failed under the [Content Addressable Store (CAS)](/features/caching/cas), because CAS left the parameter on the address it passed to git.
+
+CAS now removes `sshkey` from that address and connects with the key.

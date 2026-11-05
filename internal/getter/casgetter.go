@@ -421,14 +421,15 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 	return clone.String()
 }
 
-// getGit clones via [cas.CAS.Clone] after lifting the go-getter ref and depth
-// query parameters out of the URL (see [cas.StripGitURLParams]).
+// getGit clones via [cas.CAS.Clone] after lifting the go-getter ref, depth and
+// sshkey query parameters out of the URL (see [cas.StripGitURLParams]).
 func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
-	u, ref := cas.StripGitURLParams(req.URL())
+	u, params := cas.StripGitURLParams(req.URL())
 
 	return g.CAS.Clone(ctx, g.Logger, g.Venv, redact.NewURL(GitCloneURL(u.String())),
 		cas.WithDir(req.Dst),
-		cas.WithBranch(ref),
+		cas.WithBranch(params.Ref),
+		cas.WithSSHKey(params.SSHKey),
 		cas.WithDepth(g.Opts.Depth),
 		cas.WithMutable(g.Opts.Mutable),
 		cas.WithIncludedGitFiles(g.Opts.IncludedGitFiles))
