@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -32,6 +33,8 @@ func (d *Discovery) Discover(
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
 	d.paths = vfs.NewPathResolver(v.FS)
+
+	defer func() { tips.GiveInputsReadTip(l, v, d.InputsReads(), opts.Tips) }()
 
 	// A working directory that cannot be walked to discovers nothing, which is
 	// reported as an empty result rather than an error, so it keeps the

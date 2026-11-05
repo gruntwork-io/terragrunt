@@ -7,7 +7,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -1017,6 +1019,164 @@ unit "echo" {
 			for _, read := range tc.wantReads {
 				assert.Contains(t, live.Reading(), filepath.Join(liveDir, read))
 			}
+		})
+	}
+}
+
+// TestDiscovery_ReportsInputsReads pins the reads in inputs attributes that discovery reports
+// for the inputs-read-not-tracked tip: those of a unit, of the files it includes, and of the
+// autoinclude blocks of a stack, each once, and none when reads are not tracked.
+func TestDiscovery_ReportsInputsReads(t *testing.T) {
+	t.Parallel()
+
+	const unitFile = `include "root" {
+  path = "../root.hcl"
+}
+
+locals {
+  tracked = yamldecode(file("../shared.yml"))
+}
+
+inputs = {
+  message = local.tracked.message
+  region  = yamldecode(file("../shared.yml")).region
+  config  = read_terragrunt_config("../shared.hcl")
+}
+`
+
+	const rootFile = `inputs = {
+  account = yamldecode(file("account.yml")).name
+}
+`
+
+	const stackFile = `unit "iam" {
+  source = "../units/service"
+  path   = "iam"
+}
+
+unit "api" {
+  source = "../units/service"
+  path   = "api"
+
+  autoinclude {
+    dependency "iam" {
+      config_path = unit.iam.path
+    }
+
+    inputs = {
+      policy  = templatefile("policy.json.tftpl", { role_arn = dependency.iam.outputs.role_arn })
+      message = yamldecode(file("shared.yml")).message
+    }
+  }
+}
+`
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	files := map[string]string{
+		filepath.Join(tmpDir, "root.hcl"):                           rootFile,
+		filepath.Join(tmpDir, "account.yml"):                        "name: dev\n",
+		filepath.Join(tmpDir, "shared.yml"):                         "message: v2\nregion: us-east-1\n",
+		filepath.Join(tmpDir, "shared.hcl"):                         "",
+		filepath.Join(tmpDir, "app", "terragrunt.hcl"):              unitFile,
+		filepath.Join(tmpDir, "other", "terragrunt.hcl"):            unitFile,
+		filepath.Join(tmpDir, "live", "terragrunt.stack.hcl"):       stackFile,
+		filepath.Join(tmpDir, "live", "shared.yml"):                 "message: v2\n",
+		filepath.Join(tmpDir, "units", "service", "terragrunt.hcl"): "",
+	}
+
+	for path, contents := range files {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0644))
+	}
+
+	type read struct {
+		file  string
+		expr  string
+		line  int
+		place tips.InputsReadPlace
+	}
+
+	testCases := []struct {
+		configure func(*discovery.Discovery) *discovery.Discovery
+		name      string
+		want      []read
+	}{
+		{
+			name: "reads tracked",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithReadFiles()
+			},
+			want: []read{
+				{file: filepath.Join("app", "terragrunt.hcl"), expr: `file("../shared.yml")`, line: 11},
+				{file: filepath.Join("app", "terragrunt.hcl"), expr: `read_terragrunt_config("../shared.hcl")`, line: 12},
+				{
+					file:  filepath.Join("live", "terragrunt.stack.hcl"),
+					expr:  `"policy.json.tftpl"`,
+					line:  16,
+					place: tips.InputsReadInAutoInclude,
+				},
+				{
+					file:  filepath.Join("live", "terragrunt.stack.hcl"),
+					expr:  `file("shared.yml")`,
+					line:  17,
+					place: tips.InputsReadInAutoInclude,
+				},
+				{file: filepath.Join("other", "terragrunt.hcl"), expr: `file("../shared.yml")`, line: 11},
+				{file: filepath.Join("other", "terragrunt.hcl"), expr: `read_terragrunt_config("../shared.hcl")`, line: 12},
+				{file: "root.hcl", expr: `file("account.yml")`, line: 2},
+			},
+		},
+		{
+			name: "reads not tracked",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithRequiresParse().WithRelationships()
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			exps := experiment.NewExperiments()
+			require.NoError(t, exps.EnableExperiment(experiment.StackDependencies))
+
+			opts := &options.TerragruntOptions{
+				WorkingDir:     tmpDir,
+				RootWorkingDir: tmpDir,
+				Experiments:    exps,
+			}
+
+			d := tc.configure(discovery.NewDiscovery(tmpDir))
+
+			_, err := d.Discover(
+				config.WithCaches(t.Context()),
+				logger.CreateLogger(),
+				venvtest.NewOSWithEmptyEnv(),
+				opts,
+			)
+			require.NoError(t, err)
+
+			got := make([]read, 0, len(d.InputsReads()))
+			for _, r := range d.InputsReads() {
+				assert.Equal(t, r.File, r.Range.Filename)
+
+				got = append(got, read{
+					file:  r.File,
+					expr:  string(r.Range.SliceBytes(r.Source)),
+					line:  r.Range.Start.Line,
+					place: r.Place,
+				})
+			}
+
+			if len(tc.want) == 0 {
+				assert.Empty(t, got)
+
+				return
+			}
+
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }

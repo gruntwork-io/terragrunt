@@ -1305,10 +1305,10 @@ inputs = {
 	assert.Equal(t, "./vpc", vpcDep["config_path"])
 }
 
-// TestValidateStackAutoIncludes_ReportsMalformedAutoInclude pins that the strict autoinclude parse
+// TestStackAutoIncludes_ReportsMalformedAutoInclude pins that the strict autoinclude parse
 // behind `hcl validate` reports a malformed autoinclude block (here a locals block, which is
 // explicitly rejected) that the lenient ParseStackConfig decode lets through into Remain.
-func TestValidateStackAutoIncludes_ReportsMalformedAutoInclude(t *testing.T) {
+func TestStackAutoIncludes_ReportsMalformedAutoInclude(t *testing.T) {
 	t.Parallel()
 
 	v, tmpDir := newMemTestDir(t)
@@ -1339,7 +1339,7 @@ unit "app" {
 		"the lenient stack decode must keep accepting the malformed autoinclude block",
 	)
 
-	err = config.ValidateStackAutoIncludes(ctx, l, v, pctx, stackPath, stackCfg, nil)
+	_, err = config.StackAutoIncludes(ctx, l, v, pctx, stackPath, stackCfg, nil)
 	require.Error(t, err, "the strict autoinclude parse must report the locals block")
 
 	var stageErr config.AutoIncludeParserStageError
