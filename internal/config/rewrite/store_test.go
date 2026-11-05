@@ -314,6 +314,70 @@ func TestResolveUnitConfigSendsDiagnosticsToItsCallersHandler(t *testing.T) {
 	assert.NotEmpty(t, received)
 }
 
+func TestResolveUnitQueueConfigDecodesTheEngine(t *testing.T) {
+	t.Parallel()
+
+	const unit = `
+dependency "vpc" {
+  config_path = "../vpc"
+  skip_outputs = true
+}
+
+engine {
+  source = "github.com/example/engine"
+  meta = {
+    region = "us-east-1"
+    vpc_id = dependency.vpc.outputs.id
+  }
+}
+`
+
+	suppliedVPC := cty.ObjectVal(map[string]cty.Value{
+		"vpc": cty.ObjectVal(map[string]cty.Value{
+			"outputs": cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("vpc-from-run")}),
+		}),
+	})
+
+	testCases := []struct {
+		supplied *cty.Value
+		want     cty.Value
+		name     string
+	}{
+		{name: "an output is unknown", want: cty.DynamicVal},
+		{name: "a value the run supplied is kept", supplied: &suppliedVPC, want: cty.StringVal("vpc-from-run")},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "app", pkgconfig.DefaultTerragruntConfigPath)
+
+			fsys := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fsys, path, []byte(unit), 0o644))
+
+			v := venvtest.New().WithFS(fsys)
+			ctx, run := newTestParsingContext(t, path)
+			run.DecodedDependencies = tc.supplied
+
+			cfg, err := new(config.Store).ResolveUnitQueueConfig(
+				ctx,
+				logger.CreateLogger(),
+				v,
+				config.NewParseContext(run),
+				path,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, cfg.Engine)
+			assert.Equal(t, "github.com/example/engine", cfg.Engine.Source)
+
+			meta := cfg.Engine.Meta.AsValueMap()
+			assert.Equal(t, "us-east-1", meta["region"].AsString())
+			assert.True(t, tc.want.RawEquals(meta["vpc_id"]), "vpc_id is %#v", meta["vpc_id"])
+		})
+	}
+}
+
 func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
 	t.Parallel()
 

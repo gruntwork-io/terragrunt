@@ -233,9 +233,9 @@ func (s *Store) resolveFileOnce(
 		ctx,
 		l,
 		cfgPath,
-		pc.inputs.WorkingDir,
-		len(pc.inputs.PartialParseDecodeList) > 0,
-		pc.inputs.PartialParseDecodeList,
+		pc.settings.WorkingDir,
+		len(pc.settings.PartialParseDecodeList) > 0,
+		pc.settings.PartialParseDecodeList,
 		pc.file.include,
 		false,
 		func(childCtx context.Context, l log.Logger) error {
@@ -442,6 +442,7 @@ func prepare(
 		var queueDiags hcl.Diagnostics
 
 		c.Queue, queueDiags = c.decodeQueue(evalCtx)
+		c.Queue.Engine, c.queueEngineDiags = c.decodeQueueEngine(evalCtx)
 		c.decodeErr = file.HandleDiagnostics(append(diags, queueDiags...))
 	}
 
@@ -464,7 +465,7 @@ func absInclude(pc *ParseContext) *pkgconfig.IncludeConfig {
 	}
 
 	abs := *include
-	abs.Path = filepath.Clean(filepath.Join(filepath.Dir(pc.inputs.TerragruntConfigPath), abs.Path))
+	abs.Path = filepath.Clean(filepath.Join(filepath.Dir(pc.settings.TerragruntConfigPath), abs.Path))
 
 	return &abs
 }

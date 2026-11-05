@@ -12,7 +12,7 @@ import (
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
-// runDigest returns the digest of the inputs of run that a parse reads beyond the file, and false when run carries
+// runDigest returns the digest of the settings of run that a parse reads beyond the file, and false when run carries
 // state the digest does not cover, which leaves the parse unmemoized.
 //
 // The digest covers the config, original config, working directory, and root working directory; the download

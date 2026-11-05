@@ -19,7 +19,7 @@ import (
 
 // rewriteCorpus is a repository whose units use what discovery reads from a parse: includes with locals, a local
 // module source, dependency and dependencies blocks, exclude and errors blocks, feature flags, version
-// constraints, a stack file, and a unit that does not parse.
+// constraints, engine blocks, a stack file, and a unit that does not parse.
 var rewriteCorpus = map[string]string{
 	"root.hcl": `
 locals {
@@ -83,6 +83,40 @@ dependencies {
 }
 
 terragrunt_version_constraint = ">= 0.1.0"
+
+engine {
+  source  = "github.com/example/engine"
+  version = "v1.0.0"
+  type    = "rpc"
+  meta = {
+    region = "us-east-1"
+  }
+}
+`,
+	"apps/worker/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../../infra/vpc"
+}
+
+engine {
+  source = "github.com/example/engine"
+  meta = {
+    vpc_id = dependency.vpc.outputs.id
+  }
+}
+`,
+	"engine.hcl": `
+engine {
+  source = "github.com/example/inherited"
+  meta = {
+    tier = "shared"
+  }
+}
+`,
+	"apps/inherits-engine/terragrunt.hcl": `
+include "engine" {
+  path = find_in_parent_folders("engine.hcl")
+}
 `,
 	"infra/vpc/terragrunt.hcl": `
 terraform {
@@ -106,6 +140,7 @@ unit "web" {
 type componentView struct {
 	Exclude      *config.ExcludeConfig
 	Errors       *config.ErrorsConfig
+	Engine       *config.EngineConfig
 	Source       *string
 	Constraint   string
 	Path         string
@@ -171,6 +206,7 @@ func discoverCorpus(t *testing.T, useRewrite bool, store *rewrite.Store) []compo
 		if cfg := unit.Config(); cfg != nil {
 			view.Exclude = cfg.Exclude
 			view.Errors = cfg.Errors
+			view.Engine = cfg.Engine
 			view.Constraint = cfg.TerragruntVersionConstraint
 			view.FeatureFlags = cfg.FeatureFlags
 
