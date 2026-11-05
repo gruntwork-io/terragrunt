@@ -26,6 +26,7 @@ func (c *UnitConfig) queueFile(q *QueueBodies) *pkgconfig.TerragruntConfigFile {
 		IamWebIdentityToken:         clonePtr(c.IamWebIdentityToken),
 		FeatureFlags:                convertAll(c.FeatureFlags, (*FeatureFlagHCL).v1),
 		Exclude:                     c.Exclude.v1(q.Exclude),
+		Engine:                      c.Engine.v1(q.Engine),
 		Errors:                      c.Errors.v1(q),
 	}
 }

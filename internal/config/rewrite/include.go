@@ -60,7 +60,7 @@ func (p includeResolver) file(
 	c *UnitConfig,
 	evalCtx *hcl.EvalContext,
 ) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
-	return c.queueFile(&c.Queue), nil
+	return c.queueFile(&c.Queue), c.queueEngineDiags
 }
 
 func (p includeResolver) dependencies(
@@ -195,7 +195,7 @@ func (q keptQueue) file(
 	c *UnitConfig,
 	_ *hcl.EvalContext,
 ) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
-	return c.queueFile(&c.Queue), nil
+	return c.queueFile(&c.Queue), c.queueEngineDiags
 }
 
 func (q keptQueue) dependencies(
@@ -339,7 +339,7 @@ func (c *UnitConfig) resolveIncludedConfig(
 	include *pkgconfig.IncludeConfig,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
 	if include.Path == "" {
-		return nil, nil, pkgconfig.IncludedConfigMissingPathError(pc.inputs.TerragruntConfigPath)
+		return nil, nil, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
 	}
 
 	hasDependency, err := pkgconfig.ConfigFileHasDependencyBlock(v.FS, include.Path)
@@ -366,7 +366,7 @@ func includeParseError(err error, include *pkgconfig.IncludeConfig, pc *ParseCon
 	if errors.As(err, new(pkgconfig.TerragruntConfigNotFoundError)) {
 		return pkgconfig.IncludeConfigNotFoundError{
 			IncludePath: include.Path,
-			SourcePath:  pc.inputs.TerragruntConfigPath,
+			SourcePath:  pc.settings.TerragruntConfigPath,
 		}
 	}
 

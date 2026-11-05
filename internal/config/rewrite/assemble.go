@@ -19,7 +19,7 @@ import (
 // config and errors that [pkgconfig.ParseConfigFile] returns for the same file, which can be a partial config with
 // an error. Each call fetches the outputs again. It never changes c.
 //
-// pc gives the run's inputs and sinks, and c the state of each file.
+// pc gives the run's settings and sinks, and c the state of each file.
 //
 // Panics when c did not come from [Store.ResolveUnitParsedFile] or [Store.ResolveUnitConfig].
 func (c *UnitConfig) ToV1(
@@ -33,7 +33,7 @@ func (c *UnitConfig) ToV1(
 
 // assemble converts c to a config and merges in its autoinclude and included files from src, as
 // [pkgconfig.ParseConfig] does. It decodes the parts src decodes with the `dependency` value src gives c. It reads
-// the inputs and writes to the sinks of pc, reads the state of each file from the file's own config, and never
+// the settings and writes to the sinks of pc, reads the state of each file from the file's own config, and never
 // changes c.
 func (c *UnitConfig) assemble(
 	ctx context.Context,

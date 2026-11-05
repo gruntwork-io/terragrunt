@@ -29,7 +29,7 @@ const (
 type Key struct {
 	// Path is the cleaned path of the file the result is of.
 	Path string
-	// Context is a digest of every input beyond the file that the stage reads, empty for a stage that reads none.
+	// Context is a digest of every setting beyond the file that the stage reads, empty for a stage that reads none.
 	Context string
 	// Stage is the step the result is of.
 	Stage Stage
