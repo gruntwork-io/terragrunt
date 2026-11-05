@@ -1,6 +1,6 @@
 ---
 name: terraform_version_constraint
-description: Overrides the default minimum supported version of OpenTofu/Terraform.
+description: Sets the OpenTofu/Terraform versions a unit accepts.
 configs: [unit]
 type: string
 default: ">= v0.12.0"
@@ -9,8 +9,9 @@ examples:
       # terragrunt.hcl
 
       terraform_version_constraint = ">= 0.11"
+note:
+  title: IaC engines
+  body: Terragrunt doesn't check this constraint on a unit that uses an [IaC engine](/features/units/engine/).
 ---
 
-The `terraform_version_constraint` attribute overrides the default minimum supported version of OpenTofu/Terraform. Terragrunt usually only officially supports the latest version of OpenTofu/Terraform, but in some cases you need an older version.
-
-Terragrunt checks the constraint against the version of OpenTofu/Terraform it finds in `PATH`, or the one [`terraform_binary`](/reference/hcl/attributes/terraform_binary/) or `--tf-path` sets. A unit with an [IaC engine](/features/units/engine/) could be anything, so Terragrunt skips its constraint with a warning.
+The `terraform_version_constraint` attribute sets the OpenTofu/Terraform versions a unit accepts. It replaces the default constraint, so it can allow versions older than the default. If the version of the binary [`terraform_binary`](/reference/hcl/attributes/terraform_binary/) selects doesn't satisfy the constraint, Terragrunt exits with an error.

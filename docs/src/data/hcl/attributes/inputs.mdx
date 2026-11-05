@@ -44,41 +44,58 @@ examples:
       }
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+import SideBySide from '@components/SideBySide.astro';
 import Since from '@components/Since.astro';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
 
-The `inputs` attribute is a map of the input variables and values to pass to OpenTofu/Terraform. Each entry reaches OpenTofu/Terraform through [the environment variable mechanism](https://opentofu.org/docs/language/values/variables/#environment-variables), in the form `TF_VAR_variablename`, with the value encoded as JSON.
+The `inputs` attribute sets a module's variables. Each key sets the variable of the same name.
 
-Because the values pass through environment variables and JSON, the type information is lost when crossing the boundary between Terragrunt and OpenTofu/Terraform. You must specify the proper [type constraint](https://opentofu.org/docs/language/values/variables/#type-constraints) on the variable in OpenTofu/Terraform for it to process the input as the right type.
+<FileTree>
 
-The type constraint also decides how the value is read. A variable declared as `string`, or declared with no type at all, receives the value verbatim. Every other type constraint makes OpenTofu/Terraform read the value as an HCL expression, where `${...}` means interpolation. Terragrunt escapes those sequences for you when the module reads a value as HCL, so text like `${just_a_string}` reaches the module as written.
+- live
+  - app
+    - **terragrunt.hcl** sets the inputs
+- modules
+  - app
+    - main.tf
+    - **variables.tf** declares the variables
 
-<Since version="v1.2.2">
+</FileTree>
 
-A unit with many or large inputs can exceed the operating system's limit on the size of a process environment. The [`variables-block`](/reference/experiments/active#variables-block) experiment adds a [`variables`](/reference/hcl/blocks#variables) block that can write inputs to an auto-loaded variables file.
+<SideBySide>
 
-</Since>
+```hcl title="modules/app/variables.tf" "instance_type" "instance_count" "tags"
+variable "instance_type" {
+  type = string
+}
 
-Using this attribute is roughly equivalent to setting the corresponding `TF_VAR_` environment variable. For example, setting this in your `terragrunt.hcl`:
+variable "instance_count" {
+  type = number
+}
 
-```hcl
-# terragrunt.hcl
+variable "tags" {
+  type = map(string)
+}
+```
+
+```hcl title="live/app/terragrunt.hcl" "instance_type" "instance_count" "tags"
+terraform {
+  source = "../..//modules/app"
+}
+
 inputs = {
   instance_type  = "t2.micro"
   instance_count = 10
-
   tags = {
     Name = "example-app"
   }
 }
 ```
 
-And running:
+</SideBySide>
 
-```bash
-terragrunt apply
-```
-
-This is roughly equivalent to running:
+Terragrunt passes each input to OpenTofu/Terraform as a [`TF_VAR_` environment variable](https://opentofu.org/docs/language/values/variables/#environment-variables), with the value encoded as JSON. Running `terragrunt apply` in `live/app` is roughly equivalent to running:
 
 ```bash
 TF_VAR_instance_type="t2.micro" \
@@ -87,13 +104,29 @@ TF_VAR_tags='{"Name":"example-app"}' \
 tofu apply # or terraform apply
 ```
 
+<Aside type="caution" title="Declare a type on each variable">
+
+Environment variables are strings, so OpenTofu/Terraform uses a variable's [type constraint](https://opentofu.org/docs/language/values/variables/#type-constraints) to read the value. A variable with no type receives a list or map as a JSON string.
+
+</Aside>
+
+A `null` input reaches the module as `null`, which overrides the variable's default. A literal `${...}` in a value reaches the module as written.
+
+<Since version="v1.2.2">
+
+A unit with many or large inputs can exceed the operating system's limit on the size of a process environment. The [`variables-block`](/reference/experiments/active#variables-block) experiment adds a [`variables`](/reference/hcl/blocks#variables) block that can write inputs to an auto-loaded variables file.
+
+</Since>
+
 ### Variable precedence
 
-Variables loaded in OpenTofu/Terraform use the following precedence order, with the highest precedence being lowest on the list:
+OpenTofu/Terraform uses the first of these that sets a variable:
 
-1. `inputs` set in `terragrunt.hcl` files.
-2. Explicitly set `TF_VAR_` environment variables (these override the `inputs` set in `terragrunt.hcl` if they conflict).
-3. `terraform.tfvars` files if present.
-4. `terraform.tfvars.json` files if present.
-5. Any `*.auto.tfvars` or `*.auto.tfvars.json` files, processed in lexical order of their filenames.
-6. Any `-var` and `-var-file` options on the command line, in the order they are provided.
+1. `-var` and `-var-file` options on the command line. If several set it, the last one wins.
+2. `*.auto.tfvars` and `*.auto.tfvars.json` files. If several set it, the last filename in lexical order wins.
+3. A `terraform.tfvars.json` file.
+4. A `terraform.tfvars` file.
+5. A `TF_VAR_` environment variable you set yourself.
+6. `inputs`.
+
+By default, a unit's `inputs` merge with those of the files it includes, key by key. The unit's value wins for a key set in both.

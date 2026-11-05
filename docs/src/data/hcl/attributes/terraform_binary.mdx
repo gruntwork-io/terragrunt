@@ -11,6 +11,14 @@ examples:
       terraform_binary = "/usr/local/bin/tofu"
 ---
 
-The `terraform_binary` attribute overrides the binary Terragrunt calls. Without it, Terragrunt calls `tofu` if it is on your `PATH`, and `terraform` otherwise.
+The `terraform_binary` attribute sets the OpenTofu/Terraform binary Terragrunt calls.
 
-The precedence is as follows: `--tf-path` command line option → `TG_TF_PATH` env variable → `terragrunt.hcl` in the module directory → included `terragrunt.hcl`.
+### Precedence
+
+Terragrunt uses the first of these that is set:
+
+1. The [`--tf-path`](/reference/cli/commands/run#tf-path) flag.
+2. The `TG_TF_PATH` environment variable.
+3. `terraform_binary` in the unit's `terragrunt.hcl`.
+4. `terraform_binary` in a file the unit includes.
+5. `tofu` if it is on your `PATH`, otherwise `terraform`.

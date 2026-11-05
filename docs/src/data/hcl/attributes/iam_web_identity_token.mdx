@@ -20,11 +20,18 @@ examples:
       iam_web_identity_token = "/path/to/token/file"
 ---
 
-The `iam_web_identity_token` attribute works with `iam_role` to assume a role using AssumeRoleWithWebIdentity. Set it to either the token value (typically using `get_env()`) or the path to a file on disk.
-
-The precedence is as follows: `--iam-assume-role-web-identity-token` command line option → `TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable → `iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included `terragrunt.hcl`.
+The `iam_web_identity_token` attribute works with `iam_role` to assume a role using AssumeRoleWithWebIdentity, and has no effect without it. Set it to either the token value (typically using `get_env()`) or the path to a file on disk.
 
 AssumeRoleWithWebIdentity lets you run Terragrunt in your CI/CD pipelines without static AWS credentials.
+
+### Precedence
+
+Terragrunt uses the first of these that is set:
+
+1. The [`--iam-assume-role-web-identity-token`](/reference/cli/commands/run#iam-assume-role-web-identity-token) flag.
+2. The `TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` environment variable.
+3. `iam_web_identity_token` in the unit's `terragrunt.hcl`.
+4. `iam_web_identity_token` in a file the unit includes.
 
 ### Git provider configuration
 
