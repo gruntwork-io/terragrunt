@@ -403,6 +403,115 @@ engine {
 	}
 }
 
+func TestResolveUnitQueueConfigKeepsMergedSignalsApartWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const callers = 16
+
+	root := t.TempDir()
+	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte(`
+errors {
+  ignore "x" {
+    ignorable_errors = [".*"]
+    signals          = { from_root = "root" }
+  }
+}
+`), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+errors {
+  ignore "x" {
+    ignorable_errors = [".*"]
+    signals          = { from_unit = "unit" }
+  }
+}
+`), 0o644))
+
+	v := venvtest.New().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	ctx, run := newTestParsingContext(t, path)
+
+	_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+	require.NoError(t, err)
+
+	hit, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+	require.NoError(t, err)
+	clear(hit.Errors.Ignore[0].Signals)
+
+	var g errgroup.Group
+
+	for range callers {
+		g.Go(func() error {
+			callerCtx, callerRun := newTestParsingContext(t, path)
+
+			cfg, err := store.ResolveUnitQueueConfig(callerCtx, l, v, config.NewParseContext(callerRun), path)
+			if err != nil {
+				return err
+			}
+
+			assert.Len(t, cfg.Errors.Ignore[0].Signals, 2)
+
+			return nil
+		})
+	}
+
+	require.NoError(t, g.Wait())
+}
+
+func TestResolveRunConfigReportsAnIncludeTheParseStoppedBefore(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+
+	files := map[string]string{
+		"a.hcl": "locals {}\n",
+		"r.hcl": `
+dependency "x" {
+  config_path  = "../x"
+  skip_outputs = true
+  mock_outputs = { v = dependency.y.outputs.z }
+}
+`,
+		"x/terragrunt.hcl": "",
+		"app/terragrunt.hcl": `
+include "a" {
+  path = find_in_parent_folders("a.hcl")
+}
+
+include "r" {
+  path = find_in_parent_folders("r.hcl")
+}
+`,
+	}
+
+	fsys := vfs.NewMemMapFS()
+
+	for rel, content := range files {
+		require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, rel), []byte(content), 0o644))
+	}
+
+	v := venvtest.New().WithFS(fsys)
+	ctx, run := newTestParsingContext(t, path)
+
+	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(run), path)
+
+	var unparsed config.UnparsedIncludeError
+
+	require.ErrorAs(t, err, &unparsed)
+	assert.Equal(t, filepath.Join(root, "a.hcl"), unparsed.IncludePath)
+	assert.NotNil(t, cfg)
+}
+
 func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
 	t.Parallel()
 

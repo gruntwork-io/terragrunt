@@ -18,7 +18,8 @@ import (
 // index with the HCL slice it decodes.
 //
 // Engine is the exception to that scope: the parse decodes it with `dependency` unknown, as
-// [pkgconfig.PartialParseConfigFile] does, and [RunBodies] holds it again decoded with the outputs.
+// [pkgconfig.PartialParseConfigFile] does when it skips resolving outputs, and [RunBodies] holds it again decoded with
+// the outputs.
 type QueueBodies struct {
 	Exclude *ExcludeBody
 	Engine  *EngineBody

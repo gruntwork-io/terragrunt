@@ -44,8 +44,12 @@ type Key struct {
 // [Store.ResolveRunConfig], each reading more of the file than the last.
 //
 // Each key holds a promise. The first caller of a key runs its body while later callers wait for the outcome. A
-// result is retained only when the body returns no error: an error is recomputed by the next caller, and a body
-// that ends with its caller's context stops nobody, as the waiters run the body again under their own.
+// result is retained only when the body returns no error before its caller's context ends: an error is recomputed by
+// the next caller, and a body that outlives its caller's context stops nobody, as the waiters run the body again under
+// their own.
+//
+// Only [Store.ParseUnitAST] notices a file changing on disk. Every other stage serves its result until
+// [Store.Invalidate] drops it.
 //
 // A body that memoizes its own key, directly or through the bodies it calls, waits for itself.
 //
@@ -90,7 +94,7 @@ type entry struct {
 	files map[string]struct{}
 	// mu guards reads and files.
 	mu sync.Mutex
-	// abandoned is true when the body failed after its caller's context ended.
+	// abandoned is true when the body returned after its caller's context ended.
 	abandoned bool
 }
 
@@ -114,15 +118,36 @@ func (e FlightAbortedError) Error() string {
 // flightKey is the context key of the entry whose body is running.
 type flightKey struct{}
 
+// flightEnd is how a run of a body ended.
+type flightEnd uint8
+
+const (
+	// flightCompleted is a body that returned while its caller's context was live.
+	flightCompleted flightEnd = iota + 1
+	// flightAbandoned is a body that returned after its caller's context ended, whose result nobody receives but that
+	// caller.
+	flightAbandoned
+)
+
+// flightRole is what a call did for the run it received a result from.
+type flightRole uint8
+
+const (
+	// flightLed is the call that ran the body.
+	flightLed flightRole = iota + 1
+	// flightJoined is a call that received the result of another call's body.
+	flightJoined
+)
+
 // Memoize returns the value of k, running fn to produce it when no call has yet. Concurrent calls for k share
-// one run of fn. The value is retained only when fn returns nil.
+// one run of fn. The value is retained only when fn returns nil before ctx ends.
 //
 // fn receives a context that carries ctx's values and identifies the run: the reads of every [Store.ParseUnitAST] and
 // [NoteReads] call and of every nested Memoize under it join the entry.
 //
 // Returns fn's error, with fn's value, when the run this call joined failed. A call that joined a run which
-// failed after its own caller's context ended runs fn again. Returns ctx.Err() with no value when ctx ends
-// while the call waits.
+// outlived its own caller's context runs fn again. Returns ctx.Err() with no value when ctx ends while the call waits,
+// or before it can run fn again.
 //
 // Panics again on the caller that ran fn when fn panics. Callers waiting on that run receive
 // [FlightAbortedError].
@@ -141,14 +166,20 @@ func (s *Store) Memoize[T any](
 
 		select {
 		case <-e.done:
-			if e.abandoned && ctx.Err() == nil {
+			if e.abandoned {
+				if err := ctx.Err(); err != nil {
+					var zero Memoized[T]
+
+					return zero, err
+				}
+
 				continue
 			}
 
 			s.hits.Add(1)
 			e.propagate(ctx)
 
-			return memoized[T](e, true), e.err
+			return memoized[T](e, flightJoined), e.err
 		case <-ctx.Done():
 			var zero Memoized[T]
 
@@ -287,7 +318,7 @@ func (s *Store) run[T any](
 
 		var zero T
 
-		s.finish(k, e, zero, FlightAbortedError{Key: k, Panic: r}, false)
+		s.finish(k, e, zero, FlightAbortedError{Key: k, Panic: r}, flightCompleted)
 
 		if r != nil {
 			panic(r)
@@ -297,21 +328,27 @@ func (s *Store) run[T any](
 	val, err := fn(context.WithValue(ctx, flightKey{}, e))
 	returned = true
 
-	s.finish(k, e, val, err, err != nil && ctx.Err() != nil)
+	end := flightCompleted
+	if ctx.Err() != nil {
+		end = flightAbandoned
+	}
+
+	s.finish(k, e, val, err, end)
 	e.propagate(ctx)
 
-	return memoized[T](e, false), err
+	return memoized[T](e, flightLed), err
 }
 
-// finish records the outcome of e's body, drops e from the map when the body failed, and wakes the waiters.
-func (s *Store) finish(k Key, e *entry, val any, err error, abandoned bool) {
+// finish records the outcome of e's body, drops e from the map when the body failed or was abandoned, and wakes the
+// waiters.
+func (s *Store) finish(k Key, e *entry, val any, err error, end flightEnd) {
 	s.mu.Lock()
 
 	e.val = val
 	e.err = err
-	e.abandoned = abandoned
+	e.abandoned = end == flightAbandoned
 
-	if err != nil && s.entries[k] == e {
+	if (err != nil || e.abandoned) && s.entries[k] == e {
 		delete(s.entries, k)
 	}
 
@@ -348,13 +385,13 @@ func (s *Store) dropStale(k Key, info fs.FileInfo) {
 }
 
 // memoized returns e's outcome as a [Memoized]. The value is the zero value when the body returned none.
-func memoized[T any](e *entry, hit bool) Memoized[T] {
+func memoized[T any](e *entry, role flightRole) Memoized[T] {
 	val, _ := e.val.(T)
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	return Memoized[T]{Value: val, Reads: slices.Sorted(maps.Keys(e.reads)), Hit: hit}
+	return Memoized[T]{Value: val, Reads: slices.Sorted(maps.Keys(e.reads)), Hit: role == flightJoined}
 }
 
 // propagate adds e's reads and files to the run ctx belongs to, if any.

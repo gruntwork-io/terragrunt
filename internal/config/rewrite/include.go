@@ -104,10 +104,8 @@ func (p includeResolver) autoIncluded(
 	return cfg, err
 }
 
-// keptIncludes assembles the files a parse kept. A parse keeps every file its assembly reaches, and an assembly
-// from the same config reaches the same files, so a kept file is never missing.
-//
-// Panics when the config has no kept file for an include the assembly reaches.
+// keptIncludes assembles the files a parse kept. A parse keeps the files its assembly reached before it stopped, and an
+// assembly that gets further returns [UnparsedIncludeError].
 type keptIncludes struct {
 	// inherited is the `dependency` value of the including file, nil when the assembled file resolves its own.
 	inherited *cty.Value
@@ -148,16 +146,12 @@ func (k keptIncludes) included(
 	i int,
 	deps *cty.Value,
 ) (*pkgconfig.TerragruntConfig, error) {
-	included := c.kept.included[i]
-	if included == nil {
-		panic(fmt.Sprintf("%s: no kept file for include block %d", c.file.ConfigPath, i))
+	included, err := c.keptInclude(pc, i)
+	if err != nil {
+		return nil, err
 	}
 
-	if included.cfg == nil {
-		return nil, included.err
-	}
-
-	cfg, err := included.cfg.assemble(ctx, l, v, pc, keptIncludes{inherited: deps})
+	cfg, err := included.assemble(ctx, l, v, pc, keptIncludes{inherited: deps})
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -175,20 +169,16 @@ func (k keptIncludes) autoIncluded(
 	c *UnitConfig,
 	path string,
 ) (*pkgconfig.TerragruntConfig, error) {
-	if c.kept.autoInclude == nil {
-		panic(fmt.Sprintf("%s: no kept file for autoinclude %s", c.file.ConfigPath, path))
+	autoInclude, err := c.keptAutoInclude(path)
+	if err != nil {
+		return nil, err
 	}
 
-	if c.kept.autoInclude.cfg == nil {
-		return nil, c.kept.autoInclude.err
-	}
-
-	return c.kept.autoInclude.cfg.assemble(ctx, l, v, pc, keptIncludes{})
+	return autoInclude.assemble(ctx, l, v, pc, keptIncludes{})
 }
 
-// keptQueue assembles the files a parse kept from their queue parts alone, with no run parts and no outputs.
-//
-// Panics when the config has no kept file for an include the assembly reaches.
+// keptQueue assembles the files a parse kept from their queue parts alone, with no run parts and no outputs. An
+// assembly that gets further than the parse did returns [UnparsedIncludeError].
 type keptQueue struct{}
 
 func (q keptQueue) file(
@@ -217,16 +207,12 @@ func (q keptQueue) included(
 	i int,
 	_ *cty.Value,
 ) (*pkgconfig.TerragruntConfig, error) {
-	included := c.kept.included[i]
-	if included == nil {
-		panic(fmt.Sprintf("%s: no kept file for include block %d", c.file.ConfigPath, i))
+	included, err := c.keptInclude(pc, i)
+	if err != nil {
+		return nil, err
 	}
 
-	if included.cfg == nil {
-		return nil, included.err
-	}
-
-	cfg, err := included.cfg.assemble(ctx, l, v, pc, keptQueue{})
+	cfg, err := included.assemble(ctx, l, v, pc, keptQueue{})
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -244,15 +230,47 @@ func (q keptQueue) autoIncluded(
 	c *UnitConfig,
 	path string,
 ) (*pkgconfig.TerragruntConfig, error) {
-	if c.kept.autoInclude == nil {
-		panic(fmt.Sprintf("%s: no kept file for autoinclude %s", c.file.ConfigPath, path))
+	autoInclude, err := c.keptAutoInclude(path)
+	if err != nil {
+		return nil, err
 	}
 
-	if c.kept.autoInclude.cfg == nil {
-		return nil, c.kept.autoInclude.err
+	return autoInclude.assemble(ctx, l, v, pc, keptQueue{})
+}
+
+// keptInclude returns the parse of the file c's include block i names.
+//
+// Returns the error that left the file unparsed, or [UnparsedIncludeError] when the parse stopped before reaching it.
+func (c *UnitConfig) keptInclude(pc *ParseContext, i int) (*UnitConfig, error) {
+	included := c.kept.included[i]
+	if included == nil {
+		return nil, UnparsedIncludeError{
+			ConfigPath:  c.file.ConfigPath,
+			IncludePath: pc.file.includes.List[i].Path,
+		}
 	}
 
-	return c.kept.autoInclude.cfg.assemble(ctx, l, v, pc, keptQueue{})
+	if included.cfg == nil {
+		return nil, included.err
+	}
+
+	return included.cfg, nil
+}
+
+// keptAutoInclude returns the parse of c's autoinclude at path.
+//
+// Returns the error that left the file unparsed, or [UnparsedIncludeError] when the parse stopped before reaching it.
+func (c *UnitConfig) keptAutoInclude(path string) (*UnitConfig, error) {
+	autoInclude := c.kept.autoInclude
+	if autoInclude == nil {
+		return nil, UnparsedIncludeError{ConfigPath: c.file.ConfigPath, IncludePath: path}
+	}
+
+	if autoInclude.cfg == nil {
+		return nil, autoInclude.err
+	}
+
+	return autoInclude.cfg, nil
 }
 
 // mergeIncludes merges each file c includes into cfg by its merge strategy, last include first, so later include

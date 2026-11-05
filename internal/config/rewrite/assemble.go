@@ -21,7 +21,7 @@ import (
 //
 // pc gives the run's settings and sinks, and c the state of each file.
 //
-// Panics when c did not come from [Store.ResolveUnitParsedFile] or [Store.ResolveUnitConfig].
+// Panics when c did not come from [Store.ResolveUnitConfig].
 func (c *UnitConfig) ToV1(
 	ctx context.Context,
 	l log.Logger,

@@ -203,6 +203,70 @@ func TestStoreMemoizeWaiterRunsAgainAfterLeaderCancelsWithRacing(t *testing.T) {
 	assert.Equal(t, int32(2), runs.Load())
 }
 
+func TestStoreMemoizeDoesNotRetainABodyThatOutlivedItsContext(t *testing.T) {
+	t.Parallel()
+
+	s := &config.Store{}
+	k := config.Key{Path: "/repo/unit/terragrunt.hcl", Stage: config.StageQueue}
+
+	ctx, cancel := context.WithCancel(t.Context())
+
+	_, err := s.Memoize(ctx, k, func(context.Context) (string, error) {
+		cancel()
+
+		return "fallback", nil
+	})
+	require.NoError(t, err)
+
+	res, err := s.Memoize(t.Context(), k, func(context.Context) (string, error) {
+		return "value", nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "value", res.Value)
+	assert.False(t, res.Hit)
+}
+
+func TestStoreMemoizeWaiterWithAnEndedContextGetsNoAbandonedResultWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &config.Store{}
+		k := config.Key{Path: "/repo/unit/terragrunt.hcl", Stage: config.StageQueue}
+
+		ctx, cancel := context.WithCancel(t.Context())
+		release := make(chan struct{})
+
+		go func() {
+			_, err := s.Memoize(ctx, k, func(context.Context) (string, error) {
+				<-release
+
+				return "fallback", nil
+			})
+			assert.NoError(t, err)
+		}()
+
+		synctest.Wait()
+
+		waiterDone := make(chan outcome, 1)
+
+		go func() {
+			res, err := s.Memoize(ctx, k, func(context.Context) (string, error) {
+				return "value", nil
+			})
+
+			waiterDone <- outcome{res: res, err: err}
+		}()
+
+		synctest.Wait()
+		cancel()
+		close(release)
+
+		waiter := <-waiterDone
+		require.ErrorIs(t, waiter.err, context.Canceled)
+		assert.Empty(t, waiter.res.Value)
+	})
+}
+
 func TestStoreMemoizeWaiterReturnsWhenItsContextEndsWithRacing(t *testing.T) {
 	t.Parallel()
 
