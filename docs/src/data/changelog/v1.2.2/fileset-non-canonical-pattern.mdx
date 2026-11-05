@@ -5,7 +5,7 @@ category: "bug-fixes"
 
 #### `fileset` matches patterns that are not in canonical form
 
-In v1.2.0 and v1.2.1, `fileset` matched its pattern against file paths without cleaning it first. A pattern that relied on a leading `./`, a leading `/`, `//`, `/./`, or `../` returned an empty set, with no error or warning:
+In v1.2.0 and v1.2.1, `fileset` returned an empty set, with no error, for a pattern with a leading `./` or `/`, or with `//`, `/./` or `../` in it:
 
 ```hcl
 inputs = {
@@ -14,12 +14,6 @@ inputs = {
 }
 ```
 
-An input built from that empty set could make OpenTofu/Terraform plan to remove the resources created from those files.
+An input built from that empty set could make OpenTofu/Terraform plan to remove resources.
 
-`fileset` now first matches the pattern as written. If that finds no files, it cleans the pattern and matches again. Cleaning joins the pattern to the path, as OpenTofu/Terraform do and as Terragrunt did before v1.2.0. That drops `./` and a trailing `/`, turns `//` into `/`, and resolves `../`. The call above returns `["resources/a.json"]` again. A pattern that climbs above the path, such as `../shared/*.json`, returns paths that start with `../`.
-
-A pattern that returned files in v1.2.1 returns the same files, because matches as written take priority.
-
-A pattern that ends with `/`, such as `modules/*/**/`, can match differently when a file is added to `modules/`. End the pattern with a file glob, such as `modules/*/**/*`, instead.
-
-When Terragrunt cleans a pattern on Windows, a `\` in it is a path separator, as in OpenTofu/Terraform.
+When a pattern matches no files as written, `fileset` now cleans it as OpenTofu/Terraform do and matches again, so the call above returns `["resources/a.json"]`. Patterns that already returned files return the same files. See [OpenTofu/Terraform built-in functions](/reference/hcl/functions#opentofuterraform-built-in-functions) for how a pattern is cleaned.
