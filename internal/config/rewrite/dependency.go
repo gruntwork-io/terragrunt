@@ -13,8 +13,8 @@ import (
 
 // dependencySet is the dependency blocks of a file that resolves its own dependencies.
 type dependencySet struct {
-	// file is the owning file.
-	file *pkghclparse.File
+	// configPath is the path of the owning file.
+	configPath string
 	// blocks is the blocks of file, merged with those of its includes and autoinclude.
 	blocks pkgconfig.Dependencies
 }
@@ -33,8 +33,8 @@ func newDependencySet(
 	}
 
 	return &dependencySet{
-		file:   file,
-		blocks: decoded.Dependencies,
+		configPath: file.ConfigPath,
+		blocks:     decoded.Dependencies,
 	}, nil
 }
 
@@ -57,7 +57,7 @@ func (s *dependencySet) resolve(
 	err := pkgconfig.TraceParseDependencies(
 		ctx,
 		l,
-		s.file.ConfigPath,
+		s.configPath,
 		pctx.SkipOutputsResolution,
 		len(s.blocks),
 		names,
@@ -86,18 +86,19 @@ func (c *UnitConfig) dependencyValue(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 ) (*cty.Value, error) {
-	if c.pc.file.decodedDeps != nil {
-		return c.pc.file.decodedDeps, nil
+	if pc.file.decodedDeps != nil {
+		return pc.file.decodedDeps, nil
 	}
 
-	pctx := c.pc.parsingContext()
+	pctx := pc.parsingContext()
 	set := c.deps
 
-	if c.pc.file.inheritsDependencies {
+	if pc.file.inheritsDependencies {
 		var err error
 
-		set, err = newDependencySet(ctx, l, v, pctx, c.file)
+		set, err = newDependencySet(ctx, l, v, pctx, c.boundFile(l, v, pc))
 		if err != nil {
 			return failedDependencyValue(nil), err
 		}

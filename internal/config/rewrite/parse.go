@@ -23,6 +23,8 @@ import (
 // evaluation. [Store.Invalidate] finds a memoized result by the config files it parsed, and by a file it read through
 // a function such as file only when pc's run records its reads.
 //
+// The [UnitConfig] is shared with every caller of the same file and context, and must not be changed.
+//
 // Returns the errors of the parse, which [UnitConfig.ToV1] returns again with those of resolving the outputs. Returns
 // nil when the parse produced no config.
 func (s *Store) ResolveUnitConfig(
@@ -130,7 +132,7 @@ func (s *Store) ResolveRunConfig(
 		return nil, err
 	}
 
-	return c.ToV1(ctx, l, v)
+	return c.ToV1(ctx, l, v, pc)
 }
 
 // ResolveUnitParsedFile resolves the config in file and the files it merges in, as [Store.ResolveUnitConfig] does. The
@@ -147,7 +149,7 @@ func (s *Store) ResolveUnitParsedFile(
 		return nil, err
 	}
 
-	cfg, err := c.assemble(ctx, l, v, includeResolver{store: s})
+	cfg, err := s.assembleFirst(ctx, l, v, pc, c)
 	if cfg == nil {
 		return nil, err
 	}
@@ -186,24 +188,24 @@ func (s *Store) resolveFile(
 
 	res, err := s.Memoize(ctx, key, func(ctx context.Context) (*resolvedFile, error) {
 		c, cfg, err := s.resolveFileOnce(ctx, l, v, flight, cfgPath)
-		NoteReads(ctx, flight.run.FilesRead.Paths()...)
+		NoteReads(ctx, flight.sinks.filesRead.Paths()...)
 
 		return &resolvedFile{c: c, cfg: cfg}, err
 	})
 
 	for _, path := range res.Reads {
-		pc.run.FilesRead.Add(path)
+		pc.sinks.filesRead.Add(path)
 	}
 
 	if res.Value == nil || res.Value.c == nil {
 		return nil, nil, err
 	}
 
-	c := res.Value.c.rebind(l, v, pc.run)
+	c := res.Value.c
 	cfg := res.Value.cfg
 
 	if res.Hit {
-		cfg, err = c.assemble(ctx, l, v, keptQueue{})
+		cfg, err = c.assemble(ctx, l, v, pc, keptQueue{})
 	}
 
 	return c, cfg, err
@@ -231,9 +233,9 @@ func (s *Store) resolveFileOnce(
 		ctx,
 		l,
 		cfgPath,
-		pc.run.WorkingDir,
-		len(pc.run.PartialParseDecodeList) > 0,
-		pc.run.PartialParseDecodeList,
+		pc.inputs.WorkingDir,
+		len(pc.inputs.PartialParseDecodeList) > 0,
+		pc.inputs.PartialParseDecodeList,
 		pc.file.include,
 		false,
 		func(childCtx context.Context, l log.Logger) error {
@@ -249,7 +251,7 @@ func (s *Store) resolveFileOnce(
 				return parseErr
 			}
 
-			cfg, parseErr = c.assemble(childCtx, l, v, includeResolver{store: s})
+			cfg, parseErr = s.assembleFirst(childCtx, l, v, pc, c)
 
 			return parseErr
 		},
@@ -274,35 +276,21 @@ func statConfig(v *venv.Venv, cfgPath string) (fs.FileInfo, error) {
 	return nil, fmt.Errorf("failed to get file info: %w", err)
 }
 
-// rebind returns a copy of c reading run's settings, whose FilesRead receives what [UnitConfig.ToV1] reads and
-// whose logger and writers receive the diagnostics. Its file and kept files are rebound the same way. c is never
-// changed.
-func (c *UnitConfig) rebind(l log.Logger, v *venv.Venv, run *pkgconfig.ParsingContext) *UnitConfig {
-	r := *c
-	r.pc = c.pc.withRun(run)
-	r.file = c.file.Rebind(pkghclparse.NewParser(r.pc.parserOptions(l, v)...))
+// assembleFirst runs the assembly of a parse, which resolves the files c merges, and keeps those files on c. Nothing
+// else holds c yet.
+func (s *Store) assembleFirst(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	c *UnitConfig,
+) (*pkgconfig.TerragruntConfig, error) {
+	kept := newKeptFiles(c.Includes)
 
-	if c.deps != nil {
-		deps := *c.deps
-		deps.file = r.file
-		r.deps = &deps
-	}
+	cfg, err := c.assemble(ctx, l, v, pc, includeResolver{store: s, kept: kept})
+	c.kept = *kept
 
-	if c.autoInclude != nil {
-		r.autoInclude = c.autoInclude.rebind(l, v, run)
-	}
-
-	if c.includedFiles != nil {
-		r.includedFiles = make([]*includedFile, len(c.includedFiles))
-
-		for i, included := range c.includedFiles {
-			if included != nil {
-				r.includedFiles[i] = included.rebind(l, v, run)
-			}
-		}
-	}
-
-	return &r
+	return cfg, err
 }
 
 // unitBase is a file's state through its base blocks.
@@ -411,11 +399,10 @@ func prepare(
 	pc = base.pc
 	errs := base.errs
 
-	c := &UnitConfig{file: file, Locals: base.locals}
+	c := &UnitConfig{Locals: base.locals}
 
 	if includes := pc.file.includes; includes != nil {
 		c.Includes = includes
-		c.includedFiles = make([]*includedFile, len(includes.List))
 	}
 
 	if pc.file.decodedDeps == nil && !pc.file.inheritsDependencies {
@@ -445,7 +432,7 @@ func prepare(
 		c.evalVars = evalCtx.Variables
 	}
 
-	c.pc = pc
+	c.scope = pc.file
 	c.prepErrs = errs
 
 	c.decodeErr = file.ApplyFileUpdate()
@@ -458,7 +445,15 @@ func prepare(
 		c.decodeErr = file.HandleDiagnostics(append(diags, queueDiags...))
 	}
 
+	c.file = withoutParser(file)
+
 	return c, nil
+}
+
+// withoutParser returns file with no parser, for keeping in a stage's result. Using it before [pkghclparse.File.Rebind]
+// panics.
+func withoutParser(file *pkghclparse.File) *pkghclparse.File {
+	return &pkghclparse.File{File: file.File, ConfigPath: file.ConfigPath}
 }
 
 // absInclude returns pc's include block with its path made absolute, in a copy.
@@ -469,7 +464,7 @@ func absInclude(pc *ParseContext) *pkgconfig.IncludeConfig {
 	}
 
 	abs := *include
-	abs.Path = filepath.Clean(filepath.Join(filepath.Dir(pc.run.TerragruntConfigPath), abs.Path))
+	abs.Path = filepath.Clean(filepath.Join(filepath.Dir(pc.inputs.TerragruntConfigPath), abs.Path))
 
 	return &abs
 }

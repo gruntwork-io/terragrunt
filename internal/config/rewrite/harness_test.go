@@ -170,13 +170,9 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 		store = &config.Store{}
 	}
 
-	parsed, parseErr := store.ResolveUnitConfig(
-		ctx,
-		l,
-		v,
-		config.NewParseContext(pctx),
-		tc.cfgPath,
-	)
+	pc := config.NewParseContext(pctx)
+
+	parsed, parseErr := store.ResolveUnitConfig(ctx, l, v, pc, tc.cfgPath)
 
 	stub.inToV1.Store(true)
 
@@ -185,7 +181,7 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 	gotErr := parseErr
 
 	if parsed != nil {
-		gotCfg, gotErr = parsed.ToV1(ctx, l, v)
+		gotCfg, gotErr = parsed.ToV1(ctx, l, v, pc)
 		assertErrorsWithin(t, parseErr, gotErr)
 	}
 

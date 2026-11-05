@@ -21,13 +21,20 @@ type includeSource interface {
 	// reaches them, and returns the diagnostics of that decode.
 	file(c *UnitConfig, evalCtx *hcl.EvalContext) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics)
 	// dependencies returns the `dependency` value c decodes with.
-	dependencies(ctx context.Context, l log.Logger, v *venv.Venv, c *UnitConfig) (*cty.Value, error)
+	dependencies(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		pc *ParseContext,
+		c *UnitConfig,
+	) (*cty.Value, error)
 	// included returns the config of the file c's include block i names, which decodes with deps, the `dependency`
 	// value of c, and resolves its own dependencies when deps is nil.
 	included(
 		ctx context.Context,
 		l log.Logger,
 		v *venv.Venv,
+		pc *ParseContext,
 		c *UnitConfig,
 		i int,
 		deps *cty.Value,
@@ -37,14 +44,16 @@ type includeSource interface {
 		ctx context.Context,
 		l log.Logger,
 		v *venv.Venv,
+		pc *ParseContext,
 		c *UnitConfig,
 		path string,
 	) (*pkgconfig.TerragruntConfig, error)
 }
 
-// includeResolver resolves each included file with store and keeps it on the config that includes it.
+// includeResolver resolves each included file with store and records it in kept.
 type includeResolver struct {
 	store *Store
+	kept  *keptFiles
 }
 
 func (p includeResolver) file(
@@ -58,23 +67,25 @@ func (p includeResolver) dependencies(
 	_ context.Context,
 	_ log.Logger,
 	_ *venv.Venv,
-	c *UnitConfig,
+	pc *ParseContext,
+	_ *UnitConfig,
 ) (*cty.Value, error) {
-	return c.pc.file.decodedDeps, nil
+	return pc.file.decodedDeps, nil
 }
 
 func (p includeResolver) included(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	c *UnitConfig,
 	i int,
 	_ *cty.Value,
 ) (*pkgconfig.TerragruntConfig, error) {
-	include := c.pc.file.includes.List[i]
+	include := pc.file.includes.List[i]
 
-	included, cfg, err := c.resolveIncludedConfig(ctx, l, v, p.store, &include)
-	c.includedFiles[i] = newIncludedFile(included, err)
+	included, cfg, err := c.resolveIncludedConfig(ctx, l, v, pc, p.store, &include)
+	p.kept.included[i] = newIncludedFile(included, err)
 
 	return cfg, err
 }
@@ -83,11 +94,12 @@ func (p includeResolver) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	c *UnitConfig,
 	path string,
 ) (*pkgconfig.TerragruntConfig, error) {
-	autoInclude, cfg, err := p.store.resolveFile(ctx, l, v, c.pc.forAutoInclude(), path)
-	c.autoInclude = newIncludedFile(autoInclude, err)
+	autoInclude, cfg, err := p.store.resolveFile(ctx, l, v, pc.forAutoInclude(), path)
+	p.kept.autoInclude = newIncludedFile(autoInclude, err)
 
 	return cfg, err
 }
@@ -117,24 +129,26 @@ func (k keptIncludes) dependencies(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	c *UnitConfig,
 ) (*cty.Value, error) {
 	if k.inherited != nil {
 		return k.inherited, nil
 	}
 
-	return c.dependencyValue(ctx, l, v)
+	return c.dependencyValue(ctx, l, v, pc)
 }
 
 func (k keptIncludes) included(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	c *UnitConfig,
 	i int,
 	deps *cty.Value,
 ) (*pkgconfig.TerragruntConfig, error) {
-	included := c.includedFiles[i]
+	included := c.kept.included[i]
 	if included == nil {
 		panic(fmt.Sprintf("%s: no kept file for include block %d", c.file.ConfigPath, i))
 	}
@@ -143,11 +157,11 @@ func (k keptIncludes) included(
 		return nil, included.err
 	}
 
-	cfg, err := included.cfg.assemble(ctx, l, v, keptIncludes{inherited: deps})
+	cfg, err := included.cfg.assemble(ctx, l, v, pc, keptIncludes{inherited: deps})
 	if err != nil {
-		include := c.pc.file.includes.List[i]
+		include := pc.file.includes.List[i]
 
-		return nil, includeParseError(err, &include, c.pc)
+		return nil, includeParseError(err, &include, pc)
 	}
 
 	return cfg, nil
@@ -157,18 +171,19 @@ func (k keptIncludes) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	c *UnitConfig,
 	path string,
 ) (*pkgconfig.TerragruntConfig, error) {
-	if c.autoInclude == nil {
+	if c.kept.autoInclude == nil {
 		panic(fmt.Sprintf("%s: no kept file for autoinclude %s", c.file.ConfigPath, path))
 	}
 
-	if c.autoInclude.cfg == nil {
-		return nil, c.autoInclude.err
+	if c.kept.autoInclude.cfg == nil {
+		return nil, c.kept.autoInclude.err
 	}
 
-	return c.autoInclude.cfg.assemble(ctx, l, v, keptIncludes{})
+	return c.kept.autoInclude.cfg.assemble(ctx, l, v, pc, keptIncludes{})
 }
 
 // keptQueue assembles the files a parse kept from their queue parts alone, with no run parts and no outputs.
@@ -187,20 +202,22 @@ func (q keptQueue) dependencies(
 	_ context.Context,
 	_ log.Logger,
 	_ *venv.Venv,
-	c *UnitConfig,
+	pc *ParseContext,
+	_ *UnitConfig,
 ) (*cty.Value, error) {
-	return c.pc.file.decodedDeps, nil
+	return pc.file.decodedDeps, nil
 }
 
 func (q keptQueue) included(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	c *UnitConfig,
 	i int,
 	_ *cty.Value,
 ) (*pkgconfig.TerragruntConfig, error) {
-	included := c.includedFiles[i]
+	included := c.kept.included[i]
 	if included == nil {
 		panic(fmt.Sprintf("%s: no kept file for include block %d", c.file.ConfigPath, i))
 	}
@@ -209,11 +226,11 @@ func (q keptQueue) included(
 		return nil, included.err
 	}
 
-	cfg, err := included.cfg.assemble(ctx, l, v, keptQueue{})
+	cfg, err := included.cfg.assemble(ctx, l, v, pc, keptQueue{})
 	if err != nil {
-		include := c.pc.file.includes.List[i]
+		include := pc.file.includes.List[i]
 
-		return nil, includeParseError(err, &include, c.pc)
+		return nil, includeParseError(err, &include, pc)
 	}
 
 	return cfg, nil
@@ -223,18 +240,19 @@ func (q keptQueue) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	c *UnitConfig,
 	path string,
 ) (*pkgconfig.TerragruntConfig, error) {
-	if c.autoInclude == nil {
+	if c.kept.autoInclude == nil {
 		panic(fmt.Sprintf("%s: no kept file for autoinclude %s", c.file.ConfigPath, path))
 	}
 
-	if c.autoInclude.cfg == nil {
-		return nil, c.autoInclude.err
+	if c.kept.autoInclude.cfg == nil {
+		return nil, c.kept.autoInclude.err
 	}
 
-	return c.autoInclude.cfg.assemble(ctx, l, v, keptQueue{})
+	return c.kept.autoInclude.cfg.assemble(ctx, l, v, pc, keptQueue{})
 }
 
 // mergeIncludes merges each file c includes into cfg by its merge strategy, last include first, so later include
@@ -243,19 +261,20 @@ func (c *UnitConfig) mergeIncludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	src includeSource,
 	deps *cty.Value,
 	cfg *pkgconfig.TerragruntConfig,
 ) (*pkgconfig.TerragruntConfig, error) {
 	baseCfg := cfg
 
-	for i, include := range slices.Backward(c.pc.file.includes.List) {
+	for i, include := range slices.Backward(pc.file.includes.List) {
 		mergeStrategy, err := include.GetMergeStrategy()
 		if err != nil {
 			return cfg, err
 		}
 
-		c.pc.run.FilesRead.Add(include.Path)
+		pc.sinks.filesRead.Add(include.Path)
 
 		switch mergeStrategy {
 		case pkgconfig.NoMerge:
@@ -279,7 +298,7 @@ func (c *UnitConfig) mergeIncludes(
 			return nil, pkgconfig.IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		}
 
-		includedCfg, err := src.included(ctx, l, v, c, i, deps)
+		includedCfg, err := src.included(ctx, l, v, pc, c, i, deps)
 		if err != nil {
 			return baseCfg, err
 		}
@@ -315,11 +334,12 @@ func (c *UnitConfig) resolveIncludedConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	p *Store,
 	include *pkgconfig.IncludeConfig,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
 	if include.Path == "" {
-		return nil, nil, pkgconfig.IncludedConfigMissingPathError(c.pc.run.TerragruntConfigPath)
+		return nil, nil, pkgconfig.IncludedConfigMissingPathError(pc.inputs.TerragruntConfigPath)
 	}
 
 	hasDependency, err := pkgconfig.ConfigFileHasDependencyBlock(v.FS, include.Path)
@@ -327,7 +347,7 @@ func (c *UnitConfig) resolveIncludedConfig(
 		return nil, nil, err
 	}
 
-	includedPC := c.pc.forIncluded(include)
+	includedPC := pc.forIncluded(include)
 
 	if hasDependency {
 		includedPC = includedPC.withDiagnosticsSuppressed()
@@ -335,7 +355,7 @@ func (c *UnitConfig) resolveIncludedConfig(
 
 	included, cfg, err := p.resolveFile(ctx, l, v, includedPC, include.Path)
 	if err != nil {
-		return included, nil, includeParseError(err, include, c.pc)
+		return included, nil, includeParseError(err, include, pc)
 	}
 
 	return included, cfg, nil
@@ -346,7 +366,7 @@ func includeParseError(err error, include *pkgconfig.IncludeConfig, pc *ParseCon
 	if errors.As(err, new(pkgconfig.TerragruntConfigNotFoundError)) {
 		return pkgconfig.IncludeConfigNotFoundError{
 			IncludePath: include.Path,
-			SourcePath:  pc.run.TerragruntConfigPath,
+			SourcePath:  pc.inputs.TerragruntConfigPath,
 		}
 	}
 
@@ -359,10 +379,11 @@ func (c *UnitConfig) mergeAutoInclude(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	src includeSource,
 	cfg *pkgconfig.TerragruntConfig,
 ) (*pkgconfig.TerragruntConfig, error) {
-	includes := c.pc.file.includes
+	includes := pc.file.includes
 	if includes == nil || includes.AutoIncludePath == "" {
 		return cfg, nil
 	}
@@ -371,7 +392,7 @@ func (c *UnitConfig) mergeAutoInclude(
 
 	l.Debugf("Found %s, merging into unit config", autoIncludePath)
 
-	autoIncludeCfg, err := src.autoIncluded(ctx, l, v, c, autoIncludePath)
+	autoIncludeCfg, err := src.autoIncluded(ctx, l, v, pc, c, autoIncludePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
@@ -390,17 +411,4 @@ func newIncludedFile(cfg *UnitConfig, err error) *includedFile {
 	}
 
 	return &includedFile{cfg: cfg}
-}
-
-// rebind returns f with its file rebound to run, or f itself when it kept none.
-func (f *includedFile) rebind(
-	l log.Logger,
-	v *venv.Venv,
-	run *pkgconfig.ParsingContext,
-) *includedFile {
-	if f.cfg == nil {
-		return f
-	}
-
-	return &includedFile{cfg: f.cfg.rebind(l, v, run)}
 }
