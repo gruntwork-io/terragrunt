@@ -66,11 +66,9 @@ type unitTFVersion struct {
 }
 
 // recordUnitTFVersion stores the version and implementation detected for the unit at unitPath.
+// A nil version is stored too (e.g. when an engine runs the unit), so the unit does not inherit
+// the stack's version.
 func (rnr *Runner) recordUnitTFVersion(unitPath string, version *semver.Version, impl tfimpl.Type) {
-	if version == nil {
-		return
-	}
-
 	rnr.tfVersionsMu.Lock()
 	defer rnr.tfVersionsMu.Unlock()
 
