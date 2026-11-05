@@ -107,9 +107,24 @@ func TestImplementationMismatchWarning(t *testing.T) {
 		{name: "unknown server with tofu run reads the same files", serverImpl: tfimpl.Unknown, runImpl: tfimpl.OpenTofu},
 		{name: "unknown run never warns", serverImpl: tfimpl.Terraform, runImpl: tfimpl.Unknown},
 		{name: "empty run never warns", serverImpl: tfimpl.OpenTofu, runImpl: ""},
-		{name: "terraform run against tofu server warns", serverImpl: tfimpl.OpenTofu, runImpl: tfimpl.Terraform, wantWarn: true},
-		{name: "terraform run against unknown server warns", serverImpl: tfimpl.Unknown, runImpl: tfimpl.Terraform, wantWarn: true},
-		{name: "tofu run against terraform server warns", serverImpl: tfimpl.Terraform, runImpl: tfimpl.OpenTofu, wantWarn: true},
+		{
+			name:       "terraform run against tofu server warns",
+			serverImpl: tfimpl.OpenTofu,
+			runImpl:    tfimpl.Terraform,
+			wantWarn:   true,
+		},
+		{
+			name:       "terraform run against unknown server warns",
+			serverImpl: tfimpl.Unknown,
+			runImpl:    tfimpl.Terraform,
+			wantWarn:   true,
+		},
+		{
+			name:       "tofu run against terraform server warns",
+			serverImpl: tfimpl.Terraform,
+			runImpl:    tfimpl.OpenTofu,
+			wantWarn:   true,
+		},
 	}
 
 	for _, tt := range tc {

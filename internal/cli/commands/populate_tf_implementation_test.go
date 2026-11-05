@@ -59,7 +59,10 @@ func TestPopulateTFImplementation(t *testing.T) {
 		opts.TerraformVersion = version.Must(version.NewVersion("1.0.0"))
 
 		// venvtest's fail-closed exec errors on any spawn, so success proves no probe ran.
-		require.NoError(t, commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venvtest.New()))
+		require.NoError(
+			t,
+			commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venvtest.New()),
+		)
 		assert.Equal(t, tfimpl.OpenTofu, opts.TofuImplementation)
 	})
 
@@ -69,7 +72,10 @@ func TestPopulateTFImplementation(t *testing.T) {
 		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.TFPath = "terraform"
 
-		require.Error(t, commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venvtest.New()))
+		require.Error(
+			t,
+			commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venvtest.New()),
+		)
 		assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
 		assert.Nil(t, opts.TerraformVersion)
 	})

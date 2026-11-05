@@ -353,7 +353,7 @@ func TestServeAdvertisesTheToolSet(t *testing.T) {
 	session := newTestSession(t, newTestTree(t))
 
 	assert.Equal(t,
-		[]string{"discover", "get_outputs", "plan", "render_config", "run_order", "validate"},
+		[]string{"catalog", "discover", "get_outputs", "plan", "render_config", "run_order", "validate"},
 		toolNames(t, session))
 }
 
@@ -375,6 +375,7 @@ func TestMutatingToolsAreAbsentUntilGranted(t *testing.T) {
 		t,
 		[]string{
 			"apply",
+			"catalog",
 			"destroy",
 			"discover",
 			"get_outputs",
@@ -707,6 +708,7 @@ func TestConcurrentToolCallsShareOneServerWithRacing(t *testing.T) {
 		{name: "render_config", args: map[string]any{"working_dir": "b"}},
 		{name: "run_order", args: map[string]any{}},
 		{name: "validate", args: map[string]any{}},
+		{name: "catalog", args: map[string]any{}},
 	}
 
 	var g errgroup.Group

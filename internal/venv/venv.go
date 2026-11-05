@@ -260,6 +260,7 @@ func OSVenv() *Venv {
 			TempDir:        os.TempDir,
 			Getwd:          os.Getwd,
 			GetPID:         os.Getpid,
+			GetUID:         os.Getuid,
 			ReplaceEnviron: replaceOSEnviron,
 			GOOS:           runtime.GOOS,
 			GOARCH:         runtime.GOARCH,

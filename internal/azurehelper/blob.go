@@ -236,7 +236,13 @@ func (cc *ContainerClient) BlobExists(ctx context.Context, key string) (bool, er
 // destination write carries an If-None-Match condition, so an existing
 // destination blob is never overwritten; a DestinationBlobExistsError is
 // returned instead.
-func (cc *ContainerClient) CopyBlob(ctx context.Context, l log.Logger, srcKey string, dst *ContainerClient, dstKey string) error {
+func (cc *ContainerClient) CopyBlob(
+	ctx context.Context,
+	l log.Logger,
+	srcKey string,
+	dst *ContainerClient,
+	dstKey string,
+) error {
 	assertCopyBlobArgs(srcKey, dst, dstKey)
 
 	body, err := cc.GetBlob(ctx, srcKey)
@@ -262,7 +268,8 @@ func (cc *ContainerClient) CopyBlob(ctx context.Context, l log.Logger, srcKey st
 	}
 
 	if _, err := blockBlob.UploadStream(ctx, body, opts); err != nil {
-		if isErrorCode(err, "BlobAlreadyExists") || isErrorCode(err, "TargetConditionNotMet") || isErrorCode(err, "ConditionNotMet") {
+		if isErrorCode(err, "BlobAlreadyExists") || isErrorCode(err, "TargetConditionNotMet") ||
+			isErrorCode(err, "ConditionNotMet") {
 			return &DestinationBlobExistsError{Container: dst.container, Key: dstKey}
 		}
 
@@ -277,7 +284,13 @@ func (cc *ContainerClient) CopyBlob(ctx context.Context, l log.Logger, srcKey st
 // and GCS backends: it is a no-op when the source is absent, refuses to
 // overwrite an existing destination, copies, then deletes the source. dst
 // must belong to the same storage account.
-func (cc *ContainerClient) MoveBlobIfNecessary(ctx context.Context, l log.Logger, srcKey string, dst *ContainerClient, dstKey string) error {
+func (cc *ContainerClient) MoveBlobIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	srcKey string,
+	dst *ContainerClient,
+	dstKey string,
+) error {
 	srcExists, err := cc.BlobExists(ctx, srcKey)
 	if err != nil {
 		return err

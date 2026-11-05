@@ -231,7 +231,12 @@ func TestStorageAccount_Create_DefaultsMinimumTLSVersion(t *testing.T) {
 		Name:     testAccount,
 		Location: "eastus",
 	}))
-	assert.Contains(t, tr.lastPutBody(), `"minimumTlsVersion":"TLS1_2"`, "default minimum TLS version must reach the request")
+	assert.Contains(
+		t,
+		tr.lastPutBody(),
+		`"minimumTlsVersion":"TLS1_2"`,
+		"default minimum TLS version must reach the request",
+	)
 }
 
 func TestStorageAccount_Create_SetsMinimumTLSVersion(t *testing.T) {
@@ -249,7 +254,12 @@ func TestStorageAccount_Create_SetsMinimumTLSVersion(t *testing.T) {
 		Location:          "eastus",
 		MinimumTLSVersion: "TLS1_3",
 	}))
-	assert.Contains(t, tr.lastPutBody(), `"minimumTlsVersion":"TLS1_3"`, "configured minimum TLS version must reach the request")
+	assert.Contains(
+		t,
+		tr.lastPutBody(),
+		`"minimumTlsVersion":"TLS1_3"`,
+		"configured minimum TLS version must reach the request",
+	)
 }
 
 func TestStorageAccount_Create_SetsExplicitTLS12(t *testing.T) {
@@ -268,7 +278,12 @@ func TestStorageAccount_Create_SetsExplicitTLS12(t *testing.T) {
 		Location:          "eastus",
 		MinimumTLSVersion: "TLS1_2",
 	}))
-	assert.Contains(t, tr.lastPutBody(), `"minimumTlsVersion":"TLS1_2"`, "explicit minimum TLS version must reach the request")
+	assert.Contains(
+		t,
+		tr.lastPutBody(),
+		`"minimumTlsVersion":"TLS1_2"`,
+		"explicit minimum TLS version must reach the request",
+	)
 }
 
 func TestStorageAccount_GetKeys_FiltersEmptyValues(t *testing.T) {
@@ -632,7 +647,9 @@ func TestStorageAccount_UpdateBlobServiceProperties_WriteFailure(t *testing.T) {
 func TestStorageAccount_BlobServicePropertiesAbsent(t *testing.T) {
 	t.Parallel()
 
-	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(&stubTransport{status: http.StatusOK, body: []byte("{}")}))
+	sc, err := azurehelper.NewStorageAccountClient(
+		cfgWithTransport(&stubTransport{status: http.StatusOK, body: []byte("{}")}),
+	)
 	require.NoError(t, err, "setup")
 
 	on, err := sc.IsVersioningEnabled(t.Context())

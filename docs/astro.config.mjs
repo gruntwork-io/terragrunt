@@ -10,56 +10,15 @@ import node from "@astrojs/node";
 import tailwindcss from "@tailwindcss/vite";
 
 import starlightLinksValidator from "starlight-links-validator";
-import starlightLlmsTxt from "starlight-llms-txt";
 import d2 from "astro-d2";
 
 import { sidebar } from "./src/data/sidebar.ts";
+import { SITE_DESCRIPTION, SITE_TITLE } from "./src/data/site.ts";
 import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
 import { excludeLinks } from "./src/lib/unpublished-links.ts";
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
-
-/**
- * Wraps the `starlight-llms-txt` plugin so it still generates `/llms-full.txt`
- * and `/llms-small.txt`, but does NOT inject its own `/llms.txt` route. That
- * frees `/llms.txt` for our hand-curated index at `public/llms.txt`, which the
- * plugin's generated entrypoint can't reproduce (its body is a fixed template).
- *
- * The plugin (node_modules/starlight-llms-txt/index.ts) injects its routes from
- * inside an Astro integration's `astro:config:setup` hook. We intercept the
- * `addIntegration` call, then wrap that integration's `injectRoute` to drop the
- * single `/llms.txt` pattern and pass every other route through untouched.
- */
-function starlightLlmsTxtWithoutIndex(opts) {
-  const plugin = starlightLlmsTxt(opts);
-  const originalSetup = plugin.hooks.setup;
-  return {
-    ...plugin,
-    hooks: {
-      ...plugin.hooks,
-      setup(setupContext) {
-        return originalSetup({
-          ...setupContext,
-          addIntegration(integration) {
-            const configSetup = integration.hooks?.["astro:config:setup"];
-            if (configSetup) {
-              integration.hooks["astro:config:setup"] = (configContext) =>
-                configSetup({
-                  ...configContext,
-                  injectRoute(route) {
-                    if (route.pattern === "/llms.txt") return;
-                    return configContext.injectRoute(route);
-                  },
-                });
-            }
-            return setupContext.addIntegration(integration);
-          },
-        });
-      },
-    },
-  };
-}
 
 // https://astro.build/config
 export default defineConfig({
@@ -77,8 +36,8 @@ export default defineConfig({
     : node({ mode: "standalone" }),
   integrations: [
     starlight({
-      title: "Terragrunt",
-      description: "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.",
+      title: SITE_TITLE,
+      description: SITE_DESCRIPTION,
       editLink: {
         baseUrl:
           "https://github.com/gruntwork-io/terragrunt/edit/main/docs",
@@ -142,11 +101,17 @@ export default defineConfig({
             // Used in the docs for OpenTelemetry
             "http://localhost:16686/",
             "http://localhost:9090/",
+            "http://localhost:7280/ui",
 
             // Command pages are assembled by `src/pages/reference/cli/commands/[...slug].astro`
             // from the `commands` and `flags` collections, so the validator never sees the
             // headings these anchors point at. Page paths themselves are still validated.
             "/reference/cli/commands/**/*#*",
+
+            // HCL block, attribute, and function pages are assembled by
+            // `src/pages/reference/hcl/[kind]/[name].astro` from the `hclBlocks`,
+            // `hclAttributes`, and `hclFunctions` collections, for the same reason.
+            "/reference/hcl/{blocks,attributes,functions}/*#*",
 
             // Custom .astro pages — can't be validated statically
             "/reference/experiments/active",
@@ -163,7 +128,6 @@ export default defineConfig({
             "/tgs-discord",
           ]),
         }),
-        starlightLlmsTxtWithoutIndex()
       ],
     }),
     d2({

@@ -1,0 +1,38 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { render } from 'astro:content';
+import HclAttribute from '@components/HclAttribute.astro';
+import HclBlock from '@components/HclBlock.astro';
+import HclFunction from '@components/HclFunction.astro';
+import { HCL_KINDS, itemHeadings, type HclEntry } from '@lib/hcl';
+import { getPublishedHclItems } from '@lib/hcl/published';
+
+export const prerender = true;
+
+export async function getStaticPaths() {
+	const paths = await Promise.all(
+		HCL_KINDS.map(async (kind) =>
+			(await getPublishedHclItems(kind)).map((entry) => ({
+				params: { kind, name: entry.data.name },
+				props: { entry },
+			})),
+		),
+	);
+	return paths.flat();
+}
+
+const { entry } = Astro.props as { entry: HclEntry };
+const { headings } = await render(entry);
+---
+
+<StarlightPage
+	frontmatter={{
+		title: entry.data.name,
+		description: entry.data.description,
+	}}
+	headings={itemHeadings(entry, headings)}
+>
+	{entry.collection === 'hclBlocks' && <HclBlock entry={entry} />}
+	{entry.collection === 'hclAttributes' && <HclAttribute entry={entry} />}
+	{entry.collection === 'hclFunctions' && <HclFunction entry={entry} />}
+</StarlightPage>
