@@ -317,6 +317,35 @@ func TestStoreMemoizeCollectsReadsOfNestedRuns(t *testing.T) {
 	config.NoteReads(t.Context(), "/nowhere")
 }
 
+func TestStoreInvalidateFindsNotedFilesThatAreNotReads(t *testing.T) {
+	t.Parallel()
+
+	s := &config.Store{}
+	k := config.Key{Path: "/repo/unit/terragrunt.hcl", Context: "unit", Stage: config.StageQueue}
+	runs := 0
+
+	memoize := func() config.Memoized[string] {
+		res, err := s.Memoize(t.Context(), k, func(ctx context.Context) (string, error) {
+			runs++
+
+			config.NoteFiles(ctx, "/repo/dep/../dep/terragrunt.hcl")
+
+			return k.Path, nil
+		})
+		require.NoError(t, err)
+
+		return res
+	}
+
+	assert.Empty(t, memoize().Reads)
+	memoize()
+	assert.Equal(t, 1, runs)
+
+	s.Invalidate("/repo/dep/terragrunt.hcl")
+	memoize()
+	assert.Equal(t, 2, runs)
+}
+
 func TestStoreInvalidateDropsReaders(t *testing.T) {
 	t.Parallel()
 

@@ -78,7 +78,8 @@ func (s *dependencySet) resolve(
 
 // dependencyValue returns the `dependency` value ToV1 decodes c with: the run's when it supplied
 // one, and otherwise the outputs of c's dependency blocks, fetched now. An included file whose including file
-// resolved none decodes its own blocks first, as pkg/config does.
+// resolved none decodes its own blocks first, as pkg/config does. It reports the files the parse read decoding the
+// blocks to pc's sinks.
 //
 // Returns the value pkg/config falls back to with the error when the fetch fails. When the parse already reported
 // that the blocks failed to decode, it returns that value and no error.
@@ -90,6 +91,10 @@ func (c *UnitConfig) dependencyValue(
 ) (*cty.Value, error) {
 	if pc.file.decodedDeps != nil {
 		return pc.file.decodedDeps, nil
+	}
+
+	for _, path := range c.dependencyReads {
+		pc.sinks.filesRead.Add(path)
 	}
 
 	pctx := pc.parsingContext()

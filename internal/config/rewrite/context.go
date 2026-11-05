@@ -132,9 +132,9 @@ func (pc *ParseContext) withFile(file *fileScope) *ParseContext {
 	return &c
 }
 
-// forFlight returns a copy of pc that records its reads apart from the caller's. A caller that keeps no record still
-// keeps none.
-func (pc *ParseContext) forFlight() *ParseContext {
+// withOwnReads returns a copy of pc that records its reads apart from the caller's. A caller that keeps no record
+// still keeps none.
+func (pc *ParseContext) withOwnReads() *ParseContext {
 	c := *pc
 
 	if pc.sinks.filesRead.Tracking() {
