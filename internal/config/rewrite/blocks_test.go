@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
-	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -56,7 +55,10 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			block:  "",
 			v1:     reflect.TypeFor[pkgconfig.TerragruntConfigFile](),
 			header: reflect.TypeFor[config.UnitConfig](),
-			bodies: []reflect.Type{reflect.TypeFor[config.QueueBodies](), reflect.TypeFor[config.RunBodies]()},
+			bodies: []reflect.Type{
+				reflect.TypeFor[config.QueueBodies](),
+				reflect.TypeFor[config.RunBodies](),
+			},
 		},
 		{
 			block:  pkgconfig.MetadataTerraform,
@@ -440,11 +442,10 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, _, err := config.ParseConfigFile(
+	parsed, err := new(config.Store).ResolveUnitConfig(
 		ctx,
 		l,
 		v,
-		&hclparse.Store{},
 		config.NewParseContext(pctx),
 		cfgPath,
 	)

@@ -18,7 +18,7 @@ import (
 // config and errors that [pkgconfig.ParseConfigFile] returns for the same file, which can be a partial config with
 // an error. Each call fetches the outputs again. It never changes c.
 //
-// Panics when c did not come from [ParseConfig] or [ParseConfigFile].
+// Panics when c did not come from [Store.ResolveUnitParsedFile] or [Store.ResolveUnitConfig].
 func (c *UnitConfig) ToV1(
 	ctx context.Context,
 	l log.Logger,
@@ -58,7 +58,8 @@ func (c *UnitConfig) assemble(
 		file,
 		decodeErr,
 	)
-	if err != nil && !slices.ContainsFunc(errs, func(seen error) bool { return errors.Is(err, seen) }) {
+	if err != nil &&
+		!slices.ContainsFunc(errs, func(seen error) bool { return errors.Is(err, seen) }) {
 		errs = append(errs, err)
 	}
 

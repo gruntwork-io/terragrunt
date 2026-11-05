@@ -20,7 +20,6 @@ import (
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -66,7 +65,7 @@ type parityCase struct {
 	// outputs maps a target directory to its `tofu output -json`.
 	outputs map[string]string
 	// store is the Store the rewrite parses through, shared with other cases when set.
-	store *hclparse.Store
+	store *config.Store
 	// cfgPath is the config both sides parse.
 	cfgPath string
 	// drift is the drifts the case shows.
@@ -168,14 +167,13 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 
 	store := tc.store
 	if store == nil {
-		store = &hclparse.Store{}
+		store = &config.Store{}
 	}
 
-	parsed, _, parseErr := config.ParseConfigFile(
+	parsed, parseErr := store.ResolveUnitConfig(
 		ctx,
 		l,
 		v,
-		store,
 		config.NewParseContext(pctx),
 		tc.cfgPath,
 	)

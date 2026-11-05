@@ -15,10 +15,11 @@ import (
 // runDigest returns the digest of the inputs of run that a parse reads beyond the file, and false when run carries
 // state the digest does not cover, which leaves the parse unmemoized.
 //
-// The digest covers the config, original config, and working directory; the download directory, source, and
-// source map; the tofu command, original command, and CLI args; the IAM role options and their original values;
-// the feature flag overrides; the auth provider command; the parser settings; the read_terragrunt_config chain;
-// SkipOutput; SkipOutputsResolution; the parse depth; SkipAutoIncludeMerge; and whether reads are tracked.
+// The digest covers the config, original config, working directory, and root working directory; the download
+// directory, source, and source map; the tofu command, original command, and CLI args; the IAM role options and their
+// original values; the feature flag overrides; the auth provider command; the parser settings; the
+// read_terragrunt_config chain; SkipOutput; SkipOutputsResolution; the parse depth; SkipAutoIncludeMerge; and whether
+// reads are tracked.
 //
 // It leaves out the experiments, the strict controls, the maximum number of parent folders to check, the engine,
 // the tofu binary and implementation, the provider cache and CAS options, the environment, and the telemetry and

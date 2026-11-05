@@ -22,7 +22,7 @@ type ParseContext struct {
 
 // fileScope is the per-file state pkg/config keeps on ParsingContext clones.
 type fileScope struct {
-	// key is [hclparse.Key.Context] for the file: the digest of the run's inputs and of the chain of files the parse
+	// key is [Key.Context] for the file: the digest of the run's inputs and of the chain of files the parse
 	// went through to reach it.
 	key string
 	// include is the include block the file is parsed through, nil for the component's own config.
@@ -129,7 +129,7 @@ func (pc *ParseContext) forFlight() *ParseContext {
 	return pc.withRun(run)
 }
 
-// StoreContext returns [hclparse.Key.Context] for the file pc parses, and false when the parse is not memoized.
+// StoreContext returns [Key.Context] for the file pc parses, and false when the parse is not memoized.
 func (pc *ParseContext) StoreContext() (string, bool) {
 	return pc.file.key, pc.memoized
 }

@@ -9,76 +9,166 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// ParseConfigFile parses the config file at cfgPath and the files it merges in, fetching no dependency outputs,
-// and returns the parse beside the config of the parse alone, with the run parts left out. The parse is memoized
-// in p by file and context: a second call for the same file and context shares the first's evaluation and gets a
-// config built anew from it. It returns the errors of the parse, which [UnitConfig.ToV1] returns again with those
-// of resolving the outputs, and no parse when the parse produced no config.
+// ResolveUnitConfig resolves the config file at cfgPath and the files it merges in, fetching no dependency outputs.
 //
-// [hclparse.Store.Invalidate] finds a memoized parse by the config files it parsed, and by a file it read through
+// The result is memoized in s by file and context: a second call for the same file and context shares the first's
+// evaluation. [Store.Invalidate] finds a memoized result by the config files it parsed, and by a file it read through
 // a function such as file only when pc's run records its reads.
-func ParseConfigFile(
+//
+// Returns the errors of the parse, which [UnitConfig.ToV1] returns again with those of resolving the outputs. Returns
+// nil when the parse produced no config.
+func (s *Store) ResolveUnitConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	p *hclparse.Store,
 	pc *ParseContext,
 	cfgPath string,
-) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
-	c, cfg, err := parseFile(ctx, l, v, p, pc, cfgPath)
+) (*UnitConfig, error) {
+	c, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
 	if cfg == nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return c, cfg, err
+	return c, err
 }
 
-// ParseConfig parses the config in file and the files it merges in, as [ParseConfigFile] does. The parse of file
-// itself is not memoized.
-func ParseConfig(
+// ResolveUnitBaseVariables returns the variables the file at cfgPath evaluates its blocks with: its unit values and
+// the locals, feature, and include blocks [pkgconfig.DecodeBaseBlocks] decodes. It stops before the dependency blocks
+// that order the queue.
+//
+// The file's syntax tree is shared through s, and the variables are evaluated anew on each call.
+//
+// Returns the variables with an error when an earlier step fails but the eval context still builds.
+func (s *Store) ResolveUnitBaseVariables(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	p *hclparse.Store,
 	pc *ParseContext,
-	file *pkghclparse.File,
-) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
-	c, err := prepare(ctx, l, v, pc, file)
+	cfgPath string,
+) (map[string]cty.Value, error) {
+	pc, err := pc.incrementDepth()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	cfg, err := c.assemble(ctx, l, v, includeParser{store: p})
-	if cfg == nil {
-		return nil, nil, err
+	info, err := statConfig(v, cfgPath)
+	if err != nil {
+		return nil, err
 	}
 
-	return c, cfg, err
+	file, err := s.ParseUnitAST(
+		ctx,
+		v.FS,
+		cfgPath,
+		info,
+		pkghclparse.NewParser(pc.parserOptions(l, v)...),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	base, err := prepareBase(ctx, l, v, pc, file)
+	if err != nil {
+		return nil, err
+	}
+
+	evalCtx, err := pkgconfig.CreateTerragruntEvalContext(
+		ctx,
+		l,
+		v,
+		base.pc.parsingContext(),
+		file.ConfigPath,
+	)
+	errs := errors.Join(append(base.errs, err)...)
+
+	if evalCtx == nil {
+		return nil, errs
+	}
+
+	return evalCtx.Variables, errs
 }
 
-// parsedFile is what a memoized parse produces.
-type parsedFile struct {
+// ResolveUnitQueueConfig returns the merged config of the file at cfgPath with the run parts left out, resolving the
+// file as [Store.ResolveUnitConfig] does. Each call gets a config of its own.
+//
+// Returns a partial config with the error when part of the parse fails, and no config when the parse produced none.
+func (s *Store) ResolveUnitQueueConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	cfgPath string,
+) (*pkgconfig.TerragruntConfig, error) {
+	_, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
+
+	return cfg, err
+}
+
+// ResolveRunConfig fetches the dependency outputs of the file at cfgPath and returns its merged config with the run
+// parts, as [UnitConfig.ToV1] does, resolving the file as [Store.ResolveUnitConfig] does.
+//
+// Each call fetches the outputs again, and s retains neither them nor the config.
+//
+// Returns a partial config with the error when part of the run fails, and no config when the parse produced none.
+func (s *Store) ResolveRunConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	cfgPath string,
+) (*pkgconfig.TerragruntConfig, error) {
+	c, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
+	if c == nil {
+		return nil, err
+	}
+
+	return c.ToV1(ctx, l, v)
+}
+
+// ResolveUnitParsedFile resolves the config in file and the files it merges in, as [Store.ResolveUnitConfig] does. The
+// result for file itself is not memoized.
+func (s *Store) ResolveUnitParsedFile(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	file *pkghclparse.File,
+) (*UnitConfig, error) {
+	c, err := prepare(ctx, l, v, pc, file)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := c.assemble(ctx, l, v, includeResolver{store: s})
+	if cfg == nil {
+		return nil, err
+	}
+
+	return c, err
+}
+
+// resolvedFile is what a memoized resolution produces.
+type resolvedFile struct {
 	// c is the parse, nil when it failed before decoding the file.
 	c *UnitConfig
 	// cfg is the config of the parse, nil when it produced none.
 	cfg *pkgconfig.TerragruntConfig
 }
 
-// parseFile parses and assembles the file at cfgPath one level deeper than pc, through p when pc is memoized.
+// resolveFile resolves the file at cfgPath one level deeper than pc, through s when pc is memoized.
 // The parsed config is nil when the parse failed before decoding the file.
-func parseFile(
+func (s *Store) resolveFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	p *hclparse.Store,
 	pc *ParseContext,
 	cfgPath string,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
@@ -88,17 +178,17 @@ func parseFile(
 	}
 
 	if !pc.memoized {
-		return parseFileOnce(ctx, l, v, p, pc, cfgPath)
+		return s.resolveFileOnce(ctx, l, v, pc, cfgPath)
 	}
 
-	key := hclparse.Key{Path: filepath.Clean(cfgPath), Context: pc.file.key, Stage: hclparse.StageQueue}
+	key := Key{Path: filepath.Clean(cfgPath), Context: pc.file.key, Stage: StageQueue}
 	flight := pc.forFlight()
 
-	res, err := p.Resolve(ctx, key, func(ctx context.Context) (*parsedFile, error) {
-		c, cfg, err := parseFileOnce(ctx, l, v, p, flight, cfgPath)
-		hclparse.NoteReads(ctx, flight.run.FilesRead.Paths()...)
+	res, err := s.Memoize(ctx, key, func(ctx context.Context) (*resolvedFile, error) {
+		c, cfg, err := s.resolveFileOnce(ctx, l, v, flight, cfgPath)
+		NoteReads(ctx, flight.run.FilesRead.Paths()...)
 
-		return &parsedFile{c: c, cfg: cfg}, err
+		return &resolvedFile{c: c, cfg: cfg}, err
 	})
 
 	for _, path := range res.Reads {
@@ -112,29 +202,24 @@ func parseFile(
 	c := res.Value.c.rebind(l, v, pc.run)
 	cfg := res.Value.cfg
 
-	if res.Hit && err == nil {
+	if res.Hit {
 		cfg, err = c.assemble(ctx, l, v, keptQueue{})
 	}
 
 	return c, cfg, err
 }
 
-// parseFileOnce parses and assembles the file at cfgPath with pc, sharing only the file's syntax tree through p.
-func parseFileOnce(
+// resolveFileOnce resolves the file at cfgPath with pc, sharing only the file's syntax tree through s.
+func (s *Store) resolveFileOnce(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	p *hclparse.Store,
 	pc *ParseContext,
 	cfgPath string,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
-	info, err := v.FS.Stat(cfgPath)
+	info, err := statConfig(v, cfgPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil, pkgconfig.TerragruntConfigNotFoundError{Path: cfgPath}
-		}
-
-		return nil, nil, fmt.Errorf("failed to get file info: %w", err)
+		return nil, nil, err
 	}
 
 	var (
@@ -154,7 +239,7 @@ func parseFileOnce(
 		func(childCtx context.Context, l log.Logger) error {
 			parser := pkghclparse.NewParser(pc.parserOptions(l, v)...)
 
-			file, parseErr := p.AST(childCtx, v.FS, cfgPath, info, parser)
+			file, parseErr := s.ParseUnitAST(childCtx, v.FS, cfgPath, info, parser)
 			if parseErr != nil {
 				return parseErr
 			}
@@ -164,13 +249,29 @@ func parseFileOnce(
 				return parseErr
 			}
 
-			cfg, parseErr = c.assemble(childCtx, l, v, includeParser{store: p})
+			cfg, parseErr = c.assemble(childCtx, l, v, includeResolver{store: s})
 
 			return parseErr
 		},
 	)
 
 	return c, cfg, err
+}
+
+// statConfig returns the metadata of the config file at cfgPath.
+//
+// Returns [pkgconfig.TerragruntConfigNotFoundError] when the file does not exist.
+func statConfig(v *venv.Venv, cfgPath string) (fs.FileInfo, error) {
+	info, err := v.FS.Stat(cfgPath)
+	if err == nil {
+		return info, nil
+	}
+
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, pkgconfig.TerragruntConfigNotFoundError{Path: cfgPath}
+	}
+
+	return nil, fmt.Errorf("failed to get file info: %w", err)
 }
 
 // rebind returns a copy of c reading run's settings, whose FilesRead receives what [UnitConfig.ToV1] reads and
@@ -204,17 +305,26 @@ func (c *UnitConfig) rebind(l log.Logger, v *venv.Venv, run *pkgconfig.ParsingCo
 	return &r
 }
 
-// prepare runs the stages of [pkgconfig.ParseConfig] through the block decode. It decodes file's dependency
-// blocks when file resolves its own dependencies, and every part when the run supplied the `dependency` value.
+// unitBase is a file's state through its base blocks.
+type unitBase struct {
+	// pc is the file's parse context with its base state applied.
+	pc *ParseContext
+	// locals is the evaluated locals block, nil when the base blocks failed to decode.
+	locals *cty.Value
+	// errs is the non-fatal errors of the stages so far.
+	errs []error
+}
+
+// prepareBase runs the stages of [pkgconfig.ParseConfig] through the base blocks.
 //
-// Returns an error and no config where pkg/config returns no config.
-func prepare(
+// Returns an error and no base where pkg/config returns no config.
+func prepareBase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
 	file *pkghclparse.File,
-) (*UnitConfig, error) {
+) (*unitBase, error) {
 	pctx := pc.parsingContext()
 
 	if err := pkgconfig.DetectDeprecatedConfigurations(ctx, pctx, l, file); err != nil {
@@ -258,18 +368,50 @@ func prepare(
 	pc = pc.withValues(unitValues)
 	pctx = pc.parsingContext()
 
-	baseBlocks, err := pkgconfig.DecodeBaseBlocks(ctx, l, v, pctx, file, include, pkgconfig.IncludeParseFeatureFlags)
+	baseBlocks, err := pkgconfig.DecodeBaseBlocks(
+		ctx,
+		l,
+		v,
+		pctx,
+		file,
+		include,
+		pkgconfig.IncludeParseFeatureFlags,
+	)
 	if err != nil {
 		l.Warnf("Errors decoding base blocks in %s: %v", file.ConfigPath, err)
 		errs = append(errs, err)
 	}
 
-	c := &UnitConfig{file: file}
+	base := &unitBase{pc: pc, errs: errs}
 
 	if baseBlocks != nil {
-		pc = pc.withBaseBlocks(baseBlocks)
-		c.Locals = baseBlocks.Locals
+		base.pc = pc.withBaseBlocks(baseBlocks)
+		base.locals = baseBlocks.Locals
 	}
+
+	return base, nil
+}
+
+// prepare runs the stages of [pkgconfig.ParseConfig] through the block decode. It decodes file's dependency
+// blocks when file resolves its own dependencies, and every part when the run supplied the `dependency` value.
+//
+// Returns an error and no config where pkg/config returns no config.
+func prepare(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	file *pkghclparse.File,
+) (*UnitConfig, error) {
+	base, err := prepareBase(ctx, l, v, pc, file)
+	if err != nil {
+		return nil, err
+	}
+
+	pc = base.pc
+	errs := base.errs
+
+	c := &UnitConfig{file: file, Locals: base.locals}
 
 	if includes := pc.file.includes; includes != nil {
 		c.Includes = includes
@@ -288,9 +430,13 @@ func prepare(
 		}
 	}
 
-	pctx = pc.parsingContext()
-
-	evalCtx, err := pkgconfig.CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalCtx, err := pkgconfig.CreateTerragruntEvalContext(
+		ctx,
+		l,
+		v,
+		pc.parsingContext(),
+		file.ConfigPath,
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}

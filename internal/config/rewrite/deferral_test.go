@@ -608,7 +608,7 @@ inputs = {
 	}
 }
 
-func TestParseConfigFileKeepsUnitDependencyConfigs(t *testing.T) {
+func TestResolveUnitConfigKeepsUnitDependencyConfigs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
