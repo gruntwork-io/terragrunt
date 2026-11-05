@@ -449,19 +449,15 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := new(config.Store).ResolveUnitConfig(
-		ctx,
-		l,
-		v,
-		config.NewParseContext(pctx),
-		cfgPath,
-	)
+	pc := config.NewParseContext(pctx)
+
+	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
-	first, err := parsed.ToV1(ctx, l, v)
+	first, err := parsed.ToV1(ctx, l, v, pc)
 	require.NoError(t, err)
 
-	second, err := parsed.ToV1(ctx, l, v)
+	second, err := parsed.ToV1(ctx, l, v, pc)
 	require.NoError(t, err)
 
 	assert.Equal(t, first, second)

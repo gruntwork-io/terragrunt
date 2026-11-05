@@ -3,6 +3,7 @@ package config
 import (
 	"strconv"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -12,12 +13,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// ParseContext is the state a parse reads: the run's settings plus the state of the file being parsed. The parse
-// never mutates the run's [pkgconfig.ParsingContext], whose FilesRead collects every file the run reads.
+// ParseContext is what a caller brings to a stage: the inputs a parse reads, the sinks it writes its effects to, and
+// the state of the file being parsed. inputs never changes, and holds none of the sinks of the
+// [pkgconfig.ParsingContext] it came from.
 type ParseContext struct {
-	run      *pkgconfig.ParsingContext
+	inputs   *pkgconfig.ParsingContext
+	sinks    sinks
 	file     fileScope
 	memoized bool
+}
+
+// sinks is where a stage writes its effects. Sinks belong to the caller, and a stage's result holds none.
+type sinks struct {
+	filesRead   *pkgconfig.FilesRead
+	diagnostics func(*hcl.File, hcl.Diagnostics) (hcl.Diagnostics, error)
 }
 
 // fileScope is the per-file state pkg/config keeps on ParsingContext clones.
@@ -49,12 +58,17 @@ type fileScope struct {
 	inheritsDependencies bool
 }
 
-// NewParseContext returns a ParseContext for run, with the file state starting from run's values.
+// NewParseContext returns a ParseContext with run's inputs and sinks, and the file state starting from run's values.
 func NewParseContext(run *pkgconfig.ParsingContext) *ParseContext {
 	key, memoized := runDigest(run)
 
+	inputs := run.Clone()
+	inputs.FilesRead = nil
+	inputs.Parser.DiagnosticsHandler = nil
+
 	return &ParseContext{
-		run:      run,
+		inputs:   inputs,
+		sinks:    sinks{filesRead: run.FilesRead, diagnostics: run.Parser.DiagnosticsHandler},
 		memoized: memoized,
 		file: fileScope{
 			key:                  key,
@@ -63,7 +77,7 @@ func NewParseContext(run *pkgconfig.ParsingContext) *ParseContext {
 			features:             run.Features,
 			locals:               run.Locals,
 			decodedDeps:          run.DecodedDependencies,
-			parser:               run.Parser,
+			parser:               inputs.Parser,
 			depth:                run.ParseDepth,
 			skipAutoIncludeMerge: run.SkipAutoIncludeMerge,
 		},
@@ -110,23 +124,24 @@ func (pc *ParseContext) forAutoInclude() *ParseContext {
 	return &c
 }
 
-// withRun returns a copy of pc reading run's settings.
-func (pc *ParseContext) withRun(run *pkgconfig.ParsingContext) *ParseContext {
+// withFile returns a copy of pc for the file whose state is file.
+func (pc *ParseContext) withFile(file *fileScope) *ParseContext {
 	c := *pc
-	c.run = run
+	c.file = *file
 
 	return &c
 }
 
-// forFlight returns a copy of pc whose run records its reads apart from the caller's. A run that keeps no record
-// still keeps none.
+// forFlight returns a copy of pc that records its reads apart from the caller's. A caller that keeps no record still
+// keeps none.
 func (pc *ParseContext) forFlight() *ParseContext {
-	run := pc.run.Clone()
-	if run.FilesRead.Tracking() {
-		run.FilesRead = pkgconfig.NewFilesRead()
+	c := *pc
+
+	if pc.sinks.filesRead.Tracking() {
+		c.sinks.filesRead = pkgconfig.NewFilesRead()
 	}
 
-	return pc.withRun(run)
+	return &c
 }
 
 // StoreContext returns [Key.Context] for the file pc parses, and false when the parse is not memoized.
@@ -213,15 +228,16 @@ func formatStringPtr(p *string) string {
 	return strconv.Quote(*p)
 }
 
-// parsingContext returns a clone of the run's [pkgconfig.ParsingContext] with the file state applied.
+// parsingContext returns a [pkgconfig.ParsingContext] of pc's inputs with its sinks and file state applied.
 func (pc *ParseContext) parsingContext() *pkgconfig.ParsingContext {
-	c := pc.run.Clone()
+	c := pc.inputs.Clone()
+	c.FilesRead = pc.sinks.filesRead
 	c.TrackInclude = pc.file.includes.v1()
 	c.Values = pc.file.values
 	c.Features = pc.file.features
 	c.Locals = pc.file.locals
 	c.DecodedDependencies = pc.file.decodedDeps
-	c.Parser = pc.file.parser
+	c.Parser = pc.parserSettings()
 	c.ParseDepth = pc.file.depth
 	c.SkipAutoIncludeMerge = pc.file.skipAutoIncludeMerge
 
@@ -234,5 +250,13 @@ func (pc *ParseContext) parsingContext() *pkgconfig.ParsingContext {
 
 // parserOptions returns the options for the parsers that read pc's file, which log through l and write through v.
 func (pc *ParseContext) parserOptions(l log.Logger, v *venv.Venv) []pkghclparse.Option {
-	return pkgconfig.ParserOptions(l, v, pc.file.parser)
+	return pkgconfig.ParserOptions(l, v, pc.parserSettings())
+}
+
+// parserSettings returns the file's parser settings with pc's diagnostics sink applied.
+func (pc *ParseContext) parserSettings() pkgconfig.ParserSettings {
+	settings := pc.file.parser
+	settings.DiagnosticsHandler = pc.sinks.diagnostics
+
+	return settings
 }

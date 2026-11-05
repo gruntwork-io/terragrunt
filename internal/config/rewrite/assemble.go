@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -18,42 +19,50 @@ import (
 // config and errors that [pkgconfig.ParseConfigFile] returns for the same file, which can be a partial config with
 // an error. Each call fetches the outputs again. It never changes c.
 //
+// pc gives the run's inputs and sinks, and c the state of each file.
+//
 // Panics when c did not come from [Store.ResolveUnitParsedFile] or [Store.ResolveUnitConfig].
 func (c *UnitConfig) ToV1(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 ) (*pkgconfig.TerragruntConfig, error) {
-	return c.assemble(ctx, l, v, keptIncludes{})
+	return c.assemble(ctx, l, v, pc, keptIncludes{})
 }
 
 // assemble converts c to a config and merges in its autoinclude and included files from src, as
-// [pkgconfig.ParseConfig] does. It decodes the parts src decodes with the `dependency` value src gives c.
+// [pkgconfig.ParseConfig] does. It decodes the parts src decodes with the `dependency` value src gives c. It reads
+// the inputs and writes to the sinks of pc, reads the state of each file from the file's own config, and never
+// changes c.
 func (c *UnitConfig) assemble(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 	src includeSource,
 ) (*pkgconfig.TerragruntConfig, error) {
+	pc = pc.withFile(&c.scope)
 	errs := slices.Clone(c.prepErrs)
 
-	deps, err := src.dependencies(ctx, l, v, c)
+	deps, err := src.dependencies(ctx, l, v, pc, c)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	pctx := c.pc.withDecodedDependencies(deps).parsingContext()
+	pctx := pc.withDecodedDependencies(deps).parsingContext()
 	evalCtx := c.evalContext(ctx, l, v, pctx)
+	bound := c.boundFile(l, v, pc)
 
 	file, diags := src.file(c, evalCtx)
-	decodeErr := joinDecodeErrors(c.decodeErr, c.file.HandleDiagnostics(diags))
+	decodeErr := joinDecodeErrors(c.decodeErr, bound.HandleDiagnostics(diags))
 
 	cfgFile, err := pkgconfig.CompleteTerragruntConfigFile(
 		ctx,
 		l,
 		v,
 		pctx,
-		c.file,
+		bound,
 		evalCtx,
 		file,
 		decodeErr,
@@ -73,11 +82,11 @@ func (c *UnitConfig) assemble(
 	}
 
 	if cfg != nil {
-		if err := pkgconfig.ValidateInputDefinitions(c.file, cfg); err != nil {
+		if err := pkgconfig.ValidateInputDefinitions(bound, cfg); err != nil {
 			errs = append(errs, err)
 		}
 
-		autoMergedCfg, autoMergeErr := c.mergeAutoInclude(ctx, l, v, src, cfg)
+		autoMergedCfg, autoMergeErr := c.mergeAutoInclude(ctx, l, v, pc, src, cfg)
 		if autoMergeErr != nil {
 			errs = append(errs, autoMergeErr)
 		}
@@ -87,10 +96,10 @@ func (c *UnitConfig) assemble(
 		}
 	}
 
-	includes := c.pc.file.includes
+	includes := pc.file.includes
 
 	if includes != nil && cfg != nil {
-		mergedCfg, err := c.mergeIncludes(ctx, l, v, src, deps, cfg)
+		mergedCfg, err := c.mergeIncludes(ctx, l, v, pc, src, deps, cfg)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -111,13 +120,18 @@ func (c *UnitConfig) assemble(
 		cfg = mergedCfg
 	}
 
-	if c.pc.file.include == nil && cfg != nil {
+	if pc.file.include == nil && cfg != nil {
 		if err := cfg.Terraform.ValidateVersion(c.file.ConfigPath); err != nil {
 			errs = append(errs, err)
 		}
 	}
 
 	return cfg, errors.Join(errs...)
+}
+
+// boundFile returns c's file bound to a parser of pc, which logs through l and writes through v.
+func (c *UnitConfig) boundFile(l log.Logger, v *venv.Venv, pc *ParseContext) *pkghclparse.File {
+	return c.file.Rebind(pkghclparse.NewParser(pc.parserOptions(l, v)...))
 }
 
 // evalContext returns an eval context with the variables c's blocks decoded with, the `dependency` value of pctx,

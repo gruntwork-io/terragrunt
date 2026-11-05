@@ -61,10 +61,10 @@ inputs = {
 	second, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
-	firstCfg, err := first.ToV1(ctx, l, v)
+	firstCfg, err := first.ToV1(ctx, l, v, pc)
 	require.NoError(t, err)
 
-	secondCfg, err := second.ToV1(ctx, l, v)
+	secondCfg, err := second.ToV1(ctx, l, v, pc)
 	require.NoError(t, err)
 
 	assert.Equal(t, firstCfg, secondCfg)
@@ -103,16 +103,12 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := new(config.Store).ResolveUnitConfig(
-		ctx,
-		l,
-		v,
-		config.NewParseContext(run),
-		cfgPath,
-	)
+	pc := config.NewParseContext(run)
+
+	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
-	cfg, err := parsed.ToV1(ctx, l, v)
+	cfg, err := parsed.ToV1(ctx, l, v, pc)
 	require.NoError(t, err)
 
 	assert.Equal(t, "vpc-from-run", cfg.Inputs["vpc_id"])

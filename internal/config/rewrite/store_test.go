@@ -125,22 +125,21 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	assert.Equal(t, run.FilesRead.Paths(), secondRun.FilesRead.Paths())
 	assert.Contains(t, secondRun.FilesRead.Paths(), filepath.Join(root, "common.yaml"))
 
-	first, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+	firstPC := config.NewParseContext(run)
+
+	first, err := store.ResolveUnitConfig(ctx, l, v, firstPC, paths[0])
 	require.NoError(t, err)
 
-	second, err := store.ResolveUnitConfig(
-		secondCtx,
-		l,
-		v,
-		config.NewParseContext(secondRun),
-		paths[0],
-	)
+	secondPC := config.NewParseContext(secondRun)
+
+	second, err := store.ResolveUnitConfig(secondCtx, l, v, secondPC, paths[0])
+	require.NoError(t, err)
+	assert.Same(t, first, second, "callers share one parse")
+
+	firstV1, err := first.ToV1(ctx, l, v, firstPC)
 	require.NoError(t, err)
 
-	firstV1, err := first.ToV1(ctx, l, v)
-	require.NoError(t, err)
-
-	secondV1, err := second.ToV1(secondCtx, l, v)
+	secondV1, err := second.ToV1(secondCtx, l, v, secondPC)
 	require.NoError(t, err)
 
 	assert.Equal(t, firstV1, secondV1)
@@ -235,6 +234,83 @@ locals {
 `), 0o644))
 
 	return fsys, path
+}
+
+func TestToV1WritesToTheSinksOfItsCallerWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const callers = 8
+
+	root := t.TempDir()
+	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	readByInputs := filepath.Join(root, "unit", "read-by-inputs.txt")
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte("locals {}\n"), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, readByInputs, []byte("content"), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+inputs = {
+  content = file("${get_terragrunt_dir()}/read-by-inputs.txt")
+}
+`), 0o644))
+
+	v := venvtest.New().WithFS(fsys)
+	l := logger.CreateLogger()
+
+	ctx, parseRun := newTestParsingContext(t, path)
+	parseRun = parseRun.WithFileReadTracking()
+
+	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, config.NewParseContext(parseRun), path)
+	require.NoError(t, err)
+
+	var g errgroup.Group
+
+	for range callers {
+		g.Go(func() error {
+			runCtx, run := newTestParsingContext(t, path)
+			run = run.WithFileReadTracking()
+
+			if _, err := parsed.ToV1(runCtx, l, v, config.NewParseContext(run)); err != nil {
+				return err
+			}
+
+			assert.Contains(t, run.FilesRead.Paths(), readByInputs)
+			assert.Contains(t, run.FilesRead.Paths(), filepath.Join(root, "root.hcl"))
+
+			return nil
+		})
+	}
+
+	require.NoError(t, g.Wait())
+	assert.NotContains(t, parseRun.FilesRead.Paths(), readByInputs)
+}
+
+func TestResolveUnitConfigSendsDiagnosticsToItsCallersHandler(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte("terraform_binary = local.missing\n"), 0o644))
+
+	v := venvtest.New().WithFS(fsys)
+	ctx, run := newTestParsingContext(t, path)
+
+	var received hcl.Diagnostics
+
+	run.Parser.DiagnosticsHandler = func(_ *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+		received = append(received, diags...)
+
+		return diags, nil
+	}
+
+	_, err := new(config.Store).ResolveUnitConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(run), path)
+	require.Error(t, err)
+	assert.NotEmpty(t, received)
 }
 
 func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
@@ -336,10 +412,12 @@ func TestResolveUnitConfigSharesIncludedFilesAcrossUnits(t *testing.T) {
 	for _, path := range paths {
 		ctx, run := newTestParsingContext(t, path)
 
-		parsed, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(run), path)
+		pc := config.NewParseContext(run)
+
+		parsed, err := store.ResolveUnitConfig(ctx, l, v, pc, path)
 		require.NoError(t, err)
 
-		cfg, err := parsed.ToV1(ctx, l, v)
+		cfg, err := parsed.ToV1(ctx, l, v, pc)
 		require.NoError(t, err)
 		assert.Equal(t, filepath.Base(filepath.Dir(path)), cfg.Inputs["unit"])
 	}

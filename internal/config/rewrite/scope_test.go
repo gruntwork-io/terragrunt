@@ -57,13 +57,9 @@ dependency "vpc" {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			l := logger.CreateLogger()
 
-			parsed, parseErr := new(config.Store).ResolveUnitConfig(
-				ctx,
-				l,
-				v,
-				config.NewParseContext(pctx),
-				cfgPath,
-			)
+			pc := config.NewParseContext(pctx)
+
+			parsed, parseErr := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 			require.Error(t, parseErr)
 			assert.Contains(t, parseErr.Error(), "Unknown variable")
 			assert.Contains(t, parseErr.Error(), pkgconfig.MetadataDependency)
@@ -71,7 +67,7 @@ dependency "vpc" {
 
 			assert.Zero(t, stub.parseExecs.Load(), "the parse ran tofu")
 
-			_, toV1Err := parsed.ToV1(ctx, l, v)
+			_, toV1Err := parsed.ToV1(ctx, l, v, pc)
 			require.Error(t, toV1Err)
 			assert.Contains(t, toV1Err.Error(), "Unknown variable")
 		})

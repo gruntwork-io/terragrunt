@@ -175,7 +175,7 @@ func (s *Store) ParseUnitAST(
 			return nil, err
 		}
 
-		return &astFile{file: file, modTime: info.ModTime(), size: info.Size()}, nil
+		return &astFile{file: withoutParser(file), modTime: info.ModTime(), size: info.Size()}, nil
 	})
 	if err != nil {
 		return nil, err
