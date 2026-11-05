@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -43,19 +42,19 @@ type includeSource interface {
 	) (*pkgconfig.TerragruntConfig, error)
 }
 
-// includeParser parses each included file with store and keeps it on the config that includes it.
-type includeParser struct {
-	store *hclparse.Store
+// includeResolver resolves each included file with store and keeps it on the config that includes it.
+type includeResolver struct {
+	store *Store
 }
 
-func (p includeParser) file(
+func (p includeResolver) file(
 	c *UnitConfig,
 	evalCtx *hcl.EvalContext,
 ) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
 	return c.queueFile(&c.Queue), nil
 }
 
-func (p includeParser) dependencies(
+func (p includeResolver) dependencies(
 	_ context.Context,
 	_ log.Logger,
 	_ *venv.Venv,
@@ -64,7 +63,7 @@ func (p includeParser) dependencies(
 	return c.pc.file.decodedDeps, nil
 }
 
-func (p includeParser) included(
+func (p includeResolver) included(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -74,20 +73,20 @@ func (p includeParser) included(
 ) (*pkgconfig.TerragruntConfig, error) {
 	include := c.pc.file.includes.List[i]
 
-	included, cfg, err := c.parseIncludedConfig(ctx, l, v, p.store, &include)
+	included, cfg, err := c.resolveIncludedConfig(ctx, l, v, p.store, &include)
 	c.includedFiles[i] = newIncludedFile(included, err)
 
 	return cfg, err
 }
 
-func (p includeParser) autoIncluded(
+func (p includeResolver) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	c *UnitConfig,
 	path string,
 ) (*pkgconfig.TerragruntConfig, error) {
-	autoInclude, cfg, err := parseFile(ctx, l, v, p.store, c.pc.forAutoInclude(), path)
+	autoInclude, cfg, err := p.store.resolveFile(ctx, l, v, c.pc.forAutoInclude(), path)
 	c.autoInclude = newIncludedFile(autoInclude, err)
 
 	return cfg, err
@@ -177,7 +176,10 @@ func (k keptIncludes) autoIncluded(
 // Panics when the config has no kept file for an include the assembly reaches.
 type keptQueue struct{}
 
-func (q keptQueue) file(c *UnitConfig, _ *hcl.EvalContext) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
+func (q keptQueue) file(
+	c *UnitConfig,
+	_ *hcl.EvalContext,
+) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
 	return c.queueFile(&c.Queue), nil
 }
 
@@ -257,13 +259,22 @@ func (c *UnitConfig) mergeIncludes(
 
 		switch mergeStrategy {
 		case pkgconfig.NoMerge:
-			l.Debugf("Included config %s has strategy no merge: not merging config in.", include.Path)
+			l.Debugf(
+				"Included config %s has strategy no merge: not merging config in.",
+				include.Path,
+			)
 
 			continue
 		case pkgconfig.ShallowMerge:
-			l.Debugf("Included config %s has strategy shallow merge: merging config in (shallow).", include.Path)
+			l.Debugf(
+				"Included config %s has strategy shallow merge: merging config in (shallow).",
+				include.Path,
+			)
 		case pkgconfig.DeepMerge:
-			l.Debugf("Included config %s has strategy deep merge: merging config in (deep).", include.Path)
+			l.Debugf(
+				"Included config %s has strategy deep merge: merging config in (deep).",
+				include.Path,
+			)
 		case pkgconfig.DeepMergeMapOnly:
 			return nil, pkgconfig.IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		}
@@ -296,15 +307,15 @@ func mergeIncludedConfig(
 	return included.DeepMerge(l, base)
 }
 
-// parseIncludedConfig parses the file that include names and returns it with its config.
+// resolveIncludedConfig resolves the file that include names and returns it with its config.
 //
 // Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path, and
 // [pkgconfig.IncludeConfigNotFoundError] when the file does not exist.
-func (c *UnitConfig) parseIncludedConfig(
+func (c *UnitConfig) resolveIncludedConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	p *hclparse.Store,
+	p *Store,
 	include *pkgconfig.IncludeConfig,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
 	if include.Path == "" {
@@ -322,7 +333,7 @@ func (c *UnitConfig) parseIncludedConfig(
 		includedPC = includedPC.withDiagnosticsSuppressed()
 	}
 
-	included, cfg, err := parseFile(ctx, l, v, p, includedPC, include.Path)
+	included, cfg, err := p.resolveFile(ctx, l, v, includedPC, include.Path)
 	if err != nil {
 		return included, nil, includeParseError(err, include, c.pc)
 	}
@@ -381,8 +392,12 @@ func newIncludedFile(cfg *UnitConfig, err error) *includedFile {
 	return &includedFile{cfg: cfg}
 }
 
-// rebind returns f with its file rebound to run, as [UnitConfig.rebind] does, or f itself when it kept none.
-func (f *includedFile) rebind(l log.Logger, v *venv.Venv, run *pkgconfig.ParsingContext) *includedFile {
+// rebind returns f with its file rebound to run, or f itself when it kept none.
+func (f *includedFile) rebind(
+	l log.Logger,
+	v *venv.Venv,
+	run *pkgconfig.ParsingContext,
+) *includedFile {
 	if f.cfg == nil {
 		return f
 	}

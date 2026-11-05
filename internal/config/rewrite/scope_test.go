@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
-	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -58,11 +57,10 @@ dependency "vpc" {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			l := logger.CreateLogger()
 
-			parsed, _, parseErr := config.ParseConfigFile(
+			parsed, parseErr := new(config.Store).ResolveUnitConfig(
 				ctx,
 				l,
 				v,
-				&hclparse.Store{},
 				config.NewParseContext(pctx),
 				cfgPath,
 			)

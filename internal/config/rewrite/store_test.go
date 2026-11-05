@@ -12,7 +12,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
-	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -20,7 +19,6 @@ import (
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // includingRepo lays out root.hcl, common.yaml, and n units that include the root and read the YAML.
@@ -73,50 +71,71 @@ inputs = {
 }
 
 // parseForBenchmark parses path through store with a fresh context and fails b on any error.
-func parseForBenchmark(b *testing.B, l log.Logger, v *venv.Venv, store *hclparse.Store, path string) {
+func parseForBenchmark(b *testing.B, l log.Logger, v *venv.Venv, store *config.Store, path string) {
 	b.Helper()
 
 	ctx, run := newTestParsingContext(b, path)
 
-	_, _, err := config.ParseConfigFile(ctx, l, v, store, config.NewParseContext(run), path)
+	_, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(run), path)
 	require.NoError(b, err)
 }
 
-func TestParseConfigFileSharesTheParse(t *testing.T) {
+func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	fsys, paths := includingRepo(t, root, 1)
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
-	store := &hclparse.Store{}
+	store := &config.Store{}
 
 	ctx, run := newTestParsingContext(t, paths[0])
 	run = run.WithFileReadTracking()
 
-	first, firstCfg, err := config.ParseConfigFile(ctx, l, v, store, config.NewParseContext(run), paths[0])
+	firstCfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), paths[0])
 	require.NoError(t, err)
-	assert.Equal(t, hclparse.Stats{Hits: 0, Misses: 4}, store.Stats(), "two files, each at two stages")
+	assert.Equal(
+		t,
+		config.Stats{Hits: 0, Misses: 4},
+		store.Stats(),
+		"two files, each at two stages",
+	)
 
 	secondCtx, secondRun := newTestParsingContext(t, paths[0])
 	secondRun = secondRun.WithFileReadTracking()
 
-	second, secondCfg, err := config.ParseConfigFile(
+	secondCfg, err := store.ResolveUnitQueueConfig(
 		secondCtx,
 		l,
 		v,
-		store,
 		config.NewParseContext(secondRun),
 		paths[0],
 	)
 	require.NoError(t, err)
-	assert.Equal(t, hclparse.Stats{Hits: 1, Misses: 4}, store.Stats(), "the unit's parse is served whole")
+	assert.Equal(
+		t,
+		config.Stats{Hits: 1, Misses: 4},
+		store.Stats(),
+		"the unit's parse is served whole",
+	)
 
 	assert.Equal(t, firstCfg, secondCfg)
 	assert.NotSame(t, firstCfg, secondCfg, "each caller gets a config of its own")
 	assert.Equal(t, "us-east-1", secondCfg.Locals["region"])
 	assert.Equal(t, run.FilesRead.Paths(), secondRun.FilesRead.Paths())
 	assert.Contains(t, secondRun.FilesRead.Paths(), filepath.Join(root, "common.yaml"))
+
+	first, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+	require.NoError(t, err)
+
+	second, err := store.ResolveUnitConfig(
+		secondCtx,
+		l,
+		v,
+		config.NewParseContext(secondRun),
+		paths[0],
+	)
+	require.NoError(t, err)
 
 	firstV1, err := first.ToV1(ctx, l, v)
 	require.NoError(t, err)
@@ -125,22 +144,199 @@ func TestParseConfigFileSharesTheParse(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, firstV1, secondV1)
-	assert.Equal(t, map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"}, secondV1.Inputs)
+	assert.Equal(
+		t,
+		map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
+		secondV1.Inputs,
+	)
 }
 
-func TestParseConfigFileSharesIncludedFilesAcrossUnits(t *testing.T) {
+func TestResolveUnitQueueConfigReturnsPartialConfigWithParseError(t *testing.T) {
+	t.Parallel()
+
+	fsys, path := missingIncludeRepo(t)
+	v := venv.MemVenv().WithFS(fsys)
+	l := logger.CreateLogger()
+
+	ctx, run := newTestParsingContext(t, path)
+
+	cfg, err := new(
+		config.Store,
+	).ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+	require.ErrorAs(t, err, new(pkgconfig.IncludeConfigNotFoundError))
+	require.NotNil(t, cfg)
+	assert.Equal(t, "us-east-1", cfg.Locals["region"])
+}
+
+func TestResolveUnitQueueConfigGivesCallersOfAFailedParseTheirOwnConfigWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const callers = 8
+
+	fsys, path := missingIncludeRepo(t)
+	v := venv.MemVenv().WithFS(fsys)
+	l := logger.CreateLogger()
+
+	for range 50 {
+		store := &config.Store{}
+		cfgs := make([]*pkgconfig.TerragruntConfig, callers)
+
+		var g errgroup.Group
+
+		for i := range callers {
+			g.Go(func() error {
+				ctx, run := newTestParsingContext(t, path)
+
+				cfg, err := store.ResolveUnitQueueConfig(
+					ctx,
+					l,
+					v,
+					config.NewParseContext(run),
+					path,
+				)
+				assert.ErrorAs(t, err, new(pkgconfig.IncludeConfigNotFoundError))
+
+				cfgs[i] = cfg
+
+				return nil
+			})
+		}
+
+		require.NoError(t, g.Wait())
+
+		seen := make(map[*pkgconfig.TerragruntConfig]struct{}, callers)
+
+		for _, cfg := range cfgs {
+			require.NotNil(t, cfg)
+			seen[cfg] = struct{}{}
+		}
+
+		assert.Len(t, seen, callers)
+	}
+}
+
+// missingIncludeRepo returns a filesystem holding a unit that includes a file that does not exist, and the unit's
+// config path.
+func missingIncludeRepo(t *testing.T) (vfs.FS, string) {
+	t.Helper()
+
+	root := t.TempDir()
+	path := filepath.Join(root, pkgconfig.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+include {
+  path = "`+filepath.Join(root, "missing.hcl")+`"
+}
+
+locals {
+  region = "us-east-1"
+}
+`), 0o644))
+
+	return fsys, path
+}
+
+func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	fsys, paths := includingRepo(t, root, 1)
+	v := venv.MemVenv().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	ctx, run := newTestParsingContext(t, paths[0])
+
+	queueCfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+	require.NoError(t, err)
+	assert.Nil(t, queueCfg.Inputs)
+
+	runCfg, err := store.ResolveRunConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
+		runCfg.Inputs,
+	)
+	assert.Equal(t, config.Stats{Hits: 1, Misses: 4}, store.Stats())
+}
+
+func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
+	v := venv.MemVenv().WithFS(vfs.NewMemMapFS())
+	ctx, run := newTestParsingContext(t, path)
+
+	cfg, err := new(
+		config.Store,
+	).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(run), path)
+	require.ErrorAs(t, err, new(pkgconfig.TerragruntConfigNotFoundError))
+	assert.Nil(t, cfg)
+}
+
+func TestResolveUnitBaseVariablesStopsBeforeTheDependencyBlocks(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+locals {
+  region = "us-east-1"
+}
+
+dependency "vpc" {
+  config_path = local.missing
+}
+`), 0o644))
+
+	v := venv.MemVenv().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	ctx, run := newTestParsingContext(t, path)
+
+	vars, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), path)
+	require.NoError(t, err)
+	assert.Equal(t, "us-east-1", vars[pkgconfig.MetadataLocal].GetAttr("region").AsString())
+
+	_, err = store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+	require.Error(t, err)
+}
+
+func TestResolveUnitBaseVariablesReturnsNoVariablesForAMissingFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
+	v := venv.MemVenv().WithFS(vfs.NewMemMapFS())
+	ctx, run := newTestParsingContext(t, path)
+
+	vars, err := new(config.Store).ResolveUnitBaseVariables(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		config.NewParseContext(run),
+		path,
+	)
+	require.ErrorAs(t, err, new(pkgconfig.TerragruntConfigNotFoundError))
+	assert.Nil(t, vars)
+}
+
+func TestResolveUnitConfigSharesIncludedFilesAcrossUnits(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	fsys, paths := includingRepo(t, root, 3)
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
-	store := &hclparse.Store{}
+	store := &config.Store{}
 
 	for _, path := range paths {
 		ctx, run := newTestParsingContext(t, path)
 
-		parsed, _, err := config.ParseConfigFile(ctx, l, v, store, config.NewParseContext(run), path)
+		parsed, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(run), path)
 		require.NoError(t, err)
 
 		cfg, err := parsed.ToV1(ctx, l, v)
@@ -150,18 +346,21 @@ func TestParseConfigFileSharesIncludedFilesAcrossUnits(t *testing.T) {
 
 	assert.Equal(
 		t,
-		hclparse.Stats{Hits: 2, Misses: 10},
+		config.Stats{Hits: 2, Misses: 10},
 		store.Stats(),
 		"the root's syntax tree is parsed once; each unit evaluates it in its own context",
 	)
 }
 
-func TestParseConfigFileLabelsBareIncludeUnderTwoContextsWithRacing(t *testing.T) {
+func TestResolveUnitConfigLabelsBareIncludeUnderTwoContextsWithRacing(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	fsys := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte("inputs = { a = 1 }\n"), 0o644))
+	require.NoError(
+		t,
+		vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte("inputs = { a = 1 }\n"), 0o644),
+	)
 
 	unit := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
 	require.NoError(t, vfs.WriteFile(fsys, unit, []byte(`
@@ -170,11 +369,11 @@ include {
 }
 `), 0o644))
 
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 
 	for range 20 {
-		store := &hclparse.Store{}
+		store := &config.Store{}
 
 		var g errgroup.Group
 
@@ -183,7 +382,13 @@ include {
 				ctx, run := newTestParsingContext(t, unit)
 				run.WorkingDir = workingDir
 
-				_, cfg, err := config.ParseConfigFile(ctx, l, v, store, config.NewParseContext(run), unit)
+				cfg, err := store.ResolveUnitQueueConfig(
+					ctx,
+					l,
+					v,
+					config.NewParseContext(run),
+					unit,
+				)
 				if err != nil {
 					return err
 				}
@@ -198,20 +403,20 @@ include {
 	}
 }
 
-func TestParseConfigFileParsesAgainAfterInvalidate(t *testing.T) {
+func TestResolveUnitConfigParsesAgainAfterInvalidate(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	fsys, paths := includingRepo(t, root, 1)
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
-	store := &hclparse.Store{}
+	store := &config.Store{}
 
 	region := func() any {
 		ctx, run := newTestParsingContext(t, paths[0])
 		run = run.WithFileReadTracking()
 
-		_, cfg, err := config.ParseConfigFile(ctx, l, v, store, config.NewParseContext(run), paths[0])
+		cfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), paths[0])
 		require.NoError(t, err)
 
 		return cfg.Locals["region"]
@@ -222,32 +427,42 @@ func TestParseConfigFileParsesAgainAfterInvalidate(t *testing.T) {
 	common := filepath.Join(root, "common.yaml")
 	require.NoError(t, vfs.WriteFile(fsys, common, []byte("region: eu-west-1\n"), 0o644))
 
-	assert.Equal(t, "us-east-1", region(), "the unit's parse is served until its reads are invalidated")
+	assert.Equal(
+		t,
+		"us-east-1",
+		region(),
+		"the unit's parse is served until its reads are invalidated",
+	)
 
 	store.Invalidate(common)
 
 	assert.Equal(t, "eu-west-1", region())
 }
 
-func TestParseConfigFileRunsUnmemoizedForSuppliedValues(t *testing.T) {
+func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	fsys, paths := includingRepo(t, root, 1)
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
-	store := &hclparse.Store{}
+	store := &config.Store{}
 
 	ctx, run := newTestParsingContext(t, paths[0])
 	locals := cty.ObjectVal(map[string]cty.Value{"from_run": cty.StringVal("run")})
 	run.Locals = &locals
 
 	for range 2 {
-		_, _, err := config.ParseConfigFile(ctx, l, v, store, config.NewParseContext(run), paths[0])
+		_, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(run), paths[0])
 		require.NoError(t, err)
 	}
 
-	assert.Equal(t, hclparse.Stats{Hits: 2, Misses: 2}, store.Stats(), "only the syntax trees are shared")
+	assert.Equal(
+		t,
+		config.Stats{Hits: 2, Misses: 2},
+		store.Stats(),
+		"only the syntax trees are shared",
+	)
 }
 
 func TestParseContextStoreContextCoversEachInput(t *testing.T) {
@@ -361,7 +576,7 @@ func TestParityFixturesSharedStoreWithRacing(t *testing.T) {
 	t.Parallel()
 
 	fixtures := loadFixtures(t, parityFixtureRoots, parityExcludedDirs)
-	store := &hclparse.Store{}
+	store := &config.Store{}
 
 	t.Cleanup(func() {
 		assert.Positive(t, store.Stats().Hits)
@@ -391,25 +606,25 @@ func TestParityFixturesSharedStoreWithRacing(t *testing.T) {
 	}
 }
 
-func BenchmarkParseConfigFile(b *testing.B) {
+func BenchmarkResolveUnitConfig(b *testing.B) {
 	for _, n := range []int{16, 128} {
 		b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
 			root := b.TempDir()
 			fsys, paths := includingRepo(b, root, n)
-			v := venvtest.New().WithFS(fsys)
+			v := venv.MemVenv().WithFS(fsys)
 			l := logger.CreateLogger()
 
 			b.Run("store_per_unit", func(b *testing.B) {
 				for b.Loop() {
 					for _, path := range paths {
-						parseForBenchmark(b, l, v, &hclparse.Store{}, path)
+						parseForBenchmark(b, l, v, &config.Store{}, path)
 					}
 				}
 			})
 
 			b.Run("store_shared", func(b *testing.B) {
 				for b.Loop() {
-					store := &hclparse.Store{}
+					store := &config.Store{}
 
 					for _, path := range paths {
 						parseForBenchmark(b, l, v, store, path)
@@ -418,7 +633,7 @@ func BenchmarkParseConfigFile(b *testing.B) {
 			})
 
 			b.Run("store_warm", func(b *testing.B) {
-				store := &hclparse.Store{}
+				store := &config.Store{}
 
 				for _, path := range paths {
 					parseForBenchmark(b, l, v, store, path)

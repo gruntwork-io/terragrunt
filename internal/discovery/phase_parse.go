@@ -138,7 +138,7 @@ func parseConfig(
 	l log.Logger,
 	v *venv.Venv,
 	pctx *config.ParsingContext,
-	p *inthclparse.Store,
+	p *rewrite.Store,
 	c component.Component,
 	cfgPath string,
 ) (*config.TerragruntConfig, error) {
@@ -146,9 +146,7 @@ func parseConfig(
 		return config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	}
 
-	_, cfg, err := rewrite.ParseConfigFile(ctx, l, v, p, rewrite.NewParseContext(pctx), cfgPath)
-
-	return cfg, err
+	return p.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(pctx), cfgPath)
 }
 
 // ParsePhase parses HCL configurations for filter evaluation.
@@ -294,7 +292,12 @@ func (p *ParsePhase) parseAndReclassify(
 
 	if discovery.classifier != nil {
 		for _, expr := range discovery.classifier.ParseExpressions() {
-			matched, err := filter.Evaluate(l, discovery.evaluationContext(), expr, component.Components{c})
+			matched, err := filter.Evaluate(
+				l,
+				discovery.evaluationContext(),
+				expr,
+				component.Components{c},
+			)
 			if err != nil {
 				l.Debugf("Error evaluating parse expression for %s: %v", c.Path(), err)
 				continue

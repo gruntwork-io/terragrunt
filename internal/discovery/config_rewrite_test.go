@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -103,7 +102,7 @@ unit "web" {
 `,
 }
 
-// componentView is what discovery and the runner read from a discovered component.
+// componentView is the parts of a discovered component the parity test compares.
 type componentView struct {
 	Exclude      *config.ExcludeConfig
 	Errors       *config.ErrorsConfig
@@ -120,7 +119,7 @@ type componentView struct {
 
 // discoverCorpus runs discovery over rewriteCorpus, with the rewrite selected when useRewrite is set and parsing
 // through store, and returns what it found in path order.
-func discoverCorpus(t *testing.T, useRewrite bool, store *hclparse.Store) []componentView {
+func discoverCorpus(t *testing.T, useRewrite bool, store *rewrite.Store) []componentView {
 	t.Helper()
 
 	v := memRepoRootVenv(t, corpusRepoRoot)
@@ -193,10 +192,10 @@ func discoverCorpus(t *testing.T, useRewrite bool, store *hclparse.Store) []comp
 func TestDiscoveryConfigRewriteMatchesDefaultParser(t *testing.T) {
 	t.Parallel()
 
-	want := discoverCorpus(t, false, new(hclparse.Store))
+	want := discoverCorpus(t, false, new(rewrite.Store))
 	require.NotEmpty(t, want)
 
-	store := new(hclparse.Store)
+	store := new(rewrite.Store)
 
 	got := discoverCorpus(t, true, store)
 	assert.Equal(t, want, got)
@@ -212,11 +211,11 @@ func TestDiscoveryConfigRewriteMatchesDefaultParser(t *testing.T) {
 func TestDiscoveryConfigRewriteOffByDefault(t *testing.T) {
 	t.Parallel()
 
-	store := new(hclparse.Store)
+	store := new(rewrite.Store)
 
 	discoverCorpus(t, false, store)
 
-	assert.Equal(t, hclparse.Stats{}, store.Stats())
+	assert.Equal(t, rewrite.Stats{}, store.Stats())
 }
 
 // prefixPaths returns files with each path joined onto the corpus repo root.

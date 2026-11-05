@@ -9,7 +9,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
-	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -17,7 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
-func TestParseConfigFileLeavesParseContextUnchanged(t *testing.T) {
+func TestResolveUnitConfigLeavesParseContextUnchanged(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
@@ -56,10 +55,10 @@ inputs = {
 	pc := config.NewParseContext(run)
 	l := logger.CreateLogger()
 
-	first, _, err := config.ParseConfigFile(ctx, l, v, &hclparse.Store{}, pc, cfgPath)
+	first, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
-	second, _, err := config.ParseConfigFile(ctx, l, v, &hclparse.Store{}, pc, cfgPath)
+	second, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
 	firstCfg, err := first.ToV1(ctx, l, v)
@@ -82,7 +81,7 @@ inputs = {
 	assert.Equal(t, want.Parser, run.Parser)
 }
 
-func TestParseConfigFileAppliesRunScopedValues(t *testing.T) {
+func TestResolveUnitConfigAppliesRunScopedValues(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
@@ -104,11 +103,10 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, _, err := config.ParseConfigFile(
+	parsed, err := new(config.Store).ResolveUnitConfig(
 		ctx,
 		l,
 		v,
-		&hclparse.Store{},
 		config.NewParseContext(run),
 		cfgPath,
 	)

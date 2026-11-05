@@ -7,7 +7,7 @@
 // outputs, decodes the run parts, which [RunBodies] names, and converts the parse's result and its own together. An
 // exclude block that reads `dependency` is a run part. Every part evaluates once, and nothing a parse produced changes afterwards.
 //
-// Every parse goes through a [hclparse.Store], which shares a file's syntax tree across the units that include it
+// Every parse goes through a [Store], which shares a file's syntax tree across the units that include it
 // and serves a unit's whole parse again to a later caller with the same context. What the context covers is the
 // contract of the run digest in profile.go. [EnvRewrite] selects this package's parser for discovery.
 //
