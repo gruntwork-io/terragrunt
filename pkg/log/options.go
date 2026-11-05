@@ -23,6 +23,13 @@ func WithOutput(output io.Writer) Option {
 	}
 }
 
+// WithOutputWrapper sets the logger output to wrap(current output). Not safe for concurrent SetOutput calls.
+func WithOutputWrapper(wrap func(output io.Writer) io.Writer) Option {
+	return func(logger *logger) {
+		logger.Logger.SetOutput(wrap(logger.Logger.Out))
+	}
+}
+
 // WithFormatter sets the logger formatter.
 func WithFormatter(formatter Formatter) Option {
 	return func(logger *logger) {

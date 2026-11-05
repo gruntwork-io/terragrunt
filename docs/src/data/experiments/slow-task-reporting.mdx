@@ -3,30 +3,64 @@ name: slow-task-reporting
 since: "v1.0.1"
 ---
 
-Progress reporting for long-running Terragrunt operations.
+Shows progress for slow operations, so a long wait does not look like a hang.
 
 ### `slow-task-reporting` - What it does
-When enabled, Terragrunt displays animated progress spinners for operations that take longer than 1 second (e.g., Git worktree creation). Once the operation completes, the spinner is replaced with an INFO log line showing the operation result and elapsed time.
 
-This provides visual feedback during operations that would otherwise show no output:
+Terragrunt reports an operation after it runs for 100ms. These operations are reported:
 
-- Git worktree creation for `--filter` with Git references
-- Catalog repository cloning (`terragrunt catalog`)
-- OpenTofu/Terraform source downloads via `go-getter`
+- Source downloads, and waits for the download directory lock or the Git store lock
+- Git worktree creation and Git reference comparison for `--filter`
+- Unit discovery for `run --all`, `find` and `list`
+- `dependency` output fetches
+- Provider caching
+- Waits for a new S3 bucket, DynamoDB table or GCS bucket to be ready
+- Unit and stack fetches during `stack generate`
+- Repository clones in `terragrunt catalog`
 
-In non-interactive environments (CI/CD, piped output), spinners are suppressed and INFO log lines are emitted instead. To prevent CI systems (e.g., CircleCI) from killing jobs due to prolonged output silence, periodic keepalive log lines are emitted every 30 seconds while the operation is in progress.
+On a terminal, Terragrunt draws one progress line with the operation, its elapsed time, and the number of other running operations:
+
+```text
+| Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
+```
+
+The line is cut to the terminal width. Log lines are written above it. When the operation succeeds, Terragrunt replaces the line with an INFO log line that has the elapsed time. In `run --all`, all units share the line, and it shows the oldest running operation.
+
+Otherwise, Terragrunt writes INFO log lines: one after 100ms, one every 30 seconds while it runs, and one when it succeeds. The 30-second lines keep CI systems from stopping a job that looks idle.
+
+```text
+INFO   Fetching outputs of dependency ../vpc...
+INFO   Fetching outputs of dependency ../vpc... (30s elapsed)
+INFO   Fetched outputs of dependency ../vpc (41.7s)
+```
+
+Terragrunt writes log lines instead of the progress line when:
+
+- Stderr is not a terminal, or the terminal is narrower than 20 columns.
+- `TERM` is unset or `dumb`. On Windows, `TERM` is not needed, but the console must support ANSI escape sequences.
+- `CI` is set to anything but `false`, `0`, `no` or `off`, or `TF_BUILD`, `TEAMCITY_VERSION`, `JENKINS_URL` or `TF_IN_AUTOMATION` is set.
+- Logs use the `json` format.
+
+To get log lines on a terminal, set `TERM=dumb` or `CI=true`. `terragrunt catalog` never draws the progress line, because its TUI uses the terminal.
+
+With `--log-level warn` or higher, or with `--log-disable`, nothing is reported.
+
+The spinner uses Unicode characters on UTF-8 terminals and in Windows Terminal, and `|`, `/`, `-`, `\` elsewhere.
 
 ```bash
 terragrunt run --all --experiment slow-task-reporting -- plan
 ```
 
 ### `slow-task-reporting` - How to provide feedback
+
 Provide your feedback on the [`slow-task-reporting` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/6226).
 
 ### `slow-task-reporting` - Criteria for stabilization
+
 To transition the `slow-task-reporting` feature to a stable release, the following must be addressed:
 
-- [ ] Validate spinner rendering across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, GNOME Terminal)
-- [ ] Extend progress reporting to additional slow operations (e.g., provider caching)
+- [x] Validate the progress line across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, the Windows console, GNOME Terminal)
+- [x] Extend progress reporting to additional slow operations (e.g., provider caching)
 - [ ] Community feedback on usefulness and threshold tuning
-- [ ] Ensure no interference with structured log output when using `--log-format json`
+- [x] Ensure no interference with structured log output when using `--log-format json`
+- [x] Ensure no interference with the output of units that run concurrently, or with the catalog TUI

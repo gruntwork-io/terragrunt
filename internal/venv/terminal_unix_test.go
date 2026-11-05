@@ -20,12 +20,13 @@ func TestOSVenvTerminalProbesOwnStream(t *testing.T) {
 	const columns = 132
 
 	testCases := []struct {
-		name       string
-		ttyStream  string
-		wantWidth  int
-		wantStdin  bool
-		wantStdout bool
-		wantStderr bool
+		name         string
+		ttyStream    string
+		wantWidth    int
+		wantErrWidth int
+		wantStdin    bool
+		wantStdout   bool
+		wantStderr   bool
 	}{
 		{
 			name:      "stdin is the terminal",
@@ -39,9 +40,10 @@ func TestOSVenvTerminalProbesOwnStream(t *testing.T) {
 			wantWidth:  columns,
 		},
 		{
-			name:       "stderr is the terminal",
-			ttyStream:  "stderr",
-			wantStderr: true,
+			name:         "stderr is the terminal",
+			ttyStream:    "stderr",
+			wantStderr:   true,
+			wantErrWidth: columns,
 		},
 	}
 
@@ -62,6 +64,7 @@ func TestOSVenvTerminalProbesOwnStream(t *testing.T) {
 			assert.Equal(t, tc.wantStdout, terminal.StdoutIsTTY())
 			assert.Equal(t, tc.wantStderr, terminal.StderrIsTTY())
 			assert.Equal(t, tc.wantWidth, terminal.Width())
+			assert.Equal(t, tc.wantErrWidth, terminal.ErrWidth())
 		})
 	}
 }

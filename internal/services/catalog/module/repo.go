@@ -74,7 +74,6 @@ type Repo struct {
 	casOffline       bool
 	casRefresh       bool
 	casProbeCache    bool
-	slowReporting    bool
 	isLocal          bool
 }
 
@@ -90,7 +89,6 @@ type RepoOpts struct {
 	CASOffline       bool
 	CASRefresh       bool
 	CASProbeCache    bool
-	SlowReporting    bool
 }
 
 // NewRepo constructs a Repo, cloning if needed.
@@ -118,7 +116,6 @@ func NewRepo(ctx context.Context, l log.Logger, v *venv.Venv, opts *RepoOpts) (*
 		casOffline:       opts.CASOffline,
 		casRefresh:       opts.CASRefresh,
 		casProbeCache:    opts.CASProbeCache,
-		slowReporting:    opts.SlowReporting,
 		rootWorkingDir:   opts.RootWorkingDir,
 	}
 
@@ -596,15 +593,11 @@ func (repo *Repo) performClone(
 		return err
 	}
 
-	if repo.slowReporting {
-		err = spinner.ShowAfter(ctx, l, spinner.Writer(v), time.Second, spinner.Messages{
-			Working: "Cloning repository " + repo.cloneURL + "...",
-			Done:    "Cloned repository " + repo.cloneURL,
-		}, cloneFunc)
-	} else {
-		err = cloneFunc()
-	}
-
+	err = spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Cloning repository " + repo.cloneURL + "...",
+		Done:    "Cloned repository " + repo.cloneURL,
+		Started: true,
+	}, cloneFunc)
 	if err != nil {
 		return err
 	}

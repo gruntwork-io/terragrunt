@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
@@ -380,15 +381,32 @@ func (pc *ProviderCache) warmUpCache(
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 
-	for _, args := range commandsArgs {
-		if output, err := pc.runTerraformCommand(ctx, l, v, tfOpts, args); err != nil {
-			return output, err
-		}
-	}
+	var (
+		output *util.CmdOutput
+		caches []getproviders.Provider
+	)
 
-	caches, err := pc.providerService.WaitForCacheReady(cacheRequestID)
-	if err != nil {
-		return nil, err
+	if err := spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Caching providers for " + tfOpts.ShellOptions.WorkingDir + "...",
+		Done:    "Cached providers for " + tfOpts.ShellOptions.WorkingDir,
+		Started: true,
+	}, func() error {
+		for _, args := range commandsArgs {
+			cmdOutput, err := pc.runTerraformCommand(ctx, l, v, tfOpts, args)
+			if err != nil {
+				output = cmdOutput
+
+				return err
+			}
+		}
+
+		var err error
+
+		caches, err = pc.providerService.WaitForCacheReady(cacheRequestID)
+
+		return err
+	}); err != nil {
+		return output, err
 	}
 
 	providerConstraints, err := getproviders.ParseProviderConstraints(
