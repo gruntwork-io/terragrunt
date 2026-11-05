@@ -567,11 +567,7 @@ func renderValuesBox(accent, heading, path, summary, body string) string {
 // interactive is true the user came through the form so any unfilled
 // fields landed as `# TODO` lines; otherwise every input is a TODO.
 func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool, files []string) string {
-	outputDir := opts.ScaffoldOutputFolder
-	if outputDir == "" {
-		outputDir = opts.WorkingDir
-	}
-
+	outputDir := scaffold.OutputDir(opts)
 	if outputDir == "" {
 		return ""
 	}

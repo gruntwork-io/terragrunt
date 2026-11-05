@@ -36,7 +36,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        OutputFolderFlagName,
 			Destination: &opts.ScaffoldOutputFolder,
-			Usage:       "Output folder for scaffold output.",
+			Usage:       "Folder to write the scaffolded files into. A relative path is resolved against --working-dir.",
 		}),
 
 		flags.NewFlag(&clihelper.SliceFlag[string]{
@@ -50,7 +50,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 			Name:        VarFileFlagName,
 			EnvVars:     tgPrefix.EnvVars(VarFileFlagName),
 			Destination: &opts.ScaffoldVarFiles,
-			Usage:       "Files with variables to be used in unit scaffolding.",
+			Usage:       "Files with variables for unit scaffolding. A relative path is resolved against --working-dir.",
 		}),
 
 		flags.NewFlag(&clihelper.BoolFlag{

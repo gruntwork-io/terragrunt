@@ -215,18 +215,10 @@ func Prepare(
 	// Apply catalog configuration settings, with CLI flags taking precedence
 	applyCatalogConfigToScaffold(ctx, l, v, opts)
 
-	outputDir := opts.ScaffoldOutputFolder
-	if outputDir == "" {
-		outputDir = opts.WorkingDir
-	}
+	outputDir := OutputDir(opts)
 
-	// scaffold only in empty directories
-	if empty, err := vfs.IsDirectoryEmpty(v.FS, opts.WorkingDir); !empty || err != nil {
-		if err != nil {
-			return nil, err
-		}
-
-		l.Warnf("The working directory %s is not empty.", opts.WorkingDir)
+	if err := warnWhenNotEmpty(l, v.FS, outputDir); err != nil {
+		return nil, err
 	}
 
 	if moduleURL == "" {
@@ -258,15 +250,15 @@ func Prepare(
 		}
 	}()
 
-	// prepare variables
-	vars, err := variables.ParseVars(opts.ScaffoldVars, opts.ScaffoldVarFiles)
+	varFiles := make([]string, len(opts.ScaffoldVarFiles))
+	for i, varFile := range opts.ScaffoldVarFiles {
+		varFiles[i] = underWorkingDir(opts.WorkingDir, varFile)
+	}
+
+	vars, err := variables.ParseVars(opts.ScaffoldVars, varFiles)
 	if err != nil {
 		return nil, err
 	}
-
-	// Save the original URL before go-getter transformation so the scaffolded
-	// source attribute matches the catalog config format.
-	plan.originalModuleURL = moduleURL
 
 	// parse module url (transforms for go-getter download)
 	resolvedURL, err := parseModuleURL(ctx, l, v, opts, vars, moduleURL)
@@ -275,6 +267,11 @@ func Prepare(
 	}
 
 	plan.resolvedModuleURL = resolvedURL
+
+	plan.originalModuleURL, err = unitSource(moduleURL, resolvedURL, opts.WorkingDir, outputDir)
+	if err != nil {
+		return nil, err
+	}
 
 	l.Debugf("Scaffolding a new Terragrunt module %s to %s", resolvedURL, outputDir)
 
@@ -344,6 +341,97 @@ func Prepare(
 	success = true
 
 	return plan, nil
+}
+
+// OutputDir returns the directory scaffold writes into: --output-folder taken
+// from the working directory when relative, or the working directory itself
+// when the flag is not set.
+func OutputDir(opts *options.TerragruntOptions) string {
+	if opts.ScaffoldOutputFolder == "" {
+		return opts.WorkingDir
+	}
+
+	return underWorkingDir(opts.WorkingDir, opts.ScaffoldOutputFolder)
+}
+
+// underWorkingDir returns path cleaned when absolute, and joined under
+// workingDir otherwise.
+func underWorkingDir(workingDir, path string) string {
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
+	}
+
+	return filepath.Join(workingDir, path)
+}
+
+// warnWhenNotEmpty logs a warning when dir holds anything. A dir that does not
+// exist yet is empty: boilerplate creates it.
+func warnWhenNotEmpty(l log.Logger, fsys vfs.FS, dir string) error {
+	empty, err := vfs.IsDirectoryEmpty(fsys, dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if !empty {
+		l.Warnf("The output directory %s is not empty.", dir)
+	}
+
+	return nil
+}
+
+// unitSource returns the source the generated unit points at. A relative local
+// module path is read against the working directory when downloading, but a
+// unit reads its source against its own directory, so the path is rewritten
+// relative to outputDir. Every other source is kept as the user wrote it.
+func unitSource(moduleURL, resolvedURL, workingDir, outputDir string) (string, error) {
+	if !isRelativeLocalSource(moduleURL, resolvedURL) {
+		return moduleURL, nil
+	}
+
+	base, query := splitURLQuery(moduleURL)
+	base, subDir := getter.SourceDirSubdir(base)
+
+	rel, err := filepath.Rel(outputDir, filepath.Join(workingDir, base))
+	if err != nil {
+		return "", err
+	}
+
+	source := filepath.ToSlash(rel)
+	if source != "." && source != ".." && !strings.HasPrefix(source, "../") {
+		source = "./" + source
+	}
+
+	if subDir != "" {
+		source += "//" + subDir
+	}
+
+	if query != "" {
+		source += "?" + query
+	}
+
+	return source, nil
+}
+
+// isRelativeLocalSource reports whether moduleURL names a local path relative
+// to the working directory: it is not absolute, carries no scheme or forced
+// getter, and the detector chain resolved it to a file URL rather than a
+// forge shorthand.
+func isRelativeLocalSource(moduleURL, resolvedURL string) bool {
+	if filepath.IsAbs(moduleURL) {
+		return false
+	}
+
+	if u, err := url.Parse(moduleURL); err == nil && u.Scheme != "" {
+		return false
+	}
+
+	resolved, err := url.Parse(resolvedURL)
+
+	return err == nil && tf.IsLocalSource(resolved)
 }
 
 // Generate renders the prepared scaffold into the output directory. When
