@@ -470,7 +470,7 @@ func getDefinedTerragruntInputs(
 		tmpOut[varName] = true
 	}
 
-	out := []string{}
+	out := make([]string, 0, len(tmpOut))
 	for varName := range tmpOut {
 		out = append(out, varName)
 	}
@@ -653,7 +653,7 @@ func getVarNamesFromVarFile(l log.Logger, fsys vfs.FS, varFile string) ([]string
 		}
 	}
 
-	out := []string{}
+	out := make([]string, 0, len(variables))
 	for varName := range variables {
 		out = append(out, varName)
 	}
