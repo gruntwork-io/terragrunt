@@ -1,0 +1,18 @@
+---
+name: download_dir
+description: Overrides the directory Terragrunt downloads OpenTofu/Terraform modules into.
+configs: [unit]
+type: string
+default: .terragrunt-cache
+examples:
+  - code: |
+      # root.hcl
+
+      download_dir = "/tmp/terragrunt/${path_relative_to_include()}"
+---
+
+The `download_dir` attribute overrides the default download directory, `.terragrunt-cache` in the working directory.
+
+The precedence is as follows: `--download-dir` command line option → `TG_DOWNLOAD_DIR` env variable → `download_dir` attribute of the `terragrunt.hcl` file in the module directory → `download_dir` attribute of the included `terragrunt.hcl`.
+
+It supports all Terragrunt functions, e.g. `path_relative_from_include()`.

@@ -1,0 +1,17 @@
+---
+name: iam_role
+description: Sets the IAM role Terragrunt assumes before invoking OpenTofu/Terraform.
+configs: [unit]
+type: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+---
+
+The `iam_role` attribute specifies an IAM role that Terragrunt assumes before invoking OpenTofu/Terraform.
+
+The precedence is as follows: `--iam-assume-role` command line option → `TG_IAM_ASSUME_ROLE` env variable → `iam_role` attribute of the `terragrunt.hcl` file in the module directory → `iam_role` attribute of the included `terragrunt.hcl`.
+
+The value of `iam_role` can reference local variables, and an included file can define it.

@@ -1,0 +1,16 @@
+---
+name: iam_assume_role_duration
+description: Sets the STS session duration, in seconds, for the IAM role Terragrunt assumes.
+configs: [unit]
+type: number
+default: "3600"
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      iam_assume_role_duration = 14400
+---
+
+The `iam_assume_role_duration` attribute specifies the STS session duration, in seconds, for the IAM role that Terragrunt assumes before invoking OpenTofu/Terraform.
+
+The precedence is as follows: `--iam-assume-role-duration` command line option → `TG_IAM_ASSUME_ROLE_DURATION` env variable → `iam_assume_role_duration` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_duration` attribute of the included `terragrunt.hcl`.
