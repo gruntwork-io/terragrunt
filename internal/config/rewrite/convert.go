@@ -31,6 +31,7 @@ func (c *UnitConfig) v1File() *pkgconfig.TerragruntConfigFile {
 		FeatureFlags:                convertAll(c.FeatureFlags, (*FeatureFlag).v1),
 		Exclude:                     c.Exclude.v1(),
 		Errors:                      c.Errors.v1(),
+		Outputs:                     c.Outputs.v1(),
 		GenerateAttrs:               clonePtr(c.Body.GenerateAttrs),
 		GenerateBlocks:              convertAll(c.Body.Generate, (*Generate).v1),
 	}
@@ -184,6 +185,35 @@ func (i *Ignore) v1() *pkgconfig.IgnoreBlock {
 		Label:           i.Label,
 		Message:         i.Body.Message,
 		IgnorableErrors: slices.Clone(i.Body.IgnorableErrors),
+	}
+}
+
+func (o *Outputs) v1() *pkgconfig.OutputsConfig {
+	if o == nil {
+		return nil
+	}
+
+	return &pkgconfig.OutputsConfig{
+		MockStrategy: o.MockStrategy.v1(),
+		Outputs:      convertAll(o.Output, (*OutputDeclaration).v1),
+	}
+}
+
+func (s *OutputsMockStrategy) v1() *pkgconfig.OutputsMockStrategy {
+	if s == nil {
+		return nil
+	}
+
+	return &pkgconfig.OutputsMockStrategy{
+		AllowedCommands: cloneSlicePtr(s.AllowedCommands),
+		MergeWithState:  clonePtr(s.MergeWithState),
+	}
+}
+
+func (d *OutputDeclaration) v1() *pkgconfig.OutputDeclaration {
+	return &pkgconfig.OutputDeclaration{
+		MockValue: clonePtr(d.MockValue),
+		Name:      d.Name,
 	}
 }
 

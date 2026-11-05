@@ -53,6 +53,41 @@ var variableAttributesSchema = &hcl.BodySchema{
 // constraint at all, is read literally; every other type constraint makes OpenTofu/Terraform parse
 // the value as an HCL expression.
 func ModuleVariables(fsys vfs.FS, modulePath string) (map[string]ModuleVariable, error) {
+	body, err := moduleBody(fsys, modulePath)
+	if err != nil {
+		return nil, err
+	}
+
+	content, _, diags := body.PartialContent(variableBlockSchema)
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	variables := make(map[string]ModuleVariable, len(content.Blocks))
+
+	for _, block := range content.Blocks {
+		attrs, _, diags := block.Body.PartialContent(variableAttributesSchema)
+		if diags.HasErrors() {
+			return nil, diags
+		}
+
+		variable := ModuleVariable{}
+
+		if typeAttr, ok := attrs.Attributes["type"]; ok &&
+			hcl.ExprAsKeyword(typeAttr.Expr) != "string" {
+			variable.ParsingMode = VariableParseHCL
+		}
+
+		_, variable.HasDefault = attrs.Attributes["default"]
+
+		variables[block.Labels[0]] = variable
+	}
+
+	return variables, nil
+}
+
+// moduleBody parses every .tf and .tf.json file of the module at modulePath into one body.
+func moduleBody(fsys vfs.FS, modulePath string) (hcl.Body, error) {
 	files, err := util.ListTfFiles(fsys, modulePath)
 	if err != nil {
 		return nil, err
@@ -80,30 +115,5 @@ func ModuleVariables(fsys vfs.FS, modulePath string) (map[string]ModuleVariable,
 		hclFiles = append(hclFiles, file)
 	}
 
-	content, _, diags := hcl.MergeFiles(hclFiles).PartialContent(variableBlockSchema)
-	if diags.HasErrors() {
-		return nil, diags
-	}
-
-	variables := make(map[string]ModuleVariable, len(content.Blocks))
-
-	for _, block := range content.Blocks {
-		attrs, _, diags := block.Body.PartialContent(variableAttributesSchema)
-		if diags.HasErrors() {
-			return nil, diags
-		}
-
-		variable := ModuleVariable{}
-
-		if typeAttr, ok := attrs.Attributes["type"]; ok &&
-			hcl.ExprAsKeyword(typeAttr.Expr) != "string" {
-			variable.ParsingMode = VariableParseHCL
-		}
-
-		_, variable.HasDefault = attrs.Attributes["default"]
-
-		variables[block.Labels[0]] = variable
-	}
-
-	return variables, nil
+	return hcl.MergeFiles(hclFiles), nil
 }

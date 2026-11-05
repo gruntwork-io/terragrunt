@@ -1,0 +1,26 @@
+---
+version: "v1.2.2"
+category: "experiments-added"
+---
+
+#### `outputs-block` experiment adds an `outputs` block to units
+
+Enable the [`outputs-block`](/reference/experiments/active#outputs-block) experiment and declare the outputs of a unit, with their mock values, on the unit itself. Dependents pick the contract up through their `dependency` blocks and no longer repeat `mock_outputs`.
+
+```hcl
+outputs {
+  mock_strategy {
+    allowed_commands = ["validate", "plan"]
+  }
+
+  output "vpc_id" {
+    mock_value = "vpc-mock-id"
+  }
+}
+```
+
+```bash
+terragrunt run --all --experiment outputs-block -- plan
+```
+
+`terragrunt hcl validate` checks that each declared output exists in the OpenTofu/Terraform module and that dependents reference only declared outputs. Declaring the block without the experiment enabled returns an error.

@@ -54,6 +54,8 @@ type UnitConfig struct {
 	Exclude *Exclude `hcl:"exclude,block"`
 	// Errors is the errors block.
 	Errors *Errors `hcl:"errors,block"`
+	// Outputs is the outputs block.
+	Outputs *Outputs `hcl:"outputs,block"`
 	// LocalsBlock is the locals block.
 	LocalsBlock *Locals `hcl:"locals,block"`
 	// IncludeBlocks is the include blocks, in source order.

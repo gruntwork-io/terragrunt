@@ -370,6 +370,10 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		cfg.Errors = sourceConfig.Errors.Clone()
 	}
 
+	if sourceConfig.Outputs != nil {
+		cfg.Outputs = sourceConfig.Outputs.Clone()
+	}
+
 	if sourceConfig.RemoteState != nil {
 		cfg.RemoteState = sourceConfig.RemoteState
 	}
@@ -499,6 +503,14 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		}
 
 		cfg.Errors.Merge(sourceConfig.Errors)
+	}
+
+	if sourceConfig.Outputs != nil {
+		if cfg.Outputs == nil {
+			cfg.Outputs = &OutputsConfig{}
+		}
+
+		cfg.Outputs.Merge(sourceConfig.Outputs)
 	}
 
 	// Copy only dependencies which doesn't exist in source

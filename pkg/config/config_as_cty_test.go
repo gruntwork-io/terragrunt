@@ -143,6 +143,11 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			},
 		},
 		Exclude: &config.ExcludeConfig{},
+		Outputs: &config.OutputsConfig{
+			Outputs: []*config.OutputDeclaration{
+				{Name: "vpc_id", MockValue: &mockOutputs},
+			},
+		},
 	}
 	ctyVal, err := config.TerragruntConfigAsCty(&testConfig)
 	require.NoError(t, err)
@@ -413,6 +418,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "exclude", true
 	case "Errors":
 		return "errors", true
+	case "Outputs":
+		return "outputs", true
 	default:
 		require.FailNow(t, "Unknown struct property: "+fieldName)
 		// This should not execute

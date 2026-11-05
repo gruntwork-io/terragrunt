@@ -44,6 +44,18 @@ const (
 	// missingDependencyConfigFix is the advice both missing-dependency-config messages end with.
 	missingDependencyConfigFix = "Update or remove that block. `terragrunt hcl validate` lists every such block."
 
+	// OutputsBlock is the tip shown under the outputs-block experiment when a
+	// dependency is read whose unit declares no outputs block.
+	OutputsBlock = "outputs-block"
+
+	// OutputsBlockMessage is the default message for the outputs-block tip. The
+	// runtime message is assembled at evaluation time so it can name the unit.
+	OutputsBlockMessage = "A `dependency` block reads a unit that declares no `outputs` block. " + outputsBlockFix
+
+	// outputsBlockFix is the advice both outputs-block messages end with.
+	outputsBlockFix = "Declare its outputs and their mock values there once, so every dependent shares them. " +
+		"See https://docs.terragrunt.com/reference/experiments/active#outputs-block"
+
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
 		"instead of symlinking in OpenTofu/Terraform. " +
@@ -87,6 +99,10 @@ func NewTips() Tips {
 		{
 			Name:    MissingDependencyConfig,
 			Message: MissingDependencyConfigMessage,
+		},
+		{
+			Name:    OutputsBlock,
+			Message: OutputsBlockMessage,
 		},
 	}
 }

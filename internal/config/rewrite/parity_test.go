@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -857,6 +859,98 @@ generate "backend" {
 				cfgPath:   filepath.Join(root, file),
 				configure: func(*pkgconfig.ParsingContext) {},
 				drift:     tc.drift,
+			})
+		})
+	}
+}
+
+// TestParityOutputsBlock pins parity for a unit that declares its outputs and for a dependent that reads them,
+// with and without the outputs-block experiment.
+func TestParityOutputsBlock(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/fixture")
+	files := map[string]string{
+		"vpc/main.tf": `
+output "vpc_id" {
+  value = "vpc-real"
+}
+`,
+		"vpc/terragrunt.hcl": `
+outputs {
+  mock_strategy {
+    allowed_commands = ["plan"]
+    merge_with_state = "shallow"
+  }
+
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "subnet_ids" {
+    mock_value = ["subnet-mock"]
+  }
+}
+`,
+		"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../vpc"
+
+  mock_outputs = {
+    vpc_id = "app-mock"
+  }
+}
+
+inputs = {
+  vpc_id     = dependency.vpc.outputs.vpc_id
+  subnet_ids = dependency.vpc.outputs.subnet_ids
+}
+`,
+	}
+
+	enableExperiment := func(pctx *pkgconfig.ParsingContext) {
+		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+	}
+
+	testCases := []struct {
+		configure func(*pkgconfig.ParsingContext)
+		outputs   map[string]string
+		name      string
+		cfgPath   string
+	}{
+		{
+			name:      "declaring unit",
+			cfgPath:   filepath.Join(root, "vpc", pkgconfig.DefaultTerragruntConfigPath),
+			configure: enableExperiment,
+		},
+		{
+			name:      "declaring unit without the experiment",
+			cfgPath:   filepath.Join(root, "vpc", pkgconfig.DefaultTerragruntConfigPath),
+			configure: func(*pkgconfig.ParsingContext) {},
+		},
+		{
+			name:      "dependent reading state",
+			cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+			configure: enableExperiment,
+			outputs:   map[string]string{filepath.Join(root, "vpc"): outputsJSON(map[string]string{"vpc_id": "vpc-real"})},
+		},
+		{
+			name:      "dependent reading mocks",
+			cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+			configure: enableExperiment,
+			outputs:   map[string]string{filepath.Join(root, "vpc"): "{}"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assertParity(t, parityCase{
+				newFS:     memFS(root, files),
+				cfgPath:   tc.cfgPath,
+				configure: tc.configure,
+				outputs:   tc.outputs,
 			})
 		})
 	}

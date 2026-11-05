@@ -29,6 +29,8 @@ type validateResult struct {
 type validateRun struct {
 	// files are the files of the repository, by path relative to its root.
 	files map[string]string
+	// experiment is the name of the experiment the run enables, if any.
+	experiment string
 	// queries are the filter queries the run is given.
 	queries []string
 	// strictControls are the names of the strict controls the run enables.
@@ -57,6 +59,10 @@ func runValidate(t *testing.T, run validateRun) validateResult {
 
 	for _, name := range run.strictControls {
 		require.NoError(t, opts.StrictControls.EnableControl(name))
+	}
+
+	if run.experiment != "" {
+		require.NoError(t, opts.Experiments.EnableExperiment(run.experiment))
 	}
 
 	result := validateResult{root: root, err: validate.RunValidate(config.WithCaches(t.Context()), l, v, opts)}

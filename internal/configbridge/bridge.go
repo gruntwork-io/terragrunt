@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -57,6 +58,9 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.SourceMap = opts.SourceMap
 	pctx.Experiments = opts.Experiments
 	pctx.StrictControls = opts.StrictControls
+	pctx.OutputsBlockTip = func(l log.Logger, configPath string) {
+		tips.GiveOutputsBlockTip(l, configPath, opts.Tips)
+	}
 	pctx.FeatureFlags = opts.FeatureFlags
 	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
 	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary

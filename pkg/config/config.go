@@ -127,6 +127,7 @@ type TerragruntConfig struct {
 	FieldsMetadata              map[string]map[string]any
 	Terraform                   *TerraformConfig
 	Errors                      *ErrorsConfig
+	Outputs                     *OutputsConfig
 	RemoteState                 *remotestate.RemoteState
 	Dependencies                *ModuleDependencies
 	Exclude                     *ExcludeConfig
@@ -276,6 +277,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 	if cfg.Errors != nil {
 		rootBody.AppendBlock(errorsBlock(cfg.Errors))
+	}
+
+	if cfg.Outputs != nil {
+		rootBody.AppendBlock(outputsBlock(cfg.Outputs))
 	}
 
 	if cfg.Catalog != nil {
@@ -633,6 +638,38 @@ func ignoreBlock(ignore *IgnoreBlock) *hclwrite.Block {
 	return block
 }
 
+// outputsBlock renders the outputs block along with the mock_strategy and output blocks nested in it.
+func outputsBlock(outputs *OutputsConfig) *hclwrite.Block {
+	block := hclwrite.NewBlock(MetadataOutputs, nil)
+	body := block.Body()
+
+	if strategy := outputs.MockStrategy; strategy != nil {
+		strategyBlock := hclwrite.NewBlock(MetadataMockStrategy, nil)
+
+		if strategy.AllowedCommands != nil {
+			strategyBlock.Body().SetAttributeValue("allowed_commands", errorPatterns(*strategy.AllowedCommands))
+		}
+
+		if strategy.MergeWithState != nil {
+			strategyBlock.Body().SetAttributeValue("merge_with_state", cty.StringVal(string(*strategy.MergeWithState)))
+		}
+
+		body.AppendBlock(strategyBlock)
+	}
+
+	for _, output := range outputs.Outputs {
+		outputBlock := hclwrite.NewBlock(MetadataOutput, []string{output.Name})
+
+		if output.MockValue != nil {
+			outputBlock.Body().SetAttributeValue("mock_value", *output.MockValue)
+		}
+
+		body.AppendBlock(outputBlock)
+	}
+
+	return block
+}
+
 // catalogBlock renders the catalog block.
 func catalogBlock(catalog *CatalogConfig, asCty cty.Value) *hclwrite.Block {
 	block := hclwrite.NewBlock("catalog", nil)
@@ -913,6 +950,7 @@ type TerragruntConfigFile struct {
 	FeatureFlags             []*FeatureFlag `hcl:"feature,block"`
 	Exclude                  *ExcludeConfig `hcl:"exclude,block"`
 	Errors                   *ErrorsConfig  `hcl:"errors,block"`
+	Outputs                  *OutputsConfig `hcl:"outputs,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -2257,6 +2295,15 @@ func ConvertToTerragruntConfig(
 	if cfgFromFile.Errors != nil {
 		cfg.Errors = cfgFromFile.Errors
 		cfg.SetFieldMetadata(MetadataErrors, defaultMetadata)
+	}
+
+	if cfgFromFile.Outputs != nil {
+		if err := cfgFromFile.Outputs.Validate(pctx.Experiments, cfgPath); err != nil {
+			errs = append(errs, err)
+		}
+
+		cfg.Outputs = cfgFromFile.Outputs
+		cfg.SetFieldMetadata(MetadataOutputs, defaultMetadata)
 	}
 
 	generateBlocks := []TerragruntGenerateBlock{}

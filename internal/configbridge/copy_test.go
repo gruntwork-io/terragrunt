@@ -74,6 +74,7 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Equal(t, opts.ScaffoldRootFileName, pctx.ScaffoldRootFileName)
 	assert.Equal(t, opts.TerragruntStackConfigPath, pctx.TerragruntStackConfigPath)
 	assert.Equal(t, opts.ProviderCacheOptions, pctx.ProviderCacheOptions)
+	assert.NotNil(t, pctx.OutputsBlockTip, "the outputs-block tip must reach dependency reads")
 
 	flag, ok := pctx.FeatureFlags["region"]
 	require.True(t, ok, "feature flags supplied on the CLI must reach config parsing")

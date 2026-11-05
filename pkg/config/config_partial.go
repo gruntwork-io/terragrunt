@@ -41,6 +41,7 @@ const (
 	ExcludeBlock
 	ErrorsBlock
 	TerraformExtraArgs
+	OutputsBlock
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -65,6 +66,12 @@ type terragruntFeatureFlags struct {
 type terragruntErrors struct {
 	Errors *ErrorsConfig `hcl:"errors,block"`
 	Remain hcl.Body      `hcl:",remain"`
+}
+
+// terragruntOutputs decodes only the outputs block.
+type terragruntOutputs struct {
+	Outputs *OutputsConfig `hcl:"outputs,block"`
+	Remain  hcl.Body       `hcl:",remain"`
 }
 
 // terragruntTerraform is a struct that can be used to only decode the terraform block.
@@ -932,6 +939,24 @@ func PartialParseConfig(
 				output.Errors.Merge(decoded.Errors)
 			} else {
 				output.Errors = decoded.Errors
+			}
+
+		case OutputsBlock:
+			decoded := terragruntOutputs{}
+
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+
+			if err := decoded.Outputs.Validate(pctx.Experiments, file.ConfigPath); err != nil {
+				return nil, err
+			}
+
+			if output.Outputs != nil {
+				output.Outputs.Merge(decoded.Outputs)
+			} else {
+				output.Outputs = decoded.Outputs
 			}
 
 		default:

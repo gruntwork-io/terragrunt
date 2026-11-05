@@ -5,6 +5,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 // UnitBody is decoded from [UnitConfig.Remain].
@@ -167,6 +168,24 @@ type IgnoreBody struct {
 	Signals         map[string]cty.Value `hcl:"signals,optional"`
 	Message         string               `hcl:"message,optional"`
 	IgnorableErrors []string             `hcl:"ignorable_errors,attr"`
+}
+
+// Outputs is an outputs block.
+type Outputs struct {
+	MockStrategy *OutputsMockStrategy `hcl:"mock_strategy,block"`
+	Output       []OutputDeclaration  `hcl:"output,block"`
+}
+
+// OutputsMockStrategy is the mock_strategy block of an outputs block.
+type OutputsMockStrategy struct {
+	AllowedCommands *[]string                    `hcl:"allowed_commands,attr"`
+	MergeWithState  *pkgconfig.MergeStrategyType `hcl:"merge_with_state,attr"`
+}
+
+// OutputDeclaration is an output block of an outputs block.
+type OutputDeclaration struct {
+	MockValue *cty.Value `hcl:"mock_value,optional"`
+	Name      string     `hcl:"name,label"`
 }
 
 // FeatureFlag is a feature block.

@@ -55,6 +55,11 @@ func (c *DiagnosticsCollector) collect(
 	file *hcl.File,
 	hclDiags hcl.Diagnostics,
 ) (hcl.Diagnostics, error) {
+	return nil, c.keep(file, hclDiags)
+}
+
+// keep collects the diagnostics of hclDiags that point at file.
+func (c *DiagnosticsCollector) keep(file *hcl.File, hclDiags hcl.Diagnostics) error {
 	for _, hclDiag := range hclDiags {
 		if raisedElsewhere(file, hclDiag) {
 			continue
@@ -62,13 +67,13 @@ func (c *DiagnosticsCollector) collect(
 
 		diag, err := diagnostic.NewDiagnostic(file, hclDiag)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		c.add(diag)
 	}
 
-	return nil, nil
+	return nil
 }
 
 // add keeps diag unless an equivalent one is already collected.
@@ -151,14 +156,15 @@ func (p ComponentParser) Unit(
 
 	configPath := parseOpts.TerragruntConfigPath
 
-	cfg, err := config.ReadTerragruntConfig(
-		ctx,
-		l,
-		v,
-		pctx.WithParserSettings(p.parserSettings(pctx.Parser)),
-	)
+	pctx = pctx.WithParserSettings(p.parserSettings(pctx.Parser))
+
+	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
 		return p.Collector.pointAtDependencyErrors(v.FS, unitDir, []string{configPath}, err)
+	}
+
+	if err := p.validateOutputsContracts(ctx, l, v, parseOpts, pctx, cfg); err != nil {
+		return err
 	}
 
 	return p.Collector.pointAtDependencyErrors(

@@ -139,6 +139,10 @@ const (
 	// runs OpenTofu/Terraform directly from the unit directory when no source
 	// is configured.
 	NoDotTerragruntCache = "no-dot-terragrunt-cache"
+	// OutputsBlock gates the outputs block on units, which declares the
+	// outputs a unit emits along with the mock value and mocking strategy its
+	// dependents use when its state cannot be read.
+	OutputsBlock = "outputs-block"
 )
 
 const (
@@ -282,6 +286,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: NoDotTerragruntCache,
+		},
+		{
+			Name: OutputsBlock,
 		},
 	}
 }
