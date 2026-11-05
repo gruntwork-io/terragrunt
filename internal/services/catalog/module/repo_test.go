@@ -1,8 +1,10 @@
 package module_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -123,37 +125,89 @@ func TestNewRepoRemoteCloneRejectsNonOSFS(t *testing.T) {
 // from a clone URL. The prepared directory carries the clone-complete marker,
 // so [module.NewRepo] reads the repo in place instead of cloning. Any other
 // derived name sends it down the clone path, which the in-memory filesystem
-// refuses.
+// refuses. Markers at the root and its parent catch a name that escapes.
 func TestNewRepoCloneDirectoryName(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name     string
 		cloneURL string
+		wantDir  string
 	}{
 		{
 			name:     "https",
 			cloneURL: "https://github.com/acme/terraform-aws-modules.git",
+			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "https without .git",
 			cloneURL: "https://github.com/acme/terraform-aws-modules",
+			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "ssh scp-style",
 			cloneURL: "git@github.com:acme/terraform-aws-modules.git",
+			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "forced git getter",
 			cloneURL: "git::https://github.com/acme/terraform-aws-modules.git",
+			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "ref query parameter",
 			cloneURL: "https://github.com/acme/terraform-aws-modules.git?ref=v1.2.3",
+			wantDir:  "terraform-aws-modules",
 		},
 		{
 			name:     "fragment",
 			cloneURL: "https://github.com/acme/terraform-aws-modules.git#v1.2.3",
+			wantDir:  "terraform-aws-modules",
+		},
+		{
+			name:     "dotted name",
+			cloneURL: "https://github.com/acme/my.repo.git",
+			wantDir:  "my.repo",
+		},
+		{
+			name:     "dot prefixed name",
+			cloneURL: "https://github.com/acme/.hidden",
+			wantDir:  ".hidden",
+		},
+		{
+			name:     "double dot after double slash",
+			cloneURL: "https://github.com/acme/repo//..",
+			wantDir:  "temp",
+		},
+		{
+			name:     "double dot",
+			cloneURL: "https://github.com/acme/..",
+			wantDir:  "temp",
+		},
+		{
+			name:     "double dot with .git",
+			cloneURL: "https://github.com/acme/...git",
+			wantDir:  "temp",
+		},
+		{
+			name:     "double dot with ref query parameter",
+			cloneURL: "https://github.com/acme/..?ref=v1.2.3",
+			wantDir:  "temp",
+		},
+		{
+			name:     "double dot with fragment",
+			cloneURL: "https://github.com/acme/..#v1.2.3",
+			wantDir:  "temp",
+		},
+		{
+			name:     "single dot",
+			cloneURL: "https://github.com/acme/repo/.",
+			wantDir:  "temp",
+		},
+		{
+			name:     "three dots",
+			cloneURL: "https://github.com/acme/...",
+			wantDir:  "temp",
 		},
 	}
 
@@ -162,16 +216,13 @@ func TestNewRepoCloneDirectoryName(t *testing.T) {
 			t.Parallel()
 
 			v := venvtest.New()
-			cloneRoot := venvtest.Root("/catalog")
-			clonePath := filepath.Join(cloneRoot, "terraform-aws-modules")
+			parent := venvtest.Root("/catalog")
+			cloneRoot := filepath.Join(parent, "clone-root")
+			clonePath := filepath.Join(cloneRoot, tc.wantDir)
 
-			writeFakeRepo(t, v.FS, clonePath)
-			require.NoError(t, vfs.WriteFile(
-				v.FS,
-				filepath.Join(clonePath, module.CloneCompleteSentinel),
-				nil,
-				0o644,
-			))
+			for _, dir := range []string{parent, cloneRoot, clonePath} {
+				writeCompletedClone(t, v.FS, dir)
+			}
 
 			repo, err := module.NewRepo(
 				t.Context(),
@@ -186,6 +237,29 @@ func TestNewRepoCloneDirectoryName(t *testing.T) {
 			assert.Equal(t, clonePath, repo.Path())
 		})
 	}
+}
+
+// TestNewRepoStatsOnlyInsideCloneRoot fails every stat outside the clone root, so a path that leaves it errors.
+func TestNewRepoStatsOnlyInsideCloneRoot(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.New()
+	cloneRoot := venvtest.Root("/catalog/clone-root")
+	clonePath := filepath.Join(cloneRoot, "temp")
+
+	writeCompletedClone(t, v.FS, clonePath)
+
+	repo, err := module.NewRepo(
+		t.Context(),
+		logger.CreateLogger(),
+		v.WithFS(&rootConfinedFS{FS: v.FS, root: cloneRoot}),
+		&module.RepoOpts{
+			CloneURL: "https://github.com/example/repo//..",
+			Path:     cloneRoot,
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, clonePath, repo.Path())
 }
 
 // TestNewRepoLocalSourceKeepsPath pins that the catalog reads a local source
@@ -227,6 +301,19 @@ func writeFakeRepo(t *testing.T, fsys vfs.FS, path string) {
 		t,
 		vfs.WriteFile(fsys, filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644),
 	)
+}
+
+// writeCompletedClone writes a fake repo with the clone-complete marker, which [module.NewRepo] reads in place.
+func writeCompletedClone(t *testing.T, fsys vfs.FS, path string) {
+	t.Helper()
+
+	writeFakeRepo(t, fsys, path)
+	require.NoError(t, vfs.WriteFile(
+		fsys,
+		filepath.Join(path, module.CloneCompleteSentinel),
+		nil,
+		0o644,
+	))
 }
 
 func TestModuleURL(t *testing.T) {
@@ -300,4 +387,22 @@ func newRepo(t *testing.T, url string) *module.Repo {
 		RemoteURL:  url,
 		BranchName: "main",
 	}
+}
+
+// errOutsideCloneRoot is what rootConfinedFS reports for a stat outside its root.
+var errOutsideCloneRoot = errors.New("stat outside clone root")
+
+// rootConfinedFS fails Stat for every path outside root, which includes any path Rel cannot place under it.
+type rootConfinedFS struct {
+	vfs.FS
+	root string
+}
+
+func (fsys *rootConfinedFS) Stat(name string) (os.FileInfo, error) {
+	rel, err := filepath.Rel(fsys.root, name)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return nil, &os.PathError{Op: "stat", Path: name, Err: errOutsideCloneRoot}
+	}
+
+	return fsys.FS.Stat(name)
 }

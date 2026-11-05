@@ -523,12 +523,13 @@ func removeIncompleteClone(fsys vfs.FS, cloneRoot, clonePath string) error {
 	return fsys.RemoveAll(clonePath)
 }
 
+// extractRepoName returns the last URL segment as the clone directory name, or "temp" when it is missing or all dots.
 func (repo *Repo) extractRepoName() string {
 	repoName := "temp"
 	if match := repoNameFromCloneURLReg.FindStringSubmatch(
 		repo.cloneURL,
 	); len(match) > 0 &&
-		match[1] != "" {
+		strings.Trim(match[1], ".") != "" {
 		repoName = match[1]
 	}
 
