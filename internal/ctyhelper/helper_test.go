@@ -309,7 +309,7 @@ func TestParseCtyValueToMapMatchesJSONRoundTrip(t *testing.T) {
 		{
 			name: "nested marks",
 			value: cty.ObjectVal(map[string]cty.Value{
-				"secret": cty.StringVal("hunter2").Mark("sensitive"),
+				"secret": cty.StringVal("fake-password").Mark("sensitive"),
 				"list":   cty.ListVal([]cty.Value{cty.NumberIntVal(1).Mark("sensitive")}),
 			}),
 		},
@@ -356,11 +356,11 @@ func TestParseCtyValueToMapMatchesJSONRoundTrip(t *testing.T) {
 func TestParseCtyValueToMapUnmarksTopLevelValue(t *testing.T) {
 	t.Parallel()
 
-	value := cty.ObjectVal(map[string]cty.Value{"secret": cty.StringVal("hunter2")}).Mark("sensitive")
+	value := cty.ObjectVal(map[string]cty.Value{"secret": cty.StringVal("fake-password")}).Mark("sensitive")
 
 	result, err := ctyhelper.ParseCtyValueToMap(value)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]any{"secret": "hunter2"}, result)
+	assert.Equal(t, map[string]any{"secret": "fake-password"}, result)
 }
 
 // FuzzParseCtyValueToMap pins that converting any value decoded from JSON gives

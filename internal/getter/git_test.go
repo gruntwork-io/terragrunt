@@ -196,7 +196,7 @@ func TestGitGetterRefreshWithoutRefFollowsRemoteHead(t *testing.T) {
 func TestGitGetterHandsSSHKeyToSSH(t *testing.T) {
 	t.Parallel()
 
-	key := []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nplaceholder\n")
+	key := []byte("fake-ssh-key\n")
 
 	var (
 		keyPath string
@@ -307,7 +307,7 @@ func TestGitGetterErrorKeepsEndOfLongStderr(t *testing.T) {
 func TestGitGetterKeepsCredentialsOutOfErrors(t *testing.T) {
 	t.Parallel()
 
-	const token = "s3cr3t-token"
+	const token = "fake-token"
 
 	tests := []struct {
 		name   string

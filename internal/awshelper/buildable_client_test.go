@@ -233,8 +233,8 @@ func TestAssumeIamRoleUsesEnvCredentials(t *testing.T) {
 	t.Parallel()
 
 	const (
-		envAccessKeyID = "AKIAENVCREDSTESTKEY"
-		assumedKeyID   = "ASIAASSUMEDTESTKEY"
+		envAccessKeyID = "fake-env-access-key-id"
+		assumedKeyID   = "fake-assumed-access-key-id"
 	)
 
 	var authHead atomic.Value
@@ -298,7 +298,7 @@ func TestAssumeIamRoleRejectsResponseWithoutCredentials(t *testing.T) {
 		WithHTTP(memHTTP).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
-			"AWS_ACCESS_KEY_ID":     "AKIAENVCREDSTESTKEY",
+			"AWS_ACCESS_KEY_ID":     "fake-env-access-key-id",
 			"AWS_SECRET_ACCESS_KEY": "env-secret-key",
 		})
 
@@ -327,9 +327,9 @@ func TestAWSBuildableClientOSTransportIsBuildable(t *testing.T) {
 
 const (
 	testIMDSRoleName       = "test-instance-role"
-	testIMDSAccessKeyID    = "AKIAIMDSV1TESTKEY"
+	testIMDSAccessKeyID    = "fake-imds-access-key-id"
 	testAssumedRoleARN     = "arn:aws:iam::123456789012:role/test-assumed-role"
-	testAssumedAccessKeyID = "ASIAASSUMEDTESTKEY"
+	testAssumedAccessKeyID = "fake-assumed-access-key-id"
 )
 
 // hangingTokenIMDSServer is a local IMDS whose IMDSv2 token endpoint never
