@@ -40,3 +40,43 @@ func TestNewRepoRejectsSymlinkRootBeforeCleanup(t *testing.T) {
 	require.ErrorContains(t, err, "symlink")
 	assert.FileExists(t, sentinel)
 }
+
+func TestNewRepoKeepsDotOnlyRepoNameInsideCloneRoot(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		cloneURL string
+	}{
+		{name: "double dot", cloneURL: "https://github.com/example/repo//.."},
+		{name: "double dot with git suffix", cloneURL: "https://github.com/example/repo/...git"},
+		{name: "single dot", cloneURL: "https://github.com/example/repo/."},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.NewOSWithEmptyEnv()
+			v.HTTP = vhttp.NewNoNetworkClient()
+
+			base := t.TempDir()
+			cloneRoot := filepath.Join(base, "catalog-clone")
+			expectedPath := filepath.Join(cloneRoot, "temp")
+
+			// Completed clones at the clone root and its parent must not be picked
+			// up, only the one in the default "temp" directory.
+			for _, dir := range []string{base, cloneRoot, expectedPath} {
+				writeFakeRepo(t, v.FS, dir)
+				require.NoError(t, os.WriteFile(filepath.Join(dir, module.CloneCompleteSentinel), nil, 0o644))
+			}
+
+			repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), v, &module.RepoOpts{
+				CloneURL: tc.cloneURL,
+				Path:     cloneRoot,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, expectedPath, repo.Path())
+		})
+	}
+}

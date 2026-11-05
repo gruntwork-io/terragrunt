@@ -528,7 +528,9 @@ func (repo *Repo) extractRepoName() string {
 	if match := repoNameFromCloneURLReg.FindStringSubmatch(
 		repo.cloneURL,
 	); len(match) > 0 &&
-		match[1] != "" {
+		// A name made only of dots ("." or "..") would point the clone path
+		// at the clone root or outside of it, so keep the default name.
+		strings.Trim(match[1], ".") != "" {
 		repoName = match[1]
 	}
 
