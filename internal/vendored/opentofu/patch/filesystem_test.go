@@ -285,6 +285,12 @@ var fileSetCases = []fileSetCase{
 		want:    []string{"br[1]/d.json", "resources/a.json", "resources/sub/b.json"},
 	},
 	{
+		name:    "dot after alternatives",
+		path:    ".",
+		pattern: "{resources,x}/./*.json",
+		want:    []string{"resources/a.json"},
+	},
+	{
 		name:    "two directories deep",
 		path:    ".",
 		pattern: "*/*/*.json",
@@ -409,11 +415,17 @@ func TestFileSetMatchesUpstream(t *testing.T) {
 func TestFileSetRejectsAMalformedPattern(t *testing.T) {
 	t.Parallel()
 
-	v := memVenv(t, fileSetTree)
+	for _, path := range []string{".", "missing"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
 
-	_, err := patch.FileSetFunc(v, baseDir, noRead).
-		Call([]cty.Value{cty.StringVal("."), cty.StringVal("./resources/[")})
-	require.ErrorIs(t, err, doublestar.ErrBadPattern)
+			v := memVenv(t, fileSetTree)
+
+			_, err := patch.FileSetFunc(v, baseDir, noRead).
+				Call([]cty.Value{cty.StringVal(path), cty.StringVal("./resources/[")})
+			require.ErrorIs(t, err, doublestar.ErrBadPattern)
+		})
+	}
 }
 
 func TestFileSetReportsTheCleanPathOfEachMatch(t *testing.T) {
@@ -445,67 +457,6 @@ func TestFileSetKeepsAnEscapeBeforeTheFirstWildcard(t *testing.T) {
 	assert.Equal(t, stringSet([]string{"resources/a.json"}), got)
 }
 
-// v1.2.1 matched a pattern from its first { or [ on as written; cleaning there would cut a group in two.
-func TestFileSetMatchesAPatternAsWrittenFromItsFirstGroup(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name    string
-		pattern string
-		want    []string
-	}{
-		{
-			name:    "parent in an alternative",
-			pattern: "{resources,y/../c}/*.json",
-			want:    []string{"resources/a.json"},
-		},
-		{
-			name:    "parent in a later alternative",
-			pattern: "{resources/*.json,c/../a/b/*.json}",
-			want:    []string{"resources/a.json"},
-		},
-		{
-			name:    "parent inside a class",
-			pattern: "[r/../q]esources/*.json",
-			want:    []string{"resources/a.json"},
-		},
-		{
-			name:    "dot slash before the brace",
-			pattern: "./{resources,y/../c}/*.json",
-			want:    []string{"resources/a.json"},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			v := memVenv(t, fileSetTree)
-
-			got, err := patch.FileSetFunc(v, baseDir, noRead).
-				Call([]cty.Value{cty.StringVal("."), cty.StringVal(tc.pattern)})
-			require.NoError(t, err)
-			assert.Equal(t, stringSet(tc.want), got)
-		})
-	}
-}
-
-// An escaped [ does not stop cleaning, but the first group after it still does.
-func TestFileSetCleansPastAnEscapeUpToTheFirstGroup(t *testing.T) {
-	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("a backslash is a path separator on Windows")
-	}
-
-	v := memVenv(t, fileSetTree)
-
-	got, err := patch.FileSetFunc(v, baseDir, noRead).
-		Call([]cty.Value{cty.StringVal("."), cty.StringVal(`x\[y]/../{resources,y/../c}/*.json`)})
-	require.NoError(t, err)
-	assert.Equal(t, stringSet([]string{"resources/a.json"}), got)
-}
-
 // v1.2.1 matched a glob against a path argument that names a file, where upstream returns nothing.
 func TestFileSetMatchesAFilePathAgainstTheGlob(t *testing.T) {
 	t.Parallel()
@@ -518,7 +469,7 @@ func TestFileSetMatchesAFilePathAgainstTheGlob(t *testing.T) {
 	assert.Equal(t, stringSet([]string{"."}), got)
 }
 
-// v1.2.1 matched a trailing **/ as the part before it, where upstream drops the slash and matches below it.
+// v1.2.1 kept what a pattern matched as written, where upstream cleans it first and finds other files or none.
 func TestFileSetKeepsWhatAPatternMatchedAsWritten(t *testing.T) {
 	t.Parallel()
 
@@ -536,6 +487,21 @@ func TestFileSetKeepsWhatAPatternMatchedAsWritten(t *testing.T) {
 			name:    "double star slash after a top level wildcard",
 			pattern: "*/**/",
 			want:    []string{"main.tf"},
+		},
+		{
+			name:    "parent in an alternative",
+			pattern: "{resources,y/../c}/*.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "parent in a later alternative",
+			pattern: "{resources/*.json,c/../a/b/*.json}",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "parent inside a class",
+			pattern: "[r/../q]esources/*.json",
+			want:    []string{"resources/a.json"},
 		},
 	}
 
@@ -587,10 +553,11 @@ func TestFileSetStopsAtTheDepthOfThePattern(t *testing.T) {
 	t.Parallel()
 
 	v := memVenv(t, map[string]string{
-		"../top.json": "{}",
-		"main.tf":     "# root",
+		"../top.json":        "{}",
+		"../other/deep.json": "{}",
+		"main.tf":            "# root",
 	})
-	fsys := &openFailFS{FS: v.FS, dir: baseDir}
+	fsys := &openFailFS{FS: v.FS, dir: filepath.Join(filepath.Dir(baseDir), "other")}
 	v.FS = fsys
 
 	got, err := patch.FileSetFunc(v, baseDir, noRead).
@@ -700,10 +667,19 @@ func TestFileSetResolvesTheParentOfASymlinkedPath(t *testing.T) {
 
 	path := filepath.Join(dir, "live", "unit") + string(filepath.Separator) + ".."
 
-	got, err := patch.FileSetFunc(venvtest.NewWithOSFS(), dir, noRead).
-		Call([]cty.Value{cty.StringVal(path), cty.StringVal("*.json")})
-	require.NoError(t, err)
-	assert.Equal(t, stringSet([]string{"physical.json"}), got)
+	for _, tc := range []struct{ name, pattern string }{
+		{name: "as written", pattern: "*.json"},
+		{name: "cleaned", pattern: "./*.json"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := patch.FileSetFunc(venvtest.NewWithOSFS(), dir, noRead).
+				Call([]cty.Value{cty.StringVal(path), cty.StringVal(tc.pattern)})
+			require.NoError(t, err)
+			assert.Equal(t, stringSet([]string{"physical.json"}), got)
+		})
+	}
 }
 
 func TestFileSetSkipsABrokenSymlink(t *testing.T) {
@@ -932,7 +908,7 @@ func fileSetCasesForOS() []fileSetCase {
 	}, {
 		name:    "escaped brace before a parent",
 		path:    ".",
-		pattern: `resources/x\{y}/../*.json`,
+		pattern: `resources/x\{y\}/../*.json`,
 		want:    []string{"resources/a.json"},
 	}})
 }

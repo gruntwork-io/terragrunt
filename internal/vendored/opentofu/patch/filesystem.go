@@ -481,23 +481,37 @@ func hashFile(
 	return h.Sum(nil), nil
 }
 
-// matchFiles returns the regular files matching pattern as written, as v1.2.1 did, or else as
-// [cleanPattern] joins it to dir, each relative to dir with forward slashes.
+// matchFiles returns the regular files that pattern matches as written, as v1.2.1 did, or else those its clean form matches.
 func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
-	clean, err := cleanPattern(dir, pattern)
+	if !doublestar.ValidatePattern(pattern) {
+		return nil, doublestar.ErrBadPattern
+	}
+
+	matches, err := globFiles(fsys, dir, dir, pattern)
+	if err != nil || len(matches) > 0 {
+		return matches, err
+	}
+
+	// Clean the pattern as OpenTofu/Terraform do, by joining it to dir.
+	clean, err := filepath.Rel(dir, filepath.Join(dir, pattern))
 	if err != nil {
 		return nil, err
 	}
 
-	// A clean pattern climbs above dir only through its leading .. elements.
-	elems := strings.Split(clean, "/")
+	// Leading .. elements move the walk root above dir.
+	elems := strings.Split(filepath.ToSlash(clean), "/")
 
-	up := slices.IndexFunc(elems[:len(elems)-1], func(elem string) bool { return elem != ".." })
+	up := slices.IndexFunc(elems, func(elem string) bool { return elem != ".." })
 	if up < 0 {
-		up = len(elems) - 1
+		return nil, nil
 	}
 
 	glob := strings.Join(elems[up:], "/")
+
+	// Cleaning can leave nothing new to try, or strand an escape as in resources\/.
+	if glob == pattern || !doublestar.ValidatePattern(glob) {
+		return nil, nil
+	}
 
 	// dir is walked as given, as in v1.2.1, so a .. in it resolves through symlinks.
 	root := dir
@@ -505,31 +519,10 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 		root = filepath.Join(dir, filepath.FromSlash(strings.Repeat("../", up)))
 	}
 
-	// Try a changed pattern as written first, except one led by ., .. or /, which finds nothing its clean form misses.
-	valid := doublestar.ValidatePattern(pattern)
-	first, _, _ := strings.Cut(pattern, "/")
-
-	if valid && glob != pattern && first != "." && first != ".." && first != "" {
-		asWritten, err := globFiles(fsys, dir, dir, pattern)
-		if err != nil || len(asWritten) > 0 {
-			return asWritten, err
-		}
-	}
-
-	if doublestar.ValidatePattern(glob) {
-		return globFiles(fsys, dir, root, glob)
-	}
-
-	// Cleaning can strand an escape, as in resources\/, where v1.2.1 matched the valid pattern and found nothing.
-	if valid {
-		return nil, nil
-	}
-
-	return nil, doublestar.ErrBadPattern
+	return globFiles(fsys, dir, root, glob)
 }
 
-// globFiles returns the regular files below root whose path from root matches
-// glob, each relative to dir with forward slashes.
+// globFiles returns the regular files below root that glob matches, each relative to dir with forward slashes.
 func globFiles(fsys vfs.FS, dir, root, glob string) ([]cty.Value, error) {
 	// Braces, classes and ** can match a separator, so only other globs bound the walk depth.
 	bounded := !strings.Contains(glob, "**") && !strings.ContainsAny(glob, "{[")
@@ -589,52 +582,6 @@ func globFiles(fsys vfs.FS, dir, root, glob string) ([]cty.Value, error) {
 	}
 
 	return matches, nil
-}
-
-// cleanPattern joins pattern to dir and cleans the part before its first unescaped { or [.
-func cleanPattern(dir, pattern string) (string, error) {
-	pattern = filepath.ToSlash(pattern)
-
-	head, tail := pattern, ""
-	if i := groupStart(pattern); i >= 0 {
-		cut := strings.LastIndexByte(pattern[:i], '/') + 1
-		head, tail = pattern[:cut], pattern[cut:]
-	}
-
-	rel, err := filepath.Rel(dir, filepath.Join(dir, filepath.FromSlash(head)))
-	if err != nil {
-		return "", err
-	}
-
-	rel = filepath.ToSlash(rel)
-
-	if tail == "" {
-		return rel, nil
-	}
-
-	if rel == "." {
-		return tail, nil
-	}
-
-	return rel + "/" + tail, nil
-}
-
-// groupStart returns the index of the first { or [ in pattern that no \ escapes, or -1.
-func groupStart(pattern string) int {
-	escaped := false
-
-	for i, r := range pattern {
-		switch {
-		case escaped:
-			escaped = false
-		case r == '\\':
-			escaped = true
-		case r == '{' || r == '[':
-			return i
-		}
-	}
-
-	return -1
 }
 
 // isRegularFile reports whether the entry d at path is a regular file, or a

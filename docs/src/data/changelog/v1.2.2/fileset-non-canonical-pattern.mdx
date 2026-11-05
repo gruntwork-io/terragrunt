@@ -16,10 +16,10 @@ inputs = {
 
 An input built from that empty set could make OpenTofu/Terraform plan to remove the resources created from those files.
 
-`fileset` now cleans patterns as it did before v1.2.0 and as OpenTofu/Terraform do. Cleaning joins the pattern to the path, which drops `./` and a trailing `/`, turns `//` into `/`, and resolves `../`. A pattern that starts with `./`, `../`, or `/` is cleaned before it is matched. Any other pattern is matched as written first, and cleaned only when that finds no files. The call above returns `["resources/a.json"]` again. A pattern that climbs above the path, such as `../shared/*.json`, returns paths that start with `../`.
+`fileset` now first matches the pattern as written. If that finds no files, it cleans the pattern and matches again. Cleaning joins the pattern to the path, as OpenTofu/Terraform do and as Terragrunt did before v1.2.0. That drops `./` and a trailing `/`, turns `//` into `/`, and resolves `../`. The call above returns `["resources/a.json"]` again. A pattern that climbs above the path, such as `../shared/*.json`, returns paths that start with `../`.
 
 A pattern that returned files in v1.2.1 returns the same files, because matches as written take priority.
 
 A pattern that ends with `/`, such as `modules/*/**/`, can match differently when a file is added to `modules/`. End the pattern with a file glob, such as `modules/*/**/*`, instead.
 
-Cleaning stops at the first `{` or `[` that is not escaped with `\`, so `{a,b}/./*.json` returns no files. When Terragrunt cleans a pattern on Windows, a `\` in it is a path separator, as in OpenTofu/Terraform.
+When Terragrunt cleans a pattern on Windows, a `\` in it is a path separator, as in OpenTofu/Terraform.
