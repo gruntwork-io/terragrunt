@@ -120,6 +120,57 @@ func TestGitRunner_Clone(t *testing.T) {
 	})
 }
 
+// TestGitRunnerErrorsRedactTheRemote pins that a credential in a remote stays
+// out of the error when git prints the remote back, as given or less its
+// userinfo.
+func TestGitRunnerErrorsRedactTheRemote(t *testing.T) {
+	t.Parallel()
+
+	const (
+		secret = "s3cr3t-token"
+		remote = "https://user:" + secret + "@example.com/repo.git?token=" + secret
+		bare   = "https://example.com/repo.git?token=" + secret
+	)
+
+	ops := map[string]func(ctx context.Context, runner *git.GitRunner) error{
+		"clone": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.Clone(ctx, remote, false, 0, "")
+		},
+		"fetch": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.Fetch(ctx, remote, "main", 0)
+		},
+		"fetch tags": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.FetchTags(ctx, remote)
+		},
+		"pull": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.PullFastForward(ctx, remote, "main", 0)
+		},
+		"ls-remote": func(ctx context.Context, runner *git.GitRunner) error {
+			_, err := runner.LsRemote(ctx, remote, "main")
+			return err
+		},
+	}
+
+	for name, op := range ops {
+		for spelling, printed := range map[string]string{"as given": remote, "without userinfo": bare} {
+			t.Run(name+" "+spelling, func(t *testing.T) {
+				t.Parallel()
+
+				runner := newMemRunner(t, staticResult(vexec.Result{
+					ExitCode: 128,
+					Stderr:   []byte("fatal: unable to access '" + printed + "/': Could not resolve host"),
+				}))
+
+				err := op(t.Context(), runner.WithWorkDir(t.TempDir()))
+
+				require.Error(t, err)
+				assert.NotContains(t, err.Error(), secret)
+				assert.Contains(t, err.Error(), "example.com/repo.git?token=REDACTED/")
+			})
+		}
+	}
+}
+
 func TestGitRunner_LsTree(t *testing.T) {
 	t.Parallel()
 
