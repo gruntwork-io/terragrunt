@@ -117,9 +117,9 @@ func declaredOutputsDiagnostics(
 	return diags, nil
 }
 
-// moduleDirectory returns the directory of the OpenTofu/Terraform module the unit runs. A unit without a source
-// runs in its own directory. A unit with a source is prepared the way a run prepares it, which fetches the source
-// into the download directory.
+// moduleDirectory returns the directory of the OpenTofu/Terraform module the unit runs, prepared the way a run
+// prepares it: a unit with a source is fetched into the download directory, and the generate blocks are written.
+// A unit without a source runs in its own directory.
 func moduleDirectory(
 	ctx context.Context,
 	l log.Logger,
@@ -127,17 +127,23 @@ func moduleDirectory(
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) (string, error) {
+	moduleOpts := opts
+
 	hasSource := cfg.Terraform != nil && cfg.Terraform.Source != nil && *cfg.Terraform.Source != ""
-	if !hasSource && opts.Source == "" {
-		return filepath.Dir(opts.TerragruntConfigPath), nil
+	if hasSource || opts.Source != "" {
+		prepared, err := prepare.PrepareSource(ctx, l, v, opts, cfg, report.NewReport())
+		if err != nil {
+			return "", err
+		}
+
+		moduleOpts = prepared
 	}
 
-	prepared, err := prepare.PrepareSource(ctx, l, v, opts, cfg, report.NewReport())
-	if err != nil {
+	if err := prepare.PrepareGenerate(ctx, l, v, moduleOpts, cfg.ToRunConfig(l, v.FS)); err != nil {
 		return "", err
 	}
 
-	return prepared.WorkingDir, nil
+	return moduleOpts.WorkingDir, nil
 }
 
 // declarationSubject returns where the declaration of name is, or the start of the file for a config whose
@@ -176,16 +182,18 @@ func dependencyOutputReferenceDiagnostics(
 	var diags hcl.Diagnostics
 
 	for _, reference := range references {
-		contract, read := declared[reference.Dependency]
+		address := reference.Address()
+
+		contract, read := declared[address]
 		if !read {
 			var err error
 
-			contract, err = declaredOutputsOf(ctx, l, v, pctx, cfg, reference.Dependency)
+			contract, err = declaredOutputsOf(ctx, l, v, pctx, cfg, address)
 			if err != nil {
 				return nil, err
 			}
 
-			declared[reference.Dependency] = contract
+			declared[address] = contract
 		}
 
 		if contract == nil || contract.Declares(reference.Output) {
@@ -198,7 +206,7 @@ func dependencyOutputReferenceDiagnostics(
 			Detail: fmt.Sprintf(
 				"dependency %q declares its outputs, and %q is not one of them. Declared outputs: %s. "+
 					"Fix the reference or add output %q to the outputs block of the dependency.",
-				reference.Dependency,
+				address,
 				reference.Output,
 				strings.Join(contract.Names(), ", "),
 				reference.Output,
@@ -210,19 +218,19 @@ func dependencyOutputReferenceDiagnostics(
 	return diags, nil
 }
 
-// declaredOutputsOf returns the outputs block of the unit the dependency block named name reads, or nil when
-// there is no such enabled block with a config path that exists, or the unit declares none.
+// declaredOutputsOf returns the outputs block of the unit the dependency at address reads, or nil when there is
+// no such enabled dependency with a config path that exists, or the unit declares none.
 func declaredOutputsOf(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
-	name string,
+	address string,
 ) (*config.OutputsConfig, error) {
 	for i := range cfg.TerragruntDependencies {
 		dep := &cfg.TerragruntDependencies[i]
-		if dep.Name != name || !config.IsValidConfigPath(dep.ConfigPath) {
+		if dep.Address() != address || !config.IsValidConfigPath(dep.ConfigPath) {
 			continue
 		}
 

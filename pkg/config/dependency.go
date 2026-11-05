@@ -237,10 +237,10 @@ func (dep *Dependency) instanceKey() (string, bool) {
 	return dep.Expansion.Key(), dep.Expansion.Expanded()
 }
 
-// mergeKey identifies a dependency when include merging matches blocks up. Every instance
-// of an expanded block carries the same label, so matching on the label alone would fold a
-// whole set into whichever instance came last.
-func (dep *Dependency) mergeKey() string {
+// Address identifies a dependency among the blocks of a config: the label alone, or label[key] for one instance
+// of an expanded block. Every instance of an expanded block carries the same label, so matching on the label alone
+// would fold a whole set into whichever instance came last.
+func (dep *Dependency) Address() string {
 	key, expanded := dep.instanceKey()
 	if !expanded {
 		return dep.Name
@@ -396,7 +396,7 @@ func validateDependencyConfigPathDirs(
 			controls.DependencyConfigPathFile,
 			DependencyConfigPathFileError{
 				ConfigPath:     cfgPath,
-				Address:        dep.mergeKey(),
+				Address:        dep.Address(),
 				DependencyPath: dep.ConfigPath.AsString(),
 			},
 		)
@@ -487,7 +487,7 @@ func duplicateDependencyAddress(deps Dependencies) (string, bool) {
 	seen := make(map[string]struct{}, len(deps))
 
 	for i := range deps {
-		address := deps[i].mergeKey()
+		address := deps[i].Address()
 
 		if _, duplicate := seen[address]; duplicate {
 			return address, true
@@ -526,11 +526,11 @@ func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDep
 			return sharedDependencyPath{
 				path:   dep.ConfigPath.AsString(),
 				first:  first,
-				second: dep.mergeKey(),
+				second: dep.Address(),
 			}, true
 		}
 
-		seen[path] = dep.mergeKey()
+		seen[path] = dep.Address()
 	}
 
 	return sharedDependencyPath{}, false

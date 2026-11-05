@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -367,16 +368,18 @@ locals {
 inputs = {
   subnets = dependency.vpc.outputs["subnet_ids"]
   db      = dependency.rds["primary"].outputs.endpoint
+  replica = dependency.rds[1].outputs.endpoint
   whole   = dependency.vpc.outputs
   dynamic = dependency.vpc.outputs[local.key]
+  named   = dependency.rds[local.name].outputs.endpoint
   other   = local.id
 }
 `
 
 	type reference struct {
-		dependency string
-		output     string
-		line       int
+		address string
+		output  string
+		line    int
 	}
 
 	l := createLogger()
@@ -392,13 +395,14 @@ inputs = {
 	found := make([]reference, 0, len(refs))
 
 	for _, ref := range refs {
-		found = append(found, reference{dependency: ref.Dependency, output: ref.Output, line: ref.Range.Start.Line})
+		found = append(found, reference{address: ref.Address(), output: ref.Output, line: ref.Range.Start.Line})
 	}
 
 	assert.Equal(t, []reference{
-		{dependency: "vpc", output: "vpc_id", line: 3},
-		{dependency: "vpc", output: "subnet_ids", line: 7},
-		{dependency: "rds", output: "endpoint", line: 8},
+		{address: "vpc", output: "vpc_id", line: 3},
+		{address: "vpc", output: "subnet_ids", line: 7},
+		{address: "rds[primary]", output: "endpoint", line: 8},
+		{address: "rds[1]", output: "endpoint", line: 9},
 	}, found)
 }
 
@@ -533,6 +537,32 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, "vpc-real", cfg.Inputs["vpc_id"])
 				assert.Equal(t, mockSubnets, cfg.Inputs["subnet_ids"])
+			},
+		},
+		{
+			name:           "a mock_outputs list replaces the declared mocks and cannot be read as an object",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = ["oops"]`,
+			command:        "plan",
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var diags hcl.Diagnostics
+
+				require.ErrorAs(t, err, &diags)
+			},
+		},
+		{
+			name:           "a mock_outputs set of numbers replaces the declared mocks and cannot be read as an object",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = toset([1])`,
+			command:        "plan",
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var diags hcl.Diagnostics
+
+				require.ErrorAs(t, err, &diags)
 			},
 		},
 		{

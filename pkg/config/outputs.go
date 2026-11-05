@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math/big"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -30,7 +32,7 @@ const (
 var mockMergeStrategies = []MergeStrategyType{NoMerge, ShallowMerge, DeepMergeMapOnly}
 
 // OutputsConfig is the outputs block of a unit. It declares the outputs the unit emits, each with the mock value
-// its dependents read when the unit's state cannot be read, and the strategy that says when mocks apply.
+// its dependents read while the unit's state holds no outputs, and the strategy that says when mocks apply.
 //
 // The block is recognized only under the outputs-block experiment.
 type OutputsConfig struct {
@@ -231,8 +233,11 @@ func (d *OutputDeclaration) Clone() *OutputDeclaration {
 }
 
 // DependencyOutputReference is a reference in a config file to a named output of a dependency, such as
-// `dependency.vpc.outputs.vpc_id`.
+// `dependency.vpc.outputs.vpc_id` or `dependency.rds["primary"].outputs.endpoint`.
 type DependencyOutputReference struct {
+	// Instance is the literal key of the instance of an expanded dependency the reference reads, nil when it reads
+	// the dependency whole.
+	Instance *string
 	// Dependency is the dependency block label.
 	Dependency string
 	// Output is the referenced output name.
@@ -241,9 +246,16 @@ type DependencyOutputReference struct {
 	Range hcl.Range
 }
 
+// Address returns the address of the dependency the reference reads, as [Dependency.Address] gives it: the label
+// alone, or label[key] for one instance of an expanded dependency.
+func (r *DependencyOutputReference) Address() string {
+	return hclparse.InstanceKey{EachKey: r.Instance}.Address(r.Dependency)
+}
+
 // DependencyOutputReferences returns every reference in file to a named output of a dependency, in source order.
-// A reference whose output name is not a literal, such as `dependency.vpc.outputs[local.key]`, is left out, as
-// is a reference to the outputs object as a whole. A JSON config has no traversals to walk and yields none.
+// A reference whose output name or instance key is not a literal, such as `dependency.vpc.outputs[local.key]` or
+// `dependency.rds[local.name].outputs.endpoint`, is left out, as is a reference to the outputs object as a whole.
+// A JSON config has no traversals to walk and yields none.
 //
 // Returns the diagnostics of the walk as an error when it reports any.
 func DependencyOutputReferences(file *hclparse.File) ([]DependencyOutputReference, error) {
@@ -319,10 +331,9 @@ func dependencyOutputReference(traversal hcl.Traversal) (DependencyOutputReferen
 		return DependencyOutputReference{}, false
 	}
 
-	if len(rest) > 0 {
-		if _, isIndex := rest[0].(hcl.TraverseIndex); isIndex {
-			rest = rest[1:]
-		}
+	instance, rest, ok := instanceStep(rest)
+	if !ok {
+		return DependencyOutputReference{}, false
 	}
 
 	outputs, rest, ok := attributeStep(rest)
@@ -336,10 +347,43 @@ func dependencyOutputReference(traversal hcl.Traversal) (DependencyOutputReferen
 	}
 
 	return DependencyOutputReference{
+		Instance:   instance,
 		Dependency: name,
 		Output:     output,
 		Range:      traversal.SourceRange(),
 	}, true
+}
+
+// instanceStep returns the instance key the index step at the head of steps addresses, as the dependency map keys
+// it, and the steps after it. It returns no key and steps unchanged when steps starts with no index step, and
+// reports false for an index whose key is not a string or a whole number.
+func instanceStep(steps hcl.Traversal) (*string, hcl.Traversal, bool) {
+	if len(steps) == 0 {
+		return nil, steps, true
+	}
+
+	index, ok := steps[0].(hcl.TraverseIndex)
+	if !ok {
+		return nil, steps, true
+	}
+
+	if index.Key.IsNull() {
+		return nil, nil, false
+	}
+
+	switch {
+	case index.Key.Type().Equals(cty.String):
+		return new(index.Key.AsString()), steps[1:], true
+	case index.Key.Type().Equals(cty.Number):
+		whole, accuracy := index.Key.AsBigFloat().Int64()
+		if accuracy != big.Exact {
+			return nil, nil, false
+		}
+
+		return new(strconv.FormatInt(whole, 10)), steps[1:], true
+	default:
+		return nil, nil, false
+	}
 }
 
 // attributeStep returns the name of the attribute step at the head of steps and the steps after it.
@@ -386,7 +430,11 @@ func mergeDeclaredMockValues(declared, overrides *cty.Value) *cty.Value {
 		return overrides
 	}
 
-	if overrides.IsNull() || !overrides.IsKnown() || !overrides.CanIterateElements() {
+	if overrides.IsNull() || !overrides.IsKnown() {
+		return overrides
+	}
+
+	if overridesType := overrides.Type(); !overridesType.IsObjectType() && !overridesType.IsMapType() {
 		return overrides
 	}
 

@@ -11,14 +11,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// withDeclaredOutputs returns dep with the contract of the unit at config_path folded in, along with that
-// contract, under the outputs-block experiment: the mock values the unit's outputs block declares stand behind
-// mock_outputs key by key, and its mock_strategy stands behind the mock attributes the dependency block leaves
-// unset.
-//
-// It returns dep itself and no contract when the experiment is off, the dependency is disabled, config_path does
-// not name a unit config that exists, or the unit declares no outputs block. In the last case it gives the
-// outputs-block tip.
+// withDeclaredOutputs adds the mock values and mock_strategy the unit at config_path declares to a copy of dep,
+// with dep's own settings winning, and returns that copy with the declared contract. It returns dep itself and no
+// contract when the experiment is off, the dependency is disabled, config_path names no unit config, or the unit
+// declares no outputs block, which gives the outputs-block tip.
 func (dep *Dependency) withDeclaredOutputs(
 	ctx context.Context,
 	l log.Logger,

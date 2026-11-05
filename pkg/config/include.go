@@ -647,7 +647,7 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 
 	for _, dependency := range config.TerragruntDependencies {
 		if configPath, ok := dependency.configPathString(); ok {
-			m[dependency.mergeKey()] = configPath
+			m[dependency.Address()] = configPath
 		}
 	}
 
@@ -699,17 +699,17 @@ func mergeDependencyBlocks(
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
-		dependencyBlocks[dep.mergeKey()] = dep
-		keys = append(keys, dep.mergeKey())
+		dependencyBlocks[dep.Address()] = dep
+		keys = append(keys, dep.Address())
 	}
 
 	for _, dep := range sourceDependencies {
-		_, hasSameKey := dependencyBlocks[dep.mergeKey()]
+		_, hasSameKey := dependencyBlocks[dep.Address()]
 		if !hasSameKey {
-			keys = append(keys, dep.mergeKey())
+			keys = append(keys, dep.Address())
 		}
 		// Regardless of what is in dependencyBlocks, we will always override the key with source
-		dependencyBlocks[dep.mergeKey()] = dep
+		dependencyBlocks[dep.Address()] = dep
 	}
 	// Now convert the map to list and set target
 	combinedDeps := make([]Dependency, 0, len(keys))
@@ -733,22 +733,22 @@ func deepMergeDependencyBlocks(
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
-		dependencyBlocks[dep.mergeKey()] = dep
-		keys = append(keys, dep.mergeKey())
+		dependencyBlocks[dep.Address()] = dep
+		keys = append(keys, dep.Address())
 	}
 
 	for _, dep := range sourceDependencies {
-		sameKeyDep, hasSameKey := dependencyBlocks[dep.mergeKey()]
+		sameKeyDep, hasSameKey := dependencyBlocks[dep.Address()]
 		if hasSameKey {
 			sameKeyDepPtr := &sameKeyDep
 			if err := sameKeyDepPtr.DeepMerge(&dep); err != nil {
 				return nil, err
 			}
 
-			dependencyBlocks[dep.mergeKey()] = *sameKeyDepPtr
+			dependencyBlocks[dep.Address()] = *sameKeyDepPtr
 		} else {
-			dependencyBlocks[dep.mergeKey()] = dep
-			keys = append(keys, dep.mergeKey())
+			dependencyBlocks[dep.Address()] = dep
+			keys = append(keys, dep.Address())
 		}
 	}
 

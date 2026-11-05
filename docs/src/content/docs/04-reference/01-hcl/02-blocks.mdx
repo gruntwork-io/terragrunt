@@ -2027,9 +2027,10 @@ state for the target module without parsing the `dependency` blocks, avoiding th
   The `outputs` block is gated behind the `outputs-block` experiment. Enable it with `--experiment outputs-block` (or `TG_EXPERIMENT=outputs-block`) until it graduates to general availability. Declaring the block without the experiment enabled returns an error. See the [experiment documentation](/reference/experiments/active#outputs-block).
 </Aside>
 
-The `outputs` block declares the outputs a unit emits, each with the mock value its dependents read when the unit's
-state cannot be read, and the strategy that says when mocks apply. It moves the mock contract from the dependents,
-where every `dependency` block repeats it in `mock_outputs`, to the unit that owns the module.
+The `outputs` block declares the outputs a unit emits, each with the mock value its dependents read while the unit's
+state holds no outputs, as before its first apply, and the strategy that says when mocks apply. A backend error while
+reading the state still fails the command. The block moves the mock contract from the dependents, where every
+`dependency` block repeats it in `mock_outputs`, to the unit that owns the module.
 
 The `outputs` block supports the following arguments:
 
@@ -2094,8 +2095,10 @@ A `dependency` block and the `outputs` block of the unit it reads combine as fol
 
 `terragrunt hcl validate` checks the contracts: every declared output has to exist in the OpenTofu/Terraform module
 the unit runs, and every `dependency.<name>.outputs.<output>` reference has to name an output the dependency declares,
-when it declares any. For the first check, a unit with a `terraform.source` is fetched into the download directory,
-as `hcl validate --inputs` fetches it.
+when it declares any. For the first check, the module is prepared as `hcl validate --inputs` prepares it: a unit with
+a `terraform.source` is fetched into the download directory, and `generate` blocks are written. A reference to one
+instance of an expanded dependency, such as `dependency.vpc["primary"].outputs.vpc_id`, is checked against that
+instance. A reference whose instance key or output name is not a literal is not checked.
 
 The block is merged through `include` like the `errors` block: a `shallow` merge takes the including unit's block
 whole, and a `deep` merge combines the declarations by output name, with the unit's declarations winning.
