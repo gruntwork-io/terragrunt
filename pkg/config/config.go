@@ -2268,6 +2268,8 @@ func ConvertToTerragruntConfig(
 			return nil, err
 		}
 
+		generateBlocks = slices.Grow(generateBlocks, len(generateMap))
+
 		for name, block := range generateMap {
 			var generateBlock TerragruntGenerateBlock
 			if err := mapstructure.WeakDecode(block, &generateBlock); err != nil {

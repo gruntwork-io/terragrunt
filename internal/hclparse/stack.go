@@ -152,6 +152,8 @@ func expandComponentBlocks[T any, P expandedComponent[T]](
 			continue
 		}
 
+		components = slices.Grow(components, len(instances))
+
 		for _, instance := range instances {
 			component, ok := instance.Value.(P)
 			if !ok {
