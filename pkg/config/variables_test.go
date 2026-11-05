@@ -368,6 +368,375 @@ variables {
 			},
 		},
 		{
+			name: "a child block replaces an included block with a shallow merge",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+variables {
+  kind   = "json"
+  inputs = { shared = "child" }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"from_root": {Value: "root", Kind: config.VariablesKindTFVar, Validate: true},
+				"shared":    {Value: "child", Kind: config.VariablesKindJSON},
+			},
+		},
+		{
+			name: "a child block replaces an included block with a deep merge",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+variables {
+  kind   = "json"
+  inputs = { shared = "child" }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"from_root": {Value: "root", Kind: config.VariablesKindTFVar, Validate: true},
+				"shared":    {Value: "child", Kind: config.VariablesKindJSON},
+			},
+		},
+		{
+			name: "a shallow merge replaces a map value",
+			files: map[string]string{
+				"root.hcl": `
+variables {
+  inputs = { tags = { root = "root" } }
+}
+`,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+variables {
+  inputs = { tags = { child = "child" } }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"tags": {Value: map[string]any{"child": "child"}, Kind: config.VariablesKindEnv},
+			},
+		},
+		{
+			name: "a deep merge combines the values of two blocks",
+			files: map[string]string{
+				"root.hcl": `
+variables {
+  kind     = "tfvar"
+  validate = true
+
+  inputs = {
+    tags  = { root = "root", shared = "root" }
+    names = ["root"]
+    word  = "root"
+  }
+}
+`,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+variables {
+  kind = "json"
+
+  inputs = {
+    tags  = { child = "child", shared = "child" }
+    names = ["child"]
+    word  = "child"
+  }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"tags": {
+					Value: map[string]any{"root": "root", "child": "child", "shared": "child"},
+					Kind:  config.VariablesKindJSON,
+				},
+				"names": {Value: []any{"root", "child"}, Kind: config.VariablesKindJSON},
+				"word":  {Value: "child", Kind: config.VariablesKindJSON},
+			},
+		},
+		{
+			name: "a deep merge combines an included inputs attribute with a child block",
+			files: map[string]string{
+				"root.hcl": `inputs = { tags = { root = "root" }, kept = "root" }`,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+variables {
+  kind   = "tfvar"
+  inputs = { tags = { child = "child" } }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"tags": {Value: map[string]any{"root": "root", "child": "child"}, Kind: config.VariablesKindTFVar},
+				"kept": {Value: "root", Kind: config.VariablesKindEnv},
+			},
+		},
+		{
+			name: "a deep merge combines an included block with a child inputs attribute",
+			files: map[string]string{
+				"root.hcl": `
+variables {
+  kind   = "tfvar"
+  inputs = { tags = { root = "root" }, kept = "root" }
+}
+`,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+inputs = { tags = { child = "child" } }
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"tags": {Value: map[string]any{"root": "root", "child": "child"}, Kind: config.VariablesKindEnv},
+				"kept": {Value: "root", Kind: config.VariablesKindTFVar},
+			},
+		},
+		{
+			name: "a deep merge combines the values of two includes and a child",
+			files: map[string]string{
+				"a.hcl": `
+variables {
+  inputs = { names = ["a"] }
+}
+`,
+				"b.hcl": `inputs = { names = ["b"] }`,
+				config.DefaultTerragruntConfigPath: `
+include "a" {
+  path           = find_in_parent_folders("a.hcl")
+  merge_strategy = "deep"
+}
+
+include "b" {
+  path           = find_in_parent_folders("b.hcl")
+  merge_strategy = "deep"
+}
+
+variables {
+  inputs = { names = ["child"] }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"names": {Value: []any{"a", "b", "child"}, Kind: config.VariablesKindEnv},
+			},
+		},
+		{
+			name: "a deep merge leaves a list once when two includes reach one block",
+			files: map[string]string{
+				"root.hcl": `
+variables {
+  inputs = { names = ["root"] }
+}
+`,
+				config.DefaultTerragruntConfigPath: `
+include "one" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+include "two" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+variables {
+  inputs = { names = ["child"] }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"names": {Value: []any{"root", "child"}, Kind: config.VariablesKindEnv},
+			},
+		},
+		{
+			name: "a deep merge lets a nullable child null replace an included value",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+variables {
+  nullable = true
+  inputs   = { shared = null }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"from_root": {Value: "root", Kind: config.VariablesKindTFVar, Validate: true},
+				"shared":    {Kind: config.VariablesKindEnv},
+			},
+		},
+		{
+			name: "a child inputs attribute replaces an included block",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+inputs = { shared = "child" }
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"from_root": {Value: "root", Kind: config.VariablesKindTFVar, Validate: true},
+				"shared":    {Value: "child", Kind: config.VariablesKindEnv},
+			},
+		},
+		{
+			name: "a child block replaces an included inputs attribute",
+			files: map[string]string{
+				"root.hcl": `inputs = { name = "root", kept = "root" }`,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+variables {
+  kind   = "tfvar"
+  inputs = { name = "child" }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"kept": {Value: "root", Kind: config.VariablesKindEnv},
+				"name": {Value: "child", Kind: config.VariablesKindTFVar},
+			},
+		},
+		{
+			name: "a later include replaces an earlier include",
+			files: map[string]string{
+				"a.hcl": `
+variables {
+  kind   = "tfvar"
+  inputs = { name = "a" }
+}
+`,
+				"b.hcl": `inputs = { name = "b" }`,
+				config.DefaultTerragruntConfigPath: `
+include "a" {
+  path = find_in_parent_folders("a.hcl")
+}
+
+include "b" {
+  path = find_in_parent_folders("b.hcl")
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"name": {Value: "b", Kind: config.VariablesKindEnv},
+			},
+		},
+		{
+			name: "an autoinclude replaces its unit",
+			files: map[string]string{
+				filepath.Join("unit", "terragrunt.autoinclude.hcl"): `
+variables {
+  kind   = "json"
+  inputs = { name = "autoinclude" }
+}
+`,
+				config.DefaultTerragruntConfigPath: `
+variables {
+  kind   = "tfvar"
+  inputs = { name = "unit" }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"name": {Value: "autoinclude", Kind: config.VariablesKindJSON},
+			},
+		},
+		{
+			name: "a child replaces a block reached through two includes",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				config.DefaultTerragruntConfigPath: `
+include "one" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+include "two" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+variables {
+  inputs = { shared = "child" }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"from_root": {Value: "root", Kind: config.VariablesKindTFVar, Validate: true},
+				"shared":    {Value: "child", Kind: config.VariablesKindEnv},
+			},
+		},
+		{
+			name: "a nullable child null replaces an included value",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+variables {
+  nullable = true
+  inputs   = { shared = null }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"from_root": {Value: "root", Kind: config.VariablesKindTFVar, Validate: true},
+				"shared":    {Kind: config.VariablesKindEnv},
+			},
+		},
+		{
+			name: "a dropped child null leaves an included value in place",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+variables {
+  inputs = { shared = null }
+}
+`,
+			},
+			expected: map[string]config.ResolvedInput{
+				"from_root": {Value: "root", Kind: config.VariablesKindTFVar, Validate: true},
+				"shared":    {Value: "root", Kind: config.VariablesKindTFVar, Validate: true},
+			},
+		},
+		{
 			name: "included blocks are left out without a merge",
 			files: map[string]string{
 				"root.hcl": rootConfig,
@@ -400,13 +769,46 @@ variables {
 	}
 }
 
+func TestVariablesBlockOverriddenInputLeavesItsBlock(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := parseVariablesFixture(t, map[string]string{
+		"root.hcl": `
+variables {
+  inputs = { from_root = "root", shared = "root", attr = "root" }
+}
+`,
+		config.DefaultTerragruntConfigPath: `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+inputs = { attr = "child" }
+
+variables {
+  inputs = { shared = "child" }
+}
+`,
+	}, variablesExperimentOn)
+	require.NoError(t, err)
+
+	require.Len(t, cfg.Variables, 2)
+	assert.Equal(t, map[string]any{"from_root": "root"}, cfg.Variables[0].Inputs)
+	assert.Equal(t, map[string]any{"shared": "child"}, cfg.Variables[1].Inputs)
+	assert.Equal(t, map[string]any{"attr": "child"}, cfg.Inputs)
+}
+
 func TestVariablesBlockDuplicateInput(t *testing.T) {
 	t.Parallel()
 
-	rootBlock := `
+	twoBlocks := `
 variables {
   kind   = "tfvar"
-  inputs = { name = "root" }
+  inputs = { name = "first" }
+}
+
+variables {
+  inputs = { name = "second" }
 }
 `
 
@@ -488,9 +890,22 @@ variables {
 			subject: "unit/terragrunt.hcl:7,12-38",
 		},
 		{
-			name: "an included block and a child block with a shallow merge",
+			name: "two blocks in an included file",
 			files: map[string]string{
-				"root.hcl": rootBlock,
+				"root.hcl": twoBlocks,
+				config.DefaultTerragruntConfigPath: `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`,
+			},
+			first:   "root.hcl:4,14-18",
+			subject: "root.hcl:8,14-18",
+		},
+		{
+			name: "two blocks in an included file and a child that overrides them",
+			files: map[string]string{
+				"root.hcl": twoBlocks,
 				config.DefaultTerragruntConfigPath: `
 include "root" {
   path = find_in_parent_folders("root.hcl")
@@ -502,92 +917,20 @@ variables {
 `,
 			},
 			first:   "root.hcl:4,14-18",
-			subject: "unit/terragrunt.hcl:7,14-18",
+			subject: "root.hcl:8,14-18",
 		},
 		{
-			name: "an included block and a child block with a deep merge",
+			name: "two blocks in an autoinclude",
 			files: map[string]string{
-				"root.hcl": rootBlock,
-				config.DefaultTerragruntConfigPath: `
-include "root" {
-  path           = find_in_parent_folders("root.hcl")
-  merge_strategy = "deep"
-}
-
-variables {
-  inputs = { name = "child" }
-}
-`,
-			},
-			first:   "root.hcl:4,14-18",
-			subject: "unit/terragrunt.hcl:8,14-18",
-		},
-		{
-			name: "an included block and a child inputs attribute",
-			files: map[string]string{
-				"root.hcl": rootBlock,
-				config.DefaultTerragruntConfigPath: `
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-inputs = { name = "child" }
-`,
-			},
-			first:   "unit/terragrunt.hcl:6,12-16",
-			subject: "root.hcl:4,14-18",
-		},
-		{
-			name: "an included inputs attribute and a child block",
-			files: map[string]string{
-				"root.hcl": `inputs = { name = "root" }`,
-				config.DefaultTerragruntConfigPath: `
-include "root" {
-  path = find_in_parent_folders("root.hcl")
-}
-
-variables {
-  inputs = { name = "child" }
-}
-`,
-			},
-			first:   "root.hcl:1,12-16",
-			subject: "unit/terragrunt.hcl:7,14-18",
-		},
-		{
-			name: "two included files",
-			files: map[string]string{
-				"a.hcl": rootBlock,
-				"b.hcl": rootBlock,
-				config.DefaultTerragruntConfigPath: `
-include "a" {
-  path = find_in_parent_folders("a.hcl")
-}
-
-include "b" {
-  path = find_in_parent_folders("b.hcl")
-}
-`,
-			},
-			first:   "a.hcl:4,14-18",
-			subject: "b.hcl:4,14-18",
-		},
-		{
-			name: "a unit block and an autoinclude block",
-			files: map[string]string{
-				filepath.Join("unit", "terragrunt.autoinclude.hcl"): `
-variables {
-  inputs = { name = "autoinclude" }
-}
-`,
+				filepath.Join("unit", "terragrunt.autoinclude.hcl"): twoBlocks,
 				config.DefaultTerragruntConfigPath: `
 variables {
-  inputs = { name = "unit" }
+  inputs = { other = "unit" }
 }
 `,
 			},
-			first:   "unit/terragrunt.hcl:3,14-18",
-			subject: "unit/terragrunt.autoinclude.hcl:3,14-18",
+			first:   "unit/terragrunt.autoinclude.hcl:4,14-18",
+			subject: "unit/terragrunt.autoinclude.hcl:8,14-18",
 		},
 	}
 

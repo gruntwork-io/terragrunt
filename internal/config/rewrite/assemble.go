@@ -72,6 +72,10 @@ func (c *UnitConfig) assemble(
 	}
 
 	if cfg != nil {
+		if err := pkgconfig.ValidateInputDefinitions(c.file, cfg); err != nil {
+			errs = append(errs, err)
+		}
+
 		autoMergedCfg, autoMergeErr := c.mergeAutoInclude(ctx, l, v, src, cfg)
 		if autoMergeErr != nil {
 			errs = append(errs, autoMergeErr)
@@ -108,10 +112,6 @@ func (c *UnitConfig) assemble(
 
 	if c.pc.file.include == nil && cfg != nil {
 		if err := cfg.Terraform.ValidateVersion(c.file.ConfigPath); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := pkgconfig.ValidateInputDefinitions(v, c.file, cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}

@@ -939,7 +939,7 @@ variables {
 			},
 		},
 		{
-			name: "duplicate input through an include",
+			name: "an input overridden through an include",
 			files: map[string]string{
 				"root.hcl": rootConfig,
 				pkgconfig.DefaultTerragruntConfigPath: `
@@ -949,6 +949,80 @@ include "root" {
 
 variables {
   inputs = { shared = "child" }
+}
+`,
+			},
+		},
+		{
+			name: "an inputs attribute overriding an included block",
+			files: map[string]string{
+				"root.hcl": rootConfig,
+				pkgconfig.DefaultTerragruntConfigPath: `
+include "root" {
+  path = "{{root}}/root.hcl"
+}
+
+inputs = { shared = "child" }
+`,
+			},
+		},
+		{
+			name: "an input overridden by an autoinclude",
+			files: map[string]string{
+				"terragrunt.autoinclude.hcl": `
+variables {
+  kind   = "json"
+  inputs = { name = "autoinclude" }
+}
+`,
+				pkgconfig.DefaultTerragruntConfigPath: `
+variables {
+  inputs = { name = "unit" }
+}
+`,
+			},
+		},
+		{
+			name: "an input deep merged through an include",
+			files: map[string]string{
+				"root.hcl": `
+inputs = { attr = { root = "root" } }
+
+variables {
+  kind   = "tfvar"
+  inputs = { block = { root = "root" } }
+}
+`,
+				pkgconfig.DefaultTerragruntConfigPath: `
+include "root" {
+  path           = "{{root}}/root.hcl"
+  merge_strategy = "deep"
+}
+
+inputs = { block = { child = "child" } }
+
+variables {
+  kind   = "json"
+  inputs = { attr = { child = "child" } }
+}
+`,
+			},
+		},
+		{
+			name: "duplicate input in an included file",
+			files: map[string]string{
+				"root.hcl": `
+variables {
+  inputs = { name = "first" }
+}
+
+variables {
+  inputs = { name = "second" }
+}
+`,
+				pkgconfig.DefaultTerragruntConfigPath: `
+include "root" {
+  path = "{{root}}/root.hcl"
 }
 `,
 			},

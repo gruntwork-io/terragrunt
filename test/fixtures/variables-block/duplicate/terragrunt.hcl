@@ -1,11 +1,11 @@
-include "root" {
-  path = find_in_parent_folders("root.hcl")
+variables {
+  kind   = "tfvar"
+  inputs = { name = "first" }
 }
 
 variables {
-  kind = "json"
-
+  kind   = "json"
   inputs = {
-    from_root = "child"
+    name = "second"
   }
 }

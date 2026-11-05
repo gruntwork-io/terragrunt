@@ -1,1 +1,1 @@
-variable "from_root" {}
+variable "name" {}

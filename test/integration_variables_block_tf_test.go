@@ -236,6 +236,30 @@ func TestTFVariablesBlockSavedPlan(t *testing.T) {
 	assert.Equal(t, "root", values["from_root"])
 }
 
+func TestTFVariablesBlockChildOverridesInclude(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVariablesBlock)
+	unitPath := filepath.Join(tmpEnvPath, testFixtureVariablesBlock, "override", "unit")
+
+	flags := " --non-interactive --experiment variables-block --working-dir " + unitPath
+
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve"+flags)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -json values"+flags)
+	require.NoError(t, err)
+
+	var values map[string]string
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &values))
+
+	assert.Equal(t, map[string]string{
+		"from_attr":  "child",
+		"from_block": "child",
+		"root_only":  "root",
+	}, values)
+}
+
 func TestTFVariablesBlockRunsInPlace(t *testing.T) {
 	t.Parallel()
 

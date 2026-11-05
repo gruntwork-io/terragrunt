@@ -86,16 +86,16 @@ func TestHclValidateVariablesBlockDuplicateInput(t *testing.T) {
 	diag := diags[0]
 
 	assert.Equal(t, "Duplicate input", diag.Summary)
-	assert.Contains(t, diag.Detail, filepath.Join(fixturePath, "root.hcl")+":3,14-23")
+	assert.Contains(t, diag.Detail, filepath.Join(unitPath, "terragrunt.hcl")+":3,14-18")
 
 	require.NotNil(t, diag.Range)
 	assert.Equal(t, filepath.Join(unitPath, "terragrunt.hcl"), diag.Range.Filename)
 	assert.Equal(t, 9, diag.Range.Start.Line)
 	assert.Equal(t, 5, diag.Range.Start.Column)
-	assert.Equal(t, 14, diag.Range.End.Column)
+	assert.Equal(t, 9, diag.Range.End.Column)
 
 	require.NotNil(t, diag.Snippet)
-	assert.Equal(t, `    from_root = "child"`, diag.Snippet.Code)
+	assert.Equal(t, `    name = "second"`, diag.Snippet.Code)
 	assert.Equal(t, 4, diag.Snippet.HighlightStartOffset)
-	assert.Equal(t, 13, diag.Snippet.HighlightEndOffset)
+	assert.Equal(t, 8, diag.Snippet.HighlightEndOffset)
 }

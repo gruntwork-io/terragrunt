@@ -12,7 +12,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -80,16 +79,15 @@ func (cfg *TerragruntConfig) ResolveInputs() map[string]ResolvedInput {
 	return resolved
 }
 
-// ValidateInputDefinitions reports a diagnostic for each input cfg defines more than once, in the inputs attribute or
-// in variables blocks. Values of the inputs attribute merged through an include count as one definition.
+// ValidateInputDefinitions reports a diagnostic for each input that file defines more than once, in the inputs attribute
+// or in variables blocks. Each diagnostic points at the key of the later definition.
 //
-// file is the file cfg was parsed from. Each diagnostic points at the key of the later definition and goes through the
-// file that holds it, so an include or autoinclude that holds the key renders its own source.
-func ValidateInputDefinitions(v *venv.Venv, file *hclparse.File, cfg *TerragruntConfig) error {
+// cfg is the config parsed from file alone, before any include or autoinclude merges into it.
+func ValidateInputDefinitions(file *hclparse.File, cfg *TerragruntConfig) error {
 	var errs []error
 
 	for _, duplicate := range cfg.duplicateInputs() {
-		if err := reportDuplicateInput(v, file, duplicate); err != nil {
+		if err := reportDuplicateInput(file, duplicate); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -97,24 +95,20 @@ func ValidateInputDefinitions(v *venv.Venv, file *hclparse.File, cfg *Terragrunt
 	return errors.Join(errs...)
 }
 
-// inputsAttribute is the [inputDefinition.blockIndex] of a definition in the inputs attribute.
-const inputsAttribute = -1
+// inputDefinition is the position of a variables block among the blocks of a file, or inputsAttribute.
+type inputDefinition int
 
-// inputDefinition is a place in a config file that defines inputs.
-type inputDefinition struct {
-	configPath string
-	// blockIndex is the position of the variables block among the file's blocks, or inputsAttribute.
-	blockIndex int
-}
+// inputsAttribute is the [inputDefinition] of the inputs attribute.
+const inputsAttribute inputDefinition = -1
 
-// duplicateInput is an input defined in two places, in merge order.
+// duplicateInput is an input that a file defines twice, in source order.
 type duplicateInput struct {
 	name   string
 	first  inputDefinition
 	second inputDefinition
 }
 
-// duplicateInputs returns every input defined more than once, in merge order and then by name.
+// duplicateInputs returns every input cfg defines more than once, in block order and then by name.
 func (cfg *TerragruntConfig) duplicateInputs() []duplicateInput {
 	if len(cfg.Variables) == 0 {
 		return nil
@@ -123,14 +117,13 @@ func (cfg *TerragruntConfig) duplicateInputs() []duplicateInput {
 	defined := make(map[string]inputDefinition, len(cfg.Inputs))
 
 	for name := range cfg.Inputs {
-		metadata, _ := cfg.GetMapFieldMetadata(MetadataInputs, name)
-		defined[name] = inputDefinition{configPath: metadata[FoundInFile], blockIndex: inputsAttribute}
+		defined[name] = inputsAttribute
 	}
 
 	var duplicates []duplicateInput
 
 	for _, block := range cfg.Variables {
-		definition := inputDefinition{configPath: block.ConfigPath, blockIndex: block.BlockIndex}
+		definition := inputDefinition(block.BlockIndex)
 
 		for _, name := range slices.Sorted(maps.Keys(block.Inputs)) {
 			if first, found := defined[name]; found {
@@ -146,44 +139,24 @@ func (cfg *TerragruntConfig) duplicateInputs() []duplicateInput {
 	return duplicates
 }
 
-// reportDuplicateInput raises the diagnostic for duplicate through the file that holds its later definition.
-func reportDuplicateInput(v *venv.Venv, file *hclparse.File, duplicate duplicateInput) error {
-	firstFile, err := definitionFile(v, file, duplicate.first)
+// reportDuplicateInput raises the diagnostic for duplicate through file.
+func reportDuplicateInput(file *hclparse.File, duplicate duplicateInput) error {
+	first, err := inputKeyRange(file, duplicate.first, duplicate.name)
 	if err != nil {
 		return err
 	}
 
-	secondFile, err := definitionFile(v, file, duplicate.second)
+	second, err := inputKeyRange(file, duplicate.second, duplicate.name)
 	if err != nil {
 		return err
 	}
 
-	first, err := inputKeyRange(firstFile, duplicate.first, duplicate.name)
-	if err != nil {
-		return err
-	}
-
-	second, err := inputKeyRange(secondFile, duplicate.second, duplicate.name)
-	if err != nil {
-		return err
-	}
-
-	return secondFile.HandleDiagnostics(hcl.Diagnostics{{
+	return file.HandleDiagnostics(hcl.Diagnostics{{
 		Severity: hcl.DiagError,
 		Summary:  "Duplicate input",
-		Detail:   fmt.Sprintf("The input %q was already set at %s. Each input may be set only once.", duplicate.name, first),
+		Detail:   fmt.Sprintf("The input %q was already set at %s. A file may set each input only once.", duplicate.name, first),
 		Subject:  second.Ptr(),
 	}})
-}
-
-// definitionFile returns the parsed file that holds definition. A file other than file is read into file's parser,
-// whose diagnostics writer renders only source it has parsed.
-func definitionFile(v *venv.Venv, file *hclparse.File, definition inputDefinition) (*hclparse.File, error) {
-	if definition.configPath == file.ConfigPath {
-		return file, nil
-	}
-
-	return file.Parser.ParseFromFile(v.FS, definition.configPath)
 }
 
 // inputKeyRange returns the range of the key that sets name in definition. It is the range of the whole inputs
@@ -191,13 +164,13 @@ func definitionFile(v *venv.Venv, file *hclparse.File, definition inputDefinitio
 func inputKeyRange(file *hclparse.File, definition inputDefinition, name string) (hcl.Range, error) {
 	body := file.Body
 
-	if definition.blockIndex != inputsAttribute {
+	if definition != inputsAttribute {
 		blocks, err := file.Blocks(MetadataVariables, true)
 		if err != nil {
 			return hcl.Range{}, err
 		}
 
-		body = blocks[definition.blockIndex].Body
+		body = blocks[definition].Body
 	}
 
 	schema := &hcl.BodySchema{Attributes: []hcl.AttributeSchema{{Name: MetadataInputs}}}
@@ -228,21 +201,96 @@ func inputKeyRange(file *hclparse.File, definition inputDefinition, name string)
 	return expr.Range(), nil
 }
 
-// mergeVariablesBlocks appends the blocks of source to blocks, skipping any block already present. A file reached
-// through two includes contributes its blocks once.
-func mergeVariablesBlocks(blocks, source []VariablesConfig) []VariablesConfig {
-	merged := slices.Clone(blocks)
+// mergeVariables appends blocks to cfg and removes from cfg every input that inputs or blocks define, leaving each input
+// with one definition. A block in both is kept once, so a file reached through two includes does not override itself.
+func (cfg *TerragruntConfig) mergeVariables(inputs map[string]any, blocks []VariablesConfig) {
+	defined := make(map[string]struct{})
 
-	for _, block := range source {
-		present := slices.ContainsFunc(merged, func(other VariablesConfig) bool {
-			return other.ConfigPath == block.ConfigPath && other.BlockIndex == block.BlockIndex
-		})
-		if !present {
-			merged = append(merged, block)
+	for _, block := range blocks {
+		for name := range block.Inputs {
+			defined[name] = struct{}{}
 		}
 	}
 
-	return merged
+	cfg.Inputs = withoutInputs(cfg.Inputs, defined)
+
+	for name := range inputs {
+		defined[name] = struct{}{}
+	}
+
+	earlier := cfg.variablesOutside(blocks)
+
+	for i := range earlier {
+		earlier[i].Inputs = withoutInputs(earlier[i].Inputs, defined)
+	}
+
+	cfg.Variables = slices.Concat(earlier, blocks)
+}
+
+// deepMergedDefinitions returns the inputs attribute and variables blocks of source, with the value of each input that
+// cfg also defines deep merged over the value in cfg.
+func (cfg *TerragruntConfig) deepMergedDefinitions(
+	source *TerragruntConfig,
+) (map[string]any, []VariablesConfig, error) {
+	earlier := make(map[string]any, len(cfg.Inputs))
+	maps.Copy(earlier, cfg.Inputs)
+
+	for _, block := range cfg.variablesOutside(source.Variables) {
+		maps.Copy(earlier, block.Inputs)
+	}
+
+	inputs, err := deepMergeDefined(source.Inputs, earlier)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	blocks := slices.Clone(source.Variables)
+
+	for i := range blocks {
+		merged, err := deepMergeDefined(blocks[i].Inputs, earlier)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		blocks[i].Inputs = merged
+	}
+
+	return inputs, blocks, nil
+}
+
+// variablesOutside returns a copy of the variables blocks of cfg without any block that blocks also holds.
+func (cfg *TerragruntConfig) variablesOutside(blocks []VariablesConfig) []VariablesConfig {
+	return slices.DeleteFunc(slices.Clone(cfg.Variables), func(block VariablesConfig) bool {
+		return slices.ContainsFunc(blocks, func(other VariablesConfig) bool {
+			return other.ConfigPath == block.ConfigPath && other.BlockIndex == block.BlockIndex
+		})
+	})
+}
+
+// deepMergeDefined returns inputs with the value of each input that earlier also defines deep merged over the value in
+// earlier. It adds no other inputs from earlier.
+func deepMergeDefined(inputs, earlier map[string]any) (map[string]any, error) {
+	defined := make(map[string]any, len(inputs))
+
+	for name := range inputs {
+		if value, found := earlier[name]; found {
+			defined[name] = value
+		}
+	}
+
+	return deepMergeInputs(inputs, defined)
+}
+
+// withoutInputs returns a copy of inputs that leaves out names.
+func withoutInputs(inputs map[string]any, names map[string]struct{}) map[string]any {
+	kept := maps.Clone(inputs)
+
+	maps.DeleteFunc(kept, func(name string, _ any) bool {
+		_, found := names[name]
+		return found
+	})
+
+	return kept
 }
 
 // convertVariablesBlocks parses the variables blocks of the config file at configPath.

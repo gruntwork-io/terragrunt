@@ -980,6 +980,9 @@ terraform {
 
 ### Multiple includes
 
+When two `include` blocks merge the same setting, the later `include` overrides the earlier one, and the child config
+overrides both.
+
 ```hcl
 # root.hcl
 
@@ -2494,7 +2497,9 @@ variables {
 }
 ```
 
-A configuration can have any number of `variables` blocks, alongside an `inputs` attribute. Terragrunt returns an error when two `variables` blocks set the same input, or when a `variables` block and the `inputs` attribute do, including across `include` and `autoinclude`.
+A configuration can have any number of `variables` blocks, alongside an `inputs` attribute. Terragrunt returns an error when one file sets an input twice, in two `variables` blocks or in a `variables` block and the `inputs` attribute.
+
+If a unit defines an input that is also defined by an include, the input in the unit overrides the value from the include. This applies whether each side uses a `variables` block or the `inputs` attribute, and the input uses the `kind` and `validate` set in the unit. With `merge_strategy = "deep"`, nested maps and lists combine with the include's value, as they do for the `inputs` attribute.
 
 A `TF_VAR_` environment variable set before Terragrunt runs, or through `env_vars` in `extra_arguments`, takes precedence over an `env` input. A `tfvar` or `json` input takes precedence over it.
 

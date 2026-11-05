@@ -1747,6 +1747,10 @@ func ParseConfig(
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
 	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
 	if config != nil {
+		if err := ValidateInputDefinitions(file, config); err != nil {
+			errs = append(errs, err)
+		}
+
 		merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, l, v, pctx, config)
 		if autoMergeErr != nil {
 			errs = append(errs, autoMergeErr)
@@ -1794,10 +1798,6 @@ func ParseConfig(
 	// final config; the including child validates the merged result.
 	if includeFromChild == nil && config != nil {
 		if err := config.Terraform.ValidateVersion(file.ConfigPath); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := ValidateInputDefinitions(v, file, config); err != nil {
 			errs = append(errs, err)
 		}
 	}
