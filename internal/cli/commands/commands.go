@@ -210,7 +210,11 @@ func WrapWithTelemetry(
 
 		ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
 
-		return telemeter.Collect(ctx, l, cliCtx.Command.Name, nil, func(childCtx context.Context, l log.Logger) error {
+		resolveErr := resolveWorkingDir(v, opts)
+
+		return telemeter.Collect(ctx, l, cliCtx.Command.Name, map[string]any{
+			"dir": opts.WorkingDir,
+		}, func(childCtx context.Context, l log.Logger) error {
 			// Engines emit telemetry during shutdown, so stop them while the
 			// command span is still open (and before the telemeter's deferred
 			// Shutdown flushes) to keep their records correlated with it.
@@ -226,6 +230,10 @@ func WrapWithTelemetry(
 					}
 				}
 			}()
+
+			if resolveErr != nil {
+				return resolveErr
+			}
 
 			if err := initialSetup(cliCtx, l, v, opts); err != nil {
 				return err
@@ -545,6 +553,36 @@ func setupAutoProviderCacheDir(
 	return nil
 }
 
+// resolveWorkingDir makes opts.WorkingDir a clean absolute path, using the
+// current directory when it is unset.
+func resolveWorkingDir(v *venv.Venv, opts *options.TerragruntOptions) error {
+	if opts.WorkingDir == "" {
+		currentDir, err := v.Platform.Getwd()
+		if err != nil {
+			return err
+		}
+
+		opts.WorkingDir = filepath.Clean(currentDir)
+
+		return nil
+	}
+
+	if filepath.IsAbs(opts.WorkingDir) {
+		opts.WorkingDir = filepath.Clean(opts.WorkingDir)
+
+		return nil
+	}
+
+	workingDir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		return err
+	}
+
+	opts.WorkingDir = filepath.Clean(workingDir)
+
+	return nil
+}
+
 // mostly preparing terragrunt options
 func initialSetup(
 	cliCtx *clihelper.Context,
@@ -572,25 +610,6 @@ func initialSetup(
 
 	opts.TofuCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
-
-	// --- Working Dir
-	if opts.WorkingDir == "" {
-		currentDir, err := v.Platform.Getwd()
-		if err != nil {
-			return err
-		}
-
-		opts.WorkingDir = currentDir
-	} else if !filepath.IsAbs(opts.WorkingDir) {
-		workingDir, err := filepath.Abs(opts.WorkingDir)
-		if err != nil {
-			return err
-		}
-
-		opts.WorkingDir = workingDir
-	}
-
-	opts.WorkingDir = filepath.Clean(opts.WorkingDir)
 
 	l = l.WithField(placeholders.WorkDirKeyName, opts.WorkingDir)
 
@@ -712,16 +731,13 @@ func initialSetup(
 	return nil
 }
 
-// setCommandSpanAttributes records on the command span the values initialSetup
-// resolves: the working directory, and for a command that runs OpenTofu/Terraform,
-// the tofu command and its arguments.
+// setCommandSpanAttributes records on the command span the tofu command and
+// arguments that initialSetup resolves, for a command that runs OpenTofu/Terraform.
 func setCommandSpanAttributes(ctx context.Context, cliCtx *clihelper.Context, opts *options.TerragruntOptions) {
 	span := trace.SpanFromContext(ctx)
 	if !span.IsRecording() {
 		return
 	}
-
-	span.SetAttributes(attribute.String("dir", opts.WorkingDir))
 
 	if !runsTofu(cliCtx) || opts.TofuCommand == "" {
 		return

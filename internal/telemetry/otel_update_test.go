@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -238,7 +239,7 @@ func TestNewTelemeterSetsScopeVersionOnAllSignals(t *testing.T) {
 	l.SetOptions(log.WithOutput(io.Discard))
 
 	tlm, err := telemetry.NewTelemeter(
-		t.Context(), l, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, true,
+		t.Context(), l, "terragrunt", "v0.0.0-test", util.NewSyncWriter(&buf), opts.Telemetry, true,
 	)
 	require.NoError(t, err)
 
