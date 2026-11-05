@@ -20,7 +20,7 @@ The OTLP exporters read their endpoint from the standard `OTEL_EXPORTER_OTLP_END
 TG_TELEMETRY_LOGS_EXPORTER=otlpHttp terragrunt run --all --experiment otel-logs -- apply
 ```
 
-Records emitted while a unit's span is active carry that span's trace and span IDs, so a failed unit's logs link back to its span in the backend: clicking a unit's span in the trace view surfaces exactly the logs it produced. Run-level records emitted outside any span are exported without correlation IDs. Without the experiment enabled, the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
+Records emitted while a unit's span is active carry that span's trace and span IDs, so a failed unit's logs link back to its span in the backend: clicking a unit's span in the trace view surfaces exactly the logs it produced. Run-level records emitted outside a unit span, such as the run queue, carry the IDs of the root command span. Without the experiment enabled, the logs exporter stays inert regardless of `TG_TELEMETRY_LOGS_EXPORTER`.
 
 ### `otel-logs` - How to provide feedback
 
