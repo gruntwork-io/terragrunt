@@ -96,9 +96,9 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 0, Misses: 4},
+		config.Stats{Hits: 0, Misses: 6},
 		store.Stats(),
-		"two files, each at two stages",
+		"two files, each at three stages",
 	)
 
 	secondCtx, secondRun := newTestParsingContext(t, paths[0])
@@ -114,7 +114,7 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 1, Misses: 4},
+		config.Stats{Hits: 1, Misses: 6},
 		store.Stats(),
 		"the unit's parse is served whole",
 	)
@@ -425,7 +425,7 @@ func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
 		map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
 		runCfg.Inputs,
 	)
-	assert.Equal(t, config.Stats{Hits: 1, Misses: 4}, store.Stats())
+	assert.Equal(t, config.Stats{Hits: 1, Misses: 6}, store.Stats())
 }
 
 func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
@@ -525,6 +525,156 @@ dependency "vpc" {
 	require.Error(t, err)
 }
 
+func TestResolveUnitQueueConfigBuildsOnTheBaseVariables(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	fsys, paths := includingRepo(t, root, 1)
+	v := venvtest.New().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	ctx, run := newTestParsingContext(t, paths[0])
+
+	_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), paths[0])
+	require.NoError(t, err)
+	assert.Equal(t, config.Stats{Hits: 0, Misses: 2}, store.Stats(), "the syntax tree and the base")
+
+	_, err = store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+	require.NoError(t, err)
+
+	stats := store.Stats()
+	assert.Equal(t, uint64(2), stats.Hits, "the syntax tree and the base are served")
+}
+
+func TestResolveUnitBaseVariablesEvaluatesOnceWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const callers = 8
+
+	root := t.TempDir()
+	fsys, paths := includingRepo(t, root, 1)
+	v := venvtest.New().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	var g errgroup.Group
+
+	for range callers {
+		g.Go(func() error {
+			ctx, run := newTestParsingContext(t, paths[0])
+			run = run.WithFileReadTracking()
+
+			vars, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), paths[0])
+			if err != nil {
+				return err
+			}
+
+			assert.Equal(t, "unit", vars[pkgconfig.MetadataLocal].GetAttr("name").AsString())
+			assert.Contains(t, run.FilesRead.Paths(), filepath.Join(root, "common.yaml"))
+
+			return nil
+		})
+	}
+
+	require.NoError(t, g.Wait())
+	assert.Equal(t, uint64(2), store.Stats().Misses, "the syntax tree and the base")
+}
+
+func TestResolveUnitBaseVariablesGivesEachCallerItsOwnMap(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	fsys, paths := includingRepo(t, root, 1)
+	v := venvtest.New().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	ctx, run := newTestParsingContext(t, paths[0])
+
+	first, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), paths[0])
+	require.NoError(t, err)
+
+	delete(first, pkgconfig.MetadataLocal)
+
+	second, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), paths[0])
+	require.NoError(t, err)
+	assert.Contains(t, second, pkgconfig.MetadataLocal)
+}
+
+func TestResolveUnitBaseVariablesDoesNotRetainAFailedBase(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+locals {
+  region = local.missing
+}
+`), 0o644))
+
+	v := venvtest.New().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	resolve := func() error {
+		ctx, run := newTestParsingContext(t, path)
+
+		_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), path)
+
+		return err
+	}
+
+	require.Error(t, resolve())
+
+	misses := store.Stats().Misses
+
+	require.Error(t, resolve())
+	assert.Equal(t, misses+1, store.Stats().Misses, "the base ran again and the syntax tree was served")
+}
+
+func TestResolveUnitBaseVariablesReportsAnEvalContextFailure(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(
+		fsys,
+		filepath.Join(root, "exposed.hcl"),
+		[]byte("inputs = {\n  region = local.missing\n}\n"),
+		0o644,
+	))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+include "exposed" {
+  path   = "../exposed.hcl"
+  expose = true
+}
+`), 0o644))
+
+	v := venvtest.New().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	resolve := func() (map[string]cty.Value, error) {
+		ctx, run := newTestParsingContext(t, path)
+
+		return store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), path)
+	}
+
+	vars, err := resolve()
+	require.Error(t, err)
+	assert.Nil(t, vars)
+
+	misses := store.Stats().Misses
+
+	_, err = resolve()
+	require.Error(t, err)
+	assert.Greater(t, store.Stats().Misses, misses, "the failed base was not retained")
+}
+
 func TestResolveUnitBaseVariablesReturnsNoVariablesForAMissingFile(t *testing.T) {
 	t.Parallel()
 
@@ -567,7 +717,7 @@ func TestResolveUnitConfigSharesIncludedFilesAcrossUnits(t *testing.T) {
 
 	assert.Equal(
 		t,
-		config.Stats{Hits: 2, Misses: 10},
+		config.Stats{Hits: 2, Misses: 16},
 		store.Stats(),
 		"the root's syntax tree is parsed once; each unit evaluates it in its own context",
 	)

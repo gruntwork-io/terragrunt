@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path/filepath"
+	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -46,7 +48,8 @@ func (s *Store) ResolveUnitConfig(
 // the locals, feature, and include blocks [pkgconfig.DecodeBaseBlocks] decodes. It stops before the dependency blocks
 // that order the queue.
 //
-// The file's syntax tree is shared through s, and the variables are evaluated anew on each call.
+// The variables are memoized in s by file and context, and [Store.ResolveUnitQueueConfig] builds on them. Each call
+// gets a map of its own.
 //
 // Returns the variables with an error when an earlier step fails but the eval context still builds.
 func (s *Store) ResolveUnitBaseVariables(
@@ -77,25 +80,12 @@ func (s *Store) ResolveUnitBaseVariables(
 		return nil, err
 	}
 
-	base, err := prepareBase(ctx, l, v, pc, file)
-	if err != nil {
+	base, err := s.resolveBase(ctx, l, v, pc, file)
+	if base == nil {
 		return nil, err
 	}
 
-	evalCtx, err := pkgconfig.CreateTerragruntEvalContext(
-		ctx,
-		l,
-		v,
-		base.pc.parsingContext(),
-		file.ConfigPath,
-	)
-	errs := errors.Join(append(base.errs, err)...)
-
-	if evalCtx == nil {
-		return nil, errs
-	}
-
-	return evalCtx.Variables, errs
+	return maps.Clone(base.evalVars), base.err()
 }
 
 // ResolveUnitQueueConfig returns the merged config of the file at cfgPath with the run parts left out, resolving the
@@ -144,10 +134,12 @@ func (s *Store) ResolveUnitParsedFile(
 	pc *ParseContext,
 	file *pkghclparse.File,
 ) (*UnitConfig, error) {
-	c, err := prepare(ctx, l, v, pc, file)
+	base, err := prepareBase(ctx, l, v, pc, file)
 	if err != nil {
 		return nil, err
 	}
+
+	c := prepare(ctx, l, v, pc, file, base)
 
 	cfg, err := s.assembleFirst(ctx, l, v, pc, c)
 	if cfg == nil {
@@ -250,10 +242,12 @@ func (s *Store) resolveFileOnce(
 				return parseErr
 			}
 
-			c, parseErr = prepare(childCtx, l, v, pc, file)
-			if parseErr != nil {
+			base, parseErr := s.resolveBase(childCtx, l, v, pc, file)
+			if base == nil {
 				return parseErr
 			}
+
+			c = prepare(childCtx, l, v, pc, file, base)
 
 			cfg, parseErr = s.assembleFirst(childCtx, l, v, pc, c)
 
@@ -262,6 +256,46 @@ func (s *Store) resolveFileOnce(
 	)
 
 	return c, cfg, err
+}
+
+// resolveBase returns the base of file, through s when pc is memoized. A base that holds errors is not retained, and
+// the next caller evaluates it again.
+//
+// Returns nil and the error where pkg/config returns no config.
+func (s *Store) resolveBase(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	file *pkghclparse.File,
+) (*unitBase, error) {
+	if !pc.memoized {
+		return prepareBase(ctx, l, v, pc, file)
+	}
+
+	key := Key{Path: filepath.Clean(file.ConfigPath), Context: pc.file.key, Stage: StageBase}
+	flight := pc.withOwnReads()
+
+	res, err := s.Memoize(ctx, key, func(ctx context.Context) (*unitBase, error) {
+		base, err := prepareBase(ctx, l, v, flight, file)
+		NoteReads(ctx, flight.sinks.filesRead.Paths()...)
+
+		if base == nil {
+			return nil, err
+		}
+
+		return base, base.err()
+	})
+
+	for _, path := range res.Reads {
+		pc.sinks.filesRead.Add(path)
+	}
+
+	if res.Value == nil {
+		return nil, err
+	}
+
+	return res.Value, nil
 }
 
 // statConfig returns the metadata of the config file at cfgPath.
@@ -297,14 +331,23 @@ func (s *Store) assembleFirst(
 	return cfg, err
 }
 
-// unitBase is a file's state through its base blocks.
+// unitBase is a file's state through its base blocks. It is shared between the callers of a memoized parse.
 type unitBase struct {
-	// pc is the file's parse context with its base state applied.
-	pc *ParseContext
+	// evalErr is the error of building the eval context.
+	evalErr error
 	// locals is the evaluated locals block, nil when the base blocks failed to decode.
 	locals *cty.Value
-	// errs is the non-fatal errors of the stages so far.
+	// evalVars is the variables the file's blocks evaluate with, nil when the eval context failed to build.
+	evalVars map[string]cty.Value
+	// errs is the non-fatal errors of the stages before the eval context.
 	errs []error
+	// scope is the file's state with its base applied.
+	scope fileScope
+}
+
+// err returns every error of b, joined.
+func (b *unitBase) err() error {
+	return errors.Join(append(slices.Clone(b.errs), b.evalErr)...)
 }
 
 // prepareBase runs the stages of [pkgconfig.ParseConfig] through the base blocks.
@@ -374,36 +417,39 @@ func prepareBase(
 		errs = append(errs, err)
 	}
 
-	base := &unitBase{pc: pc, errs: errs}
+	base := &unitBase{errs: errs}
 
 	if baseBlocks != nil {
-		base.pc = pc.withBaseBlocks(baseBlocks)
+		pc = pc.withBaseBlocks(baseBlocks)
 		base.locals = baseBlocks.Locals
 	}
+
+	base.evalVars, base.evalErr = pkgconfig.TerragruntEvalVariables(
+		ctx,
+		l,
+		v,
+		pc.parsingContext(),
+		file.ConfigPath,
+	)
+	base.scope = pc.file
 
 	return base, nil
 }
 
-// prepare runs the stages of [pkgconfig.ParseConfig] through the block decode. It decodes file's dependency
+// prepare runs the stages of [pkgconfig.ParseConfig] after base through the block decode. It decodes file's dependency
 // blocks when file resolves its own dependencies, and every part when the run supplied the `dependency` value.
-//
-// Returns an error and no config where pkg/config returns no config.
 func prepare(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
 	file *pkghclparse.File,
-) (*UnitConfig, error) {
-	base, err := prepareBase(ctx, l, v, pc, file)
-	if err != nil {
-		return nil, err
-	}
+	base *unitBase,
+) *UnitConfig {
+	pc = pc.withFile(&base.scope)
+	errs := slices.Clone(base.errs)
 
-	pc = base.pc
-	errs := base.errs
-
-	c := &UnitConfig{Locals: base.locals}
+	c := &UnitConfig{file: file, Locals: base.locals, evalVars: base.evalVars, scope: pc.file}
 
 	if includes := pc.file.includes; includes != nil {
 		c.Includes = includes
@@ -425,22 +471,11 @@ func prepare(
 		}
 	}
 
-	evalCtx, err := pkgconfig.CreateTerragruntEvalContext(
-		ctx,
-		l,
-		v,
-		pc.parsingContext(),
-		file.ConfigPath,
-	)
-	if err != nil {
-		errs = append(errs, err)
+	if base.evalErr != nil {
+		errs = append(errs, base.evalErr)
 	}
 
-	if evalCtx != nil {
-		c.evalVars = evalCtx.Variables
-	}
-
-	c.scope = pc.file
+	evalCtx := c.evalContext(ctx, l, v, pc.parsingContext())
 	c.prepErrs = errs
 
 	c.decodeErr = file.ApplyFileUpdate()
@@ -456,7 +491,7 @@ func prepare(
 
 	c.file = withoutParser(file)
 
-	return c, nil
+	return c
 }
 
 // withoutParser returns file with no parser, for keeping in a stage's result. Using it before [pkghclparse.File.Rebind]

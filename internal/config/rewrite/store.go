@@ -21,6 +21,8 @@ type Stage uint8
 const (
 	// StageAST is a file parsed to its syntax tree, whose [Key] has no Context.
 	StageAST Stage = iota + 1
+	// StageBase is a file's base blocks evaluated, once per [Key.Context].
+	StageBase
 	// StageQueue is a file decoded with no dependency outputs in scope, once per [Key.Context].
 	StageQueue
 )
