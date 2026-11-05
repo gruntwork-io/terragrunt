@@ -316,9 +316,13 @@ var cliInventory = cliCommand{
 							deprecatedEnvVars: []string{"TG_HCLVALIDATE_SHOW_CONFIG_PATH", "TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH"},
 						},
 						{
-							names:             []string{"strict"},
-							envVars:           []string{"TG_STRICT"},
-							deprecatedEnvVars: []string{"TG_STRICT_VALIDATE", "TG_HCLVALIDATE_STRICT_VALIDATE", "TERRAGRUNT_STRICT_VALIDATE"},
+							names:   []string{"strict"},
+							envVars: []string{"TG_STRICT"},
+							deprecatedEnvVars: []string{
+								"TG_STRICT_VALIDATE",
+								"TG_HCLVALIDATE_STRICT_VALIDATE",
+								"TERRAGRUNT_STRICT_VALIDATE",
+							},
 						},
 						{
 							names:             []string{"tf-path"},
@@ -497,10 +501,14 @@ var cliInventory = cliCommand{
 					deprecatedEnvVars: []string{"TG_RENDER_ALL"},
 				},
 				{
-					names:             []string{"disable-dependent-modules"},
-					envVars:           []string{"TG_DISABLE_DEPENDENT_MODULES"},
-					deprecatedEnvVars: []string{"TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES", "TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES", "TG_RENDER_DISABLE_DEPENDENT_MODULES"},
-					hidden:            true,
+					names:   []string{"disable-dependent-modules"},
+					envVars: []string{"TG_DISABLE_DEPENDENT_MODULES"},
+					deprecatedEnvVars: []string{
+						"TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES",
+						"TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES",
+						"TG_RENDER_DISABLE_DEPENDENT_MODULES",
+					},
+					hidden: true,
 				},
 				{
 					names:             []string{"format"},
@@ -645,20 +653,29 @@ var globalFlags = []cliFlag{
 		deprecatedEnvVars: []string{"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER", "TERRAGRUNT_TELEMERTY_METRIC_EXPORTER"},
 	},
 	{
-		envVars:           []string{"TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"},
+		envVars: []string{"TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT"},
+		deprecatedEnvVars: []string{
+			"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT",
+			"TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT",
+		},
 	},
 	{
 		envVars:           []string{"TG_TELEMETRY_TRACE_EXPORTER"},
 		deprecatedEnvVars: []string{"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "TERRAGRUNT_TELEMERTY_TRACE_EXPORTER"},
 	},
 	{
-		envVars:           []string{"TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT", "TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT"},
+		envVars: []string{"TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT"},
+		deprecatedEnvVars: []string{
+			"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT",
+			"TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT",
+		},
 	},
 	{
-		envVars:           []string{"TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT"},
+		envVars: []string{"TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT"},
+		deprecatedEnvVars: []string{
+			"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT",
+			"TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT",
+		},
 	},
 	{envVars: []string{"TRACEPARENT"}},
 	{
@@ -683,9 +700,14 @@ var globalFlags = []cliFlag{
 		deprecatedEnvVars: []string{"TERRAGRUNT_LOG_DISABLE"},
 	},
 	{
-		names:             []string{"log-format"},
-		envVars:           []string{"TG_LOG_FORMAT"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_LOG_FORMAT", "TERRAGRUNT_DISABLE_LOG_FORMATTING", "TERRAGRUNT_JSON_LOG", "TERRAGRUNT_TF_LOGS_TO_JSON"},
+		names:   []string{"log-format"},
+		envVars: []string{"TG_LOG_FORMAT"},
+		deprecatedEnvVars: []string{
+			"TERRAGRUNT_LOG_FORMAT",
+			"TERRAGRUNT_DISABLE_LOG_FORMATTING",
+			"TERRAGRUNT_JSON_LOG",
+			"TERRAGRUNT_TF_LOGS_TO_JSON",
+		},
 	},
 	{
 		names:             []string{"log-level"},
@@ -731,7 +753,11 @@ var allFlag = cliFlag{names: []string{"all", "a"}, envVars: []string{"TG_ALL"}}
 
 var graphFlag = cliFlag{names: []string{"graph"}, envVars: []string{"TG_GRAPH"}}
 
-var featureFlag = cliFlag{names: []string{"feature"}, envVars: []string{"TG_FEATURE"}, deprecatedEnvVars: []string{"TERRAGRUNT_FEATURE"}}
+var featureFlag = cliFlag{
+	names:             []string{"feature"},
+	envVars:           []string{"TG_FEATURE"},
+	deprecatedEnvVars: []string{"TERRAGRUNT_FEATURE"},
+}
 
 // backendFlags control how commands that read units bootstrap and update
 // their remote state backend.

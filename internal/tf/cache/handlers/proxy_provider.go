@@ -97,7 +97,11 @@ func (handler *ProxyProviderHandler) GetPlatform(
 // Download streams the provider archive from its registry. A bare file name
 // in the provider's download URL is resolved against the registry's providers
 // endpoint.
-func (handler *ProxyProviderHandler) Download(w router.ResponseWriter, r *http.Request, provider *models.Provider) error {
+func (handler *ProxyProviderHandler) Download(
+	w router.ResponseWriter,
+	r *http.Request,
+	provider *models.Provider,
+) error {
 	if !strings.Contains(provider.DownloadURL, "://") {
 		apiURLs, err := handler.DiscoveryURL(r.Context(), provider.RegistryName)
 		if err != nil {

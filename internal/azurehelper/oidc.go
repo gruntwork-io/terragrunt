@@ -63,7 +63,11 @@ func oidcAssertionProvider(v *venv.Venv) assertionProvider {
 
 // fetchOIDCAssertion requests a federated token from requestURL, authorizing
 // with bearerToken, and reads the assertion out of the named JSON field.
-func fetchOIDCAssertion(ctx context.Context, v *venv.Venv, requestURL, bearerToken, field string) (_ string, err error) {
+func fetchOIDCAssertion(
+	ctx context.Context,
+	v *venv.Venv,
+	requestURL, bearerToken, field string,
+) (_ string, err error) {
 	if bearerToken == "" {
 		return "", &OIDCRequestTokenMissingError{RequestURL: requestURL}
 	}

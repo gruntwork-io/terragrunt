@@ -73,7 +73,10 @@ func TestAWSAuthProviderRoleWithJSONOutDir(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v, fmt.Sprintf(
 		"terragrunt run --all plan --non-interactive --log-level debug --working-dir %s --auth-provider-cmd %s --out-dir %s --json-out-dir %s",
-		rootPath, authCmd, outDir, jsonOutDir,
+		rootPath,
+		authCmd,
+		outDir,
+		jsonOutDir,
 	))
 
 	require.NoError(t, err, "stdout:\n%s\nstderr:\n%s", stdout, stderr)

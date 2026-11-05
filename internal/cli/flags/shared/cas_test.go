@@ -67,10 +67,30 @@ func TestCASProbeFlagsRequireExperiment(t *testing.T) {
 		flagName string
 		args     clihelper.Args
 	}{
-		{name: "offline", flagName: shared.CASOfflineFlagName, args: clihelper.Args{"--cas-offline"}, env: map[string]string{}},
-		{name: "refresh", flagName: shared.CASRefreshFlagName, args: clihelper.Args{"--cas-refresh"}, env: map[string]string{}},
-		{name: "probe ttl", flagName: shared.CASProbeTTLFlagName, args: clihelper.Args{"--cas-probe-ttl", "10m"}, env: map[string]string{}},
-		{name: "zero probe ttl", flagName: shared.CASProbeTTLFlagName, args: clihelper.Args{"--cas-probe-ttl", "0"}, env: map[string]string{}},
+		{
+			name:     "offline",
+			flagName: shared.CASOfflineFlagName,
+			args:     clihelper.Args{"--cas-offline"},
+			env:      map[string]string{},
+		},
+		{
+			name:     "refresh",
+			flagName: shared.CASRefreshFlagName,
+			args:     clihelper.Args{"--cas-refresh"},
+			env:      map[string]string{},
+		},
+		{
+			name:     "probe ttl",
+			flagName: shared.CASProbeTTLFlagName,
+			args:     clihelper.Args{"--cas-probe-ttl", "10m"},
+			env:      map[string]string{},
+		},
+		{
+			name:     "zero probe ttl",
+			flagName: shared.CASProbeTTLFlagName,
+			args:     clihelper.Args{"--cas-probe-ttl", "0"},
+			env:      map[string]string{},
+		},
 		{name: "offline env var", flagName: shared.CASOfflineFlagName, env: map[string]string{"TG_CAS_OFFLINE": "true"}},
 		{name: "refresh env var", flagName: shared.CASRefreshFlagName, env: map[string]string{"TG_CAS_REFRESH": "true"}},
 		{name: "probe ttl env var", flagName: shared.CASProbeTTLFlagName, env: map[string]string{"TG_CAS_PROBE_TTL": "10m"}},

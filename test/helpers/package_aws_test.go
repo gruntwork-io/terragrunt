@@ -380,7 +380,10 @@ func (f *pkgTFakeS3) deleteObjects(w http.ResponseWriter, r *http.Request) {
 		if i := slices.Index(f.refuseOnce, object); i >= 0 {
 			f.refuseOnce = slices.Delete(f.refuseOnce, i, i+1)
 			f.leftover.versions = append(f.leftover.versions, object)
-			result.Errors = append(result.Errors, pkgTS3DeleteError{pkgTS3Entry: object, Code: "AccessDenied", Message: "Access Denied"})
+			result.Errors = append(
+				result.Errors,
+				pkgTS3DeleteError{pkgTS3Entry: object, Code: "AccessDenied", Message: "Access Denied"},
+			)
 
 			continue
 		}
@@ -428,6 +431,11 @@ func (f *pkgTFakeS3) writeError(w http.ResponseWriter, code string) {
 	w.Header().Set("Content-Type", "application/xml")
 	w.WriteHeader(status)
 
-	_, err := fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><Error><Code>%s</Code><Message>%s</Message></Error>`, code, code)
+	_, err := fmt.Fprintf(
+		w,
+		`<?xml version="1.0" encoding="UTF-8"?><Error><Code>%s</Code><Message>%s</Message></Error>`,
+		code,
+		code,
+	)
 	assert.NoError(f.t, err, "write fake S3 error")
 }

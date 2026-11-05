@@ -51,7 +51,9 @@ func (e *CrossCloudMigrationError) Error() string {
 		"cross-cloud state migration for storage account %q from environment %q to %q is not supported by the azurerm backend "+
 			"(a storage account name identifies a different account in each Azure cloud); "+
 			"migrate via separate init/pull/push, or keep both units in the same environment",
-		e.StorageAccount, e.SrcEnvironment, e.DstEnvironment,
+		e.StorageAccount,
+		e.SrcEnvironment,
+		e.DstEnvironment,
 	)
 }
 

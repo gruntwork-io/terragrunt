@@ -26,16 +26,30 @@ func TestGetDefaultAssumeRoleSessionName(t *testing.T) {
 	require.True(t, hasPrefix, "CloudTrail identifies terragrunt sessions by the %q prefix", sessionNamePrefix)
 
 	nanos, err := strconv.ParseInt(suffix, 10, 64)
-	require.NoError(t, err, "the suffix has to stay a bare integer, which also keeps the name inside the character set STS accepts")
+	require.NoError(
+		t,
+		err,
+		"the suffix has to stay a bare integer, which also keeps the name inside the character set STS accepts",
+	)
 
-	assert.Less(t, time.Since(time.Unix(0, nanos)).Abs(), sessionNameFreshnessWindow, "the suffix encodes the current time in nanoseconds so separate runs get separate STS sessions")
+	assert.Less(
+		t,
+		time.Since(time.Unix(0, nanos)).Abs(),
+		sessionNameFreshnessWindow,
+		"the suffix encodes the current time in nanoseconds so separate runs get separate STS sessions",
+	)
 }
 
 // TestDefaultAssumeRoleDuration pins the default STS DurationSeconds at the one hour callers get when they multiply the constant by time.Second.
 func TestDefaultAssumeRoleDuration(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, time.Hour, time.Duration(iam.DefaultAssumeRoleDuration)*time.Second, "callers convert the constant with time.Second, so it has to stay a count of seconds inside the 15 minute to 12 hour range STS accepts")
+	assert.Equal(
+		t,
+		time.Hour,
+		time.Duration(iam.DefaultAssumeRoleDuration)*time.Second,
+		"callers convert the constant with time.Second, so it has to stay a count of seconds inside the 15 minute to 12 hour range STS accepts",
+	)
 }
 
 // TestMergeRoleOptions pins the precedence rule callers rely on when combining

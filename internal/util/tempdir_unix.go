@@ -128,8 +128,12 @@ func checkParentDirs(fsys vfs.FS, path string, trusted []int64) error {
 
 		if info.Mode()&os.ModeSticky == 0 && info.Mode().Perm()&othersWritable != 0 {
 			return UnsafeTempDirError{
-				Path:   path,
-				Reason: fmt.Sprintf("%s is writable by its group or by others and has no sticky bit (mode %#o)", dir, info.Mode().Perm()),
+				Path: path,
+				Reason: fmt.Sprintf(
+					"%s is writable by its group or by others and has no sticky bit (mode %#o)",
+					dir,
+					info.Mode().Perm(),
+				),
 			}
 		}
 

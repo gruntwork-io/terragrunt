@@ -137,10 +137,6 @@ url = "https://dl.google.com/go/go1.27.3.windows-amd64.zip"
 checksum = "sha256:f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff"
 url = "https://dl.google.com/go/go1.27.3.windows-amd64.zip"
 
-[[tools."go:github.com/golangci/golines"]]
-version = "0.15.0"
-backend = "go:github.com/golangci/golines"
-
 [[tools."go:github.com/goph/licensei/cmd/licensei"]]
 version = "0.9.0"
 backend = "go:github.com/goph/licensei/cmd/licensei"
