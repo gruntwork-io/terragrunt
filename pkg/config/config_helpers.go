@@ -181,25 +181,42 @@ func CreateTerragruntEvalContext(
 	pctx *ParsingContext,
 	cfgPath string,
 ) (*hcl.EvalContext, error) {
-	evalCtx := &hcl.EvalContext{
-		Functions: TerragruntFunctions(ctx, l, v, pctx, cfgPath),
+	vars, err := TerragruntEvalVariables(ctx, l, v, pctx, cfgPath)
+	if err != nil {
+		return nil, err
 	}
 
-	evalCtx.Variables = map[string]cty.Value{}
+	return &hcl.EvalContext{
+		Functions: TerragruntFunctions(ctx, l, v, pctx, cfgPath),
+		Variables: vars,
+	}, nil
+}
+
+// TerragruntEvalVariables returns the variables of the eval context [CreateTerragruntEvalContext] builds for pctx,
+// with no functions.
+func TerragruntEvalVariables(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	cfgPath string,
+) (map[string]cty.Value, error) {
+	vars := map[string]cty.Value{}
+
 	if pctx.Locals != nil {
-		evalCtx.Variables[MetadataLocal] = *pctx.Locals
+		vars[MetadataLocal] = *pctx.Locals
 	}
 
 	if pctx.Features != nil {
-		evalCtx.Variables[MetadataFeatureFlag] = *pctx.Features
+		vars[MetadataFeatureFlag] = *pctx.Features
 	}
 
 	if pctx.Values != nil {
-		evalCtx.Variables[MetadataValues] = *pctx.Values
+		vars[MetadataValues] = *pctx.Values
 	}
 
 	if pctx.DecodedDependencies != nil {
-		evalCtx.Variables[MetadataDependency] = *pctx.DecodedDependencies
+		vars[MetadataDependency] = *pctx.DecodedDependencies
 	}
 
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 {
@@ -227,11 +244,11 @@ func CreateTerragruntEvalContext(
 		}
 
 		if err == nil {
-			evalCtx.Variables[MetadataInclude] = exposedInclude
+			vars[MetadataInclude] = exposedInclude
 		}
 	}
 
-	return evalCtx, nil
+	return vars, nil
 }
 
 // TerragruntFunctions returns the functions of the eval context [CreateTerragruntEvalContext] builds for the config
