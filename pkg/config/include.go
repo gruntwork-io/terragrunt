@@ -370,6 +370,10 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		cfg.Errors = sourceConfig.Errors.Clone()
 	}
 
+	if sourceConfig.Outputs != nil {
+		cfg.Outputs = sourceConfig.Outputs.Clone()
+	}
+
 	if sourceConfig.RemoteState != nil {
 		cfg.RemoteState = sourceConfig.RemoteState
 	}
@@ -501,6 +505,14 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		}
 
 		cfg.Errors.Merge(sourceConfig.Errors)
+	}
+
+	if sourceConfig.Outputs != nil {
+		if cfg.Outputs == nil {
+			cfg.Outputs = &OutputsConfig{}
+		}
+
+		cfg.Outputs.Merge(sourceConfig.Outputs)
 	}
 
 	// Copy only dependencies which doesn't exist in source
@@ -639,7 +651,7 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 
 	for _, dependency := range config.TerragruntDependencies {
 		if configPath, ok := dependency.configPathString(); ok {
-			m[dependency.mergeKey()] = configPath
+			m[dependency.Address()] = configPath
 		}
 	}
 
@@ -691,17 +703,17 @@ func mergeDependencyBlocks(
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
-		dependencyBlocks[dep.mergeKey()] = dep
-		keys = append(keys, dep.mergeKey())
+		dependencyBlocks[dep.Address()] = dep
+		keys = append(keys, dep.Address())
 	}
 
 	for _, dep := range sourceDependencies {
-		_, hasSameKey := dependencyBlocks[dep.mergeKey()]
+		_, hasSameKey := dependencyBlocks[dep.Address()]
 		if !hasSameKey {
-			keys = append(keys, dep.mergeKey())
+			keys = append(keys, dep.Address())
 		}
 		// Regardless of what is in dependencyBlocks, we will always override the key with source
-		dependencyBlocks[dep.mergeKey()] = dep
+		dependencyBlocks[dep.Address()] = dep
 	}
 	// Now convert the map to list and set target
 	combinedDeps := make([]Dependency, 0, len(keys))
@@ -725,22 +737,22 @@ func deepMergeDependencyBlocks(
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
-		dependencyBlocks[dep.mergeKey()] = dep
-		keys = append(keys, dep.mergeKey())
+		dependencyBlocks[dep.Address()] = dep
+		keys = append(keys, dep.Address())
 	}
 
 	for _, dep := range sourceDependencies {
-		sameKeyDep, hasSameKey := dependencyBlocks[dep.mergeKey()]
+		sameKeyDep, hasSameKey := dependencyBlocks[dep.Address()]
 		if hasSameKey {
 			sameKeyDepPtr := &sameKeyDep
 			if err := sameKeyDepPtr.DeepMerge(&dep); err != nil {
 				return nil, err
 			}
 
-			dependencyBlocks[dep.mergeKey()] = *sameKeyDepPtr
+			dependencyBlocks[dep.Address()] = *sameKeyDepPtr
 		} else {
-			dependencyBlocks[dep.mergeKey()] = dep
-			keys = append(keys, dep.mergeKey())
+			dependencyBlocks[dep.Address()] = dep
+			keys = append(keys, dep.Address())
 		}
 	}
 

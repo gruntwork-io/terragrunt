@@ -237,10 +237,10 @@ func (dep *Dependency) instanceKey() (string, bool) {
 	return dep.Expansion.Key(), dep.Expansion.Expanded()
 }
 
-// mergeKey identifies a dependency when include merging matches blocks up. Every instance
-// of an expanded block carries the same label, so matching on the label alone would fold a
-// whole set into whichever instance came last.
-func (dep *Dependency) mergeKey() string {
+// Address identifies a dependency among the blocks of a config: the label alone, or label[key] for one instance
+// of an expanded block. Every instance of an expanded block carries the same label, so matching on the label alone
+// would fold a whole set into whichever instance came last.
+func (dep *Dependency) Address() string {
 	key, expanded := dep.instanceKey()
 	if !expanded {
 		return dep.Name
@@ -269,8 +269,13 @@ func (dep *Dependency) setRenderedOutputs(
 		return nil
 	}
 
-	if dep.shouldGetOutputs(pctx) || dep.shouldReturnMockOutputs(pctx) {
-		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, l, v, pctx, dep)
+	effective, declared, err := dep.withDeclaredOutputs(ctx, l, v, pctx)
+	if err != nil {
+		return err
+	}
+
+	if effective.shouldGetOutputs(pctx) || effective.shouldReturnMockOutputs(pctx) {
+		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, l, v, pctx, effective, declared)
 		if err != nil {
 			return err
 		}
@@ -391,7 +396,7 @@ func validateDependencyConfigPathDirs(
 			controls.DependencyConfigPathFile,
 			DependencyConfigPathFileError{
 				ConfigPath:     cfgPath,
-				Address:        dep.mergeKey(),
+				Address:        dep.Address(),
 				DependencyPath: dep.ConfigPath.AsString(),
 			},
 		)
@@ -482,7 +487,7 @@ func duplicateDependencyAddress(deps Dependencies) (string, bool) {
 	seen := make(map[string]struct{}, len(deps))
 
 	for i := range deps {
-		address := deps[i].mergeKey()
+		address := deps[i].Address()
 
 		if _, duplicate := seen[address]; duplicate {
 			return address, true
@@ -521,11 +526,11 @@ func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDep
 			return sharedDependencyPath{
 				path:   dep.ConfigPath.AsString(),
 				first:  first,
-				second: dep.mergeKey(),
+				second: dep.Address(),
 			}, true
 		}
 
-		seen[path] = dep.mergeKey()
+		seen[path] = dep.Address()
 	}
 
 	return sharedDependencyPath{}, false
@@ -1025,6 +1030,10 @@ func DependencyBlocksToCtyValue(
 
 			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
 			if err := dependencyConfig.setRenderedOutputs(ctx, l, v, pctx); err != nil {
+				if errors.As(err, new(DependencyBlockError)) {
+					return err
+				}
+
 				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
@@ -1129,12 +1138,16 @@ func DependencyBlocksToCtyValue(
 //   - If the dependency block indicates a mock_outputs attribute, this will return that.
 //     If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
 //   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
+//
+// declared is the outputs block of the target config, nil when it declares none, which the state outputs are
+// checked against.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	dependencyConfig *Dependency,
+	declared *OutputsConfig,
 ) (*cty.Value, error) {
 	if dependencyConfig.isDisabled() {
 		l.Debugf("Skipping outputs reading for disabled dependency %s", dependencyConfig.Name)
@@ -1142,7 +1155,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	}
 
 	if dependencyConfig.shouldGetOutputs(pctx) {
-		outputVal, isEmpty, err := getTerragruntOutput(ctx, l, v, pctx, dependencyConfig)
+		outputVal, isEmpty, err := getTerragruntOutput(ctx, l, v, pctx, dependencyConfig, declared)
 		if err != nil {
 			return nil, err
 		}
@@ -1230,12 +1243,16 @@ func (dep *Dependency) shouldReturnMockOutputs(pctx *ParsingContext) bool {
 // Return the output from the state of another module, managed by terragrunt. This function will parse the provided
 // terragrunt config and extract the desired output from the remote state. Note that this will error if the targeted
 // module hasn't been applied yet.
+//
+// Outputs read from the state are checked against declared, the outputs block of the target config, when it is not
+// nil.
 func getTerragruntOutput(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	dependencyConfig *Dependency,
+	declared *OutputsConfig,
 ) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(
@@ -1263,6 +1280,8 @@ func getTerragruntOutput(
 	}
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, l, v, pctx, targetConfigPath)
+	fromState := err == nil
+
 	if err != nil {
 		if !shouldFallBackToMockOutputs(pctx, err) {
 			return nil, true, err
@@ -1291,6 +1310,12 @@ func getTerragruntOutput(
 	outputMap, err := TerraformOutputJSONToCtyValueMap(targetConfigPath, jsonBytes)
 	if err != nil {
 		return nil, isEmpty, err
+	}
+
+	if fromState && !isEmpty {
+		if err := checkDeclaredOutputs(pctx, dependencyConfig, declared, targetConfigPath, outputMap); err != nil {
+			return nil, isEmpty, err
+		}
 	}
 
 	// We need to convert the value map to a single cty.Value at the end for use in the terragrunt config.

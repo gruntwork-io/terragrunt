@@ -72,7 +72,7 @@ func TestRunValidateAcceptsFileDependency(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := runValidate(t, validateRun{files: tc.files, queries: tc.queries})
+			result := runValidate(t, &validateRun{files: tc.files, queries: tc.queries})
 
 			require.NoError(t, result.err)
 			assert.Empty(t, result.diags)
@@ -101,7 +101,7 @@ func TestRunValidateReportsMissingFileDependency(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := runValidate(t, validateRun{
+			result := runValidate(t, &validateRun{
 				files: map[string]string{
 					"app/terragrunt.hcl": fileDependency("../db/custom.hcl"),
 					"db/terragrunt.hcl":  "",
@@ -140,7 +140,7 @@ func TestRunValidateRejectsFileDependencyWhenStrict(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := runValidate(t, validateRun{
+			result := runValidate(t, &validateRun{
 				files: map[string]string{
 					"app/terragrunt.hcl": fileDependency(tc.configPath),
 					"db/terragrunt.hcl":  "",
@@ -181,7 +181,7 @@ func TestRunValidateFileDependencyDeclaredInInclude(t *testing.T) {
 	t.Run("accepted by default", func(t *testing.T) {
 		t.Parallel()
 
-		result := runValidate(t, validateRun{files: files})
+		result := runValidate(t, &validateRun{files: files})
 
 		require.NoError(t, result.err)
 		assert.Empty(t, result.diags)
@@ -190,7 +190,7 @@ func TestRunValidateFileDependencyDeclaredInInclude(t *testing.T) {
 	t.Run("rejected when strict", func(t *testing.T) {
 		t.Parallel()
 
-		result := runValidate(t, validateRun{
+		result := runValidate(t, &validateRun{
 			files:          files,
 			strictControls: []string{controls.DependencyConfigPathFile},
 		})

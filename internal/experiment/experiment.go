@@ -143,6 +143,10 @@ const (
 	// variables through TF_VAR_ environment variables or through auto-loaded
 	// .tfvars and .tfvars.json files.
 	VariablesBlock = "variables-block"
+	// OutputsBlock gates the outputs block on units, which declares the
+	// outputs a unit emits along with the mock value and mocking strategy its
+	// dependents use while its state has no outputs.
+	OutputsBlock = "outputs-block"
 )
 
 const (
@@ -289,6 +293,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: VariablesBlock,
+		},
+		{
+			Name: OutputsBlock,
 		},
 	}
 }

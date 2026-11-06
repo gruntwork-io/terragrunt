@@ -5,7 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -859,6 +861,130 @@ generate "backend" {
 	}
 }
 
+// TestParityOutputsBlock pins parity for a unit that declares its outputs and for a dependent that reads them,
+// with and without the outputs-block experiment, and that the positive cases resolve the values they read.
+func TestParityOutputsBlock(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/fixture")
+	files := map[string]string{
+		"vpc/main.tf": `
+output "vpc_id" {
+  value = "vpc-real"
+}
+`,
+		"vpc/terragrunt.hcl": `
+outputs {
+  mock_strategy {
+    allowed_commands = ["plan"]
+    merge_with_state = "shallow"
+  }
+
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "subnet_ids" {
+    mock_value = ["subnet-mock"]
+  }
+}
+`,
+		"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../vpc"
+
+  mock_outputs = {
+    vpc_id = "app-mock"
+  }
+}
+
+inputs = {
+  vpc_id     = dependency.vpc.outputs.vpc_id
+  subnet_ids = dependency.vpc.outputs.subnet_ids
+}
+`,
+	}
+
+	planWithExperiment := func(t *testing.T, pctx *pkgconfig.ParsingContext) {
+		t.Helper()
+
+		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+		pctx.OriginalTofuCommand = "plan"
+	}
+
+	testCases := []struct {
+		configure func(t *testing.T, pctx *pkgconfig.ParsingContext)
+		check     func(t *testing.T, result parityResult)
+		outputs   map[string]string
+		name      string
+		cfgPath   string
+	}{
+		{
+			name:      "declaring unit",
+			cfgPath:   filepath.Join(root, "vpc", pkgconfig.DefaultTerragruntConfigPath),
+			configure: planWithExperiment,
+			check: func(t *testing.T, result parityResult) {
+				t.Helper()
+
+				require.NoError(t, result.toV1Err)
+				assert.Equal(t, []string{"vpc_id", "subnet_ids"}, result.cfg.Outputs.Names())
+			},
+		},
+		{
+			name:      "declaring unit without the experiment",
+			cfgPath:   filepath.Join(root, "vpc", pkgconfig.DefaultTerragruntConfigPath),
+			configure: func(*testing.T, *pkgconfig.ParsingContext) {},
+			check: func(t *testing.T, result parityResult) {
+				t.Helper()
+
+				var experimentErr pkgconfig.OutputsBlockRequiresExperimentError
+
+				require.ErrorAs(t, result.toV1Err, &experimentErr)
+			},
+		},
+		{
+			name:      "dependent reading state",
+			cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+			configure: planWithExperiment,
+			outputs:   map[string]string{filepath.Join(root, "vpc"): outputsJSON(map[string]string{"vpc_id": "vpc-real"})},
+			check: func(t *testing.T, result parityResult) {
+				t.Helper()
+
+				require.NoError(t, result.toV1Err)
+				assert.Equal(t, "vpc-real", result.cfg.Inputs["vpc_id"])
+				assert.Equal(t, []any{"subnet-mock"}, result.cfg.Inputs["subnet_ids"])
+			},
+		},
+		{
+			name:      "dependent reading mocks",
+			cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+			configure: planWithExperiment,
+			outputs:   map[string]string{filepath.Join(root, "vpc"): "{}"},
+			check: func(t *testing.T, result parityResult) {
+				t.Helper()
+
+				require.NoError(t, result.toV1Err)
+				assert.Equal(t, "app-mock", result.cfg.Inputs["vpc_id"])
+				assert.Equal(t, []any{"subnet-mock"}, result.cfg.Inputs["subnet_ids"])
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tc.check(t, assertParity(t, parityCase{
+				newFS:     memFS(root, files),
+				cfgPath:   tc.cfgPath,
+				configure: func(pctx *pkgconfig.ParsingContext) { tc.configure(t, pctx) },
+				outputs:   tc.outputs,
+			}))
+		})
+	}
+}
+
 func TestParityVariablesBlock(t *testing.T) {
 	t.Parallel()
 
@@ -1090,7 +1216,7 @@ variables {
 				cfgPath: filepath.Join(root, pkgconfig.DefaultTerragruntConfigPath),
 				configure: func(pctx *pkgconfig.ParsingContext) {
 					pctx.SkipOutput = true
-					pctx.OriginalTerraformCommand = "plan"
+					pctx.OriginalTofuCommand = "plan"
 
 					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VariablesBlock))
 				},

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -21,6 +22,7 @@ import (
 // validateResult is what one hcl validate run over an in-memory repository produced.
 type validateResult struct {
 	err   error
+	fs    vfs.FS
 	root  string
 	diags diagnostic.Diagnostics
 }
@@ -29,20 +31,35 @@ type validateResult struct {
 type validateRun struct {
 	// files are the files of the repository, by path relative to its root.
 	files map[string]string
+	// links are symbolic links to add to the repository, by link path, each pointing at a path relative to the
+	// root.
+	links map[string]string
+	// experiment is the name of the experiment the run enables, if any.
+	experiment string
 	// queries are the filter queries the run is given.
 	queries []string
 	// strictControls are the names of the strict controls the run enables.
 	strictControls []string
+	// inputs runs the --inputs mode; its findings come back as errors.
+	inputs bool
+	// onDisk writes the repository to a temporary directory on disk instead of memory, for a run whose
+	// directory listings must include symbolic links, which the in-memory filesystem leaves out.
+	onDisk bool
 }
 
 // runValidate runs hcl validate as run describes and decodes the diagnostics it writes.
-func runValidate(t *testing.T, run validateRun) validateResult {
+func runValidate(t *testing.T, run *validateRun) validateResult {
 	t.Helper()
 
 	var stdout bytes.Buffer
 
-	root := venvtest.Root("/repo")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, run.files)).WithWriter(&stdout)
+	root, fsys := repository(t, run)
+
+	for link, target := range run.links {
+		require.NoError(t, vfs.Symlink(fsys, filepath.Join(root, target), filepath.Join(root, link)))
+	}
+
+	v := venvtest.New().WithFS(fsys).WithWriter(&stdout)
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(
@@ -50,7 +67,8 @@ func runValidate(t *testing.T, run validateRun) validateResult {
 	)
 	require.NoError(t, err)
 
-	opts.HCLValidateJSONOutput = true
+	opts.HCLValidateJSONOutput = !run.inputs
+	opts.HCLValidateInputs = run.inputs
 
 	opts.Filters, err = filter.ParseFilterQueries(l, run.queries)
 	require.NoError(t, err)
@@ -59,13 +77,45 @@ func runValidate(t *testing.T, run validateRun) validateResult {
 		require.NoError(t, opts.StrictControls.EnableControl(name))
 	}
 
-	result := validateResult{root: root, err: validate.RunValidate(config.WithCaches(t.Context()), l, v, opts)}
+	if run.experiment != "" {
+		require.NoError(t, opts.Experiments.EnableExperiment(run.experiment))
+	}
 
-	if stdout.Len() > 0 {
+	ctx := config.WithCaches(t.Context())
+	result := validateResult{root: root, fs: fsys}
+
+	// The inputs mode is reached through the command entry point, which dispatches on the flag.
+	if run.inputs {
+		result.err = validate.Run(ctx, l, v, opts)
+	} else {
+		result.err = validate.RunValidate(ctx, l, v, opts)
+	}
+
+	if stdout.Len() > 0 && !run.inputs {
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &result.diags))
 	}
 
 	return result
+}
+
+// repository returns the root and the filesystem holding the files of run: in memory, or on disk when run asks.
+func repository(t *testing.T, run *validateRun) (string, vfs.FS) {
+	t.Helper()
+
+	if !run.onDisk {
+		root := venvtest.Root("/repo")
+
+		return root, venvtest.NewFS(t, root, run.files)
+	}
+
+	root := t.TempDir()
+	fsys := vfs.NewOSFS()
+
+	for path, content := range run.files {
+		require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, filepath.FromSlash(path)), []byte(content), 0o644))
+	}
+
+	return root, fsys
 }
 
 // requireMissingDependencyAt requires that the only diagnostic reports a missing dependency at line of file.
@@ -185,7 +235,7 @@ func TestRunValidatePointsAtMissingDependency(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := runValidate(t, validateRun{files: tc.files, queries: tc.queries})
+			result := runValidate(t, &validateRun{files: tc.files, queries: tc.queries})
 
 			_, ok := errors.AsType[config.TerragruntConfigNotFoundError](result.err)
 			assert.False(t, ok, "unexpected error %v", result.err)
@@ -200,7 +250,7 @@ func TestRunValidatePointsAtMissingDependency(t *testing.T) {
 func TestRunValidateNamesDependentWhenDependencyIsNotSpelledOut(t *testing.T) {
 	t.Parallel()
 
-	result := runValidate(t, validateRun{
+	result := runValidate(t, &validateRun{
 		files: map[string]string{
 			"api/terragrunt.hcl": "dependencies {\n  paths = [\"${get_terragrunt_dir()}/../cache\"]\n}\n",
 			"cache/main.tf":      "",
@@ -286,7 +336,7 @@ func TestRunValidateGraphFilterAcceptsStackDependency(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := runValidate(t, validateRun{files: tc.files, queries: []string{tc.query}})
+			result := runValidate(t, &validateRun{files: tc.files, queries: []string{tc.query}})
 			if tc.wantMissing == "" {
 				require.NoError(t, result.err)
 				assert.Empty(t, result.diags)
@@ -307,7 +357,7 @@ func TestRunValidateGraphFilterAcceptsStackDependency(t *testing.T) {
 func TestRunValidateFilterKeepsUnparseableUnitError(t *testing.T) {
 	t.Parallel()
 
-	result := runValidate(t, validateRun{
+	result := runValidate(t, &validateRun{
 		files: map[string]string{
 			"shared.hcl":         "locals {}\n",
 			"ok/terragrunt.hcl":  "locals {\n  shared = read_terragrunt_config(\"../shared.hcl\")\n}\n",
@@ -347,7 +397,7 @@ func TestRunValidateShowsPathsRelativeToWorkingDir(t *testing.T) {
 func TestRunValidateGraphFilterAcceptsJSONDependency(t *testing.T) {
 	t.Parallel()
 
-	result := runValidate(t, validateRun{
+	result := runValidate(t, &validateRun{
 		files: map[string]string{
 			"app/terragrunt.hcl":     "dependency \"db\" {\n  config_path = \"../db\"\n}\n",
 			"db/terragrunt.hcl.json": "{}\n",

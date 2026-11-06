@@ -76,6 +76,10 @@ type ParsingContext struct {
 	StrictControls         strict.Controls
 	PartialParseDecodeList []PartialDecodeSectionType
 
+	// OutputsBlockTip gives the outputs-block tip for the unit config at configPath, which a dependency block
+	// reads under the outputs-block experiment although it declares no outputs block. Nil gives no tip.
+	OutputsBlockTip func(l log.Logger, configPath string)
+
 	// Parser configures the HCL parsers this context builds.
 	Parser ParserSettings
 

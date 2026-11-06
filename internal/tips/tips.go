@@ -56,6 +56,18 @@ const (
 		"In a stack file, read it in the stack's `locals` and reference the local from the `autoinclude` block. " +
 		"See https://docs.terragrunt.com/features/filter/attributes#reading-based-expressions"
 
+	// OutputsBlock is the tip shown under the outputs-block experiment when a
+	// dependency is read whose unit declares no outputs block.
+	OutputsBlock = "outputs-block"
+
+	// OutputsBlockMessage is the default message for the outputs-block tip. The
+	// runtime message is assembled at evaluation time so it can name the unit.
+	OutputsBlockMessage = "A `dependency` block reads a unit that declares no `outputs` block. " + outputsBlockFix
+
+	// outputsBlockFix is the advice both outputs-block messages end with.
+	outputsBlockFix = "Declare its outputs and their mock values there once, so every dependent shares them. " +
+		"See https://docs.terragrunt.com/reference/experiments/active#outputs-block"
+
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
 		"instead of symlinking in OpenTofu/Terraform. " +
@@ -103,6 +115,10 @@ func NewTips() Tips {
 		{
 			Name:    InputsReadNotTracked,
 			Message: InputsReadNotTrackedMessage,
+		},
+		{
+			Name:    OutputsBlock,
+			Message: OutputsBlockMessage,
 		},
 	}
 }

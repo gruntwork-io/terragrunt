@@ -128,6 +128,8 @@ func (s *tofuStub) handler() vexec.Handler {
 type parityResult struct {
 	// parsed is the parsed config, nil when the parse produced none.
 	parsed *config.UnitConfig
+	// cfg is the config ToV1 returned, nil when the parse produced none.
+	cfg *pkgconfig.TerragruntConfig
 	// parseErr is the error of the parse.
 	parseErr error
 	// toV1Err is the error of ToV1, or parseErr when the parse produced no config.
@@ -196,6 +198,7 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 
 	return parityResult{
 		parsed:     parsed,
+		cfg:        gotCfg,
 		parseErr:   parseErr,
 		toV1Err:    gotErr,
 		parseExecs: stub.parseExecs.Load(),

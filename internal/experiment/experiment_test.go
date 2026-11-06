@@ -320,3 +320,16 @@ func TestValidateExperiments(t *testing.T) {
 		})
 	}
 }
+
+func TestOutputsBlockIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.OutputsBlock)
+	require.NotNil(t, got, "outputs-block experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "outputs-block must be ongoing")
+	assert.False(t, got.Evaluate(), "outputs-block must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.OutputsBlock))
+	assert.True(t, got.Evaluate(), "outputs-block must be enabled once explicitly requested")
+}

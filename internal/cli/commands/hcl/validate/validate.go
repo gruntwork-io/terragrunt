@@ -330,6 +330,17 @@ func RunValidateInputs(
 		if err := runValidateInputs(l, unitV, updatedOpts, prepared.Cfg); err != nil {
 			errs = append(errs, err)
 		}
+
+		if err := validateOutputsContractsPrepared(
+			ctx,
+			l,
+			unitV,
+			prepared.Opts,
+			prepared.Cfg,
+			updatedOpts.WorkingDir,
+		); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {

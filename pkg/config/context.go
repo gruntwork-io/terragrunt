@@ -25,6 +25,7 @@ const (
 	ParentFileProbeCacheContextKey      configKey = iota
 	ReadTerragruntConfigCacheContextKey configKey = iota
 	RunCmdLocksContextKey               configKey = iota
+	DeclaredOutputsCacheContextKey      configKey = iota
 
 	hclCacheName               = "hclCache"
 	configCacheName            = "configCache"
@@ -35,6 +36,7 @@ const (
 	autoIncludeSuffixCacheName = "autoIncludeSuffixCache"
 	parentFileProbeCacheName   = "parentFileProbeCache"
 	readTerragruntConfigName   = "readTerragruntConfigCache"
+	declaredOutputsCacheName   = "declaredOutputsCache"
 )
 
 // WithCaches installs every cache Terragrunt reads while parsing and running a command.
@@ -56,6 +58,11 @@ func withConfigValues(ctx context.Context) context.Context {
 		cache.NewCache[*RunCmdCacheEntry](runCmdCacheName),
 	)
 	ctx = context.WithValue(ctx, RunCmdLocksContextKey, util.NewKeyLocks())
+	ctx = context.WithValue(
+		ctx,
+		DeclaredOutputsCacheContextKey,
+		cache.NewCache[*OutputsConfig](declaredOutputsCacheName),
+	)
 	ctx = azurermbackend.WithStateClientCache(ctx)
 	ctx = context.WithValue(
 		ctx,
