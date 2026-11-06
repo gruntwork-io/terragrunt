@@ -90,7 +90,7 @@ func TestGCPConfigWithGoogleCredentialsEnv(t *testing.T) {
 		"type": "service_account",
 		"project_id": "test-project",
 		"private_key_id": "test-key-id",
-		"private_key": "-----BEGIN PRIVATE KEY-----\nfake-private-key\n-----END PRIVATE KEY-----\n",
+		"private_key": "fake-private-key",
 		"client_email": "test@test-project.iam.gserviceaccount.com",
 		"client_id": "123456789",
 		"auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -235,7 +235,7 @@ func TestGCPConfigWithGoogleCredentialsFile(t *testing.T) {
 		"type": "service_account",
 		"project_id": "test-project",
 		"private_key_id": "test-key-id",
-		"private_key": "-----BEGIN PRIVATE KEY-----\nfake-private-key\n-----END PRIVATE KEY-----\n",
+		"private_key": "fake-private-key",
 		"client_email": "test@test-project.iam.gserviceaccount.com",
 		"client_id": "123456789"
 	}`

@@ -127,7 +127,7 @@ func TestGitRunnerErrorsRedactTheRemote(t *testing.T) {
 	t.Parallel()
 
 	const (
-		secret = "s3cr3t-token"
+		secret = "fake-token"
 		remote = "https://user:" + secret + "@example.com/repo.git?token=" + secret
 		bare   = "https://example.com/repo.git?token=" + secret
 	)

@@ -159,14 +159,14 @@ func TestS3RegionRedactsCredentials(t *testing.T) {
 
 	u, err := url.Parse(
 		"https://iam.amazonaws.com/bucket/key" +
-			"?aws_access_key_id=AKIAEXAMPLE&aws_access_key_secret=super-secret",
+			"?aws_access_key_id=fake-access-key-id&aws_access_key_secret=fake-secret-key",
 	)
 	require.NoError(t, err)
 
 	_, err = getter.S3Region(u)
 	require.ErrorIs(t, err, getter.ErrS3InvalidFetchURL)
-	assert.NotContains(t, err.Error(), "super-secret")
-	assert.NotContains(t, err.Error(), "AKIAEXAMPLE")
+	assert.NotContains(t, err.Error(), "fake-secret-key")
+	assert.NotContains(t, err.Error(), "fake-access-key-id")
 }
 
 // TestS3RegionFromHostLabel pins which host labels identify S3. Anything else

@@ -153,7 +153,7 @@ func TestMCPCommandIsolatesTheProcessEnvironment(t *testing.T) {
 	var replaced map[string]string
 
 	v := venvtest.NewOSWithEmptyEnv().
-		WithEnv(map[string]string{"PATH": "/usr/bin", "AWS_ACCESS_KEY_ID": "AKIAEXAMPLE"}).
+		WithEnv(map[string]string{"PATH": "/usr/bin", "AWS_ACCESS_KEY_ID": "fake-access-key-id"}).
 		WithReplaceEnviron(func(env map[string]string) error {
 			replaced = env
 			return nil

@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const mintedAccessKeyID = "ASIAMINTEDSESSION"
+const mintedAccessKeyID = "fake-minted-session-key-id"
 
-var credentialRe = regexp.MustCompile(`Credential=([A-Z0-9]+)/`)
+var credentialRe = regexp.MustCompile(`Credential=([^/]+)/`)
 
 // TestNoAssumeRoleIsSignedByAMintedSession checks differing role options still sign with the caller's key.
 func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {

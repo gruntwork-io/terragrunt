@@ -796,7 +796,7 @@ func TestToolAnnotationsFollowTheGrantedCapabilities(t *testing.T) {
 // plain output and one sensitive output.
 const s3StateObject = `{"version":4,"serial":1,"lineage":"test","outputs":{` +
 	`"id":{"value":"from-state","type":"string"},` +
-	`"secret":{"value":"hunter2","type":"string","sensitive":true}` +
+	`"secret":{"value":"fake-password","type":"string","sensitive":true}` +
 	`},"resources":[]}`
 
 // TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP pins the http capability
@@ -842,7 +842,7 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 			degraded:  assert.Empty,
 			want: map[string]outputEntry{
 				"id":     {Value: "from-state"},
-				"secret": {Value: "hunter2", Sensitive: true},
+				"secret": {Value: "fake-password", Sensitive: true},
 			},
 		},
 	} {
@@ -868,7 +868,7 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 			// Static keys stop the SDK from resolving credentials on the
 			// machine running the test.
 			v := venvtest.NewWithOSFS().WithHTTP(s3).WithEnv(map[string]string{
-				"AWS_ACCESS_KEY_ID":     "AKIATEST",
+				"AWS_ACCESS_KEY_ID":     "fake-access-key-id",
 				"AWS_SECRET_ACCESS_KEY": "test-secret",
 			})
 

@@ -238,7 +238,7 @@ func TestValidateResponse_NoSensitiveDataInErrors(t *testing.T) {
 		"fake-secret-key",
 		"fake-session-token",
 		"fake-web-identity-token",
-		"super-secret-env-value-12345",
+		"fake-env-value",
 	}
 
 	tests := []struct {
@@ -297,21 +297,21 @@ func TestValidateResponse_NoSensitiveDataInErrors(t *testing.T) {
 				"awsCredentials": {
 					"ACCESS_KEY_ID": "fake-access-key-id",
 					"SECRET_ACCESS_KEY": "fake-secret-key",
-					"SUPER_SECRET_FIELD": "super-secret-env-value-12345"
+					"SUPER_SECRET_FIELD": "fake-env-value"
 				}
 			}`,
 		},
 		{
 			name: "additional property at root with sensitive value should not leak",
 			input: `{
-				"secretField": "super-secret-env-value-12345"
+				"secretField": "fake-env-value"
 			}`,
 		},
 		{
 			name: "wrong type for envs value should not leak",
 			input: `{
 				"envs": {
-					"SECRET_VAR": {"secret": "super-secret-env-value-12345"}
+					"SECRET_VAR": {"secret": "fake-env-value"}
 				}
 			}`,
 		},
