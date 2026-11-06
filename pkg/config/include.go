@@ -683,7 +683,7 @@ func mergeDependencyBlocks(
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
-	keys := []string{}
+	keys := make([]string, 0, len(targetDependencies)+len(sourceDependencies))
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
@@ -717,7 +717,7 @@ func deepMergeDependencyBlocks(
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
-	keys := []string{}
+	keys := make([]string, 0, len(targetDependencies)+len(sourceDependencies))
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {

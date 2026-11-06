@@ -67,7 +67,7 @@ func discoverPathsToCheck(
 		uniquePaths[filepath.Dir(includePath.Path)] = true
 	}
 
-	var pathsToCheck []string
+	pathsToCheck := make([]string, 0, len(uniquePaths))
 	for path := range uniquePaths {
 		pathsToCheck = append(pathsToCheck, path)
 	}
