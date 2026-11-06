@@ -186,8 +186,8 @@ func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) func
 	})
 }
 
-// FileSetFunc returns a function that lists the regular files matching a glob
-// pattern joined to a path relative to baseDir.
+// FileSetFunc returns a function that lists the regular files a glob pattern
+// matches, relative to a path. A relative path is resolved against baseDir.
 func FileSetFunc(v *venv.Venv, baseDir string, onRead func(path string)) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
@@ -482,25 +482,18 @@ func hashFile(
 	return h.Sum(nil), nil
 }
 
-// matchFiles returns the regular files under dir that pattern matches, cleaning the pattern when it matches none.
+// matchFiles returns the regular files that pattern matches, relative to dir.
+// Like OpenTofu, it cleans dir and the pattern as text first, so ./, // and ../ elements match.
 func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 	if !glob.ValidOpenTofuPattern(pattern) {
 		return nil, glob.ErrBadPattern
 	}
 
-	matches, err := globFiles(fsys, dir, dir, pattern)
-	if err != nil || len(matches) > 0 {
-		return matches, err
-	}
+	dir = filepath.Clean(dir)
 
 	// A backslash escapes the next character on every OS, so the pattern is cleaned as a slash path.
 	clean := path.Clean(strings.TrimLeft(pattern, "/"))
 	elems := strings.Split(clean, "/")
-
-	// A clean pattern that stays inside dir has nothing new to match.
-	if clean == pattern && elems[0] != ".." {
-		return nil, nil
-	}
 
 	// The walk starts below the leading elements with no glob syntax, such as .. or a directory name.
 	lit := slices.IndexFunc(elems[:len(elems)-1], func(elem string) bool { return strings.ContainsAny(elem, `*?[{\`) })
@@ -510,15 +503,12 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 
 	rest := strings.Join(elems[lit:], "/")
 
-	// Cleaning drops a trailing slash, which can leave a malformed trailing backslash.
+	// Cleaning can leave a malformed pattern, such as a trailing backslash or an unpaired brace.
 	if !glob.ValidOpenTofuPattern(rest) {
 		return nil, nil
 	}
 
-	root := dir
-	if lit > 0 {
-		root = filepath.Join(append([]string{dir}, elems[:lit]...)...)
-	}
+	root := filepath.Join(append([]string{dir}, elems[:lit]...)...)
 
 	return globFiles(fsys, dir, root, rest)
 }

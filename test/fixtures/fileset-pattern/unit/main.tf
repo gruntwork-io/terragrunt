@@ -10,5 +10,6 @@ output "files" {
     dot_segment    = fileset(".", "resources/./*.json")
     parent_segment = fileset(".", "resources/sub/../*.json")
     included       = fileset("..", "./resources/*.json")
+    alternatives   = fileset(".", "{resources,resources/./sub}/*.json")
   }
 }

@@ -3,6 +3,6 @@ version: "v1.2.2"
 category: "bug-fixes"
 ---
 
-#### `fileset` matches patterns that are not in canonical form
+#### `fileset` matches patterns with `./`, `../` or `//` again
 
-`fileset` returns matches again for patterns that are not in canonical form, such as `fileset("./", "./resources/*.json")`, which returned an empty set in v1.2.0 and v1.2.1.
+`fileset` cleans the pattern the way OpenTofu does, so calls such as `fileset("./", "./resources/*.json")` return matches again. In v1.2.0 and v1.2.1 they returned an empty set.

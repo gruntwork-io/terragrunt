@@ -1,6 +1,9 @@
+//go:build tofu
+
 package test_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +17,7 @@ import (
 
 const testFixtureFileSetPattern = "fixtures/fileset-pattern"
 
-func TestFileSetMatchesOpenTofuForNonCanonicalPatterns(t *testing.T) {
+func TestTofuFileSetMatchesNonCanonicalPatterns(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureFileSetPattern)
@@ -36,7 +39,7 @@ func TestFileSetMatchesOpenTofuForNonCanonicalPatterns(t *testing.T) {
 	var tofuFiles map[string][]string
 
 	require.NoError(t, json.Unmarshal(runWrappedBinaryInDir(t, unitPath), &tofuFiles))
-	require.Len(t, tofuFiles, 10)
+	require.Len(t, tofuFiles, 11)
 
 	for name, files := range tofuFiles {
 		require.NotEmpty(t, files, name)
@@ -57,11 +60,14 @@ func runWrappedBinaryInDir(t *testing.T, dir string) []byte {
 		require.NoError(t, err, string(out))
 	}
 
+	var stderr bytes.Buffer
+
 	cmd := exec.CommandContext(t.Context(), helpers.WrappedBinary(t.Context()), "output", "-json", "files")
 	cmd.Dir = dir
+	cmd.Stderr = &stderr
 
 	out, err := cmd.Output()
-	require.NoError(t, err)
+	require.NoError(t, err, stderr.String())
 
 	return out
 }

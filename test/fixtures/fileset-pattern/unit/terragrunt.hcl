@@ -14,4 +14,5 @@ inputs = {
   dot_segment    = fileset(".", "resources/./*.json")
   parent_segment = fileset(".", "resources/sub/../*.json")
   included       = include.common.locals.from_include
+  alternatives   = fileset(".", "{resources,resources/./sub}/*.json")
 }

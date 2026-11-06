@@ -386,9 +386,31 @@ var fileSetCases = []fileSetCase{
 		pattern: `resources/x\{y\}/../*.json`,
 		want:    []string{"resources/a.json"},
 	},
+	{
+		name:    "dot under a file path with a parent segment",
+		path:    baseDir + "/resources/../main.tf",
+		pattern: ".",
+		want:    []string{"."},
+	},
+	{
+		name:    "dot inside alternatives",
+		path:    ".",
+		pattern: "{resources,resources/./sub}/*.json",
+		want:    []string{"resources/a.json", "resources/sub/b.json"},
+	},
+	{
+		name:    "parent inside alternatives",
+		path:    ".",
+		pattern: "{resources,y/../c}/*.json",
+	},
+	{
+		name:    "parent inside a class",
+		path:    ".",
+		pattern: "[r/../q]esources/*.json",
+	},
 }
 
-func TestFileSetCleansThePattern(t *testing.T) {
+func TestFileSetMatchesPatterns(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range fileSetCases {
@@ -456,55 +478,6 @@ func TestFileSetMatchesAFilePathAgainstTheGlob(t *testing.T) {
 	assert.Equal(t, stringSet([]string{"."}), got)
 }
 
-func TestFileSetKeepsWhatAPatternMatchedAsWritten(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name    string
-		pattern string
-		want    []string
-	}{
-		{
-			name:    "double star slash after a wildcard",
-			pattern: "resources/*/**/",
-			want:    []string{"resources/a.json"},
-		},
-		{
-			name:    "double star slash after a top level wildcard",
-			pattern: "*/**/",
-			want:    []string{"main.tf"},
-		},
-		{
-			name:    "parent in an alternative",
-			pattern: "{resources,y/../c}/*.json",
-			want:    []string{"resources/a.json"},
-		},
-		{
-			name:    "parent in a later alternative",
-			pattern: "{resources/*.json,c/../a/b/*.json}",
-			want:    []string{"resources/a.json"},
-		},
-		{
-			name:    "parent inside a class",
-			pattern: "[r/../q]esources/*.json",
-			want:    []string{"resources/a.json"},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			v := memVenv(t, fileSetTree)
-
-			got, err := patch.FileSetFunc(v, baseDir, noRead).
-				Call([]cty.Value{cty.StringVal("."), cty.StringVal(tc.pattern)})
-			require.NoError(t, err)
-			assert.Equal(t, stringSet(tc.want), got)
-		})
-	}
-}
-
 func TestFileSetReturnsNothingWhenCleaningStrandsAnEscape(t *testing.T) {
 	t.Parallel()
 
@@ -536,11 +509,13 @@ func TestFileSetWalksOnlyWhereThePatternCanMatch(t *testing.T) {
 
 	tcs := []struct {
 		name    string
+		path    string
 		pattern string
 		want    []string
 	}{
-		{name: "depth of the pattern", pattern: "../*.json", want: []string{"../top.json"}},
-		{name: "literal directory of the pattern", pattern: "../shared/**/*.json", want: []string{"../shared/c.json"}},
+		{name: "depth of the pattern", path: ".", pattern: "../*.json", want: []string{"../top.json"}},
+		{name: "literal directory of the pattern", path: ".", pattern: "../shared/**/*.json", want: []string{"../shared/c.json"}},
+		{name: "literal directory after dot slash", path: "..", pattern: "./shared/**/*.json", want: []string{"shared/c.json"}},
 	}
 
 	for _, tc := range tcs {
@@ -557,7 +532,7 @@ func TestFileSetWalksOnlyWhereThePatternCanMatch(t *testing.T) {
 			v.FS = fsys
 
 			got, err := patch.FileSetFunc(v, baseDir, noRead).
-				Call([]cty.Value{cty.StringVal("."), cty.StringVal(tc.pattern)})
+				Call([]cty.Value{cty.StringVal(tc.path), cty.StringVal(tc.pattern)})
 			require.NoError(t, err)
 			assert.Equal(t, stringSet(tc.want), got)
 			assert.False(t, fsys.opened, "fileset opened %s", fsys.dir)
@@ -637,17 +612,30 @@ func TestFileSetFollowsASymlinkNamedInThePattern(t *testing.T) {
 	}
 }
 
-func TestFileSetResolvesTheParentOfASymlinkedPath(t *testing.T) {
+func TestFileSetResolvesTheParentOfASymlinkedPathAsText(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct{ name, pattern string }{
-		{name: "as written", pattern: "*.json"},
-		{name: "cleaned", pattern: "./*.json"},
-	} {
+	tcs := []struct {
+		name    string
+		pattern string
+		want    []string
+	}{
+		{name: "pattern without a directory", pattern: "*.json", want: []string{"lexical.json"}},
+		{name: "pattern after dot slash", pattern: "./*.json", want: []string{"lexical.json"}},
+		{name: "pattern under a directory", pattern: "sub/*.json", want: []string{"sub/lexical.json"}},
+	}
+
+	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := memVenv(t, map[string]string{"real/parent/target/main.tf": "", "real/parent/physical.json": "", "live/lexical.json": ""})
+			v := memVenv(t, map[string]string{
+				"real/parent/target/main.tf":    "",
+				"real/parent/physical.json":     "",
+				"real/parent/sub/physical.json": "",
+				"live/lexical.json":             "",
+				"live/sub/lexical.json":         "",
+			})
 			require.NoError(t, vfs.Symlink(v.FS, filepath.Join(baseDir, "real", "parent", "target"), filepath.Join(baseDir, "live", "unit")))
 
 			path := filepath.Join(baseDir, "live", "unit") + string(filepath.Separator) + ".."
@@ -655,7 +643,7 @@ func TestFileSetResolvesTheParentOfASymlinkedPath(t *testing.T) {
 			got, err := patch.FileSetFunc(v, baseDir, noRead).
 				Call([]cty.Value{cty.StringVal(path), cty.StringVal(tc.pattern)})
 			require.NoError(t, err)
-			assert.Equal(t, stringSet([]string{"physical.json"}), got)
+			assert.Equal(t, stringSet(tc.want), got)
 		})
 	}
 }
