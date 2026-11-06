@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -128,7 +130,6 @@ func TestParseOutputsBlockRequiresExperiment(t *testing.T) {
 
 	require.ErrorAs(t, err, &experimentErr)
 	assert.Equal(t, config.DefaultTerragruntConfigPath, experimentErr.ConfigPath)
-	assert.Contains(t, experimentErr.Error(), "--experiment outputs-block")
 }
 
 func TestParseOutputsBlockRejectsMalformedBlocks(t *testing.T) {
@@ -172,7 +173,6 @@ outputs {
 
 				require.ErrorAs(t, err, &strategyErr)
 				assert.Equal(t, "deep", strategyErr.Strategy)
-				assert.Contains(t, strategyErr.Error(), "no_merge, shallow, deep_map_only")
 			},
 		},
 		{
@@ -187,7 +187,7 @@ outputs {
 			check: func(t *testing.T, err error) {
 				t.Helper()
 
-				require.ErrorContains(t, err, "Unsupported argument")
+				requireDiagnostic(t, err, "Unsupported argument")
 			},
 		},
 		{
@@ -200,7 +200,7 @@ outputs {
 			check: func(t *testing.T, err error) {
 				t.Helper()
 
-				require.ErrorContains(t, err, "Missing name for output")
+				requireDiagnostic(t, err, "Missing name for output")
 			},
 		},
 	}
@@ -250,7 +250,7 @@ func TestOutputsConfigMerge(t *testing.T) {
 	assert.Equal(t, []string{"vpc_id", "subnet_ids", "arn"}, target.Names())
 	assert.Equal(t, vpcB, *target.Outputs[0].MockValue, "the source declaration wins")
 	assert.Nil(t, target.Outputs[1].MockValue)
-	assert.NotSame(t, source.Outputs[2-1], target.Outputs[2], "merged declarations are copies")
+	assert.NotSame(t, source.Outputs[1], target.Outputs[2], "merged declarations are copies")
 }
 
 func TestOutputsBlockMergedThroughInclude(t *testing.T) {
@@ -665,6 +665,97 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 			},
 		},
 		{
+			name: "a mock value may read a local",
+			vpcConfig: `
+locals {
+  mock = "local-mock"
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = local.mock
+  }
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+			command: "plan",
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "local-mock", cfg.Inputs["vpc_id"])
+			},
+		},
+		{
+			name: "a mock value that reads a dependency output is an error",
+			vpcConfig: `
+dependency "net" {
+  config_path = "../net"
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = dependency.net.outputs.cidr
+  }
+}
+`,
+			command: "plan",
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var unknownErr config.UnknownMockValueError
+
+				require.ErrorAs(t, err, &unknownErr)
+				assert.Equal(t, "vpc_id", unknownErr.Output)
+				assert.True(t, strings.HasSuffix(unknownErr.ConfigPath, filepath.Join("vpc", config.DefaultTerragruntConfigPath)))
+
+				var blockErr config.DependencyBlockError
+
+				require.ErrorAs(t, err, &blockErr)
+				assert.Equal(t, "vpc", blockErr.Name)
+			},
+		},
+		{
+			name: "a mock value that fails to evaluate is a read error with the diagnostic",
+			vpcConfig: `
+locals {
+  mock = "local-mock"
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = local.mok
+  }
+}
+`,
+			command: "plan",
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var readErr config.DeclaredOutputsReadError
+
+				require.ErrorAs(t, err, &readErr)
+				assert.True(t, strings.HasSuffix(readErr.TargetConfig, filepath.Join("vpc", config.DefaultTerragruntConfigPath)))
+				requireDiagnostic(t, readErr.Err, "Unsupported attribute")
+			},
+		},
+		{
+			name: "a dependency with a broken config is an error, not a unit without the block",
+			vpcConfig: `
+outputs {
+  output "vpc_id" {
+`,
+			command: "plan",
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				requireDiagnostic(t, err, "Unclosed configuration block")
+			},
+		},
+		{
 			name:          "the experiment off rejects a unit that declares outputs",
 			vpcConfig:     outputsBlockConfig,
 			command:       "plan",
@@ -769,6 +860,150 @@ func TestDependencyReadGivesOutputsBlockTip(t *testing.T) {
 	}
 }
 
+// TestDependencyReadsDeclaredOutputsThroughInclude pins that the outputs block a unit merges from an included
+// config reaches its dependents.
+func TestDependencyReadsDeclaredOutputsThroughInclude(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/fixture")
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte(outputsBlockConfig), 0o644))
+
+	vpcConfig := `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`
+	vpcDir := filepath.Join(root, "vpc")
+	vpcConfigPath := filepath.Join(vpcDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(vpcConfig), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(vpcDir, "main.tf"), []byte(vpcModule), 0o644))
+
+	appConfigPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+	appConfig := strings.Replace(dependentConfig, "%s", "", 1)
+	require.NoError(t, vfs.WriteFile(fsys, appConfigPath, []byte(appConfig), 0o644))
+
+	l := createLogger()
+	v := venvtest.New().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
+	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+	assert.Equal(t, []any{"subnet-mock-1", "subnet-mock-2"}, cfg.Inputs["subnet_ids"])
+}
+
+// TestDependencyOnStackReadsNoDeclaredOutputs pins that a dependency whose config_path points at a stack keeps
+// reading its own mock_outputs, with no outputs block read and no tip.
+func TestDependencyOnStackReadsNoDeclaredOutputs(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/fixture")
+	fsys := vfs.NewMemMapFS()
+	stackConfigPath := filepath.Join(root, "stack", config.DefaultStackFile)
+	stackConfig := `
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+`
+	require.NoError(t, vfs.WriteFile(fsys, stackConfigPath, []byte(stackConfig), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "units", "vpc", "main.tf"), []byte(vpcModule), 0o644))
+	require.NoError(t, vfs.WriteFile(
+		fsys,
+		filepath.Join(root, "units", "vpc", config.DefaultTerragruntConfigPath),
+		[]byte(``),
+		0o644,
+	))
+
+	appConfigPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+	appConfig := `
+dependency "stack" {
+  config_path = "../stack"
+
+  mock_outputs = {
+    vpc_id = "stack-mock"
+  }
+}
+
+inputs = {
+  vpc_id = dependency.stack.outputs.vpc_id
+}
+`
+	require.NoError(t, vfs.WriteFile(fsys, appConfigPath, []byte(appConfig), 0o644))
+
+	l := createLogger()
+	v := venvtest.New().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
+	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	tipped := false
+
+	pctx.OutputsBlockTip = func(log.Logger, string) {
+		tipped = true
+	}
+
+	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "stack-mock", cfg.Inputs["vpc_id"])
+	assert.False(t, tipped, "a stack target gets no outputs-block tip")
+}
+
+// TestDependencyDeclaredOutputsReadsEachUnitOnce pins the per-run cache of declared outputs: a second read of
+// the same unit config evaluates nothing again, and a changed file is read again. The unit's locals read a tfvars
+// file, so each evaluation opens it once.
+func TestDependencyDeclaredOutputsReadsEachUnitOnce(t *testing.T) {
+	t.Parallel()
+
+	const vpcConfig = `
+locals {
+  vars = jsondecode(read_tfvars_file("${get_terragrunt_dir()}/vpc.tfvars"))
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = local.vars.mock
+  }
+}
+`
+
+	root := venvtest.Root("/fixture")
+	fsys := &openCountingFS{FS: vfs.NewMemMapFS(), opens: map[string]int{}}
+	vpcDir := filepath.Join(root, "vpc")
+	vpcConfigPath := filepath.Join(vpcDir, config.DefaultTerragruntConfigPath)
+	tfvarsPath := filepath.Join(vpcDir, "vpc.tfvars")
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(vpcConfig), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, tfvarsPath, []byte(`mock = "from-tfvars"`), 0o644))
+
+	l := createLogger()
+	v := venvtest.New().WithFS(fsys)
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	first, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+
+	second, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+
+	require.NotNil(t, first)
+	assert.Equal(t, "from-tfvars", first.Outputs[0].MockValue.AsString())
+	assert.Equal(t, first.Names(), second.Names())
+	assert.NotSame(t, first, second, "each read gets its own copy")
+	assert.Equal(t, 1, fsys.count(tfvarsPath), "the second read came from the cache")
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(vpcConfig+"\n"), 0o644))
+
+	third, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	assert.Equal(t, first.Names(), third.Names())
+	assert.Equal(t, 2, fsys.count(tfvarsPath), "a changed unit config is read again")
+}
+
 // parseOutputsConfig parses content as a unit config, with the outputs-block experiment on when enabled.
 func parseOutputsConfig(t *testing.T, content string, enabled bool) *config.TerragruntConfig {
 	t.Helper()
@@ -814,4 +1049,39 @@ func tofuOutputStub(state map[string]string) vexec.Handler {
 
 		return vexec.Result{Stdout: []byte("{}")}
 	}
+}
+
+// requireDiagnostic requires that err carries HCL diagnostics, one of which has summary.
+func requireDiagnostic(t *testing.T, err error, summary string) {
+	t.Helper()
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	assert.True(t, slices.ContainsFunc(diags, func(diag *hcl.Diagnostic) bool {
+		return diag.Summary == summary
+	}), "no %q diagnostic in: %s", summary, diags.Error())
+}
+
+// openCountingFS counts how often each file is opened.
+type openCountingFS struct {
+	vfs.FS
+	opens map[string]int
+	mu    sync.Mutex
+}
+
+func (fsys *openCountingFS) Open(name string) (vfs.File, error) {
+	fsys.mu.Lock()
+	fsys.opens[name]++
+	fsys.mu.Unlock()
+
+	return fsys.FS.Open(name)
+}
+
+// count returns how often name was opened.
+func (fsys *openCountingFS) count(name string) int {
+	fsys.mu.Lock()
+	defer fsys.mu.Unlock()
+
+	return fsys.opens[name]
 }

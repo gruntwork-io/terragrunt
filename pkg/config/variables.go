@@ -151,12 +151,18 @@ func reportDuplicateInput(file *hclparse.File, duplicate duplicateInput) error {
 		return err
 	}
 
-	return file.HandleDiagnostics(hcl.Diagnostics{{
-		Severity: hcl.DiagError,
-		Summary:  "Duplicate input",
-		Detail:   fmt.Sprintf("The input %q was already set at %s. A file may set each input only once.", duplicate.name, first),
-		Subject:  second.Ptr(),
-	}})
+	return file.HandleDiagnostics(hcl.Diagnostics{
+		{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate input",
+			Detail: fmt.Sprintf(
+				"The input %q was already set at %s. A file may set each input only once.",
+				duplicate.name,
+				first,
+			),
+			Subject: second.Ptr(),
+		},
+	})
 }
 
 // inputKeyRange returns the range of the key that sets name in definition. It is the range of the whole inputs

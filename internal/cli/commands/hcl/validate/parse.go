@@ -2,6 +2,7 @@ package validate
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"slices"
 
@@ -85,19 +86,23 @@ func (c *DiagnosticsCollector) add(diag *diagnostic.Diagnostic) {
 	c.diags = append(c.diags, diag)
 }
 
-// has reports whether diag is already collected.
-// [diagnostic.Diagnostics.Contains] matches on source range and treats a
-// diagnostic without one as matching nothing, so those are compared by their
-// text instead. Every unit an include points at raises the same range-less
-// diagnostic, and a tree of them would otherwise repeat it per unit.
+// has reports whether diag is already collected: the same summary and detail,
+// at the same range or both without one. Units sharing an include raise one
+// diagnostic for it; units reading a shared file against different
+// dependencies raise different ones at one range.
 func (c *DiagnosticsCollector) has(diag *diagnostic.Diagnostic) bool {
-	if diag.Range != nil {
-		return c.diags.Contains(diag)
+	return slices.ContainsFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
+		return sameRange(have.Range, diag.Range) && have.Summary == diag.Summary && have.Detail == diag.Detail
+	})
+}
+
+// sameRange reports whether a and b are both absent or both the same source range.
+func sameRange(a, b *diagnostic.Range) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
 	}
 
-	return slices.ContainsFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
-		return have.Range == nil && have.Summary == diag.Summary && have.Detail == diag.Detail
-	})
+	return a.String() == b.String()
 }
 
 // raisedElsewhere reports whether diag points at a file other than the one
@@ -160,18 +165,29 @@ func (p ComponentParser) Unit(
 
 	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
+		err = p.pointAtOutputsErrors(l, v, pctx, []string{configPath}, err)
+
 		return p.Collector.pointAtDependencyErrors(v.FS, unitDir, []string{configPath}, err)
 	}
 
-	if err := p.validateOutputsContracts(ctx, l, v, parseOpts, pctx, cfg); err != nil {
-		return err
-	}
+	configPaths := dependencyConfigPaths(configPath, cfg)
 
-	return p.Collector.pointAtDependencyErrors(
-		v.FS,
-		unitDir,
-		dependencyConfigPaths(configPath, cfg),
-		config.ValidateDependencyConfigPaths(v.FS, cfg, configPath),
+	contractErr := p.pointAtOutputsErrors(
+		l,
+		v,
+		pctx,
+		configPaths,
+		p.validateOutputsContracts(ctx, l, v, parseOpts, pctx, cfg),
+	)
+
+	return errors.Join(
+		contractErr,
+		p.Collector.pointAtDependencyErrors(
+			v.FS,
+			unitDir,
+			configPaths,
+			config.ValidateDependencyConfigPaths(v.FS, cfg, configPath),
+		),
 	)
 }
 

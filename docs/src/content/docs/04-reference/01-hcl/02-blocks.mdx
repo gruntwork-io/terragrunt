@@ -2031,23 +2031,24 @@ state for the target module without parsing the `dependency` blocks, avoiding th
   The `outputs` block is gated behind the `outputs-block` experiment. Enable it with `--experiment outputs-block` (or `TG_EXPERIMENT=outputs-block`) until it graduates to general availability. Declaring the block without the experiment enabled returns an error. See the [experiment documentation](/reference/experiments/active#outputs-block).
 </Aside>
 
-The `outputs` block declares the outputs a unit emits, each with the mock value its dependents read while the unit's
-state holds no outputs, as before its first apply, and the strategy that says when mocks apply. A backend error while
-reading the state still fails the command. The block moves the mock contract from the dependents, where every
-`dependency` block repeats it in `mock_outputs`, to the unit that owns the module.
+The `outputs` block declares the outputs a unit emits. Each output can set a mock value that dependents read while
+the unit's state has no outputs, e.g. before its first apply. A `mock_strategy` block says when dependents may read
+the mocks. A backend error while reading the state still fails the command.
 
 The `outputs` block supports the following arguments:
 
 - `mock_strategy` (block, optional): When dependents may read the mock values.
   - `allowed_commands` (attribute, optional): The OpenTofu/Terraform commands for which dependents may read mock
-    values, with the meaning of `mock_outputs_allowed_terraform_commands` on a `dependency` block. Unset allows every
-    command.
+    values, with the meaning of `mock_outputs_allowed_terraform_commands` on a `dependency` block. Unset or empty
+    allows every command.
   - `merge_with_state` (attribute, optional): How the state of the unit is merged into the mock values, with the
     meaning of `mock_outputs_merge_strategy_with_state` on a `dependency` block: `no_merge` (default), `shallow`, or
     `deep_map_only`.
-- `output` (block): One block per declared output, labeled with the output name. A name can be declared once.
-  - `mock_value` (attribute, optional): The value dependents read in place of the output. It can reference `local`
-    values, but not `dependency` outputs.
+- `output` (block): One block per declared output, labeled with the output name. Declaring a name twice is an error.
+  - `mock_value` (attribute, optional): The value dependents read in place of the output. It may use `local` values
+    and functions. One that reads a `dependency` output is an error, since dependents read the block without
+    resolving the unit's dependencies. A dependency with `skip_outputs = true` reads the mock values too, as it
+    does `mock_outputs`.
 
 Example:
 
@@ -2073,7 +2074,7 @@ outputs {
 }
 ```
 
-A dependent reads the outputs with no mock boilerplate:
+A dependent reads the outputs without setting `mock_outputs`:
 
 ```hcl
 # eks/terragrunt.hcl
@@ -2099,14 +2100,22 @@ A `dependency` block and the `outputs` block of the unit it reads combine as fol
 
 `terragrunt hcl validate` checks the contracts: every declared output has to exist in the OpenTofu/Terraform module
 the unit runs, and every `dependency.<name>.outputs.<output>` reference has to name an output the dependency declares,
-when it declares any. For the first check, the module is prepared as `hcl validate --inputs` prepares it: a unit with
-a `terraform.source` is fetched into the download directory, and `generate` blocks are written. References in the
-files the unit merges or exposes through `include`, and in its autoinclude file, are checked against its dependencies
-as well, and reported in the file that holds them. An include with `merge_strategy = "no_merge"` that is not exposed
-is never evaluated, so it is not checked. Each step of a reference may be an attribute or a literal string index, so
-`dependency["vpc"].outputs["vpc_id"]` is checked like `dependency.vpc.outputs.vpc_id`. A reference to one instance of
-an expanded dependency, written as `dependency.vpc["primary"].outputs.vpc_id` or `dependency.vpc.primary.outputs.vpc_id`,
-is checked against that instance. A reference whose instance key or output name is not a literal is not checked.
+when it declares any. Both the default mode and `--inputs` run the checks.
+
+For the first check, in the default mode, Terragrunt fetches the `terraform.source` of the unit into the download
+directory, as `hcl validate --inputs` does, and evaluates its `generate` blocks against an in-memory copy of the
+module files, so it writes no generated file into the module directory. A file a hook writes during a run is not
+seen. With `--inputs`, the check reads the module that mode prepares on disk.
+
+For the second check, Terragrunt also reads the files the unit merges or exposes through `include` and its
+autoinclude file, and reports each reference in the file that holds it. An include with `merge_strategy = "no_merge"`
+that is not exposed is never evaluated, so it is not checked. References written in a `terragrunt.hcl.json` file are
+not checked, though the files it includes are. Each step of a reference may be an attribute or a literal string index,
+so `dependency["vpc"].outputs["vpc_id"]` is checked like `dependency.vpc.outputs.vpc_id`. A reference to one instance
+of an expanded dependency, written as `dependency.vpc["primary"].outputs.vpc_id`,
+`dependency.vpc.primary.outputs.vpc_id`, or `dependency.vpc[0].outputs.vpc_id` for a `count` expansion, is checked
+against that instance. A reference whose instance key or output name is not a literal is not checked. In the default mode, a dependency whose unit config cannot be read is reported
+at the `config_path` that names it.
 
 The block is merged through `include` like the `errors` block: a `shallow` merge takes the including unit's block
 whole, and a `deep` merge combines the declarations by output name, with the unit's declarations winning.

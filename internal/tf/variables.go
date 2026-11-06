@@ -86,7 +86,7 @@ func ModuleVariables(fsys vfs.FS, modulePath string) (map[string]ModuleVariable,
 	return variables, nil
 }
 
-// moduleBody parses every .tf and .tf.json file of the module at modulePath into one body.
+// moduleBody parses every OpenTofu/Terraform file of the module at modulePath into one body.
 func moduleBody(fsys vfs.FS, modulePath string) (hcl.Body, error) {
 	files, err := util.ListTfFiles(fsys, modulePath)
 	if err != nil {

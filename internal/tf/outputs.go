@@ -17,8 +17,8 @@ var outputBlockSchema = &hcl.BodySchema{
 	},
 }
 
-// ModuleOutputs returns the name of every output the module at modulePath declares, sorted and without
-// repeats, taking into account all the generated sources.
+// ModuleOutputs returns the name of every output the OpenTofu/Terraform files of the module at modulePath declare,
+// sorted and without repeats.
 func ModuleOutputs(fsys vfs.FS, modulePath string) ([]string, error) {
 	body, err := moduleBody(fsys, modulePath)
 	if err != nil {

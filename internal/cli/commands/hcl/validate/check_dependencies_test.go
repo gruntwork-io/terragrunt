@@ -28,7 +28,7 @@ func TestRunValidateDependencyConfigPaths(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := runValidate(t, validateRun{files: map[string]string{
+			result := runValidate(t, &validateRun{files: map[string]string{
 				"app/terragrunt.hcl":       "dependency \"dep\" {\n  config_path = \"" + tc.configPath + "\"\n}\n",
 				"db/terragrunt.hcl":        "",
 				"net/terragrunt.stack.hcl": "unit \"vpc\" {\n  source = \"../vpc\"\n  path   = \"vpc\"\n}\n",

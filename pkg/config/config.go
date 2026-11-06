@@ -594,11 +594,11 @@ func errorsBlock(errs *ErrorsConfig) *hclwrite.Block {
 	return block
 }
 
-// errorPatterns renders the error patterns a retry or ignore block matches on.
-func errorPatterns(patterns []string) cty.Value {
-	rendered := make([]cty.Value, len(patterns))
-	for i, pattern := range patterns {
-		rendered[i] = cty.StringVal(pattern)
+// stringListVal renders values as a cty list of strings.
+func stringListVal(values []string) cty.Value {
+	rendered := make([]cty.Value, len(values))
+	for i, value := range values {
+		rendered[i] = cty.StringVal(value)
 	}
 
 	return cty.ListVal(rendered)
@@ -621,7 +621,7 @@ func retryBlock(retry *RetryBlock) *hclwrite.Block {
 	}
 
 	if len(retry.RetryableErrors) > 0 {
-		body.SetAttributeValue("retryable_errors", errorPatterns(retry.RetryableErrors))
+		body.SetAttributeValue("retryable_errors", stringListVal(retry.RetryableErrors))
 	}
 
 	return block
@@ -633,7 +633,7 @@ func ignoreBlock(ignore *IgnoreBlock) *hclwrite.Block {
 	body := block.Body()
 
 	if len(ignore.IgnorableErrors) > 0 {
-		body.SetAttributeValue("ignorable_errors", errorPatterns(ignore.IgnorableErrors))
+		body.SetAttributeValue("ignorable_errors", stringListVal(ignore.IgnorableErrors))
 	}
 
 	if ignore.Message != "" {
@@ -656,7 +656,7 @@ func outputsBlock(outputs *OutputsConfig) *hclwrite.Block {
 		strategyBlock := hclwrite.NewBlock(MetadataMockStrategy, nil)
 
 		if strategy.AllowedCommands != nil {
-			strategyBlock.Body().SetAttributeValue("allowed_commands", errorPatterns(*strategy.AllowedCommands))
+			strategyBlock.Body().SetAttributeValue("allowed_commands", stringListVal(*strategy.AllowedCommands))
 		}
 
 		if strategy.MergeWithState != nil {

@@ -832,7 +832,7 @@ func outputsConfigAsCty(config *OutputsConfig) cty.Value {
 		strategyValues := map[string]cty.Value{}
 
 		if strategy.AllowedCommands != nil {
-			strategyValues["allowed_commands"] = errorPatterns(*strategy.AllowedCommands)
+			strategyValues["allowed_commands"] = stringListVal(*strategy.AllowedCommands)
 		}
 
 		if strategy.MergeWithState != nil {

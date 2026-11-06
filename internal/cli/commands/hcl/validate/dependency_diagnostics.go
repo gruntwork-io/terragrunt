@@ -369,6 +369,11 @@ func (c *DiagnosticsCollector) addMissingDependency(
 		return err
 	}
 
+	// A missing path is reported as a file and as a directory; one report per expression is enough.
+	if c.reportedMissingDependencyAt(diag.Range) {
+		return nil
+	}
+
 	from := len(c.diags)
 
 	c.add(diag)
@@ -425,6 +430,13 @@ func (c *DiagnosticsCollector) pointAtDependents(
 	}
 
 	return reported, errors.Join(errs...)
+}
+
+// reportedMissingDependencyAt reports whether a missing dependency is already collected at rng.
+func (c *DiagnosticsCollector) reportedMissingDependencyAt(rng *diagnostic.Range) bool {
+	return slices.ContainsFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
+		return have.Summary == missingDependencySummary && sameRange(have.Range, rng)
+	})
 }
 
 // pointAtDependency collects a diagnostic for each expression in the configuration at configPath that

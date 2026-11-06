@@ -3,13 +3,13 @@ name: outputs-block
 since: "v1.2.2"
 ---
 
-Support for the `outputs` block on units, which declares the outputs a unit emits along with the mock value and mocking strategy its dependents use while its state holds no outputs.
+Support for the `outputs` block on units, which declares the outputs a unit emits along with the mock value and mocking strategy its dependents use while its state has no outputs.
 
 This experiment is ongoing and disabled by default. Declaring the block without the experiment enabled returns an error. It becomes generally available once every item in the stabilization criteria below is met.
 
 ### `outputs-block` - What it does
 
-Today a unit that reads the outputs of another unit declares the mock values on its own `dependency` block, so ten dependents of a VPC unit carry ten copies of `mock_outputs`. With this experiment enabled, the VPC unit declares its outputs once:
+Without the block, every `dependency` block that reads a unit sets its own `mock_outputs`, so ten dependents of a VPC unit repeat the same mock values ten times. With this experiment enabled, the VPC unit declares its outputs once:
 
 ```hcl
 # vpc/terragrunt.hcl
@@ -28,7 +28,7 @@ outputs {
 }
 ```
 
-Dependents pick the contract up through their `dependency` blocks and need no `mock_outputs`:
+Dependents read them through their `dependency` blocks without setting `mock_outputs`:
 
 ```hcl
 # eks/terragrunt.hcl
@@ -48,7 +48,7 @@ terragrunt run --all --experiment outputs-block -- plan
 
 A dependent that needs a different mock still sets `mock_outputs`, which wins key by key. `mock_outputs_allowed_terraform_commands` and `mock_outputs_merge_strategy_with_state` on the `dependency` block win over `mock_strategy` when set.
 
-Types are not declared. The OpenTofu/Terraform module the unit runs is the source of truth for them, and `terragrunt hcl validate` checks that every declared output exists in that module and that every `dependency.<name>.outputs.<output>` reference names an output the dependency declares. When the state of a unit is read, every declared output has to be in it, unless `merge_with_state` fills it from `mock_value`.
+Types are not declared. They come from the OpenTofu/Terraform module the unit runs, and `terragrunt hcl validate` checks that every declared output exists in that module and that every `dependency.<name>.outputs.<output>` reference names an output the dependency declares. A `mock_value` may not read a `dependency` output. When the state of a unit is read, every declared output has to be in it, unless `merge_with_state` fills it from `mock_value`.
 
 A `dependency` block that reads a unit without an `outputs` block keeps its current behavior, and Terragrunt gives the `outputs-block` tip once per run. See the [`outputs` block reference](/reference/hcl/blocks#outputs).
 

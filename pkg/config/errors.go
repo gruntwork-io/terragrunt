@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -878,4 +879,121 @@ type ComponentPathCollisionError struct {
 
 func (err ComponentPathCollisionError) Error() string {
 	return fmt.Sprintf("duplicate path found across unit and stack: '%s'", err.Path)
+}
+
+// BlockNestingExceededError reports a config file whose blocks nest deeper than the reference walk descends.
+type BlockNestingExceededError struct {
+	ConfigPath string
+	Limit      int
+}
+
+func (err BlockNestingExceededError) Error() string {
+	return fmt.Sprintf(
+		"%s nests blocks more than %d levels deep. Flatten the nested blocks.",
+		err.ConfigPath,
+		err.Limit,
+	)
+}
+
+// OutputsBlockRequiresExperimentError reports an outputs block read without the outputs-block experiment.
+type OutputsBlockRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err OutputsBlockRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"%s declares an outputs block, which needs the %s experiment. "+
+			"Enable it with --experiment %s or TG_EXPERIMENT=%s, or remove the block.",
+		err.ConfigPath,
+		experiment.OutputsBlock,
+		experiment.OutputsBlock,
+		experiment.OutputsBlock,
+	)
+}
+
+// DuplicateOutputDeclarationError reports an output declared more than once in an outputs block.
+type DuplicateOutputDeclarationError struct {
+	ConfigPath string
+	Name       string
+}
+
+func (err DuplicateOutputDeclarationError) Error() string {
+	return fmt.Sprintf(
+		"%s declares output %q more than once in its outputs block. Keep one output %q block.",
+		err.ConfigPath,
+		err.Name,
+		err.Name,
+	)
+}
+
+// InvalidOutputsMergeStrategyError reports a merge_with_state value that is not a mock merge strategy.
+type InvalidOutputsMergeStrategyError struct {
+	ConfigPath string
+	Strategy   string
+}
+
+func (err InvalidOutputsMergeStrategyError) Error() string {
+	valid := make([]string, 0, len(mockMergeStrategies))
+	for _, strategy := range mockMergeStrategies {
+		valid = append(valid, string(strategy))
+	}
+
+	return fmt.Sprintf(
+		"merge_with_state %q in the outputs block of %s is unknown. Valid values are: %s.",
+		err.Strategy,
+		err.ConfigPath,
+		strings.Join(valid, ", "),
+	)
+}
+
+// DeclaredOutputsReadError reports that the outputs block of a dependency could not be read.
+type DeclaredOutputsReadError struct {
+	Err          error
+	TargetConfig string
+}
+
+func (err DeclaredOutputsReadError) Error() string {
+	return fmt.Sprintf("reading the outputs block of %s: %v", err.TargetConfig, err.Err)
+}
+
+func (err DeclaredOutputsReadError) Unwrap() error {
+	return err.Err
+}
+
+// DeclaredOutputMissingError reports a declared output that the state of the unit does not hold.
+type DeclaredOutputMissingError struct {
+	DependencyName string
+	TargetConfig   string
+	CurrentConfig  string
+	Output         string
+}
+
+func (err DeclaredOutputMissingError) Error() string {
+	return fmt.Sprintf(
+		"%s declares output %q in its outputs block, but its state has no output %q, read as dependency %q by %s. "+
+			"Apply %s after adding the output to its module, remove the declaration, "+
+			"or set merge_with_state = \"shallow\" in its mock_strategy block to fill it from mock_value.",
+		err.TargetConfig,
+		err.Output,
+		err.Output,
+		err.DependencyName,
+		err.CurrentConfig,
+		err.TargetConfig,
+	)
+}
+
+// UnknownMockValueError reports a mock_value that reads a dependency output, which the dependents reading the
+// outputs block cannot resolve.
+type UnknownMockValueError struct {
+	ConfigPath string
+	Output     string
+}
+
+func (err UnknownMockValueError) Error() string {
+	return fmt.Sprintf(
+		"mock_value of output %q in the outputs block of %s is not known to the units that read it. "+
+			"Set it to a literal, a local, or a function result that reads no dependency output.",
+		err.Output,
+		err.ConfigPath,
+	)
 }

@@ -905,14 +905,16 @@ inputs = {
 `,
 	}
 
-	planWithExperiment := func(pctx *pkgconfig.ParsingContext) {
+	planWithExperiment := func(t *testing.T, pctx *pkgconfig.ParsingContext) {
+		t.Helper()
+
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
 		pctx.OriginalTofuCommand = "plan"
 	}
 
 	testCases := []struct {
-		configure func(*pkgconfig.ParsingContext)
+		configure func(t *testing.T, pctx *pkgconfig.ParsingContext)
 		check     func(t *testing.T, result parityResult)
 		outputs   map[string]string
 		name      string
@@ -932,7 +934,7 @@ inputs = {
 		{
 			name:      "declaring unit without the experiment",
 			cfgPath:   filepath.Join(root, "vpc", pkgconfig.DefaultTerragruntConfigPath),
-			configure: func(*pkgconfig.ParsingContext) {},
+			configure: func(*testing.T, *pkgconfig.ParsingContext) {},
 			check: func(t *testing.T, result parityResult) {
 				t.Helper()
 
@@ -976,7 +978,7 @@ inputs = {
 			tc.check(t, assertParity(t, parityCase{
 				newFS:     memFS(root, files),
 				cfgPath:   tc.cfgPath,
-				configure: tc.configure,
+				configure: func(pctx *pkgconfig.ParsingContext) { tc.configure(t, pctx) },
 				outputs:   tc.outputs,
 			}))
 		})

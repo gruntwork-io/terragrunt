@@ -145,7 +145,7 @@ const (
 	VariablesBlock = "variables-block"
 	// OutputsBlock gates the outputs block on units, which declares the
 	// outputs a unit emits along with the mock value and mocking strategy its
-	// dependents use while its state holds no outputs.
+	// dependents use while its state has no outputs.
 	OutputsBlock = "outputs-block"
 )
 

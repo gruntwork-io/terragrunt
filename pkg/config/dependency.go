@@ -1030,6 +1030,10 @@ func DependencyBlocksToCtyValue(
 
 			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
 			if err := dependencyConfig.setRenderedOutputs(ctx, l, v, pctx); err != nil {
+				if errors.As(err, new(DependencyBlockError)) {
+					return err
+				}
+
 				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
