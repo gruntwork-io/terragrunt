@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Auto-init no longer runs on every command for modules with `module` blocks in subdirectories
+
+Since v0.88.1, Terragrunt ran `init` before every `plan` and `apply` for a module whose root calls no modules but whose subdirectories contain a `module` block, such as an `examples/` directory that calls the module. With [`--no-auto-init`](/features/units/auto-init#disabling-auto-init), every run logged a warning that init was needed instead.
+
+Terragrunt now only looks for `module` blocks in the root module's own files when deciding whether modules need to be installed, as it did before v0.88.1.
