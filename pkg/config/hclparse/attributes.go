@@ -72,7 +72,12 @@ func (attr *Attribute) ValidateIdentifier() error {
 }
 
 func (attr *Attribute) Value(evalCtx *hcl.EvalContext) (cty.Value, error) {
-	evaluatedVal, diags := attr.Expr.Value(evalCtx)
+	expr := attr.Expr
+	if syntaxExpr, ok := expr.(hclsyntax.Expression); ok && hasConditionalRunCmd(syntaxExpr) {
+		expr = wrapConditionalRunCmd(syntaxExpr)
+	}
+
+	evaluatedVal, diags := expr.Value(evalCtx)
 
 	if err := attr.HandleDiagnostics(diags); err != nil {
 		return evaluatedVal, err
