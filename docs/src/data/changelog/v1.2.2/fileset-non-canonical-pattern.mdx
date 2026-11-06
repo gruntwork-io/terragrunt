@@ -1,0 +1,8 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `fileset` matches patterns with `./`, `../` or `//` again
+
+`fileset` cleans the pattern the way OpenTofu does, so calls such as `fileset("./", "./resources/*.json")` return matches again. In v1.2.0 and v1.2.1 they returned an empty set.
