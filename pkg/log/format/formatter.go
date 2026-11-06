@@ -14,6 +14,7 @@ var _ log.Formatter = new(Formatter)
 
 type Formatter struct {
 	relativePather *options.RelativePather
+	pathLabels     map[string]string
 	baseDir        string
 	placeholders   placeholders.Placeholders
 	mu             sync.Mutex
@@ -39,11 +40,16 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 		buf = new(bytes.Buffer)
 	}
 
+	formatter.mu.Lock()
+	pathLabels := formatter.pathLabels
+	formatter.mu.Unlock()
+
 	str, err := formatter.placeholders.Format(&options.Data{
 		Entry:          entry,
 		BaseDir:        formatter.baseDir,
 		DisabledColors: formatter.disabledColors,
 		RelativePather: formatter.relativePather,
+		PathLabels:     pathLabels,
 	})
 	if err != nil {
 		return nil, err
@@ -76,6 +82,14 @@ func (formatter *Formatter) SetBaseDir(baseDir string) error {
 	formatter.baseDir = baseDir
 
 	return nil
+}
+
+// SetPathLabels sets the labels that the `basename` path format shows for the given paths.
+func (formatter *Formatter) SetPathLabels(labels map[string]string) {
+	formatter.mu.Lock()
+	defer formatter.mu.Unlock()
+
+	formatter.pathLabels = labels
 }
 
 // DisableRelativePaths disables the conversion of absolute paths to relative ones.

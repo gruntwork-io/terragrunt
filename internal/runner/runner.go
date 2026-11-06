@@ -68,6 +68,10 @@ func CloneUnitOptions(
 	// DisplayPath is relative to the discovery context, which keeps log prefixes short.
 	if !stackOpts.LogShowAbsPaths {
 		clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
+	} else if unitPath := filepath.Clean(unit.Path()); unitPath != clonedOpts.WorkingDir {
+		// The prefix is the directory of a unit configured by a file, which sibling units share,
+		// so the `basename` path format needs the unit path to tell them apart.
+		clonedLogger = clonedLogger.WithField(placeholders.UnitPathKeyName, unitPath)
 	}
 
 	// Use a per-unit default download directory when the stack is using its own default
