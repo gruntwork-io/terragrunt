@@ -135,6 +135,33 @@ func NewCoexistenceError(a, b component.Component) error {
 	}
 }
 
+// AmbiguousConfigError represents an error when a directory contains more than one
+// Terragrunt configuration file of the same component kind (e.g. both terragrunt.hcl
+// and terragrunt.hcl.json), so it is ambiguous which one should be used.
+type AmbiguousConfigError struct {
+	ComponentPath string
+	ConfigFileA   string
+	ConfigFileB   string
+}
+
+func (e AmbiguousConfigError) Error() string {
+	return fmt.Sprintf(
+		"Component %q has more than one Terragrunt configuration file (%s and %s). "+
+			"Only one may be present in a directory; remove one to disambiguate.",
+		e.ComponentPath, e.ConfigFileA, e.ConfigFileB,
+	)
+}
+
+// NewAmbiguousConfigError creates a new AmbiguousConfigError from two same-kind components
+// that were discovered from different configuration files in the same directory.
+func NewAmbiguousConfigError(a, b component.Component) error {
+	return AmbiguousConfigError{
+		ComponentPath: a.Path(),
+		ConfigFileA:   a.ConfigFile(),
+		ConfigFileB:   b.ConfigFile(),
+	}
+}
+
 // StackDependencyExpansionError indicates that a stack dependency path could not be expanded into
 // its constituent unit paths. Wraps the underlying parse error so callers can extract typed details
 // via errors.As.

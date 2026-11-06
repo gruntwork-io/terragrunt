@@ -1,0 +1,5 @@
+{
+  "locals": {
+    "ignored": "${run_cmd(\"echo\", \"dependency_default_json_should_not_run\")}"
+  }
+}
