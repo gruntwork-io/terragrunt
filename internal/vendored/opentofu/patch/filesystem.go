@@ -485,27 +485,25 @@ func hashFile(
 // matchFiles returns the regular files that pattern matches, relative to dir.
 // Like OpenTofu, it cleans dir and the pattern as text first, so ./, // and ../ elements match.
 func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
-	if !glob.ValidOpenTofuPattern(pattern) {
-		return nil, glob.ErrBadPattern
-	}
-
-	dir = filepath.Clean(dir)
-
 	// A backslash escapes the next character on every OS, so the pattern is cleaned as a slash path.
 	clean := path.Clean(strings.TrimLeft(pattern, "/"))
 	elems := strings.Split(clean, "/")
 
 	// The walk starts below the leading elements with no glob syntax, such as .. or a directory name.
-	lit := slices.IndexFunc(elems[:len(elems)-1], func(elem string) bool { return strings.ContainsAny(elem, `*?[{\`) })
+	lit := slices.IndexFunc(elems, func(elem string) bool { return strings.ContainsAny(elem, `*?[{\`) })
 	if lit < 0 {
 		lit = len(elems) - 1
 	}
 
 	rest := strings.Join(elems[lit:], "/")
 
-	// Cleaning can leave a malformed pattern, such as a trailing backslash or an unpaired brace.
+	// A pattern is an error only if it is malformed as written; cleaning can strand a backslash or a brace.
 	if !glob.ValidOpenTofuPattern(rest) {
-		return nil, nil
+		if glob.ValidOpenTofuPattern(pattern) {
+			return nil, nil
+		}
+
+		return nil, glob.ErrBadPattern
 	}
 
 	root := filepath.Join(append([]string{dir}, elems[:lit]...)...)
@@ -535,7 +533,8 @@ func globFiles(fsys vfs.FS, dir, root, pattern string) ([]cty.Value, error) {
 			return err
 		}
 
-		if fromRoot == "." && (d.IsDir() || root != dir) {
+		// Only the pattern . matches the walk root itself, when the path names a file.
+		if fromRoot == "." && (d.IsDir() || pattern != ".") {
 			return nil
 		}
 

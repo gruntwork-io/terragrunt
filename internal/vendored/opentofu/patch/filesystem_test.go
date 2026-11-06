@@ -387,10 +387,38 @@ var fileSetCases = []fileSetCase{
 		want:    []string{"resources/a.json"},
 	},
 	{
-		name:    "dot under a file path with a parent segment",
-		path:    baseDir + "/resources/../main.tf",
-		pattern: ".",
+		name:    "glob under a file path",
+		path:    "main.tf",
+		pattern: "*",
+	},
+	{
+		name:    "parent back to a file path",
+		path:    "main.tf",
+		pattern: "../main.tf",
 		want:    []string{"."},
+	},
+	{
+		name:    "glob under a file path reached through its parent",
+		path:    "main.tf",
+		pattern: "../main.tf/*",
+	},
+	{
+		name:    "leading slash before a parent",
+		path:    ".",
+		pattern: "/../shared/*.json",
+		want:    []string{"../shared/c.json"},
+	},
+	{
+		name:    "question mark in the first element",
+		path:    ".",
+		pattern: "./?esources/*.json",
+		want:    []string{"resources/a.json"},
+	},
+	{
+		name:    "unclosed brace that cleaning removes",
+		path:    ".",
+		pattern: "{x/../resources/*.json",
+		want:    []string{"resources/a.json"},
 	},
 	{
 		name:    "dot inside alternatives",
@@ -465,17 +493,6 @@ func TestFileSetKeepsAnEscapeBeforeTheFirstWildcard(t *testing.T) {
 		Call([]cty.Value{cty.StringVal("."), cty.StringVal(`re\sources/*.json`)})
 	require.NoError(t, err)
 	assert.Equal(t, stringSet([]string{"resources/a.json"}), got)
-}
-
-func TestFileSetMatchesAFilePathAgainstTheGlob(t *testing.T) {
-	t.Parallel()
-
-	v := memVenv(t, fileSetTree)
-
-	got, err := patch.FileSetFunc(v, baseDir, noRead).
-		Call([]cty.Value{cty.StringVal("main.tf"), cty.StringVal("*")})
-	require.NoError(t, err)
-	assert.Equal(t, stringSet([]string{"."}), got)
 }
 
 func TestFileSetReturnsNothingWhenCleaningStrandsAnEscape(t *testing.T) {
@@ -629,18 +646,19 @@ func TestFileSetResolvesTheParentOfASymlinkedPathAsText(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := memVenv(t, map[string]string{
+			root := venvtest.Root(baseDir)
+			v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{
 				"real/parent/target/main.tf":    "",
 				"real/parent/physical.json":     "",
 				"real/parent/sub/physical.json": "",
 				"live/lexical.json":             "",
 				"live/sub/lexical.json":         "",
-			})
-			require.NoError(t, vfs.Symlink(v.FS, filepath.Join(baseDir, "real", "parent", "target"), filepath.Join(baseDir, "live", "unit")))
+			}))
+			require.NoError(t, vfs.Symlink(v.FS, filepath.Join(root, "real", "parent", "target"), filepath.Join(root, "live", "unit")))
 
-			path := filepath.Join(baseDir, "live", "unit") + string(filepath.Separator) + ".."
+			path := filepath.Join(root, "live", "unit") + string(filepath.Separator) + ".."
 
-			got, err := patch.FileSetFunc(v, baseDir, noRead).
+			got, err := patch.FileSetFunc(v, root, noRead).
 				Call([]cty.Value{cty.StringVal(path), cty.StringVal(tc.pattern)})
 			require.NoError(t, err)
 			assert.Equal(t, stringSet(tc.want), got)
