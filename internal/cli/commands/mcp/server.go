@@ -193,6 +193,7 @@ func Serve(
 	registerPlan(srv, l, deps, rootVenv)
 	registerCatalog(srv, l, deps, rootVenv)
 	registerScaffold(srv, l, deps, rootVenv)
+	registerFmt(srv, l, deps, rootVenv)
 
 	if opts.AllowApply {
 		registerMutatingTools(srv, l, deps, rootVenv)
