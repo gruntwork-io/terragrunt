@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
 import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
 import HclItemCards from '@components/HclItemCards.astro';
@@ -978,6 +979,9 @@ terraform {
 ```
 
 ### Multiple includes
+
+When two `include` blocks merge the same setting, the later `include` overrides the earlier one, and the child config
+overrides both.
 
 ```hcl
 # root.hcl
@@ -2450,6 +2454,62 @@ errors {
     }
 }
 ```
+
+## variables
+
+<Before version="v1.2.2">
+
+The `variables` block is available in Terragrunt v1.2.2 and later, behind the `variables-block` experiment.
+
+</Before>
+
+<Since version="v1.2.2">
+
+The `variables` block sets OpenTofu/Terraform variables like the [`inputs`](/reference/hcl/attributes#inputs) attribute, and chooses how Terragrunt passes them.
+
+<Aside type="tip" title="Experimental">
+  The `variables` block is gated behind the `variables-block` experiment. Enable it with `--experiment variables-block` (or `TG_EXPERIMENT=variables-block`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#variables-block).
+</Aside>
+
+The `variables` block supports the following arguments:
+
+- `inputs` (attribute, required): A map of variable names to values, written the same way as the `inputs` attribute.
+- `kind` (attribute): How Terragrunt passes the inputs.
+  - `env` (default): `TF_VAR_` environment variables, as the `inputs` attribute does.
+  - `tfvar`: A `terragrunt.auto.tfvars` file in the directory where OpenTofu/Terraform runs.
+  - `json`: A `terragrunt.auto.tfvars.json` file in the directory where OpenTofu/Terraform runs.
+- `nullable` (attribute): When `true`, a `null` value sets its variable to `null`. Defaults to `false`, which drops `null` values so the variable keeps its default.
+- `validate` (attribute): When `true`, the run stops before OpenTofu/Terraform starts if the module does not declare every variable the block sets. Defaults to `false`.
+
+Example:
+
+```hcl
+# terragrunt.hcl
+
+variables {
+  kind     = "tfvar"
+  validate = true
+
+  inputs = {
+    vpc_id  = dependency.vpc.outputs.vpc_id
+    subnets = local.subnets
+  }
+}
+```
+
+A configuration can have any number of `variables` blocks, alongside an `inputs` attribute. Terragrunt returns an error when one file sets an input twice, in two `variables` blocks or in a `variables` block and the `inputs` attribute.
+
+If a unit defines an input that is also defined by an include, the input in the unit overrides the value from the include. This applies whether each side uses a `variables` block or the `inputs` attribute, and the input uses the `kind` and `validate` set in the unit. With `merge_strategy = "deep"`, nested maps and lists combine with the include's value, as they do for the `inputs` attribute.
+
+A `TF_VAR_` environment variable set before Terragrunt runs, or through `env_vars` in `extra_arguments`, takes precedence over an `env` input. A `tfvar` or `json` input takes precedence over it.
+
+In `.terragrunt-cache`, the variables files stay after the run, so running `tofu`/`terraform` directly in that directory loads the `tfvar` and `json` inputs. It does not see `env` inputs, which exist as environment variables set for the invocation of OpenTofu/Terraform. A unit that runs in its own directory with the [`no-dot-terragrunt-cache`](/reference/experiments/active#no-dot-terragrunt-cache) experiment has no variables files after the run.
+
+<Aside type="caution">
+  The `tfvar` and `json` kinds write input values to disk in plain text, sensitive values included. Use `env` for values that must not be written to disk.
+</Aside>
+
+</Since>
 
 ## unit
 
