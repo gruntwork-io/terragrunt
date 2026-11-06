@@ -40,14 +40,14 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 		{
 			name:         "opentofu 1.10 uses the configured absolute dir",
 			versionOut:   tofu110Version,
-			cacheDir:     "/providers/./cache",
-			wantCacheDir: "/providers/cache",
+			cacheDir:     hostPath("/providers/./cache"),
+			wantCacheDir: hostPath("/providers/cache"),
 		},
 		{
 			name:         "relative dir joins the root working dir",
 			versionOut:   tofu110Version,
 			cacheDir:     "providers",
-			wantCacheDir: "/work/providers",
+			wantCacheDir: filepath.Join(testWorkDir, "providers"),
 		},
 		{
 			name:        "unset dir defaults under the user cache dir",
@@ -57,16 +57,16 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 		{
 			name:       "opentofu before 1.10 is skipped",
 			versionOut: tofu19Version,
-			cacheDir:   "/providers",
+			cacheDir:   hostPath("/providers"),
 		},
 		{
 			name:       "terraform is skipped",
 			versionOut: tf115Version,
-			cacheDir:   "/providers",
+			cacheDir:   hostPath("/providers"),
 		},
 		{
 			name:     "failed version probe is skipped",
-			cacheDir: "/providers",
+			cacheDir: hostPath("/providers"),
 		},
 		{
 			name:       "user cache dir error is skipped",
@@ -78,9 +78,9 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 		{
 			name:       "cache dir creation error is skipped",
 			versionOut: tofu110Version,
-			cacheDir:   "/providers",
+			cacheDir:   hostPath("/providers"),
 			venv: func(v *venv.Venv) *venv.Venv {
-				return v.WithFS(newFaultFS(v.FS, atPath("mkdirall", "/providers")))
+				return v.WithFS(newFaultFS(v.FS, atPath("mkdirall", hostPath("/providers"))))
 			},
 		},
 	}
@@ -149,12 +149,12 @@ func TestRunActionAutoProviderCacheDirKeepsUserValue(t *testing.T) {
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.TFPath = "tofu"
-	opts.ProviderCacheOptions.Dir = "/providers"
+	opts.ProviderCacheOptions.Dir = hostPath("/providers")
 
 	require.NoError(t, commands.RunAction(config.WithCaches(t.Context()), nil, logger.CreateLogger(), opts, v, noopAction))
 	assert.Equal(t, "/user/plugins", v.Env[tf.EnvNameTFPluginCacheDir], "user value should win")
 	assert.Zero(t, probes, "the binary should not be probed")
-	assert.False(t, vfs.IsDir(v.FS, "/providers"), "no provider cache dir should be created")
+	assert.False(t, vfs.IsDir(v.FS, opts.ProviderCacheOptions.Dir), "no provider cache dir should be created")
 }
 
 // versionHandler answers every invocation with the given version output.

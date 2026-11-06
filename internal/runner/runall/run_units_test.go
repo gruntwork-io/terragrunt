@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -24,10 +25,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	runRoot       = "/repo"
-	summaryHeader = "Run Summary"
-)
+const summaryHeader = "Run Summary"
+
+// runRoot is the stack root every run test uses, absolute on the host OS.
+var runRoot = venvtest.Root("/repo")
 
 func TestRun_RejectsDisabledCommands(t *testing.T) {
 	t.Parallel()
@@ -157,10 +158,8 @@ func TestRun_ConfirmationPromptFailureFails(t *testing.T) {
 func TestRun_WritesReportFiles(t *testing.T) {
 	t.Parallel()
 
-	const (
-		reportFile = "/repo/report.json"
-		schemaFile = "/repo/report.schema.json"
-	)
+	reportFile := filepath.Join(runRoot, "report.json")
+	schemaFile := filepath.Join(runRoot, "report.schema.json")
 
 	rec := &tofuRecorder{}
 	v, _ := newRunVenv(t, rec, oneUnit())
@@ -183,7 +182,7 @@ func TestRun_WritesReportFiles(t *testing.T) {
 func TestRun_StackGeneration(t *testing.T) {
 	t.Parallel()
 
-	const generated = "/repo/.terragrunt-stack/vpc/terragrunt.hcl"
+	generated := filepath.Join(runRoot, ".terragrunt-stack", "vpc", "terragrunt.hcl")
 
 	files := map[string]string{
 		config.DefaultStackFile: `
@@ -245,7 +244,7 @@ func TestRun_InvalidStackFileFails(t *testing.T) {
 func TestRun_SourceUpdateCleansGeneratedStacks(t *testing.T) {
 	t.Parallel()
 
-	const stale = "/repo/old/.terragrunt-stack/gone/main.tf"
+	stale := filepath.Join(runRoot, "old", ".terragrunt-stack", "gone", "main.tf")
 
 	rec := &tofuRecorder{}
 	v, _ := newRunVenv(t, rec, map[string]string{"old/.terragrunt-stack/gone/main.tf": ""})
@@ -371,7 +370,7 @@ func newRunVenv(t *testing.T, rec *tofuRecorder, files map[string]string) (*venv
 
 	v := venvtest.New().
 		WithExec(vexec.NewMemExec(rec.handler())).
-		WithFS(venvtest.NewFS(t, venvtest.Root(runRoot), files))
+		WithFS(venvtest.NewFS(t, runRoot, files))
 	v.Writers.Writer = out
 
 	return v, out
@@ -380,7 +379,7 @@ func newRunVenv(t *testing.T, rec *tofuRecorder, files map[string]string) (*venv
 func newRunOptions(t *testing.T, command string, args ...string) *options.TerragruntOptions {
 	t.Helper()
 
-	opts, err := options.NewTerragruntOptionsForTest(runRoot + "/" + config.DefaultTerragruntConfigPath)
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(runRoot, config.DefaultTerragruntConfigPath))
 	require.NoError(t, err)
 
 	opts.WorkingDir = runRoot

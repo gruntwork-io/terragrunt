@@ -86,11 +86,11 @@ func TestWrapWithProfilingProfileDirWritesAllProfiles(t *testing.T) {
 	v := venvtest.New()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	opts.WorkingDir = "/work"
+	opts.WorkingDir = testWorkDir
 	opts.ProfileDir = "profiles"
 
 	competing := options.NewTerragruntOptions(vexec.NewOSExec())
-	competing.ProfileDir = "/competing"
+	competing.ProfileDir = hostPath("/competing")
 
 	var nestedRan bool
 
@@ -110,16 +110,21 @@ func TestWrapWithProfilingProfileDirWritesAllProfiles(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, nestedRan, "a nested action should run without starting new profiles")
-	assert.Equal(t, "/work/profiles", opts.ProfileDir, "a relative profile dir should be made absolute")
+
+	wantProfileDir := filepath.Join(testWorkDir, "profiles")
+
+	assert.Equal(t, wantProfileDir, opts.ProfileDir, "a relative profile dir should be made absolute")
 
 	for _, name := range []string{"terragrunt_cpu.prof", "terragrunt_mem.prof", "terragrunt_goroutine.prof"} {
-		info, statErr := v.FS.Stat(filepath.Join("/work/profiles", name))
+		info, statErr := v.FS.Stat(filepath.Join(wantProfileDir, name))
 		require.NoError(t, statErr, "profile %s should exist", name)
 		assert.Positive(t, info.Size(), "profile %s should be non-empty", name)
 	}
 
 	for _, name := range []string{"terragrunt_cpu.prof", "terragrunt_mem.prof", "terragrunt_goroutine.prof"} {
-		assert.False(t, vfs.Exists(v.FS, filepath.Join("/competing", name)), "failed profile %s should be removed", name)
+		failedProfile := filepath.Join(competing.ProfileDir, name)
+
+		assert.False(t, vfs.Exists(v.FS, failedProfile), "failed profile %s should be removed", name)
 	}
 }
 
@@ -191,9 +196,9 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 		mem       string
 		goroutine string
 	}{
-		{name: "memory profile write", op: "write", mem: "/profiles/mem.prof"},
-		{name: "goroutine profile write", op: "write", goroutine: "/profiles/goroutine.prof"},
-		{name: "memory profile close", op: "close", mem: "/profiles/mem.prof"},
+		{name: "memory profile write", op: "write", mem: hostPath("/profiles/mem.prof")},
+		{name: "goroutine profile write", op: "write", goroutine: hostPath("/profiles/goroutine.prof")},
+		{name: "memory profile close", op: "close", mem: hostPath("/profiles/mem.prof")},
 	}
 
 	for _, tc := range testCases {
@@ -225,10 +230,8 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 	t.Parallel()
 
-	const (
-		memPath       = "/profiles/mem.prof"
-		goroutinePath = "/profiles/goroutine.prof"
-	)
+	memPath := hostPath("/profiles/mem.prof")
+	goroutinePath := hostPath("/profiles/goroutine.prof")
 
 	testCases := []struct {
 		name        string

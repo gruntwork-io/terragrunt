@@ -26,8 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testWorkDir = "/work"
-
 var errActionFailed = errors.New("action failed")
 
 // TestWrapWithTelemetryResolvesPaths pins how the wrapper makes the working dir, download dir, config path, and tf path absolute.
@@ -49,11 +47,11 @@ func TestWrapWithTelemetryResolvesPaths(t *testing.T) {
 		{
 			name:           "defaults under the working dir",
 			cmdName:        run.CommandName,
-			workingDir:     "/work/nested/..",
+			workingDir:     hostPath("/work/nested/.."),
 			tfPath:         "tofu",
 			wantWorkingDir: testWorkDir,
-			wantDownload:   "/work/.terragrunt-cache",
-			wantConfig:     "/work/terragrunt.hcl",
+			wantDownload:   filepath.Join(testWorkDir, ".terragrunt-cache"),
+			wantConfig:     filepath.Join(testWorkDir, "terragrunt.hcl"),
 			wantTFPath:     "tofu",
 		},
 		{
@@ -62,23 +60,23 @@ func TestWrapWithTelemetryResolvesPaths(t *testing.T) {
 			workingDir:     testWorkDir,
 			downloadDir:    "cache",
 			configPath:     "units/app.hcl",
-			tfPath:         "bin/tofu",
+			tfPath:         filepath.Join("bin", "tofu"),
 			wantWorkingDir: testWorkDir,
-			wantDownload:   "/work/cache",
-			wantConfig:     "/work/units/app.hcl",
-			wantTFPath:     "/work/bin/tofu",
+			wantDownload:   filepath.Join(testWorkDir, "cache"),
+			wantConfig:     filepath.Join(testWorkDir, "units", "app.hcl"),
+			wantTFPath:     filepath.Join(testWorkDir, "bin", "tofu"),
 		},
 		{
 			name:           "absolute paths are only cleaned",
 			cmdName:        run.CommandName,
 			workingDir:     testWorkDir,
-			downloadDir:    "/cache/./dl",
-			configPath:     "/configs/app.hcl",
-			tfPath:         "/usr/bin/tofu",
+			downloadDir:    hostPath("/cache/./dl"),
+			configPath:     hostPath("/configs/app.hcl"),
+			tfPath:         hostPath("/usr/bin/tofu"),
 			wantWorkingDir: testWorkDir,
-			wantDownload:   "/cache/dl",
-			wantConfig:     "/configs/app.hcl",
-			wantTFPath:     "/usr/bin/tofu",
+			wantDownload:   hostPath("/cache/dl"),
+			wantConfig:     hostPath("/configs/app.hcl"),
+			wantTFPath:     hostPath("/usr/bin/tofu"),
 		},
 		{
 			name:           "relative config path stays relative outside run",
@@ -87,8 +85,8 @@ func TestWrapWithTelemetryResolvesPaths(t *testing.T) {
 			configPath:     "./units/app.hcl",
 			tfPath:         "tofu",
 			wantWorkingDir: testWorkDir,
-			wantDownload:   "/work/.terragrunt-cache",
-			wantConfig:     "units/app.hcl",
+			wantDownload:   filepath.Join(testWorkDir, ".terragrunt-cache"),
+			wantConfig:     filepath.Join("units", "app.hcl"),
 			wantTFPath:     "tofu",
 		},
 	}
@@ -247,6 +245,9 @@ func TestWrapWithTelemetryBuildsTofuArgs(t *testing.T) {
 func TestWrapWithTelemetryReadsFilterFiles(t *testing.T) {
 	t.Parallel()
 
+	excludesFile := filepath.Join(testWorkDir, ".terragrunt-excludes")
+	filtersFile := filepath.Join(testWorkDir, ".terragrunt-filters")
+
 	testCases := []struct {
 		files         map[string]string
 		name          string
@@ -256,23 +257,23 @@ func TestWrapWithTelemetryReadsFilterFiles(t *testing.T) {
 	}{
 		{
 			name:        "excludes file negates each dir",
-			files:       map[string]string{"/work/.terragrunt-excludes": "# skip\nlegacy\n\nold/**\n"},
+			files:       map[string]string{excludesFile: "# skip\nlegacy\n\nold/**\n"},
 			wantFilters: []string{"!legacy", "!old/**"},
 		},
 		{
 			name:        "filters file adds each query",
-			files:       map[string]string{"/work/.terragrunt-filters": "./apps/*\n# comment\n./db\n"},
+			files:       map[string]string{filtersFile: "./apps/*\n# comment\n./db\n"},
 			wantFilters: []string{"./apps/*", "./db"},
 		},
 		{
 			name:          "filters file is skipped when disabled",
-			files:         map[string]string{"/work/.terragrunt-filters": "./apps/*\n"},
+			files:         map[string]string{filtersFile: "./apps/*\n"},
 			noFiltersFile: true,
 			wantFilters:   []string{},
 		},
 		{
 			name:        "duplicates of flag filters are dropped",
-			files:       map[string]string{"/work/.terragrunt-filters": "./apps/*\n./db\n"},
+			files:       map[string]string{filtersFile: "./apps/*\n./db\n"},
 			preset:      []string{"./db"},
 			wantFilters: []string{"./db", "./apps/*"},
 		},
@@ -305,6 +306,9 @@ func TestWrapWithTelemetryReadsFilterFiles(t *testing.T) {
 func TestWrapWithTelemetryFilterFileErrors(t *testing.T) {
 	t.Parallel()
 
+	excludesFile := filepath.Join(testWorkDir, ".terragrunt-excludes")
+	filtersFile := filepath.Join(testWorkDir, ".terragrunt-filters")
+
 	testCases := []struct {
 		wantErr error
 		fsys    func(base vfs.FS) vfs.FS
@@ -313,23 +317,23 @@ func TestWrapWithTelemetryFilterFileErrors(t *testing.T) {
 	}{
 		{
 			name:  "unreadable excludes file",
-			files: map[string]string{"/work/.terragrunt-excludes": "legacy\n"},
+			files: map[string]string{excludesFile: "legacy\n"},
 			fsys: func(base vfs.FS) vfs.FS {
-				return newFaultFS(base, atPath("open", "/work/.terragrunt-excludes"))
+				return newFaultFS(base, atPath("open", excludesFile))
 			},
 			wantErr: errInjected,
 		},
 		{
 			name:  "unreadable filters file",
-			files: map[string]string{"/work/.terragrunt-filters": "./apps\n"},
+			files: map[string]string{filtersFile: "./apps\n"},
 			fsys: func(base vfs.FS) vfs.FS {
-				return newFaultFS(base, atPath("open", "/work/.terragrunt-filters"))
+				return newFaultFS(base, atPath("open", filtersFile))
 			},
 			wantErr: errInjected,
 		},
 		{
 			name:  "malformed filters file",
-			files: map[string]string{"/work/.terragrunt-filters": "[main...\n"},
+			files: map[string]string{filtersFile: "[main...\n"},
 		},
 	}
 
