@@ -27,7 +27,18 @@ func New(
 		return nil, err
 	}
 
-	if err := checkVersionConstraints(ctx, l, v, opts, rnr.GetStack().Units); err != nil {
+	units := rnr.GetStack().Units
+
+	if formatter := l.Formatter(); formatter != nil {
+		paths := make([]string, len(units))
+		for i, unit := range units {
+			paths[i] = unit.Path()
+		}
+
+		formatter.SetUnitPaths(paths)
+	}
+
+	if err := checkVersionConstraints(ctx, l, v, opts, units); err != nil {
 		return nil, err
 	}
 
