@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -109,10 +111,51 @@ func TestDependencyOutputsWithRunCmdLeaveCallerEnvWithRacing(t *testing.T) {
 	assert.Positive(t, recorder.countWithEnv(telemetry.TraceParentEnv))
 }
 
+// TestDependencyOutputDropsCallerAuthProviderEnv pins that a dependency's output read, and the auth
+// provider command run for it, see only the dependency's own auth provider values, not the caller's.
+func TestDependencyOutputDropsCallerAuthProviderEnv(t *testing.T) {
+	t.Parallel()
+
+	recorder := &isolationExecRecorder{perUnitAuth: true}
+	ctx, pctx, v, configPath := prepareIsolationFixture(t, recorder, 1)
+	v.Env["SHARED"] = "from-caller-env"
+	l := logger.CreateLogger()
+
+	_, err := creds.ObtainCredsForParsing(ctx, l, v, pctx.AuthProviderCmd, shell.NewShellOptions(v.Env).WithWorkingDir(pctx.WorkingDir))
+	require.NoError(t, err)
+	require.Equal(t, "only-for-consumer", v.Env["SECRET_CONSUMER"])
+	require.Equal(t, "auth-consumer", v.Env["SHARED"])
+
+	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "from-native-output", cfg.Inputs["result0"])
+
+	auths := recorder.authEnvs("producer0")
+	require.NotEmpty(t, auths)
+
+	for _, env := range auths {
+		assert.NotContains(t, env, "SECRET_CONSUMER=only-for-consumer")
+		assert.Contains(t, env, "SHARED=from-caller-env")
+	}
+
+	outputs := recorder.outputEnvs()
+	require.NotEmpty(t, outputs)
+
+	for _, env := range outputs {
+		assert.Contains(t, env, "SECRET_PRODUCER0=only-for-producer0")
+		assert.Contains(t, env, "SHARED=auth-producer0")
+		assert.NotContains(t, env, "SECRET_CONSUMER=only-for-consumer")
+	}
+}
+
 type isolationExecRecorder struct {
+	auths   map[string][][]string
 	envs    [][]string
 	outputs [][]string
 	mu      sync.Mutex
+
+	// perUnitAuth makes the auth command return a variable named after the unit directory it runs in.
+	perUnitAuth bool
 }
 
 func (r *isolationExecRecorder) exec() vexec.Exec {
@@ -123,9 +166,22 @@ func (r *isolationExecRecorder) exec() vexec.Exec {
 		if slices.Contains(inv.Args, "output") {
 			r.outputs = append(r.outputs, slices.Clone(inv.Env))
 		}
+
+		unit := filepath.Base(inv.Dir)
+
+		if inv.Name == isolationAuthCmd {
+			if r.auths == nil {
+				r.auths = map[string][][]string{}
+			}
+
+			r.auths[unit] = append(r.auths[unit], slices.Clone(inv.Env))
+		}
 		r.mu.Unlock()
 
 		switch {
+		case inv.Name == isolationAuthCmd && r.perUnitAuth:
+			return vexec.Result{Stdout: fmt.Appendf(nil,
+				`{"envs":{"SECRET_%s":"only-for-%s","SHARED":"auth-%s"}}`, strings.ToUpper(unit), unit, unit)}
 		case inv.Name == isolationAuthCmd:
 			return vexec.Result{Stdout: []byte(`{"envs":{"AUTH_TOKEN":"from-auth"}}`)}
 		case inv.Name == isolationEchoCmd:
@@ -151,6 +207,13 @@ func (r *isolationExecRecorder) countWithEnv(key string) int {
 	}
 
 	return count
+}
+
+func (r *isolationExecRecorder) authEnvs(unit string) [][]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.auths[unit])
 }
 
 func (r *isolationExecRecorder) outputEnvs() [][]string {

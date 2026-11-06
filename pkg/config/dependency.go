@@ -1896,7 +1896,9 @@ func resolveOutputJSON(
 		return nil, "", err
 	}
 
-	v = v.WithEnvCloned()
+	// Start from the environment without the calling unit's auth provider values; the
+	// dependency's own auth provider command runs below.
+	v = v.WithoutAuthProviderEnv()
 
 	callerIsRenderCommand := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 

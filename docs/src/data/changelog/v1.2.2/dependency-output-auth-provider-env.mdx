@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Dependency output reads no longer inherit the calling unit's `--auth-provider-cmd` values
+
+When a unit read a dependency's outputs, the environment variables `--auth-provider-cmd` returned for that unit were passed on to the dependency's auth provider command and to the `output` run for the dependency. Variables the dependency's own auth provider did not return leaked through, so the dependency could be read with the wrong credentials.
+
+Terragrunt now removes the calling unit's auth provider values before reading a dependency's outputs, so each dependency is read with only its own auth provider values.
