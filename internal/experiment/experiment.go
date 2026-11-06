@@ -141,7 +141,7 @@ const (
 	NoDotTerragruntCache = "no-dot-terragrunt-cache"
 	// OutputsBlock gates the outputs block on units, which declares the
 	// outputs a unit emits along with the mock value and mocking strategy its
-	// dependents use when its state cannot be read.
+	// dependents use while its state holds no outputs.
 	OutputsBlock = "outputs-block"
 )
 

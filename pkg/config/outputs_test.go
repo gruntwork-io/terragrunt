@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -52,6 +53,24 @@ dependency "vpc" {
 inputs = {
   vpc_id     = dependency.vpc.outputs.vpc_id
   subnet_ids = dependency.vpc.outputs.subnet_ids
+}
+`
+
+// dependentConfigWithoutInputs is dependentConfig without its inputs, for a test that reads the outputs its own way.
+const dependentConfigWithoutInputs = `
+dependency "vpc" {
+  config_path = "../vpc"
+  %s
+}
+`
+
+// sensitivityInputs reads the two outputs of the vpc unit, with each one's sensitivity beside it.
+const sensitivityInputs = `
+inputs = {
+  vpc_id               = nonsensitive(dependency.vpc.outputs.vpc_id)
+  vpc_id_sensitive     = issensitive(dependency.vpc.outputs.vpc_id)
+  subnet_ids           = dependency.vpc.outputs.subnet_ids
+  subnet_ids_sensitive = issensitive(dependency.vpc.outputs.subnet_ids)
 }
 `
 
@@ -369,10 +388,18 @@ inputs = {
   subnets = dependency.vpc.outputs["subnet_ids"]
   db      = dependency.rds["primary"].outputs.endpoint
   replica = dependency.rds[1].outputs.endpoint
+  dot     = dependency.rds.primary.outputs.endpoint
+  nested  = [for id in [local.id] : dependency.vpc.outputs.vpc_id]
+  looped  = [for dependency in [local.id] : dependency.vpc.outputs.shadow]
   whole   = dependency.vpc.outputs
   dynamic = dependency.vpc.outputs[local.key]
   named   = dependency.rds[local.name].outputs.endpoint
   other   = local.id
+  index   = dependency["vpc"].outputs.vpc_id
+  both    = dependency["rds"]["primary"]["outputs"]["endpoint"]
+  marker  = dependency.vpc["outputs"].vpc_id
+  self    = dependency.rds.outputs.outputs.endpoint
+  stray   = dependency.vpc.extra.outputs.vpc_id
 }
 `
 
@@ -389,7 +416,12 @@ inputs = {
 	file, err := pctx.NewParser(l, v).ParseFromString(content, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	refs, err := config.DependencyOutputReferences(file)
+	dependencies := config.Dependencies{
+		{Name: "vpc"},
+		{Name: "rds", Expansion: &hclparse.ExpansionBlock{}},
+	}
+
+	refs, err := config.DependencyOutputReferences(file, dependencies)
 	require.NoError(t, err)
 
 	found := make([]reference, 0, len(refs))
@@ -403,6 +435,12 @@ inputs = {
 		{address: "vpc", output: "subnet_ids", line: 7},
 		{address: "rds[primary]", output: "endpoint", line: 8},
 		{address: "rds[1]", output: "endpoint", line: 9},
+		{address: "rds[primary]", output: "endpoint", line: 10},
+		{address: "vpc", output: "vpc_id", line: 11},
+		{address: "vpc", output: "vpc_id", line: 17},
+		{address: "rds[primary]", output: "endpoint", line: 18},
+		{address: "vpc", output: "vpc_id", line: 19},
+		{address: "rds[outputs]", output: "endpoint", line: 20},
 	}, found)
 }
 
@@ -446,6 +484,7 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 		dependencyBody string
 		command        string
 		vpcState       string
+		inputs         string
 		experimentOff  bool
 	}{
 		{
@@ -566,6 +605,66 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 			},
 		},
 		{
+			name:           "a mock_outputs list fills no declared output missing from state",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = ["oops"]`,
+			command:        "plan",
+			vpcState:       vpcStateWithoutSubnets,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var missingErr config.DeclaredOutputMissingError
+
+				require.ErrorAs(t, err, &missingErr)
+				assert.Equal(t, "subnet_ids", missingErr.Output)
+			},
+		},
+		{
+			name:           "a mock_outputs set of numbers fills no declared output missing from state",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = toset([1])`,
+			command:        "plan",
+			vpcState:       vpcStateWithoutSubnets,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var missingErr config.DeclaredOutputMissingError
+
+				require.ErrorAs(t, err, &missingErr)
+				assert.Equal(t, "subnet_ids", missingErr.Output)
+			},
+		},
+		{
+			name:           "a sensitive mock_outputs keeps its entries sensitive and the declared mocks plain",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = sensitive({ vpc_id = "app-mock" })`,
+			command:        "plan",
+			inputs:         sensitivityInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "app-mock", cfg.Inputs["vpc_id"])
+				assert.Equal(t, true, cfg.Inputs["vpc_id_sensitive"])
+				assert.Equal(t, mockSubnets, cfg.Inputs["subnet_ids"])
+				assert.Equal(t, false, cfg.Inputs["subnet_ids_sensitive"])
+			},
+		},
+		{
+			name:           "a sensitive mock_outputs fills a declared output missing from state",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = sensitive({ subnet_ids = ["app-subnet"] })`,
+			command:        "plan",
+			vpcState:       vpcStateWithoutSubnets,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "vpc-real", cfg.Inputs["vpc_id"])
+				assert.Equal(t, []any{"app-subnet"}, cfg.Inputs["subnet_ids"])
+			},
+		},
+		{
 			name:          "the experiment off rejects a unit that declares outputs",
 			vpcConfig:     outputsBlockConfig,
 			command:       "plan",
@@ -593,6 +692,11 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 
 			appConfigPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 			appConfig := strings.Replace(dependentConfig, "%s", tc.dependencyBody, 1)
+
+			if tc.inputs != "" {
+				appConfig = strings.Replace(dependentConfigWithoutInputs, "%s", tc.dependencyBody, 1) + tc.inputs
+			}
+
 			require.NoError(t, vfs.WriteFile(fsys, appConfigPath, []byte(appConfig), 0o644))
 
 			state := map[string]string{}
@@ -689,7 +793,7 @@ func newDependentParsingContext(t *testing.T, cfgPath, command string) (context.
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.TerraformCommand = command
-	pctx.OriginalTerraformCommand = command
+	pctx.OriginalTofuCommand = command
 	pctx.TerraformCliArgs = iacargs.New().SetCommand(command)
 
 	return ctx, pctx

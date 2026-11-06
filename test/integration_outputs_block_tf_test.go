@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -61,6 +62,8 @@ func TestTFOutputsBlockDeclaredMocksStandInBeforeApply(t *testing.T) {
 
 func TestTFOutputsBlockRequiresExperiment(t *testing.T) {
 	t.Parallel()
+
+	helpers.SkipInExperimentMode(t, experiment.OutputsBlock)
 
 	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlock), testFixtureOutputsBlock)
 

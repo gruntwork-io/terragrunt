@@ -31,6 +31,9 @@ const (
 // mock outputs, so it is left out.
 var mockMergeStrategies = []MergeStrategyType{NoMerge, ShallowMerge, DeepMergeMapOnly}
 
+// maxBlockNesting bounds the block nesting the reference walk descends into.
+const maxBlockNesting = 32
+
 // OutputsConfig is the outputs block of a unit. It declares the outputs the unit emits, each with the mock value
 // its dependents read while the unit's state holds no outputs, and the strategy that says when mocks apply.
 //
@@ -252,40 +255,68 @@ func (r *DependencyOutputReference) Address() string {
 	return hclparse.InstanceKey{EachKey: r.Instance}.Address(r.Dependency)
 }
 
-// DependencyOutputReferences returns every reference in file to a named output of a dependency, in source order.
+// DependencyOutputReferences returns every reference in file to a named output of a dependency, in source order,
+// given the dependency blocks the file resolves against: a reference to a dependency that declares an expansion
+// names one instance, and one to any other dependency names the dependency whole. Each step may be spelled as an
+// attribute or as a literal string index, so `dependency["vpc"].outputs["vpc_id"]` is `dependency.vpc.outputs.vpc_id`.
 // A reference whose output name or instance key is not a literal, such as `dependency.vpc.outputs[local.key]` or
-// `dependency.rds[local.name].outputs.endpoint`, is left out, as is a reference to the outputs object as a whole.
-// A JSON config has no traversals to walk and yields none.
+// `dependency.rds[local.name].outputs.endpoint`, is left out, as is a reference to the outputs object as a whole
+// and a reference through a variable a for expression binds. A JSON config has no traversals to walk and yields
+// none.
 //
-// Returns the diagnostics of the walk as an error when it reports any.
-func DependencyOutputReferences(file *hclparse.File) ([]DependencyOutputReference, error) {
+// Returns [BlockNestingExceededError] when the blocks of file nest deeper than the walk descends.
+func DependencyOutputReferences(
+	file *hclparse.File,
+	dependencies Dependencies,
+) ([]DependencyOutputReference, error) {
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
 		return nil, nil
 	}
 
-	var refs []DependencyOutputReference
-
-	diags := hclsyntax.VisitAll(body, func(node hclsyntax.Node) hcl.Diagnostics {
-		expr, ok := node.(*hclsyntax.ScopeTraversalExpr)
-		if !ok {
-			return nil
-		}
-
-		if ref, ok := dependencyOutputReference(expr.Traversal); ok {
-			refs = append(refs, ref)
-		}
-
-		return nil
-	})
-	if diags.HasErrors() {
-		return nil, diags
+	refs, err := bodyDependencyOutputReferences(file.ConfigPath, body, dependencies.expandedLabels(), 0, nil)
+	if err != nil {
+		return nil, err
 	}
 
-	// The walk visits the attributes of a body in map order, so sort by position for a stable report.
+	// The attributes of a body are visited in map order, so sort by position for a stable report.
 	slices.SortFunc(refs, func(a, b DependencyOutputReference) int {
 		return cmp.Compare(a.Range.Start.Byte, b.Range.Start.Byte)
 	})
+
+	return refs, nil
+}
+
+// bodyDependencyOutputReferences appends the references of the attributes of body, and of the bodies of its
+// blocks, to refs. It reads the variables of each attribute, which leave out the names a for expression binds, so
+// a loop variable named dependency is not read as the dependency object.
+func bodyDependencyOutputReferences(
+	configPath string,
+	body *hclsyntax.Body,
+	expanded map[string]struct{},
+	depth int,
+	refs []DependencyOutputReference,
+) ([]DependencyOutputReference, error) {
+	if depth > maxBlockNesting {
+		return nil, BlockNestingExceededError{ConfigPath: configPath, Limit: maxBlockNesting}
+	}
+
+	for _, attr := range body.Attributes {
+		for _, traversal := range attr.Expr.Variables() {
+			if ref, ok := dependencyOutputReference(traversal, expanded); ok {
+				refs = append(refs, ref)
+			}
+		}
+	}
+
+	for _, block := range body.Blocks {
+		var err error
+
+		refs, err = bodyDependencyOutputReferences(configPath, block.Body, expanded, depth+1, refs)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return refs, nil
 }
@@ -319,24 +350,33 @@ func OutputDeclarationRanges(file *hclparse.File) map[string]hcl.Range {
 	return ranges
 }
 
-// dependencyOutputReference reads traversal as `dependency.<name>[<key>].outputs.<output>`, where the instance key
-// is optional and the output may be an attribute or a literal string index.
-func dependencyOutputReference(traversal hcl.Traversal) (DependencyOutputReference, bool) {
+// dependencyOutputReference reads traversal as `dependency.<name>.outputs.<output>`, or as
+// `dependency.<name>.<key>.outputs.<output>` when name is in expanded, the labels of the dependency blocks that
+// declare an expansion. Every step may be an attribute or a literal string index, and the instance key may also
+// be a whole number index.
+func dependencyOutputReference(
+	traversal hcl.Traversal,
+	expanded map[string]struct{},
+) (DependencyOutputReference, bool) {
 	if traversal.RootName() != MetadataDependency {
 		return DependencyOutputReference{}, false
 	}
 
-	name, rest, ok := attributeStep(traversal[1:])
+	name, rest, ok := keyStep(traversal[1:])
 	if !ok {
 		return DependencyOutputReference{}, false
 	}
 
-	instance, rest, ok := instanceStep(rest)
-	if !ok {
-		return DependencyOutputReference{}, false
+	var instance *string
+
+	if _, isExpanded := expanded[name]; isExpanded {
+		instance, rest, ok = instanceStep(rest)
+		if !ok {
+			return DependencyOutputReference{}, false
+		}
 	}
 
-	outputs, rest, ok := attributeStep(rest)
+	outputs, rest, ok := keyStep(rest)
 	if !ok || outputs != "outputs" {
 		return DependencyOutputReference{}, false
 	}
@@ -354,35 +394,47 @@ func dependencyOutputReference(traversal hcl.Traversal) (DependencyOutputReferen
 	}, true
 }
 
-// instanceStep returns the instance key the index step at the head of steps addresses, as the dependency map keys
-// it, and the steps after it. It returns no key and steps unchanged when steps starts with no index step, and
-// reports false for an index whose key is not a string or a whole number.
+// instanceStep returns the instance key the step at the head of steps addresses, as the dependency map keys it,
+// and the steps after it: an attribute name, or a string or whole number index. Any other step is not literal.
 func instanceStep(steps hcl.Traversal) (*string, hcl.Traversal, bool) {
 	if len(steps) == 0 {
-		return nil, steps, true
-	}
-
-	index, ok := steps[0].(hcl.TraverseIndex)
-	if !ok {
-		return nil, steps, true
-	}
-
-	if index.Key.IsNull() {
 		return nil, nil, false
 	}
 
-	switch {
-	case index.Key.Type().Equals(cty.String):
-		return new(index.Key.AsString()), steps[1:], true
-	case index.Key.Type().Equals(cty.Number):
-		whole, accuracy := index.Key.AsBigFloat().Int64()
-		if accuracy != big.Exact {
+	switch step := steps[0].(type) {
+	case hcl.TraverseAttr:
+		return new(step.Name), steps[1:], true
+	case hcl.TraverseIndex:
+		key, ok := literalInstanceKey(step.Key)
+		if !ok {
 			return nil, nil, false
 		}
 
-		return new(strconv.FormatInt(whole, 10)), steps[1:], true
+		return new(key), steps[1:], true
 	default:
 		return nil, nil, false
+	}
+}
+
+// literalInstanceKey returns key as the dependency map keys an instance: a string as is, and a whole number in
+// decimal. Any other key is not literal.
+func literalInstanceKey(key cty.Value) (string, bool) {
+	if key.IsNull() {
+		return "", false
+	}
+
+	switch {
+	case key.Type().Equals(cty.String):
+		return key.AsString(), true
+	case key.Type().Equals(cty.Number):
+		whole, accuracy := key.AsBigFloat().Int64()
+		if accuracy != big.Exact {
+			return "", false
+		}
+
+		return strconv.FormatInt(whole, 10), true
+	default:
+		return "", false
 	}
 }
 
@@ -430,21 +482,72 @@ func mergeDeclaredMockValues(declared, overrides *cty.Value) *cty.Value {
 		return overrides
 	}
 
-	if overrides.IsNull() || !overrides.IsKnown() {
+	overrideValues, ok := mockValueMap(overrides)
+	if !ok {
 		return overrides
 	}
 
-	if overridesType := overrides.Type(); !overridesType.IsObjectType() && !overridesType.IsMapType() {
-		return overrides
-	}
-
-	merged := make(map[string]cty.Value, declared.LengthInt()+overrides.LengthInt())
+	merged := make(map[string]cty.Value, declared.LengthInt()+len(overrideValues))
 	maps.Copy(merged, declared.AsValueMap())
-	maps.Copy(merged, overrides.AsValueMap())
+	maps.Copy(merged, overrideValues)
 
 	object := cty.ObjectVal(merged)
 
 	return &object
+}
+
+// mockValueMap returns the entries of mocks, a mock_outputs value, by key, each carrying the marks of mocks as a
+// whole, so the entries of a sensitive() object stay sensitive on their own. It reports false when mocks is not a
+// known object or map, which no mock merge reads by key.
+func mockValueMap(mocks *cty.Value) (map[string]cty.Value, bool) {
+	if mocks == nil || mocks.IsNull() || !mocks.IsKnown() {
+		return nil, false
+	}
+
+	if mocksType := mocks.Type(); !mocksType.IsObjectType() && !mocksType.IsMapType() {
+		return nil, false
+	}
+
+	unmarked, marks := mocks.Unmark()
+	values := unmarked.AsValueMap()
+
+	if len(marks) == 0 {
+		return values, true
+	}
+
+	for key, value := range values {
+		values[key] = value.WithMarks(marks)
+	}
+
+	return values, true
+}
+
+// expandedLabels returns the labels of the dependency blocks that declare an expansion, whose references name
+// one instance.
+func (deps Dependencies) expandedLabels() map[string]struct{} {
+	expanded := map[string]struct{}{}
+
+	for i := range deps {
+		if deps[i].Expansion != nil {
+			expanded[deps[i].Name] = struct{}{}
+		}
+	}
+
+	return expanded
+}
+
+// BlockNestingExceededError reports a config file whose blocks nest deeper than the reference walk descends.
+type BlockNestingExceededError struct {
+	ConfigPath string
+	Limit      int
+}
+
+func (err BlockNestingExceededError) Error() string {
+	return fmt.Sprintf(
+		"%s nests blocks more than %d levels deep. Flatten the nested blocks.",
+		err.ConfigPath,
+		err.Limit,
+	)
 }
 
 // OutputsBlockRequiresExperimentError reports an outputs block read without the outputs-block experiment.

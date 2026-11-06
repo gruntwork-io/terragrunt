@@ -908,7 +908,7 @@ inputs = {
 	planWithExperiment := func(pctx *pkgconfig.ParsingContext) {
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-		pctx.OriginalTerraformCommand = "plan"
+		pctx.OriginalTofuCommand = "plan"
 	}
 
 	testCases := []struct {

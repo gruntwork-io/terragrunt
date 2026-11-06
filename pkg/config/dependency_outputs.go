@@ -114,9 +114,10 @@ func checkDeclaredOutputs(
 
 	var mocks map[string]cty.Value
 
-	if dep.shouldMergeMockOutputsWithState(pctx) && dep.MockOutputs != nil &&
-		!dep.MockOutputs.IsNull() && dep.MockOutputs.IsKnown() && dep.MockOutputs.CanIterateElements() {
-		mocks = dep.MockOutputs.AsValueMap()
+	if dep.shouldMergeMockOutputsWithState(pctx) {
+		if values, ok := mockValueMap(dep.MockOutputs); ok {
+			mocks = values
+		}
 	}
 
 	for _, name := range declared.Names() {

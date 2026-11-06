@@ -3,6 +3,7 @@ package validate
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -30,8 +31,9 @@ const (
 
 // validateOutputsContracts checks the outputs contracts of the unit at opts.TerragruntConfigPath under the
 // outputs-block experiment: every output its outputs block declares exists in its OpenTofu/Terraform module, and
-// every dependency output it reads is declared by the dependency, when that dependency declares outputs. It
-// collects a diagnostic per failed check and does nothing when the experiment is off.
+// every dependency output it reads, in its own file or in a file it merges or exposes, is declared by the
+// dependency, when that dependency declares outputs. It collects a diagnostic per failed check, against the file
+// that holds the reference, and does nothing when the experiment is off.
 func (p ComponentParser) validateOutputsContracts(
 	ctx context.Context,
 	l log.Logger,
@@ -69,7 +71,61 @@ func (p ComponentParser) validateOutputsContracts(
 		return err
 	}
 
-	return p.Collector.keep(file.File, append(diags, referenceDiags...))
+	if err := p.Collector.keep(file.File, append(diags, referenceDiags...)); err != nil {
+		return err
+	}
+
+	includedPaths, err := includedFiles(v.FS, opts.TerragruntConfigPath, cfg)
+	if err != nil {
+		return err
+	}
+
+	for _, includedPath := range includedPaths {
+		included, err := pctx.NewParser(l, v).ParseFromFile(v.FS, includedPath)
+		if err != nil {
+			return err
+		}
+
+		includedDiags, err := dependencyOutputReferenceDiagnostics(ctx, l, v, pctx, cfg, included)
+		if err != nil {
+			return err
+		}
+
+		if err := p.Collector.keep(included.File, includedDiags); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// includedFiles returns the files the unit at configPath evaluates besides its own: the files of its include
+// blocks that it merges or exposes, in label order, and the sibling autoinclude file when there is one. An
+// include with the no_merge strategy that is not exposed is never evaluated, so its references are not checked.
+func includedFiles(fsys vfs.FS, configPath string, cfg *config.TerragruntConfig) ([]string, error) {
+	paths := make([]string, 0, len(cfg.ProcessedIncludes)+1)
+
+	for _, name := range slices.Sorted(maps.Keys(cfg.ProcessedIncludes)) {
+		include := cfg.ProcessedIncludes[name]
+
+		strategy, err := include.GetMergeStrategy()
+		if err != nil {
+			return nil, err
+		}
+
+		if strategy == config.NoMerge && !include.GetExpose() {
+			continue
+		}
+
+		paths = append(paths, include.Path)
+	}
+
+	autoInclude := filepath.Join(filepath.Dir(configPath), config.DefaultAutoIncludeFile)
+	if vfs.Exists(fsys, autoInclude) {
+		paths = append(paths, autoInclude)
+	}
+
+	return paths, nil
 }
 
 // declaredOutputsDiagnostics reports each output the unit declares that its OpenTofu/Terraform module does not.
@@ -168,7 +224,7 @@ func dependencyOutputReferenceDiagnostics(
 	cfg *config.TerragruntConfig,
 	file *hclparse.File,
 ) (hcl.Diagnostics, error) {
-	references, err := config.DependencyOutputReferences(file)
+	references, err := config.DependencyOutputReferences(file, cfg.TerragruntDependencies)
 	if err != nil {
 		return nil, err
 	}
