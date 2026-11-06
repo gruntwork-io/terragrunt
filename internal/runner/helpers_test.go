@@ -94,7 +94,7 @@ func TestBuildUnitOpts_WithDiscoveryContext(t *testing.T) {
 	assert.Equal(
 		t,
 		tf.CommandNamePlan,
-		unitOpts.TerraformCommand,
+		unitOpts.TofuCommand,
 		"the discovery context command overrides the stack command",
 	)
 }
@@ -251,7 +251,7 @@ func newStackOpts(t *testing.T, root, command string) *options.TerragruntOptions
 
 	opts.WorkingDir = root
 	opts.RootWorkingDir = root
-	opts.TerraformCommand = command
+	opts.TofuCommand = command
 	opts.TerraformCliArgs = iacargs.New(command)
 
 	return opts

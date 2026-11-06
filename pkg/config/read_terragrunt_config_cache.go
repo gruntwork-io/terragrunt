@@ -137,7 +137,7 @@ type ReadTerragruntConfigKey struct {
 	TerragruntStackConfigPath string
 	ConfigPath                string
 	TerraformCommand          string
-	OriginalTerraformCommand  string
+	OriginalTofuCommand       string
 	Source                    string
 	DownloadDir               string
 	OriginalIAMRoleOptions    iam.RoleOptions
@@ -188,7 +188,7 @@ func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext) ReadTerragru
 		OriginalIAMRoleOptions:    pctx.OriginalIAMRoleOptions,
 		ConfigPath:                pctx.TerragruntConfigPath,
 		TerraformCommand:          pctx.TerraformCommand,
-		OriginalTerraformCommand:  pctx.OriginalTerraformCommand,
+		OriginalTofuCommand:       pctx.OriginalTofuCommand,
 		Source:                    pctx.Source,
 		DownloadDir:               pctx.DownloadDir,
 		TerragruntStackConfigPath: pctx.TerragruntStackConfigPath,

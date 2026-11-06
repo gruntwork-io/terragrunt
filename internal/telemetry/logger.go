@@ -57,7 +57,7 @@ func NewLogger(
 	return &Logger{
 		provider: provider,
 		exporter: exporter,
-		hook:     newOtelLogHook(appName, provider),
+		hook:     newOtelLogHook(appName, appVersion, provider),
 	}, nil
 }
 

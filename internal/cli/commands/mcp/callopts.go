@@ -166,8 +166,8 @@ func buildUnitOptions(
 	opts.Experiments = d.baseOpts.Experiments
 	opts.StrictControls = d.baseOpts.StrictControls
 	opts.TerragruntVersion = d.tgVersion
-	opts.TerraformCommand = command
-	opts.OriginalTerraformCommand = command
+	opts.TofuCommand = command
+	opts.OriginalTofuCommand = command
 	opts.TerraformCliArgs = iacargs.New(append([]string{command}, cliArgs...)...)
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
 

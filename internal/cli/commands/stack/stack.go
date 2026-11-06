@@ -142,7 +142,7 @@ func RunOutput(
 	index string,
 ) error {
 	opts.StackAction = "output"
-	opts.TerraformCommand = "output" // required for discovery exclude action matching in StackOutput
+	opts.TofuCommand = "output" // required for discovery exclude action matching in StackOutput
 
 	var outputs cty.Value
 

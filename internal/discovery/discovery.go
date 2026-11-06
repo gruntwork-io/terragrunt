@@ -905,7 +905,7 @@ func (d *Discovery) applyExcludeModules(
 			continue
 		}
 
-		if !cfg.Exclude.Excludes(opts.TerraformCliArgs.CommandName(opts.TerraformCommand)) {
+		if !cfg.Exclude.Excludes(opts.TerraformCliArgs.CommandName(opts.TofuCommand)) {
 			continue
 		}
 

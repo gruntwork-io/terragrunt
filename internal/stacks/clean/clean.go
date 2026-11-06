@@ -14,7 +14,7 @@ import (
 // CleanStacks removes stack directories within the specified working directory, unless the command is a destroy.
 // It returns an error if any issues occur during the deletion process, or nil if successful.
 func CleanStacks(l log.Logger, fsys vfs.FS, opts *options.TerragruntOptions) error {
-	if opts.TerraformCliArgs.IsDestroy(opts.TerraformCommand) {
+	if opts.TerraformCliArgs.IsDestroy(opts.TofuCommand) {
 		l.Debugf("Skipping stack clean for %s, as part of delete command", opts.WorkingDir)
 		return nil
 	}
