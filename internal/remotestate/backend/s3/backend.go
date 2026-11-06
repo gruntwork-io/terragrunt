@@ -33,6 +33,7 @@ func NewBackend() *Backend {
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist
+// 3. The S3 bucket exists but is missing settings that Bootstrap would update
 func (backend *Backend) NeedsBootstrap(
 	ctx context.Context,
 	l log.Logger,
@@ -72,6 +73,21 @@ func (backend *Backend) NeedsBootstrap(
 		); err != nil ||
 			!exists {
 			return true, err
+		}
+	}
+
+	// An existing bucket can still lack settings Bootstrap would apply (e.g. the bucket policy).
+	// Credentials that cannot read those settings must not break runs that worked before, so errors only log.
+	if !extS3Cfg.DisableBucketUpdate && !backend.IsConfigInited(&extS3Cfg.RemoteStateConfigS3) {
+		needsUpdate, _, err := client.checkIfS3BucketNeedsUpdate(ctx, l, bucketName)
+		if err != nil {
+			l.Debugf("Could not check whether S3 bucket %s needs an update, skipping: %v", bucketName, err)
+
+			return false, nil
+		}
+
+		if needsUpdate {
+			return true, nil
 		}
 	}
 

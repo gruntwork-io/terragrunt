@@ -1,12 +1,19 @@
 package s3_test
 
 import (
+	"fmt"
+	"maps"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -288,4 +295,110 @@ func TestBackend_NeedsBootstrapSkipBucketRootAccessStrictControl(t *testing.T) {
 	)
 
 	require.ErrorIs(t, err, ctrl.Error)
+}
+
+// fakeS3Bucket serves the bucket-level S3 calls NeedsBootstrap makes for one existing bucket.
+func fakeS3Bucket(t *testing.T, bucket, policy string) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimSuffix(r.URL.Path, "/") != "/"+bucket {
+			http.NotFound(w, r)
+			return
+		}
+
+		q := r.URL.Query()
+
+		switch {
+		case r.Method == http.MethodHead:
+			w.WriteHeader(http.StatusOK)
+		case q.Has("versioning"):
+			fmt.Fprint(w, `<VersioningConfiguration><Status>Enabled</Status></VersioningConfiguration>`)
+		case q.Has("encryption"):
+			fmt.Fprint(w, `<ServerSideEncryptionConfiguration><Rule><ApplyServerSideEncryptionByDefault>`+
+				`<SSEAlgorithm>aws:kms</SSEAlgorithm></ApplyServerSideEncryptionByDefault></Rule></ServerSideEncryptionConfiguration>`)
+		case q.Has("publicAccessBlock"):
+			fmt.Fprint(w, `<PublicAccessBlockConfiguration><BlockPublicAcls>true</BlockPublicAcls>`+
+				`<IgnorePublicAcls>true</IgnorePublicAcls><BlockPublicPolicy>true</BlockPublicPolicy>`+
+				`<RestrictPublicBuckets>true</RestrictPublicBuckets></PublicAccessBlockConfiguration>`)
+		case q.Has("policy"):
+			if policy == "denied" {
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`)
+
+				return
+			}
+
+			if policy == "" {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprint(w, `<Error><Code>NoSuchBucketPolicy</Code><Message>The bucket policy does not exist</Message></Error>`)
+
+				return
+			}
+
+			fmt.Fprint(w, policy)
+		default:
+			http.Error(w, "unexpected request "+r.URL.String(), http.StatusNotImplemented)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func TestBackend_NeedsBootstrapExistingBucketOutOfDate(t *testing.T) {
+	t.Parallel()
+
+	const bucket = "tg-state-store"
+
+	enforcedTLSPolicy := `{"Version":"2012-10-17","Statement":[{"Sid":"` + s3backend.SidEnforcedTLSPolicy +
+		`","Effect":"Deny","Principal":"*","Action":"s3:*","Resource":"*"}]}`
+
+	testCases := []struct {
+		extraConfig backend.Config
+		name        string
+		policy      string
+		expected    bool
+	}{
+		{name: "missing-enforced-tls-policy", expected: true},
+		{name: "up-to-date", policy: enforcedTLSPolicy, expected: false},
+		{
+			name:        "missing-root-access-policy",
+			extraConfig: backend.Config{"enable_bucket_root_access": true},
+			policy:      enforcedTLSPolicy,
+			expected:    true,
+		},
+		{name: "policy-not-readable", policy: "denied", expected: false},
+		{name: "skip-enforced-tls", extraConfig: backend.Config{"skip_bucket_enforced_tls": true}, expected: false},
+		{name: "disable-bucket-update", extraConfig: backend.Config{"disable_bucket_update": true}, expected: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := fakeS3Bucket(t, bucket, tc.policy)
+
+			config := backend.Config{
+				"bucket":                      bucket,
+				"key":                         "terraform.tfstate",
+				"region":                      "us-east-1",
+				"endpoints":                   map[string]any{"s3": srv.URL},
+				"force_path_style":            true,
+				"skip_credentials_validation": true,
+			}
+			maps.Copy(config, tc.extraConfig)
+
+			v := venvtest.New().
+				WithHTTP(vhttp.NewOSClient()).
+				WithEnv(map[string]string{
+					"AWS_ACCESS_KEY_ID":     "test-key",
+					"AWS_SECRET_ACCESS_KEY": "test-secret",
+				})
+
+			needs, err := s3backend.NewBackend().NeedsBootstrap(t.Context(), logger.CreateLogger(), v, config, &backend.Options{})
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, needs)
+		})
+	}
 }
