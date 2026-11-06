@@ -50,7 +50,7 @@ func TestProviderDirectAWSCredentials(t *testing.T) {
 
 		return vexec.Result{Stdout: []byte(`{
             "awsCredentials": {
-                "ACCESS_KEY_ID": "AKIA111",
+                "ACCESS_KEY_ID": "fake-access-key-id",
                 "SECRET_ACCESS_KEY": "secret-xyz",
                 "SESSION_TOKEN": "session-abc"
             }
@@ -66,7 +66,7 @@ func TestProviderDirectAWSCredentials(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, creds)
 	assert.Equal(t, providers.AWSCredentials, creds.Name)
-	assert.Equal(t, "AKIA111", creds.Envs["AWS_ACCESS_KEY_ID"])
+	assert.Equal(t, "fake-access-key-id", creds.Envs["AWS_ACCESS_KEY_ID"])
 	assert.Equal(t, "secret-xyz", creds.Envs["AWS_SECRET_ACCESS_KEY"])
 	assert.Equal(t, "session-abc", creds.Envs["AWS_SESSION_TOKEN"])
 	assert.Equal(

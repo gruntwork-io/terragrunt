@@ -104,7 +104,7 @@ describe("redact", () => {
   });
 
   test("removes the value assigned to a secret-ish name, keeping the name", () => {
-    expect(redact("password=hunter2")).toBe("password=[redacted]");
+    expect(redact("password=fake-password")).toBe("password=[redacted]");
     expect(redact("api_key: abc123")).toBe("api_key: [redacted]");
     expect(redact("TOKEN = xyz")).toBe("TOKEN = [redacted]");
   });
@@ -245,7 +245,7 @@ describe("createSearchTracker", () => {
 
   test("reports a redacted query, measured at the length the reader typed", () => {
     const { tracker, captured } = makeTracker();
-    const typed = "reset password=hunter2";
+    const typed = "reset password=fake-password";
 
     tracker.open("button");
     tracker.recordQuery(typed, 3);

@@ -221,7 +221,7 @@ func (p ComponentParser) Stack(
 	// run the strict autoinclude parse `stack generate` uses. It no-ops unless
 	// the stack-dependencies experiment is enabled and the config declares
 	// autoinclude.
-	autoIncludeErr := config.ValidateStackAutoIncludes(
+	_, autoIncludeErr := config.StackAutoIncludes(
 		ctx, l, v, parser, stackFilePath, stackCfg, values,
 	)
 	if autoIncludeErr != nil {

@@ -130,7 +130,7 @@ func TestNewFromComponents_WithPreventDestroy(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	l := thlogger.CreateLogger()
 
@@ -172,7 +172,7 @@ func TestNewFromComponents_FilterAllowDestroy(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = "apply"
+	opts.TofuCommand = "apply"
 	opts.FilterAllowDestroy = false
 
 	l := thlogger.CreateLogger()
@@ -217,7 +217,7 @@ func TestNewFromComponents_PreventDestroyExcludesDependencies(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
 		config.WithCaches(t.Context()),
@@ -240,7 +240,7 @@ func TestNewFromComponents_DestroyWithoutProtectedUnits(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
 		config.WithCaches(t.Context()),
@@ -265,7 +265,7 @@ func TestNewFromComponents_FilterAllowDestroyKeepsUnit(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = "apply"
+	opts.TofuCommand = "apply"
 	opts.FilterAllowDestroy = true
 
 	rnr, err := runner.NewFromComponents(
@@ -381,7 +381,7 @@ func TestNewFromComponents_PreventDestroyWalksTheDependencyGraph(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 			require.NoError(t, err)
 
-			opts.TerraformCommand = tf.CommandNameDestroy
+			opts.TofuCommand = tf.CommandNameDestroy
 
 			rnr, err := runner.NewFromComponents(
 				config.WithCaches(t.Context()),
@@ -434,7 +434,7 @@ func TestNewFromComponents_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
 		config.WithCaches(t.Context()),
@@ -569,7 +569,7 @@ func TestNewFromComponents_FilterAllowDestroyWithoutDiscoveryContext(t *testing.
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = "plan"
+	opts.TofuCommand = "plan"
 
 	rnr, err := runner.NewFromComponents(
 		config.WithCaches(t.Context()),

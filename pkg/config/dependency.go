@@ -254,7 +254,7 @@ func (dep *Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, ctx.OriginalTerraformCommand)
+			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, ctx.OriginalTofuCommand)
 
 	return allowedCommand && dep.getMockOutputsMergeStrategy() != NoMerge
 }
@@ -1231,7 +1231,7 @@ func (dep *Dependency) shouldReturnMockOutputs(pctx *ParsingContext) bool {
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, pctx.OriginalTerraformCommand)
+			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, pctx.OriginalTofuCommand)
 
 	return defaultOutputsSet && allowedCommand || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 }
@@ -2781,7 +2781,7 @@ func RunOptionsFromParsingContext(pctx *ParsingContext) *run.Options {
 	runOpts.Source = pctx.Source
 	runOpts.SourceMap = pctx.SourceMap
 	runOpts.TerraformCommand = pctx.TerraformCommand
-	runOpts.OriginalTerraformCommand = pctx.OriginalTerraformCommand
+	runOpts.OriginalTofuCommand = pctx.OriginalTofuCommand
 	runOpts.TerraformCliArgs = pctx.TerraformCliArgs
 	runOpts.IAMRoleOptions = pctx.IAMRoleOptions
 	runOpts.OriginalIAMRoleOptions = pctx.OriginalIAMRoleOptions

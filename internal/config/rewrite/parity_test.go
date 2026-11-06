@@ -68,7 +68,7 @@ func TestParityFixturesSkipOutput(t *testing.T) {
 				cfgPath: fixture.path,
 				configure: func(pctx *pkgconfig.ParsingContext) {
 					pctx.SkipOutput = true
-					pctx.OriginalTerraformCommand = "plan"
+					pctx.OriginalTofuCommand = "plan"
 				},
 			})
 		})
@@ -674,7 +674,7 @@ dependency "vpc" {
 						pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 					}
 
-					pctx.OriginalTerraformCommand = tc.command
+					pctx.OriginalTofuCommand = tc.command
 					pctx.Values = tc.values
 				},
 			})

@@ -24,11 +24,20 @@ const (
 	CapabilitySops Capability = "sops"
 	// CapabilityEnv lets tool calls see the server's environment variables.
 	CapabilityEnv Capability = "env"
+	// CapabilityDocs lets the server relay the tools and resources of the
+	// Terragrunt docs MCP server.
+	CapabilityDocs Capability = "docs"
 )
 
 // allCapabilities is every capability --allow accepts, in the order the error
 // for an unknown one lists them.
-var allCapabilities = []Capability{CapabilityExec, CapabilityHTTP, CapabilitySops, CapabilityEnv}
+var allCapabilities = []Capability{
+	CapabilityExec,
+	CapabilityHTTP,
+	CapabilitySops,
+	CapabilityEnv,
+	CapabilityDocs,
+}
 
 // Capabilities is the set an operator granted.
 type Capabilities map[Capability]bool

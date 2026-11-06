@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -329,11 +328,7 @@ func execCmdline(inv *vexec.Invocation) string {
 	words = append(words, inv.Name)
 
 	for _, arg := range inv.Args {
-		if strings.Contains(arg, "://") {
-			arg = redact.NewURL(arg).String()
-		}
-
-		words = append(words, arg)
+		words = append(words, redactAddress(arg))
 	}
 
 	return tui.SanitizeLabel(strings.TrimSpace(strings.Join(words, " ")))

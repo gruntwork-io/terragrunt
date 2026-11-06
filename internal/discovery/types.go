@@ -178,6 +178,10 @@ type Discovery struct {
 	// parse-required filters at activation) runs it. Surfaced on telemetry.
 	parseReasons []parseReason
 
+	// inputsReads collects the file reads found in inputs attributes while trackReads is on,
+	// for the tip Discover gives.
+	inputsReads inputsReads
+
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
 

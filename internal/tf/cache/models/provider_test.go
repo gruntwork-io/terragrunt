@@ -174,7 +174,7 @@ func TestFilenameFromURL(t *testing.T) {
 		},
 		{
 			name:     "signed S3 URL with query string",
-			input:    "https://s3.amazonaws.com/bucket/terraform-provider-aws_5.0.0_linux_amd64.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404",
+			input:    "https://s3.amazonaws.com/bucket/terraform-provider-aws_5.0.0_linux_amd64.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=fake-access-key-id%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=fake-signature",
 			expected: "terraform-provider-aws_5.0.0_linux_amd64.zip",
 		},
 		{

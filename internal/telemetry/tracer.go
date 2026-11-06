@@ -108,7 +108,7 @@ func NewTracer(
 	}
 
 	tracer := &Tracer{
-		Tracer:           provider.Tracer(appName),
+		Tracer:           provider.Tracer(appName, trace.WithInstrumentationVersion(appVersion)),
 		provider:         provider,
 		spanExporter:     spanExporter,
 		parentTraceID:    parentTraceID,

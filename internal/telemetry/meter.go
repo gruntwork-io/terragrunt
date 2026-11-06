@@ -66,7 +66,7 @@ func NewMeter(
 	otel.SetMeterProvider(provider)
 
 	meter := &Meter{
-		Meter:    otel.GetMeterProvider().Meter(appName),
+		Meter:    provider.Meter(appName, otelmetric.WithInstrumentationVersion(appVersion)),
 		provider: provider,
 		exporter: exporter,
 	}

@@ -67,7 +67,7 @@ func discoverPathsToCheck(
 		uniquePaths[filepath.Dir(includePath.Path)] = true
 	}
 
-	var pathsToCheck []string
+	pathsToCheck := make([]string, 0, len(uniquePaths))
 	for path := range uniquePaths {
 		pathsToCheck = append(pathsToCheck, path)
 	}
@@ -94,7 +94,7 @@ func findMatchingUnitsInPath(
 	}
 
 	cfgOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-	cfgOpts.TerraformCommand = opts.TerraformCommand
+	cfgOpts.TofuCommand = opts.TofuCommand
 	cfgOpts.TerraformCliArgs = opts.TerraformCliArgs
 	cfgOpts.CheckDependentUnits = opts.CheckDependentUnits
 	cfgOpts.NonInteractive = true

@@ -421,7 +421,7 @@ func TestNoDotTerragruntCacheRequiresExperimentError(t *testing.T) {
 func TestNoDotTerragruntCacheWithSourceError(t *testing.T) {
 	t.Parallel()
 
-	const rawSource = "git::https://user:ghp_SECRETTOKEN@github.com/org/repo.git"
+	const rawSource = "git::https://user:fake-token@github.com/org/repo.git"
 
 	err := runcfg.NoDotTerragruntCacheWithSourceError{Source: rawSource}
 
@@ -430,7 +430,7 @@ func TestNoDotTerragruntCacheWithSourceError(t *testing.T) {
 	assert.Equal(t, rawSource, target.Source, "raw source is preserved for callers that inspect it")
 
 	errorMsg := err.Error()
-	assert.NotContains(t, errorMsg, "ghp_SECRETTOKEN", "credentials must not leak into the error message")
+	assert.NotContains(t, errorMsg, "fake-token", "credentials must not leak into the error message")
 	assert.NotContains(t, errorMsg, "user:")
 	assert.Contains(t, errorMsg, "github.com/org/repo.git")
 	assert.Contains(t, errorMsg, "no_dot_terragrunt_cache")
