@@ -1791,3 +1791,107 @@ include "root" {
 		})
 	}
 }
+
+// TestPartialParseExposedIncludeReferencingDependencyOfChild pins that discovery can still read an exposed include whose
+// only reference to `dependency` is to a block declared in the including unit. Discovery has no outputs, so attributes
+// that must decode to a known value can't be evaluated, but they must not stop the unit from using the include's locals.
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/6831
+func TestPartialParseExposedIncludeReferencingDependencyOfChild(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		root string
+	}{
+		{
+			name: "generate contents with a conditional template",
+			root: `
+generate "gen" {
+  path      = "generated.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+%{ if try(dependency.dep.outputs.value, "") != "" }
+locals { from_dep = "${dependency.dep.outputs.value}" }
+%{ endif }
+EOF
+}
+`,
+		},
+		{
+			name: "generate contents with a direct reference",
+			root: `
+generate "gen" {
+  path      = "generated.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = "# ${try(dependency.dep.outputs.value, "")}"
+}
+`,
+		},
+		{
+			name: "hook arguments",
+			root: `
+terraform {
+  before_hook "echo" {
+    commands = ["plan"]
+    execute  = ["echo", try(dependency.dep.outputs.value, "")]
+  }
+}
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, rootDir := newMemTestDir(t)
+
+			files := map[string]string{
+				"root.hcl": `
+locals {
+  module_source = "../module"
+}
+` + tc.root,
+				filepath.Join("unit", "terragrunt.hcl"): `
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+  expose = true
+}
+
+terraform {
+  source = include.root.locals.module_source
+}
+
+dependency "dep" {
+  config_path = "../dep"
+
+  mock_outputs = {
+    value = "mocked"
+  }
+}
+`,
+			}
+
+			for name, contents := range files {
+				path := filepath.Join(rootDir, name)
+				require.NoError(t, v.FS.MkdirAll(filepath.Dir(path), 0o755))
+				require.NoError(t, vfs.WriteFile(v.FS, path, []byte(contents), 0o644))
+			}
+
+			unitPath := filepath.Join(rootDir, "unit", config.DefaultTerragruntConfigPath)
+			ctx, pctx := newTestParsingContext(t, unitPath)
+			pctx = pctx.WithDecodeList(config.TerraformSource, config.DependencyBlock).WithSkipOutputsResolution()
+
+			cfg, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, unitPath, nil)
+			require.NoError(t, err)
+
+			require.NotNil(t, cfg.Terraform)
+			require.NotNil(t, cfg.Terraform.Source)
+			assert.Equal(t, "../module", *cfg.Terraform.Source)
+
+			require.Len(t, cfg.TerragruntDependencies, 1)
+			assert.Equal(t, "dep", cfg.TerragruntDependencies[0].Name)
+		})
+	}
+}

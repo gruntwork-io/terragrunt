@@ -20,6 +20,7 @@ import (
 const (
 	testFixtureRegressions                       = "fixtures/regressions"
 	testFixtureDependencyGenerate                = "fixtures/regressions/dependency-generate"
+	testFixtureDependencyGenerateExposedInclude  = "fixtures/regressions/dependency-generate-exposed-include"
 	testFixtureDependencyEmptyConfigPath         = "fixtures/regressions/dependency-empty-config-path"
 	testFixtureDisabledDependencyEmptyConfigPath = "fixtures/regressions/disabled-dependency-empty-config-path"
 	testFixtureParsingDeprecated                 = "fixtures/parsing/exposed-include-with-deprecated-inputs"
