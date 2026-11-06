@@ -219,7 +219,7 @@ func renderExplainDenials(err error, rec *execRecorder) error {
 func renderSummarize(cfg *config.TerragruntConfig) *renderSummary {
 	s := &renderSummary{
 		IAMRole:        cfg.IamRole,
-		InputKeys:      slices.Sorted(maps.Keys(cfg.Inputs)),
+		InputKeys:      slices.Sorted(maps.Keys(cfg.ResolveInputs())),
 		GenerateBlocks: slices.Sorted(maps.Keys(cfg.GenerateConfigs)),
 	}
 

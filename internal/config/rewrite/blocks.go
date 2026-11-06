@@ -199,6 +199,19 @@ type GenerateBody struct {
 	Contents         string  `hcl:"contents,attr"`
 }
 
+// VariablesHCL is a variables block.
+type VariablesHCL struct {
+	Remain hcl.Body `hcl:",remain"`
+}
+
+// VariablesBody is decoded from [VariablesHCL.Remain].
+type VariablesBody struct {
+	Kind     *string   `hcl:"kind,attr"`
+	Nullable *bool     `hcl:"nullable,attr"`
+	Validate *bool     `hcl:"validate,attr"`
+	Inputs   cty.Value `hcl:"inputs,attr"`
+}
+
 // DependencyHCL is a dependency block. pkg/config decodes its body into [UnitConfig.DependencyConfigs].
 type DependencyHCL struct {
 	Remain hcl.Body `hcl:",remain"`

@@ -706,6 +706,50 @@ func (err DeepMergeRequiresExperimentError) Error() string {
 	)
 }
 
+// VariablesBlockRequiresExperimentError is returned when a config sets a variables block without the
+// variables-block experiment enabled.
+type VariablesBlockRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err VariablesBlockRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"the variables block in %s requires the 'variables-block' experiment; enable it with --experiment variables-block",
+		err.ConfigPath,
+	)
+}
+
+// InvalidVariablesKindError is returned when a variables block sets a kind Terragrunt does not know.
+type InvalidVariablesKindError struct {
+	ConfigPath string
+	Kind       string
+}
+
+func (err InvalidVariablesKindError) Error() string {
+	return fmt.Sprintf(
+		"the variables block in %s sets kind %q; valid kinds are %q, %q, and %q",
+		err.ConfigPath,
+		err.Kind,
+		VariablesKindEnv,
+		VariablesKindTFVar,
+		VariablesKindJSON,
+	)
+}
+
+// InvalidVariablesInputsError is returned when a variables block sets inputs to something other than a map.
+type InvalidVariablesInputsError struct {
+	ConfigPath string
+	Type       string
+}
+
+func (err InvalidVariablesInputsError) Error() string {
+	return fmt.Sprintf(
+		"the variables block in %s sets inputs to a %s; inputs must be a map of variable names to values",
+		err.ConfigPath,
+		err.Type,
+	)
+}
+
 // Base64GzipCompatRequiresExperimentError is returned when the base64gzip_compat HCL function
 // is called without the base64gzip-compat experiment enabled.
 type Base64GzipCompatRequiresExperimentError struct {

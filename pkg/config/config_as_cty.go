@@ -134,6 +134,15 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataInputs] = inputsCty
 	}
 
+	variablesCty, err := variablesBlocksAsCty(config.Variables)
+	if err != nil {
+		return cty.NilVal, fieldError(MetadataVariables, err)
+	}
+
+	if variablesCty != cty.NilVal {
+		output[MetadataVariables] = variablesCty
+	}
+
 	localsCty, err := convertToCtyWithJSON(config.Locals)
 	if err != nil {
 		return cty.NilVal, fieldError(MetadataLocals, err)
@@ -263,6 +272,15 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 
 	if err := wrapCtyMapWithMetadata(config, &config.Inputs, MetadataInputs, &output); err != nil {
 		return cty.NilVal, err
+	}
+
+	variablesCty, err := variablesBlocksAsCtyWithMetadata(config.Variables)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if variablesCty != cty.NilVal {
+		output[MetadataVariables] = variablesCty
 	}
 
 	if err := wrapCtyMapWithMetadata(config, &config.Locals, MetadataLocals, &output); err != nil {

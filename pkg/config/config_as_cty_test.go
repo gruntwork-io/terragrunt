@@ -143,6 +143,12 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			},
 		},
 		Exclude: &config.ExcludeConfig{},
+		Variables: []config.VariablesConfig{
+			{
+				Inputs: map[string]any{"name": "value"},
+				Kind:   config.VariablesKindTFVar,
+			},
+		},
 		Outputs: &config.OutputsConfig{
 			Outputs: []*config.OutputDeclaration{
 				{Name: "vpc_id", MockValue: &mockOutputs},
@@ -398,6 +404,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "iam_web_identity_token", true
 	case "Inputs":
 		return "inputs", true
+	case "Variables":
+		return "variables", true
 	case "Locals":
 		return "locals", true
 	case "TerragruntDependencies":
