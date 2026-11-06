@@ -1090,7 +1090,7 @@ variables {
 				cfgPath: filepath.Join(root, pkgconfig.DefaultTerragruntConfigPath),
 				configure: func(pctx *pkgconfig.ParsingContext) {
 					pctx.SkipOutput = true
-					pctx.OriginalTerraformCommand = "plan"
+					pctx.OriginalTofuCommand = "plan"
 
 					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VariablesBlock))
 				},

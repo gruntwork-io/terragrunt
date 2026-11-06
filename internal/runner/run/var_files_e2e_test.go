@@ -52,7 +52,15 @@ func TestRunWritesVarFilesToCacheDir(t *testing.T) {
 
 	require.NoError(
 		t,
-		run.Run(t.Context(), logger.CreateLogger(), v, newRunE2EOpts(t, s, "plan"), report.NewReport(), cfg, creds.NewGetter()),
+		run.Run(
+			t.Context(),
+			logger.CreateLogger(),
+			v,
+			newRunE2EOpts(t, s, "plan"),
+			report.NewReport(),
+			cfg,
+			creds.NewGetter(),
+		),
 	)
 
 	workingDir := cacheWorkingDir(t, s)
@@ -105,7 +113,15 @@ func TestRunWritesTFVarsThatParse(t *testing.T) {
 
 			require.NoError(
 				t,
-				run.Run(t.Context(), logger.CreateLogger(), v, newRunE2EOpts(t, s, "plan"), report.NewReport(), cfg, creds.NewGetter()),
+				run.Run(
+					t.Context(),
+					logger.CreateLogger(),
+					v,
+					newRunE2EOpts(t, s, "plan"),
+					report.NewReport(),
+					cfg,
+					creds.NewGetter(),
+				),
 			)
 
 			contents := files.contents[filepath.Join(cacheWorkingDir(t, s), run.TFVarsFile)]
@@ -144,7 +160,15 @@ func TestRunWritesVarFilesForOwnerOnly(t *testing.T) {
 
 	require.NoError(
 		t,
-		run.Run(t.Context(), logger.CreateLogger(), v, newRunE2EOpts(t, s, "plan"), report.NewReport(), cfg, creds.NewGetter()),
+		run.Run(
+			t.Context(),
+			logger.CreateLogger(),
+			v,
+			newRunE2EOpts(t, s, "plan"),
+			report.NewReport(),
+			cfg,
+			creds.NewGetter(),
+		),
 	)
 
 	workingDir := cacheWorkingDir(t, s)
@@ -201,7 +225,15 @@ func TestRunWritesVarFilesForInputsSetInEnv(t *testing.T) {
 
 	require.NoError(
 		t,
-		run.Run(t.Context(), logger.CreateLogger(), v, newRunE2EOpts(t, s, "plan"), report.NewReport(), cfg, creds.NewGetter()),
+		run.Run(
+			t.Context(),
+			logger.CreateLogger(),
+			v,
+			newRunE2EOpts(t, s, "plan"),
+			report.NewReport(),
+			cfg,
+			creds.NewGetter(),
+		),
 	)
 
 	workingDir := cacheWorkingDir(t, s)
