@@ -49,6 +49,37 @@ unit "app" {
 }
 ```
 
+#### Declaring file reads with `reading`
+
+When a unit autoinclude's `inputs` reads a file via `templatefile()` or `file()` whose arguments depend on `dependency.*.outputs.*`, the file read is invisible to `terragrunt find --reading` and `--filter reading=<file>`. The `reading` attribute declares these files so discovery assigns them to the generated unit. The attribute is supported only in unit autoincludes, not stack autoincludes:
+
+```hcl
+unit "render" {
+  source = "../catalog/units/echo"
+  path   = "render"
+
+  autoinclude {
+    reading = ["${get_terragrunt_dir()}/tpl/msg.tftpl"]
+
+    dependency "src" {
+      config_path  = unit.src.path
+      mock_outputs = { content = "mock" }
+    }
+
+    inputs = {
+      content = templatefile(
+        "${get_terragrunt_dir()}/tpl/msg.tftpl",
+        { v = dependency.src.outputs.content },
+      )
+    }
+  }
+}
+```
+
+Paths should use `get_terragrunt_dir()` so they resolve to absolute paths at generate time.
+
+Since: v1.2.2
+
 #### Dependencies on entire stacks
 
 ```hcl
