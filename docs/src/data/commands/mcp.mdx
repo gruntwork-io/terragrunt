@@ -171,6 +171,11 @@ dependencies, which boilerplate would download past the server's capabilities, o
 directory name, which can render to a path outside `output_folder`. It also refuses a source holding a symlink that
 leads out of it.
 
+Under [`--allow=docs`](/reference/cli/commands/mcp#allow), the server also relays the tools and resources of the
+[Terragrunt docs MCP server](/getting-started/install#terragrunt-docs-mcp-server), so an agent connected to
+`terragrunt mcp` can search the Terragrunt documentation without a second server configured. Each tool keeps its name
+on the docs server with a `docs_` prefix, e.g. `search_docs` is served as `docs_search_docs`.
+
 </Since>
 
 ### discover
@@ -287,11 +292,31 @@ it from. Each client decides where the file lives and how much of this shape it 
 
 The server denies every capability at startup, and grants each one separately:
 
+<Before version="v1.2.2">
+
 | Flag                                                                                | What it allows                                                   |
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | [`--allow`](/reference/cli/commands/mcp#allow)                                      | Any of `exec`, `http`, `sops`, or `env`. Repeat it for each one. |
 | [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd)                              | A command pattern a configuration may run                        |
 | [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply)  | The `apply` and `destroy` tools                                  |
+
+</Before>
+
+<Since version="v1.2.2">
+
+| Flag                                                                                | What it allows                                                           |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [`--allow`](/reference/cli/commands/mcp#allow)                                      | Any of `exec`, `http`, `sops`, `env`, or `docs`. Repeat it for each one. |
+| [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd)                              | A command pattern a configuration may run                                |
+| [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply)  | The `apply` and `destroy` tools                                          |
+
+`docs` lets the server relay the tools of the Terragrunt docs MCP server at `https://mcp.docs.terragrunt.com/mcp`, as
+[Tools](#tools) describes. It is a separate capability from `http`, although both grant network connectivity. If the
+docs server does not answer at startup, the server starts without its tools and logs a warning, and only a restart
+tries again. Every argument an agent passes to a `docs_` tool leaves the machine, including any configuration it pastes
+in.
+
+</Since>
 
 Wherever a denied capability stops a tool, the result includes a `degraded` list naming what it did instead, such as
 substituting `mock_outputs` for a dependency output.

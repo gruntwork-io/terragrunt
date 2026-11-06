@@ -173,11 +173,16 @@ func Serve(
 		stdoutDir:   stdoutDir,
 	}
 
+	docs := startDocsProxy(ctx, l, rootVenv, granted, docsTimeouts{
+		startup: opts.DocsStartupTimeout,
+		call:    opts.DocsCallTimeout,
+	})
+
 	srv := mcp.NewServer(&mcp.Implementation{
 		Name:    "terragrunt",
 		Version: version.GetVersion(),
 	}, &mcp.ServerOptions{
-		Instructions: serverInstructions(deps),
+		Instructions: serverInstructions(deps) + " " + docs.instructions(),
 	})
 
 	registerDiscover(srv, l, deps, rootVenv)
@@ -192,6 +197,8 @@ func Serve(
 	if opts.AllowApply {
 		registerMutatingTools(srv, l, deps, rootVenv)
 	}
+
+	docs.register(srv, l)
 
 	serveErr := serve(ctx, l, srv, in, out)
 

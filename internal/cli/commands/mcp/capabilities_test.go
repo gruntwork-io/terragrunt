@@ -54,7 +54,7 @@ func TestParseCapabilitiesGrantsNothingByDefault(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, c := range []tgmcp.Capability{
-		tgmcp.CapabilityExec, tgmcp.CapabilityHTTP, tgmcp.CapabilitySops, tgmcp.CapabilityEnv,
+		tgmcp.CapabilityExec, tgmcp.CapabilityHTTP, tgmcp.CapabilitySops, tgmcp.CapabilityEnv, tgmcp.CapabilityDocs,
 	} {
 		assert.False(t, granted.Has(c), string(c))
 	}
