@@ -44,10 +44,9 @@ func TestFileSetNonCanonicalPatternsInConfig(t *testing.T) {
 		"escaped":       {"resources/a.json"},
 	}
 
-	// A backslash is a path separator on Windows, so it escapes nothing there.
+	// A backslash is a path separator on Windows, so the pattern cleans to resources/x/*.json there.
 	if runtime.GOOS == "windows" {
-		delete(want, "escaped")
-		delete(rendered.Inputs, "escaped")
+		want["escaped"] = []string{}
 	}
 
 	assert.Equal(t, want, rendered.Inputs)

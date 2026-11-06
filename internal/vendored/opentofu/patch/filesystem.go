@@ -481,7 +481,7 @@ func hashFile(
 	return h.Sum(nil), nil
 }
 
-// matchFiles returns the regular files that pattern matches as written, as v1.2.1 did, or else those its clean form matches.
+// matchFiles returns the regular files that pattern matches as written, or else those its clean form matches.
 func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 	if !doublestar.ValidatePattern(pattern) {
 		return nil, doublestar.ErrBadPattern
@@ -492,31 +492,34 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 		return matches, err
 	}
 
-	// Clean the pattern as OpenTofu/Terraform do, by joining it to dir.
 	clean, err := filepath.Rel(dir, filepath.Join(dir, pattern))
 	if err != nil {
 		return nil, err
 	}
 
-	// Leading .. elements move the walk root above dir.
 	elems := strings.Split(filepath.ToSlash(clean), "/")
 
-	up := slices.IndexFunc(elems, func(elem string) bool { return elem != ".." })
-	if up < 0 {
+	// A clean pattern that stays inside dir has nothing new to match.
+	if filepath.ToSlash(clean) == pattern && elems[0] != ".." {
 		return nil, nil
 	}
 
-	glob := strings.Join(elems[up:], "/")
+	// The walk starts below the leading elements with no *, ?, [ or {, such as .. or a directory name.
+	lit := slices.IndexFunc(elems[:len(elems)-1], func(elem string) bool { return strings.ContainsAny(elem, "*?[{") })
+	if lit < 0 {
+		lit = len(elems) - 1
+	}
 
-	// Cleaning can leave nothing new to try, or strand an escape as in resources\/.
-	if glob == pattern || !doublestar.ValidatePattern(glob) {
+	glob := strings.Join(elems[lit:], "/")
+
+	// Cleaning can strand an escape, as in resources\/.
+	if !doublestar.ValidatePattern(glob) {
 		return nil, nil
 	}
 
-	// dir is walked as given, as in v1.2.1, so a .. in it resolves through symlinks.
 	root := dir
-	if up > 0 {
-		root = filepath.Join(dir, filepath.FromSlash(strings.Repeat("../", up)))
+	if lit > 0 {
+		root = filepath.Join(append([]string{dir}, elems[:lit]...)...)
 	}
 
 	return globFiles(fsys, dir, root, glob)
@@ -544,8 +547,8 @@ func globFiles(fsys vfs.FS, dir, root, glob string) ([]cty.Value, error) {
 			return err
 		}
 
-		// The root directory is never a match, and pruning must not skip it.
-		if fromRoot == "." && d.IsDir() {
+		// Only a file given as the path argument matches as itself, and pruning must not skip the root.
+		if fromRoot == "." && (d.IsDir() || root != dir) {
 			return nil
 		}
 

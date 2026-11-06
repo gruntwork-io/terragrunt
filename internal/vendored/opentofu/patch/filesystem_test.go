@@ -345,6 +345,11 @@ var fileSetCases = []fileSetCase{
 		pattern: "resources/a.json/*",
 	},
 	{
+		name:    "glob under a file after dot slash",
+		path:    ".",
+		pattern: "./resources/a.json/*",
+	},
+	{
 		name:    "dot under a file path",
 		path:    "main.tf",
 		pattern: ".",
@@ -441,7 +446,6 @@ func TestFileSetReportsTheCleanPathOfEachMatch(t *testing.T) {
 	assert.Equal(t, []string{filepath.Join(baseDir, "..", "shared", "c.json")}, reads)
 }
 
-// v1.2.1 matched an escaped letter as the letter; upstream looks for the backslash on disk.
 func TestFileSetKeepsAnEscapeBeforeTheFirstWildcard(t *testing.T) {
 	t.Parallel()
 
@@ -457,7 +461,6 @@ func TestFileSetKeepsAnEscapeBeforeTheFirstWildcard(t *testing.T) {
 	assert.Equal(t, stringSet([]string{"resources/a.json"}), got)
 }
 
-// v1.2.1 matched a glob against a path argument that names a file, where upstream returns nothing.
 func TestFileSetMatchesAFilePathAgainstTheGlob(t *testing.T) {
 	t.Parallel()
 
@@ -469,7 +472,6 @@ func TestFileSetMatchesAFilePathAgainstTheGlob(t *testing.T) {
 	assert.Equal(t, stringSet([]string{"."}), got)
 }
 
-// v1.2.1 kept what a pattern matched as written, where upstream cleans it first and finds other files or none.
 func TestFileSetKeepsWhatAPatternMatchedAsWritten(t *testing.T) {
 	t.Parallel()
 
@@ -549,22 +551,38 @@ func TestFileSetSkipsAnUnreadableDirectory(t *testing.T) {
 	assert.Equal(t, stringSet([]string{"resources/a.json"}), got)
 }
 
-func TestFileSetStopsAtTheDepthOfThePattern(t *testing.T) {
+func TestFileSetWalksOnlyWhereThePatternCanMatch(t *testing.T) {
 	t.Parallel()
 
-	v := memVenv(t, map[string]string{
-		"../top.json":        "{}",
-		"../other/deep.json": "{}",
-		"main.tf":            "# root",
-	})
-	fsys := &openFailFS{FS: v.FS, dir: filepath.Join(filepath.Dir(baseDir), "other")}
-	v.FS = fsys
+	tcs := []struct {
+		name    string
+		pattern string
+		want    []string
+	}{
+		{name: "depth of the pattern", pattern: "../*.json", want: []string{"../top.json"}},
+		{name: "literal directory of the pattern", pattern: "../shared/**/*.json", want: []string{"../shared/c.json"}},
+	}
 
-	got, err := patch.FileSetFunc(v, baseDir, noRead).
-		Call([]cty.Value{cty.StringVal("."), cty.StringVal("../*.json")})
-	require.NoError(t, err)
-	assert.Equal(t, stringSet([]string{"../top.json"}), got)
-	assert.False(t, fsys.opened, "fileset opened %s", fsys.dir)
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := memVenv(t, map[string]string{
+				"../top.json":        "{}",
+				"../shared/c.json":   "{}",
+				"../other/deep.json": "{}",
+				"main.tf":            "# root",
+			})
+			fsys := &openFailFS{FS: v.FS, dir: filepath.Join(filepath.Dir(baseDir), "other")}
+			v.FS = fsys
+
+			got, err := patch.FileSetFunc(v, baseDir, noRead).
+				Call([]cty.Value{cty.StringVal("."), cty.StringVal(tc.pattern)})
+			require.NoError(t, err)
+			assert.Equal(t, stringSet(tc.want), got)
+			assert.False(t, fsys.opened, "fileset opened %s", fsys.dir)
+		})
+	}
 }
 
 func TestFileSetReturnsAnEmptySetForAMissingDirectory(t *testing.T) {
@@ -639,6 +657,10 @@ func TestFileSetFollowsASymlinkNamedInThePattern(t *testing.T) {
 			name:    "glob under a linked file",
 			pattern: "alias.tf/*",
 		},
+		{
+			name:    "glob under a linked file after dot slash",
+			pattern: "./alias.tf/*",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -653,7 +675,6 @@ func TestFileSetFollowsASymlinkNamedInThePattern(t *testing.T) {
 	}
 }
 
-// v1.2.1 resolved a .. in the path argument through symlinks, where upstream cleans it away.
 func TestFileSetResolvesTheParentOfASymlinkedPath(t *testing.T) {
 	t.Parallel()
 
@@ -896,6 +917,10 @@ func fileSetCasesForOS() []fileSetCase {
 	}
 
 	return slices.Concat(fileSetCases, []fileSetCase{{
+		name:    "backslash in a literal directory name",
+		path:    ".",
+		pattern: `./resources/su\b/*.json`,
+	}, {
 		name:    "escaped literal prefix",
 		path:    ".",
 		pattern: `./br\[1\]/*.json`,
