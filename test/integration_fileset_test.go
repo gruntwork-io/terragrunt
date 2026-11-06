@@ -2,8 +2,8 @@ package test_test
 
 import (
 	"encoding/json"
+	"os/exec"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +14,7 @@ import (
 
 const testFixtureFileSetPattern = "fixtures/fileset-pattern"
 
-func TestFileSetNonCanonicalPatternsInConfig(t *testing.T) {
+func TestFileSetMatchesOpenTofuForNonCanonicalPatterns(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureFileSetPattern)
@@ -33,21 +33,35 @@ func TestFileSetNonCanonicalPatternsInConfig(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal([]byte(stdout), &rendered))
 
-	want := map[string][]string{
-		"dot_slash":     {"resources/a.json"},
-		"canonical":     {"resources/a.json"},
-		"double_star":   {"resources/a.json", "resources/sub/b.json"},
-		"absolute_path": {"resources/a.json"},
-		"parent":        {"a.json"},
-		"above":         {"../shared/c.json"},
-		"included":      {"resources/root.json"},
-		"escaped":       {"resources/a.json"},
+	var tofuFiles map[string][]string
+
+	require.NoError(t, json.Unmarshal(runWrappedBinaryInDir(t, unitPath), &tofuFiles))
+	require.Len(t, tofuFiles, 10)
+
+	for name, files := range tofuFiles {
+		require.NotEmpty(t, files, name)
 	}
 
-	// A backslash is a path separator on Windows, so the pattern cleans to resources/x/*.json there.
-	if runtime.GOOS == "windows" {
-		want["escaped"] = []string{}
+	assert.Equal(t, tofuFiles, rendered.Inputs)
+}
+
+// runWrappedBinaryInDir applies the configuration in dir with the wrapped binary, without Terragrunt, and returns its files output.
+func runWrappedBinaryInDir(t *testing.T, dir string) []byte {
+	t.Helper()
+
+	for _, args := range [][]string{{"init", "-input=false"}, {"apply", "-auto-approve", "-input=false"}} {
+		cmd := exec.CommandContext(t.Context(), helpers.WrappedBinary(t.Context()), args...)
+		cmd.Dir = dir
+
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
 	}
 
-	assert.Equal(t, want, rendered.Inputs)
+	cmd := exec.CommandContext(t.Context(), helpers.WrappedBinary(t.Context()), "output", "-json", "files")
+	cmd.Dir = dir
+
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	return out
 }

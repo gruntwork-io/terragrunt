@@ -5,6 +5,4 @@ category: "bug-fixes"
 
 #### `fileset` matches patterns that are not in canonical form
 
-In v1.2.0 and v1.2.1, a `fileset` pattern that matched files only after cleaning, such as one with a leading `./` or `/`, or with `//`, `/./` or `../` in it, returned an empty set with no error, so inputs built from it could make OpenTofu/Terraform plan to remove resources.
-
-`fileset` now cleans such a pattern as OpenTofu/Terraform do and matches again, so `fileset("./", "./resources/*.json")` returns `["resources/a.json"]`. Patterns that already returned files return the same files. See [OpenTofu/Terraform built-in functions](/reference/hcl/functions#opentofuterraform-built-in-functions) for details.
+`fileset` returns matches again for patterns that are not in canonical form, such as `fileset("./", "./resources/*.json")`, which returned an empty set in v1.2.0 and v1.2.1.

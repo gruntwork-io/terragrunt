@@ -10,7 +10,6 @@ import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
 import HclItemCards from '@components/HclItemCards.astro';
-import Since from '@components/Since.astro';
 
 <HclAnchorRedirects kind="functions" />
 
@@ -54,24 +53,6 @@ Then `assets.txt` could be read with the following function call:
 ```hcl
 file("assets/mysql/assets.txt")
 ```
-
-<Since version="v1.2.2">
-
-`fileset` resolves its path argument the same way.
-
-Terragrunt first matches the pattern as written. If that finds no files, it cleans the pattern and matches again. To clean a pattern, Terragrunt joins it to the path as OpenTofu/Terraform do. That drops `./` and a trailing `/`, turns `//` into `/`, and resolves `../`. So `./assets/**/*.txt` and `assets/**/*.txt` return the same files:
-
-```hcl
-fileset(".", "./assets/**/*.txt") # ["assets/mysql/assets.txt"]
-```
-
-A pattern that climbs above the path, such as `../shared/*.json`, returns paths that start with `../`.
-
-A pattern that ends with `/`, such as `modules/*/**/`, can match differently when a file is added to `modules/`, because matches as written take priority. End the pattern with a file glob, such as `modules/*/**/*`, instead.
-
-On Windows, a `\` in the pattern is a path separator when Terragrunt cleans it.
-
-</Since>
 
 **Note:**
 

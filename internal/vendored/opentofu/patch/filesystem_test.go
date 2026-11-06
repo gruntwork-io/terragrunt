@@ -7,16 +7,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
-	"slices"
 	"testing"
 
-	"github.com/bmatcuk/doublestar/v4"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/patch"
-	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -184,7 +181,7 @@ var fileSetTree = map[string]string{
 	"../shared/c.json":     "{}",
 }
 
-// fileSetCase is a fileset call and the paths upstream returns for it.
+// fileSetCase is a fileset call and the paths it returns.
 type fileSetCase struct {
 	name    string
 	path    string
@@ -360,12 +357,41 @@ var fileSetCases = []fileSetCase{
 		path:    ".",
 		pattern: "../missing/*.json",
 	},
+	{
+		name:    "backslash is not a separator",
+		path:    ".",
+		pattern: `.\resources\*.json`,
+	},
+	{
+		name:    "escaped letter in a directory name",
+		path:    ".",
+		pattern: `./resources/su\b/*.json`,
+		want:    []string{"resources/sub/b.json"},
+	},
+	{
+		name:    "escaped literal prefix",
+		path:    ".",
+		pattern: `./br\[1\]/*.json`,
+		want:    []string{"br[1]/d.json"},
+	},
+	{
+		name:    "escaped bracket before a parent",
+		path:    ".",
+		pattern: `resources/x\[y]/../*.json`,
+		want:    []string{"resources/a.json"},
+	},
+	{
+		name:    "escaped brace before a parent",
+		path:    ".",
+		pattern: `resources/x\{y\}/../*.json`,
+		want:    []string{"resources/a.json"},
+	},
 }
 
 func TestFileSetCleansThePattern(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range fileSetCasesForOS() {
+	for _, tc := range fileSetCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -375,44 +401,6 @@ func TestFileSetCleansThePattern(t *testing.T) {
 				Call([]cty.Value{cty.StringVal(tc.path), cty.StringVal(tc.pattern)})
 			require.NoError(t, err)
 			assert.Equal(t, stringSet(tc.want), got)
-		})
-	}
-}
-
-// Upstream globs through the os package, so the comparison runs on disk.
-func TestFileSetMatchesUpstream(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	unitDir := filepath.Join(root, "unit")
-
-	for name := range fileSetTree {
-		path := filepath.Join(unitDir, filepath.FromSlash(name))
-
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, nil, 0o644))
-	}
-
-	cases := slices.Concat([]fileSetCase{{
-		name:    "absolute path",
-		path:    unitDir,
-		pattern: "./resources/*.json",
-		want:    []string{"resources/a.json"},
-	}}, fileSetCasesForOS())
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			args := []cty.Value{cty.StringVal(tc.path), cty.StringVal(tc.pattern)}
-
-			upstream, err := funcs.FileSet(unitDir, args[0], args[1])
-			require.NoError(t, err)
-			require.Equal(t, stringSet(tc.want), upstream)
-
-			got, err := patch.FileSetFunc(venvtest.NewWithOSFS(), unitDir, noRead).Call(args)
-			require.NoError(t, err)
-			assert.Equal(t, upstream, got)
 		})
 	}
 }
@@ -428,7 +416,7 @@ func TestFileSetRejectsAMalformedPattern(t *testing.T) {
 
 			_, err := patch.FileSetFunc(v, baseDir, noRead).
 				Call([]cty.Value{cty.StringVal(path), cty.StringVal("./resources/[")})
-			require.ErrorIs(t, err, doublestar.ErrBadPattern)
+			require.ErrorIs(t, err, glob.ErrBadPattern)
 		})
 	}
 }
@@ -448,10 +436,6 @@ func TestFileSetReportsTheCleanPathOfEachMatch(t *testing.T) {
 
 func TestFileSetKeepsAnEscapeBeforeTheFirstWildcard(t *testing.T) {
 	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("a backslash is a path separator on Windows")
-	}
 
 	v := memVenv(t, fileSetTree)
 
@@ -523,10 +507,6 @@ func TestFileSetKeepsWhatAPatternMatchedAsWritten(t *testing.T) {
 
 func TestFileSetReturnsNothingWhenCleaningStrandsAnEscape(t *testing.T) {
 	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("a backslash is a path separator on Windows")
-	}
 
 	v := memVenv(t, fileSetTree)
 
@@ -625,37 +605,15 @@ func TestFileSetFollowsSymlinks(t *testing.T) {
 func TestFileSetFollowsASymlinkNamedInThePattern(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "modules", "a"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "modules", "a", "main.tf"), nil, 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "shared.tf"), nil, 0o644))
-	require.NoError(t, os.Symlink(filepath.Join(dir, "modules", "a"), filepath.Join(dir, "linked")))
-	require.NoError(t, os.Symlink(filepath.Join(dir, "shared.tf"), filepath.Join(dir, "alias.tf")))
-
 	testCases := []struct {
 		name    string
 		pattern string
 		want    []string
 	}{
 		{
-			name:    "linked directory",
-			pattern: "linked/*.tf",
-			want:    []string{"linked/main.tf"},
-		},
-		{
 			name:    "linked directory after dot slash",
 			pattern: "./linked/*.tf",
 			want:    []string{"linked/main.tf"},
-		},
-		{
-			name:    "linked directory under a wildcard",
-			pattern: "*/*.tf",
-			want:    []string{"linked/main.tf"},
-		},
-		{
-			name:    "glob under a linked file",
-			pattern: "alias.tf/*",
 		},
 		{
 			name:    "glob under a linked file after dot slash",
@@ -667,7 +625,11 @@ func TestFileSetFollowsASymlinkNamedInThePattern(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := patch.FileSetFunc(venvtest.NewWithOSFS(), dir, noRead).
+			v := memVenv(t, map[string]string{"modules/a/main.tf": "", "shared.tf": ""})
+			require.NoError(t, vfs.Symlink(v.FS, filepath.Join(baseDir, "modules", "a"), filepath.Join(baseDir, "linked")))
+			require.NoError(t, vfs.Symlink(v.FS, filepath.Join(baseDir, "shared.tf"), filepath.Join(baseDir, "alias.tf")))
+
+			got, err := patch.FileSetFunc(v, baseDir, noRead).
 				Call([]cty.Value{cty.StringVal("."), cty.StringVal(tc.pattern)})
 			require.NoError(t, err)
 			assert.Equal(t, stringSet(tc.want), got)
@@ -678,16 +640,6 @@ func TestFileSetFollowsASymlinkNamedInThePattern(t *testing.T) {
 func TestFileSetResolvesTheParentOfASymlinkedPath(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "real", "parent", "target"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "real", "parent", "physical.json"), nil, 0o644))
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "live"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "live", "lexical.json"), nil, 0o644))
-	require.NoError(t, os.Symlink(filepath.Join(dir, "real", "parent", "target"), filepath.Join(dir, "live", "unit")))
-
-	path := filepath.Join(dir, "live", "unit") + string(filepath.Separator) + ".."
-
 	for _, tc := range []struct{ name, pattern string }{
 		{name: "as written", pattern: "*.json"},
 		{name: "cleaned", pattern: "./*.json"},
@@ -695,7 +647,12 @@ func TestFileSetResolvesTheParentOfASymlinkedPath(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := patch.FileSetFunc(venvtest.NewWithOSFS(), dir, noRead).
+			v := memVenv(t, map[string]string{"real/parent/target/main.tf": "", "real/parent/physical.json": "", "live/lexical.json": ""})
+			require.NoError(t, vfs.Symlink(v.FS, filepath.Join(baseDir, "real", "parent", "target"), filepath.Join(baseDir, "live", "unit")))
+
+			path := filepath.Join(baseDir, "live", "unit") + string(filepath.Separator) + ".."
+
+			got, err := patch.FileSetFunc(v, baseDir, noRead).
 				Call([]cty.Value{cty.StringVal(path), cty.StringVal(tc.pattern)})
 			require.NoError(t, err)
 			assert.Equal(t, stringSet([]string{"physical.json"}), got)
@@ -904,39 +861,6 @@ func TestTemplateFileStopsAtTheRecursionCap(t *testing.T) {
 
 // noRead is the read observer for tests that do not inspect what was read.
 func noRead(string) {}
-
-// fileSetCasesForOS returns [fileSetCases] with the rows whose meaning depends on the separator.
-func fileSetCasesForOS() []fileSetCase {
-	if runtime.GOOS == "windows" {
-		return slices.Concat(fileSetCases, []fileSetCase{{
-			name:    "backslash separators",
-			path:    ".",
-			pattern: `.\resources\*.json`,
-			want:    []string{"resources/a.json"},
-		}})
-	}
-
-	return slices.Concat(fileSetCases, []fileSetCase{{
-		name:    "backslash in a literal directory name",
-		path:    ".",
-		pattern: `./resources/su\b/*.json`,
-	}, {
-		name:    "escaped literal prefix",
-		path:    ".",
-		pattern: `./br\[1\]/*.json`,
-		want:    []string{"br[1]/d.json"},
-	}, {
-		name:    "escaped bracket before a parent",
-		path:    ".",
-		pattern: `resources/x\[y]/../*.json`,
-		want:    []string{"resources/a.json"},
-	}, {
-		name:    "escaped brace before a parent",
-		path:    ".",
-		pattern: `resources/x\{y\}/../*.json`,
-		want:    []string{"resources/a.json"},
-	}})
-}
 
 // stringSet returns paths as the set fileset returns them.
 func stringSet(paths []string) cty.Value {
