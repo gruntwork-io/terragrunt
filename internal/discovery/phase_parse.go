@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -436,7 +437,10 @@ func parseComponent(
 			}
 
 			if _, ok := c.(*component.Stack); ok {
-				trackStackComponentReads(ctx, l, parseV, parsingCtx, parseOpts.TerragruntConfigPath)
+				autoIncludes := trackStackComponentReads(ctx, l, parseV, parsingCtx, parseOpts.TerragruntConfigPath)
+				discovery.recordAutoIncludeInputsReads(l, parseOpts.TerragruntConfigPath, autoIncludes)
+			} else {
+				discovery.recordUnitInputsReads(l, v.FS, parseOpts.TerragruntConfigPath, cfg)
 			}
 
 			c.SetReading(sanitizeReadFiles(parsingCtx.FilesRead.Paths())...)
@@ -447,8 +451,9 @@ func parseComponent(
 
 // trackStackComponentReads records in pctx.FilesRead the files read by the unit and
 // stack blocks of the stack file at stackFilePath, and by the config_path and expansion
-// of each dependency in their autoinclude blocks. Stack generation evaluates all of
-// these, but the partial parse evaluates only locals.
+// of each dependency in their autoinclude blocks, and returns the resolved autoinclude
+// blocks. Stack generation evaluates all of these, but the partial parse evaluates only
+// locals.
 //
 // It is best-effort and never fails discovery. Diagnostics are logged at debug level
 // and dropped, and a parse that fails keeps the reads recorded before the failure,
@@ -460,7 +465,7 @@ func trackStackComponentReads(
 	v *venv.Venv,
 	pctx *config.ParsingContext,
 	stackFilePath string,
-) {
+) map[string]*inthclparse.AutoIncludeResolved {
 	pctx = pctx.Clone()
 	pctx.Parser.IgnoreDiagnostics = true
 
@@ -468,17 +473,20 @@ func trackStackComponentReads(
 	if err != nil {
 		l.Debugf("Discovery: skipping read tracking for %s: %v", stackFilePath, err)
 
-		return
+		return nil
 	}
 
 	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
 	if err != nil {
 		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
 
-		return
+		return nil
 	}
 
-	if err := config.ValidateStackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackCfg, values); err != nil {
+	autoIncludes, err := config.StackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackCfg, values)
+	if err != nil {
 		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
 	}
+
+	return autoIncludes
 }
