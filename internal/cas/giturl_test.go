@@ -10,16 +10,18 @@ import (
 )
 
 // TestStripGitURLParams pins the go-getter query-parameter handling shared by
-// the CAS git getter and stack source cloning: ref is lifted out and returned,
-// depth is lifted out and discarded, and the caller's URL is left untouched.
+// the CAS git getter and stack source cloning: ref and sshkey are lifted out and
+// returned, depth is lifted out and discarded, and the caller's URL is left
+// untouched.
 func TestStripGitURLParams(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		in      string
-		wantURL string
-		wantRef string
+		name       string
+		in         string
+		wantURL    string
+		wantRef    string
+		wantSSHKey string
 	}{
 		{
 			name:    "depth and ref are both stripped",
@@ -57,6 +59,27 @@ func TestStripGitURLParams(t *testing.T) {
 			wantURL: "https://github.com/foo/bar.git?archive=false",
 			wantRef: "v1",
 		},
+		{
+			name:       "sshkey alone is stripped",
+			in:         "ssh://git@github.com/foo/bar.git?sshkey=fakekey0",
+			wantURL:    "ssh://git@github.com/foo/bar.git",
+			wantRef:    "",
+			wantSSHKey: "fakekey0",
+		},
+		{
+			name:       "sshkey is stripped with ref and depth",
+			in:         "ssh://git@github.com/foo/bar.git?depth=1&ref=v1&sshkey=fakekey0",
+			wantURL:    "ssh://git@github.com/foo/bar.git",
+			wantRef:    "v1",
+			wantSSHKey: "fakekey0",
+		},
+		{
+			name:       "sshkey is stripped beside unrelated query parameters",
+			in:         "ssh://git@github.com/foo/bar.git?archive=false&sshkey=fakekey0",
+			wantURL:    "ssh://git@github.com/foo/bar.git?archive=false",
+			wantRef:    "",
+			wantSSHKey: "fakekey0",
+		},
 	}
 
 	for _, tt := range tests {
@@ -66,9 +89,10 @@ func TestStripGitURLParams(t *testing.T) {
 			u, err := url.Parse(tt.in)
 			require.NoError(t, err)
 
-			stripped, ref := cas.StripGitURLParams(u)
+			stripped, params := cas.StripGitURLParams(u)
 
-			assert.Equal(t, tt.wantRef, ref)
+			assert.Equal(t, tt.wantRef, params.Ref)
+			assert.Equal(t, tt.wantSSHKey, params.SSHKey)
 			assert.Equal(t, tt.wantURL, stripped.String())
 			assert.Equal(t, tt.in, u.String(), "the input URL must not be mutated")
 		})
