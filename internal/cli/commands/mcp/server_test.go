@@ -353,7 +353,7 @@ func TestServeAdvertisesTheToolSet(t *testing.T) {
 	session := newTestSession(t, newTestTree(t))
 
 	assert.Equal(t,
-		[]string{"catalog", "discover", "get_outputs", "plan", "render_config", "run_order", "validate"},
+		[]string{"catalog", "discover", "get_outputs", "plan", "render_config", "run_order", "scaffold", "validate"},
 		toolNames(t, session))
 }
 
@@ -382,6 +382,7 @@ func TestMutatingToolsAreAbsentUntilGranted(t *testing.T) {
 			"plan",
 			"render_config",
 			"run_order",
+			"scaffold",
 			"validate",
 		},
 		toolNames(t, granted),
@@ -543,7 +544,10 @@ func TestRunOrderDescriptionNamesOnlyArgumentsItAccepts(t *testing.T) {
 	res, err := session.ListTools(t.Context(), nil)
 	require.NoError(t, err)
 
-	idx := slices.IndexFunc(res.Tools, func(tool *mcp.Tool) bool { return tool.Name == "run_order" })
+	idx := slices.IndexFunc(
+		res.Tools,
+		func(tool *mcp.Tool) bool { return tool.Name == "run_order" },
+	)
 	require.GreaterOrEqual(t, idx, 0, "run_order must be advertised")
 
 	tool := res.Tools[idx]
@@ -561,7 +565,8 @@ func TestRunOrderDescriptionNamesOnlyArgumentsItAccepts(t *testing.T) {
 	require.NotEmpty(t, arguments)
 
 	// A leading dash marks a server flag such as --allow=exec.
-	mentions := regexp.MustCompile(`(?:^|[^-\w])([a-z_]+)=\w`).FindAllStringSubmatch(tool.Description, -1)
+	mentions := regexp.MustCompile(`(?:^|[^-\w])([a-z_]+)=\w`).
+		FindAllStringSubmatch(tool.Description, -1)
 	require.NotEmpty(t, mentions)
 
 	for _, mention := range mentions {
@@ -848,15 +853,17 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 
 			var requests atomic.Int32
 
-			s3 := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
-				requests.Add(1)
+			s3 := vhttp.NewMemClient(
+				func(_ context.Context, req *http.Request) (*http.Response, error) {
+					requests.Add(1)
 
-				if !strings.HasSuffix(req.URL.Path, "/s3-backed/tofu.tfstate") {
-					return vhttp.Respond(http.StatusNotFound, nil, nil), nil
-				}
+					if !strings.HasSuffix(req.URL.Path, "/s3-backed/tofu.tfstate") {
+						return vhttp.Respond(http.StatusNotFound, nil, nil), nil
+					}
 
-				return vhttp.Respond(http.StatusOK, []byte(s3StateObject), nil), nil
-			})
+					return vhttp.Respond(http.StatusOK, []byte(s3StateObject), nil), nil
+				},
+			)
 
 			// Static keys stop the SDK from resolving credentials on the
 			// machine running the test.
@@ -865,7 +872,13 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 				"AWS_SECRET_ACCESS_KEY": "test-secret",
 			})
 
-			session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = tc.allow }, nil)
+			session := newTestSessionWith(
+				t,
+				dir,
+				v,
+				func(o *tgmcp.Options) { o.Allow = tc.allow },
+				nil,
+			)
 
 			var out getOutputsOutput
 
@@ -951,10 +964,12 @@ func TestDestroyRefusesAnApprovalTheServerDidNotIssue(t *testing.T) {
 			session := newApprovingSession(t, newTestTree(t), "accept", &prompts)
 
 			res, err := session.CallTool(t.Context(), &mcp.CallToolParams{
-				Name:           "destroy",
-				Arguments:      map[string]any{},
-				InputResponses: mcp.InputResponseMap{"approval": &mcp.ElicitResult{Action: "accept"}},
-				RequestState:   tc.state,
+				Name:      "destroy",
+				Arguments: map[string]any{},
+				InputResponses: mcp.InputResponseMap{
+					"approval": &mcp.ElicitResult{Action: "accept"},
+				},
+				RequestState: tc.state,
 			})
 			require.NoError(t, err)
 
@@ -1360,7 +1375,13 @@ func TestDiscoverHonoursTheCommandExcludeBlocksAreEvaluatedAgainst(t *testing.T)
 				excluded[unit.Path] = unit.Excluded
 			}
 
-			assert.Equal(t, tc.want, excluded, "the unit excluded from %q must be the excluded one", tc.as)
+			assert.Equal(
+				t,
+				tc.want,
+				excluded,
+				"the unit excluded from %q must be the excluded one",
+				tc.as,
+			)
 		})
 	}
 }
@@ -1529,7 +1550,13 @@ func TestConfigurationCannotRunTerragruntsOwnPrograms(t *testing.T) {
 			} `json:"config"`
 		}
 
-		callTool(t, session, "render_config", map[string]any{"working_dir": "unit", "format": "full"}, &out)
+		callTool(
+			t,
+			session,
+			"render_config",
+			map[string]any{"working_dir": "unit", "format": "full"},
+			&out,
+		)
 
 		git, _ := out.Config.Inputs["git"].(string)
 
@@ -1651,7 +1678,13 @@ func TestSopsDecryptUnderAllowSopsReachesTheResult(t *testing.T) {
 		} `json:"config"`
 	}
 
-	callTool(t, session, "render_config", map[string]any{"working_dir": "u", "format": "full"}, &out)
+	callTool(
+		t,
+		session,
+		"render_config",
+		map[string]any{"working_dir": "u", "format": "full"},
+		&out,
+	)
 
 	assert.Equal(t, sopsCleartext, out.Config.Inputs["secret"])
 	assert.Positive(t, decrypts.Load())

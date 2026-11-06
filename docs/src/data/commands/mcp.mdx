@@ -10,12 +10,12 @@ experiment:
   control: mcp-command
   name: Experimental
 usage: |
-  The `mcp` command serves Terragrunt operations (read-only by default) to AI agents over the Model Context Protocol, speaking the protocol on standard input and output.
+  The `mcp` command serves Terragrunt operations to AI agents over the Model Context Protocol, speaking the protocol on standard input and output.
 
   It is typically not run by hand. An MCP client launches it, and the tools act on the units under the directory it was launched in.
 examples:
   - description: |
-      Read-only. Terragrunt parses configuration and refuses to start the commands or make the requests it otherwise would.
+      No capabilities granted. Terragrunt parses configuration and refuses to start the commands or make the requests it otherwise would.
     lang: json
     code: |
       // .mcp.json
@@ -128,6 +128,7 @@ directory that holds the units it needs.
 | `get_outputs`   | Reads the applied outputs of one unit                                        | `exec`, or `http` for `s3`, `gcs`, and `azurerm` state |
 | `plan`          | Runs `run --all plan` across the units and returns the per-unit result       | `exec`                                                 |
 | `catalog`       | Lists the components in the catalog the configuration names                  | `exec` to clone a remote repository                    |
+| `scaffold`      | Writes new configuration from a module, unit, or stack source                | `http`, or `exec` for git, to fetch a remote source    |
 
 </Since>
 
@@ -156,6 +157,21 @@ downloads its source into a `.terragrunt-cache`.
 The tools that run OpenTofu/Terraform use the binary the server was started with. Set it with
 [`--tf-path`](/reference/cli/commands/mcp#tf-path), as a program name found in `PATH` or as a filepath. It defaults to
 `tofu`, or to `terraform` when `tofu` is not installed. A unit's `terraform_binary` and `engine` block are ignored.
+
+<Since version="v1.2.2">
+
+`scaffold` writes new configuration the way [`scaffold`](/features/catalog/scaffold) does, without prompting. The agent
+passes the values the form would ask for, and anything it leaves out is written as a `TODO` placeholder.
+
+Files go in `output_folder`, which defaults to `working_dir`, must resolve under the server root, and must be empty or
+not exist yet. A local `source` or `template` is read from wherever it is, outside the root included.
+
+A template's shell helpers and hooks never run, even under `--allow=exec`. The tool refuses a template that declares
+dependencies, which boilerplate would download past the server's capabilities, or that uses template syntax in a file or
+directory name, which can render to a path outside `output_folder`. It also refuses a source holding a symlink that
+leads out of it.
+
+</Since>
 
 ### discover
 
@@ -295,7 +311,7 @@ in the tree.
 
 `discover`, `render_config`, `validate`, <Since version="v1.2.2">`run_order`, and `catalog`</Since><Before version="v1.2.2">and `run_order`</Before> ask. When a configuration names a refused program, the call
 returns an elicitation naming the programs, then runs again with the ones the person operating the client accepts. An
-acceptance covers those programs for that call only. `get_outputs`, `plan`, `apply`, and `destroy` never ask.
+acceptance covers those programs for that call only. `get_outputs`, `plan`, <Since version="v1.2.2">`scaffold`,</Since> `apply`, and `destroy` never ask.
 
 ### http
 

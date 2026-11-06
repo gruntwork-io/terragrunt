@@ -179,6 +179,23 @@ func (p *Plan) FormFields() []form.Field {
 	return form.FieldsFromParsedVariables(p.Required, p.Optional)
 }
 
+// Kind returns what [Prepare] found at the source. [Plan.Generate] renders a
+// module and copies a unit or stack.
+func (p *Plan) Kind() component.Kind {
+	return p.kind
+}
+
+// SourceDir returns the directory [Prepare] downloaded the source into.
+func (p *Plan) SourceDir() string {
+	return p.sourceDir
+}
+
+// TemplateDir returns the boilerplate template [Plan.Generate] renders a
+// module with. It is empty for a unit or stack.
+func (p *Plan) TemplateDir() string {
+	return p.boilerplateDir
+}
+
 // Cleanup removes the temporary directories allocated during Prepare.
 // Safe to call more than once; subsequent calls are no-ops.
 func (p *Plan) Cleanup(fsys vfs.FS) {
@@ -237,6 +254,7 @@ func Prepare(
 	plan := &Plan{
 		logger:    l,
 		outputDir: outputDir,
+		sourceDir: tempDir,
 		tempDirs:  []string{tempDir},
 	}
 
@@ -307,7 +325,6 @@ func Prepare(
 		}
 
 		plan.kind = kind
-		plan.sourceDir = tempDir
 		plan.values = values
 		success = true
 
@@ -788,7 +805,13 @@ func downloadTemplate(
 		Collect(ctx, l, "scaffold_get_template", map[string]any{
 			"template_url": baseURL.String(),
 		}, func(ctx context.Context, l log.Logger) error {
-			if getErr := fetchScaffoldSource(ctx, l, v, templateDir, baseURL.String()); getErr != nil {
+			if getErr := fetchScaffoldSource(
+				ctx,
+				l,
+				v,
+				templateDir,
+				baseURL.String(),
+			); getErr != nil {
 				return fmt.Errorf(
 					"downloading scaffold template from %s: %w",
 					baseURL.String(),
@@ -1094,6 +1117,11 @@ func addRefToModuleURL(
 		rootSourceURL, _, err := tf.SplitSourceURL(l, v.FS, moduleURL)
 		if err != nil {
 			return nil, err
+		}
+
+		if rootSourceURL.Scheme == "" || rootSourceURL.Scheme == "file" {
+			l.Debugf("Skipping git tag lookup for local module path: %s", rootSourceURL)
+			return moduleURL, nil
 		}
 
 		tag, err := shell.GitLastReleaseTag(ctx, l, v, opts.WorkingDir, rootSourceURL)
