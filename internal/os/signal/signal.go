@@ -4,45 +4,30 @@ package signal
 import (
 	"context"
 	"os"
-	"os/signal"
 )
 
-// NotifyFunc is a callback function for Notifier.
+// NotifyFunc is a callback function for a [NotifierFunc].
 type NotifyFunc func(sig os.Signal)
 
-// NotifierFunc is the shape of [NotifierWithContext]. Code that waits on a signal takes
-// one of these so a caller can drive the notifications itself, rather than reach the
-// process-global registry that every test in a binary shares.
+// NotifierFunc delivers each of trackSignals to notifyFn until ctx is done; code that waits on a signal takes one so its caller can drive the notifications instead of the process-global registry.
 type NotifierFunc func(ctx context.Context, notifyFn NotifyFunc, trackSignals ...os.Signal)
 
-// Notifier registers a handler for receiving signals from the OS.
-// When signal is receiving, it calls the given callback func `notifyFn`.
-func Notifier(notifyFn NotifyFunc, trackSignals ...os.Signal) {
-	NotifierWithContext(context.Background(), notifyFn, trackSignals...)
-}
+// NewNotifier returns a [NotifierFunc] that registers its channel through subscribe and releases it through unsubscribe once ctx is done, with os/signal's Notify and Stop as the real pair.
+func NewNotifier(subscribe func(chan<- os.Signal, ...os.Signal), unsubscribe func(chan<- os.Signal)) NotifierFunc {
+	return func(ctx context.Context, notifyFn NotifyFunc, trackSignals ...os.Signal) {
+		sigCh := make(chan os.Signal, 1)
 
-// NotifierWithContext does the same as `Notifier`, but if the given `ctx` becomes `Done`, the notification is stopped.
-func NotifierWithContext(ctx context.Context, notifyFn NotifyFunc, trackSignals ...os.Signal) {
-	sigCh := make(chan os.Signal, 1)
+		subscribe(sigCh, trackSignals...)
 
-	signal.Notify(sigCh, trackSignals...)
+		context.AfterFunc(ctx, func() {
+			unsubscribe(sigCh)
+			close(sigCh)
+		})
 
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				signal.Stop(sigCh)
-				close(sigCh)
-
-				return
-
-			case sig, ok := <-sigCh:
-				if !ok {
-					return
-				}
-
+		go func() {
+			for sig := range sigCh {
 				notifyFn(sig)
 			}
-		}
-	}()
+		}()
+	}
 }

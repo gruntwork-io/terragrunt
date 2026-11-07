@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"os"
+	ossignal "os/signal"
 	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
@@ -250,7 +251,7 @@ func OSVenv() *Venv {
 		Sops:    vsops.NewOSDecrypter(),
 		Browser: vbrowser.NewOSOpener(),
 		Listen:  (&net.ListenConfig{}).Listen,
-		Signals: signal.NotifierWithContext,
+		Signals: signal.NewNotifier(ossignal.Notify, ossignal.Stop),
 		Stdin:   os.Stdin,
 		Env:     ParseEnviron(os.Environ()),
 		Platform: &Platform{

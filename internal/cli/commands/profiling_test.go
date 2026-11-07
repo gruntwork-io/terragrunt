@@ -90,7 +90,7 @@ func TestWrapWithProfilingProfileDirWritesAllProfiles(t *testing.T) {
 	opts.ProfileDir = "profiles"
 
 	competing := options.NewTerragruntOptions(vexec.NewOSExec())
-	competing.ProfileDir = hostPath("/competing")
+	competing.ProfileDir = venvtest.Root("/competing")
 
 	var nestedRan bool
 
@@ -196,9 +196,9 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 		mem       string
 		goroutine string
 	}{
-		{name: "memory profile write", op: "write", mem: hostPath("/profiles/mem.prof")},
-		{name: "goroutine profile write", op: "write", goroutine: hostPath("/profiles/goroutine.prof")},
-		{name: "memory profile close", op: "close", mem: hostPath("/profiles/mem.prof")},
+		{name: "memory profile write", op: "write", mem: venvtest.Root("/profiles/mem.prof")},
+		{name: "goroutine profile write", op: "write", goroutine: venvtest.Root("/profiles/goroutine.prof")},
+		{name: "memory profile close", op: "close", mem: venvtest.Root("/profiles/mem.prof")},
 	}
 
 	for _, tc := range testCases {
@@ -230,8 +230,8 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 	t.Parallel()
 
-	memPath := hostPath("/profiles/mem.prof")
-	goroutinePath := hostPath("/profiles/goroutine.prof")
+	memPath := venvtest.Root("/profiles/mem.prof")
+	goroutinePath := venvtest.Root("/profiles/goroutine.prof")
 
 	testCases := []struct {
 		name        string
