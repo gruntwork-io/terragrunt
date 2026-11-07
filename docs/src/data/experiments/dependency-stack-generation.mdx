@@ -1,0 +1,23 @@
+---
+name: dependency-stack-generation
+---
+
+Automatic generation of explicitly referenced dependency stacks.
+
+### `dependency-stack-generation` - What it does
+
+When a dependency points to a stack, Terragrunt generates that stack before expanding its units or reading its generated configuration and outputs. This prevents missing units on clean checkouts and stale configuration from earlier generation.
+
+Generation respects `--no-stack-generate` and discovery limits, generates each stack once per command, and leaves state unchanged. References to missing generated units do not infer their owning stacks. Inspection commands and MCP planning remain non-generating.
+
+This is separate from the `stack-dependencies` experiment, which enables `autoinclude` configuration.
+
+### `dependency-stack-generation` - How to provide feedback
+
+Provide feedback on [issue #7270](https://github.com/gruntwork-io/terragrunt/issues/7270).
+
+### `dependency-stack-generation` - Criteria for stabilization
+
+- [ ] Validate clean-checkout and stale-configuration behavior across generation, run, render, and output commands.
+- [ ] Validate recursive and shared dependencies under concurrent discovery.
+- [ ] Confirm existing generation controls and non-generating commands retain their behavior.
