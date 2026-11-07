@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "experiments-updated"
+---
+
+#### `mcp-command` — A `fmt` tool formats HCL files
+
+The [`mcp`](/reference/cli/commands/mcp) server now serves a `fmt` tool, which rewrites the `.hcl` files under a directory into canonical format, as [`hcl fmt`](/reference/cli/commands/hcl/fmt) does. `check` reports the files that need formatting without changing any, `diff` adds a unified diff for each, `file` formats a single file, and `filter` narrows the set by path.
+
+A server started with no `--allow` flag still lets an agent rewrite the `.hcl` files under its root. Symlinks are skipped, and a `file` outside the root is refused.

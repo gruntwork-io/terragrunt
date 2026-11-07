@@ -38,6 +38,7 @@ With the experiment enabled, `terragrunt mcp` speaks the Model Context Protocol 
 | `plan`          | The per-unit result of `run --all plan`                                      |
 | `catalog`       | The components `terragrunt catalog` returns                                  |
 | `scaffold`      | New configuration written from a module, unit, or stack source, as `terragrunt scaffold` writes it |
+| `fmt`           | Rewrites `.hcl` files into canonical format, as `hcl fmt` does, or with `check` reports the files that need it without changing any |
 | `docs_*`        | The tools of the Terragrunt docs MCP server, served only under `--allow=docs` |
 | `apply`, `destroy` | The per-unit result of a real change, served only under `--dangerously-allow-apply` and gated on a person accepting it |
 

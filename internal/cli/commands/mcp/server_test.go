@@ -365,7 +365,7 @@ func TestServeAdvertisesTheToolSet(t *testing.T) {
 	session := newTestSession(t, newTestTree(t))
 
 	assert.Equal(t,
-		[]string{"catalog", "discover", "get_outputs", "plan", "render_config", "run_order", "scaffold", "validate"},
+		[]string{"catalog", "discover", "fmt", "get_outputs", "plan", "render_config", "run_order", "scaffold", "validate"},
 		toolNames(t, session))
 }
 
@@ -390,6 +390,7 @@ func TestMutatingToolsAreAbsentUntilGranted(t *testing.T) {
 			"catalog",
 			"destroy",
 			"discover",
+			"fmt",
 			"get_outputs",
 			"plan",
 			"render_config",
@@ -813,9 +814,10 @@ func TestToolAnnotationsFollowTheGrantedCapabilities(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, tool := range res.Tools {
-				// plan is the exception: it requires --allow=exec, and the
-				// command it spawns reaches the network on its own account.
-				if tool.Name == "plan" {
+				// plan requires --allow=exec, and the command it spawns
+				// reaches the network on its own account. fmt only reads and
+				// writes local files.
+				if tool.Name == "plan" || tool.Name == "fmt" {
 					continue
 				}
 
