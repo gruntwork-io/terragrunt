@@ -103,9 +103,11 @@ export function referenceMarkdown(entry: HclEntry): { before: string; after: str
 		case 'hclAttributes': {
 			const lines = [`**Type:** ${code(entry.data.type)}`];
 			if (entry.data.default !== undefined) lines.push(`**Default:** ${code(entry.data.default)}`);
+			const { note: attributeNote } = entry.data;
+			const note = attributeNote ? [`> **${attributeNote.title}:** ${attributeNote.body}`] : [];
 			return {
 				before: [lines.join('\\\n'), '## Usage'].join('\n\n'),
-				after: examplesMarkdown(entry.data.examples),
+				after: [examplesMarkdown(entry.data.examples), ...note].join('\n\n'),
 			};
 		}
 		case 'hclFunctions': {

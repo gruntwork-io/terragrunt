@@ -1,0 +1,14 @@
+<div class="side-by-side"><slot /></div>
+
+<style>
+	.side-by-side {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+		gap: 1rem;
+	}
+
+	.side-by-side > :global(*) {
+		margin-top: 0;
+		min-width: 0;
+	}
+</style>
