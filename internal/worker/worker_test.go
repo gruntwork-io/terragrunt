@@ -318,8 +318,8 @@ func TestSubmit_DropsTasksWhileStopping(t *testing.T) {
 
 		wp.Stop()
 
-		assert.True(t, wp.IsStopping(), "Stop should mark the pool as stopping")
-		assert.True(t, wp.IsRunning(), "the pool should keep running until its tasks finish")
+		require.True(t, wp.IsStopping(), "Stop should mark the pool as stopping")
+		require.True(t, wp.IsRunning(), "the pool should keep running until its tasks finish")
 
 		var lateRan atomic.Bool
 
