@@ -301,6 +301,18 @@ func parseTerragruntConfigAsCty(
 		if err != nil {
 			return cty.NilVal, err
 		}
+
+		// Same as DependencyBlocksToCtyValue: skipped outputs are unknown, not null, so
+		// attribute access on them evaluates.
+		if pctx.SkipOutput && config.TerragruntDependencies[i].RenderedOutputs == nil {
+			l.Debugf(
+				"Setting outputs for dependency %s to DynamicVal (output resolution skipped)",
+				config.TerragruntDependencies[i].Name,
+			)
+
+			outputs := cty.DynamicVal
+			config.TerragruntDependencies[i].RenderedOutputs = &outputs
+		}
 	}
 
 	return TerragruntConfigAsCty(config)
