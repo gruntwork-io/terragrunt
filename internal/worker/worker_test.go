@@ -285,6 +285,24 @@ func TestStart_KeepsCollectedErrorsWhenAlreadyRunning(t *testing.T) {
 	assert.ErrorIs(t, wp.Wait(), errTask, "starting a running pool should keep the errors it collected")
 }
 
+func TestStart_ClearsCollectedErrorsAfterFullStop(t *testing.T) {
+	t.Parallel()
+
+	errTask := errors.New("task failed")
+
+	wp := worker.NewWorkerPool(1)
+	defer wp.Stop()
+
+	wp.Start()
+	wp.Submit(func() error { return errTask })
+	require.ErrorIs(t, wp.GracefulStop(), errTask)
+	require.False(t, wp.IsRunning(), "GracefulStop should leave the pool stopped")
+
+	wp.Start()
+
+	assert.NoError(t, wp.Wait(), "starting a stopped pool should drop the errors it collected")
+}
+
 func TestSubmit_DropsTasksWhileStopping(t *testing.T) {
 	t.Parallel()
 
@@ -300,8 +318,8 @@ func TestSubmit_DropsTasksWhileStopping(t *testing.T) {
 
 		wp.Stop()
 
-		require.True(t, wp.IsStopping(), "Stop should mark the pool as stopping")
-		require.True(t, wp.IsRunning(), "the pool should keep running until its tasks finish")
+		assert.True(t, wp.IsStopping(), "Stop should mark the pool as stopping")
+		assert.True(t, wp.IsRunning(), "the pool should keep running until its tasks finish")
 
 		var lateRan atomic.Bool
 

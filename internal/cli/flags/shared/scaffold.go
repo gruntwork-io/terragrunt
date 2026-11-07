@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -39,7 +40,7 @@ func NewScaffoldingFlags(opts *options.TerragruntOptions, prefix flags.Prefix) c
 					return nil
 				}
 
-				if err := opts.StrictControls.FilterByNames("RootTerragruntHCL").
+				if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).
 					Evaluate(ctx); err != nil {
 					return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 				}

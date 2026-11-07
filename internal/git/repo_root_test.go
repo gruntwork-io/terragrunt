@@ -146,6 +146,8 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 	root := venvtest.Root("/outer")
 	unit := filepath.Join(root, "live", "prod", "vpc")
 	mid := filepath.Join(root, "live")
+	unclean := root + string(filepath.Separator) + "." + string(filepath.Separator) + "live"
+	list := func(entries ...string) string { return strings.Join(entries, string(filepath.ListSeparator)) }
 
 	for _, tc := range []struct {
 		name    string
@@ -182,8 +184,38 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 			// does to a real symlinked path is covered against the binary in
 			// TestExecGoRepoRootCeilingMatchesGit.
 			name:    "leading empty entry is not itself an entry",
-			ceiling: strings.Join([]string{"", mid}, string(filepath.ListSeparator)),
+			ceiling: list("", filepath.ToSlash(mid)),
 			blocked: true,
+		},
+		{
+			name:    "kept entry is compared with slash separators",
+			ceiling: list("", mid),
+			blocked: filepath.Separator == '/',
+		},
+		{
+			name:    "entry after an empty entry is kept as written",
+			ceiling: list("", unclean),
+			want:    root,
+		},
+		{
+			name:    "empty entry anywhere keeps later entries as written",
+			ceiling: list("relative", "", unclean),
+			want:    root,
+		},
+		{
+			name:    "entry before an empty entry is still cleaned",
+			ceiling: list(unclean, ""),
+			blocked: true,
+		},
+		{
+			name:    "kept entry may end with a slash",
+			ceiling: list("", filepath.ToSlash(mid)+"/"),
+			blocked: true,
+		},
+		{
+			name:    "kept root entry does not block a repository below it",
+			ceiling: list("", filepath.ToSlash(venvtest.Root("/"))),
+			want:    root,
 		},
 		{
 			name:    "sibling sharing a prefix is not an ancestor",

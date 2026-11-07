@@ -61,6 +61,38 @@ func TestProxyProviderHandlerGetPlatformRewritesDownloadURLs(t *testing.T) {
 	assert.NotContains(t, body, "shasums_signature_url", "a url the registry did not send should not be added")
 }
 
+func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
+	t.Parallel()
+
+	c := vhttp.NewMemClient(registryRoutes(map[string]string{
+		"/.well-known/terraform.json": discoveryDocument,
+		platformPath:                  `{"download_url": "example.zip", "shasums_url": "/sums/SHA256SUMS?sig=1"}`,
+	}))
+
+	rec := httptest.NewRecorder()
+
+	require.NoError(t, handlers.NewProxyProviderHandler(logger.CreateLogger(), c, nil).
+		GetPlatform(router.NewResponseWriter(rec), newProxyRequest(t), mirroredProvider(), fakeDownloader{}))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]string
+
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+
+	assert.Equal(
+		t,
+		"http://127.0.0.1:5758/downloads/segment/registry.example.com"+platformPath+"/example.zip",
+		body["download_url"],
+		"a relative download url should resolve against the platform url before it is rewritten",
+	)
+	assert.Equal(
+		t,
+		"http://127.0.0.1:5758/downloads/segment/registry.example.com/sums/SHA256SUMS?sig=1",
+		body["shasums_url"],
+		"a root-relative url should keep the registry host",
+	)
+}
+
 func TestProxyProviderHandlerGetPlatformUnusableLinks(t *testing.T) {
 	t.Parallel()
 
@@ -119,12 +151,6 @@ func TestProxyProviderHandlerDownload(t *testing.T) {
 			wantPath:     "/example/1.0.0/example.zip",
 			wantRawQuery: "sig=1",
 		},
-		{
-			name:        "file name resolved against the providers endpoint",
-			downloadURL: "example.zip",
-			wantHost:    "registry.example.com",
-			wantPath:    "/v1/providers/registry.example.com/example/example/example.zip",
-		},
 	}
 
 	for _, tc := range testCases {
@@ -170,18 +196,6 @@ func TestProxyProviderHandlerFailures(t *testing.T) {
 
 		err := handlers.NewProxyProviderHandler(logger.CreateLogger(), refused, nil).
 			GetPlatform(router.NewResponseWriter(httptest.NewRecorder()), newProxyRequest(t), mirroredProvider(), fakeDownloader{})
-
-		require.Error(t, err)
-	})
-
-	t.Run("download discovery refused", func(t *testing.T) {
-		t.Parallel()
-
-		provider := mirroredProvider()
-		provider.ResponseBody = &models.ResponseBody{DownloadURL: "example.zip"}
-
-		err := handlers.NewProxyProviderHandler(logger.CreateLogger(), refused, nil).
-			Download(router.NewResponseWriter(httptest.NewRecorder()), newProxyRequest(t), provider)
 
 		require.Error(t, err)
 	})

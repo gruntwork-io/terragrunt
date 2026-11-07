@@ -2,6 +2,7 @@ package runall_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -23,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 const summaryHeader = "Run Summary"
@@ -172,11 +175,29 @@ func TestRun_WritesReportFiles(t *testing.T) {
 
 	require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
 
-	for _, path := range []string{reportFile, schemaFile} {
-		data, err := vfs.ReadFile(v.FS, path)
-		require.NoError(t, err, "%s should be written", path)
-		assert.NotEmpty(t, data, "%s should not be empty", path)
+	reportData, err := vfs.ReadFile(v.FS, reportFile)
+	require.NoError(t, err, "the report should be written")
+
+	schemaData, err := vfs.ReadFile(v.FS, schemaFile)
+	require.NoError(t, err, "the schema should be written")
+
+	var schema struct {
+		Type string `json:"type"`
 	}
+
+	require.NoError(t, json.Unmarshal(schemaData, &schema))
+	assert.Equal(t, "array", schema.Type, "the schema should describe a list of runs")
+
+	result, err := gojsonschema.Validate(gojsonschema.NewBytesLoader(schemaData), gojsonschema.NewBytesLoader(reportData))
+	require.NoError(t, err)
+	assert.True(t, result.Valid(), "the report should match its schema: %v", result.Errors())
+
+	var runs []report.JSONRun
+
+	require.NoError(t, json.Unmarshal(reportData, &runs))
+	require.Len(t, runs, 1, "the report should hold the one unit run")
+	assert.Equal(t, "unit", runs[0].Name)
+	assert.Equal(t, string(report.ResultSucceeded), runs[0].Result)
 }
 
 func TestRun_StackGeneration(t *testing.T) {
@@ -225,6 +246,12 @@ unit "vpc" {
 			exists, err := vfs.FileExists(v.FS, generated)
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantGenerated, exists)
+			assert.Equal(
+				t,
+				tc.wantGenerated,
+				rec.ranUnder("plan", filepath.Dir(generated)),
+				"the generated unit should be planned",
+			)
 		})
 	}
 }
@@ -323,6 +350,7 @@ func (w *lockedWriter) String() string {
 type tofuRecorder struct {
 	fail     string
 	commands []string
+	dirs     []string
 	mu       sync.Mutex
 }
 
@@ -337,6 +365,7 @@ func (rec *tofuRecorder) handler() vexec.Handler {
 
 		rec.mu.Lock()
 		rec.commands = append(rec.commands, command)
+		rec.dirs = append(rec.dirs, inv.Dir)
 		rec.mu.Unlock()
 
 		if command == "-version" {
@@ -356,6 +385,21 @@ func (rec *tofuRecorder) ran(command string) bool {
 	defer rec.mu.Unlock()
 
 	return slices.Contains(rec.commands, command)
+}
+
+func (rec *tofuRecorder) ranUnder(command, dir string) bool {
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+
+	prefix := filepath.Clean(dir) + string(filepath.Separator)
+
+	for i, recorded := range rec.commands {
+		if recorded == command && strings.HasPrefix(filepath.Clean(rec.dirs[i])+string(filepath.Separator), prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // oneUnit is a working directory holding a single unit.

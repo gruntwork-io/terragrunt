@@ -5,13 +5,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestRootFileNameFlag pins that --root-file-name stores a non-empty name and rejects an empty one.
+// TestRootFileNameFlag pins that --root-file-name stores a non-empty name, rejects an empty one, and rejects the unit config name under its strict control.
 func TestRootFileNameFlag(t *testing.T) {
 	t.Parallel()
 
@@ -19,10 +20,12 @@ func TestRootFileNameFlag(t *testing.T) {
 		name         string
 		value        string
 		wantRootName string
+		strict       bool
 		wantExitErr  bool
 	}{
 		{name: "custom name", value: "root.hcl", wantRootName: "root.hcl"},
 		{name: "unit config name", value: "terragrunt.hcl", wantRootName: "terragrunt.hcl"},
+		{name: "unit config name under its strict control", value: "terragrunt.hcl", strict: true, wantExitErr: true},
 		{name: "empty name", value: "", wantExitErr: true},
 	}
 
@@ -32,6 +35,10 @@ func TestRootFileNameFlag(t *testing.T) {
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.TerragruntConfigPath = "terragrunt.hcl"
+
+			if tc.strict {
+				require.NoError(t, opts.StrictControls.EnableControl(controls.RootTerragruntHCL))
+			}
 
 			err := parseAndRunActions(
 				t,
@@ -50,6 +57,14 @@ func TestRootFileNameFlag(t *testing.T) {
 			var exitErr clihelper.ExitCoder
 			require.ErrorAs(t, err, &exitErr)
 			assert.Equal(t, int(clihelper.ExitCodeGeneralError), exitErr.ExitCode())
+
+			if !tc.strict {
+				return
+			}
+
+			ctrl, ok := opts.StrictControls.Find(controls.RootTerragruntHCL).(*controls.Control)
+			require.True(t, ok, "control %s should be a *controls.Control", controls.RootTerragruntHCL)
+			require.ErrorIs(t, err, ctrl.Error, "the enabled control should reject the unit config name")
 		})
 	}
 }

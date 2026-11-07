@@ -5,9 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
@@ -89,40 +87,17 @@ func (handler *ProxyProviderHandler) GetPlatform(
 
 	return handler.ReverseProxy.
 		WithModifyResponse(func(resp *http.Response) error {
-			return modifyDownloadURLsInJSONBody(resp, downloaderController)
+			return modifyDownloadURLsInJSONBody(resp, platformURL, downloaderController)
 		}).
 		NewRequest(w, r, platformURL)
 }
 
-// Download streams the provider archive from its registry. A bare file name
-// in the provider's download URL is resolved against the registry's providers
-// endpoint.
+// Download streams the provider archive from the absolute download URL of provider.
 func (handler *ProxyProviderHandler) Download(
 	w router.ResponseWriter,
 	r *http.Request,
 	provider *models.Provider,
 ) error {
-	if !strings.Contains(provider.DownloadURL, "://") {
-		apiURLs, err := handler.DiscoveryURL(r.Context(), provider.RegistryName)
-		if err != nil {
-			return err
-		}
-
-		downloadURL := &url.URL{
-			Scheme: schemeHTTPS,
-			Host:   provider.RegistryName,
-			Path: filepath.Join(
-				apiURLs.ProvidersV1,
-				provider.RegistryName,
-				provider.Namespace,
-				provider.Name,
-				provider.DownloadURL,
-			),
-		}
-
-		return handler.NewRequest(w, r, downloadURL)
-	}
-
 	downloadURL, err := url.Parse(provider.DownloadURL)
 	if err != nil {
 		return err
@@ -131,9 +106,10 @@ func (handler *ProxyProviderHandler) Download(
 	return handler.NewRequest(w, r, downloadURL)
 }
 
-// modifyDownloadURLsInJSONBody modifies the response to redirect the download URLs to the local server.
+// modifyDownloadURLsInJSONBody resolves the download URLs in the response against platformURL and redirects them to the local server.
 func modifyDownloadURLsInJSONBody(
 	resp *http.Response,
+	platformURL *url.URL,
 	downloaderController router.Controller,
 ) error {
 	var data map[string]json.RawMessage
@@ -152,7 +128,7 @@ func modifyDownloadURLsInJSONBody(
 				return err
 			}
 
-			linkURL, err := url.Parse(link)
+			linkURL, err := url.Parse(models.ResolveRelativeReference(platformURL, link))
 			if err != nil {
 				return err
 			}
