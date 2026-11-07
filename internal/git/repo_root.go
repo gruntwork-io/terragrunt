@@ -195,7 +195,7 @@ func entryCeiling(fsys vfs.FS, entry, start string, keep bool) string {
 }
 
 // keptCeiling returns the strict ancestor of start that a kept entry names,
-// matched as git does: byte for byte, less one trailing slash, against start
+// matching the entry byte for byte, less one trailing slash, against start
 // spelled with forward slashes.
 func keptCeiling(entry, start string) string {
 	prefix := strings.TrimSuffix(entry, "/")

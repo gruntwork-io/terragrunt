@@ -65,3 +65,27 @@ func TestDiagnosticSeverityJSONRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestDiagnosticSeverityUnmarshalUnrecognizedName pins that a name other than error or warning reads back as invalid.
+func TestDiagnosticSeverityUnmarshalUnrecognizedName(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		raw  string
+	}{
+		{name: "unrecognized name", raw: `"fatal"`},
+		{name: "empty name", raw: `""`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			decoded := diagnostic.DiagnosticSeverity(hcl.DiagError)
+
+			require.NoError(t, json.Unmarshal([]byte(tc.raw), &decoded))
+			assert.Equal(t, diagnostic.DiagnosticSeverity(hcl.DiagInvalid), decoded)
+		})
+	}
+}

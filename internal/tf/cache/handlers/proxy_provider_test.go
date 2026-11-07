@@ -93,6 +93,59 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 	)
 }
 
+func TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		want map[string]any
+		name string
+		body string
+	}{
+		{
+			name: "escaped slashes",
+			body: `{"download_url": "https:\/\/registry.example.com\/example.zip"}`,
+			want: map[string]any{
+				"download_url": "http://127.0.0.1:5758/downloads/segment/registry.example.com/example.zip",
+			},
+		},
+		{
+			name: "null link",
+			body: `{"download_url": "https://registry.example.com/example.zip", "shasums_signature_url": null}`,
+			want: map[string]any{
+				"download_url":          "http://127.0.0.1:5758/downloads/segment/registry.example.com/example.zip",
+				"shasums_signature_url": nil,
+			},
+		},
+		{
+			name: "empty link",
+			body: `{"download_url": ""}`,
+			want: map[string]any{"download_url": ""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			c := vhttp.NewMemClient(registryRoutes(map[string]string{
+				"/.well-known/terraform.json": discoveryDocument,
+				platformPath:                  tc.body,
+			}))
+
+			rec := httptest.NewRecorder()
+
+			require.NoError(t, handlers.NewProxyProviderHandler(logger.CreateLogger(), c, nil).
+				GetPlatform(router.NewResponseWriter(rec), newProxyRequest(t), mirroredProvider(), fakeDownloader{}))
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			var body map[string]any
+
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			assert.Equal(t, tc.want, body)
+		})
+	}
+}
+
 func TestProxyProviderHandlerGetPlatformUnusableLinks(t *testing.T) {
 	t.Parallel()
 

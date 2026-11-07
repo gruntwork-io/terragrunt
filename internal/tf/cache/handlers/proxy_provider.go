@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
@@ -117,15 +116,17 @@ func modifyDownloadURLsInJSONBody(
 	return helpers.ModifyJSONBody(resp, &data, func() error {
 		for _, name := range providerURLNames {
 			linkBytes, ok := data[string(name)]
-			if !ok || linkBytes == nil {
+			if !ok {
 				continue
 			}
 
-			link := string(linkBytes)
-
-			link, err := strconv.Unquote(link)
-			if err != nil {
+			var link string
+			if err := json.Unmarshal(linkBytes, &link); err != nil {
 				return err
+			}
+
+			if link == "" {
+				continue
 			}
 
 			linkURL, err := url.Parse(models.ResolveRelativeReference(platformURL, link))
@@ -138,8 +139,12 @@ func modifyDownloadURLsInJSONBody(
 			linkURL.Scheme = downloaderController.URL().Scheme
 			linkURL.Host = downloaderController.URL().Host
 
-			link = strconv.Quote(linkURL.String())
-			data[string(name)] = []byte(link)
+			rewritten, err := json.Marshal(linkURL.String())
+			if err != nil {
+				return err
+			}
+
+			data[string(name)] = rewritten
 		}
 
 		return nil

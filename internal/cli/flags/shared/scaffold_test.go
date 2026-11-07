@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestRootFileNameFlag pins that --root-file-name stores a non-empty name, rejects an empty one, and rejects the unit config name under its strict control.
+// TestRootFileNameFlag pins that --root-file-name stores a non-empty name, rejects an empty one, and rejects a terragrunt.hcl name under its strict control.
 func TestRootFileNameFlag(t *testing.T) {
 	t.Parallel()
 
@@ -24,8 +24,10 @@ func TestRootFileNameFlag(t *testing.T) {
 		wantExitErr  bool
 	}{
 		{name: "custom name", value: "root.hcl", wantRootName: "root.hcl"},
-		{name: "unit config name", value: "terragrunt.hcl", wantRootName: "terragrunt.hcl"},
-		{name: "unit config name under its strict control", value: "terragrunt.hcl", strict: true, wantExitErr: true},
+		{name: "terragrunt.hcl name", value: "terragrunt.hcl", wantRootName: "terragrunt.hcl"},
+		{name: "terragrunt.hcl name under its strict control", value: "terragrunt.hcl", strict: true, wantExitErr: true},
+		{name: "terragrunt.hcl path under its strict control", value: "./terragrunt.hcl", strict: true, wantExitErr: true},
+		{name: "custom name under the strict control", value: "root.hcl", strict: true, wantRootName: "root.hcl"},
 		{name: "empty name", value: "", wantExitErr: true},
 	}
 
@@ -34,7 +36,6 @@ func TestRootFileNameFlag(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
-			opts.TerragruntConfigPath = "terragrunt.hcl"
 
 			if tc.strict {
 				require.NoError(t, opts.StrictControls.EnableControl(controls.RootTerragruntHCL))
@@ -64,7 +65,7 @@ func TestRootFileNameFlag(t *testing.T) {
 
 			ctrl, ok := opts.StrictControls.Find(controls.RootTerragruntHCL).(*controls.Control)
 			require.True(t, ok, "control %s should be a *controls.Control", controls.RootTerragruntHCL)
-			require.ErrorIs(t, err, ctrl.Error, "the enabled control should reject the unit config name")
+			require.ErrorIs(t, err, ctrl.Error, "the enabled control should reject a terragrunt.hcl root")
 		})
 	}
 }
