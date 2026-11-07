@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,10 @@ func TestTFPlanPreservesDependencyStacks(t *testing.T) {
 				files["producer/.terragrunt-stack/db/main.tf"] = "output \"marker\" { value = \"old\" }"
 			}
 			dir := writeTree(t, files)
-			session := newRealExecSession(t, dir, func(o *tgmcp.Options) { o.Allow = []string{"exec"} })
+			session := newRealExecSession(t, dir, func(o *tgmcp.Options) {
+				o.Allow = []string{"exec"}
+				require.NoError(t, o.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
+			})
 			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
 				Name: "plan", Arguments: map[string]any{"working_dir": filepath.Join(dir, "consumer")},
 			})

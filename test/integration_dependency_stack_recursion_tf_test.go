@@ -21,7 +21,7 @@ func TestTFDependencyStackGenerateRecursesWithoutState(t *testing.T) {
 	for _, shape := range []string{"transitive", "diamond", "nested", "initial traversal"} {
 		t.Run(shape, func(t *testing.T) {
 			t.Parallel()
-			f := newDependencyStackFixture(t)
+			f := newDependencyStackFixture(t, true)
 			// Generation must discover dependencies without evaluating their outputs.
 			f.write(".sources/db/terragrunt.hcl", "inputs = { marker = \"new\" }")
 			f.write("middle/terragrunt.stack.hcl", fmt.Sprintf("unit \"middle\" {\n source = %q\n path = \"middle\"\n}\n", filepath.Join(f.root, ".sources/middle")))
@@ -62,7 +62,7 @@ func TestTFDependencyStackGenerateRecursesWithoutState(t *testing.T) {
 
 func TestTFDependencyStackGenerateReportsCycle(t *testing.T) {
 	t.Parallel()
-	f := newDependencyStackFixture(t)
+	f := newDependencyStackFixture(t, true)
 	f.write(".sources/db/terragrunt.hcl", fmt.Sprintf("dependency \"consumer\" {\n config_path = %q\n}\n", filepath.Join(f.root, "consumer")))
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()

@@ -81,7 +81,7 @@ output "consumed" { value = var.marker }
 				[]byte("terraform { source = \".\" }\ninputs = { marker = \"new\" }\n"), 0600))
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
-				"terragrunt run --all --non-interactive --no-cas --queue-include-external "+tc.flags+
+				"terragrunt run --experiment dependency-stack-generation --all --non-interactive --no-cas --queue-include-external "+tc.flags+
 					" --working-dir "+consumer+" -- plan")
 			assert.NoError(t, err, "%s", stderr)
 			assert.Contains(t, stdout, `consumed = "mock"`)

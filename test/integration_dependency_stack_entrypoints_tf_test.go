@@ -22,10 +22,15 @@ type dependencyStackFixture struct {
 	v    *venv.Venv
 }
 
-func newDependencyStackFixture(t *testing.T) *dependencyStackFixture {
+func newDependencyStackFixture(t *testing.T, enabled bool) *dependencyStackFixture {
 	t.Helper()
 	f := &dependencyStackFixture{t: t, root: helpers.TmpDirWOSymlinks(t), v: helpers.RunVenv(t)}
 	f.v.Env["TG_NO_CAS"] = "true"
+	f.v.Env["TG_EXPERIMENT"] = ""
+	f.v.Env["TG_EXPERIMENT_MODE"] = "false"
+	if enabled {
+		f.v.Env["TG_EXPERIMENT"] = "dependency-stack-generation"
+	}
 	for path, content := range map[string]string{
 		"producer/terragrunt.stack.hcl": `unit "db" {
  source = "../.sources/db"
@@ -101,7 +106,11 @@ func (f *dependencyStackFixture) run(dir, command string) (string, string, error
 
 func (f *dependencyStackFixture) generate(dir string) {
 	f.t.Helper()
-	_, stderr, err := f.run(dir, "stack generate")
+	// Fixture setup uses ordinary generation, independently of the behavior under test.
+	setup := *f
+	setup.v = f.v.WithEnvCloned()
+	setup.v.Env["TG_EXPERIMENT"] = ""
+	_, stderr, err := setup.run(dir, "stack generate")
 	require.NoError(f.t, err, "%s", stderr)
 }
 
@@ -109,6 +118,7 @@ func TestTFDependencyStackEntrypoints(t *testing.T) {
 	t.Parallel()
 	for _, entry := range []struct{ name, dir, command string }{
 		{"generate", "consumer", "stack generate"},
+		{"run all", "consumer", "run --all --queue-include-external -- plan"},
 		{"single plan", "consumer/.terragrunt-stack/app", "run -- plan"},
 		{"render", "consumer/.terragrunt-stack/app", "render --json"},
 		{"graph plan", "consumer/.terragrunt-stack/app", "run --graph --graph-root {root}/consumer --discovery-boundary {root} --queue-include-external -- plan"},
@@ -117,58 +127,98 @@ func TestTFDependencyStackEntrypoints(t *testing.T) {
 		{"single output", "consumer/.terragrunt-stack/app", "run -- output -json"},
 		{"stack output", "producer", "stack output --format json"},
 	} {
-		for _, state := range []string{"missing", "stale", "refreshed"} {
-			t.Run(entry.name+"/"+state, func(t *testing.T) {
+		for _, tc := range []struct {
+			name, state, marker string
+			enabled             bool
+		}{
+			{name: "default/missing", state: "missing"},
+			{name: "default/stale", state: "stale", marker: "old"},
+			{name: "default/refreshed", state: "refreshed", marker: "new"},
+			{name: "enabled/missing", state: "missing", marker: "new", enabled: true},
+			{name: "enabled/stale", state: "stale", marker: "new", enabled: true},
+			{name: "enabled/refreshed", state: "refreshed", marker: "new", enabled: true},
+		} {
+			t.Run(entry.name+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
-				f := newDependencyStackFixture(t)
-				f.generate("consumer")
-				require.NoError(t, os.RemoveAll(filepath.Join(f.root, "producer", ".terragrunt-stack")))
-				if state != "missing" {
-					f.generate("producer")
-				}
-				f.producerSource("new")
-				if state == "refreshed" {
-					f.generate("producer")
-				}
-				// The consumer's own output remains applied state, independent of refreshed inputs.
-				if entry.name == "single output" {
-					f.write("consumer/.terragrunt-stack/app/terraform.tfstate", `{"version":4,"serial":1,"lineage":"22222222-2222-2222-2222-222222222222","outputs":{"consumed":{"value":"applied","type":"string"}},"resources":[]}`)
-				}
-				if entry.name == "graph plan" {
-					sources := filepath.Join(helpers.TmpDirWOSymlinks(t), "sources")
-					require.NoError(t, os.Rename(filepath.Join(f.root, ".sources"), sources))
-					for _, stack := range []string{"consumer", "producer", "unrelated"} {
-						path := stack + "/terragrunt.stack.hcl"
-						f.write(path, strings.ReplaceAll(f.read(path), "../.sources", filepath.ToSlash(sources)))
-					}
-				}
+				f := newDependencyStackFixture(t, tc.enabled)
+				f.prepareEntrypoint(entry.name, tc.state)
 				beforeOld, beforeNew := f.read("states/old.tfstate"), f.read("states/new.tfstate")
+
 				stdout, stderr, err := f.run(entry.dir, entry.command)
-				assert.NoError(t, err, "%s", stderr)
-				path := "producer/.terragrunt-stack/db/terragrunt.hcl"
-				if assert.FileExists(t, filepath.Join(f.root, filepath.FromSlash(path))) {
-					assert.Contains(t, f.read(path), `marker = "new"`)
-				}
-				switch entry.name {
-				case "render":
-					var result struct {
-						Inputs map[string]any `json:"inputs"`
-					}
-					require.NoError(t, json.Unmarshal([]byte(stdout), &result))
-					assert.Equal(t, "new", result.Inputs["marker"])
-				case "single plan", "graph plan", "stack run", "filtered run":
-					assert.Contains(t, stdout, `consumed = "new"`)
-				case "stack output":
-					assert.Contains(t, stdout, `"new"`)
-					assert.NotContains(t, stdout, `"old"`)
-				case "single output":
-					assert.Contains(t, stdout, `"applied"`)
-				}
+
 				assert.Equal(t, beforeOld, f.read("states/old.tfstate"))
 				assert.Equal(t, beforeNew, f.read("states/new.tfstate"))
 				assert.NoDirExists(t, filepath.Join(f.root, "unrelated", ".terragrunt-stack"))
+				if tc.marker == "" {
+					assert.NoDirExists(t, filepath.Join(f.root, "producer", ".terragrunt-stack"))
+					assertMissingDependencyStack(t, entry.name, stderr, err)
+					return
+				}
+
+				require.NoError(t, err, "%s", stderr)
+				path := "producer/.terragrunt-stack/db/terragrunt.hcl"
+				require.FileExists(t, filepath.Join(f.root, filepath.FromSlash(path)))
+				assert.Contains(t, f.read(path), `marker = "`+tc.marker+`"`)
+				assertDependencyStackOutput(t, entry.name, stdout, tc.marker)
 			})
 		}
+	}
+}
+
+func (f *dependencyStackFixture) prepareEntrypoint(entry, state string) {
+	f.t.Helper()
+	f.generate("consumer")
+	if state != "missing" {
+		f.generate("producer")
+	}
+	f.producerSource("new")
+	if state == "refreshed" {
+		f.generate("producer")
+	}
+	// The consumer's output remains applied state, independent of refreshed inputs.
+	if entry == "single output" {
+		f.write("consumer/.terragrunt-stack/app/terraform.tfstate", `{"version":4,"serial":1,"lineage":"22222222-2222-2222-2222-222222222222","outputs":{"consumed":{"value":"applied","type":"string"}},"resources":[]}`)
+	}
+	if entry != "graph plan" {
+		return
+	}
+	sources := filepath.Join(helpers.TmpDirWOSymlinks(f.t), "sources")
+	require.NoError(f.t, os.Rename(filepath.Join(f.root, ".sources"), sources))
+	for _, stack := range []string{"consumer", "producer", "unrelated"} {
+		path := stack + "/terragrunt.stack.hcl"
+		f.write(path, strings.ReplaceAll(f.read(path), "../.sources", filepath.ToSlash(sources)))
+	}
+}
+
+func assertMissingDependencyStack(t *testing.T, entry, stderr string, err error) {
+	t.Helper()
+	switch entry {
+	case "generate":
+		require.NoError(t, err, "%s", stderr)
+	case "render":
+		require.NoError(t, err, "%s", stderr)
+		assert.Contains(t, stderr, "Unsupported attribute")
+	default:
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "not a valid")
+	}
+}
+
+func assertDependencyStackOutput(t *testing.T, entry, stdout, marker string) {
+	t.Helper()
+	switch entry {
+	case "render":
+		var result struct {
+			Inputs map[string]any `json:"inputs"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(stdout), &result))
+		assert.Equal(t, marker, result.Inputs["marker"])
+	case "run all", "single plan", "graph plan", "stack run", "filtered run":
+		assert.Contains(t, stdout, `consumed = "`+marker+`"`)
+	case "stack output":
+		assert.Contains(t, stdout, `"`+marker+`"`)
+	case "single output":
+		assert.Contains(t, stdout, `"applied"`)
 	}
 }
 
@@ -178,7 +228,7 @@ func TestTFDependencyStackInspectionPreservesFiles(t *testing.T) {
 		for _, stale := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/stale=%t", command, stale), func(t *testing.T) {
 				t.Parallel()
-				f := newDependencyStackFixture(t)
+				f := newDependencyStackFixture(t, true)
 				f.generate("consumer")
 				require.NoError(t, os.RemoveAll(filepath.Join(f.root, "producer", ".terragrunt-stack")))
 				if stale {
@@ -221,7 +271,7 @@ func TestTFDependencyStackControls(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			f := newDependencyStackFixture(t)
+			f := newDependencyStackFixture(t, true)
 			if tc.disabled {
 				f.write(".sources/app/terragrunt.hcl", `dependency "producer" {
  config_path = values.producer
@@ -269,7 +319,7 @@ func TestTFDependencyStackRejectsBadSourceDespiteStaleFiles(t *testing.T) {
 	for _, source := range []string{"../missing", "../invalid"} {
 		t.Run(source, func(t *testing.T) {
 			t.Parallel()
-			f := newDependencyStackFixture(t)
+			f := newDependencyStackFixture(t, true)
 			f.generate("consumer")
 			require.NoError(t, os.RemoveAll(filepath.Join(f.root, "producer", ".terragrunt-stack")))
 			f.generate("producer")
@@ -283,7 +333,7 @@ func TestTFDependencyStackRejectsBadSourceDespiteStaleFiles(t *testing.T) {
 
 func TestTFDependencyStackReadTerragruntConfig(t *testing.T) {
 	t.Parallel()
-	f := newDependencyStackFixture(t)
+	f := newDependencyStackFixture(t, true)
 	f.generate("consumer")
 	require.NoError(t, os.RemoveAll(filepath.Join(f.root, "producer", ".terragrunt-stack")))
 	f.generate("producer")
@@ -302,15 +352,22 @@ inputs = local.consumer.inputs
 
 func TestTFDependencyStackSourceUpdateRespectsGenerationLimits(t *testing.T) {
 	t.Parallel()
-	for _, flags := range []string{"--no-stack-generate", "--discovery-boundary {root}/consumer"} {
-		t.Run(flags, func(t *testing.T) {
+	for _, tc := range []struct {
+		name, flags string
+		enabled     bool
+	}{
+		{"default", "", false},
+		{"opt out", "--no-stack-generate", true},
+		{"discovery limit", "--discovery-boundary {root}/consumer", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			f := newDependencyStackFixture(t)
+			f := newDependencyStackFixture(t, tc.enabled)
 			f.generate("consumer")
 			f.generate("producer")
 			f.write("producer/.terragrunt-stack/db/obsolete.txt", "preserve")
 			f.producerSource("new")
-			_, stderr, err := f.run("consumer", "run --all --queue-include-external --source-update "+flags+" -- plan")
+			_, stderr, err := f.run("consumer", "run --all --queue-include-external --source-update "+tc.flags+" -- plan")
 			require.NoError(t, err, "%s", stderr)
 			assert.Contains(t, f.read("producer/.terragrunt-stack/db/terragrunt.hcl"), `marker = "old"`)
 			assert.Equal(t, "preserve", f.read("producer/.terragrunt-stack/db/obsolete.txt"))
@@ -327,7 +384,7 @@ func TestTFDependencyStackOptOutAcrossEntrypoints(t *testing.T) {
 	} {
 		t.Run(entry.command, func(t *testing.T) {
 			t.Parallel()
-			f := newDependencyStackFixture(t)
+			f := newDependencyStackFixture(t, true)
 			f.generate("consumer")
 			f.generate("producer")
 			f.producerSource("new")
@@ -340,7 +397,7 @@ func TestTFDependencyStackOptOutAcrossEntrypoints(t *testing.T) {
 
 func TestTFDependencyStackExecRefreshesInputs(t *testing.T) {
 	t.Parallel()
-	f := newDependencyStackFixture(t)
+	f := newDependencyStackFixture(t, true)
 	f.generate("consumer")
 	f.generate("producer")
 	f.producerSource("new")
@@ -352,7 +409,7 @@ func TestTFDependencyStackExecRefreshesInputs(t *testing.T) {
 
 func TestTFDependencyStackBackendDiscoveryRefreshesConfiguration(t *testing.T) {
 	t.Parallel()
-	f := newDependencyStackFixture(t)
+	f := newDependencyStackFixture(t, true)
 	f.generate("consumer")
 	f.generate("producer")
 	f.producerSource("new")
