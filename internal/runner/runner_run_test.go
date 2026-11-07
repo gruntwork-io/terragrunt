@@ -876,7 +876,10 @@ func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
 
 	unitRunner := runner.NewUnitRunner(component.NewUnit(memRoot))
 
-	require.NoError(t, unitRunner.Run(config.WithCaches(t.Context()), thlogger.CreateLogger(), venvtest.New(), nil, nil, nil, nil))
+	require.NoError(
+		t,
+		unitRunner.Run(config.WithCaches(t.Context()), thlogger.CreateLogger(), venvtest.New(), nil, nil, nil, nil),
+	)
 	assert.Equal(t, runner.Running, unitRunner.Status)
 }
 

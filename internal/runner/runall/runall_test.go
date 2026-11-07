@@ -27,7 +27,7 @@ func TestMissingRunAllArguments(t *testing.T) {
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	tgOptions.TerraformCommand = ""
+	tgOptions.TofuCommand = ""
 
 	err = runall.Run(t.Context(), logger.CreateLogger(), venvtest.New(), tgOptions)
 	require.Error(t, err)
@@ -56,7 +56,7 @@ func TestRunGivesStackTargetTipOnEarlyReturn(t *testing.T) {
 	require.NoError(t, err)
 
 	opts.WorkingDir = root
-	opts.TerraformCommand = ""
+	opts.TofuCommand = ""
 	opts.Filters = filter.Filters{stackFilter}
 
 	output := new(bytes.Buffer)

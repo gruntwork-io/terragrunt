@@ -23,8 +23,14 @@ type RunConfig struct {
 	ProcessedIncludes map[string]IncludeConfig
 	// GenerateConfigs contains code generation configurations
 	GenerateConfigs map[string]codegen.GenerateConfig
-	// Inputs contains input variables to pass to terraform
+	// Inputs contains the input variables passed to OpenTofu/Terraform as TF_VAR_ environment variables.
 	Inputs map[string]any
+	// TFVarsInputs contains the input variables written to the auto-loaded terragrunt.auto.tfvars file.
+	TFVarsInputs map[string]any
+	// JSONInputs contains the input variables written to the auto-loaded terragrunt.auto.tfvars.json file.
+	JSONInputs map[string]any
+	// ValidatedInputs names the input variables the module must declare.
+	ValidatedInputs map[string]struct{}
 	// Engine contains engine-specific settings
 	Engine EngineConfig
 	// DownloadDir is the custom download directory for terraform source

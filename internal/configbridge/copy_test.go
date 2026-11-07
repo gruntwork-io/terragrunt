@@ -37,8 +37,8 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Equal(t, opts.WorkingDir, pctx.WorkingDir)
 	assert.Equal(t, opts.RootWorkingDir, pctx.RootWorkingDir)
 	assert.Equal(t, opts.DownloadDir, pctx.DownloadDir)
-	assert.Equal(t, opts.TerraformCommand, pctx.TerraformCommand)
-	assert.Equal(t, opts.OriginalTerraformCommand, pctx.OriginalTerraformCommand)
+	assert.Equal(t, opts.TofuCommand, pctx.TerraformCommand)
+	assert.Equal(t, opts.OriginalTofuCommand, pctx.OriginalTofuCommand)
 	assert.Same(t, opts.TerraformCliArgs, pctx.TerraformCliArgs, "the copy must replace the args the constructor seeds")
 	assert.Equal(t, opts.Source, pctx.Source)
 	assert.Equal(t, opts.SourceMap, pctx.SourceMap)
@@ -128,8 +128,8 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	assert.Equal(t, opts.RootWorkingDir, runOpts.RootWorkingDir)
 	assert.Equal(t, opts.ProfileDir, runOpts.ProfileDir)
 	assert.Equal(t, opts.DownloadDir, runOpts.DownloadDir)
-	assert.Equal(t, opts.TerraformCommand, runOpts.TerraformCommand)
-	assert.Equal(t, opts.OriginalTerraformCommand, runOpts.OriginalTerraformCommand)
+	assert.Equal(t, opts.TofuCommand, runOpts.TerraformCommand)
+	assert.Equal(t, opts.OriginalTofuCommand, runOpts.OriginalTofuCommand)
 	assert.Same(t, opts.TerraformCliArgs, runOpts.TerraformCliArgs)
 	assert.Equal(t, opts.Source, runOpts.Source)
 	assert.Equal(t, opts.SourceMap, runOpts.SourceMap)
@@ -281,8 +281,8 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	opts.WorkingDir = "/copy/working"
 	opts.RootWorkingDir = "/copy/root"
 	opts.DownloadDir = "/copy/download"
-	opts.TerraformCommand = "apply"
-	opts.OriginalTerraformCommand = "plan"
+	opts.TofuCommand = "apply"
+	opts.OriginalTofuCommand = "plan"
 	opts.TerraformCliArgs = iacargs.New("plan", "-input=false")
 	opts.Source = "github.com/acme/units//vpc"
 	opts.SourceMap = map[string]string{"github.com/acme/units": "/copy/local/units"}

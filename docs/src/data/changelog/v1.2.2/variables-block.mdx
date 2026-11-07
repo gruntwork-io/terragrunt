@@ -1,0 +1,25 @@
+---
+version: "v1.2.2"
+category: "experiments-added"
+---
+
+#### `variables-block` experiment adds a `variables` block
+
+Enable the [`variables-block`](/reference/experiments/active#variables-block) experiment to set OpenTofu/Terraform variables with a [`variables`](/reference/hcl/blocks#variables) block. Its `kind` attribute chooses how Terragrunt passes the inputs: `TF_VAR_` environment variables (`env`, the default), a `terragrunt.auto.tfvars` file (`tfvar`), or a `terragrunt.auto.tfvars.json` file (`json`). Writing inputs to a file avoids the operating system's limit on the size of a process environment, which a unit with many or large inputs can exceed.
+
+```hcl
+variables {
+  kind     = "tfvar"
+  validate = true
+
+  inputs = {
+    vpc_id = dependency.vpc.outputs.vpc_id
+  }
+}
+```
+
+```bash
+terragrunt run --experiment variables-block -- plan
+```
+
+With the experiment enabled, `terragrunt.auto.tfvars` and `terragrunt.auto.tfvars.json` are reserved names in `.terragrunt-cache`. Terragrunt removes a file with either name from the cache when the unit has no inputs of that kind, so rename any such file in a unit, module, or `generate` block.

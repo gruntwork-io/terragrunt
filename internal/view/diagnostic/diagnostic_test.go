@@ -138,6 +138,7 @@ func TestNewDiagnosticRejectsSubjectWithoutFile(t *testing.T) {
 	var missing diagnostic.MissingSourceError
 	require.ErrorAs(t, err, &missing)
 	assert.Equal(t, "terragrunt.hcl", missing.Filename)
+	assert.Contains(t, missing.Error(), "terragrunt.hcl", "error should name the file it has no source for")
 }
 
 // TestNewSnippetPanicsWithoutFile pins that building a snippet without a file panics, since

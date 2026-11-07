@@ -31,7 +31,7 @@ var keyedParsingContextFields = map[string]func(*config.ParsingContext){
 	"DownloadDir":               func(pctx *config.ParsingContext) { pctx.DownloadDir = "other" },
 	"Source":                    func(pctx *config.ParsingContext) { pctx.Source = "other" },
 	"TerraformCommand":          func(pctx *config.ParsingContext) { pctx.TerraformCommand = "plan" },
-	"OriginalTerraformCommand":  func(pctx *config.ParsingContext) { pctx.OriginalTerraformCommand = "plan" },
+	"OriginalTofuCommand":       func(pctx *config.ParsingContext) { pctx.OriginalTofuCommand = "plan" },
 	"TerragruntStackConfigPath": func(pctx *config.ParsingContext) { pctx.TerragruntStackConfigPath = "other" },
 	"IAMRoleOptions": func(pctx *config.ParsingContext) {
 		pctx.IAMRoleOptions = iam.RoleOptions{RoleARN: "arn:aws:iam::111111111111:role/other"}

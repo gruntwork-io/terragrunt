@@ -72,6 +72,10 @@ func (c *UnitConfig) assemble(
 	}
 
 	if cfg != nil {
+		if err := pkgconfig.ValidateInputDefinitions(c.file, cfg); err != nil {
+			errs = append(errs, err)
+		}
+
 		autoMergedCfg, autoMergeErr := c.mergeAutoInclude(ctx, l, v, src, cfg)
 		if autoMergeErr != nil {
 			errs = append(errs, autoMergeErr)

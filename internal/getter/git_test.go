@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -141,7 +142,7 @@ func TestGitGetterClonesRefAtDepth(t *testing.T) {
 	}, log.argv())
 
 	assert.NotContains(t, log.trusted, false, "every git command must run as Terragrunt's own")
-	assert.Equal(t, "ssh", log.envOf(t, "git clone", getter.EnvGitSSHCommand))
+	assert.Equal(t, "ssh", log.envOf(t, "git clone", git.EnvGitSSHCommand))
 }
 
 func TestGitGetterRefreshesExistingCheckout(t *testing.T) {
@@ -196,7 +197,7 @@ func TestGitGetterRefreshWithoutRefFollowsRemoteHead(t *testing.T) {
 func TestGitGetterHandsSSHKeyToSSH(t *testing.T) {
 	t.Parallel()
 
-	key := []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nplaceholder\n")
+	key := []byte("fake-ssh-key\n")
 
 	var (
 		keyPath string
@@ -215,7 +216,7 @@ func TestGitGetterHandsSSHKeyToSSH(t *testing.T) {
 		}
 
 		for _, kv := range inv.Env {
-			if cmd, ok := strings.CutPrefix(kv, getter.EnvGitSSHCommand+"="); ok {
+			if cmd, ok := strings.CutPrefix(kv, git.EnvGitSSHCommand+"="); ok {
 				keyPath = strings.TrimPrefix(cmd, "ssh -i ")
 			}
 		}
@@ -250,7 +251,7 @@ func TestGitGetterRefusesSSHKeyOnOldGit(t *testing.T) {
 	src := "git::ssh://git@example.com/org/repo.git?sshkey=" + base64.StdEncoding.EncodeToString([]byte("key"))
 
 	err := download(t, getter.NewGitGetter(gitVenv(log)), src, venvtest.Root("/work/module"), getter.ModeDir)
-	require.ErrorIs(t, err, getter.ErrGitTooOldForSSHKey)
+	require.ErrorIs(t, err, git.ErrGitTooOldForSSHKey)
 	assert.Equal(t, []string{"git version"}, log.argv(), "nothing may be cloned with a git too old for the key")
 }
 
@@ -307,7 +308,7 @@ func TestGitGetterErrorKeepsEndOfLongStderr(t *testing.T) {
 func TestGitGetterKeepsCredentialsOutOfErrors(t *testing.T) {
 	t.Parallel()
 
-	const token = "s3cr3t-token"
+	const token = "fake-token"
 
 	tests := []struct {
 		name   string

@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	awsRoleBaseAccessKeyID    = "AKIABASEIDENTITY"
-	awsRoleAssumedAccessKeyID = "ASIAASSUMEDSESSION"
+	awsRoleBaseAccessKeyID    = "fake-base-access-key-id"
+	awsRoleAssumedAccessKeyID = "fake-assumed-session-key-id"
 	awsRoleARN                = "arn:aws:iam::123456789012:role/auth-provider-test"
 )
 

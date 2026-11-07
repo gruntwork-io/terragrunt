@@ -50,8 +50,8 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.WorkingDir = opts.WorkingDir
 	pctx.RootWorkingDir = opts.RootWorkingDir
 	pctx.DownloadDir = opts.DownloadDir
-	pctx.TerraformCommand = opts.TerraformCommand
-	pctx.OriginalTerraformCommand = opts.OriginalTerraformCommand
+	pctx.TerraformCommand = opts.TofuCommand
+	pctx.OriginalTofuCommand = opts.OriginalTofuCommand
 	pctx.TerraformCliArgs = opts.TerraformCliArgs
 	pctx.Source = opts.Source
 	pctx.SourceMap = opts.SourceMap
@@ -154,8 +154,8 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.RootWorkingDir = opts.RootWorkingDir
 	runOpts.ProfileDir = opts.ProfileDir
 	runOpts.DownloadDir = opts.DownloadDir
-	runOpts.TerraformCommand = opts.TerraformCommand
-	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand
+	runOpts.TerraformCommand = opts.TofuCommand
+	runOpts.OriginalTofuCommand = opts.OriginalTofuCommand
 	runOpts.TerraformCliArgs = opts.TerraformCliArgs
 	runOpts.Source = opts.Source
 	runOpts.SourceMap = opts.SourceMap

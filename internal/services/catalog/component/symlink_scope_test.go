@@ -31,7 +31,7 @@ func scopeFixture(t *testing.T) (fsys vfs.FS, clone, src, secret string) {
 
 	require.NoError(t, os.MkdirAll(src, 0o755))
 	require.NoError(t, os.MkdirAll(filepath.Join(clone, "shared"), 0o755))
-	require.NoError(t, os.WriteFile(secret, []byte("aws_secret_access_key = hunter2\n"), 0o600))
+	require.NoError(t, os.WriteFile(secret, []byte("aws_secret_access_key = fake-password\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(src, "terragrunt.hcl"), []byte("# unit\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(clone, "shared", "common.hcl"), []byte("# shared\n"), 0o644))
 
@@ -106,7 +106,7 @@ func TestScaffoldRejectsChainedEscapeOutsideComponent(t *testing.T) {
 	require.ErrorAs(t, err, &escErr)
 
 	got, _ := os.ReadFile(filepath.Join(dst, "notes.md"))
-	assert.NotContains(t, string(got), "hunter2")
+	assert.NotContains(t, string(got), "fake-password")
 }
 
 // A link out of root whose target does not exist cannot be resolved, so only

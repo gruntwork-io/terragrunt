@@ -360,7 +360,12 @@ func TestDependencyStateEligibilityImpersonatesLikeNativeBackend(t *testing.T) {
 				authorization = append(authorization, header.Get("Authorization"))
 			}
 
-			assert.Equal(t, testCase.wantAuthorization, authorization, "the source identity signs the IAM call and the impersonated token reads the state")
+			assert.Equal(
+				t,
+				testCase.wantAuthorization,
+				authorization,
+				"the source identity signs the IAM call and the impersonated token reads the state",
+			)
 			assert.Equal(t, testCase.wantScope, request.Scope, "the native backend requests read_write")
 			assert.Equal(t, testCase.wantDelegates, request.Delegates)
 		})
@@ -376,7 +381,9 @@ func TestDependencyStateEligibilityImpersonationDeniedFallsBack(t *testing.T) {
 		if req.URL.Host == "iamcredentials.googleapis.com" {
 			return vhttp.Respond(
 				http.StatusForbidden,
-				[]byte(`{"error":{"code":403,"message":"Permission 'iam.serviceAccounts.getAccessToken' denied","status":"PERMISSION_DENIED"}}`),
+				[]byte(
+					`{"error":{"code":403,"message":"Permission 'iam.serviceAccounts.getAccessToken' denied","status":"PERMISSION_DENIED"}}`,
+				),
 				nil,
 			)
 		}
@@ -397,7 +404,12 @@ func TestDependencyStateEligibilityImpersonationDeniedFallsBack(t *testing.T) {
 
 	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
 	assert.Len(t, recorder.outputInvocations(), 1, "a denied impersonation must run the native output command once")
-	assert.Equal(t, []string{gcsGenerateAccessTokenPath("config@example.com")}, recorder.requestPaths(), "the state must not be read with the source token")
+	assert.Equal(
+		t,
+		[]string{gcsGenerateAccessTokenPath("config@example.com")},
+		recorder.requestPaths(),
+		"the state must not be read with the source token",
+	)
 }
 
 func parseGCSCredentialEligibilityFixture(
@@ -541,7 +553,9 @@ func parseGCSExternalAccountFixture(
 		case "sts.googleapis.com", "oauth2.googleapis.com", "sts.example.com":
 			return vhttp.Respond(
 				http.StatusOK,
-				[]byte(`{"access_token":"federated-token","token_type":"Bearer","expires_in":3600,"issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}`),
+				[]byte(
+					`{"access_token":"federated-token","token_type":"Bearer","expires_in":3600,"issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}`,
+				),
 				nil,
 			)
 		case "iamcredentials.googleapis.com":

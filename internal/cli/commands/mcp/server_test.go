@@ -17,6 +17,7 @@ import (
 
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -48,6 +49,17 @@ dependency "a" {
 
 inputs = {
   a_id = dependency.a.outputs.id
+}
+`
+
+const unitVariablesConfig = `
+inputs = {
+  from_attr = "attr"
+}
+
+variables {
+  kind   = "tfvar"
+  inputs = { from_block = "block" }
 }
 `
 
@@ -353,7 +365,7 @@ func TestServeAdvertisesTheToolSet(t *testing.T) {
 	session := newTestSession(t, newTestTree(t))
 
 	assert.Equal(t,
-		[]string{"discover", "get_outputs", "plan", "render_config", "run_order", "validate"},
+		[]string{"catalog", "discover", "fmt", "get_outputs", "plan", "render_config", "run_order", "scaffold", "validate"},
 		toolNames(t, session))
 }
 
@@ -375,12 +387,15 @@ func TestMutatingToolsAreAbsentUntilGranted(t *testing.T) {
 		t,
 		[]string{
 			"apply",
+			"catalog",
 			"destroy",
 			"discover",
+			"fmt",
 			"get_outputs",
 			"plan",
 			"render_config",
 			"run_order",
+			"scaffold",
 			"validate",
 		},
 		toolNames(t, granted),
@@ -433,6 +448,28 @@ func TestDiscoverToolReportsUnitsAndDependencies(t *testing.T) {
 		{Path: "b", Dependencies: []string{"a"}},
 	}, out.Units)
 	assert.Empty(t, out.Degraded)
+}
+
+func TestRenderConfigToolSummarizesVariablesBlocks(t *testing.T) {
+	t.Parallel()
+
+	dir := newTestTree(t)
+	require.NoError(t, vfs.WriteFile(
+		vfs.NewOSFS(),
+		filepath.Join(dir, "a", "terragrunt.hcl"),
+		[]byte(unitVariablesConfig),
+		0o644,
+	))
+
+	session := newTestSessionWithOptions(t, dir, func(o *tgmcp.Options) {
+		require.NoError(t, o.Experiments.EnableExperiment(experiment.VariablesBlock))
+	})
+
+	var out renderConfigOutput
+
+	callTool(t, session, "render_config", map[string]any{"working_dir": "a"}, &out)
+
+	assert.Equal(t, []string{"from_attr", "from_block"}, out.Summary.InputKeys)
 }
 
 func TestRenderConfigToolSummarizesAUnit(t *testing.T) {
@@ -542,7 +579,10 @@ func TestRunOrderDescriptionNamesOnlyArgumentsItAccepts(t *testing.T) {
 	res, err := session.ListTools(t.Context(), nil)
 	require.NoError(t, err)
 
-	idx := slices.IndexFunc(res.Tools, func(tool *mcp.Tool) bool { return tool.Name == "run_order" })
+	idx := slices.IndexFunc(
+		res.Tools,
+		func(tool *mcp.Tool) bool { return tool.Name == "run_order" },
+	)
 	require.GreaterOrEqual(t, idx, 0, "run_order must be advertised")
 
 	tool := res.Tools[idx]
@@ -560,7 +600,8 @@ func TestRunOrderDescriptionNamesOnlyArgumentsItAccepts(t *testing.T) {
 	require.NotEmpty(t, arguments)
 
 	// A leading dash marks a server flag such as --allow=exec.
-	mentions := regexp.MustCompile(`(?:^|[^-\w])([a-z_]+)=\w`).FindAllStringSubmatch(tool.Description, -1)
+	mentions := regexp.MustCompile(`(?:^|[^-\w])([a-z_]+)=\w`).
+		FindAllStringSubmatch(tool.Description, -1)
 	require.NotEmpty(t, mentions)
 
 	for _, mention := range mentions {
@@ -707,6 +748,7 @@ func TestConcurrentToolCallsShareOneServerWithRacing(t *testing.T) {
 		{name: "render_config", args: map[string]any{"working_dir": "b"}},
 		{name: "run_order", args: map[string]any{}},
 		{name: "validate", args: map[string]any{}},
+		{name: "catalog", args: map[string]any{}},
 	}
 
 	var g errgroup.Group
@@ -772,9 +814,10 @@ func TestToolAnnotationsFollowTheGrantedCapabilities(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, tool := range res.Tools {
-				// plan is the exception: it requires --allow=exec, and the
-				// command it spawns reaches the network on its own account.
-				if tool.Name == "plan" {
+				// plan requires --allow=exec, and the command it spawns
+				// reaches the network on its own account. fmt only reads and
+				// writes local files.
+				if tool.Name == "plan" || tool.Name == "fmt" {
 					continue
 				}
 
@@ -789,7 +832,7 @@ func TestToolAnnotationsFollowTheGrantedCapabilities(t *testing.T) {
 // plain output and one sensitive output.
 const s3StateObject = `{"version":4,"serial":1,"lineage":"test","outputs":{` +
 	`"id":{"value":"from-state","type":"string"},` +
-	`"secret":{"value":"hunter2","type":"string","sensitive":true}` +
+	`"secret":{"value":"fake-password","type":"string","sensitive":true}` +
 	`},"resources":[]}`
 
 // TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP pins the http capability
@@ -835,7 +878,7 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 			degraded:  assert.Empty,
 			want: map[string]outputEntry{
 				"id":     {Value: "from-state"},
-				"secret": {Value: "hunter2", Sensitive: true},
+				"secret": {Value: "fake-password", Sensitive: true},
 			},
 		},
 	} {
@@ -846,24 +889,32 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 
 			var requests atomic.Int32
 
-			s3 := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
-				requests.Add(1)
+			s3 := vhttp.NewMemClient(
+				func(_ context.Context, req *http.Request) (*http.Response, error) {
+					requests.Add(1)
 
-				if !strings.HasSuffix(req.URL.Path, "/s3-backed/tofu.tfstate") {
-					return vhttp.Respond(http.StatusNotFound, nil, nil), nil
-				}
+					if !strings.HasSuffix(req.URL.Path, "/s3-backed/tofu.tfstate") {
+						return vhttp.Respond(http.StatusNotFound, nil, nil), nil
+					}
 
-				return vhttp.Respond(http.StatusOK, []byte(s3StateObject), nil), nil
-			})
+					return vhttp.Respond(http.StatusOK, []byte(s3StateObject), nil), nil
+				},
+			)
 
 			// Static keys stop the SDK from resolving credentials on the
 			// machine running the test.
 			v := venvtest.NewWithOSFS().WithHTTP(s3).WithEnv(map[string]string{
-				"AWS_ACCESS_KEY_ID":     "AKIATEST",
+				"AWS_ACCESS_KEY_ID":     "fake-access-key-id",
 				"AWS_SECRET_ACCESS_KEY": "test-secret",
 			})
 
-			session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = tc.allow }, nil)
+			session := newTestSessionWith(
+				t,
+				dir,
+				v,
+				func(o *tgmcp.Options) { o.Allow = tc.allow },
+				nil,
+			)
 
 			var out getOutputsOutput
 
@@ -949,10 +1000,12 @@ func TestDestroyRefusesAnApprovalTheServerDidNotIssue(t *testing.T) {
 			session := newApprovingSession(t, newTestTree(t), "accept", &prompts)
 
 			res, err := session.CallTool(t.Context(), &mcp.CallToolParams{
-				Name:           "destroy",
-				Arguments:      map[string]any{},
-				InputResponses: mcp.InputResponseMap{"approval": &mcp.ElicitResult{Action: "accept"}},
-				RequestState:   tc.state,
+				Name:      "destroy",
+				Arguments: map[string]any{},
+				InputResponses: mcp.InputResponseMap{
+					"approval": &mcp.ElicitResult{Action: "accept"},
+				},
+				RequestState: tc.state,
 			})
 			require.NoError(t, err)
 
@@ -1358,7 +1411,13 @@ func TestDiscoverHonoursTheCommandExcludeBlocksAreEvaluatedAgainst(t *testing.T)
 				excluded[unit.Path] = unit.Excluded
 			}
 
-			assert.Equal(t, tc.want, excluded, "the unit excluded from %q must be the excluded one", tc.as)
+			assert.Equal(
+				t,
+				tc.want,
+				excluded,
+				"the unit excluded from %q must be the excluded one",
+				tc.as,
+			)
 		})
 	}
 }
@@ -1527,7 +1586,13 @@ func TestConfigurationCannotRunTerragruntsOwnPrograms(t *testing.T) {
 			} `json:"config"`
 		}
 
-		callTool(t, session, "render_config", map[string]any{"working_dir": "unit", "format": "full"}, &out)
+		callTool(
+			t,
+			session,
+			"render_config",
+			map[string]any{"working_dir": "unit", "format": "full"},
+			&out,
+		)
 
 		git, _ := out.Config.Inputs["git"].(string)
 
@@ -1649,7 +1714,13 @@ func TestSopsDecryptUnderAllowSopsReachesTheResult(t *testing.T) {
 		} `json:"config"`
 	}
 
-	callTool(t, session, "render_config", map[string]any{"working_dir": "u", "format": "full"}, &out)
+	callTool(
+		t,
+		session,
+		"render_config",
+		map[string]any{"working_dir": "u", "format": "full"},
+		&out,
+	)
 
 	assert.Equal(t, sopsCleartext, out.Config.Inputs["secret"])
 	assert.Positive(t, decrypts.Load())

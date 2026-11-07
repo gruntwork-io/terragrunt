@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { CollectionEntry } from 'astro:content';
-import { functionSignature, hclItemPath, itemHeadings, referenceMarkdown } from '.';
+import { anchorRedirects, functionSignature, hclItemPath, itemAnchors, itemHeadings, referenceMarkdown } from '.';
 
 type FunctionData = CollectionEntry<'hclFunctions'>['data'];
 type BlockData = CollectionEntry<'hclBlocks'>['data'];
@@ -48,7 +48,7 @@ describe('hclItemPath', () => {
 
 describe('functionSignature', () => {
 	test('renders a function with no parameters', () => {
-		expect(functionSignature(functionEntry({ name: 'get_platform' }).data)).toBe('get_platform()');
+		expect(functionSignature(functionEntry({ name: 'get_platform' }).data)).toBe('get_platform() --> string');
 	});
 
 	test('brackets optional parameters', () => {
@@ -59,7 +59,7 @@ describe('functionSignature', () => {
 				{ name: 'default', type: 'string', optional: true, description: '' },
 			],
 		}).data;
-		expect(functionSignature(data)).toBe('get_env(name, [default])');
+		expect(functionSignature(data)).toBe('get_env(name: string, [default: string]) --> string');
 	});
 });
 
@@ -115,6 +115,58 @@ describe('itemHeadings', () => {
 
 	test('adds nothing past Examples for an attribute', () => {
 		expect(slugs(attributeEntry({}))).toEqual(['usage', 'examples']);
+	});
+});
+
+describe('itemAnchors', () => {
+	const urls = { name: 'urls', type: 'list(string)', required: true, description: 'URLs.', example: '' };
+
+	test('returns body heading slugs at every depth', () => {
+		const body = [
+			{ depth: 2, slug: 'caching', text: 'Caching' },
+			{ depth: 4, slug: 'hashing', text: 'Hashing' },
+		];
+		expect(itemAnchors(functionEntry({}), body)).toEqual(['caching', 'hashing']);
+	});
+
+	test('adds attribute names for a block', () => {
+		const body = [{ depth: 2, slug: 'merge-behavior', text: 'Merge behavior' }];
+		expect(itemAnchors(blockEntry({ attributes: [urls] }), body)).toEqual(['merge-behavior', 'urls']);
+	});
+
+	test('returns nothing for an attribute without body headings', () => {
+		expect(itemAnchors(attributeEntry({}), [])).toEqual([]);
+	});
+});
+
+describe('anchorRedirects', () => {
+	test('sends names to the item page and anchors to a fragment on it', () => {
+		expect(anchorRedirects('blocks', [{ name: 'remote_state', anchors: ['backend', 'encryption'] }])).toEqual({
+			remote_state: '/reference/hcl/blocks/remote_state/',
+			backend: '/reference/hcl/blocks/remote_state/#backend',
+			encryption: '/reference/hcl/blocks/remote_state/#encryption',
+		});
+	});
+
+	test('leaves out an anchor two items define', () => {
+		const redirects = anchorRedirects('blocks', [
+			{ name: 'unit', anchors: ['source'] },
+			{ name: 'stack', anchors: ['source'] },
+		]);
+		expect(redirects).toEqual({ unit: '/reference/hcl/blocks/unit/', stack: '/reference/hcl/blocks/stack/' });
+	});
+
+	test("prefers an item name over another item's anchor of the same name", () => {
+		const redirects = anchorRedirects('blocks', [
+			{ name: 'generate', anchors: [] },
+			{ name: 'remote_state', anchors: ['generate'] },
+		]);
+		expect(redirects.generate).toBe('/reference/hcl/blocks/generate/');
+	});
+
+	test('keeps an anchor one item defines twice', () => {
+		const redirects = anchorRedirects('blocks', [{ name: 'remote_state', anchors: ['backend', 'backend'] }]);
+		expect(redirects.backend).toBe('/reference/hcl/blocks/remote_state/#backend');
 	});
 });
 
@@ -195,7 +247,7 @@ describe('referenceMarkdown', () => {
 				params: [{ name: 'name', type: 'string', optional: false, description: 'Variable name.' }],
 			}),
 		);
-		expect(before).toBe('**Returns:** `string`\n\n## Usage\n\n```hcl\nget_env(name)\n```');
+		expect(before).toBe('**Returns:** `string`\n\n## Usage\n\n```hcl\nget_env(name: string) --> string\n```');
 		expect(after).toBe(
 			[
 				'## Parameters',

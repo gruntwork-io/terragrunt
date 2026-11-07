@@ -1,0 +1,42 @@
+---
+name: variables-block
+since: "v1.2.2"
+---
+
+Support for the `variables` block, which sets OpenTofu/Terraform variables like the `inputs` attribute and also chooses how Terragrunt passes them.
+
+This experiment is ongoing and disabled by default. A configuration with a `variables` block returns an error unless the experiment is enabled.
+
+### `variables-block` - What it does
+
+The `inputs` attribute passes every value to OpenTofu/Terraform as a `TF_VAR_` environment variable. When a unit has many inputs, or large ones, the environment can exceed the operating system's size limit for a new process, and OpenTofu/Terraform fails to start. A [`variables`](/reference/hcl/blocks#variables) block can write its inputs to an auto-loaded variables file.
+
+```hcl
+variables {
+  kind = "tfvar"
+
+  inputs = {
+    vpc_id  = dependency.vpc.outputs.vpc_id
+    subnets = local.subnets
+  }
+}
+```
+
+```bash
+terragrunt run --experiment variables-block -- plan
+```
+
+To move a unit from the `inputs` attribute, wrap its map in a `variables` block. Add `nullable = true` if the module relies on `null` values from the map.
+
+See the [`variables` block reference](/reference/hcl/blocks#variables) for its attributes, how blocks combine, and where Terragrunt writes the variables files.
+
+### `variables-block` - How to provide feedback
+
+Provide your feedback on the [`variables` block RFC](https://github.com/gruntwork-io/terragrunt/issues/4402).
+
+### `variables-block` - Criteria for stabilization
+
+To transition the `variables-block` feature to a stable release, the following must be addressed:
+
+- [ ] Community feedback on real-world usage.
+- [ ] Decide whether Terragrunt warns when a configuration uses the `inputs` attribute.

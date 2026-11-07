@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWriteNullVarsFile(t *testing.T) {
+func TestWriteVarsFile(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -25,7 +25,7 @@ func TestWriteNullVarsFile(t *testing.T) {
 		fsys := vfs.NewMemMapFS()
 		require.NoError(t, fsys.MkdirAll(dir, 0755))
 
-		require.NoError(t, writeNullVarsFile(fsys, path, []byte(`{"var1": null}`), true))
+		require.NoError(t, writeVarsFile(fsys, path, []byte(`{"var1": null}`), varsFileDirUnit))
 
 		contents, err := vfs.ReadFile(fsys, path)
 		require.NoError(t, err)
@@ -38,9 +38,9 @@ func TestWriteNullVarsFile(t *testing.T) {
 		fsys := vfs.NewMemMapFS()
 		require.NoError(t, vfs.WriteFile(fsys, path, []byte(`{"keep": "original"}`), 0644))
 
-		err := writeNullVarsFile(fsys, path, []byte(`{"var1": null}`), true)
+		err := writeVarsFile(fsys, path, []byte(`{"var1": null}`), varsFileDirUnit)
 
-		var exists NullVarsFileExists
+		var exists VarsFileExists
 
 		require.ErrorAs(t, err, &exists)
 		assert.Equal(t, path, exists.Path)
@@ -60,9 +60,9 @@ func TestWriteNullVarsFile(t *testing.T) {
 		require.NoError(t, os.WriteFile(target, []byte(`{"keep": "original"}`), 0644))
 		require.NoError(t, os.Symlink("target.json", link))
 
-		err := writeNullVarsFile(vfs.NewOSFS(), link, []byte(`{"var1": null}`), true)
+		err := writeVarsFile(vfs.NewOSFS(), link, []byte(`{"var1": null}`), varsFileDirUnit)
 
-		var exists NullVarsFileExists
+		var exists VarsFileExists
 
 		require.ErrorAs(t, err, &exists)
 
@@ -81,7 +81,7 @@ func TestWriteNullVarsFile(t *testing.T) {
 		fsys := vfs.NewMemMapFS()
 		require.NoError(t, vfs.WriteFile(fsys, path, []byte(`{"var1":`), 0644))
 
-		require.NoError(t, writeNullVarsFile(fsys, path, []byte(`{"var1": null}`), false))
+		require.NoError(t, writeVarsFile(fsys, path, []byte(`{"var1": null}`), varsFileDirCache))
 
 		contents, err := vfs.ReadFile(fsys, path)
 		require.NoError(t, err)
@@ -94,10 +94,10 @@ func TestWriteNullVarsFile(t *testing.T) {
 		fsys := failingWriteFS{FS: vfs.NewMemMapFS()}
 		require.NoError(t, fsys.MkdirAll(dir, 0755))
 
-		err := writeNullVarsFile(fsys, path, []byte(`{"var1": null}`), true)
+		err := writeVarsFile(fsys, path, []byte(`{"var1": null}`), varsFileDirUnit)
 		require.ErrorIs(t, err, errWriteFailed)
 
-		// A partial file at path would make every later in-place run stop with NullVarsFileExists, and a
+		// A partial file at path would make every later in-place run stop with VarsFileExists, and a
 		// scratch file left next to it would clutter the unit directory.
 		_, err = fsys.Stat(path)
 		require.ErrorIs(t, err, os.ErrNotExist)

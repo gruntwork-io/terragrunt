@@ -163,7 +163,7 @@ func TestDependencyStateS3AssumeRoleUsedForDirectRead(t *testing.T) {
 	}
 
 	recorder := newDependencyStateRecorder(t, 0, nil)
-	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole)
 
 	cfg, err := parseDependencyStateFixture(
 		t,
@@ -206,8 +206,11 @@ func TestDependencyStateS3AssumeRoleUsedForDirectRead(t *testing.T) {
 	require.Equal(t, []string{backendRoleARN}, requestedRoles)
 }
 
-// stsAndS3Responder returns an HTTP callback handling STS AssumeRole and S3 state requests.
-func stsAndS3Responder(t *testing.T, defaultRoleARN string, onAssumeRole func(string)) func(*http.Request) *http.Response {
+// responder builds the response a dependencyStateRecorder returns for one request.
+type responder func(*http.Request) *http.Response
+
+// stsAndS3Responder returns a responder handling STS AssumeRole and S3 state requests.
+func stsAndS3Responder(t *testing.T, defaultRoleARN string, onAssumeRole func(string)) responder {
 	t.Helper()
 
 	return func(req *http.Request) *http.Response {
@@ -281,7 +284,7 @@ func TestDependencyStateS3AssumeRoleWithClearedIAMOptions(t *testing.T) {
 	}
 
 	recorder := newDependencyStateRecorder(t, 0, nil)
-	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole)
 
 	ctx, v, pctx, configPath := prepareDependencyStateFixture(
 		t,
@@ -754,7 +757,7 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 				map[string]string{},
 				testCase.dependencyExtra,
 			)
-			pctx.OriginalTerraformCommand = "plan"
+			pctx.OriginalTofuCommand = "plan"
 			pctx.TerraformCliArgs = iacargs.New("plan")
 
 			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
@@ -970,7 +973,7 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 }
 
 type dependencyStateRecorder struct {
-	respond    func(*http.Request) *http.Response
+	respond    responder
 	httpBody   []byte
 	requests   []string
 	headers    []http.Header

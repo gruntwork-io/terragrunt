@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -178,6 +179,8 @@ func (p *ParsePhase) Run(
 	// When readFiles, parseExclude, or parseIncludes is enabled, also parse discovered components
 	// to populate the Reading field, Exclude configuration, or ProcessedIncludes even without filters
 	if discovery.readFiles || discovery.parseExclude || discovery.parseIncludes {
+		componentsToParse = slices.Grow(componentsToParse, len(input.Components))
+
 		for _, c := range input.Components {
 			componentsToParse = append(componentsToParse, DiscoveryResult{
 				Component: c,
@@ -429,11 +432,61 @@ func parseComponent(
 				unit.StoreConfig(cfg)
 			}
 
-			if parsingCtx.FilesRead.Tracking() {
-				readFiles := sanitizeReadFiles(parsingCtx.FilesRead.Paths())
-				c.SetReading(readFiles...)
+			if !parsingCtx.FilesRead.Tracking() {
+				return nil
 			}
+
+			if _, ok := c.(*component.Stack); ok {
+				autoIncludes := trackStackComponentReads(ctx, l, parseV, parsingCtx, parseOpts.TerragruntConfigPath)
+				discovery.recordAutoIncludeInputsReads(l, parseOpts.TerragruntConfigPath, autoIncludes)
+			} else {
+				discovery.recordUnitInputsReads(l, v.FS, parseOpts.TerragruntConfigPath, cfg)
+			}
+
+			c.SetReading(sanitizeReadFiles(parsingCtx.FilesRead.Paths())...)
 
 			return nil
 		})
+}
+
+// trackStackComponentReads records in pctx.FilesRead the files read by the unit and
+// stack blocks of the stack file at stackFilePath, and by the config_path and expansion
+// of each dependency in their autoinclude blocks, and returns the resolved autoinclude
+// blocks. Stack generation evaluates all of these, but the partial parse evaluates only
+// locals.
+//
+// It is best-effort and never fails discovery. Diagnostics are logged at debug level
+// and dropped, and a parse that fails keeps the reads recorded before the failure,
+// since a catalog stack can reference values.* that only the parent stack generating
+// it supplies.
+func trackStackComponentReads(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	stackFilePath string,
+) map[string]*inthclparse.AutoIncludeResolved {
+	pctx = pctx.Clone()
+	pctx.Parser.IgnoreDiagnostics = true
+
+	values, err := config.ReadValues(ctx, l, v, pctx, filepath.Dir(stackFilePath))
+	if err != nil {
+		l.Debugf("Discovery: skipping read tracking for %s: %v", stackFilePath, err)
+
+		return nil
+	}
+
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
+	if err != nil {
+		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
+
+		return nil
+	}
+
+	autoIncludes, err := config.StackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackCfg, values)
+	if err != nil {
+		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
+	}
+
+	return autoIncludes
 }

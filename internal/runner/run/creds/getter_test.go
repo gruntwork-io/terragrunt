@@ -182,13 +182,13 @@ func TestObtainCredsForParsingPopulatesEnvBeforeParsing(t *testing.T) {
 			name: "aws credentials",
 			stdout: `{
                 "awsCredentials": {
-                    "ACCESS_KEY_ID": "AKIA111",
+                    "ACCESS_KEY_ID": "fake-access-key-id",
                     "SECRET_ACCESS_KEY": "secret-xyz",
                     "SESSION_TOKEN": "session-abc"
                 }
             }`,
 			wantEnv: map[string]string{
-				"AWS_ACCESS_KEY_ID":     "AKIA111",
+				"AWS_ACCESS_KEY_ID":     "fake-access-key-id",
 				"AWS_SECRET_ACCESS_KEY": "secret-xyz",
 				"AWS_SESSION_TOKEN":     "session-abc",
 				"AWS_SECURITY_TOKEN":    "session-abc",

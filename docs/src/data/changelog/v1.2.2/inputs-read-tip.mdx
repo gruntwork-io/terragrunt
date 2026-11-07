@@ -1,0 +1,42 @@
+---
+version: "v1.2.2"
+category: "tips-added"
+---
+
+#### `inputs-read-not-tracked` — Points at files read in `inputs` that reading filters miss
+
+Terragrunt does not track a file read in `inputs`. A unit with this configuration is not selected by `--filter 'reading=config.yml'` or by a Git filter when `config.yml` changes:
+
+```hcl
+# terragrunt.hcl
+
+inputs = {
+  message = yamldecode(file("config.yml")).message
+}
+```
+
+The same applies to `inputs` in an `autoinclude` block of a stack file.
+
+Commands that track reads, such as `run --all` with a reading or Git filter and `find --reading`, now print the `inputs-read-not-tracked` tip pointing at each such read:
+
+```text
+TIP (inputs-read-not-tracked): Terragrunt does not track files read in `inputs`, so reading and Git filters miss the units and stacks that read them.
+
+Untracked file read in `inputs`
+ --> app/terragrunt.hcl:4:24
+  |
+4 |   message = yamldecode(file("config.yml")).message
+  |                        ^^^^^^^^^^^^^^^^^^ Read the file in `locals` and reference the local here.
+
+Untracked file read in an `autoinclude` block's `inputs`
+ --> live/terragrunt.stack.hcl:16:29
+   |
+16 |       policy = templatefile("policy.json.tftpl", { role_arn = dependency.iam.outputs.role_arn })
+   |                             ^^^^^^^^^^^^^^^^^^^
+   |
+   = Mark the template as read with `mark_as_read` in the stack's `locals`, then pass the local as the path here.
+
+See https://docs.terragrunt.com/features/filter/attributes#reading-based-expressions
+```
+
+See [Reading-Based Expressions](/features/filter/attributes#reading-based-expressions). Suppress the tip with `--no-tip inputs-read-not-tracked` or `--no-tips`.

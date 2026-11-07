@@ -422,7 +422,7 @@ func runValidateInputs(
 // - -var and -var-file args passed in on extra_arguments CLI args.
 // - env vars defined on terraform.extra_arguments blocks.
 // - env vars from the external runtime calling terragrunt.
-// - inputs blocks.
+// - the inputs attribute and variables blocks.
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
 func getDefinedTerragruntInputs(
 	l log.Logger,
@@ -470,7 +470,7 @@ func getDefinedTerragruntInputs(
 		tmpOut[varName] = true
 	}
 
-	out := []string{}
+	out := make([]string, 0, len(tmpOut))
 	for varName := range tmpOut {
 		out = append(out, varName)
 	}
@@ -515,15 +515,10 @@ func getTerraformInputNamesFromEnvVar(
 	return out
 }
 
-// getTerraformInputNamesFromConfig will return the list of names of variables configured by the inputs block in the
-// terragrunt config.
+// getTerraformInputNamesFromConfig will return the list of names of variables configured by the inputs attribute and
+// the variables blocks in the terragrunt config.
 func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig) []string {
-	out := make([]string, 0, len(terragruntConfig.Inputs))
-	for inputName := range terragruntConfig.Inputs {
-		out = append(out, inputName)
-	}
-
-	return out
+	return slices.Collect(maps.Keys(terragruntConfig.ResolveInputs()))
 }
 
 // getTerraformInputNamesFromVarFiles will return the list of names of variables configured by var files set in the
@@ -653,7 +648,7 @@ func getVarNamesFromVarFile(l log.Logger, fsys vfs.FS, varFile string) ([]string
 		}
 	}
 
-	out := []string{}
+	out := make([]string, 0, len(variables))
 	for varName := range variables {
 		out = append(out, varName)
 	}

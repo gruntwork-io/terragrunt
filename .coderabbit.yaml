@@ -64,10 +64,10 @@ reviews:
     - path: 'docs/public/llms.txt'
       instructions: >-
         HAND-CURATED llms.txt INDEX. This file (https://llmstxt.org/) is served
-        verbatim at /llms.txt and is NOT auto-generated: the starlight-llms-txt
-        plugin's own /llms.txt route is suppressed by the
-        `starlightLlmsTxtWithoutIndex()` wrapper in docs/astro.config.mjs, while
-        the plugin still generates /llms-full.txt and /llms-small.txt. When this
+        verbatim at /llms.txt and is NOT auto-generated. /llms-full.txt and
+        /llms-small.txt are generated instead by the routes in
+        docs/src/pages/llms-full.txt.ts and docs/src/pages/llms-small.txt.ts
+        from the page builders in docs/src/lib/generated-pages.ts. When this
         file changes, verify: (1) every link is an absolute
         https://docs.terragrunt.com/<slug>/ URL that resolves to a real page —
         cross-check each slug against a content file under

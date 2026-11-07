@@ -1,10 +1,14 @@
 package telemetry
 
 import (
+	"context"
+	"sync/atomic"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/bridges/otellogrus"
 	otellog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // stdLogrusLevels maps Terragrunt levels to the standard logrus levels that
@@ -22,7 +26,8 @@ var stdLogrusLevels = map[log.Level]logrus.Level{
 }
 
 // NewOtelLogHook returns a logrus hook that exports Terragrunt log entries
-// through the given OpenTelemetry logger provider.
+// through the given OpenTelemetry logger provider, under an instrumentation
+// scope with the given name and version.
 //
 // Terragrunt registers its levels with logrus shifted past Panic and Fatal
 // (see [log.Level.ToLogrusLevel]), so entries reach hooks with distorted
@@ -31,15 +36,26 @@ var stdLogrusLevels = map[log.Level]logrus.Level{
 // directly, the otellogrus bridge would export errors with info severity and
 // never fire for debug or trace records. This hook registers for the shifted
 // levels and restores the standard logrus level on each entry before handing
-// it to the bridge.
-func NewOtelLogHook(name string, provider otellog.LoggerProvider) logrus.Hook {
+// it to the bridge, and strips ANSI color codes.
+func NewOtelLogHook(name, version string, provider otellog.LoggerProvider) logrus.Hook {
+	return newOtelLogHook(name, version, provider)
+}
+
+func newOtelLogHook(name, version string, provider otellog.LoggerProvider) *otelLogHook {
 	return &otelLogHook{
-		inner: otellogrus.NewHook(name, otellogrus.WithLoggerProvider(provider)),
+		inner: otellogrus.NewHook(
+			name,
+			otellogrus.WithVersion(version),
+			otellogrus.WithLoggerProvider(provider),
+		),
 	}
 }
 
 type otelLogHook struct {
+	// inner is the otellogrus bridge.
 	inner *otellogrus.Hook
+	// rootSpan is used for entries whose logger has no span.
+	rootSpan atomic.Pointer[trace.SpanContext]
 }
 
 // Levels implements the [logrus.Hook] interface method.
@@ -51,6 +67,22 @@ func (hook *otelLogHook) Levels() []logrus.Level {
 func (hook *otelLogHook) Fire(entry *logrus.Entry) error {
 	e := *entry
 	e.Level = stdLogrusLevels[log.FromLogrusLevel(entry.Level)]
+	// Strip the ANSI color codes in OpenTofu/Terraform output.
+	e.Message = log.RemoveAllASCISeq(entry.Message)
+
+	if rootSpan := hook.rootSpan.Load(); rootSpan != nil && !trace.SpanContextFromContext(e.Context).IsValid() {
+		e.Context = trace.ContextWithSpanContext(context.Background(), *rootSpan)
+	}
 
 	return hook.inner.Fire(&e)
+}
+
+// bindRootSpan sets the span used for entries whose logger has no span.
+func (hook *otelLogHook) bindRootSpan(span trace.SpanContext) {
+	hook.rootSpan.Store(&span)
+}
+
+// unbindRootSpan clears the span set by bindRootSpan.
+func (hook *otelLogHook) unbindRootSpan() {
+	hook.rootSpan.Store(nil)
 }

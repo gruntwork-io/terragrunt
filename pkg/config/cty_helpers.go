@@ -124,7 +124,7 @@ func wrapVoidToStringSliceAsFuncImpl(
 				return cty.ListValEmpty(cty.String), err
 			}
 
-			outCtyVals := []cty.Value{}
+			outCtyVals := make([]cty.Value, 0, len(outVals))
 			for _, val := range outVals {
 				outCtyVals = append(outCtyVals, cty.StringVal(val))
 			}

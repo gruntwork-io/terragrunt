@@ -19,7 +19,7 @@ func serverEnv() map[string]string {
 		"PATH":                           "/usr/local/bin:/usr/bin:/bin",
 		"HOME":                           "/home/dev",
 		"TMPDIR":                         "/var/tmp/dev",
-		"AWS_ACCESS_KEY_ID":              "AKIAEXAMPLE",
+		"AWS_ACCESS_KEY_ID":              "fake-access-key-id",
 		"AWS_SHARED_CREDENTIALS_FILE":    "/srv/aws/credentials",
 		"GOOGLE_APPLICATION_CREDENTIALS": "/srv/gcp/adc.json",
 		"AZURE_CLIENT_SECRET":            "secret",

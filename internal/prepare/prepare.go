@@ -107,7 +107,7 @@ func PrepareSource(
 		return nil, err
 	}
 
-	optsClone.TerraformCommand = run.CommandNameTerragruntReadConfig
+	optsClone.TofuCommand = run.CommandNameTerragruntReadConfig
 
 	if err = optsClone.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return run.ProcessHooks(ctx, l, v, run.ProcessHooksParams{

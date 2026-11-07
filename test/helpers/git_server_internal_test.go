@@ -254,7 +254,10 @@ func TestCopyFixturesToDisk(t *testing.T) {
 
 	workDir := t.TempDir()
 
-	require.NoError(t, copyFixturesToDisk(fixturesDir, []string{"test/fixtures/download/hello-world"}, workDir, thTHTTPURL, thTSSHURL))
+	require.NoError(
+		t,
+		copyFixturesToDisk(fixturesDir, []string{"test/fixtures/download/hello-world"}, workDir, thTHTTPURL, thTSSHURL),
+	)
 
 	contents := thTReadFixture(t, filepath.Join(workDir, "test", "fixtures", "download", "hello-world", "main.tf"))
 	assert.Contains(t, contents, "git::"+thTHTTPURL+"//test/fixtures/download/hello-world-no-remote")
@@ -564,7 +567,10 @@ func TestPopulateBareRepoIgnoresHostGitConfig(t *testing.T) {
 	thTWriteFixture(t, filepath.Join(hostDir, "git", "ignore"), "*\n")
 	thTWriteFixture(t, filepath.Join(hostDir, "git", "attributes"), "* filter=reject\n")
 	require.NoError(t, os.MkdirAll(filepath.Join(hostDir, "templates", "hooks"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(hostDir, "templates", "hooks", "pre-commit"), []byte("#!/bin/sh\nexit 1\n"), 0o755))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(hostDir, "templates", "hooks", "pre-commit"), []byte("#!/bin/sh\nexit 1\n"), 0o755),
+	)
 	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(hostDir, "gitconfig"))
 	t.Setenv("GIT_CONFIG_SYSTEM", filepath.Join(hostDir, "gitconfig"))
 	t.Setenv("XDG_CONFIG_HOME", hostDir)

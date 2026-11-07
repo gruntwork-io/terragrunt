@@ -23,12 +23,27 @@ const (
 	FormatMD = format.MD
 )
 
+// UnreadableConfig selects what a `catalog` block that cannot be read does to
+// a load.
+type UnreadableConfig int
+
+const (
+	// SkipUnreadableConfig loads the other sources as if the block were absent,
+	// so a config midway through an edit does not break the command.
+	SkipUnreadableConfig UnreadableConfig = iota
+
+	// ReportUnreadableConfig lists the block among the failed sources, under the
+	// name of its file. The other sources still load.
+	ReportUnreadableConfig
+)
+
 // Options holds the settings of a single `terragrunt catalog` invocation.
 type Options struct {
 	*options.TerragruntOptions
 
-	Format        string
-	PortalBaseURL string
+	Format           string
+	PortalBaseURL    string
+	UnreadableConfig UnreadableConfig
 }
 
 // NewOptions returns catalog options pointed at the production Gruntwork

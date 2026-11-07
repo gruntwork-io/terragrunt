@@ -139,6 +139,10 @@ const (
 	// runs OpenTofu/Terraform directly from the unit directory when no source
 	// is configured.
 	NoDotTerragruntCache = "no-dot-terragrunt-cache"
+	// VariablesBlock gates the variables block, which sets OpenTofu/Terraform
+	// variables through TF_VAR_ environment variables or through auto-loaded
+	// .tfvars and .tfvars.json files.
+	VariablesBlock = "variables-block"
 )
 
 const (
@@ -282,6 +286,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: NoDotTerragruntCache,
+		},
+		{
+			Name: VariablesBlock,
 		},
 	}
 }

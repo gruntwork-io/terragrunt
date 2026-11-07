@@ -204,7 +204,8 @@ func writeMemProfile(l log.Logger, f vfs.File) {
 func writeGoroutineProfile(l log.Logger, f vfs.File) {
 	// Writes to a local file the user explicitly requested via --profile-goroutine/TG_PROFILE_GOROUTINE,
 	// gated behind the 'profiling' experiment; this is not a production debug endpoint (go:S4507 false positive).
-	if err := pprof.Lookup("goroutine").WriteTo(f, 0); err != nil { //NOSONAR:go:S4507 -- local, user-requested profile dump
+	if err := pprof.Lookup("goroutine").
+		WriteTo(f, 0); err != nil { //NOSONAR:go:S4507 -- local, user-requested profile dump
 		l.Warnf("Could not write goroutine profile: %v", err)
 	}
 

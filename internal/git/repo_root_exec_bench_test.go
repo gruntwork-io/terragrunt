@@ -201,7 +201,7 @@ func TestExecGoRepoRootCeilingMatchesGit(t *testing.T) {
 		t.TempDir(),
 		filepath.FromSlash("../.."),
 		strings.Join([]string{t.TempDir(), mid}, string(filepath.ListSeparator)),
-		strings.Join([]string{"", mid}, string(filepath.ListSeparator)),
+		strings.Join([]string{"", filepath.ToSlash(mid)}, string(filepath.ListSeparator)),
 	} {
 		t.Run("ceiling="+ceiling, func(t *testing.T) {
 			t.Parallel()

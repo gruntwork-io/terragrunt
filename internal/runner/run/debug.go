@@ -119,6 +119,22 @@ func writeDebugVars(
 		}
 	}
 
+	for _, inputs := range []map[string]any{cfg.TFVarsInputs, cfg.JSONInputs} {
+		for varName, varValue := range inputs {
+			if !slices.Contains(moduleVariables, varName) {
+				l.Debugf(
+					"WARN: The variable %s was omitted because it is not defined in the OpenTofu/Terraform module.",
+					varName,
+				)
+
+				continue
+			}
+
+			// Variable files override TF_VAR_ env vars, so unlike the loop above this does not check the env.
+			jsonValuesByKey[varName] = varValue
+		}
+	}
+
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
 
