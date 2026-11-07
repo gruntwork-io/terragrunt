@@ -142,6 +142,24 @@ func TestDescribeExpressionValues(t *testing.T) {
 				{Traversal: "local.secret", Statement: "has a sensitive value"},
 			},
 		},
+		{
+			name:  "only unknown values behind the diagnostic",
+			expr:  "[local.secret, local.pending, local.later]",
+			extra: causeExtra{unknown: true},
+			expected: []diagnostic.ExpressionValue{
+				{Traversal: "local.later", Statement: "will be known only after apply"},
+				{Traversal: "local.pending", Statement: "is a string, known only after apply"},
+			},
+		},
+		{
+			name:  "only sensitive values behind the diagnostic",
+			expr:  "[local.secret, local.pending, local.later]",
+			extra: causeExtra{sensitive: true},
+			expected: []diagnostic.ExpressionValue{
+				{Traversal: "local.pending", Statement: "is a string"},
+				{Traversal: "local.secret", Statement: "has a sensitive value"},
+			},
+		},
 	}
 
 	for _, tc := range testCases {

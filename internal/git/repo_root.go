@@ -149,41 +149,68 @@ func GoRepoRoot(
 // walkCeiling returns the deepest GIT_CEILING_DIRECTORIES entry the walk from
 // start must not ascend into, or "" when none applies. Git compares resolved
 // entries against a resolved starting directory, which is what [startDir]
-// produces. It drops entries that are not absolute, and reads a leading empty
-// entry as opting the rest out of symlink resolution.
+// produces. It drops entries that are not absolute, and reads an empty entry
+// as keeping every later entry as written, without resolution or cleaning.
 func walkCeiling(fsys vfs.FS, env map[string]string, start string) string {
-	entries := filepath.SplitList(env[EnvNameGitCeilingDirectories])
+	var (
+		deepest string
+		keep    bool
+	)
 
-	resolve := true
-	if len(entries) > 0 && entries[0] == "" {
-		resolve = false
-		entries = entries[1:]
-	}
+	for _, entry := range filepath.SplitList(env[EnvNameGitCeilingDirectories]) {
+		if entry == "" {
+			keep = true
 
-	var deepest string
+			continue
+		}
 
-	for _, entry := range entries {
 		if !filepath.IsAbs(entry) {
 			continue
 		}
 
-		ceiling := filepath.Clean(entry)
-		if resolve {
-			ceiling = vfs.ResolveForCompare(fsys, ceiling)
-		}
-
-		// Git tests ancestry, and no directory is its own ancestor, so an entry
-		// naming the starting directory does not block the walk beginning there.
-		if !isStrictAncestor(ceiling, start) {
-			continue
-		}
-
-		if len(ceiling) > len(deepest) {
+		if ceiling := entryCeiling(fsys, entry, start, keep); len(ceiling) > len(deepest) {
 			deepest = ceiling
 		}
 	}
 
 	return deepest
+}
+
+// entryCeiling returns the strict ancestor of start that one absolute ceiling
+// entry blocks, or "" when it blocks none.
+func entryCeiling(fsys vfs.FS, entry, start string, keep bool) string {
+	if keep {
+		return keptCeiling(entry, start)
+	}
+
+	ceiling := vfs.ResolveForCompare(fsys, filepath.Clean(entry))
+
+	// Git tests ancestry, and no directory is its own ancestor, so an entry
+	// naming the starting directory does not block the walk beginning there.
+	if !isStrictAncestor(ceiling, start) {
+		return ""
+	}
+
+	return ceiling
+}
+
+// keptCeiling returns the strict ancestor of start that a kept entry names,
+// matched as git does: byte for byte, less one trailing slash, against start
+// spelled with forward slashes.
+func keptCeiling(entry, start string) string {
+	prefix := strings.TrimSuffix(entry, "/")
+	slashed := filepath.ToSlash(start)
+
+	if !strings.HasPrefix(slashed, prefix) || len(slashed) <= len(prefix)+1 || slashed[len(prefix)] != '/' {
+		return ""
+	}
+
+	// A root entry trims to the volume name, which the walk never visits.
+	if len(prefix) == len(filepath.VolumeName(start)) {
+		return start[:len(prefix)] + string(filepath.Separator)
+	}
+
+	return start[:len(prefix)]
 }
 
 // isStrictAncestor reports whether path sits strictly below ancestor.

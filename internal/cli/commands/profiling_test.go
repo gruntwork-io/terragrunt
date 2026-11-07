@@ -2,6 +2,7 @@ package commands_test
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,7 +91,7 @@ func TestWrapWithProfilingProfileDirWritesAllProfiles(t *testing.T) {
 	opts.ProfileDir = "profiles"
 
 	competing := options.NewTerragruntOptions(vexec.NewOSExec())
-	competing.ProfileDir = hostPath("/competing")
+	competing.ProfileDir = venvtest.Root("/competing")
 
 	var nestedRan bool
 
@@ -196,9 +197,9 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 		mem       string
 		goroutine string
 	}{
-		{name: "memory profile write", op: "write", mem: hostPath("/profiles/mem.prof")},
-		{name: "goroutine profile write", op: "write", goroutine: hostPath("/profiles/goroutine.prof")},
-		{name: "memory profile close", op: "close", mem: hostPath("/profiles/mem.prof")},
+		{name: "memory profile write", op: "write", mem: venvtest.Root("/profiles/mem.prof")},
+		{name: "goroutine profile write", op: "write", goroutine: venvtest.Root("/profiles/goroutine.prof")},
+		{name: "memory profile close", op: "close", mem: venvtest.Root("/profiles/mem.prof")},
 	}
 
 	for _, tc := range testCases {
@@ -230,26 +231,34 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 	t.Parallel()
 
-	memPath := hostPath("/profiles/mem.prof")
-	goroutinePath := hostPath("/profiles/goroutine.prof")
+	memPath := venvtest.Root("/profiles/mem.prof")
+	goroutinePath := venvtest.Root("/profiles/goroutine.prof")
 
 	testCases := []struct {
 		name        string
+		wantOp      string
+		wantPath    string
 		faults      []fault
 		wantMemFile bool
 	}{
 		{
-			name:   "discarded profile fails to close",
-			faults: []fault{atPath("openfile", goroutinePath), atPath("close", memPath)},
+			name:     "discarded profile fails to close",
+			faults:   []fault{atPath("openfile", goroutinePath), atPath("close", memPath)},
+			wantOp:   "openfile",
+			wantPath: goroutinePath,
 		},
 		{
 			name:        "discarded profile fails to remove",
 			faults:      []fault{atPath("openfile", goroutinePath), atPath("remove", memPath)},
+			wantOp:      "openfile",
+			wantPath:    goroutinePath,
 			wantMemFile: true,
 		},
 		{
 			name:        "profile fails to close after a permission failure",
 			faults:      []fault{atPath("chmod", memPath), atPath("close", memPath)},
+			wantOp:      "chmod",
+			wantPath:    memPath,
 			wantMemFile: true,
 		},
 	}
@@ -267,6 +276,12 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 
 			err := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)(t.Context(), &clihelper.Context{}, failIfCalled(t))
 			require.ErrorIs(t, err, errInjected)
+
+			var pathErr *fs.PathError
+
+			require.ErrorAs(t, err, &pathErr)
+			assert.Equal(t, tc.wantOp, pathErr.Op, "the startup failure should be reported, not the cleanup one")
+			assert.Equal(t, tc.wantPath, pathErr.Path, "the startup failure should name the profile that failed")
 			assert.Equal(t, tc.wantMemFile, vfs.Exists(v.FS, memPath), "memory profile presence after cleanup")
 		})
 	}

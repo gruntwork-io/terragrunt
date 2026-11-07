@@ -40,8 +40,8 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 		{
 			name:         "opentofu 1.10 uses the configured absolute dir",
 			versionOut:   tofu110Version,
-			cacheDir:     hostPath("/providers/./cache"),
-			wantCacheDir: hostPath("/providers/cache"),
+			cacheDir:     venvtest.Root("/providers") + "/./cache",
+			wantCacheDir: venvtest.Root("/providers/cache"),
 		},
 		{
 			name:         "relative dir joins the root working dir",
@@ -57,16 +57,16 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 		{
 			name:       "opentofu before 1.10 is skipped",
 			versionOut: tofu19Version,
-			cacheDir:   hostPath("/providers"),
+			cacheDir:   venvtest.Root("/providers"),
 		},
 		{
 			name:       "terraform is skipped",
 			versionOut: tf115Version,
-			cacheDir:   hostPath("/providers"),
+			cacheDir:   venvtest.Root("/providers"),
 		},
 		{
 			name:     "failed version probe is skipped",
-			cacheDir: hostPath("/providers"),
+			cacheDir: venvtest.Root("/providers"),
 		},
 		{
 			name:       "user cache dir error is skipped",
@@ -78,9 +78,9 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 		{
 			name:       "cache dir creation error is skipped",
 			versionOut: tofu110Version,
-			cacheDir:   hostPath("/providers"),
+			cacheDir:   venvtest.Root("/providers"),
 			venv: func(v *venv.Venv) *venv.Venv {
-				return v.WithFS(newFaultFS(v.FS, atPath("mkdirall", hostPath("/providers"))))
+				return v.WithFS(newFaultFS(v.FS, atPath("mkdirall", venvtest.Root("/providers"))))
 			},
 		},
 	}
@@ -149,7 +149,7 @@ func TestRunActionAutoProviderCacheDirKeepsUserValue(t *testing.T) {
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.TFPath = "tofu"
-	opts.ProviderCacheOptions.Dir = hostPath("/providers")
+	opts.ProviderCacheOptions.Dir = venvtest.Root("/providers")
 
 	require.NoError(t, commands.RunAction(config.WithCaches(t.Context()), nil, logger.CreateLogger(), opts, v, noopAction))
 	assert.Equal(t, "/user/plugins", v.Env[tf.EnvNameTFPluginCacheDir], "user value should win")

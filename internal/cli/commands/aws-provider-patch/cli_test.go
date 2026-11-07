@@ -49,13 +49,17 @@ func TestNewCommandPatchesDownloadedModules(t *testing.T) {
 		"main.tf":          moduleCode,
 		"versions.tf.json": `{"terraform":{}}`,
 	}}
-	v := fake.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
+	v := fake.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": moduleCode})
 
 	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v)
 
 	require.NoError(t, runCommand(t, cmd, "--"+awsproviderpatch.OverrideAttrFlagName, regionOverride))
 	assert.Equal(t, patchedModuleCode, fake.read(t, v, "main.tf"))
 	assert.JSONEq(t, `{"terraform":{}}`, fake.read(t, v, "versions.tf.json"), "JSON files are left alone")
+
+	rootCode, err := vfs.ReadFile(v.FS, filepath.Join(fake.initDirs()[0], "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, moduleCode, string(rootCode), "the root module in the init dir is never patched")
 }
 
 // TestNewCommandWithoutModulesChangesNothing pins that a unit whose init downloaded no modules patches nothing.
@@ -267,7 +271,7 @@ func TestNewCommandAllPatchesEveryUnit(t *testing.T) {
 			name: "fail fast stops at the first failure",
 			files: map[string]string{
 				"a/terragrunt.hcl": "",
-				"b/terragrunt.hcl": "",
+				"b/terragrunt.hcl": "", "b/main.tf": "",
 			},
 			failFast: true,
 			wantErr:  true,
@@ -308,6 +312,7 @@ func TestNewCommandAllPatchesEveryUnit(t *testing.T) {
 
 			if tc.wantJoined == 0 {
 				assert.NotErrorAs(t, err, &joined, "fail fast returns the first error unjoined")
+				assert.Empty(t, fake.initDirs(), "fail fast stops before initializing the next unit")
 
 				return
 			}

@@ -51,7 +51,10 @@ type tagged struct {
 type withExternal struct {
 	Query url.Values
 	Local map[string]string
+	Named labels
 }
+
+type labels map[string]string
 
 func TestClone_DeepCopiesEveryKind(t *testing.T) {
 	t.Parallel()
@@ -230,15 +233,18 @@ func TestClone_ShadowCopyInversePkgPrefixes(t *testing.T) {
 	src := withExternal{
 		Query: url.Values{"q": {"1"}},
 		Local: map[string]string{"k": "v"},
+		Named: labels{"k": "v"},
 	}
 
 	dst := cloner.Clone(src, cloner.WithShadowCopyInversePkgPrefixes("github.com/gruntwork-io/terragrunt"))
 
 	dst.Query.Set("q", "2")
 	dst.Local["k"] = "changed"
+	dst.Named["k"] = "changed"
 
 	assert.Equal(t, "2", src.Query.Get("q"), "types outside the prefixes should be shared with the source")
 	assert.Equal(t, "v", src.Local["k"], "unnamed types should still be deep copied")
+	assert.Equal(t, "v", src.Named["k"], "named types inside the prefixes should be deep copied")
 }
 
 func TestCloner_CloneUsesConfig(t *testing.T) {

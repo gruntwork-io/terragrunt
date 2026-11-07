@@ -167,14 +167,17 @@ func TestProviderControllerGetVersionsMergesHandlers(t *testing.T) {
 		versions: models.Versions{
 			{Version: "1.0.0", Protocols: []string{"5.0"}},
 			{Version: "v2.0.0"},
-			{Version: "1.1.0", Protocols: []string{"5.0"}},
 		},
+	}
+	alsoServing := &fakeProviderHandler{
+		canHandle: true,
+		versions:  models.Versions{{Version: "1.1.0", Protocols: []string{"5.0"}}},
 	}
 
 	root := router.New()
 	root.Group("v1").Register(&controllers.ProviderController{
 		Logger:           logger.CreateLogger(),
-		ProviderHandlers: []handlers.ProviderHandler{failing, skipped, serving},
+		ProviderHandlers: []handlers.ProviderHandler{failing, skipped, serving, alsoServing},
 	})
 
 	rec := serve(t, root, "/v1/providers/"+testRegistry+"/example/example/versions", "")

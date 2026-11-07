@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"os"
+	ossignal "os/signal"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -60,7 +61,7 @@ func Command(ctx context.Context, v *venv.Venv, name string, args ...string) *Cm
 		vc:              vc,
 		filename:        filepath.Base(name),
 		interruptSignal: signal.InterruptSignal,
-		notifier:        signal.NotifierWithContext,
+		notifier:        signal.NewNotifier(ossignal.Notify, ossignal.Stop),
 	}
 
 	cmd.SetStdin(v.Stdin)

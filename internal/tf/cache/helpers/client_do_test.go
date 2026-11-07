@@ -22,24 +22,42 @@ import (
 func TestClientDoCachesResponsesPerURL(t *testing.T) {
 	t.Parallel()
 
-	var calls atomic.Int32
+	listings := map[string]string{
+		"/aws/versions":    versionsListing,
+		"/google/versions": `{"versions":[{"version":"6.0.0"}]}`,
+	}
+	want := map[string][]string{
+		"/aws/versions":    {"5.0.0", "5.1.0"},
+		"/google/versions": {"6.0.0"},
+	}
+	calls := map[string]*atomic.Int32{"/aws/versions": {}, "/google/versions": {}}
 
-	c := vhttp.NewMemClient(func(context.Context, *http.Request) (*http.Response, error) {
-		calls.Add(1)
+	c := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		calls[req.URL.Path].Add(1)
 
-		return vhttp.Respond(http.StatusOK, []byte(versionsListing), nil), nil
+		return vhttp.Respond(http.StatusOK, []byte(listings[req.URL.Path]), nil), nil
 	})
 
 	client := helpers.NewClient(c, nil)
 
 	for range 2 {
-		var value versionsValue
+		for path, versions := range want {
+			var value versionsValue
 
-		require.NoError(t, client.Do(t.Context(), http.MethodGet, "https://registry.test/versions", &value))
-		assert.Len(t, value.Versions, 2, "every call should decode the listing")
+			require.NoError(t, client.Do(t.Context(), http.MethodGet, "https://registry.test"+path, &value))
+
+			got := make([]string, 0, len(value.Versions))
+			for _, v := range value.Versions {
+				got = append(got, v.Version)
+			}
+
+			assert.Equal(t, versions, got, "each url should decode its own listing")
+		}
 	}
 
-	assert.Equal(t, int32(1), calls.Load(), "a second call for the same url should be served from the cache")
+	for path, n := range calls {
+		assert.Equal(t, int32(1), n.Load(), "%s should be fetched once and then served from the cache", path)
+	}
 }
 
 func TestClientDoSendsHostCredentials(t *testing.T) {
