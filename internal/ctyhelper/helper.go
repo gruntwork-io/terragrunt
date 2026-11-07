@@ -12,7 +12,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
@@ -53,61 +52,48 @@ type CtyJSONOutput struct {
 }
 
 // UpdateUnknownCtyValValues deeply replaces unknown values with known placeholders. An unknown
-// string or dynamic value becomes an empty string, and an unknown of any other type becomes a
-// null of that type.
+// string becomes an empty string, and so does a dynamic unknown, unless it sits inside a list,
+// set or map, where it becomes a dynamic null so the element types stay consistent. An unknown of
+// any other type becomes a null of that type. Marks are kept.
 func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
-	var updatedValue any
+	return cty.TransformWithTransformer(value, &unknownPlaceholders{})
+}
 
-	switch {
-	case !value.IsKnown():
-		if ty := value.Type(); ty != cty.String && ty != cty.DynamicPseudoType {
-			return cty.NullVal(ty), nil
-		}
+// unknownPlaceholders is the [cty.Transformer] behind [UpdateUnknownCtyValValues]. It counts the
+// lists, sets and maps enclosing the value being visited.
+type unknownPlaceholders struct {
+	collectionDepth int
+}
 
-		return cty.StringVal(""), nil
-	case value.IsNull():
-		return value, nil
-	case value.Type().IsMapType(), value.Type().IsObjectType():
-		mapVals := value.AsValueMap()
-		for key, val := range mapVals {
-			val, err := UpdateUnknownCtyValValues(val)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			mapVals[key] = val
-		}
-
-		if len(mapVals) > 0 {
-			updatedValue = mapVals
-		}
-
-	case value.Type().IsTupleType(), value.Type().IsListType():
-		sliceVals := value.AsValueSlice()
-		for key, val := range sliceVals {
-			val, err := UpdateUnknownCtyValValues(val)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			sliceVals[key] = val
-		}
-
-		if len(sliceVals) > 0 {
-			updatedValue = sliceVals
-		}
+func (t *unknownPlaceholders) Enter(_ cty.Path, val cty.Value) (cty.Value, error) {
+	if isCollection(val.Type()) {
+		t.collectionDepth++
 	}
 
-	if updatedValue == nil {
-		return value, nil
+	return val, nil
+}
+
+func (t *unknownPlaceholders) Exit(_ cty.Path, val cty.Value) (cty.Value, error) {
+	if isCollection(val.Type()) {
+		t.collectionDepth--
 	}
 
-	value, err := gocty.ToCtyValue(updatedValue, value.Type())
-	if err != nil {
-		return cty.NilVal, err
+	if val.IsKnown() {
+		return val, nil
 	}
 
-	return value, nil
+	raw, marks := val.Unmark()
+	ty := raw.Type()
+
+	if ty == cty.String || (ty == cty.DynamicPseudoType && t.collectionDepth == 0) {
+		return cty.StringVal("").WithMarks(marks), nil
+	}
+
+	return cty.NullVal(ty).WithMarks(marks), nil
+}
+
+func isCollection(ty cty.Type) bool {
+	return ty.IsListType() || ty.IsSetType() || ty.IsMapType()
 }
 
 // MaxNumberDecimalExponent is the largest power of ten a number's magnitude may reach, in
