@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
+	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
@@ -57,6 +58,7 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Same(t, opts.EngineOptions, pctx.EngineOptions)
 	assert.Equal(t, opts.TFPath, pctx.TFPath)
 	assert.Equal(t, opts.TofuImplementation, pctx.TofuImplementation)
+	assert.Same(t, opts.TerraformVersion, pctx.TerraformVersion)
 	assert.True(t, pctx.ForwardTFStdout)
 	assert.True(t, pctx.JSONLogFormat)
 	assert.True(t, pctx.Debug)
@@ -287,6 +289,7 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	opts.AuthProviderCmd = "/copy/bin/auth-provider"
 	opts.TFPath = "/copy/bin/tofu"
 	opts.TofuImplementation = tfimpl.OpenTofu
+	opts.TerraformVersion = semver.MustParse("1.8.0")
 	opts.ScaffoldRootFileName = "copy-root.hcl"
 	opts.TerragruntStackConfigPath = "/copy/unit/terragrunt.stack.hcl"
 	opts.MaxFoldersToCheck = 42

@@ -1029,3 +1029,32 @@ func commandInvocation(t *testing.T, invocations []vexec.Invocation, command str
 
 	return vexec.Invocation{}
 }
+
+// TestRunnerRun_ParsesUnitWithDetectedTFVersion pins that a unit's config is parsed with the
+// OpenTofu version the version check detected for it, even when the stack options carry no
+// version (e.g. with the provider cache disabled), so get_terraform_commands_that_need_vars()
+// includes init for OpenTofu 1.8.0 and newer.
+func TestRunnerRun_ParsesUnitWithDetectedTFVersion(t *testing.T) {
+	t.Parallel()
+
+	v, invocations := recordingVenv(tfVersionOutput+"\n", "")
+	writeUnit(t, v, memRoot, "vpc", `terraform {
+  extra_arguments "vars" {
+    commands  = get_terraform_commands_that_need_vars()
+    arguments = ["-var-file=common.tfvars"]
+  }
+}`)
+
+	opts := newStackOpts(t, memRoot, tf.CommandNameInit)
+	require.Nil(t, opts.TerraformVersion, "the stack options carry no detected version")
+
+	l := thlogger.CreateLogger()
+	ctx := config.WithCaches(t.Context())
+
+	rnr, err := runner.New(ctx, l, v, opts)
+	require.NoError(t, err)
+	require.NoError(t, rnr.Run(ctx, l, v, opts, nil))
+
+	initRun := commandInvocation(t, invocations(), tf.CommandNameInit)
+	assert.Contains(t, initRun.Args, "-var-file=common.tfvars", "init gets the vars for OpenTofu 1.9.0")
+}
