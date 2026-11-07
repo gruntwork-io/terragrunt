@@ -16,7 +16,7 @@ var (
 	quit   os.Signal = testSignal("quit")
 )
 
-func TestNewNotifierSubscribesRequestedSignals(t *testing.T) {
+func TestNewNotifierSubscribesRequestedSignalsWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -29,7 +29,7 @@ func TestNewNotifierSubscribesRequestedSignals(t *testing.T) {
 	})
 }
 
-func TestNewNotifierDeliversEachSignal(t *testing.T) {
+func TestNewNotifierDeliversEachSignalWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestNewNotifierDeliversEachSignal(t *testing.T) {
 	})
 }
 
-func TestNewNotifierKeepsSubscriptionWhileContextIsLive(t *testing.T) {
+func TestNewNotifierKeepsSubscriptionWhileContextIsLiveWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestNewNotifierKeepsSubscriptionWhileContextIsLive(t *testing.T) {
 	})
 }
 
-func TestNewNotifierUnsubscribesWhenDone(t *testing.T) {
+func TestNewNotifierUnsubscribesWhenDoneWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestNewNotifierUnsubscribesWhenDone(t *testing.T) {
 	})
 }
 
-func TestNewNotifierUnsubscribesAtOnceForDoneContext(t *testing.T) {
+func TestNewNotifierUnsubscribesAtOnceForDoneContextWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestNewNotifierUnsubscribesAtOnceForDoneContext(t *testing.T) {
 	})
 }
 
-func TestNewNotifierDeliversSignalSentBeforeUnsubscribe(t *testing.T) {
+func TestNewNotifierDeliversSignalSentBeforeUnsubscribeWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestNewNotifierDeliversSignalSentBeforeUnsubscribe(t *testing.T) {
 	})
 }
 
-func TestNewNotifierCallsAreIndependent(t *testing.T) {
+func TestNewNotifierCallsAreIndependentWithRacing(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {

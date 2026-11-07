@@ -66,7 +66,7 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 
 	c := vhttp.NewMemClient(registryRoutes(map[string]string{
 		"/.well-known/terraform.json": discoveryDocument,
-		platformPath:                  `{"download_url": "example.zip", "shasums_url": "/sums/SHA256SUMS?sig=1"}`,
+		platformPath:                  `{"download_url": "example.zip", "shasums_url": "/sums/SHA256SUMS?sig=1", "shasums_signature_url": "../SHA256SUMS.sig"}`,
 	}))
 
 	rec := httptest.NewRecorder()
@@ -81,9 +81,15 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 
 	assert.Equal(
 		t,
-		"http://127.0.0.1:5758/downloads/segment/registry.example.com"+platformPath+"/example.zip",
+		"http://127.0.0.1:5758/downloads/segment/registry.example.com/v1/providers/example/example/1.0.0/download/linux/example.zip",
 		body["download_url"],
-		"a relative download url should resolve against the platform url before it is rewritten",
+		"a relative download url should replace the last segment of the platform url",
+	)
+	assert.Equal(
+		t,
+		"http://127.0.0.1:5758/downloads/segment/registry.example.com/v1/providers/example/example/1.0.0/download/SHA256SUMS.sig",
+		body["shasums_signature_url"],
+		"a parent-relative url should resolve above the platform url",
 	)
 	assert.Equal(
 		t,

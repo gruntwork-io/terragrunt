@@ -285,7 +285,7 @@ func TestStart_KeepsCollectedErrorsWhenAlreadyRunning(t *testing.T) {
 	assert.ErrorIs(t, wp.Wait(), errTask, "starting a running pool should keep the errors it collected")
 }
 
-func TestStart_ClearsCollectedErrorsAfterFullStop(t *testing.T) {
+func TestStart_ClearsCollectedErrorsAfterFullStopWithRacing(t *testing.T) {
 	t.Parallel()
 
 	errTask := errors.New("task failed")

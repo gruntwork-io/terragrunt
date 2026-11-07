@@ -245,6 +245,45 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 	}
 }
 
+func TestGoRepoRootCeilingAtFilesystemRoot(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/")
+	unit := filepath.Join(root, "live", "vpc")
+
+	for _, tc := range []struct {
+		name    string
+		ceiling string
+		blocked bool
+	}{
+		{name: "unset ceiling finds the root repository"},
+		{
+			name:    "kept root entry blocks the root repository",
+			ceiling: strings.Join([]string{"", filepath.ToSlash(root)}, string(filepath.ListSeparator)),
+			blocked: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.New().
+				WithFS(venvtest.NewFS(t, root, map[string]string{".git": "gitdir: /elsewhere/.git\n", "live/vpc/main.tf": ""})).
+				WithEnv(map[string]string{git.EnvNameGitCeilingDirectories: tc.ceiling})
+
+			got, err := git.GoRepoRoot(cache.ContextWithCache(t.Context()), v, unit)
+
+			if tc.blocked {
+				require.ErrorIs(t, err, git.ErrNoRepoRoot)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, root, got)
+		})
+	}
+}
+
 // TestGoRepoRootCeilingOutranksMemo pins the ordering the walk depends on.
 // Resolving the ceiling directory itself is exempt, and memoizes it against
 // the root above. A unit below the ceiling must still be refused rather than

@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// ResolveRelativeReference resolves link against base as a directory, keeping query and fragment.
-func ResolveRelativeReference(base *url.URL, link string) string {
+// resolveRelativeReference resolves link against base as a directory, keeping query and fragment.
+func resolveRelativeReference(base *url.URL, link string) string {
 	if link == "" {
 		return link
 	}

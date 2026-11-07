@@ -129,10 +129,12 @@ func modifyDownloadURLsInJSONBody(
 				continue
 			}
 
-			linkURL, err := url.Parse(models.ResolveRelativeReference(platformURL, link))
+			linkURL, err := url.Parse(link)
 			if err != nil {
 				return err
 			}
+
+			linkURL = platformURL.ResolveReference(linkURL)
 
 			// Modify link to http://{localhost_host}/downloads/provider/{remote_host}/{remote_path}
 			linkURL.Path = path.Join(downloaderController.URL().Path, linkURL.Host, linkURL.Path)
