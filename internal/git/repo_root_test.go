@@ -190,6 +190,7 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 		{
 			name:    "kept entry is compared with slash separators",
 			ceiling: list("", mid),
+			want:    root,
 			blocked: filepath.Separator == '/',
 		},
 		{
