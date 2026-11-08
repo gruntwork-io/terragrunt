@@ -497,6 +497,35 @@ func Within(fsys FS, dir, path string) bool {
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
+// SameFile reports whether a and b name one existing file on fsys, through symlinks or [os.SameFile].
+func SameFile(fsys FS, a, b string) bool {
+	resolvedA, err := EvalSymlinks(fsys, a)
+	if err != nil {
+		return false
+	}
+
+	resolvedB, err := EvalSymlinks(fsys, b)
+	if err != nil {
+		return false
+	}
+
+	if resolvedA == resolvedB {
+		return true
+	}
+
+	infoA, err := fsys.Stat(resolvedA)
+	if err != nil {
+		return false
+	}
+
+	infoB, err := fsys.Stat(resolvedB)
+	if err != nil {
+		return false
+	}
+
+	return os.SameFile(infoA, infoB)
+}
+
 // ParentPathHasSymlink reports whether rel cannot be safely traversed under rootDir.
 // It returns true when rel is empty, ".", absolute, escapes rootDir with "..", or has a symlink in a parent component.
 // The final path component is not checked, so callers can safely remove a leaf symlink.

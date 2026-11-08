@@ -6,24 +6,23 @@ import (
 	"strings"
 )
 
-// ResolveRelativeReference resolves link against base as a directory, keeping query and fragment.
+// ResolveRelativeReference resolves a relative link against base as a directory, keeping its escaped path, query and fragment.
 func ResolveRelativeReference(base *url.URL, link string) string {
-	if link == "" {
-		return link
-	}
-
-	if strings.Contains(link, "://") {
-		return link
-	}
-
 	ref, err := url.Parse(link)
-	if err != nil {
+	if err != nil || link == "" || ref.IsAbs() {
 		return link
 	}
 
-	// Join instead of letting ResolveReference replace the base's last segment.
-	if ref.Host == "" && !strings.HasPrefix(ref.Path, "/") {
-		ref.Path = path.Join(base.Path, ref.Path)
+	// A relative path names an entry under base, which ResolveReference only does when base ends in a slash.
+	if ref.Host == "" && ref.Path != "" && !strings.HasPrefix(ref.Path, "/") && !strings.HasSuffix(base.Path, "/") {
+		dir := *base
+
+		dir.Path += "/"
+		if dir.RawPath != "" {
+			dir.RawPath += "/"
+		}
+
+		base = &dir
 	}
 
 	return base.ResolveReference(ref).String()

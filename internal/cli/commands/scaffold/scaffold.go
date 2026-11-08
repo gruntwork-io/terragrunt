@@ -12,9 +12,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -489,6 +491,10 @@ func (p *Plan) Generate(
 		shared.NoIncludeRootFlagName,
 	)
 	setVarDefault(l, p.vars, rootFileName, opts.ScaffoldRootFileName, shared.RootFileNameFlagName)
+
+	if err := checkRootFile(ctx, l, v.FS, opts, p.outputDir, p.vars); err != nil {
+		return err
+	}
 
 	l.Debugf("Running boilerplate generation to %s", p.outputDir)
 	boilerplateOpts := NewBoilerplateOptions(p.boilerplateDir, p.outputDir, p.vars, opts)
@@ -1208,6 +1214,54 @@ func dependencyFilePath(outputDir, outputFolder, file string) string {
 	}
 
 	return p
+}
+
+// checkRootFile evaluates root-terragrunt-hcl when the generated include would find terragrunt.hcl in any spelling.
+func checkRootFile(
+	ctx context.Context,
+	l log.Logger,
+	fsys vfs.FS,
+	opts *options.TerragruntOptions,
+	outputDir string,
+	vars map[string]any,
+) error {
+	if include, ok := vars[enableRootInclude].(bool); ok && !include {
+		return nil
+	}
+
+	name, _ := vars[rootFileName].(string)
+	if name == "" {
+		return nil
+	}
+
+	dir := outputDir
+
+	for range opts.MaxFoldersToCheck {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return nil
+		}
+
+		dir = parent
+
+		found := filepath.Join(dir, name)
+		if _, err := fsys.Stat(found); err != nil {
+			continue
+		}
+
+		if !config.IsDefaultConfigFile(fsys, found) {
+			return nil
+		}
+
+		if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).
+			Evaluate(log.ContextWithLogger(ctx, l)); err != nil {
+			return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
+		}
+
+		return nil
+	}
+
+	return nil
 }
 
 type MaxDependencyDepthExceededError struct{}

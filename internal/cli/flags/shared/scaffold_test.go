@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestRootFileNameFlag pins that --root-file-name stores a non-empty name, rejects an empty one, and rejects a terragrunt.hcl name under its strict control.
+// TestRootFileNameFlag pins that --root-file-name stores a non-empty name, rejects an empty one, and rejects a name ending in terragrunt.hcl under its strict control.
 func TestRootFileNameFlag(t *testing.T) {
 	t.Parallel()
 
@@ -31,6 +31,18 @@ func TestRootFileNameFlag(t *testing.T) {
 		{name: "terragrunt.hcl name", value: "terragrunt.hcl", wantRootName: "terragrunt.hcl", wantWarning: true},
 		{name: "terragrunt.hcl name under its strict control", value: "terragrunt.hcl", strict: true, wantExitErr: true},
 		{name: "terragrunt.hcl path under its strict control", value: "./terragrunt.hcl", strict: true, wantExitErr: true},
+		{
+			name:        "terragrunt.hcl in a parent directory under its strict control",
+			value:       "../terragrunt.hcl",
+			strict:      true,
+			wantExitErr: true,
+		},
+		{
+			name:        "terragrunt.hcl in a subdirectory under its strict control",
+			value:       "sub/terragrunt.hcl",
+			strict:      true,
+			wantExitErr: true,
+		},
 		{
 			name:         "differently cased name left to find_in_parent_folders",
 			value:        "TERRAGRUNT.HCL",

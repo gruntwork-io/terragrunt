@@ -310,6 +310,81 @@ func TestResolveRelativeReferences(t *testing.T) {
 	}
 }
 
+func TestResolveRelativeReference(t *testing.T) {
+	t.Parallel()
+
+	const (
+		registry = "https://registry.example.com"
+		platform = registry + "/v1/providers/ns/name/1.0/download/linux/amd64"
+	)
+
+	testCases := []struct {
+		name string
+		base string
+		link string
+		want string
+	}{
+		{name: "file name", base: platform, link: "example.zip", want: platform + "/example.zip"},
+		{
+			name: "URL in the query",
+			base: platform,
+			link: "example.zip?redirect=https://mirror.example.com/example.zip",
+			want: platform + "/example.zip?redirect=https://mirror.example.com/example.zip",
+		},
+		{
+			name: "escaped slash",
+			base: platform,
+			link: "group%2Fproject/example.zip",
+			want: platform + "/group%2Fproject/example.zip",
+		},
+		{name: "repeated slashes", base: platform, link: "files//example.zip", want: platform + "/files//example.zip"},
+		{name: "trailing slash", base: platform, link: "files/", want: platform + "/files/"},
+		{
+			name: "parent directory",
+			base: platform,
+			link: "../SHA256SUMS",
+			want: registry + "/v1/providers/ns/name/1.0/download/linux/SHA256SUMS",
+		},
+		{name: "absolute path", base: platform, link: "/sums/SHA256SUMS", want: registry + "/sums/SHA256SUMS"},
+		{name: "query only", base: platform, link: "?sig=1", want: platform + "?sig=1"},
+		{
+			name: "network path",
+			base: platform,
+			link: "//mirror.example.com/example.zip",
+			want: "https://mirror.example.com/example.zip",
+		},
+		{
+			name: "absolute URL",
+			base: platform,
+			link: "https://mirror.example.com/a//b/../example.zip",
+			want: "https://mirror.example.com/a//b/../example.zip",
+		},
+		{
+			name: "base ending in a slash",
+			base: "https://mirror.example.com/api/",
+			link: "example.zip",
+			want: "https://mirror.example.com/api/example.zip",
+		},
+		{
+			name: "base with an escaped slash",
+			base: "https://mirror.example.com/group%2Fmirror",
+			link: "example.zip",
+			want: "https://mirror.example.com/group%2Fmirror/example.zip",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			base, err := url.Parse(tc.base)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, models.ResolveRelativeReference(base, tc.link))
+		})
+	}
+}
+
 func TestParseProvider(t *testing.T) {
 	t.Parallel()
 

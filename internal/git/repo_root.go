@@ -176,8 +176,7 @@ func walkCeiling(fsys vfs.FS, env map[string]string, start string) string {
 	return deepest
 }
 
-// entryCeiling returns the strict ancestor of start that one absolute ceiling
-// entry blocks, or "" when it blocks none.
+// entryCeiling returns the strict ancestor of start that an absolute ceiling entry blocks, or "" when it blocks none.
 func entryCeiling(fsys vfs.FS, entry, start string, keep bool) string {
 	if keep {
 		return keptCeiling(entry, start)
@@ -194,9 +193,7 @@ func entryCeiling(fsys vfs.FS, entry, start string, keep bool) string {
 	return ceiling
 }
 
-// keptCeiling returns the strict ancestor of start that a kept entry names,
-// matching the entry byte for byte, less one trailing slash, against start
-// spelled with forward slashes.
+// keptCeiling returns the strict ancestor of start that a kept entry names, matched byte for byte.
 func keptCeiling(entry, start string) string {
 	prefix := strings.TrimSuffix(entry, "/")
 	slashed := filepath.ToSlash(start)

@@ -559,12 +559,12 @@ func TestFindInParentFolders(t *testing.T) {
 	}
 }
 
-// TestFindInParentFoldersRootTerragruntHCLStrictControl pins that root-terragrunt-hcl covers a terragrunt.hcl
-// spelled as a path, and leaves a differently cased name alone where it names a distinct file.
+// TestFindInParentFoldersRootTerragruntHCLStrictControl pins which spellings of terragrunt.hcl fall under root-terragrunt-hcl.
 func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		symlinks       map[string]string
 		name           string
 		param          string
 		wantFile       string
@@ -588,6 +588,27 @@ func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
 			wantWarning: true,
 		},
 		{
+			name:           "terragrunt.hcl in a subdirectory under the strict control",
+			files:          []string{"sub/terragrunt.hcl"},
+			param:          "sub/terragrunt.hcl",
+			strict:         true,
+			wantControlErr: true,
+		},
+		{
+			name:        "terragrunt.hcl in a subdirectory with the control disabled",
+			files:       []string{"sub/terragrunt.hcl"},
+			param:       "sub/terragrunt.hcl",
+			wantFile:    "sub/terragrunt.hcl",
+			wantWarning: true,
+		},
+		{
+			name:           "terragrunt.hcl through a parent directory under the strict control",
+			files:          []string{"terragrunt.hcl"},
+			param:          "../terragrunt.hcl",
+			strict:         true,
+			wantControlErr: true,
+		},
+		{
 			name:     "differently cased name distinct from terragrunt.hcl under the strict control",
 			files:    []string{"terragrunt.hcl", "TERRAGRUNT.HCL"},
 			param:    "TERRAGRUNT.HCL",
@@ -598,6 +619,46 @@ func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
 			name:     "differently cased name distinct from terragrunt.hcl with the control disabled",
 			files:    []string{"terragrunt.hcl", "TERRAGRUNT.HCL"},
 			param:    "TERRAGRUNT.HCL",
+			wantFile: "TERRAGRUNT.HCL",
+		},
+		{
+			name:           "differently cased symlink to terragrunt.hcl under the strict control",
+			files:          []string{"terragrunt.hcl"},
+			symlinks:       map[string]string{"TERRAGRUNT.HCL": "terragrunt.hcl"},
+			param:          "TERRAGRUNT.HCL",
+			strict:         true,
+			wantControlErr: true,
+		},
+		{
+			name:        "differently cased symlink to terragrunt.hcl with the control disabled",
+			files:       []string{"terragrunt.hcl"},
+			symlinks:    map[string]string{"TERRAGRUNT.HCL": "terragrunt.hcl"},
+			param:       "TERRAGRUNT.HCL",
+			wantFile:    "TERRAGRUNT.HCL",
+			wantWarning: true,
+		},
+		{
+			name:           "differently cased symlink in a subdirectory under the strict control",
+			files:          []string{"sub/terragrunt.hcl"},
+			symlinks:       map[string]string{"sub/TERRAGRUNT.HCL": "sub/terragrunt.hcl"},
+			param:          "sub/TERRAGRUNT.HCL",
+			strict:         true,
+			wantControlErr: true,
+		},
+		{
+			name:           "differently cased symlink to terragrunt.hcl elsewhere under the strict control",
+			files:          []string{"other/terragrunt.hcl"},
+			symlinks:       map[string]string{"TERRAGRUNT.HCL": "other/terragrunt.hcl"},
+			param:          "TERRAGRUNT.HCL",
+			strict:         true,
+			wantControlErr: true,
+		},
+		{
+			name:     "differently cased symlink to another file under the strict control",
+			files:    []string{"root.hcl"},
+			symlinks: map[string]string{"TERRAGRUNT.HCL": "root.hcl"},
+			param:    "TERRAGRUNT.HCL",
+			strict:   true,
 			wantFile: "TERRAGRUNT.HCL",
 		},
 		{
@@ -620,35 +681,35 @@ func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
 				files[name] = name
 			}
 
+			fsys := venvtest.NewFS(t, root, files)
+
+			for link, target := range tc.symlinks {
+				require.NoError(t, vfs.Symlink(fsys, filepath.Join(root, target), filepath.Join(root, link)))
+			}
+
 			want := rootTerragruntHCLWant{controlErr: tc.wantControlErr, warning: tc.wantWarning}
 			if tc.wantFile != "" {
 				want.path = filepath.Join(root, tc.wantFile)
 			}
 
-			assertRootTerragruntHCLLookup(
-				t,
-				venvtest.New().WithFS(venvtest.NewFS(t, root, files)),
-				root,
-				tc.param,
-				tc.strict,
-				want,
-			)
+			assertRootTerragruntHCLLookup(t, venvtest.New().WithFS(fsys), root, tc.param, tc.strict, want)
 		})
 	}
 }
 
-// TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS pins that a differently cased name falls under
-// root-terragrunt-hcl where the filesystem folds it onto terragrunt.hcl. Only the real filesystem varies, so the
-// expectation comes from an independent lookup.
+// TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS pins root-terragrunt-hcl for another case of terragrunt.hcl on the real filesystem.
 func TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name   string
+		dir    string
 		strict bool
 	}{
 		{name: "under the strict control", strict: true},
 		{name: "with the control disabled"},
+		{name: "in a subdirectory under the strict control", dir: "sub", strict: true},
+		{name: "in a subdirectory with the control disabled", dir: "sub"},
 	}
 
 	for _, tc := range testCases {
@@ -657,17 +718,20 @@ func TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS(t *testing.T) {
 
 			fsys := vfs.NewOSFS()
 			root := t.TempDir()
+			dir := filepath.Join(root, tc.dir)
 
-			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, config.DefaultTerragruntConfigPath), nil, 0o644))
+			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(dir, config.DefaultTerragruntConfigPath), nil, 0o644))
 
-			otherCase := filepath.Join(root, "TERRAGRUNT.HCL")
+			otherCase := filepath.Join(dir, "TERRAGRUNT.HCL")
 
 			want := rootTerragruntHCLWant{notFound: true}
 			if vfs.Exists(fsys, otherCase) {
 				want = rootTerragruntHCLWant{path: otherCase, controlErr: tc.strict, warning: !tc.strict}
 			}
 
-			assertRootTerragruntHCLLookup(t, venvtest.New().WithFS(fsys), root, "TERRAGRUNT.HCL", tc.strict, want)
+			param := filepath.Join(tc.dir, "TERRAGRUNT.HCL")
+
+			assertRootTerragruntHCLLookup(t, venvtest.New().WithFS(fsys), root, param, tc.strict, want)
 		})
 	}
 }

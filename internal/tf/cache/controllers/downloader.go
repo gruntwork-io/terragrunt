@@ -70,7 +70,7 @@ func (controller *DownloaderController) downloadProviderAction(w router.Response
 		return router.NewHTTPError(http.StatusNotFound)
 	}
 
-	// The remote path arrives escaped twice, so that repeated, escaped and trailing slashes are forwarded unchanged.
+	// The remote path arrives escaped twice, so that its slashes and dot segments are forwarded unchanged.
 	_, hostAndPath, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), controller.URL().Path+"/"), "/")
 
 	_, routedPath, found := strings.Cut(hostAndPath, "/")

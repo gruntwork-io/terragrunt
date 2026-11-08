@@ -97,8 +97,7 @@ func (handler *ProxyProviderHandler) Download(
 	return handler.NewRequest(w, r, downloadURL)
 }
 
-// modifyDownloadURLsInJSONBody resolves the download URLs in the response against platformURL, as
-// [models.ResponseBody.ResolveRelativeReferences] does for a cached provider, and redirects them to the local server.
+// modifyDownloadURLsInJSONBody resolves the response's download URLs against platformURL and points them at the local server.
 func modifyDownloadURLsInJSONBody(
 	resp *http.Response,
 	platformURL *url.URL,
@@ -139,14 +138,20 @@ func modifyDownloadURLsInJSONBody(
 	})
 }
 
-// downloadLink returns the URL under downloader that fetches remote:
-// {downloader}/{remote_scheme}/{remote_host}{remote_path}?{remote_query}.
-//
-// The escaped remote path is escaped again: every '%', and every '/' that follows another '/'. The cache server's
-// mux redirects a path with repeated slashes to a cleaned one, which would change a signed URL, so the path must
-// reach the downloader with none. A single [url.PathUnescape] gives back the escaped remote path.
+// downloadLink returns {downloader}/{scheme}/{host}{path}?{query} for remote, with the path escaped again so the mux leaves it unchanged.
 func downloadLink(downloader, remote *url.URL) string {
-	remotePath := strings.ReplaceAll(strings.ReplaceAll(remote.EscapedPath(), "%", "%25"), "//", "/%2F")
+	segments := strings.Split(remote.EscapedPath(), "/")
+	for i, segment := range segments {
+		if segment == "." || segment == ".." {
+			segments[i] = strings.Repeat("%2E", len(segment))
+
+			continue
+		}
+
+		segments[i] = strings.ReplaceAll(segment, "%", "%25")
+	}
+
+	remotePath := strings.ReplaceAll(strings.Join(segments, "/"), "//", "/%2F")
 
 	link := downloader.JoinPath(remote.Scheme, remote.Host).String() + remotePath
 	if remote.RawQuery != "" {

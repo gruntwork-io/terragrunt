@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -897,7 +896,8 @@ func findInParentFoldersImpl(
 
 	previousDir := filepath.Dir(pctx.TerragruntConfigPath)
 
-	if fileToFindParam == "" || filepath.Clean(fileToFindParam) == DefaultTerragruntConfigPath {
+	rootName := filepath.Base(filepath.Clean(fileToFindParam))
+	if fileToFindParam == "" || rootName == DefaultTerragruntConfigPath {
 		if err := evaluateRootTerragruntHCL(ctx, l, pctx); err != nil {
 			return "", err
 		}
@@ -933,7 +933,7 @@ func findInParentFoldersImpl(
 		fileToFind := parentFileCandidate(v.FS, currentDir, fileToFindParam)
 
 		if parentFileExists(ctx, v.FS, probes, fileToFind) {
-			if isDefaultConfigInOtherCase(v.FS, fileToFindParam, fileToFind) {
+			if fileToFindParam != "" && rootName != DefaultTerragruntConfigPath && IsDefaultConfigFile(v.FS, fileToFind) {
 				if err := evaluateRootTerragruntHCL(ctx, l, pctx); err != nil {
 					return "", err
 				}
@@ -952,8 +952,7 @@ func findInParentFoldersImpl(
 	}
 }
 
-// evaluateRootTerragruntHCL evaluates the root-terragrunt-hcl strict control: an error when it is enabled, a
-// warning when it is not.
+// evaluateRootTerragruntHCL returns the root-terragrunt-hcl error, or logs its warning when the control is disabled.
 func evaluateRootTerragruntHCL(ctx context.Context, l log.Logger, pctx *ParsingContext) error {
 	rootTGHCLControl := pctx.StrictControls.FilterByNames(controls.RootTerragruntHCL)
 
@@ -964,26 +963,18 @@ func evaluateRootTerragruntHCL(ctx context.Context, l log.Logger, pctx *ParsingC
 	return nil
 }
 
-// isDefaultConfigInOtherCase reports whether found, the file located for fileName, is terragrunt.hcl under a
-// spelling that differs only in letter case. That holds only on a filesystem that folds case, where found and
-// terragrunt.hcl in the same directory are one file; where they are distinct, found is a separate file.
-func isDefaultConfigInOtherCase(fsys vfs.FS, fileName, found string) bool {
-	name := filepath.Clean(fileName)
-	if name == DefaultTerragruntConfigPath || !strings.EqualFold(name, DefaultTerragruntConfigPath) {
+// IsDefaultConfigFile reports whether path, in any letter case and through symlinks, is the same file as terragrunt.hcl.
+func IsDefaultConfigFile(fsys vfs.FS, path string) bool {
+	if !strings.EqualFold(filepath.Base(path), DefaultTerragruntConfigPath) {
 		return false
 	}
 
-	foundInfo, err := fsys.Stat(found)
+	resolved, err := vfs.EvalSymlinks(fsys, path)
 	if err != nil {
 		return false
 	}
 
-	defaultInfo, err := fsys.Stat(filepath.Join(filepath.Dir(found), DefaultTerragruntConfigPath))
-	if err != nil {
-		return false
-	}
-
-	return os.SameFile(foundInfo, defaultInfo)
+	return vfs.SameFile(fsys, resolved, filepath.Join(filepath.Dir(resolved), DefaultTerragruntConfigPath))
 }
 
 // parentFileCandidate names the file to probe in dir. An empty fileName means

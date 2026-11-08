@@ -429,8 +429,7 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 	}
 }
 
-// TestProviderControllerDownloadLinkRoundTrips pins that a download link rewritten by the proxy reaches the remote
-// archive URL unchanged through the cache server's router.
+// TestProviderControllerDownloadLinkRoundTrips pins that a rewritten download link reaches the remote URL unchanged.
 func TestProviderControllerDownloadLinkRoundTrips(t *testing.T) {
 	t.Parallel()
 
@@ -451,6 +450,11 @@ func TestProviderControllerDownloadLinkRoundTrips(t *testing.T) {
 		},
 		{name: "escaped percent sign", link: "https://releases.example.com/100%25/" + testArchiveName},
 		{name: "trailing slash", link: "https://releases.example.com/example/1.0.0/"},
+		{
+			name: "dot segments",
+			link: "https://releases.example.com/example/./1.0.0/../" + testArchiveName + "?X-Amz-Signature=abc",
+		},
+		{name: "escaped dot segment", link: "https://releases.example.com/example/%2E%2E/" + testArchiveName},
 	}
 
 	for _, tc := range testCases {

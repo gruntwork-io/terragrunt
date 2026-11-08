@@ -62,24 +62,27 @@ func TestProxyProviderHandlerGetPlatformRewritesDownloadURLs(t *testing.T) {
 	assert.NotContains(t, body, "shasums_signature_url", "a url the registry did not send should not be added")
 }
 
-// TestProxyProviderHandlerGetPlatformResolvesRelativeURLs pins that relative links resolve against the platform url
-// as [models.ResponseBody.ResolveRelativeReferences] resolves a cached provider's links, so the downloader can match
-// them to a cached archive.
+// TestProxyProviderHandlerGetPlatformResolvesRelativeURLs pins that relative links resolve as cached provider links do.
 func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 	t.Parallel()
 
 	const local = "http://127.0.0.1:5758/downloads/segment/https/"
+
+	const links = `{"download_url": "example.zip", "shasums_url": "/sums/SHA256SUMS?sig=1", ` +
+		`"shasums_signature_url": "../SHA256SUMS.sig"}`
 
 	testCases := []struct {
 		want         map[string]string
 		name         string
 		discovery    string
 		platformPath string
+		links        string
 	}{
 		{
 			name:         "providers endpoint on the registry host",
 			discovery:    discoveryDocument,
 			platformPath: platformPath,
+			links:        links,
 			want: map[string]string{
 				"download_url":          local + "registry.example.com" + platformPath + "/example.zip",
 				"shasums_url":           local + "registry.example.com/sums/SHA256SUMS?sig=1",
@@ -90,10 +93,24 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 			name:         "providers endpoint on another host",
 			discovery:    `{"providers.v1":"https://mirror.example.com/api/providers/"}`,
 			platformPath: "/api/providers/example/example/1.0.0/download/linux/amd64",
+			links:        links,
 			want: map[string]string{
 				"download_url":          local + "mirror.example.com/api/providers/example/example/1.0.0/download/linux/amd64/example.zip",
 				"shasums_url":           local + "mirror.example.com/sums/SHA256SUMS?sig=1",
 				"shasums_signature_url": local + "mirror.example.com/api/providers/example/example/1.0.0/download/linux/SHA256SUMS.sig",
+			},
+		},
+		{
+			name:         "relative links keeping their path form",
+			discovery:    discoveryDocument,
+			platformPath: platformPath,
+			links: `{"download_url": "group%2Fproject//example.zip?redirect=https://mirror.example.com/example.zip", ` +
+				`"shasums_url": "files/", "shasums_signature_url": "./sig/../SHA256SUMS.sig"}`,
+			want: map[string]string{
+				"download_url": local + "registry.example.com" + platformPath +
+					"/group%252Fproject/%2Fexample.zip?redirect=https://mirror.example.com/example.zip",
+				"shasums_url":           local + "registry.example.com" + platformPath + "/files/",
+				"shasums_signature_url": local + "registry.example.com" + platformPath + "/SHA256SUMS.sig",
 			},
 		},
 	}
@@ -104,7 +121,7 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 
 			c := vhttp.NewMemClient(registryRoutes(map[string]string{
 				"/.well-known/terraform.json": tc.discovery,
-				tc.platformPath:               `{"download_url": "example.zip", "shasums_url": "/sums/SHA256SUMS?sig=1", "shasums_signature_url": "../SHA256SUMS.sig"}`,
+				tc.platformPath:               tc.links,
 			}))
 
 			rec := httptest.NewRecorder()
@@ -175,8 +192,7 @@ func TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON(t *testing.T) {
 	}
 }
 
-// TestProxyProviderHandlerGetPlatformKeepsLinkPath pins that a rewritten link carries escaped, repeated and trailing
-// slashes in a form the cache server routes unchanged.
+// TestProxyProviderHandlerGetPlatformKeepsLinkPath pins that a rewritten link keeps its slashes and dot segments routable.
 func TestProxyProviderHandlerGetPlatformKeepsLinkPath(t *testing.T) {
 	t.Parallel()
 
@@ -199,6 +215,11 @@ func TestProxyProviderHandlerGetPlatformKeepsLinkPath(t *testing.T) {
 			name: "trailing slash",
 			link: "https://registry.example.com/example/1.0.0/",
 			want: "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example/1.0.0/",
+		},
+		{
+			name: "dot segments",
+			link: "https://registry.example.com/example/./1.0.0/../example.zip",
+			want: "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example/%2E/1.0.0/%2E%2E/example.zip",
 		},
 	}
 
