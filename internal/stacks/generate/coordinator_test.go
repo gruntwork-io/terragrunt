@@ -304,3 +304,124 @@ func TestCoordinatorReusesNestedGeneration(t *testing.T) {
 	}))
 	assert.FileExists(t, marker)
 }
+
+func TestCoordinatorPreservesCompletedChildWhenParentIsRequestedLater(t *testing.T) {
+	t.Parallel()
+	opts, parent := coordinatorOptions(t)
+	c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	child := filepath.Join(filepath.Dir(parent), ".terragrunt-stack", "child", "terragrunt.stack.hcl")
+	unit := filepath.Join(filepath.Dir(child), ".terragrunt-stack", "unit", "terragrunt.hcl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(child), 0755))
+	require.NoError(t, os.WriteFile(child, nil, 0600))
+
+	calls := 0
+	childWork := func(context.Context) error {
+		calls++
+		if err := os.MkdirAll(filepath.Dir(unit), 0755); err != nil {
+			return err
+		}
+		return os.WriteFile(unit, []byte("inputs = { marker = \"generated\" }"), 0600)
+	}
+	require.NoError(t, c.Generate(t.Context(), child, childWork))
+	require.FileExists(t, unit)
+
+	parentErr := c.Generate(t.Context(), parent, func(ctx context.Context) error {
+		if err := os.MkdirAll(filepath.Dir(child), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(child, nil, 0600); err != nil {
+			return err
+		}
+		return c.Generate(ctx, child, childWork)
+	})
+	require.ErrorContains(t, parentErr, "generate parent stacks first")
+	assert.Contains(t, parentErr.Error(), parent)
+	assert.Contains(t, parentErr.Error(), child)
+
+	require.NoError(t, c.Generate(t.Context(), child, childWork))
+	assert.Equal(t, 1, calls, "a completed child must remain reusable without regeneration")
+	assert.FileExists(t, unit, "cached success must still refer to generated files after the parent request")
+}
+
+func TestCoordinatorPreservesActiveChildWhenParentIsRequested(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		opts, parent := coordinatorOptions(t)
+		c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+		child := filepath.Join(filepath.Dir(parent), ".terragrunt-stack", "child", "terragrunt.stack.hcl")
+		unit := filepath.Join(filepath.Dir(child), ".terragrunt-stack", "unit", "terragrunt.hcl")
+		require.NoError(t, os.MkdirAll(filepath.Dir(child), 0755))
+		require.NoError(t, os.WriteFile(child, nil, 0600))
+
+		started := make(chan error, 1)
+		releaseChild := make(chan struct{})
+		childDone := make(chan error, 1)
+		go func() {
+			childDone <- c.Generate(t.Context(), child, func(context.Context) error {
+				err := os.MkdirAll(filepath.Dir(unit), 0755)
+				if err == nil {
+					err = os.WriteFile(unit, []byte("inputs = { marker = \"generated\" }"), 0600)
+				}
+				started <- err
+				if err != nil {
+					return err
+				}
+				<-releaseChild
+				return nil
+			})
+		}()
+		require.NoError(t, <-started)
+		require.FileExists(t, unit)
+
+		parentDone := make(chan error, 1)
+		go func() {
+			parentDone <- c.Generate(t.Context(), parent, func(ctx context.Context) error {
+				if err := os.MkdirAll(filepath.Dir(child), 0755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(child, nil, 0600); err != nil {
+					return err
+				}
+				return c.Generate(ctx, child, func(context.Context) error {
+					t.Error("active child was generated twice")
+					return nil
+				})
+			})
+		}()
+		synctest.Wait()
+		assert.FileExists(t, unit, "parent cleanup must not delete an active child's files")
+		close(releaseChild)
+		require.NoError(t, <-childDone)
+		require.ErrorContains(t, <-parentDone, "generate parent stacks first")
+
+		require.NoError(t, c.Generate(t.Context(), child, func(context.Context) error {
+			t.Error("completed child was generated twice")
+			return nil
+		}))
+		assert.FileExists(t, unit, "cached success must still refer to generated files after both requests finish")
+	})
+}
+
+func TestCoordinatorAllowsLateParentWithoutCleanup(t *testing.T) {
+	t.Parallel()
+	for _, command := range []string{"plan", "destroy"} {
+		t.Run(command, func(t *testing.T) {
+			t.Parallel()
+			opts, parent := coordinatorOptions(t)
+			opts.TofuCommand = command
+			opts.SourceUpdate = command == "destroy"
+			c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+			child := filepath.Join(filepath.Dir(parent), ".terragrunt-stack", "child", "terragrunt.stack.hcl")
+			require.NoError(t, os.MkdirAll(filepath.Dir(child), 0755))
+			require.NoError(t, os.WriteFile(child, nil, 0600))
+			require.NoError(t, c.Generate(t.Context(), child, func(context.Context) error { return nil }))
+			parentCalled := false
+			require.NoError(t, c.Generate(t.Context(), parent, func(context.Context) error {
+				parentCalled = true
+				return nil
+			}))
+			assert.True(t, parentCalled)
+			assert.FileExists(t, child)
+		})
+	}
+}

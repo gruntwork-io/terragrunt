@@ -106,13 +106,28 @@ func (c *Coordinator) Generate(ctx context.Context, stackFile string, generate f
 
 func (c *Coordinator) generate(ctx context.Context, path string, generate func(context.Context) error) error {
 	if c.opts.SourceUpdate && !c.opts.TerraformCliArgs.IsDestroy(c.opts.TofuCommand) {
-		// Clean only this stack's generated directory, never sibling stacks.
-		target := filepath.Join(filepath.Dir(path), config.StackDir)
-		if err := c.fs.RemoveAll(target); err != nil {
-			return fmt.Errorf("failed to clean stack directory %q: %w", target, err)
+		if err := c.clean(path); err != nil {
+			return err
 		}
 	}
 	return generate(ctx)
+}
+
+// Keep the overlap check and deletion atomic with respect to job registration.
+func (c *Coordinator) clean(path string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	target := filepath.Join(filepath.Dir(path), config.StackDir)
+	for registered := range c.jobs {
+		if vfs.Within(c.fs, target, registered) {
+			return fmt.Errorf("cannot clean stack %q: nested stack %q was already requested; generate parent stacks first", path, registered)
+		}
+	}
+	if err := c.fs.RemoveAll(target); err != nil {
+		return fmt.Errorf("failed to clean stack directory %q: %w", target, err)
+	}
+	return nil
 }
 
 // route requires c.mu to be held.
