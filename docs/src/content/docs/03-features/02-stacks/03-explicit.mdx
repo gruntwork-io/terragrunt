@@ -465,7 +465,7 @@ Consumers do not set `update_source_with_cas` themselves. When the source is rem
 
 <Since version="v1.2.2">
 
-A catalog served as an archive at an HTTP URL or as a module package in an [OCI registry](/features/units/oci) works the same way. With `source = "oci://ghcr.io/acme/catalog//stacks/service?tag=v1.0.0"`, Terragrunt fetches the whole package through the CAS and rewrites the relative paths inside it to `cas::` references.
+The catalog can also be an archive at an HTTP URL or a module package in an [OCI registry](/features/units/oci), such as `source = "oci://ghcr.io/acme/catalog//stacks/service?tag=v1.0.0"`. Terragrunt fetches the whole package into the CAS and follows the relative paths inside it the same way.
 
 </Since>
 
