@@ -27,7 +27,18 @@ const entries = (await getPublishedHclItems(kind)).filter((entry) => entry.data.
 					<tr>
 						<td>
 							<a href={hclItemPath(kind, entry.data.name)}>
-								<code>{entry.data.name}</code>
+								<code>
+									{entry.data.name.split('_').map((part, i) => (
+										<>
+											{i > 0 && (
+												<>
+													_<wbr />
+												</>
+											)}
+											{part}
+										</>
+									))}
+								</code>
 							</a>
 						</td>
 						<td>{entry.data.description}</td>

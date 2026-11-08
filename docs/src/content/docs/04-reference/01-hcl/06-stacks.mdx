@@ -13,44 +13,17 @@ A [stack](/getting-started/terminology#stack) is a directory of units. A `terrag
 
 ## Unit and stack blocks
 
-| | `unit` block | `stack` block |
-|---|---|---|
-| Generates | A directory with a `terragrunt.hcl` file | A directory with a `terragrunt.stack.hcl` file |
-| Use it for | One piece of infrastructure, e.g. a VPC or a database | A group of units you deploy more than once, e.g. an environment |
+A `unit` block generates a unit. A `stack` block generates a nested stack, whose own `terragrunt.stack.hcl` file generates more units:
 
-The `terragrunt.stack.hcl` file a `stack` block generates can contain more `unit` and `stack` blocks.
-
-## Generating units
-
-[`terragrunt stack generate`](/reference/cli/commands/stack/generate) writes the units and stacks that a `terragrunt.stack.hcl` file defines, by default under a `.terragrunt-stack` directory. [`stack run`](/reference/cli/commands/stack/run) and `run --all` generate them before they run, so `terragrunt stack run apply` generates and deploys a stack in one step.
-
-A generated unit is an ordinary unit configuration, and Terragrunt reads it as if you had written it.
-
-## Examples
-
-### A stack of units
-
-```hcl
-# terragrunt.stack.hcl
-
+```hcl title="terragrunt.stack.hcl" {1,6}
 unit "vpc" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  source = "../catalog/units/vpc"
   path   = "vpc"
-  values = {
-    vpc_name = "main"
-    cidr     = "10.0.0.0/16"
-  }
 }
 
-unit "database" {
-  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
-  path   = "database"
-  values = {
-    engine   = "postgres"
-    version  = "13"
-
-    vpc_path = "../vpc"
-  }
+stack "dev" {
+  source = "../catalog/stacks/environment"
+  path   = "dev"
 }
 ```
 
@@ -61,15 +34,70 @@ Running `terragrunt stack generate` creates:
 - terragrunt.stack.hcl
 - .terragrunt-stack
   - vpc
-    - terragrunt.hcl
-    - terragrunt.values.hcl
-  - database
-    - terragrunt.hcl
-    - terragrunt.values.hcl
+    - **terragrunt.hcl** from `unit "vpc"`
+  - dev
+    - **terragrunt.stack.hcl** from `stack "dev"`
+    - .terragrunt-stack
+      - vpc
+        - terragrunt.hcl
+      - database
+        - terragrunt.hcl
 
 </FileTree>
 
-### Nested stacks
+Use a `stack` block for a group of units you deploy more than once, e.g. one per environment.
+
+## Generating units
+
+[`terragrunt stack generate`](/reference/cli/commands/stack/generate) writes the units and stacks that a `terragrunt.stack.hcl` file defines, by default under a `.terragrunt-stack` directory. [`stack run`](/reference/cli/commands/stack/run) and `run --all` generate them before they run, so `terragrunt stack run apply` generates and deploys a stack in one step.
+
+A generated unit is an ordinary unit configuration, and Terragrunt reads it as if you had written it.
+
+## Examples
+
+### Passing values to units
+
+```hcl title="terragrunt.stack.hcl"
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+
+unit "database" {
+  source = "../catalog/units/database"
+  path   = "database"
+  values = {
+    engine   = "postgres"
+    version  = "13"
+    vpc_path = "../vpc"
+  }
+}
+```
+
+Terragrunt writes each unit's `values` to a `terragrunt.values.hcl` file next to its `terragrunt.hcl` file:
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - vpc
+    - terragrunt.hcl
+    - **terragrunt.values.hcl**
+  - database
+    - terragrunt.hcl
+    - **terragrunt.values.hcl**
+
+</FileTree>
+
+The unit's `terragrunt.hcl` file reads them as `values.<name>`, e.g. `values.cidr`.
+
+### Reusing a stack
+
+Two `stack` blocks can share a source and pass it different values:
 
 ```hcl
 # terragrunt.stack.hcl
@@ -93,7 +121,7 @@ stack "prod" {
 }
 ```
 
-The stack at that source might contain:
+The stack at that source reads them the same way:
 
 ```hcl
 # stacks/environment/terragrunt.stack.hcl
