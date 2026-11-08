@@ -586,6 +586,34 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 			},
 		},
 		{
+			name:      "a command outside allowed_commands does not merge a declared output missing from state",
+			vpcConfig: outputsBlockConfig,
+			command:   "apply",
+			vpcState:  vpcStateWithoutSubnets,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var missingErr config.DeclaredOutputMissingError
+
+				require.ErrorAs(t, err, &missingErr)
+				assert.Equal(t, "subnet_ids", missingErr.Output)
+			},
+		},
+		{
+			name:           "a dependent that skips outputs reads the declared mocks like mock_outputs",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `skip_outputs = true`,
+			command:        "plan",
+			vpcState:       vpcStateWithAllOutputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+				assert.Equal(t, mockSubnets, cfg.Inputs["subnet_ids"])
+			},
+		},
+		{
 			name:           "a mock_outputs list replaces the declared mocks and cannot be read as an object",
 			vpcConfig:      outputsBlockConfig,
 			dependencyBody: `mock_outputs = ["oops"]`,
@@ -1011,6 +1039,49 @@ outputs {
 	assert.Equal(t, 2, fsys.count(tfvarsPath), "a changed unit config is read again")
 }
 
+// TestDependencyDeclaredOutputsConcurrentReadsWithRacing pins that dependents reading one target at once each get
+// a copy and the target is parsed no more often than there are readers.
+func TestDependencyDeclaredOutputsConcurrentReadsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const readers = 8
+
+	root := venvtest.Root("/fixture")
+	fsys := &openCountingFS{FS: vfs.NewMemMapFS(), opens: map[string]int{}}
+	vpcConfigPath := filepath.Join(root, "vpc", config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(outputsBlockConfig), 0o644))
+
+	l := createLogger()
+	v := venvtest.New().WithFS(fsys)
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+	results := make([]*config.OutputsConfig, readers)
+	errs := make([]error, readers)
+
+	var wg sync.WaitGroup
+
+	for i := range readers {
+		wg.Go(func() {
+			results[i], errs[i] = dep.DeclaredOutputs(ctx, l, v, pctx)
+		})
+	}
+
+	wg.Wait()
+
+	for i := range readers {
+		require.NoError(t, errs[i])
+		require.NotNil(t, results[i])
+		assert.Equal(t, results[0].Names(), results[i].Names())
+	}
+
+	opens := fsys.count(vpcConfigPath)
+	assert.GreaterOrEqual(t, opens, 1)
+	assert.LessOrEqual(t, opens, readers)
+}
+
 // parseOutputsConfig parses content as a unit config, with the outputs-block experiment on when enabled.
 func parseOutputsConfig(t *testing.T, content string, enabled bool) *config.TerragruntConfig {
 	t.Helper()
@@ -1070,7 +1141,7 @@ func requireDiagnostic(t *testing.T, err error, summary string) {
 	}), "no %q diagnostic in: %s", summary, diags.Error())
 }
 
-// openCountingFS counts how often each file is opened.
+// openCountingFS counts how often each file is opened, by its cleaned path.
 type openCountingFS struct {
 	vfs.FS
 	opens map[string]int
@@ -1079,7 +1150,7 @@ type openCountingFS struct {
 
 func (fsys *openCountingFS) Open(name string) (vfs.File, error) {
 	fsys.mu.Lock()
-	fsys.opens[name]++
+	fsys.opens[filepath.Clean(name)]++
 	fsys.mu.Unlock()
 
 	return fsys.FS.Open(name)
@@ -1090,5 +1161,5 @@ func (fsys *openCountingFS) count(name string) int {
 	fsys.mu.Lock()
 	defer fsys.mu.Unlock()
 
-	return fsys.opens[name]
+	return fsys.opens[filepath.Clean(name)]
 }

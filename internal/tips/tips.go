@@ -60,11 +60,10 @@ const (
 	// dependency is read whose unit declares no outputs block.
 	OutputsBlock = "outputs-block"
 
-	// OutputsBlockMessage is the default message for the outputs-block tip. The
-	// runtime message is assembled at evaluation time so it can name the unit.
+	// OutputsBlockMessage is the default message for the outputs-block tip.
 	OutputsBlockMessage = "A `dependency` block reads a unit that declares no `outputs` block. " + outputsBlockFix
 
-	// outputsBlockFix is the advice both outputs-block messages end with.
+	// outputsBlockFix is the advice an outputs-block tip message ends with.
 	outputsBlockFix = "Declare its outputs and their mock values there once, so every dependent shares them. " +
 		"See https://docs.terragrunt.com/reference/experiments/active#outputs-block"
 

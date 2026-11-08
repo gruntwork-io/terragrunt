@@ -972,7 +972,8 @@ func (err DeclaredOutputMissingError) Error() string {
 	return fmt.Sprintf(
 		"%s declares output %q in its outputs block, but its state has no output %q, read as dependency %q by %s. "+
 			"Apply %s after adding the output to its module, remove the declaration, "+
-			"or set merge_with_state = \"shallow\" in its mock_strategy block to fill it from mock_value.",
+			"or set merge_with_state = \"shallow\" in its mock_strategy block, with the command in allowed_commands, "+
+			"to fill it from mock_value.",
 		err.TargetConfig,
 		err.Output,
 		err.Output,

@@ -25,7 +25,7 @@ var mockMergeStrategies = []MergeStrategyType{NoMerge, ShallowMerge, DeepMergeMa
 // OutputsConfig is the outputs block of a unit. It declares the outputs the unit emits, each with the mock value
 // its dependents read while the unit's state holds no outputs, and the strategy that says when mocks apply.
 //
-// The block is recognized only under the outputs-block experiment.
+// Declaring the block without the outputs-block experiment is an error.
 type OutputsConfig struct {
 	// MockStrategy is the mock_strategy block, nil when the block has none.
 	MockStrategy *OutputsMockStrategy `hcl:"mock_strategy,block"`

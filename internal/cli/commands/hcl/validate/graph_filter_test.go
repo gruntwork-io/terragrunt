@@ -34,9 +34,7 @@ type validateRun struct {
 	// links are symbolic links to add to the repository, by link path, each pointing at a path relative to the
 	// root.
 	links map[string]string
-	// experiment is the name of the experiment the run enables, if any.
-	experiment string
-	// experiments are further experiments the run enables.
+	// experiments are the names of the experiments the run enables.
 	experiments []string
 	// queries are the filter queries the run is given.
 	queries []string
@@ -79,10 +77,6 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 		require.NoError(t, opts.StrictControls.EnableControl(name))
 	}
 
-	if run.experiment != "" {
-		require.NoError(t, opts.Experiments.EnableExperiment(run.experiment))
-	}
-
 	for _, name := range run.experiments {
 		require.NoError(t, opts.Experiments.EnableExperiment(name))
 	}
@@ -90,12 +84,13 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 	ctx := config.WithCaches(t.Context())
 	result := validateResult{root: root, fs: fsys}
 
-	// The inputs mode is reached through the command entry point, which dispatches on the flag.
+	entry := validate.RunValidate
 	if run.inputs {
-		result.err = validate.Run(ctx, l, v, opts)
-	} else {
-		result.err = validate.RunValidate(ctx, l, v, opts)
+		// The inputs mode is reached through the command entry point, which dispatches on the flag.
+		entry = validate.Run
 	}
+
+	result.err = entry(ctx, l, v, opts)
 
 	if stdout.Len() > 0 && !run.inputs {
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &result.diags))

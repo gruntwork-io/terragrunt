@@ -92,7 +92,7 @@ func (p ComponentParser) validateOutputsContracts(
 	}
 
 	for _, check := range checks {
-		if err := p.Collector.keep(check.file.File, check.diags); err != nil {
+		if err := p.Collector.keepDistinct(check.file.File, check.diags); err != nil {
 			return err
 		}
 	}
@@ -469,7 +469,8 @@ func declarationSubject(file *hclparse.File, ranges map[string]hcl.Range, name s
 }
 
 // dependencyOutputReferenceDiagnostics reports each reference in file to an output that the dependency it reads
-// does not declare. A dependency that declares no outputs block is not checked.
+// does not declare. A dependency that declares no outputs block is not checked. References resolve against the
+// unit's merged dependency blocks, so a dependency an autoinclude overrides is checked as the autoinclude declares it.
 func dependencyOutputReferenceDiagnostics(
 	ctx context.Context,
 	l log.Logger,
@@ -553,7 +554,8 @@ func declaredOutputsOf(
 // pointAtOutputsErrors moves the outputs contract errors in err's tree into diagnostics: a dependency whose unit
 // config cannot be read for its outputs block is reported at the config_path expression that declares it, in the
 // first of configPaths that does, and a declared mock value that its readers cannot know is reported at its
-// output block, in the unit config that declares it. It returns the errors it found no place for.
+// output block, in the unit config that declares it. It returns the errors it found no place for, with any
+// failure to place one.
 func (p ComponentParser) pointAtOutputsErrors(
 	l log.Logger,
 	v *venv.Venv,
@@ -570,7 +572,9 @@ func (p ComponentParser) pointAtOutputsErrors(
 	for _, leaf := range joinedErrors(err) {
 		pointed, pointErr := p.pointAtOutputsError(l, v, pctx, configPaths, leaf)
 		if pointErr != nil {
-			return errors.Join(err, pointErr)
+			rest = append(rest, leaf, pointErr)
+
+			continue
 		}
 
 		if !pointed {
@@ -640,7 +644,7 @@ func (p ComponentParser) pointAtDependencyRead(
 			return false, err
 		}
 
-		p.Collector.add(diag)
+		p.Collector.addDistinct(diag)
 
 		return true, nil
 	}
@@ -670,7 +674,7 @@ func (p ComponentParser) pointAtUnknownMockValue(
 		Subject:  declarationSubject(file, ranges, unknownErr.Output),
 	}
 
-	if err := p.Collector.keep(file.File, hcl.Diagnostics{diag}); err != nil {
+	if err := p.Collector.keepDistinct(file.File, hcl.Diagnostics{diag}); err != nil {
 		return false, err
 	}
 

@@ -1,8 +1,0 @@
----
-version: "v1.2.2"
-category: "bug-fixes"
----
-
-#### `hcl validate` keeps distinct diagnostics at one source range
-
-Two units that evaluate one shared file against different dependencies can raise different diagnostics at the same line. `hcl validate` reported the first one only. It now reports each of them, and still reports a diagnostic repeated by several units once.

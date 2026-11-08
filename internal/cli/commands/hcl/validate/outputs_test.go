@@ -247,7 +247,7 @@ inputs = {
 			maps.Copy(files, outputsContractFiles)
 			maps.Copy(files, tc.overrides)
 
-			result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
 
 			if tc.expectedSummary == "" {
 				require.NoError(t, result.err)
@@ -445,7 +445,7 @@ inputs = {
 			maps.Copy(files, expandedContractFiles)
 			files["app/terragrunt.hcl"] = tc.appConfig
 
-			result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
 
 			if tc.expectedSummary == "" {
 				require.NoError(t, result.err)
@@ -653,7 +653,7 @@ inputs = {
 			}
 			maps.Copy(files, tc.files)
 
-			result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
 
 			if tc.expectedFile == "" {
 				require.NoError(t, result.err)
@@ -706,8 +706,7 @@ variables {
 
 	result := runValidate(t, &validateRun{
 		files:       files,
-		experiment:  experiment.OutputsBlock,
-		experiments: []string{experiment.VariablesBlock},
+		experiments: []string{experiment.OutputsBlock, experiment.VariablesBlock},
 	})
 
 	require.Error(t, result.err)
@@ -739,7 +738,7 @@ func TestRunValidateOutputsContractsLeavesUnitDirectory(t *testing.T) {
 		"vpc/terragrunt.hcl": generatedOutputsConfig,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
 
 	require.NoError(t, result.err)
 	assert.Empty(t, result.diags)
@@ -779,7 +778,7 @@ inputs = {
 `,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock, inputs: true})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, inputs: true})
 
 	require.Error(t, result.err)
 
@@ -824,7 +823,7 @@ outputs {
 `,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
 
 	require.NoError(t, result.err)
 	assert.Empty(t, result.diags)
@@ -868,7 +867,7 @@ output {
 
 			files := withFiles(outputsContractFiles, map[string]string{"vpc/main.tf": tc.module})
 
-			result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
 
 			require.Error(t, result.err)
 			assert.NotErrorAs(t, result.err, new(validate.OutputsContractError), "reported as a diagnostic")
@@ -914,7 +913,7 @@ outputs {
 `,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
 
 	require.ErrorAs(t, result.err, new(validate.OutputsContractError))
 }
@@ -934,10 +933,10 @@ func TestRunValidateOutputsContractsReadsLinkedModuleFiles(t *testing.T) {
 	delete(files, "vpc/main.tf")
 
 	result := runValidate(t, &validateRun{
-		files:      files,
-		links:      map[string]string{"vpc/outputs.tf": "shared/outputs.tf"},
-		experiment: experiment.OutputsBlock,
-		onDisk:     true,
+		files:       files,
+		links:       map[string]string{"vpc/outputs.tf": "shared/outputs.tf"},
+		experiments: []string{experiment.OutputsBlock},
+		onDisk:      true,
 	})
 
 	require.NoError(t, result.err)
@@ -969,7 +968,7 @@ outputs {
 	})
 	delete(files, "vpc/main.tf")
 
-	result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
 
 	require.NoError(t, result.err)
 	assert.Empty(t, result.diags)
@@ -1064,8 +1063,8 @@ outputs {
 			t.Parallel()
 
 			result := runValidate(t, &validateRun{
-				files:      withFiles(outputsContractFiles, tc.files),
-				experiment: experiment.OutputsBlock,
+				files:       withFiles(outputsContractFiles, tc.files),
+				experiments: []string{experiment.OutputsBlock},
 			})
 
 			require.Error(t, result.err)
@@ -1131,7 +1130,7 @@ dependency "vpc" {
 `,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiment: experiment.OutputsBlock})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
 
 	require.Error(t, result.err)
 

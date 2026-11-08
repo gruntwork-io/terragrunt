@@ -59,8 +59,23 @@ func (c *DiagnosticsCollector) collect(
 	return nil, c.keep(file, hclDiags)
 }
 
-// keep collects the diagnostics of hclDiags that point at file.
+// keep collects the diagnostics of hclDiags that point at file, one per source range.
 func (c *DiagnosticsCollector) keep(file *hcl.File, hclDiags hcl.Diagnostics) error {
+	return c.keepWith(file, hclDiags, c.add)
+}
+
+// keepDistinct collects the diagnostics of hclDiags that point at file, one per source range and text. Units
+// reading a shared file against different dependencies raise different diagnostics at one range.
+func (c *DiagnosticsCollector) keepDistinct(file *hcl.File, hclDiags hcl.Diagnostics) error {
+	return c.keepWith(file, hclDiags, c.addDistinct)
+}
+
+// keepWith converts the diagnostics of hclDiags that point at file and hands each to add.
+func (c *DiagnosticsCollector) keepWith(
+	file *hcl.File,
+	hclDiags hcl.Diagnostics,
+	add func(diag *diagnostic.Diagnostic),
+) error {
 	for _, hclDiag := range hclDiags {
 		if raisedElsewhere(file, hclDiag) {
 			continue
@@ -71,13 +86,13 @@ func (c *DiagnosticsCollector) keep(file *hcl.File, hclDiags hcl.Diagnostics) er
 			return err
 		}
 
-		c.add(diag)
+		add(diag)
 	}
 
 	return nil
 }
 
-// add keeps diag unless an equivalent one is already collected.
+// add keeps diag unless one is already collected at its range.
 func (c *DiagnosticsCollector) add(diag *diagnostic.Diagnostic) {
 	if c.has(diag) {
 		return
@@ -86,11 +101,33 @@ func (c *DiagnosticsCollector) add(diag *diagnostic.Diagnostic) {
 	c.diags = append(c.diags, diag)
 }
 
-// has reports whether diag is already collected: the same summary and detail,
-// at the same range or both without one. Units sharing an include raise one
-// diagnostic for it; units reading a shared file against different
-// dependencies raise different ones at one range.
+// addDistinct keeps diag unless one with its summary and detail is already collected at its range.
+func (c *DiagnosticsCollector) addDistinct(diag *diagnostic.Diagnostic) {
+	if c.hasDistinct(diag) {
+		return
+	}
+
+	c.diags = append(c.diags, diag)
+}
+
+// has reports whether diag is already collected.
+// [diagnostic.Diagnostics.Contains] matches on source range and treats a
+// diagnostic without one as matching nothing, so those are compared by their
+// text instead. Every unit an include points at raises the same range-less
+// diagnostic, and a tree of them would otherwise repeat it per unit.
 func (c *DiagnosticsCollector) has(diag *diagnostic.Diagnostic) bool {
+	if diag.Range != nil {
+		return c.diags.Contains(diag)
+	}
+
+	return slices.ContainsFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
+		return have.Range == nil && have.Summary == diag.Summary && have.Detail == diag.Detail
+	})
+}
+
+// hasDistinct reports whether a diagnostic with diag's summary and detail is already collected at its range, or
+// without one when diag has none.
+func (c *DiagnosticsCollector) hasDistinct(diag *diagnostic.Diagnostic) bool {
 	return slices.ContainsFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
 		return sameRange(have.Range, diag.Range) && have.Summary == diag.Summary && have.Detail == diag.Detail
 	})
