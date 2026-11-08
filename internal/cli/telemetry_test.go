@@ -16,12 +16,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +41,7 @@ func TestWrapWithTelemetryExportsLogsOfInterruptedRun(t *testing.T) {
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.NoAutoProviderCacheDir = true
 
-	testV := venvtest.New()
+	testV := venv.MemVenv()
 	testV.Env["TG_TELEMETRY_TRACE_EXPORTER"] = "console"
 	testV.Env["TG_TELEMETRY_LOGS_EXPORTER"] = "console"
 	testV.Env["TG_EXPERIMENT"] = "otel-logs"
@@ -124,7 +124,7 @@ func TestWrapWithTelemetryBoundsShutdownWhenExportStalls(t *testing.T) {
 		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.NoAutoProviderCacheDir = true
 
-		testV := venvtest.New()
+		testV := venv.MemVenv()
 		testV.Env["TG_TELEMETRY_LOGS_EXPORTER"] = "console"
 		testV.Env["TG_EXPERIMENT"] = "otel-logs"
 

@@ -202,7 +202,7 @@ func ociRegistryLayer(t *testing.T, registry *ociregistry.Registry, ref string) 
 
 // ociRegistryVenv builds the hermetic in-memory venv the local-registry tests resolve credentials through.
 func ociRegistryVenv(registry *ociregistry.Registry) *venv.Venv {
-	v := venvtest.New().WithUserHomeDir(func() (string, error) { return "/home/tester", nil })
+	v := venv.MemVenv().WithUserHomeDir(func() (string, error) { return "/home/tester", nil })
 	v.HTTP = registry.Client()
 
 	return v

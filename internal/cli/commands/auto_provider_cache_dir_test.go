@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,7 +88,7 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			if tc.versionOut != "" {
 				v = v.WithHandler(versionHandler(tc.versionOut))
 			}
@@ -140,7 +139,7 @@ func TestRunActionAutoProviderCacheDirKeepsUserValue(t *testing.T) {
 
 	probes := 0
 
-	v := venvtest.New().WithHandler(func(ctx context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(ctx context.Context, inv vexec.Invocation) vexec.Result {
 		probes++
 
 		return versionHandler(tofu110Version)(ctx, inv)

@@ -222,7 +222,7 @@ func TestCloneUnitOptions_WithCustomDownloadDir(t *testing.T) {
 
 // memVenv returns an in-memory venv answering every invocation with output on stdout, so nothing is spawned.
 func memVenv(output string) *venv.Venv {
-	return venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	return venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte(output + "\n")}
 	})
 }

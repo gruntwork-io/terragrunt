@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestGitResolver_ProbeHEAD(t *testing.T) {
@@ -229,7 +228,7 @@ func TestGitResolver_StoreRejectsNonOSFilesystem(t *testing.T) {
 	})
 
 	r := &cas.GitResolver{
-		Venv:   venvtest.New().WithExec(stub),
+		Venv:   venv.MemVenv().WithExec(stub),
 		Store:  cas.NewGitStore(t.TempDir()),
 		Branch: "deadbeefcafefacedeadbeefcafefacedeadbeef",
 	}
@@ -258,7 +257,7 @@ func TestGitResolver_ProbeSCPURLWithBranchUsesSeparateArgs(t *testing.T) {
 		}
 	})
 
-	r := &cas.GitResolver{Venv: venvtest.New().WithExec(stub), Branch: "main"}
+	r := &cas.GitResolver{Venv: venv.MemVenv().WithExec(stub), Branch: "main"}
 
 	_, err := r.Probe(t.Context(), redact.NewURL("git@github.com:org/repo.git"))
 	require.NoError(t, err)
@@ -286,7 +285,7 @@ func TestGitResolver_ProbeHTTPURLWithBranchUsesSeparateArgs(t *testing.T) {
 		}
 	})
 
-	r := &cas.GitResolver{Venv: venvtest.New().WithExec(stub), Branch: "main"}
+	r := &cas.GitResolver{Venv: venv.MemVenv().WithExec(stub), Branch: "main"}
 
 	_, err := r.Probe(t.Context(), redact.NewURL("https://example.com/org/repo.git"))
 	require.NoError(t, err)

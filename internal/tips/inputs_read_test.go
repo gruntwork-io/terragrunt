@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,7 +81,7 @@ inputs = {
 		),
 	}
 
-	msg, err := tips.InputsReadMessage(view.NewHumanRender(venvtest.New(), true), reads)
+	msg, err := tips.InputsReadMessage(view.NewHumanRender(venv.MemVenv(), true), reads)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -140,7 +140,7 @@ func TestInputsReadMessageCapsListedReads(t *testing.T) {
 		))
 	}
 
-	msg, err := tips.InputsReadMessage(view.NewHumanRender(venvtest.New(), true), reads)
+	msg, err := tips.InputsReadMessage(view.NewHumanRender(venv.MemVenv(), true), reads)
 	require.NoError(t, err)
 
 	assert.Contains(t, msg, " --> unit-09/terragrunt.hcl:2:13\n")

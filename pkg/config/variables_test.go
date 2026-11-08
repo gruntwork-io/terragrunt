@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -1017,7 +1018,7 @@ variables {
 	}, variablesExperimentOn)
 	require.NoError(t, err)
 
-	runCfg := cfg.ToRunConfig(logger.CreateLogger(), venvtest.New().FS)
+	runCfg := cfg.ToRunConfig(logger.CreateLogger(), venv.MemVenv().FS)
 
 	assert.Equal(t, map[string]any{"from_attr": "attr"}, runCfg.Inputs)
 	assert.Equal(t, map[string]any{"from_tfvar": "tfvar"}, runCfg.TFVarsInputs)
@@ -1116,7 +1117,7 @@ func parseDuplicateInputFixture(
 		cfgPath = filepath.Join(root, "unit", configName)
 	}
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, tree))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, tree))
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VariablesBlock))
 
@@ -1171,7 +1172,7 @@ func parseVariablesFixture(
 		tree[name] = contents
 	}
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, tree))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, tree))
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
 	if exp == variablesExperimentOn {

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -635,7 +636,7 @@ func runTFBinaryCase(t *testing.T, tc *tfBinaryCase) (string, []tfCommand, error
 	env := map[string]string{}
 	maps.Copy(env, tc.sel.env)
 
-	v := venvtest.New().WithExec(memExec).WithEnv(env)
+	v := venv.MemVenv().WithExec(memExec).WithEnv(env)
 
 	root := writeTFBinaryFixture(t, v.FS, tc)
 

@@ -12,8 +12,8 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -283,7 +283,7 @@ func TestWriter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithErrWriter(errWriter)
+			v := venv.MemVenv().WithErrWriter(errWriter)
 			v.Terminal.StderrIsTTY = func() bool { return tc.tty }
 
 			assert.Equal(t, tc.want, spinner.Writer(v))

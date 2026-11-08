@@ -333,7 +333,7 @@ const virtualCredentialsPath = "/virtual/gcp/credentials.json"
 func gcpCredentialsVenv(t *testing.T, payload []byte) *venv.Venv {
 	t.Helper()
 
-	v := venvtest.New().WithEnv(map[string]string{})
+	v := venv.MemVenv().WithEnv(map[string]string{})
 
 	require.NoError(t, v.FS.MkdirAll(filepath.Dir(virtualCredentialsPath), 0o755))
 	require.NoError(t, vfs.WriteFile(v.FS, virtualCredentialsPath, payload, 0o600))

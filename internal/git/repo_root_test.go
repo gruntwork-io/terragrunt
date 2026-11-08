@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +39,7 @@ func TestGoRepoRootWalksToNearestGit(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/outer")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 
 	got, err := git.GoRepoRoot(
 		cache.ContextWithCache(t.Context()),
@@ -69,7 +70,7 @@ func TestGoRepoRootPrefersNestedRepo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 			ctx := cache.ContextWithCache(t.Context())
 
 			for _, start := range tc.order {
@@ -94,7 +95,7 @@ func TestGoRepoRootMemoizesEveryWalkedDirectory(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/outer")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 
 	ctx := cache.ContextWithCache(t.Context())
 	roots := cache.ContextRepoRootCache(ctx, cache.RepoRootCacheContextKey)
@@ -116,7 +117,7 @@ func TestGoRepoRootOutsideAnyRepo(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/elsewhere")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{"unit/main.tf": ""}))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{"unit/main.tf": ""}))
 
 	_, err := git.GoRepoRoot(cache.ContextWithCache(t.Context()), v, filepath.Join(root, "unit"))
 	require.ErrorIs(t, err, git.ErrNoRepoRoot)
@@ -128,7 +129,7 @@ func TestGoRepoRootRejectsRelativePath(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/outer")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 
 	for _, path := range []string{"", ".", filepath.FromSlash("live/prod/vpc")} {
 		_, err := git.GoRepoRoot(cache.ContextWithCache(t.Context()), v, path)
@@ -194,7 +195,7 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().
+			v := venv.MemVenv().
 				WithFS(venvtest.NewFS(t, root, repoRootFS(t))).
 				WithEnv(map[string]string{git.EnvNameGitCeilingDirectories: tc.ceiling})
 
@@ -224,7 +225,7 @@ func TestGoRepoRootCeilingOutranksMemo(t *testing.T) {
 	ceiling := filepath.Join(root, "live")
 	unit := filepath.Join(ceiling, "prod", "vpc")
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithFS(venvtest.NewFS(t, root, repoRootFS(t))).
 		WithEnv(map[string]string{git.EnvNameGitCeilingDirectories: ceiling})
 
@@ -323,7 +324,7 @@ func TestGoRepoRootSurfacesUnreadableGitEntry(t *testing.T) {
 		err:     os.ErrPermission,
 	}
 
-	_, err := git.GoRepoRoot(cache.ContextWithCache(t.Context()), venvtest.New().WithFS(fsys), unit)
+	_, err := git.GoRepoRoot(cache.ContextWithCache(t.Context()), venv.MemVenv().WithFS(fsys), unit)
 	require.ErrorIs(t, err, os.ErrPermission)
 	require.NotErrorIs(t, err, git.ErrNoRepoRoot)
 }
@@ -350,7 +351,7 @@ func TestGoRepoRootWalkDepthBound(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 
 			got, err := git.GoRepoRoot(
 				cache.ContextWithCache(t.Context()),
@@ -379,7 +380,7 @@ func TestGoRepoRootDefaultWalkDepth(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/outer")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, repoRootFS(t)))
 
 	got, err := git.GoRepoRoot(
 		cache.ContextWithCache(t.Context()),

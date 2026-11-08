@@ -8,10 +8,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +30,7 @@ func TestCommandWithMemBackend(t *testing.T) {
 
 	stdout := &bytes.Buffer{}
 
-	cmd := exec.Command(t.Context(), venvtest.New().WithExec(e), "tofu", "plan")
+	cmd := exec.Command(t.Context(), venv.MemVenv().WithExec(e), "tofu", "plan")
 	cmd.SetStdout(stdout)
 	cmd.SetDir("/work")
 	cmd.SetEnv([]string{"FOO=bar"})
@@ -63,7 +62,7 @@ func TestCommandDefaultsStreamsToTheVenv(t *testing.T) {
 
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithExec(e).
 		WithStdin(strings.NewReader("yes\n")).
 		WithWriter(stdout).
@@ -98,7 +97,7 @@ func TestCommandPassesStdinThroughUnwrapped(t *testing.T) {
 	})
 
 	stdin := strings.NewReader("console input\n")
-	v := venvtest.New().WithExec(e).WithStdin(stdin)
+	v := venv.MemVenv().WithExec(e).WithStdin(stdin)
 
 	require.NoError(t, exec.Command(t.Context(), v, "tofu", "-version").Run(logger.CreateLogger()))
 
@@ -114,7 +113,7 @@ func TestCommandWithMemBackendExitCode(t *testing.T) {
 		return vexec.Result{ExitCode: 7}
 	})
 
-	cmd := exec.Command(t.Context(), venvtest.New().WithExec(e), "tofu", "apply")
+	cmd := exec.Command(t.Context(), venv.MemVenv().WithExec(e), "tofu", "apply")
 
 	err := cmd.Run(logger.CreateLogger())
 	require.Error(t, err)
@@ -131,7 +130,7 @@ func TestCommandWithMemBackendPTYRejected(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	cmd := exec.Command(t.Context(), venvtest.New().WithExec(e), "tofu", "apply")
+	cmd := exec.Command(t.Context(), venv.MemVenv().WithExec(e), "tofu", "apply")
 	cmd.Configure(exec.WithUsePTY(true))
 
 	err := cmd.Run(logger.CreateLogger())
