@@ -10,10 +10,15 @@ import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
 import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
+import AnchorRedirects from '@components/AnchorRedirects.astro';
 import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
 import HclItemCards from '@components/HclItemCards.astro';
 
 <HclAnchorRedirects kind="blocks" />
+
+<AnchorRedirects redirects={{
+  'comparison-unit-vs-stack-blocks': '/reference/hcl/stacks/#unit-and-stack-blocks',
+}} />
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -2629,13 +2634,7 @@ The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**,
 
 - A pre-created `terragrunt.values.hcl` file can be provided in the unit source (sibling to the `terragrunt.hcl` file used as the source of the unit). If present, this file will be used as the default values for the unit. However, if the values attribute is defined in the unit block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
 
-### Comparison: unit vs stack blocks
-
-| Aspect | `unit` block | `stack` block |
-|--------|-------------|---------------|
-| **Purpose** | Define a single infrastructure component | Define a reusable collection of components |
-| **When to use** | For specific, one-off infrastructure pieces | For patterns of infrastructure pieces that you want provisioned together |
-| **Generated output** | A directory with a single `terragrunt.hcl` file | A directory with a `terragrunt.stack.hcl` file |
+To choose between a `unit` block and a `stack` block, see [Unit and stack blocks](/reference/hcl/stacks/#unit-and-stack-blocks).
 
 ## stack
 

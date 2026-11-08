@@ -1,0 +1,39 @@
+---
+import { hclItemPath, type HclConfig, type HclKind } from '@lib/hcl';
+import { getPublishedHclItems } from '@lib/hcl/published';
+
+interface Props {
+	kind: HclKind;
+	/** Lists only the entries valid in this configuration kind. */
+	config: HclConfig;
+}
+
+const { kind, config } = Astro.props;
+
+const entries = (await getPublishedHclItems(kind)).filter((entry) => entry.data.configs.includes(config));
+---
+
+{
+	entries.length > 0 && (
+		<table>
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Description</th>
+				</tr>
+			</thead>
+			<tbody>
+				{entries.map((entry) => (
+					<tr>
+						<td>
+							<a href={hclItemPath(kind, entry.data.name)}>
+								<code>{entry.data.name}</code>
+							</a>
+						</td>
+						<td>{entry.data.description}</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+	)
+}
