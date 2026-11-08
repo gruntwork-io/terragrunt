@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -896,13 +897,9 @@ func findInParentFoldersImpl(
 
 	previousDir := filepath.Dir(pctx.TerragruntConfigPath)
 
-	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
-		allControls := pctx.StrictControls
-		rootTGHCLControl := allControls.FilterByNames(controls.RootTerragruntHCL)
-		logger := log.ContextWithLogger(ctx, l)
-
-		if err := rootTGHCLControl.Evaluate(logger); err != nil {
-			return "", clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
+	if fileToFindParam == "" || filepath.Clean(fileToFindParam) == DefaultTerragruntConfigPath {
+		if err := evaluateRootTerragruntHCL(ctx, l, pctx); err != nil {
+			return "", err
 		}
 	}
 
@@ -936,6 +933,12 @@ func findInParentFoldersImpl(
 		fileToFind := parentFileCandidate(v.FS, currentDir, fileToFindParam)
 
 		if parentFileExists(ctx, v.FS, probes, fileToFind) {
+			if isDefaultConfigInOtherCase(v.FS, fileToFindParam, fileToFind) {
+				if err := evaluateRootTerragruntHCL(ctx, l, pctx); err != nil {
+					return "", err
+				}
+			}
+
 			return fileToFind, nil
 		}
 
@@ -947,6 +950,40 @@ func findInParentFoldersImpl(
 		File:  fileToFindStr,
 		Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", pctx.MaxFoldersToCheck),
 	}
+}
+
+// evaluateRootTerragruntHCL evaluates the root-terragrunt-hcl strict control: an error when it is enabled, a
+// warning when it is not.
+func evaluateRootTerragruntHCL(ctx context.Context, l log.Logger, pctx *ParsingContext) error {
+	rootTGHCLControl := pctx.StrictControls.FilterByNames(controls.RootTerragruntHCL)
+
+	if err := rootTGHCLControl.Evaluate(log.ContextWithLogger(ctx, l)); err != nil {
+		return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
+	}
+
+	return nil
+}
+
+// isDefaultConfigInOtherCase reports whether found, the file located for fileName, is terragrunt.hcl under a
+// spelling that differs only in letter case. That holds only on a filesystem that folds case, where found and
+// terragrunt.hcl in the same directory are one file; where they are distinct, found is a separate file.
+func isDefaultConfigInOtherCase(fsys vfs.FS, fileName, found string) bool {
+	name := filepath.Clean(fileName)
+	if name == DefaultTerragruntConfigPath || !strings.EqualFold(name, DefaultTerragruntConfigPath) {
+		return false
+	}
+
+	foundInfo, err := fsys.Stat(found)
+	if err != nil {
+		return false
+	}
+
+	defaultInfo, err := fsys.Stat(filepath.Join(filepath.Dir(found), DefaultTerragruntConfigPath))
+	if err != nil {
+		return false
+	}
+
+	return os.SameFile(foundInfo, defaultInfo)
 }
 
 // parentFileCandidate names the file to probe in dir. An empty fileName means

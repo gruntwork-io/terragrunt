@@ -32,7 +32,7 @@ func TestRootFileNameFlag(t *testing.T) {
 		{name: "terragrunt.hcl name under its strict control", value: "terragrunt.hcl", strict: true, wantExitErr: true},
 		{name: "terragrunt.hcl path under its strict control", value: "./terragrunt.hcl", strict: true, wantExitErr: true},
 		{
-			name:         "differently cased name under the strict control",
+			name:         "differently cased name left to find_in_parent_folders",
 			value:        "TERRAGRUNT.HCL",
 			strict:       true,
 			wantRootName: "TERRAGRUNT.HCL",

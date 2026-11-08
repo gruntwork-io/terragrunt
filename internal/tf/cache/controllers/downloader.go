@@ -70,12 +70,17 @@ func (controller *DownloaderController) downloadProviderAction(w router.Response
 		return router.NewHTTPError(http.StatusNotFound)
 	}
 
-	// Read the path escaped so an escaped slash or a trailing slash is forwarded unchanged.
+	// The remote path arrives escaped twice, so that repeated, escaped and trailing slashes are forwarded unchanged.
 	_, hostAndPath, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), controller.URL().Path+"/"), "/")
 
-	_, escapedPath, found := strings.Cut(hostAndPath, "/")
+	_, routedPath, found := strings.Cut(hostAndPath, "/")
 	if !found {
 		return router.NewHTTPError(http.StatusNotFound)
+	}
+
+	escapedPath, err := url.PathUnescape("/" + routedPath)
+	if err != nil {
+		return router.NewHTTPError(http.StatusBadRequest)
 	}
 
 	remotePath, err := url.PathUnescape(escapedPath)
@@ -87,8 +92,8 @@ func (controller *DownloaderController) downloadProviderAction(w router.Response
 	downloadURL := url.URL{
 		Scheme:   remoteScheme,
 		Host:     remoteHost,
-		Path:     "/" + remotePath,
-		RawPath:  "/" + escapedPath,
+		Path:     remotePath,
+		RawPath:  escapedPath,
 		RawQuery: r.URL.RawQuery,
 	}
 

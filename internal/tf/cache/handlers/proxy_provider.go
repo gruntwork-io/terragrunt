@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"path"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
@@ -70,18 +70,10 @@ func (handler *ProxyProviderHandler) GetPlatform(
 		return err
 	}
 
-	platformURL := &url.URL{
-		Scheme: schemeHTTPS,
-		Host:   provider.RegistryName,
-		Path: path.Join(
-			apiURLs.ProvidersV1,
-			provider.Namespace,
-			provider.Name,
-			provider.Version,
-			"download",
-			provider.OS,
-			provider.Arch,
-		),
+	platformURL, err := ResolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
+		provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch)
+	if err != nil {
+		return err
 	}
 
 	return handler.ReverseProxy.
@@ -105,7 +97,8 @@ func (handler *ProxyProviderHandler) Download(
 	return handler.NewRequest(w, r, downloadURL)
 }
 
-// modifyDownloadURLsInJSONBody resolves the download URLs in the response against platformURL and redirects them to the local server.
+// modifyDownloadURLsInJSONBody resolves the download URLs in the response against platformURL, as
+// [models.ResponseBody.ResolveRelativeReferences] does for a cached provider, and redirects them to the local server.
 func modifyDownloadURLsInJSONBody(
 	resp *http.Response,
 	platformURL *url.URL,
@@ -129,18 +122,12 @@ func modifyDownloadURLsInJSONBody(
 				continue
 			}
 
-			linkURL, err := url.Parse(link)
+			linkURL, err := url.Parse(models.ResolveRelativeReference(platformURL, link))
 			if err != nil {
 				return err
 			}
 
-			linkURL = platformURL.ResolveReference(linkURL)
-
-			// Modify link to http://{localhost_host}/downloads/provider/{remote_scheme}/{remote_host}/{remote_path}
-			downloadURL := downloaderController.URL().JoinPath(linkURL.Scheme, linkURL.Host, linkURL.EscapedPath())
-			downloadURL.RawQuery = linkURL.RawQuery
-
-			rewritten, err := json.Marshal(downloadURL.String())
+			rewritten, err := json.Marshal(downloadLink(downloaderController.URL(), linkURL))
 			if err != nil {
 				return err
 			}
@@ -150,4 +137,21 @@ func modifyDownloadURLsInJSONBody(
 
 		return nil
 	})
+}
+
+// downloadLink returns the URL under downloader that fetches remote:
+// {downloader}/{remote_scheme}/{remote_host}{remote_path}?{remote_query}.
+//
+// The escaped remote path is escaped again: every '%', and every '/' that follows another '/'. The cache server's
+// mux redirects a path with repeated slashes to a cleaned one, which would change a signed URL, so the path must
+// reach the downloader with none. A single [url.PathUnescape] gives back the escaped remote path.
+func downloadLink(downloader, remote *url.URL) string {
+	remotePath := strings.ReplaceAll(strings.ReplaceAll(remote.EscapedPath(), "%", "%25"), "//", "/%2F")
+
+	link := downloader.JoinPath(remote.Scheme, remote.Host).String() + remotePath
+	if remote.RawQuery != "" {
+		link += "?" + remote.RawQuery
+	}
+
+	return link
 }

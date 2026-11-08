@@ -36,7 +36,7 @@ func NewScaffoldingFlags(opts *options.TerragruntOptions, prefix flags.Prefix) c
 					)
 				}
 
-				if filepath.Base(value) != config.DefaultTerragruntConfigPath {
+				if filepath.Clean(value) != config.DefaultTerragruntConfigPath {
 					opts.ScaffoldRootFileName = value
 
 					return nil

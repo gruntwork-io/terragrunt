@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -553,6 +555,119 @@ func TestFindInParentFolders(t *testing.T) {
 
 			require.NoError(t, actualErr)
 			assert.Equal(t, tc.expectedPath, actualPath)
+		})
+	}
+}
+
+// TestFindInParentFoldersRootTerragruntHCLStrictControl pins that root-terragrunt-hcl covers a terragrunt.hcl
+// spelled as a path, and leaves a differently cased name alone where it names a distinct file.
+func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		param          string
+		wantFile       string
+		files          []string
+		strict         bool
+		wantControlErr bool
+		wantWarning    bool
+	}{
+		{
+			name:           "terragrunt.hcl as a path under the strict control",
+			files:          []string{"terragrunt.hcl"},
+			param:          "./terragrunt.hcl",
+			strict:         true,
+			wantControlErr: true,
+		},
+		{
+			name:        "terragrunt.hcl as a path with the control disabled",
+			files:       []string{"terragrunt.hcl"},
+			param:       "./terragrunt.hcl",
+			wantFile:    "terragrunt.hcl",
+			wantWarning: true,
+		},
+		{
+			name:     "differently cased name distinct from terragrunt.hcl under the strict control",
+			files:    []string{"terragrunt.hcl", "TERRAGRUNT.HCL"},
+			param:    "TERRAGRUNT.HCL",
+			strict:   true,
+			wantFile: "TERRAGRUNT.HCL",
+		},
+		{
+			name:     "differently cased name distinct from terragrunt.hcl with the control disabled",
+			files:    []string{"terragrunt.hcl", "TERRAGRUNT.HCL"},
+			param:    "TERRAGRUNT.HCL",
+			wantFile: "TERRAGRUNT.HCL",
+		},
+		{
+			name:     "another file name under the strict control",
+			files:    []string{"root.hcl"},
+			param:    "root.hcl",
+			strict:   true,
+			wantFile: "root.hcl",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/live")
+			files := make(map[string]string, len(tc.files))
+
+			for _, name := range tc.files {
+				files[name] = name
+			}
+
+			want := rootTerragruntHCLWant{controlErr: tc.wantControlErr, warning: tc.wantWarning}
+			if tc.wantFile != "" {
+				want.path = filepath.Join(root, tc.wantFile)
+			}
+
+			assertRootTerragruntHCLLookup(
+				t,
+				venvtest.New().WithFS(venvtest.NewFS(t, root, files)),
+				root,
+				tc.param,
+				tc.strict,
+				want,
+			)
+		})
+	}
+}
+
+// TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS pins that a differently cased name falls under
+// root-terragrunt-hcl where the filesystem folds it onto terragrunt.hcl. Only the real filesystem varies, so the
+// expectation comes from an independent lookup.
+func TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		strict bool
+	}{
+		{name: "under the strict control", strict: true},
+		{name: "with the control disabled"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewOSFS()
+			root := t.TempDir()
+
+			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, config.DefaultTerragruntConfigPath), nil, 0o644))
+
+			otherCase := filepath.Join(root, "TERRAGRUNT.HCL")
+
+			want := rootTerragruntHCLWant{notFound: true}
+			if vfs.Exists(fsys, otherCase) {
+				want = rootTerragruntHCLWant{path: otherCase, controlErr: tc.strict, warning: !tc.strict}
+			}
+
+			assertRootTerragruntHCLLookup(t, venvtest.New().WithFS(fsys), root, "TERRAGRUNT.HCL", tc.strict, want)
 		})
 	}
 }
@@ -2435,4 +2550,59 @@ dependency "vpc" {
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 1)
 	assert.Equal(t, "../vpc", cfg.TerragruntDependencies[0].ConfigPath.AsString())
+}
+
+// rootTerragruntHCLWant is the result a find_in_parent_folders lookup under root-terragrunt-hcl should give.
+type rootTerragruntHCLWant struct {
+	path       string
+	controlErr bool
+	notFound   bool
+	warning    bool
+}
+
+// assertRootTerragruntHCLLookup looks param up from a unit directly under root and checks the result against want.
+func assertRootTerragruntHCLLookup(
+	t *testing.T,
+	v *venv.Venv,
+	root, param string,
+	strict bool,
+	want rootTerragruntHCLWant,
+) {
+	t.Helper()
+
+	ctx, pctx := newTestParsingContext(t, filepath.Join(root, "unit", config.DefaultTerragruntConfigPath))
+
+	if strict {
+		require.NoError(t, pctx.StrictControls.EnableControl(controls.RootTerragruntHCL))
+	}
+
+	ctrl, ok := pctx.StrictControls.Find(controls.RootTerragruntHCL).(*controls.Control)
+	require.True(t, ok, "control %s should be a *controls.Control", controls.RootTerragruntHCL)
+
+	var out bytes.Buffer
+
+	got, err := config.FindInParentFolders(
+		ctx,
+		logger.CreateLogger().WithOptions(log.WithOutput(&out)),
+		v,
+		pctx,
+		[]string{param},
+	)
+
+	switch {
+	case want.controlErr:
+		require.ErrorIs(t, err, ctrl.Error, "the enabled control should reject a terragrunt.hcl root")
+	case want.notFound:
+		require.ErrorAs(t, err, new(config.ParentFileNotFoundError))
+	default:
+		require.NoError(t, err)
+		assert.Equal(t, want.path, got)
+	}
+
+	assert.Equal(
+		t,
+		want.warning,
+		bytes.Contains(out.Bytes(), []byte(ctrl.Warning)),
+		"the disabled control should warn only for a terragrunt.hcl root",
+	)
 }
