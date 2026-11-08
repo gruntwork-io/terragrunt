@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	testFixtureOutputsBlock        = "fixtures/outputs-block"
-	testFixtureOutputsBlockInvalid = "fixtures/outputs-block-invalid"
+	testFixtureOutputsBlock          = "fixtures/outputs-block"
+	testFixtureOutputsBlockInvalid   = "fixtures/outputs-block-invalid"
+	testFixtureOutputsBlockVariables = "fixtures/outputs-block-variables"
 )
 
 func TestTFOutputsBlockDeclaredMocksStandInBeforeApply(t *testing.T) {
@@ -58,6 +59,26 @@ func TestTFOutputsBlockDeclaredMocksStandInBeforeApply(t *testing.T) {
 			assert.Contains(t, stdout, tc.wantSubnet)
 		})
 	}
+}
+
+// TestTFOutputsBlockDeclaredMocksReachVariablesBlock pins that a dependent reading the outputs through a
+// variables block gets the declared mock values before the unit is applied.
+func TestTFOutputsBlockDeclaredMocksReachVariablesBlock(t *testing.T) {
+	t.Parallel()
+
+	rootPath := filepath.Join(
+		helpers.CopyEnvironment(t, testFixtureOutputsBlockVariables),
+		testFixtureOutputsBlockVariables,
+	)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --experiment outputs-block --experiment variables-block --non-interactive --working-dir "+
+			filepath.Join(rootPath, "app"),
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "vpc-mock")
+	assert.Contains(t, stdout, "subnet-mock-1")
 }
 
 func TestTFOutputsBlockRequiresExperiment(t *testing.T) {

@@ -401,6 +401,12 @@ inputs = {
   self    = dependency.rds.outputs.outputs.endpoint
   stray   = dependency.vpc.extra.outputs.vpc_id
 }
+
+variables {
+  inputs = {
+    net = dependency.vpc.outputs.vpc_id
+  }
+}
 `
 
 	type reference struct {
@@ -441,6 +447,7 @@ inputs = {
 		{address: "rds[primary]", output: "endpoint", line: 18},
 		{address: "vpc", output: "vpc_id", line: 19},
 		{address: "rds[outputs]", output: "endpoint", line: 20},
+		{address: "vpc", output: "vpc_id", line: 26},
 	}, found)
 }
 

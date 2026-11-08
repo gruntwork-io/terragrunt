@@ -2027,6 +2027,14 @@ state for the target module without parsing the `dependency` blocks, avoiding th
 
 ## outputs
 
+<Before version="v1.2.2">
+
+The `outputs` block is available in Terragrunt v1.2.2 and later, behind the `outputs-block` experiment.
+
+</Before>
+
+<Since version="v1.2.2">
+
 <Aside type="tip" title="Experimental">
   The `outputs` block is gated behind the `outputs-block` experiment. Enable it with `--experiment outputs-block` (or `TG_EXPERIMENT=outputs-block`) until it graduates to general availability. Declaring the block without the experiment enabled returns an error. See the [experiment documentation](/reference/experiments/active#outputs-block).
 </Aside>
@@ -2088,6 +2096,8 @@ inputs = {
 }
 ```
 
+A [`variables`](#variables) block reads them the same way, and `hcl validate` checks its references too.
+
 A `dependency` block and the `outputs` block of the unit it reads combine as follows:
 
 - `mock_outputs` on the `dependency` block wins over `mock_value` key by key. A key the `dependency` block leaves out
@@ -2114,14 +2124,16 @@ not checked, though the files it includes are. Each step of a reference may be a
 so `dependency["vpc"].outputs["vpc_id"]` is checked like `dependency.vpc.outputs.vpc_id`. A reference to one instance
 of an expanded dependency, written as `dependency.vpc["primary"].outputs.vpc_id`,
 `dependency.vpc.primary.outputs.vpc_id`, or `dependency.vpc[0].outputs.vpc_id` for a `count` expansion, is checked
-against that instance. A reference whose instance key or output name is not a literal is not checked. In the default mode, a dependency whose unit config cannot be read is reported
-at the `config_path` that names it.
+against that instance. A reference whose instance key or output name is not a literal is not checked. In the default
+mode, a dependency whose unit config cannot be read is reported at the `config_path` that names it.
 
 The block is merged through `include` like the `errors` block: a `shallow` merge takes the including unit's block
 whole, and a `deep` merge combines the declarations by output name, with the unit's declarations winning.
 
 When a `dependency` block reads a unit that declares no `outputs` block, Terragrunt gives the `outputs-block` tip
 once per run. Disable it with `--no-tip outputs-block`.
+
+</Since>
 
 ## dependencies
 

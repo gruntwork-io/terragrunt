@@ -684,6 +684,51 @@ inputs = {
 	}
 }
 
+// TestRunValidateOutputsContractsReferencesInVariablesBlock pins that a reference inside a variables block is
+// checked like one in the inputs attribute.
+func TestRunValidateOutputsContractsReferencesInVariablesBlock(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+variables {
+  inputs = {
+    vpc_id = dependency.vpc.outputs.vpc_id
+    nat_id = dependency.vpc.outputs.nat_id
+  }
+}
+`,
+	})
+
+	result := runValidate(t, &validateRun{
+		files:       files,
+		experiment:  experiment.OutputsBlock,
+		experiments: []string{experiment.VariablesBlock},
+	})
+
+	require.Error(t, result.err)
+
+	found := 0
+
+	for _, diag := range result.diags {
+		if diag.Summary != "Undeclared dependency output" {
+			continue
+		}
+
+		found++
+
+		require.NotNil(t, diag.Range)
+		assert.Equal(t, filepath.Join(result.root, "app", config.DefaultTerragruntConfigPath), diag.Range.Filename)
+		assert.Equal(t, 9, diag.Range.Start.Line)
+	}
+
+	assert.Equal(t, 1, found, "one undeclared output diagnostic expected")
+}
+
 // TestRunValidateOutputsContractsLeavesUnitDirectory pins that the module is viewed in memory: the generate
 // block satisfies the declaration, and the unit directory has no generated file afterwards.
 func TestRunValidateOutputsContractsLeavesUnitDirectory(t *testing.T) {

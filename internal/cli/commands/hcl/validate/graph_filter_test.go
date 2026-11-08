@@ -36,6 +36,8 @@ type validateRun struct {
 	links map[string]string
 	// experiment is the name of the experiment the run enables, if any.
 	experiment string
+	// experiments are further experiments the run enables.
+	experiments []string
 	// queries are the filter queries the run is given.
 	queries []string
 	// strictControls are the names of the strict controls the run enables.
@@ -79,6 +81,10 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 
 	if run.experiment != "" {
 		require.NoError(t, opts.Experiments.EnableExperiment(run.experiment))
+	}
+
+	for _, name := range run.experiments {
+		require.NoError(t, opts.Experiments.EnableExperiment(name))
 	}
 
 	ctx := config.WithCaches(t.Context())
