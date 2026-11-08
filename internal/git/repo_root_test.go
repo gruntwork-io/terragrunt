@@ -245,6 +245,7 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 	}
 }
 
+// TestGoRepoRootCeilingAtFilesystemRoot pins that a kept root ceiling entry blocks a repository at the root.
 func TestGoRepoRootCeilingAtFilesystemRoot(t *testing.T) {
 	t.Parallel()
 

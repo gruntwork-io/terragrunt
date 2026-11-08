@@ -285,6 +285,7 @@ func TestStart_KeepsCollectedErrorsWhenAlreadyRunning(t *testing.T) {
 	assert.ErrorIs(t, wp.Wait(), errTask, "starting a running pool should keep the errors it collected")
 }
 
+// TestStart_ClearsCollectedErrorsAfterFullStopWithRacing pins that restarting a stopped pool drops its old errors and runs new tasks.
 func TestStart_ClearsCollectedErrorsAfterFullStopWithRacing(t *testing.T) {
 	t.Parallel()
 

@@ -2,6 +2,7 @@ package help_test
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/help"
@@ -51,6 +52,15 @@ func TestNewCommandShowsHelpUnderDebugLogging(t *testing.T) {
 	out, err := runHelp(t, log.New(log.WithLevel(log.DebugLevel)), "outer")
 	require.NoError(t, err)
 	assert.Equal(t, "outer help", out)
+}
+
+// TestNewCommandEnablesTemplateErrorsUnderDebugLogging pins that debug logging enables urfave/cli template errors.
+func TestNewCommandEnablesTemplateErrorsUnderDebugLogging(t *testing.T) {
+	t.Setenv("CLI_TEMPLATE_ERROR_DEBUG", "")
+
+	_, err := runHelp(t, log.New(log.WithLevel(log.DebugLevel)), "outer")
+	require.NoError(t, err)
+	assert.Equal(t, "1", os.Getenv("CLI_TEMPLATE_ERROR_DEBUG"), "urfave/cli reads this to print template errors")
 }
 
 // runHelp runs `help args` in an app holding an outer command with one inner subcommand.

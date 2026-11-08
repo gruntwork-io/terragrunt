@@ -16,6 +16,7 @@ var (
 	quit   os.Signal = testSignal("quit")
 )
 
+// TestNewNotifierSubscribesRequestedSignalsWithRacing pins that a notify call subscribes one channel to the requested signals.
 func TestNewNotifierSubscribesRequestedSignalsWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -29,6 +30,7 @@ func TestNewNotifierSubscribesRequestedSignalsWithRacing(t *testing.T) {
 	})
 }
 
+// TestNewNotifierDeliversEachSignalWithRacing pins that every signal on the subscribed channel reaches the callback in order.
 func TestNewNotifierDeliversEachSignalWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -48,6 +50,7 @@ func TestNewNotifierDeliversEachSignalWithRacing(t *testing.T) {
 	})
 }
 
+// TestNewNotifierKeepsSubscriptionWhileContextIsLiveWithRacing pins that the channel stays subscribed while ctx is live.
 func TestNewNotifierKeepsSubscriptionWhileContextIsLiveWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -62,6 +65,7 @@ func TestNewNotifierKeepsSubscriptionWhileContextIsLiveWithRacing(t *testing.T) 
 	})
 }
 
+// TestNewNotifierUnsubscribesWhenDoneWithRacing pins that the channel is unsubscribed once ctx is done.
 func TestNewNotifierUnsubscribesWhenDoneWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -80,6 +84,7 @@ func TestNewNotifierUnsubscribesWhenDoneWithRacing(t *testing.T) {
 	})
 }
 
+// TestNewNotifierUnsubscribesAtOnceForDoneContextWithRacing pins that a ctx that is already done unsubscribes the channel right away.
 func TestNewNotifierUnsubscribesAtOnceForDoneContextWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -96,6 +101,7 @@ func TestNewNotifierUnsubscribesAtOnceForDoneContextWithRacing(t *testing.T) {
 	})
 }
 
+// TestNewNotifierDeliversSignalSentBeforeUnsubscribeWithRacing pins that a signal sent before ctx is done reaches the callback.
 func TestNewNotifierDeliversSignalSentBeforeUnsubscribeWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -118,6 +124,7 @@ func TestNewNotifierDeliversSignalSentBeforeUnsubscribeWithRacing(t *testing.T) 
 	})
 }
 
+// TestNewNotifierCallsAreIndependentWithRacing pins that each notify call subscribes its own channel and is unsubscribed on its own.
 func TestNewNotifierCallsAreIndependentWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -144,27 +151,34 @@ func TestNewNotifierCallsAreIndependentWithRacing(t *testing.T) {
 	})
 }
 
+// testSignal is an [os.Signal] the tests send through a fake source.
 type testSignal string
 
+// String returns the signal name.
 func (s testSignal) String() string { return string(s) }
 
+// Signal marks testSignal as an [os.Signal].
 func (testSignal) Signal() {}
 
+// fakeSource records the channels a notifier subscribes and unsubscribes.
 type fakeSource struct {
 	stopped  chan chan<- os.Signal
 	channels []chan<- os.Signal
 	tracked  [][]os.Signal
 }
 
+// newFakeSource returns a fakeSource with room for the channels it reports as unsubscribed.
 func newFakeSource() *fakeSource {
 	return &fakeSource{stopped: make(chan chan<- os.Signal, 4)}
 }
 
+// subscribe records ch and the signals it asks for.
 func (s *fakeSource) subscribe(ch chan<- os.Signal, sigs ...os.Signal) {
 	s.channels = append(s.channels, ch)
 	s.tracked = append(s.tracked, sigs)
 }
 
+// unsubscribe reports ch as unsubscribed.
 func (s *fakeSource) unsubscribe(ch chan<- os.Signal) {
 	s.stopped <- ch
 }

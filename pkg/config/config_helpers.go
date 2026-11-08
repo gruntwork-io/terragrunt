@@ -896,7 +896,7 @@ func findInParentFoldersImpl(
 
 	previousDir := filepath.Dir(pctx.TerragruntConfigPath)
 
-	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
+	if fileToFindParam == "" || strings.EqualFold(fileToFindParam, DefaultTerragruntConfigPath) {
 		allControls := pctx.StrictControls
 		rootTGHCLControl := allControls.FilterByNames(controls.RootTerragruntHCL)
 		logger := log.ContextWithLogger(ctx, l)

@@ -62,6 +62,7 @@ func TestProxyProviderHandlerGetPlatformRewritesDownloadURLs(t *testing.T) {
 	assert.NotContains(t, body, "shasums_signature_url", "a url the registry did not send should not be added")
 }
 
+// TestProxyProviderHandlerGetPlatformResolvesRelativeURLs pins that relative links resolve against the platform url as URL references.
 func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +101,7 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 	)
 }
 
+// TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON pins that links are decoded as JSON strings and that null or empty links pass through.
 func TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON(t *testing.T) {
 	t.Parallel()
 

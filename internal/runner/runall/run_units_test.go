@@ -387,6 +387,7 @@ func (rec *tofuRecorder) ran(command string) bool {
 	return slices.Contains(rec.commands, command)
 }
 
+// ranUnder reports whether command ran in dir or a directory below it.
 func (rec *tofuRecorder) ranUnder(command, dir string) bool {
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
