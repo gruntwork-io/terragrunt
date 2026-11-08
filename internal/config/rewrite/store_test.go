@@ -251,7 +251,7 @@ func missingIncludeRepo(t *testing.T) (vfs.FS, string) {
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
 include {
-  path = "`+filepath.Join(root, "missing.hcl")+`"
+  path = "`+filepath.ToSlash(filepath.Join(root, "missing.hcl"))+`"
 }
 
 locals {
