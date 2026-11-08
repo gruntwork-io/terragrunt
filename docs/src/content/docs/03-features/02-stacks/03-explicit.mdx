@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 
 For an alternate approach (that is more flexible, but not necessarily always the better solution), you can define explicit stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units at runtime.
 
@@ -461,6 +462,12 @@ When `update_source_with_cas = true` is set:
 5. Subsequent generation waves resolve `cas::` references directly from the CAS store, with no network access required.
 
 Consumers do not set `update_source_with_cas` themselves. When the source is remote, Terragrunt uses the CAS path automatically. The attribute only has effect inside catalog files, where it flags nested `source` attributes for rewriting.
+
+<Since version="v1.2.2">
+
+A catalog served as an archive at an HTTP URL or as a module package in an [OCI registry](/features/units/oci) works the same way. With `source = "oci://ghcr.io/acme/catalog//stacks/service?tag=v1.0.0"`, Terragrunt fetches the whole package through the CAS and rewrites the relative paths inside it to `cas::` references.
+
+</Since>
 
 `unit` and `stack` blocks also accept a `mutable` attribute. When `mutable = true`, the unit's or stack's content under `.terragrunt-stack` is copied from the CAS store and the working tree is editable. The default is `false`: files are materialized read-only so an accidental edit cannot reach back into the shared CAS store.
 

@@ -9,6 +9,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside, Steps } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 
 Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations.
 
@@ -85,7 +86,7 @@ terraform {
 
 ### Stack Usage
 
-When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow for relative paths to other components in the catalog in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions. The `source` must be a literal string: interpolation, function calls, and references such as `local.foo` cause stack generation to fail.
+When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow for relative paths to other components in the catalog in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions. The `source` must be a literal string: interpolation, function calls, and references such as `local.foo` cause stack generation to fail. <Since version="v1.2.2">The catalog can be a Git repository, a local directory, an archive at an HTTP URL, or a module package in an [OCI registry](/features/units/oci).</Since>
 
 `update_source_with_cas` accepts `true`, `false`, or an expression of literals and locals from the same file, such as `!false` or `local.use_cas`. Stack generation fails if the expression calls a function, directly or through a local.
 

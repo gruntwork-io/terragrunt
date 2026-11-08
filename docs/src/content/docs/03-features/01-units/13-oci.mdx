@@ -7,6 +7,8 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 Terragrunt can download modules from OCI Distribution registries such as Amazon ECR, GitHub Container Registry, Azure Container Registry, Google Artifact Registry, and self-hosted registries. A module published once is consumable by both `tofu` and Terragrunt with the same source string.
 
@@ -122,7 +124,7 @@ Terragrunt ranks every matching credential, from CLI configuration and ambient f
 
 ## Caching
 
-[Content Addressable Storage](/features/caching/cas) is enabled by default (disable it with `--no-cas`). With it, `terraform.source` downloads are [cached by the resolved manifest digest](/features/caching/cas/oci). Tags are re-resolved each time Terragrunt downloads the source, so a re-pushed tag misses the cache and fetches the new content while unchanged tags keep hitting the same entry. On later runs of an already-downloaded unit, Terragrunt reuses `.terragrunt-cache` without contacting the registry; pass `--source-update` to pick up a re-pushed tag. `unit` and `stack` components fetch directly from the registry without the cache.
+[Content Addressable Storage](/features/caching/cas) is enabled by default (disable it with `--no-cas`). With it, `terraform.source` downloads are [cached by the resolved manifest digest](/features/caching/cas/oci). Tags are re-resolved each time Terragrunt downloads the source, so a re-pushed tag misses the cache and fetches the new content while unchanged tags keep hitting the same entry. On later runs of an already-downloaded unit, Terragrunt reuses `.terragrunt-cache` without contacting the registry; pass `--source-update` to pick up a re-pushed tag. <Before version="v1.2.2">`unit` and `stack` components fetch directly from the registry without the cache.</Before><Since version="v1.2.2">`unit` and `stack` components are fetched through the CAS during stack generation, with the tag resolved on every generation. The whole module package is fetched, so relative sources inside it that set [`update_source_with_cas`](/features/stacks/explicit#cas-integration) are rewritten to `cas::` references, the same way as for a Git catalog.</Since>
 
 ## Limits
 

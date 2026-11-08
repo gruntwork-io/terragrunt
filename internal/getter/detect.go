@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/detect"
@@ -32,6 +33,23 @@ func FileURL(p string) *url.URL {
 // optional subdirectory selector.
 func SourceDirSubdir(src string) (string, string) {
 	return getter.SourceDirSubdir(src)
+}
+
+// IsArchiveURL reports whether go-getter would unpack u, by its archive= query or a decompressor extension on its path.
+func IsArchiveURL(u *url.URL) bool {
+	if archive := u.Query().Get("archive"); archive != "" {
+		enabled, err := strconv.ParseBool(archive)
+
+		return err != nil || enabled
+	}
+
+	for ext := range getter.Decompressors {
+		if strings.HasSuffix(u.Path, "."+ext) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // SubdirGlob expands a globbed subdirectory path against a directory on disk

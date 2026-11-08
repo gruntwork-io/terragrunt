@@ -50,10 +50,6 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 	require.NoError(t, os.MkdirAll(srcDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.tf"), []byte("# hi\n"), 0o644))
 
-	client := &getter.Client{
-		Getters: []getter.Getter{tggetter.NewFileCopyGetter(vfs.NewOSFS())},
-	}
-
 	testCases := []struct {
 		name          string
 		src           string
@@ -99,6 +95,11 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 
 			if tc.skipOnWindows != "" && helpers.IsWindows() {
 				t.Skip(tc.skipOnWindows)
+			}
+
+			// Get fills the client's defaults on first use, so parallel subtests each need their own.
+			client := &getter.Client{
+				Getters: []getter.Getter{tggetter.NewFileCopyGetter(vfs.NewOSFS())},
 			}
 
 			_, err := client.Get(context.Background(), &getter.Request{

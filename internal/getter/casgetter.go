@@ -45,8 +45,9 @@ type CASGetter struct {
 	//
 	// Detect always runs immediately before Get within a single outer
 	// client.Get, and production callers build a CASGetter per download
-	// (runner/run/download_source.go), so the value is never read across
-	// concurrent requests. Do not share one CASGetter across goroutines.
+	// (runner/run/download_source.go, pkg/config/stack.go), so the value is
+	// never read across concurrent requests. Do not share one CASGetter
+	// across goroutines.
 	userDisabledArchive bool
 }
 

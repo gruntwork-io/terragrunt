@@ -1,0 +1,16 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `update_source_with_cas` works in stacks sourced from OCI registries and HTTP archives
+
+A `unit` or `stack` block sourced from an OCI registry, such as `source = "oci://ghcr.io/acme/catalog//stacks/svc?tag=v1"`, or from an archive at an HTTP URL, copied only the selected directory of the package. Relative sources inside it that set `update_source_with_cas = true` stayed as written, so the next generation wave failed:
+
+```text
+ERROR  failed to fetch ../..//units/a ... relative paths require a module with a pwd
+```
+
+The same catalog served from Git or a local path generated fine.
+
+Stack generation now fetches the whole archive at an HTTP URL, or the whole module package in an OCI registry, through the [CAS](/features/caching/cas), as it does for a `terraform.source`. Nested `update_source_with_cas` sources are rewritten to `cas::` references, and the units they name materialize from the store. An OCI package is keyed by its manifest digest, so generating again with the same digest links the stored copy instead of downloading it. `--no-cas` keeps the previous behavior.

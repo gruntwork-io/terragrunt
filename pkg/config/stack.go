@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -861,13 +863,13 @@ func generateComponent(
 // fetchComponentSource handles the paths for fetching a component's source:
 //  1. cas:: protocol source: materialize the CAS tree directly. Must run before the CAS-backed
 //     branch so nested components already rewritten to cas:: are not re-fetched.
-//  2. Source with CAS enabled: attempt a CAS-backed fetch (remote clone or local copy into a
-//     temp overlay) and copy from its content dir. This fires automatically whenever the cas
-//     experiment is on, so catalog authors don't need consumers to opt in per-block. On most CAS
-//     failures (for example, CAS can't handle a go-getter query param like depth=1), we fall
-//     through to the standard getter. Configuration errors that can never succeed via CAS, such
-//     as an interpolated source on a block with update_source_with_cas = true, fail generation
-//     instead of falling through.
+//  2. Source with CAS enabled: attempt a CAS-backed fetch (git clone, whole-package fetch for any
+//     other remote scheme, or local copy into a temp overlay) and copy from its content dir. This
+//     fires automatically whenever CAS is enabled, so catalog authors don't need consumers to opt
+//     in per-block. On most CAS failures (for example, CAS can't handle a go-getter query param
+//     like depth=1), we fall through to the standard getter. Configuration errors that can never
+//     succeed via CAS, such as an interpolated source on a block with update_source_with_cas =
+//     true, fail generation instead of falling through.
 //  3. Standard: local copy or remote getter.
 //
 // The update_source_with_cas attribute on a consumer block is a no-op under path 2. It only
@@ -882,8 +884,6 @@ func fetchComponentSource(
 	kindStr, source, dest string,
 ) error {
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.strictControls)
-
-	isOCI := isOCISource(source)
 
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
@@ -923,8 +923,7 @@ func fetchComponentSource(
 		return nil
 	}
 
-	// oci:// has no git remote, so the CAS clone can only fail; other non-git schemes still fall through to the getter.
-	if opts.casEnabled && !isOCI {
+	if opts.casEnabled {
 		casErr := fetchViaCAS(ctx, l, v, opts, cmp.sourceDir, kindStr, source, dest)
 		if casErr == nil {
 			return nil
@@ -979,8 +978,9 @@ func fetchComponentSource(
 }
 
 // fetchViaCAS performs the CAS-backed fetch, rewrite, and copy for a stack component.
-// For remote sources the fetch is a CAS-backed git clone; for local sources it is a
+// For git sources the fetch is a CAS-backed git clone; for local sources it is a
 // copy into a temp overlay so rewrites do not mutate the caller's working tree.
+// Any other remote source is fetched whole through the CAS into a temp dir and walked as a local source.
 func fetchViaCAS(
 	ctx context.Context,
 	l log.Logger,
@@ -989,6 +989,17 @@ func fetchViaCAS(
 	sourceDir, kindStr, source, dest string,
 ) error {
 	resolvedSource := resolveLocalCASSource(v.FS, sourceDir, source)
+
+	if isPackageSource(v.FS, sourceDir, source) {
+		staged, err := stagePackage(ctx, l, v, opts, source)
+		if err != nil {
+			return err
+		}
+
+		defer staged.cleanup()
+
+		resolvedSource = staged.source
+	}
 
 	result, err := opts.casInstance.ProcessStackComponent(ctx, l, v, resolvedSource, kindStr)
 	if err != nil {
@@ -1046,6 +1057,101 @@ func resolveLocalCASSource(fsys vfs.FS, sourceDir, source string) string {
 	}
 
 	return abs
+}
+
+// isPackageSource reports whether source is remote but not git, so the CAS fetches it whole before the walk.
+func isPackageSource(fsys vfs.FS, sourceDir, source string) bool {
+	basePath, _ := getter.SourceDirSubdir(source)
+
+	return !isLocal(fsys, sourceDir, basePath) && !isGitSource(basePath)
+}
+
+// isGitSource reports whether git fetches source: a git:: prefix, git or ssh URL, git shorthand, or a plain http URL.
+func isGitSource(source string) bool {
+	detected, err := cas.DetectRemoteSource(source)
+	if err != nil {
+		// The git clone path reports the detector error.
+		return true
+	}
+
+	if forced, _, ok := strings.Cut(detected, "::"); ok && !strings.ContainsAny(forced, "/:") {
+		return forced == getter.SchemeGit
+	}
+
+	u, err := url.Parse(detected)
+	if err != nil || u.Scheme == "" {
+		return false
+	}
+
+	switch strings.ToLower(u.Scheme) {
+	case getter.SchemeGit, "ssh":
+		return true
+	case getter.SchemeHTTP, getter.SchemeHTTPS:
+		// An http URL that names no archive is a repository, which git clones here.
+		return !getter.IsArchiveURL(u)
+	}
+
+	return false
+}
+
+// stagedPackage is a remote package fetched whole through the CAS: its local source with //subdir, and the cleanup.
+type stagedPackage struct {
+	cleanup func()
+	source  string
+}
+
+// stagePackage fetches the whole package behind a non-git remote source through the CAS for the walk.
+func stagePackage(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *generateOpts,
+	source string,
+) (*stagedPackage, error) {
+	packageURL, subdir := getter.SourceDirSubdir(source)
+
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-package-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp dir for %s: %w", redact.NewURL(source), err)
+	}
+
+	cleanup := func() {
+		if rmErr := v.FS.RemoveAll(tempDir); rmErr != nil {
+			l.Warnf("cleanup error for %s: %v", tempDir, rmErr)
+		}
+	}
+
+	packageDir := filepath.Join(tempDir, "package")
+
+	// CASGetter keeps per-request state, so each component fetches through a client of its own.
+	client := &getter.Client{
+		Getters: []getter.Getter{
+			getter.NewCASGetter(
+				l,
+				opts.casInstance,
+				v,
+				&cas.CloneOptions{Dir: packageDir},
+				getter.WithDefaultGenericDispatch(
+					getter.WithDispatchLogger(l),
+					getter.WithDispatchFS(v.FS),
+					getter.WithDispatchVenv(v),
+					getter.WithOCIConfig(v),
+				),
+			),
+		},
+	}
+
+	if _, err := getter.Download(ctx, client, &getter.Request{Src: packageURL, Dst: packageDir}); err != nil {
+		cleanup()
+
+		return nil, fmt.Errorf("failed to fetch %s through CAS: %w", redact.NewURL(packageURL), err)
+	}
+
+	if subdir != "" {
+		packageDir += "//" + subdir
+	}
+
+	return &stagedPackage{source: packageDir, cleanup: cleanup}, nil
 }
 
 // isCASProtocol checks if a source string uses the CAS protocol (cas::sha1:<hash>).
@@ -1124,18 +1230,6 @@ func copyFiles(
 	}
 
 	return nil
-}
-
-// isOCISource reports whether source is an oci reference, in the oci:// or oci:: form.
-func isOCISource(source string) bool {
-	// go-getter matches the forced token exactly, so only the URL scheme folds.
-	if strings.HasPrefix(source, getter.SchemeOCI+"::") {
-		return true
-	}
-
-	scheme, _, found := strings.Cut(source, "://")
-
-	return found && strings.EqualFold(scheme, getter.SchemeOCI)
 }
 
 // stackGetterOptions builds the getter options a component fetch needs, adding oci:// when enabled.

@@ -1,19 +1,11 @@
 package config_test
 
 import (
-	"bytes"
-	"errors"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/worker"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +35,7 @@ func ociStackFixture(t *testing.T, fsys vfs.FS, kind, source string) string {
 }
 
 // generateOCIStack runs stack generation for an oci:// component against an unreachable registry.
-func generateOCIStack(t *testing.T, kind, sourceScheme string) (string, error) {
+func generateOCIStack(t *testing.T, kind, sourceScheme string) error {
 	t.Helper()
 
 	// An in-memory venv: no disk, and a fail-closed client so no fetch can leave the test.
@@ -54,33 +46,10 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string) (string, error) {
 	source := sourceScheme + ociTestRegistry + "/terraform-modules/vpc?tag=1.0.0"
 	stackPath := ociStackFixture(t, v.FS, kind, source)
 
-	var logBuf bytes.Buffer
+	// The in-memory filesystem leaves the CAS disabled, so only the routing to the oci getter is covered.
+	_, err := generateCatalogStack(t, v, stackPath)
 
-	l := logger.CreateLogger()
-	l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
-
-	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
-	pctx.TerragruntStackConfigPath = stackPath
-	pctx.RootWorkingDir = filepath.Dir(stackPath)
-	pctx.WorkingDir = filepath.Dir(stackPath)
-	pctx.TerragruntConfigPath = stackPath
-	// CAS is on by default, so this also covers that an oci:// source bypasses it.
-	pctx.CASCloneDepth = 1
-	// Defaults only: the oci experiment is completed, so nothing is enabled here.
-	pctx.Experiments = experiment.NewExperiments()
-
-	pool := worker.NewWorkerPool(1)
-	pool.Start()
-
-	defer pool.Stop()
-
-	// Components are generated on the pool, so the fetch error surfaces from Wait.
-	genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
-
-	// Drain the pool before reading the buffer the workers log into.
-	waitErr := pool.Wait()
-
-	return logBuf.String(), errors.Join(genErr, waitErr)
+	return err
 }
 
 // requireReachedOCIGetter fails unless the source was routed to the OCI getter.
@@ -99,13 +68,11 @@ func TestGenerateStackOCIReachesGetter(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()
 
-			logs, err := generateOCIStack(t, kind, "oci://")
+			err := generateOCIStack(t, kind, "oci://")
 			require.Error(t, err, "the venv's fail-closed HTTP client rejects every fetch")
 
 			requireReachedOCIGetter(t, err,
 				"the oci getter must run without any experiment being enabled")
-			assert.NotContains(t, logs, "CAS processing failed",
-				"an oci:// source must bypass the git-backed CAS path, not fail through it")
 		})
 	}
 }
@@ -114,7 +81,7 @@ func TestGenerateStackOCIReachesGetter(t *testing.T) {
 func TestGenerateStackOCIForcedFormReachesGetter(t *testing.T) {
 	t.Parallel()
 
-	_, err := generateOCIStack(t, "unit", "oci::https://")
+	err := generateOCIStack(t, "unit", "oci::https://")
 	require.Error(t, err)
 
 	requireReachedOCIGetter(t, err, "the oci:: forced form must route to the oci getter")
@@ -129,7 +96,7 @@ func TestGenerateStackOCIUpperCaseSchemeReachesGetter(t *testing.T) {
 		t.Run(scheme, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := generateOCIStack(t, "unit", scheme)
+			err := generateOCIStack(t, "unit", scheme)
 			require.Error(t, err)
 
 			requireReachedOCIGetter(t, err, "an upper-case oci scheme must route to the oci getter")
@@ -141,7 +108,7 @@ func TestGenerateStackOCIUpperCaseSchemeReachesGetter(t *testing.T) {
 func TestGenerateStackOCIUpperCaseForcedFormNotClaimed(t *testing.T) {
 	t.Parallel()
 
-	_, err := generateOCIStack(t, "unit", "OCI::https://")
+	err := generateOCIStack(t, "unit", "OCI::https://")
 	require.Error(t, err)
 
 	var resolutionErr getter.OCIReferenceResolutionError

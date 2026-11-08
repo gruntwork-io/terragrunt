@@ -22,8 +22,6 @@ import (
 func TestCASGetterDetect_GitForcedPrefix(t *testing.T) {
 	t.Parallel()
 
-	g := newCASGetterForDetect(t)
-
 	tests := []struct {
 		name      string
 		src       string
@@ -47,6 +45,8 @@ func TestCASGetterDetect_GitForcedPrefix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			g := newCASGetterForDetect(t)
+
 			req := &gogetter.Request{Src: tt.src, Forced: tt.reqForced}
 
 			ok, err := g.Detect(req)
@@ -59,8 +59,6 @@ func TestCASGetterDetect_GitForcedPrefix(t *testing.T) {
 
 func TestCASGetterDetect_GenericForcedPrefixes(t *testing.T) {
 	t.Parallel()
-
-	g := newCASGetterForDetect(t)
 
 	tests := []struct {
 		forced string
@@ -77,6 +75,8 @@ func TestCASGetterDetect_GenericForcedPrefixes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run("forced "+tt.forced, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: tt.src, Forced: tt.forced}
 
@@ -103,8 +103,6 @@ func TestCASGetterDetect_GenericForcedPrefixes(t *testing.T) {
 func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 	t.Parallel()
 
-	g := newCASGetterForDetect(t)
-
 	claimed := []struct {
 		name   string
 		src    string
@@ -117,6 +115,8 @@ func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 	for _, tt := range claimed {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: tt.src}
 
@@ -139,6 +139,8 @@ func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			g := newCASGetterForDetect(t)
+
 			req := &gogetter.Request{Src: tt.src}
 
 			ok, _ := g.Detect(req)
@@ -159,8 +161,6 @@ func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 // the plain HTTPS fetcher and silently fail for private buckets.
 func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
 	t.Parallel()
-
-	g := newCASGetterForDetect(t)
 
 	tests := []struct {
 		name    string
@@ -207,6 +207,8 @@ func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: tt.src}
 
@@ -269,8 +271,6 @@ func TestCASGetterDetect_AWSS3HTTPSPreservesQueryAndVersion(t *testing.T) {
 func TestCASGetterDetect_NonS3AmazonAWSHostFallsThroughToHTTPS(t *testing.T) {
 	t.Parallel()
 
-	g := newCASGetterForDetect(t)
-
 	tests := []string{
 		"https://iam.amazonaws.com/bucket/key.tgz",
 		"https://sts.amazonaws.com/bucket/key.tgz",
@@ -280,6 +280,8 @@ func TestCASGetterDetect_NonS3AmazonAWSHostFallsThroughToHTTPS(t *testing.T) {
 	for _, src := range tests {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: src}
 
@@ -448,8 +450,6 @@ func TestCASGetterDetect_PanicsOnNilVenvFS(t *testing.T) {
 func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {
 	t.Parallel()
 
-	g := newCASGetterForDetect(t)
-
 	// If the URL already carries archive=true, Detect must not
 	// overwrite it. Same for archive=false (which is what Detect
 	// would have added anyway).
@@ -473,6 +473,8 @@ func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: tt.src}
 
