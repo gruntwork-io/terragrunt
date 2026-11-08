@@ -46,6 +46,16 @@ func NewCoordinator(fsys vfs.FS, opts *options.TerragruntOptions) *Coordinator {
 	}
 }
 
+type coordinatorKey struct{}
+
+// WithCoordinator retains the original command's options across generation passes.
+func WithCoordinator(ctx context.Context, fsys vfs.FS, opts *options.TerragruntOptions) context.Context {
+	if _, ok := ctx.Value(coordinatorKey{}).(*Coordinator); ok || opts.NoStackGenerate || !opts.Experiments.Evaluate(experiment.DependencyStackGeneration) {
+		return ctx
+	}
+	return context.WithValue(ctx, coordinatorKey{}, NewCoordinator(fsys, opts))
+}
+
 // Generate shares one result per eligible stack file, including failures.
 // The callback must finish queued work before returning and use the supplied
 // context for recursive calls so cycles can be detected.
@@ -69,6 +79,15 @@ func (c *Coordinator) Generate(ctx context.Context, stackFile string, generate f
 		return err
 	}
 
+	return c.generateSelected(ctx, path, generate)
+}
+
+// Discovery has already checked these paths against generation limits, including
+// limits mirrored into comparison worktrees.
+func (c *Coordinator) generateSelected(ctx context.Context, path string, generate func(context.Context) error) (result error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	c.mu.Lock()
 	owner, _ := ctx.Value(generationOwnerKey{}).(generationOwner)
 	if owner.coordinator == c {

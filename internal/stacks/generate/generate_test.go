@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -302,54 +303,66 @@ func TestStackDiscoveryFilters(t *testing.T) {
 func TestGenerateStacksDropsRegeneratedUnitsFromTheParseStore(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	liveDir := filepath.Join(tmpDir, "live")
-	appUnitDir := filepath.Join(tmpDir, "units", "app")
-	source := filepath.Join(appUnitDir, "terragrunt.hcl")
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("experiment=%t", enabled), func(t *testing.T) {
+			t.Parallel()
 
-	require.NoError(t, os.MkdirAll(liveDir, 0o755))
-	require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
-	require.NoError(t, os.WriteFile(source, []byte(`locals { name = "one" }`), 0o644))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(liveDir, "terragrunt.stack.hcl"),
-		fmt.Appendf(nil, `unit "app" {
+			tmpDir := t.TempDir()
+			liveDir := filepath.Join(tmpDir, "live")
+			appUnitDir := filepath.Join(tmpDir, "units", "app")
+			source := filepath.Join(appUnitDir, "terragrunt.hcl")
+
+			require.NoError(t, os.MkdirAll(liveDir, 0o755))
+			require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+			require.NoError(t, os.WriteFile(source, []byte(`locals { name = "one" }`), 0o644))
+			require.NoError(t, os.WriteFile(
+				filepath.Join(liveDir, "terragrunt.stack.hcl"),
+				fmt.Appendf(nil, `unit "app" {
   source = %q
   path   = "app"
 }
 `, appUnitDir),
-		0o644,
-	))
+				0o644,
+			))
 
-	l := logger.CreateLogger()
-	v := venvtest.NewOSWithEmptyEnv()
-	ctx := config.WithCaches(t.Context())
-	s := new(rewrite.Store)
+			l := logger.CreateLogger()
+			v := venvtest.NewOSWithEmptyEnv()
+			ctx := config.WithCaches(t.Context())
+			s := new(rewrite.Store)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	opts.WorkingDir = liveDir
-	opts.RootWorkingDir = liveDir
-	opts.Parallelism = 1
-	opts.NoCAS = true
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts.WorkingDir = liveDir
+			opts.RootWorkingDir = liveDir
+			opts.Parallelism = 1
+			opts.NoCAS = true
+			if enabled {
+				require.NoError(t, opts.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
+			}
 
-	resolvedLiveDir, err := filepath.EvalSymlinks(liveDir)
-	require.NoError(t, err)
+			resolvedLiveDir, err := filepath.EvalSymlinks(liveDir)
+			require.NoError(t, err)
 
-	generated := filepath.Join(resolvedLiveDir, ".terragrunt-stack", "app", "terragrunt.hcl")
+			generated := filepath.Join(resolvedLiveDir, ".terragrunt-stack", "app", "terragrunt.hcl")
 
-	name := func() any {
-		_, pctx, err := configbridge.NewParsingContext(opts).WithConfigPath(l, generated)
-		require.NoError(t, err)
+			name := func() any {
+				_, pctx, err := configbridge.NewParsingContext(opts).WithConfigPath(l, generated)
+				require.NoError(t, err)
 
-		cfg, err := s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(pctx), generated)
-		require.NoError(t, err)
+				cfg, err := s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(pctx), generated)
+				require.NoError(t, err)
 
-		return cfg.Locals["name"]
+				return cfg.Locals["name"]
+			}
+
+			require.NoError(t, generate.NewGenerator().GenerateStacks(ctx, l, v, s, opts, nil))
+			assert.Equal(t, "one", name())
+
+			require.NoError(t, os.WriteFile(source, []byte(`locals { name = "two" }`), 0o644))
+			require.NoError(t, generate.NewGenerator().GenerateStacks(ctx, l, v, s, opts, nil))
+			data, err := os.ReadFile(generated)
+			require.NoError(t, err)
+			require.Equal(t, `locals { name = "two" }`, string(data))
+			assert.Equal(t, "two", name())
+		})
 	}
-
-	require.NoError(t, generate.NewGenerator().GenerateStacks(ctx, l, v, s, opts, nil))
-	assert.Equal(t, "one", name())
-
-	require.NoError(t, os.WriteFile(source, []byte(`locals { name = "two" }`), 0o644))
-	require.NoError(t, generate.NewGenerator().GenerateStacks(ctx, l, v, s, opts, nil))
-	assert.Equal(t, "two", name())
 }

@@ -8,6 +8,7 @@ import (
 
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -35,6 +36,7 @@ func RunGenerate(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
+	ctx = generate.WithCoordinator(ctx, v.FS, opts)
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
 
 	if opts.NoStackGenerate {
@@ -47,7 +49,7 @@ func RunGenerate(
 	opts.StackAction = "generate"
 
 	// Clean stack folders before calling `generate` when the `--source-update` flag is passed
-	if opts.SourceUpdate {
+	if opts.SourceUpdate && !opts.Experiments.Evaluate(experiment.DependencyStackGeneration) {
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_clean", map[string]any{
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
@@ -120,6 +122,7 @@ func RunGenerate(
 
 // Run executes the stack command.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+	ctx = generate.WithCoordinator(ctx, v.FS, opts)
 	opts.StackAction = "run"
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_run", map[string]any{

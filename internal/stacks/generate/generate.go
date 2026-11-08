@@ -123,6 +123,7 @@ func (g *Generator) GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
+	ctx = WithCoordinator(ctx, v.FS, opts)
 	return g.generateStacks(ctx, l, v, s, opts, wts, allStacks)
 }
 
@@ -248,6 +249,10 @@ func generateLevel(
 	generatedFiles map[string]bool,
 ) error {
 	l.Debugf("Generating stack level %d with %d files", level, len(levelNodes))
+
+	if coordinator, ok := ctx.Value(coordinatorKey{}).(*Coordinator); ok {
+		return generateCoordinatedLevel(ctx, l, v, s, opts, levelNodes, generatedFiles, coordinator)
+	}
 
 	wp := worker.NewWorkerPool(opts.Parallelism)
 	defer wp.Stop()

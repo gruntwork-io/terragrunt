@@ -161,6 +161,10 @@ func (s *Stack) GeneratedPath(stackDir string) string {
 	return inthclparse.GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
 }
 
+type stackTaskSubmitter interface {
+	Submit(worker.Task)
+}
+
 // GenerateStackFile generates the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
@@ -169,7 +173,7 @@ func GenerateStackFile(
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
-	pool *worker.Pool,
+	pool stackTaskSubmitter,
 	stackFilePath string,
 ) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
@@ -558,7 +562,7 @@ func generateUnits(
 	l log.Logger,
 	v *venv.Venv,
 	opts *generateOpts,
-	pool *worker.Pool,
+	pool stackTaskSubmitter,
 	units []*Unit,
 ) error {
 	for _, unit := range units {
@@ -613,7 +617,7 @@ func generateStacks(
 	l log.Logger,
 	v *venv.Venv,
 	opts *generateOpts,
-	pool *worker.Pool,
+	pool stackTaskSubmitter,
 	stacks []*Stack,
 ) error {
 	for _, stack := range stacks {
