@@ -2126,7 +2126,8 @@ so `dependency["vpc"].outputs["vpc_id"]` is checked like `dependency.vpc.outputs
 of an expanded dependency, written as `dependency.vpc["primary"].outputs.vpc_id`,
 `dependency.vpc.primary.outputs.vpc_id`, or `dependency.vpc[0].outputs.vpc_id` for a `count` expansion, is checked
 against that instance. A reference whose instance key or output name is not a literal is not checked. In the default
-mode, a dependency whose unit config cannot be read is reported at the `config_path` that names it.
+mode, a dependency whose unit config cannot be read is reported at the `config_path` that names it, unless the run
+validates that unit, whose own parse reports what is wrong with it.
 
 The block is merged through `include` like the `errors` block: a `shallow` merge takes the including unit's block
 whole, and a `deep` merge combines the declarations by output name, with the unit's declarations winning.

@@ -259,6 +259,8 @@ func validateDiscoveredTree(
 		)
 	}
 
+	parser.UnitConfigs = hclvalidate.UnitConfigs(opts, components)
+
 	var parseErrs []error
 
 	for _, c := range components {

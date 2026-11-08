@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
@@ -174,8 +175,13 @@ const (
 // ComponentParser parses discovered components one at a time, collecting what
 // each reports into Collector.
 type ComponentParser struct {
+	// Collector receives the diagnostics of every parse.
 	Collector *DiagnosticsCollector
-	Options   ParserOptions
+	// UnitConfigs are the unit configs the run parses, by path. What is wrong with one of them is reported by
+	// its own parse, not at the config_path of a dependent that reads its outputs block.
+	UnitConfigs map[string]struct{}
+	// Options says how each parse combines the collector with the parser defaults.
+	Options ParserOptions
 }
 
 // Unit parses the unit configuration in unitDir.
@@ -306,4 +312,20 @@ func unitConfigFilename(opts *options.TerragruntOptions) string {
 	}
 
 	return config.DefaultTerragruntConfigPath
+}
+
+// UnitConfigs returns the unit configs a run over components parses, by path, for [ComponentParser].
+func UnitConfigs(opts *options.TerragruntOptions, components component.Components) map[string]struct{} {
+	configFile := unitConfigFilename(opts)
+	paths := make(map[string]struct{}, len(components))
+
+	for _, c := range components {
+		if _, ok := c.(*component.Stack); ok {
+			continue
+		}
+
+		paths[filepath.Join(c.Path(), configFile)] = struct{}{}
+	}
+
+	return paths
 }

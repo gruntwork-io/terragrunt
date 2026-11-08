@@ -105,6 +105,8 @@ func RunValidate(
 		return err
 	}
 
+	parser.UnitConfigs = UnitConfigs(opts, components)
+
 	var (
 		parseErrs        []error
 		missing          []*MissingDependencyError

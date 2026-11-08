@@ -975,9 +975,9 @@ outputs {
 }
 
 // TestRunValidateOutputsContractsPointsAtDependencyErrors pins where the errors of reading a dependency's outputs
-// block are reported. A syntax error in the dependency's config is reported once by that config's own parse and
-// at the config_path of each dependent that names it. A mock value its readers cannot know is reported at the
-// output block that declares it.
+// block are reported. A syntax error in the dependency's config is reported once, by that config's own parse when
+// the run validates it and otherwise at the config_path of each dependent that names it. A mock value its readers
+// cannot know is reported at the output block that declares it.
 func TestRunValidateOutputsContractsPointsAtDependencyErrors(t *testing.T) {
 	t.Parallel()
 
@@ -986,6 +986,7 @@ func TestRunValidateOutputsContractsPointsAtDependencyErrors(t *testing.T) {
 		name            string
 		expectedSummary string
 		expectedFile    string
+		queries         []string
 		expectedLine    int
 	}{
 		{
@@ -1001,13 +1002,14 @@ outputs {
 			expectedLine:    3,
 		},
 		{
-			name: "an unreadable dependency config is reported at the config_path that names it",
+			name: "an unreadable dependency config the run leaves out is reported at the config_path that names it",
 			files: map[string]string{
 				"vpc/terragrunt.hcl": `
 outputs {
   output "vpc_id" {
 `,
 			},
+			queries:         []string{"./app"},
 			expectedSummary: "Dependency config not readable",
 			expectedFile:    "app/terragrunt.hcl",
 			expectedLine:    3,
@@ -1065,6 +1067,7 @@ outputs {
 			result := runValidate(t, &validateRun{
 				files:       withFiles(outputsContractFiles, tc.files),
 				experiments: []string{experiment.OutputsBlock},
+				queries:     tc.queries,
 			})
 
 			require.Error(t, result.err)
@@ -1086,6 +1089,29 @@ outputs {
 			assert.Equal(t, 1, found, "one %q diagnostic expected", tc.expectedSummary)
 		})
 	}
+}
+
+// TestRunValidateOutputsContractsLeavesValidatedDependencyToItsOwnParse pins that a broken dependency config the
+// run validates is reported by its own parse only, however many units read its outputs block.
+func TestRunValidateOutputsContractsLeavesValidatedDependencyToItsOwnParse(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"vpc/terragrunt.hcl": `
+outputs {
+  output "vpc_id" {
+`,
+		"web/main.tf":        outputsContractFiles["app/main.tf"],
+		"web/terragrunt.hcl": outputsContractFiles["app/terragrunt.hcl"],
+	})
+
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Unclosed configuration block", result.diags[0].Summary)
+	require.NotNil(t, result.diags[0].Range)
+	assert.Equal(t, filepath.Join(result.root, "vpc", config.DefaultTerragruntConfigPath), result.diags[0].Range.Filename)
 }
 
 // TestRunValidateOutputsContractsKeepsDistinctDiagnosticsAtOneRange pins that two units reading one shared file

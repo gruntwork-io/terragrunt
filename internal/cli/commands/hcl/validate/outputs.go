@@ -553,9 +553,9 @@ func declaredOutputsOf(
 
 // pointAtOutputsErrors moves the outputs contract errors in err's tree into diagnostics: a dependency whose unit
 // config cannot be read for its outputs block is reported at the config_path expression that declares it, in the
-// first of configPaths that does, and a declared mock value that its readers cannot know is reported at its
-// output block, in the unit config that declares it. It returns the errors it found no place for, with any
-// failure to place one.
+// first of configPaths that does, unless the run parses that unit config itself, and a declared mock value that
+// its readers cannot know is reported at its output block, in the unit config that declares it. It returns the
+// errors it found no place for, with any failure to place one.
 func (p ComponentParser) pointAtOutputsErrors(
 	l log.Logger,
 	v *venv.Venv,
@@ -586,7 +586,7 @@ func (p ComponentParser) pointAtOutputsErrors(
 }
 
 // pointAtOutputsError collects the diagnostic for leaf when it is an outputs contract error with a place to point
-// at, and reports whether it did.
+// at, and reports whether leaf is dealt with: pointed at, or left to the parse of the unit config it is about.
 func (p ComponentParser) pointAtOutputsError(
 	l log.Logger,
 	v *venv.Venv,
@@ -606,6 +606,10 @@ func (p ComponentParser) pointAtOutputsError(
 	readErr, ok := errors.AsType[config.DeclaredOutputsReadError](blockErr.Err)
 	if !ok {
 		return false, nil
+	}
+
+	if _, parsed := p.UnitConfigs[readErr.TargetConfig]; parsed {
+		return true, nil
 	}
 
 	return p.pointAtDependencyRead(v.FS, configPaths, blockErr.Name, readErr)
