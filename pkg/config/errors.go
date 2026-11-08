@@ -622,6 +622,22 @@ func (err DependencyInvalidConfigPathError) Error() string {
 	return fmt.Sprintf("dependency %q has invalid config_path", err.DependencyName)
 }
 
+// DependencyNullConfigPathError is returned when an enabled dependency block sets config_path to null.
+type DependencyNullConfigPathError struct {
+	// ConfigPath is the configuration file that declares the block.
+	ConfigPath string
+	// Address names the dependency block, as its label and any expansion key.
+	Address string
+}
+
+func (err DependencyNullConfigPathError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependency %s sets config_path to null; set it to a path, or set enabled to false",
+		err.ConfigPath,
+		err.Address,
+	)
+}
+
 // TerraformSourceReferencesDependencyError is returned when the terraform `source` references the `dependency`
 // namespace. The module source must be resolvable before dependencies are evaluated, so the reference can never
 // be satisfied; without this the user only sees a cryptic "value must be known" decode error.

@@ -388,23 +388,18 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		}
 	}
 
+	targetBlockOnlyPaths := dependenciesBlockOnlyPaths(l, cfg)
+	sourceBlockOnlyPaths := dependenciesBlockOnlyPaths(l, sourceConfig)
+
 	// Dependency blocks are shallow merged by name
 	cfg.TerragruntDependencies = mergeDependencyBlocks(
 		cfg.TerragruntDependencies,
 		sourceConfig.TerragruntDependencies,
 	)
 
-	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
+	reconcileModulePaths(l, cfg, targetBlockOnlyPaths, sourceBlockOnlyPaths)
 
-	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
-	// dependencies block!
-	if sourceConfig.Dependencies != nil {
-		if cfg.Dependencies == nil {
-			cfg.Dependencies = sourceConfig.Dependencies
-		} else {
-			cfg.Dependencies.Merge(sourceConfig.Dependencies)
-		}
-	}
+	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
 
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
 	// child's generate block will override the parent's block.
@@ -503,48 +498,8 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		cfg.Errors.Merge(sourceConfig.Errors)
 	}
 
-	// Copy only dependencies which doesn't exist in source
-	if sourceConfig.Dependencies != nil {
-		resultModuleDependencies := &ModuleDependencies{}
-
-		if cfg.Dependencies != nil {
-			// take in result dependencies only paths which aren't defined in source
-			// Fix for issue: https://github.com/gruntwork-io/terragrunt/issues/1900
-			targetPathMap := fetchDependencyPaths(cfg)
-			sourcePathMap := fetchDependencyPaths(sourceConfig)
-
-			for key, value := range targetPathMap {
-				_, found := sourcePathMap[key]
-				if !found {
-					resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, value)
-				}
-			}
-			// copy target paths which are defined only in Dependencies and not in TerragruntDependencies
-			// if TerragruntDependencies will be empty, all targetConfig.Dependencies.Paths will be copied to resultModuleDependencies.Paths
-			for _, dependencyPath := range cfg.Dependencies.Paths {
-				var addPath = true
-
-				for _, targetPath := range targetPathMap {
-					if dependencyPath == targetPath { // path already defined in TerragruntDependencies, skip adding
-						addPath = false
-						break
-					}
-				}
-
-				if addPath {
-					resultModuleDependencies.Paths = append(
-						resultModuleDependencies.Paths,
-						dependencyPath,
-					)
-				}
-			}
-		}
-
-		resultModuleDependencies.Paths = append(
-			resultModuleDependencies.Paths,
-			sourceConfig.Dependencies.Paths...)
-		cfg.Dependencies = resultModuleDependencies
-	}
+	targetBlockOnlyPaths := dependenciesBlockOnlyPaths(l, cfg)
+	sourceBlockOnlyPaths := dependenciesBlockOnlyPaths(l, sourceConfig)
 
 	// Dependency blocks are deep merged by name
 	mergedDeps, err := deepMergeDependencyBlocks(
@@ -556,6 +511,8 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	}
 
 	cfg.TerragruntDependencies = mergedDeps
+
+	reconcileModulePaths(l, cfg, targetBlockOnlyPaths, sourceBlockOnlyPaths)
 
 	mergedFlags, err := deepMergeFeatureBlocks(cfg.FeatureFlags, sourceConfig.FeatureFlags)
 	if err != nil {
@@ -626,24 +583,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	CopyFieldsMetadata(sourceConfig, cfg)
 
 	return nil
-}
-
-// fetchDependencyPaths returns each dependency's config path, keyed the way include
-// merging matches dependencies up. A dependency whose config_path is not a known string
-// has no path to carry over, so it is left out, as [Dependency.DeepMerge] ignores it too.
-func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
-	var m = make(map[string]string)
-	if config == nil {
-		return m
-	}
-
-	for _, dependency := range config.TerragruntDependencies {
-		if configPath, ok := dependency.configPathString(); ok {
-			m[dependency.mergeKey()] = configPath
-		}
-	}
-
-	return m
 }
 
 // merge feature flags by name.

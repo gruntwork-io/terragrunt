@@ -804,15 +804,10 @@ func PartialParseConfig(
 				return nil, err
 			}
 
-			decoded := TerragruntDependency{Dependencies: decodedDeps}
-
-			// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
-			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()
-
-			output.TerragruntDependencies = decoded.Dependencies
+			output.TerragruntDependencies = decodedDeps
 			// Convert dependency blocks into module dependency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
-			dependencies := dependencyBlocksToModuleDependencies(l, decoded.Dependencies)
+			dependencies := dependencyBlocksToModuleDependencies(l, decodedDeps)
 			if output.Dependencies != nil {
 				output.Dependencies.Merge(dependencies)
 			} else {
@@ -994,7 +989,8 @@ func PartialParseConfig(
 	return output, nil
 }
 
-// processExcludes evaluate exclude blocks and merge them into the config.
+// processExcludes evaluates the exclude block of file, which replaces any exclude config includes set, as
+// [ParseConfig] does.
 func processExcludes(
 	ctx context.Context,
 	l log.Logger,
@@ -1017,11 +1013,7 @@ func processExcludes(
 		return config, nil
 	}
 
-	if config.Exclude != nil {
-		config.Exclude.Merge(excludeConfig)
-	} else {
-		config.Exclude = excludeConfig
-	}
+	config.Exclude = excludeConfig
 
 	return config, nil
 }
@@ -1127,22 +1119,10 @@ func mergeAutoIncludePartialIfPresent(
 		return fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
-	// Capture paths from each side's dependencies block before the merge flattens block derived paths together.
-	unitDependenciesBlockPaths := dependenciesBlockOnlyPaths(l, output)
-	autoDependenciesBlockPaths := dependenciesBlockOnlyPaths(l, autoIncludeConfig)
-
 	// Shallow merge with the autoinclude as the winning source, matching a regular include's default strategy.
 	if err := output.Merge(l, autoIncludeConfig); err != nil {
 		return fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}
-
-	// Merge only appends the module dependency path list so rebuild it from the by name merged blocks to drop any overridden stale path.
-	reconcileAutoIncludeModulePaths(
-		l,
-		output,
-		unitDependenciesBlockPaths,
-		autoDependenciesBlockPaths,
-	)
 
 	return nil
 }
@@ -1176,8 +1156,8 @@ func dependenciesBlockOnlyPaths(l log.Logger, cfg *TerragruntConfig) []string {
 	return blockOnly
 }
 
-// reconcileAutoIncludeModulePaths rebuilds the module dependency path list from the by name merged dependency blocks plus the preserved literal dependencies paths.
-func reconcileAutoIncludeModulePaths(
+// reconcileModulePaths rebuilds the module dependency path list from the by name merged dependency blocks plus the preserved literal dependencies paths.
+func reconcileModulePaths(
 	l log.Logger,
 	output *TerragruntConfig,
 	preservedPaths ...[]string,

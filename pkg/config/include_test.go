@@ -588,6 +588,7 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 				},
 			},
 			expected: &config.TerragruntConfig{
+				Dependencies: &config.ModuleDependencies{Paths: []string{"../vpc"}},
 				TerragruntDependencies: config.Dependencies{
 					config.Dependency{
 						Name:       "vpc",

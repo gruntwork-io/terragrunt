@@ -211,7 +211,7 @@ func (dep *Dependency) isEnabled() bool {
 
 // configPathString returns config_path when it evaluated to a known string. hcl validate
 // decodes configs that failed to parse and discovery decodes before every value resolves,
-// so config_path can arrive unknown or null.
+// so config_path can arrive unknown, and a disabled block can set it to null.
 func (dep *Dependency) configPathString() (string, bool) {
 	if dep.ConfigPath.IsNull() || !dep.ConfigPath.IsWhollyKnown() ||
 		!dep.ConfigPath.Type().Equals(cty.String) {
@@ -339,6 +339,10 @@ func decodeDependencyBlocks(
 		dependencies = append(dependencies, *dep)
 	}
 
+	if err := validateConfigPathsNotNull(file.ConfigPath, dependencies); err != nil {
+		return nil, err
+	}
+
 	if err := validateUniqueDependencies(ctx, pctx, l, file.ConfigPath, dependencies); err != nil {
 		return nil, err
 	}
@@ -355,6 +359,19 @@ func decodeDependencyBlocks(
 	}
 
 	return dependencies, nil
+}
+
+// validateConfigPathsNotNull reports the first enabled dependency block whose config_path is null.
+func validateConfigPathsNotNull(cfgPath string, deps Dependencies) error {
+	for i := range deps {
+		dep := &deps[i]
+
+		if dep.isEnabled() && dep.ConfigPath.IsNull() {
+			return DependencyNullConfigPathError{ConfigPath: cfgPath, Address: dep.mergeKey()}
+		}
+	}
+
+	return nil
 }
 
 // validateDependencyConfigPathDirs reports the first enabled dependency block whose config_path
@@ -580,9 +597,6 @@ func DecodeTerragruntDependencies(
 
 	decodedDependency := TerragruntDependency{Dependencies: dependencies}
 
-	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
-	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
-
 	// Fold sibling autoinclude dependency blocks in before output retrieval so the unit body can reference them, like a regular include.
 	decodedDependency.Dependencies, err = foldSiblingAutoIncludeDeps(
 		ctx,
@@ -596,7 +610,7 @@ func DecodeTerragruntDependencies(
 	}
 
 	// Validate that dependency config_path is not an empty string.
-	// Skip null/unknown values and non-strings (which can appear during partial decode or hclvalidate).
+	// Skip unknown values and non-strings (which can appear during partial decode or hclvalidate).
 	for _, dep := range decodedDependency.Dependencies {
 		if dep.isDisabled() {
 			continue
@@ -2888,18 +2902,6 @@ func runTerraformInitForDependencyOutput(
 	}
 }
 
-func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
-	var filteredDeps Dependencies
-
-	for _, dep := range deps {
-		if !dep.ConfigPath.IsNull() {
-			filteredDeps = append(filteredDeps, dep)
-		}
-	}
-
-	return filteredDeps
-}
-
 // foldSiblingAutoIncludeDeps merges the registered sibling autoinclude dependency blocks over the unit's own same-name blocks (shallow, by name, with the autoinclude winning), mirroring a regular include's default merge strategy.
 func foldSiblingAutoIncludeDeps(
 	ctx context.Context,
@@ -2957,12 +2959,11 @@ func foldSiblingAutoIncludeDeps(
 		decoded = *merged
 	}
 
-	autoDeps := decoded.Dependencies.FilteredWithoutConfigPath()
-	if len(autoDeps) == 0 {
+	if len(decoded.Dependencies) == 0 {
 		return deps, nil
 	}
 
-	return mergeDependencyBlocks(deps, autoDeps), nil
+	return mergeDependencyBlocks(deps, decoded.Dependencies), nil
 }
 
 // parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file cache so repeated dependency-output decodes reuse one parse, rebinding the shared AST to a fresh parser per call.
