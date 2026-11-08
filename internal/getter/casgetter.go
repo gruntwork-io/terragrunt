@@ -34,21 +34,19 @@ type CASGetter struct {
 	fetchers    map[string]getter.Getter
 	resolvers   map[string]cas.SourceResolver
 	innerClient InnerClientBuilder
-	Detectors   []Detector
-
-	// userDisabledArchive records that the source for the current
-	// request carried an explicit archive=false. Detect sets it; Get
-	// reads it when building the inner fetch URL. CAS injects archive=false
-	// itself so the outer v2 client skips pre-decompression, which means
-	// the URL alone cannot tell a user's "do not extract" from CAS's own
-	// marker. This field keeps them apart.
+	// innerQuery holds the archive and checksum values of the current
+	// request. Detect moves them off the URL the outer v2 client sees, so
+	// it neither pre-decompresses nor rejects a checksum for a directory
+	// download, and Get puts them back on the inner fetch URL, where the
+	// inner client extracts and verifies the download before CAS ingests it.
 	//
 	// Detect always runs immediately before Get within a single outer
 	// client.Get, and production callers build a CASGetter per download
 	// (runner/run/download_source.go, pkg/config/stack.go), so the value is
 	// never read across concurrent requests. Do not share one CASGetter
 	// across goroutines.
-	userDisabledArchive bool
+	innerQuery innerFetchQuery
+	Detectors  []Detector
 }
 
 // InnerClientBuilder builds the per-fetch [getter.Client] used to invoke
@@ -190,10 +188,10 @@ func (g *CASGetter) Mode(_ context.Context, _ *url.URL) (getter.Mode, error) {
 
 // Detect canonicalizes the source via the detector chain. Local
 // sources get req.Copy = true so Get takes the StoreLocalDirectory
-// path. Non-git schemes covered by Fetchers get archive=false appended
-// to the URL so the outer client does not pre-decompress before
-// invoking Get; a source that already disabled archiving is recorded in
-// userDisabledArchive so Get can keep the inner fetch from extracting.
+// path. Non-git schemes covered by Fetchers have their archive and
+// checksum values moved into innerQuery and archive=false set on the
+// URL, so the outer client neither pre-decompresses nor verifies before
+// invoking Get; the inner fetch applies both.
 func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 	if req.Forced == SchemeGit {
 		return true, nil
@@ -208,7 +206,7 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 
 	if scheme, src, ok := g.matchGenericScheme(req); ok {
 		req.Forced = scheme
-		req.Src, g.userDisabledArchive = disableOuterArchive(src)
+		req.Src, g.innerQuery = outerFetchURL(src)
 
 		return true, nil
 	}
@@ -369,42 +367,36 @@ func (g *CASGetter) lookupFetcher(scheme string) (string, bool) {
 	return "", false
 }
 
-// disableOuterArchive ensures rawURL carries archive=false so the outer
-// v2 client skips its archive-extension pre-decompression and req.Dst
-// reaches Get pointing at the original destination instead of a
-// temporary archive path. It reports whether the caller had already
-// disabled archiving: a pre-existing archive value is left untouched,
-// and the second return is true only when that value parses to a false
-// boolean. Get needs the distinction because the marker CAS injects and
-// a user's explicit archive=false are indistinguishable once the outer
-// client strips the parameter.
-func disableOuterArchive(rawURL string) (string, bool) {
+// innerFetchQuery holds the archive and checksum values the inner fetch applies, kept away from the outer client.
+type innerFetchQuery struct {
+	archive  string
+	checksum string
+}
+
+// outerFetchURL sets archive=false on rawURL and drops its checksum, keeping both values for the inner fetch.
+func outerFetchURL(rawURL string) (string, innerFetchQuery) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return rawURL, false
+		return rawURL, innerFetchQuery{}
 	}
 
 	q := u.Query()
+	inner := innerFetchQuery{archive: q.Get("archive"), checksum: q.Get("checksum")}
 
-	if v := q.Get("archive"); v != "" {
-		disabled, perr := strconv.ParseBool(v)
-		return rawURL, perr == nil && !disabled
+	// archive=true only asks for extraction, which the inner client decides by extension when the value is absent.
+	if enabled, perr := strconv.ParseBool(inner.archive); perr == nil && enabled {
+		inner.archive = ""
 	}
 
 	q.Set("archive", "false")
+	q.Del("checksum")
 	u.RawQuery = q.Encode()
 
-	return u.String(), false
+	return u.String(), inner
 }
 
-// innerArchiveURL builds the URL for the inner single-getter client. The
-// outer v2 client consumes and removes the archive parameter before Get
-// runs, so neither CAS's injected marker nor a user's archive=false
-// survives on its own. When userDisabled is set, archive=false is
-// re-applied so the inner client also skips extraction; otherwise the
-// URL carries no archive parameter and the inner client's extension-based
-// detection extracts .tar.gz/.zip sources before ingest.
-func innerArchiveURL(u *url.URL, userDisabled bool) string {
+// innerFetchURL puts the archive and checksum values back on the URL the inner client downloads with.
+func innerFetchURL(u *url.URL, inner innerFetchQuery) string {
 	if u == nil {
 		return ""
 	}
@@ -413,8 +405,12 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 	q := clone.Query()
 	q.Del("archive")
 
-	if userDisabled {
-		q.Set("archive", "false")
+	if inner.archive != "" {
+		q.Set("archive", inner.archive)
+	}
+
+	if inner.checksum != "" {
+		q.Set("checksum", inner.checksum)
 	}
 
 	clone.RawQuery = q.Encode()
@@ -437,9 +433,9 @@ func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
 }
 
 // getGeneric routes a non-git source through CAS. The inner getter.Client
-// performs archive extraction, so the URL passed to it carries archive=false
-// only when the user asked to disable archiving; otherwise the marker
-// Detect injected is dropped so extension-based extraction runs there.
+// performs archive extraction and checksum verification, so the URL passed
+// to it carries the user's archive and checksum values and never the
+// archive=false marker Detect injected for the outer client.
 func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	scheme, ok := g.lookupFetcher(strings.ToLower(req.Forced))
 	if !ok {
@@ -451,7 +447,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 
 	bare := g.fetchers[scheme]
 
-	innerURL := redact.NewURL(innerArchiveURL(req.URL(), g.userDisabledArchive))
+	innerURL := redact.NewURL(innerFetchURL(req.URL(), g.innerQuery))
 
 	opts := *g.Opts
 	opts.Dir = req.Dst
@@ -462,9 +458,18 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	return g.CAS.FetchSource(ctx, g.Logger, g.Venv, &opts, cas.SourceRequest{
 		Scheme:   scheme,
 		URL:      innerURL,
-		Resolver: g.resolvers[scheme],
+		Resolver: g.resolverFor(scheme),
 		Fetch:    g.buildInnerFetch(bare, scheme, innerURL),
 	})
+}
+
+// resolverFor returns the probe resolver for scheme, or nil for a checksummed request so every fetch verifies it.
+func (g *CASGetter) resolverFor(scheme string) cas.SourceResolver {
+	if g.innerQuery.checksum != "" {
+		return nil
+	}
+
+	return g.resolvers[scheme]
 }
 
 // buildInnerFetch returns a SourceFetcher that downloads source into a

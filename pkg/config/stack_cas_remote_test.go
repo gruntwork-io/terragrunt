@@ -3,6 +3,8 @@ package config_test
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -63,6 +65,13 @@ var casCatalogFiles = map[string]string{
 `,
 	"modules/vpc/main.tf": `resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
+}
+`,
+	"stacks/svc/README.md": "The svc stack.\n",
+	"stacks/svc-other/terragrunt.stack.hcl": `unit "b" {
+  source                 = "../..//units/a"
+  update_source_with_cas = true
+  path                   = "b"
 }
 `,
 }
@@ -161,34 +170,134 @@ func TestGenerateStackOCIRewritesUpdateSourceWithCAS(t *testing.T) {
 	}
 }
 
-// TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS: a catalog served as an HTTP archive takes the same walk.
+// TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS: an HTTP archive catalog takes the walk however it is selected.
 func TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS(t *testing.T) {
 	t.Parallel()
 
 	archive := catalogZip(t, casCatalogFiles)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeContent(w, r, "catalog.zip", time.Time{}, bytes.NewReader(archive))
-	}))
-	t.Cleanup(server.Close)
+	server := catalogArchiveServer(t, archive)
+	sum := sha256.Sum256(archive)
+	checksum := "sha256:" + hex.EncodeToString(sum[:])
 
-	v := casCatalogVenv(t)
-	stackPath := catalogLiveStack(t, v, "stack", server.URL+"/catalog.zip//stacks/svc")
+	testCases := []struct {
+		name   string
+		source string
+	}{
+		{name: "archive by extension", source: server.URL + "/catalog.zip//stacks/svc"},
+		{name: "archive by explicit format", source: server.URL + "/catalog//stacks/svc?archive=zip"},
+		{name: "archive with matching checksum", source: server.URL + "/catalog.zip//stacks/svc?checksum=" + checksum},
+		{name: "wildcard selecting one directory", source: server.URL + "/catalog.zip//stacks/*vc"},
+	}
 
-	logs, err := generateCatalogStack(t, v, stackPath)
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	content, err := vfs.ReadFile(v.FS, filepath.Join(
-		filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile,
-	))
-	require.NoError(t, err)
+			v := casCatalogVenv(t)
+			stackPath := catalogLiveStack(t, v, "stack", tc.source)
 
-	assert.Regexp(t, casStackRefPattern, string(content))
-	assert.NotContains(t, string(content), `"../..//units/a"`)
-	assert.NotContains(t, logs, "CAS processing failed",
-		"the archive must be walked through CAS, not the fallback getter")
+			logs, err := generateCatalogStack(t, v, stackPath)
+			require.NoError(t, err)
+
+			content, err := vfs.ReadFile(v.FS, filepath.Join(
+				filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile,
+			))
+			require.NoError(t, err)
+
+			assert.Regexp(t, casStackRefPattern, string(content))
+			assert.NotContains(t, string(content), `"../..//units/a"`)
+			assert.NotContains(t, logs, "CAS processing failed",
+				"the archive must be walked through CAS, not the fallback getter")
+		})
+	}
 }
 
-// TestGenerateStackBareGitURLClonesWithGit: an http URL that names no archive is cloned by git, with or without git::.
+// TestGenerateStackHTTPArchiveSelectionFailures: a bad checksum or an unusable wildcard fails instead of generating.
+func TestGenerateStackHTTPArchiveSelectionFailures(t *testing.T) {
+	t.Parallel()
+
+	server := catalogArchiveServer(t, catalogZip(t, casCatalogFiles))
+
+	testCases := []struct {
+		target  any
+		name    string
+		source  string
+		wantMsg string
+	}{
+		{
+			target: new(*getter.ChecksumError),
+			name:   "mismatched checksum",
+			source: server.URL + "/catalog.zip//stacks/svc?checksum=sha256:" + strings.Repeat("0", 64),
+		},
+		{
+			name:    "wildcard without a match",
+			source:  server.URL + "/catalog.zip//stacks/x*",
+			wantMsg: "failed to select subdir",
+		},
+		{
+			name:    "wildcard selecting several directories",
+			source:  server.URL + "/catalog.zip//stacks/s*",
+			wantMsg: "failed to select subdir",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := casCatalogVenv(t)
+			stackPath := catalogLiveStack(t, v, "stack", tc.source)
+
+			logs, err := generateCatalogStack(t, v, stackPath)
+			require.Error(t, err)
+
+			if tc.target != nil {
+				require.ErrorAs(t, err, tc.target)
+			}
+
+			assert.Contains(t, logs, tc.wantMsg)
+
+			assert.NoFileExists(t, filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile))
+		})
+	}
+}
+
+// TestGenerateStackOCIMutableControlsWriteBits: mutable = true materializes a writable package; the default stays read-only.
+func TestGenerateStackOCIMutableControlsWriteBits(t *testing.T) {
+	t.Parallel()
+
+	registry := ociregistry.Start(t)
+	registry.PushModule(t, casCatalogRepository, casCatalogTag, casCatalogFiles)
+
+	testCases := []struct {
+		name         string
+		attrs        []string
+		wantWritable bool
+	}{
+		{name: "mutable", attrs: []string{"mutable = true"}, wantWritable: true},
+		{name: "default", wantWritable: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := ociCatalogVenv(t, registry)
+			stackPath := catalogLiveStack(t, v, "stack", ociCatalogSource(registry, "stacks/svc"), tc.attrs...)
+
+			_, err := generateCatalogStack(t, v, stackPath)
+			require.NoError(t, err)
+
+			// The README is copied as fetched; the stack file is rewritten, so it would hide the mode.
+			info, err := v.FS.Stat(filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", "README.md"))
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.wantWritable, info.Mode().Perm()&0o200 != 0, "mode %v", info.Mode())
+		})
+	}
+}
+
+// TestGenerateStackBareGitURLClonesWithGit: an http URL that names no archive is cloned by git, with or without .git.
 func TestGenerateStackBareGitURLClonesWithGit(t *testing.T) {
 	t.Parallel()
 
@@ -391,18 +500,21 @@ func ociCatalogVenv(t *testing.T, registry *ociregistry.Registry) *venv.Venv {
 	return v
 }
 
-// catalogLiveStack writes a live stack whose single component of kind is sourced from source.
-func catalogLiveStack(t *testing.T, v *venv.Venv, kind, source string) string {
+// catalogLiveStack writes a live stack whose single component of kind is sourced from source, with any extra attrs.
+func catalogLiveStack(t *testing.T, v *venv.Venv, kind, source string, attrs ...string) string {
 	t.Helper()
 
 	liveDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "live")
 	stackPath := filepath.Join(liveDir, config.DefaultStackFile)
 
-	body := kind + ` "svc" {
-  source = "` + source + `"
-  path   = "svc"
-}
-`
+	lines := make([]string, 0, len(attrs)+5)
+	lines = append(lines, kind+` "svc" {`, `  source = "`+source+`"`, `  path   = "svc"`)
+
+	for _, attr := range attrs {
+		lines = append(lines, "  "+attr)
+	}
+
+	body := strings.Join(append(lines, "}", ""), "\n")
 
 	require.NoError(t, v.FS.MkdirAll(liveDir, 0o755))
 	require.NoError(t, vfs.WriteFile(v.FS, stackPath, []byte(body), 0o644))
@@ -446,6 +558,18 @@ func generateCatalogStack(
 	waitErr := pool.Wait()
 
 	return logBuf.String(), errors.Join(genErr, waitErr)
+}
+
+// catalogArchiveServer serves archive for every path, so a test can pick the archive by extension or by query.
+func catalogArchiveServer(t *testing.T, archive []byte) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "catalog.zip", time.Time{}, bytes.NewReader(archive))
+	}))
+	t.Cleanup(server.Close)
+
+	return server
 }
 
 // catalogZip packs files into a zip archive, with sorted names so one file set packs to one digest.

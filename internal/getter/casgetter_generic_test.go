@@ -4,9 +4,12 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -232,6 +235,99 @@ func TestCASGetter_HTTPArchiveFalseSkipsExtraction(t *testing.T) {
 		"archive=false must leave the downloaded tarball unextracted")
 	require.NoFileExists(t, filepath.Join(dst, "main.tf"),
 		"archive=false must stop the inner client from extracting")
+}
+
+// TestCASGetter_HTTPChecksumAndArchiveFormatReachInnerFetch: the inner fetch applies checksum and archive format.
+func TestCASGetter_HTTPChecksumAndArchiveFormatReachInnerFetch(t *testing.T) {
+	t.Parallel()
+
+	body := makeTarGz(t, map[string]string{"main.tf": "ok"})
+	sum := sha256.Sum256(body)
+	checksum := "sha256:" + hex.EncodeToString(sum[:])
+
+	testCases := []struct {
+		name       string
+		path       string
+		wantMainTF bool
+	}{
+		{name: "matching checksum", path: "/mod.tar.gz?checksum=" + checksum, wantMainTF: true},
+		{name: "archive format without extension", path: "/mod?archive=tar.gz", wantMainTF: true},
+		{name: "archive=true extracts by extension", path: "/mod.tar.gz?archive=true", wantMainTF: true},
+		{name: "mismatched checksum", path: "/mod.tar.gz?checksum=sha256:" + strings.Repeat("0", 64)},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(&tarballHandler{body: body, etag: "stable-etag"})
+			t.Cleanup(srv.Close)
+
+			storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+			c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
+			require.NoError(t, err)
+
+			v := venvtest.NewOSWithEmptyEnv()
+			g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
+				getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
+			client := &gogetter.Client{Getters: []gogetter.Getter{g}}
+			dst := filepath.Join(t.TempDir(), "out")
+
+			_, err = client.Get(t.Context(), &gogetter.Request{
+				Src:     srv.URL + tc.path,
+				Dst:     dst,
+				GetMode: gogetter.ModeAny,
+			})
+
+			if !tc.wantMainTF {
+				var checksumErr *gogetter.ChecksumError
+				require.ErrorAs(t, err, &checksumErr, "a checksum mismatch must fail the download")
+				require.NoFileExists(t, filepath.Join(dst, "main.tf"))
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.FileExists(t, filepath.Join(dst, "main.tf"), "the inner fetch must verify and extract the archive")
+		})
+	}
+}
+
+// TestCASGetter_HTTPChecksumIsVerifiedOnStoreHit: a stored tree must not satisfy a request whose checksum disagrees.
+func TestCASGetter_HTTPChecksumIsVerifiedOnStoreHit(t *testing.T) {
+	t.Parallel()
+
+	body := makeTarGz(t, map[string]string{"main.tf": "ok"})
+
+	srv := httptest.NewServer(&tarballHandler{body: body, etag: "stable-etag"})
+	t.Cleanup(srv.Close)
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+
+	// One store, two getters: CASGetter keeps per-request state.
+	fetch := func(path, dst string) error {
+		g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
+			getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
+		client := &gogetter.Client{Getters: []gogetter.Getter{g}}
+
+		_, err := client.Get(t.Context(), &gogetter.Request{Src: srv.URL + path, Dst: dst, GetMode: gogetter.ModeAny})
+
+		return err
+	}
+
+	require.NoError(t, fetch("/mod.tar.gz", filepath.Join(t.TempDir(), "first")),
+		"the first fetch stores the archive under its ETag key")
+
+	second := filepath.Join(t.TempDir(), "second")
+	err = fetch("/mod.tar.gz?checksum=sha256:"+strings.Repeat("0", 64), second)
+
+	var checksumErr *gogetter.ChecksumError
+	require.ErrorAs(t, err, &checksumErr, "a wrong checksum must fail even though the ETag key is already stored")
+	require.NoFileExists(t, filepath.Join(second, "main.tf"))
 }
 
 // TestCASGetter_HTTPMissingETagFallsBackToContentHash exercises the no-probe

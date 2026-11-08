@@ -447,26 +447,21 @@ func TestCASGetterDetect_PanicsOnNilVenvFS(t *testing.T) {
 	})
 }
 
-func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {
+// TestCASGetterDetect_MovesArchiveAndChecksumOffOuterURL: the outer client must neither extract nor verify.
+func TestCASGetterDetect_MovesArchiveAndChecksumOffOuterURL(t *testing.T) {
 	t.Parallel()
 
-	// If the URL already carries archive=true, Detect must not
-	// overwrite it. Same for archive=false (which is what Detect
-	// would have added anyway).
 	tests := []struct {
 		name string
 		src  string
-		want string
 	}{
+		{name: "archive=true", src: "https://example.com/mod.tar.gz?archive=true"},
+		{name: "archive=false", src: "https://example.com/mod.tar.gz?archive=false"},
+		{name: "archive format", src: "https://example.com/mod?archive=tar.gz"},
 		{
-			name: "preserve archive=true",
-			src:  "https://example.com/mod.tar.gz?archive=true",
-			want: "true",
-		},
-		{
-			name: "preserve archive=false",
-			src:  "https://example.com/mod.tar.gz?archive=false",
-			want: "false",
+			name: "checksum",
+			src: "https://example.com/mod.tar.gz?checksum=sha256:" +
+				"0000000000000000000000000000000000000000000000000000000000000000",
 		},
 	}
 
@@ -484,7 +479,8 @@ func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {
 
 			u, parseErr := url.Parse(req.Src)
 			require.NoError(t, parseErr)
-			assert.Equal(t, tt.want, u.Query().Get("archive"))
+			assert.Equal(t, "false", u.Query().Get("archive"))
+			assert.Empty(t, u.Query().Get("checksum"))
 		})
 	}
 }

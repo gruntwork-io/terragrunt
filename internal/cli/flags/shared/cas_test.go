@@ -126,3 +126,67 @@ func TestCASProbeFlagsAllowedWithoutExperimentWhenUnset(t *testing.T) {
 	require.NoError(t, casFlags.Parse(clihelper.Args{"--no-cas", "--cas-clone-depth", "3"}, map[string]string{}))
 	require.NoError(t, casFlags.RunActions(t.Context(), &clihelper.Context{}))
 }
+
+// TestCASOfflineAndRefreshFlagsConflict pins that --cas-offline and --cas-refresh reject each other whichever action runs first.
+func TestCASOfflineAndRefreshFlagsConflict(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		order []string
+	}{
+		{name: "offline action sees refresh", order: []string{shared.CASOfflineFlagName, shared.CASRefreshFlagName}},
+		{name: "refresh action sees offline", order: []string{shared.CASRefreshFlagName, shared.CASOfflineFlagName}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			require.NoError(t, opts.Experiments.EnableExperiment(experiment.OfflineCAS))
+
+			casFlags := shared.NewCASFlags(opts, flags.Prefix{})
+
+			ordered := make(clihelper.Flags, 0, len(tc.order))
+			for _, name := range tc.order {
+				f := casFlags.Get(name)
+				require.NotNil(t, f, "flag %s should be registered", name)
+
+				ordered = append(ordered, f)
+			}
+
+			require.NoError(t, ordered.Parse(clihelper.Args{"--cas-offline", "--cas-refresh"}, map[string]string{}))
+
+			err := ordered.RunActions(t.Context(), &clihelper.Context{})
+
+			var conflictErr *shared.CASOfflineRefreshFlagsError
+			require.ErrorAs(t, err, &conflictErr)
+			assert.Contains(t, conflictErr.Error(), "--"+shared.CASOfflineFlagName, "error should name the --cas-offline flag")
+			assert.Contains(t, conflictErr.Error(), "--"+shared.CASRefreshFlagName, "error should name the --cas-refresh flag")
+		})
+	}
+}
+
+// TestCASProbeFlagsSetFalseSkipExperimentGate pins that turning the probe flags off never requires the experiment.
+func TestCASProbeFlagsSetFalseSkipExperimentGate(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	casFlags := shared.NewCASFlags(opts, flags.Prefix{})
+
+	require.NoError(t, casFlags.Parse(clihelper.Args{"--cas-offline=false", "--cas-refresh=false"}, map[string]string{}))
+	require.NoError(t, casFlags.RunActions(t.Context(), &clihelper.Context{}))
+	assert.False(t, opts.CASOffline)
+	assert.False(t, opts.CASRefresh)
+}
+
+// TestCASExperimentRequiredErrorNamesFlag pins that the experiment gate error names the flag that needs it.
+func TestCASExperimentRequiredErrorNamesFlag(t *testing.T) {
+	t.Parallel()
+
+	err := &shared.CASExperimentRequiredError{FlagName: shared.CASOfflineFlagName}
+
+	assert.Contains(t, err.Error(), "--"+shared.CASOfflineFlagName, "error should name the gated flag")
+	assert.Contains(t, err.Error(), experiment.OfflineCAS, "error should name the experiment to enable")
+}

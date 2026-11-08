@@ -924,7 +924,7 @@ func fetchComponentSource(
 	}
 
 	if opts.casEnabled {
-		casErr := fetchViaCAS(ctx, l, v, opts, cmp.sourceDir, kindStr, source, dest)
+		casErr := fetchViaCAS(ctx, l, v, opts, cmp, kindStr, source, dest)
 		if casErr == nil {
 			return nil
 		}
@@ -986,12 +986,13 @@ func fetchViaCAS(
 	l log.Logger,
 	v *venv.Venv,
 	opts *generateOpts,
-	sourceDir, kindStr, source, dest string,
+	cmp *componentToGenerate,
+	kindStr, source, dest string,
 ) error {
-	resolvedSource := resolveLocalCASSource(v.FS, sourceDir, source)
+	resolvedSource := resolveLocalCASSource(v.FS, cmp.sourceDir, source)
 
-	if isPackageSource(v.FS, sourceDir, source) {
-		staged, err := stagePackage(ctx, l, v, opts, source)
+	if isPackageSource(v.FS, cmp.sourceDir, source) {
+		staged, err := stagePackage(ctx, l, v, opts, cmp, source)
 		if err != nil {
 			return err
 		}
@@ -1106,6 +1107,7 @@ func stagePackage(
 	l log.Logger,
 	v *venv.Venv,
 	opts *generateOpts,
+	cmp *componentToGenerate,
 	source string,
 ) (*stagedPackage, error) {
 	packageURL, subdir := getter.SourceDirSubdir(source)
@@ -1130,7 +1132,7 @@ func stagePackage(
 				l,
 				opts.casInstance,
 				v,
-				&cas.CloneOptions{Dir: packageDir},
+				&cas.CloneOptions{Dir: packageDir, Mutable: cmp.mutable},
 				getter.WithDefaultGenericDispatch(
 					getter.WithDispatchLogger(l),
 					getter.WithDispatchFS(v.FS),
@@ -1147,8 +1149,27 @@ func stagePackage(
 		return nil, fmt.Errorf("failed to fetch %s through CAS: %w", redact.NewURL(packageURL), err)
 	}
 
-	if subdir != "" {
-		packageDir += "//" + subdir
+	if subdir == "" {
+		return &stagedPackage{source: packageDir, cleanup: cleanup}, nil
+	}
+
+	// The selector may be a glob, which the walk cannot expand, so resolve it against the fetched package first.
+	selected, err := getter.SubdirGlob(packageDir, subdir)
+	if err != nil {
+		cleanup()
+
+		return nil, fmt.Errorf("failed to select subdir %q in %s: %w", subdir, redact.NewURL(packageURL), err)
+	}
+
+	rel, err := filepath.Rel(packageDir, selected)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		cleanup()
+
+		return nil, fmt.Errorf("%w: %q", cas.ErrSourceEscapesRepo, subdir)
+	}
+
+	if rel != "." {
+		packageDir += "//" + filepath.ToSlash(rel)
 	}
 
 	return &stagedPackage{source: packageDir, cleanup: cleanup}, nil
