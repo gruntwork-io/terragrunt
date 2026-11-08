@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
@@ -63,11 +64,23 @@ func (controller *DownloaderController) downloadProviderAction(w router.Response
 	var (
 		remoteScheme = r.PathValue("remote_scheme")
 		remoteHost   = r.PathValue("remote_host")
-		remotePath   = r.PathValue("rest")
 	)
 
 	if remoteScheme != "http" && remoteScheme != "https" {
 		return router.NewHTTPError(http.StatusNotFound)
+	}
+
+	// Read the path escaped so an escaped slash or a trailing slash is forwarded unchanged.
+	_, hostAndPath, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), controller.URL().Path+"/"), "/")
+
+	_, escapedPath, found := strings.Cut(hostAndPath, "/")
+	if !found {
+		return router.NewHTTPError(http.StatusNotFound)
+	}
+
+	remotePath, err := url.PathUnescape(escapedPath)
+	if err != nil {
+		return router.NewHTTPError(http.StatusBadRequest)
 	}
 
 	// Forward query string from the inbound request so signed URLs (e.g. S3 pre-signed) keep their auth parameters.
@@ -75,6 +88,7 @@ func (controller *DownloaderController) downloadProviderAction(w router.Response
 		Scheme:   remoteScheme,
 		Host:     remoteHost,
 		Path:     "/" + remotePath,
+		RawPath:  "/" + escapedPath,
 		RawQuery: r.URL.RawQuery,
 	}
 

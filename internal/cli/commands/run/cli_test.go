@@ -123,6 +123,16 @@ func TestNewCommandRunsTheSelectedUnits(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantUnits, rec.unitsRun(tf.CommandNamePlan))
 			assert.Equal(t, tc.wantUnits, rec.unitsRun(tf.CommandNameInit))
+
+			for _, unit := range tc.wantUnits {
+				assert.Equal(
+					t,
+					[]string{tf.CommandNameInit, tf.CommandNamePlan},
+					rec.commandsIn(unit),
+					"%s should run init before plan",
+					unit,
+				)
+			}
 		})
 	}
 }

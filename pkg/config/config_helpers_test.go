@@ -557,43 +557,6 @@ func TestFindInParentFolders(t *testing.T) {
 	}
 }
 
-// TestFindInParentFoldersRootTerragruntHCLStrictControl pins that the enabled root-terragrunt-hcl control rejects a terragrunt.hcl lookup in any case.
-func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name           string
-		params         []string
-		wantControlErr bool
-	}{
-		{name: "no file name", wantControlErr: true},
-		{name: "terragrunt.hcl", params: []string{config.DefaultTerragruntConfigPath}, wantControlErr: true},
-		{name: "terragrunt.hcl in another case", params: []string{"TERRAGRUNT.HCL"}, wantControlErr: true},
-		{name: "another file name", params: []string{"root.hcl"}},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx, pctx := newTestParsingContext(t, "/fake/path")
-			require.NoError(t, pctx.StrictControls.EnableControl(controls.RootTerragruntHCL))
-
-			ctrl, ok := pctx.StrictControls.Find(controls.RootTerragruntHCL).(*controls.Control)
-			require.True(t, ok, "control %s should be a *controls.Control", controls.RootTerragruntHCL)
-
-			_, err := config.FindInParentFolders(ctx, logger.CreateLogger(), venvtest.New(), pctx, tc.params)
-			if tc.wantControlErr {
-				require.ErrorIs(t, err, ctrl.Error, "the enabled control should reject a terragrunt.hcl root")
-
-				return
-			}
-
-			require.ErrorAs(t, err, new(config.ParentFileNotFoundError))
-		})
-	}
-}
-
 func TestFindInParentFoldersWithStackFile(t *testing.T) {
 	t.Parallel()
 

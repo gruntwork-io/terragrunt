@@ -3,7 +3,6 @@ package shared
 import (
 	"context"
 	"path/filepath"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -37,7 +36,7 @@ func NewScaffoldingFlags(opts *options.TerragruntOptions, prefix flags.Prefix) c
 					)
 				}
 
-				if !strings.EqualFold(filepath.Base(value), config.DefaultTerragruntConfigPath) {
+				if filepath.Base(value) != config.DefaultTerragruntConfigPath {
 					opts.ScaffoldRootFileName = value
 
 					return nil

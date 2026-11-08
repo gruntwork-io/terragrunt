@@ -155,6 +155,50 @@ func TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON(t *testing.T) {
 	}
 }
 
+// TestProxyProviderHandlerGetPlatformKeepsLinkPath pins that a rewritten link keeps escaped slashes and a trailing slash.
+func TestProxyProviderHandlerGetPlatformKeepsLinkPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		link string
+		want string
+	}{
+		{
+			name: "escaped slash",
+			link: "https://registry.example.com/projects/group%2Fproject/example.zip?sig=1",
+			want: "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/projects/group%2Fproject/example.zip?sig=1",
+		},
+		{
+			name: "trailing slash",
+			link: "https://registry.example.com/example/1.0.0/",
+			want: "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example/1.0.0/",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			c := vhttp.NewMemClient(registryRoutes(map[string]string{
+				"/.well-known/terraform.json": discoveryDocument,
+				platformPath:                  `{"download_url": "` + tc.link + `"}`,
+			}))
+
+			rec := httptest.NewRecorder()
+
+			require.NoError(t, handlers.NewProxyProviderHandler(logger.CreateLogger(), c, nil).
+				GetPlatform(router.NewResponseWriter(rec), newProxyRequest(t), mirroredProvider(), fakeDownloader{}))
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			var body map[string]string
+
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			assert.Equal(t, tc.want, body["download_url"])
+		})
+	}
+}
+
 func TestProxyProviderHandlerGetPlatformUnusableLinks(t *testing.T) {
 	t.Parallel()
 

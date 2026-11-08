@@ -568,6 +568,20 @@ func (rec *recorder) unitsRun(command string) []string {
 	return units
 }
 
+// commandsIn returns, in order, the OpenTofu/Terraform commands that ran in the unit directory.
+func (rec *recorder) commandsIn(unit string) []string {
+	var commands []string
+
+	for _, inv := range rec.invocations() {
+		dir, _, _ := strings.Cut(inv.Dir, string(filepath.Separator)+".terragrunt-cache")
+		if len(inv.Args) > 0 && dir == unit {
+			commands = append(commands, inv.Args[0])
+		}
+	}
+
+	return commands
+}
+
 // limitedWriter accepts a number of writes, then refuses the rest; a negative limit accepts every write.
 type limitedWriter struct {
 	buf       bytes.Buffer

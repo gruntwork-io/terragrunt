@@ -326,37 +326,52 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 	t.Parallel()
 
 	httpArchiveURL := "http://releases.example.com/example/1.0.0/" + testArchiveName
+	archivePath := "/releases.example.com/example/1.0.0/" + testArchiveName
 
 	testCases := []struct {
 		name            string
-		scheme          string
+		remote          string
 		segment         func(*controllers.DownloaderController) string
 		wantUpstreamURL string
 		wantStatus      int
 	}{
 		{
 			name:            "download through the secret segment",
-			scheme:          "https",
+			remote:          "https" + archivePath,
 			segment:         (*controllers.DownloaderController).Segment,
 			wantStatus:      http.StatusOK,
 			wantUpstreamURL: testArchiveURL + "?X-Amz-Signature=abc",
 		},
 		{
 			name:            "http download keeps its scheme",
-			scheme:          "http",
+			remote:          "http" + archivePath,
 			segment:         (*controllers.DownloaderController).Segment,
 			wantStatus:      http.StatusOK,
 			wantUpstreamURL: httpArchiveURL + "?X-Amz-Signature=abc",
 		},
 		{
+			name:            "download keeps an escaped slash",
+			remote:          "https/releases.example.com/group%2Fproject/" + testArchiveName,
+			segment:         (*controllers.DownloaderController).Segment,
+			wantStatus:      http.StatusOK,
+			wantUpstreamURL: "https://releases.example.com/group%2Fproject/" + testArchiveName + "?X-Amz-Signature=abc",
+		},
+		{
+			name:            "download keeps a trailing slash",
+			remote:          "https/releases.example.com/example/1.0.0/",
+			segment:         (*controllers.DownloaderController).Segment,
+			wantStatus:      http.StatusOK,
+			wantUpstreamURL: "https://releases.example.com/example/1.0.0/?X-Amz-Signature=abc",
+		},
+		{
 			name:       "download with an unsupported scheme",
-			scheme:     "ftp",
+			remote:     "ftp" + archivePath,
 			segment:    (*controllers.DownloaderController).Segment,
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "download through another segment",
-			scheme:     "https",
+			remote:     "https" + archivePath,
 			segment:    func(*controllers.DownloaderController) string { return "guessed" },
 			wantStatus: http.StatusNotFound,
 		},
@@ -369,6 +384,8 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 			up := newUpstream(map[string][]byte{
 				testArchiveURL: []byte("archive bytes"),
 				httpArchiveURL: []byte("archive bytes"),
+				"https://releases.example.com/group/project/" + testArchiveName: []byte("archive bytes"),
+				"https://releases.example.com/example/1.0.0/":                   []byte("archive bytes"),
 			})
 			l := logger.CreateLogger()
 
@@ -383,15 +400,13 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 			rec := serve(
 				t,
 				root,
-				"/downloads/"+tc.segment(
-					downloader,
-				)+"/"+tc.scheme+"/releases.example.com/example/1.0.0/"+testArchiveName+"?X-Amz-Signature=abc",
+				"/downloads/"+tc.segment(downloader)+"/"+tc.remote+"?X-Amz-Signature=abc",
 				"",
 			)
 
 			assert.Equal(t, tc.wantStatus, rec.Code)
 
-			proxied := up.requestsTo("/example/1.0.0/")
+			proxied := up.requestsTo("releases.example.com")
 			if tc.wantUpstreamURL == "" {
 				assert.Empty(t, proxied, "a request the route rejects should never reach upstream")
 
