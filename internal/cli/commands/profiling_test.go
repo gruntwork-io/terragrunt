@@ -1,6 +1,7 @@
 package commands_test
 
 import (
+	"bytes"
 	"context"
 	"io/fs"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -192,14 +194,30 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name      string
-		op        string
-		mem       string
-		goroutine string
+		name        string
+		op          string
+		mem         string
+		goroutine   string
+		wantWarning string
 	}{
-		{name: "memory profile write", op: "write", mem: venvtest.Root("/profiles/mem.prof")},
-		{name: "goroutine profile write", op: "write", goroutine: venvtest.Root("/profiles/goroutine.prof")},
-		{name: "memory profile close", op: "close", mem: venvtest.Root("/profiles/mem.prof")},
+		{
+			name:        "memory profile write",
+			op:          "write",
+			mem:         venvtest.Root("/profiles/mem.prof"),
+			wantWarning: "Could not write memory profile",
+		},
+		{
+			name:        "goroutine profile write",
+			op:          "write",
+			goroutine:   venvtest.Root("/profiles/goroutine.prof"),
+			wantWarning: "Could not write goroutine profile",
+		},
+		{
+			name:        "memory profile close",
+			op:          "close",
+			mem:         venvtest.Root("/profiles/mem.prof"),
+			wantWarning: "Could not close memory profile",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -213,9 +231,13 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 			opts.ProfileMem = tc.mem
 			opts.ProfileGoroutine = tc.goroutine
 
+			var out bytes.Buffer
+
+			l := logger.CreateLogger().WithOptions(log.WithOutput(&out))
+
 			actionRan := false
 
-			err := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)(t.Context(), &clihelper.Context{},
+			err := commands.WrapWithProfiling(l, opts, v)(t.Context(), &clihelper.Context{},
 				func(context.Context, *clihelper.Context) error {
 					actionRan = true
 
@@ -223,6 +245,7 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 				})
 			require.NoError(t, err, "a profile flush failure should not fail the command")
 			assert.True(t, actionRan, "the action should run")
+			assert.Contains(t, out.String(), tc.wantWarning, "the flush failure should be reported as a warning")
 		})
 	}
 }
@@ -238,6 +261,7 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 		name        string
 		wantOp      string
 		wantPath    string
+		wantLog     string
 		faults      []fault
 		wantMemFile bool
 	}{
@@ -246,12 +270,14 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 			faults:   []fault{atPath("openfile", goroutinePath), atPath("close", memPath)},
 			wantOp:   "openfile",
 			wantPath: goroutinePath,
+			wantLog:  "Could not close discarded profile",
 		},
 		{
 			name:        "discarded profile fails to remove",
 			faults:      []fault{atPath("openfile", goroutinePath), atPath("remove", memPath)},
 			wantOp:      "openfile",
 			wantPath:    goroutinePath,
+			wantLog:     "Could not remove discarded profile",
 			wantMemFile: true,
 		},
 		{
@@ -259,6 +285,7 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 			faults:      []fault{atPath("chmod", memPath), atPath("close", memPath)},
 			wantOp:      "chmod",
 			wantPath:    memPath,
+			wantLog:     "Could not close profile",
 			wantMemFile: true,
 		},
 	}
@@ -274,7 +301,11 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 			opts.ProfileMem = memPath
 			opts.ProfileGoroutine = goroutinePath
 
-			err := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)(t.Context(), &clihelper.Context{}, failIfCalled(t))
+			var out bytes.Buffer
+
+			l := logger.CreateLogger().WithOptions(log.WithOutput(&out))
+
+			err := commands.WrapWithProfiling(l, opts, v)(t.Context(), &clihelper.Context{}, failIfCalled(t))
 			require.ErrorIs(t, err, errInjected)
 
 			var pathErr *fs.PathError
@@ -283,6 +314,7 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 			assert.Equal(t, tc.wantOp, pathErr.Op, "the startup failure should be reported, not the cleanup one")
 			assert.Equal(t, tc.wantPath, pathErr.Path, "the startup failure should name the profile that failed")
 			assert.Equal(t, tc.wantMemFile, vfs.Exists(v.FS, memPath), "memory profile presence after cleanup")
+			assert.Contains(t, out.String(), tc.wantLog, "the cleanup failure should be logged")
 		})
 	}
 }

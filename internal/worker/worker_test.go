@@ -300,7 +300,12 @@ func TestStart_ClearsCollectedErrorsAfterFullStopWithRacing(t *testing.T) {
 
 	wp.Start()
 
-	assert.NoError(t, wp.Wait(), "starting a stopped pool should drop the errors it collected")
+	require.NoError(t, wp.Wait(), "starting a stopped pool should drop the errors it collected")
+
+	errRestarted := errors.New("restarted task failed")
+
+	wp.Submit(func() error { return errRestarted })
+	assert.ErrorIs(t, wp.Wait(), errRestarted, "a restarted pool should run new tasks")
 }
 
 func TestSubmit_DropsTasksWhileStopping(t *testing.T) {

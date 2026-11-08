@@ -56,18 +56,23 @@ func (controller *DownloaderController) Register(router *router.Router) {
 	controller.Router = router.Group(path.Join(downloadPath, controller.segment))
 
 	// Wildcard route so multi-segment S3/GCS bucket paths match correctly.
-	controller.GET("/{remote_host}/{rest...}", controller.downloadProviderAction)
+	controller.GET("/{remote_scheme}/{remote_host}/{rest...}", controller.downloadProviderAction)
 }
 
 func (controller *DownloaderController) downloadProviderAction(w router.ResponseWriter, r *http.Request) error {
 	var (
-		remoteHost = r.PathValue("remote_host")
-		remotePath = r.PathValue("rest")
+		remoteScheme = r.PathValue("remote_scheme")
+		remoteHost   = r.PathValue("remote_host")
+		remotePath   = r.PathValue("rest")
 	)
+
+	if remoteScheme != "http" && remoteScheme != "https" {
+		return router.NewHTTPError(http.StatusNotFound)
+	}
 
 	// Forward query string from the inbound request so signed URLs (e.g. S3 pre-signed) keep their auth parameters.
 	downloadURL := url.URL{
-		Scheme:   "https",
+		Scheme:   remoteScheme,
 		Host:     remoteHost,
 		Path:     "/" + remotePath,
 		RawQuery: r.URL.RawQuery,

@@ -122,6 +122,7 @@ func TestNewCommandRunsTheSelectedUnits(t *testing.T) {
 			_, err := runCommand(t, runcommand.NewCommand(logger.CreateLogger(), opts, v), tc.args...)
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantUnits, rec.unitsRun(tf.CommandNamePlan))
+			assert.Equal(t, tc.wantUnits, rec.unitsRun(tf.CommandNameInit))
 		})
 	}
 }

@@ -709,6 +709,18 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			expected: []string{"plan", "-bar", "-baz"},
 		},
 		{
+			args:     []string{"run", "--", tf.CommandNamePlan},
+			expected: []string{tf.CommandNamePlan},
+		},
+		{
+			args:     []string{"run", tf.CommandNamePlan},
+			expected: []string{tf.CommandNamePlan},
+		},
+		{
+			args:     []string{"run", "--", "custom-command"},
+			expected: []string{"custom-command"},
+		},
+		{
 			args:     []string{"run", "--all", "apply", "plan", "bar"},
 			expected: []string{tf.CommandNameApply, "plan", "bar"},
 		},

@@ -23,28 +23,34 @@ func TestClientDoCachesResponsesPerURL(t *testing.T) {
 	t.Parallel()
 
 	listings := map[string]string{
-		"/aws/versions":    versionsListing,
-		"/google/versions": `{"versions":[{"version":"6.0.0"}]}`,
+		"https://registry.test/aws/versions":    versionsListing,
+		"https://registry.test/google/versions": `{"versions":[{"version":"6.0.0"}]}`,
+		"https://registry2.test/aws/versions":   `{"versions":[{"version":"7.0.0"}]}`,
 	}
 	want := map[string][]string{
-		"/aws/versions":    {"5.0.0", "5.1.0"},
-		"/google/versions": {"6.0.0"},
+		"https://registry.test/aws/versions":    {"5.0.0", "5.1.0"},
+		"https://registry.test/google/versions": {"6.0.0"},
+		"https://registry2.test/aws/versions":   {"7.0.0"},
 	}
-	calls := map[string]*atomic.Int32{"/aws/versions": {}, "/google/versions": {}}
+	calls := map[string]*atomic.Int32{
+		"https://registry.test/aws/versions":    {},
+		"https://registry.test/google/versions": {},
+		"https://registry2.test/aws/versions":   {},
+	}
 
 	c := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
-		calls[req.URL.Path].Add(1)
+		calls[req.URL.String()].Add(1)
 
-		return vhttp.Respond(http.StatusOK, []byte(listings[req.URL.Path]), nil), nil
+		return vhttp.Respond(http.StatusOK, []byte(listings[req.URL.String()]), nil), nil
 	})
 
 	client := helpers.NewClient(c, nil)
 
 	for range 2 {
-		for path, versions := range want {
+		for reqURL, versions := range want {
 			var value versionsValue
 
-			require.NoError(t, client.Do(t.Context(), http.MethodGet, "https://registry.test"+path, &value))
+			require.NoError(t, client.Do(t.Context(), http.MethodGet, reqURL, &value))
 
 			got := make([]string, 0, len(value.Versions))
 			for _, v := range value.Versions {
@@ -55,8 +61,8 @@ func TestClientDoCachesResponsesPerURL(t *testing.T) {
 		}
 	}
 
-	for path, n := range calls {
-		assert.Equal(t, int32(1), n.Load(), "%s should be fetched once and then served from the cache", path)
+	for reqURL, n := range calls {
+		assert.Equal(t, int32(1), n.Load(), "%s should be fetched once and then served from the cache", reqURL)
 	}
 }
 

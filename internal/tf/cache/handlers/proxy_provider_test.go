@@ -28,7 +28,7 @@ func TestProxyProviderHandlerGetPlatformRewritesDownloadURLs(t *testing.T) {
 		platformPath: `{
 			"os": "linux",
 			"download_url": "https://releases.example.com/example/1.0.0/example.zip",
-			"shasums_url": "https://releases.example.com/example/1.0.0/SHA256SUMS?sig=1"
+			"shasums_url": "http://mirror.example.com:8080/example/1.0.0/SHA256SUMS?sig=1"
 		}`,
 	}))
 
@@ -49,13 +49,14 @@ func TestProxyProviderHandlerGetPlatformRewritesDownloadURLs(t *testing.T) {
 
 	assert.Equal(
 		t,
-		"http://127.0.0.1:5758/downloads/segment/releases.example.com/example/1.0.0/example.zip",
+		"http://127.0.0.1:5758/downloads/segment/https/releases.example.com/example/1.0.0/example.zip",
 		body["download_url"],
 	)
 	assert.Equal(
 		t,
-		"http://127.0.0.1:5758/downloads/segment/releases.example.com/example/1.0.0/SHA256SUMS?sig=1",
+		"http://127.0.0.1:5758/downloads/segment/http/mirror.example.com:8080/example/1.0.0/SHA256SUMS?sig=1",
 		body["shasums_url"],
+		"an http link should keep its scheme",
 	)
 	assert.Equal(t, "linux", body["os"], "fields other than the download urls should pass through")
 	assert.NotContains(t, body, "shasums_signature_url", "a url the registry did not send should not be added")
@@ -81,19 +82,19 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 
 	assert.Equal(
 		t,
-		"http://127.0.0.1:5758/downloads/segment/registry.example.com/v1/providers/example/example/1.0.0/download/linux/example.zip",
+		"http://127.0.0.1:5758/downloads/segment/https/registry.example.com/v1/providers/example/example/1.0.0/download/linux/example.zip",
 		body["download_url"],
 		"a relative download url should replace the last segment of the platform url",
 	)
 	assert.Equal(
 		t,
-		"http://127.0.0.1:5758/downloads/segment/registry.example.com/v1/providers/example/example/1.0.0/download/SHA256SUMS.sig",
+		"http://127.0.0.1:5758/downloads/segment/https/registry.example.com/v1/providers/example/example/1.0.0/download/SHA256SUMS.sig",
 		body["shasums_signature_url"],
 		"a parent-relative url should resolve above the platform url",
 	)
 	assert.Equal(
 		t,
-		"http://127.0.0.1:5758/downloads/segment/registry.example.com/sums/SHA256SUMS?sig=1",
+		"http://127.0.0.1:5758/downloads/segment/https/registry.example.com/sums/SHA256SUMS?sig=1",
 		body["shasums_url"],
 		"a root-relative url should keep the registry host",
 	)
@@ -111,14 +112,14 @@ func TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON(t *testing.T) {
 			name: "escaped slashes",
 			body: `{"download_url": "https:\/\/registry.example.com\/example.zip"}`,
 			want: map[string]any{
-				"download_url": "http://127.0.0.1:5758/downloads/segment/registry.example.com/example.zip",
+				"download_url": "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example.zip",
 			},
 		},
 		{
 			name: "null link",
 			body: `{"download_url": "https://registry.example.com/example.zip", "shasums_signature_url": null}`,
 			want: map[string]any{
-				"download_url":          "http://127.0.0.1:5758/downloads/segment/registry.example.com/example.zip",
+				"download_url":          "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example.zip",
 				"shasums_signature_url": nil,
 			},
 		},

@@ -75,13 +75,13 @@ func TestDownloadRouteRequiresSecretSegment(t *testing.T) {
 		"download route must not be reachable without the secret segment")
 
 	require.Equal(t, http.StatusNotFound,
-		getStatus(t, ctx, client, base+"/downloads/"+wrongSegment+"/registry.terraform.io/provider.zip"),
+		getStatus(t, ctx, client, base+"/downloads/"+wrongSegment+"/https/registry.terraform.io/provider.zip"),
 		"download route must reject an incorrect secret segment")
 
 	// The proxy's client refuses every request, so a routed request fails inside
 	// the proxy rather than 404ing. Any status but 404 proves the route matched.
 	require.NotEqual(t, http.StatusNotFound,
-		getStatus(t, ctx, client, base+"/downloads/"+segment+"/example.invalid/provider.zip"),
+		getStatus(t, ctx, client, base+"/downloads/"+segment+"/https/example.invalid/provider.zip"),
 		"correct secret segment must resolve the download route")
 
 	cancel()
@@ -127,7 +127,7 @@ func TestDownloadSegmentIsRedactedFromLogs(t *testing.T) {
 	segment := server.DownloaderController.Segment()
 
 	getStatus(t, ctx, &http.Client{Timeout: 5 * time.Second},
-		"http://"+ln.Addr().String()+"/downloads/"+segment+"/example.invalid/provider.zip")
+		"http://"+ln.Addr().String()+"/downloads/"+segment+"/https/example.invalid/provider.zip")
 
 	// Shutting the server down first joins the request goroutine that logs.
 	cancel()

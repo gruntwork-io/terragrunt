@@ -242,7 +242,7 @@ func TestProviderControllerGetPlatformRewritesDownloadURLs(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 
 	downloadBase := "http://" + testServerAddr + "/downloads/" + downloader.Segment() +
-		"/releases.example.com/example/1.0.0/"
+		"/https/releases.example.com/example/1.0.0/"
 	assert.Equal(t, downloadBase+testArchiveName, body["download_url"], "download url should point at the cache server")
 	assert.Equal(t, downloadBase+"SHA256SUMS", body["shasums_url"], "shasums url should point at the cache server")
 	assert.Equal(t, "linux", body["os"], "other fields should pass through")
@@ -307,7 +307,12 @@ func TestProviderControllerCachesProviderForDownload(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cached, 1, "the requested provider should be cached")
 
-	rec = serve(t, root, "/downloads/"+downloader.Segment()+"/releases.example.com/example/1.0.0/"+testArchiveName, "")
+	rec = serve(
+		t,
+		root,
+		"/downloads/"+downloader.Segment()+"/https/releases.example.com/example/1.0.0/"+testArchiveName,
+		"",
+	)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, archive, rec.Body.Bytes(), "download should serve the cached archive")
@@ -320,20 +325,38 @@ func TestProviderControllerCachesProviderForDownload(t *testing.T) {
 func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 	t.Parallel()
 
+	httpArchiveURL := "http://releases.example.com/example/1.0.0/" + testArchiveName
+
 	testCases := []struct {
 		name            string
+		scheme          string
 		segment         func(*controllers.DownloaderController) string
 		wantUpstreamURL string
 		wantStatus      int
 	}{
 		{
 			name:            "download through the secret segment",
+			scheme:          "https",
 			segment:         (*controllers.DownloaderController).Segment,
 			wantStatus:      http.StatusOK,
 			wantUpstreamURL: testArchiveURL + "?X-Amz-Signature=abc",
 		},
 		{
+			name:            "http download keeps its scheme",
+			scheme:          "http",
+			segment:         (*controllers.DownloaderController).Segment,
+			wantStatus:      http.StatusOK,
+			wantUpstreamURL: httpArchiveURL + "?X-Amz-Signature=abc",
+		},
+		{
+			name:       "download with an unsupported scheme",
+			scheme:     "ftp",
+			segment:    (*controllers.DownloaderController).Segment,
+			wantStatus: http.StatusNotFound,
+		},
+		{
 			name:       "download through another segment",
+			scheme:     "https",
 			segment:    func(*controllers.DownloaderController) string { return "guessed" },
 			wantStatus: http.StatusNotFound,
 		},
@@ -343,7 +366,10 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			up := newUpstream(map[string][]byte{testArchiveURL: []byte("archive bytes")})
+			up := newUpstream(map[string][]byte{
+				testArchiveURL: []byte("archive bytes"),
+				httpArchiveURL: []byte("archive bytes"),
+			})
 			l := logger.CreateLogger()
 
 			downloader := controllers.NewDownloaderController(
@@ -357,7 +383,9 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 			rec := serve(
 				t,
 				root,
-				"/downloads/"+tc.segment(downloader)+"/releases.example.com/example/1.0.0/"+testArchiveName+"?X-Amz-Signature=abc",
+				"/downloads/"+tc.segment(
+					downloader,
+				)+"/"+tc.scheme+"/releases.example.com/example/1.0.0/"+testArchiveName+"?X-Amz-Signature=abc",
 				"",
 			)
 
@@ -365,7 +393,7 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 
 			proxied := up.requestsTo("/example/1.0.0/")
 			if tc.wantUpstreamURL == "" {
-				assert.Empty(t, proxied, "a request through the wrong segment should never reach upstream")
+				assert.Empty(t, proxied, "a request the route rejects should never reach upstream")
 
 				return
 			}

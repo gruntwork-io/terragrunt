@@ -238,6 +238,8 @@ func TestClone_ShadowCopyInversePkgPrefixes(t *testing.T) {
 
 	dst := cloner.Clone(src, cloner.WithShadowCopyInversePkgPrefixes("github.com/gruntwork-io/terragrunt"))
 
+	assert.Equal(t, src.Named, dst.Named, "named types inside the prefixes should keep their contents")
+
 	dst.Query.Set("q", "2")
 	dst.Local["k"] = "changed"
 	dst.Named["k"] = "changed"
