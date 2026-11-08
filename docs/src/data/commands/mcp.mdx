@@ -129,6 +129,10 @@ directory that holds the units it needs.
 | `plan`          | Runs `run --all plan` across the units and returns the per-unit result       | `exec`                                                 |
 | `catalog`       | Lists the components in the catalog the configuration names                  | `exec` to clone a remote repository                    |
 | `scaffold`      | Writes new configuration from a module, unit, or stack source                | `http`, or `exec` for git, to fetch a remote source    |
+| `fmt`           | Rewrites `.hcl` files into canonical format, as `hcl fmt` does               | None                                                   |
+
+A server started with no `--allow` flag can still write under its root: `scaffold` generates files from a local source,
+and `fmt` rewrites `.hcl` files.
 
 </Since>
 
@@ -264,6 +268,29 @@ A unit that printed nothing has no `stdout`, and a unit whose plan failed has no
 
 The files go in a directory under the system temp directory, readable only by the server's user, and are deleted when
 the server stops.
+
+<Since version="v1.2.2">
+
+`fmt` rewrites the `.hcl` files under a directory into canonical format. It skips `.terragrunt-cache`,
+`.terragrunt-stack`, and `.boilerplate` directories, as [`hcl fmt`](/reference/cli/commands/hcl/fmt) does.
+
+- `check` reports the files that need formatting without changing any, as `hcl fmt --check` does.
+- `diff` adds a unified diff for each of those files.
+- `file` formats a single `.hcl` file, relative to `working_dir`. The directory is not walked, and `filter` must be
+  empty.
+- `filter` narrows which files are formatted, with the path filters
+  [`hcl fmt --filter`](/reference/cli/commands/hcl/fmt#filter) takes, e.g. `./stage/**` or `!./modules/**`. A filter
+  that needs unit discovery, such as `type=unit`, is refused.
+
+`changed` lists the files whose formatting differed. Without `check`, `fmt` rewrote them. A file that does not parse is
+left as it is and reported in `parse_errors`. `formatted` is `true` when `changed` and `parse_errors` are both empty,
+and `file_count` is the number of files examined.
+
+`fmt` skips symlinks. A symlinked file is listed in `skipped`, and a symlinked directory is not walked. A `file` whose
+directory resolves outside the server root is refused. The check comes before the read, so a symlink that another
+process swaps in after the check, before the read, is followed.
+
+</Since>
 
 ### apply and destroy
 

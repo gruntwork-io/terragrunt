@@ -16,7 +16,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -83,52 +82,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 		return formatTgHCL(l, v, opts, targetFile)
 	}
 
-	var (
-		filters filter.Filters
-		err     error
-	)
-
-	filters = opts.Filters
-
-	// We use lightweight discovery here instead of the full discovery used by
-	// the discovery package because we want to find non-comps like includes.
-	files := []string{}
-
-	err = vfs.WalkDir(v.FS, workingDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		basename := filepath.Base(path)
-		if slices.Contains(excludePaths, basename) {
-			l.Debugf("%s directory ignored by default", path)
-			return fs.SkipDir
-		}
-
-		if slices.Contains(opts.HclExclude, basename) {
-			l.Debugf("%s directory ignored due to the %s flag", path, ExcludeDirFlagName)
-			return fs.SkipDir
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		if !strings.HasSuffix(path, ".hcl") {
-			return nil
-		}
-
-		files = append(files, path)
-
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	var components component.Components
-
-	components, err = filters.EvaluateOnFiles(l, files, workingDir)
+	files, err := Files(l, v.FS, workingDir, opts.HclExclude, opts.Filters)
 	if err != nil {
 		return err
 	}
@@ -141,11 +95,11 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 
 	// Pre-allocate the errs slice with max possible length
 	// so we don't need to hold a lock to append to it.
-	errs := make([]error, len(components))
+	errs := make([]error, len(files))
 
-	for i, c := range components {
+	for i, file := range files {
 		g.Go(func() error {
-			err := formatTgHCL(l, v, opts, c.Path())
+			err := formatTgHCL(l, v, opts, file)
 			if err != nil {
 				errs[i] = err
 			}
@@ -211,6 +165,81 @@ func RunForFiles(
 	return errors.Join(errs...)
 }
 
+// Files returns the HCL files [Run] formats under workingDir: every file
+// ending in .hcl outside .terragrunt-cache, .terragrunt-stack, .boilerplate,
+// and the directories excludeDirs names, narrowed by filters. Symlinked
+// directories are not descended into.
+//
+// Returns a [filter.FilterQueryRequiresDiscoveryError] when a filter needs
+// more than a file path to evaluate.
+func Files(
+	l log.Logger,
+	fsys vfs.FS,
+	workingDir string,
+	excludeDirs []string,
+	filters filter.Filters,
+) ([]string, error) {
+	// We use lightweight discovery here instead of the full discovery used by
+	// the discovery package because we want to find non-comps like includes.
+	files := []string{}
+
+	err := vfs.WalkDir(fsys, workingDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		basename := filepath.Base(path)
+		if slices.Contains(excludePaths, basename) {
+			l.Debugf("%s directory ignored by default", path)
+			return fs.SkipDir
+		}
+
+		if slices.Contains(excludeDirs, basename) {
+			l.Debugf("%s directory ignored due to the %s flag", path, ExcludeDirFlagName)
+			return fs.SkipDir
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(path, ".hcl") {
+			return nil
+		}
+
+		files = append(files, path)
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	components, err := filters.EvaluateOnFiles(l, files, workingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	selected := make([]string, 0, len(components))
+	for _, c := range components {
+		selected = append(selected, c.Path())
+	}
+
+	return selected, nil
+}
+
+// Bytes returns contents rewritten into canonical HCL format.
+//
+// Returns the parse diagnostics as the error, after logging them, when
+// contents do not parse.
+func Bytes(l log.Logger, v *venv.Venv, contents []byte, filename string) ([]byte, error) {
+	if err := checkErrors(l, v, contents, filename); err != nil {
+		return nil, err
+	}
+
+	return hclwrite.Format(contents), nil
+}
+
 func formatFromStdin(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	const stdinPath = "stdin"
 
@@ -221,13 +250,12 @@ func formatFromStdin(l log.Logger, v *venv.Venv, opts *options.TerragruntOptions
 		return fmt.Errorf("error reading from stdin: %w", err)
 	}
 
-	if err = checkErrors(l, v, contents, stdinPath); err != nil {
+	newContents, err := Bytes(l, v, contents, stdinPath)
+	if err != nil {
 		l.Errorf("Error parsing hcl from stdin")
 
 		return fmt.Errorf("error parsing hcl from stdin: %w", err)
 	}
-
-	newContents := hclwrite.Format(contents)
 
 	needsFormatting := !bytes.Equal(newContents, contents)
 
@@ -286,13 +314,11 @@ func formatTgHCL(
 		return fmt.Errorf("failed to read %s: %w", tgHclFile, err)
 	}
 
-	err = checkErrors(l, v, contents, tgHclFile)
+	newContents, err := Bytes(l, v, contents, tgHclFile)
 	if err != nil {
 		l.Errorf("Error parsing %s", tgHclFile)
 		return err
 	}
-
-	newContents := hclwrite.Format(contents)
 
 	fileUpdated := !bytes.Equal(newContents, contents)
 

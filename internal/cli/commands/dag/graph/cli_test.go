@@ -1,12 +1,14 @@
 package graph_test
 
 import (
+	"bytes"
 	"io"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -101,4 +103,32 @@ func TestNewCommandExposesTheQueueFlags(t *testing.T) {
 	} {
 		assert.NotNil(t, cmd.Flags.Get(name), name)
 	}
+}
+
+// TestNewCommandRendersTheDependencyGraph pins the DOT output, edges included, that `dag graph` prints.
+func TestNewCommandRendersTheDependencyGraph(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/graph")
+	out := new(bytes.Buffer)
+	v := venvtest.New().WithWriter(out).WithFS(venvtest.NewFS(t, root, map[string]string{
+		"app/terragrunt.hcl": "dependency \"db\" {\n  config_path = \"../db\"\n}\n" +
+			"dependency \"vpc\" {\n  config_path = \"../vpc\"\n}\n",
+		"db/terragrunt.hcl":  "dependency \"vpc\" {\n  config_path = \"../vpc\"\n}\n",
+		"vpc/terragrunt.hcl": "",
+	}))
+
+	opts := options.NewTerragruntOptions(v.Exec)
+	opts.WorkingDir = root
+	opts.RootWorkingDir = root
+
+	cmd := graph.NewCommand(logger.CreateLogger(), opts, v)
+	require.NoError(t, cmd.Action(config.WithCaches(t.Context()), &clihelper.Context{}))
+
+	assert.Equal(
+		t,
+		"digraph {\n\t\"app\" ;\n\t\"app\" -> \"db\";\n\t\"app\" -> \"vpc\";\n"+
+			"\t\"db\" ;\n\t\"db\" -> \"vpc\";\n\t\"vpc\" ;\n}\n",
+		out.String(),
+	)
 }
