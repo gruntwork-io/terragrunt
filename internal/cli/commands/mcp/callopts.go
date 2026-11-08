@@ -12,19 +12,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 )
 
 // freshCallContext gives one tool call its own HCL, dependency-output,
 // repo-root, and run_cmd caches. RunAction installs those once on the action
-// context every call shares. Without this reset, a repo root the deny-all git
-// stub approximated on one call would be reused by later calls, degrading
-// them without the note that says so.
+// context every call shares. Without this reset, a run_cmd output a refusal
+// stubbed on one call would be reused by later calls, degrading them without
+// the note that says so.
 func freshCallContext(ctx context.Context) context.Context {
 	return cache.ContextWithCache(config.WithCaches(ctx))
 }
@@ -114,7 +114,7 @@ func buildDirOptions(
 	opts.StrictControls = d.baseOpts.StrictControls
 	opts.TerragruntVersion = d.tgVersion
 
-	if !d.allowExec {
+	if !d.granted.Has(venv.CapabilityExec) {
 		// Discovery's auth-provider probe is a subprocess; don't waste a
 		// stub round-trip on it when exec is denied.
 		opts.DiscoveryAuthProviderCmd = false
@@ -204,10 +204,9 @@ func setupGitFilterWorktrees(
 		return nil, nil, nil
 	}
 
-	if !d.allowExec {
-		// The deny-all git stub answers every invocation with the dir it was
-		// called from, so letting this through would produce empty worktrees
-		// and a filter result that silently matched nothing.
+	if !d.granted.Has(venv.CapabilityExec) {
+		// Without exec the git that creates the worktrees fails with
+		// [venv.ErrExecDenied], whose text names no flag. This error names it.
 		return nil, nil, errors.New(
 			"git-range filters require the MCP server to be started with --allow=exec",
 		)

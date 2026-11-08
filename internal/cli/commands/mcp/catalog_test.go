@@ -11,8 +11,8 @@ import (
 	"unicode/utf8"
 
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"

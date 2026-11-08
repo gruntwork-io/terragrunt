@@ -1,4 +1,4 @@
-package mcp_test
+package venv_test
 
 import (
 	"runtime"
@@ -6,9 +6,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
 	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/shell/split"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +17,7 @@ import (
 // the reference matcher backtracks and slows exponentially with more ** words.
 const fuzzAllowCmdMaxWords = 8
 
-// FuzzAllowCmdMatches pins that [tgmcp.AllowCmd.Matches] agrees with a
+// FuzzAllowCmdMatches pins that [venv.AllowCmd.Matches] agrees with a
 // backtracking matcher that follows the pattern grammar word by word.
 func FuzzAllowCmdMatches(f *testing.F) {
 	for _, seed := range []struct {
@@ -57,7 +57,7 @@ func FuzzAllowCmdMatches(f *testing.F) {
 			pattern.WriteString(" " + split.Quote(word))
 		}
 
-		cmd, err := tgmcp.ParseAllowCmd(pattern.String())
+		cmd, err := venv.ParseAllowCmd(pattern.String())
 		if err != nil {
 			t.Skip("the pattern has an argument word that is not a valid glob")
 		}
