@@ -1,6 +1,8 @@
 package getter_test
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -33,17 +35,17 @@ func TestChecksumResolver_Probe(t *testing.T) {
 		{
 			name:     "typed literal",
 			checksum: "sha256:" + hexOf64,
-			wantKey:  cas.OpaqueKey("https", base, "checksum:sha256:"+hexOf64),
+			wantKey:  cas.OpaqueKey("checksum", base, "https:sha256:"+hexOf64),
 		},
 		{
 			name:     "uppercase hex keys like lowercase",
 			checksum: "sha256:" + strings.ToUpper(hexOf64),
-			wantKey:  cas.OpaqueKey("https", base, "checksum:sha256:"+hexOf64),
+			wantKey:  cas.OpaqueKey("checksum", base, "https:sha256:"+hexOf64),
 		},
 		{
 			name:     "bare literal",
 			checksum: hexOf64,
-			wantKey:  cas.OpaqueKey("https", base, "checksum:"+hexOf64),
+			wantKey:  cas.OpaqueKey("checksum", base, "https:"+hexOf64),
 		},
 		{
 			name:     "file reference",
@@ -93,4 +95,27 @@ func TestChecksumResolver_KeysSeparateChecksumsAndURLs(t *testing.T) {
 	rawKey, err := getter.NewChecksumResolver("https", checksum).Probe(t.Context(), redact.NewURL(rawURL))
 	require.NoError(t, err)
 	assert.NotEqual(t, base, rawKey, "the same bytes left unextracted form a different tree")
+}
+
+// TestChecksumResolver_KeyNeverMatchesValidatorKey: an ETag spelled like a pin must not name the pinned tree.
+func TestChecksumResolver_KeyNeverMatchesValidatorKey(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("ETag", `"checksum:sha256:`+hexOf64+`"`)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	rawURL := srv.URL + "/mod.tgz"
+
+	validatorKey, err := getter.NewHTTPResolver().Probe(t.Context(), redact.NewURL(rawURL))
+	require.NoError(t, err)
+
+	pinned := redact.NewURL(rawURL + "?checksum=sha256:" + hexOf64)
+
+	pinnedKey, err := getter.NewChecksumResolver("http", "sha256:"+hexOf64).Probe(t.Context(), pinned)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, validatorKey, pinnedKey)
 }

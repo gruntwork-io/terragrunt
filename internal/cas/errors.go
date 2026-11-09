@@ -44,6 +44,9 @@ const (
 	ErrSourceEscapesRepo Error = "update_source_with_cas source escapes repository root"
 	// ErrRewriteIncomplete wraps a failure while rewriting a source that update_source_with_cas marked
 	ErrRewriteIncomplete Error = "update_source_with_cas rewrite could not be completed"
+	// ErrRewriteTooDeep is returned when update_source_with_cas sources nest past the rewrite depth limit
+	ErrRewriteTooDeep Error = "update_source_with_cas sources nest too deep; " +
+		"look for a source that points back at its own stack"
 	// ErrSourceNotLiteral is returned when an update_source_with_cas source is not a
 	// literal string, such as one using interpolation, a function call, or a reference
 	ErrSourceNotLiteral Error = "update_source_with_cas requires a literal source string"

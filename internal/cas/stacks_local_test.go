@@ -1303,3 +1303,75 @@ func (f *unwritableFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.Fi
 
 	return f.FS.OpenFile(name, flag, perm)
 }
+
+func TestProcessStackComponent_LocalSource_DisabledUnitNotRewritten(t *testing.T) {
+	t.Parallel()
+
+	root := buildLocalStackFixture(t)
+	stackFile := filepath.Join(root, "stacks", "my-stack", "terragrunt.stack.hcl")
+
+	content, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	content = append(content, []byte(`
+unit "retired" {
+  source = "../..//units/retired"
+
+  update_source_with_cas = true
+
+  enabled = false
+
+  path = "retired"
+}
+`)...)
+	require.NoError(t, os.WriteFile(stackFile, content, 0o644))
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	require.NoError(t, err)
+
+	result, err := c.ProcessStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		root+"//stacks/my-stack",
+		"stack",
+	)
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	rewritten, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	assert.Contains(t, string(rewritten), "cas::sha256:")
+	assert.Contains(t, string(rewritten), `"../..//units/retired"`)
+}
+
+func TestProcessStackComponent_LocalSource_SelfReferencingSourceFails(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	stackDir := filepath.Join(root, "stacks", "loop")
+	require.NoError(t, os.MkdirAll(stackDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`unit "self" {
+  source = "."
+
+  update_source_with_cas = true
+
+  path = "self"
+}
+`), 0o644))
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	require.NoError(t, err)
+
+	_, err = c.ProcessStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		root+"//stacks/loop",
+		"stack",
+	)
+	require.ErrorIs(t, err, cas.ErrRewriteTooDeep)
+	require.ErrorIs(t, err, cas.ErrRewriteIncomplete)
+}

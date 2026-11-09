@@ -9,8 +9,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 )
 
-// checksumFilePrefix marks a checksum value that names a file of checksums.
-const checksumFilePrefix = "file:"
+const (
+	// checksumFilePrefix marks a checksum value that names a file of checksums.
+	checksumFilePrefix = "file:"
+	// checksumKeyNamespace is the OpaqueKey scheme of pinned trees; no validator key uses it.
+	checksumKeyNamespace = "checksum"
+)
 
 // ChecksumResolver keys a request by the checksum its URL pins; no remote probe runs, so it answers offline too.
 type ChecksumResolver struct {
@@ -32,13 +36,15 @@ func (r *ChecksumResolver) Pinned(_ redact.URL) bool { return !r.fromFile() }
 // ProbesLocally reports true: Probe reads only the request URL.
 func (r *ChecksumResolver) ProbesLocally(_ redact.URL) bool { return true }
 
-// Probe keys source by its checksum-free URL and lowercased checksum; a file reference has no key.
+// Probe keys source by its checksum-free URL, scheme and lowercased checksum; a file reference has no key.
 func (r *ChecksumResolver) Probe(_ context.Context, source redact.URL) (string, error) {
 	if r.fromFile() {
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	return cas.OpaqueKey(r.scheme, withoutChecksum(source.Reveal()), "checksum:"+strings.ToLower(r.checksum)), nil
+	token := r.scheme + ":" + strings.ToLower(r.checksum)
+
+	return cas.OpaqueKey(checksumKeyNamespace, withoutChecksum(source.Reveal()), token), nil
 }
 
 // fromFile reports whether the checksum value is a file reference.

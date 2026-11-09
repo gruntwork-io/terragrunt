@@ -56,6 +56,9 @@ func DetectRemoteSource(src string) (string, error) {
 	return src, nil
 }
 
+// maxRewriteDepth bounds how deep update_source_with_cas sources may nest before the rewrite stops.
+const maxRewriteDepth = 64
+
 // StackCASResult holds the results of CAS processing for a stack component.
 type StackCASResult struct {
 	// Cleanup removes the temporary directory when called.
@@ -189,7 +192,7 @@ func (c *CAS) ProcessStackComponent(
 		return nil, fmt.Errorf("subdir %q not found in cloned repo: %w", subdir, err)
 	}
 
-	if err := c.processDirectory(ctx, l, v, cloneDir, contentDir, refHash, hashAlg); err != nil {
+	if err := c.processDirectory(ctx, l, v, cloneDir, contentDir, refHash, hashAlg, 0); err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to process directory for CAS: %w", err)
@@ -210,7 +213,7 @@ func (c *CAS) ProcessStoredStackComponent(
 ) error {
 	v.RequireFS()
 
-	if err := c.processDirectory(ctx, l, v, root, contentDir, treeKey, DefaultLocalHashAlgorithm); err != nil {
+	if err := c.processDirectory(ctx, l, v, root, contentDir, treeKey, DefaultLocalHashAlgorithm, 0); err != nil {
 		return fmt.Errorf("failed to process stored tree %s for CAS: %w", treeKey, err)
 	}
 
@@ -290,13 +293,17 @@ func detectRepoHashAlgorithm(
 // sources and creating synthetic CAS entries.
 func (c *CAS) processDirectory(
 	ctx context.Context, l log.Logger, v *venv.Venv,
-	repoRoot, dirPath, refHash string, hashAlg HashAlgorithm,
+	repoRoot, dirPath, refHash string, hashAlg HashAlgorithm, depth int,
 ) error {
+	if depth > maxRewriteDepth {
+		return fmt.Errorf("%w (%d levels): %s", ErrRewriteTooDeep, maxRewriteDepth, dirPath)
+	}
+
 	stackFile := filepath.Join(dirPath, "terragrunt.stack.hcl")
 	unitFile := filepath.Join(dirPath, "terragrunt.hcl")
 
 	if _, err := v.FS.Stat(stackFile); err == nil {
-		return c.processStackFile(ctx, l, v, repoRoot, dirPath, stackFile, refHash, hashAlg)
+		return c.processStackFile(ctx, l, v, repoRoot, dirPath, stackFile, refHash, hashAlg, depth)
 	}
 
 	if _, err := v.FS.Stat(unitFile); err == nil {
@@ -311,7 +318,7 @@ func (c *CAS) processDirectory(
 // stack block's autoinclude injects into its nested stack.
 func (c *CAS) processStackFile(
 	ctx context.Context, l log.Logger, v *venv.Venv,
-	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm,
+	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm, depth int,
 ) error {
 	content, err := vfs.ReadFile(v.FS, stackFile)
 	if err != nil {
@@ -352,7 +359,7 @@ func (c *CAS) processStackFile(
 			)
 		}
 
-		if err := c.processDirectory(ctx, l, v, repoRoot, targetDir, refHash, hashAlg); err != nil {
+		if err := c.processDirectory(ctx, l, v, repoRoot, targetDir, refHash, hashAlg, depth+1); err != nil {
 			return fmt.Errorf(
 				"%w: failed to process %s %q source: %w",
 				ErrRewriteIncomplete,
@@ -697,6 +704,7 @@ func (c *CAS) processLocalStackComponent(
 		contentDir,
 		rootHash,
 		DefaultLocalHashAlgorithm,
+		0,
 	); err != nil {
 		cleanup()
 
