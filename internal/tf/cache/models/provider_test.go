@@ -380,7 +380,9 @@ func TestResolveRelativeReference(t *testing.T) {
 			base, err := url.Parse(tc.base)
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.want, models.ResolveRelativeReference(base, tc.link))
+			got, err := models.ResolveRelativeReference(base, tc.link)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.String())
 		})
 	}
 }

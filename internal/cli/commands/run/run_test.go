@@ -559,8 +559,7 @@ func (rec *recorder) unitsRun(command string) []string {
 			continue
 		}
 
-		unit, _, _ := strings.Cut(inv.Dir, string(filepath.Separator)+".terragrunt-cache")
-		units = append(units, unit)
+		units = append(units, unitDir(inv.Dir))
 	}
 
 	slices.Sort(units)
@@ -573,13 +572,19 @@ func (rec *recorder) commandsIn(unit string) []string {
 	var commands []string
 
 	for _, inv := range rec.invocations() {
-		dir, _, _ := strings.Cut(inv.Dir, string(filepath.Separator)+".terragrunt-cache")
-		if len(inv.Args) > 0 && dir == unit {
+		if len(inv.Args) > 0 && unitDir(inv.Dir) == unit {
 			commands = append(commands, inv.Args[0])
 		}
 	}
 
 	return commands
+}
+
+// unitDir returns the unit directory of dir, above any .terragrunt-cache copy.
+func unitDir(dir string) string {
+	dir, _, _ = strings.Cut(dir, string(filepath.Separator)+".terragrunt-cache")
+
+	return dir
 }
 
 // limitedWriter accepts a number of writes, then refuses the rest; a negative limit accepts every write.

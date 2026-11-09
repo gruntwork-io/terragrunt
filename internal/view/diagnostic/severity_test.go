@@ -66,7 +66,6 @@ func TestDiagnosticSeverityJSONRoundTrip(t *testing.T) {
 	}
 }
 
-// TestDiagnosticSeverityUnmarshalUnrecognizedName pins that a name other than error or warning reads back as invalid.
 func TestDiagnosticSeverityUnmarshalUnrecognizedName(t *testing.T) {
 	t.Parallel()
 

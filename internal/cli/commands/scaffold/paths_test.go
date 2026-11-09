@@ -1,7 +1,6 @@
 package scaffold_test
 
 import (
-	"bytes"
 	"path/filepath"
 	"testing"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -55,7 +53,6 @@ func TestScaffoldAbsoluteOutputFolderIsKept(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(workingDir, "terragrunt.hcl"))
 }
 
-// TestScaffoldChecksRootFileUnderOutputFolder pins root-terragrunt-hcl for a root file found as terragrunt.hcl.
 func TestScaffoldChecksRootFileUnderOutputFolder(t *testing.T) {
 	t.Parallel()
 
@@ -63,26 +60,62 @@ func TestScaffoldChecksRootFileUnderOutputFolder(t *testing.T) {
 		name     string
 		file     string
 		rootFile string
+		vars     []string
+		want     scaffoldRootOutcome
 		strict   bool
 	}{
 		{
-			name:     "spelling of terragrunt.hcl under the strict control",
+			name:     "differently cased terragrunt.hcl under the strict control",
 			file:     config.DefaultTerragruntConfigPath,
-			rootFile: "TERRAGRUNT.HCL",
+			rootFile: otherCaseConfigName,
 			strict:   true,
+			want:     scaffoldRootRejected,
 		},
 		{
-			name:     "spelling of terragrunt.hcl with the control disabled",
+			name:     "differently cased terragrunt.hcl with the control disabled",
 			file:     config.DefaultTerragruntConfigPath,
-			rootFile: "TERRAGRUNT.HCL",
+			rootFile: otherCaseConfigName,
+			want:     scaffoldRootWarned,
 		},
 		{
-			name:     "terragrunt.hcl set without the flag under the strict control",
+			name:     "terragrunt.hcl through --var under the strict control",
 			file:     config.DefaultTerragruntConfigPath,
-			rootFile: config.DefaultTerragruntConfigPath,
+			rootFile: config.RecommendedParentConfigName,
+			vars:     []string{"RootFileName=" + config.DefaultTerragruntConfigPath},
 			strict:   true,
+			want:     scaffoldRootRejected,
 		},
-		{name: "separate file under the strict control", file: "TERRAGRUNT.HCL", rootFile: "TERRAGRUNT.HCL", strict: true},
+		{
+			name:     "terragrunt.hcl through --var without a root include under the strict control",
+			file:     config.DefaultTerragruntConfigPath,
+			rootFile: config.RecommendedParentConfigName,
+			vars:     []string{"EnableRootInclude=false", "RootFileName=" + config.DefaultTerragruntConfigPath},
+			strict:   true,
+			want:     scaffoldRootGenerated,
+		},
+		{
+			name:     "terragrunt.hcl through --var with the root include disabled as text under the strict control",
+			file:     config.DefaultTerragruntConfigPath,
+			rootFile: config.RecommendedParentConfigName,
+			vars:     []string{"EnableRootInclude=f", "RootFileName=" + config.DefaultTerragruntConfigPath},
+			strict:   true,
+			want:     scaffoldRootGenerated,
+		},
+		{
+			name:     "terragrunt.hcl through --var with an empty root include under the strict control",
+			file:     config.DefaultTerragruntConfigPath,
+			rootFile: config.RecommendedParentConfigName,
+			vars:     []string{"EnableRootInclude=", "RootFileName=" + config.DefaultTerragruntConfigPath},
+			strict:   true,
+			want:     scaffoldRootGenerated,
+		},
+		{
+			name:     "another root file under the strict control",
+			file:     config.RecommendedParentConfigName,
+			rootFile: config.RecommendedParentConfigName,
+			strict:   true,
+			want:     scaffoldRootGenerated,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -92,20 +125,19 @@ func TestScaffoldChecksRootFileUnderOutputFolder(t *testing.T) {
 			source := writeComponent(t, "modules/vpc", map[string]string{"main.tf": vpcModule})
 			fsys := vfs.NewOSFS()
 			root := helpers.TmpDirWOSymlinks(t)
-			defaultConfig := filepath.Join(root, config.DefaultTerragruntConfigPath)
-			otherCase := filepath.Join(root, "TERRAGRUNT.HCL")
+			file := filepath.Join(root, tc.file)
+			otherCase := filepath.Join(root, otherCaseConfigName)
 
-			writeFile(t, filepath.Join(root, tc.file), "")
+			writeFile(t, file, "")
 
-			if !vfs.Exists(fsys, otherCase) {
-				require.NoError(t, vfs.Symlink(fsys, defaultConfig, otherCase))
+			if tc.file == config.DefaultTerragruntConfigPath && !vfs.Exists(fsys, otherCase) {
+				require.NoError(t, vfs.Link(fsys, file, otherCase))
 			}
-
-			wantControl := vfs.Exists(fsys, defaultConfig)
 
 			opts := newScaffoldOptions(t, helpers.TmpDirWOSymlinks(t))
 			opts.ScaffoldOutputFolder = filepath.Join(root, "unit")
 			opts.ScaffoldRootFileName = tc.rootFile
+			opts.ScaffoldVars = tc.vars
 
 			if tc.strict {
 				require.NoError(t, opts.StrictControls.EnableControl(controls.RootTerragruntHCL))
@@ -114,18 +146,16 @@ func TestScaffoldChecksRootFileUnderOutputFolder(t *testing.T) {
 			ctrl, ok := opts.StrictControls.Find(controls.RootTerragruntHCL).(*controls.Control)
 			require.True(t, ok, "control %s should be a *controls.Control", controls.RootTerragruntHCL)
 
-			var out bytes.Buffer
-
 			err := scaffold.Run(
 				config.WithCaches(t.Context()),
-				logger.CreateLogger().WithOptions(log.WithOutput(&out)),
+				logger.CreateLogger(),
 				venvtest.NewOSWithEmptyEnv(),
 				opts,
 				source,
 				"",
 			)
 
-			if wantControl && tc.strict {
+			if tc.want == scaffoldRootRejected {
 				require.ErrorIs(t, err, ctrl.Error, "the enabled control should reject a terragrunt.hcl root")
 				assert.NoFileExists(t, filepath.Join(opts.ScaffoldOutputFolder, config.DefaultTerragruntConfigPath))
 
@@ -134,10 +164,15 @@ func TestScaffoldChecksRootFileUnderOutputFolder(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.FileExists(t, filepath.Join(opts.ScaffoldOutputFolder, config.DefaultTerragruntConfigPath))
+
+			warned := true
+
+			ctrl.OnceWarn.Do(func() { warned = false })
+
 			assert.Equal(
 				t,
-				wantControl,
-				bytes.Contains(out.Bytes(), []byte(ctrl.Warning)),
+				tc.want == scaffoldRootWarned,
+				warned,
 				"the disabled control should warn only for a terragrunt.hcl root",
 			)
 		})
@@ -276,3 +311,15 @@ func runScaffoldWithOptions(t *testing.T, opts *options.TerragruntOptions, sourc
 		scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, ""),
 	)
 }
+
+// otherCaseConfigName is terragrunt.hcl in another letter case.
+const otherCaseConfigName = "TERRAGRUNT.HCL"
+
+// scaffoldRootOutcome is how scaffold handles the root file its include names.
+type scaffoldRootOutcome int
+
+const (
+	scaffoldRootGenerated scaffoldRootOutcome = iota
+	scaffoldRootWarned
+	scaffoldRootRejected
+)

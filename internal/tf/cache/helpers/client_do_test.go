@@ -22,47 +22,63 @@ import (
 func TestClientDoCachesResponsesPerURL(t *testing.T) {
 	t.Parallel()
 
-	listings := map[string]string{
-		"https://registry.test/aws/versions":    versionsListing,
-		"https://registry.test/google/versions": `{"versions":[{"version":"6.0.0"}]}`,
-		"https://registry2.test/aws/versions":   `{"versions":[{"version":"7.0.0"}]}`,
-	}
-	want := map[string][]string{
-		"https://registry.test/aws/versions":    {"5.0.0", "5.1.0"},
-		"https://registry.test/google/versions": {"6.0.0"},
-		"https://registry2.test/aws/versions":   {"7.0.0"},
-	}
-	calls := map[string]*atomic.Int32{
-		"https://registry.test/aws/versions":    {},
-		"https://registry.test/google/versions": {},
-		"https://registry2.test/aws/versions":   {},
+	listings := []struct {
+		calls   *atomic.Int32
+		url     string
+		listing string
+		want    []string
+	}{
+		{
+			calls:   new(atomic.Int32),
+			url:     "https://registry.test/aws/versions",
+			listing: versionsListing,
+			want:    []string{"5.0.0", "5.1.0"},
+		},
+		{
+			calls:   new(atomic.Int32),
+			url:     "https://registry.test/google/versions",
+			listing: `{"versions":[{"version":"6.0.0"}]}`,
+			want:    []string{"6.0.0"},
+		},
+		{
+			calls:   new(atomic.Int32),
+			url:     "https://registry2.test/aws/versions",
+			listing: `{"versions":[{"version":"7.0.0"}]}`,
+			want:    []string{"7.0.0"},
+		},
 	}
 
 	c := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
-		calls[req.URL.String()].Add(1)
+		for _, l := range listings {
+			if l.url == req.URL.String() {
+				l.calls.Add(1)
 
-		return vhttp.Respond(http.StatusOK, []byte(listings[req.URL.String()]), nil), nil
+				return vhttp.Respond(http.StatusOK, []byte(l.listing), nil), nil
+			}
+		}
+
+		return vhttp.Respond(http.StatusNotFound, nil, nil), nil
 	})
 
 	client := helpers.NewClient(c, nil)
 
 	for range 2 {
-		for reqURL, versions := range want {
+		for _, l := range listings {
 			var value versionsValue
 
-			require.NoError(t, client.Do(t.Context(), http.MethodGet, reqURL, &value))
+			require.NoError(t, client.Do(t.Context(), http.MethodGet, l.url, &value))
 
 			got := make([]string, 0, len(value.Versions))
 			for _, v := range value.Versions {
 				got = append(got, v.Version)
 			}
 
-			assert.Equal(t, versions, got, "each url should decode its own listing")
+			assert.Equal(t, l.want, got, "each url should decode its own listing")
 		}
 	}
 
-	for reqURL, n := range calls {
-		assert.Equal(t, int32(1), n.Load(), "%s should be fetched once and then served from the cache", reqURL)
+	for _, l := range listings {
+		assert.Equal(t, int32(1), l.calls.Load(), "%s should be fetched once and then served from the cache", l.url)
 	}
 }
 

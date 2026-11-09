@@ -18,43 +18,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const platformPath = "/v1/providers/example/example/1.0.0/download/linux/amd64"
+const (
+	platformPath   = "/v1/providers/example/example/1.0.0/download/linux/amd64"
+	registryURL    = "https://registry.example.com"
+	localDownloads = "http://127.0.0.1:5758/downloads/segment/"
+	localRegistry  = localDownloads + "https/registry.example.com"
+)
 
 func TestProxyProviderHandlerGetPlatformRewritesDownloadURLs(t *testing.T) {
 	t.Parallel()
 
-	c := vhttp.NewMemClient(registryRoutes(map[string]string{
-		"/.well-known/terraform.json": discoveryDocument,
-		platformPath: `{
-			"os": "linux",
-			"download_url": "https://releases.example.com/example/1.0.0/example.zip",
-			"shasums_url": "http://mirror.example.com:8080/example/1.0.0/SHA256SUMS?sig=1"
-		}`,
-	}))
-
-	handler := handlers.NewProxyProviderHandler(logger.CreateLogger(), c, nil)
-	assert.Equal(t, "proxy", handler.String())
-
-	rec := httptest.NewRecorder()
-
-	require.NoError(
-		t,
-		handler.GetPlatform(router.NewResponseWriter(rec), newProxyRequest(t), mirroredProvider(), fakeDownloader{}),
-	)
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	var body map[string]string
-
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-
 	assert.Equal(
 		t,
-		"http://127.0.0.1:5758/downloads/segment/https/releases.example.com/example/1.0.0/example.zip",
-		body["download_url"],
+		"proxy",
+		handlers.NewProxyProviderHandler(logger.CreateLogger(), vhttp.NewMemClient(respondWith(http.StatusNotFound, "")), nil).
+			String(),
 	)
+
+	body := runGetPlatform(t, registryBodies(`{
+		"os": "linux",
+		"download_url": "https://releases.example.com/example/1.0.0/example.zip",
+		"shasums_url": "http://mirror.example.com:8080/example/1.0.0/SHA256SUMS?sig=1"
+	}`))
+
+	assert.Equal(t, localDownloads+"https/releases.example.com/example/1.0.0/example.zip", body["download_url"])
 	assert.Equal(
 		t,
-		"http://127.0.0.1:5758/downloads/segment/http/mirror.example.com:8080/example/1.0.0/SHA256SUMS?sig=1",
+		localDownloads+"http/mirror.example.com:8080/example/1.0.0/SHA256SUMS?sig=1",
 		body["shasums_url"],
 		"an http link should keep its scheme",
 	)
@@ -62,55 +52,53 @@ func TestProxyProviderHandlerGetPlatformRewritesDownloadURLs(t *testing.T) {
 	assert.NotContains(t, body, "shasums_signature_url", "a url the registry did not send should not be added")
 }
 
-// TestProxyProviderHandlerGetPlatformResolvesRelativeURLs pins that relative links resolve as cached provider links do.
 func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 	t.Parallel()
 
-	const local = "http://127.0.0.1:5758/downloads/segment/https/"
-
-	const links = `{"download_url": "example.zip", "shasums_url": "/sums/SHA256SUMS?sig=1", ` +
-		`"shasums_signature_url": "../SHA256SUMS.sig"}`
+	const (
+		local  = localDownloads + "https/"
+		mirror = "https://mirror.example.com"
+		links  = `{"download_url": "example.zip", "shasums_url": "/sums/SHA256SUMS?sig=1", ` +
+			`"shasums_signature_url": "../SHA256SUMS.sig"}`
+	)
 
 	testCases := []struct {
-		want         map[string]string
-		name         string
-		discovery    string
-		platformPath string
-		links        string
+		bodies map[string]string
+		want   map[string]any
+		name   string
 	}{
 		{
-			name:         "providers endpoint on the registry host",
-			discovery:    discoveryDocument,
-			platformPath: platformPath,
-			links:        links,
-			want: map[string]string{
-				"download_url":          local + "registry.example.com" + platformPath + "/example.zip",
-				"shasums_url":           local + "registry.example.com/sums/SHA256SUMS?sig=1",
-				"shasums_signature_url": local + "registry.example.com/v1/providers/example/example/1.0.0/download/linux/SHA256SUMS.sig",
+			name:   "providers endpoint on the registry host",
+			bodies: registryBodies(links),
+			want: map[string]any{
+				"download_url":          localRegistry + platformPath + "/example.zip",
+				"shasums_url":           localRegistry + "/sums/SHA256SUMS?sig=1",
+				"shasums_signature_url": localRegistry + "/v1/providers/example/example/1.0.0/download/linux/SHA256SUMS.sig",
 			},
 		},
 		{
-			name:         "providers endpoint on another host",
-			discovery:    `{"providers.v1":"https://mirror.example.com/api/providers/"}`,
-			platformPath: "/api/providers/example/example/1.0.0/download/linux/amd64",
-			links:        links,
-			want: map[string]string{
+			name: "providers endpoint on another host",
+			bodies: map[string]string{
+				registryURL + "/.well-known/terraform.json":                          `{"providers.v1":"` + mirror + `/api/providers/"}`,
+				mirror + "/api/providers/example/example/1.0.0/download/linux/amd64": links,
+			},
+			want: map[string]any{
 				"download_url":          local + "mirror.example.com/api/providers/example/example/1.0.0/download/linux/amd64/example.zip",
 				"shasums_url":           local + "mirror.example.com/sums/SHA256SUMS?sig=1",
 				"shasums_signature_url": local + "mirror.example.com/api/providers/example/example/1.0.0/download/linux/SHA256SUMS.sig",
 			},
 		},
 		{
-			name:         "relative links keeping their path form",
-			discovery:    discoveryDocument,
-			platformPath: platformPath,
-			links: `{"download_url": "group%2Fproject//example.zip?redirect=https://mirror.example.com/example.zip", ` +
-				`"shasums_url": "files/", "shasums_signature_url": "./sig/../SHA256SUMS.sig"}`,
-			want: map[string]string{
-				"download_url": local + "registry.example.com" + platformPath +
+			name: "relative links keeping their path form",
+			bodies: registryBodies(
+				`{"download_url": "group%2Fproject//example.zip?redirect=https://mirror.example.com/example.zip", ` +
+					`"shasums_url": "files/", "shasums_signature_url": "./sig/../SHA256SUMS.sig"}`,
+			),
+			want: map[string]any{
+				"download_url": localRegistry + platformPath +
 					"/group%252Fproject/%2Fexample.zip?redirect=https://mirror.example.com/example.zip",
-				"shasums_url":           local + "registry.example.com" + platformPath + "/files/",
-				"shasums_signature_url": local + "registry.example.com" + platformPath + "/SHA256SUMS.sig",
+				"shasums_url":           localRegistry + platformPath + "/files/",
+				"shasums_signature_url": localRegistry + platformPath + "/SHA256SUMS.sig",
 			},
 		},
 	}
@@ -119,26 +107,11 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := vhttp.NewMemClient(registryRoutes(map[string]string{
-				"/.well-known/terraform.json": tc.discovery,
-				tc.platformPath:               tc.links,
-			}))
-
-			rec := httptest.NewRecorder()
-
-			require.NoError(t, handlers.NewProxyProviderHandler(logger.CreateLogger(), c, nil).
-				GetPlatform(router.NewResponseWriter(rec), newProxyRequest(t), mirroredProvider(), fakeDownloader{}))
-			require.Equal(t, http.StatusOK, rec.Code)
-
-			var body map[string]string
-
-			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-			assert.Equal(t, tc.want, body)
+			assert.Equal(t, tc.want, runGetPlatform(t, tc.bodies))
 		})
 	}
 }
 
-// TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON pins that links are decoded as JSON strings and that null or empty links pass through.
 func TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON(t *testing.T) {
 	t.Parallel()
 
@@ -150,15 +123,13 @@ func TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON(t *testing.T) {
 		{
 			name: "escaped slashes",
 			body: `{"download_url": "https:\/\/registry.example.com\/example.zip"}`,
-			want: map[string]any{
-				"download_url": "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example.zip",
-			},
+			want: map[string]any{"download_url": localRegistry + "/example.zip"},
 		},
 		{
 			name: "null link",
 			body: `{"download_url": "https://registry.example.com/example.zip", "shasums_signature_url": null}`,
 			want: map[string]any{
-				"download_url":          "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example.zip",
+				"download_url":          localRegistry + "/example.zip",
 				"shasums_signature_url": nil,
 			},
 		},
@@ -173,26 +144,11 @@ func TestProxyProviderHandlerGetPlatformDecodesLinksAsJSON(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := vhttp.NewMemClient(registryRoutes(map[string]string{
-				"/.well-known/terraform.json": discoveryDocument,
-				platformPath:                  tc.body,
-			}))
-
-			rec := httptest.NewRecorder()
-
-			require.NoError(t, handlers.NewProxyProviderHandler(logger.CreateLogger(), c, nil).
-				GetPlatform(router.NewResponseWriter(rec), newProxyRequest(t), mirroredProvider(), fakeDownloader{}))
-			require.Equal(t, http.StatusOK, rec.Code)
-
-			var body map[string]any
-
-			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-			assert.Equal(t, tc.want, body)
+			assert.Equal(t, tc.want, runGetPlatform(t, registryBodies(tc.body)))
 		})
 	}
 }
 
-// TestProxyProviderHandlerGetPlatformKeepsLinkPath pins that a rewritten link keeps its slashes and dot segments routable.
 func TestProxyProviderHandlerGetPlatformKeepsLinkPath(t *testing.T) {
 	t.Parallel()
 
@@ -204,22 +160,27 @@ func TestProxyProviderHandlerGetPlatformKeepsLinkPath(t *testing.T) {
 		{
 			name: "escaped slash",
 			link: "https://registry.example.com/projects/group%2Fproject/example.zip?sig=1",
-			want: "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/projects/group%252Fproject/example.zip?sig=1",
+			want: localRegistry + "/projects/group%252Fproject/example.zip?sig=1",
 		},
 		{
 			name: "repeated slashes",
 			link: "https://registry.example.com/example//1.0.0///example.zip?sig=1",
-			want: "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example/%2F1.0.0/%2F/example.zip?sig=1",
+			want: localRegistry + "/example/%2F1.0.0/%2F/example.zip?sig=1",
 		},
 		{
 			name: "trailing slash",
 			link: "https://registry.example.com/example/1.0.0/",
-			want: "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example/1.0.0/",
+			want: localRegistry + "/example/1.0.0/",
+		},
+		{
+			name: "user info",
+			link: "https://user:token@registry.example.com/example.zip",
+			want: "http://user:token@127.0.0.1:5758/downloads/segment/https/registry.example.com/example.zip",
 		},
 		{
 			name: "dot segments",
 			link: "https://registry.example.com/example/./1.0.0/../example.zip",
-			want: "http://127.0.0.1:5758/downloads/segment/https/registry.example.com/example/%2E/1.0.0/%2E%2E/example.zip",
+			want: localRegistry + "/example/%2E/1.0.0/%2E%2E/example.zip",
 		},
 	}
 
@@ -227,20 +188,7 @@ func TestProxyProviderHandlerGetPlatformKeepsLinkPath(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := vhttp.NewMemClient(registryRoutes(map[string]string{
-				"/.well-known/terraform.json": discoveryDocument,
-				platformPath:                  `{"download_url": "` + tc.link + `"}`,
-			}))
-
-			rec := httptest.NewRecorder()
-
-			require.NoError(t, handlers.NewProxyProviderHandler(logger.CreateLogger(), c, nil).
-				GetPlatform(router.NewResponseWriter(rec), newProxyRequest(t), mirroredProvider(), fakeDownloader{}))
-			require.Equal(t, http.StatusOK, rec.Code)
-
-			var body map[string]string
-
-			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			body := runGetPlatform(t, registryBodies(`{"download_url": "`+tc.link+`"}`))
 			assert.Equal(t, tc.want, body["download_url"])
 		})
 	}
@@ -312,11 +260,7 @@ func TestProxyProviderHandlerDownload(t *testing.T) {
 
 			var archiveRequest *url.URL
 
-			c := vhttp.NewMemClient(func(ctx context.Context, req *http.Request) (*http.Response, error) {
-				if req.URL.Path == "/.well-known/terraform.json" {
-					return registryRoutes(map[string]string{req.URL.Path: discoveryDocument})(ctx, req)
-				}
-
+			c := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
 				archiveRequest = req.URL
 
 				return vhttp.Respond(http.StatusOK, []byte("archive"), nil), nil
@@ -382,4 +326,38 @@ func newProxyRequest(t *testing.T) *http.Request {
 	t.Helper()
 
 	return httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/proxy", nil)
+}
+
+// registryBodies returns what registry.example.com serves when its platform endpoint answers with platform.
+func registryBodies(platform string) map[string]string {
+	return map[string]string{
+		registryURL + "/.well-known/terraform.json": discoveryDocument,
+		registryURL + platformPath:                  platform,
+	}
+}
+
+// runGetPlatform runs GetPlatform against a registry serving bodies by URL and returns the rewritten response.
+func runGetPlatform(t *testing.T, bodies map[string]string) map[string]any {
+	t.Helper()
+
+	c := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		body, ok := bodies[req.URL.String()]
+		if !ok {
+			return vhttp.Respond(http.StatusNotFound, nil, nil), nil
+		}
+
+		return vhttp.Respond(http.StatusOK, []byte(body), http.Header{"Content-Type": []string{"application/json"}}), nil
+	})
+
+	rec := httptest.NewRecorder()
+
+	require.NoError(t, handlers.NewProxyProviderHandler(logger.CreateLogger(), c, nil).
+		GetPlatform(router.NewResponseWriter(rec), newProxyRequest(t), mirroredProvider(), fakeDownloader{}))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]any
+
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+
+	return body
 }

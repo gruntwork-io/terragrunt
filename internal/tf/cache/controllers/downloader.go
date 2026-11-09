@@ -70,7 +70,7 @@ func (controller *DownloaderController) downloadProviderAction(w router.Response
 		return router.NewHTTPError(http.StatusNotFound)
 	}
 
-	// The remote path arrives escaped twice, so that its slashes and dot segments are forwarded unchanged.
+	// The remote path arrives escaped twice.
 	_, hostAndPath, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), controller.URL().Path+"/"), "/")
 
 	_, routedPath, found := strings.Cut(hostAndPath, "/")
@@ -80,11 +80,15 @@ func (controller *DownloaderController) downloadProviderAction(w router.Response
 
 	escapedPath, err := url.PathUnescape("/" + routedPath)
 	if err != nil {
+		controller.ProviderService.Logger().Debugf("Malformed provider download path %s: %v", r.URL.EscapedPath(), err)
+
 		return router.NewHTTPError(http.StatusBadRequest)
 	}
 
 	remotePath, err := url.PathUnescape(escapedPath)
 	if err != nil {
+		controller.ProviderService.Logger().Debugf("Malformed provider download path %s: %v", r.URL.EscapedPath(), err)
+
 		return router.NewHTTPError(http.StatusBadRequest)
 	}
 

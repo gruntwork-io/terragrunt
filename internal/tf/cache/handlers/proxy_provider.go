@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -97,7 +98,7 @@ func (handler *ProxyProviderHandler) Download(
 	return handler.NewRequest(w, r, downloadURL)
 }
 
-// modifyDownloadURLsInJSONBody resolves the response's download URLs against platformURL and points them at the local server.
+// modifyDownloadURLsInJSONBody points the download URLs of the response at the local server.
 func modifyDownloadURLsInJSONBody(
 	resp *http.Response,
 	platformURL *url.URL,
@@ -114,16 +115,16 @@ func modifyDownloadURLsInJSONBody(
 
 			var link string
 			if err := json.Unmarshal(linkBytes, &link); err != nil {
-				return err
+				return fmt.Errorf("decoding %s in the provider platform response: %w", name, err)
 			}
 
 			if link == "" {
 				continue
 			}
 
-			linkURL, err := url.Parse(models.ResolveRelativeReference(platformURL, link))
+			linkURL, err := models.ResolveRelativeReference(platformURL, link)
 			if err != nil {
-				return err
+				return fmt.Errorf("resolving %s in the provider platform response: %w", name, err)
 			}
 
 			rewritten, err := json.Marshal(downloadLink(downloaderController.URL(), linkURL))
@@ -138,7 +139,7 @@ func modifyDownloadURLsInJSONBody(
 	})
 }
 
-// downloadLink returns {downloader}/{scheme}/{host}{path}?{query} for remote, with the path escaped again so the mux leaves it unchanged.
+// downloadLink points remote at downloader as {scheme}/{host}{path}, escaping the path again and keeping user info.
 func downloadLink(downloader, remote *url.URL) string {
 	segments := strings.Split(remote.EscapedPath(), "/")
 	for i, segment := range segments {
@@ -153,7 +154,10 @@ func downloadLink(downloader, remote *url.URL) string {
 
 	remotePath := strings.ReplaceAll(strings.Join(segments, "/"), "//", "/%2F")
 
-	link := downloader.JoinPath(remote.Scheme, remote.Host).String() + remotePath
+	local := *downloader
+	local.User = remote.User
+
+	link := local.JoinPath(remote.Scheme, remote.Host).String() + remotePath
 	if remote.RawQuery != "" {
 		link += "?" + remote.RawQuery
 	}

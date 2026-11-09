@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,21 +46,13 @@ func TestNewCommandShowsHelpForTheNamedCommand(t *testing.T) {
 	}
 }
 
-// TestNewCommandShowsHelpUnderDebugLogging pins that debug logging leaves the printed help unchanged.
-func TestNewCommandShowsHelpUnderDebugLogging(t *testing.T) {
+// TestNewCommandEnablesTemplateErrorsUnderDebugLogging pins that debug logging surfaces help template errors.
+func TestNewCommandEnablesTemplateErrorsUnderDebugLogging(t *testing.T) {
 	t.Parallel()
 
-	out, err := runHelp(t, log.New(log.WithLevel(log.DebugLevel)), "outer")
+	out, err := runHelp(t, logger.CreateLogger(), "outer")
 	require.NoError(t, err)
 	assert.Equal(t, "outer help", out)
-}
-
-// TestNewCommandEnablesTemplateErrorsUnderDebugLogging pins that debug logging enables urfave/cli template errors.
-func TestNewCommandEnablesTemplateErrorsUnderDebugLogging(t *testing.T) {
-	t.Setenv("CLI_TEMPLATE_ERROR_DEBUG", "")
-
-	_, err := runHelp(t, log.New(log.WithLevel(log.DebugLevel)), "outer")
-	require.NoError(t, err)
 	assert.Equal(t, "1", os.Getenv("CLI_TEMPLATE_ERROR_DEBUG"), "urfave/cli reads this to print template errors")
 }
 

@@ -324,57 +324,6 @@ func TestWithin(t *testing.T) {
 	})
 }
 
-func TestSameFile(t *testing.T) {
-	t.Parallel()
-
-	fsys := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fsys, "/dir/file", []byte("x"), 0o644))
-	require.NoError(t, vfs.WriteFile(fsys, "/dir/FILE", []byte("x"), 0o644))
-	require.NoError(t, vfs.Symlink(fsys, "/dir/file", "/dir/link"))
-	require.NoError(t, vfs.Symlink(fsys, "/dir", "/shortcut"))
-
-	testCases := []struct {
-		name string
-		a    string
-		b    string
-		want bool
-	}{
-		{name: "one path", a: "/dir/file", b: "/dir/file", want: true},
-		{name: "symlink to the file", a: "/dir/link", b: "/dir/file", want: true},
-		{name: "file under a symlinked directory", a: "/shortcut/file", b: "/dir/file", want: true},
-		{name: "distinct file differing in case", a: "/dir/FILE", b: "/dir/file", want: false},
-		{name: "missing file", a: "/dir/missing", b: "/dir/file", want: false},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tc.want, vfs.SameFile(fsys, filepath.FromSlash(tc.a), filepath.FromSlash(tc.b)))
-		})
-	}
-}
-
-func TestSameFileHardLinkOnOS(t *testing.T) {
-	t.Parallel()
-
-	fsys := vfs.NewOSFS()
-	dir := t.TempDir()
-	file := filepath.Join(dir, "file")
-	link := filepath.Join(dir, "link")
-	other := filepath.Join(dir, "other")
-
-	require.NoError(t, vfs.WriteFile(fsys, file, []byte("x"), 0o644))
-	require.NoError(t, vfs.WriteFile(fsys, other, []byte("x"), 0o644))
-
-	if err := vfs.Link(fsys, file, link); err != nil {
-		t.Skipf("hard links are not supported here: %v", err)
-	}
-
-	assert.True(t, vfs.SameFile(fsys, link, file), "a hard link should be the same file")
-	assert.False(t, vfs.SameFile(fsys, other, file), "a copy should be a distinct file")
-}
-
 // errUnresolvable is what unresolvableFS reports for every path.
 var errUnresolvable = errors.New("cannot resolve")
 

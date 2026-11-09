@@ -141,9 +141,9 @@ type ResponseBody struct {
 
 func (body *ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {
 	clone := *body
-	clone.DownloadURL = ResolveRelativeReference(base, body.DownloadURL)
-	clone.SHA256SumsSignatureURL = ResolveRelativeReference(base, body.SHA256SumsSignatureURL)
-	clone.SHA256SumsURL = ResolveRelativeReference(base, body.SHA256SumsURL)
+	clone.DownloadURL = resolveLink(base, body.DownloadURL)
+	clone.SHA256SumsSignatureURL = resolveLink(base, body.SHA256SumsSignatureURL)
+	clone.SHA256SumsURL = resolveLink(base, body.SHA256SumsURL)
 
 	return &clone
 }

@@ -165,8 +165,8 @@ func TestRunReportsAWriteFailure(t *testing.T) {
 	}
 }
 
-// TestRunReportsAWriteFailureAfterAPreparationFailure pins that failing to print the fallback context fails the run.
-func TestRunReportsAWriteFailureAfterAPreparationFailure(t *testing.T) {
+// TestRunIgnoresAWriteFailureAfterAPreparationFailure pins that preparation failures stay non-fatal.
+func TestRunIgnoresAWriteFailureAfterAPreparationFailure(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -187,8 +187,7 @@ func TestRunReportsAWriteFailureAfterAPreparationFailure(t *testing.T) {
 
 			opts := newOpts(t, v, filepath.Join(memRoot, "unit", "terragrunt.hcl"))
 
-			err := print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
-			require.ErrorIs(t, err, errWrite, "a context that could not be printed should fail the run")
+			require.NoError(t, print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
 		})
 	}
 }

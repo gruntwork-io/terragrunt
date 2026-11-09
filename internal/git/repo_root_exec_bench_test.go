@@ -191,8 +191,7 @@ func TestExecGoRepoRootCeilingMatchesGit(t *testing.T) {
 	require.NoError(t, os.MkdirAll(unit, fixtureDirPerm))
 
 	mid := filepath.Join(repo, "live")
-	unclean := repo + string(filepath.Separator) + "." + string(filepath.Separator) + "live"
-	list := func(entries ...string) string { return strings.Join(entries, string(filepath.ListSeparator)) }
+	unclean := uncleanJoin(repo, "live")
 
 	for _, tc := range []struct {
 		name    string
@@ -205,13 +204,13 @@ func TestExecGoRepoRootCeilingMatchesGit(t *testing.T) {
 		{name: "parent of the starting directory", ceiling: filepath.Join(repo, "live", "prod")},
 		{name: "unrelated directory", ceiling: t.TempDir()},
 		{name: "relative entry", ceiling: filepath.FromSlash("../..")},
-		{name: "unrelated entry then blocking entry", ceiling: list(t.TempDir(), mid)},
-		{name: "empty entry then slash separators", ceiling: list("", filepath.ToSlash(mid))},
-		{name: "empty entry then native separators", ceiling: list("", mid)},
-		{name: "empty entry then unclean entry", ceiling: list("", unclean)},
-		{name: "unclean entry then empty entry", ceiling: list(unclean, "")},
-		{name: "empty entry in the middle", ceiling: list("relative", "", unclean)},
-		{name: "empty entry then trailing slash", ceiling: list("", filepath.ToSlash(mid)+"/")},
+		{name: "unrelated entry then blocking entry", ceiling: ceilingList(t.TempDir(), mid)},
+		{name: "empty entry then slash separators", ceiling: ceilingList("", filepath.ToSlash(mid))},
+		{name: "empty entry then native separators", ceiling: ceilingList("", mid)},
+		{name: "empty entry then unclean entry", ceiling: ceilingList("", unclean)},
+		{name: "unclean entry then empty entry", ceiling: ceilingList(unclean, "")},
+		{name: "empty entry in the middle", ceiling: ceilingList("relative", "", unclean)},
+		{name: "empty entry then trailing slash", ceiling: ceilingList("", filepath.ToSlash(mid)+"/")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

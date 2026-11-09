@@ -38,6 +38,9 @@ const (
 	testDiscoveryDoc = `{"modules.v1":"/v1/modules/","providers.v1":"/v1/providers/"}`
 	testArchiveName  = "terraform-provider-example_1.0.0_linux_amd64.zip"
 	testArchiveURL   = "https://releases.example.com/example/1.0.0/" + testArchiveName
+	testArchiveBody  = "archive bytes"
+	testSignedQuery  = "?X-Amz-Signature=abc"
+	testPlatformPath = "/v1/providers/example/example/1.0.0/download/linux/amd64"
 )
 
 func TestDiscoveryControllerListsEndpoints(t *testing.T) {
@@ -209,11 +212,9 @@ func TestProviderControllerGetVersionsMergesHandlers(t *testing.T) {
 func TestProviderControllerGetPlatformRewritesDownloadURLs(t *testing.T) {
 	t.Parallel()
 
-	const platformPath = "/v1/providers/example/example/1.0.0/download/linux/amd64"
-
 	up := newUpstream(map[string][]byte{
 		"https://" + testRegistry + "/.well-known/terraform.json": []byte(testDiscoveryDoc),
-		"https://" + testRegistry + platformPath: []byte(`{
+		"https://" + testRegistry + testPlatformPath: []byte(`{
 			"os": "linux",
 			"download_url": "` + testArchiveURL + `",
 			"shasums_url": "https://releases.example.com/example/1.0.0/SHA256SUMS"
@@ -247,7 +248,7 @@ func TestProviderControllerGetPlatformRewritesDownloadURLs(t *testing.T) {
 	assert.Equal(t, downloadBase+testArchiveName, body["download_url"], "download url should point at the cache server")
 	assert.Equal(t, downloadBase+"SHA256SUMS", body["shasums_url"], "shasums url should point at the cache server")
 	assert.Equal(t, "linux", body["os"], "other fields should pass through")
-	assert.Len(t, up.requestsTo(platformPath), 1)
+	assert.Len(t, up.requestsTo(testPlatformPath), 1)
 }
 
 func TestProviderControllerCachesProviderForDownload(t *testing.T) {
@@ -339,42 +340,36 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 		{
 			name:            "download through the secret segment",
 			remote:          "https" + archivePath,
-			segment:         (*controllers.DownloaderController).Segment,
 			wantStatus:      http.StatusOK,
-			wantUpstreamURL: testArchiveURL + "?X-Amz-Signature=abc",
+			wantUpstreamURL: testArchiveURL + testSignedQuery,
 		},
 		{
 			name:            "http download keeps its scheme",
 			remote:          "http" + archivePath,
-			segment:         (*controllers.DownloaderController).Segment,
 			wantStatus:      http.StatusOK,
-			wantUpstreamURL: httpArchiveURL + "?X-Amz-Signature=abc",
+			wantUpstreamURL: httpArchiveURL + testSignedQuery,
 		},
 		{
 			name:            "download keeps an escaped slash",
 			remote:          "https/releases.example.com/group%252Fproject/" + testArchiveName,
-			segment:         (*controllers.DownloaderController).Segment,
 			wantStatus:      http.StatusOK,
-			wantUpstreamURL: "https://releases.example.com/group%2Fproject/" + testArchiveName + "?X-Amz-Signature=abc",
+			wantUpstreamURL: "https://releases.example.com/group%2Fproject/" + testArchiveName + testSignedQuery,
 		},
 		{
 			name:            "download keeps repeated slashes",
 			remote:          "https/releases.example.com/example/%2F1.0.0/" + testArchiveName,
-			segment:         (*controllers.DownloaderController).Segment,
 			wantStatus:      http.StatusOK,
-			wantUpstreamURL: "https://releases.example.com/example//1.0.0/" + testArchiveName + "?X-Amz-Signature=abc",
+			wantUpstreamURL: "https://releases.example.com/example//1.0.0/" + testArchiveName + testSignedQuery,
 		},
 		{
 			name:            "download keeps a trailing slash",
 			remote:          "https/releases.example.com/example/1.0.0/",
-			segment:         (*controllers.DownloaderController).Segment,
 			wantStatus:      http.StatusOK,
-			wantUpstreamURL: "https://releases.example.com/example/1.0.0/?X-Amz-Signature=abc",
+			wantUpstreamURL: "https://releases.example.com/example/1.0.0/" + testSignedQuery,
 		},
 		{
 			name:       "download with an unsupported scheme",
 			remote:     "ftp" + archivePath,
-			segment:    (*controllers.DownloaderController).Segment,
 			wantStatus: http.StatusNotFound,
 		},
 		{
@@ -390,11 +385,11 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 			t.Parallel()
 
 			up := newUpstream(map[string][]byte{
-				testArchiveURL: []byte("archive bytes"),
-				httpArchiveURL: []byte("archive bytes"),
-				"https://releases.example.com/group/project/" + testArchiveName:  []byte("archive bytes"),
-				"https://releases.example.com/example/1.0.0/":                    []byte("archive bytes"),
-				"https://releases.example.com/example//1.0.0/" + testArchiveName: []byte("archive bytes"),
+				testArchiveURL: []byte(testArchiveBody),
+				httpArchiveURL: []byte(testArchiveBody),
+				"https://releases.example.com/group/project/" + testArchiveName:  []byte(testArchiveBody),
+				"https://releases.example.com/example/1.0.0/":                    []byte(testArchiveBody),
+				"https://releases.example.com/example//1.0.0/" + testArchiveName: []byte(testArchiveBody),
 			})
 			l := logger.CreateLogger()
 
@@ -406,12 +401,12 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 			root := router.New()
 			root.Register(downloader)
 
-			rec := serve(
-				t,
-				root,
-				"/downloads/"+tc.segment(downloader)+"/"+tc.remote+"?X-Amz-Signature=abc",
-				"",
-			)
+			segment := downloader.Segment()
+			if tc.segment != nil {
+				segment = tc.segment(downloader)
+			}
+
+			rec := serve(t, root, "/downloads/"+segment+"/"+tc.remote+testSignedQuery, "")
 
 			assert.Equal(t, tc.wantStatus, rec.Code)
 
@@ -424,35 +419,32 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 
 			require.Len(t, proxied, 1)
 			assert.Equal(t, tc.wantUpstreamURL, proxied[0].url, "query string should be forwarded so signed urls keep working")
-			assert.Equal(t, "archive bytes", rec.Body.String())
+			assert.Equal(t, testArchiveBody, rec.Body.String())
 		})
 	}
 }
 
-// TestProviderControllerDownloadLinkRoundTrips pins that a rewritten download link reaches the remote URL unchanged.
 func TestProviderControllerDownloadLinkRoundTrips(t *testing.T) {
 	t.Parallel()
-
-	const platformPath = "/v1/providers/example/example/1.0.0/download/linux/amd64"
 
 	testCases := []struct {
 		name string
 		link string
 	}{
-		{name: "plain path", link: testArchiveURL + "?X-Amz-Signature=abc"},
+		{name: "plain path", link: testArchiveURL + testSignedQuery},
 		{
 			name: "repeated slashes",
-			link: "https://releases.example.com/example//1.0.0///" + testArchiveName + "?X-Amz-Signature=abc",
+			link: "https://releases.example.com/example//1.0.0///" + testArchiveName + testSignedQuery,
 		},
 		{
 			name: "escaped slash",
-			link: "https://releases.example.com/group%2Fproject/" + testArchiveName + "?X-Amz-Signature=abc",
+			link: "https://releases.example.com/group%2Fproject/" + testArchiveName + testSignedQuery,
 		},
 		{name: "escaped percent sign", link: "https://releases.example.com/100%25/" + testArchiveName},
 		{name: "trailing slash", link: "https://releases.example.com/example/1.0.0/"},
 		{
 			name: "dot segments",
-			link: "https://releases.example.com/example/./1.0.0/../" + testArchiveName + "?X-Amz-Signature=abc",
+			link: "https://releases.example.com/example/./1.0.0/../" + testArchiveName + testSignedQuery,
 		},
 		{name: "escaped dot segment", link: "https://releases.example.com/example/%2E%2E/" + testArchiveName},
 	}
@@ -466,8 +458,8 @@ func TestProviderControllerDownloadLinkRoundTrips(t *testing.T) {
 
 			up := newUpstream(map[string][]byte{
 				"https://" + testRegistry + "/.well-known/terraform.json": []byte(testDiscoveryDoc),
-				"https://" + testRegistry + platformPath:                  []byte(`{"download_url": "` + tc.link + `"}`),
-				"https://" + remote.Host + remote.Path:                    []byte("archive bytes"),
+				"https://" + testRegistry + testPlatformPath:              []byte(`{"download_url": "` + tc.link + `"}`),
+				"https://" + remote.Host + remote.Path:                    []byte(testArchiveBody),
 			})
 
 			l := logger.CreateLogger()
@@ -501,7 +493,7 @@ func TestProviderControllerDownloadLinkRoundTrips(t *testing.T) {
 
 			rec = serve(t, root, local, "")
 			require.Equal(t, http.StatusOK, rec.Code)
-			assert.Equal(t, "archive bytes", rec.Body.String())
+			assert.Equal(t, testArchiveBody, rec.Body.String())
 
 			downloads := up.requestsTo("releases.example.com")
 			require.Len(t, downloads, 1)
@@ -581,13 +573,13 @@ func (u *upstream) client() vhttp.Client {
 	})
 }
 
-// requestsTo returns the requests whose URL path contains pathPart.
-func (u *upstream) requestsTo(pathPart string) []upstreamRequest {
+// requestsTo returns the requests whose URL contains part.
+func (u *upstream) requestsTo(part string) []upstreamRequest {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	return slices.DeleteFunc(slices.Clone(u.requests), func(req upstreamRequest) bool {
-		return !strings.Contains(req.url, pathPart)
+		return !strings.Contains(req.url, part)
 	})
 }
 

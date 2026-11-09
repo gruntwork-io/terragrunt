@@ -146,11 +146,7 @@ func GoRepoRoot(
 	}
 }
 
-// walkCeiling returns the deepest GIT_CEILING_DIRECTORIES entry the walk from
-// start must not ascend into, or "" when none applies. Git compares resolved
-// entries against a resolved starting directory, which is what [startDir]
-// produces. It drops entries that are not absolute, and reads an empty entry
-// as keeping every later entry as written, without resolution or cleaning.
+// walkCeiling returns the deepest GIT_CEILING_DIRECTORIES entry the walk from start must not ascend into, or "".
 func walkCeiling(fsys vfs.FS, env map[string]string, start string) string {
 	var (
 		deepest string
@@ -184,8 +180,7 @@ func entryCeiling(fsys vfs.FS, entry, start string, keep bool) string {
 
 	ceiling := vfs.ResolveForCompare(fsys, filepath.Clean(entry))
 
-	// Git tests ancestry, and no directory is its own ancestor, so an entry
-	// naming the starting directory does not block the walk beginning there.
+	// An entry naming start itself does not block the walk beginning there.
 	if !isStrictAncestor(ceiling, start) {
 		return ""
 	}
@@ -193,7 +188,7 @@ func entryCeiling(fsys vfs.FS, entry, start string, keep bool) string {
 	return ceiling
 }
 
-// keptCeiling returns the strict ancestor of start that a kept entry names, matched byte for byte.
+// keptCeiling returns the strict ancestor of start that a kept entry names, compared as written with forward slashes.
 func keptCeiling(entry, start string) string {
 	prefix := strings.TrimSuffix(entry, "/")
 	slashed := filepath.ToSlash(start)
@@ -202,7 +197,7 @@ func keptCeiling(entry, start string) string {
 		return ""
 	}
 
-	// A root entry trims to the volume name, which the walk never visits.
+	// Map a root entry back to the volume root.
 	if len(prefix) == len(filepath.VolumeName(start)) {
 		return start[:len(prefix)] + string(filepath.Separator)
 	}

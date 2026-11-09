@@ -40,7 +40,7 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 		{
 			name:         "opentofu 1.10 uses the configured absolute dir",
 			versionOut:   tofu110Version,
-			cacheDir:     venvtest.Root("/providers") + "/./cache",
+			cacheDir:     venvtest.Root("/providers") + filepath.FromSlash("/./cache"),
 			wantCacheDir: venvtest.Root("/providers/cache"),
 		},
 		{

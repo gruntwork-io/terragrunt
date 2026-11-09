@@ -348,10 +348,15 @@ func (w *lockedWriter) String() string {
 
 // tofuRecorder answers tofu invocations and records the commands it saw.
 type tofuRecorder struct {
-	fail     string
-	commands []string
-	dirs     []string
-	mu       sync.Mutex
+	fail string
+	runs []tofuRun
+	mu   sync.Mutex
+}
+
+// tofuRun is one tofu invocation: its first argument and the directory it ran in.
+type tofuRun struct {
+	command string
+	dir     string
 }
 
 // handler returns the exec handler that answers and records each invocation.
@@ -364,8 +369,7 @@ func (rec *tofuRecorder) handler() vexec.Handler {
 		command := inv.Args[0]
 
 		rec.mu.Lock()
-		rec.commands = append(rec.commands, command)
-		rec.dirs = append(rec.dirs, inv.Dir)
+		rec.runs = append(rec.runs, tofuRun{command: command, dir: inv.Dir})
 		rec.mu.Unlock()
 
 		if command == "-version" {
@@ -384,7 +388,7 @@ func (rec *tofuRecorder) ran(command string) bool {
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
 
-	return slices.Contains(rec.commands, command)
+	return slices.ContainsFunc(rec.runs, func(run tofuRun) bool { return run.command == command })
 }
 
 // ranUnder reports whether command ran in dir or a directory below it.
@@ -394,13 +398,9 @@ func (rec *tofuRecorder) ranUnder(command, dir string) bool {
 
 	prefix := filepath.Clean(dir) + string(filepath.Separator)
 
-	for i, recorded := range rec.commands {
-		if recorded == command && strings.HasPrefix(filepath.Clean(rec.dirs[i])+string(filepath.Separator), prefix) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(rec.runs, func(run tofuRun) bool {
+		return run.command == command && strings.HasPrefix(filepath.Clean(run.dir)+string(filepath.Separator), prefix)
+	})
 }
 
 // oneUnit is a working directory holding a single unit.

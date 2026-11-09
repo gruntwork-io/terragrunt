@@ -26,8 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testWorkDir = venvtest.Root("/work")
-
 var errActionFailed = errors.New("action failed")
 
 // TestWrapWithTelemetryResolvesPaths pins how the wrapper makes the working dir, download dir, config path, and tf path absolute.
@@ -49,7 +47,7 @@ func TestWrapWithTelemetryResolvesPaths(t *testing.T) {
 		{
 			name:           "defaults under the working dir",
 			cmdName:        run.CommandName,
-			workingDir:     testWorkDir + "/nested/..",
+			workingDir:     testWorkDir + filepath.FromSlash("/nested/.."),
 			tfPath:         "tofu",
 			wantWorkingDir: testWorkDir,
 			wantDownload:   filepath.Join(testWorkDir, ".terragrunt-cache"),
@@ -72,7 +70,7 @@ func TestWrapWithTelemetryResolvesPaths(t *testing.T) {
 			name:           "absolute paths are only cleaned",
 			cmdName:        run.CommandName,
 			workingDir:     testWorkDir,
-			downloadDir:    venvtest.Root("/cache") + "/./dl",
+			downloadDir:    venvtest.Root("/cache") + filepath.FromSlash("/./dl"),
 			configPath:     venvtest.Root("/configs/app.hcl"),
 			tfPath:         venvtest.Root("/usr/bin/tofu"),
 			wantWorkingDir: testWorkDir,

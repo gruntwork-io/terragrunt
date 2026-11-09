@@ -254,7 +254,8 @@ func TestNewCommandAllPatchesEveryUnit(t *testing.T) {
 			name: "every unit is patched",
 			files: map[string]string{
 				"a/terragrunt.hcl": "", "a/main.tf": "",
-				"b/terragrunt.hcl": "", "b/main.tf": "",
+				"b/terragrunt.hcl": "",
+				"b/main.tf":        "",
 			},
 		},
 		{
@@ -271,7 +272,8 @@ func TestNewCommandAllPatchesEveryUnit(t *testing.T) {
 			name: "fail fast stops at the first failure",
 			files: map[string]string{
 				"a/terragrunt.hcl": "",
-				"b/terragrunt.hcl": "", "b/main.tf": "",
+				"b/terragrunt.hcl": "",
+				"b/main.tf":        "",
 			},
 			failFast: true,
 			wantErr:  true,

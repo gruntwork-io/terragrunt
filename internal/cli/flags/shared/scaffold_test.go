@@ -1,56 +1,56 @@
 package shared_test
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestRootFileNameFlag pins that --root-file-name stores a non-empty name, rejects an empty one, and rejects a name ending in terragrunt.hcl under its strict control.
+// TestRootFileNameFlag pins that --root-file-name stores a non-empty name and rejects an empty one.
 func TestRootFileNameFlag(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name         string
-		value        string
-		wantRootName string
-		strict       bool
-		wantExitErr  bool
-		wantWarning  bool
+		name   string
+		value  string
+		want   rootFileNameOutcome
+		strict bool
 	}{
-		{name: "custom name", value: "root.hcl", wantRootName: "root.hcl"},
-		{name: "terragrunt.hcl name", value: "terragrunt.hcl", wantRootName: "terragrunt.hcl", wantWarning: true},
-		{name: "terragrunt.hcl name under its strict control", value: "terragrunt.hcl", strict: true, wantExitErr: true},
-		{name: "terragrunt.hcl path under its strict control", value: "./terragrunt.hcl", strict: true, wantExitErr: true},
+		{name: "custom name", value: "root.hcl"},
+		{name: "terragrunt.hcl name", value: "terragrunt.hcl", want: rootFileNameWarned},
 		{
-			name:        "terragrunt.hcl in a parent directory under its strict control",
-			value:       "../terragrunt.hcl",
-			strict:      true,
-			wantExitErr: true,
+			name:   "terragrunt.hcl name under its strict control",
+			value:  "terragrunt.hcl",
+			strict: true,
+			want:   rootFileNameRejected,
 		},
 		{
-			name:        "terragrunt.hcl in a subdirectory under its strict control",
-			value:       "sub/terragrunt.hcl",
-			strict:      true,
-			wantExitErr: true,
+			name:   "terragrunt.hcl path under its strict control",
+			value:  "./terragrunt.hcl",
+			strict: true,
+			want:   rootFileNameRejected,
 		},
 		{
-			name:         "differently cased name left to find_in_parent_folders",
-			value:        "TERRAGRUNT.HCL",
-			strict:       true,
-			wantRootName: "TERRAGRUNT.HCL",
+			name:   "terragrunt.hcl in a parent directory under its strict control",
+			value:  "../terragrunt.hcl",
+			strict: true,
+			want:   rootFileNameRejected,
 		},
-		{name: "custom name under the strict control", value: "root.hcl", strict: true, wantRootName: "root.hcl"},
-		{name: "empty name", value: "", wantExitErr: true},
+		{
+			name:   "terragrunt.hcl in a subdirectory under its strict control",
+			value:  "sub/terragrunt.hcl",
+			strict: true,
+			want:   rootFileNameRejected,
+		},
+		{name: "differently cased name is stored", value: "TERRAGRUNT.HCL", strict: true},
+		{name: "custom name under the strict control", value: "root.hcl", strict: true},
+		{name: "empty name", value: "", want: rootFileNameEmpty},
 	}
 
 	for _, tc := range testCases {
@@ -66,24 +66,22 @@ func TestRootFileNameFlag(t *testing.T) {
 				require.NoError(t, opts.StrictControls.EnableControl(controls.RootTerragruntHCL))
 			}
 
-			var out bytes.Buffer
+			err := parseAndRunActions(
+				t,
+				shared.NewScaffoldingFlags(opts, nil),
+				clihelper.Args{"--root-file-name", tc.value},
+				map[string]string{},
+			)
 
-			ctx := log.ContextWithLogger(t.Context(), logger.CreateLogger().WithOptions(log.WithOutput(&out)))
-
-			scaffoldFlags := shared.NewScaffoldingFlags(opts, nil)
-			require.NoError(t, scaffoldFlags.Parse(clihelper.Args{"--root-file-name", tc.value}, map[string]string{}))
-
-			err := scaffoldFlags.RunActions(ctx, &clihelper.Context{})
-
-			if !tc.wantExitErr {
+			if tc.want == rootFileNameStored || tc.want == rootFileNameWarned {
 				require.NoError(t, err)
-				assert.Equal(t, tc.wantRootName, opts.ScaffoldRootFileName, "root file name should be stored")
-				assert.Equal(
-					t,
-					tc.wantWarning,
-					bytes.Contains(out.Bytes(), []byte(ctrl.Warning)),
-					"the disabled control should warn",
-				)
+				assert.Equal(t, tc.value, opts.ScaffoldRootFileName, "root file name should be stored")
+
+				warned := true
+
+				ctrl.OnceWarn.Do(func() { warned = false })
+
+				assert.Equal(t, tc.want == rootFileNameWarned, warned, "the disabled control should warn")
 
 				return
 			}
@@ -92,11 +90,19 @@ func TestRootFileNameFlag(t *testing.T) {
 			require.ErrorAs(t, err, &exitErr)
 			assert.Equal(t, int(clihelper.ExitCodeGeneralError), exitErr.ExitCode())
 
-			if !tc.strict {
-				return
+			if tc.want == rootFileNameRejected {
+				require.ErrorIs(t, err, ctrl.Error, "the enabled control should reject a terragrunt.hcl root")
 			}
-
-			require.ErrorIs(t, err, ctrl.Error, "the enabled control should reject a terragrunt.hcl root")
 		})
 	}
 }
+
+// rootFileNameOutcome is how --root-file-name handles a value.
+type rootFileNameOutcome int
+
+const (
+	rootFileNameStored rootFileNameOutcome = iota
+	rootFileNameWarned
+	rootFileNameRejected
+	rootFileNameEmpty
+)

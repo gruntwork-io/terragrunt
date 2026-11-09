@@ -8,15 +8,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -492,7 +491,7 @@ func (p *Plan) Generate(
 	)
 	setVarDefault(l, p.vars, rootFileName, opts.ScaffoldRootFileName, shared.RootFileNameFlagName)
 
-	if err := checkRootFile(ctx, l, v.FS, opts, p.outputDir, p.vars); err != nil {
+	if err := p.checkRootFile(ctx, l, v, opts); err != nil {
 		return err
 	}
 
@@ -1216,52 +1215,43 @@ func dependencyFilePath(outputDir, outputFolder, file string) string {
 	return p
 }
 
-// checkRootFile evaluates root-terragrunt-hcl when the generated include would find terragrunt.hcl in any spelling.
-func checkRootFile(
-	ctx context.Context,
-	l log.Logger,
-	fsys vfs.FS,
-	opts *options.TerragruntOptions,
-	outputDir string,
-	vars map[string]any,
-) error {
-	if include, ok := vars[enableRootInclude].(bool); ok && !include {
+// checkRootFile looks up the root file the generated include names, applying root-terragrunt-hcl.
+func (p *Plan) checkRootFile(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+	include, err := rootIncludeEnabled(p.vars[enableRootInclude])
+	if err != nil {
+		return fmt.Errorf("parsing %s: %w", enableRootInclude, err)
+	}
+
+	if !include {
 		return nil
 	}
 
-	name, _ := vars[rootFileName].(string)
-	if name == "" {
+	name := fmt.Sprint(p.vars[rootFileName])
+
+	pctx := config.NewParsingContext(config.WithStrictControls(opts.StrictControls))
+	pctx.TerragruntConfigPath = filepath.Join(p.outputDir, config.DefaultTerragruntConfigPath)
+	pctx.MaxFoldersToCheck = opts.MaxFoldersToCheck
+
+	_, err = config.FindInParentFolders(ctx, l, v, pctx, []string{name})
+	if errors.As(err, new(config.ParentFileNotFoundError)) {
 		return nil
 	}
 
-	dir := outputDir
+	return err
+}
 
-	for range opts.MaxFoldersToCheck {
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return nil
-		}
-
-		dir = parent
-
-		found := filepath.Join(dir, name)
-		if _, err := fsys.Stat(found); err != nil {
-			continue
-		}
-
-		if !config.IsDefaultConfigFile(fsys, found) {
-			return nil
-		}
-
-		if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).
-			Evaluate(log.ContextWithLogger(ctx, l)); err != nil {
-			return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
-		}
-
-		return nil
+// rootIncludeEnabled reads EnableRootInclude the way boilerplate converts it to a bool.
+func rootIncludeEnabled(value any) (bool, error) {
+	switch v := value.(type) {
+	case nil:
+		return false, nil
+	case bool:
+		return v, nil
+	case string:
+		return strconv.ParseBool(v)
 	}
 
-	return nil
+	return true, nil
 }
 
 type MaxDependencyDepthExceededError struct{}

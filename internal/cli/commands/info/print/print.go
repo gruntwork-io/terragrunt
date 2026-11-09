@@ -54,7 +54,11 @@ func runPrint(
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		return printTerragruntContext(l, v, opts, layout)
+		if printErr := printTerragruntContext(l, v, opts, layout); printErr != nil {
+			l.Errorf("Error printing info: %v", printErr)
+		}
+
+		return nil
 	}
 
 	// Download source
@@ -70,7 +74,11 @@ func runPrint(
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		return printTerragruntContext(l, v, opts, layout)
+		if printErr := printTerragruntContext(l, v, opts, layout); printErr != nil {
+			l.Errorf("Error printing info: %v", printErr)
+		}
+
+		return nil
 	}
 
 	return printTerragruntContext(l, v, updatedOpts, layout)

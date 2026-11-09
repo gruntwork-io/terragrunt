@@ -82,8 +82,8 @@ func TestNewCommandRunsTheCommand(t *testing.T) {
 	}
 }
 
-// TestNewCommandRunsTheSelectedUnits pins that --all runs every unit and --graph runs only the graph root and its dependents.
-func TestNewCommandRunsTheSelectedUnits(t *testing.T) {
+// TestNewCommandRunsEveryUnit pins that --all and --graph run the command across the stack.
+func TestNewCommandRunsEveryUnit(t *testing.T) {
 	t.Parallel()
 
 	units := maps.Clone(dependentUnits)

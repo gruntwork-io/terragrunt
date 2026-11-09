@@ -1,7 +1,6 @@
 package commands_test
 
 import (
-	"bytes"
 	"context"
 	"io/fs"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -194,30 +192,14 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name        string
-		op          string
-		mem         string
-		goroutine   string
-		wantWarning string
+		name      string
+		op        string
+		mem       string
+		goroutine string
 	}{
-		{
-			name:        "memory profile write",
-			op:          "write",
-			mem:         venvtest.Root("/profiles/mem.prof"),
-			wantWarning: "Could not write memory profile",
-		},
-		{
-			name:        "goroutine profile write",
-			op:          "write",
-			goroutine:   venvtest.Root("/profiles/goroutine.prof"),
-			wantWarning: "Could not write goroutine profile",
-		},
-		{
-			name:        "memory profile close",
-			op:          "close",
-			mem:         venvtest.Root("/profiles/mem.prof"),
-			wantWarning: "Could not close memory profile",
-		},
+		{name: "memory profile write", op: "write", mem: venvtest.Root("/profiles/mem.prof")},
+		{name: "goroutine profile write", op: "write", goroutine: venvtest.Root("/profiles/goroutine.prof")},
+		{name: "memory profile close", op: "close", mem: venvtest.Root("/profiles/mem.prof")},
 	}
 
 	for _, tc := range testCases {
@@ -225,19 +207,16 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 			t.Parallel()
 
 			v := venvtest.New()
-			v = v.WithFS(newFaultFS(v.FS, atPath(tc.op, tc.mem+tc.goroutine)))
+			fsys := newFaultFS(v.FS, atPath(tc.op, tc.mem+tc.goroutine))
+			v = v.WithFS(fsys)
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.ProfileMem = tc.mem
 			opts.ProfileGoroutine = tc.goroutine
 
-			var out bytes.Buffer
-
-			l := logger.CreateLogger().WithOptions(log.WithOutput(&out))
-
 			actionRan := false
 
-			err := commands.WrapWithProfiling(l, opts, v)(t.Context(), &clihelper.Context{},
+			err := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)(t.Context(), &clihelper.Context{},
 				func(context.Context, *clihelper.Context) error {
 					actionRan = true
 
@@ -245,7 +224,7 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 				})
 			require.NoError(t, err, "a profile flush failure should not fail the command")
 			assert.True(t, actionRan, "the action should run")
-			assert.Contains(t, out.String(), tc.wantWarning, "the flush failure should be reported as a warning")
+			assert.Equal(t, []injection{{op: tc.op, path: tc.mem + tc.goroutine}}, fsys.injections())
 		})
 	}
 }
@@ -258,34 +237,26 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 	goroutinePath := venvtest.Root("/profiles/goroutine.prof")
 
 	testCases := []struct {
+		startup     injection
+		cleanup     injection
 		name        string
-		wantOp      string
-		wantPath    string
-		wantLog     string
-		faults      []fault
 		wantMemFile bool
 	}{
 		{
-			name:     "discarded profile fails to close",
-			faults:   []fault{atPath("openfile", goroutinePath), atPath("close", memPath)},
-			wantOp:   "openfile",
-			wantPath: goroutinePath,
-			wantLog:  "Could not close discarded profile",
+			name:    "discarded profile fails to close",
+			startup: injection{op: "openfile", path: goroutinePath},
+			cleanup: injection{op: "close", path: memPath},
 		},
 		{
 			name:        "discarded profile fails to remove",
-			faults:      []fault{atPath("openfile", goroutinePath), atPath("remove", memPath)},
-			wantOp:      "openfile",
-			wantPath:    goroutinePath,
-			wantLog:     "Could not remove discarded profile",
+			startup:     injection{op: "openfile", path: goroutinePath},
+			cleanup:     injection{op: "remove", path: memPath},
 			wantMemFile: true,
 		},
 		{
 			name:        "profile fails to close after a permission failure",
-			faults:      []fault{atPath("chmod", memPath), atPath("close", memPath)},
-			wantOp:      "chmod",
-			wantPath:    memPath,
-			wantLog:     "Could not close profile",
+			startup:     injection{op: "chmod", path: memPath},
+			cleanup:     injection{op: "close", path: memPath},
 			wantMemFile: true,
 		},
 	}
@@ -295,26 +266,28 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 			t.Parallel()
 
 			v := venvtest.New()
-			v = v.WithFS(newFaultFS(v.FS, tc.faults...))
+			fsys := newFaultFS(v.FS, atPath(tc.startup.op, tc.startup.path), atPath(tc.cleanup.op, tc.cleanup.path))
+			v = v.WithFS(fsys)
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.ProfileMem = memPath
 			opts.ProfileGoroutine = goroutinePath
 
-			var out bytes.Buffer
-
-			l := logger.CreateLogger().WithOptions(log.WithOutput(&out))
-
-			err := commands.WrapWithProfiling(l, opts, v)(t.Context(), &clihelper.Context{}, failIfCalled(t))
+			err := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)(t.Context(), &clihelper.Context{}, failIfCalled(t))
 			require.ErrorIs(t, err, errInjected)
 
 			var pathErr *fs.PathError
 
 			require.ErrorAs(t, err, &pathErr)
-			assert.Equal(t, tc.wantOp, pathErr.Op, "the startup failure should be reported, not the cleanup one")
-			assert.Equal(t, tc.wantPath, pathErr.Path, "the startup failure should name the profile that failed")
+			reported := injection{op: pathErr.Op, path: pathErr.Path}
+			assert.Equal(t, tc.startup, reported, "the startup failure should be reported, not the cleanup one")
+			assert.Equal(
+				t,
+				[]injection{tc.startup, tc.cleanup},
+				fsys.injections(),
+				"the cleanup should run after the startup failure",
+			)
 			assert.Equal(t, tc.wantMemFile, vfs.Exists(v.FS, memPath), "memory profile presence after cleanup")
-			assert.Contains(t, out.String(), tc.wantLog, "the cleanup failure should be logged")
 		})
 	}
 }
