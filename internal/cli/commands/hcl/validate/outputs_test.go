@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -83,8 +82,7 @@ output "vpc_id" {
 }
 `
 
-// expandedContractFiles is a repository whose a and b units each declare an output of their own, for an app unit
-// that reads them through one expanded dependency.
+// expandedContractFiles has units a and b declaring an output each, read by app through one expanded dependency.
 var expandedContractFiles = map[string]string{
 	"a/main.tf": `
 output "a_id" {
@@ -257,33 +255,19 @@ inputs = {
 			}
 
 			require.Error(t, result.err)
+			require.Len(t, result.diags, 1)
 
-			// Evaluating a reference against the mock object raises HCL's own "Unsupported attribute" as well, so
-			// the contract diagnostic is found by its summary rather than being the only one.
-			summaries := make([]string, 0, len(result.diags))
-			found := false
+			diag := result.diags[0]
 
-			for _, diag := range result.diags {
-				summaries = append(summaries, diag.Summary)
-
-				if diag.Summary != tc.expectedSummary {
-					continue
-				}
-
-				found = true
-
-				require.NotNil(t, diag.Range)
-				assert.Equal(t, filepath.Join(result.root, filepath.FromSlash(tc.expectedFile)), diag.Range.Filename)
-				assert.Equal(t, tc.expectedLine, diag.Range.Start.Line)
-			}
-
-			assert.True(t, found, "no %q diagnostic among: %s", tc.expectedSummary, strings.Join(summaries, " | "))
+			assert.Equal(t, tc.expectedSummary, diag.Summary)
+			require.NotNil(t, diag.Range)
+			assert.Equal(t, filepath.Join(result.root, filepath.FromSlash(tc.expectedFile)), diag.Range.Filename)
+			assert.Equal(t, tc.expectedLine, diag.Range.Start.Line)
 		})
 	}
 }
 
-// TestRunValidateOutputsContractsExpandedDependency pins that a reference to one instance of an expanded
-// dependency is checked against the outputs that instance declares.
+// TestRunValidateOutputsContractsExpandedDependency checks a reference to one instance against that instance's outputs.
 func TestRunValidateOutputsContractsExpandedDependency(t *testing.T) {
 	t.Parallel()
 
@@ -455,29 +439,20 @@ inputs = {
 			}
 
 			require.Error(t, result.err)
+			require.Len(t, result.diags, 1)
 
-			found := false
+			diag := result.diags[0]
 
-			for _, diag := range result.diags {
-				if diag.Summary != tc.expectedSummary {
-					continue
-				}
-
-				found = true
-
-				require.NotNil(t, diag.Range)
-				assert.Equal(t, filepath.Join(result.root, "app", config.DefaultTerragruntConfigPath), diag.Range.Filename)
-				assert.Equal(t, tc.expectedLine, diag.Range.Start.Line)
-				assert.Contains(t, diag.Detail, `dependency "`+tc.expectedAddress+`"`)
-			}
-
-			assert.True(t, found, "no %q diagnostic", tc.expectedSummary)
+			assert.Equal(t, tc.expectedSummary, diag.Summary)
+			require.NotNil(t, diag.Range)
+			assert.Equal(t, filepath.Join(result.root, "app", config.DefaultTerragruntConfigPath), diag.Range.Filename)
+			assert.Equal(t, tc.expectedLine, diag.Range.Start.Line)
+			assert.Contains(t, diag.Detail, `dependency "`+tc.expectedAddress+`"`)
 		})
 	}
 }
 
-// overriddenIncludeFiles is a repository whose root config reads the legacy unit through a dependency named vpc,
-// and whose app unit declares a dependency of the same name that reads the current unit instead.
+// overriddenIncludeFiles has a root config and an app unit each declaring a dependency named vpc on different units.
 var overriddenIncludeFiles = map[string]string{
 	"legacy/main.tf": `
 output "legacy_id" {
@@ -515,9 +490,7 @@ inputs = {
 	"app/main.tf": `variable "id" {}`,
 }
 
-// TestRunValidateOutputsContractsIncludedReferences pins that a reference in a file the unit merges or exposes is
-// checked against the dependencies of the unit, which win over those of the file by name, and reported in that
-// file, and that a file the unit neither merges nor exposes is not checked, as it is never evaluated.
+// TestRunValidateOutputsContractsIncludedReferences checks merged and exposed includes against the unit's dependencies.
 func TestRunValidateOutputsContractsIncludedReferences(t *testing.T) {
 	t.Parallel()
 
@@ -684,8 +657,7 @@ inputs = {
 	}
 }
 
-// TestRunValidateOutputsContractsReferencesInVariablesBlock pins that a reference inside a variables block is
-// checked like one in the inputs attribute.
+// TestRunValidateOutputsContractsReferencesInVariablesBlock checks a reference inside a variables block.
 func TestRunValidateOutputsContractsReferencesInVariablesBlock(t *testing.T) {
 	t.Parallel()
 
@@ -728,8 +700,7 @@ variables {
 	assert.Equal(t, 1, found, "one undeclared output diagnostic expected")
 }
 
-// TestRunValidateOutputsContractsLeavesUnitDirectory pins that the module is viewed in memory: the generate
-// block satisfies the declaration, and the unit directory has no generated file afterwards.
+// TestRunValidateOutputsContractsLeavesUnitDirectory expects no generated file in the unit directory after the check.
 func TestRunValidateOutputsContractsLeavesUnitDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -745,7 +716,7 @@ func TestRunValidateOutputsContractsLeavesUnitDirectory(t *testing.T) {
 	assert.False(t, vfs.Exists(result.fs, filepath.Join(result.root, "vpc", "subnets.tf")))
 }
 
-// TestRunValidateOutputsContractsInputsMode pins that --inputs runs the same checks and reports them as errors.
+// TestRunValidateOutputsContractsInputsMode expects --inputs to run the same checks and report them as errors.
 func TestRunValidateOutputsContractsInputsMode(t *testing.T) {
 	t.Parallel()
 
@@ -797,8 +768,7 @@ inputs = {
 	}, summaries)
 }
 
-// TestRunValidateOutputsContractsSkipsBackendCheck pins that generating the module in memory does not add the
-// backend check a run makes: a remote_state block without generate passes with a module that defines no backend.
+// TestRunValidateOutputsContractsSkipsBackendCheck passes a remote_state block without generate and no module backend.
 func TestRunValidateOutputsContractsSkipsBackendCheck(t *testing.T) {
 	t.Parallel()
 
@@ -829,8 +799,7 @@ outputs {
 	assert.Empty(t, result.diags)
 }
 
-// TestRunValidateOutputsContractsReportsModuleParseErrors pins that a module file that does not parse, or whose
-// output block is malformed, is reported as a diagnostic against that file, not as an error of the unit.
+// TestRunValidateOutputsContractsReportsModuleParseErrors expects a diagnostic against a module file failing to parse.
 func TestRunValidateOutputsContractsReportsModuleParseErrors(t *testing.T) {
 	t.Parallel()
 
@@ -891,8 +860,7 @@ output {
 	}
 }
 
-// TestRunValidateOutputsContractsGeneratesLikeARun pins that a generate block fails the check as it fails a run:
-// with if_exists = "error", an existing file at an absolute path is an error, whatever its suffix.
+// TestRunValidateOutputsContractsGeneratesLikeARun expects if_exists = "error" on an existing absolute path to fail.
 func TestRunValidateOutputsContractsGeneratesLikeARun(t *testing.T) {
 	t.Parallel()
 
@@ -918,8 +886,7 @@ outputs {
 	require.ErrorAs(t, result.err, new(validate.OutputsContractError))
 }
 
-// TestRunValidateOutputsContractsReadsLinkedModuleFiles pins that a module file that is a symbolic link counts,
-// as it does when the module runs. The repository is on disk, since the in-memory filesystem lists no links.
+// TestRunValidateOutputsContractsReadsLinkedModuleFiles counts a symlinked module file, on the OS filesystem.
 func TestRunValidateOutputsContractsReadsLinkedModuleFiles(t *testing.T) {
 	t.Parallel()
 
@@ -943,8 +910,7 @@ func TestRunValidateOutputsContractsReadsLinkedModuleFiles(t *testing.T) {
 	assert.Empty(t, result.diags)
 }
 
-// TestRunValidateOutputsContractsFetchesSource pins that the declared outputs are checked against the module the
-// unit's source names, fetched into the download directory. The unit directory holds no module of its own.
+// TestRunValidateOutputsContractsFetchesSource checks the declared outputs against the module the unit's source names.
 func TestRunValidateOutputsContractsFetchesSource(t *testing.T) {
 	t.Parallel()
 
@@ -972,12 +938,125 @@ outputs {
 
 	require.NoError(t, result.err)
 	assert.Empty(t, result.diags)
+	assert.True(t, vfs.Exists(result.fs, filepath.Join(result.root, "vpc", ".terragrunt-cache")))
+	assert.False(t, vfs.Exists(result.fs, filepath.Join(result.root, ".terragrunt-cache")))
 }
 
-// TestRunValidateOutputsContractsPointsAtDependencyErrors pins where the errors of reading a dependency's outputs
-// block are reported. A syntax error in the dependency's config is reported once, by that config's own parse when
-// the run validates it and otherwise at the config_path of each dependent that names it. A mock value its readers
-// cannot know is reported at the output block that declares it.
+// TestRunValidateOutputsContractsRunsNoHook expects the fetch of a source to run none of the hooks of the unit.
+func TestRunValidateOutputsContractsRunsNoHook(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		hook    string
+		command string
+	}{
+		{name: "an after hook of terragrunt-read-config", hook: "after_hook", command: "terragrunt-read-config"},
+		{name: "a before hook of init-from-module", hook: "before_hook", command: "init-from-module"},
+		{name: "an after hook of init-from-module", hook: "after_hook", command: "init-from-module"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := withFiles(outputsContractFiles, map[string]string{
+				"vpc/terragrunt.hcl": `
+terraform {
+  source = "${get_terragrunt_dir()}/../modules/vpc"
+
+  ` + tc.hook + ` "mark" {
+    commands = ["` + tc.command + `"]
+    execute  = ["touch", "hook-ran"]
+  }
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+				"modules/vpc/main.tf": outputsContractFiles["vpc/main.tf"],
+			})
+			delete(files, "vpc/main.tf")
+
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+
+			require.NoError(t, result.err)
+			assert.Empty(t, result.diags)
+		})
+	}
+}
+
+// TestRunValidateOutputsContractsGeneratesTheBackendFile expects remote_state generate to honor if_exists on a file.
+func TestRunValidateOutputsContractsGeneratesTheBackendFile(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		ifExists string
+		fails    bool
+	}{
+		{name: "an existing backend file is overwritten", ifExists: "overwrite"},
+		{name: "an existing backend file is an error", ifExists: "error", fails: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := withFiles(outputsContractFiles, map[string]string{
+				"vpc/backend.tf": "terraform {}\n",
+				"vpc/terragrunt.hcl": `
+remote_state {
+  backend = "local"
+
+  generate = {
+    path      = "backend.tf"
+    if_exists = "` + tc.ifExists + `"
+  }
+
+  config = {
+    path = "terraform.tfstate"
+  }
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+			})
+
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+
+			if tc.fails {
+				require.ErrorAs(t, result.err, new(validate.OutputsContractError))
+
+				return
+			}
+
+			require.NoError(t, result.err)
+			assert.Empty(t, result.diags)
+
+			backend, err := vfs.ReadFile(result.fs, filepath.Join(result.root, "vpc", "backend.tf"))
+			require.NoError(t, err)
+			assert.Equal(t, "terraform {}\n", string(backend), "the unit directory keeps its own file")
+		})
+	}
+}
+
+// TestRunValidateOutputsContractsPointsAtDependencyErrors expects each dependency read error at one place.
 func TestRunValidateOutputsContractsPointsAtDependencyErrors(t *testing.T) {
 	t.Parallel()
 
@@ -1084,6 +1163,7 @@ outputs {
 				require.NotNil(t, diag.Range)
 				assert.Equal(t, filepath.Join(result.root, filepath.FromSlash(tc.expectedFile)), diag.Range.Filename)
 				assert.Equal(t, tc.expectedLine, diag.Range.Start.Line)
+				assert.NotContains(t, diag.Detail, "..")
 			}
 
 			assert.Equal(t, 1, found, "one %q diagnostic expected", tc.expectedSummary)
@@ -1091,8 +1171,7 @@ outputs {
 	}
 }
 
-// TestRunValidateOutputsContractsLeavesValidatedDependencyToItsOwnParse pins that a broken dependency config the
-// run validates is reported by its own parse only, however many units read its outputs block.
+// TestRunValidateOutputsContractsLeavesValidatedDependencyToItsOwnParse expects one diagnostic for a broken dependency.
 func TestRunValidateOutputsContractsLeavesValidatedDependencyToItsOwnParse(t *testing.T) {
 	t.Parallel()
 
@@ -1114,8 +1193,7 @@ outputs {
 	assert.Equal(t, filepath.Join(result.root, "vpc", config.DefaultTerragruntConfigPath), result.diags[0].Range.Filename)
 }
 
-// TestRunValidateOutputsContractsKeepsDistinctDiagnosticsAtOneRange pins that two units reading one shared file
-// against different dependencies each get their own diagnostic at the same range.
+// TestRunValidateOutputsContractsKeepsDistinctDiagnosticsAtOneRange expects a diagnostic per unit at one shared range.
 func TestRunValidateOutputsContractsKeepsDistinctDiagnosticsAtOneRange(t *testing.T) {
 	t.Parallel()
 
@@ -1216,28 +1294,37 @@ func joinedLeaves(err error) []error {
 	return leaves
 }
 
-// TestRunValidateOutputsContractsFollowsCopyExclusions pins that the module view holds the files the run copies
-// into the cache directory: a file exclude_from_copy leaves out declares nothing, unless the unit runs in place.
+// TestRunValidateOutputsContractsFollowsCopyExclusions expects a file exclude_from_copy leaves out to declare nothing.
 func TestRunValidateOutputsContractsFollowsCopyExclusions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name        string
 		terraform   string
+		legacyFile  string
 		experiments []string
 		reported    bool
 	}{
 		{
 			name:        "a file exclude_from_copy leaves out does not declare the output",
 			terraform:   `exclude_from_copy = ["legacy.tf"]`,
+			legacyFile:  "vpc/legacy.tf",
 			experiments: []string{experiment.OutputsBlock},
 			reported:    true,
 		},
 		{
 			name:        "a unit that runs in place keeps every file",
 			terraform:   "exclude_from_copy       = [\"legacy.tf\"]\n  no_dot_terragrunt_cache = true",
+			legacyFile:  "vpc/legacy.tf",
 			experiments: []string{experiment.OutputsBlock, experiment.NoDotTerragruntCache},
 			reported:    false,
+		},
+		{
+			name:        "a file whose name starts with a dot does not declare the output, even in place",
+			terraform:   "no_dot_terragrunt_cache = true",
+			legacyFile:  "vpc/.legacy.tf",
+			experiments: []string{experiment.OutputsBlock, experiment.NoDotTerragruntCache},
+			reported:    true,
 		},
 	}
 
@@ -1246,8 +1333,8 @@ func TestRunValidateOutputsContractsFollowsCopyExclusions(t *testing.T) {
 			t.Parallel()
 
 			files := map[string]string{
-				"vpc/main.tf":   `output "current" { value = "current" }`,
-				"vpc/legacy.tf": `output "retired" { value = "retired" }`,
+				"vpc/main.tf": `output "current" { value = "current" }`,
+				tc.legacyFile: `output "retired" { value = "retired" }`,
 				"vpc/terragrunt.hcl": `
 terraform {
   ` + tc.terraform + `
@@ -1278,29 +1365,35 @@ outputs {
 	}
 }
 
-// TestRunValidateOutputsContractsReadsTheEngineFiles pins that the module is read as the OpenTofu/Terraform binary
-// of the run reads it: with OpenTofu a .tofu file hides the .tf file of the same name, and with Terraform .tofu
-// files are not read.
+// TestRunValidateOutputsContractsReadsTheEngineFiles expects the module files of the binary of the run to be read.
 func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name    string
-		tfPath  string
-		missing string
+		name            string
+		tfPath          string
+		terraformBinary string
+		missing         string
 	}{
 		{name: "opentofu does not read the .tf file beside its .tofu twin", tfPath: "tofu", missing: "retired"},
 		{name: "terraform does not read .tofu files", tfPath: "terraform", missing: "current"},
+		{name: "terraform_binary names the binary of the run", terraformBinary: "terraform", missing: "current"},
+		{name: "--tf-path wins over terraform_binary", tfPath: "tofu", terraformBinary: "terraform", missing: "retired"},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			terraformBinary := ""
+			if tc.terraformBinary != "" {
+				terraformBinary = `terraform_binary = "` + tc.terraformBinary + `"`
+			}
+
 			files := map[string]string{
 				"vpc/main.tf":   `output "retired" { value = "retired" }`,
 				"vpc/main.tofu": `output "current" { value = "current" }`,
-				"vpc/terragrunt.hcl": `
+				"vpc/terragrunt.hcl": terraformBinary + `
 outputs {
   output "retired" {
     mock_value = "mock-retired"
@@ -1327,9 +1420,7 @@ outputs {
 	}
 }
 
-// TestRunValidateOutputsContractsSkipsDependencyBlocksTheAutoincludeReplaces pins that a dependency block of the
-// unit file that the autoinclude file replaces is not read, as the parse never evaluates it, while the block that
-// replaces it is.
+// TestRunValidateOutputsContractsSkipsDependencyBlocksTheAutoincludeReplaces checks only the autoinclude block.
 func TestRunValidateOutputsContractsSkipsDependencyBlocksTheAutoincludeReplaces(t *testing.T) {
 	t.Parallel()
 

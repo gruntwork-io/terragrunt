@@ -165,8 +165,7 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestRunValidateReportsOneParserDiagnosticPerRange pins that the cascade the HCL parser raises at one source
-// range is reported once.
+// TestRunValidateReportsOneParserDiagnosticPerRange expects one diagnostic for a parser cascade at one source range.
 func TestRunValidateReportsOneParserDiagnosticPerRange(t *testing.T) {
 	t.Parallel()
 

@@ -861,8 +861,7 @@ generate "backend" {
 	}
 }
 
-// TestParityOutputsBlock pins parity for a unit that declares its outputs and for a dependent that reads them,
-// with and without the outputs-block experiment, and that the positive cases resolve the values they read.
+// TestParityOutputsBlock covers a declaring unit and a dependent reading it, with the experiment on and off.
 func TestParityOutputsBlock(t *testing.T) {
 	t.Parallel()
 

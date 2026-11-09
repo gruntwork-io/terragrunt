@@ -953,11 +953,13 @@ func PartialParseConfig(
 				return nil, err
 			}
 
-			if output.Outputs != nil {
-				output.Outputs.Merge(decoded.Outputs)
-			} else {
+			if output.Outputs == nil {
 				output.Outputs = decoded.Outputs
+
+				continue
 			}
+
+			output.Outputs.Merge(decoded.Outputs)
 
 		default:
 			return nil, InvalidPartialBlockName{decode}

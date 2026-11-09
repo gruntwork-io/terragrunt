@@ -2,12 +2,16 @@ package config_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
+	"fmt"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
@@ -371,7 +375,6 @@ func TestWriteToRendersOutputsBlock(t *testing.T) {
 	require.NoError(t, err)
 	assert.Positive(t, n)
 
-	// The rendered block parses back to the same declarations.
 	roundTrip := parseOutputsConfig(t, rendered.String(), true)
 	assert.Equal(t, cfg.Outputs, roundTrip.Outputs)
 }
@@ -451,6 +454,102 @@ variables {
 	}, found)
 }
 
+func TestDependencyOutputReferencesBoundsBlockNesting(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		depth    int
+		exceeded bool
+	}{
+		{name: "blocks nested to the limit are walked", depth: 32},
+		{name: "blocks nested past the limit are an error", depth: 33, exceeded: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			content := strings.Repeat("a {\n", tc.depth) +
+				"id = dependency.vpc.outputs.vpc_id\n" +
+				strings.Repeat("}\n", tc.depth)
+
+			l := createLogger()
+			v := venvtest.New()
+			_, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+
+			file, err := pctx.NewParser(l, v).ParseFromString(content, config.DefaultTerragruntConfigPath)
+			require.NoError(t, err)
+
+			refs, err := config.DependencyOutputReferences(file, config.Dependencies{{Name: "vpc"}}, nil)
+
+			if !tc.exceeded {
+				require.NoError(t, err)
+				require.Len(t, refs, 1)
+				assert.Equal(t, "vpc_id", refs[0].Output)
+
+				return
+			}
+
+			var nestingErr config.BlockNestingExceededError
+
+			require.ErrorAs(t, err, &nestingErr)
+			assert.Equal(t, 32, nestingErr.Limit)
+			assert.Equal(t, config.DefaultTerragruntConfigPath, nestingErr.ConfigPath)
+		})
+	}
+}
+
+func TestDependencyOutputReferencesSkipsReplacedBlocks(t *testing.T) {
+	t.Parallel()
+
+	const content = `
+dependency "db" {
+  config_path  = "../db"
+  mock_outputs = { id = dependency.vpc.outputs.skipped }
+}
+
+dependency "db" {
+  config_path  = "../db"
+  mock_outputs = { id = dependency.vpc.outputs.expanded }
+
+  expansion {
+    for_each = toset(["a"])
+  }
+}
+
+dependency "cache" {
+  config_path  = "../cache"
+  mock_outputs = { id = dependency.vpc.outputs.kept }
+}
+
+generate "nested" {
+  dependency "db" {
+    mock_outputs = { id = dependency.vpc.outputs.nested }
+  }
+}
+`
+
+	l := createLogger()
+	v := venvtest.New()
+	_, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+
+	file, err := pctx.NewParser(l, v).ParseFromString(content, config.DefaultTerragruntConfigPath)
+	require.NoError(t, err)
+
+	replaced := map[string]struct{}{"db": {}}
+
+	refs, err := config.DependencyOutputReferences(file, config.Dependencies{{Name: "vpc"}}, replaced)
+	require.NoError(t, err)
+
+	outputs := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		outputs = append(outputs, ref.Output)
+	}
+
+	assert.Equal(t, []string{"expanded", "kept", "nested"}, outputs)
+}
+
 func TestOutputDeclarationRanges(t *testing.T) {
 	t.Parallel()
 
@@ -485,14 +584,17 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 	mockSubnets := []any{"subnet-mock-1", "subnet-mock-2"}
 
 	testCases := []struct {
-		check          func(t *testing.T, cfg *config.TerragruntConfig, err error)
-		name           string
-		vpcConfig      string
-		dependencyBody string
-		command        string
-		vpcState       string
-		inputs         string
-		experimentOff  bool
+		check             func(t *testing.T, cfg *config.TerragruntConfig, err error)
+		name              string
+		vpcConfig         string
+		vpcConfigFile     string
+		vpcAutoInclude    string
+		dependencyBody    string
+		command           string
+		vpcState          string
+		inputs            string
+		experimentOff     bool
+		ignoreDiagnostics bool
 	}{
 		{
 			name:      "declared mocks stand in while the unit has no state",
@@ -568,8 +670,12 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 
 				require.ErrorAs(t, err, &missingErr)
 				assert.Equal(t, "subnet_ids", missingErr.Output)
-				assert.Equal(t, "vpc", missingErr.DependencyName)
 				assert.True(t, strings.HasSuffix(missingErr.TargetConfig, filepath.Join("vpc", config.DefaultTerragruntConfigPath)))
+
+				var blockErr config.DependencyBlockError
+
+				require.ErrorAs(t, err, &blockErr)
+				assert.Equal(t, "vpc", blockErr.Name)
 			},
 		},
 		{
@@ -791,6 +897,135 @@ outputs {
 			},
 		},
 		{
+			name: "a disabled dependency reads no outputs block",
+			vpcConfig: `
+outputs {
+  output "vpc_id" {
+`,
+			dependencyBody: `enabled = false`,
+			command:        "plan",
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var diags hcl.Diagnostics
+
+				require.ErrorAs(t, err, &diags)
+				assert.NotErrorAs(t, err, new(config.DependencyBlockError))
+			},
+		},
+		{
+			name: "a sensitive declared mock value stays sensitive for the dependent",
+			vpcConfig: `
+outputs {
+  output "vpc_id" {
+    mock_value = sensitive("vpc-secret")
+  }
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+			command: "plan",
+			inputs:  sensitivityInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "vpc-secret", cfg.Inputs["vpc_id"])
+				assert.Equal(t, true, cfg.Inputs["vpc_id_sensitive"])
+				assert.Equal(t, false, cfg.Inputs["subnet_ids_sensitive"])
+			},
+		},
+		{
+			name: "a reader that ignores diagnostics still gets the error of a broken unit config",
+			vpcConfig: `
+outputs {
+  output "vpc_id" {
+`,
+			command:           "plan",
+			ignoreDiagnostics: true,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var readErr config.DeclaredOutputsReadError
+
+				require.ErrorAs(t, err, &readErr)
+			},
+		},
+		{
+			name:           "the deprecated mock_outputs_merge_with_state wins over merge_with_state",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs_merge_with_state = false`,
+			command:        "plan",
+			vpcState:       vpcStateWithoutSubnets,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var missingErr config.DeclaredOutputMissingError
+
+				require.ErrorAs(t, err, &missingErr)
+				assert.Equal(t, "subnet_ids", missingErr.Output)
+
+				var blockErr config.DependencyBlockError
+
+				require.ErrorAs(t, err, &blockErr)
+				assert.Equal(t, "vpc", blockErr.Name)
+			},
+		},
+		{
+			name:          "a unit declared in terragrunt.hcl.json is read",
+			vpcConfigFile: "terragrunt.hcl.json",
+			vpcConfig: `{
+  "outputs": {
+    "output": {
+      "vpc_id": {"mock_value": "vpc-json"},
+      "subnet_ids": {"mock_value": []}
+    }
+  }
+}`,
+			command: "plan",
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "vpc-json", cfg.Inputs["vpc_id"])
+			},
+		},
+		{
+			name:           "an outputs block in the autoinclude file of the unit is read",
+			vpcAutoInclude: outputsBlockConfig,
+			command:        "plan",
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+				assert.Equal(t, mockSubnets, cfg.Inputs["subnet_ids"])
+			},
+		},
+		{
+			name:      "an instance of an expanded dependency reads the declared mocks",
+			vpcConfig: outputsBlockConfig,
+			dependencyBody: `expansion {
+    for_each = toset(["vpc"])
+  }`,
+			command: "plan",
+			inputs: `
+inputs = {
+  vpc_id     = dependency.vpc["vpc"].outputs.vpc_id
+  subnet_ids = dependency.vpc["vpc"].outputs.subnet_ids
+}
+`,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+				assert.Equal(t, mockSubnets, cfg.Inputs["subnet_ids"])
+			},
+		},
+		{
 			name:          "the experiment off rejects a unit that declares outputs",
 			vpcConfig:     outputsBlockConfig,
 			command:       "plan",
@@ -801,6 +1036,11 @@ outputs {
 				var experimentErr config.OutputsBlockRequiresExperimentError
 
 				require.ErrorAs(t, err, &experimentErr)
+
+				var blockErr config.DependencyBlockError
+
+				require.ErrorAs(t, err, &blockErr)
+				assert.Equal(t, "vpc", blockErr.Name)
 			},
 		},
 	}
@@ -812,9 +1052,14 @@ outputs {
 			root := venvtest.Root("/fixture")
 			fsys := vfs.NewMemMapFS()
 			vpcDir := filepath.Join(root, "vpc")
-			vpcCfgPath := filepath.Join(vpcDir, config.DefaultTerragruntConfigPath)
+			vpcCfgPath := filepath.Join(vpcDir, cmp.Or(tc.vpcConfigFile, config.DefaultTerragruntConfigPath))
 			require.NoError(t, vfs.WriteFile(fsys, vpcCfgPath, []byte(tc.vpcConfig), 0o644))
 			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(vpcDir, "main.tf"), []byte(vpcModule), 0o644))
+
+			if tc.vpcAutoInclude != "" {
+				autoIncludePath := filepath.Join(vpcDir, "terragrunt.autoinclude.hcl")
+				require.NoError(t, vfs.WriteFile(fsys, autoIncludePath, []byte(tc.vpcAutoInclude), 0o644))
+			}
 
 			appConfigPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 			appConfig := strings.Replace(dependentConfig, "%s", tc.dependencyBody, 1)
@@ -837,6 +1082,8 @@ outputs {
 			if !tc.experimentOff {
 				require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 			}
+
+			pctx.Parser.IgnoreDiagnostics = tc.ignoreDiagnostics
 
 			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
 			tc.check(t, cfg, err)
@@ -895,8 +1142,7 @@ func TestDependencyReadGivesOutputsBlockTip(t *testing.T) {
 	}
 }
 
-// TestDependencyReadsDeclaredOutputsThroughInclude pins that the outputs block a unit merges from an included
-// config reaches its dependents.
+// TestDependencyReadsDeclaredOutputsThroughInclude expects an outputs block merged from an include to reach dependents.
 func TestDependencyReadsDeclaredOutputsThroughInclude(t *testing.T) {
 	t.Parallel()
 
@@ -929,8 +1175,7 @@ include "root" {
 	assert.Equal(t, []any{"subnet-mock-1", "subnet-mock-2"}, cfg.Inputs["subnet_ids"])
 }
 
-// TestDependencyOnStackReadsNoDeclaredOutputs pins that a dependency whose config_path points at a stack keeps
-// reading its own mock_outputs, with no outputs block read and no tip.
+// TestDependencyOnStackReadsNoDeclaredOutputs expects a dependency on a stack to keep its own mock_outputs and no tip.
 func TestDependencyOnStackReadsNoDeclaredOutputs(t *testing.T) {
 	t.Parallel()
 
@@ -985,9 +1230,7 @@ inputs = {
 	assert.False(t, tipped, "a stack target gets no outputs-block tip")
 }
 
-// TestDependencyDeclaredOutputsReadsEachUnitOnce pins the per-run cache of declared outputs: a second read of
-// the same unit config evaluates nothing again, and a changed file is read again. The unit's locals read a tfvars
-// file, so each evaluation opens it once.
+// TestDependencyDeclaredOutputsReadsEachUnitOnce expects one evaluation per unit config until the file changes.
 func TestDependencyDeclaredOutputsReadsEachUnitOnce(t *testing.T) {
 	t.Parallel()
 
@@ -1039,8 +1282,7 @@ outputs {
 	assert.Equal(t, 2, fsys.count(tfvarsPath), "a changed unit config is read again")
 }
 
-// TestDependencyDeclaredOutputsConcurrentReadsWithRacing pins that dependents reading one target at once each get
-// a copy and the target is parsed no more often than there are readers.
+// TestDependencyDeclaredOutputsConcurrentReadsWithRacing expects a copy per reader and at most one parse per reader.
 func TestDependencyDeclaredOutputsConcurrentReadsWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -1075,11 +1317,122 @@ func TestDependencyDeclaredOutputsConcurrentReadsWithRacing(t *testing.T) {
 		require.NoError(t, errs[i])
 		require.NotNil(t, results[i])
 		assert.Equal(t, results[0].Names(), results[i].Names())
+
+		if i > 0 {
+			assert.NotSame(t, results[0], results[i])
+		}
 	}
+
+	// a reader opens the file for the digest of its racy mtime and for the parse
+	const opensPerReader = 2
 
 	opens := fsys.count(vpcConfigPath)
 	assert.GreaterOrEqual(t, opens, 1)
-	assert.LessOrEqual(t, opens, readers)
+	assert.LessOrEqual(t, opens, readers*opensPerReader)
+}
+
+// TestDependencyDeclaredOutputsReadsARacyRewrite expects a same-size rewrite within the racy mtime window to be read.
+func TestDependencyDeclaredOutputsReadsARacyRewrite(t *testing.T) {
+	t.Parallel()
+
+	const vpcConfig = `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock-%s"
+  }
+}
+`
+
+	root := venvtest.Root("/fixture")
+	fsys := frozenModTimeFS{FS: vfs.NewMemMapFS(), modTime: time.Now()}
+	vpcConfigPath := filepath.Join(root, "vpc", config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, fmt.Appendf(nil, vpcConfig, "a"), 0o644))
+
+	l := createLogger()
+	v := venvtest.New().WithFS(fsys)
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	first, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	assert.Equal(t, "vpc-mock-a", first.Outputs[0].MockValue.AsString())
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, fmt.Appendf(nil, vpcConfig, "b"), 0o644))
+
+	second, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	assert.Equal(t, "vpc-mock-b", second.Outputs[0].MockValue.AsString())
+}
+
+// TestOutputsBlockRendersEmptyAllowedCommands expects an empty allowed_commands list to render as an empty list.
+func TestOutputsBlockRendersEmptyAllowedCommands(t *testing.T) {
+	t.Parallel()
+
+	cfg := parseOutputsConfig(t, `
+outputs {
+  mock_strategy {
+    allowed_commands = []
+  }
+
+  output "id" {
+    mock_value = "mock-id"
+  }
+}
+`, true)
+
+	require.NotNil(t, cfg.Outputs.MockStrategy)
+	require.NotNil(t, cfg.Outputs.MockStrategy.AllowedCommands)
+	assert.Empty(t, *cfg.Outputs.MockStrategy.AllowedCommands)
+
+	var rendered bytes.Buffer
+
+	_, err := cfg.WriteTo(&rendered)
+	require.NoError(t, err)
+	assert.Contains(t, rendered.String(), "allowed_commands = []")
+
+	roundTrip := parseOutputsConfig(t, rendered.String(), true)
+	assert.Equal(t, cfg.Outputs, roundTrip.Outputs)
+
+	ctyVal, err := config.TerragruntConfigAsCty(cfg)
+	require.NoError(t, err)
+
+	strategy := ctyVal.GetAttr(config.MetadataOutputs).GetAttr(config.MetadataMockStrategy)
+	assert.Equal(t, cty.ListValEmpty(cty.String), strategy.GetAttr("allowed_commands"))
+}
+
+// TestOutputsBlockRendersSensitiveMockValue expects a sensitive() mock value rendered plain and marked as a value.
+func TestOutputsBlockRendersSensitiveMockValue(t *testing.T) {
+	t.Parallel()
+
+	cfg := parseOutputsConfig(t, `
+outputs {
+  output "token" {
+    mock_value = sensitive("mock-token")
+  }
+}
+`, true)
+
+	require.True(t, cfg.Outputs.Outputs[0].MockValue.IsMarked())
+
+	var rendered bytes.Buffer
+
+	_, err := cfg.WriteTo(&rendered)
+	require.NoError(t, err)
+	assert.Contains(t, rendered.String(), `mock_value = "mock-token"`)
+
+	ctyVal, err := config.TerragruntConfigAsCty(cfg)
+	require.NoError(t, err)
+
+	mockValue := ctyVal.GetAttr(config.MetadataOutputs).
+		GetAttr(config.MetadataOutput).
+		GetAttr("token").
+		GetAttr("mock_value")
+	assert.True(t, mockValue.IsMarked(), "the value read_terragrunt_config exposes keeps the mark")
 }
 
 // parseOutputsConfig parses content as a unit config, with the outputs-block experiment on when enabled.
@@ -1112,8 +1465,7 @@ func newDependentParsingContext(t *testing.T, cfgPath, command string) (context.
 	return ctx, pctx
 }
 
-// tofuOutputStub answers `tofu output -json` with the state of the unit whose cache directory it runs in, keyed
-// by unit directory, and with no outputs for any other unit. Other commands succeed with no output.
+// tofuOutputStub answers `tofu output -json` from state by unit directory and succeeds silently for other commands.
 func tofuOutputStub(state map[string]string) vexec.Handler {
 	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if len(inv.Args) == 0 || inv.Args[0] != "output" {
@@ -1164,70 +1516,27 @@ func (fsys *openCountingFS) count(name string) int {
 	return fsys.opens[filepath.Clean(name)]
 }
 
-// TestOutputsBlockRendersEmptyAllowedCommands pins that an empty allowed_commands list, which allows every command,
-// renders as an empty list in HCL and as a value.
-func TestOutputsBlockRendersEmptyAllowedCommands(t *testing.T) {
-	t.Parallel()
-
-	cfg := parseOutputsConfig(t, `
-outputs {
-  mock_strategy {
-    allowed_commands = []
-  }
-
-  output "id" {
-    mock_value = "mock-id"
-  }
-}
-`, true)
-
-	require.NotNil(t, cfg.Outputs.MockStrategy)
-	require.NotNil(t, cfg.Outputs.MockStrategy.AllowedCommands)
-	assert.Empty(t, *cfg.Outputs.MockStrategy.AllowedCommands)
-
-	var rendered bytes.Buffer
-
-	_, err := cfg.WriteTo(&rendered)
-	require.NoError(t, err)
-	assert.Contains(t, rendered.String(), "allowed_commands = []")
-
-	roundTrip := parseOutputsConfig(t, rendered.String(), true)
-	assert.Equal(t, cfg.Outputs, roundTrip.Outputs)
-
-	ctyVal, err := config.TerragruntConfigAsCty(cfg)
-	require.NoError(t, err)
-
-	strategy := ctyVal.GetAttr(config.MetadataOutputs).GetAttr(config.MetadataMockStrategy)
-	assert.Equal(t, cty.ListValEmpty(cty.String), strategy.GetAttr("allowed_commands"))
+// frozenModTimeFS reports modTime as the modification time of every file, whatever is written when.
+type frozenModTimeFS struct {
+	vfs.FS
+	modTime time.Time
 }
 
-// TestOutputsBlockRendersSensitiveMockValue pins that a sensitive() mock value renders as the value it holds, as
-// inputs do, while the value another config reads keeps the mark.
-func TestOutputsBlockRendersSensitiveMockValue(t *testing.T) {
-	t.Parallel()
+func (fsys frozenModTimeFS) Stat(name string) (fs.FileInfo, error) {
+	info, err := fsys.FS.Stat(name)
+	if err != nil {
+		return nil, err
+	}
 
-	cfg := parseOutputsConfig(t, `
-outputs {
-  output "token" {
-    mock_value = sensitive("mock-token")
-  }
+	return frozenModTimeInfo{FileInfo: info, modTime: fsys.modTime}, nil
 }
-`, true)
 
-	require.True(t, cfg.Outputs.Outputs[0].MockValue.IsMarked())
+// frozenModTimeInfo is a file info whose modification time is pinned.
+type frozenModTimeInfo struct {
+	fs.FileInfo
+	modTime time.Time
+}
 
-	var rendered bytes.Buffer
-
-	_, err := cfg.WriteTo(&rendered)
-	require.NoError(t, err)
-	assert.Contains(t, rendered.String(), `mock_value = "mock-token"`)
-
-	ctyVal, err := config.TerragruntConfigAsCty(cfg)
-	require.NoError(t, err)
-
-	mockValue := ctyVal.GetAttr(config.MetadataOutputs).
-		GetAttr(config.MetadataOutput).
-		GetAttr("token").
-		GetAttr("mock_value")
-	assert.True(t, mockValue.IsMarked(), "the value read_terragrunt_config exposes keeps the mark")
+func (info frozenModTimeInfo) ModTime() time.Time {
+	return info.modTime
 }

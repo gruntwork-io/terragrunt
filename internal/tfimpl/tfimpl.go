@@ -35,8 +35,7 @@ func (t Type) DisplayName() string {
 	return "OpenTofu/Terraform"
 }
 
-// FromPath returns the implementation the file name of tfPath says: tofu or terraform, with or without an .exe
-// suffix, and Unknown for any other name.
+// FromPath returns the implementation the file name of tfPath says, tofu or terraform with or without .exe, or Unknown.
 func FromPath(tfPath string) Type {
 	name := strings.TrimSuffix(filepath.Base(tfPath), ".exe")
 	if name == string(OpenTofu) || name == string(Terraform) {

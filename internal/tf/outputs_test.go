@@ -74,6 +74,15 @@ output "subnet_ids" {
 			expected: []string{"retired"},
 		},
 		{
+			name: "a file whose name starts with a dot is not read",
+			files: map[string]string{
+				"main.tf":    `output "current" { value = "current" }`,
+				".legacy.tf": `output "retired" { value = "retired" }`,
+			},
+			impl:     tfimpl.Terraform,
+			expected: []string{"current"},
+		},
+		{
 			name: "an unknown implementation reads every file",
 			files: map[string]string{
 				"main.tf":   `output "retired" { value = "retired" }`,

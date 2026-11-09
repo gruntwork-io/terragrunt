@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -15,6 +16,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/hcl/v2"
 )
+
+// summaryUnsupportedAttribute heads the diagnostic HCL raises for a reference to an attribute an object lacks.
+const summaryUnsupportedAttribute = "Unsupported attribute"
 
 // DiagnosticsCollector gathers the diagnostics a parse reports, for a caller
 // that answers with them rather than letting the parser's default diagnostics
@@ -65,8 +69,7 @@ func (c *DiagnosticsCollector) keep(file *hcl.File, hclDiags hcl.Diagnostics) er
 	return c.keepWith(file, hclDiags, c.add)
 }
 
-// keepDistinct collects the diagnostics of hclDiags that point at file, one per source range and text. Units
-// reading a shared file against different dependencies raise different diagnostics at one range.
+// keepDistinct collects the diagnostics of hclDiags that point at file, one per source range and text.
 func (c *DiagnosticsCollector) keepDistinct(file *hcl.File, hclDiags hcl.Diagnostics) error {
 	return c.keepWith(file, hclDiags, c.addDistinct)
 }
@@ -111,6 +114,26 @@ func (c *DiagnosticsCollector) addDistinct(diag *diagnostic.Diagnostic) {
 	c.diags = append(c.diags, diag)
 }
 
+// dropEvaluationDiagnostics removes the unattributed unsupported-attribute diagnostics inside a subject of hclDiags.
+func (c *DiagnosticsCollector) dropEvaluationDiagnostics(hclDiags hcl.Diagnostics) {
+	c.diags = slices.DeleteFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
+		if _, owned := c.owners[have]; owned || have.Range == nil || have.Summary != summaryUnsupportedAttribute {
+			return false
+		}
+
+		return slices.ContainsFunc(hclDiags, func(diag *hcl.Diagnostic) bool {
+			return diag.Subject != nil && within(*have.Range, *diag.Subject)
+		})
+	})
+}
+
+// within reports whether rng lies inside subject, in the same file.
+func within(rng diagnostic.Range, subject hcl.Range) bool {
+	return rng.Filename == subject.Filename &&
+		rng.Start.Byte >= subject.Start.Byte &&
+		rng.End.Byte <= subject.End.Byte
+}
+
 // has reports whether diag is already collected.
 // [diagnostic.Diagnostics.Contains] matches on source range and treats a
 // diagnostic without one as matching nothing, so those are compared by their
@@ -126,8 +149,7 @@ func (c *DiagnosticsCollector) has(diag *diagnostic.Diagnostic) bool {
 	})
 }
 
-// hasDistinct reports whether a diagnostic with diag's summary and detail is already collected at its range, or
-// without one when diag has none.
+// hasDistinct reports whether a diagnostic with diag's summary and detail is already collected at its range.
 func (c *DiagnosticsCollector) hasDistinct(diag *diagnostic.Diagnostic) bool {
 	return slices.ContainsFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
 		return sameRange(have.Range, diag.Range) && have.Summary == diag.Summary && have.Detail == diag.Detail
@@ -177,8 +199,7 @@ const (
 type ComponentParser struct {
 	// Collector receives the diagnostics of every parse.
 	Collector *DiagnosticsCollector
-	// UnitConfigs are the unit configs the run parses, by path. What is wrong with one of them is reported by
-	// its own parse, not at the config_path of a dependent that reads its outputs block.
+	// UnitConfigs are the unit configs the run parses, by path, each reporting its own errors.
 	UnitConfigs map[string]struct{}
 	// Options says how each parse combines the collector with the parser defaults.
 	Options ParserOptions
@@ -199,6 +220,11 @@ func (p ComponentParser) Unit(
 	parseOpts.WorkingDir = unitDir
 	parseOpts.TerragruntConfigPath = filepath.Join(unitDir, unitConfigFilename(opts))
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
+
+	_, rootDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	if opts.DownloadDir == "" || opts.DownloadDir == rootDownloadDir {
+		_, parseOpts.DownloadDir = util.DefaultWorkingAndDownloadDirs(parseOpts.TerragruntConfigPath)
+	}
 
 	pctx := configbridge.NewParsingContext(parseOpts)
 

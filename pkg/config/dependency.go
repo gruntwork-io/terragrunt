@@ -237,9 +237,7 @@ func (dep *Dependency) instanceKey() (string, bool) {
 	return dep.Expansion.Key(), dep.Expansion.Expanded()
 }
 
-// Address identifies a dependency among the blocks of a config: the label alone, or label[key] for one instance
-// of an expanded block. Every instance of an expanded block carries the same label, so matching on the label alone
-// would fold a whole set into whichever instance came last.
+// Address identifies a dependency among the blocks of a config: the label, or label[key] for an expanded instance.
 func (dep *Dependency) Address() string {
 	key, expanded := dep.instanceKey()
 	if !expanded {
@@ -1034,6 +1032,14 @@ func DependencyBlocksToCtyValue(
 					return err
 				}
 
+				if experimentErr, ok := errors.AsType[OutputsBlockRequiresExperimentError](err); ok {
+					return DependencyBlockError{
+						Name:       dependencyConfig.Name,
+						ConfigPath: pctx.TerragruntConfigPath,
+						Err:        experimentErr,
+					}
+				}
+
 				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
@@ -1138,9 +1144,6 @@ func DependencyBlocksToCtyValue(
 //   - If the dependency block indicates a mock_outputs attribute, this will return that.
 //     If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
 //   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
-//
-// declared is the outputs block of the target config, nil when it declares none, which the state outputs are
-// checked against.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	ctx context.Context,
 	l log.Logger,
@@ -1201,11 +1204,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	)
 
 	if dependencyConfig.shouldReturnMockOutputs(pctx) {
-		l.Warnf(
-			"Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
-			targetConfig,
-			pctx.TerragruntConfigPath,
-		)
+		logMockOutputsFallback(l, pctx, targetConfig, declared)
 
 		return dependencyConfig.MockOutputs, nil
 	}
@@ -1243,9 +1242,6 @@ func (dep *Dependency) shouldReturnMockOutputs(pctx *ParsingContext) bool {
 // Return the output from the state of another module, managed by terragrunt. This function will parse the provided
 // terragrunt config and extract the desired output from the remote state. Note that this will error if the targeted
 // module hasn't been applied yet.
-//
-// Outputs read from the state are checked against declared, the outputs block of the target config, when it is not
-// nil.
 func getTerragruntOutput(
 	ctx context.Context,
 	l log.Logger,
@@ -1314,7 +1310,11 @@ func getTerragruntOutput(
 
 	if fromState && !isEmpty {
 		if err := checkDeclaredOutputs(pctx, dependencyConfig, declared, targetConfigPath, outputMap); err != nil {
-			return nil, isEmpty, err
+			return nil, isEmpty, DependencyBlockError{
+				Name:       dependencyConfig.Name,
+				ConfigPath: pctx.TerragruntConfigPath,
+				Err:        err,
+			}
 		}
 	}
 
@@ -3128,4 +3128,24 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 	}
 
 	return errors.Join(errs...)
+}
+
+// logMockOutputsFallback logs the fall back to mock outputs, at debug level for the mocks an outputs block declares.
+func logMockOutputsFallback(l log.Logger, pctx *ParsingContext, targetConfig string, declared *OutputsConfig) {
+	if declared != nil {
+		logf := l.Infof
+		if pctx.SkipOutput || isRenderCommand(pctx) || isRenderJSONCommand(pctx) {
+			logf = l.Debugf
+		}
+
+		logf("%s reads the mock values the outputs block of %s declares.", pctx.TerragruntConfigPath, targetConfig)
+
+		return
+	}
+
+	l.Warnf(
+		"Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
+		targetConfig,
+		pctx.TerragruntConfigPath,
+	)
 }

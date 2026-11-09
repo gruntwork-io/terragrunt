@@ -962,29 +962,24 @@ func (err DeclaredOutputsReadError) Unwrap() error {
 
 // DeclaredOutputMissingError reports a declared output that the state of the unit does not hold.
 type DeclaredOutputMissingError struct {
-	DependencyName string
-	TargetConfig   string
-	CurrentConfig  string
-	Output         string
+	TargetConfig string
+	Output       string
 }
 
 func (err DeclaredOutputMissingError) Error() string {
 	return fmt.Sprintf(
-		"%s declares output %q in its outputs block, but its state has no output %q, read as dependency %q by %s. "+
+		"%s declares output %q in its outputs block, but its state has no output %q. "+
 			"Apply %s after adding the output to its module, remove the declaration, "+
 			"or set merge_with_state = \"shallow\" in its mock_strategy block, with the command in allowed_commands, "+
 			"to fill it from mock_value.",
 		err.TargetConfig,
 		err.Output,
 		err.Output,
-		err.DependencyName,
-		err.CurrentConfig,
 		err.TargetConfig,
 	)
 }
 
-// UnknownMockValueError reports a mock_value that reads a dependency output, which the dependents reading the
-// outputs block cannot resolve.
+// UnknownMockValueError reports a mock_value that reads a dependency output, which its readers cannot resolve.
 type UnknownMockValueError struct {
 	ConfigPath string
 	Output     string

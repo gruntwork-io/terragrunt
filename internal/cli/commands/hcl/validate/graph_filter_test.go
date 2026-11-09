@@ -31,8 +31,7 @@ type validateResult struct {
 type validateRun struct {
 	// files are the files of the repository, by path relative to its root.
 	files map[string]string
-	// links are symbolic links to add to the repository, by link path, each pointing at a path relative to the
-	// root.
+	// links are symbolic links to add, by link path, each pointing at a path relative to the root.
 	links map[string]string
 	// tfPath is the OpenTofu/Terraform binary the run is given, when it is not the default.
 	tfPath string
@@ -44,8 +43,7 @@ type validateRun struct {
 	strictControls []string
 	// inputs runs the --inputs mode; its findings come back as errors.
 	inputs bool
-	// onDisk writes the repository to a temporary directory on disk instead of memory, for a run whose
-	// directory listings must include symbolic links, which the in-memory filesystem leaves out.
+	// onDisk writes the repository to a temporary directory on disk, for a run that must list symbolic links.
 	onDisk bool
 }
 
@@ -74,6 +72,7 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 
 	if run.tfPath != "" {
 		opts.TFPath = run.tfPath
+		opts.TFPathExplicitlySet = true
 	}
 
 	opts.Filters, err = filter.ParseFilterQueries(l, run.queries)
@@ -92,7 +91,6 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 
 	entry := validate.RunValidate
 	if run.inputs {
-		// The inputs mode is reached through the command entry point, which dispatches on the flag.
 		entry = validate.Run
 	}
 

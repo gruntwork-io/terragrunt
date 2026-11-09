@@ -1,6 +1,7 @@
 package tf
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -20,8 +21,7 @@ var outputBlockSchema = &hcl.BodySchema{
 	},
 }
 
-// ModuleOutputs returns the name of every output the OpenTofu/Terraform files of the module at modulePath declare,
-// sorted and without repeats. The files are the ones impl reads, as [EngineFiles] selects them.
+// ModuleOutputs returns the sorted distinct output names of the module files at modulePath that impl reads.
 func ModuleOutputs(fsys vfs.FS, modulePath string, impl tfimpl.Type) ([]string, error) {
 	files, err := util.ListTfFiles(fsys, modulePath)
 	if err != nil {
@@ -49,21 +49,23 @@ func ModuleOutputs(fsys vfs.FS, modulePath string, impl tfimpl.Type) ([]string, 
 	return slices.Compact(names), nil
 }
 
-// EngineFiles returns the files of paths that impl reads. OpenTofu leaves out a .tf or .tf.json file beside the
-// .tofu or .tofu.json file of the same name, Terraform leaves out every .tofu and .tofu.json file, and an unknown
-// implementation reads them all.
+// EngineFiles returns the files impl reads: no dot file, OpenTofu no .tf twin of a .tofu file, Terraform no .tofu file.
 func EngineFiles(paths []string, impl tfimpl.Type) []string {
+	files := slices.DeleteFunc(slices.Clone(paths), func(path string) bool {
+		return strings.HasPrefix(filepath.Base(path), ".")
+	})
+
 	if impl == tfimpl.Terraform {
-		return slices.DeleteFunc(slices.Clone(paths), func(path string) bool {
+		return slices.DeleteFunc(files, func(path string) bool {
 			return strings.HasSuffix(path, ".tofu") || strings.HasSuffix(path, ".tofu.json")
 		})
 	}
 
 	if impl != tfimpl.OpenTofu {
-		return paths
+		return files
 	}
 
-	return slices.DeleteFunc(slices.Clone(paths), func(path string) bool {
+	return slices.DeleteFunc(files, func(path string) bool {
 		twin, ok := tofuTwin(path)
 
 		return ok && slices.Contains(paths, twin)

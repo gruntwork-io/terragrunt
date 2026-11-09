@@ -18,6 +18,7 @@ const (
 	testFixtureOutputsBlock          = "fixtures/outputs-block"
 	testFixtureOutputsBlockInvalid   = "fixtures/outputs-block-invalid"
 	testFixtureOutputsBlockVariables = "fixtures/outputs-block-variables"
+	testFixtureOutputsBlockMerge     = "fixtures/outputs-block-merge"
 )
 
 func TestTFOutputsBlockDeclaredMocksStandInBeforeApply(t *testing.T) {
@@ -61,8 +62,7 @@ func TestTFOutputsBlockDeclaredMocksStandInBeforeApply(t *testing.T) {
 	}
 }
 
-// TestTFOutputsBlockDeclaredMocksReachVariablesBlock pins that a dependent reading the outputs through a
-// variables block gets the declared mock values before the unit is applied.
+// TestTFOutputsBlockDeclaredMocksReachVariablesBlock expects declared mocks in a variables block before apply.
 func TestTFOutputsBlockDeclaredMocksReachVariablesBlock(t *testing.T) {
 	t.Parallel()
 
@@ -154,4 +154,32 @@ func TestTFOutputsBlockHCLValidateChecksContracts(t *testing.T) {
 	assert.Contains(t, stdout, `"nat_id"`)
 	assert.Contains(t, stdout, "Undeclared dependency output")
 	assert.Contains(t, stdout, `"nope"`)
+}
+
+func TestTFOutputsBlockMergesMocksWithState(t *testing.T) {
+	t.Parallel()
+
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockMerge), testFixtureOutputsBlockMerge)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --experiment outputs-block --non-interactive --working-dir "+
+			filepath.Join(rootPath, "vpc"),
+	)
+	require.NoError(t, err)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --experiment outputs-block --non-interactive --working-dir "+filepath.Join(rootPath, "app"),
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "vpc-real")
+	assert.Contains(t, stdout, "nat-mock")
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --experiment outputs-block --non-interactive --working-dir "+
+			filepath.Join(rootPath, "app"),
+	)
+	require.ErrorContains(t, err, `has no output "nat_id"`)
 }

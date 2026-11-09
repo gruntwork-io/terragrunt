@@ -819,8 +819,7 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 	return ConvertValuesMapToCtyVal(output)
 }
 
-// outputsConfigAsCty returns the outputs block as an object: the mock_strategy attributes it sets under
-// mock_strategy, and the output blocks under output keyed by name, each an object with the mock_value it declares.
+// outputsConfigAsCty returns the outputs block as an object with mock_strategy and the output blocks keyed by name.
 func outputsConfigAsCty(config *OutputsConfig) cty.Value {
 	if config == nil {
 		return cty.NilVal

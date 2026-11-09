@@ -414,7 +414,7 @@ const testSensitiveMockValueFixture = `outputs {
 }
 `
 
-// TestRenderSensitiveMockValue pins that a sensitive() mock value renders as the value it holds in both formats.
+// TestRenderSensitiveMockValue expects a sensitive() mock value to render as the value it holds in both formats.
 func TestRenderSensitiveMockValue(t *testing.T) {
 	t.Parallel()
 

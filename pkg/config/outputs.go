@@ -18,14 +18,10 @@ const (
 	MetadataMockStrategy = "mock_strategy"
 )
 
-// mockMergeStrategies is the merge strategies a mock_strategy block may name. A full deep merge has no meaning for
-// mock outputs, so it is left out.
+// mockMergeStrategies is the merge strategies a mock_strategy block may name.
 var mockMergeStrategies = []MergeStrategyType{NoMerge, ShallowMerge, DeepMergeMapOnly}
 
-// OutputsConfig is the outputs block of a unit. It declares the outputs the unit emits, each with the mock value
-// its dependents read while the unit's state holds no outputs, and the strategy that says when mocks apply.
-//
-// Declaring the block without the outputs-block experiment is an error.
+// OutputsConfig is the outputs block of a unit: its declared outputs, their mock values and the mock strategy.
 type OutputsConfig struct {
 	// MockStrategy is the mock_strategy block, nil when the block has none.
 	MockStrategy *OutputsMockStrategy `hcl:"mock_strategy,block"`
@@ -33,14 +29,11 @@ type OutputsConfig struct {
 	Outputs []*OutputDeclaration `hcl:"output,block"`
 }
 
-// OutputsMockStrategy is the mock_strategy block of an outputs block. Its attributes mean what the
-// mock_outputs_allowed_terraform_commands and mock_outputs_merge_strategy_with_state attributes of a dependency
-// block mean, and a dependency block that sets those wins over them.
+// OutputsMockStrategy is the mock_strategy block of an outputs block, overridden by a dependency's own mock attributes.
 type OutputsMockStrategy struct {
-	// AllowedCommands is the commands that may read mock values. Unset or empty allows every command.
+	// AllowedCommands is the commands that may read mock values, every command when unset or empty.
 	AllowedCommands *[]string `hcl:"allowed_commands,attr"`
-	// MergeWithState is how the state of the unit is merged into the mock values: no_merge, shallow or
-	// deep_map_only.
+	// MergeWithState is how the state of the unit is merged into the mock values: no_merge, shallow or deep_map_only.
 	MergeWithState *MergeStrategyType `hcl:"merge_with_state,attr"`
 }
 
@@ -70,8 +63,7 @@ func (c *OutputsConfig) Clone() *OutputsConfig {
 	return clone
 }
 
-// Merge merges other into c, with other winning: an output both declare takes other's declaration, an output only
-// other declares is appended, and each mock_strategy attribute other sets replaces c's.
+// Merge merges other into c, with other winning by output name and by mock_strategy attribute.
 func (c *OutputsConfig) Merge(other *OutputsConfig) {
 	if c == nil || other == nil {
 		return
@@ -99,8 +91,7 @@ func (c *OutputsConfig) Merge(other *OutputsConfig) {
 	}
 }
 
-// Validate checks that the block may be used and is well formed: the outputs-block experiment is enabled, no
-// output is declared twice, and merge_with_state names a mock merge strategy.
+// Validate checks that the experiment is on, no output is declared twice and merge_with_state names a mock strategy.
 func (c *OutputsConfig) Validate(experiments experiment.Experiments, configPath string) error {
 	if c == nil {
 		return nil
@@ -154,8 +145,7 @@ func (c *OutputsConfig) Declares(name string) bool {
 	})
 }
 
-// MockValues returns an object of the mock values the declared outputs set, keyed by output name, or nil when no
-// output declares one.
+// MockValues returns an object of the mock values the declared outputs set, by output name, or nil when none is set.
 func (c *OutputsConfig) MockValues() *cty.Value {
 	if c == nil {
 		return nil
