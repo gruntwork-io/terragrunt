@@ -31,6 +31,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const (
@@ -476,14 +477,14 @@ type fixtureConfig struct {
 func loadFixtures(t *testing.T, rootNames []string, excluded map[string]struct{}) *fixtureSet {
 	t.Helper()
 
-	osFS := vfs.NewOSFS()
+	fsys := venvtest.NewOSOverlayFS()
 
 	fixtures, err := filepath.Abs(fixturesDir)
 	require.NoError(t, err)
 
 	set := &fixtureSet{files: map[string][]byte{}}
 
-	entries, err := vfs.ReadDir(osFS, fixtures)
+	entries, err := vfs.ReadDir(fsys, fixtures)
 	require.NoError(t, err)
 
 	for _, entry := range entries {
@@ -492,13 +493,13 @@ func loadFixtures(t *testing.T, rootNames []string, excluded map[string]struct{}
 		}
 
 		path := filepath.Join(fixtures, entry.Name())
-		set.files[path], err = vfs.ReadFile(osFS, path)
+		set.files[path], err = vfs.ReadFile(fsys, path)
 		require.NoError(t, err)
 	}
 
 	for _, rootName := range rootNames {
 		err := vfs.WalkDir(
-			osFS,
+			fsys,
 			filepath.Join(fixtures, filepath.FromSlash(rootName)),
 			func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
@@ -522,7 +523,7 @@ func loadFixtures(t *testing.T, rootNames []string, excluded map[string]struct{}
 					return fmt.Errorf("fixture trees hold more than %d files", maxFixtureFiles)
 				}
 
-				set.files[path], err = vfs.ReadFile(osFS, path)
+				set.files[path], err = vfs.ReadFile(fsys, path)
 				if err != nil {
 					return err
 				}

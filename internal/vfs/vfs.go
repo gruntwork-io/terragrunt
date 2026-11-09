@@ -1581,14 +1581,16 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 	return 0, err
 }
 
-// lstatIfPossible calls Lstat if the filesystem supports it, otherwise Stat.
-func lstatIfPossible(fsys FS, path string) (os.FileInfo, error) {
+// lstatIfPossible calls Lstat if the filesystem supports it, otherwise Stat,
+// reporting which of the two answered.
+func lstatIfPossible(fsys FS, path string) (os.FileInfo, bool, error) {
 	if lstater, ok := fsys.(afero.Lstater); ok {
-		info, _, err := lstater.LstatIfPossible(path)
-		return info, err
+		return lstater.LstatIfPossible(path)
 	}
 
-	return fsys.Stat(path)
+	info, err := fsys.Stat(path)
+
+	return info, false, err
 }
 
 // symlinkWalkState tracks progress while resolving symlinks without using the OS filesystem.
@@ -1796,7 +1798,7 @@ func walkSymlinksLinkParent(dest string, vol string, volLen int) string {
 // walkDirRoot describes root and walks the tree under it, handing fn the error
 // when root cannot be described.
 func walkDirRoot(fsys FS, root string, fn fs.WalkDirFunc) error {
-	info, err := lstatIfPossible(fsys, root)
+	info, _, err := lstatIfPossible(fsys, root)
 	if err != nil {
 		return fn(root, nil, err)
 	}
