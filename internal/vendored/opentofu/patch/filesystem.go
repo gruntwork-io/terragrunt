@@ -487,7 +487,6 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 	clean := path.Clean(strings.TrimLeft(pattern, "/"))
 	elems := strings.Split(clean, "/")
 
-	// The walk root joins the leading elements that have no glob syntax.
 	lit := slices.IndexFunc(elems, func(elem string) bool { return strings.ContainsAny(elem, `*?[{\`) })
 	if lit < 0 {
 		lit = len(elems) - 1
@@ -495,7 +494,6 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 
 	rest := strings.Join(elems[lit:], "/")
 
-	// Only a pattern that is malformed as written is an error.
 	if !glob.ValidOpenTofuPattern(rest) {
 		if glob.ValidOpenTofuPattern(pattern) {
 			return nil, nil
@@ -531,8 +529,7 @@ func globFiles(fsys vfs.FS, dir, root, pattern string) ([]cty.Value, error) {
 			return err
 		}
 
-		// The walk root matches itself only for the pattern "." on a path that names a file.
-		if fromRoot == "." && (d.IsDir() || pattern != ".") {
+		if fromRoot == "." && pattern != "." {
 			return nil
 		}
 

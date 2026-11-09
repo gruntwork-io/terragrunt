@@ -172,7 +172,6 @@ func TestFileSetReturnsAnEmptySetWhenNothingMatches(t *testing.T) {
 	assert.Equal(t, cty.SetValEmpty(cty.String), got)
 }
 
-// fileSetTree is the tree the fileset tests glob, each path relative to [baseDir].
 var fileSetTree = map[string]string{
 	"main.tf":              "# root",
 	"resources/a.json":     "{}",
@@ -880,7 +879,6 @@ func TestTemplateFileStopsAtTheRecursionCap(t *testing.T) {
 // noRead is the read observer for tests that do not inspect what was read.
 func noRead(string) {}
 
-// stringSet returns paths as the set fileset returns them.
 func stringSet(paths []string) cty.Value {
 	if len(paths) == 0 {
 		return cty.SetValEmpty(cty.String)
@@ -894,10 +892,8 @@ func stringSet(paths []string) cty.Value {
 	return cty.SetVal(vals)
 }
 
-// errOpenInjected is the failure [openFailFS] returns.
 var errOpenInjected = errors.New("injected open failure")
 
-// openFailFS fails every open of dir and records that one was tried.
 type openFailFS struct {
 	vfs.FS
 	dir    string
