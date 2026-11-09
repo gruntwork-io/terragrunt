@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -19,7 +20,7 @@ func TestNewGroupsCommandsByCategory(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	cmds := commands.New(logger.CreateLogger(), opts, venv.MemVenv())
+	cmds := commands.New(logger.CreateLogger(), opts, venv.MemVenv(), new(rewrite.Store))
 
 	testCases := []struct {
 		category string
@@ -58,8 +59,8 @@ func TestNewShortcutsCommandsMirrorRunSubcommands(t *testing.T) {
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	v := venv.MemVenv()
 
-	shortcuts := commands.NewShortcutsCommands(l, opts, v)
-	runCmd := run.NewCommand(l, opts, v)
+	shortcuts := commands.NewShortcutsCommands(l, opts, v, new(rewrite.Store))
+	runCmd := run.NewCommand(l, opts, v, new(rewrite.Store))
 
 	wantNames := []string{
 		tf.CommandNameInit,

@@ -7,6 +7,7 @@ import (
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -38,7 +39,7 @@ const (
 )
 
 // NewCommand builds the command for stack.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	return &clihelper.Command{
 		Name:  CommandName,
 		Usage: "Terragrunt stack commands.",
@@ -47,7 +48,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx context.Context, _ *clihelper.Context) error {
-					return RunGenerate(ctx, l, v, opts.OptionsFromContext(ctx))
+					return RunGenerate(ctx, l, v, s, opts.OptionsFromContext(ctx))
 				},
 				Flags: defaultFlags(l, opts, v, nil),
 			},
@@ -55,7 +56,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				Name:  runCommandName,
 				Usage: "Run a command on the stack generated from the current directory",
 				Action: func(ctx context.Context, _ *clihelper.Context) error {
-					return Run(ctx, l, v, opts.OptionsFromContext(ctx))
+					return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
 				},
 				Flags: defaultFlags(l, opts, v, nil),
 			},
@@ -68,7 +69,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 						index = val
 					}
 
-					return RunOutput(ctx, l, v, opts.OptionsFromContext(ctx), index)
+					return RunOutput(ctx, l, v, s, opts.OptionsFromContext(ctx), index)
 				},
 				Flags: outputFlags(l, opts, v, nil),
 			},

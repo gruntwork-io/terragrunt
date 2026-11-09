@@ -188,10 +188,9 @@ func discoverCorpus(t *testing.T, useRewrite bool, store *rewrite.Store) []compo
 		WithRelationships().
 		WithParseExclude().
 		WithTrackReads().
-		WithSuppressParseErrors().
-		WithParseStore(store)
+		WithSuppressParseErrors()
 
-	components, err := d.Discover(config.WithCaches(t.Context()), l, v, opts)
+	components, err := d.Discover(config.WithCaches(t.Context()), l, v, store, opts)
 	require.NoError(t, err)
 
 	views := make([]componentView, 0, len(components))

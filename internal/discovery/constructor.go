@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell/split"
@@ -407,7 +406,6 @@ func NewDiscovery(dir string) *Discovery {
 		maxDependencyDepth: defaultMaxDependencyDepth,
 		workingDir:         dir,
 		configFilenames:    DefaultConfigFilenames,
-		parseStore:         new(rewrite.Store),
 		discoveryContext: &component.DiscoveryContext{
 			WorkingDir: dir,
 		},

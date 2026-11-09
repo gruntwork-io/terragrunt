@@ -7,6 +7,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,7 +50,8 @@ type Key struct {
 // their own.
 //
 // Only [Store.ParseUnitAST] notices a file changing on disk. Every other stage serves its result until
-// [Store.Invalidate] drops it.
+// [Store.Invalidate] or [Store.InvalidateUnder] drops it, so whatever writes a config file a Store may hold has to
+// call one of them.
 //
 // A body that memoizes its own key, directly or through the bodies it calls, waits for itself.
 //
@@ -228,6 +230,20 @@ func (s *Store) Invalidate(path string) {
 
 	for k, e := range s.entries {
 		if e.read(path) {
+			delete(s.entries, k)
+		}
+	}
+}
+
+// InvalidateUnder drops what [Store.Invalidate] would for every file in dir and below it.
+func (s *Store) InvalidateUnder(dir string) {
+	dir = filepath.Clean(dir)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for k, e := range s.entries {
+		if e.readUnder(dir) {
 			delete(s.entries, k)
 		}
 	}
@@ -421,4 +437,20 @@ func (e *entry) read(path string) bool {
 	_, ok := e.files[path]
 
 	return ok
+}
+
+// readUnder reports whether e's body parsed or read a file in dir or below it.
+func (e *entry) readUnder(dir string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	prefix := strings.TrimSuffix(dir, string(filepath.Separator)) + string(filepath.Separator)
+
+	for path := range e.files {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+
+	return false
 }

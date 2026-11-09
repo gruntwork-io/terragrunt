@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -34,7 +35,7 @@ func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
 }
 
 // NewCommand returns the `terragrunt backend bootstrap` command.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmdFlags := NewFlags(opts)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewFailFastFlag(opts))
 
@@ -43,7 +44,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 		Usage: "Bootstrap OpenTofu/Terraform backend infrastructure.",
 		Flags: cmdFlags,
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
+			return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
 		},
 	}
 

@@ -5,6 +5,7 @@ package dag
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -17,12 +18,12 @@ const (
 
 // NewCommand returns the `terragrunt dag` command, which groups the graph
 // subcommand and prints help when run alone.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	return &clihelper.Command{
 		Name:  CommandName,
 		Usage: "Interact with the Directed Acyclic Graph (DAG).",
 		Subcommands: clihelper.Commands{
-			graph.NewCommand(l, opts, v),
+			graph.NewCommand(l, opts, v, s),
 		},
 		Action: clihelper.ShowCommandHelp,
 	}

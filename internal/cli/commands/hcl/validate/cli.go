@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -104,14 +105,14 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 }
 
 // NewCommand returns the `terragrunt hcl validate` command.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmd := &clihelper.Command{
 		Name:                         CommandName,
 		Usage:                        "Recursively find HashiCorp Configuration Language (HCL) files and validate them.",
 		Flags:                        NewFlags(l, opts, v),
 		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
+			return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
 		},
 	}
 

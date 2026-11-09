@@ -591,6 +591,36 @@ func BenchmarkStoreASTHit(b *testing.B) {
 	}
 }
 
+func TestStoreInvalidateUnderDropsWhatReadBelowTheDirectory(t *testing.T) {
+	t.Parallel()
+
+	s := &config.Store{}
+	inside := config.Key{Path: "/repo/stack/app/terragrunt.hcl", Context: "app", Stage: config.StageQueue}
+	reader := config.Key{Path: "/repo/reader/terragrunt.hcl", Context: "reader", Stage: config.StageQueue}
+	sibling := config.Key{Path: "/repo/stack-two/terragrunt.hcl", Context: "two", Stage: config.StageQueue}
+
+	hit := func(k config.Key, reads ...string) bool {
+		res, err := s.Memoize(t.Context(), k, func(ctx context.Context) (string, error) {
+			config.NoteReads(ctx, reads...)
+
+			return k.Path, nil
+		})
+		require.NoError(t, err)
+
+		return res.Hit
+	}
+
+	hit(inside)
+	hit(reader, "/repo/stack/app/values.yaml")
+	hit(sibling)
+
+	s.InvalidateUnder("/repo/stack/")
+
+	assert.False(t, hit(inside), "a file below the directory is dropped")
+	assert.False(t, hit(reader, "/repo/stack/app/values.yaml"), "a reader of a file below the directory is dropped")
+	assert.True(t, hit(sibling), "a directory that only shares the name's prefix is kept")
+}
+
 func stat(tb testing.TB, fsys vfs.FS, path string) fs.FileInfo {
 	tb.Helper()
 

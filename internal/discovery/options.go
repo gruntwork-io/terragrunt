@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 )
@@ -129,14 +128,6 @@ func (d *Discovery) WithReadFiles() *Discovery {
 // the browse TUI, set it themselves.
 func (d *Discovery) WithTrackReads() *Discovery {
 	d.trackReads = true
-
-	return d
-}
-
-// WithParseStore memoizes the parses the config rewrite makes in p, in place of the Store each discovery starts
-// with.
-func (d *Discovery) WithParseStore(p *rewrite.Store) *Discovery {
-	d.parseStore = p
 
 	return d
 }
