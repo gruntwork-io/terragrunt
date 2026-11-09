@@ -100,8 +100,8 @@ func DownloadTerraformSource(
 	shownDir := util.RelPathForLog(opts.RootWorkingDir, terraformSource.DownloadDir, opts.LogShowAbsPaths)
 
 	if err := spinner.ShowAfter(ctx, l, spinner.Messages{
-		Working: "Waiting for the lock on " + shownDir + "...",
-		Done:    "Got the lock on " + shownDir,
+		Working: "Acquiring lock on " + shownDir + "...",
+		Done:    "Acquired lock on " + shownDir,
 	}, func() error {
 		dirLock.Lock()
 

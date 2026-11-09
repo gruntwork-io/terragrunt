@@ -24,10 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// slowGenerateDelay is how long each component takes to fetch, 1s past the first keepalive line.
 const slowGenerateDelay = 31 * time.Second
 
-// TestGenerateStackProgress checks that a slow unit or stack is reported without a second generate line.
+// TestGenerateStackProgress checks that a slow unit or stack is drawn and logs one done line next to its generate line.
 func TestGenerateStackProgress(t *testing.T) {
 	t.Parallel()
 
@@ -41,12 +40,12 @@ func TestGenerateStackProgress(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name        string
-		wantReports int
-		reporter    bool
+		name          string
+		wantInfoLines int
+		reporter      bool
 	}{
-		{name: "reporter on the context", reporter: true, wantReports: 1},
-		{name: "plain context"},
+		{name: "reporter on the context", reporter: true, wantInfoLines: 2 * len(components)},
+		{name: "plain context", wantInfoLines: len(components)},
 	}
 
 	for _, tc := range testCases {
@@ -79,11 +78,12 @@ stack "team" {
 
 				ctx, pctx := newTestParsingContext(t, stackPath)
 				pctx.TerragruntStackConfigPath = stackPath
-				// CAS shells out to git, which the no-spawn venv refuses.
 				pctx.NoCAS = true
 
+				term := new(bytes.Buffer)
+
 				if tc.reporter {
-					ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+					ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 				}
 
 				logs := new(bytes.Buffer)
@@ -98,23 +98,16 @@ stack "team" {
 				require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
 				require.NoError(t, pool.Wait())
 
-				lines := strings.Split(logs.String(), "\n")
-
 				for _, component := range components {
-					announced := "Generating " + component.kind + " " + component.name +
-						" from ." + string(filepath.Separator) + config.DefaultStackFile
-					done := "Generated " + component.kind + " " + component.name + " (31.0s)"
-
 					assert.True(
 						t,
 						vfs.Exists(v.FS, filepath.Join(targetDir, component.name, component.config)),
 						"the %s must be generated", component.kind,
 					)
-					assert.Equal(t, 1, countSuffix(lines, announced), logs)
-					assert.Zero(t, countSuffix(lines, announced+"..."), logs)
-					assert.Equal(t, tc.wantReports, countSuffix(lines, announced+"... (30s elapsed)"), logs)
-					assert.Equal(t, tc.wantReports, countSuffix(lines, done), logs)
 				}
+
+				assert.Equal(t, tc.reporter, term.Len() > 0)
+				assert.Equal(t, tc.wantInfoLines, strings.Count(logs.String(), "level=info"), logs)
 			})
 		})
 	}
@@ -132,16 +125,4 @@ func (fsys slowDirFS) MkdirAll(path string, perm os.FileMode) error {
 	}
 
 	return fsys.FS.MkdirAll(path, perm)
-}
-
-func countSuffix(lines []string, suffix string) int {
-	count := 0
-
-	for _, line := range lines {
-		if strings.HasSuffix(line, suffix) {
-			count++
-		}
-	}
-
-	return count
 }

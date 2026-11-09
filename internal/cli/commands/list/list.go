@@ -63,8 +63,8 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		"dependencies": opts.Dependencies || opts.Mode == ModeDAG,
 	}, func(ctx context.Context, l log.Logger) error {
 		discoverErr = spinner.ShowAfter(ctx, l, spinner.Messages{
-			Working: "Discovering units in " + opts.WorkingDir + "...",
-			Done:    "Discovered units in " + opts.WorkingDir,
+			Working: "Discovering units...",
+			Done:    "Discovered units",
 		}, func() error {
 			var err error
 

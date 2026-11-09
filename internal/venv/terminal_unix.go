@@ -2,7 +2,7 @@
 
 package venv
 
-// osStderrHandlesEscapes returns true, since terminals outside Windows support ANSI escape sequences.
+// osStderrHandlesEscapes returns true outside Windows.
 func osStderrHandlesEscapes() bool {
 	return true
 }

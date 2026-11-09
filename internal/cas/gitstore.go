@@ -514,8 +514,8 @@ func (s *GitStore) acquire(
 	var unlocker vfs.Unlocker
 
 	err := spinner.ShowAfter(ctx, l, spinner.Messages{
-		Working: "Waiting for the lock on the Git store for " + u.String() + "...",
-		Done:    "Got the lock on the Git store for " + u.String(),
+		Working: "Acquiring lock on Git store for " + u.String() + "...",
+		Done:    "Acquired lock on Git store for " + u.String(),
 	}, func() error {
 		var lockErr error
 

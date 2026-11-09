@@ -353,7 +353,9 @@ func RunAction(
 		reporter := newProgressReporter(l, opts, v)
 		actionCtx = spinner.ContextWithReporter(actionCtx, reporter)
 
-		defer guardTerminal(l, v, reporter)()
+		if reporter.Animated() {
+			defer guardTerminal(l, v, reporter)()
+		}
 	}
 
 	// Set up automatic provider caching if enabled
@@ -739,21 +741,18 @@ func initialSetup(
 	return nil
 }
 
+// newProgressReporter returns a reporter that draws only next to text logs at info level or lower.
 func newProgressReporter(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *spinner.Reporter {
-	reporterOpts := spinner.TerminalOptions(v, l)
-	reporterOpts.LogsForHumans = reporterOpts.LogsForHumans && !opts.JSONLogFormat
+	textLogs := !opts.JSONLogFormat && !l.Formatter().DisabledOutput()
 
-	return spinner.New(reporterOpts)
+	return spinner.New(v, spinner.Options{
+		Threshold:     spinner.DefaultThreshold,
+		LogsForHumans: textLogs && l.Level() >= log.InfoLevel,
+	})
 }
 
-// guardTerminal wraps the logger, stderr and stdout around the progress line and returns a restore function.
+// guardTerminal wraps the logger, stderr and stdout around the progress line and returns a function that unwraps them.
 func guardTerminal(l log.Logger, v *venv.Venv, reporter *spinner.Reporter) func() {
-	if !reporter.Animated() {
-		return func() {
-			// Nothing to restore, nothing was wrapped.
-		}
-	}
-
 	writers := v.Writers
 	restoreLogger := reporter.GuardLogger(l)
 

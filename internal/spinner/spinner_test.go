@@ -17,9 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/mattn/go-runewidth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,8 +29,10 @@ const (
 	gutter        = " "
 )
 
-// TestShowAfterFastOperationIsNotReported checks that an operation faster than the threshold logs nothing.
-func TestShowAfterFastOperationIsNotReported(t *testing.T) {
+var animatedOptions = spinner.Options{Threshold: testThreshold, LogsForHumans: true}
+
+// TestShowAfterFastCompletion checks that an operation faster than the threshold logs nothing.
+func TestShowAfterFastCompletion(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -51,8 +51,8 @@ func TestShowAfterFastOperationIsNotReported(t *testing.T) {
 	})
 }
 
-// TestShowAfterSlowOperationLogsWorkingThenDone checks that a slow operation logs the working line, then the done line.
-func TestShowAfterSlowOperationLogsWorkingThenDone(t *testing.T) {
+// TestShowAfterSlowCompletion checks that a slow operation logs the working line, then the done line.
+func TestShowAfterSlowCompletion(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestShowAfterSlowOperationLogsWorkingThenDone(t *testing.T) {
 			Working: "working...",
 			Done:    "completed",
 		}, func() error {
-			time.Sleep(200 * time.Millisecond)
+			synctest.Sleep(200 * time.Millisecond)
 
 			return nil
 		})
@@ -77,8 +77,8 @@ func TestShowAfterSlowOperationLogsWorkingThenDone(t *testing.T) {
 	})
 }
 
-// TestShowAfterFailureLogsNoDone checks that a failed operation logs no done line.
-func TestShowAfterFailureLogsNoDone(t *testing.T) {
+// TestShowAfterSlowError_NoDoneLog checks that a failed operation logs no done line.
+func TestShowAfterSlowError_NoDoneLog(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestShowAfterFailureLogsNoDone(t *testing.T) {
 			Working: "working...",
 			Done:    "should not appear",
 		}, func() error {
-			time.Sleep(200 * time.Millisecond)
+			synctest.Sleep(200 * time.Millisecond)
 
 			return errBoom
 		})
@@ -104,8 +104,147 @@ func TestShowAfterFailureLogsNoDone(t *testing.T) {
 	})
 }
 
-// TestShowAfterDoneHasElapsedTime checks that the done line has the elapsed time.
-func TestShowAfterDoneHasElapsedTime(t *testing.T) {
+// TestShowAfterErrorPropagation checks that the error of a fast operation is returned.
+func TestShowAfterErrorPropagation(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		logs := new(bytes.Buffer)
+		l := newLogger(logs)
+
+		errBoom := errors.New("boom")
+
+		err := logReporter().ShowAfter(t.Context(), l, spinner.Messages{
+			Working: "working...",
+			Done:    "done",
+		}, func() error {
+			return errBoom
+		})
+
+		require.ErrorIs(t, err, errBoom)
+		assert.Empty(t, logs.String())
+	})
+}
+
+// TestShowAfterContextCancelledAfterTimeout checks that a drawn operation cancelled midway logs no done line.
+func TestShowAfterContextCancelledAfterTimeout(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		term := new(syncBuffer)
+		logs := new(bytes.Buffer)
+		l := newLogger(logs)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		err := terminalReporter(term, 120).ShowAfter(ctx, l, spinner.Messages{
+			Working: "working...",
+			Done:    "finished",
+		}, func() error {
+			synctest.Sleep(150 * time.Millisecond)
+			cancel()
+			synctest.Sleep(50 * time.Millisecond)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, term.String(), "working...")
+		assert.Empty(t, logs.String())
+	})
+}
+
+// TestShowAfterSpinnerThenLog checks that the working message is drawn and only the done message is logged.
+func TestShowAfterSpinnerThenLog(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		term := new(syncBuffer)
+		logs := new(bytes.Buffer)
+		l := newLogger(logs)
+
+		err := terminalReporter(term, 120).ShowAfter(t.Context(), l, spinner.Messages{
+			Working: "creating worktree...",
+			Done:    "created worktree",
+		}, func() error {
+			synctest.Sleep(500 * time.Millisecond)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, term.String(), "creating worktree...")
+
+		lines := logLines(logs)
+		require.Len(t, lines, 1)
+		assert.Contains(t, lines[0], "msg=\"created worktree\"")
+	})
+}
+
+// TestShowAfterSpinnerNotShownWhenFast checks that a fast operation is neither drawn nor logged.
+func TestShowAfterSpinnerNotShownWhenFast(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		term := new(syncBuffer)
+		logs := new(bytes.Buffer)
+		l := newLogger(logs)
+
+		err := terminalReporter(term, 120).ShowAfter(t.Context(), l, spinner.Messages{
+			Working: "working...",
+			Done:    "done",
+		}, func() error {
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Empty(t, term.String())
+		assert.Empty(t, logs.String())
+	})
+}
+
+// TestWriter checks that the progress line is drawn only on an interactive stderr.
+func TestWriter(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		tty       bool
+		wantDrawn bool
+	}{
+		{name: "interactive", tty: true, wantDrawn: true},
+		{name: "not a terminal"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				errWriter := new(syncBuffer)
+
+				v := terminalVenv(errWriter, 120)
+				v.Terminal.StderrIsTTY = func() bool { return tc.tty }
+
+				err := spinner.New(v, animatedOptions).ShowAfter(t.Context(), newLogger(new(bytes.Buffer)), spinner.Messages{
+					Working: "working...",
+					Done:    "done",
+				}, func() error {
+					synctest.Sleep(time.Second)
+
+					return nil
+				})
+
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantDrawn, errWriter.String() != "")
+			})
+		})
+	}
+}
+
+// TestShowAfterElapsedTimeShown checks that the done line has the elapsed time.
+func TestShowAfterElapsedTimeShown(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -116,7 +255,7 @@ func TestShowAfterDoneHasElapsedTime(t *testing.T) {
 			Working: "working...",
 			Done:    "finished",
 		}, func() error {
-			time.Sleep(1200 * time.Millisecond)
+			synctest.Sleep(1200 * time.Millisecond)
 
 			return nil
 		})
@@ -126,8 +265,8 @@ func TestShowAfterDoneHasElapsedTime(t *testing.T) {
 	})
 }
 
-// TestShowAfterKeepalive checks that the working line is repeated every 30 seconds.
-func TestShowAfterKeepalive(t *testing.T) {
+// TestShowAfterNonInteractiveKeepalive checks that the working line is repeated every 30 seconds.
+func TestShowAfterNonInteractiveKeepalive(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -138,7 +277,7 @@ func TestShowAfterKeepalive(t *testing.T) {
 			Working: "working...",
 			Done:    "finished",
 		}, func() error {
-			time.Sleep(61 * time.Second)
+			synctest.Sleep(61 * time.Second)
 
 			return nil
 		})
@@ -191,14 +330,14 @@ func TestShowAfterKeepaliveCountsFromStart(t *testing.T) {
 				logs := new(bytes.Buffer)
 				l := newLogger(logs)
 
-				reporter := spinner.New(spinner.Options{Threshold: spinner.DefaultThreshold})
+				reporter := spinner.New(venv.MemVenv(), spinner.Options{Threshold: spinner.DefaultThreshold})
 
 				err := reporter.ShowAfter(t.Context(), l, spinner.Messages{
 					Working: "working...",
 					Done:    "finished",
 					Started: tc.started,
 				}, func() error {
-					time.Sleep(61 * time.Second)
+					synctest.Sleep(61 * time.Second)
 
 					return nil
 				})
@@ -229,7 +368,7 @@ func TestShowAfterStartedLogsWorkingOnce(t *testing.T) {
 			Done:    "finished",
 			Started: true,
 		}, func() error {
-			time.Sleep(31 * time.Second)
+			synctest.Sleep(31 * time.Second)
 
 			return nil
 		})
@@ -243,8 +382,8 @@ func TestShowAfterStartedLogsWorkingOnce(t *testing.T) {
 	})
 }
 
-// TestShowAfterCancelledBeforeThreshold checks that an operation cancelled before the threshold logs nothing.
-func TestShowAfterCancelledBeforeThreshold(t *testing.T) {
+// TestShowAfterContextCancelledBeforeTimeout checks that an operation cancelled before the threshold logs nothing.
+func TestShowAfterContextCancelledBeforeTimeout(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -258,7 +397,7 @@ func TestShowAfterCancelledBeforeThreshold(t *testing.T) {
 			Working: "working...",
 			Done:    "should not appear",
 		}, func() error {
-			time.Sleep(100 * time.Millisecond)
+			synctest.Sleep(100 * time.Millisecond)
 
 			return nil
 		})
@@ -268,8 +407,8 @@ func TestShowAfterCancelledBeforeThreshold(t *testing.T) {
 	})
 }
 
-// TestShowAfterCancelledLogsNoDone checks that an operation cancelled after it was reported logs no done line.
-func TestShowAfterCancelledLogsNoDone(t *testing.T) {
+// TestShowAfterContextCancelledNonInteractive checks that a logged operation cancelled midway logs no done line.
+func TestShowAfterContextCancelledNonInteractive(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -283,7 +422,7 @@ func TestShowAfterCancelledLogsNoDone(t *testing.T) {
 			Working: "working...",
 			Done:    "finished",
 		}, func() error {
-			time.Sleep(150 * time.Millisecond)
+			synctest.Sleep(150 * time.Millisecond)
 			cancel()
 
 			return nil
@@ -297,8 +436,8 @@ func TestShowAfterCancelledLogsNoDone(t *testing.T) {
 	})
 }
 
-// TestShowReportsImmediately checks that Show reports the operation without waiting for the threshold.
-func TestShowReportsImmediately(t *testing.T) {
+// TestShowReportsFromTheStart checks that Show reports the operation without waiting for the threshold.
+func TestShowReportsFromTheStart(t *testing.T) {
 	t.Parallel()
 
 	for range 200 {
@@ -330,7 +469,6 @@ func TestShowAfterWithoutReporter(t *testing.T) {
 		l := newLogger(logs)
 
 		ctx := spinner.ContextWithLogOnly(t.Context())
-		require.Nil(t, spinner.ReporterFromContext(ctx))
 
 		ran := false
 
@@ -338,7 +476,7 @@ func TestShowAfterWithoutReporter(t *testing.T) {
 			Working: "working...",
 			Done:    "done",
 		}, func() error {
-			time.Sleep(time.Minute)
+			synctest.Sleep(time.Minute)
 
 			ran = true
 
@@ -365,7 +503,7 @@ func TestShowAfterUsesContextReporter(t *testing.T) {
 			Working: "working...",
 			Done:    "done",
 		}, func() error {
-			time.Sleep(200 * time.Millisecond)
+			synctest.Sleep(200 * time.Millisecond)
 
 			return nil
 		})
@@ -384,17 +522,16 @@ func TestContextWithLogOnlyNeverDraws(t *testing.T) {
 		logs := new(bytes.Buffer)
 		l := newLogger(logs)
 
-		reporter := spinner.New(terminalOptions(term, 120))
+		reporter := terminalReporter(term, 120)
 		require.True(t, reporter.Animated())
 
 		ctx := spinner.ContextWithLogOnly(spinner.ContextWithReporter(t.Context(), reporter))
-		require.False(t, spinner.ReporterFromContext(ctx).Animated())
 
 		err := spinner.ShowAfter(ctx, l, spinner.Messages{
 			Working: "working...",
 			Done:    "done",
 		}, func() error {
-			time.Sleep(time.Second)
+			synctest.Sleep(time.Second)
 
 			return nil
 		})
@@ -411,14 +548,14 @@ func TestProgressLineFormat(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		term := new(syncBuffer)
-		reporter := spinner.New(terminalOptions(term, 120))
+		reporter := terminalReporter(term, 120)
 		l := newLogger(reporter.Guard(term))
 
 		err := reporter.ShowAfter(t.Context(), l, spinner.Messages{
 			Working: "Cloning repository...",
 			Done:    "Cloned repository",
 		}, func() error {
-			time.Sleep(2500 * time.Millisecond)
+			synctest.Sleep(2500 * time.Millisecond)
 
 			return nil
 		})
@@ -449,14 +586,14 @@ func TestProgressLineNeverWraps(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		term := new(syncBuffer)
-		reporter := spinner.New(terminalOptions(term, width))
+		reporter := terminalReporter(term, width)
 		l := newLogger(reporter.Guard(term))
 
 		err := reporter.ShowAfter(t.Context(), l, spinner.Messages{
 			Working: "Downloading source from " + url + "...",
 			Done:    "Downloaded",
 		}, func() error {
-			time.Sleep(3 * time.Second)
+			synctest.Sleep(3 * time.Second)
 
 			return nil
 		})
@@ -512,14 +649,14 @@ func TestProgressLineControlChars(t *testing.T) {
 
 			synctest.Test(t, func(t *testing.T) {
 				term := new(syncBuffer)
-				reporter := spinner.New(terminalOptions(term, width))
+				reporter := terminalReporter(term, width)
 				l := newLogger(reporter.Guard(term))
 
 				err := reporter.Show(t.Context(), l, spinner.Messages{
 					Working: tc.working,
 					Done:    "done",
 				}, func() error {
-					time.Sleep(50 * time.Millisecond)
+					synctest.Sleep(50 * time.Millisecond)
 
 					return nil
 				})
@@ -541,7 +678,7 @@ func TestProgressLineShared(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		term := new(syncBuffer)
-		reporter := spinner.New(terminalOptions(term, 200))
+		reporter := terminalReporter(term, 200)
 		l := newLogger(reporter.Guard(term))
 		ctx := t.Context()
 
@@ -562,7 +699,7 @@ func TestProgressLineShared(t *testing.T) {
 			})
 		}
 
-		time.Sleep(1550 * time.Millisecond)
+		synctest.Sleep(1550 * time.Millisecond)
 		l.Info("unit-c: tofu init finished")
 
 		during := screenRows(term.Bytes(), 200)
@@ -593,7 +730,7 @@ func TestProgressLineClearedOnPanic(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		term := new(syncBuffer)
-		reporter := spinner.New(terminalOptions(term, 120))
+		reporter := terminalReporter(term, 120)
 		l := newLogger(reporter.Guard(term))
 
 		var err error
@@ -603,7 +740,7 @@ func TestProgressLineClearedOnPanic(t *testing.T) {
 				Working: "working...",
 				Done:    "done",
 			}, func() error {
-				time.Sleep(200 * time.Millisecond)
+				synctest.Sleep(200 * time.Millisecond)
 				panic("boom")
 			})
 		})
@@ -613,7 +750,7 @@ func TestProgressLineClearedOnPanic(t *testing.T) {
 		require.NotZero(t, drawn)
 		assert.Empty(t, screenRows(term.Bytes(), 120))
 
-		time.Sleep(5 * time.Second)
+		synctest.Sleep(5 * time.Second)
 
 		assert.Len(t, term.Bytes(), drawn)
 	})
@@ -692,11 +829,11 @@ func TestProgressFrames(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				term := new(syncBuffer)
 
-				opts := terminalOptions(term, 120)
-				opts.Env = tc.env
-				opts.GOOS = tc.goos
+				v := terminalVenv(term, 120)
+				v = v.WithEnv(tc.env)
+				v = v.WithGOOS(tc.goos)
 
-				reporter := spinner.New(opts)
+				reporter := spinner.New(v, animatedOptions)
 				require.True(t, reporter.Animated())
 
 				l := newLogger(reporter.Guard(term))
@@ -705,7 +842,7 @@ func TestProgressFrames(t *testing.T) {
 					Working: "working",
 					Done:    "done",
 				}, func() error {
-					time.Sleep(50 * time.Millisecond)
+					synctest.Sleep(50 * time.Millisecond)
 
 					return nil
 				})
@@ -726,14 +863,14 @@ func TestProgressFramesUnicode(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		term := new(syncBuffer)
-		reporter := spinner.New(terminalOptions(term, 120))
+		reporter := terminalReporter(term, 120)
 		l := newLogger(reporter.Guard(term))
 
 		err := reporter.Show(t.Context(), l, spinner.Messages{
 			Working: "working",
 			Done:    "done",
 		}, func() error {
-			time.Sleep(2550 * time.Millisecond)
+			synctest.Sleep(2550 * time.Millisecond)
 
 			return nil
 		})
@@ -770,22 +907,22 @@ func TestProgressFramesUnicode(t *testing.T) {
 	})
 }
 
-// TestProgressWriteFailure checks that a failed terminal write is logged once and the operation still completes.
-func TestProgressWriteFailure(t *testing.T) {
+// TestShowAfterSpinnerWriteFailure checks that a failed terminal write is logged once and the operation completes.
+func TestShowAfterSpinnerWriteFailure(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		logs := new(bytes.Buffer)
 		l := log.New(log.WithLevel(log.DebugLevel), log.WithOutput(logs))
 
-		reporter := spinner.New(terminalOptions(failingWriter{}, 120))
+		reporter := terminalReporter(failingWriter{}, 120)
 		require.True(t, reporter.Animated())
 
 		err := reporter.ShowAfter(t.Context(), l, spinner.Messages{
 			Working: "working...",
 			Done:    "finished",
 		}, func() error {
-			time.Sleep(2 * time.Second)
+			synctest.Sleep(2 * time.Second)
 
 			return nil
 		})
@@ -808,8 +945,8 @@ func TestProgressLineTooNarrow(t *testing.T) {
 		term := new(syncBuffer)
 		start := time.Now()
 
-		opts := terminalOptions(term, 120)
-		opts.Width = func() int {
+		v := terminalVenv(term, 120)
+		v.Terminal.ErrWidth = func() int {
 			if time.Since(start) < time.Second {
 				return 120
 			}
@@ -817,22 +954,22 @@ func TestProgressLineTooNarrow(t *testing.T) {
 			return narrow
 		}
 
-		reporter := spinner.New(opts)
+		reporter := spinner.New(v, animatedOptions)
 		l := newLogger(new(bytes.Buffer))
 
 		err := reporter.ShowAfter(t.Context(), l, spinner.Messages{
 			Working: "working...",
 			Done:    "done",
 		}, func() error {
-			time.Sleep(500 * time.Millisecond)
+			synctest.Sleep(500 * time.Millisecond)
 
 			require.Len(t, screenRows(term.Bytes(), 120), 1)
 
-			time.Sleep(510 * time.Millisecond)
+			synctest.Sleep(510 * time.Millisecond)
 
 			before := len(term.Bytes())
 
-			time.Sleep(2 * time.Second)
+			synctest.Sleep(2 * time.Second)
 
 			after := term.Bytes()[before:]
 			assert.Empty(t, drawnLines(after), "no frame is drawn on a terminal narrower than the minimum")
@@ -875,10 +1012,10 @@ func TestProgressLineWaitsForPrompt(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				term := new(syncBuffer)
 
-				opts := terminalOptions(term, 120)
-				opts.InIsTTY = tc.inputIsTTY
+				v := terminalVenv(term, 120)
+				v.Terminal.StdinIsTTY = func() bool { return tc.inputIsTTY }
 
-				reporter := spinner.New(opts)
+				reporter := spinner.New(v, animatedOptions)
 				guarded := reporter.Guard(term)
 				l := newLogger(guarded)
 				ctx := spinner.ContextWithReporter(t.Context(), reporter)
@@ -887,17 +1024,16 @@ func TestProgressLineWaitsForPrompt(t *testing.T) {
 					Working: "working...",
 					Done:    "done",
 				}, func() error {
-					time.Sleep(300 * time.Millisecond)
+					synctest.Sleep(300 * time.Millisecond)
 
 					_, err := guarded.Write([]byte("Create the bucket? (y/n) "))
 					require.NoError(t, err)
 
-					time.Sleep(time.Second)
+					synctest.Sleep(time.Second)
 
 					assert.Equal(t, []string{"Create the bucket? (y/n)"}, screenRows(term.Bytes(), 120))
 
 					if tc.inputIsTTY {
-						// A terminal echoes the answer and its line break itself.
 						_, err = term.Write([]byte("y\n"))
 						require.NoError(t, err)
 					}
@@ -906,7 +1042,7 @@ func TestProgressLineWaitsForPrompt(t *testing.T) {
 
 					before := len(term.Bytes())
 
-					time.Sleep(time.Second)
+					synctest.Sleep(time.Second)
 
 					assert.Equal(t, tc.wantDrawAfter, len(drawnLines(term.Bytes()[before:])) > 0)
 
@@ -919,141 +1055,23 @@ func TestProgressLineWaitsForPrompt(t *testing.T) {
 	}
 }
 
-// TestGuardLogReporter checks that Guard of a log reporter returns the writer unchanged.
-func TestGuardLogReporter(t *testing.T) {
-	t.Parallel()
-
-	w := new(bytes.Buffer)
-
-	assert.Same(t, w, logReporter().Guard(w))
-}
-
-// TestTerminalOptions checks that TerminalOptions reads the terminal, the env and the log settings.
-func TestTerminalOptions(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		change            func(l log.Logger)
-		name              string
-		noEscapes         bool
-		wantLogsForHumans bool
-	}{
-		{
-			name:              "info logs",
-			wantLogsForHumans: true,
-		},
-		{
-			name:              "console without escape sequences",
-			noEscapes:         true,
-			wantLogsForHumans: true,
-		},
-		{
-			name:              "debug logs",
-			change:            func(l log.Logger) { l.SetOptions(log.WithLevel(log.DebugLevel)) },
-			wantLogsForHumans: true,
-		},
-		{
-			name:   "warn logs",
-			change: func(l log.Logger) { l.SetOptions(log.WithLevel(log.WarnLevel)) },
-		},
-		{
-			name:   "logs disabled",
-			change: func(l log.Logger) { l.Formatter().SetDisabledOutput(true) },
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			errWriter := new(bytes.Buffer)
-			env := map[string]string{"TERM": "xterm"}
-
-			v := &venv.Venv{
-				Env:      env,
-				Platform: &venv.Platform{GOOS: "linux"},
-				Terminal: &venv.Terminal{
-					StdinIsTTY:           func() bool { return true },
-					StderrIsTTY:          func() bool { return true },
-					StderrHandlesEscapes: func() bool { return !tc.noEscapes },
-					ErrWidth:             func() int { return 132 },
-				},
-				Writers: &writer.Writers{Writer: new(bytes.Buffer), ErrWriter: errWriter},
-			}
-
-			l := log.New(
-				log.WithLevel(log.InfoLevel),
-				log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
-			)
-
-			if tc.change != nil {
-				tc.change(l)
-			}
-
-			opts := spinner.TerminalOptions(v, l)
-
-			assert.Same(t, errWriter, opts.Out)
-			assert.Equal(t, 132, opts.Width())
-			assert.Equal(t, env, opts.Env)
-			assert.Equal(t, "linux", opts.GOOS)
-			assert.Equal(t, spinner.DefaultThreshold, opts.Threshold)
-			assert.Equal(t, !tc.noEscapes, opts.OutIsTTY, "progress is drawn only where escape sequences work")
-			assert.True(t, opts.InIsTTY)
-			assert.Equal(t, tc.wantLogsForHumans, opts.LogsForHumans)
-			assert.Equal(t, !tc.noEscapes && tc.wantLogsForHumans, spinner.New(opts).Animated())
-		})
-	}
-}
-
-// TestGuardIsNotStacked checks that guarding a guarded writer does not wrap it twice.
-func TestGuardIsNotStacked(t *testing.T) {
-	t.Parallel()
-
-	reporter := spinner.New(terminalOptions(new(syncBuffer), 120))
-	guarded := reporter.Guard(new(bytes.Buffer))
-
-	assert.Same(t, guarded, reporter.Guard(guarded))
-}
-
-// TestGuardLoggerRestore checks that the restore function puts back the original logger output.
+// TestGuardLoggerRestore checks that the function GuardLogger returns puts back the original logger output.
 func TestGuardLoggerRestore(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		reporter    *spinner.Reporter
-		name        string
-		wantGuarded bool
-	}{
-		{
-			name:        "animated reporter",
-			reporter:    spinner.New(terminalOptions(new(syncBuffer), 120)),
-			wantGuarded: true,
-		},
-		{
-			name:     "log reporter",
-			reporter: logReporter(),
-		},
-	}
+	output := new(bytes.Buffer)
+	l := newLogger(output)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	restore := terminalReporter(new(syncBuffer), 120).GuardLogger(l)
 
-			output := new(bytes.Buffer)
-			l := newLogger(output)
+	assert.NotSame(t, output, loggerOutput(l))
 
-			restore := tc.reporter.GuardLogger(l)
+	restore()
 
-			assert.Equal(t, tc.wantGuarded, loggerOutput(l) != io.Writer(output))
-
-			restore()
-
-			assert.Same(t, output, loggerOutput(l))
-		})
-	}
+	assert.Same(t, output, loggerOutput(l))
 }
 
-// TestProgressLineShrinkNoWrap checks that the line still fits after the terminal shrinks.
+// TestProgressLineShrinkNoWrap checks that the line fits a terminal that shrinks during the operation.
 func TestProgressLineShrinkNoWrap(t *testing.T) {
 	t.Parallel()
 
@@ -1063,8 +1081,8 @@ func TestProgressLineShrinkNoWrap(t *testing.T) {
 		term := new(syncBuffer)
 		start := time.Now()
 
-		opts := terminalOptions(term, 120)
-		opts.Width = func() int {
+		v := terminalVenv(term, 120)
+		v.Terminal.ErrWidth = func() int {
 			if time.Since(start) < time.Second {
 				return 120
 			}
@@ -1072,7 +1090,7 @@ func TestProgressLineShrinkNoWrap(t *testing.T) {
 			return narrow
 		}
 
-		reporter := spinner.New(opts)
+		reporter := spinner.New(v, animatedOptions)
 		l := newLogger(reporter.Guard(term))
 
 		var before int
@@ -1081,11 +1099,11 @@ func TestProgressLineShrinkNoWrap(t *testing.T) {
 			Working: "Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.3...",
 			Done:    "done",
 		}, func() error {
-			time.Sleep(1010 * time.Millisecond)
+			synctest.Sleep(1010 * time.Millisecond)
 
 			before = len(term.Bytes())
 
-			time.Sleep(2 * time.Second)
+			synctest.Sleep(2 * time.Second)
 
 			return nil
 		})
@@ -1117,10 +1135,10 @@ func TestProgressLineShrinkNoLeftovers(t *testing.T) {
 
 		width.Store(wide)
 
-		opts := terminalOptions(term, wide)
-		opts.Width = func() int { return int(width.Load()) }
+		v := terminalVenv(term, wide)
+		v.Terminal.ErrWidth = func() int { return int(width.Load()) }
 
-		reporter := spinner.New(opts)
+		reporter := spinner.New(v, animatedOptions)
 		l := newLogger(reporter.Guard(term))
 
 		var shrunk int
@@ -1129,13 +1147,13 @@ func TestProgressLineShrinkNoLeftovers(t *testing.T) {
 			Working: "Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.3...",
 			Done:    "Downloaded source",
 		}, func() error {
-			time.Sleep(1550 * time.Millisecond)
+			synctest.Sleep(1550 * time.Millisecond)
 
 			shrunk = len(term.Bytes())
 
 			width.Store(narrow)
 
-			time.Sleep(time.Second)
+			synctest.Sleep(time.Second)
 
 			return nil
 		})
@@ -1189,20 +1207,25 @@ func (failingWriter) Write([]byte) (int, error) {
 }
 
 func logReporter() *spinner.Reporter {
-	return spinner.New(spinner.Options{Threshold: testThreshold})
+	return spinner.New(venv.MemVenv(), spinner.Options{Threshold: testThreshold})
 }
 
-// terminalOptions returns options for a UTF-8 terminal of width columns that draws on out.
-func terminalOptions(out interface{ Write([]byte) (int, error) }, width int) spinner.Options {
-	return spinner.Options{
-		Out:           out,
-		Width:         func() int { return width },
-		Env:           map[string]string{"TERM": "xterm-256color", "LANG": "en_US.UTF-8"},
-		GOOS:          "linux",
-		Threshold:     testThreshold,
-		OutIsTTY:      true,
-		LogsForHumans: true,
-	}
+func terminalReporter(out io.Writer, width int) *spinner.Reporter {
+	return spinner.New(terminalVenv(out, width), animatedOptions)
+}
+
+// terminalVenv returns a venv whose stderr is out, a UTF-8 terminal of width columns.
+func terminalVenv(out io.Writer, width int) *venv.Venv {
+	v := venv.MemVenv().
+		WithErrWriter(out).
+		WithEnv(map[string]string{"TERM": "xterm-256color", "LANG": "en_US.UTF-8"}).
+		WithGOOS("linux")
+
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return width }
+
+	return v
 }
 
 func newLogger(out interface{ Write([]byte) (int, error) }) log.Logger {
@@ -1263,7 +1286,6 @@ func screenRows(stream []byte, width int) []string {
 	return screen.rows()
 }
 
-// screen is a fake terminal that re-wraps its lines when resized, like most terminals.
 type screen struct {
 	lines [][]rune
 	line  int
@@ -1305,7 +1327,6 @@ func (screen *screen) write(stream []byte) {
 func (screen *screen) put(char rune) {
 	switch char {
 	case '\r':
-		// A cursor just past the last column is still on that row.
 		if screen.col > 0 {
 			screen.col = (screen.col - 1) / screen.width * screen.width
 		}

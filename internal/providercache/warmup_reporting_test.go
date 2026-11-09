@@ -1,7 +1,9 @@
 package providercache_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 
@@ -21,23 +23,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestTerraformCommandHookProgress checks that provider caching is reported only with a reporter.
+// TestTerraformCommandHookProgress checks that provider caching is drawn and logs one done line only with a reporter.
 func TestTerraformCommandHookProgress(t *testing.T) {
 	t.Parallel()
 
-	const (
-		workDir = "/virtual/work"
-		started = "Caching providers for " + workDir
-		working = started + "..."
-		done    = "Cached providers for " + workDir
-	)
+	const workDir = "/virtual/work"
 
 	tc := []struct {
-		name     string
-		reported bool
+		name         string
+		wantLogLines int
+		reported     bool
 	}{
-		{name: "run with a reporter", reported: true},
-		{name: "run without a reporter", reported: false},
+		{name: "run with a reporter", reported: true, wantLogLines: 2},
+		{name: "run without a reporter", wantLogLines: 1},
 	}
 
 	for _, tt := range tc {
@@ -75,9 +73,11 @@ func TestTerraformCommandHookProgress(t *testing.T) {
 				TofuImplementation: tfimpl.OpenTofu,
 			}
 
+			term := new(bytes.Buffer)
+
 			ctx := t.Context()
 			if tt.reported {
-				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 			}
 
 			l, logs := newBufferLogger()
@@ -87,16 +87,18 @@ func TestTerraformCommandHookProgress(t *testing.T) {
 			require.NotNil(t, output)
 			require.Len(t, invocations, 2, "the warm-up command and the target command each run once")
 
-			assert.Equal(t, 1, strings.Count(logs.String(), started), "the start must be announced exactly once")
-			assert.NotContains(t, logs.String(), working)
-
-			if !tt.reported {
-				assert.NotContains(t, logs.String(), done)
-
-				return
-			}
-
-			assert.Contains(t, logs.String(), done)
+			assert.Equal(t, tt.reported, term.Len() > 0)
+			assert.Equal(t, tt.wantLogLines, strings.Count(logs.String(), "\n"), logs)
 		})
 	}
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -192,7 +193,7 @@ func TestGitStoreEnsureRefLockReleaseAllowsWaiterToProceedWithRacing(t *testing.
 	require.NoError(t, repo2.Unlock())
 }
 
-// TestGitStoreEnsureRefLockWaitProgress checks that the Git store lock wait is reported only with a reporter.
+// TestGitStoreEnsureRefLockWaitProgress runs on real time, as a synctest bubble cannot wait on the real Git server.
 func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
 	t.Parallel()
 
@@ -224,7 +225,6 @@ func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
 			holder, err := store.EnsureRef(t.Context(), logger.CreateLogger(), gv, shownURL, "main", hash, 0)
 			require.NoError(t, err)
 
-			// Release the lock after a short delay, so the waiter has to wait.
 			released := make(chan error, 1)
 
 			go func() {
@@ -236,8 +236,10 @@ func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 
+			term := new(bytes.Buffer)
+
 			if tt.reported {
-				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 			}
 
 			logs := new(bytes.Buffer)
@@ -250,19 +252,8 @@ func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
 
 			assert.Equal(t, holder.Path, waiter.Path)
 			assert.NotContains(t, logs.String(), password)
-
-			working := "Waiting for the lock on the Git store for " + shownURL.String() + "..."
-			done := "Got the lock on the Git store for " + shownURL.String()
-
-			if !tt.reported {
-				assert.NotContains(t, logs.String(), working)
-				assert.NotContains(t, logs.String(), done)
-
-				return
-			}
-
-			assert.Contains(t, logs.String(), working)
-			assert.Contains(t, logs.String(), done)
+			assert.NotContains(t, term.String(), password)
+			assert.Equal(t, tt.reported, term.Len() > 0)
 		})
 	}
 }
@@ -321,4 +312,14 @@ func resolveHead(t *testing.T, url string) string {
 	require.NotEmpty(t, results)
 
 	return results[0].Hash
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

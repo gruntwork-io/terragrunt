@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -791,7 +790,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 	}
 }
 
-// TestRunDiscoveryProgress checks that unit discovery is reported only with a reporter.
+// TestRunDiscoveryProgress checks that unit discovery is drawn only with a reporter.
 func TestRunDiscoveryProgress(t *testing.T) {
 	t.Parallel()
 
@@ -820,13 +819,12 @@ func TestRunDiscoveryProgress(t *testing.T) {
 			opts := find.NewOptions(tgOpts)
 			opts.Format = find.FormatText
 
-			logs := new(bytes.Buffer)
 			l := newTestLogger(t)
-			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)))
+			term := new(bytes.Buffer)
 
 			ctx := t.Context()
 			if tc.reported {
-				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 			}
 
 			var buf strings.Builder
@@ -835,20 +833,7 @@ func TestRunDiscoveryProgress(t *testing.T) {
 			require.NoError(t, find.Run(ctx, l, v, opts))
 
 			assert.Equal(t, "unit1\nunit2\n", buf.String(), "stdout is the same with and without a reporter")
-			require.NotEmpty(t, logs.String(), "the run logs to the captured output")
-
-			working := "Discovering units in " + root + "..."
-			done := "Discovered units in " + root
-
-			if !tc.reported {
-				assert.NotContains(t, logs.String(), working)
-				assert.NotContains(t, logs.String(), done)
-
-				return
-			}
-
-			assert.Contains(t, logs.String(), working)
-			assert.Contains(t, logs.String(), done)
+			assert.Equal(t, tc.reported, term.Len() > 0)
 		})
 	}
 }
@@ -1035,4 +1020,14 @@ func TestRunFileDependency(t *testing.T) {
 			assert.Equal(t, tc.want, found)
 		})
 	}
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

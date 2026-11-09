@@ -3,38 +3,32 @@ package spinner
 import (
 	"slices"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 )
 
-const minWidth = 20
+var ciMarkers = []string{"TF_BUILD", "TEAMCITY_VERSION", "JENKINS_URL", "TF_IN_AUTOMATION"}
 
-var (
-	unicodeFrames = []string{
-		"⠁", "⠂", "⠄", "⠍", "⠖", "⠞", "⠞", "⠞", "⠞", "⠞", "⠞", "⠴", "⠠", "⠀",
-		"⠉", "⠒", "⠛", "⠛", "⠛", "⠛", "⠛", "⠛", "⠶", "⠤", "⠀",
-	}
-	asciiFrames = []string{"|", "/", "-", "\\"}
-	ciMarkers   = []string{"TF_BUILD", "TEAMCITY_VERSION", "JENKINS_URL", "TF_IN_AUTOMATION"}
-)
-
-func animatable(opts *Options) bool {
-	if !opts.OutIsTTY || !opts.LogsForHumans {
+// animatable reports whether the stderr of v can show a progress line next to logs for humans.
+func animatable(v *venv.Venv, opts Options) bool {
+	if !opts.LogsForHumans || !v.Terminal.StderrIsTTY() {
 		return false
 	}
 
-	if opts.Out == nil || opts.Width == nil || opts.Width() < minWidth {
+	if !v.Terminal.StderrHandlesEscapes() || v.Terminal.ErrWidth() < minWidth {
 		return false
 	}
 
-	term := opts.Env["TERM"]
+	term := v.Env["TERM"]
 	if strings.EqualFold(term, "dumb") {
 		return false
 	}
 
-	if opts.GOOS != "windows" && term == "" {
+	if v.Platform.GOOS != "windows" && term == "" {
 		return false
 	}
 
-	return !inCI(opts.Env)
+	return !inCI(v.Env)
 }
 
 // frames returns Unicode frames for UTF-8 terminals and Windows Terminal, ASCII otherwise.

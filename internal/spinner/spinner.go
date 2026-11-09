@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	// DefaultThreshold is how long an operation runs before it is reported.
 	DefaultThreshold = 100 * time.Millisecond
 
 	keepaliveInterval = 30 * time.Second
@@ -20,129 +19,73 @@ const (
 type reporterKey struct{}
 
 type Messages struct {
-	// Working is shown while the operation runs (e.g. "Creating Git worktree for ref main...").
 	Working string
-	// Done is logged when the operation succeeds (e.g. "Created Git worktree for ref main").
-	Done string
-	// Started means the caller already logged Working, so it is not logged again.
+	Done    string
 	Started bool
 }
 
 type Options struct {
-	Out io.Writer
-	// Width returns the terminal width of Out, or 0 if unknown.
-	Width     func() int
-	Env       map[string]string
-	GOOS      string
-	Threshold time.Duration
-	// OutIsTTY is true when Out is a terminal that supports ANSI escape sequences.
-	OutIsTTY bool
-	InIsTTY  bool
-	// LogsForHumans is true when logs are enabled, at info level or lower, and not JSON.
+	Threshold     time.Duration
 	LogsForHumans bool
 }
 
 type Reporter struct {
 	term      *terminal
 	threshold time.Duration
+	logs      bool
 }
 
-// TerminalOptions returns options for drawing on the stderr of v. Callers clear LogsForHumans for JSON logs.
-func TerminalOptions(v *venv.Venv, l log.Logger) Options {
+// New returns a reporter that draws on the stderr of v when it is a terminal, and writes log lines otherwise.
+func New(v *venv.Venv, opts Options) *Reporter {
 	v.RequireTerminal()
 	v.RequireWriters()
 	v.RequireGOOS()
 
-	return Options{
-		Out:           v.Writers.ErrWriter,
-		Width:         v.Terminal.ErrWidth,
-		Env:           v.Env,
-		GOOS:          v.Platform.GOOS,
-		Threshold:     DefaultThreshold,
-		OutIsTTY:      v.Terminal.StderrIsTTY() && v.Terminal.StderrHandlesEscapes(),
-		InIsTTY:       v.Terminal.StdinIsTTY(),
-		LogsForHumans: !l.Formatter().DisabledOutput() && l.Level() >= log.InfoLevel,
-	}
-}
-
-func New(opts Options) *Reporter {
-	reporter := &Reporter{threshold: opts.Threshold}
-
-	if animatable(&opts) {
-		reporter.term = newTerminal(opts.Out, opts.Width, frames(opts.Env, opts.GOOS))
-		reporter.term.echoesInput = opts.InIsTTY
+	if !animatable(v, opts) {
+		return &Reporter{threshold: opts.Threshold, logs: true}
 	}
 
-	return reporter
+	term := newTerminal(v.Writers.ErrWriter, v.Terminal.ErrWidth, frames(v.Env, v.Platform.GOOS))
+	term.echoesInput = v.Terminal.StdinIsTTY()
+
+	return &Reporter{term: term, threshold: opts.Threshold}
 }
 
 func ContextWithReporter(ctx context.Context, reporter *Reporter) context.Context {
 	return context.WithValue(ctx, reporterKey{}, reporter)
 }
 
+// ContextWithLogOnly returns ctx with a reporter that writes log lines where the reporter on ctx draws.
 func ContextWithLogOnly(ctx context.Context) context.Context {
-	reporter := ReporterFromContext(ctx)
-	if reporter == nil {
-		return ctx
-	}
-
-	return ContextWithReporter(ctx, reporter.LogOnly())
+	return ContextWithReporter(ctx, reporterFromContext(ctx).LogOnly())
 }
 
-func ReporterFromContext(ctx context.Context) *Reporter {
-	reporter, ok := ctx.Value(reporterKey{}).(*Reporter)
-	if !ok {
-		return nil
-	}
-
-	return reporter
-}
-
-// InputRead tells the reporter on ctx that a prompt was answered, so the progress line can be drawn again.
+// InputRead tells the reporter on ctx that a prompt was answered.
 func InputRead(ctx context.Context) {
-	reporter := ReporterFromContext(ctx)
-	if reporter == nil || reporter.term == nil {
-		return
-	}
-
-	reporter.term.inputRead()
+	reporterFromContext(ctx).inputRead()
 }
 
-// ShowAfter runs fn and reports it through the reporter on ctx, or only runs fn when there is none.
+// ShowAfter runs fn and reports it through the reporter on ctx.
 func ShowAfter(ctx context.Context, l log.Logger, msgs Messages, fn func() error) error {
-	reporter := ReporterFromContext(ctx)
-	if reporter == nil {
-		return fn()
-	}
-
-	return reporter.ShowAfter(ctx, l, msgs, fn)
+	return reporterFromContext(ctx).ShowAfter(ctx, l, msgs, fn)
 }
 
 func (reporter *Reporter) Animated() bool {
 	return reporter.term != nil
 }
 
+// LogOnly returns a reporter that writes log lines where reporter draws.
 func (reporter *Reporter) LogOnly() *Reporter {
-	return &Reporter{threshold: reporter.threshold}
+	return &Reporter{threshold: reporter.threshold, logs: reporter.logs || reporter.Animated()}
 }
 
-// Guard wraps w so each write clears and redraws the progress line. A w that logs would deadlock.
+// Guard wraps w so each write clears and redraws the progress line of an animated reporter.
 func (reporter *Reporter) Guard(w io.Writer) io.Writer {
-	if reporter.term == nil || reporter.guards(w) {
-		return w
-	}
-
 	return &guard{term: reporter.term, w: w}
 }
 
-// GuardLogger wraps the output of l with [Reporter.Guard] and returns a restore function.
+// GuardLogger wraps the output of l with [Reporter.Guard] and returns a function that unwraps it.
 func (reporter *Reporter) GuardLogger(l log.Logger) func() {
-	if reporter.term == nil {
-		return func() {
-			// Nothing to restore, the logger was not wrapped.
-		}
-	}
-
 	l.SetOptions(log.WithOutputWrapper(reporter.Guard))
 
 	return func() {
@@ -160,10 +103,12 @@ func (reporter *Reporter) Show(ctx context.Context, l log.Logger, msgs Messages,
 	return reporter.show(ctx, l, 0, msgs, fn)
 }
 
-func (reporter *Reporter) guards(w io.Writer) bool {
-	guarded, ok := w.(*guard)
+func (reporter *Reporter) inputRead() {
+	if !reporter.Animated() {
+		return
+	}
 
-	return ok && guarded.term == reporter.term
+	reporter.term.inputRead()
 }
 
 func (reporter *Reporter) unguard(w io.Writer) io.Writer {
@@ -182,6 +127,10 @@ func (reporter *Reporter) show(
 	msgs Messages,
 	fn func() error,
 ) error {
+	if !reporter.Animated() && !reporter.logs {
+		return fn()
+	}
+
 	start := time.Now()
 	finished := make(chan struct{})
 	reported := make(chan bool, 1)
@@ -193,7 +142,6 @@ func (reporter *Reporter) show(
 	shown := false
 
 	err := func() error {
-		// Also runs on panic, so the progress line is cleared first.
 		defer func() {
 			close(finished)
 
@@ -203,11 +151,15 @@ func (reporter *Reporter) show(
 		return fn()
 	}()
 
-	if shown && err == nil && ctx.Err() == nil {
+	if err != nil || !shown {
+		return err
+	}
+
+	if ctx.Err() == nil {
 		logDone(l, msgs.Done, start)
 	}
 
-	return err
+	return nil
 }
 
 // watch reports the operation from threshold until it finishes and returns whether it was reported.
@@ -228,7 +180,7 @@ func (reporter *Reporter) watch(
 		}
 	}
 
-	if reporter.term == nil {
+	if !reporter.Animated() {
 		logProgress(ctx, l, msgs, start, finished)
 
 		return true
@@ -259,7 +211,7 @@ func waitTick(ctx context.Context, tick <-chan time.Time, finished <-chan struct
 	}
 }
 
-// logProgress logs the working message, then repeats it every keepaliveInterval counted from start.
+// logProgress logs the working message unless the caller did, then repeats it every keepaliveInterval from start.
 func logProgress(
 	ctx context.Context,
 	l log.Logger,
@@ -294,4 +246,14 @@ func logDone(l log.Logger, msg string, start time.Time) {
 	}
 
 	l.Infof("%s (%.1fs)", msg, elapsed.Seconds())
+}
+
+// reporterFromContext returns the reporter on ctx, or a reporter that reports nothing when ctx has none.
+func reporterFromContext(ctx context.Context) *Reporter {
+	reporter, ok := ctx.Value(reporterKey{}).(*Reporter)
+	if !ok {
+		return new(Reporter)
+	}
+
+	return reporter
 }

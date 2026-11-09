@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
@@ -1242,7 +1241,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 	}
 }
 
-// TestRunDiscoveryProgress checks that unit discovery is reported only with a reporter.
+// TestRunDiscoveryProgress checks that unit discovery is drawn only with a reporter.
 func TestRunDiscoveryProgress(t *testing.T) {
 	t.Parallel()
 
@@ -1271,13 +1270,12 @@ func TestRunDiscoveryProgress(t *testing.T) {
 			opts := list.NewOptions(tgOpts)
 			opts.Format = list.FormatLong
 
-			logs := new(bytes.Buffer)
 			l := newTestLogger(t)
-			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)))
+			term := new(bytes.Buffer)
 
 			ctx := t.Context()
 			if tc.reported {
-				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 			}
 
 			var buf strings.Builder
@@ -1291,20 +1289,7 @@ func TestRunDiscoveryProgress(t *testing.T) {
 				buf.String(),
 				"stdout is the same with and without a reporter",
 			)
-			require.NotEmpty(t, logs.String(), "the run logs to the captured output")
-
-			working := "Discovering units in " + root + "..."
-			done := "Discovered units in " + root
-
-			if !tc.reported {
-				assert.NotContains(t, logs.String(), working)
-				assert.NotContains(t, logs.String(), done)
-
-				return
-			}
-
-			assert.Contains(t, logs.String(), working)
-			assert.Contains(t, logs.String(), done)
+			assert.Equal(t, tc.reported, term.Len() > 0)
 		})
 	}
 }
@@ -1446,4 +1431,14 @@ exclude {
 `,
 		buf.String(),
 	)
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

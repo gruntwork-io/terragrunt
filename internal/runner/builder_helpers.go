@@ -128,7 +128,6 @@ func discoverWithRetry(
 	runnerOpts ...Option,
 ) (component.Components, error) {
 	d := prepareDiscovery(opts, runnerOpts...)
-	workingDir := resolveWorkingDir(opts)
 
 	var discovered component.Components
 
@@ -137,8 +136,8 @@ func discoverWithRetry(
 		"tofu_command": opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
 		discoveryErr := spinner.ShowAfter(childCtx, l, spinner.Messages{
-			Working: "Discovering units in " + workingDir + "...",
-			Done:    "Discovered units in " + workingDir,
+			Working: "Discovering units...",
+			Done:    "Discovered units",
 		}, func() error {
 			var err error
 

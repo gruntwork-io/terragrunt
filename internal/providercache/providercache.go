@@ -387,8 +387,8 @@ func (pc *ProviderCache) warmUpCache(
 	)
 
 	if err := spinner.ShowAfter(ctx, l, spinner.Messages{
-		Working: "Caching providers for " + tfOpts.ShellOptions.WorkingDir + "...",
-		Done:    "Cached providers for " + tfOpts.ShellOptions.WorkingDir,
+		Working: "Caching providers...",
+		Done:    "Cached providers",
 		Started: true,
 	}, func() error {
 		for _, args := range commandsArgs {

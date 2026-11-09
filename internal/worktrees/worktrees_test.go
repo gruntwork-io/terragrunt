@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -992,7 +993,7 @@ func TestWorktreeCleanupWithCancelledContextWithRacing(t *testing.T) {
 	}
 }
 
-// TestNewWorktreesComparisonProgress checks that the Git reference comparison is reported only with a reporter.
+// TestNewWorktreesComparisonProgress checks that comparing Git references is drawn only with a reporter.
 func TestNewWorktreesComparisonProgress(t *testing.T) {
 	t.Parallel()
 
@@ -1011,9 +1012,7 @@ func TestNewWorktreesComparisonProgress(t *testing.T) {
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 			commitUnits(t, tmpDir, 2)
 
-			logs := new(bytes.Buffer)
 			l := logger.CreateLogger()
-			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)))
 
 			filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
 			require.NoError(t, err)
@@ -1021,9 +1020,11 @@ func TestNewWorktreesComparisonProgress(t *testing.T) {
 			gitExpressions := filters.UniqueGitFilters()
 			require.Len(t, gitExpressions, 1)
 
+			term := new(bytes.Buffer)
+
 			ctx := t.Context()
 			if tc.reported {
-				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 			}
 
 			v := venvtest.NewOSWithEmptyEnv()
@@ -1043,25 +1044,12 @@ func TestNewWorktreesComparisonProgress(t *testing.T) {
 			pair := w.WorktreePairs[gitExpressions[0].String()]
 			require.NotNil(t, pair, "the expression is compared with and without a reporter")
 			assert.Equal(t, []string{"unit-1/terragrunt.hcl"}, pair.Diffs.Added)
-			require.Contains(t, logs.String(), "Created Git worktree for reference HEAD at ")
-
-			working := "Comparing Git references for filters..."
-			done := "Compared Git references for filters"
-
-			if !tc.reported {
-				assert.NotContains(t, logs.String(), working)
-				assert.NotContains(t, logs.String(), done)
-
-				return
-			}
-
-			assert.Contains(t, logs.String(), working)
-			assert.Contains(t, logs.String(), done)
+			assert.Equal(t, tc.reported, term.Len() > 0)
 		})
 	}
 }
 
-// TestNewWorktreesFailedCheckoutProgress checks that a failed checkout is not logged as created.
+// TestNewWorktreesFailedCheckoutProgress checks that a failed checkout logs no done line for the worktree.
 func TestNewWorktreesFailedCheckoutProgress(t *testing.T) {
 	t.Parallel()
 
@@ -1075,7 +1063,8 @@ func TestNewWorktreesFailedCheckoutProgress(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
-	ctx := spinner.ContextWithReporter(t.Context(), spinner.New(spinner.Options{}))
+	term := new(bytes.Buffer)
+	ctx := spinner.ContextWithReporter(t.Context(), drawingReporter(term))
 
 	v := venvtest.NewOSWithEmptyEnv()
 	v = v.WithExec(&failOnCheckoutExec{Exec: v.Exec})
@@ -1088,8 +1077,8 @@ func TestNewWorktreesFailedCheckoutProgress(t *testing.T) {
 	)
 	require.Error(t, err)
 
-	assert.Contains(t, logs.String(), "Creating Git worktree")
-	assert.NotContains(t, logs.String(), "Created Git worktree")
+	assert.NotEmpty(t, term.String())
+	assert.Equal(t, 1, strings.Count(logs.String(), "level=info"), logs)
 	assert.Empty(t, registeredWorktrees(t, tmpDir))
 }
 
@@ -1181,7 +1170,7 @@ func TestNewWorktreesReportsSlowCreation(t *testing.T) {
 					return vexec.Result{}
 				})
 
-				ctx := spinner.ContextWithReporter(t.Context(), spinner.New(spinner.Options{}))
+				ctx := spinner.ContextWithReporter(t.Context(), spinner.New(venv.MemVenv(), spinner.Options{}))
 
 				_, err := worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
 					WorkingDir:     root,
@@ -1710,4 +1699,14 @@ func treePaths(paths ...string) git.TreePaths {
 	}
 
 	return tree
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

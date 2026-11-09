@@ -895,8 +895,8 @@ func (client *Client) WaitUntilS3BucketExists(
 	bucketName string,
 ) error {
 	return spinner.ShowAfter(ctx, l, spinner.Messages{
-		Working: "Waiting for S3 bucket " + bucketName + " to be created...",
-		Done:    "S3 bucket " + bucketName + " exists",
+		Working: "Creating S3 bucket " + bucketName + "...",
+		Done:    "S3 bucket " + bucketName + " created",
 	}, func() error {
 		return client.pollUntilS3BucketExists(ctx, l, bucketName)
 	})
@@ -2129,8 +2129,8 @@ func (client *Client) waitForTableToBeActive(
 	sleepBetweenRetries time.Duration,
 ) error {
 	return spinner.ShowAfter(ctx, l, spinner.Messages{
-		Working: "Waiting for DynamoDB table " + tableName + " to become active...",
-		Done:    "DynamoDB table " + tableName + " is active",
+		Working: "Waiting for availability of DynamoDB table " + tableName + "...",
+		Done:    "DynamoDB table " + tableName + " is available",
 	}, func() error {
 		return client.WaitForTableToBeActiveWithRandomSleep(
 			ctx,
@@ -2219,8 +2219,8 @@ func (client *Client) UpdateLockTableSetSSEncryptionOnIfNecessary(
 	}
 
 	err = spinner.ShowAfter(ctx, l, spinner.Messages{
-		Working: "Waiting for encryption of DynamoDB table " + tableName + " to be enabled...",
-		Done:    "Encryption of DynamoDB table " + tableName + " is enabled",
+		Working: "Enabling encryption on DynamoDB table " + tableName + "...",
+		Done:    "DynamoDB table " + tableName + " is encrypted",
 	}, func() error {
 		return client.waitForEncryptionToBeEnabled(ctx, l, tableName)
 	})

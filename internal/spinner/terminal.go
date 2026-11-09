@@ -17,13 +17,23 @@ import (
 
 const (
 	frameInterval   = 100 * time.Millisecond
+	minWidth        = 20
 	ellipsis        = "..."
 	gutter          = " "
 	eraseDown       = "\x1b[J"
 	minMessageWidth = len(ellipsis) + 1
 )
 
-// terminal is the progress line of a run, shared by all reported operations.
+var (
+	unicodeFrames = []string{
+		"\u2801", "\u2802", "\u2804", "\u280d", "\u2816", "\u281e", "\u281e",
+		"\u281e", "\u281e", "\u281e", "\u281e", "\u2834", "\u2820", "\u2800",
+		"\u2809", "\u2812", "\u281b", "\u281b", "\u281b", "\u281b",
+		"\u281b", "\u281b", "\u2836", "\u2824", "\u2800",
+	}
+	asciiFrames = []string{"|", "/", "-", "\\"}
+)
+
 type terminal struct {
 	epoch         time.Time
 	out           io.Writer
@@ -117,7 +127,7 @@ func (term *terminal) add(op *operation) {
 	term.ops = append(term.ops, op)
 }
 
-// remove removes op and clears the line, which other running operations draw again.
+// remove drops op and clears the progress line.
 func (term *terminal) remove(l log.Logger, op *operation) {
 	term.mu.Lock()
 
@@ -145,7 +155,7 @@ func (term *terminal) redraw(l log.Logger) {
 	logFailure(l, failure)
 }
 
-// draw writes the line and erases below it, which also removes rows a resize re-wrapped. Caller holds the lock.
+// draw writes the progress line and erases the rows below it, with term.mu held.
 func (term *terminal) draw(now time.Time) {
 	if term.midLine || len(term.ops) == 0 {
 		return
@@ -168,7 +178,7 @@ func (term *terminal) draw(now time.Time) {
 	term.last = line
 }
 
-// clear erases the progress line and everything below it. Caller holds the lock.
+// clear erases the progress line and the rows below it, with term.mu held.
 func (term *terminal) clear() {
 	if !term.shown {
 		return
@@ -202,7 +212,7 @@ func (term *terminal) line(now time.Time, width int) string {
 	return gutter + frame + " " + runewidth.Truncate(printable(head.text), room, ellipsis) + suffix
 }
 
-// write writes s to the terminal and stops drawing after a failed write. Caller holds the lock.
+// write writes s to the terminal until a write fails, with term.mu held.
 func (term *terminal) write(s string) {
 	if term.failure != nil {
 		return
@@ -213,7 +223,7 @@ func (term *terminal) write(s string) {
 	}
 }
 
-// unloggedFailure returns the write error only the first time. Caller holds the lock.
+// unloggedFailure returns the write error the first time only, with term.mu held.
 func (term *terminal) unloggedFailure() error {
 	if term.failure == nil || term.failureLogged {
 		return nil
@@ -224,7 +234,7 @@ func (term *terminal) unloggedFailure() error {
 	return term.failure
 }
 
-// printable replaces control characters with spaces so the line stays on one row.
+// printable replaces control characters with spaces.
 func printable(text string) string {
 	return strings.Map(func(char rune) rune {
 		if unicode.IsControl(char) {

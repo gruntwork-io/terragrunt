@@ -133,58 +133,38 @@ func TestRunActionProviderCacheStartupFailures(t *testing.T) {
 	}
 }
 
-// TestRunActionProgressReporter checks that the context has a reporter only with the experiment on.
+// TestRunActionProgressReporter checks that the run reports a slow operation only with the experiment on.
 func TestRunActionProgressReporter(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name         string
 		experiments  []string
-		wantReporter bool
+		wantLogLines int
 	}{
-		{
-			name: "experiment off",
-		},
-		{
-			name:         "experiment on",
-			experiments:  []string{experiment.SlowTaskReporting},
-			wantReporter: true,
-		},
-		{
-			name:        "another experiment on",
-			experiments: []string{experiment.Symlinks},
-		},
+		{name: "experiment off"},
+		{name: "experiment on", experiments: []string{experiment.SlowTaskReporting}, wantLogLines: 2},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var reporter *spinner.Reporter
+			synctest.Test(t, func(t *testing.T) {
+				logs := new(bytes.Buffer)
+				l := logger.CreateLogger()
+				l.SetOptions(log.WithOutput(logs), log.WithLevel(log.InfoLevel))
 
-			action := func(ctx context.Context, _ *clihelper.Context) error {
-				reporter = spinner.ReporterFromContext(ctx)
+				opts := options.NewTerragruntOptions(vexec.NewOSExec())
+				opts.NoAutoProviderCacheDir = true
 
-				return nil
-			}
+				for _, name := range tc.experiments {
+					require.NoError(t, opts.Experiments.EnableExperiment(name))
+				}
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
-			opts.NoAutoProviderCacheDir = true
-
-			for _, name := range tc.experiments {
-				require.NoError(t, opts.Experiments.EnableExperiment(name))
-			}
-
-			require.NoError(t, commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venv.MemVenv(), action))
-
-			if !tc.wantReporter {
-				assert.Nil(t, reporter)
-
-				return
-			}
-
-			require.NotNil(t, reporter)
-			assert.False(t, reporter.Animated(), "a run with no terminal reports as log lines")
+				require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, venv.MemVenv(), slowAction(l)))
+				assert.Equal(t, tc.wantLogLines, strings.Count(logs.String(), "\n"), logs)
+			})
 		})
 	}
 }
@@ -194,13 +174,13 @@ func TestRunActionProgressReporterAnimated(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		change       func(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv)
-		name         string
-		wantAnimated bool
+		change    func(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv)
+		name      string
+		wantDrawn bool
 	}{
 		{
-			name:         "terminal",
-			wantAnimated: true,
+			name:      "terminal",
+			wantDrawn: true,
 		},
 		{
 			name: "JSON logs",
@@ -238,23 +218,16 @@ func TestRunActionProgressReporterAnimated(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			l, opts, v, _ := terminalRun(t)
+			synctest.Test(t, func(t *testing.T) {
+				l, opts, v, term := terminalRun(t)
 
-			if tc.change != nil {
-				tc.change(l, opts, v)
-			}
+				if tc.change != nil {
+					tc.change(l, opts, v)
+				}
 
-			var reporter *spinner.Reporter
-
-			action := func(ctx context.Context, _ *clihelper.Context) error {
-				reporter = spinner.ReporterFromContext(ctx)
-
-				return nil
-			}
-
-			require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, v, action))
-			require.NotNil(t, reporter)
-			assert.Equal(t, tc.wantAnimated, reporter.Animated())
+				require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, v, slowAction(l)))
+				assert.Equal(t, tc.wantDrawn, strings.Contains(term.String(), "\x1b[J"), term.String())
+			})
 		})
 	}
 }
@@ -271,9 +244,9 @@ func TestRunActionLogsAroundProgressLine(t *testing.T) {
 				Working: "working...",
 				Done:    "finished",
 			}, func() error {
-				time.Sleep(1500 * time.Millisecond)
+				synctest.Sleep(1500 * time.Millisecond)
 				l.Info("logged while working")
-				time.Sleep(500 * time.Millisecond)
+				synctest.Sleep(500 * time.Millisecond)
 
 				return nil
 			})
@@ -318,7 +291,7 @@ func TestRunActionProgressAfterPrompt(t *testing.T) {
 				Working: "Waiting for the bucket...",
 				Done:    "The bucket is ready",
 			}, func() error {
-				time.Sleep(3 * time.Second)
+				synctest.Sleep(3 * time.Second)
 
 				return nil
 			})
@@ -336,7 +309,7 @@ func TestRunActionProgressAfterPrompt(t *testing.T) {
 	})
 }
 
-// TestRunActionRestoresTerminal checks that the streams and the logger are restored after the action.
+// TestRunActionRestoresTerminal checks that the action leaves the streams and the logger as it found them.
 func TestRunActionRestoresTerminal(t *testing.T) {
 	t.Parallel()
 
@@ -382,6 +355,20 @@ func TestRunActionRestoresTerminal(t *testing.T) {
 
 			assert.Same(t, writers, v.Writers)
 			assert.Same(t, term, loggerOutput(l))
+		})
+	}
+}
+
+// slowAction returns an action that reports one operation slower than the reporting threshold.
+func slowAction(l log.Logger) clihelper.ActionFunc {
+	return func(ctx context.Context, _ *clihelper.Context) error {
+		return spinner.ShowAfter(ctx, l, spinner.Messages{
+			Working: "working...",
+			Done:    "finished",
+		}, func() error {
+			synctest.Sleep(time.Second)
+
+			return nil
 		})
 	}
 }

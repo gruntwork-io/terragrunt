@@ -7,7 +7,7 @@ Shows progress for slow operations, so a long wait does not look like a hang.
 
 ### `slow-task-reporting` - What it does
 
-Terragrunt reports an operation after it runs for 100ms. These operations are reported:
+Terragrunt reports an operation that runs longer than a short threshold. These operations are reported:
 
 - Source downloads, and waits for the download directory lock or the Git store lock
 - Git worktree creation and Git reference comparison for `--filter`
@@ -26,7 +26,7 @@ On a terminal, Terragrunt draws one progress line with the operation, its elapse
 
 The line is cut to the terminal width. Log lines are written above it. When the operation succeeds, Terragrunt replaces the line with an INFO log line that has the elapsed time. In `run --all`, all units share the line, and it shows the oldest running operation.
 
-Otherwise, Terragrunt writes INFO log lines: one after 100ms, one every 30 seconds while it runs, and one when it succeeds. The 30-second lines keep CI systems from stopping a job that looks idle.
+Otherwise, Terragrunt writes INFO log lines: one when the operation is first reported, one every 30 seconds while it runs, and one when it succeeds. The 30-second lines keep CI systems from stopping a job that looks idle.
 
 ```text
 INFO   Fetching outputs of dependency ../vpc...

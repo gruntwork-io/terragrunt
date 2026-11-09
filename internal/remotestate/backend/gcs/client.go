@@ -152,8 +152,8 @@ func (client *Client) CreateGCSBucketWithVersioning(
 	}
 
 	err := spinner.ShowAfter(ctx, l, spinner.Messages{
-		Working: "Waiting for GCS bucket " + bucketName + " to be created...",
-		Done:    "GCS bucket " + bucketName + " exists",
+		Working: "Creating GCS bucket " + bucketName + "...",
+		Done:    "GCS bucket " + bucketName + " created",
 	}, func() error {
 		return client.WaitUntilGCSBucketExists(ctx, l, bucketName)
 	})

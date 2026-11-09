@@ -3,6 +3,7 @@ package s3_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,35 +28,29 @@ const (
 	progressTable  = "progress-lock-table"
 )
 
-// TestRemoteStateWaitProgress checks that the S3 bucket and DynamoDB table waits are reported only with a reporter.
+// TestRemoteStateWaitProgress checks that the S3 bucket and DynamoDB table waits are drawn only with a reporter.
 func TestRemoteStateWaitProgress(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		run      func(ctx context.Context, l log.Logger, client *s3backend.Client) error
-		name     string
-		messages []string
-		created  bool
+		run     func(ctx context.Context, l log.Logger, client *s3backend.Client) error
+		name    string
+		waits   int
+		created bool
 	}{
 		{
 			name: "s3 bucket exists",
 			run: func(ctx context.Context, l log.Logger, client *s3backend.Client) error {
 				return client.WaitUntilS3BucketExists(ctx, l, progressBucket)
 			},
-			messages: []string{
-				"Waiting for S3 bucket " + progressBucket + " to be created...",
-				"S3 bucket " + progressBucket + " exists",
-			},
+			waits: 1,
 		},
 		{
 			name: "dynamodb table active",
 			run: func(ctx context.Context, l log.Logger, client *s3backend.Client) error {
 				return client.CreateLockTableIfNecessary(ctx, l, progressTable, nil)
 			},
-			messages: []string{
-				"Waiting for DynamoDB table " + progressTable + " to become active...",
-				"DynamoDB table " + progressTable + " is active",
-			},
+			waits: 1,
 		},
 		{
 			name:    "dynamodb table encryption",
@@ -63,12 +58,7 @@ func TestRemoteStateWaitProgress(t *testing.T) {
 			run: func(ctx context.Context, l log.Logger, client *s3backend.Client) error {
 				return client.UpdateLockTableSetSSEncryptionOnIfNecessary(ctx, l, progressTable)
 			},
-			messages: []string{
-				"Waiting for encryption of DynamoDB table " + progressTable + " to be enabled...",
-				"Encryption of DynamoDB table " + progressTable + " is enabled",
-				"Waiting for DynamoDB table " + progressTable + " to become active...",
-				"DynamoDB table " + progressTable + " is active",
-			},
+			waits: 2,
 		},
 	}
 
@@ -76,25 +66,25 @@ func TestRemoteStateWaitProgress(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			t.Run("experiment on", func(t *testing.T) {
+			t.Run("reporter on the context", func(t *testing.T) {
 				t.Parallel()
 
 				stub := &awsStub{}
 				stub.created.Store(tc.created)
 
+				term := new(bytes.Buffer)
 				logs := new(bytes.Buffer)
 				l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
-				ctx := spinner.ContextWithReporter(t.Context(), spinner.New(spinner.Options{}))
+				ctx := spinner.ContextWithReporter(t.Context(), drawingReporter(term))
 
 				require.NoError(t, tc.run(ctx, l, newStubbedClient(t, stub)))
 				require.Positive(t, stub.requests.Load(), "the wait must have polled the endpoint")
 
-				for _, message := range tc.messages {
-					assert.Contains(t, logs.String(), message)
-				}
+				assert.NotEmpty(t, term.String())
+				assert.Equal(t, tc.waits, strings.Count(logs.String(), "\n"), logs)
 			})
 
-			t.Run("experiment off", func(t *testing.T) {
+			t.Run("plain context", func(t *testing.T) {
 				t.Parallel()
 
 				stub := &awsStub{}
@@ -106,13 +96,12 @@ func TestRemoteStateWaitProgress(t *testing.T) {
 				require.NoError(t, tc.run(t.Context(), l, newStubbedClient(t, stub)))
 				require.Positive(t, stub.requests.Load(), "the wait must have polled the endpoint")
 
-				assert.Empty(t, logs.String(), "nothing is logged at INFO without the reporter")
+				assert.Empty(t, logs.String())
 			})
 		})
 	}
 }
 
-// awsStub answers the S3 and DynamoDB calls made by the waits.
 type awsStub struct {
 	requests  atomic.Int64
 	created   atomic.Bool
@@ -208,4 +197,14 @@ func newStubbedClient(t *testing.T, stub *awsStub) *s3backend.Client {
 	require.NoError(t, err)
 
 	return client
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

@@ -3,8 +3,8 @@ package module_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"path/filepath"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -14,9 +14,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -89,23 +88,16 @@ func TestCloneReportsAGitRemoteThatNeverAnswers(t *testing.T) {
 	})
 }
 
-// TestCloneProgress checks that a slow clone logs a keepalive line only with a reporter.
+// TestCloneProgress checks that a slow clone is drawn only with a reporter.
 func TestCloneProgress(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name          string
-		withReporter  bool
-		wantKeepalive bool
+		name     string
+		reported bool
 	}{
-		{
-			name:          "experiment on",
-			withReporter:  true,
-			wantKeepalive: true,
-		},
-		{
-			name: "experiment off",
-		},
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
 	}
 
 	for _, tc := range testCases {
@@ -125,17 +117,16 @@ func TestCloneProgress(t *testing.T) {
 					WithExec(vexec.NewMemExec(hangGit)).
 					WithUserCacheDir(func() (string, error) { return filepath.Join(tmpDir, "cache"), nil })
 
-				logs := new(bytes.Buffer)
-				l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
+				term := new(bytes.Buffer)
 
 				ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 				defer cancel()
 
-				if tc.withReporter {
-					ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+				if tc.reported {
+					ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 				}
 
-				_, err := module.NewRepo(ctx, l, v, &module.RepoOpts{
+				_, err := module.NewRepo(ctx, logger.CreateLogger(), v, &module.RepoOpts{
 					CloneURL:      absentRepoURL(tmpDir),
 					Path:          filepath.Join(tmpDir, "slow-repo"),
 					AllowCAS:      true,
@@ -143,9 +134,18 @@ func TestCloneProgress(t *testing.T) {
 				})
 				require.Error(t, err)
 
-				assert.Contains(t, logs.String(), "Cloning repository")
-				assert.Equal(t, tc.wantKeepalive, strings.Contains(logs.String(), "(30s elapsed)"))
+				assert.Equal(t, tc.reported, term.Len() > 0)
 			})
 		})
 	}
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

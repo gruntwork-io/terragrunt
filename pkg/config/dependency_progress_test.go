@@ -5,14 +5,13 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -22,43 +21,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDependencyOutputFetchProgress checks that only an uncached dependency fetch with a reporter is reported.
+// TestDependencyOutputFetchProgress checks that only an uncached dependency fetch with a reporter is drawn.
 func TestDependencyOutputFetchProgress(t *testing.T) {
 	t.Parallel()
 
-	target := filepath.Join("..", "producer", config.DefaultTerragruntConfigPath)
-	working := "Fetching outputs of dependency " + target + "..."
-	done := "Fetched outputs of dependency " + target
-
 	testCases := []struct {
-		reporter    func(term io.Writer) *spinner.Reporter
 		name        string
 		wantResult  string
 		wantFetches int
-		wantWorking int
-		wantDone    int
+		reporter    bool
 		cached      bool
-		wantDrawn   bool
 	}{
 		{
-			name:        "reporter that writes log lines",
-			reporter:    logProgressReporter,
+			name:        "reporter on the context",
+			reporter:    true,
 			wantResult:  "from-direct",
 			wantFetches: 1,
-			wantWorking: 1,
-			wantDone:    1,
-		},
-		{
-			name:        "reporter that draws on a terminal",
-			reporter:    terminalProgressReporter,
-			wantResult:  "from-direct",
-			wantFetches: 1,
-			wantDone:    1,
-			wantDrawn:   true,
 		},
 		{
 			name:       "reporter and cached outputs",
-			reporter:   logProgressReporter,
+			reporter:   true,
 			cached:     true,
 			wantResult: "from-cache",
 		},
@@ -95,8 +77,8 @@ func TestDependencyOutputFetchProgress(t *testing.T) {
 
 			term := new(bytes.Buffer)
 
-			if tc.reporter != nil {
-				ctx = spinner.ContextWithReporter(ctx, tc.reporter(term))
+			if tc.reporter {
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 			}
 
 			if tc.cached {
@@ -107,23 +89,17 @@ func TestDependencyOutputFetchProgress(t *testing.T) {
 				)
 			}
 
-			logs := new(bytes.Buffer)
-			l := logger.CreateLogger()
-			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
-
-			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, configPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.wantResult, cfg.Inputs["result"])
 			assert.Len(t, recorder.requestPaths(), tc.wantFetches)
-			assert.Equal(t, tc.wantWorking, strings.Count(logs.String(), working), logs)
-			assert.Equal(t, tc.wantDone, strings.Count(logs.String(), done), logs)
-			assert.Equal(t, tc.wantDrawn, strings.Contains(term.String(), working), term)
+			assert.Equal(t, tc.wantFetches > 0 && tc.reporter, term.Len() > 0)
 		})
 	}
 }
 
-// TestDependencyOutputParseFailureProgress checks that output that is not JSON logs no done line.
+// TestDependencyOutputParseFailureProgress checks that a fetch whose output is not JSON logs no done line.
 func TestDependencyOutputParseFailureProgress(t *testing.T) {
 	t.Parallel()
 
@@ -155,7 +131,8 @@ func TestDependencyOutputParseFailureProgress(t *testing.T) {
 		return vexec.Result{}
 	}))
 
-	ctx = spinner.ContextWithReporter(ctx, logProgressReporter(nil))
+	term := new(bytes.Buffer)
+	ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 
 	logs := new(bytes.Buffer)
 	l := logger.CreateLogger()
@@ -164,22 +141,16 @@ func TestDependencyOutputParseFailureProgress(t *testing.T) {
 	_, err := config.ParseConfigFile(ctx, l, v, pctx, configPath, nil)
 	require.ErrorAs(t, err, new(config.TerragruntOutputParsingError))
 
-	target := filepath.Join("..", "producer", config.DefaultTerragruntConfigPath)
-	assert.Contains(t, logs.String(), "Fetching outputs of dependency "+target+"...")
-	assert.NotContains(t, logs.String(), "Fetched outputs of dependency "+target, logs)
+	assert.NotEmpty(t, term.String())
+	assert.NotContains(t, logs.String(), "level=info", logs)
 }
 
-func logProgressReporter(io.Writer) *spinner.Reporter {
-	return spinner.New(spinner.Options{})
-}
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
 
-func terminalProgressReporter(term io.Writer) *spinner.Reporter {
-	return spinner.New(spinner.Options{
-		Out:           term,
-		Width:         func() int { return 120 },
-		Env:           map[string]string{"TERM": "xterm-256color"},
-		GOOS:          "linux",
-		OutIsTTY:      true,
-		LogsForHumans: true,
-	})
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

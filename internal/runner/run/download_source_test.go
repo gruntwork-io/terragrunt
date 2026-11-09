@@ -1013,7 +1013,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	assert.Equal(t, mainTfContent, string(cachedContent), "File contents should match")
 }
 
-// TestDownloadTerraformSourceLockWaitProgress checks that the download dir lock wait is reported only with a reporter.
+// TestDownloadTerraformSourceLockWaitProgress checks that the download dir lock wait is drawn only with a reporter.
 func TestDownloadTerraformSourceLockWaitProgress(t *testing.T) {
 	t.Parallel()
 
@@ -1041,19 +1041,16 @@ func TestDownloadTerraformSourceLockWaitProgress(t *testing.T) {
 			opts.DownloadDir = filepath.Join(tc.unitDir, ".terragrunt-cache")
 			opts.LogShowAbsPaths = true
 
+			term := new(bytes.Buffer)
+
 			ctx := t.Context()
 			if tc.reported {
-				ctx = spinner.ContextWithReporter(ctx, spinner.New(spinner.Options{}))
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
 			}
-
-			logs := new(bytes.Buffer)
-
-			l := logger.CreateLogger()
-			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
 
 			updatedOpts, err := run.DownloadTerraformSource(
 				ctx,
-				l,
+				logger.CreateLogger(),
 				v,
 				".",
 				configbridge.NewRunOptions(opts),
@@ -1064,19 +1061,7 @@ func TestDownloadTerraformSourceLockWaitProgress(t *testing.T) {
 			require.True(t, strings.HasPrefix(updatedOpts.CacheDir, opts.DownloadDir), updatedOpts.CacheDir)
 			assert.True(t, vfs.Exists(v.FS, filepath.Join(updatedOpts.CacheDir, "main.tf")))
 
-			// A source without a subdirectory is downloaded into the locked directory.
-			working := "Waiting for the lock on " + updatedOpts.CacheDir + "..."
-			done := "Got the lock on " + updatedOpts.CacheDir
-
-			if !tc.reported {
-				assert.NotContains(t, logs.String(), working)
-				assert.NotContains(t, logs.String(), done)
-
-				return
-			}
-
-			assert.Contains(t, logs.String(), working)
-			assert.Contains(t, logs.String(), done)
+			assert.Equal(t, tc.reported, term.Len() > 0)
 		})
 	}
 }
@@ -1979,4 +1964,14 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "wired", cred.Username,
 		"BuildDownloadClient must thread the run's venv into the OCI credential store")
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }
