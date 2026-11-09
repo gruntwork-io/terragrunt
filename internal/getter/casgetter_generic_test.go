@@ -309,7 +309,6 @@ func TestCASGetter_HTTPChecksumIsVerifiedOnStoreHit(t *testing.T) {
 
 	v := venvtest.NewOSWithEmptyEnv()
 
-	// One store, two getters: CASGetter keeps per-request state.
 	fetch := func(path, dst string) error {
 		g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 			getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
@@ -443,7 +442,6 @@ func TestCASGetter_HTTPChecksumHonorsOffline(t *testing.T) {
 				return err
 			}
 
-			// The online run records the probe the offline run reads.
 			online := func() error {
 				c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath), tgcas.WithProbeCache())
 				require.NoError(t, err)
@@ -630,7 +628,6 @@ func TestCASGetter_HTTPChecksumFileUsesConfiguredClient(t *testing.T) {
 	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	// Only the configured client trusts the checksum server's certificate.
 	v := venvtest.NewOSWithEmptyEnv()
 	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
 		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(sums.Client())))

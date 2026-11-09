@@ -46,7 +46,6 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string) error {
 	source := sourceScheme + ociTestRegistry + "/terraform-modules/vpc?tag=1.0.0"
 	stackPath := ociStackFixture(t, v.FS, kind, source)
 
-	// The in-memory filesystem leaves the CAS disabled; only the routing to the oci getter is covered.
 	return generateCatalogStack(t, v, stackPath)
 }
 

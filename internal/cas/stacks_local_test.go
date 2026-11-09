@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -668,6 +670,31 @@ func TestProcessStoredStackComponent_RewritesInPlaceFromTreeKey(t *testing.T) {
 	assert.NotEqual(t, refA, storedServiceUnitCASRef(t, keyB), "the ref must follow the tree key, not the content")
 }
 
+// TestProcessStoredStackComponent_WriteFailureIsRewriteIncomplete: a failed write after a rewrite is final.
+func TestProcessStoredStackComponent_WriteFailureIsRewriteIncomplete(t *testing.T) {
+	t.Parallel()
+
+	root := buildLocalStackFixture(t)
+	contentDir := filepath.Join(root, "stacks", "my-stack")
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+	v.FS = &unwritableFS{FS: v.FS, path: filepath.Join(contentDir, "terragrunt.stack.hcl")}
+
+	err = c.ProcessStoredStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		root,
+		contentDir,
+		strings.Repeat("a", sha256.Size*2),
+	)
+	require.ErrorIs(t, err, cas.ErrRewriteIncomplete)
+	require.ErrorIs(t, err, errUnwritable)
+}
+
 // storedServiceUnitCASRef rewrites a fresh fixture tree in place under treeKey and returns the service unit source.
 func storedServiceUnitCASRef(t *testing.T, treeKey string) string {
 	t.Helper()
@@ -1258,4 +1285,21 @@ stack "fn" {
 	assert.True(t, strings.HasPrefix(blocks[1].Source, cas.CASProtocolPrefix), "the stack must be rewritten")
 	assert.True(t, strings.HasPrefix(blocks[2].Source, cas.CASProtocolPrefix), "the injected unit must be rewritten")
 	assert.NotEqual(t, blocks[1].Source, blocks[2].Source)
+}
+
+// errUnwritable is returned by unwritableFS for a write to its path.
+var errUnwritable = errors.New("unwritable")
+
+// unwritableFS refuses to open its path for writing.
+type unwritableFS struct {
+	vfs.FS
+	path string
+}
+
+func (f *unwritableFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
+	if name == f.path && flag&(os.O_WRONLY|os.O_RDWR) != 0 {
+		return nil, errUnwritable
+	}
+
+	return f.FS.OpenFile(name, flag, perm)
 }

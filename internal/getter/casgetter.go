@@ -311,7 +311,6 @@ func (g *CASGetter) matchGenericScheme(req *getter.Request) (string, string, boo
 			}
 		}
 
-		// A forced oci prefix on an http(s) URL names a registry the oci resolver and getter read by the oci scheme.
 		if scheme == SchemeOCI {
 			if u, perr := url.Parse(req.Src); perr == nil && (u.Scheme == SchemeHTTP || u.Scheme == SchemeHTTPS) {
 				u.Scheme = SchemeOCI
@@ -397,7 +396,6 @@ func outerFetchURL(rawURL string) (string, innerFetchQuery) {
 		checksum: q.Get(checksumQueryKey),
 	}
 
-	// archive=true is folded into the default, extraction by extension.
 	if enabled, perr := strconv.ParseBool(inner.archive); perr == nil && enabled {
 		inner.archive = ""
 	}
@@ -604,7 +602,6 @@ func (g *CASGetter) defaultInnerClient(bare getter.Getter, scheme string) *gette
 		l, v = tfr.Logger, tfr.Venv
 	}
 
-	// A caller-registered fetcher downloads in one step and needs no HTTP handle.
 	if v == nil {
 		return &getter.Client{Getters: []getter.Getter{bare}}
 	}

@@ -68,7 +68,6 @@ func (r *HTTPResolver) Pinned(_ redact.URL) bool { return false }
 // from server-assigned tokens. Network errors and non-2xx responses
 // surface as [cas.ErrNoVersionMetadata].
 func (r *HTTPResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
-	// The HEAD request omits the magic params; the cache key keeps archive and filename, which change the fetched tree.
 	probeURL := stripHTTPMagicParams(source.Reveal())
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, probeURL, http.NoBody)

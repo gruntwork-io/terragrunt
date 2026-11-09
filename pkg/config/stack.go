@@ -917,7 +917,6 @@ func fetchComponentSource(
 			return nil
 		}
 
-		// Under --cas-offline nothing falls back; the standard getter fetches over the network the flag forbids.
 		if opts.casOffline || casFailureIsFinal(casErr) {
 			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
 		}

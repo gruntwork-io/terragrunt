@@ -370,6 +370,7 @@ func TestGenerateStackBucketShorthandStagesThroughCAS(t *testing.T) {
 		source string
 	}{
 		{name: "s3", source: "example-bucket.s3.amazonaws.com/catalog.zip//stacks/svc"},
+		{name: "s3 virtual host", source: "https://example-bucket.s3.amazonaws.com/catalog.zip//stacks/svc"},
 		{name: "gcs", source: "www.googleapis.com/storage/v1/example-bucket/catalog.zip//stacks/svc"},
 	}
 
@@ -592,7 +593,6 @@ func TestGenerateStackOCIMutableControlsWriteBits(t *testing.T) {
 			err := generateCatalogStack(t, v, stackPath)
 			require.NoError(t, err)
 
-			// The README is copied as fetched; the stack file is rewritten.
 			for _, name := range []string{"README.md", config.DefaultStackFile} {
 				info, err := v.FS.Stat(filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", name))
 				require.NoError(t, err)
@@ -632,7 +632,6 @@ func TestGenerateStackBareGitURLClonesWithGit(t *testing.T) {
 			))
 			require.NoError(t, err)
 
-			// A git catalog yields references keyed by commit sha1.
 			assert.Regexp(t, `"cas::sha1:[a-f0-9]{40}"`, string(content))
 		})
 	}
@@ -723,8 +722,7 @@ func TestGenerateStackOCIRegistryFailuresSurfaceGetterError(t *testing.T) {
 			source: func(registry *ociregistry.Registry) string {
 				return "oci://" + registry.Address() + "/" + casCatalogRepository + "//stacks/svc?tag=missing"
 			},
-			name: "unknown tag",
-			// One CAS pass resolves the tag three times; the standard getter would add a fourth.
+			name:     "unknown tag",
 			request:  "HEAD /v2/" + casCatalogRepository + "/manifests/missing",
 			requests: 3,
 		},
@@ -734,7 +732,6 @@ func TestGenerateStackOCIRegistryFailuresSurfaceGetterError(t *testing.T) {
 				t.Helper()
 
 				layer := ociCatalogLayer(t, registry)
-				// A same-length blob reaches the digest check.
 				registry.OverwriteBlob(t, casCatalogRepository, layer.Digest, make([]byte, layer.Size))
 			},
 			source: func(registry *ociregistry.Registry) string {
@@ -781,7 +778,6 @@ func casCatalogVenv(t *testing.T) *venv.Venv {
 	home := t.TempDir()
 	cacheDir := t.TempDir()
 
-	// The CAS stack path needs the OS filesystem; the private cache dir keeps its store off the machine's.
 	return venvtest.NewOSWithEmptyEnv().
 		WithEnv(map[string]string{"HOME": home}).
 		WithUserHomeDir(func() (string, error) { return home, nil }).
@@ -849,7 +845,6 @@ func generateCatalogStack(
 
 	defer pool.Stop()
 
-	// Fetch errors from pool workers surface from Wait.
 	genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
 	waitErr := pool.Wait()
 

@@ -323,6 +323,8 @@ func (c *CAS) processStackFile(
 		return fmt.Errorf("failed to parse stack file %s: %w", stackFile, err)
 	}
 
+	rewritten := false
+
 	for _, block := range blocks {
 		if !block.UpdateSourceWithCAS {
 			continue
@@ -374,11 +376,16 @@ func (c *CAS) processStackFile(
 		newSource := FormatCASRef(synthHash)
 
 		block.SetSource(newSource)
+		rewritten = true
 
 		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
 	}
 
 	if err := replaceFile(v.FS, stackFile, f.Bytes()); err != nil {
+		if rewritten {
+			return fmt.Errorf("%w: failed to rewrite stack file %s: %w", ErrRewriteIncomplete, stackFile, err)
+		}
+
 		return fmt.Errorf("failed to rewrite stack file %s: %w", stackFile, err)
 	}
 
@@ -459,7 +466,7 @@ func (c *CAS) processUnitFile(
 	l.Debugf("Rewrote terraform source to %s", newSource)
 
 	if err := replaceFile(v.FS, unitFile, content); err != nil {
-		return fmt.Errorf("failed to rewrite unit file %s: %w", unitFile, err)
+		return fmt.Errorf("%w: failed to rewrite unit file %s: %w", ErrRewriteIncomplete, unitFile, err)
 	}
 
 	return nil
