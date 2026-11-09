@@ -31,6 +31,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 	sharedFlags := clihelper.Flags{
 		shared.NewConfigFlag(opts, prefix),
+		shared.NewNoStackGenerateFlag(opts, prefix),
 		shared.NewDownloadDirFlag(opts, prefix),
 	}
 	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, prefix)...)

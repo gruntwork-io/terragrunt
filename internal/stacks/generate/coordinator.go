@@ -59,7 +59,7 @@ func WithCoordinator(ctx context.Context, fsys vfs.FS, s *rewrite.Store, opts *o
 	}
 	coordinator := NewCoordinator(fsys, s, opts)
 	ctx = context.WithValue(ctx, coordinatorKey{}, coordinator)
-	return discovery.WithStackGenerator(ctx, coordinator.generateDependencyStack)
+	return config.WithStackGenerator(ctx, coordinator.generateDependencyStack)
 }
 
 func (c *Coordinator) generateDependencyStack(ctx context.Context, l log.Logger, v *venv.Venv, dir string) error {

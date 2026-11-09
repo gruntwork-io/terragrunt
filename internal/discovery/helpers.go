@@ -408,7 +408,7 @@ func stackDependencyPaths(
 			continue
 		}
 
-		if err := generateStackDependency(ctx, l, v, depPath); err != nil {
+		if err := config.GenerateStackDependency(ctx, l, v, depPath); err != nil {
 			return nil, NewStackDependencyExpansionError(depPath, err)
 		}
 

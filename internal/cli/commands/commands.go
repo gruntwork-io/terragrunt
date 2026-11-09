@@ -94,7 +94,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite
 	mainCommands := clihelper.Commands{
 		runcmd.NewCommand(l, opts, v, s),  // run
 		stack.NewCommand(l, opts, v, s),   // stack
-		execcmd.NewCommand(l, opts, v),    // exec
+		execcmd.NewCommand(l, opts, v, s), // exec
 		backend.NewCommand(l, opts, v, s), // backend
 	}.SetCategory(
 		&clihelper.Category{

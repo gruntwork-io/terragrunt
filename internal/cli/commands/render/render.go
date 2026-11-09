@@ -14,6 +14,7 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -26,6 +27,7 @@ import (
 // in opts.Format, to stdout or, with opts.Write set, to opts.OutputPath. With
 // opts.RunAll set, it renders every discovered unit that opts.Filters selects.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts.TerragruntOptions)
 	if err := opts.Validate(); err != nil {
 		return err
 	}

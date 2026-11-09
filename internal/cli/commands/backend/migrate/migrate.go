@@ -8,6 +8,7 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 
 	"errors"
@@ -32,6 +33,7 @@ func Run(
 	srcPath, dstPath string,
 	opts *options.TerragruntOptions,
 ) error {
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
 	var err error
 
 	srcPath, err = util.CanonicalPath(srcPath, opts.WorkingDir)
