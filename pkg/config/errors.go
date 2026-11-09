@@ -881,7 +881,6 @@ func (err ComponentPathCollisionError) Error() string {
 	return fmt.Sprintf("duplicate path found across unit and stack: '%s'", err.Path)
 }
 
-// BlockNestingExceededError reports a config file whose blocks nest deeper than the reference walk descends.
 type BlockNestingExceededError struct {
 	ConfigPath string
 	Limit      int
@@ -895,7 +894,6 @@ func (err BlockNestingExceededError) Error() string {
 	)
 }
 
-// OutputsBlockRequiresExperimentError reports an outputs block read without the outputs-block experiment.
 type OutputsBlockRequiresExperimentError struct {
 	ConfigPath string
 }
@@ -911,7 +909,6 @@ func (err OutputsBlockRequiresExperimentError) Error() string {
 	)
 }
 
-// DuplicateOutputDeclarationError reports an output declared more than once in an outputs block.
 type DuplicateOutputDeclarationError struct {
 	ConfigPath string
 	Name       string
@@ -926,7 +923,6 @@ func (err DuplicateOutputDeclarationError) Error() string {
 	)
 }
 
-// InvalidOutputsMergeStrategyError reports a merge_with_state value that is not a mock merge strategy.
 type InvalidOutputsMergeStrategyError struct {
 	ConfigPath string
 	Strategy   string
@@ -946,7 +942,6 @@ func (err InvalidOutputsMergeStrategyError) Error() string {
 	)
 }
 
-// DeclaredOutputsReadError reports that the outputs block of a dependency could not be read.
 type DeclaredOutputsReadError struct {
 	Err          error
 	TargetConfig string
@@ -960,7 +955,6 @@ func (err DeclaredOutputsReadError) Unwrap() error {
 	return err.Err
 }
 
-// DeclaredOutputMissingError reports a declared output that the state of the unit does not hold.
 type DeclaredOutputMissingError struct {
 	TargetConfig string
 	Output       string
@@ -979,7 +973,6 @@ func (err DeclaredOutputMissingError) Error() string {
 	)
 }
 
-// UnknownMockValueError reports a mock_value that reads a dependency output, which its readers cannot resolve.
 type UnknownMockValueError struct {
 	ConfigPath string
 	Output     string

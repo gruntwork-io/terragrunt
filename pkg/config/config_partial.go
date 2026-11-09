@@ -68,7 +68,6 @@ type terragruntErrors struct {
 	Remain hcl.Body      `hcl:",remain"`
 }
 
-// terragruntOutputs decodes only the outputs block.
 type terragruntOutputs struct {
 	Outputs *OutputsConfig `hcl:"outputs,block"`
 	Remain  hcl.Body       `hcl:",remain"`

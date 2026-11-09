@@ -143,8 +143,7 @@ const (
 	// variables through TF_VAR_ environment variables or through auto-loaded
 	// .tfvars and .tfvars.json files.
 	VariablesBlock = "variables-block"
-	// OutputsBlock gates the outputs block on units, which declares each output with the mock value its dependents read.
-	OutputsBlock = "outputs-block"
+	OutputsBlock   = "outputs-block"
 )
 
 const (

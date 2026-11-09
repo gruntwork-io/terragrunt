@@ -1478,7 +1478,13 @@ The `dependency` block supports the following arguments:
   available from the target module, or if `skip_outputs` is `true`. However, it's generally recommended not to set
   `skip_outputs` if using `mock_outputs`, because `skip_outputs` means "use mocks all the time if they are set" whereas
   `mock_outputs` means "use mocks only if real outputs are not available." Use `locals` instead when `skip_outputs = true`.
-  When the dependency declares an [`outputs`](#outputs) block, `mock_outputs` overrides its mock values key by key.
+
+<Since version="v1.2.2">
+
+`mock_outputs` overrides the mock values of an [`outputs`](#outputs) block the dependency declares, key by key.
+
+</Since>
+
 - `mock_outputs_allowed_terraform_commands` (attribute): A list of Terraform commands for which `mock_outputs` are
   allowed. If a command is used where `mock_outputs` is not allowed, and no outputs are available in the target module,
   Terragrunt will throw an error when processing this dependency.

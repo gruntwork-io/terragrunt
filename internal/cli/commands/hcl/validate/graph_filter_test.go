@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -30,22 +31,16 @@ type validateResult struct {
 
 // validateRun describes one hcl validate run over an in-memory repository.
 type validateRun struct {
-	// files are the files of the repository, by path relative to its root.
-	files map[string]string
-	// links are symbolic links to add, by link path, each pointing at a path relative to the root.
-	links map[string]string
-	// tfPath is the OpenTofu/Terraform binary the run is given, when it is not the default.
-	tfPath string
-	// experiments are the names of the experiments the run enables.
-	experiments []string
-	// queries are the filter queries the run is given.
-	queries []string
-	// strictControls are the names of the strict controls the run enables.
-	strictControls []string
-	// inputs runs the --inputs mode; its findings come back as errors.
-	inputs bool
-	// onDisk writes the repository to a temporary directory on disk, for a run that must list symbolic links.
-	onDisk bool
+	files           map[string]string
+	links           map[string]string
+	exec            vexec.Exec
+	authProviderCmd string
+	tfPath          string
+	experiments     []string
+	queries         []string
+	strictControls  []string
+	inputs          bool
+	onDisk          bool
 }
 
 // runValidate runs hcl validate as run describes and decodes the diagnostics it writes.
@@ -61,6 +56,10 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 	}
 
 	v := venv.MemVenv().WithFS(fsys).WithWriter(&stdout)
+	if run.exec != nil {
+		v = v.WithExec(run.exec)
+	}
+
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(
@@ -70,6 +69,7 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 
 	opts.HCLValidateJSONOutput = !run.inputs
 	opts.HCLValidateInputs = run.inputs
+	opts.AuthProviderCmd = run.authProviderCmd
 
 	if run.tfPath != "" {
 		opts.TFPath = run.tfPath

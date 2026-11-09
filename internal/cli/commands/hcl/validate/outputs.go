@@ -19,6 +19,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
@@ -33,20 +35,14 @@ import (
 )
 
 const (
-	// summaryDeclaredOutputNotInModule heads a diagnostic for an output the unit declares and its module does not.
-	summaryDeclaredOutputNotInModule = "Declared output not in module"
-	// summaryUndeclaredDependencyOutput heads a diagnostic for a reference to an output a dependency does not declare.
+	summaryDeclaredOutputNotInModule  = "Declared output not in module"
 	summaryUndeclaredDependencyOutput = "Undeclared dependency output"
-	// summaryDependencyConfigUnreadable heads a diagnostic for a dependency whose unit config cannot be read.
 	summaryDependencyConfigUnreadable = "Dependency config not readable"
-	// summaryUnknownMockValue heads a diagnostic for a declared mock value the units that read it cannot know.
-	summaryUnknownMockValue = "Unknown mock value"
+	summaryUnknownMockValue           = "Unknown mock value"
 )
 
-// viewFilePerms is the mode of a module file copied into the in-memory view, which is read and never run.
 const viewFilePerms = 0o644
 
-// contractDiagnostics is the diagnostics of the outputs contract checks of one file.
 type contractDiagnostics struct {
 	file  *hclparse.File
 	diags hcl.Diagnostics
@@ -149,7 +145,7 @@ func outputsContractDiagnostics(
 	var checks []contractDiagnostics
 
 	if cfg.Outputs != nil {
-		moduleChecks, err := declaredOutputsDiagnostics(moduleFS, moduleDir, moduleEngine(opts, cfg), cfg, file)
+		moduleChecks, err := declaredOutputsDiagnostics(moduleFS, moduleDir, moduleEngine(ctx, l, v, opts, cfg), cfg, file)
 		if err != nil {
 			return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 		}
@@ -169,7 +165,7 @@ func outputsContractDiagnostics(
 
 	checks = append(checks, contractDiagnostics{file: file, diags: referenceDiags})
 
-	includedPaths, err := includedFiles(v.FS, opts.TerragruntConfigPath, cfg)
+	includedPaths, err := includedFiles(ctx, l, v, pctx, opts.TerragruntConfigPath, cfg)
 	if err != nil {
 		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 	}
@@ -191,12 +187,58 @@ func outputsContractDiagnostics(
 	return checks, nil
 }
 
-// includedFiles returns the merged or exposed include files of the unit at configPath and its autoinclude file.
-func includedFiles(fsys vfs.FS, configPath string, cfg *config.TerragruntConfig) ([]string, error) {
-	paths := make([]string, 0, len(cfg.ProcessedIncludes)+1)
+// includedFiles returns the merged or exposed include files of the unit at configPath, its autoinclude file and theirs.
+func includedFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	configPath string,
+	cfg *config.TerragruntConfig,
+) ([]string, error) {
+	paths, err := mergedIncludePaths(cfg.ProcessedIncludes)
+	if err != nil {
+		return nil, err
+	}
 
-	for _, name := range slices.Sorted(maps.Keys(cfg.ProcessedIncludes)) {
-		include := cfg.ProcessedIncludes[name]
+	autoInclude := autoIncludeFile(configPath)
+	if !vfs.Exists(v.FS, autoInclude) {
+		return paths, nil
+	}
+
+	l, autoPctx, err := pctx.WithConfigPath(l, autoInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	autoPctx.SkipAutoIncludeMerge = true
+
+	autoCfg, err := config.PartialParseConfigFile(
+		ctx,
+		l,
+		v,
+		autoPctx.WithDecodeList(config.TerragruntFlags),
+		autoInclude,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	autoPaths, err := mergedIncludePaths(autoCfg.ProcessedIncludes)
+	if err != nil {
+		return nil, err
+	}
+
+	return slices.Concat(paths, []string{autoInclude}, autoPaths), nil
+}
+
+// mergedIncludePaths returns the paths of the includes that are merged or exposed, in label order.
+func mergedIncludePaths(includes config.IncludeConfigsMap) ([]string, error) {
+	paths := make([]string, 0, len(includes))
+
+	for _, name := range slices.Sorted(maps.Keys(includes)) {
+		include := includes[name]
 
 		strategy, err := include.GetMergeStrategy()
 		if err != nil {
@@ -208,11 +250,6 @@ func includedFiles(fsys vfs.FS, configPath string, cfg *config.TerragruntConfig)
 		}
 
 		paths = append(paths, include.Path)
-	}
-
-	autoInclude := autoIncludeFile(configPath)
-	if vfs.Exists(fsys, autoInclude) {
-		paths = append(paths, autoInclude)
 	}
 
 	return paths, nil
@@ -243,17 +280,37 @@ func autoIncludeReplacements(
 	return file.UnexpandedLabels(config.MetadataDependency, &config.Dependency{})
 }
 
-// moduleEngine returns the implementation of the run: terraform_binary unless --tf-path is set, else opts' own.
-func moduleEngine(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) tfimpl.Type {
+// moduleEngine returns the implementation of the binary the unit runs, probed as a run probes it.
+func moduleEngine(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+) tfimpl.Type {
+	engineOpts := opts
 	if !opts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
-		return tfimpl.FromPath(cfg.TerraformBinary)
+		engineOpts = opts.Clone()
+		engineOpts.TFPath = cfg.TerraformBinary
 	}
 
-	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown {
+	resolved := opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown
+	if engineOpts == opts && resolved {
 		return opts.TofuImplementation
 	}
 
-	return tfimpl.FromPath(opts.TFPath)
+	_, _, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
+		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, engineOpts),
+		WorkingDir:   opts.WorkingDir,
+		VersionFiles: opts.VersionManagerFileName,
+	})
+	if err != nil {
+		l.Debugf("Reading %s as the binary name of %s says, the probe failed: %v", opts.WorkingDir, engineOpts.TFPath, err)
+
+		return tfimpl.FromPath(engineOpts.TFPath)
+	}
+
+	return impl
 }
 
 // declaredOutputsDiagnostics reports each declared output the module lacks, or the module files that do not parse.
@@ -396,6 +453,20 @@ func moduleSource(
 	opts *options.TerragruntOptions,
 	runCfg *runcfg.RunConfig,
 ) (string, util.CopyFilter, error) {
+	inPlace, err := runcfg.ShouldSkipCache(
+		opts.Experiments.Evaluate(experiment.NoDotTerragruntCache),
+		opts.Source,
+		opts.TerragruntConfigPath,
+		runCfg,
+	)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if inPlace {
+		return opts.WorkingDir, keepEveryFile, nil
+	}
+
 	sourceURL, err := runcfg.GetTerraformSourceURL(
 		opts.Source,
 		opts.SourceMap,
@@ -412,20 +483,6 @@ func moduleSource(
 		return moduleDir, keepEveryFile, err
 	}
 
-	inPlace, err := runcfg.ShouldSkipCache(
-		opts.Experiments.Evaluate(experiment.NoDotTerragruntCache),
-		opts.Source,
-		opts.TerragruntConfigPath,
-		runCfg,
-	)
-	if err != nil {
-		return "", nil, err
-	}
-
-	if inPlace {
-		return opts.WorkingDir, keepEveryFile, nil
-	}
-
 	copyOpts := run.ModuleCopyOptions(configbridge.NewRunOptions(opts), runCfg)
 
 	filter, err := util.NewCopyFilter(l, v.FS, opts.WorkingDir, copyOpts...)
@@ -436,7 +493,6 @@ func moduleSource(
 	return opts.WorkingDir, filter, nil
 }
 
-// unitDirSource is the source URL of a unit whose module is its own directory.
 const unitDirSource = "."
 
 // downloadModule fetches sourceURL into the download directory of the unit, hooks left out, and returns the module dir.
@@ -448,6 +504,11 @@ func downloadModule(
 	runCfg *runcfg.RunConfig,
 	sourceURL string,
 ) (string, error) {
+	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(v.Env, opts))
+	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
+		return "", err
+	}
+
 	downloadOpts := opts.Clone()
 
 	_, defaultDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
@@ -791,7 +852,6 @@ func (p ComponentParser) pointAtUnknownMockValue(
 	return true, nil
 }
 
-// OutputsContractError reports that an outputs contract check of the unit at ConfigPath could not run.
 type OutputsContractError struct {
 	Err        error
 	ConfigPath string

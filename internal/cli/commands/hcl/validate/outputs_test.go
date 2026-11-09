@@ -1,11 +1,13 @@
 package validate_test
 
 import (
+	"context"
 	"errors"
 	"maps"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -14,11 +16,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
-// outputsContractFiles is a repository whose vpc unit declares its outputs and whose app unit reads them.
 var outputsContractFiles = map[string]string{
 	"vpc/main.tf": `
 output "vpc_id" {
@@ -52,7 +55,6 @@ inputs = {
 `,
 }
 
-// generatedOutputsConfig declares two outputs, one of which a generate block adds to the module.
 const generatedOutputsConfig = `
 generate "subnets" {
   path      = "subnets.tf"
@@ -75,14 +77,12 @@ outputs {
 }
 `
 
-// vpcModuleWithoutSubnets is a vpc module that declares only vpc_id.
 const vpcModuleWithoutSubnets = `
 output "vpc_id" {
   value = "vpc"
 }
 `
 
-// expandedContractFiles has units a and b declaring an output each, read by app through one expanded dependency.
 var expandedContractFiles = map[string]string{
 	"a/main.tf": `
 output "a_id" {
@@ -452,7 +452,6 @@ inputs = {
 	}
 }
 
-// overriddenIncludeFiles has a root config and an app unit each declaring a dependency named vpc on different units.
 var overriddenIncludeFiles = map[string]string{
 	"legacy/main.tf": `
 output "legacy_id" {
@@ -1278,6 +1277,17 @@ func withFiles(base, overrides map[string]string) map[string]string {
 	return files
 }
 
+// versionProbe returns an exec that answers the version probe of any binary with output and refuses other commands.
+func versionProbe(output string) vexec.Exec {
+	return vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if slices.Contains(inv.Args, "-version") {
+			return vexec.Result{Stdout: []byte(output + "\n")}
+		}
+
+		return vexec.Result{Err: errors.New("only the version probe runs")}
+	})
+}
+
 // joinedLeaves returns the errors err joins, or err itself when it joins none.
 func joinedLeaves(err error) []error {
 	joined, ok := err.(interface{ Unwrap() []error })
@@ -1373,12 +1383,14 @@ func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
 		name            string
 		tfPath          string
 		terraformBinary string
+		probe           string
 		missing         string
 	}{
 		{name: "opentofu does not read the .tf file beside its .tofu twin", tfPath: "tofu", missing: "retired"},
 		{name: "terraform does not read .tofu files", tfPath: "terraform", missing: "current"},
 		{name: "terraform_binary names the binary of the run", terraformBinary: "terraform", missing: "current"},
 		{name: "--tf-path wins over terraform_binary", tfPath: "tofu", terraformBinary: "terraform", missing: "retired"},
+		{name: "the probe of the binary wins over its name", tfPath: "tofu", probe: "Terraform v1.9.0", missing: "current"},
 	}
 
 	for _, tc := range testCases {
@@ -1388,6 +1400,11 @@ func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
 			terraformBinary := ""
 			if tc.terraformBinary != "" {
 				terraformBinary = `terraform_binary = "` + tc.terraformBinary + `"`
+			}
+
+			var exec vexec.Exec
+			if tc.probe != "" {
+				exec = versionProbe(tc.probe)
 			}
 
 			files := map[string]string{
@@ -1410,6 +1427,7 @@ outputs {
 				files:       files,
 				experiments: []string{experiment.OutputsBlock},
 				tfPath:      tc.tfPath,
+				exec:        exec,
 			})
 
 			require.Error(t, result.err)
@@ -1418,6 +1436,142 @@ outputs {
 			assert.Contains(t, result.diags[0].Detail, `output "`+tc.missing+`"`)
 		})
 	}
+}
+
+// TestRunValidateOutputsContractsObtainsCredentialsBeforeTheFetch runs the auth provider command before the fetch.
+func TestRunValidateOutputsContractsObtainsCredentialsBeforeTheFetch(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"vpc/terragrunt.hcl": `
+terraform {
+  source = "${get_terragrunt_dir()}/../modules/vpc"
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+		"modules/vpc/main.tf": outputsContractFiles["vpc/main.tf"],
+	})
+	delete(files, "vpc/main.tf")
+
+	var (
+		mu  sync.Mutex
+		ran []string
+	)
+
+	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		mu.Lock()
+		defer mu.Unlock()
+
+		ran = append(ran, inv.Name)
+
+		if inv.Name == "fetch-creds" {
+			return vexec.Result{Stdout: []byte(`{"envs": {"TG_TEST_CREDENTIAL": "granted"}}`)}
+		}
+
+		return vexec.Result{Err: errors.New("only the credentials command runs")}
+	})
+
+	result := runValidate(t, &validateRun{
+		files:           files,
+		experiments:     []string{experiment.OutputsBlock},
+		exec:            exec,
+		authProviderCmd: "fetch-creds",
+	})
+
+	require.NoError(t, result.err)
+	assert.Empty(t, result.diags)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Contains(t, ran, "fetch-creds")
+}
+
+// TestRunValidateOutputsContractsRejectsInPlaceWithSource expects the cache guard of a run before any fetch.
+func TestRunValidateOutputsContractsRejectsInPlaceWithSource(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"vpc/terragrunt.hcl": `
+terraform {
+  source                  = "${get_terragrunt_dir()}/../modules/vpc"
+  no_dot_terragrunt_cache = true
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+		"modules/vpc/main.tf": outputsContractFiles["vpc/main.tf"],
+	})
+	delete(files, "vpc/main.tf")
+
+	result := runValidate(t, &validateRun{
+		files:       files,
+		experiments: []string{experiment.OutputsBlock, experiment.NoDotTerragruntCache},
+	})
+
+	require.ErrorAs(t, result.err, new(validate.OutputsContractError))
+	require.ErrorAs(t, result.err, new(runcfg.NoDotTerragruntCacheWithSourceError))
+	assert.False(t, vfs.Exists(result.fs, filepath.Join(result.root, "vpc", ".terragrunt-cache")))
+}
+
+// TestRunValidateOutputsContractsChecksTheIncludesOfTheAutoinclude checks the files the autoinclude merges.
+func TestRunValidateOutputsContractsChecksTheIncludesOfTheAutoinclude(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"root.hcl": `
+inputs = {
+  ghost = dependency.vpc.outputs.ghost
+}
+`,
+		"app/terragrunt.autoinclude.hcl": `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`,
+		"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../vpc"
+
+  mock_outputs = {
+    ghost = "ghost-mock"
+  }
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+`,
+	})
+
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+
+	diag := result.diags[0]
+
+	assert.Equal(t, "Undeclared dependency output", diag.Summary)
+	require.NotNil(t, diag.Range)
+	assert.Equal(t, filepath.Join(result.root, "root.hcl"), diag.Range.Filename)
+	assert.Equal(t, 3, diag.Range.Start.Line)
 }
 
 // TestRunValidateOutputsContractsSkipsDependencyBlocksTheAutoincludeReplaces checks only the autoinclude block.

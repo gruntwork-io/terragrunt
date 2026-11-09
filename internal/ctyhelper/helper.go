@@ -56,6 +56,18 @@ type CtyJSONOutput struct {
 // string or dynamic value becomes an empty string, and an unknown of any other type becomes a
 // null of that type.
 func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
+	unmarked, marks := value.Unmark()
+
+	updated, err := updateUnknownCtyValValues(unmarked)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	return updated.WithMarks(marks), nil
+}
+
+// updateUnknownCtyValValues replaces the unknown values of an unmarked value, marks of its elements kept.
+func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	var updatedValue any
 
 	switch {

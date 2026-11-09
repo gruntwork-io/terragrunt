@@ -30,7 +30,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
-// outputsBlockConfig declares two outputs with mock values and one without, with a mock strategy.
 const outputsBlockConfig = `
 outputs {
   mock_strategy {
@@ -50,7 +49,6 @@ outputs {
 }
 `
 
-// dependentConfig reads two outputs of the vpc unit, with extra placed inside the dependency block.
 const dependentConfig = `
 dependency "vpc" {
   config_path = "../vpc"
@@ -63,7 +61,6 @@ inputs = {
 }
 `
 
-// dependentConfigWithoutInputs is dependentConfig without its inputs, for a test that reads the outputs its own way.
 const dependentConfigWithoutInputs = `
 dependency "vpc" {
   config_path = "../vpc"
@@ -71,7 +68,6 @@ dependency "vpc" {
 }
 `
 
-// sensitivityInputs reads the two outputs of the vpc unit, with each one's sensitivity beside it.
 const sensitivityInputs = `
 inputs = {
   vpc_id               = nonsensitive(dependency.vpc.outputs.vpc_id)
@@ -81,14 +77,12 @@ inputs = {
 }
 `
 
-// vpcModule is the module of the vpc unit, which the output run of a dependency needs to find.
 const vpcModule = `
 output "vpc_id" {
   value = "vpc-real"
 }
 `
 
-// outputsCacheDirMarker is the path element under which tofu runs for a dependency target.
 const outputsCacheDirMarker = string(filepath.Separator) + ".terragrunt-cache" + string(filepath.Separator)
 
 func TestParseOutputsBlock(t *testing.T) {
@@ -939,6 +933,36 @@ outputs {
 			},
 		},
 		{
+			name: "a sensitive declared mock value filled into state keeps its mark",
+			vpcConfig: `
+outputs {
+  mock_strategy {
+    merge_with_state = "shallow"
+  }
+
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "subnet_ids" {
+    mock_value = sensitive(["subnet-secret"])
+  }
+}
+`,
+			command:  "plan",
+			vpcState: vpcStateWithoutSubnets,
+			inputs:   sensitivityInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "vpc-real", cfg.Inputs["vpc_id"])
+				assert.Equal(t, false, cfg.Inputs["vpc_id_sensitive"])
+				assert.Equal(t, []any{"subnet-secret"}, cfg.Inputs["subnet_ids"])
+				assert.Equal(t, true, cfg.Inputs["subnet_ids_sensitive"])
+			},
+		},
+		{
 			name: "a reader that ignores diagnostics still gets the error of a broken unit config",
 			vpcConfig: `
 outputs {
@@ -1257,7 +1281,7 @@ outputs {
 	require.NoError(t, vfs.WriteFile(fsys, tfvarsPath, []byte(`mock = "from-tfvars"`), 0o644))
 
 	l := createLogger()
-	v := venv.MemVenv().WithFS(fsys)
+	v := venv.MemVenv().WithFS(frozenModTimeFS{FS: fsys, modTime: time.Now().Add(-time.Hour)})
 	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
@@ -1281,6 +1305,93 @@ outputs {
 	require.NoError(t, err)
 	assert.Equal(t, first.Names(), third.Names())
 	assert.Equal(t, 2, fsys.count(tfvarsPath), "a changed unit config is read again")
+
+	require.NoError(t, vfs.WriteFile(fsys, tfvarsPath, []byte(`mock = "from-tfvars-2"`), 0o644))
+
+	fourth, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	require.NotNil(t, fourth)
+	assert.Equal(
+		t,
+		"from-tfvars-2",
+		fourth.Outputs[0].MockValue.AsString(),
+		"a changed file the config reads is read again",
+	)
+}
+
+// TestDependencyDeclaredOutputsReplaysFilesRead expects a cached read to record the files the parse took.
+func TestDependencyDeclaredOutputsReplaysFilesRead(t *testing.T) {
+	t.Parallel()
+
+	const vpcConfig = `
+locals {
+  vars = jsondecode(read_tfvars_file("${get_terragrunt_dir()}/vpc.tfvars"))
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = local.vars.mock
+  }
+}
+`
+
+	root := venvtest.Root("/fixture")
+	fsys := vfs.NewMemMapFS()
+	vpcDir := filepath.Join(root, "vpc")
+	vpcConfigPath := filepath.Join(vpcDir, config.DefaultTerragruntConfigPath)
+	tfvarsPath := filepath.Join(vpcDir, "vpc.tfvars")
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(vpcConfig), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, tfvarsPath, []byte(`mock = "from-tfvars"`), 0o644))
+
+	l := createLogger()
+	v := venv.MemVenv().WithFS(fsys)
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	for _, reader := range []string{"first", "second"} {
+		readerPctx := pctx.Clone()
+		readerPctx.FilesRead = config.NewFilesRead()
+
+		_, err := dep.DeclaredOutputs(ctx, l, v, readerPctx)
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{vpcConfigPath, tfvarsPath}, readerPctx.FilesRead.Paths(), reader)
+	}
+}
+
+// TestDependencyOnStackDirectoryWithUnitFileReadsNoDeclaredOutputs expects a stack target to keep its unit file out.
+func TestDependencyOnStackDirectoryWithUnitFileReadsNoDeclaredOutputs(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/fixture")
+	fsys := vfs.NewMemMapFS()
+	vpcDir := filepath.Join(root, "vpc")
+
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(vpcDir, config.DefaultStackFile), []byte(""), 0o644))
+	require.NoError(t, vfs.WriteFile(
+		fsys,
+		filepath.Join(vpcDir, config.DefaultTerragruntConfigPath),
+		[]byte(outputsBlockConfig),
+		0o644,
+	))
+
+	l := createLogger()
+	v := venv.MemVenv().WithFS(fsys)
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	tipped := false
+	pctx.OutputsBlockTip = func(log.Logger, string) { tipped = true }
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	assert.Nil(t, declared)
+	assert.False(t, tipped)
 }
 
 // TestDependencyDeclaredOutputsConcurrentReadsWithRacing expects a copy per reader and at most one parse per reader.
@@ -1324,7 +1435,6 @@ func TestDependencyDeclaredOutputsConcurrentReadsWithRacing(t *testing.T) {
 		}
 	}
 
-	// a reader opens the file for the digest of its racy mtime and for the parse
 	const opensPerReader = 2
 
 	opens := fsys.count(vpcConfigPath)
@@ -1494,7 +1604,6 @@ func requireDiagnostic(t *testing.T, err error, summary string) {
 	}), "no %q diagnostic in: %s", summary, diags.Error())
 }
 
-// openCountingFS counts how often each file is opened, by its cleaned path.
 type openCountingFS struct {
 	vfs.FS
 	opens map[string]int
@@ -1517,7 +1626,6 @@ func (fsys *openCountingFS) count(name string) int {
 	return fsys.opens[filepath.Clean(name)]
 }
 
-// frozenModTimeFS reports modTime as the modification time of every file, whatever is written when.
 type frozenModTimeFS struct {
 	vfs.FS
 	modTime time.Time
@@ -1532,7 +1640,6 @@ func (fsys frozenModTimeFS) Stat(name string) (fs.FileInfo, error) {
 	return frozenModTimeInfo{FileInfo: info, modTime: fsys.modTime}, nil
 }
 
-// frozenModTimeInfo is a file info whose modification time is pinned.
 type frozenModTimeInfo struct {
 	fs.FileInfo
 	modTime time.Time

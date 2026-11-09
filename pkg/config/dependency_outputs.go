@@ -2,8 +2,8 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/zclconf/go-cty/cty"
@@ -76,6 +76,10 @@ func (dep *Dependency) DeclaredOutputs(
 		return nil, nil
 	}
 
+	if stackFile, ok := resolveStackFilePath(configPath, targetConfig); ok && vfs.Exists(v.FS, stackFile) {
+		return nil, nil
+	}
+
 	declared, err := readDeclaredOutputs(ctx, l, v, pctx, targetConfig)
 	if err != nil {
 		return nil, DependencyBlockError{Name: dep.Name, ConfigPath: pctx.TerragruntConfigPath, Err: err}
@@ -96,43 +100,62 @@ func readDeclaredOutputs(
 	pctx *ParsingContext,
 	targetConfig string,
 ) (*OutputsConfig, error) {
+	declaredCache := cache.ContextCache[*declaredOutputsResult](ctx, DeclaredOutputsCacheContextKey)
+
+	if result, found := declaredCache.Get(ctx, targetConfig); found && result.fresh(v.FS) {
+		result.replayFilesRead(pctx)
+
+		return result.declared.Clone(), nil
+	}
+
+	parsePctx := pctx.Clone()
+	parsePctx.FilesRead = NewFilesRead()
+
 	readAt := time.Now()
 
-	fileInfo, err := v.FS.Stat(targetConfig)
-	if err != nil {
-		return nil, DeclaredOutputsReadError{TargetConfig: targetConfig, Err: err}
+	declared, err := parseDeclaredOutputs(ctx, l, v, parsePctx, targetConfig)
+
+	result := &declaredOutputsResult{
+		declared: declared,
+		files:    map[string]fileStamp{targetConfig: stampFile(v.FS, targetConfig, readAt)},
 	}
 
-	cacheKey := fmt.Sprintf(
-		"configPath-%s-modTime-%d-size-%d",
-		targetConfig,
-		fileInfo.ModTime().UnixMicro(),
-		fileInfo.Size(),
-	)
-
-	if isRacyModTime(fileInfo.ModTime(), readAt) {
-		digest, err := digestFile(v.FS, targetConfig)
-		if err != nil {
-			return nil, DeclaredOutputsReadError{TargetConfig: targetConfig, Err: err}
-		}
-
-		cacheKey += fmt.Sprintf("-digest-%d", digest)
+	for _, path := range parsePctx.FilesRead.Paths() {
+		result.files[path] = stampFile(v.FS, path, readAt)
 	}
 
-	declaredCache := cache.ContextCache[*OutputsConfig](ctx, DeclaredOutputsCacheContextKey)
+	result.replayFilesRead(pctx)
 
-	if declared, found := declaredCache.Get(ctx, cacheKey); found {
-		return declared.Clone(), nil
-	}
-
-	declared, err := parseDeclaredOutputs(ctx, l, v, pctx, targetConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	declaredCache.Put(ctx, cacheKey, declared)
+	declaredCache.Put(ctx, targetConfig, result)
 
 	return declared.Clone(), nil
+}
+
+type declaredOutputsResult struct {
+	declared *OutputsConfig
+	files    map[string]fileStamp
+}
+
+// fresh reports whether every file the read took matches its stamp.
+func (r *declaredOutputsResult) fresh(fsys vfs.FS) bool {
+	for path, stamp := range r.files {
+		if !stamp.matches(fsys, path) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// replayFilesRead records every file the read took in the files pctx reads.
+func (r *declaredOutputsResult) replayFilesRead(pctx *ParsingContext) {
+	for _, path := range slices.Sorted(maps.Keys(r.files)) {
+		pctx.FilesRead.Add(path)
+	}
 }
 
 // parseDeclaredOutputs decodes only the outputs block of the unit config at targetConfig, with its locals and includes.

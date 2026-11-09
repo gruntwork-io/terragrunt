@@ -674,7 +674,6 @@ func outputsBlock(outputs *OutputsConfig) *hclwrite.Block {
 		outputBlock := hclwrite.NewBlock(MetadataOutput, []string{output.Name})
 
 		if output.MockValue != nil {
-			// a sensitive() mark is not rendered
 			mockValue, _ := output.MockValue.UnmarkDeep()
 			outputBlock.Body().SetAttributeValue("mock_value", mockValue)
 		}

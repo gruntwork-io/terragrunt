@@ -13,19 +13,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
-// maxBlockNesting bounds the block nesting the reference walk descends into.
 const maxBlockNesting = 32
 
-// DependencyOutputReference is a reference in a config file to a named output of a dependency.
 type DependencyOutputReference struct {
-	// Instance is the literal key of the expanded instance the reference reads, or the zero key for a whole dependency.
-	Instance hclparse.InstanceKey
-	// Dependency is the dependency block label.
+	Instance   hclparse.InstanceKey
 	Dependency string
-	// Output is the referenced output name.
-	Output string
-	// Range is where the reference is in the file.
-	Range hcl.Range
+	Output     string
+	Range      hcl.Range
 }
 
 // Address returns the address of the dependency the reference reads, as [Dependency.Address] gives it.
@@ -51,7 +45,6 @@ func DependencyOutputReferences(
 		return nil, err
 	}
 
-	// sort by position
 	slices.SortFunc(refs, func(a, b DependencyOutputReference) int {
 		return cmp.Compare(a.Range.Start.Byte, b.Range.Start.Byte)
 	})
@@ -59,11 +52,8 @@ func DependencyOutputReferences(
 	return refs, nil
 }
 
-// referenceWalk is what the reference walk knows about the dependency blocks of a file.
 type referenceWalk struct {
-	// expanded are the labels of the dependency blocks that declare an expansion.
 	expanded map[string]struct{}
-	// replaced are the labels of the dependency blocks a sibling autoinclude replaces whole.
 	replaced map[string]struct{}
 }
 

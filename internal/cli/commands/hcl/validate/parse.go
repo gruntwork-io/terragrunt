@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
-// summaryUnsupportedAttribute heads the diagnostic HCL raises for a reference to an attribute an object lacks.
 const summaryUnsupportedAttribute = "Unsupported attribute"
 
 // DiagnosticsCollector gathers the diagnostics a parse reports, for a caller
@@ -197,12 +196,9 @@ const (
 // ComponentParser parses discovered components one at a time, collecting what
 // each reports into Collector.
 type ComponentParser struct {
-	// Collector receives the diagnostics of every parse.
-	Collector *DiagnosticsCollector
-	// UnitConfigs are the unit configs the run parses, by path, each reporting its own errors.
+	Collector   *DiagnosticsCollector
 	UnitConfigs map[string]struct{}
-	// Options says how each parse combines the collector with the parser defaults.
-	Options ParserOptions
+	Options     ParserOptions
 }
 
 // Unit parses the unit configuration in unitDir.

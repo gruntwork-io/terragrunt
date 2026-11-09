@@ -10,39 +10,26 @@ import (
 )
 
 const (
-	// MetadataOutputs is the name of the outputs block.
-	MetadataOutputs = "outputs"
-	// MetadataOutput is the name of the output blocks nested in an outputs block.
-	MetadataOutput = "output"
-	// MetadataMockStrategy is the name of the mock_strategy block nested in an outputs block.
+	MetadataOutputs      = "outputs"
+	MetadataOutput       = "output"
 	MetadataMockStrategy = "mock_strategy"
 )
 
-// mockMergeStrategies is the merge strategies a mock_strategy block may name.
 var mockMergeStrategies = []MergeStrategyType{NoMerge, ShallowMerge, DeepMergeMapOnly}
 
-// OutputsConfig is the outputs block of a unit: its declared outputs, their mock values and the mock strategy.
 type OutputsConfig struct {
-	// MockStrategy is the mock_strategy block, nil when the block has none.
 	MockStrategy *OutputsMockStrategy `hcl:"mock_strategy,block"`
-	// Outputs is the output blocks, in source order.
-	Outputs []*OutputDeclaration `hcl:"output,block"`
+	Outputs      []*OutputDeclaration `hcl:"output,block"`
 }
 
-// OutputsMockStrategy is the mock_strategy block of an outputs block, overridden by a dependency's own mock attributes.
 type OutputsMockStrategy struct {
-	// AllowedCommands is the commands that may read mock values, every command when unset or empty.
-	AllowedCommands *[]string `hcl:"allowed_commands,attr"`
-	// MergeWithState is how the state of the unit is merged into the mock values: no_merge, shallow or deep_map_only.
-	MergeWithState *MergeStrategyType `hcl:"merge_with_state,attr"`
+	AllowedCommands *[]string          `hcl:"allowed_commands,attr"`
+	MergeWithState  *MergeStrategyType `hcl:"merge_with_state,attr"`
 }
 
-// OutputDeclaration is one output block of an outputs block.
 type OutputDeclaration struct {
-	// MockValue is the value dependents read in place of the output, nil when the output declares none.
 	MockValue *cty.Value `hcl:"mock_value,optional"`
-	// Name is the output name, the block label.
-	Name string `hcl:"name,label"`
+	Name      string     `hcl:"name,label"`
 }
 
 // Clone returns a deep copy of c.

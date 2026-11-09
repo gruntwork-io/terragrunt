@@ -1165,21 +1165,16 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(pctx) &&
 			dependencyConfig.MockOutputs != nil {
-			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
+			state, mocks := *outputVal, *dependencyConfig.MockOutputs
 
-			switch mockMergeStrategy {
-			case NoMerge:
-				return outputVal, nil
-			case ShallowMerge:
-				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
-			case DeepMergeMapOnly:
-				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
-			case DeepMerge:
-				// Mock outputs merge maps only, so a full deep merge has no meaning here.
-				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
-			default:
-				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
+			merged, err := mergeMockOutputsWithState(dependencyConfig.getMockOutputsMergeStrategy(), state, mocks)
+			if err != nil || declared == nil {
+				return merged, err
 			}
+
+			marked := withDeclaredMockMarks(*merged, mocks, state)
+
+			return &marked, nil
 		} else if !isEmpty {
 			return outputVal, err
 		}
@@ -3148,4 +3143,48 @@ func logMockOutputsFallback(l log.Logger, pctx *ParsingContext, targetConfig str
 		targetConfig,
 		pctx.TerragruntConfigPath,
 	)
+}
+
+// mergeMockOutputsWithState merges mocks into state as strategy says, or returns state whole for no merge.
+func mergeMockOutputsWithState(strategy MergeStrategyType, state, mocks cty.Value) (*cty.Value, error) {
+	switch strategy {
+	case NoMerge:
+		return &state, nil
+	case ShallowMerge:
+		return shallowMergeCtyMaps(state, mocks)
+	case DeepMergeMapOnly:
+		return deepMergeCtyMapsMapOnly(mocks, state)
+	case DeepMerge:
+		return nil, InvalidMergeStrategyTypeError(strategy)
+	default:
+		return nil, InvalidMergeStrategyTypeError(strategy)
+	}
+}
+
+// withDeclaredMockMarks returns merged with each output state lacks taken from mocks whole, marks included.
+func withDeclaredMockMarks(merged, mocks, state cty.Value) cty.Value {
+	mockValues, ok := mockValueMap(&mocks)
+	if !ok {
+		return merged
+	}
+
+	stateValues, ok := mockValueMap(&state)
+	if !ok {
+		return merged
+	}
+
+	values := merged.AsValueMap()
+	if values == nil {
+		values = map[string]cty.Value{}
+	}
+
+	for key, mock := range mockValues {
+		if _, inState := stateValues[key]; inState {
+			continue
+		}
+
+		values[key] = mock
+	}
+
+	return cty.ObjectVal(values)
 }

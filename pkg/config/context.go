@@ -61,7 +61,7 @@ func withConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(
 		ctx,
 		DeclaredOutputsCacheContextKey,
-		cache.NewCache[*OutputsConfig](declaredOutputsCacheName),
+		cache.NewCache[*declaredOutputsResult](declaredOutputsCacheName),
 	)
 	ctx = azurermbackend.WithStateClientCache(ctx)
 	ctx = context.WithValue(

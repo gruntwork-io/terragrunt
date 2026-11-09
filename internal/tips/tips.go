@@ -56,13 +56,10 @@ const (
 		"In a stack file, read it in the stack's `locals` and reference the local from the `autoinclude` block. " +
 		"See https://docs.terragrunt.com/features/filter/attributes#reading-based-expressions"
 
-	// OutputsBlock is the tip for a dependency read of a unit that declares no outputs block.
 	OutputsBlock = "outputs-block"
 
-	// OutputsBlockMessage is the default message for the outputs-block tip.
 	OutputsBlockMessage = "A `dependency` block reads a unit that declares no `outputs` block. " + outputsBlockFix
 
-	// outputsBlockFix is the advice an outputs-block tip message ends with.
 	outputsBlockFix = "Declare its outputs and their mock values there once, so every dependent shares them. " +
 		"See https://docs.terragrunt.com/reference/experiments/active#outputs-block"
 
