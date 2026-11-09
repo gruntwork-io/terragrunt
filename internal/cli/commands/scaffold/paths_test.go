@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -175,6 +176,62 @@ func TestScaffoldChecksRootFileUnderOutputFolder(t *testing.T) {
 				warned,
 				"the disabled control should warn only for a terragrunt.hcl root",
 			)
+		})
+	}
+}
+
+func TestScaffoldRejectsRootTerragruntHCLInMemory(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		rootFile string
+		vars     []string
+	}{
+		{name: "terragrunt.hcl", rootFile: config.DefaultTerragruntConfigPath},
+		{name: "differently cased terragrunt.hcl", rootFile: otherCaseConfigName},
+		{
+			name:     "terragrunt.hcl through --var",
+			rootFile: config.RecommendedParentConfigName,
+			vars:     []string{"RootFileName=" + config.DefaultTerragruntConfigPath},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/live")
+			module := venvtest.Root("/catalog/modules/vpc")
+
+			fsys := venvtest.NewFS(t, root, map[string]string{config.DefaultTerragruntConfigPath: ""})
+			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(module, "main.tf"), []byte(vpcModule), 0o644))
+			require.NoError(t, vfs.Symlink(
+				fsys,
+				filepath.Join(root, config.DefaultTerragruntConfigPath),
+				filepath.Join(root, otherCaseConfigName),
+			))
+
+			opts := newScaffoldOptions(t, venvtest.Root("/work"))
+			opts.ScaffoldOutputFolder = filepath.Join(root, "unit")
+			opts.ScaffoldRootFileName = tc.rootFile
+			opts.ScaffoldVars = tc.vars
+
+			require.NoError(t, opts.StrictControls.EnableControl(controls.RootTerragruntHCL))
+
+			ctrl, ok := opts.StrictControls.Find(controls.RootTerragruntHCL).(*controls.Control)
+			require.True(t, ok, "control %s should be a *controls.Control", controls.RootTerragruntHCL)
+
+			err := scaffold.Run(
+				config.WithCaches(t.Context()),
+				logger.CreateLogger(),
+				venvtest.New().WithFS(fsys),
+				opts,
+				getter.FileURL(module).String(),
+				"",
+			)
+			require.ErrorIs(t, err, ctrl.Error)
+			assert.False(t, vfs.Exists(fsys, filepath.Join(opts.ScaffoldOutputFolder, config.DefaultTerragruntConfigPath)))
 		})
 	}
 }

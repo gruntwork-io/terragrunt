@@ -148,14 +148,13 @@ func GoRepoRoot(
 
 // walkCeiling returns the deepest GIT_CEILING_DIRECTORIES entry the walk from start must not ascend into, or "".
 func walkCeiling(fsys vfs.FS, env map[string]string, start string) string {
-	var (
-		deepest string
-		keep    bool
-	)
+	var deepest string
+
+	blocked := resolvedCeiling
 
 	for _, entry := range filepath.SplitList(env[EnvNameGitCeilingDirectories]) {
 		if entry == "" {
-			keep = true
+			blocked = keptCeiling
 
 			continue
 		}
@@ -164,7 +163,7 @@ func walkCeiling(fsys vfs.FS, env map[string]string, start string) string {
 			continue
 		}
 
-		if ceiling := entryCeiling(fsys, entry, start, keep); len(ceiling) > len(deepest) {
+		if ceiling := blocked(fsys, entry, start); len(ceiling) > len(deepest) {
 			deepest = ceiling
 		}
 	}
@@ -172,15 +171,9 @@ func walkCeiling(fsys vfs.FS, env map[string]string, start string) string {
 	return deepest
 }
 
-// entryCeiling returns the strict ancestor of start that an absolute ceiling entry blocks, or "" when it blocks none.
-func entryCeiling(fsys vfs.FS, entry, start string, keep bool) string {
-	if keep {
-		return keptCeiling(entry, start)
-	}
-
+// resolvedCeiling returns the strict ancestor of start that an absolute entry blocks, or "" when it blocks none.
+func resolvedCeiling(fsys vfs.FS, entry, start string) string {
 	ceiling := vfs.ResolveForCompare(fsys, filepath.Clean(entry))
-
-	// An entry naming start itself does not block the walk beginning there.
 	if !isStrictAncestor(ceiling, start) {
 		return ""
 	}
@@ -189,20 +182,24 @@ func entryCeiling(fsys vfs.FS, entry, start string, keep bool) string {
 }
 
 // keptCeiling returns the strict ancestor of start that a kept entry names, compared as written with forward slashes.
-func keptCeiling(entry, start string) string {
+func keptCeiling(_ vfs.FS, entry, start string) string {
 	prefix := strings.TrimSuffix(entry, "/")
-	slashed := filepath.ToSlash(start)
-
-	if !strings.HasPrefix(slashed, prefix) || len(slashed) <= len(prefix)+1 || slashed[len(prefix)] != '/' {
+	if !isStrictSlashAncestor(prefix, filepath.ToSlash(start)) {
 		return ""
 	}
 
-	// Map a root entry back to the volume root.
 	if len(prefix) == len(filepath.VolumeName(start)) {
 		return start[:len(prefix)] + string(filepath.Separator)
 	}
 
 	return start[:len(prefix)]
+}
+
+// isStrictSlashAncestor reports whether path sits strictly below ancestor, both written with forward slashes.
+func isStrictSlashAncestor(ancestor, path string) bool {
+	rest, ok := strings.CutPrefix(path, ancestor+"/")
+
+	return ok && rest != ""
 }
 
 // isStrictAncestor reports whether path sits strictly below ancestor.
