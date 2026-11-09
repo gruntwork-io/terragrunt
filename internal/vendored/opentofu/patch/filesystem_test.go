@@ -181,267 +181,263 @@ var fileSetTree = map[string]string{
 	"../shared/c.json":     "{}",
 }
 
-// fileSetCase is a fileset call and the paths it returns.
-type fileSetCase struct {
-	name    string
-	path    string
-	pattern string
-	want    []string
-}
-
-// fileSetCases are fileset calls on [fileSetTree], mostly with non-canonical patterns.
-var fileSetCases = []fileSetCase{
-	{
-		name:    "leading dot slash",
-		path:    "./",
-		pattern: "./resources/*.json",
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "leading dot slash with double star",
-		path:    ".",
-		pattern: "./resources/**/*.json",
-		want:    []string{"resources/a.json", "resources/sub/b.json"},
-	},
-	{
-		name:    "leading dot slash without a glob",
-		path:    ".",
-		pattern: "./resources/a.json",
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "leading dot slash under a sub directory",
-		path:    "./resources",
-		pattern: "./*.json",
-		want:    []string{"a.json"},
-	},
-	{
-		name:    "parent back into the path",
-		path:    "./resources",
-		pattern: "../resources/*.json",
-		want:    []string{"a.json"},
-	},
-	{
-		name:    "inner dot",
-		path:    ".",
-		pattern: "resources/./*.json",
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "double slash",
-		path:    ".",
-		pattern: "resources//*.json",
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "inner parent",
-		path:    ".",
-		pattern: "resources/sub/../*.json",
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "leading slash",
-		path:    ".",
-		pattern: "/resources/*.json",
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "above the path",
-		path:    ".",
-		pattern: "../shared/*.json",
-		want:    []string{"../shared/c.json"},
-	},
-	{
-		name:    "two levels above the path",
-		path:    "./resources",
-		pattern: "../../shared/*.json",
-		want:    []string{"../../shared/c.json"},
-	},
-	{
-		name:    "canonical pattern",
-		path:    ".",
-		pattern: "resources/**/*.json",
-		want:    []string{"resources/a.json", "resources/sub/b.json"},
-	},
-	{
-		name:    "one directory deep",
-		path:    ".",
-		pattern: "./*/*.json",
-		want:    []string{"br[1]/d.json", "resources/a.json"},
-	},
-	{
-		name:    "double star from the path",
-		path:    ".",
-		pattern: "./**/*.json",
-		want:    []string{"br[1]/d.json", "resources/a.json", "resources/sub/b.json"},
-	},
-	{
-		name:    "alternatives that form a double star",
-		path:    ".",
-		pattern: "./{*,}*/*.json",
-		want:    []string{"br[1]/d.json", "resources/a.json", "resources/sub/b.json"},
-	},
-	{
-		name:    "dot after alternatives",
-		path:    ".",
-		pattern: "{resources,x}/./*.json",
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "two directories deep",
-		path:    ".",
-		pattern: "*/*/*.json",
-		want:    []string{"resources/sub/b.json"},
-	},
-	{
-		name:    "alternatives of different depths",
-		path:    ".",
-		pattern: "./{main.tf,resources/sub/*.json}",
-		want:    []string{"main.tf", "resources/sub/b.json"},
-	},
-	{
-		name:    "trailing slash on the pattern",
-		path:    ".",
-		pattern: "resources/**/",
-		want:    []string{"resources/a.json", "resources/sub/b.json"},
-	},
-	{
-		name:    "trailing slash on the path",
-		path:    "./resources/",
-		pattern: "*.json",
-		want:    []string{"a.json"},
-	},
-	{
-		name:    "empty pattern",
-		path:    ".",
-		pattern: "",
-	},
-	{
-		name:    "dot pattern",
-		path:    ".",
-		pattern: ".",
-	},
-	{
-		name:    "dot slash pattern",
-		path:    ".",
-		pattern: "./",
-	},
-	{
-		name:    "parent pattern",
-		path:    ".",
-		pattern: "..",
-	},
-	{
-		name:    "pattern back to the path",
-		path:    ".",
-		pattern: "resources/..",
-	},
-	{
-		name:    "glob under a file",
-		path:    ".",
-		pattern: "resources/a.json/*",
-	},
-	{
-		name:    "glob under a file after dot slash",
-		path:    ".",
-		pattern: "./resources/a.json/*",
-	},
-	{
-		name:    "dot under a file path",
-		path:    "main.tf",
-		pattern: ".",
-		want:    []string{"."},
-	},
-	{
-		name:    "missing directory above the path",
-		path:    ".",
-		pattern: "../missing/*.json",
-	},
-	{
-		name:    "backslash is not a separator",
-		path:    ".",
-		pattern: `.\resources\*.json`,
-	},
-	{
-		name:    "escaped letter in a directory name",
-		path:    ".",
-		pattern: `./resources/su\b/*.json`,
-		want:    []string{"resources/sub/b.json"},
-	},
-	{
-		name:    "escaped literal prefix",
-		path:    ".",
-		pattern: `./br\[1\]/*.json`,
-		want:    []string{"br[1]/d.json"},
-	},
-	{
-		name:    "escaped bracket before a parent",
-		path:    ".",
-		pattern: `resources/x\[y]/../*.json`,
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "escaped brace before a parent",
-		path:    ".",
-		pattern: `resources/x\{y\}/../*.json`,
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "glob under a file path",
-		path:    "main.tf",
-		pattern: "*",
-	},
-	{
-		name:    "parent back to a file path",
-		path:    "main.tf",
-		pattern: "../main.tf",
-		want:    []string{"."},
-	},
-	{
-		name:    "glob under a file path reached through its parent",
-		path:    "main.tf",
-		pattern: "../main.tf/*",
-	},
-	{
-		name:    "leading slash before a parent",
-		path:    ".",
-		pattern: "/../shared/*.json",
-		want:    []string{"../shared/c.json"},
-	},
-	{
-		name:    "question mark in the first element",
-		path:    ".",
-		pattern: "./?esources/*.json",
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "unclosed brace that cleaning removes",
-		path:    ".",
-		pattern: "{x/../resources/*.json",
-		want:    []string{"resources/a.json"},
-	},
-	{
-		name:    "dot inside alternatives",
-		path:    ".",
-		pattern: "{resources,resources/./sub}/*.json",
-		want:    []string{"resources/a.json", "resources/sub/b.json"},
-	},
-	{
-		name:    "parent inside alternatives",
-		path:    ".",
-		pattern: "{resources,y/../c}/*.json",
-	},
-	{
-		name:    "parent inside a class",
-		path:    ".",
-		pattern: "[r/../q]esources/*.json",
-	},
-}
-
 func TestFileSetMatchesPatterns(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range fileSetCases {
+	tcs := []struct {
+		name    string
+		path    string
+		pattern string
+		want    []string
+	}{
+		{
+			name:    "leading dot slash",
+			path:    "./",
+			pattern: "./resources/*.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "leading dot slash with double star",
+			path:    ".",
+			pattern: "./resources/**/*.json",
+			want:    []string{"resources/a.json", "resources/sub/b.json"},
+		},
+		{
+			name:    "leading dot slash without a glob",
+			path:    ".",
+			pattern: "./resources/a.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "leading dot slash under a sub directory",
+			path:    "./resources",
+			pattern: "./*.json",
+			want:    []string{"a.json"},
+		},
+		{
+			name:    "parent back into the path",
+			path:    "./resources",
+			pattern: "../resources/*.json",
+			want:    []string{"a.json"},
+		},
+		{
+			name:    "inner dot",
+			path:    ".",
+			pattern: "resources/./*.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "double slash",
+			path:    ".",
+			pattern: "resources//*.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "inner parent",
+			path:    ".",
+			pattern: "resources/sub/../*.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "leading slash",
+			path:    ".",
+			pattern: "/resources/*.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "above the path",
+			path:    ".",
+			pattern: "../shared/*.json",
+			want:    []string{"../shared/c.json"},
+		},
+		{
+			name:    "two levels above the path",
+			path:    "./resources",
+			pattern: "../../shared/*.json",
+			want:    []string{"../../shared/c.json"},
+		},
+		{
+			name:    "canonical pattern",
+			path:    ".",
+			pattern: "resources/**/*.json",
+			want:    []string{"resources/a.json", "resources/sub/b.json"},
+		},
+		{
+			name:    "one directory deep",
+			path:    ".",
+			pattern: "./*/*.json",
+			want:    []string{"br[1]/d.json", "resources/a.json"},
+		},
+		{
+			name:    "double star from the path",
+			path:    ".",
+			pattern: "./**/*.json",
+			want:    []string{"br[1]/d.json", "resources/a.json", "resources/sub/b.json"},
+		},
+		{
+			name:    "alternatives that form a double star",
+			path:    ".",
+			pattern: "./{*,}*/*.json",
+			want:    []string{"br[1]/d.json", "resources/a.json", "resources/sub/b.json"},
+		},
+		{
+			name:    "dot after alternatives",
+			path:    ".",
+			pattern: "{resources,x}/./*.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "two directories deep",
+			path:    ".",
+			pattern: "*/*/*.json",
+			want:    []string{"resources/sub/b.json"},
+		},
+		{
+			name:    "alternatives of different depths",
+			path:    ".",
+			pattern: "./{main.tf,resources/sub/*.json}",
+			want:    []string{"main.tf", "resources/sub/b.json"},
+		},
+		{
+			name:    "trailing slash on the pattern",
+			path:    ".",
+			pattern: "resources/**/",
+			want:    []string{"resources/a.json", "resources/sub/b.json"},
+		},
+		{
+			name:    "trailing slash on the path",
+			path:    "./resources/",
+			pattern: "*.json",
+			want:    []string{"a.json"},
+		},
+		{
+			name:    "empty pattern",
+			path:    ".",
+			pattern: "",
+		},
+		{
+			name:    "dot pattern",
+			path:    ".",
+			pattern: ".",
+		},
+		{
+			name:    "dot slash pattern",
+			path:    ".",
+			pattern: "./",
+		},
+		{
+			name:    "parent pattern",
+			path:    ".",
+			pattern: "..",
+		},
+		{
+			name:    "pattern back to the path",
+			path:    ".",
+			pattern: "resources/..",
+		},
+		{
+			name:    "glob under a file",
+			path:    ".",
+			pattern: "resources/a.json/*",
+		},
+		{
+			name:    "glob under a file after dot slash",
+			path:    ".",
+			pattern: "./resources/a.json/*",
+		},
+		{
+			name:    "dot under a file path",
+			path:    "main.tf",
+			pattern: ".",
+			want:    []string{"."},
+		},
+		{
+			name:    "missing directory above the path",
+			path:    ".",
+			pattern: "../missing/*.json",
+		},
+		{
+			name:    "backslash is not a separator",
+			path:    ".",
+			pattern: `.\resources\*.json`,
+		},
+		{
+			name:    "escaped letter in a directory name",
+			path:    ".",
+			pattern: `./resources/su\b/*.json`,
+			want:    []string{"resources/sub/b.json"},
+		},
+		{
+			name:    "escaped literal prefix",
+			path:    ".",
+			pattern: `./br\[1\]/*.json`,
+			want:    []string{"br[1]/d.json"},
+		},
+		{
+			name:    "escaped bracket before a parent",
+			path:    ".",
+			pattern: `resources/x\[y]/../*.json`,
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "escaped brace before a parent",
+			path:    ".",
+			pattern: `resources/x\{y\}/../*.json`,
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "glob under a file path",
+			path:    "main.tf",
+			pattern: "*",
+		},
+		{
+			name:    "parent back to a file path",
+			path:    "main.tf",
+			pattern: "../main.tf",
+			want:    []string{"."},
+		},
+		{
+			name:    "glob under a file path reached through its parent",
+			path:    "main.tf",
+			pattern: "../main.tf/*",
+		},
+		{
+			name:    "leading slash before a parent",
+			path:    ".",
+			pattern: "/../shared/*.json",
+			want:    []string{"../shared/c.json"},
+		},
+		{
+			name:    "question mark in the first element",
+			path:    ".",
+			pattern: "./?esources/*.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "unclosed brace that cleaning removes",
+			path:    ".",
+			pattern: "{x/../resources/*.json",
+			want:    []string{"resources/a.json"},
+		},
+		{
+			name:    "dot inside alternatives",
+			path:    ".",
+			pattern: "{resources,resources/./sub}/*.json",
+			want:    []string{"resources/a.json", "resources/sub/b.json"},
+		},
+		{
+			name:    "parent inside alternatives",
+			path:    ".",
+			pattern: "{resources,y/../c}/*.json",
+		},
+		{
+			name:    "parent inside a class",
+			path:    ".",
+			pattern: "[r/../q]esources/*.json",
+		},
+	}
+
+	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -186,8 +186,7 @@ func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) func
 	})
 }
 
-// FileSetFunc returns a function that lists the regular files a glob pattern
-// matches, relative to a path. A relative path is resolved against baseDir.
+// FileSetFunc returns a function that lists the files a pattern matches, relative to a path resolved against baseDir.
 func FileSetFunc(v *venv.Venv, baseDir string, onRead func(path string)) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
@@ -482,14 +481,13 @@ func hashFile(
 	return h.Sum(nil), nil
 }
 
-// matchFiles returns the regular files that pattern matches, relative to dir.
-// Like OpenTofu, it cleans dir and the pattern as text first, so ./, // and ../ elements match.
+// matchFiles returns the regular files that pattern matches after cleaning it as text, relative to dir.
 func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
-	// A backslash escapes the next character on every OS, so the pattern is cleaned as a slash path.
+	// A backslash is a glob escape on every OS, never a separator.
 	clean := path.Clean(strings.TrimLeft(pattern, "/"))
 	elems := strings.Split(clean, "/")
 
-	// The walk starts below the leading elements with no glob syntax, such as .. or a directory name.
+	// The walk root joins the leading elements that have no glob syntax.
 	lit := slices.IndexFunc(elems, func(elem string) bool { return strings.ContainsAny(elem, `*?[{\`) })
 	if lit < 0 {
 		lit = len(elems) - 1
@@ -497,7 +495,7 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 
 	rest := strings.Join(elems[lit:], "/")
 
-	// A pattern is an error only if it is malformed as written; cleaning can strand a backslash or a brace.
+	// Only a pattern that is malformed as written is an error.
 	if !glob.ValidOpenTofuPattern(rest) {
 		if glob.ValidOpenTofuPattern(pattern) {
 			return nil, nil
@@ -513,7 +511,7 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 
 // globFiles returns the regular files below root that pattern matches, each relative to dir with forward slashes.
 func globFiles(fsys vfs.FS, dir, root, pattern string) ([]cty.Value, error) {
-	// Braces, classes and ** can match a separator, so only other patterns bound the walk depth.
+	// Braces, classes and ** can match a separator and leave the walk depth unbounded.
 	bounded := !strings.Contains(pattern, "**") && !strings.ContainsAny(pattern, "{[")
 	maxDepth := strings.Count(pattern, "/") + 1
 
@@ -533,7 +531,7 @@ func globFiles(fsys vfs.FS, dir, root, pattern string) ([]cty.Value, error) {
 			return err
 		}
 
-		// Only the pattern . matches the walk root itself, when the path names a file.
+		// The walk root matches itself only for the pattern "." on a path that names a file.
 		if fromRoot == "." && (d.IsDir() || pattern != ".") {
 			return nil
 		}

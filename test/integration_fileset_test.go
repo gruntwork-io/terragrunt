@@ -48,7 +48,7 @@ func TestTofuFileSetMatchesNonCanonicalPatterns(t *testing.T) {
 	assert.Equal(t, tofuFiles, rendered.Inputs)
 }
 
-// runWrappedBinaryInDir applies the configuration in dir with the wrapped binary, without Terragrunt, and returns its files output.
+// runWrappedBinaryInDir applies dir with the wrapped binary alone and returns its files output.
 func runWrappedBinaryInDir(t *testing.T, dir string) []byte {
 	t.Helper()
 

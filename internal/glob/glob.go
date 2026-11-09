@@ -35,13 +35,8 @@
 // change for patterns users have written against zglob for years. Prefer
 // [Expand] for new code.
 //
-// Use [ValidOpenTofuPattern] and [OpenTofuMatch] only where a pattern must
-// follow the grammar of OpenTofu's fileset function, which is backed by
-// [doublestar].
-//
 // [gobwas/glob]: https://pkg.go.dev/github.com/gobwas/glob
 // [zglob]: https://pkg.go.dev/github.com/mattn/go-zglob
-// [doublestar]: https://pkg.go.dev/github.com/bmatcuk/doublestar/v4
 package glob
 
 import (
