@@ -88,6 +88,7 @@ const (
 	allStacks stackScope = iota
 	// worktreeStacksOnly generates only the worktree stacks, leaving the working directory untouched.
 	worktreeStacksOnly
+	dependencyStacks
 )
 
 // WorktreeStacks generates the stacks that live inside the comparison worktrees, leaving the
@@ -123,7 +124,7 @@ func (g *Generator) GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
-	ctx = WithCoordinator(ctx, v.FS, opts)
+	ctx = WithCoordinator(ctx, v.FS, s, opts)
 	return g.generateStacks(ctx, l, v, s, opts, wts, allStacks)
 }
 
@@ -184,7 +185,7 @@ func (g *Generator) generateStacks(
 
 		warnOnRepeatedClaims(l, levelNodes, claimedBy)
 
-		if err := generateLevel(ctx, l, v, s, opts, level, levelNodes, generatedFiles); err != nil {
+		if err := generateLevel(ctx, l, v, s, opts, level, levelNodes, generatedFiles, scope); err != nil {
 			return err
 		}
 
@@ -247,11 +248,12 @@ func generateLevel(
 	level int,
 	levelNodes []*StackNode,
 	generatedFiles map[string]bool,
+	scope stackScope,
 ) error {
 	l.Debugf("Generating stack level %d with %d files", level, len(levelNodes))
 
 	if coordinator, ok := ctx.Value(coordinatorKey{}).(*Coordinator); ok {
-		return generateCoordinatedLevel(ctx, l, v, s, opts, levelNodes, generatedFiles, coordinator)
+		return generateCoordinatedLevel(ctx, l, v, s, opts, levelNodes, generatedFiles, coordinator, scope)
 	}
 
 	wp := worker.NewWorkerPool(opts.Parallelism)
@@ -279,7 +281,8 @@ func generateLevel(
 
 			defer s.InvalidateUnder(filepath.Dir(node.FilePath))
 
-			return config.GenerateStackFile(ctx, scopedLogger, v, scopedPctx, wp, node.FilePath)
+			_, err = config.GenerateStackFile(ctx, scopedLogger, v, scopedPctx, wp, node.FilePath)
+			return err
 		})
 	}
 

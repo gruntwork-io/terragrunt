@@ -75,3 +75,31 @@ func TestTFDependencyStackGenerateReportsCycle(t *testing.T) {
 		assert.Contains(t, strings.ToLower(err.Error()), "cycle")
 	}
 }
+
+func TestTFRunAllDiscoversStackDependencyFromStandaloneUnit(t *testing.T) {
+	t.Parallel()
+	for _, stale := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stale=%t", stale), func(t *testing.T) {
+			t.Parallel()
+			f := newDependencyStackFixture(t, true)
+			if stale {
+				f.generate("producer")
+			}
+			f.producerSource("new")
+			f.write("standalone/terragrunt.hcl", fmt.Sprintf(`dependency "producer" {
+ config_path = %q
+}
+inputs = { marker = dependency.producer.outputs.db.marker }
+`, filepath.Join(f.root, "producer")))
+			f.write("standalone/main.tf", `variable "marker" { type = string }
+output "consumed" { value = var.marker }
+`)
+			stdout, stderr, err := f.run("standalone", "run --all --queue-include-external -- plan")
+			assert.NoError(t, err, "%s", stderr)
+			assert.Contains(t, stdout, `consumed = "new"`)
+			assert.Equal(t, 1, strings.Count(stderr, "Generating unit db from "))
+			assert.NoDirExists(t, filepath.Join(f.root, "consumer/.terragrunt-stack"))
+			assert.NoDirExists(t, filepath.Join(f.root, "unrelated/.terragrunt-stack"))
+		})
+	}
+}

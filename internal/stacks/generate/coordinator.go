@@ -8,17 +8,21 @@ import (
 	"strings"
 	"sync"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Coordinator shares generation results for one command.
 type Coordinator struct {
+	store *rewrite.Store
 	fs    vfs.FS
 	opts  *options.TerragruntOptions
 	mu    sync.Mutex
@@ -38,9 +42,9 @@ type generationOwner struct {
 
 type generationOwnerKey struct{}
 
-func NewCoordinator(fsys vfs.FS, opts *options.TerragruntOptions) *Coordinator {
+func NewCoordinator(fsys vfs.FS, s *rewrite.Store, opts *options.TerragruntOptions) *Coordinator {
 	return &Coordinator{
-		fs: fsys, opts: opts.Clone(),
+		fs: fsys, store: s, opts: opts.Clone(),
 		jobs:  make(map[string]*generationJob),
 		edges: make(map[string][]string),
 	}
@@ -49,11 +53,28 @@ func NewCoordinator(fsys vfs.FS, opts *options.TerragruntOptions) *Coordinator {
 type coordinatorKey struct{}
 
 // WithCoordinator retains the original command's options across generation passes.
-func WithCoordinator(ctx context.Context, fsys vfs.FS, opts *options.TerragruntOptions) context.Context {
+func WithCoordinator(ctx context.Context, fsys vfs.FS, s *rewrite.Store, opts *options.TerragruntOptions) context.Context {
 	if _, ok := ctx.Value(coordinatorKey{}).(*Coordinator); ok || opts.NoStackGenerate || !opts.Experiments.Evaluate(experiment.DependencyStackGeneration) {
 		return ctx
 	}
-	return context.WithValue(ctx, coordinatorKey{}, NewCoordinator(fsys, opts))
+	coordinator := NewCoordinator(fsys, s, opts)
+	ctx = context.WithValue(ctx, coordinatorKey{}, coordinator)
+	return discovery.WithStackGenerator(ctx, coordinator.generateDependencyStack)
+}
+
+func (c *Coordinator) generateDependencyStack(ctx context.Context, l log.Logger, v *venv.Venv, dir string) error {
+	allowed, err := c.allowed(dir)
+	if err != nil || !allowed {
+		return err
+	}
+	dependencyOpts := c.opts.Clone()
+	dependencyOpts.WorkingDir = dir
+	dependencyOpts.TerragruntConfigPath = filepath.Join(dir, config.DefaultTerragruntConfigPath)
+	dependencyOpts.TerragruntStackConfigPath = filepath.Join(dir, config.DefaultStackFile)
+	// The walk stays under this dependency; each job also checks the original command's limits.
+	dependencyOpts.DiscoveryBoundary = dir
+	dependencyOpts.Filters = nil
+	return NewGenerator().generateStacks(ctx, l, v, c.store, dependencyOpts, nil, dependencyStacks)
 }
 
 // Generate shares one result per eligible stack file, including failures.
@@ -70,11 +91,7 @@ func (c *Coordinator) Generate(ctx context.Context, stackFile string, generate f
 	if err != nil {
 		return err
 	}
-	allowed, err := discovery.StackDependencyAllowed(c.fs, discovery.StackGenerateOptions{
-		WorkingDir:        c.opts.WorkingDir,
-		DiscoveryBoundary: c.opts.DiscoveryBoundary,
-		Filters:           c.opts.Filters,
-	}, filepath.Dir(path))
+	allowed, err := c.allowed(filepath.Dir(path))
 	if err != nil || !allowed {
 		return err
 	}
@@ -164,4 +181,8 @@ func (c *Coordinator) route(from, to string, visited map[string]bool) []string {
 		}
 	}
 	return nil
+}
+
+func (c *Coordinator) allowed(dir string) (bool, error) {
+	return discovery.StackDependencyAllowed(c.fs, discovery.StackGenerateOptions{WorkingDir: c.opts.WorkingDir, DiscoveryBoundary: c.opts.DiscoveryBoundary, Filters: c.opts.Filters}, dir)
 }

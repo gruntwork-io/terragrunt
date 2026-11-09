@@ -36,7 +36,7 @@ func RunGenerate(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	ctx = generate.WithCoordinator(ctx, v.FS, opts)
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
 
 	if opts.NoStackGenerate {
@@ -122,7 +122,7 @@ func RunGenerate(
 
 // Run executes the stack command.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
-	ctx = generate.WithCoordinator(ctx, v.FS, opts)
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
 	opts.StackAction = "run"
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_run", map[string]any{

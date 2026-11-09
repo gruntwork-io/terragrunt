@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -35,7 +36,7 @@ func TestGenerateStacksSharesCompletionWithinCommand(t *testing.T) {
 			}
 			v := venvtest.NewOSWithEmptyEnv()
 			s := new(rewrite.Store)
-			ctx := generate.WithCoordinator(t.Context(), v.FS, opts)
+			ctx := generate.WithCoordinator(config.WithCaches(t.Context()), v.FS, s, opts)
 			run := func(ctx context.Context) {
 				require.NoError(t, generate.NewGenerator().GenerateStacks(ctx, logger.CreateLogger(), v, s, opts, nil))
 			}
@@ -53,7 +54,7 @@ func TestGenerateStacksSharesCompletionWithinCommand(t *testing.T) {
 			} else {
 				require.Equal(t, "# new", string(data))
 			}
-			run(generate.WithCoordinator(t.Context(), v.FS, opts))
+			run(generate.WithCoordinator(config.WithCaches(t.Context()), v.FS, s, opts))
 			data, err = os.ReadFile(output)
 			require.NoError(t, err)
 			require.Equal(t, "# new", string(data))
@@ -75,7 +76,7 @@ func TestGenerateStacksCachesWorkerFailureUntilNextCommand(t *testing.T) {
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
 	v := venvtest.NewOSWithEmptyEnv()
 	s := new(rewrite.Store)
-	ctx := generate.WithCoordinator(t.Context(), v.FS, opts)
+	ctx := generate.WithCoordinator(config.WithCaches(t.Context()), v.FS, s, opts)
 	run := func(ctx context.Context) error {
 		return generate.NewGenerator().GenerateStacks(ctx, logger.CreateLogger(), v, s, opts, nil)
 	}
@@ -83,7 +84,7 @@ func TestGenerateStacksCachesWorkerFailureUntilNextCommand(t *testing.T) {
 	require.Error(t, first)
 	require.NoError(t, os.WriteFile(filepath.Join(source, "terragrunt.hcl"), nil, 0600))
 	require.EqualError(t, run(ctx), first.Error())
-	require.NoError(t, run(generate.WithCoordinator(t.Context(), v.FS, opts)))
+	require.NoError(t, run(generate.WithCoordinator(config.WithCaches(t.Context()), v.FS, s, opts)))
 }
 
 func TestGenerateStacksRefreshesNestedStacksParentFirst(t *testing.T) {
@@ -105,9 +106,9 @@ func TestGenerateStacksRefreshesNestedStacksParentFirst(t *testing.T) {
 	run := func(ctx context.Context) {
 		require.NoError(t, generate.NewGenerator().GenerateStacks(ctx, logger.CreateLogger(), v, s, opts, nil))
 	}
-	run(generate.WithCoordinator(t.Context(), v.FS, opts))
+	run(generate.WithCoordinator(config.WithCaches(t.Context()), v.FS, s, opts))
 	require.NoError(t, os.WriteFile(sourceFile, []byte("# new"), 0600))
-	ctx := generate.WithCoordinator(t.Context(), v.FS, opts)
+	ctx := generate.WithCoordinator(config.WithCaches(t.Context()), v.FS, s, opts)
 	run(ctx)
 	output := filepath.Join(live, ".terragrunt-stack", "child", ".terragrunt-stack", "app", "terragrunt.hcl")
 	data, err := os.ReadFile(output)

@@ -167,7 +167,8 @@ type stackTaskSubmitter interface {
 
 // GenerateStackFile generates the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
-// It handles the creation of required directories and returns any errors encountered.
+// The returned configuration identifies the generated components. Their queued work
+// must finish before callers read the generated files.
 func GenerateStackFile(
 	ctx context.Context,
 	l log.Logger,
@@ -175,17 +176,17 @@ func GenerateStackFile(
 	pctx *ParsingContext,
 	pool stackTaskSubmitter,
 	stackFilePath string,
-) error {
+) (*StackConfig, error) {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
 	values, err := ReadValues(ctx, l, v, pctx, stackSourceDir)
 	if err != nil {
-		return fmt.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
+		return nil, fmt.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
 	}
 
 	stackFile, err := ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
 	if err != nil {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"failed to read stack file %s in %s %w",
 			stackFilePath,
 			stackSourceDir,
@@ -207,13 +208,13 @@ func GenerateStackFile(
 		values,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	casEnabled := !pctx.NoCAS
 
 	if err := validateUpdateSourceWithCAS(stackFile, stackFilePath, casEnabled); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Without this the run is silent: every per-component log line belongs to a component
@@ -224,12 +225,12 @@ func GenerateStackFile(
 			util.RelPathForLog(pctx.RootWorkingDir, stackFilePath, pctx.LogShowAbsPaths),
 		)
 
-		return nil
+		return stackFile, nil
 	}
 
 	cs, err := setupCAS(l, v, pctx, casEnabled)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	genOpts := generateOpts{
@@ -252,14 +253,14 @@ func GenerateStackFile(
 	}
 
 	if err := generateUnits(ctx, l, v, &genOpts, pool, stackFile.Units); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := generateStacks(ctx, l, v, &genOpts, pool, stackFile.Stacks); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return stackFile, nil
 }
 
 // hasEnabledComponents reports whether any unit or stack in the file generates anything.

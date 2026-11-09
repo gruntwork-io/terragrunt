@@ -11,6 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -68,7 +69,7 @@ func TestCoordinatorChecksEligibilityBeforeCleaning(t *testing.T) {
 				opts.Filters, err = filter.ParseFilterQueries(logger.CreateLogger(), []string{tc.query})
 				require.NoError(t, err)
 			}
-			c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+			c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 			calls := 0
 			err := c.Generate(t.Context(), path, func(context.Context) error {
 				calls++
@@ -94,7 +95,7 @@ func TestCoordinatorChecksEligibilityBeforeCleaning(t *testing.T) {
 func TestCoordinatorReusesGenerationWithoutCleaningAgain(t *testing.T) {
 	t.Parallel()
 	opts, path := coordinatorOptions(t)
-	c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 	marker := filepath.Join(filepath.Dir(path), ".terragrunt-stack", "new")
 	calls := 0
 	work := func(context.Context) error {
@@ -108,7 +109,7 @@ func TestCoordinatorReusesGenerationWithoutCleaningAgain(t *testing.T) {
 	require.NoError(t, c.Generate(t.Context(), relative, work))
 	assert.Equal(t, 1, calls)
 	assert.FileExists(t, marker)
-	fresh := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	fresh := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 	require.NoError(t, fresh.Generate(t.Context(), path, work))
 	assert.Equal(t, 2, calls, "a new command must regenerate")
 }
@@ -123,7 +124,7 @@ func TestCoordinatorSharesConcurrentResults(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			opts, path := coordinatorOptions(t)
-			c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+			c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 			var calls atomic.Int32
 			var want error
 			if failed {
@@ -152,7 +153,7 @@ func TestCoordinatorDetectsRecursiveCycle(t *testing.T) {
 	t.Parallel()
 	opts, a := coordinatorOptions(t)
 	b := filepath.Join(opts.WorkingDir, "terragrunt.stack.hcl")
-	c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	err := c.Generate(ctx, a, func(ctx context.Context) error {
@@ -170,7 +171,7 @@ func TestCoordinatorDetectsCycleBetweenConcurrentRoots(t *testing.T) {
 	t.Parallel()
 	opts, a := coordinatorOptions(t)
 	b := filepath.Join(opts.WorkingDir, "terragrunt.stack.hcl")
-	c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	var started sync.WaitGroup
@@ -195,7 +196,7 @@ func TestCoordinatorCancelledWaiterDoesNotCancelGeneration(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		opts, path := coordinatorOptions(t)
-		c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+		c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 		started, release := make(chan struct{}), make(chan struct{})
 		done := make(chan error, 1)
 		go func() {
@@ -229,7 +230,7 @@ func TestCoordinatorCancelledWaiterDoesNotCancelGeneration(t *testing.T) {
 func TestCoordinatorSharesPanicsAsErrors(t *testing.T) {
 	t.Parallel()
 	opts, path := coordinatorOptions(t)
-	c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 	err := c.Generate(t.Context(), path, func(context.Context) error { panic("generation panic") })
 	require.ErrorContains(t, err, "generation panic")
 	again := c.Generate(t.Context(), path, func(context.Context) error { t.Error("retried failed generation"); return nil })
@@ -244,7 +245,7 @@ func TestCoordinatorPreservesFilesWhenCleanupIsDisabled(t *testing.T) {
 			opts, path := coordinatorOptions(t)
 			opts.TofuCommand = command
 			opts.SourceUpdate = command == "destroy"
-			c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+			c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 			calls := 0
 			require.NoError(t, c.Generate(t.Context(), path, func(context.Context) error {
 				calls++
@@ -260,7 +261,7 @@ func TestCoordinatorRetainsOriginalDiscoveryDirectory(t *testing.T) {
 	t.Parallel()
 	opts, path := coordinatorOptions(t)
 	opts.DiscoveryBoundary = "."
-	c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 	opts.WorkingDir = filepath.Dir(path)
 	require.NoError(t, c.Generate(t.Context(), path, func(context.Context) error {
 		t.Error("dependency outside original directory was generated")
@@ -275,7 +276,7 @@ func TestCoordinatorResolvesSymlinksBeforeCheckingLimits(t *testing.T) {
 	opts.DiscoveryBoundary = "."
 	alias := filepath.Join(opts.WorkingDir, "alias")
 	require.NoError(t, os.Symlink(filepath.Dir(path), alias))
-	c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 	require.NoError(t, c.Generate(t.Context(), filepath.Join(alias, "terragrunt.stack.hcl"), func(context.Context) error {
 		t.Error("symlink escaped discovery limit")
 		return nil
@@ -286,7 +287,7 @@ func TestCoordinatorResolvesSymlinksBeforeCheckingLimits(t *testing.T) {
 func TestCoordinatorReusesNestedGeneration(t *testing.T) {
 	t.Parallel()
 	opts, parent := coordinatorOptions(t)
-	c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 	child := filepath.Join(filepath.Dir(parent), ".terragrunt-stack", "child", "terragrunt.stack.hcl")
 	marker := filepath.Join(filepath.Dir(child), ".terragrunt-stack", "unit")
 	childWork := func(context.Context) error {
@@ -308,7 +309,7 @@ func TestCoordinatorReusesNestedGeneration(t *testing.T) {
 func TestCoordinatorPreservesCompletedChildWhenParentIsRequestedLater(t *testing.T) {
 	t.Parallel()
 	opts, parent := coordinatorOptions(t)
-	c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+	c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 	child := filepath.Join(filepath.Dir(parent), ".terragrunt-stack", "child", "terragrunt.stack.hcl")
 	unit := filepath.Join(filepath.Dir(child), ".terragrunt-stack", "unit", "terragrunt.hcl")
 	require.NoError(t, os.MkdirAll(filepath.Dir(child), 0755))
@@ -347,7 +348,7 @@ func TestCoordinatorPreservesActiveChildWhenParentIsRequested(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		opts, parent := coordinatorOptions(t)
-		c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+		c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 		child := filepath.Join(filepath.Dir(parent), ".terragrunt-stack", "child", "terragrunt.stack.hcl")
 		unit := filepath.Join(filepath.Dir(child), ".terragrunt-stack", "unit", "terragrunt.hcl")
 		require.NoError(t, os.MkdirAll(filepath.Dir(child), 0755))
@@ -410,7 +411,7 @@ func TestCoordinatorAllowsLateParentWithoutCleanup(t *testing.T) {
 			opts, parent := coordinatorOptions(t)
 			opts.TofuCommand = command
 			opts.SourceUpdate = command == "destroy"
-			c := generate.NewCoordinator(vfs.NewOSFS(), opts)
+			c := generate.NewCoordinator(vfs.NewOSFS(), new(rewrite.Store), opts)
 			child := filepath.Join(filepath.Dir(parent), ".terragrunt-stack", "child", "terragrunt.stack.hcl")
 			require.NoError(t, os.MkdirAll(filepath.Dir(child), 0755))
 			require.NoError(t, os.WriteFile(child, nil, 0600))

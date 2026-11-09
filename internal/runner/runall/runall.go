@@ -57,7 +57,7 @@ func Run(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) (err error) {
-	ctx = generate.WithCoordinator(ctx, v.FS, opts)
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
 	defer func() {
 		giveTips(l, v, opts, err)
 	}()

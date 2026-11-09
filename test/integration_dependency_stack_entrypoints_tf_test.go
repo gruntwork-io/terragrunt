@@ -27,7 +27,8 @@ func newDependencyStackFixture(t *testing.T, enabled bool) *dependencyStackFixtu
 	f := &dependencyStackFixture{t: t, root: helpers.TmpDirWOSymlinks(t), v: helpers.RunVenv(t)}
 	f.v.Env["TG_NO_CAS"] = "true"
 	f.v.Env["TG_EXPERIMENT"] = ""
-	f.v.Env["TG_EXPERIMENT_MODE"] = "false"
+	delete(f.v.Env, "TG_EXPERIMENT_MODE")
+	delete(f.v.Env, "TG_SOURCE_UPDATE")
 	if enabled {
 		f.v.Env["TG_EXPERIMENT"] = "dependency-stack-generation"
 	}

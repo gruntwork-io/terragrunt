@@ -397,7 +397,8 @@ func generateStackLevel(t *testing.T, v *venv.Venv, stackPath string) {
 
 	defer pool.Stop()
 
-	require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
+	_, genErr := config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath)
+	require.NoError(t, genErr)
 	require.NoError(t, pool.Wait())
 }
 
