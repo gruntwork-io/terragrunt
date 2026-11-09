@@ -12,6 +12,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -128,6 +129,24 @@ func ensureParsed(
 	return unit.GuardConfigParse(func() error {
 		return parseComponent(ctx, l, v, c, opts, discovery)
 	})
+}
+
+// parseConfig parses the config of c at cfgPath with pkg/config, or with the config rewrite through p when
+// [rewrite.EnvRewrite] selects it and c is a unit.
+func parseConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	p *rewrite.Store,
+	c component.Component,
+	cfgPath string,
+) (*config.TerragruntConfig, error) {
+	if _, isUnit := c.(*component.Unit); !isUnit || !rewrite.Enabled(v.Env) {
+		return config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	}
+
+	return p.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(pctx), cfgPath)
 }
 
 // ParsePhase parses HCL configurations for filter evaluation.
@@ -401,13 +420,14 @@ func parseComponent(
 				parsingCtx.Parser.IgnoreDiagnostics = true
 			}
 
-			cfg, err := config.PartialParseConfigFile(
+			cfg, err := parseConfig(
 				ctx,
 				l,
 				parseV,
 				parsingCtx,
+				discovery.parseStore,
+				c,
 				parseOpts.TerragruntConfigPath,
-				nil,
 			)
 			if err != nil {
 				if discovery.suppressParseErrors {
