@@ -50,11 +50,9 @@ type CASGetter struct {
 }
 
 // InnerClientBuilder builds the per-fetch [getter.Client] used to invoke
-// the bare scheme-specific getter from a [SourceFetcher]. Schemes that
-// download in a single step want a one-getter client; multi-stage
-// protocols (notably tfr://, where [RegistryGetter] resolves an archive
-// URL and delegates the actual download through
-// [getter.ClientFromContext]) need a richer client.
+// the bare scheme-specific getter from a [SourceFetcher]. The default
+// pairs it with the full protocol set, since go-getter fetches a
+// checksum=file: reference and a tfr:// archive URL through that client.
 type InnerClientBuilder func(bare getter.Getter, scheme string) *getter.Client
 
 // CASGetterOption mutates a CASGetter at construction time.
@@ -142,12 +140,12 @@ func NewCASGetter(
 			new(GitLabDetector),
 			new(FileDetector),
 		},
-		CAS:         c,
-		Logger:      l,
-		Opts:        opts,
-		Venv:        v,
-		innerClient: defaultInnerClientBuilder,
+		CAS:    c,
+		Logger: l,
+		Opts:   opts,
+		Venv:   v,
 	}
+	g.innerClient = g.defaultInnerClient
 
 	for _, opt := range options {
 		opt(g)
@@ -463,10 +461,10 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	})
 }
 
-// resolverFor returns the probe resolver for scheme, or nil for a checksummed request so every fetch verifies it.
+// resolverFor returns the probe resolver for scheme, or one keyed by the checksum when the request pins one.
 func (g *CASGetter) resolverFor(scheme string) cas.SourceResolver {
 	if g.innerQuery.checksum != "" {
-		return nil
+		return NewChecksumResolver(scheme, g.innerQuery.checksum)
 	}
 
 	return g.resolvers[scheme]
@@ -570,18 +568,17 @@ func pinnedOCIURL(rawURL, digestValue string) string {
 	return u.String()
 }
 
-// defaultInnerClientBuilder is the inner-client builder used when none
-// is configured via [WithInnerClientBuilder]. For tfr it returns a
-// Terragrunt client with the bare [RegistryGetter] prepended so the
-// default protocol set is available for [RegistryGetter]'s delegated
-// archive download. Every other scheme uses a single-getter client.
-func defaultInnerClientBuilder(bare getter.Getter, scheme string) *getter.Client {
-	// The bare tfr getter carries the logger and venv its delegated archive
-	// download needs; the fallback client builds s3 and gcs getters that
-	// require the venv.
+// defaultInnerClient is the inner-client builder used when none is
+// configured via [WithInnerClientBuilder]: the bare getter first, so the
+// forced scheme reaches it, then the default protocol set for the
+// downloads it delegates, such as a checksum=file: reference.
+func (g *CASGetter) defaultInnerClient(bare getter.Getter, scheme string) *getter.Client {
+	l, v := g.Logger, g.Venv
+
+	// The bare tfr getter carries the venv whose registry credentials its delegated archive download needs.
 	if tfr, ok := bare.(*RegistryGetter); ok && scheme == SchemeTFR {
-		return NewClient(tfr.Logger, tfr.Venv, WithCustomGettersPrepended(bare))
+		l, v = tfr.Logger, tfr.Venv
 	}
 
-	return &getter.Client{Getters: []getter.Getter{bare}}
+	return NewClient(l, v, WithCustomGettersPrepended(bare))
 }

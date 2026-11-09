@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -386,4 +387,131 @@ func TestCASGetter_HTTPMissingETagFallsBackToContentHash(t *testing.T) {
 
 	assert.Equal(t, int32(2), gets.Load(),
 		"with no ETag, every run downloads; cache deduplication happens only at the blob level")
+}
+
+// TestCASGetter_HTTPChecksumHonorsOffline: offline, a pinned archive is linked from the store and never fetched.
+func TestCASGetter_HTTPChecksumHonorsOffline(t *testing.T) {
+	t.Parallel()
+
+	body := makeTarGz(t, map[string]string{"main.tf": "ok"})
+	sum := sha256.Sum256(body)
+	literal := "/mod.tar.gz?checksum=sha256:" + hex.EncodeToString(sum[:])
+
+	testCases := []struct {
+		name string
+		path string
+		warm bool
+	}{
+		{name: "literal checksum on an empty store", path: literal},
+		{name: "literal checksum on a warm store", path: literal, warm: true},
+		{name: "checksum file on an empty store", path: "/mod.tar.gz?checksum=file:/nowhere/mod.sha256"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := &tarballHandler{body: body, etag: "stable-etag"}
+			srv := httptest.NewServer(h)
+			t.Cleanup(srv.Close)
+
+			storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+			v := venvtest.NewOSWithEmptyEnv()
+
+			fetch := func(c *tgcas.CAS, dst string) error {
+				g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
+					getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
+				client := &gogetter.Client{Getters: []gogetter.Getter{g}}
+
+				_, err := client.Get(t.Context(), &gogetter.Request{
+					Src:     srv.URL + tc.path,
+					Dst:     dst,
+					GetMode: gogetter.ModeAny,
+				})
+
+				return err
+			}
+
+			if tc.warm {
+				// The experiment that allows --cas-offline records probes, so the online run does too.
+				online, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath), tgcas.WithProbeCache())
+				require.NoError(t, err)
+				require.NoError(t, fetch(online, filepath.Join(t.TempDir(), "online")))
+			}
+
+			offline, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath), tgcas.WithOffline())
+			require.NoError(t, err)
+
+			gets, heads := h.gets.Load(), h.heads.Load()
+			dst := filepath.Join(t.TempDir(), "offline")
+			err = fetch(offline, dst)
+
+			if tc.warm {
+				require.NoError(t, err)
+				require.FileExists(t, filepath.Join(dst, "main.tf"), "the verified copy must be linked from the store")
+			} else {
+				require.ErrorIs(t, err, tgcas.ErrCASOffline)
+				require.NoFileExists(t, filepath.Join(dst, "main.tf"))
+			}
+
+			assert.Equal(t, gets, h.gets.Load(), "the offline run must not download")
+			assert.Equal(t, heads, h.heads.Load(), "the offline run must not probe either")
+		})
+	}
+}
+
+// TestCASGetter_HTTPChecksumFileFetchesThroughOtherSchemes: a checksum=file: reference on another scheme is read.
+func TestCASGetter_HTTPChecksumFileFetchesThroughOtherSchemes(t *testing.T) {
+	t.Parallel()
+
+	body := makeTarGz(t, map[string]string{"main.tf": "ok"})
+	sum := sha256.Sum256(body)
+
+	testCases := []struct {
+		name    string
+		sums    string
+		wantErr bool
+	}{
+		{name: "matching checksum file", sums: hex.EncodeToString(sum[:]) + "  mod.tar.gz\n"},
+		{name: "mismatched checksum file", sums: strings.Repeat("0", 64) + "  mod.tar.gz\n", wantErr: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(&tarballHandler{body: body, etag: "stable-etag"})
+			t.Cleanup(srv.Close)
+
+			sumsPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "mod.sha256")
+			require.NoError(t, os.WriteFile(sumsPath, []byte(tc.sums), 0o644))
+
+			storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+			c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
+			require.NoError(t, err)
+
+			v := venvtest.NewOSWithEmptyEnv()
+			g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
+				getter.WithDefaultGenericDispatch(getter.WithHTTPClient(vhttp.NewOSClient())))
+			client := &gogetter.Client{Getters: []gogetter.Getter{g}}
+			dst := filepath.Join(t.TempDir(), "out")
+
+			_, err = client.Get(t.Context(), &gogetter.Request{
+				Src:     srv.URL + "/mod.tar.gz?checksum=file:" + getter.FileURL(sumsPath).String(),
+				Dst:     dst,
+				GetMode: gogetter.ModeAny,
+			})
+
+			if tc.wantErr {
+				var checksumErr *gogetter.ChecksumError
+				require.ErrorAs(t, err, &checksumErr, "a checksum file that disagrees must fail the download")
+				require.NoFileExists(t, filepath.Join(dst, "main.tf"))
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.FileExists(t, filepath.Join(dst, "main.tf"), "the inner client must read the checksum file over file://")
+		})
+	}
 }

@@ -93,6 +93,18 @@ func TestResolverPinned(t *testing.T) {
 			url:      "https://example.com/mod.tgz?checksum=sha256:" + hexOf64,
 			want:     false,
 		},
+		{
+			name:     "checksum literal",
+			resolver: getter.NewChecksumResolver("https", "sha256:"+hexOf64),
+			url:      "https://example.com/mod.tgz?checksum=sha256:" + hexOf64,
+			want:     true,
+		},
+		{
+			name:     "checksum read from a file",
+			resolver: getter.NewChecksumResolver("https", "file:https://example.com/SHA256SUMS"),
+			url:      "https://example.com/mod.tgz?checksum=file:https://example.com/SHA256SUMS",
+			want:     false,
+		},
 	}
 
 	for _, tt := range tests {
