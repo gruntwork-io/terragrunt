@@ -14,8 +14,13 @@ type ProviderInstallation struct {
 	Methods ProviderInstallationMethods `hcl:",block"`
 }
 
+// ProviderInstallationMethods is the list of method blocks in a `provider_installation` block.
 type ProviderInstallationMethods []ProviderInstallationMethod
 
+// Merge folds each of withMethods into the existing method of the same kind, and for mirrors the
+// same path or URL, and appends the rest. It then moves `direct` methods to the end.
+//
+// Merge modifies the matching methods of the receiver in place.
 func (methods ProviderInstallationMethods) Merge(
 	withMethods ...ProviderInstallationMethod,
 ) ProviderInstallationMethods {
@@ -48,6 +53,7 @@ func (methods ProviderInstallationMethods) Merge(
 	return mergedMethods
 }
 
+// Clone returns a deep copy of methods.
 func (methods ProviderInstallationMethods) Clone() ProviderInstallationMethods {
 	var cloned = make(ProviderInstallationMethods, len(methods))
 
@@ -72,12 +78,15 @@ type ProviderInstallationMethod interface {
 	Clone() ProviderInstallationMethod
 }
 
+// ProviderInstallationDirect is the `direct` method block, which installs providers from their origin registry.
 type ProviderInstallationDirect struct {
 	Include *[]string `hcl:"include,optional" json:"Include"`
 	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
 	Name    string    `hcl:",label"           json:"Name"`
 }
 
+// NewProviderInstallationDirect returns a `direct` method limited by include and exclude. An empty
+// list leaves its attribute unset.
 func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallationDirect {
 	res := &ProviderInstallationDirect{
 		Name: "direct",
@@ -94,6 +103,7 @@ func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallat
 	return res
 }
 
+// Clone returns a deep copy of method.
 func (method *ProviderInstallationDirect) Clone() ProviderInstallationMethod {
 	cloned := &ProviderInstallationDirect{
 		Name: method.Name,
@@ -112,6 +122,8 @@ func (method *ProviderInstallationDirect) Clone() ProviderInstallationMethod {
 	return cloned
 }
 
+// Merge adds the include and exclude lists of with to method when with is also a `direct` method,
+// and reports whether it did.
 func (method *ProviderInstallationDirect) Merge(with ProviderInstallationMethod) bool {
 	if with, ok := with.(*ProviderInstallationDirect); ok {
 		if with.Exclude != nil {
@@ -128,6 +140,7 @@ func (method *ProviderInstallationDirect) Merge(with ProviderInstallationMethod)
 	return false
 }
 
+// AppendInclude adds addrs to the include list, which it keeps sorted and free of duplicates.
 func (method *ProviderInstallationDirect) AppendInclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
@@ -140,6 +153,7 @@ func (method *ProviderInstallationDirect) AppendInclude(addrs []string) {
 	*method.Include = util.RemoveDuplicates(append(*method.Include, addrs...))
 }
 
+// AppendExclude adds addrs to the exclude list, which it keeps sorted and free of duplicates.
 func (method *ProviderInstallationDirect) AppendExclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
@@ -152,6 +166,7 @@ func (method *ProviderInstallationDirect) AppendExclude(addrs []string) {
 	*method.Exclude = util.RemoveDuplicates(append(*method.Exclude, addrs...))
 }
 
+// RemoveExclude removes addrs from the exclude list, unsetting the attribute when the list empties.
 func (method *ProviderInstallationDirect) RemoveExclude(addrs []string) {
 	if len(addrs) == 0 || method.Exclude == nil {
 		return
@@ -167,6 +182,7 @@ func (method *ProviderInstallationDirect) RemoveExclude(addrs []string) {
 	}
 }
 
+// RemoveInclude removes addrs from the include list, unsetting the attribute when the list empties.
 func (method *ProviderInstallationDirect) RemoveInclude(addrs []string) {
 	if len(addrs) == 0 || method.Include == nil {
 		return
@@ -191,6 +207,7 @@ func (method *ProviderInstallationDirect) String() string {
 	return string(b)
 }
 
+// ProviderInstallationFilesystemMirror is the `filesystem_mirror` method block, which installs providers from a local directory.
 type ProviderInstallationFilesystemMirror struct {
 	Include *[]string `hcl:"include,optional" json:"Include"`
 	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
@@ -198,6 +215,8 @@ type ProviderInstallationFilesystemMirror struct {
 	Path    string    `hcl:"path,attr"        json:"Path"`
 }
 
+// NewProviderInstallationFilesystemMirror returns a `filesystem_mirror` method that reads from path,
+// limited by include and exclude. An empty list leaves its attribute unset.
 func NewProviderInstallationFilesystemMirror(
 	path string,
 	include, exclude []string,
@@ -218,6 +237,7 @@ func NewProviderInstallationFilesystemMirror(
 	return res
 }
 
+// Clone returns a deep copy of method.
 func (method *ProviderInstallationFilesystemMirror) Clone() ProviderInstallationMethod {
 	cloned := &ProviderInstallationFilesystemMirror{
 		Name: method.Name,
@@ -237,6 +257,8 @@ func (method *ProviderInstallationFilesystemMirror) Clone() ProviderInstallation
 	return cloned
 }
 
+// Merge adds the include and exclude lists of with to method when with is a `filesystem_mirror`
+// method with the same path, and reports whether it did.
 func (method *ProviderInstallationFilesystemMirror) Merge(with ProviderInstallationMethod) bool {
 	if with, ok := with.(*ProviderInstallationFilesystemMirror); ok && method.Path == with.Path {
 		if with.Exclude != nil {
@@ -253,6 +275,7 @@ func (method *ProviderInstallationFilesystemMirror) Merge(with ProviderInstallat
 	return false
 }
 
+// AppendInclude adds addrs to the include list, which it keeps sorted and free of duplicates.
 func (method *ProviderInstallationFilesystemMirror) AppendInclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
@@ -265,6 +288,7 @@ func (method *ProviderInstallationFilesystemMirror) AppendInclude(addrs []string
 	*method.Include = util.RemoveDuplicates(append(*method.Include, addrs...))
 }
 
+// AppendExclude adds addrs to the exclude list, which it keeps sorted and free of duplicates.
 func (method *ProviderInstallationFilesystemMirror) AppendExclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
@@ -277,6 +301,7 @@ func (method *ProviderInstallationFilesystemMirror) AppendExclude(addrs []string
 	*method.Exclude = util.RemoveDuplicates(append(*method.Exclude, addrs...))
 }
 
+// RemoveExclude removes addrs from the exclude list, unsetting the attribute when the list empties.
 func (method *ProviderInstallationFilesystemMirror) RemoveExclude(addrs []string) {
 	if len(addrs) == 0 || method.Exclude == nil {
 		return
@@ -292,6 +317,7 @@ func (method *ProviderInstallationFilesystemMirror) RemoveExclude(addrs []string
 	}
 }
 
+// RemoveInclude removes addrs from the include list, unsetting the attribute when the list empties.
 func (method *ProviderInstallationFilesystemMirror) RemoveInclude(addrs []string) {
 	if len(addrs) == 0 || method.Include == nil {
 		return
@@ -316,6 +342,7 @@ func (method *ProviderInstallationFilesystemMirror) String() string {
 	return string(b)
 }
 
+// ProviderInstallationNetworkMirror is the `network_mirror` method block, which installs providers from a mirror server.
 type ProviderInstallationNetworkMirror struct {
 	Include *[]string `hcl:"include,optional" json:"Include"`
 	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
@@ -323,6 +350,8 @@ type ProviderInstallationNetworkMirror struct {
 	URL     string    `hcl:"url,attr"         json:"URL"`
 }
 
+// NewProviderInstallationNetworkMirror returns a `network_mirror` method that reads from url,
+// limited by include and exclude. An empty list leaves its attribute unset.
 func NewProviderInstallationNetworkMirror(
 	url string,
 	include, exclude []string,
@@ -343,6 +372,7 @@ func NewProviderInstallationNetworkMirror(
 	return res
 }
 
+// Clone returns a deep copy of method.
 func (method *ProviderInstallationNetworkMirror) Clone() ProviderInstallationMethod {
 	cloned := &ProviderInstallationNetworkMirror{
 		Name: method.Name,
@@ -362,6 +392,8 @@ func (method *ProviderInstallationNetworkMirror) Clone() ProviderInstallationMet
 	return cloned
 }
 
+// Merge adds the include and exclude lists of with to method when with is a `network_mirror`
+// method with the same URL, and reports whether it did.
 func (method *ProviderInstallationNetworkMirror) Merge(with ProviderInstallationMethod) bool {
 	if with, ok := with.(*ProviderInstallationNetworkMirror); ok && method.URL == with.URL {
 		if with.Exclude != nil {
@@ -378,6 +410,7 @@ func (method *ProviderInstallationNetworkMirror) Merge(with ProviderInstallation
 	return false
 }
 
+// AppendInclude adds addrs to the include list, which it keeps sorted and free of duplicates.
 func (method *ProviderInstallationNetworkMirror) AppendInclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
@@ -390,6 +423,8 @@ func (method *ProviderInstallationNetworkMirror) AppendInclude(addrs []string) {
 	*method.Include = util.RemoveDuplicates(append(*method.Include, addrs...))
 }
 
+// AppendExclude adds addrs to the exclude list, dropping duplicates and keeping the last
+// occurrence of each.
 func (method *ProviderInstallationNetworkMirror) AppendExclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
@@ -402,6 +437,7 @@ func (method *ProviderInstallationNetworkMirror) AppendExclude(addrs []string) {
 	*method.Exclude = util.RemoveDuplicatesKeepLast(append(*method.Exclude, addrs...))
 }
 
+// RemoveExclude removes addrs from the exclude list, unsetting the attribute when the list empties.
 func (method *ProviderInstallationNetworkMirror) RemoveExclude(addrs []string) {
 	if len(addrs) == 0 || method.Exclude == nil {
 		return
@@ -417,6 +453,7 @@ func (method *ProviderInstallationNetworkMirror) RemoveExclude(addrs []string) {
 	}
 }
 
+// RemoveInclude removes addrs from the include list, unsetting the attribute when the list empties.
 func (method *ProviderInstallationNetworkMirror) RemoveInclude(addrs []string) {
 	if len(addrs) == 0 || method.Include == nil {
 		return

@@ -66,6 +66,8 @@ func (remote *RemoteState) String() string {
 	return remote.Config.String()
 }
 
+// IsVersionControlEnabled reports whether versioning is enabled on the bucket that stores the state. Backends
+// without the check log a warning and report false.
 func (remote *RemoteState) IsVersionControlEnabled(
 	ctx context.Context,
 	l log.Logger,

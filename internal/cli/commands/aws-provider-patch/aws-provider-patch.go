@@ -27,6 +27,10 @@ import (
 
 const defaultKeyParts = 2
 
+// Run prepares and initializes the unit at opts.WorkingDir, then overwrites the
+// attributes in opts.AwsProviderPatchOverrides in every provider "aws" block of
+// the modules that init downloaded. With opts.RunAll set, it patches every
+// discovered unit instead.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)
@@ -169,6 +173,9 @@ type TerraformModulesJSON struct {
 	Modules []TerraformModule `json:"Modules"`
 }
 
+// TerraformModule is one entry of the Modules list in
+// .terraform/modules/modules.json, naming a module call and the directory init
+// downloaded its source into.
 type TerraformModule struct {
 	Key    string `json:"Key"`
 	Source string `json:"Source"`

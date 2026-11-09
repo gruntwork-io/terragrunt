@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// Command is a CLI command with its flags, subcommands, and actions.
 type Command struct {
 	// Category is the category the command belongs to.
 	Category *Category
@@ -305,6 +306,8 @@ func (cmd *Command) flagSetParse(
 	return undefArgs, err
 }
 
+// WrapAction returns a copy of cmd whose action, and the action of every subcommand, runs
+// through fn. fn receives the action it replaces.
 func (cmd *Command) WrapAction(
 	fn func(ctx context.Context, cliCtx *Context, action ActionFunc) error,
 ) *Command {

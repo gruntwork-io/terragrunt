@@ -8,8 +8,10 @@ import (
 	"sort"
 )
 
+// Flags is the list of flags a command or app accepts.
 type Flags []Flag
 
+// Parse calls [Flag.Parse] on each flag with args and env, stopping at the first error.
 func (flags Flags) Parse(args Args, env map[string]string) error {
 	for _, flag := range flags {
 		if err := flag.Parse(args, env); err != nil {
@@ -20,6 +22,8 @@ func (flags Flags) Parse(args Args, env map[string]string) error {
 	return nil
 }
 
+// NewFlagSet returns a standard flag set named cmdName that holds every flag, applied with
+// [Flags.Apply]. The flag set writes no output.
 func (flags Flags) NewFlagSet(
 	cmdName string,
 	env map[string]string,
@@ -33,6 +37,8 @@ func (flags Flags) NewFlagSet(
 	return flagSet, err
 }
 
+// Apply registers every flag with flagSet, resolving env vars against env. Each apply error
+// goes to errHandler, and the first error errHandler returns stops the loop.
 func (flags Flags) Apply(
 	flagSet *libflag.FlagSet,
 	env map[string]string,
@@ -94,10 +100,12 @@ func (flags Flags) VisibleFlags() Flags {
 	return visibleFlags
 }
 
+// Len returns the number of flags.
 func (flags Flags) Len() int {
 	return len(flags)
 }
 
+// Less orders flags by first name with [LexicographicLess]. Flags without a name sort first.
 func (flags Flags) Less(i, j int) bool {
 	if len(flags[j].Names()) == 0 {
 		return false
@@ -108,10 +116,12 @@ func (flags Flags) Less(i, j int) bool {
 	return LexicographicLess(flags[i].Names()[0], flags[j].Names()[0])
 }
 
+// Swap swaps the flags at i and j.
 func (flags Flags) Swap(i, j int) {
 	flags[i], flags[j] = flags[j], flags[i]
 }
 
+// RunActions runs the action of each flag that was set, stopping at the first error.
 func (flags Flags) RunActions(ctx context.Context, cliCtx *Context) error {
 	for _, flag := range flags {
 		if flag.Value().IsSet() {
@@ -124,12 +134,15 @@ func (flags Flags) RunActions(ctx context.Context, cliCtx *Context) error {
 	return nil
 }
 
+// Sort sorts flags in place by first name and returns them.
 func (flags Flags) Sort() Flags {
 	sort.Sort(flags)
 
 	return flags
 }
 
+// WithSubcommandScope returns the flags that may also appear after a subcommand of the command
+// that defines them.
 func (flags Flags) WithSubcommandScope() Flags {
 	var filtered Flags
 
@@ -142,6 +155,7 @@ func (flags Flags) WithSubcommandScope() Flags {
 	return filtered
 }
 
+// Names returns the names and aliases of every flag.
 func (flags Flags) Names() []string {
 	names := make([]string, 0, len(flags))
 

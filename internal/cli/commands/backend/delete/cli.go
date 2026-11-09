@@ -12,12 +12,18 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt backend delete` command.
 	CommandName = "delete"
 
-	BucketFlagName             = "bucket"
+	// BucketFlagName is the name of the hidden flag that asks to delete the
+	// whole bucket. The command rejects it as not yet supported.
+	BucketFlagName = "bucket"
+	// ForceBackendDeleteFlagName is the name of the flag that deletes state
+	// even when the bucket has versioning disabled.
 	ForceBackendDeleteFlagName = "force"
 )
 
+// NewFlags returns the flags of `terragrunt backend delete`, bound to opts.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
@@ -45,6 +51,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	)
 }
 
+// NewCommand returns the `terragrunt backend delete` command.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdFlags := NewFlags(l, opts, nil)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewFailFastFlag(opts))

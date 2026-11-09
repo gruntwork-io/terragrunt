@@ -12,9 +12,12 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt help` command.
 	CommandName = "help"
 )
 
+// NewCommand returns the hidden `terragrunt help` command, which prints the
+// same help as --help.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
 	return &clihelper.Command{
 		Name:                         CommandName,
@@ -27,6 +30,10 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	}
 }
 
+// Action prints help for the deepest command that the arguments name, such
+// as `terragrunt help backend bootstrap`, or the app help when the first
+// argument names no command. At debug log level it sets
+// CLI_TEMPLATE_ERROR_DEBUG so the CLI library reports help template errors.
 func Action(
 	ctx context.Context,
 	cliCtx *clihelper.Context,

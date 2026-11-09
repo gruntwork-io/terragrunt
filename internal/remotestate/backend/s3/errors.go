@@ -2,12 +2,16 @@ package s3
 
 import "fmt"
 
+// MissingRequiredS3RemoteStateConfig is the error for a required s3 remote_state key that is unset. Its value
+// is the key name.
 type MissingRequiredS3RemoteStateConfig string
 
 func (configName MissingRequiredS3RemoteStateConfig) Error() string {
 	return "Missing required S3 remote state configuration " + string(configName)
 }
 
+// MultipleTagsDeclarations is the error for tags declared in more than one block. Its value names the resource
+// the tags are for.
 type MultipleTagsDeclarations string
 
 func (target MultipleTagsDeclarations) Error() string {
@@ -17,6 +21,8 @@ func (target MultipleTagsDeclarations) Error() string {
 	)
 }
 
+// MaxRetriesWaitingForS3BucketExceeded is the error for a bucket that did not appear after creation, or
+// disappear after deletion, within the retry limit. Its value is the bucket name.
 type MaxRetriesWaitingForS3BucketExceeded string
 
 func (err MaxRetriesWaitingForS3BucketExceeded) Error() string {
@@ -27,6 +33,8 @@ func (err MaxRetriesWaitingForS3BucketExceeded) Error() string {
 	)
 }
 
+// InvalidAccessLoggingBucketEncryption is the error for an access logging bucket encryption algorithm that S3
+// server access logging does not support.
 type InvalidAccessLoggingBucketEncryption struct {
 	BucketSSEAlgorithm string
 }
@@ -38,6 +46,8 @@ func (err InvalidAccessLoggingBucketEncryption) Error() string {
 	)
 }
 
+// TableActiveRetriesExceeded is the error for a DynamoDB lock table that did not reach the ACTIVE status within
+// Retries checks.
 type TableActiveRetriesExceeded struct {
 	TableName string
 	Retries   int
@@ -51,6 +61,7 @@ func (err TableActiveRetriesExceeded) Error() string {
 	)
 }
 
+// TableDoesNotExist is the error for a DynamoDB lock table that does not exist, wrapping the AWS error.
 type TableDoesNotExist struct {
 	Underlying error
 	TableName  string
@@ -77,6 +88,8 @@ func (err TableDescriptionMissingError) Error() string {
 	)
 }
 
+// TableEncryptedRetriesExceeded is the error for a DynamoDB lock table whose server-side encryption was not
+// confirmed enabled within Retries checks.
 type TableEncryptedRetriesExceeded struct {
 	TableName string
 	Retries   int
@@ -90,6 +103,8 @@ func (err TableEncryptedRetriesExceeded) Error() string {
 	)
 }
 
+// InvalidAccountRegionalBucketName is the error for a bucket name in the account regional namespace form whose
+// region suffix does not match Region, the region the bucket would be created in.
 type InvalidAccountRegionalBucketName struct {
 	Bucket string
 	Region string

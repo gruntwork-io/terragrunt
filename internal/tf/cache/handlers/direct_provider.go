@@ -16,12 +16,14 @@ import (
 
 var _ ProviderHandler = new(DirectProviderHandler)
 
+// DirectProviderHandler fetches provider versions and platforms from each provider's origin registry.
 type DirectProviderHandler struct {
 	*CommonProviderHandler
 
 	client *helpers.Client
 }
 
+// NewDirectProviderHandler returns a handler for a `direct` method that authenticates to registries with credsSource.
 func NewDirectProviderHandler(
 	l log.Logger,
 	c vhttp.Client,

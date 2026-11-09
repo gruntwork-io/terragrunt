@@ -1090,12 +1090,15 @@ func validateGenerateConfigs(
 
 // Custom error types
 
+// MultipleBareIncludeBlocksErr reports a config with more than one `include` block without a label. In HCL JSON,
+// it also reports an `include` array of more than one block; the object encoding avoids it.
 type MultipleBareIncludeBlocksErr struct{}
 
 func (err MultipleBareIncludeBlocksErr) Error() string {
 	return "Multiple bare include blocks (include blocks without label) is not supported."
 }
 
+// IncludeIsNotABlockErr reports an HCL JSON config whose `include` key is neither an array nor an object.
 type IncludeIsNotABlockErr struct {
 	parsed any
 }

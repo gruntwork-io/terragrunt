@@ -45,26 +45,32 @@ provider_installation {
 {{ end }}
 `
 
+// CLIConfigProviderInstallationFilesystemMirror is a filesystem_mirror block for [CreateCLIConfig] to write.
 type CLIConfigProviderInstallationFilesystemMirror struct {
 	Path             string
 	Include, Exclude []string
 }
 
+// CLIConfigProviderInstallationNetworkMirror is a network_mirror block for [CreateCLIConfig] to write.
 type CLIConfigProviderInstallationNetworkMirror struct {
 	URL              string
 	Include, Exclude []string
 }
 
+// CLIConfigProviderInstallationDirect is a direct block for [CreateCLIConfig] to write.
 type CLIConfigProviderInstallationDirect struct {
 	Include, Exclude []string
 }
 
+// CLIConfigSettings lists the provider installation methods [CreateCLIConfig] writes.
 type CLIConfigSettings struct {
 	FilesystemMirrorMethods []CLIConfigProviderInstallationFilesystemMirror
 	NetworkMirrorMethods    []CLIConfigProviderInstallationNetworkMirror
 	DirectMethods           []CLIConfigProviderInstallationDirect
 }
 
+// CreateCLIConfig writes an OpenTofu CLI configuration file with a provider_installation block built from settings.
+// The block is left out when settings has no methods.
 func CreateCLIConfig(t *testing.T, file *os.File, settings *CLIConfigSettings) {
 	t.Helper()
 

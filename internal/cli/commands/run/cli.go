@@ -15,9 +15,13 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt run` command.
 	CommandName = "run"
 )
 
+// NewCommand returns the `terragrunt run` command. It runs the command over
+// every discovered unit with --all, over the dependency graph with --graph,
+// and in the current unit otherwise, printing help when given no arguments.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdFlags := NewFlags(l, opts, v, nil)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewGraphFlag(opts, nil))
@@ -55,6 +59,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	return cmd
 }
 
+// NewSubcommands returns a subcommand of `terragrunt run` for each name in
+// [tf.CommandNames], hidden unless [tf.CommandUsages] lists it, whose help is
+// the tofu help for that command.
 func NewSubcommands(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -80,6 +87,8 @@ func NewSubcommands(
 	return subcommands
 }
 
+// Action returns the action that runs the tofu command in opts against the
+// current unit through [Run].
 func Action(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.ActionFunc {
 	return func(ctx context.Context, _ *clihelper.Context) error {
 		return Run(ctx, l, opts, v)

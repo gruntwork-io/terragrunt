@@ -11,9 +11,12 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt dag` command.
 	CommandName = "dag"
 )
 
+// NewCommand returns the `terragrunt dag` command, which groups the graph
+// subcommand and prints help when run alone.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	return &clihelper.Command{
 		Name:  CommandName,

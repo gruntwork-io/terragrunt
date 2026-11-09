@@ -29,6 +29,9 @@ var (
 	}
 )
 
+// NewShortcutsCommands returns top-level commands such as `terragrunt plan`
+// that run the matching `terragrunt run` subcommand with the flags of
+// `terragrunt run`.
 func NewShortcutsCommands(
 	l log.Logger,
 	opts *options.TerragruntOptions,

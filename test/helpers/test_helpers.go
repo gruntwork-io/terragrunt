@@ -24,6 +24,7 @@ import (
 
 const defaultDirPerms = 0o755
 
+// IsWindows reports whether the tests run on Windows.
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
@@ -54,6 +55,8 @@ func MustAbs(t *testing.T, rel string) string {
 	return abs
 }
 
+// ValidateHookTraceParent asserts that str has a line `<hook> {"traceparent": "..."}` whose value is a W3C
+// traceparent.
 func ValidateHookTraceParent(t *testing.T, hook, str string) {
 	t.Helper()
 

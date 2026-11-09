@@ -18,6 +18,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// Parser parses Terragrunt config files and passes their diagnostics through the handlers and writer its options
+// set.
 type Parser struct {
 	*hclparse.Parser
 	diagsWriterFunc       func(hcl.Diagnostics) error
@@ -26,6 +28,7 @@ type Parser struct {
 	logger                log.Logger
 }
 
+// NewParser returns a Parser configured by opts. It logs to [log.Default] unless opts include [WithLogger].
 func NewParser(opts ...Option) *Parser {
 	return (&Parser{
 		Parser: hclparse.NewParser(),
@@ -58,6 +61,10 @@ func (parser *Parser) ParseFromString(content, configPath string) (file *File, e
 	return parser.ParseFromBytes([]byte(content), configPath)
 }
 
+// ParseFromBytes parses content as the config at configPath: as HCL JSON when configPath ends in `.json`, and as
+// native HCL otherwise.
+//
+// Returns [PanicWhileParsingConfigError] when the HCL library panics.
 func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *File, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors

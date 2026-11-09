@@ -170,6 +170,7 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 	return &clone
 }
 
+// WithDecodeList returns a copy whose partial parses decode only the sections in decodeList.
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	c := ctx.Clone()
 	c.PartialParseDecodeList = decodeList
@@ -177,6 +178,7 @@ func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType
 	return c
 }
 
+// WithLocals returns a copy that exposes locals to expressions as `local`.
 func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	c := ctx.Clone()
 	c.Locals = locals
@@ -184,6 +186,7 @@ func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	return c
 }
 
+// WithValues returns a copy that exposes values to expressions as `values`.
 func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
 	c := ctx.Clone()
 	c.Values = values
@@ -199,6 +202,7 @@ func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
 	return c
 }
 
+// WithTrackInclude returns a copy that resolves includes and include functions against trackInclude.
 func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
 	c := ctx.Clone()
 	c.TrackInclude = trackInclude
@@ -253,6 +257,8 @@ func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
 	return c
 }
 
+// WithSkipOutputsResolution returns a copy for parses that do not fetch dependency outputs. A partial parse with no
+// decoded dependencies then evaluates `dependency` references to unknown values.
 func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	c := ctx.Clone()
 	c.SkipOutputsResolution = true

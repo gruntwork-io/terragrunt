@@ -10,8 +10,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// CommandName is the name of the `terragrunt hcl` command.
 const CommandName = "hcl"
 
+// NewCommand returns the `terragrunt hcl` command, which groups the format and
+// validate subcommands and prints help when run alone.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	return &clihelper.Command{
 		Name:        CommandName,

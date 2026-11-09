@@ -123,8 +123,12 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	}
 }
 
+// FoundComponents is the result set that `terragrunt find` prints.
 type FoundComponents []*FoundComponent
 
+// FoundComponent is one unit or stack in the output of `terragrunt find`. Path
+// is relative to the working directory. The optional fields are set only when
+// their flags request them.
 type FoundComponent struct {
 	Type component.Kind `json:"type"`
 	Path string         `json:"path"`
@@ -263,6 +267,8 @@ func NewColorizer(shouldColor bool) *Colorizer {
 	}
 }
 
+// Colorize returns the path of foundComponent with its directory dimmed and its
+// base name styled by component kind.
 func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 	path := foundComponent.Path
 

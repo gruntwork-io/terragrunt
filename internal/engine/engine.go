@@ -84,6 +84,8 @@ type (
 	engineLocksKey   byte
 )
 
+// ExecutionOptions describes one IaC command for [Run] to execute through an engine: the engine to use,
+// the unit and directories to run in, the command and its arguments, and how to handle its output.
 type ExecutionOptions struct {
 	EngineOptions     *EngineOptions
 	EngineConfig      *EngineConfig
@@ -1113,6 +1115,7 @@ func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 	return nil
 }
 
+// ErrEngineInitFailed is wrapped by the error returned when the engine's Init call exits with a non-zero code.
 var ErrEngineInitFailed = errors.New("engine init failed")
 
 // initialize engine for working directory
@@ -1192,6 +1195,7 @@ func initialize(
 	})
 }
 
+// ErrEngineShutdownFailed is wrapped by the error returned when the engine's Shutdown call exits with a non-zero code.
 var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 
 // shutdown engine for working directory

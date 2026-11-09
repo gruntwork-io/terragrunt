@@ -1549,9 +1549,16 @@ type FileInfoDirEntry struct {
 	FileInfo os.FileInfo
 }
 
-func (d FileInfoDirEntry) Name() string               { return d.FileInfo.Name() }
-func (d FileInfoDirEntry) IsDir() bool                { return d.FileInfo.IsDir() }
-func (d FileInfoDirEntry) Type() fs.FileMode          { return d.FileInfo.Mode().Type() }
+// Name returns the base name of the file.
+func (d FileInfoDirEntry) Name() string { return d.FileInfo.Name() }
+
+// IsDir reports whether the file is a directory.
+func (d FileInfoDirEntry) IsDir() bool { return d.FileInfo.IsDir() }
+
+// Type returns the type bits of the file's mode.
+func (d FileInfoDirEntry) Type() fs.FileMode { return d.FileInfo.Mode().Type() }
+
+// Info returns the wrapped [os.FileInfo]. It never returns an error.
 func (d FileInfoDirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
 
 // limitedReader wraps a reader and enforces a size limit.

@@ -18,6 +18,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// Run creates the backend resources declared in the remote_state block of the
+// unit at opts.TerragruntConfigPath, or of every discovered unit when
+// opts.RunAll is set. A unit without a remote_state block is skipped.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, opts)

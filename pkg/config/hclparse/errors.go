@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
+// PanicWhileParsingConfigError reports a panic recovered while parsing ConfigFile.
 type PanicWhileParsingConfigError struct {
 	RecoveredValue any
 	ConfigFile     string

@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// TerragruntTFVarsFile is the name of the file [WriteTerragruntDebugFile] writes next to the unit's terragrunt.hcl.
 const TerragruntTFVarsFile = "terragrunt-debug.tfvars.json"
 
 const defaultPermissions = int(0600)

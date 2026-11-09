@@ -10,6 +10,7 @@ const (
 	configPathKey = "path"
 )
 
+// Config is the config map of a remote_state block, keyed by attribute name.
 type Config map[string]any
 
 // Path returns the `patha field value.

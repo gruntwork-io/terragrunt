@@ -12,9 +12,13 @@ import (
 )
 
 const (
-	BareFormatName     = "bare"
-	PrettyFormatName   = "pretty"
-	JSONFormatName     = "json"
+	// BareFormatName selects [NewBareFormatPlaceholders] with `--log-format`.
+	BareFormatName = "bare"
+	// PrettyFormatName selects [NewPrettyFormatPlaceholders] with `--log-format`.
+	PrettyFormatName = "pretty"
+	// JSONFormatName selects [NewJSONFormatPlaceholders] with `--log-format`.
+	JSONFormatName = "json"
+	// KeyValueFormatName selects [NewKeyValueFormatPlaceholders] with `--log-format`.
 	KeyValueFormatName = "key-value"
 )
 
@@ -25,6 +29,9 @@ const (
 	prettyLevelWidth = 6
 )
 
+// NewBareFormatPlaceholders returns the placeholders of the bare log format: the
+// uppercase level, the seconds since start in brackets, the message, and the
+// working directory as `prefix=[...]` unless it is the base directory.
 func NewBareFormatPlaceholders() Placeholders {
 	return Placeholders{
 		Level(
@@ -45,6 +52,11 @@ func NewBareFormatPlaceholders() Placeholders {
 	}
 }
 
+// NewPrettyFormatPlaceholders returns the placeholders of the default log format:
+// a gray clock time with milliseconds, the uppercase level in its preset color,
+// the working directory in brackets with a color per directory, the tofu or
+// terraform binary name in cyan, the message, and the provider cache server's
+// request URL and status when the entry has them.
 func NewPrettyFormatPlaceholders() Placeholders {
 	return Placeholders{
 		Time(
@@ -79,6 +91,9 @@ func NewPrettyFormatPlaceholders() Placeholders {
 	}
 }
 
+// NewJSONFormatPlaceholders returns the placeholders that render each entry as a
+// JSON object with the RFC 3339 time, level, working directory, tofu or terraform
+// binary name and arguments, and the message stripped of color.
 func NewJSONFormatPlaceholders() Placeholders {
 	return Placeholders{
 		PlainText(`{`),
@@ -119,6 +134,9 @@ func NewJSONFormatPlaceholders() Placeholders {
 	}
 }
 
+// NewKeyValueFormatPlaceholders returns the placeholders that render each entry
+// as `key=value` pairs: the RFC 3339 time, level, working directory, tofu or
+// terraform binary name, and the message stripped of color.
 func NewKeyValueFormatPlaceholders() Placeholders {
 	return Placeholders{
 		Time(
@@ -143,6 +161,10 @@ func NewKeyValueFormatPlaceholders() Placeholders {
 	}
 }
 
+// ParseFormat returns the placeholders of the log format named str, one of
+// [BareFormatName], [PrettyFormatName], [JSONFormatName], or [KeyValueFormatName].
+//
+// Returns an error listing the format names when str matches none of them.
 func ParseFormat(str string) (Placeholders, error) {
 	var presets = map[string]func() Placeholders{
 		BareFormatName:     NewBareFormatPlaceholders,
