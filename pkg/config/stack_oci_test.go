@@ -9,12 +9,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +47,7 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string) (string, error) {
 	t.Helper()
 
 	// An in-memory venv: no disk, and a fail-closed client so no fetch can leave the test.
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithEnv(map[string]string{"HOME": ociTestHome}).
 		WithUserHomeDir(func() (string, error) { return ociTestHome, nil })
 

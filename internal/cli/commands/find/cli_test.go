@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -36,7 +37,7 @@ func TestNewCommandExposesTheFindFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := find.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
+		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venv.MemVenv(),
 	)
 
 	assert.Equal(t, find.CommandName, cmd.Name)
@@ -129,7 +130,7 @@ func TestNewCommandBeforeResolvesFormatAndMode(t *testing.T) {
 			var buf strings.Builder
 
 			root := "/find-cli"
-			v := venvtest.New().WithFS(venvtest.NewFS(t, root, findCLIUnits)).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, findCLIUnits)).WithWriter(&buf)
 
 			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
 			tgOpts.WorkingDir = root
@@ -193,7 +194,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 				)
 			}
 
-			flags := find.NewFlags(newTestLogger(t), find.NewOptions(tgOpts), venvtest.New(), nil)
+			flags := find.NewFlags(newTestLogger(t), find.NewOptions(tgOpts), venv.MemVenv(), nil)
 			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := flags.RunActions(config.WithCaches(t.Context()), &clihelper.Context{})
@@ -235,7 +236,7 @@ func TestNewFlagsExternalFlagAddsAGraphFilter(t *testing.T) {
 
 			opts := find.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
 
-			flags := find.NewFlags(newTestLogger(t), opts, venvtest.New(), nil)
+			flags := find.NewFlags(newTestLogger(t), opts, venv.MemVenv(), nil)
 			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 			require.NoError(t, flags.RunActions(config.WithCaches(t.Context()), &clihelper.Context{}))
 			assert.Len(t, opts.Filters, tc.wantFilters)

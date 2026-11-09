@@ -487,7 +487,7 @@ type recorder struct {
 func (rec *recorder) venv(t *testing.T, files map[string]string) *venv.Venv {
 	t.Helper()
 
-	return venvtest.New().
+	return venv.MemVenv().
 		WithFS(venvtest.NewFS(t, memRoot, files)).
 		WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 			if inv.Name == rec.unspawnable {

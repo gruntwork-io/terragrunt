@@ -406,7 +406,7 @@ func (f *fakeInit) venv(t *testing.T, files map[string]string) *venv.Venv {
 
 	fsys := venvtest.NewFS(t, memRoot, files)
 
-	return venvtest.New().WithFS(fsys).WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	return venv.MemVenv().WithFS(fsys).WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if !slices.Contains(inv.Args, tf.CommandNameInit) {
 			return vexec.Result{Stdout: []byte("OpenTofu v1.9.0\n")}
 		}

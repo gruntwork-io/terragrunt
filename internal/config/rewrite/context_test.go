@@ -11,16 +11,16 @@ import (
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestParseConfigFileLeavesParseContextUnchanged(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	root := t.TempDir()
 	cfgPath := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
 
@@ -85,7 +85,7 @@ inputs = {
 func TestParseConfigFileAppliesRunScopedValues(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	cfgPath := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
 
 	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`

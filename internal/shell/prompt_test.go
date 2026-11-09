@@ -8,8 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +19,7 @@ func TestPromptUserForInputSequential(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithStdin(strings.NewReader("first\nsecond\n"))
+	v := venv.MemVenv().WithStdin(strings.NewReader("first\nsecond\n"))
 
 	first, err := shell.PromptUserForInput(t.Context(), l, v, "one: ", false)
 	require.NoError(t, err)
@@ -39,7 +37,7 @@ func TestPromptUserForInputUnterminatedFinalLine(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithStdin(strings.NewReader("first\nsecond"))
+	v := venv.MemVenv().WithStdin(strings.NewReader("first\nsecond"))
 
 	first, err := shell.PromptUserForInput(t.Context(), l, v, "one: ", false)
 	require.NoError(t, err)
@@ -59,7 +57,7 @@ func TestPromptUserForInputEmptyStdin(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithStdin(strings.NewReader(""))
+	v := venv.MemVenv().WithStdin(strings.NewReader(""))
 
 	_, err := shell.PromptUserForInput(t.Context(), l, v, "one: ", false)
 	require.ErrorIs(t, err, io.EOF)
@@ -86,7 +84,7 @@ func TestPromptUserForYesNo(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			v := venvtest.New().WithStdin(strings.NewReader(tt.input))
+			v := venv.MemVenv().WithStdin(strings.NewReader(tt.input))
 
 			got, err := shell.PromptUserForYesNo(t.Context(), l, v, "proceed?", false)
 			require.NoError(t, err)
@@ -101,7 +99,7 @@ func TestPromptUserForYesNoNonInteractive(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithStdin(strings.NewReader("no\n"))
+	v := venv.MemVenv().WithStdin(strings.NewReader("no\n"))
 
 	got, err := shell.PromptUserForYesNo(t.Context(), l, v, "proceed?", true)
 	require.NoError(t, err)
@@ -111,7 +109,7 @@ func TestPromptUserForYesNoNonInteractive(t *testing.T) {
 func TestPromptUserForInputPanicsOnUnsetReader(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Stdin = nil
 
 	assert.PanicsWithError(t, venv.ErrVenvStdinUnset.Error(), func() {

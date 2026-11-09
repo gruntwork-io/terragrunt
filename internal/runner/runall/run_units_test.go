@@ -39,7 +39,7 @@ func TestRun_RejectsDisabledCommands(t *testing.T) {
 
 			opts := newRunOptions(t, command)
 
-			err := runall.Run(t.Context(), logger.CreateLogger(), venvtest.New(), opts)
+			err := runall.Run(t.Context(), logger.CreateLogger(), venv.MemVenv(), opts)
 
 			var disabled runall.RunAllDisabledErr
 
@@ -270,7 +270,7 @@ func TestRun_SourceUpdateCleanFailureFails(t *testing.T) {
 	opts.SourceUpdate = true
 	opts.WorkingDir = "/missing"
 
-	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venvtest.New(), opts)
+	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(), opts)
 
 	require.ErrorIs(t, err, fs.ErrNotExist, "a failed clean should stop the run")
 }
@@ -284,7 +284,7 @@ func TestRun_GitFilterNeedsGit(t *testing.T) {
 	opts := newRunOptions(t, "plan")
 	opts.Filters = filter.Filters{gitFilter}
 
-	err = runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venvtest.New(), opts)
+	err = runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(), opts)
 
 	require.ErrorIs(t, err, vexec.ErrNoSpawn, "a git filter should build worktrees with git first")
 }
@@ -368,7 +368,7 @@ func newRunVenv(t *testing.T, rec *tofuRecorder, files map[string]string) (*venv
 
 	out := &lockedWriter{}
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithExec(vexec.NewMemExec(rec.handler())).
 		WithFS(venvtest.NewFS(t, runRoot, files))
 	v.Writers.Writer = out

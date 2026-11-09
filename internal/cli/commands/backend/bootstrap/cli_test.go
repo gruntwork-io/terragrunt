@@ -38,7 +38,7 @@ var memRoot = venvtest.Root("/bootstrap")
 func TestNewCommandExposesTheBootstrapFlags(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	cmd := bootstrap.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v)
 
 	assert.Equal(t, bootstrap.CommandName, cmd.Name)
@@ -71,7 +71,7 @@ func TestNewCommandBootstrapsTheUnit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 				"unit/terragrunt.hcl": tc.hcl,
 			}))
 
@@ -137,7 +137,7 @@ func TestNewCommandAllBootstrapsEveryUnit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, memRoot, tc.files))
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, memRoot, tc.files))
 			cmd := bootstrap.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v)
 
 			err := runCommand(t, cmd, tc.args...)
@@ -169,7 +169,7 @@ func TestNewCommandAllBootstrapsEveryUnit(t *testing.T) {
 func TestNewCommandAllFailsOnAMissingWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	opts := newOpts(t, v, "")
 	opts.WorkingDir = filepath.Join(memRoot, "missing")
 
@@ -181,7 +181,7 @@ func TestNewCommandAllFailsOnAMissingWorkingDir(t *testing.T) {
 func TestRunUsesTheConfiguredConfigFilename(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 		"a/terragrunt.hcl": "",
 		"a/custom.hcl":     invalidHCL,
 	}))

@@ -84,7 +84,7 @@ func TestWrapWithTelemetryCommandSpan(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testV := venvtest.New()
+			testV := venv.MemVenv()
 			testV.Env["TG_TELEMETRY_TRACE_EXPORTER"] = "console"
 
 			stdout := runWithTelemetry(t, testV, append([]string{"--working-dir", workDir}, tc.args...), nil)
@@ -126,7 +126,7 @@ func TestWrapWithTelemetryCommandMetricDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testV := venvtest.New()
+			testV := venv.MemVenv()
 			testV.Env["TG_TELEMETRY_METRIC_EXPORTER"] = "console"
 			testV.Platform.Getwd = func() (string, error) { return workDir, nil }
 
@@ -145,7 +145,7 @@ func TestWrapWithTelemetryCommandMetricDir(t *testing.T) {
 func TestWrapWithTelemetryWorkingDirErrorMarksSpanFailed(t *testing.T) {
 	t.Parallel()
 
-	testV := venvtest.New()
+	testV := venv.MemVenv()
 	testV.Env["TG_TELEMETRY_TRACE_EXPORTER"] = "console"
 	testV.Platform.Getwd = func() (string, error) { return "", errGetwd }
 
@@ -159,7 +159,7 @@ func TestWrapWithTelemetryWorkingDirErrorMarksSpanFailed(t *testing.T) {
 func TestWrapWithTelemetryWorkingDirErrorCountsFailure(t *testing.T) {
 	t.Parallel()
 
-	testV := venvtest.New()
+	testV := venv.MemVenv()
 	testV.Env["TG_TELEMETRY_METRIC_EXPORTER"] = "console"
 	testV.Platform.Getwd = func() (string, error) { return "", errGetwd }
 

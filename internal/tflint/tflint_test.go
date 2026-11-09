@@ -11,11 +11,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -751,7 +750,7 @@ func runWithOpts(
 		MaxFoldersToCheck: 5,
 	}
 
-	v := venvtest.New().WithExec(exec).WithFS(fsys)
+	v := venv.MemVenv().WithExec(exec).WithFS(fsys)
 
 	l := logger.CreateLogger()
 

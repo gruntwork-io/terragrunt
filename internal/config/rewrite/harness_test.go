@@ -26,11 +26,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const (
@@ -148,13 +148,13 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 	l := logger.CreateLogger()
 
 	v1Stub := &tofuStub{outputs: tc.outputs}
-	v1Venv := venvtest.New().WithFS(tc.newFS(t)).WithHandler(v1Stub.handler())
+	v1Venv := venv.MemVenv().WithFS(tc.newFS(t)).WithHandler(v1Stub.handler())
 	v1Ctx, v1Pctx := newTestParsingContext(t, tc.cfgPath)
 	tc.configure(v1Pctx)
 	v1Pctx = v1Pctx.WithFileReadTracking()
 
 	stub := &tofuStub{outputs: tc.outputs}
-	v := venvtest.New().WithFS(tc.newFS(t)).WithHandler(stub.handler())
+	v := venv.MemVenv().WithFS(tc.newFS(t)).WithHandler(stub.handler())
 	ctx, pctx := newTestParsingContext(t, tc.cfgPath)
 	tc.configure(pctx)
 	pctx = pctx.WithFileReadTracking()

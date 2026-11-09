@@ -147,7 +147,7 @@ func newRustFSS3Resolver(t *testing.T, endpoint string) *tggetter.S3Resolver {
 
 	// NewClient below short-circuits the default chain, so the resolver never
 	// reaches for this venv.
-	r := tggetter.NewS3Resolver(venvtest.New())
+	r := tggetter.NewS3Resolver(venv.MemVenv())
 	r.NewClient = func(ctx context.Context, _ string) (tggetter.S3API, error) {
 		return newRustFSClientFor(ctx, endpoint)
 	}

@@ -33,7 +33,7 @@ func TestRunOnEmptyWorkspaceWritesNothing(t *testing.T) {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithWriter(&buf)
+	v := venv.MemVenv().WithWriter(&buf)
 	workDir := "/catalog-empty"
 
 	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
@@ -85,7 +85,7 @@ func TestRunReportsEveryUnreachableSource(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithWriter(&buf)
+			v := venv.MemVenv().WithWriter(&buf)
 			workDir := "/catalog-sources"
 
 			for unit, source := range tc.sources {
@@ -293,7 +293,7 @@ func TestRunReportsAnUnparseableCatalogConfigWhenAsked(t *testing.T) {
 func TestRunWithAnExplicitRepoURLSkipsDiscovery(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	workDir := "/catalog-explicit"
 
 	writeUnit(t, v, filepath.Join(workDir, "vpc"), "github.com/acme/discovered//modules/x")
@@ -314,7 +314,7 @@ func TestRunRejectsAnUnknownFormat(t *testing.T) {
 	t.Parallel()
 
 	err := catalog.Run(
-		config.WithCaches(t.Context()), logger.CreateLogger(), venvtest.New(),
+		config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(),
 		newOptions(t, "/catalog-unknown-format", "yaml"), "github.com/acme/vpc",
 	)
 

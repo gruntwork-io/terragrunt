@@ -7,10 +7,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/help"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +62,7 @@ func runHelp(t *testing.T, l log.Logger, args ...string) (string, error) {
 
 	out := new(bytes.Buffer)
 
-	cmd := help.NewCommand(l, options.NewTerragruntOptions(venvtest.New().Exec))
+	cmd := help.NewCommand(l, options.NewTerragruntOptions(venv.MemVenv().Exec))
 
 	app := clihelper.NewApp(map[string]string{})
 	app.Writer = out

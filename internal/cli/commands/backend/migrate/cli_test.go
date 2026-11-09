@@ -48,7 +48,7 @@ var memRoot = venvtest.Root("/migrate")
 func TestNewCommandExposesTheMigrateFlags(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	cmd := migrate.NewCommand(logger.CreateLogger(), newOpts(t, v), v)
 
 	assert.Equal(t, migrate.CommandName, cmd.Name)
@@ -172,7 +172,7 @@ func TestRunFailsOnAMissingWorkingDir(t *testing.T) {
 
 // newVenv returns an in-memory venv whose binary reports an OpenTofu version, so the stack builds.
 func newVenv() *venv.Venv {
-	return venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	return venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("OpenTofu v1.9.0\n")}
 	})
 }

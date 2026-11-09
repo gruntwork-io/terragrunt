@@ -10,11 +10,10 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +33,7 @@ func TestRunCommandMemExec(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithCaches(ctx)
 
@@ -59,7 +58,7 @@ func TestRunCommandCacheHitsCollapseSubprocessForks(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithCaches(ctx)
 
@@ -107,7 +106,7 @@ func TestRunCommandConcurrentCallersSpawnOnceWithRacing(t *testing.T) {
 		})
 
 		l := logger.CreateLogger()
-		v := venvtest.New().WithExec(exec)
+		v := venv.MemVenv().WithExec(exec)
 		ctx, pctx := newTestParsingContext(t, t.TempDir())
 		ctx = config.WithCaches(ctx)
 
@@ -158,7 +157,7 @@ func TestRunCommandWaiterStopsWhenContextEndsWithRacing(t *testing.T) {
 		})
 
 		l := logger.CreateLogger()
-		v := venvtest.New().WithExec(exec)
+		v := venv.MemVenv().WithExec(exec)
 		ctx, pctx := newTestParsingContext(t, t.TempDir())
 		ctx = config.WithCaches(ctx)
 
@@ -219,7 +218,7 @@ func TestRunCommandFailedRunIsNotSharedWithRacing(t *testing.T) {
 		})
 
 		l := logger.CreateLogger()
-		v := venvtest.New().WithExec(exec)
+		v := venv.MemVenv().WithExec(exec)
 		ctx, pctx := newTestParsingContext(t, t.TempDir())
 		ctx = config.WithCaches(ctx)
 
@@ -265,7 +264,7 @@ func TestRunCommandNoCacheRefuses(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithCaches(ctx)
 
@@ -292,7 +291,7 @@ func TestRunCommandSurfacesSubprocessFailure(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithCaches(ctx)
 
@@ -315,11 +314,11 @@ func TestRunCommandGlobalCacheSharesAcrossWorkingDirs(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctxA := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithCaches(ctx)
 
-	vB := venvtest.New().WithExec(exec)
+	vB := venv.MemVenv().WithExec(exec)
 	_, pctxB := newTestParsingContext(t, t.TempDir())
 
 	args := []string{"--terragrunt-global-cache", "cmd"}
@@ -369,7 +368,7 @@ func TestRunCommandConflictingCacheFlags(t *testing.T) {
 			})
 
 			l := logger.CreateLogger()
-			v := venvtest.New().WithExec(exec)
+			v := venv.MemVenv().WithExec(exec)
 			ctx, pctx := newTestParsingContext(t, t.TempDir())
 			ctx = config.WithCaches(ctx)
 
@@ -393,7 +392,7 @@ func TestRunCommandDoesNotMutateCallerArgs(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithCaches(ctx)
 
@@ -418,7 +417,7 @@ func TestRunCommandEmptyParamsErrors(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithCaches(ctx)
 
@@ -442,7 +441,7 @@ func TestRunCommandReceivesVenvEnv(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithCaches(ctx)
 	v.Env = map[string]string{"TG_TEST_TOKEN": "abc123"}
@@ -473,7 +472,7 @@ func TestRunCommandCacheKeyKeepsArgBoundaries(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir())
 	ctx = config.WithCaches(ctx)
 
@@ -534,8 +533,8 @@ func TestRunCommandCacheKeyIncludesEnv(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, sharedConfig)
 			ctx = config.WithCaches(ctx)
 
-			unitA := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
-			unitB := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "222"})
+			unitA := venv.MemVenv().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
+			unitB := venv.MemVenv().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "222"})
 
 			gotA, err := config.RunCommand(ctx, l, unitA, pctx, tc.args)
 			require.NoError(t, err)
@@ -547,7 +546,7 @@ func TestRunCommandCacheKeyIncludesEnv(t *testing.T) {
 
 			assert.Equal(t, int32(2), calls.Load(), "a different environment must run the command again")
 
-			unitC := venvtest.New().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
+			unitC := venv.MemVenv().WithExec(exec).WithEnv(map[string]string{"ACCOUNT": "111"})
 
 			gotC, err := config.RunCommand(ctx, l, unitC, pctx, tc.args)
 			require.NoError(t, err)

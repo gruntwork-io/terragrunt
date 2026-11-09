@@ -43,7 +43,7 @@ var (
 func TestNewCommandExposesThePrintFlags(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	cmd := print.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v)
 
 	assert.Equal(t, print.CommandName, cmd.Name)
@@ -72,7 +72,7 @@ func TestNewCommandPrintsTheUnitContext(t *testing.T) {
 			t.Parallel()
 
 			out := new(bytes.Buffer)
-			v := venvtest.New().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+			v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 				"unit/terragrunt.hcl": tc.hcl,
 			}))
 
@@ -98,7 +98,7 @@ func TestNewCommandAllPrintsOneLinePerUnit(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	v := venvtest.New().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+	v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 		"a/terragrunt.hcl": "",
 		"b/terragrunt.hcl": invalidHCL,
 	}))
@@ -146,7 +146,7 @@ func TestRunReportsAWriteFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithWriter(failingWriter{}).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+			v := venv.MemVenv().WithWriter(failingWriter{}).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 				"a/terragrunt.hcl": "",
 				"b/terragrunt.hcl": "",
 			}))
@@ -181,7 +181,7 @@ func TestRunIgnoresAWriteFailureAfterAPreparationFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithWriter(failingWriter{}).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+			v := venv.MemVenv().WithWriter(failingWriter{}).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 				"unit/terragrunt.hcl": tc.hcl,
 			}))
 
@@ -196,7 +196,7 @@ func TestRunIgnoresAWriteFailureAfterAPreparationFailure(t *testing.T) {
 func TestRunAllFailsOnAMissingWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	opts := newOpts(t, v, "")
 	opts.WorkingDir = filepath.Join(memRoot, "missing")
 	opts.RunAll = true

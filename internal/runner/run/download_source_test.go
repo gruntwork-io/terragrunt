@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -724,7 +725,7 @@ func createConfig(
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 	})
 
-	versionV := venvtest.New().WithExec(versionExec).WithEnv(venvtest.NewOSWithEmptyEnv().Env)
+	versionV := venv.MemVenv().WithExec(versionExec).WithEnv(venvtest.NewOSWithEmptyEnv().Env)
 	_, ver, impl, err := run.PopulateTFVersion(
 		config.WithCaches(t.Context()),
 		l,

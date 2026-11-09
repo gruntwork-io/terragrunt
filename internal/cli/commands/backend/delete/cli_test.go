@@ -39,7 +39,7 @@ var memRoot = venvtest.Root("/delete")
 func TestNewCommandExposesTheDeleteFlags(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	cmd := delete.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v)
 
 	assert.Equal(t, delete.CommandName, cmd.Name)
@@ -83,7 +83,7 @@ func TestNewCommandDeletesTheUnitState(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 				"unit/terragrunt.hcl": tc.hcl,
 			}))
 
@@ -150,7 +150,7 @@ func TestNewCommandAllDeletesEveryUnit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, memRoot, tc.files))
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, memRoot, tc.files))
 
 			err := runCommand(t, delete.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v), tc.args...)
 			if !tc.wantErr {
@@ -181,7 +181,7 @@ func TestNewCommandAllDeletesEveryUnit(t *testing.T) {
 func TestNewCommandAllFailsOnAMissingWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	opts := newOpts(t, v, "")
 	opts.WorkingDir = filepath.Join(memRoot, "missing")
 
@@ -193,7 +193,7 @@ func TestNewCommandAllFailsOnAMissingWorkingDir(t *testing.T) {
 func TestRunUsesTheConfiguredConfigFilename(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 		"a/terragrunt.hcl": "",
 		"a/custom.hcl":     invalidHCL,
 	}))

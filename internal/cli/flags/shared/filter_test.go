@@ -7,10 +7,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +19,7 @@ func TestDiscoveryBoundaryFlagSetsBoundary(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	flags := shared.NewFilterFlags(logger.CreateLogger(), opts, venvtest.New())
+	flags := shared.NewFilterFlags(logger.CreateLogger(), opts, venv.MemVenv())
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}, map[string]string{}))
 	require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
@@ -75,7 +75,7 @@ func TestFilterFlagsSetOptions(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
-			filterFlags := shared.NewFilterFlags(logger.CreateLogger(), opts, venvtest.New())
+			filterFlags := shared.NewFilterFlags(logger.CreateLogger(), opts, venv.MemVenv())
 
 			require.NoError(t, parseAndRunActions(t, filterFlags, tc.args, map[string]string{}))
 			assert.Equal(t, tc.want, tc.got(opts), "filter flag should write the parsed value")
@@ -88,7 +88,7 @@ func TestFilterFlagRejectsInvalidQuery(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	filterFlags := shared.NewFilterFlags(logger.CreateLogger(), opts, venvtest.New())
+	filterFlags := shared.NewFilterFlags(logger.CreateLogger(), opts, venv.MemVenv())
 
 	require.Error(t, parseAndRunActions(t, filterFlags, clihelper.Args{"--filter", "[main..."}, map[string]string{}))
 	assert.Empty(t, opts.Filters, "a rejected query must not add a filter")
@@ -122,7 +122,7 @@ func TestFilterAffectedFlag(t *testing.T) {
 
 			var gitDirs []string
 
-			v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 				gitDirs = append(gitDirs, inv.Dir)
 
 				switch inv.Args[0] {
@@ -156,7 +156,7 @@ func TestFilterAffectedFlag(t *testing.T) {
 func TestFilterAffectedFlagWithoutGit(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithExec(&vexec.NoLookPathExec{Exec: vexec.NewNoSpawnExec()})
+	v := venv.MemVenv().WithExec(&vexec.NoLookPathExec{Exec: vexec.NewNoSpawnExec()})
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	filterFlags := shared.NewFilterFlags(logger.CreateLogger(), opts, v)

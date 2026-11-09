@@ -21,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,7 +103,7 @@ func TestWrapWithTelemetryResolvesPaths(t *testing.T) {
 			app, _ := newWrapTestApp()
 			cliCtx := newCommandContext(app, clihelper.Args{"plan"}, &clihelper.Command{Name: tc.cmdName})
 
-			require.NoError(t, runWithTelemetry(t, logger.CreateLogger(), opts, venvtest.New(), cliCtx, nil))
+			require.NoError(t, runWithTelemetry(t, logger.CreateLogger(), opts, venv.MemVenv(), cliCtx, nil))
 			assert.Equal(t, tc.wantWorkingDir, opts.WorkingDir, "working dir")
 			assert.Equal(t, tc.wantWorkingDir, opts.RootWorkingDir, "root working dir should match working dir")
 			assert.Equal(t, tc.wantDownload, opts.DownloadDir, "download dir")
@@ -122,7 +121,7 @@ func TestWrapWithTelemetryWorkingDirFallbacks(t *testing.T) {
 	t.Run("unset uses current dir", func(t *testing.T) {
 		t.Parallel()
 
-		v := venvtest.New()
+		v := venv.MemVenv()
 
 		wantDir, err := v.Platform.Getwd()
 		require.NoError(t, err)
@@ -144,7 +143,7 @@ func TestWrapWithTelemetryWorkingDirFallbacks(t *testing.T) {
 		app, _ := newWrapTestApp()
 		cliCtx := newCommandContext(app, nil, &clihelper.Command{Name: "find"})
 
-		require.NoError(t, runWithTelemetry(t, logger.CreateLogger(), opts, venvtest.New(), cliCtx, nil))
+		require.NoError(t, runWithTelemetry(t, logger.CreateLogger(), opts, venv.MemVenv(), cliCtx, nil))
 		assert.True(t, filepath.IsAbs(opts.WorkingDir), "working dir %q should be absolute", opts.WorkingDir)
 		assert.True(
 			t,
@@ -157,7 +156,7 @@ func TestWrapWithTelemetryWorkingDirFallbacks(t *testing.T) {
 	t.Run("current dir error fails the command", func(t *testing.T) {
 		t.Parallel()
 
-		v := venvtest.New()
+		v := venv.MemVenv()
 		v.Platform.Getwd = func() (string, error) { return "", errInjected }
 
 		actionRan := false
@@ -233,7 +232,7 @@ func TestWrapWithTelemetryBuildsTofuArgs(t *testing.T) {
 			app, _ := newWrapTestApp()
 			cliCtx := newCommandContext(app, tc.args, &clihelper.Command{Name: tc.cmdName})
 
-			require.NoError(t, runWithTelemetry(t, l, opts, venvtest.New(), cliCtx, nil))
+			require.NoError(t, runWithTelemetry(t, l, opts, venv.MemVenv(), cliCtx, nil))
 			assert.Equal(t, tc.wantTofuCommand, opts.TofuCommand, "tofu command")
 			assert.Equal(t, tc.wantTofuCommand, opts.OriginalTofuCommand, "original tofu command")
 			assert.Equal(t, tc.wantArgs, opts.TerraformCliArgs.Slice(), "tofu args")
@@ -283,7 +282,7 @@ func TestWrapWithTelemetryReadsFilterFiles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			for path, content := range tc.files {
 				require.NoError(t, vfs.WriteFile(v.FS, path, []byte(content), 0o644))
 			}
@@ -341,7 +340,7 @@ func TestWrapWithTelemetryFilterFileErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			for path, content := range tc.files {
 				require.NoError(t, vfs.WriteFile(v.FS, path, []byte(content), 0o644))
 			}
@@ -409,7 +408,7 @@ func TestWrapWithTelemetryVersionAndParallelism(t *testing.T) {
 			app.Version = tc.appVersion
 			cliCtx := newCommandContext(app, nil, &clihelper.Command{Name: "find"})
 
-			require.NoError(t, runWithTelemetry(t, logger.CreateLogger(), opts, venvtest.New(), cliCtx, nil))
+			require.NoError(t, runWithTelemetry(t, logger.CreateLogger(), opts, venv.MemVenv(), cliCtx, nil))
 			require.NotNil(t, opts.TerragruntVersion)
 			assert.Equal(t, tc.wantVersion, opts.TerragruntVersion.String(), "terragrunt version")
 			assert.Equal(t, tc.wantParallelism, opts.Parallelism, "parallelism")
@@ -431,7 +430,7 @@ func TestWrapWithTelemetryReturnsErrors(t *testing.T) {
 		app, _ := newWrapTestApp()
 		cliCtx := newCommandContext(app, nil, &clihelper.Command{Name: "find"})
 
-		err := runWithTelemetry(t, logger.CreateLogger(), opts, venvtest.New(), cliCtx, nil)
+		err := runWithTelemetry(t, logger.CreateLogger(), opts, venv.MemVenv(), cliCtx, nil)
 
 		var missingErr *telemetry.ErrorMissingEnvVariable
 		require.ErrorAs(t, err, &missingErr)
@@ -450,7 +449,7 @@ func TestWrapWithTelemetryReturnsErrors(t *testing.T) {
 			t,
 			logger.CreateLogger(),
 			opts,
-			venvtest.New(),
+			venv.MemVenv(),
 			cliCtx,
 			func(context.Context, *clihelper.Context) error {
 				return errActionFailed
@@ -516,7 +515,7 @@ func TestWrapWithTelemetryRecordsTofuSpanAttributes(t *testing.T) {
 			app, out := newWrapTestApp()
 			cliCtx := newCommandContext(app, tc.args, tc.cmds...)
 
-			require.NoError(t, runWithTelemetry(t, logger.CreateLogger(), opts, venvtest.New(), cliCtx, nil))
+			require.NoError(t, runWithTelemetry(t, logger.CreateLogger(), opts, venv.MemVenv(), cliCtx, nil))
 
 			attrs, found := spanAttributes(t, out, tc.wantSpan)
 			require.True(t, found, "span %s should be exported", tc.wantSpan)

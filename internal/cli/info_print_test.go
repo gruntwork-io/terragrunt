@@ -99,7 +99,7 @@ func TestInfoPrintAllReportsEachUnitsContext(t *testing.T) {
 func infoPrintUnits(t *testing.T) *venv.Venv {
 	t.Helper()
 
-	return venvtest.New().WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
+	return venv.MemVenv().WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
 		"a/terragrunt.hcl": "",
 		"b/terragrunt.hcl": "",
 	}))

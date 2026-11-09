@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend/delete"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -27,7 +28,7 @@ const subcommandsTemplate = "{{range .Command.Subcommands}}{{.Name}}\n{{end}}"
 func TestNewCommandShowsHelpWithItsSubcommands(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	cmd := backend.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v)
 	cmd.CustomHelpTemplate = subcommandsTemplate
 
@@ -46,7 +47,7 @@ func TestNewCommandRunsTheNamedSubcommand(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/backend")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
 		"terragrunt.hcl": "this is ) not ( valid hcl",
 	}))
 
