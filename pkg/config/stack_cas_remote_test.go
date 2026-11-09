@@ -13,8 +13,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -137,6 +139,15 @@ func TestGenerateStackOCIRewritesUpdateSourceWithCAS(t *testing.T) {
 			name: "stack block in the forced form",
 			kind: "stack",
 			source: "oci::https://" + registry.Address() + "/" + casCatalogRepository +
+				"//stacks/svc?tag=" + casCatalogTag,
+			generated: config.DefaultStackFile,
+			wantRef:   casStackRefPattern,
+			stale:     `"../..//units/a"`,
+		},
+		{
+			name: "stack block in the uppercase forced form",
+			kind: "stack",
+			source: "OCI::https://" + registry.Address() + "/" + casCatalogRepository +
 				"//stacks/svc?tag=" + casCatalogTag,
 			generated: config.DefaultStackFile,
 			wantRef:   casStackRefPattern,
@@ -300,12 +311,13 @@ func TestGenerateStackHTTPArchiveChecksumHonorsOffline(t *testing.T) {
 	err := generateCatalogStack(t, v, stackPath, offline)
 	require.ErrorIs(t, err, cas.ErrCASOffline, "an empty store must fail instead of downloading")
 	assert.Equal(t, int32(0), server.downloads.Load(), "the offline miss must not download the archive")
+	assert.Equal(t, int32(0), server.heads.Load(), "the offline miss must not send a HEAD request either")
 
 	stackPath = catalogLiveStack(t, v, "stack", source)
 	err = generateCatalogStack(t, v, stackPath, recording)
 	require.NoError(t, err)
 
-	fetched := server.downloads.Load()
+	fetched, headed := server.downloads.Load(), server.heads.Load()
 	require.Positive(t, fetched, "the online run must download the archive")
 
 	stackPath = catalogLiveStack(t, v, "stack", source)
@@ -319,6 +331,239 @@ func TestGenerateStackHTTPArchiveChecksumHonorsOffline(t *testing.T) {
 
 	assert.Regexp(t, casStackRefPattern, string(content))
 	assert.Equal(t, fetched, server.downloads.Load(), "the offline generation must not download the archive again")
+	assert.Equal(t, headed, server.heads.Load(), "the offline generation must not send a HEAD request")
+}
+
+// TestGenerateStackHTTPArchiveChecksumOfflineWithoutRecordedProbe: a literal pin needs no recorded probe offline.
+func TestGenerateStackHTTPArchiveChecksumOfflineWithoutRecordedProbe(t *testing.T) {
+	t.Parallel()
+
+	archive := catalogZip(t, casCatalogFiles)
+	server := newArchiveServer(t, archive)
+
+	sum := sha256.Sum256(archive)
+	source := server.URL + "/catalog.zip//stacks/svc?checksum=sha256:" + hex.EncodeToString(sum[:])
+
+	v := casCatalogVenv(t)
+
+	stackPath := catalogLiveStack(t, v, "stack", source)
+	require.NoError(t, generateCatalogStack(t, v, stackPath), "the run without offline-cas records no probe")
+
+	fetched := server.downloads.Load()
+	require.Positive(t, fetched, "the online run must download the archive")
+
+	stackPath = catalogLiveStack(t, v, "stack", source)
+	err := generateCatalogStack(t, v, stackPath, func(pctx *config.ParsingContext) {
+		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OfflineCAS))
+		pctx.CASOffline = true
+	})
+	require.NoError(t, err, "the checksum must key the stored archive offline")
+	assert.Equal(t, fetched, server.downloads.Load(), "the offline generation must not download the archive")
+}
+
+// TestGenerateStackBucketShorthandStagesThroughCAS: s3 and gcs shorthand catalogs take the staged package path.
+func TestGenerateStackBucketShorthandStagesThroughCAS(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		source string
+	}{
+		{name: "s3", source: "example-bucket.s3.amazonaws.com/catalog.zip//stacks/svc"},
+		{name: "gcs", source: "www.googleapis.com/storage/v1/example-bucket/catalog.zip//stacks/svc"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := casCatalogVenv(t)
+			stackPath := catalogLiveStack(t, v, "stack", tc.source)
+
+			err := generateCatalogStack(t, v, stackPath, func(pctx *config.ParsingContext) {
+				require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OfflineCAS))
+				pctx.CASOffline = true
+			})
+			require.ErrorIs(t, err, cas.ErrCASOffline)
+
+			var packageErr config.StackPackageFetchError
+			require.ErrorAs(t, err, &packageErr)
+		})
+	}
+}
+
+// TestGenerateStackHTTPArchiveOfflineNeverFallsBack: offline, a late CAS failure never reaches the standard getter.
+func TestGenerateStackHTTPArchiveOfflineNeverFallsBack(t *testing.T) {
+	t.Parallel()
+
+	broken := maps.Clone(casCatalogFiles)
+	broken["stacks/svc/terragrunt.stack.hcl"] = `unit "a" {`
+
+	archive := catalogZip(t, broken)
+	server := newArchiveServer(t, archive)
+
+	sum := sha256.Sum256(archive)
+	source := server.URL + "/catalog.zip//stacks/svc?checksum=sha256:" + hex.EncodeToString(sum[:])
+
+	recording := func(pctx *config.ParsingContext) {
+		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OfflineCAS))
+	}
+	offline := func(pctx *config.ParsingContext) {
+		recording(pctx)
+		pctx.CASOffline = true
+	}
+
+	v := casCatalogVenv(t)
+
+	stackPath := catalogLiveStack(t, v, "stack", source)
+	err := generateCatalogStack(t, v, stackPath, recording)
+	require.NoError(t, err, "the online run falls back to the standard getter after the walk fails to parse")
+
+	fetched := server.downloads.Load()
+	require.Positive(t, fetched, "the online run must download the archive")
+
+	stackPath = catalogLiveStack(t, v, "stack", source)
+	err = generateCatalogStack(t, v, stackPath, offline)
+	require.Error(t, err)
+	assert.Equal(t, fetched, server.downloads.Load(), "the offline run must not fetch through the standard getter")
+}
+
+// TestGenerateStackOCIRepeatGenerationSkipsDownload: a second generation links the stored package, no blob download.
+func TestGenerateStackOCIRepeatGenerationSkipsDownload(t *testing.T) {
+	t.Parallel()
+
+	registry := ociregistry.Start(t)
+	registry.PushModule(t, casCatalogRepository, casCatalogTag, casCatalogFiles)
+
+	testCases := []struct {
+		name   string
+		source string
+	}{
+		{name: "oci scheme", source: ociCatalogSource(registry, "stacks/svc")},
+		{
+			name:   "forced form",
+			source: "oci::https://" + registry.Address() + "/" + casCatalogRepository + "//stacks/svc?tag=" + casCatalogTag,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, transport := countingOCIVenv(t, registry)
+
+			stackPath := catalogLiveStack(t, v, "stack", tc.source)
+			require.NoError(t, generateCatalogStack(t, v, stackPath))
+
+			blobs := transport.count("/blobs/")
+			require.Positive(t, blobs, "the first generation must download the package")
+
+			stackPath = catalogLiveStack(t, v, "stack", tc.source)
+			require.NoError(t, generateCatalogStack(t, v, stackPath))
+			assert.Equal(t, blobs, transport.count("/blobs/"), "the second generation must link the stored package")
+		})
+	}
+}
+
+// TestGenerateStackOCIMutableKeepsReferences: mutable = true and the default yield the same cas:: reference.
+func TestGenerateStackOCIMutableKeepsReferences(t *testing.T) {
+	t.Parallel()
+
+	registry := ociregistry.Start(t)
+	registry.PushModule(t, casCatalogRepository, casCatalogTag, casCatalogFiles)
+
+	refs := make([]string, 0, 2)
+
+	for _, attrs := range [][]string{nil, {"mutable = true"}} {
+		v := ociCatalogVenv(t, registry)
+		stackPath := catalogLiveStack(t, v, "stack", ociCatalogSource(registry, "stacks/svc"), attrs...)
+		require.NoError(t, generateCatalogStack(t, v, stackPath))
+
+		content, err := vfs.ReadFile(v.FS, filepath.Join(
+			filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile,
+		))
+		require.NoError(t, err)
+
+		refs = append(refs, regexp.MustCompile(casStackRefPattern).FindString(string(content)))
+	}
+
+	require.NotEmpty(t, refs[0])
+	assert.Equal(t, refs[0], refs[1], "mutable must not change the cas:: references")
+}
+
+// TestGenerateStackHTTPArchiveChecksumFileNeverAnsweredOffline: a checksum=file: pin is refused offline unfetched.
+func TestGenerateStackHTTPArchiveChecksumFileNeverAnsweredOffline(t *testing.T) {
+	t.Parallel()
+
+	server := newArchiveServer(t, catalogZip(t, casCatalogFiles))
+	source := server.URL + "/catalog.zip//stacks/svc?checksum=file:" + catalogChecksumFile(t, strings.Repeat("0", 64))
+
+	v := casCatalogVenv(t)
+	stackPath := catalogLiveStack(t, v, "stack", source)
+
+	err := generateCatalogStack(t, v, stackPath, func(pctx *config.ParsingContext) {
+		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OfflineCAS))
+		pctx.CASOffline = true
+	})
+
+	var unrecordable *cas.OfflineUnrecordableError
+	require.ErrorAs(t, err, &unrecordable)
+	assert.Equal(t, int32(0), server.downloads.Load(), "a checksum file reference must not be fetched offline")
+}
+
+// TestGenerateStackGitMutableControlsWriteBits: mutable = true yields a writable git copy; the default is read-only.
+func TestGenerateStackGitMutableControlsWriteBits(t *testing.T) {
+	t.Parallel()
+
+	repoURL := catalogGitURL(t)
+
+	testCases := []struct {
+		name         string
+		attrs        []string
+		wantWritable bool
+	}{
+		{name: "mutable", attrs: []string{"mutable = true"}, wantWritable: true},
+		{name: "default", wantWritable: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := casCatalogVenv(t)
+			stackPath := catalogLiveStack(t, v, "stack", repoURL+"//stacks/svc?ref=main", tc.attrs...)
+
+			err := generateCatalogStack(t, v, stackPath)
+			require.NoError(t, err)
+
+			for _, name := range []string{"README.md", config.DefaultStackFile} {
+				info, err := v.FS.Stat(filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", name))
+				require.NoError(t, err)
+
+				assert.Equal(t, tc.wantWritable, info.Mode().Perm()&0o200 != 0, "%s mode %v", name, info.Mode())
+			}
+		})
+	}
+}
+
+// TestGenerateStackHTTPArchiveMissingNestedSourceFailsOnce: a marked source the package lacks fails, no fallback copy.
+func TestGenerateStackHTTPArchiveMissingNestedSourceFailsOnce(t *testing.T) {
+	t.Parallel()
+
+	missing := maps.Clone(casCatalogFiles)
+	missing["stacks/svc/terragrunt.stack.hcl"] = strings.ReplaceAll(
+		casCatalogFiles["stacks/svc/terragrunt.stack.hcl"], "units/a", "units/missing",
+	)
+
+	server := newArchiveServer(t, catalogZip(t, missing))
+
+	v := casCatalogVenv(t)
+	stackPath := catalogLiveStack(t, v, "stack", server.URL+"/catalog.zip//stacks/svc")
+
+	err := generateCatalogStack(t, v, stackPath)
+	require.ErrorIs(t, err, cas.ErrRewriteIncomplete)
+	assert.Equal(t, int32(1), server.downloads.Load(), "the standard getter must not copy the component unrewritten")
+	assert.NoFileExists(t, filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile))
 }
 
 // TestGenerateStackOCIMutableControlsWriteBits: mutable = true yields a writable package; the default is read-only.
@@ -348,10 +593,12 @@ func TestGenerateStackOCIMutableControlsWriteBits(t *testing.T) {
 			require.NoError(t, err)
 
 			// The README is copied as fetched; the stack file is rewritten.
-			info, err := v.FS.Stat(filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", "README.md"))
-			require.NoError(t, err)
+			for _, name := range []string{"README.md", config.DefaultStackFile} {
+				info, err := v.FS.Stat(filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", name))
+				require.NoError(t, err)
 
-			assert.Equal(t, tc.wantWritable, info.Mode().Perm()&0o200 != 0, "mode %v", info.Mode())
+				assert.Equal(t, tc.wantWritable, info.Mode().Perm()&0o200 != 0, "%s mode %v", name, info.Mode())
+			}
 		})
 	}
 }
@@ -360,20 +607,7 @@ func TestGenerateStackOCIMutableControlsWriteBits(t *testing.T) {
 func TestGenerateStackBareGitURLClonesWithGit(t *testing.T) {
 	t.Parallel()
 
-	srv, err := git.NewServer()
-	require.NoError(t, err)
-
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
-
-	files := make(map[string][]byte, len(casCatalogFiles))
-	for name, content := range casCatalogFiles {
-		files[name] = []byte(content)
-	}
-
-	require.NoError(t, srv.CommitFiles(t.Context(), files, "catalog"))
-
-	repoURL, err := srv.Start(t.Context())
-	require.NoError(t, err)
+	repoURL := catalogGitURL(t)
 
 	testCases := []struct {
 		name string
@@ -471,15 +705,17 @@ func TestGenerateStackOCICASOfflineMissFails(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile))
 }
 
-// TestGenerateStackOCIRegistryFailuresSurfaceGetterError: a registry failure falls back to the getter's typed error.
+// TestGenerateStackOCIRegistryFailuresSurfaceGetterError: a registry failure surfaces the getter's typed error once.
 func TestGenerateStackOCIRegistryFailuresSurfaceGetterError(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		target  any
-		prepare func(t *testing.T, registry *ociregistry.Registry)
-		source  func(registry *ociregistry.Registry) string
-		name    string
+		target   any
+		prepare  func(t *testing.T, registry *ociregistry.Registry)
+		source   func(registry *ociregistry.Registry) string
+		name     string
+		request  string
+		requests int
 	}{
 		{
 			target:  new(getter.OCIReferenceResolutionError),
@@ -488,6 +724,9 @@ func TestGenerateStackOCIRegistryFailuresSurfaceGetterError(t *testing.T) {
 				return "oci://" + registry.Address() + "/" + casCatalogRepository + "//stacks/svc?tag=missing"
 			},
 			name: "unknown tag",
+			// One CAS pass resolves the tag three times; the standard getter would add a fourth.
+			request:  "HEAD /v2/" + casCatalogRepository + "/manifests/missing",
+			requests: 3,
 		},
 		{
 			target: new(getter.OCIDigestVerificationError),
@@ -501,7 +740,9 @@ func TestGenerateStackOCIRegistryFailuresSurfaceGetterError(t *testing.T) {
 			source: func(registry *ociregistry.Registry) string {
 				return ociCatalogSource(registry, "stacks/svc")
 			},
-			name: "corrupted layer",
+			name:     "corrupted layer",
+			request:  "GET /v2/" + casCatalogRepository + "/blobs/",
+			requests: 1,
 		},
 	}
 
@@ -513,11 +754,15 @@ func TestGenerateStackOCIRegistryFailuresSurfaceGetterError(t *testing.T) {
 			registry.PushModule(t, casCatalogRepository, casCatalogTag, casCatalogFiles)
 			tc.prepare(t, registry)
 
-			v := ociCatalogVenv(t, registry)
+			v, transport := countingOCIVenv(t, registry)
 			stackPath := catalogLiveStack(t, v, "stack", tc.source(registry))
 
 			err := generateCatalogStack(t, v, stackPath)
 			require.ErrorAs(t, err, tc.target)
+
+			var packageErr config.StackPackageFetchError
+			require.ErrorAs(t, err, &packageErr)
+			assert.Equal(t, tc.requests, transport.count(tc.request), "the standard getter must not repeat the failed fetch")
 
 			assert.NoFileExists(t, filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile))
 		})
@@ -611,9 +856,10 @@ func generateCatalogStack(
 	return errors.Join(genErr, waitErr)
 }
 
-// archiveServer serves one archive at every path and counts the GET requests it answers.
+// archiveServer serves one archive at every path and counts the HEAD and GET requests it answers.
 type archiveServer struct {
 	*httptest.Server
+	heads     atomic.Int32
 	downloads atomic.Int32
 }
 
@@ -623,7 +869,10 @@ func newArchiveServer(t *testing.T, archive []byte) *archiveServer {
 
 	s := &archiveServer{}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodHead:
+			s.heads.Add(1)
+		case http.MethodGet:
 			s.downloads.Add(1)
 		}
 
@@ -689,4 +938,72 @@ func ociCatalogLayer(t *testing.T, registry *ociregistry.Registry) ociv1.Descrip
 	require.Len(t, manifest.Layers, 1)
 
 	return manifest.Layers[0]
+}
+
+// catalogGitURL serves casCatalogFiles from a git repository and returns its clone URL.
+func catalogGitURL(t *testing.T) string {
+	t.Helper()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	files := make(map[string][]byte, len(casCatalogFiles))
+	for name, content := range casCatalogFiles {
+		files[name] = []byte(content)
+	}
+
+	require.NoError(t, srv.CommitFiles(t.Context(), files, "catalog"))
+
+	repoURL, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	return repoURL
+}
+
+// countingTransport counts the requests it forwards by method and path.
+type countingTransport struct {
+	next http.RoundTripper
+	seen map[string]int
+	mu   sync.Mutex
+}
+
+func (c *countingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.mu.Lock()
+	c.seen[req.Method+" "+req.URL.Path]++
+	c.mu.Unlock()
+
+	return c.next.RoundTrip(req)
+}
+
+// count returns the number of requests whose method and path contain fragment.
+func (c *countingTransport) count(fragment string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	total := 0
+
+	for key, n := range c.seen {
+		if strings.Contains(key, fragment) {
+			total += n
+		}
+	}
+
+	return total
+}
+
+// countingOCIVenv returns an OCI catalog venv whose registry client counts its requests.
+func countingOCIVenv(t *testing.T, registry *ociregistry.Registry) (*venv.Venv, *countingTransport) {
+	t.Helper()
+
+	trusted := registry.Client()
+	require.NotNil(t, trusted.Transport)
+
+	transport := &countingTransport{next: trusted.Transport, seen: map[string]int{}}
+
+	v := casCatalogVenv(t)
+	v.HTTP = &http.Client{Transport: transport}
+
+	return v, transport
 }

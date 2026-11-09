@@ -654,6 +654,57 @@ func TestProcessStackComponent_LocalSource_StackOutputDirIgnored(t *testing.T) {
 	)
 }
 
+// TestProcessStoredStackComponent_RewritesInPlaceFromTreeKey: the tree is rewritten in place, refs keyed by treeKey.
+func TestProcessStoredStackComponent_RewritesInPlaceFromTreeKey(t *testing.T) {
+	t.Parallel()
+
+	keyA := strings.Repeat("a", sha256.Size*2)
+	keyB := strings.Repeat("b", sha256.Size*2)
+
+	refA := storedServiceUnitCASRef(t, keyA)
+
+	assert.Regexp(t, `^cas::sha256:[0-9a-f]{64}`, refA)
+	assert.Equal(t, refA, storedServiceUnitCASRef(t, keyA), "one tree key must give one ref")
+	assert.NotEqual(t, refA, storedServiceUnitCASRef(t, keyB), "the ref must follow the tree key, not the content")
+}
+
+// storedServiceUnitCASRef rewrites a fresh fixture tree in place under treeKey and returns the service unit source.
+func storedServiceUnitCASRef(t *testing.T, treeKey string) string {
+	t.Helper()
+
+	root := buildLocalStackFixture(t)
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	require.NoError(t, err)
+
+	contentDir := filepath.Join(root, "stacks", "my-stack")
+
+	require.NoError(t, c.ProcessStoredStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		root,
+		contentDir,
+		treeKey,
+	))
+
+	content, err := os.ReadFile(filepath.Join(contentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	_, blocks, err := cas.ReadStackBlocks(content)
+	require.NoError(t, err)
+
+	for _, b := range blocks {
+		if b.Name == serviceUnitName {
+			return b.Source
+		}
+	}
+
+	require.Failf(t, "unit not found", "no %q unit in the rewritten stack file", serviceUnitName)
+
+	return ""
+}
+
 // serviceUnitCASRef processes the stack in a fixture built by
 // buildLocalStackFixture and returns the rewritten source of its "service"
 // unit, using a store of its own so nothing is read from an earlier run.

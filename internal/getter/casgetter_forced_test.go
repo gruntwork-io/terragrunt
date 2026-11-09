@@ -3,6 +3,7 @@ package getter_test
 import (
 	"context"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -140,8 +141,12 @@ func (g *forcedRequiredGetter) Detect(req *gogetter.Request) (bool, error) {
 	return false, nil
 }
 
-func (g *forcedRequiredGetter) Get(_ context.Context, _ *gogetter.Request) error {
-	return nil
+func (g *forcedRequiredGetter) Get(_ context.Context, req *gogetter.Request) error {
+	if err := os.MkdirAll(req.Dst, 0o755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(filepath.Join(req.Dst, "main.tf"), []byte("ok"), 0o644)
 }
 
 func (g *forcedRequiredGetter) GetFile(_ context.Context, _ *gogetter.Request) error {

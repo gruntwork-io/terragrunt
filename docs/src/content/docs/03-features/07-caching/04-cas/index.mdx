@@ -9,8 +9,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside, Steps } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 
 Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations.
 
@@ -40,6 +38,8 @@ Each getter has a dedicated page describing its exact mechanics:
 | [SMB](/features/caching/cas/smb) | None; always downloads | Content-addressed on the downloaded tree |
 | [Local paths](/features/caching/cas/local) | None; always copies | Content-addressed on the copied tree |
 
+An HTTP or HTTPS URL with a literal `checksum=` pin skips the `HEAD` probe: the checksum, scoped to the URL, is the key.
+
 Regardless of the probe, every getter shares the same back half: download (or copy) the source, hash its files into the store as content-addressed blobs, record a tree describing their layout, and hard link the result into the target directory. Identical files therefore occupy disk space once no matter which getter fetched them or how many configurations use them.
 
 
@@ -49,8 +49,8 @@ Units in one run that resolve the same source at the same time share a single pr
 
 Recording those answers for later runs is gated behind the [`offline-cas`](/reference/experiments/active#offline-cas) experiment. With it enabled, every probe answer is written under `probes/` in the store, keyed by the source URL, so a later run can resolve a source without asking its remote again. Whether a recorded answer is served in place of a fresh probe depends on whether the source can change upstream:
 
-- **Pinned sources are trusted for 24 hours.** A source is pinned when its URL names a specific revision that a publisher does not reissue: a Git semantic version tag, an S3 object version, an OCI manifest digest, an exact registry module version, or a full Mercurial changeset node.
-- **Everything else is probed on every run.** A push or an upload is seen immediately. That covers Git branches and `HEAD`, HTTP endpoints, GCS objects, OCI tags, and Mercurial branch names. [`--cas-probe-ttl`](/reference/cli/commands/run#cas-probe-ttl) trusts these answers for a chosen duration, for example `--cas-probe-ttl 10m` for a batch of runs that need not each pay for a probe.
+- **Pinned sources are trusted for 24 hours.** A source is pinned when its URL names a specific revision that a publisher does not reissue: a Git semantic version tag, an S3 object version, an OCI manifest digest, an exact registry module version, or a full Mercurial changeset node. An HTTP URL with a literal `checksum=` pin is pinned too.
+- **Everything else is probed on every run.** A push or an upload is seen immediately. That covers Git branches and `HEAD`, HTTP endpoints without a `checksum=` pin, GCS objects, OCI tags, and Mercurial branch names. [`--cas-probe-ttl`](/reference/cli/commands/run#cas-probe-ttl) trusts these answers for a chosen duration, for example `--cas-probe-ttl 10m` for a batch of runs that need not each pay for a probe.
 
 Two flags change how the recorded answers are used:
 
@@ -87,7 +87,7 @@ terraform {
 
 ### Stack Usage
 
-When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow for relative paths to other components in the catalog in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions. The `source` must be a literal string: interpolation, function calls, and references such as `local.foo` cause stack generation to fail. <Since version="v1.2.2">The catalog can be a Git repository, a local directory, an archive at an HTTP URL, or a module package in an [OCI registry](/features/units/oci).</Since>
+When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow for relative paths to other components in the catalog in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions. The `source` must be a literal string: interpolation, function calls, and references such as `local.foo` cause stack generation to fail.
 
 `update_source_with_cas` accepts `true`, `false`, or an expression of literals and locals from the same file, such as `!false` or `local.use_cas`. Stack generation fails if the expression calls a function, directly or through a local.
 
@@ -115,9 +115,9 @@ terraform {
 }
 ```
 
-During stack generation, Terragrunt rewrites these relative sources to `cas::` references that point to content stored in the CAS. <Before version="v1.2.2">The repository is cloned once, and subsequent stack generations resolve content from the local store without network access.</Before><Since version="v1.2.2">The catalog is fetched once, and subsequent stack generations resolve content from the local store without network access.</Since> Generated `.terragrunt-stack` files contain deterministic CAS references instead of version variables, so they do not produce diffs on regeneration.
+During stack generation, Terragrunt rewrites these relative sources to `cas::` references that point to content stored in the CAS. The catalog is fetched once; later stack generations link the stored content, with only a cheap probe for a source that can change upstream. Generated `.terragrunt-stack` files contain deterministic CAS references instead of version variables, so they do not produce diffs on regeneration.
 
-<Before version="v1.2.2">The catalog source can be either a remote Git URL or a local filesystem path (absolute, or relative to the current working directory).</Before><Since version="v1.2.2">The catalog source can be a remote Git URL, an archive at an HTTP URL, a module package in an OCI registry, or a local filesystem path (absolute, or relative to the current working directory).</Since> Local sources are copied into a temporary directory before rewriting, so the original catalog directory is never modified. This makes the same catalog layout usable against a published Git ref or a local checkout, which is useful when iterating on a catalog before tagging a release.
+The catalog source can be a remote URL or a local filesystem path (absolute, or relative to the current working directory). Local sources are copied into a temporary directory before rewriting, so the original catalog directory is never modified. This makes the same catalog layout usable against a published Git ref or a local checkout, which is useful when iterating on a catalog before tagging a release.
 
 For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
 

@@ -42,6 +42,8 @@ const (
 	ErrAbsoluteSource Error = "update_source_with_cas does not support absolute sources"
 	// ErrSourceEscapesRepo is returned when an update_source_with_cas source resolves outside the cloned repository
 	ErrSourceEscapesRepo Error = "update_source_with_cas source escapes repository root"
+	// ErrRewriteIncomplete wraps a failure while rewriting a source that update_source_with_cas marked
+	ErrRewriteIncomplete Error = "update_source_with_cas rewrite could not be completed"
 	// ErrSourceNotLiteral is returned when an update_source_with_cas source is not a
 	// literal string, such as one using interpolation, a function call, or a reference
 	ErrSourceNotLiteral Error = "update_source_with_cas requires a literal source string"
@@ -123,6 +125,19 @@ func (e *OfflineMissError) Error() string {
 }
 
 func (e *OfflineMissError) Unwrap() error { return ErrCASOffline }
+
+// OfflineUnrecordableError refuses a source offline when only a fetch can learn its key and unwraps to [ErrCASOffline].
+type OfflineUnrecordableError struct {
+	// Source is the source URL.
+	Source redact.URL
+}
+
+func (e *OfflineUnrecordableError) Error() string {
+	return e.Source.String() + " has no key an online run could record for --cas-offline; " +
+		"pin the source, for example with a literal checksum=sha256:<hex>, or drop the flag"
+}
+
+func (e *OfflineUnrecordableError) Unwrap() error { return ErrCASOffline }
 
 // UpdateSourceWithCASRequiresCASError is returned when a block sets
 // update_source_with_cas = true but CAS is unavailable, either because the

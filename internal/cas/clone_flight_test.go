@@ -422,6 +422,7 @@ func TestCASClone_OfflineMissRedactsCredentials(t *testing.T) {
 
 	require.ErrorAs(t, fetchMiss, &miss)
 	assert.Equal(t, repoURL, miss.Source.String())
+	assert.Equal(t, "main", miss.Ref, "the fetch-side miss must name the requested ref")
 
 	assert.Equal(t, 0, rec.count("ls-remote"))
 	assert.Equal(t, 0, rec.count("fetch"))

@@ -25,8 +25,7 @@ var ErrDirectoryNotFound = errors.New("directory not found")
 // SchemeGit is the forced-getter marker for git sources.
 const SchemeGit = "git"
 
-// CASGetter is the go-getter implementation that routes git, local, and
-// configured non-git sources through Terragrunt's content-addressable store.
+// CASGetter routes git, local and configured non-git sources through the CAS; it serves one request at a time.
 type CASGetter struct {
 	CAS         *cas.CAS
 	Logger      log.Logger
@@ -35,12 +34,14 @@ type CASGetter struct {
 	fetchers    map[string]getter.Getter
 	resolvers   map[string]cas.SourceResolver
 	innerClient InnerClientBuilder
-	// innerQuery is the current request's source, archive and checksum; one CASGetter serves one request at a time.
-	innerQuery innerFetchQuery
-	Detectors  []Detector
+
+	dispatchVenv *venv.Venv
+	innerQuery   innerFetchQuery
+	treeKey      string
+	Detectors    []Detector
 }
 
-// InnerClientBuilder builds the per-fetch [getter.Client] that dispatches to bare and then the default protocol set.
+// InnerClientBuilder builds the per-fetch [getter.Client] that invokes the bare getter for a [SourceFetcher].
 type InnerClientBuilder func(bare getter.Getter, scheme string) *getter.Client
 
 // CASGetterOption mutates a CASGetter at construction time.
@@ -73,7 +74,7 @@ func WithInnerClientBuilder(b InnerClientBuilder) CASGetterOption {
 // ([DefaultSourceResolvers]). opts are forwarded to both helpers so HTTP
 // auth headers reach the fetcher and tfr config reaches both.
 //
-// Probes and tfr fetches go through the venv's HTTP client unless
+// Probes, inner downloads and tfr fetches go through the venv's HTTP client unless
 // [WithHTTPClient] overrides it; a venv with no HTTP handle panics with
 // [venv.ErrVenvHTTPUnset] at construction.
 func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
@@ -91,6 +92,7 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 			v = v.WithHTTP(cfg.httpClient)
 		}
 
+		g.dispatchVenv = v
 		g.fetchers = DefaultGenericFetchers(v, opts...)
 		g.resolvers = DefaultSourceResolvers(v, opts...)
 	}
@@ -309,6 +311,14 @@ func (g *CASGetter) matchGenericScheme(req *getter.Request) (string, string, boo
 			}
 		}
 
+		// A forced oci prefix on an http(s) URL names a registry the oci resolver and getter read by the oci scheme.
+		if scheme == SchemeOCI {
+			if u, perr := url.Parse(req.Src); perr == nil && (u.Scheme == SchemeHTTP || u.Scheme == SchemeHTTPS) {
+				u.Scheme = SchemeOCI
+				src = u.String()
+			}
+		}
+
 		return scheme, src, true
 	}
 
@@ -373,7 +383,7 @@ type innerFetchQuery struct {
 	checksum string
 }
 
-// outerFetchURL strips the archive and checksum values from rawURL and returns them for the inner fetch.
+// outerFetchURL sets archive=false on rawURL, drops its checksum, and returns the values the inner fetch applies.
 func outerFetchURL(rawURL string) (string, innerFetchQuery) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -399,7 +409,7 @@ func outerFetchURL(rawURL string) (string, innerFetchQuery) {
 	return u.String(), inner
 }
 
-// innerFetchURL puts the archive and checksum values back on the URL the inner client downloads with.
+// innerFetchURL puts the recorded archive value and checksum back on the URL the inner client downloads with.
 func innerFetchURL(u *url.URL, inner innerFetchQuery) string {
 	if u == nil {
 		return ""
@@ -436,7 +446,7 @@ func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
 		cas.WithIncludedGitFiles(g.Opts.IncludedGitFiles))
 }
 
-// getGeneric downloads a non-git source through the inner client and ingests the result into CAS.
+// getGeneric downloads a non-git source through the inner client, which extracts and verifies, and ingests it into CAS.
 func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	scheme, ok := g.lookupFetcher(strings.ToLower(req.Forced))
 	if !ok {
@@ -456,12 +466,24 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	// leaving the list set would make every probe hit look like a miss.
 	opts.IncludedGitFiles = nil
 
-	return g.CAS.FetchSource(ctx, g.Logger, g.Venv, &opts, cas.SourceRequest{
+	treeKey, err := g.CAS.FetchSource(ctx, g.Logger, g.Venv, &opts, cas.SourceRequest{
 		Scheme:   scheme,
 		URL:      innerURL,
 		Resolver: g.resolverFor(scheme),
 		Fetch:    g.buildInnerFetch(bare, scheme, innerURL),
 	})
+	if err != nil {
+		return err
+	}
+
+	g.treeKey = treeKey
+
+	return nil
+}
+
+// TreeKey returns the store key of the tree the last non-git request linked, or empty before one.
+func (g *CASGetter) TreeKey() string {
+	return g.treeKey
 }
 
 // resolverFor returns the probe resolver for scheme, or one keyed by the checksum when the request pins one.
@@ -571,13 +593,20 @@ func pinnedOCIURL(rawURL, digestValue string) string {
 	return u.String()
 }
 
-// defaultInnerClient dispatches to bare and to the default protocol set without the stock getter for scheme.
+// defaultInnerClient gives dispatch fetchers the default set minus the stock getter for scheme; custom ones run alone.
 func (g *CASGetter) defaultInnerClient(bare getter.Getter, scheme string) *getter.Client {
-	l, v := g.Logger, g.Venv
+	l, v := g.Logger, g.dispatchVenv
 
-	// The tfr getter's venv holds the registry credentials for its delegated archive download.
+	// The bare tfr getter carries the logger and venv its delegated archive
+	// download needs; the fallback client builds s3 and gcs getters that
+	// require the venv.
 	if tfr, ok := bare.(*RegistryGetter); ok && scheme == SchemeTFR {
 		l, v = tfr.Logger, tfr.Venv
+	}
+
+	// A caller-registered fetcher downloads in one step and needs no HTTP handle.
+	if v == nil {
+		return &getter.Client{Getters: []getter.Getter{bare}}
 	}
 
 	c := NewClient(l, v, WithCustomGettersPrepended(bare))
@@ -601,6 +630,10 @@ func claimsScheme(d getter.Getter, scheme string) bool {
 		return scheme == SchemeHg
 	case *SmbClientGetter, *SmbMountGetter:
 		return scheme == SchemeSMB
+	case *RegistryGetter:
+		return scheme == SchemeTFR
+	case *OCIGetter:
+		return scheme == SchemeOCI
 	}
 
 	return false

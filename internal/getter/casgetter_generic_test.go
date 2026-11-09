@@ -608,3 +608,70 @@ func TestCASGetter_HTTPChecksumFileFetchesThroughOtherSchemes(t *testing.T) {
 		})
 	}
 }
+
+// TestCASGetter_HTTPChecksumFileUsesConfiguredClient: an https checksum file is read with the configured client.
+func TestCASGetter_HTTPChecksumFileUsesConfiguredClient(t *testing.T) {
+	t.Parallel()
+
+	body := makeTarGz(t, map[string]string{"main.tf": "ok"})
+	sum := sha256.Sum256(body)
+
+	srv := httptest.NewServer(&tarballHandler{body: body, etag: "stable-etag"})
+	t.Cleanup(srv.Close)
+
+	sums := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if _, err := w.Write([]byte(hex.EncodeToString(sum[:]) + "  mod.tar.gz\n")); err != nil {
+			panic(err)
+		}
+	}))
+	t.Cleanup(sums.Close)
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	// Only the configured client trusts the checksum server's certificate.
+	v := venvtest.NewOSWithEmptyEnv()
+	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
+		getter.WithDefaultGenericDispatch(getter.WithHTTPClient(sums.Client())))
+	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
+	dst := filepath.Join(t.TempDir(), "out")
+
+	_, err = client.Get(t.Context(), &gogetter.Request{
+		Src:     srv.URL + "/mod.tar.gz?checksum=file:" + sums.URL + "/mod.sha256",
+		Dst:     dst,
+		GetMode: gogetter.ModeAny,
+	})
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(dst, "main.tf"))
+}
+
+// TestCASGetter_CustomFetcherNeedsNoHTTP: a registered fetcher runs on a venv without an HTTP handle.
+func TestCASGetter_CustomFetcherNeedsNoHTTP(t *testing.T) {
+	t.Parallel()
+
+	const scheme = "fakescheme"
+
+	stub := &forcedRequiredGetter{scheme: scheme}
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := tgcas.New(venvtest.NewWithOSFS(), tgcas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+	v.HTTP = nil
+
+	g := getter.NewCASGetter(logger.CreateLogger(), c, v, &tgcas.CloneOptions{},
+		getter.WithGenericFetchers(map[string]gogetter.Getter{scheme: stub}))
+	client := &gogetter.Client{Getters: []gogetter.Getter{g}}
+	dst := filepath.Join(t.TempDir(), "out")
+
+	_, err = client.Get(t.Context(), &gogetter.Request{
+		Src:     scheme + "::http://example.com/catalog",
+		Dst:     dst,
+		GetMode: gogetter.ModeAny,
+	})
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(dst, "main.tf"))
+	assert.Positive(t, stub.forcedCalls.Load())
+}

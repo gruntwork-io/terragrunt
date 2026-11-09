@@ -41,30 +41,28 @@ func TestFetchSource_ProbeHitSkipsDownload(t *testing.T) {
 	}, &fetchCalls)
 
 	dst1 := filepath.Join(t.TempDir(), "dst1")
-	require.NoError(
-		t,
-		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
-			Scheme:   "http",
-			URL:      redact.NewURL("https://example.com/mod.tgz"),
-			Resolver: resolver,
-			Fetch:    fetch,
-		}),
-	)
+	fetchedKey, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
+		Scheme:   "http",
+		URL:      redact.NewURL("https://example.com/mod.tgz"),
+		Resolver: resolver,
+		Fetch:    fetch,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, fetchedKey)
 
 	require.Equal(t, int32(1), fetchCalls.Load())
 	require.FileExists(t, filepath.Join(dst1, "main.tf"))
 
 	dst2 := filepath.Join(t.TempDir(), "dst2")
-	require.NoError(
-		t,
-		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
-			Scheme:   "http",
-			URL:      redact.NewURL("https://example.com/mod.tgz"),
-			Resolver: resolver,
-			Fetch:    fetch,
-		}),
-	)
+	hitKey, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
+		Scheme:   "http",
+		URL:      redact.NewURL("https://example.com/mod.tgz"),
+		Resolver: resolver,
+		Fetch:    fetch,
+	})
+	require.NoError(t, err)
 
+	assert.Equal(t, fetchedKey, hitKey, "a probe hit must return the key of the tree it linked")
 	assert.Equal(t, int32(1), fetchCalls.Load(), "second call must hit the cache and not re-fetch")
 	assert.FileExists(t, filepath.Join(dst2, "main.tf"))
 	assert.FileExists(t, filepath.Join(dst2, "sub", "x.tf"))
@@ -88,26 +86,22 @@ func TestFetchSource_NoMetadataFallsBackToContentHash(t *testing.T) {
 	}, &fetchCalls)
 
 	dst1 := filepath.Join(t.TempDir(), "dst1")
-	require.NoError(
-		t,
-		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
-			Scheme:   "http",
-			URL:      redact.NewURL("https://example.com/mod.tgz"),
-			Resolver: resolver,
-			Fetch:    fetch,
-		}),
-	)
+	_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
+		Scheme:   "http",
+		URL:      redact.NewURL("https://example.com/mod.tgz"),
+		Resolver: resolver,
+		Fetch:    fetch,
+	})
+	require.NoError(t, err)
 
 	dst2 := filepath.Join(t.TempDir(), "dst2")
-	require.NoError(
-		t,
-		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
-			Scheme:   "http",
-			URL:      redact.NewURL("https://example.com/mod.tgz"),
-			Resolver: resolver,
-			Fetch:    fetch,
-		}),
-	)
+	_, err = c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
+		Scheme:   "http",
+		URL:      redact.NewURL("https://example.com/mod.tgz"),
+		Resolver: resolver,
+		Fetch:    fetch,
+	})
+	require.NoError(t, err)
 
 	assert.Equal(t, int32(2), fetchCalls.Load(), "no probe means we re-download every time")
 	assert.Equal(t, int32(2), resolver.calls.Load())
@@ -127,14 +121,12 @@ func TestFetchSource_NilResolverContentHashes(t *testing.T) {
 	}, &fetchCalls)
 
 	dst := filepath.Join(t.TempDir(), "dst")
-	require.NoError(
-		t,
-		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
-			Scheme: "s3",
-			URL:    redact.NewURL("s3://bucket/key.tgz"),
-			Fetch:  fetch,
-		}),
-	)
+	_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
+		Scheme: "s3",
+		URL:    redact.NewURL("s3://bucket/key.tgz"),
+		Fetch:  fetch,
+	})
+	require.NoError(t, err)
 
 	assert.Equal(t, int32(1), fetchCalls.Load())
 	assert.FileExists(t, filepath.Join(dst, "a.tf"))
@@ -161,26 +153,22 @@ func TestFetchSource_ContentAddressedDedupesAcrossURLs(t *testing.T) {
 	resolverB := &fakeResolver{scheme: "gcs", key: contentKey}
 
 	dstA := filepath.Join(t.TempDir(), "dstA")
-	require.NoError(
-		t,
-		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
-			Scheme:   "s3",
-			URL:      redact.NewURL("s3://bucketA/mod.tgz"),
-			Resolver: resolverA,
-			Fetch:    fakeFetcher(c, files, &fetchCalls),
-		}),
-	)
+	_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
+		Scheme:   "s3",
+		URL:      redact.NewURL("s3://bucketA/mod.tgz"),
+		Resolver: resolverA,
+		Fetch:    fakeFetcher(c, files, &fetchCalls),
+	})
+	require.NoError(t, err)
 
 	dstB := filepath.Join(t.TempDir(), "dstB")
-	require.NoError(
-		t,
-		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
-			Scheme:   "gcs",
-			URL:      redact.NewURL("gs://bucketB/different/path.tgz"),
-			Resolver: resolverB,
-			Fetch:    fakeFetcher(c, files, &fetchCalls),
-		}),
-	)
+	_, err = c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
+		Scheme:   "gcs",
+		URL:      redact.NewURL("gs://bucketB/different/path.tgz"),
+		Resolver: resolverB,
+		Fetch:    fakeFetcher(c, files, &fetchCalls),
+	})
+	require.NoError(t, err)
 
 	assert.Equal(t, int32(1), fetchCalls.Load(),
 		"content-addressed probe must dedupe identical bytes across two URLs")
@@ -207,26 +195,22 @@ func TestFetchSource_OpaqueProbeURLScoped(t *testing.T) {
 	}
 
 	dstA := filepath.Join(t.TempDir(), "dstA")
-	require.NoError(
-		t,
-		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
-			Scheme:   "http",
-			URL:      redact.NewURL("https://a.example.com/mod.tgz"),
-			Resolver: resolverA,
-			Fetch:    fakeFetcher(c, files, &fetchCalls),
-		}),
-	)
+	_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstA}, cas.SourceRequest{
+		Scheme:   "http",
+		URL:      redact.NewURL("https://a.example.com/mod.tgz"),
+		Resolver: resolverA,
+		Fetch:    fakeFetcher(c, files, &fetchCalls),
+	})
+	require.NoError(t, err)
 
 	dstB := filepath.Join(t.TempDir(), "dstB")
-	require.NoError(
-		t,
-		c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
-			Scheme:   "http",
-			URL:      redact.NewURL("https://b.example.com/mod.tgz"),
-			Resolver: resolverB,
-			Fetch:    fakeFetcher(c, files, &fetchCalls),
-		}),
-	)
+	_, err = c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dstB}, cas.SourceRequest{
+		Scheme:   "http",
+		URL:      redact.NewURL("https://b.example.com/mod.tgz"),
+		Resolver: resolverB,
+		Fetch:    fakeFetcher(c, files, &fetchCalls),
+	})
+	require.NoError(t, err)
 
 	assert.Equal(t, int32(2), fetchCalls.Load(),
 		"opaque probe must not dedupe across distinct URLs even when the token matches")
@@ -263,12 +247,14 @@ func TestFetchSource_ConcurrentFetchesOfSameKeyWithRacing(t *testing.T) {
 		dst := dsts[i]
 
 		g.Go(func() error {
-			return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
+			_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
 				Scheme:   "http",
 				URL:      redact.NewURL("https://example.com/race.tgz"),
 				Resolver: resolver,
 				Fetch:    fakeFetcher(c, files, &fetchCalls),
 			})
+
+			return err
 		})
 	}
 
@@ -286,7 +272,7 @@ func TestFetchSource_RequiresFetchClosure(t *testing.T) {
 	c, v := newCAS(t)
 	l := logger.CreateLogger()
 
-	err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: t.TempDir()}, cas.SourceRequest{
+	_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: t.TempDir()}, cas.SourceRequest{
 		Scheme: "http",
 		URL:    redact.NewURL("https://example.com"),
 	})
@@ -362,16 +348,90 @@ func TestFetchSource_OfflineRecordedProbeWithoutTreeFails(t *testing.T) {
 	online, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithProbeCache())
 	require.NoError(t, err)
 
-	err = online.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "online")}, request)
+	_, err = online.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "online")}, request)
 	require.ErrorIs(t, err, errDownload)
 	require.Equal(t, int32(1), fetchCalls.Load())
 
 	offline, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithOffline())
 	require.NoError(t, err)
 
-	err = offline.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "offline")}, request)
+	_, err = offline.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "offline")}, request)
 	require.ErrorIs(t, err, cas.ErrCASOffline)
 	assert.Equal(t, int32(1), fetchCalls.Load(), "an offline miss must not run the fetcher")
+}
+
+// TestFetchSource_OfflineLocalProber: offline, a local prober keys a stored tree with no recorded probe.
+func TestFetchSource_OfflineLocalProber(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		target   any
+		probeErr error
+		name     string
+		local    bool
+	}{
+		{name: "local prober links the stored tree", local: true},
+		{name: "remote prober misses", target: new(*cas.OfflineMissError)},
+		{
+			name:     "local prober without a key is unrecordable",
+			local:    true,
+			probeErr: cas.ErrNoVersionMetadata,
+			target:   new(*cas.OfflineUnrecordableError),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+			v := venvtest.NewOSWithEmptyEnv()
+			l := logger.CreateLogger()
+
+			key := cas.OpaqueKey("https", "https://example.com/mod.tgz", "checksum:sha256:abc")
+
+			var fetchCalls atomic.Int32
+
+			online, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
+			require.NoError(t, err)
+
+			_, err = online.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "online")},
+				cas.SourceRequest{
+					Scheme:   "https",
+					URL:      redact.NewURL("https://example.com/mod.tgz"),
+					Resolver: &fakeResolver{scheme: "https", key: key},
+					Fetch:    fakeFetcher(online, map[string]string{"main.tf": "# hello"}, &fetchCalls),
+				})
+			require.NoError(t, err)
+
+			offline, err := cas.New(
+				venvtest.NewWithOSFS(),
+				cas.WithStorePath(storePath),
+				cas.WithProbeCache(),
+				cas.WithOffline(),
+			)
+			require.NoError(t, err)
+
+			dst := filepath.Join(t.TempDir(), "offline")
+			linked, err := offline.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
+				Scheme:   "https",
+				URL:      redact.NewURL("https://example.com/mod.tgz"),
+				Resolver: &fakeResolver{scheme: "https", key: key, local: tc.local, err: tc.probeErr},
+				Fetch:    fakeFetcher(offline, map[string]string{"main.tf": "# hello"}, &fetchCalls),
+			})
+			assert.Equal(t, int32(1), fetchCalls.Load(), "the offline run must not run the fetcher")
+
+			if tc.target != nil {
+				require.ErrorAs(t, err, tc.target)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, key, linked)
+			assert.FileExists(t, filepath.Join(dst, "main.tf"))
+		})
+	}
 }
 
 // fakeResolver returns a canned cache key on Probe.
@@ -382,11 +442,14 @@ type fakeResolver struct {
 	key    string
 	calls  atomic.Int32
 	pinned bool
+	local  bool
 }
 
 func (f *fakeResolver) Scheme() string { return f.scheme }
 
 func (f *fakeResolver) Pinned(_ redact.URL) bool { return f.pinned }
+
+func (f *fakeResolver) ProbesLocally(_ redact.URL) bool { return f.local }
 
 func (f *fakeResolver) Probe(_ context.Context, _ redact.URL) (string, error) {
 	f.calls.Add(1)

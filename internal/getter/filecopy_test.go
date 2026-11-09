@@ -96,7 +96,6 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 				t.Skip(tc.skipOnWindows)
 			}
 
-			// Get fills the client's defaults on first use; parallel subtests each need their own.
 			client := &getter.Client{
 				Getters: []getter.Getter{tggetter.NewFileCopyGetter(vfs.NewOSFS())},
 			}

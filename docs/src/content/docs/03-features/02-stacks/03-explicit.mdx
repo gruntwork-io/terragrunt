@@ -8,8 +8,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 
 For an alternate approach (that is more flexible, but not necessarily always the better solution), you can define explicit stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units at runtime.
 
@@ -456,19 +454,13 @@ terraform {
 
 When `update_source_with_cas = true` is set:
 
-1. <Before version="v1.2.2">Terragrunt clones the catalog repository once via CAS and stores the content.</Before><Since version="v1.2.2">Terragrunt fetches the catalog once via CAS and stores the content.</Since>
-2. <Before version="v1.2.2">It follows relative source paths within the cloned repository.</Before><Since version="v1.2.2">It follows relative source paths within the stored catalog.</Since>
+1. Terragrunt fetches the catalog once via CAS and stores the content.
+2. It follows relative source paths within the stored catalog.
 3. At each level, it rewrites the `source` attribute to a `cas::` reference (e.g., `cas::sha1:abc123...`) that points to stored CAS content.
 4. Generated `.terragrunt-stack` files contain deterministic CAS references instead of remote URLs.
 5. Subsequent generation waves resolve `cas::` references directly from the CAS store, with no network access required.
 
 Consumers do not set `update_source_with_cas` themselves. When the source is remote, Terragrunt uses the CAS path automatically. The attribute only has effect inside catalog files, where it flags nested `source` attributes for rewriting.
-
-<Since version="v1.2.2">
-
-The catalog can also be an archive at an HTTP URL, such as `source = "https://example.com/catalog-v1.0.0.zip//stacks/service"`, or a module package in an [OCI registry](/features/units/oci), such as `source = "oci://ghcr.io/acme/catalog//stacks/service?tag=v1.0.0"`. An HTTP URL that names no archive, by extension or `archive=` parameter, is treated as a Git repository. Terragrunt fetches the whole package into the CAS and follows the relative paths inside it the same way.
-
-</Since>
 
 `unit` and `stack` blocks also accept a `mutable` attribute. When `mutable = true`, the unit's or stack's content under `.terragrunt-stack` is copied from the CAS store and the working tree is editable. The default is `false`: files are materialized read-only so an accidental edit cannot reach back into the shared CAS store.
 
@@ -525,17 +517,17 @@ terraform {
 The first `cas::` reference points to a synthetic tree in the CAS that contains the exact files needed for the unit. The second points to the full repository tree, with `//modules/service` telling Terragrunt which subdirectory to use as the OpenTofu/Terraform module source.
 
 <Aside type="tip">
-The `cas::` reference format includes a hash algorithm prefix (`sha1:` or `sha256:`) to support both SHA-1 and SHA-256 Git repositories.
+The `cas::` reference format includes a hash algorithm prefix (`sha1:` or `sha256:`) to support both SHA-1 and SHA-256 Git repositories. Catalogs that are not Git repositories use `sha256:`.
 </Aside>
 
 Requirements:
 
 - The `--no-cas` flag must not be set.
-- <Before version="v1.2.2">Sources using `update_source_with_cas` must be relative paths within the same repository.</Before><Since version="v1.2.2">Sources using `update_source_with_cas` must be relative paths within the same catalog.</Since>
+- Sources using `update_source_with_cas` must be relative paths within the same catalog.
 
 ### Local catalog sources
 
-<Before version="v1.2.2">The consumer stack's `source` can be a local filesystem path in addition to a remote Git URL. Both go through the same CAS-backed rewrite pipeline:</Before><Since version="v1.2.2">The consumer stack's `source` can be a local filesystem path in addition to a remote URL. Every source type goes through the same CAS-backed rewrite pipeline:</Since>
+The consumer stack's `source` can be a local filesystem path in addition to a remote URL. Both go through the same CAS-backed rewrite pipeline:
 
 ```hcl
 # live/terragrunt.stack.hcl
@@ -548,7 +540,7 @@ stack "service" {
 
 Terragrunt copies the referenced directory into a temporary directory, computes a content-addressed root hash over `(relative path, mode, file-content hash)` triples using SHA-256, and rewrites nested `source` attributes against that copy. The original directory is never modified, so the catalog on disk stays clean even though the rewritten `source` values need somewhere to live.
 
-This is useful when iterating on a catalog before tagging a release: the same `update_source_with_cas = true` attributes in the catalog's `terragrunt.stack.hcl` and `terragrunt.hcl` files apply unchanged, <Before version="v1.2.2">whether consumers pull the catalog over Git or point at a local checkout.</Before><Since version="v1.2.2">whether consumers pull the catalog over Git, from an HTTP archive, from an OCI registry, or point at a local checkout.</Since>
+This is useful when iterating on a catalog before tagging a release: the same `update_source_with_cas = true` attributes in the catalog's `terragrunt.stack.hcl` and `terragrunt.hcl` files apply unchanged, whether consumers pull the catalog from a remote source or point at a local checkout.
 
 ## Known Limitations of Explicit Stacks
 

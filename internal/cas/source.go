@@ -29,6 +29,12 @@ import (
 // walking the result, and keying the tree by its content hash.
 var ErrNoVersionMetadata = errors.New("no version metadata available for source")
 
+// LocalProber is a [SourceResolver] whose Probe answers some sources without the network, so it also runs offline.
+type LocalProber interface {
+	// ProbesLocally reports whether Probe answers u without the network.
+	ProbesLocally(u redact.URL) bool
+}
+
 // SourceResolver derives a tree-store cache key for a source from a
 // cheap remote probe, so FetchSource can short-circuit the download
 // when the bytes haven't changed upstream.
@@ -159,15 +165,15 @@ func (c *CAS) FetchSource(
 	v *venv.Venv,
 	opts *CloneOptions,
 	src SourceRequest,
-) error {
+) (linkedTreeKey string, err error) {
 	v.RequireFS()
 
 	if src.Fetch == nil {
-		return ErrFetchClosureRequired
+		return "", ErrFetchClosureRequired
 	}
 
 	if err := c.ensureStorePaths(v); err != nil {
-		return err
+		return "", err
 	}
 
 	attrs := map[string]any{
@@ -179,7 +185,7 @@ func (c *CAS) FetchSource(
 
 	tlm := telemetry.TelemeterFromContext(ctx)
 
-	return tlm.Collect(
+	err = tlm.Collect(
 		ctx,
 		l,
 		"cas_fetch_source",
@@ -190,7 +196,7 @@ func (c *CAS) FetchSource(
 				return err
 			}
 
-			err = c.fetchAndLink(childCtx, l, v, opts, src, suggestedKey, IngestCached)
+			linkedTreeKey, err = c.fetchAndLink(childCtx, l, v, opts, src, suggestedKey, IngestCached)
 
 			var missing *MissingObjectError
 			if !errors.As(err, &missing) {
@@ -215,15 +221,19 @@ func (c *CAS) FetchSource(
 			// One attempt. A source that answered the re-ingest without
 			// producing the object cannot produce it on a third pass
 			// either, so the second failure is the one the caller sees.
-			if err := c.fetchAndLink(
-				childCtx, l, v, opts, src, suggestedKey, IngestRepair,
-			); err != nil {
+			linkedTreeKey, err = c.fetchAndLink(childCtx, l, v, opts, src, suggestedKey, IngestRepair)
+			if err != nil {
 				return fmt.Errorf("re-ingest %s: %w", src.URL, err)
 			}
 
 			return nil
 		},
 	)
+	if err != nil {
+		return "", err
+	}
+
+	return linkedTreeKey, nil
 }
 
 // fetchAndLink ingests src unless the store already holds the tree
@@ -238,26 +248,25 @@ func (c *CAS) fetchAndLink(
 	src SourceRequest,
 	suggestedKey string,
 	mode IngestMode,
-) error {
+) (string, error) {
 	if mode.trustsStoreHits() && suggestedKey != "" && !c.needsIngest(v, suggestedKey, opts) {
 		recordFetchOutcome(ctx, true)
 
-		return c.linkStoredTree(ctx, l, v, opts, src.Scheme, suggestedKey)
+		return suggestedKey, c.linkStoredTree(ctx, l, v, opts, src.Scheme, suggestedKey)
 	}
 
-	// A recorded probe without its tree in the store is an offline miss.
-	if suggestedKey != "" && c.probeMode == ProbeModeOffline {
-		return &OfflineMissError{Source: src.URL}
+	if suggestedKey != "" && c.probeMode == ProbeModeOffline && src.ProbeCaching == ProbeCachedByCAS {
+		return "", &OfflineMissError{Source: src.URL}
 	}
 
 	recordFetchOutcome(ctx, false)
 
 	treeKey, err := src.Fetch(ctx, l, v, suggestedKey, mode)
 	if err != nil {
-		return fmt.Errorf("fetch %s: %w", src.URL, err)
+		return "", fmt.Errorf("fetch %s: %w", src.URL, err)
 	}
 
-	return c.linkStoredTree(ctx, l, v, opts, src.Scheme, treeKey)
+	return treeKey, c.linkStoredTree(ctx, l, v, opts, src.Scheme, treeKey)
 }
 
 // ContentKey derives a cache key for a probe token that is a content
@@ -446,11 +455,16 @@ func (c *CAS) probeSourceUncoalesced(
 		return probeResult{key: entry.Key, origin: probeOriginProbeCache}, nil
 	}
 
-	if c.probeMode == ProbeModeOffline {
+	offline := c.probeMode == ProbeModeOffline
+	if prober, ok := src.Resolver.(LocalProber); offline && (!ok || !prober.ProbesLocally(src.URL)) {
 		return probeResult{}, &OfflineMissError{Source: src.URL}
 	}
 
 	key, err := src.Resolver.Probe(ctx, src.URL)
+	if offline && errors.Is(err, ErrNoVersionMetadata) {
+		return probeResult{}, &OfflineUnrecordableError{Source: src.URL}
+	}
+
 	if err != nil {
 		return probeResult{}, err
 	}

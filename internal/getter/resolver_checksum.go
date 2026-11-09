@@ -12,7 +12,7 @@ import (
 // checksumFilePrefix marks a checksum value that names a file of checksums.
 const checksumFilePrefix = "file:"
 
-// ChecksumResolver keys a request by the checksum its URL pins; no remote probe runs and --cas-offline applies.
+// ChecksumResolver keys a request by the checksum its URL pins; no remote probe runs, so it answers offline too.
 type ChecksumResolver struct {
 	scheme   string
 	checksum string
@@ -28,6 +28,9 @@ func (r *ChecksumResolver) Scheme() string { return r.scheme }
 
 // Pinned reports true for a literal checksum and false for a checksum file reference.
 func (r *ChecksumResolver) Pinned(_ redact.URL) bool { return !r.fromFile() }
+
+// ProbesLocally reports true: Probe reads only the request URL.
+func (r *ChecksumResolver) ProbesLocally(_ redact.URL) bool { return true }
 
 // Probe keys source by its checksum-free URL and lowercased checksum; a file reference has no key.
 func (r *ChecksumResolver) Probe(_ context.Context, source redact.URL) (string, error) {

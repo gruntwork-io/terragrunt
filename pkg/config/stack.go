@@ -238,6 +238,7 @@ func GenerateStackFile(
 		autoIncludes:    autoIncludes,
 		stackSrcBytes:   stackSrcBytes,
 		casEnabled:      cs.Enabled,
+		casOffline:      pctx.CASOffline,
 		casInstance:     cs.Instance,
 		strictControls:  pctx.StrictControls,
 		// One getter per stack, so every component shares its credential resolution.
@@ -544,6 +545,7 @@ type generateOpts struct {
 	logShowAbsPaths bool
 	noStackValidate bool
 	casEnabled      bool
+	casOffline      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -915,19 +917,13 @@ func fetchComponentSource(
 			return nil
 		}
 
-		var checksumErr *getter.ChecksumError
-
-		// A non-literal source, bad update_source_with_cas, offline miss, bad glob or checksum mismatch never falls back.
-		if errors.Is(casErr, cas.ErrSourceNotLiteral) ||
-			errors.Is(casErr, cas.ErrUpdateSourceWithCASNotConstant) ||
-			errors.Is(casErr, cas.ErrCASOffline) ||
-			errors.Is(casErr, getter.ErrSubdirNotResolved) ||
-			errors.As(casErr, &checksumErr) {
+		// Under --cas-offline nothing falls back; the standard getter fetches over the network the flag forbids.
+		if opts.casOffline || casFailureIsFinal(casErr) {
 			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
 		}
 
 		l.Warnf(
-			"CAS processing failed for %s %q: %v. Falling back to standard getter; nested update_source_with_cas sources are not rewritten.",
+			"CAS processing failed for %s %q: %v. Falling back to standard getter; nested update_source_with_cas sources are not rewritten. Fix the source to restore the rewrite, or pass --no-cas to skip the CAS for every component.",
 			kindStr,
 			cmp.name,
 			casErr,
@@ -970,20 +966,7 @@ func fetchViaCAS(
 	cmp *componentToGenerate,
 	kindStr, source, dest string,
 ) error {
-	resolvedSource := resolveLocalCASSource(v.FS, cmp.sourceDir, source)
-
-	if isPackageSource(v.FS, cmp.sourceDir, source) {
-		staged, err := stagePackage(ctx, l, v, opts, cmp.mutable, source)
-		if err != nil {
-			return err
-		}
-
-		defer staged.cleanup()
-
-		resolvedSource = staged.source
-	}
-
-	result, err := opts.casInstance.ProcessStackComponent(ctx, l, v, resolvedSource, kindStr)
+	result, err := rewriteViaCAS(ctx, l, v, opts, cmp, kindStr, source)
 	if err != nil {
 		return err
 	}
@@ -1014,6 +997,43 @@ func fetchViaCAS(
 	return nil
 }
 
+// rewriteViaCAS rewrites the update_source_with_cas sources of a staged package, a git clone or a local copy.
+func rewriteViaCAS(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *generateOpts,
+	cmp *componentToGenerate,
+	kindStr, source string,
+) (*cas.StackCASResult, error) {
+	pkg, ok := packageSource(v.FS, cmp.sourceDir, source)
+	if !ok {
+		resolvedSource := resolveLocalCASSource(v.FS, cmp.sourceDir, source)
+
+		return opts.casInstance.ProcessStackComponent(ctx, l, v, resolvedSource, kindStr, cas.WithMutable(cmp.mutable))
+	}
+
+	staged, err := stagePackage(ctx, l, v, opts, cmp, pkg)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := opts.casInstance.ProcessStoredStackComponent(
+		ctx,
+		l,
+		v,
+		staged.root,
+		staged.contentDir,
+		staged.treeKey,
+	); err != nil {
+		staged.cleanup()
+
+		return nil, err
+	}
+
+	return &cas.StackCASResult{ContentDir: staged.contentDir, Cleanup: staged.cleanup}, nil
+}
+
 // resolveLocalCASSource normalizes a relative local source against sourceDir so
 // ProcessStackComponent's filepath.Abs/Stat resolve against the stack file
 // rather than the process CWD. Remote sources, absolute paths, and any source
@@ -1041,27 +1061,42 @@ func resolveLocalCASSource(fsys vfs.FS, sourceDir, source string) string {
 	return abs
 }
 
-// isPackageSource reports whether source is a remote package the staged CAS getter fetches whole.
-func isPackageSource(fsys vfs.FS, sourceDir, source string) bool {
+// packageSource returns the detected form of a remote source the staged CAS getter fetches whole.
+func packageSource(fsys vfs.FS, sourceDir, source string) (string, bool) {
 	basePath, _ := getter.SourceDirSubdir(source)
-
-	return !isLocal(fsys, sourceDir, basePath) && isPackageURL(basePath)
-}
-
-// isPackageURL reports whether a remote source is a forced non-git getter, an oci reference, or an http archive.
-func isPackageURL(source string) bool {
-	detected, err := cas.DetectRemoteSource(source)
-	if err != nil {
-		// The git clone path reports the detector error.
-		return false
+	if isLocal(fsys, sourceDir, basePath) {
+		return "", false
 	}
 
-	if forced, _, ok := strings.Cut(detected, "::"); ok && !strings.ContainsAny(forced, "/:") {
-		return forced != getter.SchemeGit
+	detected, err := getter.Detect(source, "")
+	if err != nil {
+		return "", false
+	}
+
+	detectedBase, _ := getter.SourceDirSubdir(detected)
+
+	return detected, isPackageURL(detectedBase)
+}
+
+// stagedPackageSchemes are the forced prefixes the staged CAS getter serves; any other prefix takes the git path.
+var stagedPackageSchemes = map[string]bool{
+	getter.SchemeS3:    true,
+	getter.SchemeGCS:   true,
+	getter.SchemeHTTP:  true,
+	getter.SchemeHTTPS: true,
+	getter.SchemeHg:    true,
+	getter.SchemeSMB:   true,
+	getter.SchemeOCI:   true,
+}
+
+// isPackageURL reports whether a detected source is a staged forced getter, an oci reference, or an http archive.
+func isPackageURL(detected string) bool {
+	if forced, _ := getter.SplitForcedGetter(detected); forced != "" {
+		return stagedPackageSchemes[strings.ToLower(forced)]
 	}
 
 	u, err := url.Parse(detected)
-	if err != nil || u.Scheme == "" {
+	if err != nil {
 		return false
 	}
 
@@ -1069,17 +1104,18 @@ func isPackageURL(source string) bool {
 	case getter.SchemeOCI:
 		return true
 	case getter.SchemeHTTP, getter.SchemeHTTPS:
-		// An http URL that names no archive is a git repository.
 		return getter.IsArchiveURL(u)
 	}
 
 	return false
 }
 
-// stagedPackage is a remote package fetched whole through the CAS: its local source with //subdir, and the cleanup.
+// stagedPackage is a remote package the CAS linked into a temp dir for the walk.
 type stagedPackage struct {
-	cleanup func()
-	source  string
+	cleanup    func()
+	root       string
+	contentDir string
+	treeKey    string
 }
 
 // stagePackage fetches the whole package behind a non-git remote source through the CAS for the walk.
@@ -1088,7 +1124,7 @@ func stagePackage(
 	l log.Logger,
 	v *venv.Venv,
 	opts *generateOpts,
-	mutable bool,
+	cmp *componentToGenerate,
 	source string,
 ) (*stagedPackage, error) {
 	packageURL, subdir := getter.SourceDirSubdir(source)
@@ -1106,35 +1142,32 @@ func stagePackage(
 
 	packageDir := filepath.Join(tempDir, "package")
 
-	// Each component fetches through its own client; a CASGetter serves one request at a time.
-	client := &getter.Client{
-		Getters: []getter.Getter{
-			getter.NewCASGetter(
-				l,
-				opts.casInstance,
-				v,
-				&cas.CloneOptions{Mutable: mutable},
-				getter.WithDefaultGenericDispatch(
-					getter.WithDispatchLogger(l),
-					getter.WithDispatchFS(v.FS),
-					getter.WithDispatchVenv(v),
-					getter.WithOCIConfig(v),
-				),
-			),
-		},
-	}
+	casGetter := getter.NewCASGetter(
+		l,
+		opts.casInstance,
+		v,
+		&cas.CloneOptions{Mutable: cmp.mutable},
+		getter.WithDefaultGenericDispatch(
+			getter.WithDispatchLogger(l),
+			getter.WithDispatchFS(v.FS),
+			getter.WithDispatchVenv(v),
+			getter.WithOCIConfig(v),
+		),
+	)
+
+	client := &getter.Client{Getters: []getter.Getter{casGetter}}
 
 	if _, err := getter.Download(ctx, client, &getter.Request{Src: packageURL, Dst: packageDir}); err != nil {
 		cleanup()
 
-		return nil, fmt.Errorf("failed to fetch %s through CAS: %w", redact.NewURL(packageURL), err)
+		return nil, StackPackageFetchError{Source: redact.NewURL(packageURL), Err: err}
 	}
 
+	staged := &stagedPackage{cleanup: cleanup, root: packageDir, contentDir: packageDir, treeKey: casGetter.TreeKey()}
 	if subdir == "" {
-		return &stagedPackage{source: packageDir, cleanup: cleanup}, nil
+		return staged, nil
 	}
 
-	// A glob selector is resolved against the fetched package before the walk.
 	selected, err := getter.SubdirGlob(packageDir, subdir)
 	if err != nil {
 		cleanup()
@@ -1149,11 +1182,9 @@ func stagePackage(
 		return nil, fmt.Errorf("%w: %q", cas.ErrSourceEscapesRepo, subdir)
 	}
 
-	if rel != "." {
-		packageDir += "//" + filepath.ToSlash(rel)
-	}
+	staged.contentDir = selected
 
-	return &stagedPackage{source: packageDir, cleanup: cleanup}, nil
+	return staged, nil
 }
 
 // isCASProtocol checks if a source string uses the CAS protocol (cas::sha1:<hash>).
@@ -2323,4 +2354,18 @@ func stackNameSet(stacks []*Stack) map[string]struct{} {
 	}
 
 	return names
+}
+
+// casFailureIsFinal reports whether a CAS failure is final: a fallback would repeat it or skip a required rewrite.
+func casFailureIsFinal(err error) bool {
+	var packageErr StackPackageFetchError
+
+	return errors.Is(err, cas.ErrSourceNotLiteral) ||
+		errors.Is(err, cas.ErrUpdateSourceWithCASNotConstant) ||
+		errors.Is(err, cas.ErrCASOffline) ||
+		errors.Is(err, cas.ErrSourceEscapesRepo) ||
+		errors.Is(err, cas.ErrAbsoluteSource) ||
+		errors.Is(err, cas.ErrRewriteIncomplete) ||
+		errors.Is(err, getter.ErrSubdirNotResolved) ||
+		errors.As(err, &packageErr)
 }

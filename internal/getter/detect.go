@@ -14,6 +14,9 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
 )
 
+// ErrSubdirNotResolved wraps every failure to resolve a subdir glob to one directory.
+var ErrSubdirNotResolved = errors.New("subdir glob did not resolve to one directory")
+
 // URLParse wraps go-getter/v2/helper/url.Parse, which delegates to net/url.Parse
 // but returns Windows-safe URLs on Windows.
 func URLParse(rawURL string) (*url.URL, error) {
@@ -61,9 +64,6 @@ func hasDecompressorExtension(p string) bool {
 	return false
 }
 
-// ErrSubdirNotResolved wraps every failure to resolve a subdir glob to one directory.
-var ErrSubdirNotResolved = errors.New("subdir glob did not resolve to one directory")
-
 // SubdirGlob expands a globbed subdirectory path against a directory on disk; returns [ErrSubdirNotResolved] on a miss.
 func SubdirGlob(dst, subDir string) (string, error) {
 	selected, err := getter.SubdirGlob(dst, subDir)
@@ -96,7 +96,7 @@ func Detect(source, pwd string) (string, error) {
 //     the source wins, and any detected forced-getter / subdir selector is
 //     reattached.
 func DetectWith(source, pwd string, detectors []Detector) (string, error) {
-	getForce, getSrc := splitForcedGetter(source)
+	getForce, getSrc := SplitForcedGetter(source)
 	getSrc, subDir := SourceDirSubdir(getSrc)
 
 	if u, err := URLParse(getSrc); err == nil && u.Scheme != "" {
@@ -113,7 +113,7 @@ func DetectWith(source, pwd string, detectors []Detector) (string, error) {
 			continue
 		}
 
-		detectForce, result := splitForcedGetter(result)
+		detectForce, result := SplitForcedGetter(result)
 		result, detectSubdir := SourceDirSubdir(result)
 
 		final, err := rewriteDetectedResult(result, detectForce, detectSubdir, subDir, getForce)
@@ -213,10 +213,10 @@ func defaultDetectors() []Detector {
 	}
 }
 
-// splitForcedGetter splits "<getter>::<rest>" into its prefix and remainder.
+// SplitForcedGetter splits "<getter>::<rest>" into its prefix and remainder.
 // It returns ("", src) when src has no forced-getter prefix, matching the
 // behavior of go-getter v1's getForcedGetter.
-func splitForcedGetter(src string) (string, string) {
+func SplitForcedGetter(src string) (string, string) {
 	prefix, rest, ok := strings.Cut(src, "::")
 	if !ok || prefix == "" || !isASCIIAlnum(prefix) {
 		return "", src
