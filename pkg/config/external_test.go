@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -393,7 +394,7 @@ func TestExternalGetDefaultConfigPath(t *testing.T) {
 
 	// When given a non-existent directory, GetDefaultConfigPath returns a path
 	// ending with the default config file name.
-	result := config.GetDefaultConfigPath(venvtest.New().FS, "/some/nonexistent/path")
+	result := config.GetDefaultConfigPath(venv.MemVenv().FS, "/some/nonexistent/path")
 	assert.Contains(t, result, "terragrunt.hcl")
 }
 

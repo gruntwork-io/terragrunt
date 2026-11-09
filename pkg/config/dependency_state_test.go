@@ -757,7 +757,7 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 				map[string]string{},
 				testCase.dependencyExtra,
 			)
-			pctx.OriginalTerraformCommand = "plan"
+			pctx.OriginalTofuCommand = "plan"
 			pctx.TerraformCliArgs = iacargs.New("plan")
 
 			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
@@ -1133,7 +1133,7 @@ func prepareDependencyStateFixture(
 		effectiveEnv = map[string]string{}
 	}
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())

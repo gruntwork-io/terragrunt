@@ -133,8 +133,8 @@ func discoverWithRetry(
 	var discovered component.Components
 
 	err := doWithTelemetry(ctx, l, telemetryDiscovery, map[string]any{
-		"working_dir":       opts.WorkingDir,
-		"terraform_command": opts.TerraformCommand,
+		"working_dir":  opts.WorkingDir,
+		"tofu_command": opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
 		discoveryErr := spinner.ShowAfter(childCtx, l, spinner.Messages{
 			Working: "Discovering units in " + workingDir + "...",
@@ -169,7 +169,7 @@ func createRunner(
 
 	err := doWithTelemetry(ctx, l, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
-		"terraform_command":  opts.TerraformCommand,
+		"tofu_command":       opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
 		var err2 error
 

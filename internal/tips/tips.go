@@ -44,6 +44,18 @@ const (
 	// missingDependencyConfigFix is the advice both missing-dependency-config messages end with.
 	missingDependencyConfigFix = "Update or remove that block. `terragrunt hcl validate` lists every such block."
 
+	// InputsReadNotTracked is the tip shown when read tracking is on and a configuration calls a
+	// file-reading function in `inputs`, where Terragrunt does not record reads.
+	InputsReadNotTracked = "inputs-read-not-tracked"
+
+	// InputsReadNotTrackedMessage is the default message for the inputs-read-not-tracked tip.
+	// The runtime message is assembled at evaluation time so it can list the reads it found.
+	InputsReadNotTrackedMessage = "Terragrunt does not track files read in `inputs`, " +
+		"so reading and Git filters miss the units and stacks that read them. " +
+		"Read each file in `locals` and reference the local from `inputs`. " +
+		"In a stack file, read it in the stack's `locals` and reference the local from the `autoinclude` block. " +
+		"See https://docs.terragrunt.com/features/filter/attributes#reading-based-expressions"
+
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
 		"instead of symlinking in OpenTofu/Terraform. " +
@@ -87,6 +99,10 @@ func NewTips() Tips {
 		{
 			Name:    MissingDependencyConfig,
 			Message: MissingDependencyConfigMessage,
+		},
+		{
+			Name:    InputsReadNotTracked,
+			Message: InputsReadNotTrackedMessage,
 		},
 	}
 }

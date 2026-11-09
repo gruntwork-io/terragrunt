@@ -17,10 +17,10 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +40,7 @@ func TestAWSConfigHTTPClientIsBuildable(t *testing.T) {
 		"AWS_REGION":            "us-east-1",
 	}
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithFS(vfs.NewOSFS()).
 		WithHTTP(vhttp.NewOSClient()).
 		WithEnv(env)
@@ -213,7 +213,7 @@ func TestAssumeIamRoleFallsBackToIMDSv1WhenTokenEndpointHangs(t *testing.T) {
 	t.Setenv("AWS_EC2_METADATA_SERVICE_ENDPOINT", imds.URL)
 	t.Setenv("AWS_ENDPOINT_URL_STS", stsServer.URL)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(vhttp.NewOSClient()).
 		WithEnv(map[string]string{"AWS_REGION": "us-east-1"})
 
@@ -233,8 +233,8 @@ func TestAssumeIamRoleUsesEnvCredentials(t *testing.T) {
 	t.Parallel()
 
 	const (
-		envAccessKeyID = "AKIAENVCREDSTESTKEY"
-		assumedKeyID   = "ASIAASSUMEDTESTKEY"
+		envAccessKeyID = "fake-env-access-key-id"
+		assumedKeyID   = "fake-assumed-access-key-id"
 	)
 
 	var authHead atomic.Value
@@ -261,7 +261,7 @@ func TestAssumeIamRoleUsesEnvCredentials(t *testing.T) {
 		},
 	)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(memHTTP).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -294,11 +294,11 @@ func TestAssumeIamRoleRejectsResponseWithoutCredentials(t *testing.T) {
 		return vhttp.Respond(http.StatusOK, []byte(xml), nil), nil
 	})
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(memHTTP).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
-			"AWS_ACCESS_KEY_ID":     "AKIAENVCREDSTESTKEY",
+			"AWS_ACCESS_KEY_ID":     "fake-env-access-key-id",
 			"AWS_SECRET_ACCESS_KEY": "env-secret-key",
 		})
 
@@ -327,9 +327,9 @@ func TestAWSBuildableClientOSTransportIsBuildable(t *testing.T) {
 
 const (
 	testIMDSRoleName       = "test-instance-role"
-	testIMDSAccessKeyID    = "AKIAIMDSV1TESTKEY"
+	testIMDSAccessKeyID    = "fake-imds-access-key-id"
 	testAssumedRoleARN     = "arn:aws:iam::123456789012:role/test-assumed-role"
-	testAssumedAccessKeyID = "ASIAASSUMEDTESTKEY"
+	testAssumedAccessKeyID = "fake-assumed-access-key-id"
 )
 
 // hangingTokenIMDSServer is a local IMDS whose IMDSv2 token endpoint never

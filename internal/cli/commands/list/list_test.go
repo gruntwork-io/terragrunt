@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -1061,7 +1062,7 @@ dependency "zulu" {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
 			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 			assert.Equal(t, tc.wantOutput, buf.String())
@@ -1121,7 +1122,7 @@ dependency "zulu" {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
 			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 			assert.Equal(t, tc.wantLabels, treeLabels(buf.String()))
@@ -1148,7 +1149,7 @@ func TestTextFormatGivesAWidePathItsOwnLine(t *testing.T) {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
 	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
@@ -1199,7 +1200,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
 			require.Error(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 			assert.Empty(t, buf.String())
@@ -1235,7 +1236,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			opts := list.NewOptions(tgOpts)
 			opts.Format = tc.format
 
-			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
+			v := venv.MemVenv().WithFS(fsys).WithWriter(failingWriter{})
 			require.ErrorIs(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts), errWriteFailed)
 		})
 	}
@@ -1281,7 +1282,7 @@ func TestRunDiscoveryProgress(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 			require.NoError(t, list.Run(ctx, l, v, opts))
 
 			assert.Equal(
@@ -1382,7 +1383,7 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
 	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
@@ -1430,7 +1431,7 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
 	assert.Equal(

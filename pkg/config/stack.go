@@ -260,12 +260,13 @@ func hasEnabledComponents(stackFile *StackConfig) bool {
 		slices.ContainsFunc(stackFile.Stacks, (*Stack).IsEnabled)
 }
 
-// ValidateStackAutoIncludes runs the strict autoinclude parse over the stack file at
-// stackFilePath without generating anything, so tooling such as `hcl validate` reports
-// the same autoinclude errors [GenerateStackFile] would raise. stackFile is the config
-// already parsed from stackFilePath via [ParseStackConfig]. It is a no-op when no unit
-// or stack declares autoinclude.
-func ValidateStackAutoIncludes(
+// StackAutoIncludes runs the strict autoinclude parse over the stack file at stackFilePath
+// without generating anything and returns the resolved autoincludes keyed by
+// [inthclparse.AutoIncludeKey], so tooling such as `hcl validate` reports the same
+// autoinclude errors [GenerateStackFile] would raise. stackFile is the config already
+// parsed from stackFilePath via [ParseStackConfig]. The result is nil when no unit or
+// stack declares autoinclude.
+func StackAutoIncludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -273,10 +274,10 @@ func ValidateStackAutoIncludes(
 	stackFilePath string,
 	stackFile *StackConfig,
 	values *cty.Value,
-) error {
-	_, _, err := resolveStackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackFile, values)
+) (map[string]*inthclparse.AutoIncludeResolved, error) {
+	autoIncludes, _, err := resolveStackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackFile, values)
 
-	return err
+	return autoIncludes, err
 }
 
 // resolveStackAutoIncludes runs the strict phased autoinclude parse over the stack file at

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
@@ -79,7 +81,7 @@ func (t tree) dependent(path string, deps ...string) tree {
 func findWithFilters(t *testing.T, files tree, filters ...string) string {
 	t.Helper()
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, docsRoot, files))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, docsRoot, files))
 
 	const fixedArgs = 4 // find, --no-color, --working-dir and its value
 

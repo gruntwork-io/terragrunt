@@ -11,11 +11,11 @@ import (
 	"strings"
 
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -30,14 +30,11 @@ type serverDeps struct {
 	tgVersion   *semver.Version
 	launchDir   string
 	stdoutDir   string
-	allowCmds   []AllowCmd
+	granted     venv.Capabilities
+	allowCmds   []venv.AllowCmd
 	approved    []string
 	approvalKey []byte
-	refusal     refusal
-	allowExec   bool
-	allowHTTP   bool
-	allowSops   bool
-	allowEnv    bool
+	refusal     venv.Refusal
 	allowApply  bool
 }
 
@@ -55,7 +52,7 @@ func (d *serverDeps) forCall(approved []string) *serverDeps {
 
 // withRefusal returns a copy of d whose calls answer a program nothing allowed
 // according to mode.
-func (d *serverDeps) withRefusal(mode refusal) *serverDeps {
+func (d *serverDeps) withRefusal(mode venv.Refusal) *serverDeps {
 	c := *d
 	c.refusal = mode
 
@@ -78,14 +75,14 @@ func (d *serverDeps) operatorTFPath() string {
 // run_cmd() spawns, and a dependency fetch inits, downloads, and reads a state
 // backend.
 func (d *serverDeps) reachesNetwork() bool {
-	return d.allowExec || d.allowHTTP
+	return d.granted.Has(venv.CapabilityExec) || d.granted.Has(venv.CapabilityHTTP)
 }
 
 // callEnv returns the environment one tool call starts from: a copy of the
 // server's own under --allow=env, and an empty one otherwise. Each call gets
 // its own map, because a call writes the credentials it obtains into it.
 func (d *serverDeps) callEnv(rootVenv *venv.Venv) map[string]string {
-	if !d.allowEnv {
+	if !d.granted.Has(venv.CapabilityEnv) {
 		return map[string]string{}
 	}
 
@@ -137,12 +134,12 @@ func Serve(
 		return fmt.Errorf("resolving launch dir %s: %w", opts.WorkingDir, err)
 	}
 
-	granted, err := ParseCapabilities(opts.Allow)
+	granted, err := venv.ParseCapabilities(opts.Allow, allCapabilities)
 	if err != nil {
 		return err
 	}
 
-	allowCmds, err := parseAllowCmds(opts.AllowCmds)
+	allowCmds, err := venv.ParseAllowCmds(opts.AllowCmds)
 	if err != nil {
 		return err
 	}
@@ -161,23 +158,25 @@ func Serve(
 		launchDir:   launchDir,
 		baseOpts:    opts.TerragruntOptions,
 		tgVersion:   tgVersion,
-		allowExec:   granted.Has(CapabilityExec),
-		allowHTTP:   granted.Has(CapabilityHTTP),
-		allowSops:   granted.Has(CapabilitySops),
-		allowEnv:    granted.Has(CapabilityEnv),
+		granted:     granted,
 		allowApply:  opts.AllowApply,
 		allowCmds:   allowCmds,
 		approvalKey: []byte(rand.Text()),
-		refusal:     refusalStubs,
+		refusal:     venv.RefuseWithStub,
 		runSem:      make(chan struct{}, 1),
 		stdoutDir:   stdoutDir,
 	}
+
+	docs := startDocsProxy(ctx, l, rootVenv, granted, docsTimeouts{
+		startup: opts.DocsStartupTimeout,
+		call:    opts.DocsCallTimeout,
+	})
 
 	srv := mcp.NewServer(&mcp.Implementation{
 		Name:    "terragrunt",
 		Version: version.GetVersion(),
 	}, &mcp.ServerOptions{
-		Instructions: serverInstructions(deps),
+		Instructions: serverInstructions(deps) + " " + docs.instructions(),
 	})
 
 	registerDiscover(srv, l, deps, rootVenv)
@@ -187,10 +186,14 @@ func Serve(
 	registerGetOutputs(srv, l, deps, rootVenv)
 	registerPlan(srv, l, deps, rootVenv)
 	registerCatalog(srv, l, deps, rootVenv)
+	registerScaffold(srv, l, deps, rootVenv)
+	registerFmt(srv, l, deps, rootVenv)
 
 	if opts.AllowApply {
 		registerMutatingTools(srv, l, deps, rootVenv)
 	}
+
+	docs.register(srv, l)
 
 	serveErr := serve(ctx, l, srv, in, out)
 
@@ -279,7 +282,7 @@ func serverInstructions(d *serverDeps) string {
 		granted bool
 	}{
 		{
-			granted: d.allowExec,
+			granted: d.granted.Has(venv.CapabilityExec),
 			on: "The server was started with --allow=exec, so the tools run the tofu, terraform, and " +
 				"git that Terragrunt starts to do its own work. A program a configuration names, through " +
 				"run_cmd(), a hook, or an auth-provider command, is refused unless an --allow-cmd pattern " +
@@ -293,7 +296,7 @@ func serverInstructions(d *serverDeps) string {
 				"--allow=exec. ",
 		},
 		{
-			granted: d.allowHTTP,
+			granted: d.granted.Has(venv.CapabilityHTTP),
 			on: "The server was started with --allow=http, so Terragrunt may reach state " +
 				"backends, registries, and module sources itself. ",
 			off: "Outbound HTTP is disabled. Every request Terragrunt itself makes fails, so " +
@@ -304,7 +307,7 @@ func serverInstructions(d *serverDeps) string {
 				"fetched nothing. ",
 		},
 		{
-			granted: d.allowSops,
+			granted: d.granted.Has(venv.CapabilitySops),
 			on: "The server was started with --allow=sops, so a configuration that calls " +
 				"sops_decrypt_file gets its cleartext, and that cleartext reaches you. ",
 			off: "SOPS decryption is disabled. A configuration calling sops_decrypt_file fails " +
@@ -312,7 +315,7 @@ func serverInstructions(d *serverDeps) string {
 				"rendered until the server is restarted with --allow=sops. ",
 		},
 		{
-			granted: d.allowEnv,
+			granted: d.granted.Has(venv.CapabilityEnv),
 			on: "The server was started with --allow=env, so configurations and the commands the tools " +
 				"run see every environment variable the server has, credentials included, and get_env() " +
 				"can put any of them in a result. ",

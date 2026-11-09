@@ -27,7 +27,7 @@ import (
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) error {
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
-	if opts.TerraformCliArgs.IsDestroy(opts.TerraformCommand) {
+	if opts.TerraformCliArgs.IsDestroy(opts.TofuCommand) {
 		opts.CheckDependentUnits = opts.DestroyDependenciesCheck
 	}
 
@@ -72,12 +72,12 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		}()
 	}
 
-	if opts.TerraformCommand == "" {
+	if opts.TofuCommand == "" {
 		return run.MissingCommand{}
 	}
 
 	// Early exit for version command to avoid expensive setup
-	if opts.TerraformCommand == tf.CommandNameVersion {
+	if opts.TofuCommand == tf.CommandNameVersion {
 		return runVersionCommand(ctx, l, opts, v)
 	}
 

@@ -152,6 +152,8 @@ func expandComponentBlocks[T any, P expandedComponent[T]](
 			continue
 		}
 
+		components = slices.Grow(components, len(instances))
+
 		for _, instance := range instances {
 			component, ok := instance.Value.(P)
 			if !ok {
@@ -489,10 +491,12 @@ func DirectComponentPaths(
 		return nil, nil, err
 	}
 
+	unitPaths = make([]string, 0, len(units))
 	for _, unit := range units {
 		unitPaths = append(unitPaths, unit.GeneratedPath(stackDir))
 	}
 
+	stackPaths = make([]string, 0, len(stacks))
 	for _, stack := range stacks {
 		stackPaths = append(stackPaths, stack.GeneratedPath(stackDir))
 	}

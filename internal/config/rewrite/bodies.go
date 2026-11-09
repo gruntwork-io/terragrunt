@@ -36,6 +36,7 @@ type RunBodies struct {
 	AfterHooks      []HookBody
 	ErrorHooks      []ErrorHookBody
 	Generate        []GenerateBody
+	Variables       []VariablesBody
 }
 
 // decodeQueue decodes the queue parts of c with evalCtx, which defines no `dependency` variable in the parse.
@@ -88,6 +89,7 @@ func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagno
 	}
 
 	diags = append(diags, decodeEach(evalCtx, c.GenerateBlocks, &r.Generate, (*GenerateHCL).remain)...)
+	diags = append(diags, decodeEach(evalCtx, c.VariablesBlocks, &r.Variables, (*VariablesHCL).remain)...)
 
 	return &r, diags
 }
@@ -171,4 +173,8 @@ func (i *IgnoreHCL) remain() hcl.Body {
 
 func (g *GenerateHCL) remain() hcl.Body {
 	return g.Remain
+}
+
+func (b *VariablesHCL) remain() hcl.Body {
+	return b.Remain
 }

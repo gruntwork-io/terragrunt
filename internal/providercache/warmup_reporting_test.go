@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
@@ -15,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +46,7 @@ func TestTerraformCommandHookProgress(t *testing.T) {
 
 			var invocations []vexec.Invocation
 
-			v := venvtest.New().
+			v := venv.MemVenv().
 				WithGOOS("linux").
 				WithUserHomeDir(func() (string, error) { return "/virtual/home", nil }).
 				WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {

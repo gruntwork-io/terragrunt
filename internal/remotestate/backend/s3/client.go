@@ -1911,6 +1911,11 @@ func (client *Client) DoesLockTableExistAndIsActive(
 		return false, err
 	}
 
+	// Some DynamoDB-compatible endpoints return 200 with no Table.
+	if res.Table == nil {
+		return false, TableDescriptionMissingError{TableName: tableName}
+	}
+
 	return res.Table.TableStatus == dynamodbtypes.TableStatusActive, nil
 }
 
@@ -1949,6 +1954,11 @@ func (client *Client) LockTableCheckSSEncryptionIsOn(
 		}
 
 		return false, err
+	}
+
+	// Some DynamoDB-compatible endpoints return 200 with no Table.
+	if output.Table == nil {
+		return false, TableDescriptionMissingError{TableName: tableName}
 	}
 
 	return output.Table.SSEDescription != nil &&
@@ -2488,6 +2498,11 @@ func (client *Client) checkIfSSEForS3MatchesConfig(
 		}
 
 		return false, err
+	}
+
+	// The SDK leaves this nil when an S3-compatible store returns 200 with an empty body.
+	if output.ServerSideEncryptionConfiguration == nil {
+		return false, nil
 	}
 
 	expectedAlgorithm := client.FetchEncryptionAlgorithm()

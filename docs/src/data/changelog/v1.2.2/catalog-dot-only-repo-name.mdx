@@ -1,0 +1,16 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `catalog` keeps the clone directory inside its temporary directory
+
+`terragrunt catalog` clones each repository into a directory named after the last segment of its URL, inside a fresh temporary directory. For a URL ending in `/..`, with or without a `.git` suffix, such as `https://github.com/example/repo//..`, that name was `..`, so the clone directory was the parent of the temporary directory. For a URL ending in `/.` it was the temporary directory itself. The run failed with:
+
+```text
+refusing to remove clone path "/tmp" outside clone root "/tmp/catalog-<id>"
+```
+
+When the parent already held a `.catalog-clone-complete` file, the clone was skipped instead, and whatever the parent held was listed as the repository's components.
+
+A name made only of dots now falls back to `temp`, so the clone directory always stays inside the temporary directory. Any other name is unchanged.

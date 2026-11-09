@@ -6,10 +6,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +36,7 @@ func TestGitRepoTagsParsesLsRemote(t *testing.T) {
 	u, err := url.Parse("https://github.com/example/repo.git")
 	require.NoError(t, err)
 
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 
 	tags, err := shell.GitRepoTags(t.Context(), logger.CreateLogger(), v, "/work", u)
 	require.NoError(t, err)
@@ -63,7 +62,7 @@ func TestGitLastReleaseTagSelectsHighestSemver(t *testing.T) {
 	u, err := url.Parse("https://github.com/example/repo.git")
 	require.NoError(t, err)
 
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 
 	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), v, "/work", u)
 	require.NoError(t, err)
@@ -82,7 +81,7 @@ func TestGitLastReleaseTagEmptyOnNoSemver(t *testing.T) {
 	u, err := url.Parse("https://github.com/example/repo.git")
 	require.NoError(t, err)
 
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 
 	tag, err := shell.GitLastReleaseTag(t.Context(), logger.CreateLogger(), v, "/work", u)
 	require.NoError(t, err)

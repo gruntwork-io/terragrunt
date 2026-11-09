@@ -16,12 +16,17 @@ func (cfg *TerragruntConfig) ToRunConfig(l log.Logger, fsys vfs.FS) *runcfg.RunC
 		return nil
 	}
 
+	inputs := translateInputs(cfg.ResolveInputs())
+
 	runCfg := &runcfg.RunConfig{
 		Terraform:                   translateTerraformConfig(cfg.Terraform, l, fsys),
 		RemoteState:                 translateRemoteState(cfg.RemoteState),
 		Exclude:                     translateExcludeConfig(cfg.Exclude),
 		GenerateConfigs:             translateGenerateConfigs(cfg.GenerateConfigs),
-		Inputs:                      translateInputs(cfg.Inputs),
+		Inputs:                      inputs.env,
+		TFVarsInputs:                inputs.tfvars,
+		JSONInputs:                  inputs.json,
+		ValidatedInputs:             inputs.validated,
 		IAMRole:                     cfg.GetIAMRoleOptions(),
 		DownloadDir:                 cfg.DownloadDir,
 		TerraformBinary:             cfg.TerraformBinary,
@@ -262,11 +267,36 @@ func translateGenerateConfigs(
 	return generateConfigs
 }
 
-// translateInputs converts map[string]any to map[string]any.
-// Returns an empty map if the input is nil.
-func translateInputs(inputs map[string]any) map[string]any {
-	if inputs == nil {
-		return make(map[string]any)
+// runInputs is the resolved inputs of a config, split by how they reach OpenTofu/Terraform.
+type runInputs struct {
+	env       map[string]any
+	tfvars    map[string]any
+	json      map[string]any
+	validated map[string]struct{}
+}
+
+// translateInputs splits resolved inputs by kind. Every map it returns is non-nil.
+func translateInputs(resolved map[string]ResolvedInput) runInputs {
+	inputs := runInputs{
+		env:       map[string]any{},
+		tfvars:    map[string]any{},
+		json:      map[string]any{},
+		validated: map[string]struct{}{},
+	}
+
+	for name, input := range resolved {
+		switch input.Kind {
+		case VariablesKindEnv:
+			inputs.env[name] = input.Value
+		case VariablesKindTFVar:
+			inputs.tfvars[name] = input.Value
+		case VariablesKindJSON:
+			inputs.json[name] = input.Value
+		}
+
+		if input.Validate {
+			inputs.validated[name] = struct{}{}
+		}
 	}
 
 	return inputs

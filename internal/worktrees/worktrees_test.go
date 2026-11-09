@@ -1102,7 +1102,7 @@ func TestNewWorktreesWithoutExpressions(t *testing.T) {
 	w, err := worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New(),
+		venv.MemVenv(),
 		worktrees.WorktreeOpts{WorkingDir: root},
 	)
 	require.NoError(t, err)
@@ -1115,7 +1115,7 @@ func TestGitNotFound(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/repo")
-	v := venvtest.New().WithExec(vexec.NewMemExec(
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(
 		func(context.Context, vexec.Invocation) vexec.Result { return vexec.Result{} },
 		vexec.WithLookPath(func(string) (string, error) { return "", errors.New("not found") }),
 	))
@@ -1508,7 +1508,7 @@ func TestWorktreeCleanupFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 				if slices.Contains(inv.Args, "worktree") {
 					return vexec.Result{ExitCode: tc.exit, Stderr: []byte(tc.stderr)}
 				}
@@ -1668,7 +1668,7 @@ func memRepoVenv(t *testing.T, root, diff string, other vexec.Handler) *venv.Ven
 
 	fsys := venvtest.NewFS(t, root, map[string]string{".git": "gitdir: /elsewhere\n"})
 
-	return venvtest.New().WithFS(fsys).WithHandler(memRepoHandler(diff, other))
+	return venv.MemVenv().WithFS(fsys).WithHandler(memRepoHandler(diff, other))
 }
 
 // memRepoHandler answers git diff with diff, git ls-tree with an empty tree, and anything else with other.

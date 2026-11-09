@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -72,7 +73,7 @@ func TestHCLFmt(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 	tgOptions.HclExclude = []string{".history"}
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -140,7 +141,7 @@ func TestHCLFmtErrors(t *testing.T) {
 
 			newTgOptions.WorkingDir = tgHclDir
 
-			err = format.Run(t.Context(), l, venvtest.New().WithFS(fsys), newTgOptions)
+			err = format.Run(t.Context(), l, venv.MemVenv().WithFS(fsys), newTgOptions)
 			require.Error(t, err)
 		})
 	}
@@ -159,7 +160,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -193,7 +194,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -226,7 +227,7 @@ func TestHCLFmtFile(t *testing.T) {
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
 	tgOptions.WorkingDir = tmpPath
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
@@ -314,7 +315,7 @@ func TestHCLFmtStdin(t *testing.T) {
 
 			var out bytes.Buffer
 
-			v := venvtest.New().
+			v := venv.MemVenv().
 				WithStdin(strings.NewReader(tc.input)).
 				WithWriter(&out)
 
@@ -360,7 +361,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	assert.Equal(t, expected, readFixture(t, fsys, tmpPath, "terragrunt.hcl"))
@@ -390,7 +391,7 @@ func TestRunForFiles(t *testing.T) {
 	err = format.RunForFiles(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New().WithFS(fsys),
+		venv.MemVenv().WithFS(fsys),
 		tgOptions,
 		tmpPath,
 		files,
@@ -423,7 +424,7 @@ func TestRunForFilesEmptyList(t *testing.T) {
 	err = format.RunForFiles(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New(),
+		venv.MemVenv(),
 		tgOptions,
 		"/empty",
 		nil,
@@ -453,7 +454,7 @@ func TestHCLFmtFilter(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -511,7 +512,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -569,7 +570,7 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -626,7 +627,7 @@ func TestHCLFmtDiffFile(t *testing.T) {
 	require.NoError(t, format.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New().WithFS(fsys).WithWriter(&out),
+		venv.MemVenv().WithFS(fsys).WithWriter(&out),
 		tgOptions,
 	))
 
@@ -649,7 +650,7 @@ func TestHCLFmtRejectsStdinWithFile(t *testing.T) {
 	tgOptions.HclFromStdin = true
 	tgOptions.HclFile = "terragrunt.hcl"
 
-	v := venvtest.New().WithStdin(strings.NewReader(formatUnformatted))
+	v := venv.MemVenv().WithStdin(strings.NewReader(formatUnformatted))
 
 	require.Error(t, format.Run(t.Context(), logger.CreateLogger(), v, tgOptions))
 }
@@ -701,7 +702,7 @@ func TestHCLFmtStdinFailures(t *testing.T) {
 			tgOptions.HclFromStdin = true
 			tgOptions.Diff = tc.diff
 
-			v := venvtest.New().WithStdin(tc.stdin)
+			v := venv.MemVenv().WithStdin(tc.stdin)
 			if tc.stdout != nil {
 				v = v.WithWriter(tc.stdout)
 			}
@@ -722,7 +723,7 @@ func TestHCLFmtStdinInvalidHCL(t *testing.T) {
 	tgOptions.HclFromStdin = true
 
 	stdout := new(bytes.Buffer)
-	v := venvtest.New().WithStdin(strings.NewReader("inputs = {")).WithWriter(stdout)
+	v := venv.MemVenv().WithStdin(strings.NewReader("inputs = {")).WithWriter(stdout)
 
 	var diags hcl.Diagnostics
 
@@ -771,7 +772,7 @@ func TestHCLFmtFileFailures(t *testing.T) {
 			tgOptions.HclFile = tc.file
 			tgOptions.Diff = tc.diff
 
-			v := venvtest.New().WithFS(fsys)
+			v := venv.MemVenv().WithFS(fsys)
 			if tc.stdout != nil {
 				v = v.WithWriter(tc.stdout)
 			}
@@ -791,7 +792,7 @@ func TestHCLFmtMissingWorkingDir(t *testing.T) {
 
 	tgOptions.WorkingDir = venvtest.Root("/missing")
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv(), tgOptions)
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
@@ -813,7 +814,7 @@ func TestHCLFmtFilterRequiringDiscovery(t *testing.T) {
 
 	var requiresDiscovery filter.FilterQueryRequiresDiscoveryError
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.ErrorAs(t, err, &requiresDiscovery)
 	assert.Equal(t, formatUnformatted, readFixture(t, fsys, root, "terragrunt.hcl"), "no file should be formatted")
 }
@@ -834,7 +835,7 @@ func TestHCLFmtExplicitParallelism(t *testing.T) {
 	tgOptions.WorkingDir = root
 	tgOptions.Parallelism = 1
 
-	require.NoError(t, format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions))
+	require.NoError(t, format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions))
 
 	assert.Equal(t, formatFormatted, readFixture(t, fsys, root, "a", "terragrunt.hcl"))
 	assert.Equal(t, formatFormatted, readFixture(t, fsys, root, "b", "terragrunt.hcl"))
@@ -858,7 +859,7 @@ func TestRunForFilesCollectsFailures(t *testing.T) {
 	err = format.RunForFiles(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New().WithFS(fsys),
+		venv.MemVenv().WithFS(fsys),
 		tgOptions,
 		root,
 		[]string{"bad.hcl", "good.hcl"},

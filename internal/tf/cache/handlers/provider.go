@@ -50,7 +50,7 @@ func NewProviderHandlers(
 ) (ProviderHandlers, error) {
 	var (
 		providerHandlers = make([]ProviderHandler, 0, len(cliCfg.ProviderInstallation.Methods))
-		excludeAddrs     = make([]string, 0, len(cliCfg.ProviderInstallation.Methods))
+		excludeAddrs     = make([]string, 0, len(registryNames))
 		directIsDefined  bool
 	)
 

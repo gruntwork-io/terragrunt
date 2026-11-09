@@ -13,9 +13,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -194,11 +194,11 @@ func catalogFailures(err error) ([]catalogFailure, error) {
 	return failures, nil
 }
 
-// redactAddress returns addr with any credential it carries removed. A local
-// path is returned as written: it carries none, and rendering it as a URL
-// would escape it.
+// redactAddress returns addr with any credential it carries removed. An addr
+// with neither a scheme nor a query is returned as written: it carries none,
+// and rendering a local path as a URL would escape it.
 func redactAddress(addr string) string {
-	if !strings.Contains(addr, "://") {
+	if !strings.Contains(addr, "://") && !strings.Contains(addr, "?") {
 		return addr
 	}
 

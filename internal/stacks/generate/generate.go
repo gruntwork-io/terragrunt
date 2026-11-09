@@ -522,7 +522,7 @@ func ListStackFiles(
 // of unit paths that should be excluded from the current tofu/terraform command.
 // Both results come from a single discovery walk. Stack-file paths and
 // excludedPaths keys are canonical symlink-resolved absolute paths; exclusion
-// follows [config.ExcludeConfig.Excludes] for opts.TerraformCommand.
+// follows [config.ExcludeConfig.Excludes] for opts.TofuCommand.
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
@@ -668,10 +668,13 @@ func worktreeStacksToGenerate(
 	// If we edit a stack in a worktree, we need to generate it, at the minimum.
 	stackDiff := w.Stacks()
 
-	editedStacks := slices.Concat(
-		stackDiff.Added,
-		stackDiff.Removed,
+	editedStacks := make(
+		[]*component.Stack,
+		0,
+		len(stackDiff.Added)+len(stackDiff.Removed)+2*len(stackDiff.Changed),
 	)
+	editedStacks = append(editedStacks, stackDiff.Added...)
+	editedStacks = append(editedStacks, stackDiff.Removed...)
 
 	for _, changed := range stackDiff.Changed {
 		editedStacks = append(editedStacks, changed.FromStack, changed.ToStack)

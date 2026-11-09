@@ -13,10 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +29,7 @@ func TestRunNoDotTerragruntCacheRunsInUnitDir(t *testing.T) {
 
 	s := setupRunE2EScaffold(t)
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	opts := newNoDotTerragruntCacheOpts(t, s, "plan")
 	cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}}
@@ -48,7 +48,7 @@ func TestRunNoDotTerragruntCacheWithoutExperimentReturnsError(t *testing.T) {
 
 	s := setupRunE2EScaffold(t)
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	opts := newRunE2EOpts(t, s, "plan")
 	cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}}
@@ -80,7 +80,7 @@ func TestRunNoDotTerragruntCacheWithSourceReturnsError(t *testing.T) {
 
 			s := setupRunE2EScaffold(t)
 			rec := &recorder{}
-			v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+			v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 			opts := newNoDotTerragruntCacheOpts(t, s, "plan")
 			opts.Source = tc.cliSource
@@ -115,7 +115,7 @@ func TestRunNoDotTerragruntCacheInitKeepsSymlinkedLockFile(t *testing.T) {
 	require.NoError(t, os.Symlink(filepath.Join("..", "shared-lock", tf.TerraformLockFile), lockPath))
 
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	opts := newNoDotTerragruntCacheOpts(t, s, "init")
 	cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}}
@@ -145,7 +145,7 @@ func TestRunNoDotTerragruntCacheNullInputIsWrittenForTheRun(t *testing.T) {
 
 		return vexec.Result{}
 	})
-	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(exec).WithFS(vfs.NewOSFS())
 
 	opts := newNoDotTerragruntCacheOpts(t, s, "plan")
 	cfg := &runcfg.RunConfig{
@@ -190,7 +190,7 @@ func TestRunNoDotTerragruntCacheNullInputKeepsExistingFile(t *testing.T) {
 			require.NoError(t, os.WriteFile(targetPath, []byte(tc.contents), 0o644))
 
 			rec := &recorder{}
-			v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+			v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 			opts := newNoDotTerragruntCacheOpts(t, s, "plan")
 			cfg := &runcfg.RunConfig{
@@ -200,7 +200,7 @@ func TestRunNoDotTerragruntCacheNullInputKeepsExistingFile(t *testing.T) {
 
 			err := run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter())
 
-			var exists run.NullVarsFileExists
+			var exists run.VarsFileExists
 
 			require.ErrorAs(t, err, &exists)
 			assert.Equal(t, nullVarsPath, exists.Path)
@@ -224,7 +224,7 @@ func TestRunNullInputReplacesLeftoverCacheFile(t *testing.T) {
 
 	s := setupRunE2EScaffold(t)
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")

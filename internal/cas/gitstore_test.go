@@ -285,7 +285,7 @@ func TestGitStoreEnsureRef_FetchFailureSurfacesError(t *testing.T) {
 func TestNewGitStoreVenvRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
-	_, err := cas.NewGitStoreVenv(venvtest.New())
+	_, err := cas.NewGitStoreVenv(venv.MemVenv())
 	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }
 

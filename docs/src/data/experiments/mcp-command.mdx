@@ -37,6 +37,9 @@ With the experiment enabled, `terragrunt mcp` speaks the Model Context Protocol 
 | `get_outputs`   | The applied outputs of one unit                                              |
 | `plan`          | The per-unit result of `run --all plan`                                      |
 | `catalog`       | The components `terragrunt catalog` returns                                  |
+| `scaffold`      | New configuration written from a module, unit, or stack source, as `terragrunt scaffold` writes it |
+| `fmt`           | Rewrites `.hcl` files into canonical format, as `hcl fmt` does, or with `check` reports the files that need it without changing any |
+| `docs_*`        | The tools of the Terragrunt docs MCP server, served only under `--allow=docs` |
 | `apply`, `destroy` | The per-unit result of a real change, served only under `--dangerously-allow-apply` and gated on a person accepting it |
 
 </Since>
@@ -53,6 +56,12 @@ The server denies every capability at startup, and grants them separately.
 - [`--allow=exec`](/reference/cli/commands/mcp#allow) lets it run the `tofu`, `terraform`, and `git` Terragrunt starts to do its own work. Without it none of them run. A program a configuration names through `run_cmd()`, a hook, or an auth-provider command stays refused even with it, including a `tofu`, `terraform`, or `git` the configuration names for itself, since the agent picks the repository and a configuration under it could otherwise name any program on the machine. Allow one with an [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd) pattern, or let the read-only tools offer the refused programs to the person operating the client and run again with what they accept.
 - [`--allow=http`](/reference/cli/commands/mcp#allow) lets it make requests. Without it every request Terragrunt makes on its own account fails, so state backends, registries, and remote module sources are unreachable, and a unit whose `terraform` source is remote cannot be planned at all.
 - [`--allow=env`](/reference/cli/commands/mcp#allow) passes its environment variables to configurations and the commands the tools run. Without it they start from an empty environment, so `get_env()` returns its default.
+
+<Since version="v1.2.2">
+
+- [`--allow=docs`](/reference/cli/commands/mcp#allow) relays the tools and resources of the [Terragrunt docs MCP server](/getting-started/install#terragrunt-docs-mcp-server), each tool under a `docs_` prefix. Without it the server sends nothing to the docs server.
+
+</Since>
 
 With none granted, Terragrunt refuses the commands and requests the tools would otherwise make. A result a restriction affected carries a `degraded` list naming what was substituted, such as a dependency output that fell back to `mock_outputs`, a `run_cmd` that returned an empty string, or outputs that were not fetched. `plan` needs real commands, so it is refused outright. `get_outputs` needs either `exec` or `http`, since it runs the real output command or reads remote state itself. The second path works for a unit whose `remote_state` backend is `s3`, `gcs`, or `azurerm`; any other unit reports that it fetched nothing and says why.
 

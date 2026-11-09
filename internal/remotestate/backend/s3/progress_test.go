@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
@@ -16,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -194,7 +195,7 @@ func newStubbedClient(t *testing.T, stub *awsStub) *s3backend.Client {
 		},
 	}
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithFS(vfs.NewOSFS()).
 		WithHTTP(vhttp.NewOSClient()).
 		WithEnv(map[string]string{

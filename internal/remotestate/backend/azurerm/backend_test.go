@@ -13,9 +13,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +35,7 @@ func TestInvalidConfigSurfaces(t *testing.T) {
 	ctx := t.Context()
 	b := azurerm.NewBackend()
 
-	_, err := b.NeedsBootstrap(ctx, l, venvtest.New(), backend.Config{}, testBackendOptions(t))
+	_, err := b.NeedsBootstrap(ctx, l, venv.MemVenv(), backend.Config{}, testBackendOptions(t))
 	require.Error(t, err, "missing required keys must surface as a validation error")
 }
 
@@ -74,7 +74,7 @@ func TestMigrate_CrossAccountRefused(t *testing.T) {
 	dstRaw["storage_account_name"] = "differentaccount"
 	dstCfg := backend.Config(dstRaw)
 
-	err := b.Migrate(ctx, l, venvtest.New(), venvtest.New(), srcCfg, dstCfg, opts)
+	err := b.Migrate(ctx, l, venv.MemVenv(), venv.MemVenv(), srcCfg, dstCfg, opts)
 	require.Error(t, err)
 
 	var crossAccount *azurerm.CrossAccountMigrationError
@@ -102,7 +102,7 @@ func TestMigrate_CrossCloudRefused(t *testing.T) {
 	dstRaw["environment"] = "usgovernment"
 
 	err := b.Migrate(
-		t.Context(), logger.CreateLogger(), venvtest.New(), venvtest.New(),
+		t.Context(), logger.CreateLogger(), venv.MemVenv(), venv.MemVenv(),
 		backend.Config(srcRaw), backend.Config(dstRaw), opts)
 
 	require.Error(t, err)
@@ -132,7 +132,7 @@ func TestMigrate_SameCloudAliasAllowed(t *testing.T) {
 	dstRaw["storage_account_name"] = "otheraccount"
 
 	err := b.Migrate(
-		t.Context(), logger.CreateLogger(), venvtest.New(), venvtest.New(),
+		t.Context(), logger.CreateLogger(), venv.MemVenv(), venv.MemVenv(),
 		backend.Config(srcRaw), backend.Config(dstRaw), opts)
 
 	var crossCloud *azurerm.CrossCloudMigrationError
@@ -150,7 +150,7 @@ func TestNeedsBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {
 
 	needs, err := azurerm.NewBackend().NeedsBootstrap(
 		t.Context(),
-		logger.CreateLogger(), venvtest.New(), backend.Config(rgLessSkipAllConfig()), testBackendOptions(t))
+		logger.CreateLogger(), venv.MemVenv(), backend.Config(rgLessSkipAllConfig()), testBackendOptions(t))
 	require.NoError(t, err)
 	assert.False(t, needs)
 }
@@ -162,7 +162,7 @@ func TestBootstrap_SkipsArmPlaneWhenNoArmWork(t *testing.T) {
 
 	err := azurerm.NewBackend().Bootstrap(
 		t.Context(),
-		logger.CreateLogger(), venvtest.New(), backend.Config(rgLessSkipAllConfig()), testBackendOptions(t))
+		logger.CreateLogger(), venv.MemVenv(), backend.Config(rgLessSkipAllConfig()), testBackendOptions(t))
 	require.NoError(t, err)
 }
 
@@ -178,7 +178,7 @@ func TestBootstrap_AssignBlobDataRoleRequiresARM(t *testing.T) {
 
 	err := azurerm.NewBackend().Bootstrap(
 		t.Context(),
-		logger.CreateLogger(), venvtest.New(), backend.Config(cfg), testBackendOptions(t))
+		logger.CreateLogger(), venv.MemVenv(), backend.Config(cfg), testBackendOptions(t))
 
 	var requiresARM *azurerm.AssignBlobDataRoleRequiresARMError
 	require.ErrorAs(t, err, &requiresARM)
@@ -198,7 +198,7 @@ func TestNeedsBootstrap_AssignBlobDataRoleRequiresARM(t *testing.T) {
 
 	_, err := azurerm.NewBackend().NeedsBootstrap(
 		t.Context(),
-		logger.CreateLogger(), venvtest.New(), backend.Config(cfg), testBackendOptions(t))
+		logger.CreateLogger(), venv.MemVenv(), backend.Config(cfg), testBackendOptions(t))
 
 	var requiresARM *azurerm.AssignBlobDataRoleRequiresARMError
 	require.ErrorAs(t, err, &requiresARM)
@@ -218,7 +218,7 @@ func TestNeedsBootstrap_RoleOnlyDriftRequiresBootstrap(t *testing.T) {
 		needs, err := azurerm.NewBackend().NeedsBootstrap(
 			t.Context(),
 			logger.CreateLogger(),
-			venvtest.New().WithHTTP(roleDriftHTTP(false)),
+			venv.MemVenv().WithHTTP(roleDriftHTTP(false)),
 			backend.Config(roleOnlyDriftConfig()),
 			testBackendOptions(t),
 		)
@@ -232,7 +232,7 @@ func TestNeedsBootstrap_RoleOnlyDriftRequiresBootstrap(t *testing.T) {
 		needs, err := azurerm.NewBackend().NeedsBootstrap(
 			t.Context(),
 			logger.CreateLogger(),
-			venvtest.New().WithHTTP(roleDriftHTTP(true)),
+			venv.MemVenv().WithHTTP(roleDriftHTTP(true)),
 			backend.Config(roleOnlyDriftConfig()),
 			testBackendOptions(t),
 		)
@@ -294,7 +294,7 @@ func TestBootstrap_AssignBlobDataRolePrincipalType(t *testing.T) {
 			err := azurerm.NewBackend().Bootstrap(
 				t.Context(),
 				logger.CreateLogger(),
-				venvtest.New().WithHTTP(client),
+				venv.MemVenv().WithHTTP(client),
 				backend.Config(cfg),
 				testBackendOptions(t),
 			)
@@ -324,7 +324,7 @@ func TestIsVersionControlEnabled_NoResourceGroupDegrades(t *testing.T) {
 	delete(cfg, "resource_group_name")
 
 	enabled, err := azurerm.NewBackend().IsVersionControlEnabled(
-		t.Context(), logger.CreateLogger(), venvtest.New(), backend.Config(cfg), testBackendOptions(t))
+		t.Context(), logger.CreateLogger(), venv.MemVenv(), backend.Config(cfg), testBackendOptions(t))
 	require.NoError(t, err)
 	assert.False(t, enabled)
 }
@@ -478,8 +478,8 @@ func fakeAccessToken(t *testing.T, oid, idtyp string) string {
 func TestMigrate_CrossCloudFromDestinationEnvRefused(t *testing.T) {
 	t.Parallel()
 
-	srcV := (venvtest.New()).WithEnv(map[string]string{"ARM_ENVIRONMENT": "public"})
-	dstV := (venvtest.New()).WithEnv(map[string]string{"ARM_ENVIRONMENT": "usgovernment"})
+	srcV := (venv.MemVenv()).WithEnv(map[string]string{"ARM_ENVIRONMENT": "public"})
+	dstV := (venv.MemVenv()).WithEnv(map[string]string{"ARM_ENVIRONMENT": "usgovernment"})
 
 	cfg := backend.Config(fullConfig()) // identical config on both sides
 

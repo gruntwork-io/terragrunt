@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -74,7 +75,7 @@ func TestRegistryGetterDetect(t *testing.T) {
 func TestCASProtocolGetterMode(t *testing.T) {
 	t.Parallel()
 
-	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, venvtest.New())
+	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, venv.MemVenv())
 
 	mode, err := g.Mode(t.Context(), &url.URL{Scheme: "cas"})
 	require.NoError(t, err)
@@ -86,7 +87,7 @@ func TestCASProtocolGetterMode(t *testing.T) {
 func TestCASProtocolGetterGetFile(t *testing.T) {
 	t.Parallel()
 
-	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, venvtest.New())
+	g := getter.NewCASProtocolGetter(logger.CreateLogger(), nil, venv.MemVenv())
 
 	err := g.GetFile(t.Context(), &getter.Request{})
 	require.ErrorIs(t, err, cas.ErrGetFileNotSupported)

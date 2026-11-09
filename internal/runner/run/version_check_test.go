@@ -12,10 +12,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -290,7 +290,7 @@ func TestPopulateTFVersionSkipsProbeWhenEngineEnabled(t *testing.T) {
 		_, ver, impl, err := run.PopulateTFVersion(
 			run.WithRunVersionCache(t.Context()),
 			logger.CreateLogger(),
-			venvtest.New(),
+			venv.MemVenv(),
 			run.PopulateTFVersionInput{TFOpts: tfOpts(new(engine.EngineOptions))},
 		)
 		require.NoError(t, err)
@@ -304,7 +304,7 @@ func TestPopulateTFVersionSkipsProbeWhenEngineEnabled(t *testing.T) {
 		_, _, _, err := run.PopulateTFVersion(
 			run.WithRunVersionCache(t.Context()),
 			logger.CreateLogger(),
-			venvtest.New(),
+			venv.MemVenv(),
 			run.PopulateTFVersionInput{TFOpts: tfOpts(&engine.EngineOptions{NoEngine: true})},
 		)
 		require.Error(t, err)
@@ -356,7 +356,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(
 		ctx,
 		l,
-		venvtest.New().WithExec(e),
+		venv.MemVenv().WithExec(e),
 		run.PopulateTFVersionInput{
 			TFOpts: tfOpts("tofu"),
 		},
@@ -372,7 +372,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(
 		ctx,
 		l,
-		venvtest.New().WithExec(e),
+		venv.MemVenv().WithExec(e),
 		run.PopulateTFVersionInput{
 			TFOpts: tfOpts("terraform"),
 		},

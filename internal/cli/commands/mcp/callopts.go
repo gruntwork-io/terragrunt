@@ -12,19 +12,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 )
 
 // freshCallContext gives one tool call its own HCL, dependency-output,
 // repo-root, and run_cmd caches. RunAction installs those once on the action
-// context every call shares. Without this reset, a repo root the deny-all git
-// stub approximated on one call would be reused by later calls, degrading
-// them without the note that says so.
+// context every call shares. Without this reset, a run_cmd output a refusal
+// stubbed on one call would be reused by later calls, degrading them without
+// the note that says so.
 func freshCallContext(ctx context.Context) context.Context {
 	return cache.ContextWithCache(config.WithCaches(ctx))
 }
@@ -37,21 +37,9 @@ func resolveWorkingDir(fsys vfs.FS, launchDir, requested string) (string, error)
 		return launchDir, nil
 	}
 
-	dir := requested
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(launchDir, dir)
-	}
-
-	dir, err := vfs.EvalSymlinks(fsys, dir)
+	dir, err := resolveUnderRoot(fsys, launchDir, "working_dir", requested)
 	if err != nil {
-		return "", fmt.Errorf("resolving working_dir %q: %w", requested, err)
-	}
-
-	// launchDir is already symlink-resolved, so the Rel comparison is
-	// symlink-safe on both sides.
-	rel, err := filepath.Rel(launchDir, dir)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("working_dir %q escapes the MCP server root %s", requested, launchDir)
+		return "", err
 	}
 
 	info, err := fsys.Stat(dir)
@@ -64,6 +52,35 @@ func resolveWorkingDir(fsys vfs.FS, launchDir, requested string) (string, error)
 	}
 
 	return dir, nil
+}
+
+// resolveUnderRoot turns the path a tool-call argument named arg requested
+// into an absolute, symlink-resolved path confined under the server launch
+// dir. The path must exist.
+func resolveUnderRoot(fsys vfs.FS, launchDir, arg, requested string) (string, error) {
+	path := requested
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(launchDir, path)
+	}
+
+	path, err := vfs.EvalSymlinks(fsys, path)
+	if err != nil {
+		return "", fmt.Errorf("resolving %s %q: %w", arg, requested, err)
+	}
+
+	if !withinRoot(launchDir, path) {
+		return "", fmt.Errorf("%s %q: %w %s", arg, requested, ErrOutsideRoot, launchDir)
+	}
+
+	return path, nil
+}
+
+// withinRoot reports whether path is launchDir or under it. Both must already
+// be symlink-resolved, so the comparison is symlink-safe on both sides.
+func withinRoot(launchDir, path string) bool {
+	rel, err := filepath.Rel(launchDir, path)
+
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // buildDirOptions returns fresh, tree-scoped TerragruntOptions for the tools
@@ -97,7 +114,7 @@ func buildDirOptions(
 	opts.StrictControls = d.baseOpts.StrictControls
 	opts.TerragruntVersion = d.tgVersion
 
-	if !d.allowExec {
+	if !d.granted.Has(venv.CapabilityExec) {
 		// Discovery's auth-provider probe is a subprocess; don't waste a
 		// stub round-trip on it when exec is denied.
 		opts.DiscoveryAuthProviderCmd = false
@@ -149,8 +166,8 @@ func buildUnitOptions(
 	opts.Experiments = d.baseOpts.Experiments
 	opts.StrictControls = d.baseOpts.StrictControls
 	opts.TerragruntVersion = d.tgVersion
-	opts.TerraformCommand = command
-	opts.OriginalTerraformCommand = command
+	opts.TofuCommand = command
+	opts.OriginalTofuCommand = command
 	opts.TerraformCliArgs = iacargs.New(append([]string{command}, cliArgs...)...)
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
 
@@ -187,10 +204,9 @@ func setupGitFilterWorktrees(
 		return nil, nil, nil
 	}
 
-	if !d.allowExec {
-		// The deny-all git stub answers every invocation with the dir it was
-		// called from, so letting this through would produce empty worktrees
-		// and a filter result that silently matched nothing.
+	if !d.granted.Has(venv.CapabilityExec) {
+		// Without exec the git that creates the worktrees fails with
+		// [venv.ErrExecDenied], whose text names no flag. This error names it.
 		return nil, nil, errors.New(
 			"git-range filters require the MCP server to be started with --allow=exec",
 		)

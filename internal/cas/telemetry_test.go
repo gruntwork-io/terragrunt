@@ -13,9 +13,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,7 +70,7 @@ func TestLinkTreeEmitsOneSpanPerTree(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 	store := cas.NewStore("/store")
@@ -127,7 +127,7 @@ func TestLinkTreeReportsDegradedMode(t *testing.T) {
 	l := logger.CreateLogger()
 	blobData := []byte("module content\n")
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 	store := cas.NewStore("/store")

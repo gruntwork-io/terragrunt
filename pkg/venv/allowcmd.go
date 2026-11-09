@@ -1,4 +1,4 @@
-package mcp
+package venv
 
 import (
 	"errors"
@@ -9,15 +9,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 )
 
-// ErrInvalidAllowCmd is returned when an --allow-cmd pattern cannot be read as
-// a program name followed by argument patterns.
-var ErrInvalidAllowCmd = errors.New("invalid --" + AllowCmdFlagName + " pattern")
+// ErrInvalidAllowCmd is returned when an allow-cmd pattern cannot be read as a
+// program name followed by argument patterns.
+var ErrInvalidAllowCmd = errors.New("invalid allow-cmd pattern")
 
 // allowCmdAnyWords is the pattern word that matches any number of argument
 // words, none included.
 const allowCmdAnyWords = "**"
 
-// AllowCmd is one parsed --allow-cmd pattern. Read one with [ParseAllowCmd].
+// AllowCmd is one parsed allow-cmd pattern, which lets a [Restrict] venv run a
+// program a configuration names. Read one with [ParseAllowCmd], or build one
+// that allows a program with any arguments with [AllowProgram].
 type AllowCmd struct {
 	// program is the program the pattern names, reduced by execProgram.
 	program string
@@ -26,7 +28,7 @@ type AllowCmd struct {
 	runs [][]glob.Matcher
 }
 
-// ParseAllowCmd reads one --allow-cmd pattern into a matcher, splitting it into
+// ParseAllowCmd reads one allow-cmd pattern into a matcher, splitting it into
 // words with shell quoting rules (see [split.Command]).
 //
 // The first word names the program as a bare name or a path, and matches it
@@ -73,6 +75,17 @@ func ParseAllowCmd(pattern string) (AllowCmd, error) {
 	return cmd, nil
 }
 
+// AllowProgram returns an [AllowCmd] that allows program with any arguments,
+// the way the pattern "program **" does. Unlike the pattern, program is taken
+// as written rather than split, so a path holding spaces or quotes names
+// exactly that path.
+func AllowProgram(program string) AllowCmd {
+	return AllowCmd{
+		program: execProgram(program),
+		runs:    [][]glob.Matcher{nil, nil},
+	}
+}
+
 // Matches reports whether the pattern allows running program with args.
 //
 // A bare program name matches the same name, with any .exe suffix removed on
@@ -111,9 +124,9 @@ func (c AllowCmd) Matches(program string, args []string) bool {
 	return true
 }
 
-// parseAllowCmds reads every --allow-cmd pattern, and fails on the first one
-// it cannot read.
-func parseAllowCmds(patterns []string) ([]AllowCmd, error) {
+// ParseAllowCmds reads every allow-cmd pattern, and fails on the first one it
+// cannot read.
+func ParseAllowCmds(patterns []string) ([]AllowCmd, error) {
 	cmds := make([]AllowCmd, 0, len(patterns))
 
 	for _, pattern := range patterns {

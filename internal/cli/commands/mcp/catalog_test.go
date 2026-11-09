@@ -11,8 +11,8 @@ import (
 	"unicode/utf8"
 
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +20,11 @@ import (
 )
 
 // catalogToken is the credential in [catalogRemoteURL].
-const catalogToken = "s3cr3t-token"
+const catalogToken = "fake-token"
+
+// catalogSSHKey is the credential in a repository's sshkey query value, which
+// must be valid base64.
+const catalogSSHKey = "fakekey0"
 
 // catalogRemoteURL is a repository the catalog can reach only by running git.
 const catalogRemoteURL = "git::https://user:" + catalogToken + "@example.invalid/org/modules.git"
@@ -28,6 +32,23 @@ const catalogRemoteURL = "git::https://user:" + catalogToken + "@example.invalid
 // catalogQueryTokenURL is a repository with its credential in the query, which
 // git prints back as it was given.
 const catalogQueryTokenURL = "git::https://example.invalid/org/modules.git?token=" + catalogToken
+
+// catalogSchemelessAddresses are repositories spelled without a "://", each
+// with the credential it carries.
+var catalogSchemelessAddresses = map[string]struct{ url, credential string }{
+	"host and path": {
+		url:        "github.com/acme/private-modules?token=" + catalogToken,
+		credential: catalogToken,
+	},
+	"forced getter": {
+		url:        "git::github.com/acme/private-modules?token=" + catalogToken,
+		credential: catalogToken,
+	},
+	"scp form": {
+		url:        "git@github.com:acme/private-modules.git?sshkey=" + catalogSSHKey,
+		credential: catalogSSHKey,
+	},
+}
 
 const catalogAlphaReadme = `---
 name: Alpha
@@ -356,6 +377,55 @@ func TestCatalogKeepsACredentialOutOfAFailedClonesError(t *testing.T) {
 
 	require.Len(t, out.Failures, 1)
 	assert.NotContains(t, catalogMarshal(t, &out), catalogToken)
+}
+
+// TestCatalogKeepsACredentialOutOfAnAddressWithoutAScheme pins that a
+// credential stays out of the result when the configuration spells its
+// repository without a "://".
+func TestCatalogKeepsACredentialOutOfAnAddressWithoutAScheme(t *testing.T) {
+	t.Parallel()
+
+	for name, address := range catalogSchemelessAddresses {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			session := newFailingGitSession(t, catalogTree(t, catalogAlphaReadme, address.url),
+				func(args []string) string {
+					return "fatal: unable to access '" + strings.Join(args, " ") + "/': Could not resolve host\n"
+				})
+
+			var out catalogOutput
+
+			callTool(t, session, "catalog", map[string]any{}, &out)
+
+			require.Len(t, out.Failures, 1)
+			assert.Contains(t, out.Failures[0].Source, "private-modules")
+			assert.NotContains(t, catalogMarshal(t, &out), address.credential)
+		})
+	}
+}
+
+// TestCatalogKeepsACredentialOutOfADeniedCloneOfAnAddressWithoutAScheme pins
+// that a credential stays out of the note a refused clone leaves when the
+// configuration spells its repository without a "://".
+func TestCatalogKeepsACredentialOutOfADeniedCloneOfAnAddressWithoutAScheme(t *testing.T) {
+	t.Parallel()
+
+	for name, address := range catalogSchemelessAddresses {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			session := newCatalogSession(t, catalogTree(t, catalogAlphaReadme, address.url))
+
+			var out catalogOutput
+
+			callTool(t, session, "catalog", map[string]any{}, &out)
+
+			require.Len(t, out.Failures, 1)
+			assert.NotEmpty(t, out.Degraded)
+			assert.NotContains(t, catalogMarshal(t, &out), address.credential)
+		})
+	}
 }
 
 // TestCatalogBoundsTheErrorOfAFailedClone pins that a failed clone's error

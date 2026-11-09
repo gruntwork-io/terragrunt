@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +20,7 @@ func serverEnv() map[string]string {
 		"PATH":                           "/usr/local/bin:/usr/bin:/bin",
 		"HOME":                           "/home/dev",
 		"TMPDIR":                         "/var/tmp/dev",
-		"AWS_ACCESS_KEY_ID":              "AKIAEXAMPLE",
+		"AWS_ACCESS_KEY_ID":              "fake-access-key-id",
 		"AWS_SHARED_CREDENTIALS_FILE":    "/srv/aws/credentials",
 		"GOOGLE_APPLICATION_CREDENTIALS": "/srv/gcp/adc.json",
 		"AZURE_CLIENT_SECRET":            "secret",
@@ -33,7 +34,7 @@ func serverEnv() map[string]string {
 func TestIsolatedEnvWithNothingGrantedKeepsOnlyTheTempDir(t *testing.T) {
 	t.Parallel()
 
-	got := tgmcp.IsolatedEnv(serverEnv(), tgmcp.Capabilities{}, isolatedHome, isolatedBin)
+	got := tgmcp.IsolatedEnv(serverEnv(), venv.Capabilities{}, isolatedHome, isolatedBin)
 
 	assert.Equal(t, map[string]string{
 		"PATH":         isolatedBin,
@@ -50,7 +51,7 @@ func TestIsolatedEnvWithNothingGrantedKeepsOnlyTheTempDir(t *testing.T) {
 func TestIsolatedEnvUnderExecKeepsPath(t *testing.T) {
 	t.Parallel()
 
-	granted := tgmcp.Capabilities{tgmcp.CapabilityExec: true}
+	granted := venv.Capabilities{venv.CapabilityExec: {}}
 
 	got := tgmcp.IsolatedEnv(serverEnv(), granted, isolatedHome, isolatedBin)
 
@@ -65,7 +66,7 @@ func TestIsolatedEnvUnderExecKeepsPath(t *testing.T) {
 func TestIsolatedEnvUnderEnvKeepsEverythingButPath(t *testing.T) {
 	t.Parallel()
 
-	granted := tgmcp.Capabilities{tgmcp.CapabilityEnv: true}
+	granted := venv.Capabilities{venv.CapabilityEnv: {}}
 
 	want := serverEnv()
 	want["PATH"] = isolatedBin
@@ -76,7 +77,7 @@ func TestIsolatedEnvUnderEnvKeepsEverythingButPath(t *testing.T) {
 func TestIsolatedEnvUnderExecAndEnvChangesNothing(t *testing.T) {
 	t.Parallel()
 
-	granted := tgmcp.Capabilities{tgmcp.CapabilityExec: true, tgmcp.CapabilityEnv: true}
+	granted := venv.Capabilities{venv.CapabilityExec: {}, venv.CapabilityEnv: {}}
 
 	assert.Equal(t, serverEnv(), tgmcp.IsolatedEnv(serverEnv(), granted, isolatedHome, isolatedBin))
 }
@@ -96,7 +97,7 @@ func TestIsolatedEnvMatchesWindowsNamesIgnoringCase(t *testing.T) {
 	t.Run("replaced", func(t *testing.T) {
 		t.Parallel()
 
-		got := tgmcp.IsolatedEnv(env, tgmcp.Capabilities{tgmcp.CapabilityEnv: true}, isolatedHome, isolatedBin)
+		got := tgmcp.IsolatedEnv(env, venv.Capabilities{venv.CapabilityEnv: {}}, isolatedHome, isolatedBin)
 
 		assert.Equal(t, map[string]string{
 			"PATH":       isolatedBin,
@@ -108,7 +109,7 @@ func TestIsolatedEnvMatchesWindowsNamesIgnoringCase(t *testing.T) {
 	t.Run("kept", func(t *testing.T) {
 		t.Parallel()
 
-		got := tgmcp.IsolatedEnv(env, tgmcp.Capabilities{tgmcp.CapabilityExec: true}, isolatedHome, isolatedBin)
+		got := tgmcp.IsolatedEnv(env, venv.Capabilities{venv.CapabilityExec: {}}, isolatedHome, isolatedBin)
 
 		assert.Equal(t, `C:\Windows\system32`, got["Path"])
 		assert.Equal(t, `C:\Windows`, got["SystemRoot"])

@@ -23,13 +23,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestBuild pins which units Build discovers for a given set of options.
@@ -362,7 +362,7 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 		invoked []string
 	)
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -393,7 +393,7 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 func TestNew_EngineSkipsVersionProbe(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	writeUnit(t, v, memRoot, "vpc", engineBlock)
 	writeUnit(t, v, memRoot, "app", engineBlock+"\n"+dependencyBlock("../vpc"))
 

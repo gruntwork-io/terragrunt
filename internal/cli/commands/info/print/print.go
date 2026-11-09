@@ -157,7 +157,7 @@ func printTerragruntContext(
 		DownloadDir:      opts.DownloadDir,
 		IAMRole:          opts.IAMRoleOptions.RoleARN,
 		TerraformBinary:  opts.TFPath,
-		TerraformCommand: opts.TerraformCommand,
+		TerraformCommand: opts.TofuCommand,
 		WorkingDir:       opts.WorkingDir,
 	}
 

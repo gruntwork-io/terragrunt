@@ -11,8 +11,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const defaultStorePath = "/store"
@@ -33,7 +33,7 @@ func TestStore(t *testing.T) {
 func TestStore_NeedsWrite(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	storePath := defaultStorePath
 	store := cas.NewStore(storePath)
 
@@ -161,7 +161,7 @@ func TestStore_LockSharedAcrossInstancesWithRacing(t *testing.T) {
 func TestStore_EnsureWithWait(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	storePath := defaultStorePath
 	store := cas.NewStore(storePath)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"

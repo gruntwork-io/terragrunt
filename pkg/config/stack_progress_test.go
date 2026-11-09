@@ -10,6 +10,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -55,7 +57,7 @@ func TestGenerateStackProgress(t *testing.T) {
 				targetDir := filepath.Join(enabledStackDir, config.StackDir)
 				stackPath := filepath.Join(enabledStackDir, config.DefaultStackFile)
 
-				v := venvtest.New().WithFS(slowDirFS{
+				v := venv.MemVenv().WithFS(slowDirFS{
 					FS: venvtest.NewFS(t, enabledStackDir, map[string]string{
 						filepath.Join(enabledUnitSource, config.DefaultTerragruntConfigPath): "",
 						filepath.Join(enabledStackSource, config.DefaultStackFile):           "",

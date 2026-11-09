@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
 import HclItemCards from '@components/HclItemCards.astro';
 
@@ -33,6 +34,14 @@ The type constraint also decides how the value is read. A variable declared as `
 all, receives the value verbatim. Every other type constraint makes OpenTofu/Terraform read the value as an HCL
 expression, where `${...}` means interpolation. Terragrunt escapes those sequences for you when the module reads a value
 as HCL, so text like `${just_a_string}` reaches the module as written.
+
+<Since version="v1.2.2">
+
+A unit with many or large inputs can exceed the operating system's limit on the size of a process environment. The
+[`variables-block`](/reference/experiments/active#variables-block) experiment adds a [`variables`](/reference/hcl/blocks#variables) block that can write
+inputs to an auto-loaded variables file.
+
+</Since>
 
 Example:
 

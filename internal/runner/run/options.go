@@ -58,7 +58,7 @@ type Options struct {
 	DownloadDir                  string
 	RootWorkingDir               string
 	ProfileDir                   string
-	OriginalTerraformCommand     string
+	OriginalTofuCommand          string
 	Source                       string
 	AuthProviderCmd              string
 	OriginalIAMRoleOptions       iam.RoleOptions

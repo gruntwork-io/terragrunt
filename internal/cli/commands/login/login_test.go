@@ -21,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -142,7 +141,7 @@ func TestRunSignsInAndKeepsTheCredential(t *testing.T) {
 			opened string
 		)
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(approvingPortal(t, issuedTokenBody)).
 			WithBrowser(recordingBrowser(&opened)).
 			WithWriter(&out)
@@ -243,7 +242,7 @@ func TestRunApprovalWaitProgress(t *testing.T) {
 					opened string
 				)
 
-				v := venvtest.New().
+				v := venv.MemVenv().
 					WithHTTP(approvingPortal(t, issuedTokenBody)).
 					WithBrowser(recordingBrowser(&opened)).
 					WithWriter(&out).
@@ -300,7 +299,7 @@ func TestRunDoesNotPrintTheCredential(t *testing.T) {
 			opened string
 		)
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(approvingPortal(t, issuedTokenBody)).
 			WithBrowser(recordingBrowser(&opened)).
 			WithWriter(&out)
@@ -323,7 +322,7 @@ func TestRunNamesTheOrganizationWithoutAnAccount(t *testing.T) {
 		body := `{"access_token":"fake-access-token","token_type":"Bearer","expires_in":2592000,` +
 			`"org_id":42,"org_name":"Acme"}`
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(approvingPortal(t, body)).
 			WithBrowser(vbrowser.NewMemOpener(func(context.Context, string) error { return nil })).
 			WithWriter(&out)
@@ -342,7 +341,7 @@ func TestRunLeavesAnUnexpiredLoginAlone(t *testing.T) {
 
 	var out bytes.Buffer
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(vhttp.NewNoNetworkClient()).
 		WithBrowser(vbrowser.NewNoBrowserOpener()).
 		WithWriter(&out)
@@ -372,7 +371,7 @@ func TestRunReportsEveryCurrentLoginInOrder(t *testing.T) {
 
 	var out bytes.Buffer
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(vhttp.NewNoNetworkClient()).
 		WithBrowser(vbrowser.NewNoBrowserOpener()).
 		WithWriter(&out)
@@ -419,7 +418,7 @@ func TestRunForceReplacesAnUnexpiredCredential(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var out bytes.Buffer
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(approvingPortal(t, reissuedTokenBody)).
 			WithBrowser(vbrowser.NewMemOpener(func(context.Context, string) error { return nil })).
 			WithWriter(&out)
@@ -456,7 +455,7 @@ func TestRunCompletesWithoutABrowser(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var out bytes.Buffer
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(approvingPortal(t, issuedTokenBody)).
 			WithWriter(&out)
 
@@ -508,7 +507,7 @@ func TestRunReportsAPortalThatIsNotAcceptingLogins(t *testing.T) {
 					authorizePath: {status: tt.status, body: tt.body},
 				})
 
-				v := venvtest.New().
+				v := venv.MemVenv().
 					WithHTTP(c).
 					WithBrowser(vbrowser.NewNoBrowserOpener()).
 					WithWriter(&out)
@@ -541,7 +540,7 @@ func TestRunPassesOnAnUnrecognizedRefusal(t *testing.T) {
 			},
 		})
 
-		v := venvtest.New().WithHTTP(c).WithBrowser(vbrowser.NewNoBrowserOpener())
+		v := venv.MemVenv().WithHTTP(c).WithBrowser(vbrowser.NewNoBrowserOpener())
 
 		err := run(t, v)
 
@@ -566,7 +565,7 @@ func TestRunKeepsNothingWhenTheUserDeclines(t *testing.T) {
 			tokenPath:     {status: http.StatusBadRequest, body: deniedBody},
 		})
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(c).
 			WithBrowser(vbrowser.NewMemOpener(func(context.Context, string) error { return nil }))
 

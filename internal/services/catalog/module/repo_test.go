@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -110,7 +111,7 @@ func TestNewRepoRemoteCloneRejectsNonOSFS(t *testing.T) {
 	_, err := module.NewRepo(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New(),
+		venv.MemVenv(),
 		&module.RepoOpts{
 			CloneURL: "https://example.com/org/target.git",
 			Path:     t.TempDir(),
@@ -161,7 +162,7 @@ func TestNewRepoCloneDirectoryName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			cloneRoot := venvtest.Root("/catalog")
 			clonePath := filepath.Join(cloneRoot, "terraform-aws-modules")
 
@@ -188,12 +189,67 @@ func TestNewRepoCloneDirectoryName(t *testing.T) {
 	}
 }
 
+// TestNewRepoDotOnlyRepoNameUsesDefaultDir pins that a URL ending in dots clones into the default directory.
+func TestNewRepoDotOnlyRepoNameUsesDefaultDir(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		cloneURL string
+	}{
+		{
+			name:     "double dot after double slash",
+			cloneURL: "https://github.com/acme/repo//..",
+		},
+		{
+			name:     "double dot with .git",
+			cloneURL: "https://github.com/acme/...git",
+		},
+		{
+			name:     "single dot",
+			cloneURL: "https://github.com/acme/repo/.",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv()
+			cloneRoot := venvtest.Root("/catalog/clone-root")
+			clonePath := filepath.Join(cloneRoot, "temp")
+
+			for _, dir := range []string{filepath.Dir(cloneRoot), cloneRoot, clonePath} {
+				writeFakeRepo(t, v.FS, dir)
+				require.NoError(t, vfs.WriteFile(
+					v.FS,
+					filepath.Join(dir, module.CloneCompleteSentinel),
+					nil,
+					0o644,
+				))
+			}
+
+			repo, err := module.NewRepo(
+				t.Context(),
+				logger.CreateLogger(),
+				v,
+				&module.RepoOpts{
+					CloneURL: tc.cloneURL,
+					Path:     cloneRoot,
+				},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, clonePath, repo.Path())
+		})
+	}
+}
+
 // TestNewRepoLocalSourceKeepsPath pins that the catalog reads a local source
 // where it sits, whatever the directory is called.
 func TestNewRepoLocalSourceKeepsPath(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	localPath := filepath.Join(venvtest.Root("/catalog"), "terraform-aws-modules.git")
 
 	writeFakeRepo(t, v.FS, localPath)

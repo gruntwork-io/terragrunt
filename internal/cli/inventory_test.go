@@ -9,10 +9,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +42,7 @@ type cliFlag struct {
 func TestCLIInventory(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	app := cli.NewApp(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v)
 
 	got := flattenCommands(&cliCommand{
@@ -83,7 +82,7 @@ func TestCLIHelpMatchesInventory(t *testing.T) {
 
 			args := slices.Concat(strings.Fields(path)[1:], []string{"--help"})
 
-			out, err := runCLI(t, venvtest.New(), args...)
+			out, err := runCLI(t, venv.MemVenv(), args...)
 			require.NoError(t, err)
 
 			assert.Equal(t, wantHelp(path, cmd, globalHelp), parseHelp(out))
