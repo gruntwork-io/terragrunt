@@ -1120,10 +1120,8 @@ remote_state {
 `)
 }
 
-// A dependencies block path that overlaps a DISABLED dependency block of the same path must survive a
-// sibling autoinclude merge. The merge rebuilds the block derived path list through
-// dependencyBlocksToModuleDependencies, which skips disabled blocks, so the path is classified as
-// dependencies-block-only and preserved instead of being dropped as if a dependency block still carried it.
+// TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap pins that a dependencies block path
+// matching a disabled dependency block survives a sibling autoinclude merge.
 func TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap(t *testing.T) {
 	t.Parallel()
 

@@ -813,42 +813,6 @@ func decodeDependencies(
 	return &updatedDependencies, nil
 }
 
-// Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
-// become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(
-	l log.Logger,
-	decodedDependencyBlocks []Dependency,
-) *ModuleDependencies {
-	if len(decodedDependencyBlocks) == 0 {
-		return nil
-	}
-
-	paths := []string{}
-
-	for _, decodedDependencyBlock := range decodedDependencyBlocks {
-		// skip dependency if is not enabled
-		if !decodedDependencyBlock.isEnabled() {
-			continue
-		}
-
-		// Skip if ConfigPath is not a known string value (can happen during discovery phase)
-		if decodedDependencyBlock.ConfigPath.IsNull() ||
-			!decodedDependencyBlock.ConfigPath.IsWhollyKnown() ||
-			!decodedDependencyBlock.ConfigPath.Type().Equals(cty.String) {
-			l.Debugf(
-				"Skipping dependency %q: ConfigPath is not a valid known string value",
-				decodedDependencyBlock.Name,
-			)
-
-			continue
-		}
-
-		paths = append(paths, decodedDependencyBlock.ConfigPath.AsString())
-	}
-
-	return &ModuleDependencies{Paths: paths}
-}
-
 // Check for cyclic dependency blocks to avoid infinite `terragrunt output` loops. To avoid reparsing the config, we
 // kickstart the initial loop using what we already decoded.
 func checkForDependencyBlockCycles(
@@ -990,12 +954,12 @@ func getDependencyBlockConfigPathsByFilepath(
 		return nil, err
 	}
 
-	deps := dependencyBlocksToModuleDependencies(l, tgConfig.TerragruntDependencies)
-	if deps == nil {
-		return []string{}, nil
+	paths, unresolved := tgConfig.DependencyPaths()
+	for _, name := range unresolved {
+		l.Debugf("Skipping dependency %q of %s in cycle check: config_path is not a known string", name, cfgPath)
 	}
 
-	return deps.Paths, nil
+	return paths, nil
 }
 
 // DependencyBlocksToCtyValue encodes the list of dependency blocks into a single cty.Value object that maps the

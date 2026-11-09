@@ -290,6 +290,13 @@ include "root" {
 						}
 
 						assert.Nil(t, cfg.Dependencies)
+
+						wantPaths := []string{}
+						if tt.wantEnabled {
+							wantPaths = []string{tt.wantPath}
+						}
+
+						assert.Equal(t, wantPaths, dependencyPathBases(t, cfg))
 					})
 				}
 			})
@@ -402,6 +409,7 @@ include "root" {
 						require.NotNil(t, cfg.Dependencies)
 						require.Len(t, cfg.Dependencies.Paths, 1)
 						assert.Equal(t, "db", filepath.Base(cfg.Dependencies.Paths[0]))
+						assert.Contains(t, dependencyPathBases(t, cfg), "db")
 					})
 				}
 			})
@@ -536,6 +544,22 @@ func parsePartial(t *testing.T, cfgPath string) (*config.TerragruntConfig, error
 // dependencyEnabled reports whether dep is enabled, which it is unless it sets enabled to false.
 func dependencyEnabled(dep *config.Dependency) bool {
 	return dep.Enabled == nil || *dep.Enabled
+}
+
+// dependencyPathBases returns the final element of each path [config.TerragruntConfig.DependencyPaths] returns for
+// cfg, and fails the test when a dependency block's config_path is unresolved.
+func dependencyPathBases(t *testing.T, cfg *config.TerragruntConfig) []string {
+	t.Helper()
+
+	paths, unresolved := cfg.DependencyPaths()
+	require.Empty(t, unresolved)
+
+	bases := make([]string, 0, len(paths))
+	for _, path := range paths {
+		bases = append(bases, filepath.Base(path))
+	}
+
+	return bases
 }
 
 // writeUnitWithRoot writes a root.hcl, a unit below it, and an empty db unit beside it, and returns the unit's config

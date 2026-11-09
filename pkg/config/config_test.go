@@ -2931,3 +2931,24 @@ func copyIgnoreTerraformDataDirFixture(t *testing.T) string {
 
 	return workingDir
 }
+
+func TestDependencyPaths(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.TerragruntConfig{
+		TerragruntDependencies: config.Dependencies{
+			{Name: "vpc", ConfigPath: cty.StringVal("../vpc")},
+			{Name: "off", ConfigPath: cty.StringVal("../off"), Enabled: new(false)},
+			{Name: "pending", ConfigPath: cty.UnknownVal(cty.String)},
+			{Name: "empty", ConfigPath: cty.StringVal("")},
+			{Name: "unset", ConfigPath: cty.NullVal(cty.String), Enabled: new(false)},
+			{Name: "db", ConfigPath: cty.StringVal("../db")},
+		},
+		Dependencies: &config.ModuleDependencies{Paths: []string{"../db", "../legacy"}},
+	}
+
+	paths, unresolved := cfg.DependencyPaths()
+
+	assert.Equal(t, []string{"../vpc", "../db", "../legacy"}, paths)
+	assert.Equal(t, []string{"pending", "empty"}, unresolved)
+}
