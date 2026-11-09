@@ -978,10 +978,6 @@ func getDependencyBlockConfigPathsByFilepath(
 	pctx *ParsingContext,
 	cfgPath string,
 ) ([]string, error) {
-	// This will automatically parse everything needed to parse the dependency block configs, and load them as
-	// TerragruntConfig.Dependencies. Note that since we aren't passing in `DependenciesBlock` to the
-	// PartialDecodeSectionType list, the Dependencies attribute will not include any dependencies specified via the
-	// dependencies block.
 	tgConfig, err := PartialParseConfigFile(
 		ctx,
 		l,
@@ -994,11 +990,12 @@ func getDependencyBlockConfigPathsByFilepath(
 		return nil, err
 	}
 
-	if tgConfig.Dependencies == nil {
+	deps := dependencyBlocksToModuleDependencies(l, tgConfig.TerragruntDependencies)
+	if deps == nil {
 		return []string{}, nil
 	}
 
-	return tgConfig.Dependencies.Paths, nil
+	return deps.Paths, nil
 }
 
 // DependencyBlocksToCtyValue encodes the list of dependency blocks into a single cty.Value object that maps the

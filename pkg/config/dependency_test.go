@@ -196,9 +196,9 @@ dependency "enabled" {
 		nil,
 	)
 	require.NoError(t, err)
-
-	// Only enabled dependency should be in the paths
-	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+	require.Len(t, terragruntConfig.TerragruntDependencies, 2)
+	require.NotNil(t, terragruntConfig.TerragruntDependencies[0].Enabled)
+	assert.False(t, *terragruntConfig.TerragruntDependencies[0].Enabled)
 }
 
 // TestDependencyOriginalTerragruntDir verifies that when parsing a dependency's
@@ -296,9 +296,9 @@ dependency "enabled" {
 		nil,
 	)
 	require.NoError(t, err)
-
-	// Only enabled dependency should be in the paths
-	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+	require.Len(t, terragruntConfig.TerragruntDependencies, 2)
+	require.NotNil(t, terragruntConfig.TerragruntDependencies[0].Enabled)
+	assert.False(t, *terragruntConfig.TerragruntDependencies[0].Enabled)
 }
 
 // TestDependencyDeepMergeExpansion pins that an expansion block survives the deep

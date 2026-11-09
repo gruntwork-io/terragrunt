@@ -388,16 +388,13 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		}
 	}
 
-	targetBlockOnlyPaths := dependenciesBlockOnlyPaths(l, cfg)
-	sourceBlockOnlyPaths := dependenciesBlockOnlyPaths(l, sourceConfig)
-
 	// Dependency blocks are shallow merged by name
 	cfg.TerragruntDependencies = mergeDependencyBlocks(
 		cfg.TerragruntDependencies,
 		sourceConfig.TerragruntDependencies,
 	)
 
-	reconcileModulePaths(l, cfg, targetBlockOnlyPaths, sourceBlockOnlyPaths)
+	cfg.Dependencies = mergeModuleDependencies(cfg.Dependencies, sourceConfig.Dependencies)
 
 	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
 
@@ -498,8 +495,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		cfg.Errors.Merge(sourceConfig.Errors)
 	}
 
-	targetBlockOnlyPaths := dependenciesBlockOnlyPaths(l, cfg)
-	sourceBlockOnlyPaths := dependenciesBlockOnlyPaths(l, sourceConfig)
+	cfg.Dependencies = mergeModuleDependencies(cfg.Dependencies, sourceConfig.Dependencies)
 
 	// Dependency blocks are deep merged by name
 	mergedDeps, err := deepMergeDependencyBlocks(
@@ -511,8 +507,6 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	}
 
 	cfg.TerragruntDependencies = mergedDeps
-
-	reconcileModulePaths(l, cfg, targetBlockOnlyPaths, sourceBlockOnlyPaths)
 
 	mergedFlags, err := deepMergeFeatureBlocks(cfg.FeatureFlags, sourceConfig.FeatureFlags)
 	if err != nil {
@@ -583,6 +577,22 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	CopyFieldsMetadata(sourceConfig, cfg)
 
 	return nil
+}
+
+// mergeModuleDependencies appends the paths of source that target lacks to target and returns it. The result never
+// shares a slice with source.
+func mergeModuleDependencies(target, source *ModuleDependencies) *ModuleDependencies {
+	if source == nil {
+		return target
+	}
+
+	if target == nil {
+		return &ModuleDependencies{Paths: slices.Clone(source.Paths)}
+	}
+
+	target.Merge(source)
+
+	return target
 }
 
 // merge feature flags by name.

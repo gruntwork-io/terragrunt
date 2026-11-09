@@ -805,14 +805,6 @@ func PartialParseConfig(
 			}
 
 			output.TerragruntDependencies = decodedDeps
-			// Convert dependency blocks into module dependency lists. If we already decoded some dependencies,
-			// merge them in. Otherwise, set as the new list.
-			dependencies := dependencyBlocksToModuleDependencies(l, decodedDeps)
-			if output.Dependencies != nil {
-				output.Dependencies.Merge(dependencies)
-			} else {
-				output.Dependencies = dependencies
-			}
 
 		case EngineBlock:
 			decoded := terragruntEngine{}
@@ -1125,71 +1117,6 @@ func mergeAutoIncludePartialIfPresent(
 	}
 
 	return nil
-}
-
-// dependenciesBlockOnlyPaths returns the module dependency paths that came from a dependencies block rather than being derived from a dependency block.
-func dependenciesBlockOnlyPaths(l log.Logger, cfg *TerragruntConfig) []string {
-	if cfg == nil || cfg.Dependencies == nil {
-		return nil
-	}
-
-	blockPaths := make(map[string]struct{})
-
-	// Classify block derived paths through the same helper the rebuild uses so disabled and unresolved blocks are treated identically and a dependencies block edge overlapping a disabled block is not dropped.
-	blockDerived := dependencyBlocksToModuleDependencies(l, cfg.TerragruntDependencies)
-	if blockDerived != nil {
-		for _, path := range blockDerived.Paths {
-			blockPaths[path] = struct{}{}
-		}
-	}
-
-	blockOnly := make([]string, 0, len(cfg.Dependencies.Paths))
-
-	for _, path := range cfg.Dependencies.Paths {
-		if _, ok := blockPaths[path]; ok {
-			continue
-		}
-
-		blockOnly = append(blockOnly, path)
-	}
-
-	return blockOnly
-}
-
-// reconcileModulePaths rebuilds the module dependency path list from the by name merged dependency blocks plus the preserved literal dependencies paths.
-func reconcileModulePaths(
-	l log.Logger,
-	output *TerragruntConfig,
-	preservedPaths ...[]string,
-) {
-	rebuilt := dependencyBlocksToModuleDependencies(l, output.TerragruntDependencies)
-	if rebuilt == nil {
-		rebuilt = &ModuleDependencies{}
-	}
-
-	for _, set := range preservedPaths {
-		rebuilt.Paths = append(rebuilt.Paths, set...)
-	}
-
-	seen := make(map[string]struct{}, len(rebuilt.Paths))
-	deduped := make([]string, 0, len(rebuilt.Paths))
-
-	for _, path := range rebuilt.Paths {
-		if _, ok := seen[path]; ok {
-			continue
-		}
-
-		seen[path] = struct{}{}
-		deduped = append(deduped, path)
-	}
-
-	if len(deduped) == 0 {
-		output.Dependencies = nil
-		return
-	}
-
-	rebuilt.Paths = deduped
-	output.Dependencies = rebuilt
 }
 
 // autoIncludeCacheKeySuffix folds the sibling autoinclude existence and content into the partial-parse cache key when the StackDependencies experiment is on, returning the empty string with the experiment off so the existing key stays byte-for-byte unchanged.

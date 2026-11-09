@@ -915,18 +915,6 @@ dependency "foo" {
 		names["foo"],
 		"dependency foo must not be double-counted after autoinclude merge",
 	)
-
-	require.NotNil(t, parsed.Dependencies)
-
-	paths := map[string]int{}
-
-	for _, p := range parsed.Dependencies.Paths {
-		paths[p]++
-	}
-
-	for p, count := range paths {
-		assert.Equal(t, 1, count, "dependency path %s must not be duplicated", p)
-	}
 }
 
 // Recursion guard: partial parsing the autoinclude file directly must return normally instead of recursing back into the autoinclude merge.

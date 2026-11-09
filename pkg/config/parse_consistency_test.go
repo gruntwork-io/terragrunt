@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,36 +15,45 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
+var mergeStrategies = []string{"shallow", "deep", "no_merge"}
+
 func TestUnitExcludeReplacesIncludedExcludeInBothParses(t *testing.T) {
 	t.Parallel()
 
-	cfgPath := writeUnitWithRoot(
-		t,
-		`
+	for _, strategy := range mergeStrategies {
+		t.Run(strategy, func(t *testing.T) {
+			t.Parallel()
+
+			cfgPath := writeUnitWithRoot(
+				t,
+				`
 exclude {
   if      = true
   actions = ["plan"]
 }
 `,
-		`
+				fmt.Sprintf(`
 include "root" {
-  path = find_in_parent_folders("root.hcl")
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = %q
 }
 
 exclude {
   if      = true
   actions = []
 }
-`,
-	)
+`, strategy),
+			)
 
-	for name, cfg := range parseBothWays(t, cfgPath) {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+			for name, cfg := range parseBothWays(t, cfgPath) {
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
 
-			require.NotNil(t, cfg.Exclude)
-			assert.Empty(t, cfg.Exclude.Actions)
-			assert.False(t, cfg.Exclude.ShouldPreventRun("plan"))
+					require.NotNil(t, cfg.Exclude)
+					assert.Empty(t, cfg.Exclude.Actions)
+					assert.False(t, cfg.Exclude.ShouldPreventRun("plan"))
+				})
+			}
 		})
 	}
 }
@@ -198,16 +208,15 @@ inputs = {
 			t.Parallel()
 
 			require.Len(t, cfg.TerragruntDependencies, 1)
-			require.NotNil(t, cfg.TerragruntDependencies[0].Enabled)
-			assert.False(t, *cfg.TerragruntDependencies[0].Enabled)
-			assert.Empty(t, modulePathBases(cfg))
+			assert.False(t, dependencyEnabled(&cfg.TerragruntDependencies[0]))
+			assert.Nil(t, cfg.Dependencies)
 		})
 	}
 
 	assert.Equal(t, "mock", configs["full"].Inputs["db_id"])
 }
 
-func TestUnitDependencyBlockReplacesIncludedPathInBothParses(t *testing.T) {
+func TestUnitDependencyBlockReplacesIncludedBlockInBothParses(t *testing.T) {
 	t.Parallel()
 
 	const includedBlock = `
@@ -218,9 +227,10 @@ dependency "db" {
 `
 
 	tests := []struct {
-		name      string
-		unitBlock string
-		wantPaths []string
+		name        string
+		unitBlock   string
+		wantPath    string
+		wantEnabled bool
 	}{
 		{
 			name: "path override",
@@ -230,7 +240,8 @@ dependency "db" {
   skip_outputs = true
 }
 `,
-			wantPaths: []string{"other"},
+			wantPath:    "other",
+			wantEnabled: true,
 		},
 		{
 			name: "disabled with a path",
@@ -240,6 +251,7 @@ dependency "db" {
   enabled     = false
 }
 `,
+			wantPath: "db",
 		},
 		{
 			name: "disabled with a null path",
@@ -268,7 +280,16 @@ include "root" {
 					t.Run(name, func(t *testing.T) {
 						t.Parallel()
 
-						assert.ElementsMatch(t, tt.wantPaths, modulePathBases(cfg))
+						require.Len(t, cfg.TerragruntDependencies, 1)
+
+						dep := cfg.TerragruntDependencies[0]
+						assert.Equal(t, tt.wantEnabled, dependencyEnabled(&dep))
+
+						if tt.wantPath != "" {
+							assert.Equal(t, tt.wantPath, filepath.Base(dep.ConfigPath.AsString()))
+						}
+
+						assert.Nil(t, cfg.Dependencies)
 					})
 				}
 			})
@@ -276,40 +297,145 @@ include "root" {
 	}
 }
 
+func TestDeepMergedUnitBlockInheritsIncludedEnabledInBothParses(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := writeUnitWithRoot(t, `
+dependency "db" {
+  config_path  = null
+  enabled      = false
+  mock_outputs = { id = "mock" }
+}
+`, `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+dependency "db" {
+  config_path = "../db"
+}
+`)
+
+	for name, cfg := range parseBothWays(t, cfgPath) {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Len(t, cfg.TerragruntDependencies, 1)
+			assert.False(t, dependencyEnabled(&cfg.TerragruntDependencies[0]))
+		})
+	}
+}
+
 func TestLiteralDependenciesPathSurvivesIncludeMergeInBothParses(t *testing.T) {
 	t.Parallel()
 
-	const included = `
+	const literalPath = `
 dependencies {
   paths = ["${get_terragrunt_dir()}/../db"]
 }
 `
 
-	for _, strategy := range []string{"shallow", "deep"} {
-		t.Run(strategy, func(t *testing.T) {
-			t.Parallel()
-
-			cfgPath := writeUnitWithRoot(t, included, fmt.Sprintf(`
-include "root" {
-  path           = find_in_parent_folders("root.hcl")
-  merge_strategy = %q
-}
-
+	tests := []struct {
+		name string
+		root string
+		unit string
+	}{
+		{
+			name: "beside a unit block",
+			root: literalPath,
+			unit: `
 dependency "other" {
   config_path  = "../other"
   skip_outputs = true
 }
-`, strategy))
-
-			for name, cfg := range parseBothWays(t, cfgPath) {
-				t.Run(name, func(t *testing.T) {
-					t.Parallel()
-
-					assert.ElementsMatch(t, []string{"db", "other"}, modulePathBases(cfg))
-				})
-			}
-		})
+`,
+		},
+		{
+			name: "matching an included block the unit overrides",
+			root: literalPath + `
+dependency "db" {
+  config_path  = "${get_terragrunt_dir()}/../db"
+  skip_outputs = true
+}
+`,
+			unit: `
+dependency "db" {
+  config_path  = "../other"
+  skip_outputs = true
+}
+`,
+		},
+		{
+			name: "matching an included block the unit disables",
+			root: literalPath + `
+dependency "db" {
+  config_path  = "${get_terragrunt_dir()}/../db"
+  skip_outputs = true
+}
+`,
+			unit: `
+dependency "db" {
+  config_path = "../db"
+  enabled     = false
+}
+`,
+		},
 	}
+
+	for _, tt := range tests {
+		for _, strategy := range []string{"shallow", "deep"} {
+			t.Run(tt.name+" "+strategy, func(t *testing.T) {
+				t.Parallel()
+
+				cfgPath := writeUnitWithRoot(t, tt.root, fmt.Sprintf(`
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = %q
+}
+%s`, strategy, tt.unit))
+
+				for name, cfg := range parseBothWays(t, cfgPath) {
+					t.Run(name, func(t *testing.T) {
+						t.Parallel()
+
+						require.NotNil(t, cfg.Dependencies)
+						require.Len(t, cfg.Dependencies.Paths, 1)
+						assert.Equal(t, "db", filepath.Base(cfg.Dependencies.Paths[0]))
+					})
+				}
+			})
+		}
+	}
+}
+
+func TestRenderOmitsDependenciesBlockForIncludedDependencyBlock(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := writeUnitWithRoot(t, `
+dependency "db" {
+  config_path  = "${get_terragrunt_dir()}/../db"
+  skip_outputs = true
+}
+`, `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`)
+
+	cfg, err := parseFull(t, cfgPath)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+
+	_, err = cfg.WriteTo(&buf)
+	require.NoError(t, err)
+	assert.Contains(t, buf.String(), `dependency "db"`)
+	assert.NotContains(t, buf.String(), "dependencies {")
+
+	cfgAsCty, err := config.TerragruntConfigAsCty(cfg)
+	require.NoError(t, err)
+	assert.True(t, cfgAsCty.GetAttr("dependencies").IsNull())
 }
 
 func TestMissingConfigPathIsNotReportedAsNullWhenDiagnosticsAreIgnored(t *testing.T) {
@@ -320,13 +446,37 @@ dependency "db" {
 }
 `)
 
-	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx = pctx.WithDecodeList(config.DependencyBlock).WithSkipOutputsResolution()
-	pctx.SkipOutput = true
-	pctx.Parser.IgnoreDiagnostics = true
+	t.Run("partial", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), venvtest.NewWithOSFS(), pctx, cfgPath, nil)
-	require.NoError(t, err)
+		ctx, pctx := newTestParsingContext(t, cfgPath)
+		pctx = pctx.WithDecodeList(config.DependencyBlock).WithSkipOutputsResolution()
+		pctx.SkipOutput = true
+		pctx.Parser.IgnoreDiagnostics = true
+
+		cfg, err := config.PartialParseConfigFile(
+			ctx,
+			logger.CreateLogger(),
+			venvtest.NewWithOSFS(),
+			pctx,
+			cfgPath,
+			nil,
+		)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.TerragruntDependencies)
+	})
+
+	t.Run("full", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, pctx := newTestParsingContext(t, cfgPath)
+		pctx.SkipOutput = true
+		pctx.Parser.IgnoreDiagnostics = true
+
+		cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), venvtest.NewWithOSFS(), pctx, cfgPath, nil)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.TerragruntDependencies)
+	})
 }
 
 // parseFunc returns the config at cfgPath from one kind of parse.
@@ -383,18 +533,9 @@ func parsePartial(t *testing.T, cfgPath string) (*config.TerragruntConfig, error
 	return config.PartialParseConfigFile(ctx, logger.CreateLogger(), venvtest.NewWithOSFS(), pctx, cfgPath, nil)
 }
 
-// modulePathBases returns the final path element of each module dependency of cfg.
-func modulePathBases(cfg *config.TerragruntConfig) []string {
-	if cfg.Dependencies == nil {
-		return nil
-	}
-
-	bases := make([]string, 0, len(cfg.Dependencies.Paths))
-	for _, path := range cfg.Dependencies.Paths {
-		bases = append(bases, filepath.Base(path))
-	}
-
-	return bases
+// dependencyEnabled reports whether dep is enabled, which it is unless it sets enabled to false.
+func dependencyEnabled(dep *config.Dependency) bool {
+	return dep.Enabled == nil || *dep.Enabled
 }
 
 // writeUnitWithRoot writes a root.hcl, a unit below it, and an empty db unit beside it, and returns the unit's config
