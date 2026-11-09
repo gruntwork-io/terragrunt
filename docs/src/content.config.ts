@@ -140,6 +140,8 @@ const hclAttributes = defineCollection({
 		...hclItem,
 		type: z.string(),
 		default: z.string().optional(),
+		// An Aside after the examples, which the body can't reach. `body` is Markdown.
+		note: z.object({ title: z.string(), body: z.string() }).optional(),
 	}),
 });
 

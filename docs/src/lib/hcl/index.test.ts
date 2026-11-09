@@ -188,6 +188,13 @@ describe('referenceMarkdown', () => {
 		});
 	});
 
+	test('renders an attribute note after its examples', () => {
+		const entry = attributeEntry({ note: { title: 'Engines', body: 'Skipped with an [engine](/engine/).' } });
+		expect(referenceMarkdown(entry).after).toBe(
+			['## Examples', '```hcl\nx = 1\n```', '> **Engines:** Skipped with an [engine](/engine/).'].join('\n\n'),
+		);
+	});
+
 	test('renders no Examples section for a block without examples', () => {
 		const entry = blockEntry({
 			examples: undefined,
