@@ -594,8 +594,12 @@ func errorsBlock(errs *ErrorsConfig) *hclwrite.Block {
 	return block
 }
 
-// stringListVal renders values as a cty list of strings.
+// stringListVal renders values as a cty list of strings, empty when values has none.
 func stringListVal(values []string) cty.Value {
+	if len(values) == 0 {
+		return cty.ListValEmpty(cty.String)
+	}
+
 	rendered := make([]cty.Value, len(values))
 	for i, value := range values {
 		rendered[i] = cty.StringVal(value)
@@ -670,7 +674,9 @@ func outputsBlock(outputs *OutputsConfig) *hclwrite.Block {
 		outputBlock := hclwrite.NewBlock(MetadataOutput, []string{output.Name})
 
 		if output.MockValue != nil {
-			outputBlock.Body().SetAttributeValue("mock_value", *output.MockValue)
+			// A sensitive() mark is for the run; the rendering shows the value, as it does for inputs.
+			mockValue, _ := output.MockValue.UnmarkDeep()
+			outputBlock.Body().SetAttributeValue("mock_value", mockValue)
 		}
 
 		body.AppendBlock(outputBlock)

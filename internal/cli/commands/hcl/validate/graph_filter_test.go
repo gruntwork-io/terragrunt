@@ -34,6 +34,8 @@ type validateRun struct {
 	// links are symbolic links to add to the repository, by link path, each pointing at a path relative to the
 	// root.
 	links map[string]string
+	// tfPath is the OpenTofu/Terraform binary the run is given, when it is not the default.
+	tfPath string
 	// experiments are the names of the experiments the run enables.
 	experiments []string
 	// queries are the filter queries the run is given.
@@ -69,6 +71,10 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 
 	opts.HCLValidateJSONOutput = !run.inputs
 	opts.HCLValidateInputs = run.inputs
+
+	if run.tfPath != "" {
+		opts.TFPath = run.tfPath
+	}
 
 	opts.Filters, err = filter.ParseFilterQueries(l, run.queries)
 	require.NoError(t, err)

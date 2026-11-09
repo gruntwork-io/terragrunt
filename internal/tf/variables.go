@@ -93,10 +93,15 @@ func moduleBody(fsys vfs.FS, modulePath string) (hcl.Body, error) {
 		return nil, err
 	}
 
-	parser := hclparse.NewParser()
-	hclFiles := make([]*hcl.File, 0, len(files))
+	return parseModuleFiles(fsys, files)
+}
 
-	for _, path := range files {
+// parseModuleFiles parses the OpenTofu/Terraform files at paths into one body.
+func parseModuleFiles(fsys vfs.FS, paths []string) (hcl.Body, error) {
+	parser := hclparse.NewParser()
+	hclFiles := make([]*hcl.File, 0, len(paths))
+
+	for _, path := range paths {
 		src, err := vfs.ReadFile(fsys, path)
 		if err != nil {
 			return nil, err

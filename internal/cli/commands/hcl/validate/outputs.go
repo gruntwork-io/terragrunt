@@ -18,8 +18,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -136,7 +138,8 @@ func validateOutputsContractsPrepared(
 // outputsContractDiagnostics runs the outputs contract checks of the unit at opts.TerragruntConfigPath and returns
 // the diagnostics by file: the module files that do not parse, then the unit file, then each file it merges or
 // exposes and its autoinclude file. The declared outputs are checked against the module in moduleFS at moduleDir,
-// which is read only when the unit declares outputs.
+// which is read only when the unit declares outputs. A dependency block of the unit file that its autoinclude file
+// replaces is not read.
 //
 // Returns [OutputsContractError] when a check cannot run, wrapping a [config.DependencyBlockError] when the
 // outputs block of a dependency cannot be read.
@@ -162,7 +165,7 @@ func outputsContractDiagnostics(
 	var checks []contractDiagnostics
 
 	if cfg.Outputs != nil {
-		moduleChecks, err := declaredOutputsDiagnostics(moduleFS, moduleDir, cfg, file)
+		moduleChecks, err := declaredOutputsDiagnostics(moduleFS, moduleDir, moduleEngine(opts), cfg, file)
 		if err != nil {
 			return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 		}
@@ -170,7 +173,12 @@ func outputsContractDiagnostics(
 		checks = append(checks, moduleChecks...)
 	}
 
-	referenceDiags, err := dependencyOutputReferenceDiagnostics(ctx, l, v, pctx, cfg, file)
+	replaced, err := autoIncludeReplacements(l, v, pctx, opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
+	}
+
+	referenceDiags, err := dependencyOutputReferenceDiagnostics(ctx, l, v, pctx, cfg, file, replaced)
 	if err != nil {
 		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 	}
@@ -188,7 +196,7 @@ func outputsContractDiagnostics(
 			return nil, OutputsContractError{ConfigPath: includedPath, Err: err}
 		}
 
-		includedDiags, err := dependencyOutputReferenceDiagnostics(ctx, l, v, pctx, cfg, included)
+		includedDiags, err := dependencyOutputReferenceDiagnostics(ctx, l, v, pctx, cfg, included, nil)
 		if err != nil {
 			return nil, OutputsContractError{ConfigPath: includedPath, Err: err}
 		}
@@ -220,7 +228,7 @@ func includedFiles(fsys vfs.FS, configPath string, cfg *config.TerragruntConfig)
 		paths = append(paths, include.Path)
 	}
 
-	autoInclude := filepath.Join(filepath.Dir(configPath), config.DefaultAutoIncludeFile)
+	autoInclude := autoIncludeFile(configPath)
 	if vfs.Exists(fsys, autoInclude) {
 		paths = append(paths, autoInclude)
 	}
@@ -228,22 +236,60 @@ func includedFiles(fsys vfs.FS, configPath string, cfg *config.TerragruntConfig)
 	return paths, nil
 }
 
+// autoIncludeFile returns the path of the autoinclude file beside the unit config at configPath.
+func autoIncludeFile(configPath string) string {
+	return filepath.Join(filepath.Dir(configPath), config.DefaultAutoIncludeFile)
+}
+
+// autoIncludeReplacements returns the labels of the dependency blocks the autoinclude file beside configPath
+// declares without an expansion. Each replaces the block of the unit file with the same label whole, so the parse
+// never reads that one. It returns none when there is no autoinclude file.
+func autoIncludeReplacements(
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	configPath string,
+) (map[string]struct{}, error) {
+	autoInclude := autoIncludeFile(configPath)
+	if !vfs.Exists(v.FS, autoInclude) {
+		return nil, nil
+	}
+
+	file, err := pctx.NewParser(l, v).ParseFromFile(v.FS, autoInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	return file.UnexpandedLabels(config.MetadataDependency, &config.Dependency{})
+}
+
+// moduleEngine returns the OpenTofu/Terraform implementation the unit runs: the one opts resolved, or else the one
+// the binary name of opts.TFPath says.
+func moduleEngine(opts *options.TerragruntOptions) tfimpl.Type {
+	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown {
+		return opts.TofuImplementation
+	}
+
+	return tfimpl.FromPath(opts.TFPath)
+}
+
 // declaredOutputsDiagnostics reports each output the unit declares that the OpenTofu/Terraform module in moduleFS
-// at moduleDir does not, against the unit file. A module file that does not parse is reported instead, against
-// that file.
+// at moduleDir, read as engine reads it, does not, against the unit file. A module file that does not parse is
+// reported instead, against that file.
 func declaredOutputsDiagnostics(
 	moduleFS vfs.FS,
 	moduleDir string,
+	engine tfimpl.Type,
 	cfg *config.TerragruntConfig,
 	file *hclparse.File,
 ) ([]contractDiagnostics, error) {
-	moduleOutputs, err := tf.ModuleOutputs(moduleFS, moduleDir)
+	moduleOutputs, err := tf.ModuleOutputs(moduleFS, moduleDir, engine)
 	if err != nil {
 		if !errors.As(err, new(hcl.Diagnostics)) {
 			return nil, err
 		}
 
-		return moduleParseDiagnostics(moduleFS, moduleDir, err)
+		return moduleParseDiagnostics(moduleFS, moduleDir, engine, err)
 	}
 
 	ranges := config.OutputDeclarationRanges(file)
@@ -272,15 +318,22 @@ func declaredOutputsDiagnostics(
 	return []contractDiagnostics{{file: file, diags: diags}}, nil
 }
 
-// moduleParseDiagnostics parses each OpenTofu/Terraform file of the module at moduleDir on its own and returns
-// the diagnostics of each file that fails, against that file: the diagnostics its own parse raises, or those of
-// parseErr, the error of reading the module whole, that point at it. It returns parseErr when no file is to
-// blame.
-func moduleParseDiagnostics(moduleFS vfs.FS, moduleDir string, parseErr error) ([]contractDiagnostics, error) {
+// moduleParseDiagnostics parses each OpenTofu/Terraform file of the module at moduleDir that engine reads on its
+// own and returns the diagnostics of each file that fails, against that file: the diagnostics its own parse
+// raises, or those of parseErr, the error of reading the module whole, that point at it. It returns parseErr when
+// no file is to blame.
+func moduleParseDiagnostics(
+	moduleFS vfs.FS,
+	moduleDir string,
+	engine tfimpl.Type,
+	parseErr error,
+) ([]contractDiagnostics, error) {
 	paths, err := util.ListTfFiles(moduleFS, moduleDir)
 	if err != nil {
 		return nil, err
 	}
+
+	paths = tf.EngineFiles(paths, engine)
 
 	var moduleDiags hcl.Diagnostics
 
@@ -337,8 +390,9 @@ func diagnosticsIn(diags hcl.Diagnostics, path string) hcl.Diagnostics {
 }
 
 // moduleView returns an in-memory view of the OpenTofu/Terraform module the unit runs, and the module directory
-// in it. A unit with a source, or a run with --source, is fetched into the download directory first. The view
-// has the OpenTofu/Terraform files of the module directory and the files its generate blocks target, with the
+// in it. A unit with a source, or a run with --source, is fetched into the download directory first; a unit
+// without one is viewed through the filter of its copy into the cache directory, unless it runs in place. The
+// view has the OpenTofu/Terraform files of the module directory and the files its generate blocks target, with the
 // generate blocks and the remote_state backend file written on top, so nothing is written into the module
 // directory.
 func moduleView(
@@ -348,22 +402,16 @@ func moduleView(
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) (vfs.FS, string, error) {
-	moduleOpts := opts
+	runCfg := cfg.ToRunConfig(l, v.FS)
 
-	hasSource := cfg.Terraform != nil && cfg.Terraform.Source != nil && *cfg.Terraform.Source != ""
-	if hasSource || opts.Source != "" {
-		prepared, err := prepare.PrepareSource(ctx, l, v, opts, cfg, report.NewReport())
-		if err != nil {
-			return nil, "", err
-		}
-
-		moduleOpts = prepared
+	moduleOpts, copyFilter, err := moduleSource(ctx, l, v, opts, cfg, runCfg)
+	if err != nil {
+		return nil, "", err
 	}
 
 	view := vfs.NewMemMapFS()
-	runCfg := cfg.ToRunConfig(l, v.FS)
 
-	if err := copyModuleFiles(v.FS, view, moduleOpts.WorkingDir, runCfg); err != nil {
+	if err := copyModuleFiles(v.FS, view, moduleOpts.WorkingDir, runCfg, copyFilter); err != nil {
 		return nil, "", err
 	}
 
@@ -374,10 +422,61 @@ func moduleView(
 	return view, moduleOpts.WorkingDir, nil
 }
 
+// moduleSource returns the options whose working directory holds the module the unit runs, and the filter of the
+// files the run copies from that directory into the cache directory. A unit with a source, or a run with --source,
+// is fetched into the download directory, which holds the copy already, and a unit that runs in place is not
+// copied, so both keep every file.
+func moduleSource(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+	runCfg *runcfg.RunConfig,
+) (*options.TerragruntOptions, util.CopyFilter, error) {
+	hasSource := cfg.Terraform != nil && cfg.Terraform.Source != nil && *cfg.Terraform.Source != ""
+	if hasSource || opts.Source != "" {
+		prepared, err := prepare.PrepareSource(ctx, l, v, opts, cfg, report.NewReport())
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return prepared, keepEveryFile, nil
+	}
+
+	inPlace, err := runcfg.ShouldSkipCache(
+		opts.Experiments.Evaluate(experiment.NoDotTerragruntCache),
+		opts.Source,
+		opts.TerragruntConfigPath,
+		runCfg,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if inPlace {
+		return opts, keepEveryFile, nil
+	}
+
+	copyOpts := run.ModuleCopyOptions(configbridge.NewRunOptions(opts), runCfg)
+
+	filter, err := util.NewCopyFilter(l, v.FS, opts.WorkingDir, copyOpts...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return opts, filter, nil
+}
+
+// keepEveryFile is the copy filter of a module the run reads as it is.
+func keepEveryFile(string, bool) bool {
+	return true
+}
+
 // copyModuleFiles copies the OpenTofu/Terraform files of the module at dir, and the files the generate blocks of
-// runCfg target when they exist, from source into view at the same paths. A symbolic link is copied as the file
-// it points at.
-func copyModuleFiles(source, view vfs.FS, dir string, runCfg *runcfg.RunConfig) error {
+// runCfg target when they exist, from source into view at the same paths, leaving out the files filter rejects.
+// A symbolic link is copied as the file it points at.
+func copyModuleFiles(source, view vfs.FS, dir string, runCfg *runcfg.RunConfig, filter util.CopyFilter) error {
 	paths, err := util.ListTfFiles(source, dir)
 	if err != nil {
 		return err
@@ -394,6 +493,10 @@ func copyModuleFiles(source, view vfs.FS, dir string, runCfg *runcfg.RunConfig) 
 	}
 
 	for _, path := range slices.Compact(slices.Sorted(slices.Values(paths))) {
+		if !filter(path, false) {
+			continue
+		}
+
 		data, err := vfs.ReadFile(source, path)
 		if err != nil {
 			return err
@@ -470,7 +573,8 @@ func declarationSubject(file *hclparse.File, ranges map[string]hcl.Range, name s
 
 // dependencyOutputReferenceDiagnostics reports each reference in file to an output that the dependency it reads
 // does not declare. A dependency that declares no outputs block is not checked. References resolve against the
-// unit's merged dependency blocks, so a dependency an autoinclude overrides is checked as the autoinclude declares it.
+// unit's merged dependency blocks, so a dependency an autoinclude overrides is checked as the autoinclude declares
+// it, and the dependency blocks of file labeled in replaced, which the autoinclude replaces whole, are not read.
 func dependencyOutputReferenceDiagnostics(
 	ctx context.Context,
 	l log.Logger,
@@ -478,8 +582,9 @@ func dependencyOutputReferenceDiagnostics(
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 	file *hclparse.File,
+	replaced map[string]struct{},
 ) (hcl.Diagnostics, error) {
-	references, err := config.DependencyOutputReferences(file, cfg.TerragruntDependencies)
+	references, err := config.DependencyOutputReferences(file, cfg.TerragruntDependencies, replaced)
 	if err != nil {
 		return nil, err
 	}

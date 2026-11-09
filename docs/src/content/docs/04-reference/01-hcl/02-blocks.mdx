@@ -2114,20 +2114,27 @@ when it declares any. Both the default mode and `--inputs` run the checks.
 
 For the first check, in the default mode, Terragrunt fetches the `terraform.source` of the unit into the download
 directory, as `hcl validate --inputs` does, and evaluates its `generate` blocks against an in-memory copy of the
-module files, so it writes no generated file into the module directory. A file a hook writes during a run is not
-seen. With `--inputs`, the check reads the module that mode prepares on disk.
+module files, so it writes no generated file into the module directory. A unit without a `source` is viewed as the
+run copies it into the cache directory, so a file `exclude_from_copy` leaves out is not seen, unless the unit runs
+in place. The module files are read as the OpenTofu/Terraform binary of the run reads them: with OpenTofu, a `.tofu`
+file hides the `.tf` file of the same name, and with Terraform, `.tofu` files are not read. A file a hook writes
+during a run is not seen. With `--inputs`, the check reads the module that mode prepares on disk.
 
-For the second check, Terragrunt also reads the files the unit merges or exposes through `include` and its
+For the second check, Terragrunt reads the unit file, the files it merges or exposes through `include`, and its
 autoinclude file, and reports each reference in the file that holds it. References resolve against the unit's merged
-`dependency` blocks, so a dependency the autoinclude file overrides is checked as that file declares it. An include
-with `merge_strategy = "no_merge"` that is not exposed is never evaluated, so it is not checked. References written in a `terragrunt.hcl.json` file are
-not checked, though the files it includes are. Each step of a reference may be an attribute or a literal string index,
-so `dependency["vpc"].outputs["vpc_id"]` is checked like `dependency.vpc.outputs.vpc_id`. A reference to one instance
-of an expanded dependency, written as `dependency.vpc["primary"].outputs.vpc_id`,
-`dependency.vpc.primary.outputs.vpc_id`, or `dependency.vpc[0].outputs.vpc_id` for a `count` expansion, is checked
-against that instance. A reference whose instance key or output name is not a literal is not checked. In the default
-mode, a dependency whose unit config cannot be read is reported at the `config_path` that names it, unless the run
-validates that unit, whose own parse reports what is wrong with it.
+`dependency` blocks, so a dependency the autoinclude file overrides is checked as that file declares it, and a
+`dependency` block of the unit file that the autoinclude file replaces is not read.
+
+- An include with `merge_strategy = "no_merge"` that is not exposed is never evaluated, so it is not checked.
+- References written in a `terragrunt.hcl.json` file are not checked, though the files it includes are.
+- Each step of a reference may be an attribute or a literal string index, so `dependency["vpc"].outputs["vpc_id"]`
+  is checked like `dependency.vpc.outputs.vpc_id`.
+- A reference to one instance of an expanded dependency, written as `dependency.vpc["primary"].outputs.vpc_id`,
+  `dependency.vpc.primary.outputs.vpc_id`, or `dependency.vpc[0].outputs.vpc_id` for a `count` expansion, is checked
+  against that instance.
+- A reference whose instance key or output name is not a literal is not checked.
+- In the default mode, a dependency whose unit config cannot be read is reported at the `config_path` that names it,
+  unless the run validates that unit, whose own parse reports what is wrong with it.
 
 The block is merged through `include` like the `errors` block: a `shallow` merge takes the including unit's block
 whole, and a `deep` merge combines the declarations by output name, with the unit's declarations winning.

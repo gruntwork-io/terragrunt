@@ -43,19 +43,23 @@ func (r *DependencyOutputReference) Address() string {
 // A reference whose output name or instance key is not a literal, such as `dependency.vpc.outputs[local.key]` or
 // `dependency.rds[local.name].outputs.endpoint`, is left out, as is a reference to the outputs object as a whole
 // and a reference through a variable a for expression binds. A JSON config has no traversals to walk and yields
-// none.
+// none. A dependency block of file labeled in replaced that declares no expansion is left out whole, as the parse
+// leaves out the blocks a sibling autoinclude replaces.
 //
 // Returns [BlockNestingExceededError] when the blocks of file nest deeper than the walk descends.
 func DependencyOutputReferences(
 	file *hclparse.File,
 	dependencies Dependencies,
+	replaced map[string]struct{},
 ) ([]DependencyOutputReference, error) {
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
 		return nil, nil
 	}
 
-	refs, err := bodyDependencyOutputReferences(file.ConfigPath, body, dependencies.expandedLabels(), 0, nil)
+	walk := referenceWalk{expanded: dependencies.expandedLabels(), replaced: replaced}
+
+	refs, err := bodyDependencyOutputReferences(file.ConfigPath, body, walk, 0, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -68,13 +72,22 @@ func DependencyOutputReferences(
 	return refs, nil
 }
 
+// referenceWalk is what the reference walk knows about the dependency blocks of a file.
+type referenceWalk struct {
+	// expanded are the labels of the dependency blocks that declare an expansion.
+	expanded map[string]struct{}
+	// replaced are the labels of the dependency blocks a sibling autoinclude replaces whole.
+	replaced map[string]struct{}
+}
+
 // bodyDependencyOutputReferences appends the references of the attributes of body, and of the bodies of its
 // blocks, to refs. It reads the variables of each attribute, which leave out the names a for expression binds, so
-// a loop variable named dependency is not read as the dependency object.
+// a loop variable named dependency is not read as the dependency object. A top-level dependency block that walk
+// says is replaced is left out.
 func bodyDependencyOutputReferences(
 	configPath string,
 	body *hclsyntax.Body,
-	expanded map[string]struct{},
+	walk referenceWalk,
 	depth int,
 	refs []DependencyOutputReference,
 ) ([]DependencyOutputReference, error) {
@@ -84,22 +97,42 @@ func bodyDependencyOutputReferences(
 
 	for _, attr := range body.Attributes {
 		for _, traversal := range attr.Expr.Variables() {
-			if ref, ok := dependencyOutputReference(traversal, expanded); ok {
+			if ref, ok := dependencyOutputReference(traversal, walk.expanded); ok {
 				refs = append(refs, ref)
 			}
 		}
 	}
 
 	for _, block := range body.Blocks {
+		if depth == 0 && replacedDependencyBlock(block, walk.replaced) {
+			continue
+		}
+
 		var err error
 
-		refs, err = bodyDependencyOutputReferences(configPath, block.Body, expanded, depth+1, refs)
+		refs, err = bodyDependencyOutputReferences(configPath, block.Body, walk, depth+1, refs)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return refs, nil
+}
+
+// replacedDependencyBlock reports whether block is a dependency block labeled in replaced that declares no
+// expansion, which the parse leaves out whole when a sibling autoinclude declares the same label.
+func replacedDependencyBlock(block *hclsyntax.Block, replaced map[string]struct{}) bool {
+	if block.Type != MetadataDependency || len(block.Labels) != 1 {
+		return false
+	}
+
+	if _, ok := replaced[block.Labels[0]]; !ok {
+		return false
+	}
+
+	return !slices.ContainsFunc(block.Body.Blocks, func(inner *hclsyntax.Block) bool {
+		return inner.Type == hclparse.ExpansionBlockName
+	})
 }
 
 // OutputDeclarationRanges returns where each output block of the outputs block in file is declared, by output

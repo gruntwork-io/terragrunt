@@ -201,6 +201,9 @@ func writeRendered(
 // just the "value".
 // NOTE: We have to do two marshalling passes so that we can extract just the value.
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
+	// A sensitive() mark is for the run; the rendering shows the value, as it does for inputs.
+	ctyVal, _ = ctyVal.UnmarkDeep()
+
 	if err := ctyhelper.ValidateNumberRanges(ctyVal); err != nil {
 		return nil, err
 	}

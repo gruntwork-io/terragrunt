@@ -1215,3 +1215,227 @@ func joinedLeaves(err error) []error {
 
 	return leaves
 }
+
+// TestRunValidateOutputsContractsFollowsCopyExclusions pins that the module view holds the files the run copies
+// into the cache directory: a file exclude_from_copy leaves out declares nothing, unless the unit runs in place.
+func TestRunValidateOutputsContractsFollowsCopyExclusions(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		terraform   string
+		experiments []string
+		reported    bool
+	}{
+		{
+			name:        "a file exclude_from_copy leaves out does not declare the output",
+			terraform:   `exclude_from_copy = ["legacy.tf"]`,
+			experiments: []string{experiment.OutputsBlock},
+			reported:    true,
+		},
+		{
+			name:        "a unit that runs in place keeps every file",
+			terraform:   "exclude_from_copy       = [\"legacy.tf\"]\n  no_dot_terragrunt_cache = true",
+			experiments: []string{experiment.OutputsBlock, experiment.NoDotTerragruntCache},
+			reported:    false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := map[string]string{
+				"vpc/main.tf":   `output "current" { value = "current" }`,
+				"vpc/legacy.tf": `output "retired" { value = "retired" }`,
+				"vpc/terragrunt.hcl": `
+terraform {
+  ` + tc.terraform + `
+}
+
+outputs {
+  output "retired" {
+    mock_value = "mock-retired"
+  }
+}
+`,
+			}
+
+			result := runValidate(t, &validateRun{files: files, experiments: tc.experiments})
+
+			if !tc.reported {
+				require.NoError(t, result.err)
+				assert.Empty(t, result.diags)
+
+				return
+			}
+
+			require.Error(t, result.err)
+			require.Len(t, result.diags, 1)
+			assert.Equal(t, "Declared output not in module", result.diags[0].Summary)
+			assert.Contains(t, result.diags[0].Detail, `output "retired"`)
+		})
+	}
+}
+
+// TestRunValidateOutputsContractsReadsTheEngineFiles pins that the module is read as the OpenTofu/Terraform binary
+// of the run reads it: with OpenTofu a .tofu file hides the .tf file of the same name, and with Terraform .tofu
+// files are not read.
+func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		tfPath  string
+		missing string
+	}{
+		{name: "opentofu does not read the .tf file beside its .tofu twin", tfPath: "tofu", missing: "retired"},
+		{name: "terraform does not read .tofu files", tfPath: "terraform", missing: "current"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := map[string]string{
+				"vpc/main.tf":   `output "retired" { value = "retired" }`,
+				"vpc/main.tofu": `output "current" { value = "current" }`,
+				"vpc/terragrunt.hcl": `
+outputs {
+  output "retired" {
+    mock_value = "mock-retired"
+  }
+
+  output "current" {
+    mock_value = "mock-current"
+  }
+}
+`,
+			}
+
+			result := runValidate(t, &validateRun{
+				files:       files,
+				experiments: []string{experiment.OutputsBlock},
+				tfPath:      tc.tfPath,
+			})
+
+			require.Error(t, result.err)
+			require.Len(t, result.diags, 1)
+			assert.Equal(t, "Declared output not in module", result.diags[0].Summary)
+			assert.Contains(t, result.diags[0].Detail, `output "`+tc.missing+`"`)
+		})
+	}
+}
+
+// TestRunValidateOutputsContractsSkipsDependencyBlocksTheAutoincludeReplaces pins that a dependency block of the
+// unit file that the autoinclude file replaces is not read, as the parse never evaluates it, while the block that
+// replaces it is.
+func TestRunValidateOutputsContractsSkipsDependencyBlocksTheAutoincludeReplaces(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		files        map[string]string
+		name         string
+		expectedFile string
+	}{
+		{
+			name: "a reference in a replaced block",
+			files: map[string]string{
+				"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "db" {
+  config_path = "../unused"
+
+  mock_outputs = {
+    unused = dependency.vpc.outputs.ghost
+  }
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+`,
+				"app/terragrunt.autoinclude.hcl": `
+dependency "db" {
+  config_path  = "../db"
+  skip_outputs = true
+
+  mock_outputs = {}
+}
+`,
+			},
+		},
+		{
+			name: "a reference in the block that replaces it",
+			files: map[string]string{
+				"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "db" {
+  config_path = "../unused"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+`,
+				"app/terragrunt.autoinclude.hcl": `
+dependency "db" {
+  config_path  = "../db"
+  skip_outputs = true
+
+  mock_outputs = {
+    unused = dependency.vpc.outputs.ghost
+  }
+}
+`,
+			},
+			expectedFile: filepath.Join("app", config.DefaultAutoIncludeFile),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := map[string]string{
+				"vpc/main.tf":        outputsContractFiles["vpc/main.tf"],
+				"vpc/terragrunt.hcl": outputsContractFiles["vpc/terragrunt.hcl"],
+				"app/main.tf":        outputsContractFiles["app/main.tf"],
+				"db/main.tf":         ``,
+				"db/terragrunt.hcl":  ``,
+			}
+			maps.Copy(files, tc.files)
+
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+
+			found := 0
+
+			for _, diag := range result.diags {
+				if diag.Summary != "Undeclared dependency output" {
+					continue
+				}
+
+				found++
+
+				require.NotNil(t, diag.Range)
+				assert.Equal(t, filepath.Join(result.root, tc.expectedFile), diag.Range.Filename)
+			}
+
+			if tc.expectedFile == "" {
+				require.NoError(t, result.err)
+				assert.Empty(t, result.diags)
+
+				return
+			}
+
+			require.Error(t, result.err)
+			assert.Equal(t, 1, found, "one undeclared output diagnostic expected")
+		})
+	}
+}

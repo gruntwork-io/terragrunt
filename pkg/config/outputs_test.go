@@ -427,7 +427,7 @@ variables {
 		{Name: "rds", Expansion: &hclparse.ExpansionBlock{}},
 	}
 
-	refs, err := config.DependencyOutputReferences(file, dependencies)
+	refs, err := config.DependencyOutputReferences(file, dependencies, nil)
 	require.NoError(t, err)
 
 	found := make([]reference, 0, len(refs))
@@ -1162,4 +1162,72 @@ func (fsys *openCountingFS) count(name string) int {
 	defer fsys.mu.Unlock()
 
 	return fsys.opens[filepath.Clean(name)]
+}
+
+// TestOutputsBlockRendersEmptyAllowedCommands pins that an empty allowed_commands list, which allows every command,
+// renders as an empty list in HCL and as a value.
+func TestOutputsBlockRendersEmptyAllowedCommands(t *testing.T) {
+	t.Parallel()
+
+	cfg := parseOutputsConfig(t, `
+outputs {
+  mock_strategy {
+    allowed_commands = []
+  }
+
+  output "id" {
+    mock_value = "mock-id"
+  }
+}
+`, true)
+
+	require.NotNil(t, cfg.Outputs.MockStrategy)
+	require.NotNil(t, cfg.Outputs.MockStrategy.AllowedCommands)
+	assert.Empty(t, *cfg.Outputs.MockStrategy.AllowedCommands)
+
+	var rendered bytes.Buffer
+
+	_, err := cfg.WriteTo(&rendered)
+	require.NoError(t, err)
+	assert.Contains(t, rendered.String(), "allowed_commands = []")
+
+	roundTrip := parseOutputsConfig(t, rendered.String(), true)
+	assert.Equal(t, cfg.Outputs, roundTrip.Outputs)
+
+	ctyVal, err := config.TerragruntConfigAsCty(cfg)
+	require.NoError(t, err)
+
+	strategy := ctyVal.GetAttr(config.MetadataOutputs).GetAttr(config.MetadataMockStrategy)
+	assert.Equal(t, cty.ListValEmpty(cty.String), strategy.GetAttr("allowed_commands"))
+}
+
+// TestOutputsBlockRendersSensitiveMockValue pins that a sensitive() mock value renders as the value it holds, as
+// inputs do, while the value another config reads keeps the mark.
+func TestOutputsBlockRendersSensitiveMockValue(t *testing.T) {
+	t.Parallel()
+
+	cfg := parseOutputsConfig(t, `
+outputs {
+  output "token" {
+    mock_value = sensitive("mock-token")
+  }
+}
+`, true)
+
+	require.True(t, cfg.Outputs.Outputs[0].MockValue.IsMarked())
+
+	var rendered bytes.Buffer
+
+	_, err := cfg.WriteTo(&rendered)
+	require.NoError(t, err)
+	assert.Contains(t, rendered.String(), `mock_value = "mock-token"`)
+
+	ctyVal, err := config.TerragruntConfigAsCty(cfg)
+	require.NoError(t, err)
+
+	mockValue := ctyVal.GetAttr(config.MetadataOutputs).
+		GetAttr(config.MetadataOutput).
+		GetAttr("token").
+		GetAttr("mock_value")
+	assert.True(t, mockValue.IsMarked(), "the value read_terragrunt_config exposes keeps the mark")
 }

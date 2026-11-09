@@ -78,3 +78,26 @@ func TestDefaultRegistryDomain(t *testing.T) {
 		})
 	}
 }
+
+func TestFromPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path string
+		want tfimpl.Type
+	}{
+		{path: "tofu", want: tfimpl.OpenTofu},
+		{path: "/usr/local/bin/terraform", want: tfimpl.Terraform},
+		{path: "bin/tofu.exe", want: tfimpl.OpenTofu},
+		{path: "/opt/wrappers/tg-tofu", want: tfimpl.Unknown},
+		{path: "", want: tfimpl.Unknown},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.path, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, tfimpl.FromPath(tc.path))
+		})
+	}
+}
