@@ -1,5 +1,5 @@
-// Package vfs provides a virtual filesystem abstraction for testing and production use.
-// It wraps afero to provide a consistent interface for filesystem operations.
+// Package vfs wraps afero filesystems: the OS disk, an in-memory tree, and an
+// overlay of one over the other.
 package vfs
 
 import (
@@ -28,7 +28,6 @@ import (
 )
 
 // FS is the filesystem interface used throughout the codebase.
-// It provides an abstraction over real and in-memory filesystems.
 type FS = afero.Fs
 
 // File represents a file in the filesystem.
@@ -72,11 +71,10 @@ type symlinkEvaluator interface {
 }
 
 // ContextLocker is an optional interface for filesystems whose locks can be
-// acquired with a context. Implementations should poll/retry until the lock
-// is acquired or ctx is canceled. On ctx cancellation, the returned error
-// wraps ctx.Err(). Implementations also impose a hard upper bound on the
-// total wait (see [maxLockWait]), so a never-canceled ctx will still return
-// after that bound elapses.
+// acquired with a context. Implementations retry until the lock is acquired
+// or ctx is canceled, and on cancellation return an error wrapping ctx.Err().
+// They also cap the total wait, so a never-canceled ctx still returns once
+// that cap elapses.
 type ContextLocker interface {
 	LockContext(ctx context.Context, name string) (Unlocker, error)
 }
@@ -211,8 +209,9 @@ func IsOSFS(fsys FS) bool {
 	return ok
 }
 
-// NewMemMapFS returns an in-memory filesystem for testing purposes.
-// The returned filesystem supports symlink operations via an in-memory link table.
+// NewMemMapFS returns an in-memory filesystem with symlinks and locks, for
+// tests. Hard links are copies: a write through one name leaves the other
+// unchanged.
 func NewMemMapFS() FS {
 	return &memMapFS{
 		Fs:       afero.NewMemMapFs(),
@@ -361,7 +360,7 @@ func WriteFileWithSamePermissions(fsys FS, source, destination string, contents 
 }
 
 // Lstat returns the FileInfo for the named path without following symlinks.
-// Filesystems that do not implement afero.Lstater fall back to Stat.
+// Filesystems that do not implement [afero.Lstater] fall back to Stat.
 func Lstat(fsys FS, path string) (os.FileInfo, error) {
 	if lstater, ok := fsys.(afero.Lstater); ok {
 		info, _, err := lstater.LstatIfPossible(path)
@@ -616,8 +615,10 @@ func CreateTemp(fsys FS, dir, pattern string) (File, error) {
 	return afero.TempFile(fsys, dir, pattern)
 }
 
-// Link creates a hard link. It delegates to LinkIfPossible for filesystems
-// that implement the HardLinker interface.
+// Link creates newname as a hard link to oldname.
+//
+// Returns an error wrapping [ErrNoHardLink] when fsys does not implement
+// [HardLinker].
 func Link(fsys FS, oldname, newname string) error {
 	linker, ok := fsys.(HardLinker)
 	if !ok {
@@ -652,8 +653,10 @@ func RenameOver(fsys FS, oldPath, newPath string) error {
 	return replacer.RenameReplacingIfPossible(oldPath, newPath)
 }
 
-// Symlink creates a symbolic link. It uses afero's SymlinkIfPossible
-// which is supported by OsFs and any FS implementing afero.Linker.
+// Symlink creates newname as a symbolic link to oldname.
+//
+// Returns an error wrapping [afero.ErrNoSymlink] when fsys does not implement
+// [afero.Linker].
 func Symlink(fsys FS, oldname, newname string) error {
 	linker, ok := fsys.(afero.Linker)
 	if !ok {
@@ -663,11 +666,12 @@ func Symlink(fsys FS, oldname, newname string) error {
 	return linker.SymlinkIfPossible(oldname, newname)
 }
 
-// Readlink reads the target of a symbolic link. It uses afero's
-// ReadlinkIfPossible which is supported by OsFs and any FS implementing
-// afero.Symlinker.
+// Readlink returns the target of the symbolic link at name.
+//
+// Returns an error wrapping [afero.ErrNoSymlink] when fsys does not implement
+// [afero.LinkReader].
 func Readlink(fsys FS, name string) (string, error) {
-	reader, ok := fsys.(afero.Symlinker)
+	reader, ok := fsys.(afero.LinkReader)
 	if !ok {
 		return "", &os.PathError{Op: "readlink", Path: name, Err: afero.ErrNoSymlink}
 	}
@@ -676,6 +680,8 @@ func Readlink(fsys FS, name string) (string, error) {
 }
 
 // Lock acquires a blocking lock for the given name on the filesystem.
+//
+// Returns [ErrNoLock] when fsys does not implement [Locker].
 func Lock(fsys FS, name string) (Unlocker, error) {
 	locker, ok := fsys.(Locker)
 	if !ok {
@@ -686,6 +692,8 @@ func Lock(fsys FS, name string) (Unlocker, error) {
 }
 
 // TryLock attempts a non-blocking lock for the given name on the filesystem.
+//
+// Returns [ErrNoLock] when fsys does not implement [Locker].
 func TryLock(fsys FS, name string) (Unlocker, bool, error) {
 	locker, ok := fsys.(Locker)
 	if !ok {
@@ -696,14 +704,14 @@ func TryLock(fsys FS, name string) (Unlocker, bool, error) {
 }
 
 // LockContext acquires a lock for the given name, blocking until it is
-// available or ctx is canceled. Filesystems that implement ContextLocker
+// available or ctx is canceled. Filesystems that implement [ContextLocker]
 // use their native context-aware path; otherwise the call falls back to a
-// blocking Lock without context support.
+// blocking [Lock] without context support.
 //
-// ContextLocker implementations cap the total wait at [maxLockWait], so the
-// call returns after that bound elapses even when ctx is never canceled.
-// Callers that want a shorter deadline should pass a ctx with their own
-// timeout.
+// ContextLocker implementations cap the total wait, so the call returns once
+// that cap elapses even when ctx is never canceled.
+//
+// Returns [ErrNoLock] when fsys implements neither interface.
 func LockContext(ctx context.Context, fsys FS, name string) (Unlocker, error) {
 	if cl, ok := fsys.(ContextLocker); ok {
 		return cl.LockContext(ctx, name)
@@ -735,9 +743,8 @@ func WithFollowSymlinks() WalkDirParallelOption {
 }
 
 // WithWorkers sets how many directories [WalkDirParallel] reads at once,
-// for a caller whose walk was measured to want a different count than
-// [walkWorkers] picks for the filesystem. A value of zero or less keeps
-// that measured count.
+// for a caller whose walk was measured to want a different count than the
+// filesystem's own. A value of zero or less keeps the filesystem's count.
 func WithWorkers(n int) WalkDirParallelOption {
 	return func(c *walkDirParallelConfig) {
 		c.workers = n
@@ -750,8 +757,8 @@ func WithWorkers(n int) WalkDirParallelOption {
 // back to the sequential [WalkDir].
 //
 // The walk fans out over as many goroutines as the filesystem under
-// root was measured to absorb (see [walkWorkersByKind]), and gives no
-// ordering guarantee across directories. Callers that depend on
+// root was measured to absorb, and gives no ordering guarantee across
+// directories. Callers that depend on
 // deterministic order, or that write to shared state from fn, must use
 // [WalkDir] or serialize access themselves.
 func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirParallelOption) error {
@@ -919,7 +926,7 @@ func (w *symlinkWalker) follow(current, logicalPath string, d fs.DirEntry) error
 	return w.walk(realPath, logicalPath)
 }
 
-// osFS wraps afero.OsFs with hard link support.
+// osFS adds this package's optional interfaces to afero.OsFs.
 type osFS struct {
 	afero.Fs
 }
@@ -1017,7 +1024,9 @@ func (fsys *osFS) LockContext(ctx context.Context, name string) (Unlocker, error
 	return l, nil
 }
 
-// memMapFS wraps afero.MemMapFs with in-memory symlink support.
+// memMapFS adds this package's optional interfaces to afero.MemMapFs.
+// Symlinks live in a side table the embedded filesystem does not see, so
+// every operation resolves or strips them before delegating to it.
 type memMapFS struct {
 	afero.Fs
 	symlinks   map[string]string
@@ -1028,6 +1037,10 @@ type memMapFS struct {
 
 func (fsys *memMapFS) SymlinkIfPossible(oldname, newname string) error {
 	link := fsys.resolveParent(newname)
+
+	if _, err := fsys.Fs.Stat(link); err == nil {
+		return &os.LinkError{Op: "symlink", Old: oldname, New: newname, Err: os.ErrExist}
+	}
 
 	fsys.symlinksMu.Lock()
 	defer fsys.symlinksMu.Unlock()
@@ -1165,12 +1178,10 @@ func (fsys *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 
 	info, err := fsys.Fs.Stat(resolved)
 
-	return info, false, err
+	return info, true, err
 }
 
-// Remove deletes the file or symlink at name. Symlinks live in a side table
-// that the embedded afero.MemMapFs does not see, so they are handled here
-// before delegating to the underlying filesystem.
+// Remove deletes the file or symlink at name.
 func (fsys *memMapFS) Remove(name string) error {
 	resolved := fsys.resolveParent(name)
 
@@ -1181,9 +1192,7 @@ func (fsys *memMapFS) Remove(name string) error {
 	return fsys.Fs.Remove(resolved)
 }
 
-// RemoveAll deletes path and any children it contains. Symlinks live in a
-// side table that the embedded afero.MemMapFs does not see, so they are
-// handled here before delegating to the underlying filesystem.
+// RemoveAll deletes path and any children it contains.
 func (fsys *memMapFS) RemoveAll(path string) error {
 	resolved := fsys.resolveParent(path)
 
@@ -1231,8 +1240,7 @@ func (fsys *memMapFS) pathTaken(name string) bool {
 }
 
 // Rename moves the file or symlink at oldname to newname, replacing anything
-// at newname. Symlinks live in a side table that the embedded afero.MemMapFs
-// does not see. A renamed file drops any link recorded at newname, and a
+// at newname. A renamed file drops any link recorded at newname, and a
 // renamed link removes the file at newname and takes over its name in the
 // side table.
 func (fsys *memMapFS) Rename(oldname, newname string) error {
@@ -1581,16 +1589,31 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 	return 0, err
 }
 
-// lstatIfPossible calls Lstat if the filesystem supports it, otherwise Stat,
-// reporting which of the two answered.
-func lstatIfPossible(fsys FS, path string) (os.FileInfo, bool, error) {
+// statKind tells how a filesystem described a path.
+type statKind int
+
+const (
+	// statOfTarget means Stat answered, so a symlink reports what it points at.
+	statOfTarget statKind = iota
+	// statOfLink means Lstat answered, so a symlink reports itself.
+	statOfLink
+)
+
+// lstatOrStat calls Lstat if the filesystem supports it, otherwise Stat, and
+// says which one answered.
+func lstatOrStat(fsys FS, path string) (os.FileInfo, statKind, error) {
 	if lstater, ok := fsys.(afero.Lstater); ok {
-		return lstater.LstatIfPossible(path)
+		info, lstatted, err := lstater.LstatIfPossible(path)
+		if lstatted {
+			return info, statOfLink, err
+		}
+
+		return info, statOfTarget, err
 	}
 
 	info, err := fsys.Stat(path)
 
-	return info, false, err
+	return info, statOfTarget, err
 }
 
 // symlinkWalkState tracks progress while resolving symlinks without using the OS filesystem.
@@ -1798,7 +1821,7 @@ func walkSymlinksLinkParent(dest string, vol string, volLen int) string {
 // walkDirRoot describes root and walks the tree under it, handing fn the error
 // when root cannot be described.
 func walkDirRoot(fsys FS, root string, fn fs.WalkDirFunc) error {
-	info, _, err := lstatIfPossible(fsys, root)
+	info, _, err := lstatOrStat(fsys, root)
 	if err != nil {
 		return fn(root, nil, err)
 	}
@@ -1923,9 +1946,7 @@ func ListFilesWithSuffixes(fsys FS, dir string, suffixes ...string) ([]string, e
 	return files, nil
 }
 
-// containsDotDot checks if a path contains ".." as a path component.
-// This is more precise than strings.Contains(name, "..") which would
-// reject legitimate files like "file..txt".
+// containsDotDot reports whether v has ".." as a whole path component.
 func containsDotDot(v string) bool {
 	if !strings.Contains(v, "..") {
 		return false
@@ -1951,8 +1972,8 @@ func sanitizeZipPath(dst, name string) (string, error) {
 	return destPath, nil
 }
 
-// ValidateSymlinkTarget reports whether a symbolic link whose path is linkPath
-// and whose stored target is target names a path inside dst. Absolute targets
+// ValidateSymlinkTarget returns an error unless a symbolic link whose path is
+// linkPath and whose stored target is target names a path inside dst. Absolute targets
 // and dot-dot targets that climb above dst are rejected, so a symlink from an
 // untrusted source (zip archives, fetched tarballs, git trees) cannot name a
 // path outside the destination directory.
@@ -1981,8 +2002,8 @@ func ValidateSymlinkTarget(dst, linkPath, target string) error {
 	return nil
 }
 
-// ValidateResolvedSymlinkTarget reports whether the link at linkPath still
-// lands inside root once its whole chain is followed. Use it before
+// ValidateResolvedSymlinkTarget returns an error unless the link at linkPath
+// still lands inside root once its whole chain is followed. Use it before
 // dereferencing a link from an untrusted source: [ValidateSymlinkTarget]
 // examines only the target a link stores, so a chain that leaves root through
 // a link stored somewhere else passes it.

@@ -14,9 +14,7 @@ import (
 // A path that layer does not have is answered by base. Creating a file, or
 // writing to one that only base has, lands in layer: the base copy is read
 // into layer first, so base is never written. Directories are listed as the
-// union of both, with layer's entry winning a name both hold. The overlay is
-// afero's copy-on-write filesystem with its error reporting brought in line
-// with the rest of this package.
+// union of both, with layer's entry winning a name both hold.
 //
 // Returns [fs.ErrPermission] from Remove, RemoveAll and Rename for a path
 // that base has, whether or not layer has it too: base is read-only, and the
@@ -24,11 +22,10 @@ import (
 // uncover base's.
 //
 // Symlinks in base resolve as base resolves them. A symlink created through
-// the overlay is recorded in layer and followed only to a target layer also
-// holds.
+// the overlay is recorded in layer and followed only when layer also holds
+// its target.
 //
-// Locks are taken on layer, and [IsOSFS] reports false, so callers that
-// shell out to the real disk reject the overlay up front.
+// Locks are taken on layer. [IsOSFS] reports false for the overlay.
 func NewOverlayFS(base, layer FS) FS {
 	return &overlayFS{
 		Fs:    afero.NewCopyOnWriteFs(overlayBase{FS: base}, layer),
@@ -37,8 +34,9 @@ func NewOverlayFS(base, layer FS) FS {
 	}
 }
 
-// overlayFS corrects the parts of afero's copy-on-write filesystem that
-// compare errors by identity, which only the mem backend satisfies.
+// overlayFS replaces the afero copy-on-write methods that compare errors by
+// identity, which only the mem backend's errors match. Remove, RemoveAll and
+// Rename also refuse paths afero would act on; see [NewOverlayFS].
 type overlayFS struct {
 	afero.Fs
 	base  FS
@@ -72,13 +70,16 @@ func (fsys *overlayFS) Stat(name string) (os.FileInfo, error) {
 	return fsys.base.Stat(name)
 }
 
+// LstatIfPossible describes name from layer, or from base when layer has no
+// entry there. The bool is true when Lstat answered, so a symlink is described
+// as itself, and false when the filesystem that answered fell back to Stat.
 func (fsys *overlayFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
-	info, lstatted, err := lstatIfPossible(fsys.layer, name)
-	if err == nil || !errors.Is(err, fs.ErrNotExist) {
-		return info, lstatted, err
+	info, kind, err := lstatOrStat(fsys.layer, name)
+	if err != nil && errors.Is(err, fs.ErrNotExist) {
+		info, kind, err = lstatOrStat(fsys.base, name)
 	}
 
-	return lstatIfPossible(fsys.base, name)
+	return info, kind == statOfLink, err
 }
 
 func (fsys *overlayFS) SymlinkIfPossible(oldname, newname string) error {
@@ -86,7 +87,7 @@ func (fsys *overlayFS) SymlinkIfPossible(oldname, newname string) error {
 }
 
 func (fsys *overlayFS) ReadlinkIfPossible(name string) (string, error) {
-	if _, err := Lstat(fsys.layer, name); err == nil {
+	if _, err := Lstat(fsys.layer, name); err == nil || !errors.Is(err, fs.ErrNotExist) {
 		return Readlink(fsys.layer, name)
 	}
 
