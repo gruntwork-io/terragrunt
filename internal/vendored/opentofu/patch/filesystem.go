@@ -483,7 +483,6 @@ func hashFile(
 
 // matchFiles returns the regular files that pattern matches after cleaning it as text, relative to dir.
 func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
-	// A backslash is a glob escape on every OS, never a separator.
 	clean := path.Clean(strings.TrimLeft(pattern, "/"))
 	elems := strings.Split(clean, "/")
 
@@ -509,7 +508,6 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 
 // globFiles returns the regular files below root that pattern matches, each relative to dir with forward slashes.
 func globFiles(fsys vfs.FS, dir, root, pattern string) ([]cty.Value, error) {
-	// Braces, classes and ** can match a separator and leave the walk depth unbounded.
 	bounded := !strings.Contains(pattern, "**") && !strings.ContainsAny(pattern, "{[")
 	maxDepth := strings.Count(pattern, "/") + 1
 
