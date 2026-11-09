@@ -514,6 +514,10 @@ func loadFixtures(t *testing.T, rootNames []string, excluded map[string]struct{}
 					return fs.SkipDir
 				}
 
+				if d.IsDir() && d.Name() == ".terragrunt-cache" {
+					return fs.SkipDir
+				}
+
 				if !d.Type().IsRegular() {
 					return nil
 				}
