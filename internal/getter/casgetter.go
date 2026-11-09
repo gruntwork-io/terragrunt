@@ -361,6 +361,11 @@ func (g *CASGetter) lookupFetcher(scheme string) (string, bool) {
 	return "", false
 }
 
+const (
+	archiveQueryKey  = "archive"
+	checksumQueryKey = "checksum"
+)
+
 // innerFetchQuery holds the source as written plus the archive and checksum values the inner fetch applies.
 type innerFetchQuery struct {
 	source   string
@@ -368,7 +373,7 @@ type innerFetchQuery struct {
 	checksum string
 }
 
-// outerFetchURL sets archive=false on rawURL and drops its checksum, keeping both values for the inner fetch.
+// outerFetchURL strips the archive and checksum values from rawURL and returns them for the inner fetch.
 func outerFetchURL(rawURL string) (string, innerFetchQuery) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -376,15 +381,19 @@ func outerFetchURL(rawURL string) (string, innerFetchQuery) {
 	}
 
 	q := u.Query()
-	inner := innerFetchQuery{source: rawURL, archive: q.Get("archive"), checksum: q.Get("checksum")}
+	inner := innerFetchQuery{
+		source:   rawURL,
+		archive:  q.Get(archiveQueryKey),
+		checksum: q.Get(checksumQueryKey),
+	}
 
 	// archive=true is folded into the default, extraction by extension.
 	if enabled, perr := strconv.ParseBool(inner.archive); perr == nil && enabled {
 		inner.archive = ""
 	}
 
-	q.Set("archive", "false")
-	q.Del("checksum")
+	q.Set(archiveQueryKey, "false")
+	q.Del(checksumQueryKey)
 	u.RawQuery = q.Encode()
 
 	return u.String(), inner
@@ -398,14 +407,14 @@ func innerFetchURL(u *url.URL, inner innerFetchQuery) string {
 
 	clone := *u
 	q := clone.Query()
-	q.Del("archive")
+	q.Del(archiveQueryKey)
 
 	if inner.archive != "" {
-		q.Set("archive", inner.archive)
+		q.Set(archiveQueryKey, inner.archive)
 	}
 
 	if inner.checksum != "" {
-		q.Set("checksum", inner.checksum)
+		q.Set(checksumQueryKey, inner.checksum)
 	}
 
 	clone.RawQuery = q.Encode()
@@ -579,7 +588,7 @@ func (g *CASGetter) defaultInnerClient(bare getter.Getter, scheme string) *gette
 	return c
 }
 
-// claimsScheme reports whether a default protocol getter accepts requests forced to scheme.
+// claimsScheme reports whether a default getter built by [NewClient] accepts requests forced to scheme.
 func claimsScheme(d getter.Getter, scheme string) bool {
 	switch t := d.(type) {
 	case *HTTPSchemeGetter:

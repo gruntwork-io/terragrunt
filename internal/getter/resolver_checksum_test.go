@@ -77,19 +77,19 @@ func TestChecksumResolver_KeysSeparateChecksumsAndURLs(t *testing.T) {
 	t.Parallel()
 
 	const (
-		url      = "https://example.com/mod.tgz?checksum=sha256:" + hexOf64
+		pinned   = "https://example.com/mod.tgz?checksum=sha256:" + hexOf64
 		checksum = "sha256:" + hexOf64
 	)
 
-	base, err := getter.NewChecksumResolver("https", checksum).Probe(t.Context(), redact.NewURL(url))
+	base, err := getter.NewChecksumResolver("https", checksum).Probe(t.Context(), redact.NewURL(pinned))
 	require.NoError(t, err)
 
 	other := "sha256:" + strings.Repeat("0", 64)
-	otherKey, err := getter.NewChecksumResolver("https", other).Probe(t.Context(), redact.NewURL(url))
+	otherKey, err := getter.NewChecksumResolver("https", other).Probe(t.Context(), redact.NewURL(pinned))
 	require.NoError(t, err)
 	assert.NotEqual(t, base, otherKey, "a different checksum names different content")
 
-	rawURL := url + "&archive=false"
+	rawURL := pinned + "&archive=false"
 	rawKey, err := getter.NewChecksumResolver("https", checksum).Probe(t.Context(), redact.NewURL(rawURL))
 	require.NoError(t, err)
 	assert.NotEqual(t, base, rawKey, "the same bytes left unextracted form a different tree")

@@ -47,9 +47,7 @@ func generateOCIStack(t *testing.T, kind, sourceScheme string) error {
 	stackPath := ociStackFixture(t, v.FS, kind, source)
 
 	// The in-memory filesystem leaves the CAS disabled; only the routing to the oci getter is covered.
-	err := generateCatalogStack(t, v, stackPath)
-
-	return err
+	return generateCatalogStack(t, v, stackPath)
 }
 
 // requireReachedOCIGetter fails unless the source was routed to the OCI getter.

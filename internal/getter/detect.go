@@ -39,7 +39,7 @@ func SourceDirSubdir(src string) (string, string) {
 
 // IsArchiveURL reports whether the inner fetch would unpack u, by its archive= value or a decompressor extension.
 func IsArchiveURL(u *url.URL) bool {
-	if archive := u.Query().Get("archive"); archive != "" {
+	if archive := u.Query().Get(archiveQueryKey); archive != "" {
 		if enabled, err := strconv.ParseBool(archive); err == nil {
 			return enabled && hasDecompressorExtension(u.Path)
 		}

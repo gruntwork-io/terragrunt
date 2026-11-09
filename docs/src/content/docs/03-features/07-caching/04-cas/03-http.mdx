@@ -11,15 +11,15 @@ import Since from '@components/Since.astro';
 
 ## Overview
 
-An HTTP source is identified by its URL. Terragrunt cannot key it by a content hash up front, so it asks the server for a validator (an `ETag` or `Last-Modified` value) and keys the cached tree by that validator, scoped to the URL.
+An HTTP source is identified by its URL. <Before version="v1.2.2">Terragrunt cannot key it by a content hash up front, so it asks the server for a validator (an `ETag` or `Last-Modified` value) and keys the cached tree by that validator, scoped to the URL.</Before><Since version="v1.2.2">Unless the URL pins a `checksum=`, Terragrunt cannot key it by a content hash up front, so it asks the server for a validator (an `ETag` or `Last-Modified` value) and keys the cached tree by that validator, scoped to the URL.</Since>
 
 ## The cheap probe
 
 The probe Terragrunt uses to attempt to avoid fetching HTTP sources is a `HEAD` request to the source URL. Terragrunt reads the `ETag` header when present, falling back to `Last-Modified`. Whichever it finds becomes the cache key.
 
-[`go-getter`](https://github.com/hashicorp/go-getter/) consumes a few query parameters itself rather than forwarding them to the server (`archive`, `checksum`, and `filename`). Terragrunt strips these before the `HEAD` request, because probing with them attached would split cache entries that resolve to the same downloaded bytes.
+[`go-getter`](https://github.com/hashicorp/go-getter/) consumes a few query parameters itself rather than forwarding them to the server (`archive`, `checksum`, and `filename`). <Before version="v1.2.2">Terragrunt strips these before the `HEAD` request, because probing with them attached would split cache entries that resolve to the same downloaded bytes.</Before><Since version="v1.2.2">Terragrunt strips `archive` and `filename` before the `HEAD` request, because probing with them attached would split cache entries that resolve to the same downloaded bytes.</Since>
 
-<Since version="v1.2.2">A `checksum=` pin replaces the probe. The cached tree is keyed by the URL and the checksum, so the first run downloads and verifies the content and later runs link it from the store without a request. A `checksum=file:` reference has no key until the file is read, so it downloads and verifies on every run.</Since>
+<Since version="v1.2.2">A `checksum=` pin replaces the probe. The cached tree is keyed by the URL and the checksum, so the first run downloads and verifies the content, and later runs link it from the store without a request. A `checksum=file:` reference has no key until the file is read, so Terragrunt downloads and verifies the source on every run.</Since>
 
 ## Cache key & deduplication
 

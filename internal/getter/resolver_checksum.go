@@ -51,7 +51,7 @@ func withoutChecksum(rawURL string) string {
 	}
 
 	q := u.Query()
-	q.Del("checksum")
+	q.Del(checksumQueryKey)
 	u.RawQuery = q.Encode()
 
 	return u.String()

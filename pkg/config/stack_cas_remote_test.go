@@ -177,7 +177,7 @@ func TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS(t *testing.T) {
 	t.Parallel()
 
 	archive := catalogZip(t, casCatalogFiles)
-	server := catalogArchiveServer(t, archive)
+	server := newArchiveServer(t, archive)
 	sum := sha256.Sum256(archive)
 	digest := hex.EncodeToString(sum[:])
 
@@ -220,33 +220,33 @@ func TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS(t *testing.T) {
 func TestGenerateStackHTTPArchiveSelectionFailures(t *testing.T) {
 	t.Parallel()
 
-	server := catalogArchiveServer(t, catalogZip(t, casCatalogFiles))
+	archive := catalogZip(t, casCatalogFiles)
 
 	testCases := []struct {
 		target  any
 		wantErr error
 		name    string
-		source  string
+		path    string
 	}{
 		{
 			target: new(*getter.ChecksumError),
 			name:   "mismatched checksum",
-			source: server.URL + "/catalog.zip//stacks/svc?checksum=sha256:" + strings.Repeat("0", 64),
+			path:   "/catalog.zip//stacks/svc?checksum=sha256:" + strings.Repeat("0", 64),
 		},
 		{
 			target: new(*getter.ChecksumError),
 			name:   "mismatched checksum file",
-			source: server.URL + "/catalog.zip//stacks/svc?checksum=file:" + catalogChecksumFile(t, strings.Repeat("0", 64)),
+			path:   "/catalog.zip//stacks/svc?checksum=file:" + catalogChecksumFile(t, strings.Repeat("0", 64)),
 		},
 		{
 			wantErr: getter.ErrSubdirNotResolved,
 			name:    "wildcard without a match",
-			source:  server.URL + "/catalog.zip//stacks/x*",
+			path:    "/catalog.zip//stacks/x*",
 		},
 		{
 			wantErr: getter.ErrSubdirNotResolved,
 			name:    "wildcard selecting several directories",
-			source:  server.URL + "/catalog.zip//stacks/s*",
+			path:    "/catalog.zip//stacks/s*",
 		},
 	}
 
@@ -254,8 +254,9 @@ func TestGenerateStackHTTPArchiveSelectionFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			server := newArchiveServer(t, archive)
 			v := casCatalogVenv(t)
-			stackPath := catalogLiveStack(t, v, "stack", tc.source)
+			stackPath := catalogLiveStack(t, v, "stack", server.URL+tc.path)
 
 			err := generateCatalogStack(t, v, stackPath)
 			require.Error(t, err)
@@ -269,6 +270,7 @@ func TestGenerateStackHTTPArchiveSelectionFailures(t *testing.T) {
 			}
 
 			assert.NoFileExists(t, filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile))
+			assert.Equal(t, int32(1), server.downloads.Load(), "the standard getter must not repeat the failed download")
 		})
 	}
 }
@@ -279,13 +281,7 @@ func TestGenerateStackHTTPArchiveChecksumHonorsOffline(t *testing.T) {
 
 	archive := catalogZip(t, casCatalogFiles)
 
-	var requests atomic.Int32
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests.Add(1)
-		http.ServeContent(w, r, "catalog.zip", time.Time{}, bytes.NewReader(archive))
-	}))
-	t.Cleanup(server.Close)
+	server := newArchiveServer(t, archive)
 
 	sum := sha256.Sum256(archive)
 	source := server.URL + "/catalog.zip//stacks/svc?checksum=sha256:" + hex.EncodeToString(sum[:])
@@ -303,13 +299,13 @@ func TestGenerateStackHTTPArchiveChecksumHonorsOffline(t *testing.T) {
 	stackPath := catalogLiveStack(t, v, "stack", source)
 	err := generateCatalogStack(t, v, stackPath, offline)
 	require.ErrorIs(t, err, cas.ErrCASOffline, "an empty store must fail instead of downloading")
-	assert.Equal(t, int32(0), requests.Load(), "the offline miss must not reach the server")
+	assert.Equal(t, int32(0), server.downloads.Load(), "the offline miss must not download the archive")
 
 	stackPath = catalogLiveStack(t, v, "stack", source)
 	err = generateCatalogStack(t, v, stackPath, recording)
 	require.NoError(t, err)
 
-	fetched := requests.Load()
+	fetched := server.downloads.Load()
 	require.Positive(t, fetched, "the online run must download the archive")
 
 	stackPath = catalogLiveStack(t, v, "stack", source)
@@ -322,7 +318,7 @@ func TestGenerateStackHTTPArchiveChecksumHonorsOffline(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Regexp(t, casStackRefPattern, string(content))
-	assert.Equal(t, fetched, requests.Load(), "the offline generation must not download the archive again")
+	assert.Equal(t, fetched, server.downloads.Load(), "the offline generation must not download the archive again")
 }
 
 // TestGenerateStackOCIMutableControlsWriteBits: mutable = true yields a writable package; the default is read-only.
@@ -615,16 +611,27 @@ func generateCatalogStack(
 	return errors.Join(genErr, waitErr)
 }
 
-// catalogArchiveServer serves archive at every path.
-func catalogArchiveServer(t *testing.T, archive []byte) *httptest.Server {
+// archiveServer serves one archive at every path and counts the GET requests it answers.
+type archiveServer struct {
+	*httptest.Server
+	downloads atomic.Int32
+}
+
+// newArchiveServer starts an [archiveServer] for archive and closes it when the test ends.
+func newArchiveServer(t *testing.T, archive []byte) *archiveServer {
 	t.Helper()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := &archiveServer{}
+	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			s.downloads.Add(1)
+		}
+
 		http.ServeContent(w, r, "catalog.zip", time.Time{}, bytes.NewReader(archive))
 	}))
-	t.Cleanup(server.Close)
+	t.Cleanup(s.Close)
 
-	return server
+	return s
 }
 
 // catalogChecksumFile writes a GNU-style checksum line for catalog.zip and returns its file URL.

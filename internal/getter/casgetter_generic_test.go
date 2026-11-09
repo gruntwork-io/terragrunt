@@ -548,7 +548,9 @@ func TestCASGetter_HTTPFailureRestoresSourceForFallbackGetters(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	assert.Equal(t, source, fallback.lastSrc, "the fallback getter must see the checksum the user wrote")
+	seen := fallback.lastSrc.Load()
+	require.NotNil(t, seen, "the fallback getter must run after the CAS failure")
+	assert.Equal(t, source, *seen, "the fallback getter must see the checksum the user wrote")
 }
 
 // TestCASGetter_HTTPChecksumFileFetchesThroughOtherSchemes: a checksum=file: reference on another scheme is read.

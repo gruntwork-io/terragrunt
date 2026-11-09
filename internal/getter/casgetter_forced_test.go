@@ -120,15 +120,17 @@ func TestCASGetter_GetCanonicalizesForcedAlias(t *testing.T) {
 // request when req.Forced matches its scheme. Mirrors the bare s3 and
 // gcs getters' Detect behavior.
 type forcedRequiredGetter struct {
+	lastSrc     atomic.Pointer[string]
 	scheme      string
-	lastSrc     string
 	detectCalls atomic.Int32
 	forcedCalls atomic.Int32
 }
 
 func (g *forcedRequiredGetter) Detect(req *gogetter.Request) (bool, error) {
 	g.detectCalls.Add(1)
-	g.lastSrc = req.Src
+
+	src := req.Src
+	g.lastSrc.Store(&src)
 
 	if req.Forced == g.scheme {
 		g.forcedCalls.Add(1)

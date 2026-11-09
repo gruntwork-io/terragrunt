@@ -915,11 +915,14 @@ func fetchComponentSource(
 			return nil
 		}
 
-		// A non-literal source, an unreadable update_source_with_cas, an offline miss or a bad subdir glob never falls back.
+		var checksumErr *getter.ChecksumError
+
+		// A non-literal source, bad update_source_with_cas, offline miss, bad glob or checksum mismatch never falls back.
 		if errors.Is(casErr, cas.ErrSourceNotLiteral) ||
 			errors.Is(casErr, cas.ErrUpdateSourceWithCASNotConstant) ||
 			errors.Is(casErr, cas.ErrCASOffline) ||
-			errors.Is(casErr, getter.ErrSubdirNotResolved) {
+			errors.Is(casErr, getter.ErrSubdirNotResolved) ||
+			errors.As(casErr, &checksumErr) {
 			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
 		}
 
@@ -970,7 +973,7 @@ func fetchViaCAS(
 	resolvedSource := resolveLocalCASSource(v.FS, cmp.sourceDir, source)
 
 	if isPackageSource(v.FS, cmp.sourceDir, source) {
-		staged, err := stagePackage(ctx, l, v, opts, cmp, source)
+		staged, err := stagePackage(ctx, l, v, opts, cmp.mutable, source)
 		if err != nil {
 			return err
 		}
@@ -1085,7 +1088,7 @@ func stagePackage(
 	l log.Logger,
 	v *venv.Venv,
 	opts *generateOpts,
-	cmp *componentToGenerate,
+	mutable bool,
 	source string,
 ) (*stagedPackage, error) {
 	packageURL, subdir := getter.SourceDirSubdir(source)
@@ -1110,7 +1113,7 @@ func stagePackage(
 				l,
 				opts.casInstance,
 				v,
-				&cas.CloneOptions{Dir: packageDir, Mutable: cmp.mutable},
+				&cas.CloneOptions{Mutable: mutable},
 				getter.WithDefaultGenericDispatch(
 					getter.WithDispatchLogger(l),
 					getter.WithDispatchFS(v.FS),

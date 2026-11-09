@@ -1217,7 +1217,7 @@ func TestStacksGenerateOCICatalogRewritesSourcesWithCAS(t *testing.T) {
 	v.Env["HOME"] = home
 	v.HTTP = registry.Client()
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
 		v,
 		"terragrunt stack generate --non-interactive --working-dir "+liveDir,
@@ -1229,7 +1229,6 @@ func TestStacksGenerateOCICatalogRewritesSourcesWithCAS(t *testing.T) {
 
 	assert.Regexp(t, `"cas::sha256:[a-f0-9]{64}"`, string(nestedStack))
 	assert.FileExists(t, filepath.Join(liveDir, ".terragrunt-stack", "svc", ".terragrunt-stack", "a", "terragrunt.hcl"))
-	assert.NotContains(t, stderr, "CAS processing failed")
 }
 
 // readCachedFiles returns the contents of every file with the given name

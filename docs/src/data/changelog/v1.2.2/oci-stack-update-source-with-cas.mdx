@@ -5,12 +5,16 @@ category: "bug-fixes"
 
 #### `update_source_with_cas` works in stacks sourced from OCI registries and HTTP archives
 
-A `unit` or `stack` block sourced from an OCI registry, such as `source = "oci://ghcr.io/acme/catalog//stacks/svc?tag=v1"`, or from an archive at an HTTP URL, copied only the selected directory of the package. Relative sources inside it that set `update_source_with_cas = true` stayed as written, so the next generation wave failed:
+For a `unit` or `stack` block sourced from an OCI registry, such as `source = "oci://ghcr.io/acme/catalog//stacks/svc?tag=v1"`, or from an archive at an HTTP URL, Terragrunt copied only the selected directory of the package. Relative sources in that directory that set `update_source_with_cas = true` stayed as written, so generating the nested stack failed:
 
 ```text
-ERROR  failed to fetch ../..//units/a ... relative paths require a module with a pwd
+ERROR  failed to fetch unit a
+  Source:      ../..//units/a
+  Destination: .terragrunt-stack/svc/.terragrunt-stack/a
+...
+Original error: ... relative paths require a module with a pwd
 ```
 
 The same catalog served from Git or a local path generated fine.
 
-Stack generation now fetches the whole HTTP archive or OCI module package into the [CAS](/features/caching/cas) and rewrites nested `update_source_with_cas` sources to `cas::` references. An OCI package is keyed by its manifest digest, so a repeat generation with the same digest links the stored copy without a download. A `?checksum=` pin keys an HTTP archive the same way, and `--cas-offline` covers it. As with other CAS-backed sources, the generated files are read-only unless the block sets `mutable = true`. `--no-cas` keeps the standard downloader, which copies only the selected directory.
+Stack generation now fetches the whole HTTP archive or OCI module package into the [CAS](/features/caching/cas) and rewrites nested `update_source_with_cas` sources to `cas::` references. An OCI package is keyed by its manifest digest, so a repeat generation with the same digest links the stored copy without a download. A `checksum=` pin keys an HTTP archive the same way, and [`--cas-offline`](/reference/cli/commands/run#cas-offline) resolves it from the store. As with other CAS-backed sources, the generated files are read-only unless the block sets `mutable = true`. `--no-cas` keeps the standard downloader, which copies only the selected directory.
