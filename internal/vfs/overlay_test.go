@@ -25,7 +25,10 @@ func overlayBases() []overlayBase {
 			new: func(t *testing.T) (vfs.FS, string) {
 				t.Helper()
 
-				return vfs.NewMemMapFS(), filepath.FromSlash("/base")
+				root, err := filepath.Abs(filepath.FromSlash("/base"))
+				require.NoError(t, err)
+
+				return vfs.NewMemMapFS(), root
 			},
 		},
 		{
