@@ -376,6 +376,7 @@ func (c *CAS) processStackFile(
 		newSource := FormatCASRef(synthHash)
 
 		block.SetSource(newSource)
+
 		rewritten = true
 
 		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
@@ -791,7 +792,7 @@ func (c *CAS) copyFileInFS(v *venv.Venv, srcPath, dstPath string, perm fs.FileMo
 	return out.Close()
 }
 
-// replaceFile writes content to path, keeping the mode of the file it replaces or [RegularFilePerms] for a new file.
+// replaceFile unlinks path and writes content with the mode of the replaced file, or [RegularFilePerms] for a new one.
 func replaceFile(fsys vfs.FS, path string, content []byte) error {
 	perm := RegularFilePerms
 
@@ -804,7 +805,6 @@ func replaceFile(fsys vfs.FS, path string, content []byte) error {
 		perm = info.Mode().Perm()
 	}
 
-	// A hard link into the store must be unlinked, not rewritten in place.
 	if err := fsys.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
