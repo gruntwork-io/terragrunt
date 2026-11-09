@@ -121,12 +121,14 @@ func TestCASGetter_GetCanonicalizesForcedAlias(t *testing.T) {
 // gcs getters' Detect behavior.
 type forcedRequiredGetter struct {
 	scheme      string
+	lastSrc     string
 	detectCalls atomic.Int32
 	forcedCalls atomic.Int32
 }
 
 func (g *forcedRequiredGetter) Detect(req *gogetter.Request) (bool, error) {
 	g.detectCalls.Add(1)
+	g.lastSrc = req.Src
 
 	if req.Forced == g.scheme {
 		g.forcedCalls.Add(1)

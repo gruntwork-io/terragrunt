@@ -860,21 +860,7 @@ func generateComponent(
 	return generateAutoInclude(l, v, opts, cmp, dest)
 }
 
-// fetchComponentSource handles the paths for fetching a component's source:
-//  1. cas:: protocol source: materialize the CAS tree directly. Must run before the CAS-backed
-//     branch so nested components already rewritten to cas:: are not re-fetched.
-//  2. Source with CAS enabled: attempt a CAS-backed fetch (git clone, whole-package fetch for any
-//     other remote scheme, or local copy into a temp overlay) and copy from its content dir. This
-//     fires automatically whenever CAS is enabled, so catalog authors don't need consumers to opt
-//     in per-block. On most CAS failures (for example, CAS can't handle a go-getter query param
-//     like depth=1), we fall through to the standard getter. Configuration errors that can never
-//     succeed via CAS, such as an interpolated source on a block with update_source_with_cas =
-//     true, fail generation instead of falling through.
-//  3. Standard: local copy or remote getter.
-//
-// The update_source_with_cas attribute on a consumer block is a no-op under path 2. It only
-// matters inside catalog files, where the CAS walk uses it to decide which nested sources to
-// rewrite to cas:: references.
+// fetchComponentSource copies a component from its cas:: tree, the CAS when enabled, or the standard getter.
 func fetchComponentSource(
 	ctx context.Context,
 	l log.Logger,
@@ -929,21 +915,16 @@ func fetchComponentSource(
 			return nil
 		}
 
-		// Three failures must not fall back. A non-literal source on an
-		// update_source_with_cas block can never be rewritten by CAS, so the
-		// fallback would silently skip the rewrite the configuration asked
-		// for. CAS has the same problem when it cannot evaluate
-		// update_source_with_cas, since it cannot tell whether a rewrite was
-		// asked for. An offline miss would be filled by the standard getter
-		// over the network --cas-offline forbids.
+		// A non-literal source, an unreadable update_source_with_cas, an offline miss or a bad subdir glob never falls back.
 		if errors.Is(casErr, cas.ErrSourceNotLiteral) ||
 			errors.Is(casErr, cas.ErrUpdateSourceWithCASNotConstant) ||
-			errors.Is(casErr, cas.ErrCASOffline) {
+			errors.Is(casErr, cas.ErrCASOffline) ||
+			errors.Is(casErr, getter.ErrSubdirNotResolved) {
 			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
 		}
 
 		l.Warnf(
-			"CAS processing failed for %s %q: %v. Falling back to standard getter.",
+			"CAS processing failed for %s %q: %v. Falling back to standard getter; nested update_source_with_cas sources are not rewritten.",
 			kindStr,
 			cmp.name,
 			casErr,
@@ -977,10 +958,7 @@ func fetchComponentSource(
 	return nil
 }
 
-// fetchViaCAS performs the CAS-backed fetch, rewrite, and copy for a stack component.
-// For git sources the fetch is a CAS-backed git clone; for local sources it is a
-// copy into a temp overlay so rewrites do not mutate the caller's working tree.
-// Any other remote source is fetched whole through the CAS into a temp dir and walked as a local source.
+// fetchViaCAS clones, stages or copies a component through the CAS, rewrites it, and copies the result to dest.
 func fetchViaCAS(
 	ctx context.Context,
 	l log.Logger,
@@ -1060,23 +1038,23 @@ func resolveLocalCASSource(fsys vfs.FS, sourceDir, source string) string {
 	return abs
 }
 
-// isPackageSource reports whether source is remote but not git, so the CAS fetches it whole before the walk.
+// isPackageSource reports whether source is a remote package the staged CAS getter fetches whole.
 func isPackageSource(fsys vfs.FS, sourceDir, source string) bool {
 	basePath, _ := getter.SourceDirSubdir(source)
 
-	return !isLocal(fsys, sourceDir, basePath) && !isGitSource(basePath)
+	return !isLocal(fsys, sourceDir, basePath) && isPackageURL(basePath)
 }
 
-// isGitSource reports whether git fetches source: a git:: prefix, git or ssh URL, git shorthand, or a plain http URL.
-func isGitSource(source string) bool {
+// isPackageURL reports whether a remote source is a forced non-git getter, an oci reference, or an http archive.
+func isPackageURL(source string) bool {
 	detected, err := cas.DetectRemoteSource(source)
 	if err != nil {
 		// The git clone path reports the detector error.
-		return true
+		return false
 	}
 
 	if forced, _, ok := strings.Cut(detected, "::"); ok && !strings.ContainsAny(forced, "/:") {
-		return forced == getter.SchemeGit
+		return forced != getter.SchemeGit
 	}
 
 	u, err := url.Parse(detected)
@@ -1085,11 +1063,11 @@ func isGitSource(source string) bool {
 	}
 
 	switch strings.ToLower(u.Scheme) {
-	case getter.SchemeGit, "ssh":
+	case getter.SchemeOCI:
 		return true
 	case getter.SchemeHTTP, getter.SchemeHTTPS:
-		// An http URL that names no archive is a repository, which git clones here.
-		return !getter.IsArchiveURL(u)
+		// An http URL that names no archive is a git repository.
+		return getter.IsArchiveURL(u)
 	}
 
 	return false
@@ -1125,7 +1103,7 @@ func stagePackage(
 
 	packageDir := filepath.Join(tempDir, "package")
 
-	// CASGetter keeps per-request state, so each component fetches through a client of its own.
+	// Each component fetches through its own client; a CASGetter serves one request at a time.
 	client := &getter.Client{
 		Getters: []getter.Getter{
 			getter.NewCASGetter(
@@ -1153,7 +1131,7 @@ func stagePackage(
 		return &stagedPackage{source: packageDir, cleanup: cleanup}, nil
 	}
 
-	// The selector may be a glob, which the walk cannot expand, so resolve it against the fetched package first.
+	// A glob selector is resolved against the fetched package before the walk.
 	selected, err := getter.SubdirGlob(packageDir, subdir)
 	if err != nil {
 		cleanup()

@@ -447,6 +447,22 @@ func TestCASGetterDetect_PanicsOnNilVenvFS(t *testing.T) {
 	})
 }
 
+// TestCASGetterDetect_PreservesExistingArchiveQueryValue: an explicit archive=false reads archive=false after Detect.
+func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {
+	t.Parallel()
+
+	g := newCASGetterForDetect(t)
+	req := &gogetter.Request{Src: "https://example.com/mod.tar.gz?archive=false"}
+
+	ok, err := g.Detect(req)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	u, err := url.Parse(req.Src)
+	require.NoError(t, err)
+	assert.Equal(t, "false", u.Query().Get("archive"))
+}
+
 // TestCASGetterDetect_MovesArchiveAndChecksumOffOuterURL: the outer client must neither extract nor verify.
 func TestCASGetterDetect_MovesArchiveAndChecksumOffOuterURL(t *testing.T) {
 	t.Parallel()
@@ -456,7 +472,6 @@ func TestCASGetterDetect_MovesArchiveAndChecksumOffOuterURL(t *testing.T) {
 		src  string
 	}{
 		{name: "archive=true", src: "https://example.com/mod.tar.gz?archive=true"},
-		{name: "archive=false", src: "https://example.com/mod.tar.gz?archive=false"},
 		{name: "archive format", src: "https://example.com/mod?archive=tar.gz"},
 		{
 			name: "checksum",

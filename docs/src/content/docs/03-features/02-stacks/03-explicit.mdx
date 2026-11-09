@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
 
 For an alternate approach (that is more flexible, but not necessarily always the better solution), you can define explicit stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units at runtime.
@@ -534,7 +535,7 @@ Requirements:
 
 ### Local catalog sources
 
-The consumer stack's `source` can be a local filesystem path in addition to a remote Git URL. Both go through the same CAS-backed rewrite pipeline:
+<Before version="v1.2.2">The consumer stack's `source` can be a local filesystem path in addition to a remote Git URL. Both go through the same CAS-backed rewrite pipeline:</Before><Since version="v1.2.2">The consumer stack's `source` can be a local filesystem path in addition to a remote URL. Every kind goes through the same CAS-backed rewrite pipeline:</Since>
 
 ```hcl
 # live/terragrunt.stack.hcl

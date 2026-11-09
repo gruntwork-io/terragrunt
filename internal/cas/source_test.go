@@ -2,6 +2,7 @@ package cas_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -15,7 +16,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestFetchSource_ProbeHitSkipsDownload(t *testing.T) {
@@ -324,6 +327,51 @@ func TestContentKey_DoesNotCollideWithOpaqueKey(t *testing.T) {
 	content := cas.ContentKey("sha256", "abc")
 	opaque := cas.OpaqueKey("sha256", "abc", "abc")
 	assert.NotEqual(t, content, opaque)
+}
+
+// A probe recorded by a failed download must not let --cas-offline run the fetcher.
+func TestFetchSource_OfflineRecordedProbeWithoutTreeFails(t *testing.T) {
+	t.Parallel()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	v := venvtest.NewOSWithEmptyEnv()
+	l := logger.CreateLogger()
+
+	resolver := &fakeResolver{
+		scheme: "https",
+		key:    cas.OpaqueKey("https", "https://example.com/mod.tgz", "checksum:sha256:abc"),
+	}
+
+	errDownload := errors.New("download failed")
+
+	var fetchCalls atomic.Int32
+
+	failing := func(context.Context, log.Logger, *venv.Venv, string, cas.IngestMode) (string, error) {
+		fetchCalls.Add(1)
+
+		return "", errDownload
+	}
+
+	request := cas.SourceRequest{
+		Scheme:   "https",
+		URL:      redact.NewURL("https://example.com/mod.tgz"),
+		Resolver: resolver,
+		Fetch:    failing,
+	}
+
+	online, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithProbeCache())
+	require.NoError(t, err)
+
+	err = online.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "online")}, request)
+	require.ErrorIs(t, err, errDownload)
+	require.Equal(t, int32(1), fetchCalls.Load())
+
+	offline, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithOffline())
+	require.NoError(t, err)
+
+	err = offline.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "offline")}, request)
+	require.ErrorIs(t, err, cas.ErrCASOffline)
+	assert.Equal(t, int32(1), fetchCalls.Load(), "an offline miss must not run the fetcher")
 }
 
 // fakeResolver returns a canned cache key on Probe.

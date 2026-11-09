@@ -1,7 +1,6 @@
 package getter_test
 
 import (
-	"context"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -97,12 +96,12 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 				t.Skip(tc.skipOnWindows)
 			}
 
-			// Get fills the client's defaults on first use, so parallel subtests each need their own.
+			// Get fills the client's defaults on first use; parallel subtests each need their own.
 			client := &getter.Client{
 				Getters: []getter.Getter{tggetter.NewFileCopyGetter(vfs.NewOSFS())},
 			}
 
-			_, err := client.Get(context.Background(), &getter.Request{
+			_, err := client.Get(t.Context(), &getter.Request{
 				Src:     tc.src,
 				Dst:     tc.dst,
 				GetMode: tc.mode,

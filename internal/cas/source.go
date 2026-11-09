@@ -245,6 +245,11 @@ func (c *CAS) fetchAndLink(
 		return c.linkStoredTree(ctx, l, v, opts, src.Scheme, suggestedKey)
 	}
 
+	// A recorded probe without its tree in the store is an offline miss.
+	if suggestedKey != "" && c.probeMode == ProbeModeOffline {
+		return &OfflineMissError{Source: src.URL}
+	}
+
 	recordFetchOutcome(ctx, false)
 
 	treeKey, err := src.Fetch(ctx, l, v, suggestedKey, mode)

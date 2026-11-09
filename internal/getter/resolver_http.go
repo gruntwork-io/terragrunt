@@ -57,7 +57,7 @@ func (r *HTTPResolver) Scheme() string {
 	return r.scheme
 }
 
-// Pinned always reports false: an ETag names what the server serves now, and a ?checksum= pin is keyed elsewhere.
+// Pinned always reports false; an ETag changes whenever the served content does.
 func (r *HTTPResolver) Pinned(_ redact.URL) bool { return false }
 
 // Probe HEADs source and returns a URL-scoped opaque cache key derived

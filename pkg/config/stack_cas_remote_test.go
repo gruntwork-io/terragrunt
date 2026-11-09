@@ -159,7 +159,7 @@ func TestGenerateStackOCIRewritesUpdateSourceWithCAS(t *testing.T) {
 			v := ociCatalogVenv(t, registry)
 			stackPath := catalogLiveStack(t, v, tc.kind, tc.source)
 
-			_, err := generateCatalogStack(t, v, stackPath)
+			err := generateCatalogStack(t, v, stackPath)
 			require.NoError(t, err)
 
 			content, err := vfs.ReadFile(v.FS, filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", tc.generated))
@@ -172,7 +172,7 @@ func TestGenerateStackOCIRewritesUpdateSourceWithCAS(t *testing.T) {
 	}
 }
 
-// TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS: an HTTP archive catalog takes the walk however it is selected.
+// TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS: every archive selection form takes the CAS walk.
 func TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS(t *testing.T) {
 	t.Parallel()
 
@@ -202,7 +202,7 @@ func TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS(t *testing.T) {
 			v := casCatalogVenv(t)
 			stackPath := catalogLiveStack(t, v, "stack", tc.source)
 
-			logs, err := generateCatalogStack(t, v, stackPath)
+			err := generateCatalogStack(t, v, stackPath)
 			require.NoError(t, err)
 
 			content, err := vfs.ReadFile(v.FS, filepath.Join(
@@ -212,13 +212,11 @@ func TestGenerateStackHTTPArchiveRewritesUpdateSourceWithCAS(t *testing.T) {
 
 			assert.Regexp(t, casStackRefPattern, string(content))
 			assert.NotContains(t, string(content), `"../..//units/a"`)
-			assert.NotContains(t, logs, "CAS processing failed",
-				"the archive must be walked through CAS, not the fallback getter")
 		})
 	}
 }
 
-// TestGenerateStackHTTPArchiveSelectionFailures: a bad checksum or an unusable wildcard fails instead of generating.
+// TestGenerateStackHTTPArchiveSelectionFailures: a bad checksum or an unusable wildcard fails generation.
 func TestGenerateStackHTTPArchiveSelectionFailures(t *testing.T) {
 	t.Parallel()
 
@@ -226,9 +224,9 @@ func TestGenerateStackHTTPArchiveSelectionFailures(t *testing.T) {
 
 	testCases := []struct {
 		target  any
+		wantErr error
 		name    string
 		source  string
-		wantMsg string
 	}{
 		{
 			target: new(*getter.ChecksumError),
@@ -241,14 +239,14 @@ func TestGenerateStackHTTPArchiveSelectionFailures(t *testing.T) {
 			source: server.URL + "/catalog.zip//stacks/svc?checksum=file:" + catalogChecksumFile(t, strings.Repeat("0", 64)),
 		},
 		{
+			wantErr: getter.ErrSubdirNotResolved,
 			name:    "wildcard without a match",
 			source:  server.URL + "/catalog.zip//stacks/x*",
-			wantMsg: "failed to select subdir",
 		},
 		{
+			wantErr: getter.ErrSubdirNotResolved,
 			name:    "wildcard selecting several directories",
 			source:  server.URL + "/catalog.zip//stacks/s*",
-			wantMsg: "failed to select subdir",
 		},
 	}
 
@@ -259,21 +257,23 @@ func TestGenerateStackHTTPArchiveSelectionFailures(t *testing.T) {
 			v := casCatalogVenv(t)
 			stackPath := catalogLiveStack(t, v, "stack", tc.source)
 
-			logs, err := generateCatalogStack(t, v, stackPath)
+			err := generateCatalogStack(t, v, stackPath)
 			require.Error(t, err)
 
 			if tc.target != nil {
 				require.ErrorAs(t, err, tc.target)
 			}
 
-			assert.Contains(t, logs, tc.wantMsg)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			}
 
 			assert.NoFileExists(t, filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile))
 		})
 	}
 }
 
-// TestGenerateStackHTTPArchiveChecksumHonorsOffline: a checksum-pinned catalog generates offline from a warm store, never from the network.
+// TestGenerateStackHTTPArchiveChecksumHonorsOffline: a pinned catalog generates offline from a warm store only.
 func TestGenerateStackHTTPArchiveChecksumHonorsOffline(t *testing.T) {
 	t.Parallel()
 
@@ -301,20 +301,19 @@ func TestGenerateStackHTTPArchiveChecksumHonorsOffline(t *testing.T) {
 	v := casCatalogVenv(t)
 
 	stackPath := catalogLiveStack(t, v, "stack", source)
-	logs, err := generateCatalogStack(t, v, stackPath, offline)
+	err := generateCatalogStack(t, v, stackPath, offline)
 	require.ErrorIs(t, err, cas.ErrCASOffline, "an empty store must fail instead of downloading")
-	assert.NotContains(t, logs, "CAS processing failed", "an offline miss must not fall back to the standard getter")
 	assert.Equal(t, int32(0), requests.Load(), "the offline miss must not reach the server")
 
 	stackPath = catalogLiveStack(t, v, "stack", source)
-	_, err = generateCatalogStack(t, v, stackPath, recording)
+	err = generateCatalogStack(t, v, stackPath, recording)
 	require.NoError(t, err)
 
 	fetched := requests.Load()
 	require.Positive(t, fetched, "the online run must download the archive")
 
 	stackPath = catalogLiveStack(t, v, "stack", source)
-	_, err = generateCatalogStack(t, v, stackPath, offline)
+	err = generateCatalogStack(t, v, stackPath, offline)
 	require.NoError(t, err, "a warm store must serve the pinned archive offline")
 
 	content, err := vfs.ReadFile(v.FS, filepath.Join(
@@ -326,7 +325,7 @@ func TestGenerateStackHTTPArchiveChecksumHonorsOffline(t *testing.T) {
 	assert.Equal(t, fetched, requests.Load(), "the offline generation must not download the archive again")
 }
 
-// TestGenerateStackOCIMutableControlsWriteBits: mutable = true materializes a writable package; the default stays read-only.
+// TestGenerateStackOCIMutableControlsWriteBits: mutable = true yields a writable package; the default is read-only.
 func TestGenerateStackOCIMutableControlsWriteBits(t *testing.T) {
 	t.Parallel()
 
@@ -349,10 +348,10 @@ func TestGenerateStackOCIMutableControlsWriteBits(t *testing.T) {
 			v := ociCatalogVenv(t, registry)
 			stackPath := catalogLiveStack(t, v, "stack", ociCatalogSource(registry, "stacks/svc"), tc.attrs...)
 
-			_, err := generateCatalogStack(t, v, stackPath)
+			err := generateCatalogStack(t, v, stackPath)
 			require.NoError(t, err)
 
-			// The README is copied as fetched; the stack file is rewritten, so it would hide the mode.
+			// The README is copied as fetched; the stack file is rewritten.
 			info, err := v.FS.Stat(filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", "README.md"))
 			require.NoError(t, err)
 
@@ -368,7 +367,7 @@ func TestGenerateStackBareGitURLClonesWithGit(t *testing.T) {
 	srv, err := git.NewServer()
 	require.NoError(t, err)
 
-	t.Cleanup(func() { assert.NoError(t, srv.Close()) })
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	files := make(map[string][]byte, len(casCatalogFiles))
 	for name, content := range casCatalogFiles {
@@ -395,7 +394,7 @@ func TestGenerateStackBareGitURLClonesWithGit(t *testing.T) {
 			v := casCatalogVenv(t)
 			stackPath := catalogLiveStack(t, v, "stack", tc.base+"//stacks/svc?ref=main")
 
-			logs, err := generateCatalogStack(t, v, stackPath)
+			err := generateCatalogStack(t, v, stackPath)
 			require.NoError(t, err)
 
 			content, err := vfs.ReadFile(v.FS, filepath.Join(
@@ -403,10 +402,8 @@ func TestGenerateStackBareGitURLClonesWithGit(t *testing.T) {
 			))
 			require.NoError(t, err)
 
-			// The clone walk keys its references by commit, so a git catalog yields sha1 references.
+			// A git catalog yields references keyed by commit sha1.
 			assert.Regexp(t, `"cas::sha1:[a-f0-9]{40}"`, string(content))
-			assert.NotContains(t, logs, "CAS processing failed",
-				"a repository URL must take the clone walk instead of the HTTP fetcher")
 		})
 	}
 }
@@ -421,12 +418,12 @@ func TestGenerateStackOCICatalogNestedUnitGenerates(t *testing.T) {
 	v := ociCatalogVenv(t, registry)
 	stackPath := catalogLiveStack(t, v, "stack", ociCatalogSource(registry, "stacks/svc"))
 
-	_, err := generateCatalogStack(t, v, stackPath)
+	err := generateCatalogStack(t, v, stackPath)
 	require.NoError(t, err)
 
 	nestedStackPath := filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile)
 
-	_, err = generateCatalogStack(t, v, nestedStackPath)
+	err = generateCatalogStack(t, v, nestedStackPath)
 	require.NoError(t, err)
 
 	content, err := vfs.ReadFile(v.FS, filepath.Join(
@@ -447,7 +444,7 @@ func TestGenerateStackOCINoCASKeepsRelativeSources(t *testing.T) {
 	v := ociCatalogVenv(t, registry)
 	stackPath := catalogLiveStack(t, v, "stack", ociCatalogSource(registry, "stacks/svc"))
 
-	_, err := generateCatalogStack(t, v, stackPath, func(pctx *config.ParsingContext) { pctx.NoCAS = true })
+	err := generateCatalogStack(t, v, stackPath, func(pctx *config.ParsingContext) { pctx.NoCAS = true })
 	require.NoError(t, err)
 
 	content, err := vfs.ReadFile(v.FS, filepath.Join(
@@ -469,14 +466,12 @@ func TestGenerateStackOCICASOfflineMissFails(t *testing.T) {
 	v := ociCatalogVenv(t, registry)
 	stackPath := catalogLiveStack(t, v, "stack", ociCatalogSource(registry, "stacks/svc"))
 
-	logs, err := generateCatalogStack(t, v, stackPath, func(pctx *config.ParsingContext) {
+	err := generateCatalogStack(t, v, stackPath, func(pctx *config.ParsingContext) {
 		pctx.CASOffline = true
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OfflineCAS))
 	})
 	require.ErrorIs(t, err, cas.ErrCASOffline)
 
-	assert.NotContains(t, logs, "CAS processing failed",
-		"an offline miss must not fall back to the standard getter")
 	assert.NoFileExists(t, filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile))
 }
 
@@ -504,7 +499,7 @@ func TestGenerateStackOCIRegistryFailuresSurfaceGetterError(t *testing.T) {
 				t.Helper()
 
 				layer := ociCatalogLayer(t, registry)
-				// Same length, so the size check cannot mask the digest check.
+				// A same-length blob reaches the digest check.
 				registry.OverwriteBlob(t, casCatalogRepository, layer.Digest, make([]byte, layer.Size))
 			},
 			source: func(registry *ociregistry.Registry) string {
@@ -525,11 +520,9 @@ func TestGenerateStackOCIRegistryFailuresSurfaceGetterError(t *testing.T) {
 			v := ociCatalogVenv(t, registry)
 			stackPath := catalogLiveStack(t, v, "stack", tc.source(registry))
 
-			logs, err := generateCatalogStack(t, v, stackPath)
+			err := generateCatalogStack(t, v, stackPath)
 			require.ErrorAs(t, err, tc.target)
 
-			assert.Contains(t, logs, "CAS processing failed",
-				"the oci:// source must be tried through CAS before the standard getter")
 			assert.NoFileExists(t, filepath.Join(filepath.Dir(stackPath), config.StackDir, "svc", config.DefaultStackFile))
 		})
 	}
@@ -586,19 +579,17 @@ func catalogLiveStack(t *testing.T, v *venv.Venv, kind, source string, attrs ...
 	return stackPath
 }
 
-// generateCatalogStack generates stackPath on v and returns the captured logs with the joined errors.
+// generateCatalogStack generates stackPath on v and returns the joined generation and pool errors.
 func generateCatalogStack(
 	t *testing.T,
 	v *venv.Venv,
 	stackPath string,
 	configure ...func(pctx *config.ParsingContext),
-) (string, error) {
+) error {
 	t.Helper()
 
-	var logBuf bytes.Buffer
-
 	l := logger.CreateLogger()
-	l.SetOptions(log.WithOutput(&logBuf), log.WithLevel(log.DebugLevel))
+	l.SetOptions(log.WithOutput(io.Discard))
 
 	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.TerragruntStackConfigPath = stackPath
@@ -617,14 +608,14 @@ func generateCatalogStack(
 
 	defer pool.Stop()
 
-	// Components are generated on the pool, so the fetch error surfaces from Wait.
+	// Fetch errors from pool workers surface from Wait.
 	genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
 	waitErr := pool.Wait()
 
-	return logBuf.String(), errors.Join(genErr, waitErr)
+	return errors.Join(genErr, waitErr)
 }
 
-// catalogArchiveServer serves archive for every path, so a test can pick the archive by extension or by query.
+// catalogArchiveServer serves archive at every path.
 func catalogArchiveServer(t *testing.T, archive []byte) *httptest.Server {
 	t.Helper()
 
@@ -636,7 +627,7 @@ func catalogArchiveServer(t *testing.T, archive []byte) *httptest.Server {
 	return server
 }
 
-// catalogChecksumFile writes a GNU-style checksum line for catalog.zip and returns the file URL go-getter reads it from.
+// catalogChecksumFile writes a GNU-style checksum line for catalog.zip and returns its file URL.
 func catalogChecksumFile(t *testing.T, digest string) string {
 	t.Helper()
 
@@ -646,7 +637,7 @@ func catalogChecksumFile(t *testing.T, digest string) string {
 	return getter.FileURL(path).String()
 }
 
-// catalogZip packs files into a zip archive, with sorted names so one file set packs to one digest.
+// catalogZip packs files into a zip archive in name order.
 func catalogZip(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 

@@ -1,6 +1,8 @@
 package getter
 
 import (
+	"errors"
+	"fmt"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -35,16 +37,23 @@ func SourceDirSubdir(src string) (string, string) {
 	return getter.SourceDirSubdir(src)
 }
 
-// IsArchiveURL reports whether go-getter would unpack u, by its archive= query or a decompressor extension on its path.
+// IsArchiveURL reports whether the inner fetch would unpack u, by its archive= value or a decompressor extension.
 func IsArchiveURL(u *url.URL) bool {
 	if archive := u.Query().Get("archive"); archive != "" {
-		enabled, err := strconv.ParseBool(archive)
+		if enabled, err := strconv.ParseBool(archive); err == nil {
+			return enabled && hasDecompressorExtension(u.Path)
+		}
 
-		return err != nil || enabled
+		return getter.Decompressors[archive] != nil
 	}
 
+	return hasDecompressorExtension(u.Path)
+}
+
+// hasDecompressorExtension reports whether p ends in an extension go-getter unpacks.
+func hasDecompressorExtension(p string) bool {
 	for ext := range getter.Decompressors {
-		if strings.HasSuffix(u.Path, "."+ext) {
+		if strings.HasSuffix(p, "."+ext) {
 			return true
 		}
 	}
@@ -52,10 +61,17 @@ func IsArchiveURL(u *url.URL) bool {
 	return false
 }
 
-// SubdirGlob expands a globbed subdirectory path against a directory on disk
-// and returns the resolved subdirectory path.
+// ErrSubdirNotResolved wraps every failure to resolve a subdir glob to one directory.
+var ErrSubdirNotResolved = errors.New("subdir glob did not resolve to one directory")
+
+// SubdirGlob expands a globbed subdirectory path against a directory on disk; returns [ErrSubdirNotResolved] on a miss.
 func SubdirGlob(dst, subDir string) (string, error) {
-	return getter.SubdirGlob(dst, subDir)
+	selected, err := getter.SubdirGlob(dst, subDir)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrSubdirNotResolved, err)
+	}
+
+	return selected, nil
 }
 
 // Detect runs the default detector chain (the equivalent of v1's

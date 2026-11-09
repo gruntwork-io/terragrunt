@@ -22,7 +22,7 @@ func TestChecksumResolver_Scheme(t *testing.T) {
 func TestChecksumResolver_Probe(t *testing.T) {
 	t.Parallel()
 
-	const url = "https://example.com/mod.tgz?checksum=sha256:" + hexOf64
+	const base = "https://example.com/mod.tgz"
 
 	testCases := []struct {
 		wantErr  error
@@ -33,17 +33,17 @@ func TestChecksumResolver_Probe(t *testing.T) {
 		{
 			name:     "typed literal",
 			checksum: "sha256:" + hexOf64,
-			wantKey:  cas.OpaqueKey("https", url, "checksum:sha256:"+hexOf64),
+			wantKey:  cas.OpaqueKey("https", base, "checksum:sha256:"+hexOf64),
 		},
 		{
 			name:     "uppercase hex keys like lowercase",
 			checksum: "sha256:" + strings.ToUpper(hexOf64),
-			wantKey:  cas.OpaqueKey("https", url, "checksum:sha256:"+hexOf64),
+			wantKey:  cas.OpaqueKey("https", base, "checksum:sha256:"+hexOf64),
 		},
 		{
 			name:     "bare literal",
 			checksum: hexOf64,
-			wantKey:  cas.OpaqueKey("https", url, "checksum:"+hexOf64),
+			wantKey:  cas.OpaqueKey("https", base, "checksum:"+hexOf64),
 		},
 		{
 			name:     "file reference",
@@ -56,7 +56,8 @@ func TestChecksumResolver_Probe(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			key, err := getter.NewChecksumResolver("https", tc.checksum).Probe(t.Context(), redact.NewURL(url))
+			source := redact.NewURL(base + "?checksum=" + tc.checksum)
+			key, err := getter.NewChecksumResolver("https", tc.checksum).Probe(t.Context(), source)
 
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
