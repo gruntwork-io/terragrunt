@@ -373,6 +373,11 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 			wantStatus: http.StatusNotFound,
 		},
 		{
+			name:       "download with a malformed escape",
+			remote:     "https/releases.example.com/%25ZZ/" + testArchiveName,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
 			name:       "download through another segment",
 			remote:     "https" + archivePath,
 			segment:    func(*controllers.DownloaderController) string { return "guessed" },

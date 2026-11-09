@@ -586,20 +586,33 @@ func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
 			files:  []string{subConfigPath},
 			param:  subConfigPath,
 			strict: true,
-			want:   rootTerragruntHCLWant{outcome: rootRejected},
+			want:   rootTerragruntHCLWant{path: subConfigPath},
 		},
 		{
 			name:  "terragrunt.hcl in a subdirectory with the control disabled",
 			files: []string{subConfigPath},
 			param: subConfigPath,
-			want:  rootTerragruntHCLWant{path: subConfigPath, outcome: rootWarned},
+			want:  rootTerragruntHCLWant{path: subConfigPath},
 		},
 		{
 			name:   "terragrunt.hcl through a parent directory under the strict control",
-			files:  []string{config.DefaultTerragruntConfigPath},
-			param:  "../terragrunt.hcl",
+			files:  []string{parentConfigPath},
+			param:  parentConfigPath,
 			strict: true,
 			want:   rootTerragruntHCLWant{outcome: rootRejected},
+		},
+		{
+			name:  "terragrunt.hcl through a parent directory with the control disabled",
+			files: []string{parentConfigPath},
+			param: parentConfigPath,
+			want:  rootTerragruntHCLWant{path: parentConfigPath, outcome: rootWarned},
+		},
+		{
+			name:   "another unit's terragrunt.hcl through a parent directory under the strict control",
+			files:  []string{"../" + subConfigPath},
+			param:  "../" + subConfigPath,
+			strict: true,
+			want:   rootTerragruntHCLWant{path: "../" + subConfigPath},
 		},
 		{
 			name:   "differently cased name distinct from terragrunt.hcl under the strict control",
@@ -635,7 +648,7 @@ func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
 			symlinks: map[string]string{"sub/TERRAGRUNT.HCL": subConfigPath},
 			param:    "sub/TERRAGRUNT.HCL",
 			strict:   true,
-			want:     rootTerragruntHCLWant{outcome: rootRejected},
+			want:     rootTerragruntHCLWant{path: "sub/TERRAGRUNT.HCL"},
 		},
 		{
 			name:     "differently cased symlink to terragrunt.hcl elsewhere under the strict control",
@@ -693,14 +706,15 @@ func TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name   string
-		dir    string
-		strict bool
+		name    string
+		dir     string
+		outcome rootLookupOutcome
+		strict  bool
 	}{
-		{name: "under the strict control", strict: true},
-		{name: "with the control disabled"},
-		{name: "in a subdirectory under the strict control", dir: "sub", strict: true},
-		{name: "in a subdirectory with the control disabled", dir: "sub"},
+		{name: "under the strict control", strict: true, outcome: rootRejected},
+		{name: "with the control disabled", outcome: rootWarned},
+		{name: "in a subdirectory under the strict control", dir: "sub", strict: true, outcome: rootFound},
+		{name: "in a subdirectory with the control disabled", dir: "sub", outcome: rootFound},
 	}
 
 	for _, tc := range testCases {
@@ -719,9 +733,9 @@ func TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS(t *testing.T) {
 				require.NoError(t, vfs.Link(fsys, filepath.Join(dir, config.DefaultTerragruntConfigPath), otherCase))
 			}
 
-			want := rootTerragruntHCLWant{path: otherCase, outcome: rootWarned}
-			if tc.strict {
-				want = rootTerragruntHCLWant{outcome: rootRejected}
+			want := rootTerragruntHCLWant{outcome: tc.outcome}
+			if tc.outcome != rootRejected {
+				want.path = otherCase
 			}
 
 			param := filepath.Join(tc.dir, otherCaseConfigName)
@@ -2613,6 +2627,9 @@ dependency "vpc" {
 
 // subConfigPath is terragrunt.hcl in a subdirectory named sub.
 const subConfigPath = "sub/" + config.DefaultTerragruntConfigPath
+
+// parentConfigPath is terragrunt.hcl in the parent directory.
+const parentConfigPath = "../" + config.DefaultTerragruntConfigPath
 
 // otherCaseConfigName is terragrunt.hcl in another letter case.
 const otherCaseConfigName = "TERRAGRUNT.HCL"

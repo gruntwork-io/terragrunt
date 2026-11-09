@@ -233,7 +233,7 @@ func TestResolveRelativeReferences(t *testing.T) {
 		expectedResolved models.ResponseBody
 	}{
 		{
-			baseURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1",
+			baseURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/",
 			body: models.ResponseBody{
 				DownloadURL:            "terraform-provider-local_2.5.1_darwin_amd64.zip",
 				SHA256SumsURL:          "terraform-provider-local_2.5.1_SHA256SUMS",
@@ -279,9 +279,9 @@ func TestResolveRelativeReferences(t *testing.T) {
 				SHA256SumsSignatureURL: "terraform-provider_SHA256SUMS.sig#anchor",
 			},
 			expectedResolved: models.ResponseBody{
-				DownloadURL:            "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider.zip?X-Amz-Signature=abc123&X-Amz-Expires=86400",
-				SHA256SumsURL:          "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS?X-Amz-Signature=def456",
-				SHA256SumsSignatureURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS.sig#anchor",
+				DownloadURL:            "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/terraform-provider.zip?X-Amz-Signature=abc123&X-Amz-Expires=86400",
+				SHA256SumsURL:          "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/terraform-provider_SHA256SUMS?X-Amz-Signature=def456",
+				SHA256SumsSignatureURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/terraform-provider_SHA256SUMS.sig#anchor",
 			},
 		},
 		{
@@ -314,8 +314,9 @@ func TestResolveRelativeReference(t *testing.T) {
 	t.Parallel()
 
 	const (
-		registry = "https://registry.example.com"
-		platform = registry + "/v1/providers/ns/name/1.0/download/linux/amd64"
+		registry    = "https://registry.example.com"
+		platformDir = registry + "/v1/providers/ns/name/1.0/download/linux"
+		platform    = platformDir + "/amd64"
 	)
 
 	testCases := []struct {
@@ -324,26 +325,26 @@ func TestResolveRelativeReference(t *testing.T) {
 		link string
 		want string
 	}{
-		{name: "file name", base: platform, link: "example.zip", want: platform + "/example.zip"},
+		{name: "file name", base: platform, link: "example.zip", want: platformDir + "/example.zip"},
 		{
 			name: "URL in the query",
 			base: platform,
 			link: "example.zip?redirect=https://mirror.example.com/example.zip",
-			want: platform + "/example.zip?redirect=https://mirror.example.com/example.zip",
+			want: platformDir + "/example.zip?redirect=https://mirror.example.com/example.zip",
 		},
 		{
 			name: "escaped slash",
 			base: platform,
 			link: "group%2Fproject/example.zip",
-			want: platform + "/group%2Fproject/example.zip",
+			want: platformDir + "/group%2Fproject/example.zip",
 		},
-		{name: "repeated slashes", base: platform, link: "files//example.zip", want: platform + "/files//example.zip"},
-		{name: "trailing slash", base: platform, link: "files/", want: platform + "/files/"},
+		{name: "repeated slashes", base: platform, link: "files//example.zip", want: platformDir + "/files//example.zip"},
+		{name: "trailing slash", base: platform, link: "files/", want: platformDir + "/files/"},
 		{
 			name: "parent directory",
 			base: platform,
 			link: "../SHA256SUMS",
-			want: registry + "/v1/providers/ns/name/1.0/download/linux/SHA256SUMS",
+			want: registry + "/v1/providers/ns/name/1.0/download/SHA256SUMS",
 		},
 		{name: "absolute path", base: platform, link: "/sums/SHA256SUMS", want: registry + "/sums/SHA256SUMS"},
 		{name: "query only", base: platform, link: "?sig=1", want: platform + "?sig=1"},
@@ -367,7 +368,7 @@ func TestResolveRelativeReference(t *testing.T) {
 		},
 		{
 			name: "base with an escaped slash",
-			base: "https://mirror.example.com/group%2Fmirror",
+			base: "https://mirror.example.com/group%2Fmirror/",
 			link: "example.zip",
 			want: "https://mirror.example.com/group%2Fmirror/example.zip",
 		},

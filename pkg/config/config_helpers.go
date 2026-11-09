@@ -898,7 +898,10 @@ func findInParentFoldersImpl(
 
 	previousDir := filepath.Dir(pctx.TerragruntConfigPath)
 
-	namesDefault := fileToFindParam == "" || filepath.Base(fileToFindParam) == DefaultTerragruntConfigPath
+	name := filepath.Clean(fileToFindParam)
+	namesDefault := fileToFindParam == "" || name == DefaultTerragruntConfigPath
+	namesRootFile := !namesDefault && upwardOnly(filepath.Dir(name))
+
 	if namesDefault {
 		if err := evaluateRootTerragruntHCL(ctx, l, pctx); err != nil {
 			return "", err
@@ -935,7 +938,7 @@ func findInParentFoldersImpl(
 		fileToFind := parentFileCandidate(v.FS, currentDir, fileToFindParam)
 
 		if parentFileExists(ctx, v.FS, probes, fileToFind) {
-			if namesDefault {
+			if !namesRootFile {
 				return fileToFind, nil
 			}
 
@@ -965,6 +968,17 @@ func evaluateRootTerragruntHCL(ctx context.Context, l log.Logger, pctx *ParsingC
 	}
 
 	return nil
+}
+
+// upwardOnly reports whether dir, a cleaned relative directory, is the current directory or only parent steps.
+func upwardOnly(dir string) bool {
+	for part := range strings.SplitSeq(filepath.ToSlash(dir), "/") {
+		if part != "." && part != ".." {
+			return false
+		}
+	}
+
+	return true
 }
 
 // evaluateFoundRootFile evaluates root-terragrunt-hcl when found resolves to a terragrunt.hcl file.

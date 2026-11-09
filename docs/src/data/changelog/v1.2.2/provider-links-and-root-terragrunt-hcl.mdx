@@ -1,0 +1,12 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Fixes for provider cache relative links, `root-terragrunt-hcl` lookups and `GIT_CEILING_DIRECTORIES`
+
+A registry can answer with a relative `download_url`, `shasums_url` or `shasums_signature_url`. OpenTofu resolves it against the URL of that response, so `example.zip` from `.../download/linux/amd64` means `.../download/linux/example.zip`. With `--provider-cache`, Terragrunt fetched `.../download/linux/amd64/example.zip` instead, and the provider cache server rewrote the link into one it could not download. Both now resolve relative links the way OpenTofu does, and a link to an `http` host keeps its scheme.
+
+With the `root-terragrunt-hcl` strict control enabled, `find_in_parent_folders("./terragrunt.hcl")`, `find_in_parent_folders("../terragrunt.hcl")` and a differently cased name that is the same file, such as `TERRAGRUNT.HCL` on macOS, now fail the same way `find_in_parent_folders()` does. `terragrunt scaffold --root-file-name terragrunt.hcl` now fails too, and `scaffold` checks a root file set through `--var RootFileName` before it writes the unit. A path into another unit's directory, such as `find_in_parent_folders("vpc/terragrunt.hcl")`, is not affected.
+
+When Terragrunt finds the git repository root for discovery and `--graph`, it now reads `GIT_CEILING_DIRECTORIES` the way git does. An empty entry anywhere in the list, not only the first, makes the entries after it compare as written instead of through symlinks, and the entries before it are still resolved.

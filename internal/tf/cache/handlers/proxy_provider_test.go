@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	platformPath   = "/v1/providers/example/example/1.0.0/download/linux/amd64"
+	platformDir    = "/v1/providers/example/example/1.0.0/download/linux"
+	platformPath   = platformDir + "/amd64"
 	registryURL    = "https://registry.example.com"
 	localDownloads = "http://127.0.0.1:5758/downloads/segment/"
 	localRegistry  = localDownloads + "https/registry.example.com"
@@ -71,9 +72,9 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 			name:   "providers endpoint on the registry host",
 			bodies: registryBodies(links),
 			want: map[string]any{
-				"download_url":          localRegistry + platformPath + "/example.zip",
+				"download_url":          localRegistry + platformDir + "/example.zip",
 				"shasums_url":           localRegistry + "/sums/SHA256SUMS?sig=1",
-				"shasums_signature_url": localRegistry + "/v1/providers/example/example/1.0.0/download/linux/SHA256SUMS.sig",
+				"shasums_signature_url": localRegistry + "/v1/providers/example/example/1.0.0/download/SHA256SUMS.sig",
 			},
 		},
 		{
@@ -83,9 +84,9 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 				mirror + "/api/providers/example/example/1.0.0/download/linux/amd64": links,
 			},
 			want: map[string]any{
-				"download_url":          local + "mirror.example.com/api/providers/example/example/1.0.0/download/linux/amd64/example.zip",
+				"download_url":          local + "mirror.example.com/api/providers/example/example/1.0.0/download/linux/example.zip",
 				"shasums_url":           local + "mirror.example.com/sums/SHA256SUMS?sig=1",
-				"shasums_signature_url": local + "mirror.example.com/api/providers/example/example/1.0.0/download/linux/SHA256SUMS.sig",
+				"shasums_signature_url": local + "mirror.example.com/api/providers/example/example/1.0.0/download/SHA256SUMS.sig",
 			},
 		},
 		{
@@ -95,10 +96,10 @@ func TestProxyProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 					`"shasums_url": "files/", "shasums_signature_url": "./sig/../SHA256SUMS.sig"}`,
 			),
 			want: map[string]any{
-				"download_url": localRegistry + platformPath +
+				"download_url": localRegistry + platformDir +
 					"/group%252Fproject/%2Fexample.zip?redirect=https://mirror.example.com/example.zip",
-				"shasums_url":           localRegistry + platformPath + "/files/",
-				"shasums_signature_url": localRegistry + platformPath + "/SHA256SUMS.sig",
+				"shasums_url":           localRegistry + platformDir + "/files/",
+				"shasums_signature_url": localRegistry + platformDir + "/SHA256SUMS.sig",
 			},
 		},
 	}

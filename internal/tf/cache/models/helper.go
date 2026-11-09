@@ -6,23 +6,11 @@ import (
 	"strings"
 )
 
-// ResolveRelativeReference resolves link against base as a directory, keeping its escaped path, query and fragment.
+// ResolveRelativeReference resolves link against base per RFC 3986, returning an absolute link as it is.
 func ResolveRelativeReference(base *url.URL, link string) (*url.URL, error) {
 	ref, err := url.Parse(link)
 	if err != nil || ref.IsAbs() {
 		return ref, err
-	}
-
-	// Treat base as a directory for a relative path.
-	if ref.Host == "" && ref.Path != "" && !strings.HasPrefix(ref.Path, "/") && !strings.HasSuffix(base.Path, "/") {
-		dir := *base
-
-		dir.Path += "/"
-		if dir.RawPath != "" {
-			dir.RawPath += "/"
-		}
-
-		base = &dir
 	}
 
 	return base.ResolveReference(ref), nil

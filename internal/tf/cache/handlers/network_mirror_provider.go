@@ -119,7 +119,7 @@ func (handler *NetworkMirrorProviderHandler) GetPlatform(
 			DownloadURL: archive.URL,
 			Origin:      models.OriginMirror,
 		}).ResolveRelativeReferences(handler.networkMirrorURL.ResolveReference(&url.URL{
-			Path: path.Join(handler.networkMirrorURL.Path, provider.Address()),
+			Path: path.Join(handler.networkMirrorURL.Path, provider.Address()) + "/",
 		}))
 	}
 

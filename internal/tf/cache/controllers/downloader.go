@@ -80,14 +80,14 @@ func (controller *DownloaderController) downloadProviderAction(w router.Response
 
 	escapedPath, err := url.PathUnescape("/" + routedPath)
 	if err != nil {
-		controller.ProviderService.Logger().Debugf("Malformed provider download path %s: %v", r.URL.EscapedPath(), err)
+		controller.ProviderService.Logger().Debugf("Malformed provider download path %s/%s: %v", remoteHost, routedPath, err)
 
 		return router.NewHTTPError(http.StatusBadRequest)
 	}
 
 	remotePath, err := url.PathUnescape(escapedPath)
 	if err != nil {
-		controller.ProviderService.Logger().Debugf("Malformed provider download path %s: %v", r.URL.EscapedPath(), err)
+		controller.ProviderService.Logger().Debugf("Malformed provider download path %s/%s: %v", remoteHost, routedPath, err)
 
 		return router.NewHTTPError(http.StatusBadRequest)
 	}
