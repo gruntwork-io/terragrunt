@@ -526,9 +526,24 @@ func TestFileSetWalksOnlyWhereThePatternCanMatch(t *testing.T) {
 		pattern string
 		want    []string
 	}{
-		{name: "depth of the pattern", path: ".", pattern: "../*.json", want: []string{"../top.json"}},
-		{name: "literal directory of the pattern", path: ".", pattern: "../shared/**/*.json", want: []string{"../shared/c.json"}},
-		{name: "literal directory after dot slash", path: "..", pattern: "./shared/**/*.json", want: []string{"shared/c.json"}},
+		{
+			name:    "depth of the pattern",
+			path:    ".",
+			pattern: "../*.json",
+			want:    []string{"../top.json"},
+		},
+		{
+			name:    "literal directory of the pattern",
+			path:    ".",
+			pattern: "../shared/**/*.json",
+			want:    []string{"../shared/c.json"},
+		},
+		{
+			name:    "literal directory after dot slash",
+			path:    "..",
+			pattern: "./shared/**/*.json",
+			want:    []string{"shared/c.json"},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -643,14 +658,15 @@ func TestFileSetResolvesTheParentOfASymlinkedPathAsText(t *testing.T) {
 			t.Parallel()
 
 			root := venvtest.Root(baseDir)
-			v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{
+			v := memVenv(t, nil).WithFS(venvtest.NewFS(t, root, map[string]string{
 				"real/parent/target/main.tf":    "",
 				"real/parent/physical.json":     "",
 				"real/parent/sub/physical.json": "",
 				"live/lexical.json":             "",
 				"live/sub/lexical.json":         "",
 			}))
-			require.NoError(t, vfs.Symlink(v.FS, filepath.Join(root, "real", "parent", "target"), filepath.Join(root, "live", "unit")))
+			target := filepath.Join(root, "real", "parent", "target")
+			require.NoError(t, vfs.Symlink(v.FS, target, filepath.Join(root, "live", "unit")))
 
 			path := filepath.Join(root, "live", "unit") + string(filepath.Separator) + ".."
 
