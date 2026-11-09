@@ -18,11 +18,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +58,7 @@ func TestRunPipelineEndToEndPlan(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
@@ -99,7 +98,7 @@ func TestRunPipelineEndToEndAutoInitEnvVarsDoNotLeakIntoApply(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(exec).WithFS(vfs.NewOSFS())
 	opts := newRunE2EOpts(t, s, "apply", "-auto-approve")
 	opts.AutoInit = true
 
@@ -152,7 +151,7 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")
@@ -200,7 +199,7 @@ func TestRunPipelineEndToEndFiresHooks(t *testing.T) {
 	// FS uses NewOSFS because DownloadTerraformSource still copies real
 	// files (the temp scaffolding). The mem backend is only for exec
 	// virtualization; fs virtualization remains a future item.
-	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts := newRunE2EOpts(t, s, "plan")

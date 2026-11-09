@@ -13,9 +13,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

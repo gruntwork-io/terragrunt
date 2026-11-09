@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/version"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -104,7 +104,7 @@ func startDocsProxy(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	granted Capabilities,
+	granted venv.Capabilities,
 	timeouts docsTimeouts,
 ) *docsProxy {
 	if !granted.Has(CapabilityDocs) {

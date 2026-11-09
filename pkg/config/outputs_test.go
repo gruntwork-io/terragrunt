@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -125,7 +126,7 @@ func TestParseOutputsBlockRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, outputsBlockConfig, nil)
@@ -214,7 +215,7 @@ outputs {
 			t.Parallel()
 
 			l := createLogger()
-			v := venvtest.New()
+			v := venv.MemVenv()
 			ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
@@ -324,7 +325,7 @@ outputs {
 			require.NoError(t, vfs.WriteFile(fsys, cfgPath, []byte(unitHCL), 0o644))
 
 			l := createLogger()
-			v := venvtest.New().WithFS(fsys)
+			v := venv.MemVenv().WithFS(fsys)
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
@@ -419,7 +420,7 @@ variables {
 	}
 
 	l := createLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 	_, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	file, err := pctx.NewParser(l, v).ParseFromString(content, config.DefaultTerragruntConfigPath)
@@ -475,7 +476,7 @@ func TestDependencyOutputReferencesBoundsBlockNesting(t *testing.T) {
 				strings.Repeat("}\n", tc.depth)
 
 			l := createLogger()
-			v := venvtest.New()
+			v := venv.MemVenv()
 			_, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 			file, err := pctx.NewParser(l, v).ParseFromString(content, config.DefaultTerragruntConfigPath)
@@ -531,7 +532,7 @@ generate "nested" {
 `
 
 	l := createLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 	_, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	file, err := pctx.NewParser(l, v).ParseFromString(content, config.DefaultTerragruntConfigPath)
@@ -554,7 +555,7 @@ func TestOutputDeclarationRanges(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 	_, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	file, err := pctx.NewParser(l, v).ParseFromString(outputsBlockConfig, config.DefaultTerragruntConfigPath)
@@ -1076,7 +1077,7 @@ inputs = {
 			}
 
 			l := createLogger()
-			v := venvtest.New().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(state)))
+			v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(state)))
 			ctx, pctx := newDependentParsingContext(t, appConfigPath, tc.command)
 
 			if !tc.experimentOff {
@@ -1125,7 +1126,7 @@ func TestDependencyReadGivesOutputsBlockTip(t *testing.T) {
 			require.NoError(t, vfs.WriteFile(fsys, appConfigPath, []byte(appConfig), 0o644))
 
 			l := createLogger()
-			v := venvtest.New().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
+			v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
 			ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
@@ -1165,7 +1166,7 @@ include "root" {
 	require.NoError(t, vfs.WriteFile(fsys, appConfigPath, []byte(appConfig), 0o644))
 
 	l := createLogger()
-	v := venvtest.New().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
+	v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
 	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
@@ -1214,7 +1215,7 @@ inputs = {
 	require.NoError(t, vfs.WriteFile(fsys, appConfigPath, []byte(appConfig), 0o644))
 
 	l := createLogger()
-	v := venvtest.New().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
+	v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
 	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
@@ -1256,7 +1257,7 @@ outputs {
 	require.NoError(t, vfs.WriteFile(fsys, tfvarsPath, []byte(`mock = "from-tfvars"`), 0o644))
 
 	l := createLogger()
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
@@ -1295,7 +1296,7 @@ func TestDependencyDeclaredOutputsConcurrentReadsWithRacing(t *testing.T) {
 	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(outputsBlockConfig), 0o644))
 
 	l := createLogger()
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
@@ -1350,7 +1351,7 @@ outputs {
 	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, fmt.Appendf(nil, vpcConfig, "a"), 0o644))
 
 	l := createLogger()
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
@@ -1440,7 +1441,7 @@ func parseOutputsConfig(t *testing.T, content string, enabled bool) *config.Terr
 	t.Helper()
 
 	l := createLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	if enabled {

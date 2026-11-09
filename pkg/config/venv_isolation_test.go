@@ -33,7 +33,7 @@ func TestRunCommandTraceParentLeavesCallerEnvWithRacing(t *testing.T) {
 	t.Parallel()
 
 	recorder := &isolationExecRecorder{}
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithEnv(map[string]string{"CALLER": "value"}).
 		WithExec(recorder.exec())
 	want := maps.Clone(v.Env)
@@ -173,7 +173,7 @@ func prepareIsolationFixture(
 
 	consumerPath := venvtest.Root("/repo/consumer/terragrunt.hcl")
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithEnv(map[string]string{"CALLER": "value"}).
 		WithExec(recorder.exec())
 

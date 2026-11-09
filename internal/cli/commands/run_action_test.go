@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +44,7 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, venvtest.New(), action))
+	require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, venv.MemVenv(), action))
 	assert.True(t, hasRunCmd, "RunCmdCacheContextKey missing from action context")
 	assert.True(t, hasRepoRoots, "RepoRootCacheContextKey missing from action context")
 }
@@ -60,7 +59,7 @@ func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.NoAutoProviderCacheDir = true
 
-	err := commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venvtest.New(), action)
+	err := commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venv.MemVenv(), action)
 	require.Error(t, err)
 	assert.True(t, panicreport.IsPanic(err), "returned error should be classified as a panic")
 
@@ -82,7 +81,7 @@ func TestRunActionProviderCacheStartupFailures(t *testing.T) {
 		{
 			name:     "listener refused",
 			cacheDir: "/virtual/provider-cache",
-			wantErr:  venvtest.ErrNoListen,
+			wantErr:  venv.ErrNoListen,
 		},
 		{
 			name: "cache dir unresolvable",
@@ -97,7 +96,7 @@ func TestRunActionProviderCacheStartupFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithGOOS("linux").WithHandler(fakeTerraformVersionHandler)
+			v := venv.MemVenv().WithGOOS("linux").WithHandler(fakeTerraformVersionHandler)
 			if tc.venv != nil {
 				v = tc.venv(v)
 			}

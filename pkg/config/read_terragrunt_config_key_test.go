@@ -10,8 +10,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // keyedParsingContextFields changes each exported [config.ParsingContext] field that is part of
@@ -164,7 +164,7 @@ func TestReadTerragruntConfigKeyChangesWithEachKeyedField(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			cfgPath := filepath.Join(t.TempDir(), config.DefaultTerragruntConfigPath)
 
 			_, base := newTestParsingContext(t, cfgPath)

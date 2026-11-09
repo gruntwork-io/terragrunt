@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -121,7 +122,7 @@ include "root" {
 			maps.Copy(files, tt.files)
 
 			cfgPath := filepath.Join(root, tt.cfgFile)
-			v := venvtest.New().WithFS(venvtest.NewFS(t, root, files))
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, files))
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 
 			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
@@ -246,7 +247,7 @@ exclude {
 `,
 			})
 
-			v := venvtest.New().WithFS(fsys)
+			v := venv.MemVenv().WithFS(fsys)
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
 
@@ -282,7 +283,7 @@ include "root" {
 `,
 	})
 
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
 	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)

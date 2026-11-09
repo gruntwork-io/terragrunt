@@ -9,9 +9,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +55,7 @@ func TestUpdateS3BucketIfNecessaryEncryptionResponseWithoutConfiguration(t *test
 	opts := &backend.Options{NonInteractive: true}
 
 	require.NotPanics(t, func() {
-		err := client.UpdateS3BucketIfNecessary(t.Context(), logger.CreateLogger(), venvtest.New(), testBucketName, opts)
+		err := client.UpdateS3BucketIfNecessary(t.Context(), logger.CreateLogger(), venv.MemVenv(), testBucketName, opts)
 		require.NoError(t, err)
 	})
 
@@ -122,7 +122,7 @@ func TestLockTableDescribeResponseWithoutTable(t *testing.T) {
 func newMemS3Client(t *testing.T, h vhttp.Handler) *s3backend.Client {
 	t.Helper()
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(vhttp.NewMemClient(h)).
 		WithEnv(map[string]string{
 			"AWS_ACCESS_KEY_ID":     "AKIATESTKEY",

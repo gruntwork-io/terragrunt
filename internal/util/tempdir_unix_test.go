@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -337,7 +338,7 @@ func TestEnsureTempDirResolvesRelativeTempDir(t *testing.T) {
 func TestEnsureTempDirOnMemFS(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	got, err := util.EnsureTempDir(v)
 	require.NoError(t, err)

@@ -15,9 +15,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +44,7 @@ func TestGetCredentialsReusesCacheWhenDurationUnset(t *testing.T) {
 	roleARN := testRoleARNPrefix + t.Name()
 	sts := newRecordingSTS(t, assumedAccessKeyID, time.Hour)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -89,7 +89,7 @@ func TestGetCredentialsEmptyRoleARNIsNoop(t *testing.T) {
 		return vhttp.Respond(http.StatusInternalServerError, []byte("unexpected"), nil), nil
 	})
 
-	v := venvtest.New().WithHTTP(memHTTP).WithEnv(map[string]string{
+	v := venv.MemVenv().WithHTTP(memHTTP).WithEnv(map[string]string{
 		"AWS_REGION":            "us-east-1",
 		"AWS_ACCESS_KEY_ID":     baseAccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": "base-secret",
@@ -112,7 +112,7 @@ func TestGetCredentialsPropagatesSTSFailure(t *testing.T) {
 		return vhttp.Respond(http.StatusForbidden, []byte("AccessDenied"), nil), nil
 	})
 
-	v := venvtest.New().WithHTTP(memHTTP).WithEnv(map[string]string{
+	v := venv.MemVenv().WithHTTP(memHTTP).WithEnv(map[string]string{
 		"AWS_REGION":            "us-east-1",
 		"AWS_ACCESS_KEY_ID":     baseAccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": "base-secret",
@@ -135,7 +135,7 @@ func TestGetCredentialsUsesExplicitDurationCachesAcrossCalls(t *testing.T) {
 
 	ctx := testCtx(t)
 	sts := newRecordingSTS(t, "fake-explicit-duration-key-id", 30*time.Minute)
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -169,7 +169,7 @@ func TestGetCredentialsAWSMinimumDurationStillCaches(t *testing.T) {
 
 	ctx := testCtx(t)
 	sts := newRecordingSTS(t, "fake-minimum-duration-key-id", 15*time.Minute)
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -202,7 +202,7 @@ func TestGetCredentialsNegativeDurationDefaultsAndCaches(t *testing.T) {
 
 	ctx := testCtx(t)
 	sts := newRecordingSTS(t, "fake-negative-duration-key-id", time.Hour)
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -243,7 +243,7 @@ func TestGetCredentialsIsolatesDifferentSessionNames(t *testing.T) {
 		{sessionName: "unit-b", assumedKey: "fake-unit-b-key-id"},
 	} {
 		sts := newRecordingSTS(t, tc.assumedKey, time.Hour)
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION":            "us-east-1",
@@ -274,7 +274,7 @@ func TestGetCredentialsIsolatesDifferentSourceSecrets(t *testing.T) {
 
 	for i, secret := range []string{"secret-one", "secret-two"} {
 		sts := newRecordingSTS(t, "fake-key-id-"+string(rune('A'+i)), time.Hour)
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION":            "us-east-1",
@@ -302,7 +302,7 @@ func TestGetCredentialsSessionIndexRequiresFullCredentialTuple(t *testing.T) {
 	roleARN := testRoleARNPrefix + t.Name()
 	sts := newRecordingSTS(t, assumedAccessKeyID, time.Hour)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -345,7 +345,7 @@ func TestGetCredentialsIsolatesDifferentWebIdentityTokens(t *testing.T) {
 		sts := newRecordingSTS(t, assumedKey, time.Hour)
 		sts.webIdentity = true
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION": "us-east-1",
@@ -375,7 +375,7 @@ func TestGetCredentialsRefreshAfterExpiryUsesSourceIdentity(t *testing.T) {
 		roleARN := testRoleARNPrefix + t.Name()
 		sts := newRecordingSTS(t, assumedAccessKeyID, 10*time.Minute)
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION":            "us-east-1",
@@ -419,7 +419,7 @@ func TestGetCredentialsRefreshFailureReusesValidSession(t *testing.T) {
 		roleARN := testRoleARNPrefix + t.Name()
 		sts := newRecordingSTS(t, assumedAccessKeyID, 10*time.Minute)
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION":            "us-east-1",
@@ -457,7 +457,7 @@ func TestGetCredentialsCoalescesConcurrentSameKeyAssumes(t *testing.T) {
 	sts := newRecordingSTS(t, "fake-concurrent-key-id", time.Hour)
 	sts.gate = make(chan struct{})
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",

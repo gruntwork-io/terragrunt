@@ -12,8 +12,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -123,7 +123,7 @@ func runAllCommand(
 	command string,
 	sensitivity outputsSensitivity,
 ) (runAllOutput, error) {
-	if !d.allowExec {
+	if !d.granted.Has(venv.CapabilityExec) {
 		return runAllOutput{}, fmt.Errorf(
 			"%s requires subprocess execution; restart the MCP server with --allow=exec",
 			command,

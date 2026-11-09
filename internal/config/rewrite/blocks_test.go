@@ -17,6 +17,7 @@ import (
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -456,7 +457,7 @@ inputs = {
 	})
 
 	stub := &tofuStub{}
-	v := venvtest.New().WithFS(memFS(root, files)(t)).WithHandler(stub.handler())
+	v := venv.MemVenv().WithFS(memFS(root, files)(t)).WithHandler(stub.handler())
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
 	l := logger.CreateLogger()

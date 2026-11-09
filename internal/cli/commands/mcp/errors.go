@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 )
 
 // ErrApplyRequiresExec is returned when the apply and destroy tools are asked
@@ -14,16 +15,8 @@ import (
 // where surprises are expensive.
 var ErrApplyRequiresExec = errors.New(
 	"--" + AllowApplyFlagName + " requires --" + AllowFlagName + "=" + string(
-		CapabilityExec,
+		venv.CapabilityExec,
 	) + ": applying is running tofu",
-)
-
-// ErrAllowCmdRequiresExec is returned when a command is allowed without the
-// capability to start any program at all, which would leave the flag doing
-// nothing rather than what its name promises.
-var ErrAllowCmdRequiresExec = errors.New(
-	"--" + AllowCmdFlagName + " requires --" + AllowFlagName + "=" + string(CapabilityExec) +
-		": without it nothing runs, allowed or not",
 )
 
 // ErrExperimentRequired is returned when the mcp command is run without the

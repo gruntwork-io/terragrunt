@@ -3,6 +3,8 @@ package cli_test
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/require"
@@ -14,7 +16,7 @@ import (
 func TestHCLValidateReportsUnparsableDependencyConfigPath(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
 		"terragrunt.hcl": `
 dependency "producer" {
   config_path = ` + "\xb7" + ` "../producer"

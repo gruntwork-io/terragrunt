@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -110,7 +111,7 @@ func TestNewRepoRemoteCloneRejectsNonOSFS(t *testing.T) {
 	_, err := module.NewRepo(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New(),
+		venv.MemVenv(),
 		&module.RepoOpts{
 			CloneURL: "https://example.com/org/target.git",
 			Path:     t.TempDir(),
@@ -161,7 +162,7 @@ func TestNewRepoCloneDirectoryName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			cloneRoot := venvtest.Root("/catalog")
 			clonePath := filepath.Join(cloneRoot, "terraform-aws-modules")
 
@@ -214,7 +215,7 @@ func TestNewRepoDotOnlyRepoNameUsesDefaultDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			cloneRoot := venvtest.Root("/catalog/clone-root")
 			clonePath := filepath.Join(cloneRoot, "temp")
 
@@ -248,7 +249,7 @@ func TestNewRepoDotOnlyRepoNameUsesDefaultDir(t *testing.T) {
 func TestNewRepoLocalSourceKeepsPath(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	localPath := filepath.Join(venvtest.Root("/catalog"), "terraform-aws-modules.git")
 
 	writeFakeRepo(t, v.FS, localPath)

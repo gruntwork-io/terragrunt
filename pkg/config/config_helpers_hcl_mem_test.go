@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -23,7 +24,7 @@ func TestHCLGetRepoRoot(t *testing.T) {
 
 	l := logger.CreateLogger()
 	repoRoot := venvtest.Root("/synthetic/repo/root")
-	v := venvtest.New().WithFS(memRepoFS(t, repoRoot, "unit"))
+	v := venv.MemVenv().WithFS(memRepoFS(t, repoRoot, "unit"))
 	ctx, pctx := newTestParsingContext(t, filepath.Join(repoRoot, "unit", "terragrunt.hcl"))
 	ctx = config.WithCaches(ctx)
 
@@ -50,7 +51,7 @@ func TestHCLGetPathFromRepoRoot(t *testing.T) {
 
 	l := logger.CreateLogger()
 	workingDir := venvtest.Root("/repo/services/api")
-	v := venvtest.New().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
+	v := venv.MemVenv().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
 	ctx, pctx := newTestParsingContext(t, filepath.Join(workingDir, "terragrunt.hcl"))
 	ctx = config.WithCaches(ctx)
 	pctx.WorkingDir = workingDir
@@ -72,7 +73,7 @@ func TestHCLGetPathToRepoRoot(t *testing.T) {
 
 	l := logger.CreateLogger()
 	workingDir := venvtest.Root("/repo/services/api")
-	v := venvtest.New().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
+	v := venv.MemVenv().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
 	ctx, pctx := newTestParsingContext(t, filepath.Join(workingDir, "terragrunt.hcl"))
 	ctx = config.WithCaches(ctx)
 	pctx.WorkingDir = workingDir
@@ -93,7 +94,7 @@ func TestHCLGetRepoRootPropagatesLookupFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithFS(venvtest.NewFS(t, venvtest.Root("/not/a/repo"), map[string]string{"terragrunt.hcl": ""}))
 	ctx, pctx := newTestParsingContext(t, venvtest.Root("/not/a/repo/terragrunt.hcl"))
 	ctx = config.WithCaches(ctx)
@@ -120,7 +121,7 @@ func TestHCLRunCmd(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir()+"/terragrunt.hcl")
 
 	ctx = config.WithCaches(ctx)

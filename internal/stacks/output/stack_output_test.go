@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -165,7 +166,7 @@ func runStackOutput(t *testing.T, files map[string]string, filters filter.Filter
 	t.Helper()
 
 	root := venvtest.Root("/repo")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, files))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, files))
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(root, config.DefaultTerragruntConfigPath))
 	require.NoError(t, err)

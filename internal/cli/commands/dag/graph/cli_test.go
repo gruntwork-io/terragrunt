@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -92,7 +93,7 @@ func TestNewCommandExposesTheQueueFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := graph.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
+		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venv.MemVenv(),
 	)
 
 	assert.Equal(t, graph.CommandName, cmd.Name)
@@ -111,7 +112,7 @@ func TestNewCommandRendersTheDependencyGraph(t *testing.T) {
 
 	root := venvtest.Root("/graph")
 	out := new(bytes.Buffer)
-	v := venvtest.New().WithWriter(out).WithFS(venvtest.NewFS(t, root, map[string]string{
+	v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, root, map[string]string{
 		"app/terragrunt.hcl": "dependency \"db\" {\n  config_path = \"../db\"\n}\n" +
 			"dependency \"vpc\" {\n  config_path = \"../vpc\"\n}\n",
 		"db/terragrunt.hcl":  "dependency \"vpc\" {\n  config_path = \"../vpc\"\n}\n",

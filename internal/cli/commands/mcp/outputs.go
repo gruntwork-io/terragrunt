@@ -17,9 +17,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -86,7 +86,7 @@ func registerGetOutputs(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *
 			// downloads sources, runs init, and fires hooks. That writes as
 			// much as plan does, so the tool claims to be read-only only
 			// when the in-process state read is all it can do.
-			ReadOnlyHint:   !d.allowExec,
+			ReadOnlyHint:   !d.granted.Has(venv.CapabilityExec),
 			IdempotentHint: true,
 			OpenWorldHint:  new(d.reachesNetwork()),
 		},
@@ -109,7 +109,7 @@ func runGetOutputs(
 
 	sensitivity := outputsSensitivityFor(input.IncludeSensitive)
 
-	if d.allowExec {
+	if d.granted.Has(venv.CapabilityExec) {
 		return outputsFetchViaRun(ctx, l, d, rootVenv, dir, sensitivity)
 	}
 
@@ -159,7 +159,7 @@ func outputsFetchViaRun(
 		externalcmd.NewProvider(
 			l,
 			opts.AuthProviderCmd,
-			configbridge.ShellRunOptsFromOpts(env, opts),
+			configbridge.ShellRunOptsFromOpts(cv.Env, opts),
 		),
 	); err != nil {
 		return getOutputsOutput{}, err
@@ -277,7 +277,7 @@ func outputsFetchViaStateRead(
 	// Every in-process read is a request to the state's backend, so a denied
 	// network rules it out before the tree is copied or the remote_state
 	// block probed.
-	if !d.allowHTTP {
+	if !d.granted.Has(venv.CapabilityHTTP) {
 		out.Degraded = []string{
 			"outputs not fetched: reading remote state in-process needs outbound HTTP; restart the MCP server " +
 				"with --allow=http, or with --allow=exec to run the real output command",
@@ -313,7 +313,7 @@ func outputsFetchViaStateRead(
 		// A denied subprocess means the machinery gave up on the in-process
 		// path (e.g. a nested dependency needed a real fetch); degrade
 		// instead of surfacing a sandbox artifact as a config bug.
-		if errors.Is(err, ErrExecDenied) {
+		if errors.Is(err, venv.ErrExecDenied) {
 			out.Degraded = append(d.rec.notes(), fmt.Sprintf(
 				"outputs not fetched: reading them required a subprocess (%v); restart the MCP server with --allow=exec",
 				err,

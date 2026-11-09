@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -696,7 +697,7 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
 	var found find.FoundComponents
@@ -735,7 +736,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			opts := find.NewOptions(tgOpts)
 			opts.Format = tc.format
 
-			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
+			v := venv.MemVenv().WithFS(fsys).WithWriter(failingWriter{})
 			require.ErrorIs(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts), errWriteFailed)
 		})
 	}
@@ -779,7 +780,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
 			require.Error(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 			assert.Empty(t, buf.String())
@@ -839,7 +840,7 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
 
 	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
@@ -960,7 +961,7 @@ func TestRunFileDependency(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
 			require.NoError(t, find.Run(config.WithCaches(t.Context()), l, v, opts))
 
 			var found find.FoundComponents

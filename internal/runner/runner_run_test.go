@@ -29,7 +29,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // remoteStateErr is the unit output that makes the runner summarize remote state hints after a plan.
@@ -183,7 +182,7 @@ func TestRunnerRun_AuthProviderFailureFailsUnit(t *testing.T) {
 
 	const authProviderCmd = "no-such-auth-provider"
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if inv.Name == authProviderCmd {
 			return vexec.Result{Err: vexec.ErrNoSpawn}
 		}
@@ -208,7 +207,7 @@ func TestRunnerRun_AuthProviderFailureFailsUnit(t *testing.T) {
 func TestRunnerRun_UnitRunFailsWithoutBinary(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	vpc := newTestUnit(t, v, memRoot, "vpc", "")
 
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
@@ -473,7 +472,7 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 				if slices.Contains(inv.Args, tf.FlagNameDetailedExitCode) {
 					return vexec.Result{Err: exitStatusErr{code: tc.exitCode}}
 				}
@@ -513,7 +512,7 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 func TestRunnerRun_SplitsUnitOutput(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		switch inv.Args[0] {
 		case tf.CommandNamePlan:
 			return vexec.Result{Stdout: []byte("planned in " + inv.Dir + "\n")}
@@ -566,7 +565,7 @@ func TestRunnerRun_DependencyOutputFetchWaitsForUnitRunWithRacing(t *testing.T) 
 
 	calls := &dirCalls{inFlight: map[string]int{}, peak: map[string]int{}, commands: map[string][]string{}}
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if slices.Contains(inv.Args, "-version") {
 			return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
 		}
@@ -803,7 +802,7 @@ func TestRunnerRun_OutputFlushFailureFailsUnit(t *testing.T) {
 
 	writeErr := errors.New("write failed")
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if slices.Contains(inv.Args, "-version") {
 			return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
 		}
@@ -878,7 +877,7 @@ func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
 
 	require.NoError(
 		t,
-		unitRunner.Run(config.WithCaches(t.Context()), thlogger.CreateLogger(), venvtest.New(), nil, nil, nil, nil),
+		unitRunner.Run(config.WithCaches(t.Context()), thlogger.CreateLogger(), venv.MemVenv(), nil, nil, nil, nil),
 	)
 	assert.Equal(t, runner.Running, unitRunner.Status)
 }
@@ -901,7 +900,7 @@ func recordingVenv(stdout, stderr string) (*venv.Venv, func() []vexec.Invocation
 		recorded []vexec.Invocation
 	)
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		mu.Lock()
 		defer mu.Unlock()
 

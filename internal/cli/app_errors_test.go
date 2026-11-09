@@ -8,8 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +63,7 @@ func TestCLIFlagHints(t *testing.T) {
 func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
 	t.Parallel()
 
-	_, err := runCLI(t, venvtest.New(), "run", "--graph", "--all")
+	_, err := runCLI(t, venv.MemVenv(), "run", "--graph", "--all")
 
 	expectedErr := new(shared.AllGraphFlagsError)
 	require.ErrorAs(t, err, &expectedErr)
@@ -80,7 +79,7 @@ func TestUsingCASOfflineAndRefreshFlagsSimultaneously(t *testing.T) {
 		{"run", "--experiment", experiment.OfflineCAS, "--cas-offline", "--cas-refresh"},
 		{"run", "--experiment", experiment.OfflineCAS, "--cas-refresh", "--cas-offline"},
 	} {
-		_, err := runCLI(t, venvtest.New(), args...)
+		_, err := runCLI(t, venv.MemVenv(), args...)
 
 		expectedErr := new(shared.CASOfflineRefreshFlagsError)
 		require.ErrorAs(t, err, &expectedErr)
@@ -97,7 +96,7 @@ func TestCASProbeCacheFlagsRequireExperiment(t *testing.T) {
 		shared.CASRefreshFlagName:  {"run", "--cas-refresh"},
 		shared.CASProbeTTLFlagName: {"run", "--cas-probe-ttl", "10m"},
 	} {
-		_, err := runCLI(t, venvtest.New(), args...)
+		_, err := runCLI(t, venv.MemVenv(), args...)
 
 		gateErr := new(shared.CASExperimentRequiredError)
 		require.ErrorAs(t, err, &gateErr)
@@ -138,7 +137,7 @@ func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
 func TestTerragruntRenderJSONHelp(t *testing.T) {
 	t.Parallel()
 
-	out, err := runCLI(t, venvtest.New(), "render", "--help", "--non-interactive")
+	out, err := runCLI(t, venv.MemVenv(), "render", "--help", "--non-interactive")
 	require.NoError(t, err)
 
 	assert.Contains(t, out, "terragrunt render")

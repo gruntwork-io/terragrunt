@@ -562,7 +562,7 @@ func blockIterationVenv(t *testing.T, files tree) (*venv.Venv, vfs.FS) {
 
 	fsys := venvtest.NewFS(t, blockIterationRoot, files)
 
-	return venvtest.New().WithFS(fsys), fsys
+	return venv.MemVenv().WithFS(fsys), fsys
 }
 
 // switchConfig overwrites the live configuration file named name with contents, standing in
