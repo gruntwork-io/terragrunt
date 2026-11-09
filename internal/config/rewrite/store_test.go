@@ -284,7 +284,7 @@ inputs = {
 }
 `), 0o644))
 
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 
 	ctx, parseRun := newTestParsingContext(t, path)
@@ -323,7 +323,7 @@ func TestResolveUnitConfigSendsDiagnosticsToItsCallersHandler(t *testing.T) {
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte("terraform_binary = local.missing\n"), 0o644))
 
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	ctx, run := newTestParsingContext(t, path)
 
 	var received hcl.Diagnostics
@@ -381,7 +381,7 @@ engine {
 			fsys := vfs.NewMemMapFS()
 			require.NoError(t, vfs.WriteFile(fsys, path, []byte(unit), 0o644))
 
-			v := venvtest.New().WithFS(fsys)
+			v := venv.MemVenv().WithFS(fsys)
 			ctx, run := newTestParsingContext(t, path)
 			run.DecodedDependencies = tc.supplied
 
@@ -434,7 +434,7 @@ errors {
 }
 `), 0o644))
 
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
@@ -500,7 +500,7 @@ include "r" {
 		require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, rel), []byte(content), 0o644))
 	}
 
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	ctx, run := newTestParsingContext(t, path)
 
 	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(run), path)
@@ -556,7 +556,7 @@ func TestDependencyReadsReachOnlyARun(t *testing.T) {
 
 	root := t.TempDir()
 	fsys, path, readByDependency := dependencyReadsRepo(t, root)
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
@@ -580,7 +580,7 @@ func TestInvalidateFindsAParseByTheFilesItsDependenciesRead(t *testing.T) {
 
 	root := t.TempDir()
 	fsys, path, readByDependency := dependencyReadsRepo(t, root)
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
@@ -639,7 +639,7 @@ func TestResolveUnitQueueConfigBuildsOnTheBaseVariables(t *testing.T) {
 
 	root := t.TempDir()
 	fsys, paths := includingRepo(t, root, 1)
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
@@ -663,7 +663,7 @@ func TestResolveUnitBaseVariablesEvaluatesOnceWithRacing(t *testing.T) {
 
 	root := t.TempDir()
 	fsys, paths := includingRepo(t, root, 1)
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
@@ -695,7 +695,7 @@ func TestResolveUnitBaseVariablesGivesEachCallerItsOwnMap(t *testing.T) {
 
 	root := t.TempDir()
 	fsys, paths := includingRepo(t, root, 1)
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
@@ -723,7 +723,7 @@ locals {
 }
 `), 0o644))
 
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
@@ -763,7 +763,7 @@ include "exposed" {
 }
 `), 0o644))
 
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
