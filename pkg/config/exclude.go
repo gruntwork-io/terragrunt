@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -112,6 +113,10 @@ func evaluateExcludeBlocks(
 		evaluatedAttrs[attr.Name] = value
 	}
 
+	if err := excludeBlock[0].HandleDiagnostics(excludeIfDiagnostics(excludeBlock[0], attrs, evaluatedAttrs)); err != nil {
+		return nil, err
+	}
+
 	for _, boolFlag := range boolFlagValues {
 		if value, ok := evaluatedAttrs[boolFlag]; ok {
 			// Null, unknown and sensitive strings skip parsing and reach the checks below.
@@ -146,4 +151,44 @@ func evaluateExcludeBlocks(
 	}
 
 	return excludeConfig, nil
+}
+
+// excludeIfDiagnostics reports an `if` that block leaves out or that values holds as null, with the diagnostics the
+// full parse reports for the same block. An unknown or sensitive `if` reports nothing.
+func excludeIfDiagnostics(
+	block *hclparse.Block,
+	attrs hclparse.Attributes,
+	values map[string]cty.Value,
+) hcl.Diagnostics {
+	const name = "if"
+
+	value, ok := values[name]
+	if !ok {
+		return hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Missing required argument",
+			Detail:   fmt.Sprintf("The argument %q is required, but no definition was found.", name),
+			Subject:  block.Body.MissingItemRange().Ptr(),
+		}}
+	}
+
+	if value.IsMarked() || !value.IsKnown() || !value.IsNull() {
+		return nil
+	}
+
+	for _, attr := range attrs {
+		if attr.Name != name {
+			continue
+		}
+
+		return hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Unsuitable value type",
+			Detail:   "Unsuitable value: null value is not allowed",
+			Subject:  attr.Expr.StartRange().Ptr(),
+			Context:  attr.Expr.Range().Ptr(),
+		}}
+	}
+
+	return nil
 }
