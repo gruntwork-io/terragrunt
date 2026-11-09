@@ -15,19 +15,25 @@ type stackGeneratorKey struct{}
 type stackGenerator func(context.Context, log.Logger, *venv.Venv, string) error
 
 // WithStackGenerator supplies generation without making config readers depend on the generator.
-func WithStackGenerator(ctx context.Context, generate func(context.Context, log.Logger, *venv.Venv, string) error) context.Context {
+func WithStackGenerator(
+	ctx context.Context,
+	generate func(context.Context, log.Logger, *venv.Venv, string) error,
+) context.Context {
 	return context.WithValue(ctx, stackGeneratorKey{}, stackGenerator(generate))
 }
 
+// GenerateStackDependency invokes the command generator for an explicit stack directory, if installed.
 func GenerateStackDependency(ctx context.Context, l log.Logger, v *venv.Venv, path string) error {
 	generate, ok := ctx.Value(stackGeneratorKey{}).(stackGenerator)
 	if !ok {
 		return nil
 	}
+
 	dir, err := util.CanonicalResolvedPath(v.FS, path, "")
 	if err != nil {
 		return err
 	}
+
 	if _, err := v.FS.Stat(filepath.Join(dir, DefaultStackFile)); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
@@ -36,7 +42,9 @@ func GenerateStackDependency(ctx context.Context, l log.Logger, v *venv.Venv, pa
 		if info, statErr := v.FS.Stat(dir); statErr == nil && !info.IsDir() {
 			return nil
 		}
+
 		return err
 	}
+
 	return generate(ctx, l, v, dir)
 }

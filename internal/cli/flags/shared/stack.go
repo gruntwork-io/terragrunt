@@ -10,6 +10,7 @@ import (
 // before the command runs.
 const NoStackGenerateFlagName = "no-stack-generate"
 
+// NewNoStackGenerateFlag binds the automatic stack generation opt-out to opts.
 func NewNoStackGenerateFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
 	return flags.NewFlag(&clihelper.BoolFlag{
 		Name:        NoStackGenerateFlagName,

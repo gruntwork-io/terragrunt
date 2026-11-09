@@ -648,10 +648,12 @@ func DecodeTerragruntDependencies(
 			if dep.isDisabled() || !IsValidConfigPath(dep.ConfigPath) {
 				continue
 			}
+
 			path := dep.ConfigPath.AsString()
 			if !filepath.IsAbs(path) {
 				path = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), path)
 			}
+
 			if err := GenerateStackDependency(ctx, l, v, path); err != nil {
 				return nil, err
 			}

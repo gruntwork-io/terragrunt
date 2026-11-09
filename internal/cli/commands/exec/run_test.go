@@ -3,13 +3,14 @@ package exec_test
 import (
 	"bytes"
 	"context"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/exec"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"

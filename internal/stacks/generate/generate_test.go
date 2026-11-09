@@ -342,6 +342,7 @@ func TestGenerateStacksDropsRegeneratedUnitsFromTheParseStore(t *testing.T) {
 			opts.WorkingDir = liveDir
 			opts.RootWorkingDir = liveDir
 			opts.Parallelism = 1
+
 			opts.NoCAS = true
 			if tc.enabled {
 				require.NoError(t, opts.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
@@ -366,17 +367,36 @@ func TestGenerateStacksDropsRegeneratedUnitsFromTheParseStore(t *testing.T) {
 			assert.Equal(t, "one", name())
 
 			require.NoError(t, os.WriteFile(source, []byte(`locals { name = "two" }`), 0o644))
+
 			generationOpts := opts.Clone()
+
 			if tc.dependency {
 				consumerDir := filepath.Join(tmpDir, "consumer")
 				consumerSource := filepath.Join(tmpDir, "units", "consumer")
+
 				require.NoError(t, os.MkdirAll(consumerDir, 0o755))
 				require.NoError(t, os.MkdirAll(consumerSource, 0o755))
-				require.NoError(t, os.WriteFile(filepath.Join(consumerSource, "terragrunt.hcl"), fmt.Appendf(nil, "dependencies { paths = [%q] }", liveDir), 0o644))
-				require.NoError(t, os.WriteFile(filepath.Join(consumerDir, "terragrunt.stack.hcl"), fmt.Appendf(nil, "unit \"consumer\" {\n source = %q\n path = \"consumer\"\n}\n", consumerSource), 0o644))
+				require.NoError(
+					t,
+					os.WriteFile(
+						filepath.Join(consumerSource, "terragrunt.hcl"),
+						fmt.Appendf(nil, "dependencies { paths = [%q] }", liveDir),
+						0o644,
+					),
+				)
+				require.NoError(
+					t,
+					os.WriteFile(
+						filepath.Join(consumerDir, "terragrunt.stack.hcl"),
+						fmt.Appendf(nil, "unit \"consumer\" {\n source = %q\n path = \"consumer\"\n}\n", consumerSource),
+						0o644,
+					),
+				)
 				generationOpts.WorkingDir, generationOpts.RootWorkingDir = consumerDir, consumerDir
 			}
+
 			require.NoError(t, generate.NewGenerator().GenerateStacks(ctx, l, v, s, generationOpts, nil))
+
 			data, err := os.ReadFile(generated)
 			require.NoError(t, err)
 			require.Equal(t, `locals { name = "two" }`, string(data))

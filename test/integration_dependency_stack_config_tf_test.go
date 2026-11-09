@@ -14,6 +14,7 @@ import (
 
 func TestTFDependencyStackConfigReadersRejectFailedGeneration(t *testing.T) {
 	t.Parallel()
+
 	for _, entry := range []struct{ dir, command string }{
 		{"consumer/.terragrunt-stack/app", "run -- plan"},
 		{"consumer/.terragrunt-stack/app", "render --json"},
@@ -38,6 +39,7 @@ func TestTFDependencyStackConfigReadersRejectFailedGeneration(t *testing.T) {
 
 func TestTFDependencyStackExecHonorsOptOut(t *testing.T) {
 	t.Parallel()
+
 	for _, environment := range []bool{false, true} {
 		t.Run(fmt.Sprintf("environment=%t", environment), func(t *testing.T) {
 			t.Parallel()
@@ -45,12 +47,18 @@ func TestTFDependencyStackExecHonorsOptOut(t *testing.T) {
 			f.generate("consumer")
 			f.generate("producer")
 			f.producerSource("new")
+
 			flag := "--no-stack-generate"
+
 			if environment {
 				f.v.Env["TG_NO_STACK_GENERATE"] = "true"
 				flag = ""
 			}
-			stdout, stderr, err := f.run("consumer/.terragrunt-stack/app", "exec "+flag+" -- sh -c 'printf %s \"$TF_VAR_marker\"'")
+
+			stdout, stderr, err := f.run(
+				"consumer/.terragrunt-stack/app",
+				"exec "+flag+" -- sh -c 'printf %s \"$TF_VAR_marker\"'",
+			)
 			require.NoError(t, err, "%s", stderr)
 			assert.Contains(t, stdout, "old")
 			assert.Contains(t, f.read("producer/.terragrunt-stack/db/terragrunt.hcl"), `marker = "old"`)
@@ -64,7 +72,13 @@ func TestTFDependencyStackRenderAllSharesGeneration(t *testing.T) {
 	f.generate("consumer")
 	f.generate("producer")
 	f.producerSource("new")
-	f.write("consumer/other/terragrunt.hcl", fmt.Sprintf("dependency \"producer\" {\n config_path = %q\n}\ninputs = { marker = dependency.producer.outputs.db.marker }\n", filepath.Join(f.root, "producer")))
+	f.write(
+		"consumer/other/terragrunt.hcl",
+		fmt.Sprintf(
+			"dependency \"producer\" {\n config_path = %q\n}\ninputs = { marker = dependency.producer.outputs.db.marker }\n",
+			filepath.Join(f.root, "producer"),
+		),
+	)
 	stdout, stderr, err := f.run("consumer", "render --all --json --source-update")
 	require.NoError(t, err, "%s", stderr)
 	assert.Equal(t, 2, strings.Count(stdout, `"marker":"new"`))
@@ -73,6 +87,7 @@ func TestTFDependencyStackRenderAllSharesGeneration(t *testing.T) {
 
 func TestTFDependencyStackBackendReadersHonorOptOut(t *testing.T) {
 	t.Parallel()
+
 	for _, command := range []string{"bootstrap", "delete"} {
 		for _, optOut := range []string{"", "--no-stack-generate", "environment"} {
 			t.Run(command+"/"+optOut, func(t *testing.T) {
@@ -89,14 +104,17 @@ remote_state {
  config = dependency.producer.outputs.db.marker
 }
 `, filepath.Join(f.root, "producer")))
+
 				marker, flag := "new", optOut
 				if optOut != "" {
 					marker = "old"
 				}
+
 				if optOut == "environment" {
 					f.v.Env["TG_NO_STACK_GENERATE"] = "true"
 					flag = ""
 				}
+
 				_, _, err := f.run("backend", "backend "+command+" "+flag)
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "cannot unmarshal string")

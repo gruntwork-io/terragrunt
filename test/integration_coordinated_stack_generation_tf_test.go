@@ -11,6 +11,7 @@ import (
 
 func TestTFStackRunSharesGenerationAcrossInitialization(t *testing.T) {
 	t.Parallel()
+
 	f := newDependencyStackFixture(t, true)
 	for range 2 {
 		_, stderr, err := f.run("producer", "stack run --source-update -- plan")

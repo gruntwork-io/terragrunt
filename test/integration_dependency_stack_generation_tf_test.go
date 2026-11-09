@@ -18,9 +18,9 @@ func TestTFRunAllGeneratesDependencyStack(t *testing.T) {
 
 	for _, tc := range []struct {
 		name           string
-		preGenerate    bool
 		flags          string
 		expectedMarker string
+		preGenerate    bool
 		expectClean    bool
 	}{
 		{name: "missing producer", expectedMarker: "new"},
@@ -30,6 +30,7 @@ func TestTFRunAllGeneratesDependencyStack(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			root := helpers.TmpDirWOSymlinks(t)
 			for path, contents := range map[string]string{
 				"producer/terragrunt.stack.hcl": `unit "db" {
@@ -65,25 +66,31 @@ output "consumed" { value = var.marker }
 				require.NoError(t, os.MkdirAll(filepath.Dir(target), 0755))
 				require.NoError(t, os.WriteFile(target, []byte(contents), 0600))
 			}
+
 			producer := filepath.Join(root, "producer")
 			consumer := filepath.Join(root, "consumer")
 			generated := filepath.Join(producer, ".terragrunt-stack", "db")
 			obsolete := filepath.Join(generated, "obsolete.txt")
+
 			if tc.preGenerate {
 				for _, dir := range []string{producer, consumer} {
 					_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 						"terragrunt stack generate --no-cas --working-dir "+dir)
 					require.NoError(t, err, "%s", stderr)
 				}
+
 				require.NoError(t, os.WriteFile(obsolete, []byte("stale"), 0600))
 			}
+
 			require.NoError(t, os.WriteFile(filepath.Join(root, "units", "db", "terragrunt.hcl"),
 				[]byte("terraform { source = \".\" }\ninputs = { marker = \"new\" }\n"), 0600))
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
 				"terragrunt run --experiment dependency-stack-generation --all --non-interactive --no-cas --queue-include-external "+tc.flags+
-					" --working-dir "+consumer+" -- plan")
-			assert.NoError(t, err, "%s", stderr)
+					" --working-dir "+consumer+" -- plan",
+			)
+			require.NoError(t, err, "%s", stderr)
 			assert.Contains(t, stdout, `consumed = "mock"`)
 			assert.Contains(t, stdout, `marker = "`+tc.expectedMarker+`"`)
 			require.FileExists(t, filepath.Join(generated, "terragrunt.hcl"))
@@ -91,6 +98,7 @@ output "consumed" { value = var.marker }
 			rendered, renderStderr, renderErr := helpers.RunTerragruntCommandWithOutput(t,
 				"terragrunt render --json --no-cas --working-dir "+generated)
 			require.NoError(t, renderErr, "%s", renderStderr)
+
 			var cfg struct {
 				Inputs struct {
 					Marker string `json:"marker"`
@@ -98,6 +106,7 @@ output "consumed" { value = var.marker }
 			}
 			require.NoError(t, json.Unmarshal([]byte(rendered), &cfg))
 			assert.Equal(t, tc.expectedMarker, cfg.Inputs.Marker)
+
 			if tc.expectClean {
 				assert.NoFileExists(t, obsolete)
 			} else if tc.preGenerate {

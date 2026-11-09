@@ -16,9 +16,9 @@ func TestDependencyStackGenerationRequiresOptIn(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
+		env     map[string]string
 		name    string
 		args    []string
-		env     map[string]string
 		enabled bool
 	}{
 		{name: "default", env: map[string]string{}},
@@ -30,6 +30,7 @@ func TestDependencyStackGenerationRequiresOptIn(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			require.NoError(t, global.NewFlags(logger.CreateLogger(), opts, nil).Parse(tc.args, tc.env))
 

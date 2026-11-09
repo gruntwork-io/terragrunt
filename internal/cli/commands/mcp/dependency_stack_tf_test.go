@@ -16,13 +16,16 @@ import (
 
 func TestTFPlanPreservesDependencyStacks(t *testing.T) {
 	t.Parallel()
+
 	for _, stale := range []bool{false, true} {
 		name := "missing"
 		if stale {
 			name = "stale"
 		}
+
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			files := map[string]string{
 				"consumer/terragrunt.hcl":       "dependency \"producer\" {\n config_path = \"../producer\"\n}\n",
 				"consumer/main.tf":              "output \"marker\" { value = \"consumer\" }",
@@ -34,6 +37,7 @@ func TestTFPlanPreservesDependencyStacks(t *testing.T) {
 				files["producer/.terragrunt-stack/db/terragrunt.hcl"] = "inputs = { marker = \"old\" }"
 				files["producer/.terragrunt-stack/db/main.tf"] = "output \"marker\" { value = \"old\" }"
 			}
+
 			dir := writeTree(t, files)
 			session := newRealExecSession(t, dir, func(o *tgmcp.Options) {
 				o.Allow = []string{"exec"}
@@ -44,6 +48,7 @@ func TestTFPlanPreservesDependencyStacks(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.NotNil(t, result)
+
 			path := filepath.Join(dir, "producer/.terragrunt-stack/db/terragrunt.hcl")
 			if stale {
 				content, err := os.ReadFile(path)

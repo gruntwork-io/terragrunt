@@ -282,6 +282,7 @@ func generateLevel(
 			defer s.InvalidateUnder(filepath.Dir(node.FilePath))
 
 			_, err = config.GenerateStackFile(ctx, scopedLogger, v, scopedPctx, wp, node.FilePath)
+
 			return err
 		})
 	}

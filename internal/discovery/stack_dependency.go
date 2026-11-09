@@ -10,13 +10,17 @@ func StackDependencyAllowed(fsys vfs.FS, opts StackGenerateOptions, target strin
 	if !limited {
 		return true, nil
 	}
+
 	allowed := false
+
 	for _, dir := range dirs {
 		resolved, err := resolveDiscoveryBoundary(fsys, opts.WorkingDir, dir, boundaryEnclosureFor(opts.Filters))
 		if err != nil {
 			return false, err
 		}
+
 		allowed = allowed || vfs.Within(fsys, resolved, target)
 	}
+
 	return allowed, nil
 }
