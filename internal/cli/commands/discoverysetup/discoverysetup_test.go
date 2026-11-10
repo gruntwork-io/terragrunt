@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -116,42 +117,42 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	cleanup(t.Context())
 }
 
-func TestFilteredPathsOnly(t *testing.T) {
+func TestDiscoveryCheckout(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name    string
 		queries []string
-		want    bool
+		want    worktrees.Checkout
 	}{
 		{
 			name:    "a Git expression alone",
 			queries: []string{"[main...HEAD]"},
-			want:    true,
+			want:    worktrees.CheckoutFilteredPaths,
 		},
 		{
 			name:    "several Git expressions",
 			queries: []string{"[main...HEAD]", "[HEAD~1...HEAD]"},
-			want:    true,
+			want:    worktrees.CheckoutFilteredPaths,
 		},
 		{
 			// The second query reaches the worktree discovery as well, and
 			// names a component the Git expression never mentions.
 			name:    "a Git expression beside a path query",
 			queries: []string{"[main...HEAD]", "stable"},
-			want:    false,
+			want:    worktrees.CheckoutEverything,
 		},
 		{
 			name:    "a query that has to know what a unit reads",
 			queries: []string{"[main...HEAD]", "reading=root.hcl"},
-			want:    false,
+			want:    worktrees.CheckoutEverything,
 		},
 		{
 			// The whole query holds a Git expression, so nothing extra reaches
 			// the worktree discovery.
 			name:    "a path query joined to a Git expression",
 			queries: []string{"[main...HEAD] | stable"},
-			want:    true,
+			want:    worktrees.CheckoutFilteredPaths,
 		},
 	}
 
@@ -171,7 +172,7 @@ func TestFilteredPathsOnly(t *testing.T) {
 				})
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.want, discoverysetup.FilteredPathsOnly(d, filters))
+			assert.Equal(t, tc.want, discoverysetup.DiscoveryCheckout(d, filters))
 		})
 	}
 }

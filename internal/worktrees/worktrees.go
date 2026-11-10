@@ -72,12 +72,23 @@ type Worktree struct {
 	Path string
 }
 
+// Checkout is how much of a reference each worktree holds.
+type Checkout int
+
+const (
+	// CheckoutEverything holds the whole reference.
+	CheckoutEverything Checkout = iota
+	// CheckoutFilteredPaths holds only the directories the Git expressions
+	// expand to.
+	CheckoutFilteredPaths
+)
+
 // WorktreeOpts contains parameters for NewWorktrees.
 type WorktreeOpts struct {
-	WorkingDir        string
-	GitExpressions    filter.GitExpressions
-	Experiments       experiment.Experiments
-	FilteredPathsOnly bool
+	WorkingDir     string
+	GitExpressions filter.GitExpressions
+	Experiments    experiment.Experiments
+	Checkout       Checkout
 }
 
 // DisplayPath translates a worktree path to the equivalent path in the original repository
@@ -599,9 +610,9 @@ func (s *gitSurvey) refsToMaterialize(l log.Logger, gitExpressions filter.GitExp
 func (s *gitSurvey) checkoutPathspecs(
 	l log.Logger,
 	gitExpressions filter.GitExpressions,
-	filteredPathsOnly bool,
+	checkout Checkout,
 ) map[string][]string {
-	if !filteredPathsOnly {
+	if checkout != CheckoutFilteredPaths {
 		return nil
 	}
 
@@ -717,10 +728,11 @@ func surveyGitExpressions(
 //
 // Note that it is the responsibility of the caller to call Cleanup on the Worktrees object when it is no longer needed.
 //
-// Set FilteredPathsOnly only when the caller reads the worktrees to discover
-// the components the filters name and reads nothing else. A worktree created
-// for such a caller may contain those directories alone, leaving out the module
-// sources a run needs and the files a configuration being parsed can read.
+// Set Checkout to [CheckoutFilteredPaths] only when the caller reads the
+// worktrees to discover the components the filters name and reads nothing
+// else. A worktree created for such a caller may contain those directories
+// alone, leaving out the module sources a run needs and the files a
+// configuration being parsed can read.
 func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
@@ -773,9 +785,12 @@ func NewWorktrees(
 			// A symlink in a checked-out directory can point anywhere in the
 			// reference, so discovery that follows one walks out of the
 			// directories the filters name.
-			filteredPaths := opts.FilteredPathsOnly && !experiments.Evaluate(experiment.Symlinks)
+			checkout := opts.Checkout
+			if experiments.Evaluate(experiment.Symlinks) {
+				checkout = CheckoutEverything
+			}
 
-			pathspecs := survey.checkoutPathspecs(l, gitExpressions, filteredPaths)
+			pathspecs := survey.checkoutPathspecs(l, gitExpressions, checkout)
 
 			refsToPaths, err := createGitWorktrees(
 				ctx,

@@ -18,18 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// checkout is how much of the repository each comparison worktree holds.
-type checkout int
-
-const (
-	// checkoutForDiscovery holds only the directories the Git expressions
-	// expand to when [FilteredPathsOnly] allows it, and everything otherwise.
-	checkoutForDiscovery checkout = iota
-	// checkoutEverything holds the whole repository, because the caller
-	// parses the units it discovers inside the worktrees.
-	checkoutEverything
-)
-
 // Worktrees creates comparison worktrees for the Git filter expressions on
 // opts, generates the stacks inside them, and attaches them to d. Worktrees
 // are created here instead of in the discovery constructor so that callers
@@ -44,7 +32,7 @@ func Worktrees(
 	opts *options.TerragruntOptions,
 	d *discovery.Discovery,
 ) (*discovery.Discovery, func(context.Context), error) {
-	return attachWorktrees(ctx, l, v, s, opts, d, checkoutForDiscovery)
+	return attachWorktrees(ctx, l, v, s, opts, d, DiscoveryCheckout(d, opts.Filters))
 }
 
 // Units discovers the units under opts.WorkingDir that opts.Filters select,
@@ -68,7 +56,7 @@ func Units(
 		return nil, noCleanup, err
 	}
 
-	d, cleanup, err := attachWorktrees(ctx, l, v, s, opts, d, checkoutEverything)
+	d, cleanup, err := attachWorktrees(ctx, l, v, s, opts, d, worktrees.CheckoutEverything)
 	if err != nil {
 		return nil, cleanup, err
 	}
@@ -81,14 +69,19 @@ func Units(
 	return components.Filter(component.UnitKind).Sort(), cleanup, nil
 }
 
-// FilteredPathsOnly reports whether the worktrees for filters can be checked
-// out with only the directories the Git expressions in them expand to.
+// DiscoveryCheckout returns how much of the repository the worktrees for
+// filters hold when d is all that reads them.
 //
-// They can when discovery reads nothing else. Parsing a configuration reads
-// more, and so does another filter query: those reach the worktree discovery
-// too, and can name a component the expansion never mentions.
-func FilteredPathsOnly(d *discovery.Discovery, filters filter.Filters) bool {
-	return !d.ParsesConfigs() && len(filters.ExcludingGitFilters()) == 0
+// They hold only the directories the Git expressions in filters expand to when
+// discovery reads nothing else. Parsing a configuration reads more, and so does
+// another filter query: those reach the worktree discovery too, and can name a
+// component the expansion never mentions.
+func DiscoveryCheckout(d *discovery.Discovery, filters filter.Filters) worktrees.Checkout {
+	if d.ParsesConfigs() || len(filters.ExcludingGitFilters()) > 0 {
+		return worktrees.CheckoutEverything
+	}
+
+	return worktrees.CheckoutFilteredPaths
 }
 
 func attachWorktrees(
@@ -98,13 +91,13 @@ func attachWorktrees(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	d *discovery.Discovery,
-	c checkout,
+	checkout worktrees.Checkout,
 ) (*discovery.Discovery, func(context.Context), error) {
 	wts, err := worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
-		WorkingDir:        opts.WorkingDir,
-		GitExpressions:    opts.Filters.UniqueGitFilters(),
-		Experiments:       opts.Experiments,
-		FilteredPathsOnly: c == checkoutForDiscovery && FilteredPathsOnly(d, opts.Filters),
+		WorkingDir:     opts.WorkingDir,
+		GitExpressions: opts.Filters.UniqueGitFilters(),
+		Experiments:    opts.Experiments,
+		Checkout:       checkout,
 	})
 	if err != nil {
 		return d, noCleanup, fmt.Errorf("failed to create worktrees: %w", err)

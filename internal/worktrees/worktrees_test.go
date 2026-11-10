@@ -190,10 +190,10 @@ func TestNewWorktreesForSeveralRefsWithRacing(t *testing.T) {
 	assert.Positive(t, materialized)
 }
 
-// TestNewWorktreesFilteredPathsOnly pins how much of a reference is checked
+// TestNewWorktreesCheckoutFilteredPaths pins how much of a reference is checked
 // out. A caller that only locates the components a filter names gets those
 // directories, and anything that parses configurations gets the whole tree.
-func TestNewWorktreesFilteredPathsOnly(t *testing.T) {
+func TestNewWorktreesCheckoutFilteredPaths(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -323,10 +323,10 @@ func TestNewWorktreesFilteredPathsOnly(t *testing.T) {
 			}
 
 			w, err := worktrees.NewWorktrees(t.Context(), logger.CreateLogger(), v, worktrees.WorktreeOpts{
-				WorkingDir:        tmpDir,
-				GitExpressions:    filters.UniqueGitFilters(),
-				Experiments:       experiments,
-				FilteredPathsOnly: true,
+				WorkingDir:     tmpDir,
+				GitExpressions: filters.UniqueGitFilters(),
+				Experiments:    experiments,
+				Checkout:       worktrees.CheckoutFilteredPaths,
 			})
 			require.NoError(t, err)
 
