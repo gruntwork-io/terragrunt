@@ -11,6 +11,7 @@ const (
 	badIdentifierDetail = "A name must start with a letter and may contain only letters, digits, underscores, and dashes."
 )
 
+// Block is an HCL block bound to the [File] that declares it.
 type Block struct {
 	*File
 	*hcl.Block

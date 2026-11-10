@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	// BackendName is the remote_state backend value this backend handles.
 	BackendName = "gcs"
 
 	defaultTfState = "default.tfstate"
@@ -20,10 +21,12 @@ const (
 
 var _ backend.Backend = new(Backend)
 
+// Backend bootstraps, migrates, and deletes remote state stored in a GCS bucket.
 type Backend struct {
 	*backend.CommonBackend
 }
 
+// NewBackend returns the gcs [Backend].
 func NewBackend() *Backend {
 	return &Backend{
 		CommonBackend: backend.NewCommonBackend(BackendName),
@@ -159,6 +162,10 @@ func (backend *Backend) IsVersionControlEnabled(
 	return client.CheckIfGCSVersioningEnabled(ctx, l, bucketName)
 }
 
+// Migrate moves the default.tfstate object under the source config's prefix to the destination config's bucket
+// and prefix. It does nothing when the source object does not exist.
+//
+// Returns an error when the destination object already exists.
 func (backend *Backend) Migrate(
 	ctx context.Context,
 	l log.Logger,

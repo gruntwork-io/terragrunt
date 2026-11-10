@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
 	"errors"
@@ -29,7 +30,7 @@ import (
 )
 
 // Run runs the list command.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
@@ -43,7 +44,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		return err
 	}
 
-	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, opts.TerragruntOptions, d)
+	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, s, opts.TerragruntOptions, d)
 
 	defer cleanupWorktrees(ctx)
 
@@ -68,7 +69,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		}, func() error {
 			var err error
 
-			components, err = d.Discover(ctx, l, v, opts.TerragruntOptions)
+			components, err = d.Discover(ctx, l, v, s, opts.TerragruntOptions)
 
 			return err
 		})

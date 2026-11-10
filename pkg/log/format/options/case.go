@@ -11,9 +11,14 @@ import (
 const CaseOptionName = "case"
 
 const (
+	// NoneCase leaves the case as it is. It has no name in a format string.
 	NoneCase CaseValue = iota
+	// UpperCase, `case=upper`, converts the text to upper case.
 	UpperCase
+	// LowerCase, `case=lower`, converts the text to lower case.
 	LowerCase
+	// CapitalizeCase, `case=capitalize`, upper-cases the first letter of each word
+	// and lower-cases the rest.
 	CapitalizeCase
 )
 
@@ -23,8 +28,10 @@ var caseList = NewMapValue(map[CaseValue]string{
 	CapitalizeCase: "capitalize",
 })
 
+// CaseValue selects how [CaseOption] changes the case of the text.
 type CaseValue byte
 
+// CaseOption is the `case` option. It changes the letter case of the text.
 type CaseOption struct {
 	*CommonOption[CaseValue]
 }

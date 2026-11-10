@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -89,12 +90,12 @@ const (
 )
 
 // New returns the set of Terragrunt commands, grouped into categories.
-func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Commands {
+func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) clihelper.Commands {
 	mainCommands := clihelper.Commands{
-		runcmd.NewCommand(l, opts, v),  // run
-		stack.NewCommand(l, opts, v),   // stack
-		execcmd.NewCommand(l, opts, v), // exec
-		backend.NewCommand(l, opts, v), // backend
+		runcmd.NewCommand(l, opts, v, s),  // run
+		stack.NewCommand(l, opts, v, s),   // stack
+		execcmd.NewCommand(l, opts, v),    // exec
+		backend.NewCommand(l, opts, v, s), // backend
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  MainCommandsCategoryName,
@@ -122,9 +123,9 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	)
 
 	discoveryCommands := clihelper.Commands{
-		find.NewCommand(l, opts, v),   // find
-		list.NewCommand(l, opts, v),   // list
-		browse.NewCommand(l, opts, v), // browse
+		find.NewCommand(l, opts, v, s),   // find
+		list.NewCommand(l, opts, v, s),   // list
+		browse.NewCommand(l, opts, v, s), // browse
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
@@ -133,14 +134,14 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	)
 
 	configurationCommands := clihelper.Commands{
-		hcl.NewCommand(l, opts, v),              // hcl
-		info.NewCommand(l, opts, v),             // info
-		dag.NewCommand(l, opts, v),              // dag
-		render.NewCommand(l, opts, v),           // render
-		mcpcmd.NewCommand(l, opts, v),           // mcp
-		helpcmd.NewCommand(l, opts),             // help (hidden)
-		versioncmd.NewCommand(),                 // version (hidden)
-		awsproviderpatch.NewCommand(l, opts, v), // aws-provider-patch (hidden)
+		hcl.NewCommand(l, opts, v, s),              // hcl
+		info.NewCommand(l, opts, v, s),             // info
+		dag.NewCommand(l, opts, v, s),              // dag
+		render.NewCommand(l, opts, v, s),           // render
+		mcpcmd.NewCommand(l, opts, v),              // mcp
+		helpcmd.NewCommand(l, opts),                // help (hidden)
+		versioncmd.NewCommand(),                    // version (hidden)
+		awsproviderpatch.NewCommand(l, opts, v, s), // aws-provider-patch (hidden)
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -148,7 +149,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 		},
 	)
 
-	shortcutsCommands := NewShortcutsCommands(l, opts, v).SetCategory(
+	shortcutsCommands := NewShortcutsCommands(l, opts, v, s).SetCategory(
 		&clihelper.Category{
 			Name:  ShortcutsCommandsCategoryName,
 			Order: shortcutsCommandsOrder,

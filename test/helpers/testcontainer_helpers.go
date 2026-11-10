@@ -15,6 +15,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+// ContExecNoOutput runs cmd in container and fails the test, showing the output, unless it exits with 0.
 func ContExecNoOutput(
 	tb testing.TB,
 	container *testcontainers.DockerContainer,
@@ -44,6 +45,8 @@ func (l tLogger) Printf(format string, v ...any) {
 	l.tb.Logf(format, v...)
 }
 
+// RunContainer starts image with port exposed, removes it when the test ends, and returns the container and the
+// http:// address of the mapped port. It skips the test in -short mode or when SKIP_TESTCONTAINERS is set.
 func RunContainer(
 	tb testing.TB,
 	image string,

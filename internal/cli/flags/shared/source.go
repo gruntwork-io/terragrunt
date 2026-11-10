@@ -8,7 +8,11 @@ import (
 )
 
 const (
-	SourceFlagName    = "source"
+	// SourceFlagName is the flag name for `--source`, a module source that replaces the one in the
+	// `terraform` block.
+	SourceFlagName = "source"
+	// SourceMapFlagName is the flag name for `--source-map`, pairs of source URL prefixes and their
+	// replacements.
 	SourceMapFlagName = "source-map"
 )
 

@@ -54,8 +54,10 @@ const (
 	maxProviderMetadataBytes = 1 << 20
 )
 
+// ProviderCaches is the list of providers a [ProviderService] has been asked to cache.
 type ProviderCaches []*ProviderCache
 
+// Find returns the first cache whose provider matches target, or nil when none does.
 func (caches ProviderCaches) Find(target *models.Provider) *ProviderCache {
 	for _, cache := range caches {
 		if cache.Match(target) {
@@ -66,6 +68,7 @@ func (caches ProviderCaches) Find(target *models.Provider) *ProviderCache {
 	return nil
 }
 
+// FindByRequestID returns the caches that the cache request requestID asked for.
 func (caches ProviderCaches) FindByRequestID(requestID string) ProviderCaches {
 	var foundCaches ProviderCaches
 
@@ -78,6 +81,8 @@ func (caches ProviderCaches) FindByRequestID(requestID string) ProviderCaches {
 	return foundCaches
 }
 
+// ProviderCache is one provider version that a [ProviderService] downloads, verifies, and
+// unpacks into its cache directory, with the IDs of the cache requests that asked for it.
 type ProviderCache struct {
 	err error
 	*models.Provider
@@ -95,6 +100,8 @@ type ProviderCache struct {
 	mu                 sync.RWMutex
 }
 
+// DocumentSHA256Sums returns the SHA256SUMS document of the provider, fetching it on the first
+// call. It returns nil when the registry response gave no URL for it.
 func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, error) {
 	if existing := cache.getDocumentSHA256Sums(); existing != nil || cache.SHA256SumsURL == "" {
 		return existing, nil
@@ -103,6 +110,8 @@ func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, err
 	return cache.setDocumentSHA256Sums(ctx)
 }
 
+// Signature returns the signature over the SHA256SUMS document, fetching it on the first call.
+// It returns nil when the registry response gave no URL for it.
 func (cache *ProviderCache) Signature(ctx context.Context) ([]byte, error) {
 	if existing := cache.getSignature(); existing != nil || cache.SHA256SumsSignatureURL == "" {
 		return existing, nil
@@ -111,18 +120,22 @@ func (cache *ProviderCache) Signature(ctx context.Context) ([]byte, error) {
 	return cache.setSignature(ctx)
 }
 
+// Version returns the version of the cached provider, such as `5.36.0`.
 func (cache *ProviderCache) Version() string {
 	return cache.Provider.Version
 }
 
+// Address returns the `registry/namespace/name` source address of the cached provider.
 func (cache *ProviderCache) Address() string {
 	return cache.Provider.Address()
 }
 
+// Constraints returns the version constraints from the module's `required_providers` block, or an empty string when it has none.
 func (cache *ProviderCache) Constraints() string {
 	return cache.Provider.Constraints()
 }
 
+// PackageDir returns the directory the provider is unpacked into.
 func (cache *ProviderCache) PackageDir() string {
 	return cache.packageDir
 }
@@ -229,6 +242,7 @@ func (cache *ProviderCache) AuthenticatePackage(
 	).Authenticate(cache.ProviderService.FS(), cache.archivePath)
 }
 
+// ArchivePath returns the path of the downloaded provider archive, or an empty string when the archive is not on disk.
 func (cache *ProviderCache) ArchivePath() string {
 	exists, err := vfs.FileExists(cache.ProviderService.FS(), cache.archivePath)
 	if err != nil {
@@ -586,6 +600,8 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 // ProviderServiceOption configures a ProviderService.
 type ProviderServiceOption func(*ProviderService)
 
+// ProviderService downloads the providers that cache requests ask for, in the background, into a
+// shared cache directory.
 type ProviderService struct {
 	logger log.Logger
 
@@ -627,6 +643,8 @@ func (service *ProviderService) HTTPClient() vhttp.Client {
 	return service.venv.HTTP
 }
 
+// NewProviderService returns a service that unpacks providers into cacheDir, links to a provider
+// already in the user plugins directory userCacheDir, and authenticates to registries with credsSource.
 func NewProviderService(
 	cacheDir,
 	userCacheDir string,
@@ -657,6 +675,7 @@ func NewProviderService(
 	return service
 }
 
+// Logger returns the logger of the service.
 func (service *ProviderService) Logger() log.Logger {
 	return service.logger
 }

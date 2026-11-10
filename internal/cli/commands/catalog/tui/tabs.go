@@ -13,10 +13,15 @@ import (
 type TabKind int
 
 const (
+	// TabAll lists every component.
 	TabAll TabKind = iota
+	// TabTemplates lists templates and components tagged as templates.
 	TabTemplates
+	// TabStacks lists stacks and components tagged as stacks.
 	TabStacks
+	// TabUnits lists units and components tagged as units.
 	TabUnits
+	// TabModules lists modules and components tagged as modules.
 	TabModules
 	numTabs
 )

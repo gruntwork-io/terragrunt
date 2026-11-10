@@ -2,11 +2,14 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 const FETCH_TIMEOUT_MS = 10 * 1000; // 10 second timeout for API requests
 
 interface CacheEntry<T> {
-  data: T;
+  data: Promise<T>;
   timestamp: number;
 }
 
-const cache = new Map<string, CacheEntry<unknown>>();
+const CACHE_KEY = Symbol.for('terragrunt-docs.github-cache');
+const cache: Map<string, CacheEntry<unknown>> = ((
+  globalThis as { [CACHE_KEY]?: Map<string, CacheEntry<unknown>> }
+)[CACHE_KEY] ??= new Map());
 
 /**
  * Returns the headers every GitHub API request sends. A `GITHUB_TOKEN` in the
@@ -26,10 +29,13 @@ function githubHeaders(): Record<string, string> {
 }
 
 /**
- * Memoized fetch that caches results for 1 hour.
- * Used to avoid rate limiting on GitHub API calls during builds.
+ * Returns the result of `fetchFn` for `cacheKey`, calling it at most once an
+ * hour. Every caller in the process shares that call and its result, failures
+ * included, even when Astro loads this module more than once, as it does for
+ * content sync and for prerendering. A build therefore sends one request per
+ * key, and every page sees the same answer. `fetchFn` must not reject.
  */
-async function memoizedFetch<T>(
+function memoizedFetch<T>(
   cacheKey: string,
   fetchFn: () => Promise<T>
 ): Promise<T> {
@@ -40,11 +46,8 @@ async function memoizedFetch<T>(
     return cached.data;
   }
 
-  const data = await fetchFn();
-  // Only cache successful (non-null) results to allow retries on failures
-  if (data !== null) {
-    cache.set(cacheKey, { data, timestamp: now });
-  }
+  const data = fetchFn();
+  cache.set(cacheKey, { data, timestamp: now });
   return data;
 }
 
@@ -85,38 +88,36 @@ export async function getGitHubRepo(
 ): Promise<GitHubRepoResponse | null> {
   const cacheKey = `repo:${owner}/${repo}`;
 
-  try {
-    return await memoizedFetch(cacheKey, async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  return memoizedFetch(cacheKey, async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      try {
-        const response = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}`,
-          {
-            headers: githubHeaders(),
-            signal: controller.signal,
-          }
-        );
-
-        if (!response.ok) {
-          console.error(
-            `Failed to fetch GitHub repo ${owner}/${repo}:`,
-            response.status,
-            await response.text()
-          );
-          return null;
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}`,
+        {
+          headers: githubHeaders(),
+          signal: controller.signal,
         }
+      );
 
-        return response.json();
-      } finally {
-        clearTimeout(timeoutId);
+      if (!response.ok) {
+        console.error(
+          `Failed to fetch GitHub repo ${owner}/${repo}:`,
+          response.status,
+          await response.text()
+        );
+        return null;
       }
-    });
-  } catch (error) {
-    console.error(`Error fetching GitHub repo ${owner}/${repo}:`, error);
-    return null;
-  }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error fetching GitHub repo ${owner}/${repo}:`, error);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  });
 }
 
 /**
@@ -129,38 +130,36 @@ export async function getLatestRelease(
 ): Promise<GitHubReleaseResponse | null> {
   const cacheKey = `release:${owner}/${repo}`;
 
-  try {
-    return await memoizedFetch(cacheKey, async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  return memoizedFetch(cacheKey, async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      try {
-        const response = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-          {
-            headers: githubHeaders(),
-            signal: controller.signal,
-          }
-        );
-
-        if (!response.ok) {
-          console.error(
-            `Failed to fetch latest release for ${owner}/${repo}:`,
-            response.status,
-            await response.text()
-          );
-          return null;
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+        {
+          headers: githubHeaders(),
+          signal: controller.signal,
         }
+      );
 
-        return response.json();
-      } finally {
-        clearTimeout(timeoutId);
+      if (!response.ok) {
+        console.error(
+          `Failed to fetch latest release for ${owner}/${repo}:`,
+          response.status,
+          await response.text()
+        );
+        return null;
       }
-    });
-  } catch (error) {
-    console.error(`Error fetching latest release for ${owner}/${repo}:`, error);
-    return null;
-  }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error fetching latest release for ${owner}/${repo}:`, error);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  });
 }
 
 /**
@@ -174,40 +173,38 @@ export async function getReleaseByTag(
 ): Promise<GitHubReleaseResponse | null> {
   const cacheKey = `release-tag:${owner}/${repo}/${tag}`;
 
-  try {
-    return await memoizedFetch(cacheKey, async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  return memoizedFetch(cacheKey, async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      try {
-        const response = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`,
-          {
-            headers: githubHeaders(),
-            signal: controller.signal,
-          }
-        );
-
-        if (!response.ok) {
-          if (response.status !== 404) {
-            console.error(
-              `Failed to fetch release ${tag} for ${owner}/${repo}:`,
-              response.status,
-              await response.text()
-            );
-          }
-          return null;
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`,
+        {
+          headers: githubHeaders(),
+          signal: controller.signal,
         }
+      );
 
-        return response.json();
-      } finally {
-        clearTimeout(timeoutId);
+      if (!response.ok) {
+        if (response.status !== 404) {
+          console.error(
+            `Failed to fetch release ${tag} for ${owner}/${repo}:`,
+            response.status,
+            await response.text()
+          );
+        }
+        return null;
       }
-    });
-  } catch (error) {
-    console.error(`Error fetching release ${tag} for ${owner}/${repo}:`, error);
-    return null;
-  }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error fetching release ${tag} for ${owner}/${repo}:`, error);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  });
 }
 
 /**
@@ -226,44 +223,42 @@ export async function compareCommits(
 ): Promise<GitHubCommit[] | null> {
   const cacheKey = `compare:${owner}/${repo}/${base}...${head}`;
 
-  try {
-    return await memoizedFetch(cacheKey, async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  return memoizedFetch(cacheKey, async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      try {
-        const response = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/compare/${base}...${head}`,
-          {
-            headers: githubHeaders(),
-            signal: controller.signal,
-          }
-        );
-
-        if (!response.ok) {
-          if (response.status !== 404) {
-            console.error(
-              `Failed to compare ${base}...${head} for ${owner}/${repo}:`,
-              response.status,
-              await response.text()
-            );
-          }
-          return null;
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/compare/${base}...${head}`,
+        {
+          headers: githubHeaders(),
+          signal: controller.signal,
         }
+      );
 
-        const data = (await response.json()) as GitHubCompareResponse;
-        return data.commits;
-      } finally {
-        clearTimeout(timeoutId);
+      if (!response.ok) {
+        if (response.status !== 404) {
+          console.error(
+            `Failed to compare ${base}...${head} for ${owner}/${repo}:`,
+            response.status,
+            await response.text()
+          );
+        }
+        return null;
       }
-    });
-  } catch (error) {
-    console.error(
-      `Error comparing ${base}...${head} for ${owner}/${repo}:`,
-      error
-    );
-    return null;
-  }
+
+      const data = (await response.json()) as GitHubCompareResponse;
+      return data.commits;
+    } catch (error) {
+      console.error(
+        `Error comparing ${base}...${head} for ${owner}/${repo}:`,
+        error
+      );
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  });
 }
 
 /**

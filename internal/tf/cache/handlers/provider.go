@@ -133,6 +133,7 @@ func (handlers ProviderHandlers) DiscoveryURL(
 	return DefaultRegistryURLs, nil
 }
 
+// ProviderHandler is one provider installation source of the cache server, such as a registry or a mirror.
 type ProviderHandler interface {
 	// CanHandleProvider returns true if the given provider can be handled by this handler.
 	CanHandleProvider(provider *models.Provider) bool

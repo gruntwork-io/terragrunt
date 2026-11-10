@@ -10,12 +10,15 @@ import (
 
 // Custom error types
 
+// InvalidArgError reports an invalid argument in a config. The string is the whole message.
 type InvalidArgError string
 
 func (e InvalidArgError) Error() string {
 	return string(e)
 }
 
+// IncludedConfigMissingPathError reports an `include` block without a `path`. The string is the path of
+// the config that declares the block.
 type IncludedConfigMissingPathError string
 
 func (err IncludedConfigMissingPathError) Error() string {
@@ -25,6 +28,7 @@ func (err IncludedConfigMissingPathError) Error() string {
 	)
 }
 
+// IncludeConfigNotFoundError reports an `include` block whose `path` names a file that does not exist.
 type IncludeConfigNotFoundError struct {
 	IncludePath string
 	SourcePath  string
@@ -38,6 +42,8 @@ func (err IncludeConfigNotFoundError) Error() string {
 	)
 }
 
+// TooManyLevelsOfInheritanceError reports a config that includes a config which itself includes another.
+// Only one level of includes is allowed.
 type TooManyLevelsOfInheritanceError struct {
 	ConfigPath             string
 	FirstLevelIncludePath  string
@@ -53,12 +59,16 @@ func (err TooManyLevelsOfInheritanceError) Error() string {
 	)
 }
 
+// CouldNotResolveTerragruntConfigInFileError reports a config file that decoded to no Terragrunt config. The
+// string is the file path.
 type CouldNotResolveTerragruntConfigInFileError string
 
 func (err CouldNotResolveTerragruntConfigInFileError) Error() string {
 	return "Could not find Terragrunt configuration settings in " + string(err)
 }
 
+// InvalidMergeStrategyTypeError reports an unknown merge strategy, or [DeepMerge] set as the merge strategy
+// of a dependency's mock outputs.
 type InvalidMergeStrategyTypeError string
 
 func (err InvalidMergeStrategyTypeError) Error() string {
@@ -86,6 +96,7 @@ func (err IncludeMergeStrategyNotSupportedError) Error() string {
 	)
 }
 
+// DependencyDirNotFoundError reports `dependencies` block paths that are not directories.
 type DependencyDirNotFoundError struct {
 	Dir []string
 }
@@ -96,6 +107,7 @@ func (err DependencyDirNotFoundError) Error() string {
 	)
 }
 
+// DuplicatedGenerateBlocksError reports `generate` blocks that share a name.
 type DuplicatedGenerateBlocksError struct {
 	BlockName []string
 }
@@ -135,6 +147,7 @@ func (err InvalidExcludeBlockError) Unwrap() error {
 	return err.Err
 }
 
+// TFVarFileNotFoundError reports a `read_tfvars_file` argument naming a file that does not exist.
 type TFVarFileNotFoundError struct {
 	File  string
 	Cause string
@@ -144,6 +157,7 @@ func (err TFVarFileNotFoundError) Error() string {
 	return fmt.Sprintf("TFVarFileNotFound: Could not find a %s. Cause: %s.", err.File, err.Cause)
 }
 
+// WrongNumberOfParamsError reports an HCL function call with the wrong number of arguments.
 type WrongNumberOfParamsError struct {
 	Func     string
 	Expected string
@@ -159,6 +173,7 @@ func (err WrongNumberOfParamsError) Error() string {
 	)
 }
 
+// InvalidParameterTypeError reports an HCL function argument of the wrong type.
 type InvalidParameterTypeError struct {
 	Expected string
 	Actual   string
@@ -168,6 +183,7 @@ func (err InvalidParameterTypeError) Error() string {
 	return fmt.Sprintf("Expected param of type %s but got %s", err.Expected, err.Actual)
 }
 
+// ParentFileNotFoundError reports a `find_in_parent_folders` call that found no matching file.
 type ParentFileNotFoundError struct {
 	Path  string
 	File  string
@@ -183,6 +199,7 @@ func (err ParentFileNotFoundError) Error() string {
 	)
 }
 
+// InvalidGetEnvParamsError reports a `get_env` call with other than one or two arguments.
 type InvalidGetEnvParamsError struct {
 	Example         string
 	ActualNumParams int
@@ -196,6 +213,7 @@ func (err InvalidGetEnvParamsError) Error() string {
 	)
 }
 
+// EnvVarNotFoundError reports a `get_env` call without a default for an environment variable that is not set.
 type EnvVarNotFoundError struct {
 	EnvVar string
 }
@@ -207,6 +225,7 @@ func (err EnvVarNotFoundError) Error() string {
 	)
 }
 
+// InvalidEnvParamNameError reports a `get_env` call whose variable name is empty.
 type InvalidEnvParamNameError struct {
 	EnvName string
 }
@@ -218,18 +237,22 @@ func (err InvalidEnvParamNameError) Error() string {
 	)
 }
 
+// EmptyStringNotAllowedError reports an empty `run_cmd` argument. The string names the argument.
 type EmptyStringNotAllowedError string
 
 func (err EmptyStringNotAllowedError) Error() string {
 	return "Empty string value is not allowed for " + string(err)
 }
 
+// ConflictingRunCmdCacheOptionsError reports a `run_cmd` call that passes both `--terragrunt-global-cache` and
+// `--terragrunt-no-cache`.
 type ConflictingRunCmdCacheOptionsError struct{}
 
 func (err ConflictingRunCmdCacheOptionsError) Error() string {
 	return "The --terragrunt-global-cache and --terragrunt-no-cache options cannot be used together. Choose one caching option for run_cmd."
 }
 
+// TerragruntConfigNotFoundError reports a Terragrunt config file that does not exist.
 type TerragruntConfigNotFoundError struct {
 	Path string
 }
@@ -241,6 +264,8 @@ func (err TerragruntConfigNotFoundError) Error() string {
 	)
 }
 
+// InvalidSourceURLError reports a module source that `--source` cannot replace because it has neither a URL nor
+// a subdirectory.
 type InvalidSourceURLError struct {
 	ModulePath       string
 	ModuleSourceURL  string
@@ -256,6 +281,8 @@ func (err InvalidSourceURLError) Error() string {
 	)
 }
 
+// InvalidSourceURLWithMapError reports a module source that `--source-map` cannot rewrite because it has
+// neither a URL nor a subdirectory.
 type InvalidSourceURLWithMapError struct {
 	ModulePath      string
 	ModuleSourceURL string
@@ -269,6 +296,8 @@ func (err InvalidSourceURLWithMapError) Error() string {
 	)
 }
 
+// ParsingModulePathError reports a module source URL without a `//` from which no module name can be
+// extracted.
 type ParsingModulePathError struct {
 	ModuleSourceURL string
 }
@@ -280,6 +309,7 @@ func (err ParsingModulePathError) Error() string {
 	)
 }
 
+// InvalidSopsFormatError reports a `sops_decrypt_file` argument that is not a UTF-8 YAML or JSON file.
 type InvalidSopsFormatError struct {
 	SourceFilePath string
 }
@@ -291,6 +321,8 @@ func (err InvalidSopsFormatError) Error() string {
 	)
 }
 
+// InvalidIncludeKeyError reports a call such as `path_relative_to_include` naming an `include` block label
+// the config does not declare.
 type InvalidIncludeKeyError struct {
 	name string
 }
@@ -302,6 +334,8 @@ func (err InvalidIncludeKeyError) Error() string {
 	)
 }
 
+// DependencyFileNotFoundError reports a config file that does not exist when checking it for dependency
+// blocks.
 type DependencyFileNotFoundError struct {
 	Path string
 }
@@ -322,6 +356,7 @@ func (err DependencyConfigPathNotStringError) Error() string {
 	return fmt.Sprintf("config_path of dependency %q did not evaluate to a string", err.Name)
 }
 
+// DependencyConfigNotFound reports a dependency whose `config_path` leads to no config file.
 type DependencyConfigNotFound struct {
 	Path string
 }
@@ -399,6 +434,7 @@ func (err DependencyStateEncryptedError) Unwrap() error {
 	return ErrDependencyStateEncrypted
 }
 
+// TerragruntOutputParsingError reports dependency outputs that could not be parsed as JSON.
 type TerragruntOutputParsingError struct {
 	Err  error
 	Path string
@@ -412,6 +448,7 @@ func (err TerragruntOutputParsingError) Error() string {
 	)
 }
 
+// TerragruntOutputEncodingError reports dependency outputs that could not be converted to a cty value.
 type TerragruntOutputEncodingError struct {
 	Err  error
 	Path string
@@ -553,6 +590,8 @@ func (err DependencyConfigPathFileError) Error() string {
 	)
 }
 
+// TerragruntOutputListEncodingError reports outputs of a config's dependencies that could not be combined
+// into one cty value.
 type TerragruntOutputListEncodingError struct {
 	Err   error
 	Paths []string
@@ -566,6 +605,8 @@ func (err TerragruntOutputListEncodingError) Error() string {
 	)
 }
 
+// TerragruntOutputTargetNoOutputs reports a dependency that returned no outputs when no mock outputs may
+// stand in for them. Its message suggests `mock_outputs` and the `dependencies` block.
 type TerragruntOutputTargetNoOutputs struct {
 	targetName    string
 	targetPath    string
@@ -573,6 +614,7 @@ type TerragruntOutputTargetNoOutputs struct {
 	currentConfig string
 }
 
+// ExitCode returns 1, the exit code Terragrunt exits with on this error.
 func (err TerragruntOutputTargetNoOutputs) ExitCode() int {
 	return 1
 }
@@ -608,18 +650,37 @@ https://docs.terragrunt.com/reference/config-blocks-and-attributes/#dependencies
 	)
 }
 
+// DependencyCycleError reports a cycle of dependencies. It lists the config paths along the cycle.
 type DependencyCycleError []string
 
 func (err DependencyCycleError) Error() string {
 	return "Found a dependency cycle between modules: " + strings.Join([]string(err), " -> ")
 }
 
+// DependencyInvalidConfigPathError reports a dependency whose `config_path` is null, unknown, empty, or not
+// a string.
 type DependencyInvalidConfigPathError struct {
 	DependencyName string
 }
 
 func (err DependencyInvalidConfigPathError) Error() string {
 	return fmt.Sprintf("dependency %q has invalid config_path", err.DependencyName)
+}
+
+// DependencyNullConfigPathError is returned when an enabled dependency block sets config_path to null.
+type DependencyNullConfigPathError struct {
+	// ConfigPath is the configuration file that declares the block.
+	ConfigPath string
+	// Address names the dependency block, as its label and any expansion key.
+	Address string
+}
+
+func (err DependencyNullConfigPathError) Error() string {
+	return fmt.Sprintf(
+		"%s: dependency %s sets config_path to null; set it to a path, or set enabled to false",
+		err.ConfigPath,
+		err.Address,
+	)
 }
 
 // TerraformSourceReferencesDependencyError is returned when the terraform `source` references the `dependency`
@@ -825,7 +886,9 @@ var ErrStackHasNoComponents = errors.New("stack config must contain at least one
 type ComponentKind string
 
 const (
-	ComponentKindUnit  ComponentKind = "unit"
+	// ComponentKindUnit is a component declared with a `unit` block.
+	ComponentKindUnit ComponentKind = "unit"
+	// ComponentKindStack is a component declared with a `stack` block.
 	ComponentKindStack ComponentKind = "stack"
 )
 

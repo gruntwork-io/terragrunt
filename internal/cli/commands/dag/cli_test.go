@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -25,7 +26,7 @@ func TestNewCommandShowsHelpWithItsSubcommands(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := dag.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v)
+	cmd := dag.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
 	cmd.CustomHelpTemplate = subcommandsTemplate
 
 	out := new(bytes.Buffer)
@@ -49,7 +50,15 @@ func TestNewCommandRunsTheGraphSubcommand(t *testing.T) {
 	opts.WorkingDir = root
 	opts.RootWorkingDir = root
 
-	require.NoError(t, runCommand(t, dag.NewCommand(logger.CreateLogger(), opts, v), new(bytes.Buffer), graph.CommandName))
+	require.NoError(
+		t,
+		runCommand(
+			t,
+			dag.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)),
+			new(bytes.Buffer),
+			graph.CommandName,
+		),
+	)
 	assert.Equal(t, "digraph {\n\t\"app\" ;\n\t\"app\" -> \"vpc\";\n\t\"vpc\" ;\n}\n", out.String())
 }
 

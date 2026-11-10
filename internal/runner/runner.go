@@ -843,16 +843,13 @@ func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorScanners map[string
 
 		var dependenciesMsg string
 
-		if len(unit.Dependencies()) > 0 {
-			cfg := unit.Config()
-			if cfg != nil && cfg.Dependencies != nil && len(cfg.Dependencies.Paths) > 0 {
-				dependenciesMsg = fmt.Sprintf(
-					" contains dependencies to %v and",
-					cfg.Dependencies.Paths,
-				)
-			} else {
-				dependenciesMsg = " contains dependencies and"
+		if deps := unit.Dependencies(); len(deps) > 0 {
+			depPaths := make([]string, 0, len(deps))
+			for _, dep := range deps {
+				depPaths = append(depPaths, dep.Path())
 			}
+
+			dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", depPaths)
 		}
 
 		l.Infof("%v%v refers to remote State "+

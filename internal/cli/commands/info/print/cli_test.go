@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -44,7 +45,7 @@ func TestNewCommandExposesThePrintFlags(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := print.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v)
+	cmd := print.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
 
 	assert.Equal(t, print.CommandName, cmd.Name)
 
@@ -80,7 +81,7 @@ func TestNewCommandPrintsTheUnitContext(t *testing.T) {
 			opts := newOpts(t, v, configPath)
 			opts.TFPath = "tofu"
 
-			require.NoError(t, runCommand(t, print.NewCommand(logger.CreateLogger(), opts, v)))
+			require.NoError(t, runCommand(t, print.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store))))
 
 			var got print.InfoOutput
 
@@ -103,7 +104,10 @@ func TestNewCommandAllPrintsOneLinePerUnit(t *testing.T) {
 		"b/terragrunt.hcl": invalidHCL,
 	}))
 
-	require.NoError(t, runCommand(t, print.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v), "--all"))
+	require.NoError(
+		t,
+		runCommand(t, print.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v, new(rewrite.Store)), "--all"),
+	)
 
 	var workingDirs []string
 
@@ -155,7 +159,7 @@ func TestRunReportsAWriteFailure(t *testing.T) {
 			opts.RunAll = tc.runAll
 			opts.FailFast = tc.failFast
 
-			err := print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+			err := print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 			require.ErrorIs(t, err, errWrite)
 
 			var joined interface{ Unwrap() []error }
@@ -187,7 +191,7 @@ func TestRunIgnoresAWriteFailureAfterAPreparationFailure(t *testing.T) {
 
 			opts := newOpts(t, v, filepath.Join(memRoot, "unit", "terragrunt.hcl"))
 
-			require.NoError(t, print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
+			require.NoError(t, print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
 		})
 	}
 }
@@ -201,7 +205,7 @@ func TestRunAllFailsOnAMissingWorkingDir(t *testing.T) {
 	opts.WorkingDir = filepath.Join(memRoot, "missing")
 	opts.RunAll = true
 
-	err := print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+	err := print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 

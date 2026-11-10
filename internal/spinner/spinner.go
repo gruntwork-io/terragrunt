@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	// DefaultThreshold is how long an operation runs before it is reported.
 	DefaultThreshold = 100 * time.Millisecond
 
 	keepaliveInterval = 30 * time.Second
@@ -18,17 +19,20 @@ const (
 
 type reporterKey struct{}
 
+// Messages describes how one operation is reported.
 type Messages struct {
 	Working string
 	Done    string
 	Started bool
 }
 
+// Options configures [New].
 type Options struct {
 	Threshold     time.Duration
 	LogsForHumans bool
 }
 
+// Reporter reports slow operations as a progress line or as log lines.
 type Reporter struct {
 	term      *terminal
 	threshold time.Duration
@@ -51,6 +55,7 @@ func New(v *venv.Venv, opts Options) *Reporter {
 	return &Reporter{term: term, threshold: opts.Threshold}
 }
 
+// ContextWithReporter returns ctx with reporter installed for [ShowAfter] and [InputRead].
 func ContextWithReporter(ctx context.Context, reporter *Reporter) context.Context {
 	return context.WithValue(ctx, reporterKey{}, reporter)
 }
@@ -72,6 +77,7 @@ func ShowAfter(ctx context.Context, l log.Logger, msgs Messages, fn func() error
 	return reporterFromContext(ctx).ShowAfter(ctx, l, msgs, fn)
 }
 
+// Animated reports whether the reporter draws a progress line.
 func (reporter *Reporter) Animated() bool {
 	return reporter.term != nil
 }

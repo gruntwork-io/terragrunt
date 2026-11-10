@@ -15,6 +15,7 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl"
 	hclformat "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
@@ -1051,7 +1052,7 @@ func runAppTest(
 
 	testV := venv.MemVenv()
 
-	terragruntCommands := commands.New(l, opts, testV)
+	terragruntCommands := commands.New(l, opts, testV, new(rewrite.Store))
 	setCommandAction(emptyAction, terragruntCommands...)
 
 	app := clihelper.NewApp(testV.Env)

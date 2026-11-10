@@ -2,6 +2,9 @@ package awsproviderpatch
 
 import "fmt"
 
+// MissingOverrideAttrError reports that `terragrunt aws-provider-patch` ran
+// without an attribute to override. Its value is the name of the flag that sets
+// one.
 type MissingOverrideAttrError string
 
 func (flagName MissingOverrideAttrError) Error() string {
@@ -11,6 +14,8 @@ func (flagName MissingOverrideAttrError) Error() string {
 	)
 }
 
+// TypeInferenceError reports an override value whose cty type cannot be
+// inferred by parsing it as JSON.
 type TypeInferenceError struct {
 	underlyingErr error
 	value         string
@@ -27,6 +32,8 @@ func (err TypeInferenceError) Error() string {
 	)
 }
 
+// MalformedJSONValError reports an override value that fails to unmarshal as
+// JSON into the cty type inferred for it.
 type MalformedJSONValError struct {
 	underlyingErr error
 	value         string

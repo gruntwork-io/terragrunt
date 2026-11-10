@@ -24,8 +24,11 @@ import (
 type UnitStatus int
 
 const (
+	// Waiting is the status of a unit that has not started.
 	Waiting UnitStatus = iota
+	// Running is the status of a unit whose run is in progress.
 	Running
+	// Finished is the status of a unit whose run has ended, with or without an error.
 	Finished
 )
 

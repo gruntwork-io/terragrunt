@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 
@@ -30,13 +31,22 @@ func TestRemoteStateWaitProgress(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		run     func(ctx context.Context, l log.Logger, client *s3backend.Client) error
-		name    string
-		waits   int
-		created bool
+		run          func(ctx context.Context, l log.Logger, client *s3backend.Client) error
+		name         string
+		waits        int
+		missingHeads int64
+		created      bool
 	}{
 		{
 			name: "s3 bucket exists",
+			run: func(ctx context.Context, l log.Logger, client *s3backend.Client) error {
+				return client.WaitUntilS3BucketExists(ctx, l, progressBucket)
+			},
+			waits: 1,
+		},
+		{
+			name:         "s3 bucket appears after a retry",
+			missingHeads: 1,
 			run: func(ctx context.Context, l log.Logger, client *s3backend.Client) error {
 				return client.WaitUntilS3BucketExists(ctx, l, progressBucket)
 			},
@@ -66,43 +76,46 @@ func TestRemoteStateWaitProgress(t *testing.T) {
 			t.Run("reporter on the context", func(t *testing.T) {
 				t.Parallel()
 
-				stub := &awsStub{}
-				stub.created.Store(tc.created)
+				synctest.Test(t, func(t *testing.T) {
+					stub := newAWSStub(tc.created, tc.missingHeads)
 
-				term := new(bytes.Buffer)
-				logs := new(bytes.Buffer)
-				l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
-				ctx := spinner.ContextWithReporter(t.Context(), drawingReporter(term))
+					term := new(bytes.Buffer)
+					logs := new(bytes.Buffer)
+					l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
+					ctx := spinner.ContextWithReporter(t.Context(), drawingReporter(term))
 
-				require.NoError(t, tc.run(ctx, l, newStubbedClient(t, stub)))
-				require.Positive(t, stub.requests.Load(), "the wait must have polled the endpoint")
+					require.NoError(t, tc.run(ctx, l, newStubbedClient(t, stub)))
+					require.Greater(t, stub.requests.Load(), tc.missingHeads, "the wait must have polled until ready")
 
-				assert.NotEmpty(t, term.String())
-				assert.Equal(t, tc.waits, strings.Count(logs.String(), "\n"), logs)
+					assert.NotEmpty(t, term.String())
+					assert.Equal(t, tc.waits, strings.Count(logs.String(), "\n"), logs)
+				})
 			})
 
 			t.Run("plain context", func(t *testing.T) {
 				t.Parallel()
 
-				stub := &awsStub{}
-				stub.created.Store(tc.created)
+				synctest.Test(t, func(t *testing.T) {
+					stub := newAWSStub(tc.created, tc.missingHeads)
 
-				logs := new(bytes.Buffer)
-				l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
+					logs := new(bytes.Buffer)
+					l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
 
-				require.NoError(t, tc.run(t.Context(), l, newStubbedClient(t, stub)))
-				require.Positive(t, stub.requests.Load(), "the wait must have polled the endpoint")
+					require.NoError(t, tc.run(t.Context(), l, newStubbedClient(t, stub)))
+					require.Greater(t, stub.requests.Load(), tc.missingHeads, "the wait must have polled until ready")
 
-				assert.Empty(t, logs.String())
+					assert.Empty(t, logs.String())
+				})
 			})
 		})
 	}
 }
 
 type awsStub struct {
-	requests  atomic.Int64
-	created   atomic.Bool
-	encrypted atomic.Bool
+	requests   atomic.Int64
+	headMisses atomic.Int64
+	created    atomic.Bool
+	encrypted  atomic.Bool
 }
 
 func (stub *awsStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -111,6 +124,12 @@ func (stub *awsStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	target := r.Header.Get("X-Amz-Target")
 
 	if r.Method == http.MethodHead {
+		if stub.headMisses.Add(-1) >= 0 {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+
 		w.WriteHeader(http.StatusOK)
 
 		return
@@ -163,6 +182,15 @@ func writeBody(w http.ResponseWriter, status int, body string) {
 	if _, err := w.Write([]byte(body)); err != nil {
 		panic(err)
 	}
+}
+
+// newAWSStub returns a stub whose first missingHeads bucket checks answer 404.
+func newAWSStub(created bool, missingHeads int64) *awsStub {
+	stub := new(awsStub)
+	stub.created.Store(created)
+	stub.headMisses.Store(missingHeads)
+
+	return stub
 }
 
 func newStubbedClient(t *testing.T, stub *awsStub) *s3backend.Client {

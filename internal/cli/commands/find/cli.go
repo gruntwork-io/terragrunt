@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -16,28 +17,57 @@ import (
 )
 
 const (
-	CommandName  = "find"
+	// CommandName is the name of the `terragrunt find` command.
+	CommandName = "find"
+	// CommandAlias is the short alias of `terragrunt find`.
 	CommandAlias = "fd"
 
+	// FormatFlagName is the name of the flag that selects the output format:
+	// [FormatText] or [FormatJSON].
 	FormatFlagName = "format"
 
-	JSONFlagName  = "json"
+	// JSONFlagName is the name of the flag that is shorthand for --format=json.
+	JSONFlagName = "json"
+	// JSONFlagAlias is the short alias of the --json flag.
 	JSONFlagAlias = "j"
 
+	// DAGFlagName is the name of the flag that sorts and groups output in DAG
+	// order.
 	DAGFlagName = "dag"
 
-	HiddenFlagName   = "hidden"
+	// HiddenFlagName is the name of the hidden, deprecated flag that includes
+	// hidden directories. Setting it evaluates the deprecated hidden flag
+	// strict control.
+	HiddenFlagName = "hidden"
+	// NoHiddenFlagName is the name of the flag that excludes hidden directories
+	// from the results.
 	NoHiddenFlagName = "no-hidden"
-	Dependencies     = "dependencies"
-	External         = "external"
-	Exclude          = "exclude"
-	Include          = "include"
-	Reading          = "reading"
+	// Dependencies is the name of the flag that adds each component's
+	// dependencies to JSON output.
+	Dependencies = "dependencies"
+	// External is the name of the hidden flag that adds the dependencies of
+	// every discovered component, including those outside the working
+	// directory, to the results.
+	External = "external"
+	// Exclude is the name of the flag that adds each unit's exclude block to
+	// JSON output.
+	Exclude = "exclude"
+	// Include is the name of the flag that adds each unit's include paths to
+	// JSON output.
+	Include = "include"
+	// Reading is the name of the flag that adds the files each component reads
+	// to JSON output.
+	Reading = "reading"
 
-	QueueConstructAsFlagName  = "queue-construct-as"
+	// QueueConstructAsFlagName is the name of the flag that orders the results
+	// as the run queue for the given command would. It implies DAG mode.
+	QueueConstructAsFlagName = "queue-construct-as"
+	// QueueConstructAsFlagAlias is the short alias of the --queue-construct-as
+	// flag.
 	QueueConstructAsFlagAlias = "as"
 )
 
+// NewFlags returns the flags of `terragrunt find`, bound to opts.
 func NewFlags(l log.Logger, opts *Options, v *venv.Venv, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions, v)
@@ -146,7 +176,8 @@ func NewFlags(l log.Logger, opts *Options, v *venv.Venv, prefix flags.Prefix) cl
 	return append(result, filterFlags...)
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+// NewCommand returns the `terragrunt find` command.
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
 
 	// Base flags for find plus backend/feature flags
@@ -182,7 +213,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, cmdOpts)
+			return Run(ctx, l, v, s, cmdOpts)
 		},
 	}
 }

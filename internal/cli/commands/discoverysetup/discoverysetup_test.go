@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -32,7 +33,7 @@ func TestWorktreesNoGitFilters(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, opts, d)
+	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, new(rewrite.Store), opts, d)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	require.NotNil(t, cleanup)
@@ -62,7 +63,7 @@ func TestWorktreesCreationFailure(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, opts, d)
+	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, new(rewrite.Store), opts, d)
 	require.Error(t, err)
 	assert.Same(t, d, got, "failed setup must not attach worktrees to the discovery")
 	require.NotNil(t, cleanup)
@@ -106,7 +107,7 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, opts, d)
+	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, new(rewrite.Store), opts, d)
 	require.Error(t, err)
 	assert.Same(t, d, got, "failed setup must not attach worktrees to the discovery")
 	require.NotNil(t, cleanup)

@@ -7,9 +7,12 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -59,7 +62,7 @@ func TestGenerateStacksCyclicSource_FailsAtMaxLevel(t *testing.T) {
 
 	err := generate.NewGenerator().
 		WithMaxLevel(maxLevel).
-		GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, nil)
+		GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, nil)
 
 	require.ErrorContains(
 		t,
@@ -128,7 +131,7 @@ func TestGenerateStacksNestedNoDotStack(t *testing.T) {
 
 	require.NoError(
 		t,
-		generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, nil),
+		generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, nil),
 	)
 
 	assert.FileExists(
@@ -200,7 +203,7 @@ func TestGenerateStacksSkipsExcludedStackUnderGeneratedStack(t *testing.T) {
 
 			require.NoError(
 				t,
-				generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, nil),
+				generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, nil),
 			)
 
 			assert.FileExists(
@@ -294,4 +297,59 @@ func TestStackDiscoveryFilters(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, selectedPaths)
 		})
 	}
+}
+
+func TestGenerateStacksDropsRegeneratedUnitsFromTheParseStore(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	liveDir := filepath.Join(tmpDir, "live")
+	appUnitDir := filepath.Join(tmpDir, "units", "app")
+	source := filepath.Join(appUnitDir, "terragrunt.hcl")
+
+	require.NoError(t, os.MkdirAll(liveDir, 0o755))
+	require.NoError(t, os.MkdirAll(appUnitDir, 0o755))
+	require.NoError(t, os.WriteFile(source, []byte(`locals { name = "one" }`), 0o644))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(liveDir, "terragrunt.stack.hcl"),
+		fmt.Appendf(nil, `unit "app" {
+  source = %q
+  path   = "app"
+}
+`, appUnitDir),
+		0o644,
+	))
+
+	l := logger.CreateLogger()
+	v := venvtest.NewOSWithEmptyEnv()
+	ctx := config.WithCaches(t.Context())
+	s := new(rewrite.Store)
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = liveDir
+	opts.RootWorkingDir = liveDir
+	opts.Parallelism = 1
+	opts.NoCAS = true
+
+	resolvedLiveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
+
+	generated := filepath.Join(resolvedLiveDir, ".terragrunt-stack", "app", "terragrunt.hcl")
+
+	name := func() any {
+		_, pctx, err := configbridge.NewParsingContext(opts).WithConfigPath(l, generated)
+		require.NoError(t, err)
+
+		cfg, err := s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(pctx), generated)
+		require.NoError(t, err)
+
+		return cfg.Locals["name"]
+	}
+
+	require.NoError(t, generate.NewGenerator().GenerateStacks(ctx, l, v, s, opts, nil))
+	assert.Equal(t, "one", name())
+
+	require.NoError(t, os.WriteFile(source, []byte(`locals { name = "two" }`), 0o644))
+	require.NoError(t, generate.NewGenerator().GenerateStacks(ctx, l, v, s, opts, nil))
+	assert.Equal(t, "two", name())
 }

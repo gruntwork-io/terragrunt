@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	// ConfigFlagName is the flag name for `--config`, the path to the Terragrunt config file.
 	ConfigFlagName = "config"
 )
 

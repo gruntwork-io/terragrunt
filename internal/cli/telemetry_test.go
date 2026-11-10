@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -46,7 +47,7 @@ func TestWrapWithTelemetryExportsLogsOfInterruptedRun(t *testing.T) {
 	testV.Env["TG_TELEMETRY_LOGS_EXPORTER"] = "console"
 	testV.Env["TG_EXPERIMENT"] = "otel-logs"
 
-	terragruntCommands := commands.New(l, opts, testV)
+	terragruntCommands := commands.New(l, opts, testV, new(rewrite.Store))
 	setCommandAction(func(context.Context, *clihelper.Context) error {
 		l.Infof("record of interrupted run")
 		cancel()
@@ -128,7 +129,7 @@ func TestWrapWithTelemetryBoundsShutdownWhenExportStalls(t *testing.T) {
 		testV.Env["TG_TELEMETRY_LOGS_EXPORTER"] = "console"
 		testV.Env["TG_EXPERIMENT"] = "otel-logs"
 
-		terragruntCommands := commands.New(l, opts, testV)
+		terragruntCommands := commands.New(l, opts, testV, new(rewrite.Store))
 		setCommandAction(func(context.Context, *clihelper.Context) error {
 			l.Infof("record of interrupted run")
 			cancel()

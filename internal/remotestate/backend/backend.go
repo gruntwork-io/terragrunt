@@ -21,6 +21,7 @@ type Options struct {
 	FailIfBucketCreationRequired bool
 }
 
+// Backends is a list of remote state backends, looked up by name with [Backends.Get].
 type Backends []Backend
 
 // Get returns the backend by the given name.
@@ -34,6 +35,8 @@ func (backends Backends) Get(name string) Backend {
 	return nil
 }
 
+// Backend manages the storage behind one remote_state backend type, such as an S3 bucket, and the
+// arguments Terragrunt passes to `tofu init` for it.
 type Backend interface {
 	// Names returns the backend name.
 	Name() string

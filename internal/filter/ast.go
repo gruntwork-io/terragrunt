@@ -52,11 +52,17 @@ func (p *PathExpression) Glob() glob.Matcher {
 	return p.compiledGlob
 }
 
-func (p *PathExpression) expressionNode()                       {}
-func (p *PathExpression) String() string                        { return p.Value }
+func (p *PathExpression) expressionNode() {}
+func (p *PathExpression) String() string  { return p.Value }
+
+// RequiresDiscovery reports false: a path filter matches file paths without discovering components.
 func (p *PathExpression) RequiresDiscovery() (Expression, bool) { return p, false }
-func (p *PathExpression) RequiresParse() (Expression, bool)     { return p, false }
-func (p *PathExpression) IsRestrictedToStacks() bool            { return false }
+
+// RequiresParse reports false: a path filter matches file paths without parsing configuration.
+func (p *PathExpression) RequiresParse() (Expression, bool) { return p, false }
+
+// IsRestrictedToStacks reports false.
+func (p *PathExpression) IsRestrictedToStacks() bool { return false }
 
 // AttributeExpression represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeExpression struct {
@@ -107,8 +113,13 @@ func (a *AttributeExpression) supportsGlob() bool {
 
 func (a *AttributeExpression) expressionNode() {}
 
-func (a *AttributeExpression) String() string                        { return a.Key + "=" + a.Value }
+func (a *AttributeExpression) String() string { return a.Key + "=" + a.Value }
+
+// RequiresDiscovery reports true with the expression itself: attributes describe discovered components.
 func (a *AttributeExpression) RequiresDiscovery() (Expression, bool) { return a, true }
+
+// RequiresParse reports true for the reading attribute and for any attribute it does not recognize.
+// The name, type, and external attributes come from the component path and report false.
 func (a *AttributeExpression) RequiresParse() (Expression, bool) {
 	switch a.Key {
 	// All of these attributes can be determined based on the component + configuration filepath.
@@ -123,6 +134,8 @@ func (a *AttributeExpression) RequiresParse() (Expression, bool) {
 		return nil, true
 	}
 }
+
+// IsRestrictedToStacks reports whether the expression is type=stack.
 func (a *AttributeExpression) IsRestrictedToStacks() bool {
 	return a.Key == "type" && a.Value == "stack"
 }
@@ -140,12 +153,18 @@ func NewPrefixExpression(operator string, right Expression) *PrefixExpression {
 
 func (p *PrefixExpression) expressionNode() {}
 func (p *PrefixExpression) String() string  { return p.Operator + p.Right.String() }
+
+// RequiresDiscovery returns the result of the operand.
 func (p *PrefixExpression) RequiresDiscovery() (Expression, bool) {
 	return p.Right.RequiresDiscovery()
 }
+
+// RequiresParse returns the result of the operand.
 func (p *PrefixExpression) RequiresParse() (Expression, bool) {
 	return p.Right.RequiresParse()
 }
+
+// IsRestrictedToStacks reports true for a negated type filter on any type other than stack, such as "!type=unit".
 func (p *PrefixExpression) IsRestrictedToStacks() bool {
 	switch p.Operator {
 	case "!":
@@ -181,6 +200,8 @@ func (i *InfixExpression) expressionNode() {}
 func (i *InfixExpression) String() string {
 	return i.Left.String() + " " + i.Operator + " " + i.Right.String()
 }
+
+// RequiresDiscovery returns the infix expression itself when either operand requires discovery.
 func (i *InfixExpression) RequiresDiscovery() (Expression, bool) {
 	if _, ok := i.Left.RequiresDiscovery(); ok {
 		return i, true
@@ -192,6 +213,8 @@ func (i *InfixExpression) RequiresDiscovery() (Expression, bool) {
 
 	return nil, false
 }
+
+// RequiresParse returns the infix expression itself when either operand requires parsing.
 func (i *InfixExpression) RequiresParse() (Expression, bool) {
 	if _, ok := i.Left.RequiresParse(); ok {
 		return i, true
@@ -203,6 +226,8 @@ func (i *InfixExpression) RequiresParse() (Expression, bool) {
 
 	return nil, false
 }
+
+// IsRestrictedToStacks reports true for a "|" expression when either operand is restricted to stacks.
 func (i *InfixExpression) IsRestrictedToStacks() bool {
 	switch i.Operator {
 	case "|":
@@ -292,14 +317,20 @@ func (g *GraphExpression) String() string {
 
 	return result
 }
+
+// RequiresDiscovery reports true with the expression itself.
 func (g *GraphExpression) RequiresDiscovery() (Expression, bool) {
 	// Graph expressions require dependency discovery to traverse the graph
 	return g, true
 }
+
+// RequiresParse reports true with the expression itself.
 func (g *GraphExpression) RequiresParse() (Expression, bool) {
 	// Graph expressions require parsing to traverse the graph.
 	return g, true
 }
+
+// IsRestrictedToStacks reports false.
 func (g *GraphExpression) IsRestrictedToStacks() bool { return false }
 
 // GitExpression represents a Git-based filter expression (e.g., "[main...HEAD]" or "[main]").
@@ -309,6 +340,7 @@ type GitExpression struct {
 	ToRef   string
 }
 
+// NewGitExpression returns a GitExpression that matches components changed between fromRef and toRef.
 func NewGitExpression(fromRef, toRef string) *GitExpression {
 	return &GitExpression{FromRef: fromRef, ToRef: toRef}
 }
@@ -317,14 +349,20 @@ func (g *GitExpression) expressionNode() {}
 func (g *GitExpression) String() string {
 	return "[" + g.FromRef + "..." + g.ToRef + "]"
 }
+
+// RequiresDiscovery reports true with the expression itself.
 func (g *GitExpression) RequiresDiscovery() (Expression, bool) {
 	// Git filters require discovery to check which components changed between references
 	return g, true
 }
+
+// RequiresParse reports false.
 func (g *GitExpression) RequiresParse() (Expression, bool) {
 	// Git filters don't require parsing - they compare file paths, not HCL content
 	return nil, false
 }
+
+// IsRestrictedToStacks reports false.
 func (g *GitExpression) IsRestrictedToStacks() bool { return false }
 
 // GitExpressions is a slice of Git expressions.

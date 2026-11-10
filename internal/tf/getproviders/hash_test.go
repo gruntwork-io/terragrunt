@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +47,7 @@ func TestPackageHashLegacyZipSHA(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			hash, err := getproviders.PackageHashLegacyZipSHA(vfs.NewOSFS(), tc.path)
+			hash, err := getproviders.PackageHashLegacyZipSHA(venvtest.NewOSOverlayFS(), tc.path)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedHash, hash)

@@ -915,18 +915,6 @@ dependency "foo" {
 		names["foo"],
 		"dependency foo must not be double-counted after autoinclude merge",
 	)
-
-	require.NotNil(t, parsed.Dependencies)
-
-	paths := map[string]int{}
-
-	for _, p := range parsed.Dependencies.Paths {
-		paths[p]++
-	}
-
-	for p, count := range paths {
-		assert.Equal(t, 1, count, "dependency path %s must not be duplicated", p)
-	}
 }
 
 // Recursion guard: partial parsing the autoinclude file directly must return normally instead of recursing back into the autoinclude merge.
@@ -1132,10 +1120,8 @@ remote_state {
 `)
 }
 
-// A dependencies block path that overlaps a DISABLED dependency block of the same path must survive a
-// sibling autoinclude merge. The merge rebuilds the block derived path list through
-// dependencyBlocksToModuleDependencies, which skips disabled blocks, so the path is classified as
-// dependencies-block-only and preserved instead of being dropped as if a dependency block still carried it.
+// TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap pins that a dependencies block path
+// matching a disabled dependency block survives a sibling autoinclude merge.
 func TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap(t *testing.T) {
 	t.Parallel()
 

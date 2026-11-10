@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errfmt"
@@ -52,6 +53,7 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) (err error) {
 	defer func() {
@@ -176,7 +178,7 @@ func Run(
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context, l log.Logger) error {
-			return gen.GenerateStacks(ctx, l, v, opts, wts)
+			return gen.GenerateStacks(ctx, l, v, s, opts, wts)
 		})
 
 		// Handle any errors during stack generation
@@ -204,7 +206,7 @@ func Run(
 		runnerOpts = append(runnerOpts, runner.WithWorktrees(wts))
 	}
 
-	rnr, err := runner.New(ctx, l, v, opts, runnerOpts...)
+	rnr, err := runner.New(ctx, l, v, s, opts, runnerOpts...)
 	if err != nil {
 		return err
 	}

@@ -13,15 +13,13 @@ import (
 
 // dependencySet is the dependency blocks of a file that resolves its own dependencies.
 type dependencySet struct {
-	// pctx is the owning file's context.
-	pctx *pkgconfig.ParsingContext
-	// file is the owning file.
-	file *pkghclparse.File
+	// configPath is the path of the owning file.
+	configPath string
 	// blocks is the blocks of file, merged with those of its includes and autoinclude.
 	blocks pkgconfig.Dependencies
 }
 
-// newDependencySet decodes the dependency blocks of file. It fetches no outputs.
+// newDependencySet decodes the dependency blocks of file with pctx. It fetches no outputs.
 func newDependencySet(
 	ctx context.Context,
 	l log.Logger,
@@ -35,19 +33,19 @@ func newDependencySet(
 	}
 
 	return &dependencySet{
-		pctx:   pctx,
-		file:   file,
-		blocks: decoded.Dependencies,
+		configPath: file.ConfigPath,
+		blocks:     decoded.Dependencies,
 	}, nil
 }
 
-// resolve fetches the outputs of every block and returns the value of the `dependency` variable.
+// resolve fetches the outputs of every block with pctx and returns the value of the `dependency` variable.
 //
 // Returns [cty.DynamicVal] with the error when resolution fails without a value.
 func (s *dependencySet) resolve(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pctx *pkgconfig.ParsingContext,
 ) (*cty.Value, error) {
 	names := make([]string, 0, len(s.blocks))
 	for _, dep := range s.blocks {
@@ -59,14 +57,14 @@ func (s *dependencySet) resolve(
 	err := pkgconfig.TraceParseDependencies(
 		ctx,
 		l,
-		s.file.ConfigPath,
-		s.pctx.SkipOutputsResolution,
+		s.configPath,
+		pctx.SkipOutputsResolution,
 		len(s.blocks),
 		names,
 		func(ctx context.Context, l log.Logger) error {
 			var encodeErr error
 
-			result, encodeErr = pkgconfig.DependencyBlocksToCtyValue(ctx, l, v, s.pctx, s.blocks)
+			result, encodeErr = pkgconfig.DependencyBlocksToCtyValue(ctx, l, v, pctx, s.blocks)
 
 			return encodeErr
 		},
@@ -80,7 +78,8 @@ func (s *dependencySet) resolve(
 
 // dependencyValue returns the `dependency` value ToV1 decodes c with: the run's when it supplied
 // one, and otherwise the outputs of c's dependency blocks, fetched now. An included file whose including file
-// resolved none decodes its own blocks first, as pkg/config does.
+// resolved none decodes its own blocks first, as pkg/config does. It reports the files the parse read decoding the
+// blocks to pc's sinks.
 //
 // Returns the value pkg/config falls back to with the error when the fetch fails. When the parse already reported
 // that the blocks failed to decode, it returns that value and no error.
@@ -88,19 +87,23 @@ func (c *UnitConfig) dependencyValue(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	pc *ParseContext,
 ) (*cty.Value, error) {
-	if c.pc.file.decodedDeps != nil {
-		return c.pc.file.decodedDeps, nil
+	if pc.file.decodedDeps != nil {
+		return pc.file.decodedDeps, nil
 	}
 
+	for _, path := range c.dependencyReads {
+		pc.sinks.filesRead.Add(path)
+	}
+
+	pctx := pc.parsingContext()
 	set := c.deps
 
-	if c.pc.file.inheritsDependencies {
-		pctx := c.pc.parsingContext()
-
+	if pc.file.inheritsDependencies {
 		var err error
 
-		set, err = newDependencySet(ctx, l, v, pctx, c.file)
+		set, err = newDependencySet(ctx, l, v, pctx, c.boundFile(l, v, pc))
 		if err != nil {
 			return failedDependencyValue(nil), err
 		}
@@ -110,7 +113,7 @@ func (c *UnitConfig) dependencyValue(
 		return failedDependencyValue(nil), nil
 	}
 
-	return set.resolve(ctx, l, v)
+	return set.resolve(ctx, l, v, pctx)
 }
 
 // failedDependencyValue returns the value a failed resolution leaves in the `dependency` variable.

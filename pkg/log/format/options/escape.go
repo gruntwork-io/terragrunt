@@ -8,7 +8,10 @@ import (
 const EscapeOptionName = "escape"
 
 const (
+	// NoneEscape leaves the text as it is. It has no name in a format string.
 	NoneEscape EscapeValue = iota
+	// JSONEscape, `escape=json`, encodes the text as JSON and drops the first and
+	// last characters, which for a string leaves its escaped content without quotes.
 	JSONEscape
 )
 
@@ -16,8 +19,11 @@ var escapeList = NewMapValue(map[EscapeValue]string{
 	JSONEscape: "json",
 })
 
+// EscapeValue selects how [EscapeOption] escapes the text.
 type EscapeValue byte
 
+// EscapeOption is the `escape` option. It escapes the text for embedding in
+// another format.
 type EscapeOption struct {
 	*CommonOption[EscapeValue]
 }

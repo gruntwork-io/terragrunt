@@ -43,10 +43,16 @@ const (
 type GenerateConfigExists int
 
 const (
+	// ExistsError fails generation with [GenerateFileExistsError] when the target file exists.
 	ExistsError GenerateConfigExists = iota
+	// ExistsSkip leaves an existing target file in place and skips generation.
 	ExistsSkip
+	// ExistsOverwrite replaces an existing target file.
 	ExistsOverwrite
+	// ExistsOverwriteTerragrunt replaces an existing target file only when it carries
+	// [TerragruntGeneratedSignature], and fails with [GenerateFileExistsError] otherwise.
 	ExistsOverwriteTerragrunt
+	// ExistsUnknown is the value parsed from an unrecognized if_exists string.
 	ExistsUnknown
 )
 
@@ -54,20 +60,32 @@ const (
 type GenerateConfigDisabled int
 
 const (
+	// DisabledSkip leaves an existing target file in place when the generate block is disabled.
 	DisabledSkip GenerateConfigDisabled = iota
+	// DisabledRemove deletes an existing target file when the generate block is disabled.
 	DisabledRemove
+	// DisabledRemoveTerragrunt deletes an existing target file only when it carries
+	// [TerragruntGeneratedSignature], and fails with [GenerateFileRemoveError] otherwise.
 	DisabledRemoveTerragrunt
+	// DisabledUnknown is the value parsed from an unrecognized if_disabled string.
 	DisabledUnknown
 )
 
 const (
-	ExistsErrorStr               = "error"
-	ExistsSkipStr                = "skip"
-	ExistsOverwriteStr           = "overwrite"
+	// ExistsErrorStr is the if_exists value for [ExistsError].
+	ExistsErrorStr = "error"
+	// ExistsSkipStr is the if_exists value for [ExistsSkip].
+	ExistsSkipStr = "skip"
+	// ExistsOverwriteStr is the if_exists value for [ExistsOverwrite].
+	ExistsOverwriteStr = "overwrite"
+	// ExistsOverwriteTerragruntStr is the if_exists value for [ExistsOverwriteTerragrunt].
 	ExistsOverwriteTerragruntStr = "overwrite_terragrunt"
 
-	DisabledSkipStr             = "skip"
-	DisabledRemoveStr           = "remove"
+	// DisabledSkipStr is the if_disabled value for [DisabledSkip].
+	DisabledSkipStr = "skip"
+	// DisabledRemoveStr is the if_disabled value for [DisabledRemove].
+	DisabledRemoveStr = "remove"
+	// DisabledRemoveTerragruntStr is the if_disabled value for [DisabledRemoveTerragrunt].
 	DisabledRemoveTerragruntStr = "remove_terragrunt"
 
 	assumeRoleConfigKey                = "assume_role"
@@ -75,6 +93,8 @@ const (
 
 	encryptionBlockName = "encryption"
 
+	// EncryptionKeyProviderKey is the remote_state encryption map key that names the key provider
+	// type, such as pbkdf2 or aws_kms, of the generated encryption block.
 	EncryptionKeyProviderKey = "key_provider"
 	encryptionResourceName   = "default"
 

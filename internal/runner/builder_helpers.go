@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -124,6 +125,7 @@ func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	runnerOpts ...Option,
 ) (component.Components, error) {
@@ -141,7 +143,7 @@ func discoverWithRetry(
 		}, func() error {
 			var err error
 
-			discovered, err = d.Discover(childCtx, l, v, opts)
+			discovered, err = d.Discover(childCtx, l, v, s, opts)
 
 			return err
 		})
