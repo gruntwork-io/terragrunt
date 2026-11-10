@@ -230,6 +230,46 @@ func (cfg *TerragruntConfig) GetIAMRoleOptions() iam.RoleOptions {
 	return configIAMRoleOptions
 }
 
+// DependencyPaths returns the paths cfg depends on: the config_path of each enabled dependency block, then each path
+// in the dependencies block, without duplicates. A relative path is relative to the directory of the unit.
+//
+// It also returns the name of each enabled dependency block whose config_path is not a non-empty known string, in
+// declaration order. A partial parse can leave config_path unknown, and such a block has no path to return.
+func (cfg *TerragruntConfig) DependencyPaths() (paths, unresolved []string) {
+	seen := make(map[string]struct{}, len(cfg.TerragruntDependencies))
+
+	add := func(path string) {
+		if _, ok := seen[path]; ok {
+			return
+		}
+
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+
+	for i := range cfg.TerragruntDependencies {
+		dep := &cfg.TerragruntDependencies[i]
+		if !dep.isEnabled() {
+			continue
+		}
+
+		if !IsValidConfigPath(dep.ConfigPath) {
+			unresolved = append(unresolved, dep.Name)
+			continue
+		}
+
+		add(dep.ConfigPath.AsString())
+	}
+
+	if cfg.Dependencies != nil {
+		for _, path := range cfg.Dependencies.Paths {
+			add(path)
+		}
+	}
+
+	return paths, unresolved
+}
+
 // WriteTo writes the terragrunt config to a writer
 func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 	cfgAsCty, err := TerragruntConfigAsCty(cfg)
