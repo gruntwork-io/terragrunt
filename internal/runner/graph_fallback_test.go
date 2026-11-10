@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -73,7 +74,7 @@ dependency "db" {
 	require.NoError(t, parseErr)
 
 	optsOn.Filters = parsedFilters
-	runnerOn, err := runner.New(ctx, l, venvtest.NewOSWithEmptyEnv(), optsOn)
+	runnerOn, err := runner.New(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), optsOn)
 	require.NoError(t, err)
 	// Collect unit paths
 	onPaths := make([]string, 0, len(runnerOn.GetStack().Units))
@@ -90,6 +91,7 @@ dependency "db" {
 		ctx,
 		l,
 		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
 		optsOff,
 		runner.WithGraphTarget(vpcDir),
 	)

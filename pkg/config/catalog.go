@@ -37,6 +37,7 @@ var (
 	catalogBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataCatalog))
 )
 
+// CatalogConfig is the `catalog` block, which configures `terragrunt catalog`.
 type CatalogConfig struct {
 	NoShell         *bool    `hcl:"no_shell,optional"         cty:"no_shell"`
 	NoHooks         *bool    `hcl:"no_hooks,optional"         cty:"no_hooks"`

@@ -42,12 +42,13 @@ func TestFetchSource_ProbeFailureRecordsFallback(t *testing.T) {
 	var fetchCalls atomic.Int32
 
 	dst := filepath.Join(t.TempDir(), "dst")
-	require.NoError(t, c.FetchSource(ctx, l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
+	_, err := c.FetchSource(ctx, l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
 		Scheme:   "http",
 		URL:      redact.NewURL("https://example.com/mod.tgz"),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, map[string]string{"main.tf": "ok"}, &fetchCalls),
-	}))
+	})
+	require.NoError(t, err)
 	require.NoError(t, tlm.Shutdown(ctx))
 
 	assert.Equal(t, int32(1), fetchCalls.Load(), "probe failure must still download the source")

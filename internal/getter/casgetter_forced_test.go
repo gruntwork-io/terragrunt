@@ -3,6 +3,7 @@ package getter_test
 import (
 	"context"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -120,6 +121,7 @@ func TestCASGetter_GetCanonicalizesForcedAlias(t *testing.T) {
 // request when req.Forced matches its scheme. Mirrors the bare s3 and
 // gcs getters' Detect behavior.
 type forcedRequiredGetter struct {
+	lastSrc     atomic.Pointer[string]
 	scheme      string
 	detectCalls atomic.Int32
 	forcedCalls atomic.Int32
@@ -127,6 +129,9 @@ type forcedRequiredGetter struct {
 
 func (g *forcedRequiredGetter) Detect(req *gogetter.Request) (bool, error) {
 	g.detectCalls.Add(1)
+
+	src := req.Src
+	g.lastSrc.Store(&src)
 
 	if req.Forced == g.scheme {
 		g.forcedCalls.Add(1)
@@ -136,8 +141,12 @@ func (g *forcedRequiredGetter) Detect(req *gogetter.Request) (bool, error) {
 	return false, nil
 }
 
-func (g *forcedRequiredGetter) Get(_ context.Context, _ *gogetter.Request) error {
-	return nil
+func (g *forcedRequiredGetter) Get(_ context.Context, req *gogetter.Request) error {
+	if err := os.MkdirAll(req.Dst, 0o755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(filepath.Join(req.Dst, "main.tf"), []byte("ok"), 0o644)
 }
 
 func (g *forcedRequiredGetter) GetFile(_ context.Context, _ *gogetter.Request) error {

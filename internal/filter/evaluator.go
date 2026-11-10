@@ -11,16 +11,25 @@ import (
 )
 
 const (
-	AttributeName     = "name"
-	AttributeType     = "type"
+	// AttributeName matches the base name of a component directory, as in "name=my-app".
+	AttributeName = "name"
+	// AttributeType matches the component kind, as in "type=unit" or "type=stack".
+	AttributeType = "type"
+	// AttributeExternal matches whether a component lies outside the working directory, as in "external=true".
 	AttributeExternal = "external"
-	AttributeReading  = "reading"
-	AttributeSource   = "source"
+	// AttributeReading matches components that read a given file, as in "reading=shared.hcl".
+	AttributeReading = "reading"
+	// AttributeSource matches the terraform source of a component, as in "source=github.com/org/repo//module".
+	AttributeSource = "source"
 
-	AttributeTypeValueUnit  = string(component.UnitKind)
+	// AttributeTypeValueUnit is the [AttributeType] value that matches units.
+	AttributeTypeValueUnit = string(component.UnitKind)
+	// AttributeTypeValueStack is the [AttributeType] value that matches stacks.
 	AttributeTypeValueStack = string(component.StackKind)
 
-	AttributeExternalValueTrue  = "true"
+	// AttributeExternalValueTrue is the [AttributeExternal] value that matches external components.
+	AttributeExternalValueTrue = "true"
+	// AttributeExternalValueFalse is the [AttributeExternal] value that matches components inside the working directory.
 	AttributeExternalValueFalse = "false"
 
 	// MaxTraversalDepth is the maximum depth to traverse the graph for both dependencies and dependents.

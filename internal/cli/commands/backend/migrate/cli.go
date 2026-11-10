@@ -8,19 +8,24 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
+	// CommandName is the name of the `terragrunt backend migrate` command.
 	CommandName = "migrate"
 
+	// ForceBackendMigrateFlagName is the name of the flag that migrates state
+	// even when the source bucket has versioning disabled.
 	ForceBackendMigrateFlagName = "force"
 
 	usageText = "terragrunt backend migrate [options] <src-unit> <dst-unit>"
 )
 
+// NewFlags returns the flags of `terragrunt backend migrate`, bound to opts.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
@@ -41,7 +46,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	)
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+// NewCommand returns the `terragrunt backend migrate` command, which takes the
+// source and destination unit paths as its two arguments.
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmd := &clihelper.Command{
 		Name:      CommandName,
 		Usage:     "Migrate OpenTofu/Terraform state from one location to another.",
@@ -58,7 +65,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				return errors.New(usageText)
 			}
 
-			return Run(ctx, l, v, srcPath, dstPath, opts.OptionsFromContext(ctx))
+			return Run(ctx, l, v, s, srcPath, dstPath, opts.OptionsFromContext(ctx))
 		},
 	}
 

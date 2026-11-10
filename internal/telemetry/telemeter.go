@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// Telemeter collects traces, metrics, and logs for Terragrunt operations. Its zero value collects nothing.
 type Telemeter struct {
 	*Tracer
 	*Meter

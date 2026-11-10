@@ -83,7 +83,7 @@ func TestFindModules(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
+			modules, err := repo.FindModules(ctx, logger.CreateLogger(), venvtest.NewOSOverlayFS())
 			assert.Equal(t, tc.expectedErr, err)
 
 			realData := make([]moduleData, 0, len(modules))

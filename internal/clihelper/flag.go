@@ -31,17 +31,22 @@ var (
 // If the flag has multiple values, `FlagSetterFunc` will be called for each value.
 type FlagSetterFunc[T any] func(value T) error
 
+// MapFlagSetterFunc is the [FlagSetterFunc] of a [MapFlag], called once per parsed key and value.
 type MapFlagSetterFunc[K any, V any] func(key K, value V) error
 
 // FlagActionFunc represents function type that is called when the flag is specified.
 // Executed after flag have been parsed  and assigned to the `Destination` field.
 type FlagActionFunc[T any] func(ctx context.Context, cliCtx *Context, value T) error
 
+// FlagVariable is a typed flag value that can copy itself onto a new destination. [MapFlag] and
+// [SliceFlag] parse each element through a fresh copy.
 type FlagVariable[T any] interface {
 	libflag.Getter
 	Clone(dest *T) FlagVariable[T]
 }
 
+// FlagValue is the parsed value of a [Flag]. It records whether a command-line argument or an
+// env var set it.
 type FlagValue interface {
 	fmt.Stringer
 
@@ -75,6 +80,7 @@ type FlagValue interface {
 	MultipleSet() bool
 }
 
+// Flag is a command-line flag that can also take its value from env vars.
 type Flag interface {
 	fmt.Stringer
 
@@ -124,6 +130,8 @@ type Flag interface {
 	Parse(args Args, env map[string]string) error
 }
 
+// FlagValueGetter is a [FlagValue] bound to one of a flag's names or env vars. Setting a value
+// through it records that name as the source.
 type FlagValueGetter interface {
 	libflag.Getter
 
@@ -175,6 +183,8 @@ func (flag *flagValueGetter) Set(val string) error {
 	return err
 }
 
+// Value stores a flag's value. Reset clears it before the first command-line or env var value
+// replaces the default.
 type Value interface {
 	libflag.Getter
 	Reset()
@@ -297,6 +307,11 @@ func (flag *flag) AllowedSubcommandScope() bool {
 	return true
 }
 
+// ApplyFlag sets flag's value from its env vars in env, then registers each of its names with set.
+//
+// Returns an error naming the env var when its value fails to parse.
+//
+// Panics with [ErrEnvUnset] when env is nil.
 func ApplyFlag(flag Flag, set *libflag.FlagSet, env map[string]string) error {
 	if env == nil {
 		panic(ErrEnvUnset)

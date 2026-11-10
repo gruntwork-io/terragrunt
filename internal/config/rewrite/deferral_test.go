@@ -420,6 +420,41 @@ remote_state = {
 			},
 		},
 		{
+			name:         "an exposed include fails to evaluate",
+			fetches:      fetchesNowhere,
+			wantParseErr: true,
+			wantToV1Err:  true,
+			files: map[string]string{
+				"exposed.hcl": `
+inputs = {
+  region = local.missing
+}
+`,
+				"app/terragrunt.hcl": `
+include "exposed" {
+  path   = "../exposed.hcl"
+  expose = true
+}
+`,
+			},
+		},
+		{
+			name:         "engine meta reads a missing local",
+			fetches:      fetchesNowhere,
+			wantParseErr: true,
+			wantToV1Err:  true,
+			files: map[string]string{
+				"app/terragrunt.hcl": `
+engine {
+  source = "engine-source"
+  meta = {
+    region = local.missing
+  }
+}
+`,
+			},
+		},
+		{
 			name: "engine meta reads an output",
 			files: map[string]string{
 				"app/terragrunt.hcl": `
@@ -608,7 +643,7 @@ inputs = {
 	}
 }
 
-func TestParseConfigFileKeepsUnitDependencyConfigs(t *testing.T) {
+func TestResolveUnitConfigKeepsUnitDependencyConfigs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {

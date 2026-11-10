@@ -47,6 +47,7 @@ func random(lo int, hi int) int {
 	return rand.Intn(hi-lo) + lo
 }
 
+// Base62Chars is the alphabet [UniqueID] draws from.
 const Base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 const UniqueIDLength = 6 // Should be good for 62^6 = 56+ billion combinations
 

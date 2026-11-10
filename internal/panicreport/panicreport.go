@@ -164,6 +164,7 @@ func (err RecoveredError) Error() string {
 	return fmt.Sprintf("%v", err.value)
 }
 
+// ErrorStack returns the goroutine stack captured when the panic was recovered.
 func (err RecoveredError) ErrorStack() string {
 	return string(err.stack)
 }

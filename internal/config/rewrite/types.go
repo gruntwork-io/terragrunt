@@ -13,9 +13,13 @@ import (
 //
 // The tagged fields decode in the parse, which fetches no dependency outputs, so an attribute among them cannot
 // read `dependency`. The Remain of each block, and each [hcl.Attribute] field, is a queue part or a run part. The
-// parse decodes the queue parts, which [QueueBodies] names, into Queue, with no `dependency` variable in scope.
+// parse decodes the queue parts, which [QueueBodies] names, into Queue, with no `dependency` variable in scope, or an
+// unknown one for the engine block.
 // ToV1 decodes the run parts, which [RunBodies] names, with the outputs resolved. An exclude block that reads
 // `dependency` is a run part. A nil block field means the file has no such block.
+//
+// A UnitConfig is shared between the callers of a memoized parse. It holds none of a caller's settings or sinks, and
+// nothing changes it once its parse returns.
 type UnitConfig struct {
 	// Catalog is the catalog block.
 	Catalog *CatalogHCL `hcl:"catalog,block"`
@@ -79,24 +83,44 @@ type UnitConfig struct {
 	// Locals is the evaluated locals block.
 	Locals *cty.Value
 
-	// file is the parsed file.
+	// file is the parsed file, with no parser.
 	file *pkghclparse.File
-	// pc is the file's parse context after its base blocks decoded.
-	pc *ParseContext
 	// evalVars is the variables the blocks decoded with, nil when the eval context failed to build.
 	evalVars map[string]cty.Value
 	// deps is the dependency blocks of a file that resolves its own dependencies, nil when they failed to decode or
 	// an including file resolves them.
 	deps *dependencySet
+	// dependencyReads is the files decoding the dependency blocks read, which only a run reports.
+	dependencyReads []string
 	// decodeErr is the error of the file update before the decode, which leaves the blocks empty, or of the
 	// parse's decode diagnostics.
 	decodeErr error
+	// queueEngineDiags is the diagnostics of decoding Queue.Engine, which only a queue assembly reports. ToV1 decodes
+	// the block again with the outputs and reports its own.
+	queueEngineDiags hcl.Diagnostics
 	// prepErrs is the non-fatal errors of the stages before the decode.
 	prepErrs []error
+	// kept is the files the parse merged.
+	kept keptFiles
+	// scope is the file's state after its base blocks decoded.
+	scope fileScope
+}
+
+// keptFiles is the files a parse reached while merging a config.
+type keptFiles struct {
 	// autoInclude is the merged autoinclude, nil when the parse did not reach one.
 	autoInclude *includedFile
-	// includedFiles is the file each include block pulls in, nil where the parse did not reach it.
-	includedFiles []*includedFile
+	// included is the file each include block pulls in, nil where the parse did not reach it.
+	included []*includedFile
+}
+
+// newKeptFiles returns keptFiles with room for includes, which is nil for a file with no include blocks.
+func newKeptFiles(includes *Includes) *keptFiles {
+	if includes == nil {
+		return &keptFiles{}
+	}
+
+	return &keptFiles{included: make([]*includedFile, len(includes.List))}
 }
 
 // Includes is the include blocks of a file and, for an included file, the include block it is parsed through.

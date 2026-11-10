@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/ociregistry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1180,6 +1181,54 @@ terraform {
 			assert.Equal(t, "terraform", requiresCASErr.BlockType)
 		})
 	}
+}
+
+// TestStacksGenerateOCICatalogRewritesSourcesWithCAS generates an OCI catalog end to end through both waves.
+func TestStacksGenerateOCICatalogRewritesSourcesWithCAS(t *testing.T) {
+	t.Parallel()
+
+	registry := ociregistry.Start(t)
+	registry.PushModule(t, "catalog", "v1", map[string]string{
+		"stacks/svc/terragrunt.stack.hcl": `unit "a" {
+  source                 = "../..//units/a"
+  update_source_with_cas = true
+  path                   = "a"
+}
+`,
+		"units/a/terragrunt.hcl": `terraform {
+  source = "."
+}
+`,
+	})
+
+	liveDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "live")
+	require.NoError(t, os.MkdirAll(liveDir, 0o755))
+
+	stackConfig := `stack "svc" {
+  source = "oci://` + registry.Address() + `/catalog//stacks/svc?tag=v1"
+  path   = "svc"
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(stackConfig), 0o644))
+
+	// A hermetic home keeps the developer's registry credentials out of the pull.
+	home := t.TempDir()
+	v := helpers.RunVenv(t).WithEnvCloned().WithUserHomeDir(func() (string, error) { return home, nil })
+	v.Env["HOME"] = home
+	v.HTTP = registry.Client()
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+		t,
+		v,
+		"terragrunt stack generate --non-interactive --working-dir "+liveDir,
+	)
+	require.NoError(t, err)
+
+	nestedStack, err := os.ReadFile(filepath.Join(liveDir, ".terragrunt-stack", "svc", "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	assert.Regexp(t, `"cas::sha256:[a-f0-9]{64}"`, string(nestedStack))
+	assert.FileExists(t, filepath.Join(liveDir, ".terragrunt-stack", "svc", ".terragrunt-stack", "a", "terragrunt.hcl"))
 }
 
 // readCachedFiles returns the contents of every file with the given name

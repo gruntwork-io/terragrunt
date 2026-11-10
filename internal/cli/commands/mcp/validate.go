@@ -11,6 +11,7 @@ import (
 
 	hclvalidate "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -246,7 +247,7 @@ func validateDiscoveredTree(
 		disc = disc.WithWorktrees(w)
 	}
 
-	components, discErr := disc.Discover(ctx, l, v, opts)
+	components, discErr := disc.Discover(ctx, l, v, new(rewrite.Store), opts)
 	if discErr != nil && len(components) == 0 {
 		return nil, nil, discErr
 	}

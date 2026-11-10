@@ -852,6 +852,7 @@ func (p ComponentParser) pointAtUnknownMockValue(
 	return true, nil
 }
 
+// OutputsContractError reports that checking the outputs contracts of ConfigPath failed with Err.
 type OutputsContractError struct {
 	Err        error
 	ConfigPath string

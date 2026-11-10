@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -63,7 +64,7 @@ func TestGraphPhase_UpstreamCandidateContextOwnership(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
-		Discover(config.WithCaches(t.Context()), l, v, opts)
+		Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	origins := make(map[string]component.Origin, len(components))
@@ -123,7 +124,7 @@ func TestGraphPhase_UpstreamCandidateKeepsDestroyFlag(t *testing.T) {
 				}).
 				WithGitRoot(corpusRepoRoot).
 				WithFilters(filters).
-				Discover(config.WithCaches(t.Context()), l, v, opts)
+				Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 			require.NoError(t, err)
 
 			idx := slices.IndexFunc(components, func(c component.Component) bool {
@@ -190,7 +191,7 @@ func TestGraphPhase_UpstreamCandidateBailKeepsExternalMark(t *testing.T) {
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
 		WithSuppressParseErrors().
-		Discover(config.WithCaches(t.Context()), l, v, opts)
+		Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	paths := components.Paths()

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -34,8 +35,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -62,8 +62,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -89,8 +88,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -152,8 +150,7 @@ func TestRenderWriteWithoutOutputPath(t *testing.T) {
 			err := render.Run(
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-				opts,
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 			)
 			require.NoError(t, err)
 
@@ -230,8 +227,7 @@ func renderToFilePerm(t *testing.T, format, outputPath string) os.FileMode {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -250,8 +246,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid format")
@@ -268,8 +263,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -290,8 +284,7 @@ func TestRenderJSON_NumberOutOfRange(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 	)
 
 	var diags hcl.Diagnostics
@@ -443,6 +436,7 @@ func TestRenderSensitiveMockValue(t *testing.T) {
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
 				venvtest.NewOSWithEmptyEnv().WithWriter(&rendered),
+				new(rewrite.Store),
 				opts,
 			)
 			require.NoError(t, err)

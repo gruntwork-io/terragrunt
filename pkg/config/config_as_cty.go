@@ -164,6 +164,8 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	return ConvertValuesMapToCtyVal(output)
 }
 
+// TerragruntConfigAsCtyWithMetadata converts config to the cty object `terragrunt render --with-metadata` prints. Each
+// field becomes an object of its value and the field metadata recording which file set it.
 func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, error) {
 	output := map[string]cty.Value{}
 

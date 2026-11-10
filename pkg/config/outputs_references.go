@@ -15,6 +15,7 @@ import (
 
 const maxBlockNesting = 32
 
+// DependencyOutputReference is a reference to a dependency output in a unit, with the range of the expression.
 type DependencyOutputReference struct {
 	Instance   hclparse.InstanceKey
 	Dependency string

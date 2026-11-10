@@ -10,23 +10,29 @@ import (
 )
 
 const (
-	MetadataOutputs      = "outputs"
-	MetadataOutput       = "output"
+	// MetadataOutputs names the `outputs` block.
+	MetadataOutputs = "outputs"
+	// MetadataOutput names the `output` blocks of the `outputs` block.
+	MetadataOutput = "output"
+	// MetadataMockStrategy names the `mock_strategy` block of the `outputs` block.
 	MetadataMockStrategy = "mock_strategy"
 )
 
 var mockMergeStrategies = []MergeStrategyType{NoMerge, ShallowMerge, DeepMergeMapOnly}
 
+// OutputsConfig is the outputs block of a unit.
 type OutputsConfig struct {
 	MockStrategy *OutputsMockStrategy `hcl:"mock_strategy,block"`
 	Outputs      []*OutputDeclaration `hcl:"output,block"`
 }
 
+// OutputsMockStrategy is the mock_strategy block of an outputs block.
 type OutputsMockStrategy struct {
 	AllowedCommands *[]string          `hcl:"allowed_commands,attr"`
 	MergeWithState  *MergeStrategyType `hcl:"merge_with_state,attr"`
 }
 
+// OutputDeclaration is an output block of an outputs block.
 type OutputDeclaration struct {
 	MockValue *cty.Value `hcl:"mock_value,optional"`
 	Name      string     `hcl:"name,label"`

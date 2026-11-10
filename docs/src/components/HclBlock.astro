@@ -3,6 +3,8 @@ import { render, type CollectionEntry } from 'astro:content';
 import HclBlockAttribute from '@components/HclBlockAttribute.astro';
 import HclConfigs from '@components/HclConfigs.astro';
 import HclExamples from '@components/HclExamples.astro';
+import ReferenceCard from '@components/ReferenceCard.astro';
+import { renderMarkdownField } from '@lib/hcl/markdown';
 
 interface Props {
 	entry: CollectionEntry<'hclBlocks'>;
@@ -10,6 +12,12 @@ interface Props {
 
 const { entry } = Astro.props;
 const { Content } = await render(entry);
+const labels = await Promise.all(
+	(entry.data.labels ?? []).map(async ({ name, description }) => ({
+		name,
+		descriptionHtml: await renderMarkdownField(description),
+	})),
+);
 const attributes = entry.data.attributes ?? [];
 ---
 
@@ -20,6 +28,19 @@ const attributes = entry.data.attributes ?? [];
 <Content />
 
 {entry.data.examples && <HclExamples examples={entry.data.examples} />}
+
+{
+	labels.length > 0 && (
+		<>
+			<h2 id="labels">Labels</h2>
+			{labels.map(({ name, descriptionHtml }) => (
+				<ReferenceCard title={name}>
+					<Fragment set:html={descriptionHtml} />
+				</ReferenceCard>
+			))}
+		</>
+	)
+}
 
 {
 	attributes.length > 0 && (

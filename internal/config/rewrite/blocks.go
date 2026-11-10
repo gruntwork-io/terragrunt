@@ -156,16 +156,19 @@ type IgnoreBody struct {
 	IgnorableErrors []string             `hcl:"ignorable_errors,attr"`
 }
 
+// OutputsHCL is an outputs block.
 type OutputsHCL struct {
 	MockStrategy *MockStrategyHCL `hcl:"mock_strategy,block"`
 	Output       []OutputHCL      `hcl:"output,block"`
 }
 
+// MockStrategyHCL is the mock_strategy block of an outputs block.
 type MockStrategyHCL struct {
 	AllowedCommands *[]string                    `hcl:"allowed_commands,attr"`
 	MergeWithState  *pkgconfig.MergeStrategyType `hcl:"merge_with_state,attr"`
 }
 
+// OutputHCL is an output block of an outputs block.
 type OutputHCL struct {
 	MockValue *cty.Value `hcl:"mock_value,optional"`
 	Name      string     `hcl:"name,label"`

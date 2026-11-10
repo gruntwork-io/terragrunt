@@ -35,9 +35,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
+// ContextKey is the context key under which [TerragruntOptions.OptionsFromContext] looks for options.
 const ContextKey ctxKey = iota
 
 const (
+	// DefaultMaxFoldersToCheck is the default number of parent directories searches such as
+	// `find_in_parent_folders` walk before giving up.
 	DefaultMaxFoldersToCheck = 100
 
 	// DefaultParallelism sets no limit on parallelism.
@@ -52,13 +55,17 @@ const (
 	// DefaultJSONOutName is the default name of the rendered JSON file written to the terragrunt config directory.
 	DefaultJSONOutName = "terragrunt_rendered.json"
 
+	// DefaultSignalsFile is the file, in the working directory, that an ignored error writes the `signals` of its
+	// `ignore` block to.
 	DefaultSignalsFile = "error-signals.json"
 
+	// DefaultTFDataDir is the data directory OpenTofu/Terraform uses when `TF_DATA_DIR` is unset.
 	DefaultTFDataDir = ".terraform"
 
 	defaultExcludesFile = ".terragrunt-excludes"
 	defaultFiltersFile  = ".terragrunt-filters"
 
+	// DefaultLogLevel is the log level when none is set.
 	DefaultLogLevel = log.InfoLevel
 )
 
@@ -367,6 +374,9 @@ func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
 	}
 }
 
+// NewTerragruntOptionsWithConfigPath returns [NewTerragruntOptions] set up for the config at terragruntConfigPath,
+// made absolute. The working directory is the config's directory, and the download directory is the
+// `.terragrunt-cache` inside it. An empty terragruntConfigPath stays empty.
 func NewTerragruntOptionsWithConfigPath(
 	e vexec.Exec,
 	terragruntConfigPath string,

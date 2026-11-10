@@ -728,8 +728,11 @@ func tryCASDownload(
 // outright, and while --cas-offline is set no source reaching here has a
 // fallback left: a local path never gets this far, so every route the
 // standard getter has is to the remote the flag forbids.
+// A checksum mismatch or an unresolved subdir glob fails the same way after a second download.
 func casFailureIsFatal(opts *Options, err error) bool {
-	if errors.Is(err, cas.ErrCASOffline) {
+	var checksumErr *getter.ChecksumError
+
+	if errors.Is(err, cas.ErrCASOffline) || errors.Is(err, getter.ErrSubdirNotResolved) || errors.As(err, &checksumErr) {
 		return true
 	}
 
@@ -798,6 +801,8 @@ func ValidateWorkingDir(fsys vfs.FS, terraformSource *tf.Source) error {
 	return nil
 }
 
+// WorkingDirNotFound is returned by [ValidateWorkingDir] when the working directory inside the downloaded source
+// does not exist.
 type WorkingDirNotFound struct {
 	Source string
 	Dir    string
@@ -807,6 +812,8 @@ func (err WorkingDirNotFound) Error() string {
 	return fmt.Sprintf("Working dir %s from source %s does not exist", err.Dir, err.Source)
 }
 
+// WorkingDirNotDir is returned by [ValidateWorkingDir] when the working directory path inside the downloaded
+// source is not a directory.
 type WorkingDirNotDir struct {
 	Source string
 	Dir    string
@@ -816,6 +823,8 @@ func (err WorkingDirNotDir) Error() string {
 	return fmt.Sprintf("Valid working dir %s from source %s", err.Dir, err.Source)
 }
 
+// DownloadingTerraformSourceErr is the error for a terraform source that failed to download. It wraps the
+// download error.
 type DownloadingTerraformSourceErr struct {
 	ErrMsg error
 	URL    redact.URL

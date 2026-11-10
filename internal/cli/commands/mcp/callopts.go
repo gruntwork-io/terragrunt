@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -242,7 +243,7 @@ func discoverDegraded(
 	disc *discovery.Discovery,
 	tool string,
 ) (component.Components, []string) {
-	components, err := disc.Discover(ctx, l, v, opts)
+	components, err := disc.Discover(ctx, l, v, new(rewrite.Store), opts)
 
 	var degraded []string
 

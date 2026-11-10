@@ -398,17 +398,9 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		sourceConfig.TerragruntDependencies,
 	)
 
-	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
+	cfg.Dependencies = mergeModuleDependencies(cfg.Dependencies, sourceConfig.Dependencies)
 
-	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
-	// dependencies block!
-	if sourceConfig.Dependencies != nil {
-		if cfg.Dependencies == nil {
-			cfg.Dependencies = sourceConfig.Dependencies
-		} else {
-			cfg.Dependencies.Merge(sourceConfig.Dependencies)
-		}
-	}
+	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
 
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
 	// child's generate block will override the parent's block.
@@ -515,48 +507,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		cfg.Outputs.Merge(sourceConfig.Outputs)
 	}
 
-	// Copy only dependencies which doesn't exist in source
-	if sourceConfig.Dependencies != nil {
-		resultModuleDependencies := &ModuleDependencies{}
-
-		if cfg.Dependencies != nil {
-			// take in result dependencies only paths which aren't defined in source
-			// Fix for issue: https://github.com/gruntwork-io/terragrunt/issues/1900
-			targetPathMap := fetchDependencyPaths(cfg)
-			sourcePathMap := fetchDependencyPaths(sourceConfig)
-
-			for key, value := range targetPathMap {
-				_, found := sourcePathMap[key]
-				if !found {
-					resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, value)
-				}
-			}
-			// copy target paths which are defined only in Dependencies and not in TerragruntDependencies
-			// if TerragruntDependencies will be empty, all targetConfig.Dependencies.Paths will be copied to resultModuleDependencies.Paths
-			for _, dependencyPath := range cfg.Dependencies.Paths {
-				var addPath = true
-
-				for _, targetPath := range targetPathMap {
-					if dependencyPath == targetPath { // path already defined in TerragruntDependencies, skip adding
-						addPath = false
-						break
-					}
-				}
-
-				if addPath {
-					resultModuleDependencies.Paths = append(
-						resultModuleDependencies.Paths,
-						dependencyPath,
-					)
-				}
-			}
-		}
-
-		resultModuleDependencies.Paths = append(
-			resultModuleDependencies.Paths,
-			sourceConfig.Dependencies.Paths...)
-		cfg.Dependencies = resultModuleDependencies
-	}
+	cfg.Dependencies = mergeModuleDependencies(cfg.Dependencies, sourceConfig.Dependencies)
 
 	// Dependency blocks are deep merged by name
 	mergedDeps, err := deepMergeDependencyBlocks(
@@ -640,22 +591,20 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	return nil
 }
 
-// fetchDependencyPaths returns each dependency's config path, keyed the way include
-// merging matches dependencies up. A dependency whose config_path is not a known string
-// has no path to carry over, so it is left out, as [Dependency.DeepMerge] ignores it too.
-func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
-	var m = make(map[string]string)
-	if config == nil {
-		return m
+// mergeModuleDependencies appends the paths of source that target lacks to target and returns it. The result never
+// shares a slice with source.
+func mergeModuleDependencies(target, source *ModuleDependencies) *ModuleDependencies {
+	if source == nil {
+		return target
 	}
 
-	for _, dependency := range config.TerragruntDependencies {
-		if configPath, ok := dependency.configPathString(); ok {
-			m[dependency.Address()] = configPath
-		}
+	if target == nil {
+		return &ModuleDependencies{Paths: slices.Clone(source.Paths)}
 	}
 
-	return m
+	target.Merge(source)
+
+	return target
 }
 
 // merge feature flags by name.
@@ -1153,12 +1102,15 @@ func validateGenerateConfigs(
 
 // Custom error types
 
+// MultipleBareIncludeBlocksErr reports a config with more than one `include` block without a label. In HCL JSON,
+// it also reports an `include` array of more than one block; the object encoding avoids it.
 type MultipleBareIncludeBlocksErr struct{}
 
 func (err MultipleBareIncludeBlocksErr) Error() string {
 	return "Multiple bare include blocks (include blocks without label) is not supported."
 }
 
+// IncludeIsNotABlockErr reports an HCL JSON config whose `include` key is neither an array nor an object.
 type IncludeIsNotABlockErr struct {
 	parsed any
 }

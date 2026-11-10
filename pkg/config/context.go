@@ -13,19 +13,37 @@ import (
 type configKey byte
 
 const (
-	HclCacheContextKey                  configKey = iota
-	TerragruntConfigCacheContextKey     configKey = iota
-	RunCmdCacheContextKey               configKey = iota
-	DependencyOutputCacheContextKey     configKey = iota
-	JSONOutputCacheContextKey           configKey = iota
-	OutputLocksContextKey               configKey = iota
-	SopsCacheContextKey                 configKey = iota
-	SopsLocksContextKey                 configKey = iota
-	AutoIncludeSuffixCacheContextKey    configKey = iota
-	ParentFileProbeCacheContextKey      configKey = iota
+	// HclCacheContextKey is the context key of the cache of parsed HCL files.
+	HclCacheContextKey configKey = iota
+	// TerragruntConfigCacheContextKey is the context key of the cache of partially parsed configs.
+	TerragruntConfigCacheContextKey configKey = iota
+	// RunCmdCacheContextKey is the context key of the cache of `run_cmd` results.
+	RunCmdCacheContextKey configKey = iota
+	// DependencyOutputCacheContextKey is the context key of the cache of each dependency's `enabled` value and
+	// inputs, keyed by the dependency's config path.
+	DependencyOutputCacheContextKey configKey = iota
+	// JSONOutputCacheContextKey is the context key of the cache of dependency outputs as JSON, keyed by the
+	// dependency's config path.
+	JSONOutputCacheContextKey configKey = iota
+	// OutputLocksContextKey is the context key of the per-unit locks held while fetching dependency outputs.
+	OutputLocksContextKey configKey = iota
+	// SopsCacheContextKey is the context key of the cache of `sops_decrypt_file` results, keyed by file path.
+	SopsCacheContextKey configKey = iota
+	// SopsLocksContextKey is the context key of the per-file locks held while a file is decrypted.
+	SopsLocksContextKey configKey = iota
+	// AutoIncludeSuffixCacheContextKey is the context key of the cache of autoinclude suffixes added to partial
+	// parse cache keys.
+	AutoIncludeSuffixCacheContextKey configKey = iota
+	// ParentFileProbeCacheContextKey is the context key of the cache of `find_in_parent_folders` file existence
+	// checks.
+	ParentFileProbeCacheContextKey configKey = iota
+	// ReadTerragruntConfigCacheContextKey is the context key of the cache of `read_terragrunt_config` results.
 	ReadTerragruntConfigCacheContextKey configKey = iota
-	RunCmdLocksContextKey               configKey = iota
-	DeclaredOutputsCacheContextKey      configKey = iota
+	// RunCmdLocksContextKey is the context key of the per-command locks that make concurrent identical `run_cmd`
+	// calls wait for the first.
+	RunCmdLocksContextKey configKey = iota
+	// DeclaredOutputsCacheContextKey is the context key of the cache of the outputs blocks read for dependencies.
+	DeclaredOutputsCacheContextKey configKey = iota
 
 	hclCacheName               = "hclCache"
 	configCacheName            = "configCache"
