@@ -10,7 +10,11 @@ import (
 )
 
 const (
+	// TerraformCommandContextKey is the context key for the [RunShellCommandFunc] set by
+	// [ContextWithTerraformCommandHook].
 	TerraformCommandContextKey ctxKey = iota
+	// DetailedExitCodeContextKey is the context key for the [DetailedExitCodeMap] set by
+	// [ContextWithDetailedExitCode].
 	DetailedExitCodeContextKey
 )
 

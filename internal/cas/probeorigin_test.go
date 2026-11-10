@@ -43,14 +43,15 @@ func TestProbeOriginStampedOnlyByFetchSource(t *testing.T) {
 	require.NoError(t, err)
 
 	fetchCtx, fetchSpan := tracer.Start(t.Context(), "cas_fetch_source")
-	require.NoError(t, c.FetchSource(fetchCtx, l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
+	_, err = c.FetchSource(fetchCtx, l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
 		cas.SourceRequest{
 			Scheme:       "git",
 			URL:          redact.NewURL("https://example.com/probe-origin.git"),
 			Resolver:     &cas.GitResolver{Venv: v, Branch: "main"},
 			Fetch:        ingestFixture(t, c),
 			ProbeCaching: cas.ProbeCachedByResolver,
-		}))
+		})
+	require.NoError(t, err)
 	fetchSpan.End()
 
 	stackCtx, stackSpan := tracer.Start(t.Context(), "stack_generate_unit")

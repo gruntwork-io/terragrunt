@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -321,7 +322,7 @@ func TestCreateTempDirFailures(t *testing.T) {
 	t.Run("temp directory cannot be removed", func(t *testing.T) {
 		t.Parallel()
 
-		v := venvtest.New()
+		v := venv.MemVenv()
 		v = v.WithFS(removeRefusingFS{FS: v.FS})
 
 		_, cleanup, err := newMemRunner(t, staticResult(vexec.Result{})).CreateTempDir(v)
@@ -616,7 +617,7 @@ func (removeRefusingFS) RemoveAll(string) error {
 func newMemRunner(t *testing.T, h vexec.Handler) *git.GitRunner {
 	t.Helper()
 
-	r, err := git.NewGitRunner(venvtest.New().WithExec(vexec.NewMemExec(h)))
+	r, err := git.NewGitRunner(venv.MemVenv().WithExec(vexec.NewMemExec(h)))
 	require.NoError(t, err)
 
 	return r
@@ -640,7 +641,7 @@ func newArgvCapturingRunner(t *testing.T, captured *[]string, stdout []byte) *gi
 		return vexec.Result{Stdout: stdout}
 	})
 
-	r, err := git.NewGitRunner(venvtest.New().WithExec(e))
+	r, err := git.NewGitRunner(venv.MemVenv().WithExec(e))
 	require.NoError(t, err)
 
 	return r

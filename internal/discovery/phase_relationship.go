@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -62,11 +63,12 @@ func (p *RelationshipPhase) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
 
-	err := p.runRelationshipDiscovery(ctx, l, v, input, results)
+	err := p.runRelationshipDiscovery(ctx, l, v, s, input, results)
 
 	return results, err
 }
@@ -76,6 +78,7 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 	_ *PhaseResults,
 ) error {
@@ -113,7 +116,7 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 		g.Go(func() error {
 			tracker := newTerminalTracker(componentsByPath, c.Path())
 
-			err := p.discoverRelationships(ctx, l, v, state, c, tracker, p.maxDepth)
+			err := p.discoverRelationships(ctx, l, v, s, state, c, tracker, p.maxDepth)
 			if err != nil {
 				errMu.Lock()
 
@@ -142,6 +145,7 @@ func (p *RelationshipPhase) discoverRelationships(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	state *relationshipTraversalState,
 	c component.Component,
 	tracker *terminalTracker,
@@ -162,7 +166,7 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagRelationship)
 
-	if err := ensureParsed(ctx, l, v, c, state.opts, state.discovery); err != nil {
+	if err := ensureParsed(ctx, l, v, s, c, state.opts, state.discovery); err != nil {
 		return err
 	}
 
@@ -220,6 +224,7 @@ func (p *RelationshipPhase) discoverRelationships(
 				contextWithIncrementedParseDepth(ctx),
 				l,
 				v,
+				s,
 				state,
 				dep,
 				tracker,

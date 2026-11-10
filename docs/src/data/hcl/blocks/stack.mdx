@@ -1,0 +1,231 @@
+---
+name: stack
+description: Defines a nested stack that Terragrunt generates from a stack file.
+configs: [stack]
+labels:
+  - name: name
+    description: Names the stack. Names are unique within a stack file. [`terragrunt stack output`](/reference/cli/commands/stack/output) nests the stack's outputs under its name, and `stack.<name>.path` refers to its generated directory in [`autoinclude`](/reference/hcl/blocks/autoinclude/) blocks and in `values`.
+attributes:
+  - name: source
+    type: string
+    required: true
+    description: Where to fetch the stack's `terragrunt.stack.hcl` file from, in the same syntax as the `source` attribute of the [`terraform`](/reference/hcl/blocks#terraform) block. The [`--source-map`](/reference/cli/commands/run#source-map) flag can replace it.
+    example: |
+      # terragrunt.stack.hcl
+
+      stack "web" {
+        source = "git::https://github.com/acme/stacks.git//web?ref=v1.0.0"
+        path   = "web"
+      }
+  - name: path
+    type: string
+    required: true
+    description: The directory to generate the stack in, relative to the parent stack's `.terragrunt-stack` directory. Each stack in a stack file needs its own path. Terragrunt rejects an absolute path and a path that leaves the stack directory.
+    example: |
+      # terragrunt.stack.hcl
+
+      stack "dev" {
+        source = "../catalog/stacks/environment"
+        path   = "environments/dev"
+      }
+  - name: values
+    type: map(any)
+    description: Values to write to a `terragrunt.values.hcl` file next to the generated `terragrunt.stack.hcl` file. The nested stack file reads each one as `values.<name>`. A `terragrunt.values.hcl` file in the stack's source supplies the values when the block sets none, and `values` replaces it otherwise.
+    example: |
+      # terragrunt.stack.hcl
+
+      stack "dev" {
+        source = "../catalog/stacks/environment"
+        path   = "dev"
+
+        values = {
+          environment = "development"
+          cidr        = "10.0.0.0/16"
+        }
+      }
+  - name: enabled
+    type: bool
+    default: "true"
+    description: When `false`, Terragrunt skips the stack during stack generation and leaves it out of [`terragrunt stack output`](/reference/cli/commands/stack/output). Changing it leaves the stack's address and path unchanged. See [`enabled` vs `expansion`](/reference/hcl/blocks/expansion#enabled-vs-expansion).
+    example: |
+      # terragrunt.stack.hcl
+
+      locals {
+        deploy_staging = false
+      }
+
+      stack "staging" {
+        source = "../catalog/stacks/environment"
+        path   = "staging"
+
+        enabled = local.deploy_staging
+      }
+  - name: no_dot_terragrunt_stack
+    type: bool
+    default: "false"
+    description: Resolves `path` against the parent stack file's directory, so the stack is generated outside `.terragrunt-stack`. Use it to move existing units into a stack file without moving their directories or their state. See [Where the stack is generated](/reference/hcl/blocks/stack#where-the-stack-is-generated).
+    example: |
+      # terragrunt.stack.hcl
+
+      stack "prod" {
+        source = "../catalog/stacks/environment"
+        path   = "prod"
+
+        no_dot_terragrunt_stack = true
+      }
+  - name: no_validation
+    type: bool
+    default: "false"
+    description: Skips the check that the generated directory has a `terragrunt.stack.hcl` file at its root. Terragrunt also skips it for a stack with `no_dot_terragrunt_stack` set. The [`--no-stack-validate`](/reference/cli/commands/stack/generate) flag skips it for every unit and stack.
+    example: |
+      # terragrunt.stack.hcl
+
+      stack "legacy" {
+        source = "../catalog/stacks/legacy"
+        path   = "legacy"
+
+        no_validation = true
+      }
+  - name: update_source_with_cas
+    type: bool
+    default: "false"
+    description: Lets a catalog's stack file give `source` as a path relative to the catalog. Terragrunt rewrites it to a reference into its content-addressable store. See [CAS integration](/features/stacks/explicit#cas-integration).
+    example: |
+      # stacks/platform/terragrunt.stack.hcl
+
+      stack "service" {
+        source = "../..//stacks/service"
+        path   = "service"
+
+        update_source_with_cas = true
+      }
+  - name: mutable
+    type: bool
+    default: "false"
+    description: Makes the files Terragrunt copies from its content-addressable store into the stack's directory writable. Terragrunt writes them read-only by default, so an edit can't reach the shared store.
+    example: |
+      # terragrunt.stack.hcl
+
+      stack "service" {
+        source = "git::https://github.com/acme/stacks.git//app?ref=v1.0.0"
+        path   = "service"
+
+        mutable = true
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import SideBySide from '@components/SideBySide.astro';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+The `stack` block defines a nested stack in a `terragrunt.stack.hcl` file. [`terragrunt stack generate`](/reference/cli/commands/stack/generate) fetches the stack's `terragrunt.stack.hcl` file from `source` into `path`, writes `values` to a `terragrunt.values.hcl` file next to it, then generates the units and stacks that file defines:
+
+<SideBySide>
+
+```hcl title="terragrunt.stack.hcl" {4-6}
+stack "dev" {
+  source = "../catalog/stacks/env"
+  path   = "dev"
+  values = {
+    cidr = "10.0.0.0/16"
+  }
+}
+```
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - dev
+    - **terragrunt.stack.hcl**
+    - **terragrunt.values.hcl**
+    - .terragrunt-stack
+      - vpc
+        - terragrunt.hcl
+      - database
+        - terragrunt.hcl
+
+</FileTree>
+
+</SideBySide>
+
+The generated `terragrunt.stack.hcl` file comes from `source`, reads `values` from `terragrunt.values.hcl`, and can pass them on to its own units:
+
+```hcl title=".terragrunt-stack/dev/terragrunt.stack.hcl" {5}
+unit "vpc" {
+  source = "git::https://github.com/acme/units.git//vpc?ref=v1.0.0"
+  path   = "vpc"
+  values = {
+    cidr = values.cidr
+  }
+}
+```
+
+<Aside type="caution" title="Use a remote source in the nested stack file">
+
+A relative `source` in the nested stack file resolves against `.terragrunt-stack/dev`, not the catalog the file came from.
+
+A path written relative to the catalog then points at nothing, and generation fails with `relative paths require a module with a pwd`.
+
+Use a remote source, or set [`update_source_with_cas`](/reference/hcl/blocks/stack#update_source_with_cas) in the catalog.
+
+</Aside>
+
+### Where the stack is generated
+
+`path` is relative to the parent stack's `.terragrunt-stack` directory. Set [`no_dot_terragrunt_stack`](/reference/hcl/blocks/stack#no_dot_terragrunt_stack) to make it relative to the parent stack file's directory instead:
+
+<SideBySide>
+
+<div>
+
+By default:
+
+```hcl title="terragrunt.stack.hcl"
+stack "prod" {
+  source = "../catalog/stacks/env"
+  path   = "prod"
+}
+```
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - prod
+    - **terragrunt.stack.hcl**
+
+</FileTree>
+
+</div>
+
+<div>
+
+With `no_dot_terragrunt_stack`:
+
+```hcl title="terragrunt.stack.hcl" ins={5}
+stack "prod" {
+  source = "../catalog/stacks/env"
+  path   = "prod"
+
+  no_dot_terragrunt_stack = true
+}
+```
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- prod
+  - **terragrunt.stack.hcl**
+
+</FileTree>
+
+</div>
+
+</SideBySide>
+
+### Related blocks
+
+To generate more than one stack from a block, add an [`expansion`](/reference/hcl/blocks/expansion/) block. To add units or stacks to the generated stack, add an [`autoinclude`](/reference/hcl/blocks/autoinclude/) block.
+
+To choose between a `unit` block and a `stack` block, see [Unit and stack blocks](/reference/hcl/stacks/#unit-and-stack-blocks).

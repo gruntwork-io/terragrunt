@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -42,7 +43,7 @@ func TestRun_RejectsDisabledCommands(t *testing.T) {
 
 			opts := newRunOptions(t, command)
 
-			err := runall.Run(t.Context(), logger.CreateLogger(), venvtest.New(), opts)
+			err := runall.Run(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(rewrite.Store), opts)
 
 			var disabled runall.RunAllDisabledErr
 
@@ -97,7 +98,7 @@ func TestRun_SummaryFollowsOutputMode(t *testing.T) {
 				tc.configure(opts)
 			}
 
-			require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
+			require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
 
 			require.True(t, rec.ran(tc.command), "the %s command should run in the unit", tc.command)
 			assert.Equal(t, tc.wantSummary, strings.Contains(out.String(), summaryHeader))
@@ -111,7 +112,13 @@ func TestRun_ReturnsUnitFailure(t *testing.T) {
 	rec := &tofuRecorder{fail: "plan"}
 	v, out := newRunVenv(t, rec, oneUnit())
 
-	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, newRunOptions(t, "plan"))
+	err := runall.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		v,
+		new(rewrite.Store),
+		newRunOptions(t, "plan"),
+	)
 
 	var execErr *util.ProcessExecutionError
 
@@ -133,7 +140,7 @@ func TestRun_DeclinedConfirmationCancels(t *testing.T) {
 			opts := newRunOptions(t, command)
 			opts.NonInteractive = false
 
-			err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+			err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 
 			require.ErrorIs(t, err, runall.ErrUserCancelled)
 			assert.False(t, rec.ran(command), "a declined %s should not reach any unit", command)
@@ -152,7 +159,7 @@ func TestRun_ConfirmationPromptFailureFails(t *testing.T) {
 	opts := newRunOptions(t, "apply")
 	opts.NonInteractive = false
 
-	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 
 	require.ErrorIs(t, err, errWrite, "a prompt that cannot be shown should fail the run")
 	assert.False(t, rec.ran("apply"), "no unit should run without confirmation")
@@ -173,7 +180,7 @@ func TestRun_WritesReportFiles(t *testing.T) {
 	opts.ReportFormat = "json"
 	opts.SummaryPerUnit = true
 
-	require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
+	require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
 
 	reportData, err := vfs.ReadFile(v.FS, reportFile)
 	require.NoError(t, err, "the report should be written")
@@ -241,7 +248,7 @@ unit "vpc" {
 			opts := newRunOptions(t, "plan")
 			opts.NoStackGenerate = tc.noGenerate
 
-			require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
+			require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
 
 			exists, err := vfs.FileExists(v.FS, generated)
 			require.NoError(t, err)
@@ -262,7 +269,13 @@ func TestRun_InvalidStackFileFails(t *testing.T) {
 	rec := &tofuRecorder{}
 	v, _ := newRunVenv(t, rec, map[string]string{config.DefaultStackFile: `unit "vpc" {`})
 
-	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, newRunOptions(t, "plan"))
+	err := runall.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		v,
+		new(rewrite.Store),
+		newRunOptions(t, "plan"),
+	)
 
 	require.Error(t, err, "an invalid stack file should fail the run")
 	assert.False(t, rec.ran("plan"), "no unit should run when generation fails")
@@ -283,7 +296,7 @@ func TestRun_SourceUpdateCleansGeneratedStacks(t *testing.T) {
 	opts := newRunOptions(t, "plan")
 	opts.SourceUpdate = true
 
-	require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
+	require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
 
 	exists, err = vfs.FileExists(v.FS, stale)
 	require.NoError(t, err)
@@ -297,7 +310,7 @@ func TestRun_SourceUpdateCleanFailureFails(t *testing.T) {
 	opts.SourceUpdate = true
 	opts.WorkingDir = "/missing"
 
-	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venvtest.New(), opts)
+	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(), new(rewrite.Store), opts)
 
 	require.ErrorIs(t, err, fs.ErrNotExist, "a failed clean should stop the run")
 }
@@ -311,7 +324,7 @@ func TestRun_GitFilterNeedsGit(t *testing.T) {
 	opts := newRunOptions(t, "plan")
 	opts.Filters = filter.Filters{gitFilter}
 
-	err = runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venvtest.New(), opts)
+	err = runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(), new(rewrite.Store), opts)
 
 	require.ErrorIs(t, err, vexec.ErrNoSpawn, "a git filter should build worktrees with git first")
 }
@@ -353,7 +366,6 @@ type tofuRecorder struct {
 	mu   sync.Mutex
 }
 
-// tofuRun is one tofu invocation: its first argument and the directory it ran in.
 type tofuRun struct {
 	command string
 	dir     string
@@ -413,7 +425,7 @@ func newRunVenv(t *testing.T, rec *tofuRecorder, files map[string]string) (*venv
 
 	out := &lockedWriter{}
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithExec(vexec.NewMemExec(rec.handler())).
 		WithFS(venvtest.NewFS(t, runRoot, files))
 	v.Writers.Writer = out

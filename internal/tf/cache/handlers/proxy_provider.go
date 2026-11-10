@@ -18,8 +18,10 @@ import (
 const (
 	// ProviderDownloadURLName, ProviderSHASumsURLName and ProviderSHASumsSignatureURLName name the three URLs of a
 	// provider's assets: zipped binary, hashes and signature.
-	ProviderDownloadURLName         providerURLName = "download_url"
-	ProviderSHASumsURLName          providerURLName = "shasums_url"
+	ProviderDownloadURLName providerURLName = "download_url"
+	// ProviderSHASumsURLName is the platform response field with the URL of the SHA256SUMS document.
+	ProviderSHASumsURLName providerURLName = "shasums_url"
+	// ProviderSHASumsSignatureURLName is the platform response field with the URL of the SHA256SUMS signature.
 	ProviderSHASumsSignatureURLName providerURLName = "shasums_signature_url"
 )
 
@@ -34,11 +36,13 @@ var (
 
 type providerURLName string
 
+// ProxyProviderHandler forwards provider requests to the registry and rewrites the asset URLs in its answers to point back at the cache server.
 type ProxyProviderHandler struct {
 	*CommonProviderHandler
 	*helpers.ReverseProxy
 }
 
+// NewProxyProviderHandler returns a handler that sends requests over the transport of c and authenticates to registries with credsSource.
 func NewProxyProviderHandler(
 	l log.Logger,
 	c vhttp.Client,

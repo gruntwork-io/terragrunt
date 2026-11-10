@@ -104,12 +104,18 @@ func (b *AzureConfigBuilder) WithSessionConfig(cfg *AzureSessionConfig) *AzureCo
 type AuthMethod string
 
 const (
-	AuthMethodSasToken         AuthMethod = "sas-token"
-	AuthMethodAccessKey        AuthMethod = "access-key"
+	// AuthMethodSasToken authenticates with a storage account SAS token.
+	AuthMethodSasToken AuthMethod = "sas-token"
+	// AuthMethodAccessKey authenticates with a storage account access key.
+	AuthMethodAccessKey AuthMethod = "access-key"
+	// AuthMethodServicePrincipal authenticates with a client ID, client secret, and tenant ID.
 	AuthMethodServicePrincipal AuthMethod = "service-principal"
-	AuthMethodOIDC             AuthMethod = "oidc"
-	AuthMethodMSI              AuthMethod = "msi"
-	AuthMethodAzureAD          AuthMethod = "azuread"
+	// AuthMethodOIDC authenticates with a federated OIDC token, from a token request URL or a token file.
+	AuthMethodOIDC AuthMethod = "oidc"
+	// AuthMethodMSI authenticates with an Azure managed identity.
+	AuthMethodMSI AuthMethod = "msi"
+	// AuthMethodAzureAD authenticates through the Azure CLI and the default Azure credential chain.
+	AuthMethodAzureAD AuthMethod = "azuread"
 )
 
 // AzureConfig holds the resolved credential and session metadata used to

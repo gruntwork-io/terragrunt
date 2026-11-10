@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -140,7 +140,7 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 			t.Parallel()
 
 			auth := getproviders.NewArchiveChecksumAuthentication(tc.wantSHA256Sum)
-			actualResult, actualErr := auth.Authenticate(vfs.NewOSFS(), tc.path)
+			actualResult, actualErr := auth.Authenticate(venvtest.NewOSOverlayFS(), tc.path)
 
 			if tc.expectedErr != nil {
 				require.Error(t, actualErr, "expected error %v but got no error", tc.expectedErr)
@@ -234,7 +234,7 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 				tc.filename,
 				tc.wantSHA256Sum,
 			)
-			_, actualErr := auth.Authenticate(vfs.NewOSFS(), tc.path)
+			_, actualErr := auth.Authenticate(venvtest.NewOSOverlayFS(), tc.path)
 
 			if tc.expectedErr != nil {
 				require.EqualError(t, actualErr, tc.expectedErr.Error())
@@ -365,7 +365,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			require.NoError(t, err)
 
 			auth := getproviders.NewSignatureAuthentication(tc.document, signature, tc.keys)
-			actualResult, actualErr := auth.Authenticate(vfs.NewOSFS(), tc.path)
+			actualResult, actualErr := auth.Authenticate(venvtest.NewOSOverlayFS(), tc.path)
 
 			if tc.expectedErr != nil {
 				require.EqualError(t, actualErr, tc.expectedErr.Error())

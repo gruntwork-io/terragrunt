@@ -56,10 +56,16 @@ type Component interface {
 type Origin string
 
 const (
-	OriginUnknown               Origin = "unknown"
-	OriginWorktreeDiscovery     Origin = "worktree-discovery"
-	OriginGraphDiscovery        Origin = "graph-discovery"
-	OriginPathDiscovery         Origin = "path-discovery"
+	// OriginUnknown is the origin of a component with no discovery context or no origin set.
+	OriginUnknown Origin = "unknown"
+	// OriginWorktreeDiscovery marks a component found in a Git worktree checked out for a Git-based filter.
+	OriginWorktreeDiscovery Origin = "worktree-discovery"
+	// OriginGraphDiscovery marks a component reached by walking the dependency graph of another component.
+	OriginGraphDiscovery Origin = "graph-discovery"
+	// OriginPathDiscovery marks a component found by walking the filesystem for configuration files.
+	OriginPathDiscovery Origin = "path-discovery"
+	// OriginRelationshipDiscovery marks a component first seen as a dependency while building relationships
+	// between discovered components.
 	OriginRelationshipDiscovery Origin = "relationship-discovery"
 )
 

@@ -71,6 +71,8 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
         collapsed: true,
         items: [
           { label: "Overview", slug: "reference/hcl" },
+          { label: "Units", slug: "reference/hcl/units" },
+          { label: "Stacks", slug: "reference/hcl/stacks" },
           {
             label: "Blocks",
             collapsed: true,

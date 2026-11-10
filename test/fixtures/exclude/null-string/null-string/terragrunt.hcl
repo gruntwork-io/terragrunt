@@ -2,7 +2,7 @@ terraform {
   source = "."
 }
 
-# Discovery keeps the unit, and the run fails with "null value is not allowed"
+# find and list keep the unit, and run --all fails with "null value is not allowed" before any unit runs
 exclude {
   if      = tostring(null)
   actions = ["all"]

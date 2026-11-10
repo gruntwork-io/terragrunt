@@ -17,14 +17,23 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt scaffold` command.
 	CommandName = "scaffold"
 
+	// OutputFolderFlagName is the name of the flag that sets the directory the
+	// scaffolded files are written to.
 	OutputFolderFlagName = "output-folder"
-	VarFlagName          = "var"
-	VarFileFlagName      = "var-file"
-	NoDependencyPrompt   = "no-dependency-prompt"
+	// VarFlagName is the name of the flag that passes a boilerplate variable.
+	VarFlagName = "var"
+	// VarFileFlagName is the name of the flag that passes a file of
+	// boilerplate variables.
+	VarFileFlagName = "var-file"
+	// NoDependencyPrompt is the name of the flag that includes boilerplate
+	// dependencies without asking for confirmation.
+	NoDependencyPrompt = "no-dependency-prompt"
 )
 
+// NewFlags returns the flags of `terragrunt scaffold`, bound to opts.
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
@@ -64,6 +73,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 	return scaffoldFlags
 }
 
+// NewCommand returns the `terragrunt scaffold` command, which takes a module
+// URL and an optional template URL as its arguments.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	flags := NewFlags(opts, nil)
 	// Accept backend and feature flags for scaffold as well
@@ -94,6 +105,11 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	}
 }
 
+// GetDefaultRootFileName returns the root config file name a scaffolded unit
+// includes. It is [config.RecommendedParentConfigName] when the root
+// terragrunt.hcl strict control is enabled or that file exists in
+// opts.WorkingDir or one of up to opts.MaxFoldersToCheck parents, and
+// [config.DefaultTerragruntConfigPath] otherwise.
 func GetDefaultRootFileName(ctx context.Context, fsys vfs.FS, opts *options.TerragruntOptions) string {
 	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).
 		SuppressWarning().

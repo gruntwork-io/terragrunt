@@ -343,7 +343,7 @@ dependency "vpc" {
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
 	// AutoIncludeDependencyPaths via symlink should resolve correctly
-	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), symlinkDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(venvtest.NewOSOverlayFS(), symlinkDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 

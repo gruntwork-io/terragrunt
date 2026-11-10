@@ -3,10 +3,8 @@ version: "v1.2.2"
 category: "bug-fixes"
 ---
 
-#### Fixes for provider cache relative links, `root-terragrunt-hcl` lookups and `GIT_CEILING_DIRECTORIES`
+#### Provider cache links, `root-terragrunt-hcl` lookups and `GIT_CEILING_DIRECTORIES`
 
-With `--provider-cache`, a relative `download_url`, `shasums_url` or `shasums_signature_url` from a registry now resolves against the URL of the response, as OpenTofu does: `example.zip` from `.../download/linux/amd64` is `.../download/linux/example.zip`. An `http` link keeps its scheme.
-
-With the `root-terragrunt-hcl` strict control enabled, `find_in_parent_folders("./terragrunt.hcl")`, `find_in_parent_folders("../terragrunt.hcl")` and a differently cased name for the same file now fail like `find_in_parent_folders()`. `terragrunt scaffold` fails the same way when the root file it includes is `terragrunt.hcl`.
-
-An empty entry anywhere in `GIT_CEILING_DIRECTORIES` now makes the entries after it compare as written, as git does, not only an empty first entry.
+- `--provider-cache` resolves a relative `download_url`, `shasums_url` or `shasums_signature_url` against the registry response URL, as OpenTofu does.
+- With the `root-terragrunt-hcl` strict control, `find_in_parent_folders` fails for `./terragrunt.hcl`, `../terragrunt.hcl` and other casings of that file, as it does with no argument. So does `scaffold` when its root file is `terragrunt.hcl`.
+- Entries after an empty `GIT_CEILING_DIRECTORIES` entry skip symlink resolution, as in git, even when the empty entry is not first.

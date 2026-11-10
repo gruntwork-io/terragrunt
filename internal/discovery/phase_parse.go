@@ -12,6 +12,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -103,6 +104,7 @@ func ensureParsed(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -126,8 +128,26 @@ func ensureParsed(
 	}
 
 	return unit.GuardConfigParse(func() error {
-		return parseComponent(ctx, l, v, c, opts, discovery)
+		return parseComponent(ctx, l, v, s, c, opts, discovery)
 	})
+}
+
+// parseConfig parses the config of c at cfgPath with pkg/config, or with the config rewrite through p when
+// [rewrite.EnvRewrite] selects it and c is a unit.
+func parseConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	s *rewrite.Store,
+	c component.Component,
+	cfgPath string,
+) (*config.TerragruntConfig, error) {
+	if _, isUnit := c.(*component.Unit); !isUnit || !rewrite.Enabled(v.Env) {
+		return config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	}
+
+	return s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(pctx), cfgPath)
 }
 
 // ParsePhase parses HCL configurations for filter evaluation.
@@ -160,6 +180,7 @@ func (p *ParsePhase) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
@@ -205,7 +226,7 @@ func (p *ParsePhase) Run(
 
 	for _, candidate := range componentsToParse {
 		g.Go(func() error {
-			result, err := p.parseAndReclassify(ctx, l, v, input.Opts, discovery, candidate)
+			result, err := p.parseAndReclassify(ctx, l, v, s, input.Opts, discovery, candidate)
 			if err != nil {
 				errMu.Lock()
 
@@ -249,6 +270,7 @@ func (p *ParsePhase) parseAndReclassify(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
 	candidate DiscoveryResult,
@@ -256,7 +278,7 @@ func (p *ParsePhase) parseAndReclassify(
 	c := candidate.Component
 	ctx = contextWithParsePhase(ctx, parsePhaseTagParse)
 
-	if err := parseComponent(ctx, l, v, c, opts, discovery); err != nil {
+	if err := parseComponent(ctx, l, v, s, c, opts, discovery); err != nil {
 		if discovery.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 
@@ -314,6 +336,7 @@ func parseComponent(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -401,13 +424,14 @@ func parseComponent(
 				parsingCtx.Parser.IgnoreDiagnostics = true
 			}
 
-			cfg, err := config.PartialParseConfigFile(
+			cfg, err := parseConfig(
 				ctx,
 				l,
 				parseV,
 				parsingCtx,
+				s,
+				c,
 				parseOpts.TerragruntConfigPath,
-				nil,
 			)
 			if err != nil {
 				if discovery.suppressParseErrors {

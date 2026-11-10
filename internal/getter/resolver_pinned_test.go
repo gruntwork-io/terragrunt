@@ -7,9 +7,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestResolverPinned pins which URLs each resolver reports as naming
@@ -19,7 +19,7 @@ import (
 func TestResolverPinned(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	tests := []struct {
 		resolver getter.SourceResolver
@@ -91,6 +91,18 @@ func TestResolverPinned(t *testing.T) {
 			name:     "http with a checksum",
 			resolver: getter.NewHTTPSResolver(),
 			url:      "https://example.com/mod.tgz?checksum=sha256:" + hexOf64,
+			want:     false,
+		},
+		{
+			name:     "checksum literal",
+			resolver: getter.NewChecksumResolver("https", "sha256:"+hexOf64),
+			url:      "https://example.com/mod.tgz?checksum=sha256:" + hexOf64,
+			want:     true,
+		},
+		{
+			name:     "checksum read from a file",
+			resolver: getter.NewChecksumResolver("https", "file:https://example.com/SHA256SUMS"),
+			url:      "https://example.com/mod.tgz?checksum=file:https://example.com/SHA256SUMS",
 			want:     false,
 		},
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -225,7 +226,7 @@ func TestScaffoldRejectsRootTerragruntHCLInMemory(t *testing.T) {
 			err := scaffold.Run(
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.New().WithFS(fsys),
+				venv.MemVenv().WithFS(fsys),
 				opts,
 				getter.FileURL(module).String(),
 				"",
@@ -369,10 +370,8 @@ func runScaffoldWithOptions(t *testing.T, opts *options.TerragruntOptions, sourc
 	)
 }
 
-// otherCaseConfigName is terragrunt.hcl in another letter case.
 const otherCaseConfigName = "TERRAGRUNT.HCL"
 
-// scaffoldRootOutcome is how scaffold handles the root file its include names.
 type scaffoldRootOutcome int
 
 const (

@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +56,6 @@ func TestNewCommandEnablesTemplateErrorsUnderDebugLogging(t *testing.T) {
 }
 
 func TestNewCommandSetsTemplateErrorDebugUnderDebugLogging(t *testing.T) {
-	// urfave/cli reads CLI_TEMPLATE_ERROR_DEBUG from the process environment only.
 	t.Setenv(templateErrorDebugEnv, "")
 
 	out, err := runHelp(t, logger.CreateLogger(), "outer")
@@ -72,7 +70,7 @@ func runHelp(t *testing.T, l log.Logger, args ...string) (string, error) {
 
 	out := new(bytes.Buffer)
 
-	cmd := help.NewCommand(l, options.NewTerragruntOptions(venvtest.New().Exec))
+	cmd := help.NewCommand(l, options.NewTerragruntOptions(venv.MemVenv().Exec))
 
 	app := clihelper.NewApp(map[string]string{})
 	app.Writer = out
@@ -94,5 +92,4 @@ func runHelp(t *testing.T, l log.Logger, args ...string) (string, error) {
 	return out.String(), err
 }
 
-// templateErrorDebugEnv is the variable urfave/cli checks before printing help template errors.
 const templateErrorDebugEnv = "CLI_TEMPLATE_ERROR_DEBUG"

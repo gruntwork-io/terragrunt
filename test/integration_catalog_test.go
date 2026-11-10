@@ -35,7 +35,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const (
@@ -672,7 +671,7 @@ func catalogManyModulesFixture(t *testing.T, count int) string {
 func TestCatalogDotOnlyRepoNameIgnoresPlantedTempDir(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	tempDir := v.Platform.TempDir()
 
 	workDir, err := v.Platform.Getwd()

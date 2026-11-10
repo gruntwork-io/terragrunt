@@ -11,7 +11,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -520,7 +522,13 @@ locals {
 			r, w, err := os.Pipe()
 			require.NoError(t, err)
 
-			err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+			err = find.Run(
+				config.WithCaches(t.Context()),
+				l,
+				venvtest.NewOSWithEmptyEnv().WithWriter(w),
+				new(rewrite.Store),
+				opts,
+			)
 			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return
@@ -582,7 +590,7 @@ dependency "target" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())
@@ -696,8 +704,8 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 
 	var found find.FoundComponents
 
@@ -735,8 +743,12 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			opts := find.NewOptions(tgOpts)
 			opts.Format = tc.format
 
-			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
-			require.ErrorIs(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts), errWriteFailed)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(failingWriter{})
+			require.ErrorIs(
+				t,
+				find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts),
+				errWriteFailed,
+			)
 		})
 	}
 }
@@ -779,9 +791,9 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-			require.Error(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
+			require.Error(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 			assert.Empty(t, buf.String())
 		})
 	}
@@ -839,8 +851,8 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 
 	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
 }
@@ -960,8 +972,8 @@ func TestRunFileDependency(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
-			require.NoError(t, find.Run(config.WithCaches(t.Context()), l, v, opts))
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
+			require.NoError(t, find.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts))
 
 			var found find.FoundComponents
 

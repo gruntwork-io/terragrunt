@@ -101,7 +101,7 @@ func TestLinkTreeCloneModeFallsBackWithoutCloneSupport(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 	v = v.WithFS(&noCloneFS{FS: v.FS})
@@ -263,7 +263,7 @@ func TestLinkMutableSourceCopiesWithoutCloneSupport(t *testing.T) {
 	l := logger.CreateLogger()
 	blobData := []byte("module content\n")
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 	v = v.WithFS(&noCloneFS{FS: v.FS})
@@ -305,7 +305,7 @@ func TestLinkTreeProbesCloneSupportOnce(t *testing.T) {
 	l := logger.CreateLogger()
 	blobData := []byte("module content\n")
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 	store := cas.NewStore("/store")
@@ -360,7 +360,7 @@ func TestLinkTreeKeepsCloningAfterOneFileFallsBack(t *testing.T) {
 	l := logger.CreateLogger()
 	blobData := []byte("module content\n")
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 	store := cas.NewStore("/store")
@@ -461,7 +461,7 @@ type noLinkFS struct {
 func newLinkModeStore(t *testing.T, l log.Logger, blobData []byte) (*venv.Venv, *cas.Content) {
 	t.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 	require.NoError(t, v.FS.MkdirAll("/target", 0o755))
 

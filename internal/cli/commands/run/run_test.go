@@ -13,6 +13,7 @@ import (
 
 	runcommand "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -68,7 +69,10 @@ func TestRunRunsTheCommandInTheUnit(t *testing.T) {
 			rec := &recorder{}
 			v := rec.venv(t, map[string]string{"unit/terragrunt.hcl": tc.hcl, "unit/main.tf": ""})
 
-			require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), newOpts(t, v, "unit", tf.CommandNamePlan), v))
+			require.NoError(
+				t,
+				runcommand.Run(newCtx(t), logger.CreateLogger(), newOpts(t, v, "unit", tf.CommandNamePlan), v, new(rewrite.Store)),
+			)
 
 			assert.Equal(t, [][]string{{tf.CommandNameInit, "-no-color"}, {tf.CommandNamePlan}}, rec.commands())
 
@@ -113,7 +117,7 @@ func TestRunWritesTheRequestedReports(t *testing.T) {
 			opts.ReportFormat = report.FormatJSON
 			opts.ReportSchemaFile = schemaPath
 
-			err := runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v)
+			err := runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v, new(rewrite.Store))
 			if tc.wantErr {
 				require.Error(t, err)
 			} else {
@@ -149,7 +153,7 @@ func TestRunSkipsUnwritableReports(t *testing.T) {
 	opts.ReportFormat = "yaml"
 	opts.ReportSchemaFile = filepath.Join(memRoot, "unit")
 
-	require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v))
+	require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v, new(rewrite.Store)))
 	assert.NotNil(t, rec.find(tf.CommandNamePlan), "the run went ahead")
 
 	exists, err := vfs.FileExists(v.FS, reportPath)
@@ -164,7 +168,7 @@ func TestRunFailsWithoutACommand(t *testing.T) {
 	rec := &recorder{}
 	v := rec.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
 
-	err := runcommand.Run(newCtx(t), logger.CreateLogger(), newOpts(t, v, "unit", ""), v)
+	err := runcommand.Run(newCtx(t), logger.CreateLogger(), newOpts(t, v, "unit", ""), v, new(rewrite.Store))
 
 	var missing run.MissingCommand
 
@@ -221,7 +225,7 @@ func TestRunVersionUsesTheConfiguredBinary(t *testing.T) {
 				opts.TFPath = tc.tfPath
 			}
 
-			require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v))
+			require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v, new(rewrite.Store)))
 
 			version := rec.find(tf.CommandNameVersion)
 			require.NotNil(t, version, "the version command ran")
@@ -238,7 +242,13 @@ func TestRunVersionFailsOnAnInvalidConfig(t *testing.T) {
 	rec := &recorder{}
 	v := rec.venv(t, map[string]string{"unit/terragrunt.hcl": "this is ) not ( valid hcl"})
 
-	err := runcommand.Run(newCtx(t), logger.CreateLogger(), newOpts(t, v, "unit", tf.CommandNameVersion), v)
+	err := runcommand.Run(
+		newCtx(t),
+		logger.CreateLogger(),
+		newOpts(t, v, "unit", tf.CommandNameVersion),
+		v,
+		new(rewrite.Store),
+	)
 
 	var diags hcl.Diagnostics
 
@@ -300,7 +310,7 @@ func TestRunRefusesUnmetVersionConstraints(t *testing.T) {
 			opts := newOpts(t, v, "unit", tf.CommandNamePlan)
 			opts.TerragruntVersion = semver.MustParse("1.0.0")
 
-			tc.check(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v))
+			tc.check(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v, new(rewrite.Store)))
 			assert.Nil(t, rec.find(tf.CommandNamePlan), "plan never ran")
 		})
 	}
@@ -371,7 +381,7 @@ func TestRunStopsBeforeTheCommand(t *testing.T) {
 			opts := newOpts(t, v, "unit", tf.CommandNamePlan)
 			opts.AuthProviderCmd = tc.authCmd
 
-			tc.check(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v))
+			tc.check(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v, new(rewrite.Store)))
 			assert.Nil(t, rec.find(tf.CommandNamePlan), "plan never ran")
 		})
 	}
@@ -410,7 +420,7 @@ func TestRunDestroyConfirmsDependentUnits(t *testing.T) {
 			opts.DestroyDependenciesCheck = true
 			opts.NonInteractive = tc.nonInteractive
 
-			require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v))
+			require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v, new(rewrite.Store)))
 			assert.Equal(t, tc.wantDestroy, rec.find(tf.CommandNameDestroy) != nil, "destroy ran")
 
 			if tc.writesAllowed < 0 {
@@ -433,7 +443,7 @@ func TestRunDestroyWithoutDependentsGoesAhead(t *testing.T) {
 	opts.DestroyDependenciesCheck = true
 	opts.NonInteractive = false
 
-	require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v))
+	require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v, new(rewrite.Store)))
 	assert.NotNil(t, rec.find(tf.CommandNameDestroy), "destroy ran")
 	assert.Empty(t, errOut.String(), "no dependents, no prompt")
 }
@@ -464,7 +474,7 @@ func TestRunAllAndGraphRunEveryUnit(t *testing.T) {
 			opts.Graph = tc.graph
 			opts.GraphRoot = memRoot
 
-			require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v))
+			require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v, new(rewrite.Store)))
 			assert.Equal(
 				t,
 				[]string{filepath.Join(memRoot, "app"), filepath.Join(memRoot, "vpc")},
@@ -487,7 +497,7 @@ type recorder struct {
 func (rec *recorder) venv(t *testing.T, files map[string]string) *venv.Venv {
 	t.Helper()
 
-	return venvtest.New().
+	return venv.MemVenv().
 		WithFS(venvtest.NewFS(t, memRoot, files)).
 		WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 			if inv.Name == rec.unspawnable {

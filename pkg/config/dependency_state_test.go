@@ -1133,7 +1133,7 @@ func prepareDependencyStateFixture(
 		effectiveEnv = map[string]string{}
 	}
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())

@@ -7,6 +7,7 @@ import (
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -428,7 +429,7 @@ func TestScaffoldRefusesARemoteSourceWithoutTheCapability(t *testing.T) {
 
 	for source, want := range map[string]error{
 		"https://example.invalid/modules/vpc.zip":                      vhttp.ErrNoNetwork,
-		"git::https://example.invalid/org/modules.git//vpc?ref=v1.0.0": tgmcp.ErrExecDenied,
+		"git::https://example.invalid/org/modules.git//vpc?ref=v1.0.0": venv.ErrExecDenied,
 	} {
 		callToolRefused(t, session, "scaffold", map[string]any{
 			"source":        source,

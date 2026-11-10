@@ -69,9 +69,7 @@ func WithSelector(sel MirrorSelector) MirrorOption {
 }
 
 // MirrorToMem copies the tree rooted at dir from src into a fresh in-memory
-// filesystem, keeping every path exactly where it was. Callers that resolve
-// paths against the copy, or hand them back to a user, therefore see the paths
-// the tree really has.
+// filesystem, keeping every path exactly where it was.
 //
 // Only files are copied. Writing one registers its parent directories, so the
 // tree arrives with them, but a directory holding nothing does not survive.

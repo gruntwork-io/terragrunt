@@ -20,12 +20,12 @@ import (
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
@@ -65,6 +65,8 @@ type parityCase struct {
 	configure func(*pkgconfig.ParsingContext)
 	// outputs maps a target directory to its `tofu output -json`.
 	outputs map[string]string
+	// store is the Store the rewrite parses through, shared with other cases when set.
+	store *config.Store
 	// cfgPath is the config both sides parse.
 	cfgPath string
 	// drift is the drifts the case shows.
@@ -148,13 +150,13 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 	l := logger.CreateLogger()
 
 	v1Stub := &tofuStub{outputs: tc.outputs}
-	v1Venv := venvtest.New().WithFS(tc.newFS(t)).WithHandler(v1Stub.handler())
+	v1Venv := venv.MemVenv().WithFS(tc.newFS(t)).WithHandler(v1Stub.handler())
 	v1Ctx, v1Pctx := newTestParsingContext(t, tc.cfgPath)
 	tc.configure(v1Pctx)
 	v1Pctx = v1Pctx.WithFileReadTracking()
 
 	stub := &tofuStub{outputs: tc.outputs}
-	v := venvtest.New().WithFS(tc.newFS(t)).WithHandler(stub.handler())
+	v := venv.MemVenv().WithFS(tc.newFS(t)).WithHandler(stub.handler())
 	ctx, pctx := newTestParsingContext(t, tc.cfgPath)
 	tc.configure(pctx)
 	pctx = pctx.WithFileReadTracking()
@@ -164,14 +166,14 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 		t.Logf("pkg/config returned an error: %v", wantErr)
 	}
 
-	parsed, parseErr := config.ParseConfigFile(
-		ctx,
-		l,
-		v,
-		&hclparse.Store{},
-		config.NewParseContext(pctx),
-		tc.cfgPath,
-	)
+	store := tc.store
+	if store == nil {
+		store = &config.Store{}
+	}
+
+	pc := config.NewParseContext(pctx)
+
+	parsed, parseErr := store.ResolveUnitConfig(ctx, l, v, pc, tc.cfgPath)
 
 	stub.inToV1.Store(true)
 
@@ -180,19 +182,31 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 	gotErr := parseErr
 
 	if parsed != nil {
-		gotCfg, gotErr = parsed.ToV1(ctx, l, v)
+		gotCfg, gotErr = parsed.ToV1(ctx, l, v, pc)
 		assertErrorsWithin(t, parseErr, gotErr)
 	}
 
 	assert.Equal(t, wantCfg, gotCfg)
 	assertSameErrors(t, wantErr, gotErr, tc.drift)
 	assert.Equal(t, v1Pctx.FilesRead.Paths(), pctx.FilesRead.Paths())
-	assert.Equal(
-		t,
-		v1Stub.parseExecs.Load(),
-		stub.parseExecs.Load()+stub.toV1Execs.Load(),
-		"tofu runs",
-	)
+
+	if tc.store == nil {
+		assert.Equal(
+			t,
+			v1Stub.parseExecs.Load(),
+			stub.parseExecs.Load()+stub.toV1Execs.Load(),
+			"tofu runs",
+		)
+	}
+
+	if tc.store != nil {
+		assert.LessOrEqual(
+			t,
+			stub.parseExecs.Load()+stub.toV1Execs.Load(),
+			v1Stub.parseExecs.Load(),
+			"tofu runs",
+		)
+	}
 
 	return parityResult{
 		parsed:     parsed,
@@ -476,14 +490,14 @@ type fixtureConfig struct {
 func loadFixtures(t *testing.T, rootNames []string, excluded map[string]struct{}) *fixtureSet {
 	t.Helper()
 
-	osFS := vfs.NewOSFS()
+	fsys := venvtest.NewOSOverlayFS()
 
 	fixtures, err := filepath.Abs(fixturesDir)
 	require.NoError(t, err)
 
 	set := &fixtureSet{files: map[string][]byte{}}
 
-	entries, err := vfs.ReadDir(osFS, fixtures)
+	entries, err := vfs.ReadDir(fsys, fixtures)
 	require.NoError(t, err)
 
 	for _, entry := range entries {
@@ -492,13 +506,13 @@ func loadFixtures(t *testing.T, rootNames []string, excluded map[string]struct{}
 		}
 
 		path := filepath.Join(fixtures, entry.Name())
-		set.files[path], err = vfs.ReadFile(osFS, path)
+		set.files[path], err = vfs.ReadFile(fsys, path)
 		require.NoError(t, err)
 	}
 
 	for _, rootName := range rootNames {
 		err := vfs.WalkDir(
-			osFS,
+			fsys,
 			filepath.Join(fixtures, filepath.FromSlash(rootName)),
 			func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
@@ -526,7 +540,7 @@ func loadFixtures(t *testing.T, rootNames []string, excluded map[string]struct{}
 					return fmt.Errorf("fixture trees hold more than %d files", maxFixtureFiles)
 				}
 
-				set.files[path], err = vfs.ReadFile(osFS, path)
+				set.files[path], err = vfs.ReadFile(fsys, path)
 				if err != nil {
 					return err
 				}
@@ -564,12 +578,12 @@ func (s *fixtureSet) newFS(t *testing.T) vfs.FS {
 
 // newTestParsingContext mirrors pkg/config's test helper of the same name, with its own caches.
 func newTestParsingContext(
-	t *testing.T,
+	tb testing.TB,
 	cfgPath string,
 ) (context.Context, *pkgconfig.ParsingContext) {
-	t.Helper()
+	tb.Helper()
 
-	ctx := pkgconfig.WithCaches(t.Context())
+	ctx := pkgconfig.WithCaches(tb.Context())
 	pctx := pkgconfig.NewParsingContext(pkgconfig.WithStrictControls(controls.New()))
 
 	workingDir, downloadDir := util.DefaultWorkingAndDownloadDirs(cfgPath)

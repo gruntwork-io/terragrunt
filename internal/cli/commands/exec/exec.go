@@ -16,6 +16,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// Run prepares the unit at opts.TerragruntConfigPath and runs args with the
+// unit's hooks and its inputs set as TF_VAR_ env vars. With
+// cmdOpts.InDownloadDir set, it runs init first and runs args in the download
+// directory. Otherwise it skips init and runs args in opts.RootWorkingDir.
 func Run(
 	ctx context.Context,
 	l log.Logger,

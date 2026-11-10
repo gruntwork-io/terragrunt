@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -25,6 +26,7 @@ func Worktrees(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	d *discovery.Discovery,
 ) (*discovery.Discovery, func(context.Context), error) {
@@ -46,7 +48,7 @@ func Worktrees(
 		}
 	}
 
-	if err := generate.WorktreeStacks(ctx, l, v, opts, wts); err != nil {
+	if err := generate.WorktreeStacks(ctx, l, v, s, opts, wts); err != nil {
 		return d, cleanup, err
 	}
 

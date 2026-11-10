@@ -176,6 +176,8 @@ type AWSRole struct {
 	Duration int64 `json:"duration,omitempty" jsonschema:"minimum=0"`
 }
 
+// Envs assumes the role through STS and returns the AWS credential environment variables of the new session.
+// It logs a warning and returns nil when roleARN is empty or the role cannot be assumed.
 func (role *AWSRole) Envs(
 	ctx context.Context,
 	l log.Logger,
@@ -233,6 +235,8 @@ func (role *AWSRole) Envs(
 	return envs
 }
 
+// Envs returns the credentials as AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN, and
+// AWS_SECURITY_TOKEN. It logs a warning and returns nil when the access key ID or secret access key is empty.
 func (creds *AWSCredentials) Envs(
 	_ context.Context,
 	l log.Logger,

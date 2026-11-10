@@ -19,6 +19,8 @@ const (
 	downloadPath = "/downloads"
 )
 
+// DownloaderController serves provider archives from the cache when it has them, and proxies
+// the download from the remote host otherwise.
 type DownloaderController struct {
 	*router.Router
 
@@ -70,7 +72,6 @@ func (controller *DownloaderController) downloadProviderAction(w router.Response
 		return router.NewHTTPError(http.StatusNotFound)
 	}
 
-	// The remote path arrives escaped twice.
 	_, hostAndPath, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), controller.URL().Path+"/"), "/")
 
 	_, routedPath, found := strings.Cut(hostAndPath, "/")

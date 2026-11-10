@@ -8,6 +8,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -23,8 +25,8 @@ const subcommandsTemplate = "{{range .Command.Subcommands}}{{.Name}}\n{{end}}"
 func TestNewCommandShowsHelpWithItsSubcommands(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
-	cmd := dag.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v)
+	v := venv.MemVenv()
+	cmd := dag.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
 	cmd.CustomHelpTemplate = subcommandsTemplate
 
 	out := new(bytes.Buffer)
@@ -39,7 +41,7 @@ func TestNewCommandRunsTheGraphSubcommand(t *testing.T) {
 
 	root := venvtest.Root("/dag")
 	out := new(bytes.Buffer)
-	v := venvtest.New().WithWriter(out).WithFS(venvtest.NewFS(t, root, map[string]string{
+	v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, root, map[string]string{
 		"app/terragrunt.hcl": "dependency \"vpc\" {\n  config_path = \"../vpc\"\n}\n",
 		"vpc/terragrunt.hcl": "",
 	}))
@@ -48,7 +50,15 @@ func TestNewCommandRunsTheGraphSubcommand(t *testing.T) {
 	opts.WorkingDir = root
 	opts.RootWorkingDir = root
 
-	require.NoError(t, runCommand(t, dag.NewCommand(logger.CreateLogger(), opts, v), new(bytes.Buffer), graph.CommandName))
+	require.NoError(
+		t,
+		runCommand(
+			t,
+			dag.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)),
+			new(bytes.Buffer),
+			graph.CommandName,
+		),
+	)
 	assert.Equal(t, "digraph {\n\t\"app\" ;\n\t\"app\" -> \"vpc\";\n\t\"vpc\" ;\n}\n", out.String())
 }
 

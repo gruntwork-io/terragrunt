@@ -697,7 +697,7 @@ func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
 				want.path = filepath.Join(root, want.path)
 			}
 
-			assertRootTerragruntHCLLookup(t, venvtest.New().WithFS(fsys), root, tc.param, tc.strict, want)
+			assertRootTerragruntHCLLookup(t, venv.MemVenv().WithFS(fsys), root, tc.param, tc.strict, want)
 		})
 	}
 }
@@ -740,7 +740,7 @@ func TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS(t *testing.T) {
 
 			param := filepath.Join(tc.dir, otherCaseConfigName)
 
-			assertRootTerragruntHCLLookup(t, venvtest.New().WithFS(fsys), root, param, tc.strict, want)
+			assertRootTerragruntHCLLookup(t, venv.MemVenv().WithFS(fsys), root, param, tc.strict, want)
 		})
 	}
 }
@@ -1285,7 +1285,7 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 func newMemTestDir(tb testing.TB) (*venv.Venv, string) {
 	tb.Helper()
 
-	return venvtest.New(), tb.TempDir()
+	return venv.MemVenv(), tb.TempDir()
 }
 
 // newTestParsingContext creates a ParsingContext for configPath with the defaults
@@ -2625,16 +2625,12 @@ dependency "vpc" {
 	assert.Equal(t, "../vpc", cfg.TerragruntDependencies[0].ConfigPath.AsString())
 }
 
-// subConfigPath is terragrunt.hcl in a subdirectory named sub.
 const subConfigPath = "sub/" + config.DefaultTerragruntConfigPath
 
-// parentConfigPath is terragrunt.hcl in the parent directory.
 const parentConfigPath = "../" + config.DefaultTerragruntConfigPath
 
-// otherCaseConfigName is terragrunt.hcl in another letter case.
 const otherCaseConfigName = "TERRAGRUNT.HCL"
 
-// rootLookupOutcome is how a find_in_parent_folders lookup under root-terragrunt-hcl ends.
 type rootLookupOutcome int
 
 const (
@@ -2643,7 +2639,6 @@ const (
 	rootRejected
 )
 
-// rootTerragruntHCLWant is the result a find_in_parent_folders lookup under root-terragrunt-hcl should give.
 type rootTerragruntHCLWant struct {
 	path    string
 	outcome rootLookupOutcome

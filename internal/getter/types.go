@@ -9,13 +9,14 @@ import (
 // Re-exports of hashicorp/go-getter/v2 types so callers can avoid importing
 // go-getter directly.
 type (
-	Client       = getter.Client
-	Request      = getter.Request
-	Mode         = getter.Mode
-	Getter       = getter.Getter
-	Detector     = getter.Detector
-	GetResult    = getter.GetResult
-	Decompressor = getter.Decompressor
+	Client        = getter.Client
+	Request       = getter.Request
+	Mode          = getter.Mode
+	Getter        = getter.Getter
+	Detector      = getter.Detector
+	GetResult     = getter.GetResult
+	Decompressor  = getter.Decompressor
+	ChecksumError = getter.ChecksumError
 )
 
 // Mode constants re-exported from go-getter/v2.

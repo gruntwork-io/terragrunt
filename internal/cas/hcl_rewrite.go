@@ -94,6 +94,10 @@ func readStackBlocks(
 			BlockType: bt,
 		}
 
+		if !blockEnabled(info.body, evalCtx) {
+			continue
+		}
+
 		var sourceErr error
 
 		if attr := info.body.GetAttribute("source"); attr != nil {
@@ -266,19 +270,9 @@ func nonLiteralKind(tokens hclwrite.Tokens) string {
 // [ErrUpdateSourceWithCASNotConstant], because this reader runs before the
 // full parser and has no functions to call.
 func extractBool(attr *hclwrite.Attribute, evalCtx *hcl.EvalContext) (bool, error) {
-	expr, diags := parseAttrExpr(attr)
-	if diags.HasErrors() {
-		return false, ErrUpdateSourceWithCASNotConstant
-	}
-
-	val, diags := expr.Value(evalCtx)
-	if diags.HasErrors() {
-		return false, ErrUpdateSourceWithCASNotConstant
-	}
-
-	val, err := convert.Convert(val, cty.Bool)
+	val, err := evalBool(attr, evalCtx)
 	if err != nil {
-		return false, ErrUpdateSourceWithCASNotConstant
+		return false, err
 	}
 
 	if val.IsNull() {
@@ -286,6 +280,41 @@ func extractBool(attr *hclwrite.Attribute, evalCtx *hcl.EvalContext) (bool, erro
 	}
 
 	return val.True(), nil
+}
+
+// evalBool evaluates attr as a bool, null included, with the locals from [constantLocals].
+func evalBool(attr *hclwrite.Attribute, evalCtx *hcl.EvalContext) (cty.Value, error) {
+	expr, diags := parseAttrExpr(attr)
+	if diags.HasErrors() {
+		return cty.NilVal, ErrUpdateSourceWithCASNotConstant
+	}
+
+	val, diags := expr.Value(evalCtx)
+	if diags.HasErrors() {
+		return cty.NilVal, ErrUpdateSourceWithCASNotConstant
+	}
+
+	val, err := convert.Convert(val, cty.Bool)
+	if err != nil {
+		return cty.NilVal, ErrUpdateSourceWithCASNotConstant
+	}
+
+	return val, nil
+}
+
+// blockEnabled reports whether body takes part in generation; an enabled value that does not evaluate counts as true.
+func blockEnabled(body *hclwrite.Body, evalCtx *hcl.EvalContext) bool {
+	attr := body.GetAttribute("enabled")
+	if attr == nil {
+		return true
+	}
+
+	val, err := evalBool(attr, evalCtx)
+	if err != nil || val.IsNull() {
+		return true
+	}
+
+	return val.True()
 }
 
 // constantLocals returns an evaluation context that sets local.<name> for

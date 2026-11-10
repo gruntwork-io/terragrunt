@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -44,7 +43,7 @@ func TestShouldColor(t *testing.T) {
 
 			l := log.New(log.WithFormatter(formatter))
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			v.Terminal = &venv.Terminal{StdoutIsTTY: func() bool { return tc.stdoutIsTTY }}
 
 			assert.Equal(t, tc.want, stdout.ShouldColor(l, v))

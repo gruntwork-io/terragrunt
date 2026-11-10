@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +20,7 @@ import (
 func TestHumanRenderDiagnosticsWithoutSourceCode(t *testing.T) {
 	t.Parallel()
 
-	render := view.NewHumanRender(venvtest.New(), true)
+	render := view.NewHumanRender(venv.MemVenv(), true)
 
 	actual, err := render.Diagnostics(diagnostic.Diagnostics{{
 		Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
@@ -132,7 +131,7 @@ func TestHumanRenderDiagnosticsPointAtSource(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			render := view.NewHumanRender(venvtest.New(), true)
+			render := view.NewHumanRender(venv.MemVenv(), true)
 
 			diag, err := diagnostic.NewDiagnostic(file, &tc.diag)
 			require.NoError(t, err)
@@ -149,7 +148,7 @@ func TestHumanRenderDiagnosticsPointAtSource(t *testing.T) {
 func TestHumanRenderDiagnosticsRejectsRangeWithoutSnippet(t *testing.T) {
 	t.Parallel()
 
-	render := view.NewHumanRender(venvtest.New(), true)
+	render := view.NewHumanRender(venv.MemVenv(), true)
 
 	actual, err := render.Diagnostics(diagnostic.Diagnostics{
 		{
@@ -179,7 +178,7 @@ func TestHumanRenderDiagnosticsRejectsRangeWithoutSnippet(t *testing.T) {
 func TestHumanRenderDiagnosticPanicsOnRangeWithoutSnippet(t *testing.T) {
 	t.Parallel()
 
-	render, ok := view.NewHumanRender(venvtest.New(), true).(*view.HumanRender)
+	render, ok := view.NewHumanRender(venv.MemVenv(), true).(*view.HumanRender)
 	require.True(t, ok)
 
 	assert.Panics(t, func() {
@@ -196,7 +195,7 @@ func TestHumanRenderDiagnosticPanicsOnRangeWithoutSnippet(t *testing.T) {
 func TestHumanRenderDiagnosticsHighlightEndingBeforeStart(t *testing.T) {
 	t.Parallel()
 
-	render := view.NewHumanRender(venvtest.New(), true)
+	render := view.NewHumanRender(venv.MemVenv(), true)
 
 	actual, err := render.Diagnostics(diagnostic.Diagnostics{
 		{
@@ -232,7 +231,7 @@ func TestHumanRenderDiagnosticsHighlightEndingBeforeStart(t *testing.T) {
 func TestHumanRenderShowConfigPath(t *testing.T) {
 	t.Parallel()
 
-	render := view.NewHumanRender(venvtest.New(), true)
+	render := view.NewHumanRender(venv.MemVenv(), true)
 
 	actual, err := render.ShowConfigPath([]string{"app/terragrunt.hcl", "db/terragrunt.hcl"})
 	require.NoError(t, err)
@@ -282,7 +281,7 @@ func TestHumanRenderDiagnosticsColor(t *testing.T) {
 			plain, err := view.NewHumanRender(terminalVenv(80), true).Diagnostics(diags)
 			require.NoError(t, err)
 
-			noTerminal, err := view.NewHumanRender(venvtest.New(), false).Diagnostics(diags)
+			noTerminal, err := view.NewHumanRender(venv.MemVenv(), false).Diagnostics(diags)
 			require.NoError(t, err)
 
 			colored, err := view.NewHumanRender(terminalVenv(80), false).Diagnostics(diags)
@@ -438,7 +437,7 @@ func TestHumanRenderDiagnosticsFunctionCallNotes(t *testing.T) {
 			diag, err := diagnostic.NewDiagnostic(file, hclDiag)
 			require.NoError(t, err)
 
-			actual, err := view.NewHumanRender(venvtest.New(), true).Diagnostics(diagnostic.Diagnostics{diag})
+			actual, err := view.NewHumanRender(venv.MemVenv(), true).Diagnostics(diagnostic.Diagnostics{diag})
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -447,7 +446,7 @@ func TestHumanRenderDiagnosticsFunctionCallNotes(t *testing.T) {
 
 // terminalVenv returns an in-memory venv whose stderr is a terminal of the given width.
 func terminalVenv(width int) *venv.Venv {
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Terminal = &venv.Terminal{
 		StdinIsTTY:  func() bool { return false },
 		StdoutIsTTY: func() bool { return false },

@@ -50,23 +50,34 @@ type Cause string
 type Format string
 
 const (
-	FormatCSV  Format = "csv"
+	// FormatCSV writes the report as CSV.
+	FormatCSV Format = "csv"
+	// FormatJSON writes the report as JSON.
 	FormatJSON Format = "json"
 )
 
 const (
+	// ResultSucceeded is the result of a run that finished without error, or whose error was retried or ignored.
 	ResultSucceeded Result = "succeeded"
-	ResultFailed    Result = "failed"
+	// ResultFailed is the result of a run that returned an error.
+	ResultFailed Result = "failed"
+	// ResultEarlyExit is the result of a run skipped or stopped because a dependency failed.
 	ResultEarlyExit Result = "early exit"
-	ResultExcluded  Result = "excluded"
+	// ResultExcluded is the result of a unit excluded from the run.
+	ResultExcluded Result = "excluded"
 )
 
 const (
+	// ReasonRetrySucceeded marks a run that hit an error matched by a retry block.
 	ReasonRetrySucceeded Reason = "retry succeeded"
-	ReasonErrorIgnored   Reason = "error ignored"
-	ReasonRunError       Reason = "run error"
-	ReasonExcludeBlock   Reason = "exclude block"
-	ReasonAncestorError  Reason = "ancestor error"
+	// ReasonErrorIgnored marks a run whose error matched an ignore block.
+	ReasonErrorIgnored Reason = "error ignored"
+	// ReasonRunError marks a run that failed on its own error.
+	ReasonRunError Reason = "run error"
+	// ReasonExcludeBlock marks a unit excluded by an exclude block or as an external dependency.
+	ReasonExcludeBlock Reason = "exclude block"
+	// ReasonAncestorError marks a run that exited early because a dependency failed.
+	ReasonAncestorError Reason = "ancestor error"
 )
 
 // NewReport creates a new report.
@@ -257,6 +268,7 @@ func (r *Report) EndRun(l log.Logger, path string, endOptions ...EndOption) erro
 	return nil
 }
 
+// SortRuns orders the report's runs by start time, earliest first.
 func (r *Report) SortRuns() {
 	slices.SortFunc(r.Runs, func(a, b *Run) int {
 		return a.Started.Compare(b.Started)

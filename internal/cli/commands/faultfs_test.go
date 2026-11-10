@@ -35,7 +35,6 @@ type faultFile struct {
 	name string
 }
 
-// injection is one operation a faultFS failed.
 type injection struct {
 	op   string
 	path string

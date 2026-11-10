@@ -74,40 +74,76 @@ func (e *RunCmdCacheEntry) Value() string {
 }
 
 const (
-	FuncNameFindInParentFolders                     = "find_in_parent_folders"
-	FuncNamePathRelativeToInclude                   = "path_relative_to_include"
-	FuncNamePathRelativeFromInclude                 = "path_relative_from_include"
-	FuncNameGetEnv                                  = "get_env"
-	FuncNameRunCmd                                  = "run_cmd"
-	FuncNameReadTerragruntConfig                    = "read_terragrunt_config"
-	FuncNameGetPlatform                             = "get_platform"
-	FuncNameGetRepoRoot                             = "get_repo_root"
-	FuncNameGetPathFromRepoRoot                     = "get_path_from_repo_root"
-	FuncNameGetPathToRepoRoot                       = "get_path_to_repo_root"
-	FuncNameGetTerragruntDir                        = "get_terragrunt_dir"
-	FuncNameGetOriginalTerragruntDir                = "get_original_terragrunt_dir"
-	FuncNameGetTerraformCommand                     = "get_terraform_command"
-	FuncNameGetTerraformCLIArgs                     = "get_terraform_cli_args"
-	FuncNameGetParentTerragruntDir                  = "get_parent_terragrunt_dir"
-	FuncNameGetAWSAccountAlias                      = "get_aws_account_alias"
-	FuncNameGetAWSAccountID                         = "get_aws_account_id"
-	FuncNameGetAWSCallerIdentityArn                 = "get_aws_caller_identity_arn"
-	FuncNameGetAWSCallerIdentityUserID              = "get_aws_caller_identity_user_id"
-	FuncNameGetTerraformCommandsThatNeedVars        = "get_terraform_commands_that_need_vars"
-	FuncNameGetTerraformCommandsThatNeedLocking     = "get_terraform_commands_that_need_locking"
-	FuncNameGetTerraformCommandsThatNeedInput       = "get_terraform_commands_that_need_input"
+	// FuncNameFindInParentFolders names the `find_in_parent_folders` function.
+	FuncNameFindInParentFolders = "find_in_parent_folders"
+	// FuncNamePathRelativeToInclude names the `path_relative_to_include` function.
+	FuncNamePathRelativeToInclude = "path_relative_to_include"
+	// FuncNamePathRelativeFromInclude names the `path_relative_from_include` function.
+	FuncNamePathRelativeFromInclude = "path_relative_from_include"
+	// FuncNameGetEnv names the `get_env` function.
+	FuncNameGetEnv = "get_env"
+	// FuncNameRunCmd names the `run_cmd` function.
+	FuncNameRunCmd = "run_cmd"
+	// FuncNameReadTerragruntConfig names the `read_terragrunt_config` function.
+	FuncNameReadTerragruntConfig = "read_terragrunt_config"
+	// FuncNameGetPlatform names the `get_platform` function.
+	FuncNameGetPlatform = "get_platform"
+	// FuncNameGetRepoRoot names the `get_repo_root` function.
+	FuncNameGetRepoRoot = "get_repo_root"
+	// FuncNameGetPathFromRepoRoot names the `get_path_from_repo_root` function.
+	FuncNameGetPathFromRepoRoot = "get_path_from_repo_root"
+	// FuncNameGetPathToRepoRoot names the `get_path_to_repo_root` function.
+	FuncNameGetPathToRepoRoot = "get_path_to_repo_root"
+	// FuncNameGetTerragruntDir names the `get_terragrunt_dir` function.
+	FuncNameGetTerragruntDir = "get_terragrunt_dir"
+	// FuncNameGetOriginalTerragruntDir names the `get_original_terragrunt_dir` function.
+	FuncNameGetOriginalTerragruntDir = "get_original_terragrunt_dir"
+	// FuncNameGetTerraformCommand names the `get_terraform_command` function.
+	FuncNameGetTerraformCommand = "get_terraform_command"
+	// FuncNameGetTerraformCLIArgs names the `get_terraform_cli_args` function.
+	FuncNameGetTerraformCLIArgs = "get_terraform_cli_args"
+	// FuncNameGetParentTerragruntDir names the `get_parent_terragrunt_dir` function.
+	FuncNameGetParentTerragruntDir = "get_parent_terragrunt_dir"
+	// FuncNameGetAWSAccountAlias names the `get_aws_account_alias` function.
+	FuncNameGetAWSAccountAlias = "get_aws_account_alias"
+	// FuncNameGetAWSAccountID names the `get_aws_account_id` function.
+	FuncNameGetAWSAccountID = "get_aws_account_id"
+	// FuncNameGetAWSCallerIdentityArn names the `get_aws_caller_identity_arn` function.
+	FuncNameGetAWSCallerIdentityArn = "get_aws_caller_identity_arn"
+	// FuncNameGetAWSCallerIdentityUserID names the `get_aws_caller_identity_user_id` function.
+	FuncNameGetAWSCallerIdentityUserID = "get_aws_caller_identity_user_id"
+	// FuncNameGetTerraformCommandsThatNeedVars names the `get_terraform_commands_that_need_vars` function.
+	FuncNameGetTerraformCommandsThatNeedVars = "get_terraform_commands_that_need_vars"
+	// FuncNameGetTerraformCommandsThatNeedLocking names the `get_terraform_commands_that_need_locking` function.
+	FuncNameGetTerraformCommandsThatNeedLocking = "get_terraform_commands_that_need_locking"
+	// FuncNameGetTerraformCommandsThatNeedInput names the `get_terraform_commands_that_need_input` function.
+	FuncNameGetTerraformCommandsThatNeedInput = "get_terraform_commands_that_need_input"
+	// FuncNameGetTerraformCommandsThatNeedParallelism names the `get_terraform_commands_that_need_parallelism`
+	// function.
 	FuncNameGetTerraformCommandsThatNeedParallelism = "get_terraform_commands_that_need_parallelism"
-	FuncNameSopsDecryptFile                         = "sops_decrypt_file"
-	FuncNameGetTerragruntSourceCLIFlag              = "get_terragrunt_source_cli_flag"
-	FuncNameGetDefaultRetryableErrors               = "get_default_retryable_errors"
-	FuncNameReadTfvarsFile                          = "read_tfvars_file"
-	FuncNameGetWorkingDir                           = "get_working_dir"
-	FuncNameMarkAsRead                              = "mark_as_read"
-	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
-	FuncNameConstraintCheck                         = "constraint_check"
-	FuncNameDeepMerge                               = "deep_merge"
-	FuncNameBase64Gzip                              = "base64gzip"
-	FuncNameBase64GzipCompat                        = "base64gzip_compat"
+	// FuncNameSopsDecryptFile names the `sops_decrypt_file` function.
+	FuncNameSopsDecryptFile = "sops_decrypt_file"
+	// FuncNameGetTerragruntSourceCLIFlag names the `get_terragrunt_source_cli_flag` function.
+	FuncNameGetTerragruntSourceCLIFlag = "get_terragrunt_source_cli_flag"
+	// FuncNameGetDefaultRetryableErrors names the `get_default_retryable_errors` function.
+	FuncNameGetDefaultRetryableErrors = "get_default_retryable_errors"
+	// FuncNameReadTfvarsFile names the `read_tfvars_file` function.
+	FuncNameReadTfvarsFile = "read_tfvars_file"
+	// FuncNameGetWorkingDir names the `get_working_dir` function.
+	FuncNameGetWorkingDir = "get_working_dir"
+	// FuncNameMarkAsRead names the `mark_as_read` function.
+	FuncNameMarkAsRead = "mark_as_read"
+	// FuncNameMarkGlobAsRead names the `mark_glob_as_read` function.
+	FuncNameMarkGlobAsRead = "mark_glob_as_read"
+	// FuncNameConstraintCheck names the `constraint_check` function.
+	FuncNameConstraintCheck = "constraint_check"
+	// FuncNameDeepMerge names the `deep_merge` function.
+	FuncNameDeepMerge = "deep_merge"
+	// FuncNameBase64Gzip names the `base64gzip` function, which comes from the OpenTofu function library.
+	FuncNameBase64Gzip = "base64gzip"
+	// FuncNameBase64GzipCompat names the `base64gzip_compat` function, which reproduces the `base64gzip` output of
+	// Terragrunt v1.1.3 and earlier.
+	FuncNameBase64GzipCompat = "base64gzip_compat"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -148,6 +184,7 @@ var TerraformCommandsNeedParallelism = []string{
 	"destroy",
 }
 
+// EnvVar holds the arguments of a `get_env` call. IsRequired is set when the call passes no default.
 type EnvVar struct {
 	Name         string
 	DefaultValue string
@@ -183,25 +220,42 @@ func CreateTerragruntEvalContext(
 	pctx *ParsingContext,
 	cfgPath string,
 ) (*hcl.EvalContext, error) {
-	evalCtx := &hcl.EvalContext{
-		Functions: TerragruntFunctions(ctx, l, v, pctx, cfgPath),
+	vars, err := TerragruntEvalVariables(ctx, l, v, pctx, cfgPath)
+	if err != nil {
+		return nil, err
 	}
 
-	evalCtx.Variables = map[string]cty.Value{}
+	return &hcl.EvalContext{
+		Functions: TerragruntFunctions(ctx, l, v, pctx, cfgPath),
+		Variables: vars,
+	}, nil
+}
+
+// TerragruntEvalVariables returns the variables of the eval context [CreateTerragruntEvalContext] builds for pctx,
+// with no functions.
+func TerragruntEvalVariables(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	cfgPath string,
+) (map[string]cty.Value, error) {
+	vars := map[string]cty.Value{}
+
 	if pctx.Locals != nil {
-		evalCtx.Variables[MetadataLocal] = *pctx.Locals
+		vars[MetadataLocal] = *pctx.Locals
 	}
 
 	if pctx.Features != nil {
-		evalCtx.Variables[MetadataFeatureFlag] = *pctx.Features
+		vars[MetadataFeatureFlag] = *pctx.Features
 	}
 
 	if pctx.Values != nil {
-		evalCtx.Variables[MetadataValues] = *pctx.Values
+		vars[MetadataValues] = *pctx.Values
 	}
 
 	if pctx.DecodedDependencies != nil {
-		evalCtx.Variables[MetadataDependency] = *pctx.DecodedDependencies
+		vars[MetadataDependency] = *pctx.DecodedDependencies
 	}
 
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 {
@@ -229,11 +283,11 @@ func CreateTerragruntEvalContext(
 		}
 
 		if err == nil {
-			evalCtx.Variables[MetadataInclude] = exposedInclude
+			vars[MetadataInclude] = exposedInclude
 		}
 	}
 
-	return evalCtx, nil
+	return vars, nil
 }
 
 // TerragruntFunctions returns the functions of the eval context [CreateTerragruntEvalContext] builds for the config
@@ -900,7 +954,7 @@ func findInParentFoldersImpl(
 
 	name := filepath.Clean(fileToFindParam)
 	namesDefault := fileToFindParam == "" || name == DefaultTerragruntConfigPath
-	namesRootFile := !namesDefault && upwardOnly(filepath.Dir(name))
+	namesRootFile := !namesDefault && namesUpwardDefaultConfig(name)
 
 	if namesDefault {
 		if err := evaluateRootTerragruntHCL(ctx, l, pctx); err != nil {
@@ -970,9 +1024,13 @@ func evaluateRootTerragruntHCL(ctx context.Context, l log.Logger, pctx *ParsingC
 	return nil
 }
 
-// upwardOnly reports whether dir, a cleaned relative directory, is the current directory or only parent steps.
-func upwardOnly(dir string) bool {
-	for part := range strings.SplitSeq(filepath.ToSlash(dir), "/") {
+// namesUpwardDefaultConfig reports whether a cleaned name is terragrunt.hcl in any letter case, reached only upward.
+func namesUpwardDefaultConfig(name string) bool {
+	if !strings.EqualFold(filepath.Base(name), DefaultTerragruntConfigPath) {
+		return false
+	}
+
+	for part := range strings.SplitSeq(filepath.ToSlash(filepath.Dir(name)), "/") {
 		if part != "." && part != ".." {
 			return false
 		}

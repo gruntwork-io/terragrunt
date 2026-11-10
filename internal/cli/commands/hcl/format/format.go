@@ -59,6 +59,11 @@ func formatWorkers(parallelism int) int {
 	return min(runtime.GOMAXPROCS(0), maxFormatWorkers)
 }
 
+// Run formats the HCL input that opts selects: stdin when opts.HclFromStdin is
+// set, the single file opts.HclFile, or else every file [Files] returns under
+// opts.WorkingDir. Formatting failures across files are joined.
+//
+// Returns an error when opts.HclFromStdin and opts.HclFile are both set.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile

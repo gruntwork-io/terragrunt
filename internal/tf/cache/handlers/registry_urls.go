@@ -23,12 +23,14 @@ const (
 )
 
 var (
+	// DefaultRegistryURLs are the registry API paths the cache server falls back to when no discovery document gives them.
 	DefaultRegistryURLs = &RegistryURLs{
 		ModulesV1:   "/v1/modules",
 		ProvidersV1: "/v1/providers",
 	}
 )
 
+// RegistryURLs are the module and provider API paths a registry publishes in its service discovery document.
 type RegistryURLs struct {
 	ModulesV1   string `json:"modules.v1"`
 	ProvidersV1 string `json:"providers.v1"`

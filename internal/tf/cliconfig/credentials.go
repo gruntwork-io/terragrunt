@@ -9,6 +9,8 @@ import (
 	svcauth "github.com/hashicorp/terraform-svchost/auth"
 )
 
+// CredentialsSource looks up registry API tokens from `TF_TOKEN_*` env vars and from the
+// `credentials` blocks of a CLI config.
 type CredentialsSource struct {
 	// configured describes the credentials explicitly configured in the CLI config via "credentials" blocks.
 	configured map[svchost.Hostname]string
@@ -17,6 +19,8 @@ type CredentialsSource struct {
 	env map[string]string
 }
 
+// ForHost returns the token for host, preferring a `TF_TOKEN_*` env var over a `credentials`
+// block, or nil when neither has one.
 func (s *CredentialsSource) ForHost(host svchost.Hostname) svcauth.HostCredentials {
 	// The first order of precedence for credentials is a host-specific environment variable
 	if envCreds := hostCredentialsFromEnv(s.env, host); envCreds != nil {

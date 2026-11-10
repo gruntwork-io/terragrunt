@@ -14,10 +14,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -229,7 +229,7 @@ func TestStackFuncFactoryScopesFunctionsToStackDir(t *testing.T) {
 	opts.WorkingDir = "/mem/root/live"
 	opts.RootWorkingDir = "/mem/root"
 
-	funcsFor := configbridge.StackFuncFactory(t.Context(), logger.CreateLogger(), venvtest.New(), opts)
+	funcsFor := configbridge.StackFuncFactory(t.Context(), logger.CreateLogger(), venv.MemVenv(), opts)
 
 	testCases := []struct {
 		name     string

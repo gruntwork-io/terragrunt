@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -31,7 +32,7 @@ func TestNewGitRunner(t *testing.T) {
 			}),
 		)
 
-		runner, err := git.NewGitRunner(venvtest.New().WithExec(e))
+		runner, err := git.NewGitRunner(venv.MemVenv().WithExec(e))
 		require.NoError(t, err)
 		assert.Equal(t, "/usr/bin/git", runner.GitPath)
 	})
@@ -46,7 +47,7 @@ func TestNewGitRunner(t *testing.T) {
 			}),
 		)
 
-		runner, err := git.NewGitRunner(venvtest.New().WithExec(e))
+		runner, err := git.NewGitRunner(venv.MemVenv().WithExec(e))
 		require.ErrorIs(t, err, git.ErrGitCommand)
 		assert.Nil(t, runner)
 	})
@@ -245,7 +246,7 @@ func TestGitRunner_LsTreeNames(t *testing.T) {
 			return vexec.Result{Stdout: []byte("a.txt\x00dir/with space.txt\x00")}
 		}).WithWorkDir(filepath.Join(root, "sub"))
 
-		tree, err := runner.LsTreeNames(t.Context(), venvtest.New().WithFS(fsys), "HEAD")
+		tree, err := runner.LsTreeNames(t.Context(), venv.MemVenv().WithFS(fsys), "HEAD")
 		require.NoError(t, err)
 		assert.Equal(t, git.TreePaths{"a.txt": {}, "dir/with space.txt": {}}, tree)
 	})
@@ -256,7 +257,7 @@ func TestGitRunner_LsTreeNames(t *testing.T) {
 		fsys := venvtest.NewFS(t, root, map[string]string{".git": "gitdir: /elsewhere\n"})
 		runner := newMemRunner(t, staticResult(vexec.Result{})).WithWorkDir(root)
 
-		tree, err := runner.LsTreeNames(t.Context(), venvtest.New().WithFS(fsys), "HEAD")
+		tree, err := runner.LsTreeNames(t.Context(), venv.MemVenv().WithFS(fsys), "HEAD")
 		require.NoError(t, err)
 		assert.Empty(t, tree)
 	})
@@ -267,7 +268,7 @@ func TestGitRunner_LsTreeNames(t *testing.T) {
 		fsys := venvtest.NewFS(t, root, map[string]string{".git": "gitdir: /elsewhere\n"})
 		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir(root)
 
-		_, err := runner.LsTreeNames(t.Context(), venvtest.New().WithFS(fsys), "HEAD")
+		_, err := runner.LsTreeNames(t.Context(), venv.MemVenv().WithFS(fsys), "HEAD")
 		require.ErrorIs(t, err, git.ErrReadTree)
 	})
 
@@ -277,7 +278,7 @@ func TestGitRunner_LsTreeNames(t *testing.T) {
 		fsys := venvtest.NewFS(t, root, map[string]string{"file": ""})
 		runner := newMemRunner(t, failIfSpawned(t)).WithWorkDir(root)
 
-		_, err := runner.LsTreeNames(t.Context(), venvtest.New().WithFS(fsys), "HEAD")
+		_, err := runner.LsTreeNames(t.Context(), venv.MemVenv().WithFS(fsys), "HEAD")
 		require.ErrorIs(t, err, git.ErrNoRepoRoot)
 	})
 
@@ -286,7 +287,7 @@ func TestGitRunner_LsTreeNames(t *testing.T) {
 
 		runner := newMemRunner(t, failIfSpawned(t))
 
-		_, err := runner.LsTreeNames(t.Context(), venvtest.New(), "HEAD")
+		_, err := runner.LsTreeNames(t.Context(), venv.MemVenv(), "HEAD")
 		require.ErrorIs(t, err, git.ErrNoWorkDir)
 	})
 }
@@ -386,7 +387,7 @@ func TestGitRunner_CancelSignalsTheCommand(t *testing.T) {
 				signalErr: tc.signalErr,
 			}
 
-			runner, err := git.NewGitRunner(venvtest.New().WithExec(e))
+			runner, err := git.NewGitRunner(venv.MemVenv().WithExec(e))
 			require.NoError(t, err)
 
 			err = runner.WithWorkDir("/repo").ResetHard(ctx, "main")
@@ -668,7 +669,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
 				return runner.CreateDetachedWorktree(
 					ctx,
-					venvtest.New(),
+					venv.MemVenv(),
 					"/worktree",
 					"HEAD",
 					git.CheckoutFiles,
@@ -685,7 +686,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
 				return runner.CreateDetachedWorktree(
 					ctx,
-					venvtest.New(),
+					venv.MemVenv(),
 					"/worktree",
 					"HEAD",
 					git.SkipCheckout,
@@ -700,7 +701,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 		{
 			name: "checkout paths",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.CheckoutPaths(ctx, venvtest.New(), "unit")
+				return runner.CheckoutPaths(ctx, venv.MemVenv(), "unit")
 			},
 			args: []string{
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),
@@ -711,7 +712,7 @@ func TestGitRunner_WorktreeCommands(t *testing.T) {
 		{
 			name: "checkout whole tree",
 			invoke: func(ctx context.Context, runner *git.GitRunner) error {
-				return runner.CheckoutPaths(ctx, venvtest.New())
+				return runner.CheckoutPaths(ctx, venv.MemVenv())
 			},
 			args: []string{
 				"-c", "checkout.workers=" + strconv.Itoa(vfs.DefaultFSWorkers),

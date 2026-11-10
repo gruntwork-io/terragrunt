@@ -1,0 +1,24 @@
+---
+name: terraform_binary
+description: Overrides the OpenTofu/Terraform binary Terragrunt calls.
+configs: [unit]
+type: string
+default: tofu
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      terraform_binary = "/usr/local/bin/tofu"
+---
+
+The `terraform_binary` attribute sets the OpenTofu/Terraform binary Terragrunt calls.
+
+### Precedence
+
+Terragrunt uses the first of these that is set:
+
+1. The [`--tf-path`](/reference/cli/commands/run#tf-path) flag.
+2. The `TG_TF_PATH` environment variable.
+3. `terraform_binary` in the unit's `terragrunt.hcl`.
+4. `terraform_binary` in a file the unit includes.
+5. `tofu` if it is on your `PATH`, otherwise `terraform`.

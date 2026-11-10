@@ -18,76 +18,161 @@ import (
 )
 
 const (
-	NoAutoRetryFlagName                      = "no-auto-retry"
-	NoAutoApproveFlagName                    = "no-auto-approve"
-	NoAutoProviderCacheDirFlagName           = "no-auto-provider-cache-dir"
-	NoEngineFlagName                         = "no-engine"
+	// NoAutoRetryFlagName is the name of the flag that turns off re-running a
+	// command after a transient error.
+	NoAutoRetryFlagName = "no-auto-retry"
+	// NoAutoApproveFlagName is the name of the flag that stops `run --all` from
+	// appending -auto-approve to the tofu command.
+	NoAutoApproveFlagName = "no-auto-approve"
+	// NoAutoProviderCacheDirFlagName is the name of the flag that turns off the
+	// auto-provider-cache-dir feature even when its experiment is enabled.
+	NoAutoProviderCacheDirFlagName = "no-auto-provider-cache-dir"
+	// NoEngineFlagName is the name of the hidden flag that turns off IaC engines
+	// even when the iac-engine experiment is enabled.
+	NoEngineFlagName = "no-engine"
+	// NoDependencyFetchOutputFromStateFlagName is the name of the flag that
+	// reads dependency outputs by running `tofu output` in place of reading
+	// the state file.
 	NoDependencyFetchOutputFromStateFlagName = "no-dependency-fetch-output-from-state"
-	NoHooksFlagName                          = "no-hooks"
-	NoDependencyOutputsFlagName              = "no-dependency-outputs"
-	TFForwardStdoutFlagName                  = "tf-forward-stdout"
-	UnitsThatIncludeFlagName                 = "units-that-include"
-	DependencyFetchOutputFromStateFlagName   = "dependency-fetch-output-from-state"
-	UsePartialParseConfigCacheFlagName       = "use-partial-parse-config-cache"
-	SummaryPerUnitFlagName                   = "summary-per-unit"
-	VersionManagerFileNameFlagName           = "version-manager-file-name"
+	// NoHooksFlagName is the name of the flag that skips Terragrunt hooks.
+	NoHooksFlagName = "no-hooks"
+	// NoDependencyOutputsFlagName is the name of the flag that skips resolving
+	// dependency outputs.
+	NoDependencyOutputsFlagName = "no-dependency-outputs"
+	// TFForwardStdoutFlagName is the name of the flag that prints tofu output
+	// as is, outside the Terragrunt log.
+	TFForwardStdoutFlagName = "tf-forward-stdout"
+	// UnitsThatIncludeFlagName is the name of the hidden, deprecated flag that
+	// limits `run --all` to units that read the given file. Setting it
+	// evaluates its strict control.
+	UnitsThatIncludeFlagName = "units-that-include"
+	// DependencyFetchOutputFromStateFlagName is the name of the deprecated flag
+	// that reads dependency outputs from the state file, which is already the
+	// default. Setting it evaluates its strict control.
+	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
+	// UsePartialParseConfigCacheFlagName is the name of the flag that caches
+	// includes during partial parsing.
+	UsePartialParseConfigCacheFlagName = "use-partial-parse-config-cache"
+	// SummaryPerUnitFlagName is the name of the flag that adds each unit's
+	// duration to the run summary.
+	SummaryPerUnitFlagName = "summary-per-unit"
+	// VersionManagerFileNameFlagName is the name of the flag that sets the
+	// version manager file names hashed into the cache key.
+	VersionManagerFileNameFlagName = "version-manager-file-name"
 
-	DisableCommandValidationFlagName   = "disable-command-validation"
+	// DisableCommandValidationFlagName is the name of the hidden, deprecated
+	// flag that skips validating the tofu command name. Setting it evaluates
+	// its strict control.
+	DisableCommandValidationFlagName = "disable-command-validation"
+	// NoDestroyDependenciesCheckFlagName is the name of the hidden, deprecated
+	// flag that skips checking for dependent units on destroy. Setting it
+	// evaluates its strict control.
 	NoDestroyDependenciesCheckFlagName = "no-destroy-dependencies-check"
-	DestroyDependenciesCheckFlagName   = "destroy-dependencies-check"
+	// DestroyDependenciesCheckFlagName is the name of the flag that checks for
+	// dependent units before a destroy.
+	DestroyDependenciesCheckFlagName = "destroy-dependencies-check"
 
+	// SourceUpdateFlagName is the name of the flag that clears the download
+	// directory before downloading the unit's source.
 	SourceUpdateFlagName = "source-update"
 
+	// NoStackGenerate is the name of the flag that skips regenerating stacks
+	// before the command runs.
 	NoStackGenerate = "no-stack-generate"
 
 	// Terragrunt Provider Cache related flags.
 
-	ProviderCacheFlagName              = "provider-cache"
-	ProviderCacheDirFlagName           = "provider-cache-dir"
-	ProviderCacheHostnameFlagName      = "provider-cache-hostname"
-	ProviderCachePortFlagName          = "provider-cache-port"
-	ProviderCacheTokenFlagName         = "provider-cache-token"
+	// ProviderCacheFlagName is the name of the flag that turns on the
+	// Terragrunt Provider Cache.
+	ProviderCacheFlagName = "provider-cache"
+	// ProviderCacheDirFlagName is the name of the flag that sets the provider
+	// cache directory.
+	ProviderCacheDirFlagName = "provider-cache-dir"
+	// ProviderCacheHostnameFlagName is the name of the flag that sets the
+	// hostname of the provider cache server.
+	ProviderCacheHostnameFlagName = "provider-cache-hostname"
+	// ProviderCachePortFlagName is the name of the flag that sets the port of
+	// the provider cache server.
+	ProviderCachePortFlagName = "provider-cache-port"
+	// ProviderCacheTokenFlagName is the name of the flag that sets the token
+	// clients present to the provider cache server.
+	ProviderCacheTokenFlagName = "provider-cache-token"
+	// ProviderCacheRegistryNamesFlagName is the name of the flag that lists the
+	// registries the provider cache server caches.
 	ProviderCacheRegistryNamesFlagName = "provider-cache-registry-names"
 
 	// Engine related environment variables.
 
-	EngineEnableFlagName    = "experimental-engine"
+	// EngineEnableFlagName is the name of the hidden flag that enables the
+	// iac-engine experiment.
+	EngineEnableFlagName = "experimental-engine"
+	// EngineCachePathFlagName is the name of the hidden flag that sets where
+	// IaC engine files are cached.
 	EngineCachePathFlagName = "engine-cache-path"
+	// EngineSkipCheckFlagName is the name of the hidden flag that skips
+	// verifying the checksum of IaC engine files.
 	EngineSkipCheckFlagName = "engine-skip-check"
-	EngineLogLevelFlagName  = "engine-log-level"
+	// EngineLogLevelFlagName is the name of the hidden flag that sets the IaC
+	// engine log level.
+	EngineLogLevelFlagName = "engine-log-level"
 
 	// Report related flags.
 
+	// SummaryDisableFlagName is the name of the flag that omits the summary
+	// printed at the end of a run.
 	SummaryDisableFlagName = "summary-disable"
-	ReportFileFlagName     = "report-file"
-	ReportFormatFlagName   = "report-format"
-	ReportSchemaFlagName   = "report-schema-file"
+	// ReportFileFlagName is the name of the flag that sets the path of the run
+	// report. A .csv or .json extension also sets the report format when
+	// --report-format is unset.
+	ReportFileFlagName = "report-file"
+	// ReportFormatFlagName is the name of the flag that sets the run report
+	// format: csv or json.
+	ReportFormatFlagName = "report-format"
+	// ReportSchemaFlagName is the name of the flag that sets where to write the
+	// JSON schema of the run report.
+	ReportSchemaFlagName = "report-schema-file"
 
 	// `--all` related flags.
 
-	OutDirFlagName     = "out-dir"
+	// OutDirFlagName is the name of the flag that sets the directory plan
+	// files are saved to.
+	OutDirFlagName = "out-dir"
+	// JSONOutDirFlagName is the name of the flag that sets the directory JSON
+	// plan files are saved to.
 	JSONOutDirFlagName = "json-out-dir"
 
 	// `--graph` related flags.
 
+	// GraphRootFlagName is the name of the flag that sets the directory the
+	// dependency graph is built from.
 	GraphRootFlagName = "graph-root"
 
 	// Config and download flags - use shared package constants
 
+	// ConfigFlagName is [shared.ConfigFlagName].
 	ConfigFlagName = shared.ConfigFlagName
 
 	// Source and auto-init flags - use shared package constants
 
+	// NoAutoInitFlagName is [shared.NoAutoInitFlagName].
 	NoAutoInitFlagName = shared.NoAutoInitFlagName
-	SourceFlagName     = shared.SourceFlagName
-	SourceMapFlagName  = shared.SourceMapFlagName
+	// SourceFlagName is [shared.SourceFlagName].
+	SourceFlagName = shared.SourceFlagName
+	// SourceMapFlagName is [shared.SourceMapFlagName].
+	SourceMapFlagName = shared.SourceMapFlagName
 
 	// Auth and IAM flags - use shared package constants
 
-	InputsDebugFlagName                   = shared.InputsDebugFlagName
-	IAMAssumeRoleFlagName                 = shared.IAMAssumeRoleFlagName
-	IAMAssumeRoleDurationFlagName         = shared.IAMAssumeRoleDurationFlagName
-	IAMAssumeRoleSessionNameFlagName      = shared.IAMAssumeRoleSessionNameFlagName
+	// InputsDebugFlagName is [shared.InputsDebugFlagName].
+	InputsDebugFlagName = shared.InputsDebugFlagName
+	// IAMAssumeRoleFlagName is [shared.IAMAssumeRoleFlagName].
+	IAMAssumeRoleFlagName = shared.IAMAssumeRoleFlagName
+	// IAMAssumeRoleDurationFlagName is [shared.IAMAssumeRoleDurationFlagName].
+	IAMAssumeRoleDurationFlagName = shared.IAMAssumeRoleDurationFlagName
+	// IAMAssumeRoleSessionNameFlagName is [shared.IAMAssumeRoleSessionNameFlagName].
+	IAMAssumeRoleSessionNameFlagName = shared.IAMAssumeRoleSessionNameFlagName
+	// IAMAssumeRoleWebIdentityTokenFlagName is
+	// [shared.IAMAssumeRoleWebIdentityTokenFlagName].
 	IAMAssumeRoleWebIdentityTokenFlagName = shared.IAMAssumeRoleWebIdentityTokenFlagName
 )
 

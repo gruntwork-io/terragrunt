@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	// UnitKind is the [Kind] of a [Unit].
 	UnitKind Kind = "unit"
 )
 

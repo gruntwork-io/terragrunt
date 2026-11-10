@@ -95,7 +95,6 @@ func TestRootFileNameFlag(t *testing.T) {
 	}
 }
 
-// rootFileNameOutcome is how --root-file-name handles a value.
 type rootFileNameOutcome int
 
 const (

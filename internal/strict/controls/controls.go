@@ -107,6 +107,8 @@ const (
 	// LegacyBase64Gzip is the control that switches base64gzip() from the Go 1.26 gzip bytes to the current encoder.
 	LegacyBase64Gzip = "legacy-base64gzip"
 
+	// OptionalHooks is the control named for the `--no-hooks` flag of `terragrunt run`, which skips
+	// before_hook, after_hook, and error_hook blocks.
 	OptionalHooks = "optional-hooks"
 
 	// DuplicateDependencyLabels is the control that prevents two `dependency` blocks in one
@@ -131,6 +133,7 @@ func IsFastCopyEnabled(strictControls strict.Controls) bool {
 	return len(strictControls.FilterByNames(FastCopy).FilterByEnabled()) > 0
 }
 
+// New returns every strict control Terragrunt knows, each disabled, with its subcontrols attached.
 func New() strict.Controls {
 	skipDependenciesInputsControl := &Control{
 		Name:        SkipDependenciesInputs,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -21,7 +22,7 @@ import (
 func TestWrapWithProfilingNoFlagsRunsAction(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
@@ -40,7 +41,7 @@ func TestWrapWithProfilingNoFlagsRunsAction(t *testing.T) {
 func TestWrapWithProfilingWritesProfile(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
@@ -60,7 +61,7 @@ func TestWrapWithProfilingWritesProfile(t *testing.T) {
 func TestWrapWithProfilingTightensExistingFilePermissions(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
@@ -84,7 +85,7 @@ func TestWrapWithProfilingProfileDirWritesAllProfiles(t *testing.T) {
 
 	// The CPU profiler is process-wide, so no other test in this package may start it.
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = testWorkDir
@@ -160,7 +161,7 @@ func TestWrapWithProfilingStartupFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			v = v.WithFS(newFaultFS(v.FS, atPath(tc.op, tc.path)))
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
@@ -206,7 +207,7 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			fsys := newFaultFS(v.FS, atPath(tc.op, tc.mem+tc.goroutine))
 			v = v.WithFS(fsys)
 
@@ -265,7 +266,7 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			fsys := newFaultFS(v.FS, atPath(tc.startup.op, tc.startup.path), atPath(tc.cleanup.op, tc.cleanup.path))
 			v = v.WithFS(fsys)
 

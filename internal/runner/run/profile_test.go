@@ -8,9 +8,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -90,7 +90,7 @@ func TestSetTofuCPUProfileEnv(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			maps.Copy(v.Env, tc.presetEnv)
 
 			opts := run.NewOptions()
@@ -128,7 +128,7 @@ func TestSetTofuCPUProfileEnvAutoInitGetsOwnProfile(t *testing.T) {
 
 	rootDir := filepath.Join(string(filepath.Separator), "infra", "live")
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	opts := run.NewOptions()
 	opts.RootWorkingDir = rootDir
@@ -154,7 +154,7 @@ func TestSetTofuCPUProfileEnvUserPathInsideProfileDirRespected(t *testing.T) {
 
 	rootDir := filepath.Join(string(filepath.Separator), "infra", "live")
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	opts := run.NewOptions()
 	opts.RootWorkingDir = rootDir
@@ -183,7 +183,7 @@ func TestSetTofuCPUProfileEnvExternalUnitsDoNotCollide(t *testing.T) {
 		filepath.Join(string(filepath.Separator), "team-a", "vpc"),
 		filepath.Join(string(filepath.Separator), "team-b", "vpc"),
 	} {
-		v := venvtest.New()
+		v := venv.MemVenv()
 
 		opts := run.NewOptions()
 		opts.RootWorkingDir = rootDir
@@ -204,7 +204,7 @@ func TestSetTofuCPUProfileEnvDirCreationError(t *testing.T) {
 	profileDir := t.TempDir()
 	rootDir := filepath.Join(string(filepath.Separator), "infra", "live")
 
-	v := venvtest.New().WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithFS(vfs.NewOSFS())
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(profileDir, "app1"), []byte("x"), 0o600))
 
 	opts := run.NewOptions()

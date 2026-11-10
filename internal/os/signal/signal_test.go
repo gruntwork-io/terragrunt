@@ -144,14 +144,12 @@ func TestNewNotifierCallsAreIndependentWithRacing(t *testing.T) {
 	})
 }
 
-// testSignal is an [os.Signal] the tests send through a fake source.
 type testSignal string
 
 func (s testSignal) String() string { return string(s) }
 
 func (testSignal) Signal() {}
 
-// fakeSource records the channels a notifier subscribes and unsubscribes.
 type fakeSource struct {
 	stopped  chan chan<- os.Signal
 	channels []chan<- os.Signal

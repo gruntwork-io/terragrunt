@@ -15,7 +15,7 @@ A [stack](/features/stacks/) is a collection of units managed together, such as 
 Stacks come in two forms:
 
 - **[Implicit stacks](/features/stacks/implicit/)** are just a directory tree of units. Nothing declares the stack; it is the set of units Terragrunt discovers under the directory you run from.
-- **[Explicit stacks](/features/stacks/explicit/)** are declared in a `terragrunt.stack.hcl` file, which generates units into a `.terragrunt-stack` directory from sources you point at. This lets you define a pattern once and instantiate it repeatedly with different [`values`](/reference/hcl/blocks#unit).
+- **[Explicit stacks](/features/stacks/explicit/)** are declared in a `terragrunt.stack.hcl` file, which generates units into a `.terragrunt-stack` directory from sources you point at. This lets you define a pattern once and instantiate it repeatedly with different [`values`](/reference/hcl/blocks/unit/).
 
 A single directory cannot be both. Putting a `terragrunt.hcl` and a `terragrunt.stack.hcl` side by side in the same directory is an error.
 

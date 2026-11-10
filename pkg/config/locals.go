@@ -321,6 +321,7 @@ func getLocalName(traversal hcl.Traversal) string {
 // Custom Errors Returned by Functions in this Code
 // ------------------------------------------------
 
+// CouldNotEvaluateAllLocalsError reports locals that could not be evaluated. Err joins the diagnostics of each.
 type CouldNotEvaluateAllLocalsError struct {
 	Err error
 }

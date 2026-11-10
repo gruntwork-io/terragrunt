@@ -9,8 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -165,7 +167,7 @@ func runStackOutput(t *testing.T, files map[string]string, filters filter.Filter
 	t.Helper()
 
 	root := venvtest.Root("/repo")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, files))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, files))
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(root, config.DefaultTerragruntConfigPath))
 	require.NoError(t, err)
@@ -173,5 +175,5 @@ func runStackOutput(t *testing.T, files map[string]string, filters filter.Filter
 	opts.WorkingDir = root
 	opts.Filters = filters
 
-	return output.StackOutput(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+	return output.StackOutput(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 }

@@ -89,7 +89,7 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			if tc.versionOut != "" {
 				v = v.WithHandler(versionHandler(tc.versionOut))
 			}
@@ -140,7 +140,7 @@ func TestRunActionAutoProviderCacheDirKeepsUserValue(t *testing.T) {
 
 	probes := 0
 
-	v := venvtest.New().WithHandler(func(ctx context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(ctx context.Context, inv vexec.Invocation) vexec.Result {
 		probes++
 
 		return versionHandler(tofu110Version)(ctx, inv)

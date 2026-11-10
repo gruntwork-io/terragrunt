@@ -284,30 +284,11 @@ func extractDependencyPaths(
 		return nil, nil
 	}
 
-	maxDedupLen := len(cfg.TerragruntDependencies)
-	if cfg.Dependencies != nil {
-		maxDedupLen += len(cfg.Dependencies.Paths)
-	}
+	configPaths, unresolved := cfg.DependencyPaths()
 
-	depPaths := make([]string, 0, maxDedupLen)
+	depPaths := make([]string, 0, len(configPaths))
 
-	errs := make([]error, 0, maxDedupLen)
-
-	for _, dependency := range cfg.TerragruntDependencies {
-		if dependency.Enabled != nil && !*dependency.Enabled {
-			continue
-		}
-
-		if !config.IsValidConfigPath(dependency.ConfigPath) {
-			errs = append(errs, fmt.Errorf(
-				"skipping dependency %q in %q: "+
-					"config_path could not be resolved",
-				dependency.Name, c.Path()))
-
-			continue
-		}
-
-		depPath := dependency.ConfigPath.AsString()
+	for _, depPath := range configPaths {
 		if !filepath.IsAbs(depPath) {
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
@@ -315,25 +296,24 @@ func extractDependencyPaths(
 		depPaths = append(depPaths, paths.Resolve(depPath))
 	}
 
-	if cfg.Dependencies != nil {
-		for _, dependency := range cfg.Dependencies.Paths {
-			if !filepath.IsAbs(dependency) {
-				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
-			}
-
-			depPaths = append(depPaths, paths.Resolve(dependency))
-		}
-	}
-
 	slices.Sort(depPaths)
 
 	depPaths = slices.Compact(depPaths)
 
-	if len(errs) > 0 {
-		return depPaths, errors.Join(errs...)
+	if len(unresolved) == 0 {
+		return depPaths, nil
 	}
 
-	return depPaths, nil
+	errs := make([]error, 0, len(unresolved))
+
+	for _, name := range unresolved {
+		errs = append(errs, fmt.Errorf(
+			"skipping dependency %q in %q: "+
+				"config_path could not be resolved",
+			name, c.Path()))
+	}
+
+	return depPaths, errors.Join(errs...)
 }
 
 // storeStackConfigs parses each discovered stack's config file and stores the
