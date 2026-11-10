@@ -34,6 +34,8 @@ func NewUnitWriter(w io.Writer) *UnitWriter {
 	}
 }
 
+// Write buffers p and writes every complete line in the buffer to the underlying writer. A trailing partial line
+// stays buffered.
 func (writer *UnitWriter) Write(p []byte) (int, error) {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()

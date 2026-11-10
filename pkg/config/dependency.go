@@ -72,6 +72,7 @@ const (
 	downloadDirPerms = 0o700
 )
 
+// Dependencies lists a config's `dependency` blocks.
 type Dependencies []Dependency
 
 // Struct to hold the decoded dependency blocks.
@@ -80,6 +81,7 @@ type dependencyOutputCache struct {
 	Inputs  cty.Value
 }
 
+// Dependency is a `dependency` block: another unit whose outputs this config reads.
 type Dependency struct {
 	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
 

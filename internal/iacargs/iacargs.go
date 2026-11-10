@@ -20,7 +20,9 @@ const (
 )
 
 const (
+	// SingleDashFlag rewrites `--flag` to `-flag`.
 	SingleDashFlag NormalizeActsType = iota
+	// DoubleDashFlag rewrites `-flag` to `--flag`.
 	DoubleDashFlag
 )
 
@@ -29,6 +31,7 @@ var (
 	doubleDashRegexp = regexp.MustCompile(`^--([^-]|$)`)
 )
 
+// NormalizeActsType is a rewrite that [IacArgs.Normalize] applies to each flag.
 type NormalizeActsType byte
 
 // valueTakingFlags contains flags that require space-separated values.

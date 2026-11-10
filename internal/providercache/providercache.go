@@ -89,6 +89,8 @@ var (
 	}
 )
 
+// ProviderCache is the provider cache server that tofu init runs against, so units share one cache of downloaded
+// providers.
 type ProviderCache struct {
 	*cache.Server
 	opts            *pcoptions.ProviderCacheOptions

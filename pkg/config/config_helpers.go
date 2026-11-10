@@ -72,40 +72,76 @@ func (e *RunCmdCacheEntry) Value() string {
 }
 
 const (
-	FuncNameFindInParentFolders                     = "find_in_parent_folders"
-	FuncNamePathRelativeToInclude                   = "path_relative_to_include"
-	FuncNamePathRelativeFromInclude                 = "path_relative_from_include"
-	FuncNameGetEnv                                  = "get_env"
-	FuncNameRunCmd                                  = "run_cmd"
-	FuncNameReadTerragruntConfig                    = "read_terragrunt_config"
-	FuncNameGetPlatform                             = "get_platform"
-	FuncNameGetRepoRoot                             = "get_repo_root"
-	FuncNameGetPathFromRepoRoot                     = "get_path_from_repo_root"
-	FuncNameGetPathToRepoRoot                       = "get_path_to_repo_root"
-	FuncNameGetTerragruntDir                        = "get_terragrunt_dir"
-	FuncNameGetOriginalTerragruntDir                = "get_original_terragrunt_dir"
-	FuncNameGetTerraformCommand                     = "get_terraform_command"
-	FuncNameGetTerraformCLIArgs                     = "get_terraform_cli_args"
-	FuncNameGetParentTerragruntDir                  = "get_parent_terragrunt_dir"
-	FuncNameGetAWSAccountAlias                      = "get_aws_account_alias"
-	FuncNameGetAWSAccountID                         = "get_aws_account_id"
-	FuncNameGetAWSCallerIdentityArn                 = "get_aws_caller_identity_arn"
-	FuncNameGetAWSCallerIdentityUserID              = "get_aws_caller_identity_user_id"
-	FuncNameGetTerraformCommandsThatNeedVars        = "get_terraform_commands_that_need_vars"
-	FuncNameGetTerraformCommandsThatNeedLocking     = "get_terraform_commands_that_need_locking"
-	FuncNameGetTerraformCommandsThatNeedInput       = "get_terraform_commands_that_need_input"
+	// FuncNameFindInParentFolders names the `find_in_parent_folders` function.
+	FuncNameFindInParentFolders = "find_in_parent_folders"
+	// FuncNamePathRelativeToInclude names the `path_relative_to_include` function.
+	FuncNamePathRelativeToInclude = "path_relative_to_include"
+	// FuncNamePathRelativeFromInclude names the `path_relative_from_include` function.
+	FuncNamePathRelativeFromInclude = "path_relative_from_include"
+	// FuncNameGetEnv names the `get_env` function.
+	FuncNameGetEnv = "get_env"
+	// FuncNameRunCmd names the `run_cmd` function.
+	FuncNameRunCmd = "run_cmd"
+	// FuncNameReadTerragruntConfig names the `read_terragrunt_config` function.
+	FuncNameReadTerragruntConfig = "read_terragrunt_config"
+	// FuncNameGetPlatform names the `get_platform` function.
+	FuncNameGetPlatform = "get_platform"
+	// FuncNameGetRepoRoot names the `get_repo_root` function.
+	FuncNameGetRepoRoot = "get_repo_root"
+	// FuncNameGetPathFromRepoRoot names the `get_path_from_repo_root` function.
+	FuncNameGetPathFromRepoRoot = "get_path_from_repo_root"
+	// FuncNameGetPathToRepoRoot names the `get_path_to_repo_root` function.
+	FuncNameGetPathToRepoRoot = "get_path_to_repo_root"
+	// FuncNameGetTerragruntDir names the `get_terragrunt_dir` function.
+	FuncNameGetTerragruntDir = "get_terragrunt_dir"
+	// FuncNameGetOriginalTerragruntDir names the `get_original_terragrunt_dir` function.
+	FuncNameGetOriginalTerragruntDir = "get_original_terragrunt_dir"
+	// FuncNameGetTerraformCommand names the `get_terraform_command` function.
+	FuncNameGetTerraformCommand = "get_terraform_command"
+	// FuncNameGetTerraformCLIArgs names the `get_terraform_cli_args` function.
+	FuncNameGetTerraformCLIArgs = "get_terraform_cli_args"
+	// FuncNameGetParentTerragruntDir names the `get_parent_terragrunt_dir` function.
+	FuncNameGetParentTerragruntDir = "get_parent_terragrunt_dir"
+	// FuncNameGetAWSAccountAlias names the `get_aws_account_alias` function.
+	FuncNameGetAWSAccountAlias = "get_aws_account_alias"
+	// FuncNameGetAWSAccountID names the `get_aws_account_id` function.
+	FuncNameGetAWSAccountID = "get_aws_account_id"
+	// FuncNameGetAWSCallerIdentityArn names the `get_aws_caller_identity_arn` function.
+	FuncNameGetAWSCallerIdentityArn = "get_aws_caller_identity_arn"
+	// FuncNameGetAWSCallerIdentityUserID names the `get_aws_caller_identity_user_id` function.
+	FuncNameGetAWSCallerIdentityUserID = "get_aws_caller_identity_user_id"
+	// FuncNameGetTerraformCommandsThatNeedVars names the `get_terraform_commands_that_need_vars` function.
+	FuncNameGetTerraformCommandsThatNeedVars = "get_terraform_commands_that_need_vars"
+	// FuncNameGetTerraformCommandsThatNeedLocking names the `get_terraform_commands_that_need_locking` function.
+	FuncNameGetTerraformCommandsThatNeedLocking = "get_terraform_commands_that_need_locking"
+	// FuncNameGetTerraformCommandsThatNeedInput names the `get_terraform_commands_that_need_input` function.
+	FuncNameGetTerraformCommandsThatNeedInput = "get_terraform_commands_that_need_input"
+	// FuncNameGetTerraformCommandsThatNeedParallelism names the `get_terraform_commands_that_need_parallelism`
+	// function.
 	FuncNameGetTerraformCommandsThatNeedParallelism = "get_terraform_commands_that_need_parallelism"
-	FuncNameSopsDecryptFile                         = "sops_decrypt_file"
-	FuncNameGetTerragruntSourceCLIFlag              = "get_terragrunt_source_cli_flag"
-	FuncNameGetDefaultRetryableErrors               = "get_default_retryable_errors"
-	FuncNameReadTfvarsFile                          = "read_tfvars_file"
-	FuncNameGetWorkingDir                           = "get_working_dir"
-	FuncNameMarkAsRead                              = "mark_as_read"
-	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
-	FuncNameConstraintCheck                         = "constraint_check"
-	FuncNameDeepMerge                               = "deep_merge"
-	FuncNameBase64Gzip                              = "base64gzip"
-	FuncNameBase64GzipCompat                        = "base64gzip_compat"
+	// FuncNameSopsDecryptFile names the `sops_decrypt_file` function.
+	FuncNameSopsDecryptFile = "sops_decrypt_file"
+	// FuncNameGetTerragruntSourceCLIFlag names the `get_terragrunt_source_cli_flag` function.
+	FuncNameGetTerragruntSourceCLIFlag = "get_terragrunt_source_cli_flag"
+	// FuncNameGetDefaultRetryableErrors names the `get_default_retryable_errors` function.
+	FuncNameGetDefaultRetryableErrors = "get_default_retryable_errors"
+	// FuncNameReadTfvarsFile names the `read_tfvars_file` function.
+	FuncNameReadTfvarsFile = "read_tfvars_file"
+	// FuncNameGetWorkingDir names the `get_working_dir` function.
+	FuncNameGetWorkingDir = "get_working_dir"
+	// FuncNameMarkAsRead names the `mark_as_read` function.
+	FuncNameMarkAsRead = "mark_as_read"
+	// FuncNameMarkGlobAsRead names the `mark_glob_as_read` function.
+	FuncNameMarkGlobAsRead = "mark_glob_as_read"
+	// FuncNameConstraintCheck names the `constraint_check` function.
+	FuncNameConstraintCheck = "constraint_check"
+	// FuncNameDeepMerge names the `deep_merge` function.
+	FuncNameDeepMerge = "deep_merge"
+	// FuncNameBase64Gzip names the `base64gzip` function, which comes from the OpenTofu function library.
+	FuncNameBase64Gzip = "base64gzip"
+	// FuncNameBase64GzipCompat names the `base64gzip_compat` function, which reproduces the `base64gzip` output of
+	// Terragrunt v1.1.3 and earlier.
+	FuncNameBase64GzipCompat = "base64gzip_compat"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -146,6 +182,7 @@ var TerraformCommandsNeedParallelism = []string{
 	"destroy",
 }
 
+// EnvVar holds the arguments of a `get_env` call. IsRequired is set when the call passes no default.
 type EnvVar struct {
 	Name         string
 	DefaultValue string

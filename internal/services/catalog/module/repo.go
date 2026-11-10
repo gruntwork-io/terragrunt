@@ -56,6 +56,7 @@ var (
 	modulesPaths = []string{"modules"}
 )
 
+// Repo is a catalog repository, cloned or local, that the catalog searches for modules.
 type Repo struct {
 	cloneURL       string
 	sourceURL      string
@@ -371,6 +372,7 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, v *venv.Ve
 	}
 }
 
+// CloneOptions describes the clone of a catalog repository: the source URL and the directory to clone into.
 type CloneOptions struct {
 	Context    context.Context
 	SourceURL  string

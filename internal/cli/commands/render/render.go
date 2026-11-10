@@ -22,6 +22,9 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
+// Run renders the fully resolved config of the unit at opts.TerragruntConfigPath
+// in opts.Format, to stdout or, with opts.Write set, to opts.OutputPath. With
+// opts.RunAll set, it renders every discovered unit.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err

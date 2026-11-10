@@ -45,5 +45,6 @@ Global Options:
    {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}
 ` + HelpFooter
 
+// AppVersionTemplate is the template for `terragrunt --version` output.
 const AppVersionTemplate = `{{ .App.Name }} version {{ .App.Version }}
 `

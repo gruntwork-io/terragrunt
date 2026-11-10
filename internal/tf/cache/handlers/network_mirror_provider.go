@@ -17,6 +17,7 @@ import (
 
 var _ ProviderHandler = new(NetworkMirrorProviderHandler)
 
+// NetworkMirrorProviderHandler fetches provider versions and platforms from a provider network mirror server.
 type NetworkMirrorProviderHandler struct {
 	*CommonProviderHandler
 
@@ -24,6 +25,10 @@ type NetworkMirrorProviderHandler struct {
 	networkMirrorURL *url.URL
 }
 
+// NewNetworkMirrorProviderHandler returns a handler for the mirror at the URL of networkMirror
+// that authenticates with credsSource.
+//
+// Returns an error when that URL does not parse.
 func NewNetworkMirrorProviderHandler(
 	l log.Logger,
 	c vhttp.Client,

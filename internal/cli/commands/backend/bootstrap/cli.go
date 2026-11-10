@@ -11,8 +11,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// CommandName is the name of the `terragrunt backend bootstrap` command.
 const CommandName = "bootstrap"
 
+// NewFlags returns the config, download dir, backend, and feature flags that
+// `terragrunt backend bootstrap` shares with other commands, bound to opts.
 func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	backendFlags := shared.NewBackendFlags(opts, nil)
 	featureFlags := shared.NewFeatureFlags(opts, nil)
@@ -30,6 +33,7 @@ func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	return sharedFlags
 }
 
+// NewCommand returns the `terragrunt backend bootstrap` command.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdFlags := NewFlags(opts)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewFailFastFlag(opts))

@@ -11,8 +11,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// CommandName is the name of the `terragrunt backend` command.
 const CommandName = "backend"
 
+// NewCommand returns the `terragrunt backend` command, which groups the
+// bootstrap, delete, and migrate subcommands and prints help when run alone.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	return &clihelper.Command{
 		Name:  CommandName,

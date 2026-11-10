@@ -10,6 +10,9 @@ import (
 
 var _ Backend = new(CommonBackend)
 
+// CommonBackend is the [Backend] for backend types Terragrunt cannot bootstrap: each operation logs a
+// warning and does nothing, and init receives the config unchanged. The s3, gcs, and azurerm backends
+// embed it for its per-bucket locks and for the operations they do not override.
 type CommonBackend struct {
 	bucketLocks   map[string]*sync.Mutex
 	initedConfigs map[string]struct{}
@@ -17,6 +20,7 @@ type CommonBackend struct {
 	mu            sync.Mutex
 }
 
+// NewCommonBackend returns a CommonBackend whose [CommonBackend.Name] is name.
 func NewCommonBackend(name string) *CommonBackend {
 	return &CommonBackend{
 		name:          name,
@@ -30,6 +34,7 @@ func (backend *CommonBackend) Name() string {
 	return backend.name
 }
 
+// IsVersionControlEnabled logs a warning that the check is not implemented and reports false.
 func (backend *CommonBackend) IsVersionControlEnabled(
 	ctx context.Context,
 	l log.Logger,
@@ -110,6 +115,8 @@ func (backend *CommonBackend) GetTFInitArgs(config Config) map[string]any {
 	return config
 }
 
+// GetBucketMutex returns the mutex for bucketName, creating it on first use, so that bootstraps of the
+// same bucket run one at a time.
 func (backend *CommonBackend) GetBucketMutex(bucketName string) *sync.Mutex {
 	backend.mu.Lock()
 	defer backend.mu.Unlock()
@@ -123,6 +130,7 @@ func (backend *CommonBackend) GetBucketMutex(bucketName string) *sync.Mutex {
 	return bucketMu
 }
 
+// IsConfigInited reports whether [CommonBackend.MarkConfigInited] recorded a config with the same cache key.
 func (backend *CommonBackend) IsConfigInited(config interface{ CacheKey() string }) bool {
 	key := config.CacheKey()
 
@@ -134,6 +142,8 @@ func (backend *CommonBackend) IsConfigInited(config interface{ CacheKey() string
 	return ok
 }
 
+// MarkConfigInited records the cache key of a config whose bootstrap succeeded, so later bootstraps of the
+// same config skip their checks.
 func (backend *CommonBackend) MarkConfigInited(config interface{ CacheKey() string }) {
 	key := config.CacheKey()
 

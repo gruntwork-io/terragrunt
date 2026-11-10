@@ -11,9 +11,12 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt info` command.
 	CommandName = "info"
 )
 
+// NewCommand returns the `terragrunt info` command, which groups the strict
+// and print subcommands and prints help when run alone.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	return &clihelper.Command{
 		Name:  CommandName,

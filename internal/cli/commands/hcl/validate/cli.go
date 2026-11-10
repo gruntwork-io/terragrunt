@@ -12,14 +12,23 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt hcl validate` command.
 	CommandName = "validate"
 
-	StrictFlagName         = "strict"
-	InputsFlagName         = "inputs"
+	// StrictFlagName is the name of the flag that, with --inputs, also fails on
+	// inputs the module does not declare.
+	StrictFlagName = "strict"
+	// InputsFlagName is the name of the flag that checks each unit's inputs
+	// against the variables its module declares.
+	InputsFlagName = "inputs"
+	// ShowConfigPathFlagName is the name of the flag that prints the paths of
+	// the files with invalid configuration.
 	ShowConfigPathFlagName = "show-config-path"
-	JSONFlagName           = "json"
+	// JSONFlagName is the name of the flag that prints diagnostics as JSON.
+	JSONFlagName = "json"
 )
 
+// NewFlags returns the flags of `terragrunt hcl validate`, bound to opts.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
@@ -94,6 +103,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 	return flagSet
 }
 
+// NewCommand returns the `terragrunt hcl validate` command.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmd := &clihelper.Command{
 		Name:                         CommandName,

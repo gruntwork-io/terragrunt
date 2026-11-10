@@ -14,13 +14,17 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt backend migrate` command.
 	CommandName = "migrate"
 
+	// ForceBackendMigrateFlagName is the name of the flag that migrates state
+	// even when the source bucket has versioning disabled.
 	ForceBackendMigrateFlagName = "force"
 
 	usageText = "terragrunt backend migrate [options] <src-unit> <dst-unit>"
 )
 
+// NewFlags returns the flags of `terragrunt backend migrate`, bound to opts.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
@@ -41,6 +45,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	)
 }
 
+// NewCommand returns the `terragrunt backend migrate` command, which takes the
+// source and destination unit paths as its two arguments.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmd := &clihelper.Command{
 		Name:      CommandName,

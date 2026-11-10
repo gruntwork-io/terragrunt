@@ -10,6 +10,8 @@ import (
 )
 
 const (
+	// FeatureFlagName is the flag name for `--feature`, which sets values for `feature` blocks as
+	// key=value pairs.
 	FeatureFlagName = "feature"
 )
 

@@ -8,9 +8,12 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt version` command.
 	CommandName = "version"
 )
 
+// NewCommand returns the hidden `terragrunt version` command, which prints
+// the same version as --version.
 func NewCommand() *clihelper.Command {
 	return &clihelper.Command{
 		Name:                         CommandName,
@@ -23,6 +26,7 @@ func NewCommand() *clihelper.Command {
 	}
 }
 
+// Action prints the Terragrunt version.
 func Action(ctx context.Context, cliCtx *clihelper.Context) error {
 	return clihelper.ShowVersion(ctx, cliCtx)
 }

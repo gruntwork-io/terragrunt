@@ -21,75 +21,138 @@ import (
 const (
 	// Logs related flags.
 
-	LogLevelFlagName        = "log-level"
-	LogDisableFlagName      = "log-disable"
+	// LogLevelFlagName is the flag name for `--log-level`, the minimum level Terragrunt logs at.
+	LogLevelFlagName = "log-level"
+	// LogDisableFlagName is the flag name for `--log-disable`, which turns off Terragrunt logging.
+	LogDisableFlagName = "log-disable"
+	// ShowLogAbsPathsFlagName is the flag name for `--log-show-abs-paths`, which logs absolute paths.
 	ShowLogAbsPathsFlagName = "log-show-abs-paths"
-	LogFormatFlagName       = "log-format"
+	// LogFormatFlagName is the flag name for `--log-format`, which picks a preset log format.
+	LogFormatFlagName = "log-format"
+	// LogCustomFormatFlagName is the flag name for `--log-custom-format`, a custom log format string.
 	LogCustomFormatFlagName = "log-custom-format"
-	NoColorFlagName         = "no-color"
+	// NoColorFlagName is the flag name for `--no-color`, which turns off colored output.
+	NoColorFlagName = "no-color"
 
+	// NonInteractiveFlagName is the flag name for `--non-interactive`, which answers "yes" to every prompt.
 	NonInteractiveFlagName = "non-interactive"
-	WorkingDirFlagName     = "working-dir"
+	// WorkingDirFlagName is the flag name for `--working-dir`, the directory Terragrunt runs in.
+	WorkingDirFlagName = "working-dir"
 
 	// Strict Mode related flags.
 
-	StrictModeFlagName    = "strict-mode"
+	// StrictModeFlagName is the flag name for `--strict-mode`, which enables every active strict control.
+	StrictModeFlagName = "strict-mode"
+	// StrictControlFlagName is the flag name for `--strict-control`, which enables the named strict controls.
 	StrictControlFlagName = "strict-control"
 
 	// Experiment Mode related flags/envs.
 
+	// ExperimentModeFlagName is the flag name for `--experiment-mode`, which enables every ongoing experiment.
 	ExperimentModeFlagName = "experiment-mode"
-	ExperimentFlagName     = "experiment"
+	// ExperimentFlagName is the flag name for `--experiment`, which enables the named experiments.
+	ExperimentFlagName = "experiment"
 
 	// Tips related flags.
 
+	// NoTipsFlagName is the flag name for `--no-tips`, which hides every tip.
 	NoTipsFlagName = "no-tips"
-	NoTipFlagName  = "no-tip"
+	// NoTipFlagName is the flag name for `--no-tip`, which hides the named tips.
+	NoTipFlagName = "no-tip"
 
 	// App flags.
 
-	HelpFlagName    = "help"
+	// HelpFlagName is the flag name for `--help`, which prints help for the app or command.
+	HelpFlagName = "help"
+	// VersionFlagName is the flag name for `--version`, which prints the Terragrunt version.
 	VersionFlagName = "version"
 
 	// Telemetry flags.
 
-	TelemetryTraceExporterFlagName                  = "telemetry-trace-exporter"
-	TelemetryTraceExporterInsecureEndpointFlagName  = "telemetry-trace-exporter-insecure-endpoint"
-	TelemetryTraceExporterHTTPEndpointFlagName      = "telemetry-trace-exporter-http-endpoint"
-	TraceparentFlagName                             = "traceparent"
-	TelemetryMetricExporterFlagName                 = "telemetry-metric-exporter"
+	// TelemetryTraceExporterFlagName is the flag name behind the `TG_TELEMETRY_TRACE_EXPORTER` env var,
+	// which selects the trace exporter.
+	TelemetryTraceExporterFlagName = "telemetry-trace-exporter"
+	// TelemetryTraceExporterInsecureEndpointFlagName is the flag name behind the
+	// `TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT` env var, which sends traces without TLS.
+	TelemetryTraceExporterInsecureEndpointFlagName = "telemetry-trace-exporter-insecure-endpoint"
+	// TelemetryTraceExporterHTTPEndpointFlagName is the flag name behind the
+	// `TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT` env var, the endpoint the HTTP trace exporter sends to.
+	TelemetryTraceExporterHTTPEndpointFlagName = "telemetry-trace-exporter-http-endpoint"
+	// TraceparentFlagName is the flag name behind the unprefixed `TRACEPARENT` env var, the W3C trace
+	// context that Terragrunt's spans join.
+	TraceparentFlagName = "traceparent"
+	// TelemetryMetricExporterFlagName is the flag name behind the `TG_TELEMETRY_METRIC_EXPORTER` env var,
+	// which selects the metric exporter.
+	TelemetryMetricExporterFlagName = "telemetry-metric-exporter"
+	// TelemetryMetricExporterInsecureEndpointFlagName is the flag name behind the
+	// `TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT` env var, which sends metrics without TLS.
 	TelemetryMetricExporterInsecureEndpointFlagName = "telemetry-metric-exporter-insecure-endpoint"
-	TelemetryLogsExporterFlagName                   = "telemetry-logs-exporter"
-	TelemetryLogsExporterInsecureEndpointFlagName   = "telemetry-logs-exporter-insecure-endpoint"
+	// TelemetryLogsExporterFlagName is the flag name behind the `TG_TELEMETRY_LOGS_EXPORTER` env var,
+	// which selects the logs exporter.
+	TelemetryLogsExporterFlagName = "telemetry-logs-exporter"
+	// TelemetryLogsExporterInsecureEndpointFlagName is the flag name behind the
+	// `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT` env var, which sends logs without TLS.
+	TelemetryLogsExporterInsecureEndpointFlagName = "telemetry-logs-exporter-insecure-endpoint"
 
 	// Profiling flags.
 
-	ProfileCPUFlagName       = "profile-cpu"
-	ProfileMemFlagName       = "profile-mem"
+	// ProfileCPUFlagName is the flag name for `--profile-cpu`, the path to write a CPU profile to.
+	ProfileCPUFlagName = "profile-cpu"
+	// ProfileMemFlagName is the flag name for `--profile-mem`, the path to write a heap profile to.
+	ProfileMemFlagName = "profile-mem"
+	// ProfileGoroutineFlagName is the flag name for `--profile-goroutine`, the path to write a goroutine
+	// profile to.
 	ProfileGoroutineFlagName = "profile-goroutine"
-	ProfileDirFlagName       = "profile-dir"
+	// ProfileDirFlagName is the flag name for `--profile-dir`, the directory to write the CPU, heap, and
+	// goroutine profiles to.
+	ProfileDirFlagName = "profile-dir"
 
 	// Renamed flags.
 
-	DeprecatedLogLevelFlagName        = "log-level"
-	DeprecatedLogDisableFlagName      = "log-disable"
+	// DeprecatedLogLevelFlagName is the flag name behind the deprecated `TERRAGRUNT_LOG_LEVEL` env var.
+	DeprecatedLogLevelFlagName = "log-level"
+	// DeprecatedLogDisableFlagName is the flag name behind the deprecated `TERRAGRUNT_LOG_DISABLE` env var.
+	DeprecatedLogDisableFlagName = "log-disable"
+	// DeprecatedShowLogAbsPathsFlagName is the flag name behind the deprecated
+	// `TERRAGRUNT_LOG_SHOW_ABS_PATHS` env var.
 	DeprecatedShowLogAbsPathsFlagName = "log-show-abs-paths"
-	DeprecatedLogFormatFlagName       = "log-format"
+	// DeprecatedLogFormatFlagName is the flag name behind the deprecated `TERRAGRUNT_LOG_FORMAT` env var.
+	DeprecatedLogFormatFlagName = "log-format"
+	// DeprecatedLogCustomFormatFlagName is the flag name behind the deprecated
+	// `TERRAGRUNT_LOG_CUSTOM_FORMAT` env var.
 	DeprecatedLogCustomFormatFlagName = "log-custom-format"
-	DeprecatedNoColorFlagName         = "no-color"
-	DeprecatedNonInteractiveFlagName  = "non-interactive"
-	DeprecatedTFInputFlagName         = "tf-input"
-	DeprecatedWorkingDirFlagName      = "working-dir"
-	DeprecatedStrictModeFlagName      = "strict-mode"
-	DeprecatedStrictControlFlagName   = "strict-control"
-	DeprecatedExperimentModeFlagName  = "experiment-mode"
-	DeprecatedExperimentFlagName      = "experiment"
+	// DeprecatedNoColorFlagName is the flag name behind the deprecated `TERRAGRUNT_NO_COLOR` env var.
+	DeprecatedNoColorFlagName = "no-color"
+	// DeprecatedNonInteractiveFlagName is the flag name behind the deprecated
+	// `TERRAGRUNT_NON_INTERACTIVE` env var.
+	DeprecatedNonInteractiveFlagName = "non-interactive"
+	// DeprecatedTFInputFlagName is the flag name behind the deprecated, unprefixed `TF_INPUT` env var,
+	// read as the negation of `--non-interactive`.
+	DeprecatedTFInputFlagName = "tf-input"
+	// DeprecatedWorkingDirFlagName is the flag name behind the deprecated `TERRAGRUNT_WORKING_DIR` env var.
+	DeprecatedWorkingDirFlagName = "working-dir"
+	// DeprecatedStrictModeFlagName is the flag name behind the deprecated `TERRAGRUNT_STRICT_MODE` env var.
+	DeprecatedStrictModeFlagName = "strict-mode"
+	// DeprecatedStrictControlFlagName is the flag name behind the deprecated
+	// `TERRAGRUNT_STRICT_CONTROL` env var.
+	DeprecatedStrictControlFlagName = "strict-control"
+	// DeprecatedExperimentModeFlagName is the flag name behind the deprecated
+	// `TERRAGRUNT_EXPERIMENT_MODE` env var.
+	DeprecatedExperimentModeFlagName = "experiment-mode"
+	// DeprecatedExperimentFlagName is the flag name behind the deprecated `TERRAGRUNT_EXPERIMENT` env var.
+	DeprecatedExperimentFlagName = "experiment"
 
 	// Deprecated flags.
 
+	// DeprecatedDisableLogFormattingFlagName is the flag name behind the deprecated
+	// `TERRAGRUNT_DISABLE_LOG_FORMATTING` env var, superseded by `--log-format`.
 	DeprecatedDisableLogFormattingFlagName = "disable-log-formatting"
-	DeprecatedJSONLogFlagName              = "json-log"
-	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
+	// DeprecatedJSONLogFlagName is the flag name behind the deprecated `TERRAGRUNT_JSON_LOG` env var,
+	// superseded by `--log-format`.
+	DeprecatedJSONLogFlagName = "json-log"
+	// DeprecatedTfLogJSONFlagName is the flag name behind the deprecated `TERRAGRUNT_TF_LOGS_TO_JSON`
+	// env var, superseded by `--log-format`.
+	DeprecatedTfLogJSONFlagName = "tf-logs-to-json"
 )
 
 // NewFlags creates and returns global flags common for all commands.
@@ -480,6 +543,8 @@ func profileFlagUsage(opts *options.TerragruntOptions, usage string) string {
 	return flags.ExperimentUsage(opts.Experiments, experiment.Profiling, usage)
 }
 
+// NewLogLevelFlag returns the `--log-level` flag, which sets the level of l. The levels "panic"
+// and "fatal" turn off Terragrunt logging and forward tofu stdout.
 func NewLogLevelFlag(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -516,6 +581,7 @@ func NewLogLevelFlag(
 	}, flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedLogLevelFlagName), opts.StrictControls))
 }
 
+// NewHelpVersionFlags returns the `--help` (`-h`) and `--version` (`-v`) flags.
 func NewHelpVersionFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
 	return clihelper.Flags{
 		&clihelper.BoolFlag{

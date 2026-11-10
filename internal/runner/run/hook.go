@@ -22,21 +22,33 @@ import (
 )
 
 const (
-	HookCtxTFPathEnvName   = "TG_CTX_TF_PATH"
-	HookCtxCommandEnvName  = "TG_CTX_COMMAND"
+	// HookCtxTFPathEnvName is the hook environment variable that holds the path of the tofu or terraform binary.
+	HookCtxTFPathEnvName = "TG_CTX_TF_PATH"
+	// HookCtxCommandEnvName is the hook environment variable that holds the tofu command being run, such as plan.
+	HookCtxCommandEnvName = "TG_CTX_COMMAND"
+	// HookCtxHookNameEnvName is the hook environment variable that holds the name of the running hook.
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 
 	// The following are gated behind the hook-context-env experiment.
 
-	HookCtxHookTypeEnvName      = "TG_CTX_HOOK_TYPE"
-	HookCtxSourceEnvName        = "TG_CTX_SOURCE"
+	// HookCtxHookTypeEnvName is the hook environment variable that holds before_hook, after_hook, or error_hook.
+	HookCtxHookTypeEnvName = "TG_CTX_HOOK_TYPE"
+	// HookCtxSourceEnvName is the hook environment variable that holds the terraform source URL of the unit,
+	// after any source override or source map.
+	HookCtxSourceEnvName = "TG_CTX_SOURCE"
+	// HookCtxTerragruntDirEnvName is the hook environment variable that holds the directory of the unit's
+	// terragrunt.hcl.
 	HookCtxTerragruntDirEnvName = "TG_CTX_TERRAGRUNT_DIR"
 )
 
 const (
+	// HookTypeUnknown is the zero HookType. It names no hook block.
 	HookTypeUnknown HookType = iota
+	// HookTypeBefore is the type of before_hook blocks.
 	HookTypeBefore
+	// HookTypeAfter is the type of after_hook blocks.
 	HookTypeAfter
+	// HookTypeError is the type of error_hook blocks.
 	HookTypeError
 )
 
@@ -46,6 +58,7 @@ var hookTypeNames = map[HookType]string{
 	HookTypeError:  "error_hook",
 }
 
+// HookType is the kind of hook block a hook comes from.
 type HookType byte
 
 func hookTypeName(hookType HookType) (string, bool) {

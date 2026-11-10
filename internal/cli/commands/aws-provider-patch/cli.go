@@ -43,11 +43,15 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt aws-provider-patch` command.
 	CommandName = "aws-provider-patch"
 
+	// OverrideAttrFlagName is the name of the flag that sets a key=value
+	// attribute to overwrite in nested provider "aws" blocks.
 	OverrideAttrFlagName = "override-attr"
 )
 
+// NewFlags returns the flags of `terragrunt aws-provider-patch`, bound to opts.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
@@ -68,6 +72,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	}
 }
 
+// NewCommand returns the hidden, deprecated `terragrunt aws-provider-patch`
+// command, which fails when its deprecated-command strict control is enabled.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	control := controls.NewDeprecatedCommand(CommandName)
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).

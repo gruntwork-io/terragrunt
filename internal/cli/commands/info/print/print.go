@@ -33,6 +33,13 @@ const (
 	lineJSON
 )
 
+// Run prints the context of the unit at opts.TerragruntConfigPath as an
+// indented JSON [InfoOutput]. With
+// opts.RunAll set, it prints one JSON line per discovered unit, using the
+// options `run --all` would give that unit.
+//
+// A unit whose config or source fails to prepare still prints the context
+// known so far, and Run returns nil for it.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	// If --all flag is set, use discovery to find all units and print info for each one
 	if opts.RunAll {

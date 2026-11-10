@@ -798,6 +798,8 @@ func ValidateWorkingDir(fsys vfs.FS, terraformSource *tf.Source) error {
 	return nil
 }
 
+// WorkingDirNotFound is returned by [ValidateWorkingDir] when the working directory inside the downloaded source
+// does not exist.
 type WorkingDirNotFound struct {
 	Source string
 	Dir    string
@@ -807,6 +809,8 @@ func (err WorkingDirNotFound) Error() string {
 	return fmt.Sprintf("Working dir %s from source %s does not exist", err.Dir, err.Source)
 }
 
+// WorkingDirNotDir is returned by [ValidateWorkingDir] when the working directory path inside the downloaded
+// source is not a directory.
 type WorkingDirNotDir struct {
 	Source string
 	Dir    string
@@ -816,6 +820,8 @@ func (err WorkingDirNotDir) Error() string {
 	return fmt.Sprintf("Valid working dir %s from source %s", err.Dir, err.Source)
 }
 
+// DownloadingTerraformSourceErr is the error for a terraform source that failed to download. It wraps the
+// download error.
 type DownloadingTerraformSourceErr struct {
 	ErrMsg error
 	URL    redact.URL

@@ -217,6 +217,7 @@ func (w *Worktrees) worktreesToRemove() []Worktree {
 	})
 }
 
+// StackDiff is the set of stacks that differ between the from and to worktrees of a Git-based filter.
 type StackDiff struct {
 	// Added contains stacks whose terragrunt.stack.hcl was added in the git diff.
 	Added []*component.Stack
@@ -230,6 +231,7 @@ type StackDiff struct {
 	ReadingAffected []StackDiffChangedPair
 }
 
+// StackDiffChangedPair is one stack as it exists in the from worktree and in the to worktree.
 type StackDiffChangedPair struct {
 	FromStack *component.Stack
 	ToStack   *component.Stack

@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// Provider is one version of a provider that the provider cache has downloaded or is downloading.
 type Provider interface {
 	// Address returns a source address of the provider. e.g.: registry.terraform.io/hashicorp/aws
 	Address() string

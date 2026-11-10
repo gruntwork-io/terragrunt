@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	// StackKind is the [Kind] of a [Stack].
 	StackKind Kind = "stack"
 )
 

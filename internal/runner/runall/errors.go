@@ -6,6 +6,7 @@ import (
 	"errors"
 )
 
+// RunAllDisabledErr is the error for a tofu command that cannot run with run --all, with the reason.
 type RunAllDisabledErr struct {
 	command string
 	reason  string
@@ -15,6 +16,7 @@ func (err RunAllDisabledErr) Error() string {
 	return fmt.Sprintf("%s with run --all is disabled: %s", err.command, err.reason)
 }
 
+// MissingCommand is the error for run --all invoked without a tofu command, such as plan.
 type MissingCommand struct{}
 
 func (err MissingCommand) Error() string {

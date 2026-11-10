@@ -35,6 +35,11 @@ import (
 
 const splitCount = 2
 
+// Run runs [RunValidateInputs] when opts.HCLValidateInputs is set, and
+// [RunValidate] otherwise.
+//
+// Returns an error when --inputs is combined with --show-config-path or
+// --json, or when --strict is set without --inputs.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
@@ -63,6 +68,10 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 	return RunValidate(ctx, l, v, opts)
 }
 
+// RunValidate parses every unit and stack discovered from opts.WorkingDir and
+// writes the HCL diagnostics it collects in the format opts selects.
+//
+// Returns an error counting the diagnostics when there are any.
 func RunValidate(
 	ctx context.Context,
 	l log.Logger,
@@ -230,6 +239,12 @@ func writeDiagnostics(
 	return writer.Diagnostics(diags)
 }
 
+// RunValidateInputs prepares each unit discovered from opts.WorkingDir and
+// compares its inputs with the variables its module declares, logging unused
+// inputs and missing required inputs.
+//
+// Returns an error when a unit is missing a required input, or has an unused
+// input while opts.HCLValidateStrict is set.
 func RunValidateInputs(
 	ctx context.Context,
 	l log.Logger,

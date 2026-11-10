@@ -18,6 +18,7 @@ func (err MissingSourceError) Error() string {
 	return fmt.Sprintf("diagnostic points into %s but has no parsed file to read its source from", err.Filename)
 }
 
+// Diagnostics is a list of diagnostics in their JSON form.
 type Diagnostics []*Diagnostic
 
 // Contains reports whether diags holds a diagnostic with the same source range as find.
@@ -32,6 +33,8 @@ func (diags *Diagnostics) Contains(find *Diagnostic) bool {
 	return false
 }
 
+// Diagnostic is the JSON form of an HCL diagnostic: its severity and messages, and the source range and snippet it
+// points at.
 type Diagnostic struct {
 	Range    *Range             `json:"range,omitempty"`
 	Snippet  *Snippet           `json:"snippet,omitempty"`

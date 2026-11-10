@@ -29,17 +29,30 @@ import (
 type PartialDecodeSectionType int
 
 const (
+	// DependenciesBlock decodes the `dependencies` block.
 	DependenciesBlock PartialDecodeSectionType = iota
+	// DependencyBlock decodes the `dependency` blocks and adds their config paths to the config's dependencies.
 	DependencyBlock
+	// TerraformBlock decodes the whole `terraform` block.
 	TerraformBlock
+	// TerraformSource decodes only the `source` attribute of the `terraform` block.
 	TerraformSource
+	// TerragruntFlags decodes the `prevent_destroy`, `iam_role`, and `iam_web_identity_token` attributes.
 	TerragruntFlags
+	// TerragruntVersionConstraints decodes the `terragrunt_version_constraint`, `terraform_version_constraint`, and
+	// `terraform_binary` attributes.
 	TerragruntVersionConstraints
+	// RemoteStateBlock decodes the `remote_state` block or attribute.
 	RemoteStateBlock
+	// FeatureFlagsBlock decodes the `feature` blocks.
 	FeatureFlagsBlock
+	// EngineBlock decodes the `engine` block.
 	EngineBlock
+	// ExcludeBlock evaluates the `exclude` block.
 	ExcludeBlock
+	// ErrorsBlock decodes the `errors` block.
 	ErrorsBlock
+	// TerraformExtraArgs decodes the `source` attribute and `extra_arguments` blocks of the `terraform` block.
 	TerraformExtraArgs
 )
 
@@ -1178,6 +1191,7 @@ func autoIncludeContentSuffix(fsys vfs.FS, autoIncludePath string) string {
 
 // Custom error types
 
+// InvalidPartialBlockName reports a [PartialDecodeSectionType] that partial parsing does not handle.
 type InvalidPartialBlockName struct {
 	sectionCode PartialDecodeSectionType
 }

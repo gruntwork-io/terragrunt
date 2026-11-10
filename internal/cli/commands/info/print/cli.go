@@ -12,9 +12,11 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt info print` command.
 	CommandName = "print"
 )
 
+// NewCommand returns the `terragrunt info print` command.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdFlags := runcmd.NewFlags(l, opts, v, nil)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))

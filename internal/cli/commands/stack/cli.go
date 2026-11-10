@@ -14,11 +14,19 @@ import (
 
 const (
 	// CommandName stack command name.
-	CommandName          = "stack"
+	CommandName = "stack"
+	// OutputFormatFlagName is the name of the flag that selects the format of
+	// `terragrunt stack output`: json or raw.
 	OutputFormatFlagName = "format"
-	JSONFormatFlagName   = "json"
-	RawFormatFlagName    = "raw"
-	NoStackValidate      = "no-stack-validate"
+	// JSONFormatFlagName is the name of the flag that is shorthand for
+	// --format=json on `terragrunt stack output`.
+	JSONFormatFlagName = "json"
+	// RawFormatFlagName is the name of the flag that is shorthand for
+	// --format=raw on `terragrunt stack output`.
+	RawFormatFlagName = "raw"
+	// NoStackValidate is the name of the hidden flag that skips validating a
+	// stack after generating it.
+	NoStackValidate = "no-stack-validate"
 
 	generateCommandName = "generate"
 	runCommandName      = "run"
