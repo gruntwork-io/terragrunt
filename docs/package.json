@@ -51,6 +51,7 @@
   },
   "overrides": {
     "estree-walker": "2.0.2",
+    "glob": "^14.0.2",
     "path-to-regexp": "6.3.0"
   }
 }
