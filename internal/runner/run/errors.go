@@ -2,6 +2,7 @@ package run
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Custom error types
@@ -36,6 +37,49 @@ type NoTerraformFilesFound string
 
 func (path NoTerraformFilesFound) Error() string {
 	return "Did not find any Terraform files (*.tf) or OpenTofu files (*.tofu) in " + string(path)
+}
+
+// VarsFileExists is returned when a unit that runs in place already has a file where Terragrunt writes inputs for
+// the run.
+type VarsFileExists struct {
+	Path string
+}
+
+func (err VarsFileExists) Error() string {
+	return fmt.Sprintf(
+		"%s already exists in the unit directory. Terragrunt writes inputs to this file for the run "+
+			"and removes it afterwards, so it does not replace an existing file. Remove it if an interrupted "+
+			"Terragrunt run left it behind; otherwise move or rename it.",
+		err.Path,
+	)
+}
+
+// InvalidVariableNameError is returned when a tfvar input is named with something other than an HCL identifier.
+type InvalidVariableNameError struct {
+	Name string
+}
+
+func (err InvalidVariableNameError) Error() string {
+	return fmt.Sprintf(
+		"input %q cannot be written to %s because it is not a valid variable name",
+		err.Name,
+		TFVarsFile,
+	)
+}
+
+// UndeclaredInputsError is returned when a variables block with validate = true sets variables the module does not
+// declare.
+type UndeclaredInputsError struct {
+	ModulePath string
+	Names      []string
+}
+
+func (err UndeclaredInputsError) Error() string {
+	return fmt.Sprintf(
+		"a variables block with validate = true sets variables the module in %s does not declare: %s",
+		err.ModulePath,
+		strings.Join(err.Names, ", "),
+	)
 }
 
 type ModuleIsProtected struct {

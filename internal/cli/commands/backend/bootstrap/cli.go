@@ -14,18 +14,18 @@ import (
 const CommandName = "bootstrap"
 
 func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
-	prefix := flags.Prefix{flags.TgPrefix}
-
-	backendFlags := shared.NewBackendFlags(opts, prefix)
-	featureFlags := shared.NewFeatureFlags(opts, prefix)
+	backendFlags := shared.NewBackendFlags(opts, nil)
+	featureFlags := shared.NewFeatureFlags(opts, nil)
 
 	sharedFlags := make(clihelper.Flags, 0, 2+len(backendFlags)+len(featureFlags))
 	sharedFlags = append(sharedFlags,
-		shared.NewConfigFlag(opts, prefix),
-		shared.NewDownloadDirFlag(opts, prefix),
+		shared.NewConfigFlag(opts, nil),
+		shared.NewDownloadDirFlag(opts, nil),
 	)
 	sharedFlags = append(sharedFlags, backendFlags...)
 	sharedFlags = append(sharedFlags, featureFlags...)
+
+	flags.DeprecateEnvVarPrefix(sharedFlags, flags.Prefix{flags.TgPrefix, flags.TgPrefix}, opts.StrictControls)
 
 	return sharedFlags
 }

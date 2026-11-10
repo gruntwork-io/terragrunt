@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -724,7 +725,7 @@ func createConfig(
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 	})
 
-	versionV := venvtest.New().WithExec(versionExec).WithEnv(venvtest.NewOSWithEmptyEnv().Env)
+	versionV := venv.MemVenv().WithExec(versionExec).WithEnv(venvtest.NewOSWithEmptyEnv().Env)
 	_, ver, impl, err := run.PopulateTFVersion(
 		config.WithCaches(t.Context()),
 		l,
@@ -1342,7 +1343,11 @@ func TestDownloadSourceWithCASOfflineDamagedStoreFails(t *testing.T) {
 
 	require.ErrorAs(t, err, &refused, "the flag forbids the re-ingest that would repair the store")
 
-	assert.NoFileExists(t, filepath.Join(offline.DownloadDir, "main.tf"), "the standard getter must not have fetched the source")
+	assert.NoFileExists(
+		t,
+		filepath.Join(offline.DownloadDir, "main.tf"),
+		"the standard getter must not have fetched the source",
+	)
 }
 
 // TestDownloadSourceWithCASOfflineMissFails pins that --cas-offline turns a

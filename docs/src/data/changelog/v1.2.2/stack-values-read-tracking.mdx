@@ -1,0 +1,25 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Stacks that read a file in `values` are matched by reading filters
+
+A stack that read a file in a `unit` or `stack` block, rather than in `locals`, was not recorded as reading it:
+
+```hcl
+# live/app/terragrunt.stack.hcl
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/app"
+  path   = "app"
+
+  values = {
+    message = yamldecode(file("${get_repo_root()}/shared/config.yml")).message
+  }
+}
+```
+
+`--filter 'reading=shared/config.yml'` did not match the stack, and a Git filter such as `--filter '[main...HEAD]'` did not regenerate it when only `shared/config.yml` changed, so its units never ran with the new value. Moving the same read into `locals` worked.
+
+Terragrunt now tracks reads anywhere in a stack file, except inside `autoinclude` blocks. See [Files read by stacks](/features/filter/attributes#files-read-by-stacks).

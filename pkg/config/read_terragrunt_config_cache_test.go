@@ -73,6 +73,9 @@ inputs = {
 // writeReadConfigFixture writes two units that both read common.hcl, which
 // holds commonHCL and sits beside accounts.yml, and returns the unit config
 // paths.
+//
+// Every file gets an mtime an hour old, like files written before a command
+// starts, so a cache hit trusts their stats without reading them back.
 func writeReadConfigFixture(t *testing.T, v *venv.Venv, rootDir, commonHCL string, extra map[string]string) []string {
 	t.Helper()
 
@@ -85,10 +88,13 @@ func writeReadConfigFixture(t *testing.T, v *venv.Venv, rootDir, commonHCL strin
 
 	maps.Copy(files, extra)
 
+	written := time.Now().Add(-time.Hour)
+
 	for name, contents := range files {
 		path := filepath.Join(rootDir, name)
 		require.NoError(t, v.FS.MkdirAll(filepath.Dir(path), 0o755))
 		require.NoError(t, vfs.WriteFile(v.FS, path, []byte(contents), 0o644))
+		require.NoError(t, v.FS.Chtimes(path, written, written))
 	}
 
 	return []string{
@@ -606,6 +612,28 @@ func TestReadTerragruntConfigRereadsFileChangedDuringCommand(t *testing.T) {
 			assert.Equal(t, tc.wantAfter, after)
 		})
 	}
+}
+
+func TestReadTerragruntConfigRereadsSameSizeRewriteOfRecentFile(t *testing.T) {
+	t.Parallel()
+
+	v, rootDir := newMemTestDir(t)
+	units := writeReadConfigFixture(t, v, rootDir, `locals { value = "first" }`, nil)
+
+	commonPath := filepath.Join(rootDir, "common.hcl")
+	recent := time.Now()
+	require.NoError(t, v.FS.Chtimes(commonPath, recent, recent))
+
+	ctx := config.WithCaches(t.Context())
+
+	before, _ := parseUnitInput(ctx, t, v, units[0])
+	assert.Equal(t, "first", before)
+
+	require.NoError(t, vfs.WriteFile(v.FS, commonPath, []byte(`locals { value = "third" }`), 0o644))
+	require.NoError(t, v.FS.Chtimes(commonPath, recent, recent))
+
+	after, _ := parseUnitInput(ctx, t, v, units[1])
+	assert.Equal(t, "third", after)
 }
 
 func TestReadTerragruntConfigKeepsSimilarCliArgsApart(t *testing.T) {

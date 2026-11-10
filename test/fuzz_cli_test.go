@@ -156,7 +156,7 @@ func FuzzFullCLI(f *testing.F) {
 
 		stdout, stderr := &fuzzCapturingWriter{}, &fuzzCountingWriter{}
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithFS(fsys).
 			WithExec(vexec.NewMemExec(fuzzExecHandler(c), vexec.WithLookPath(fuzzLookPath))).
 			WithHTTP(vhttp.NewMemClient(fuzzHTTPHandler(c))).
@@ -632,7 +632,7 @@ func newFuzzVocab(f *testing.F) *fuzzVocab {
 	app := cli.NewApp(
 		logger.CreateLogger(),
 		options.NewTerragruntOptions(vexec.NewNoSpawnExec()),
-		venvtest.New(),
+		venv.MemVenv(),
 	)
 
 	vocab := &fuzzVocab{values: fuzzValuePool()}

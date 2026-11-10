@@ -38,8 +38,8 @@ const (
 	QueueConstructAsFlagAlias = "as"
 )
 
-func NewFlags(l log.Logger, opts *Options, v *venv.Venv, prefix flags.Prefix) clihelper.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
+func NewFlags(l log.Logger, opts *Options, v *venv.Venv) clihelper.Flags {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
 	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions, v)
 
 	const numLocalFlags = 9
@@ -132,18 +132,21 @@ func NewFlags(l log.Logger, opts *Options, v *venv.Venv, prefix flags.Prefix) cl
 		}),
 	)
 
+	flags.DeprecateEnvVarPrefix(result, flags.Prefix{flags.TgPrefix, CommandName}, opts.StrictControls)
+
 	return append(result, filterFlags...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
-	prefix := flags.Prefix{CommandName}
+
+	sharedFlags := shared.NewBackendFlags(opts, nil)
+	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, nil)...)
+	sharedFlags = append(sharedFlags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil))
+	flags.DeprecateEnvVarPrefix(sharedFlags, flags.Prefix{flags.TgPrefix, CommandName}, opts.StrictControls)
 
 	// Base flags for list plus backend/feature flags
-	flags := NewFlags(l, cmdOpts, v, prefix)
-	flags = append(flags, shared.NewBackendFlags(opts, prefix)...)
-	flags = append(flags, shared.NewFeatureFlags(opts, prefix)...)
-	flags = append(flags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, prefix))
+	flags := append(NewFlags(l, cmdOpts, v), sharedFlags...)
 
 	return &clihelper.Command{
 		Name:    CommandName,

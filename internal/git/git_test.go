@@ -2,11 +2,16 @@ package git_test
 
 import (
 	"context"
+	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +36,18 @@ func TestGitRunner_LsRemote(t *testing.T) {
 		require.NotEmpty(t, results)
 		assert.Equal(t, headHash, results[0].Hash)
 		assert.Equal(t, "HEAD", results[0].Ref)
+	})
+
+	t.Run("empty ref asks for HEAD", func(t *testing.T) {
+		t.Parallel()
+
+		var got []string
+
+		runner := newArgvCapturingRunner(t, &got, []byte(headHash+"\tHEAD\n"))
+
+		_, err := runner.LsRemote(ctx, "origin", "")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ls-remote", "--", "origin", "HEAD"}, got)
 	})
 
 	t.Run("command failure", func(t *testing.T) {
@@ -104,6 +121,57 @@ func TestGitRunner_Clone(t *testing.T) {
 	})
 }
 
+// TestGitRunnerErrorsRedactTheRemote pins that a credential in a remote stays
+// out of the error when git prints the remote back, as given or less its
+// userinfo.
+func TestGitRunnerErrorsRedactTheRemote(t *testing.T) {
+	t.Parallel()
+
+	const (
+		secret = "fake-token"
+		remote = "https://user:" + secret + "@example.com/repo.git?token=" + secret
+		bare   = "https://example.com/repo.git?token=" + secret
+	)
+
+	ops := map[string]func(ctx context.Context, runner *git.GitRunner) error{
+		"clone": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.Clone(ctx, remote, false, 0, "")
+		},
+		"fetch": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.Fetch(ctx, remote, "main", 0)
+		},
+		"fetch tags": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.FetchTags(ctx, remote)
+		},
+		"pull": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.PullFastForward(ctx, remote, "main", 0)
+		},
+		"ls-remote": func(ctx context.Context, runner *git.GitRunner) error {
+			_, err := runner.LsRemote(ctx, remote, "main")
+			return err
+		},
+	}
+
+	for name, op := range ops {
+		for spelling, printed := range map[string]string{"as given": remote, "without userinfo": bare} {
+			t.Run(name+" "+spelling, func(t *testing.T) {
+				t.Parallel()
+
+				runner := newMemRunner(t, staticResult(vexec.Result{
+					ExitCode: 128,
+					Stderr:   []byte("fatal: unable to access '" + printed + "/': Could not resolve host"),
+				}))
+
+				err := op(t.Context(), runner.WithWorkDir(t.TempDir()))
+
+				require.Error(t, err)
+				assert.NotContains(t, err.Error(), secret)
+				assert.Contains(t, err.Error(), "example.com/repo.git?token=REDACTED/")
+			})
+		}
+	}
+}
+
 func TestGitRunner_LsTree(t *testing.T) {
 	t.Parallel()
 
@@ -156,10 +224,28 @@ func TestGitRunner_LsTree(t *testing.T) {
 	})
 }
 
+func TestGitRunner_LsTreeRecursiveMalformedOutput(t *testing.T) {
+	t.Parallel()
+
+	runner := newMemRunner(t, staticResult(vexec.Result{Stdout: []byte("garbage\n")}))
+
+	_, err := runner.WithWorkDir(t.TempDir()).LsTreeRecursive(t.Context(), "HEAD")
+	require.ErrorIs(t, err, git.ErrParseTree)
+}
+
 func TestGitRunner_HasObject(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
+
+	t.Run("missing workdir", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newMemRunner(t, failIfSpawned(t))
+
+		_, err := runner.HasObject(ctx, headHash)
+		require.ErrorIs(t, err, git.ErrNoWorkDir)
+	})
 
 	t.Run("present object", func(t *testing.T) {
 		t.Parallel()
@@ -216,6 +302,33 @@ func TestCreateTempDir(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
+}
+
+func TestCreateTempDirFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("temp directory cannot be created", func(t *testing.T) {
+		t.Parallel()
+
+		notADir := filepath.Join(helpers.TmpDirWOSymlinks(t), "not-a-directory")
+		require.NoError(t, os.WriteFile(notADir, nil, 0o600))
+
+		v := venvtest.NewWithOSFS().WithTempDir(func() string { return notADir })
+
+		_, _, err := newMemRunner(t, staticResult(vexec.Result{})).CreateTempDir(v)
+		require.ErrorIs(t, err, git.ErrCreateTempDir)
+	})
+
+	t.Run("temp directory cannot be removed", func(t *testing.T) {
+		t.Parallel()
+
+		v := venv.MemVenv()
+		v = v.WithFS(removeRefusingFS{FS: v.FS})
+
+		_, cleanup, err := newMemRunner(t, staticResult(vexec.Result{})).CreateTempDir(v)
+		require.NoError(t, err)
+		require.ErrorIs(t, cleanup(), git.ErrCleanupTempDir)
+	})
 }
 
 func TestExtractRepoName(t *testing.T) {
@@ -395,6 +508,55 @@ func TestGitRunner_ArgvConstruction(t *testing.T) {
 			},
 			want: []string{"config", "user.email", "test@example.com"},
 		},
+		{
+			name: "remote add",
+			invoke: func(ctx context.Context, r *git.GitRunner) error {
+				return r.RemoteAdd(ctx, "origin", "https://example.com/repo.git")
+			},
+			want: []string{"remote", "add", "origin", "--", "https://example.com/repo.git"},
+		},
+		{
+			name: "fetch tags",
+			invoke: func(ctx context.Context, r *git.GitRunner) error {
+				return r.FetchTags(ctx, "origin")
+			},
+			want: []string{"fetch", "--tags", "--", "origin"},
+		},
+		{
+			name: "reset hard",
+			invoke: func(ctx context.Context, r *git.GitRunner) error {
+				return r.ResetHard(ctx, "main")
+			},
+			want: []string{"reset", "--hard", "main"},
+		},
+		{
+			name: "pull fast forward",
+			invoke: func(ctx context.Context, r *git.GitRunner) error {
+				return r.PullFastForward(ctx, "origin", "main", 0)
+			},
+			want: []string{"pull", "origin", "--ff-only", "--", "main"},
+		},
+		{
+			name: "pull fast forward with depth",
+			invoke: func(ctx context.Context, r *git.GitRunner) error {
+				return r.PullFastForward(ctx, "origin", "main", 1)
+			},
+			want: []string{"pull", "origin", "--depth", "1", "--ff-only", "--", "main"},
+		},
+		{
+			name: "submodule update",
+			invoke: func(ctx context.Context, r *git.GitRunner) error {
+				return r.SubmoduleUpdate(ctx, 0)
+			},
+			want: []string{"submodule", "update", "--init", "--recursive"},
+		},
+		{
+			name: "submodule update with depth",
+			invoke: func(ctx context.Context, r *git.GitRunner) error {
+				return r.SubmoduleUpdate(ctx, 1)
+			},
+			want: []string{"submodule", "update", "--init", "--recursive", "--depth", "1"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -411,12 +573,51 @@ func TestGitRunner_ArgvConstruction(t *testing.T) {
 	}
 }
 
+func TestWrappedError(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		err  *git.WrappedError
+		name string
+		want string
+	}{
+		{
+			name: "with context",
+			err:  &git.WrappedError{Op: "git_fetch", Context: "fatal: no remote", Err: git.ErrGitFetch},
+			want: "git_fetch: fatal: no remote: failed to complete git fetch",
+		},
+		{
+			name: "without context",
+			err:  &git.WrappedError{Op: "git_fetch", Err: git.ErrGitFetch},
+			want: "git_fetch: failed to complete git fetch",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, tc.err.Error())
+			require.ErrorIs(t, tc.err, git.ErrGitFetch)
+		})
+	}
+}
+
+// removeRefusingFS is a filesystem whose RemoveAll always fails.
+type removeRefusingFS struct {
+	vfs.FS
+}
+
+func (removeRefusingFS) RemoveAll(string) error {
+	return errors.New("remove failed")
+}
+
 // newMemRunner returns a runner backed by an in-memory exec dispatching every
 // git invocation to h.
 func newMemRunner(t *testing.T, h vexec.Handler) *git.GitRunner {
 	t.Helper()
 
-	r, err := git.NewGitRunner(venvtest.New().WithExec(vexec.NewMemExec(h)))
+	r, err := git.NewGitRunner(venv.MemVenv().WithExec(vexec.NewMemExec(h)))
 	require.NoError(t, err)
 
 	return r
@@ -440,7 +641,7 @@ func newArgvCapturingRunner(t *testing.T, captured *[]string, stdout []byte) *gi
 		return vexec.Result{Stdout: stdout}
 	})
 
-	r, err := git.NewGitRunner(venvtest.New().WithExec(e))
+	r, err := git.NewGitRunner(venv.MemVenv().WithExec(e))
 	require.NoError(t, err)
 
 	return r

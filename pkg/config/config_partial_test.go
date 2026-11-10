@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -745,13 +744,14 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedCacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v",
+		"configPath-%v-modTime-%v-size-%v",
 		configPath,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
 	// Setup cache and context
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -787,9 +787,14 @@ func TestPartialParseCacheHitOnSecondParse(t *testing.T) {
 	fileInfo, err := os.Stat(configPath)
 	require.NoError(t, err)
 
-	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	cacheKey := fmt.Sprintf(
+		"configPath-%v-modTime-%v-size-%v",
+		configPath,
+		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
+	)
 
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -824,12 +829,13 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	require.NoError(t, err)
 
 	originalCacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v",
+		"configPath-%v-modTime-%v-size-%v",
 		configPath,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -861,9 +867,10 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	require.NoError(t, err)
 
 	newCacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v",
+		"configPath-%v-modTime-%v-size-%v",
 		configPath,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
 	// Verify new file is cached with different content
@@ -881,7 +888,7 @@ func TestPartialParseCacheWithInvalidFile(t *testing.T) {
 	invalidContent := `invalid hcl syntax {`
 	require.NoError(t, os.WriteFile(configPath, []byte(invalidContent), 0644))
 
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -896,7 +903,12 @@ func TestPartialParseCacheWithInvalidFile(t *testing.T) {
 	fileInfo, err := os.Stat(configPath)
 	require.NoError(t, err)
 
-	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
+	cacheKey := fmt.Sprintf(
+		"configPath-%v-modTime-%v-size-%v",
+		configPath,
+		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
+	)
 
 	_, found := hclCache.Get(ctx, cacheKey)
 	require.False(t, found, "invalid file should not be cached")
@@ -914,12 +926,13 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedCacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v",
+		"configPath-%v-modTime-%v-size-%v",
 		configPath,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
@@ -932,7 +945,7 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 	// Verify cache key format matches the expected pattern
 	assert.Regexp(
 		t,
-		`^configPath-.*-modTime-\d+$`,
+		`^configPath-.*-modTime-\d+-size-\d+$`,
 		expectedCacheKey,
 		"cache key should match expected format",
 	)
@@ -942,6 +955,12 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 		expectedCacheKey,
 		strconv.FormatInt(fileInfo.ModTime().UnixMicro(), 10),
 		"cache key should contain mod time",
+	)
+	assert.Contains(
+		t,
+		expectedCacheKey,
+		strconv.FormatInt(fileInfo.Size(), 10),
+		"cache key should contain file size",
 	)
 
 	// Verify we can retrieve using the expected key
@@ -996,7 +1015,7 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	require.NoError(t, os.WriteFile(moduleBConfigPath, []byte(""), 0644))
 
 	// Setup shared caches in context so both modules use the same config cache.
-	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	configCache := cache.NewCache[*config.TerragruntConfig]("test-config-cache")
 	l := logger.CreateLogger()
 

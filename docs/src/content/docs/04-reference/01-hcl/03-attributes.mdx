@@ -7,6 +7,12 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
+import HclItemCards from '@components/HclItemCards.astro';
+
+<HclAnchorRedirects kind="attributes" />
 
 Terragrunt HCL configuration uses [attributes](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#attribute-definitions) when there are values that need to be defined for Terragrunt as a whole.
 
@@ -28,6 +34,14 @@ The type constraint also decides how the value is read. A variable declared as `
 all, receives the value verbatim. Every other type constraint makes OpenTofu/Terraform read the value as an HCL
 expression, where `${...}` means interpolation. Terragrunt escapes those sequences for you when the module reads a value
 as HCL, so text like `${just_a_string}` reaches the module as written.
+
+<Since version="v1.2.2">
+
+A unit with many or large inputs can exceed the operating system's limit on the size of a process environment. The
+[`variables-block`](/reference/experiments/active#variables-block) experiment adds a [`variables`](/reference/hcl/blocks#variables) block that can write
+inputs to an auto-loaded variables file.
+
+</Since>
 
 Example:
 
@@ -122,24 +136,6 @@ The precedence is as follows: `--download-dir` command line option → `TG_DOWNL
 `terragrunt.hcl`.
 
 It supports all terragrunt functions, i.e. `path_relative_from_include()`.
-
-## prevent_destroy
-
-Terragrunt `prevent_destroy` boolean flag allows you to protect selected OpenTofu/Terraform module. It will prevent `destroy` or
-`run --all destroy` command from actually destroying resources of the protected module. This is useful for modules you want to
-carefully protect, such as a database, or a module that provides auth.
-
-Example:
-
-```hcl
-# terragrunt.hcl
-
-terraform {
-  source = "git::git@github.com:foo/modules.git//app?ref=v0.0.3"
-}
-
-prevent_destroy = true
-```
 
 ## iam_role
 
@@ -265,3 +261,11 @@ Example:
 
 terragrunt_version_constraint = ">= 0.23"
 ```
+
+## Unit attributes
+
+<Aside type="note" title="Moving to individual pages">
+Every attribute is getting its own page soon. Attributes that haven't moved yet are documented on this page, and the attributes below already have their own.
+</Aside>
+
+<HclItemCards kind="attributes" config="unit" />

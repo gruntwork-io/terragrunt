@@ -1,0 +1,69 @@
+---
+interface Props {
+	title?: string;
+}
+
+const { title } = Astro.props;
+---
+
+<article class="reference-card">
+	{
+		title !== undefined && (
+			<div class="card-header">
+				<span class="title">{title}</span>
+				<slot name="meta" />
+			</div>
+		)
+	}
+	<div class="body"><slot /></div>
+</article>
+
+<style>
+	.reference-card {
+		margin: 1rem 0;
+		border: 1px solid var(--sl-color-gray-5);
+	}
+
+	.card-header {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.25rem 1rem;
+		padding: 0.75rem 1.5rem;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+	}
+
+	.title {
+		font-size: var(--sl-text-h5);
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+
+	.body {
+		margin-top: 0;
+		padding: 1rem 1.5rem;
+	}
+
+	.body > :global(p:first-child) {
+		margin-top: 0;
+	}
+
+	.body > :global(p:last-of-type),
+	.body > :global(:last-child) {
+		margin-bottom: 0;
+	}
+
+	.body > :global(.expressive-code:last-child) {
+		margin: 1rem -1.5rem -1rem;
+	}
+
+	.body > :global(.expressive-code:last-child pre) {
+		border-inline: 0;
+		border-bottom: 0;
+	}
+
+	.body > :global(.expressive-code:last-child .header) {
+		border-inline: 0;
+	}
+</style>

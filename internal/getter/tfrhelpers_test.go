@@ -14,9 +14,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -746,7 +746,7 @@ func newVersionsTestServer(t *testing.T, body string) *httptest.Server {
 // testRegistryAuth returns credentials with no user CLI config and no registry token
 // reachable, which is the unauthenticated path these tests exercise.
 func testRegistryAuth() getter.RegistryAuth {
-	return getter.NewRegistryAuth(venvtest.New())
+	return getter.NewRegistryAuth(venv.MemVenv())
 }
 
 // TestPinModuleVersionCredentialsFollowImplementation pins that version-constraint
@@ -768,7 +768,7 @@ func TestPinModuleVersionCredentialsFollowImplementation(t *testing.T) {
 
 	const home = "/virtual/home"
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithGOOS("linux").
 		WithHTTP(server.Client()).
 		WithUserHomeDir(func() (string, error) { return home, nil })
@@ -872,7 +872,7 @@ func newMixedImplementationsFixture(t *testing.T) (getter.RegistryAuth, string, 
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithGOOS("linux").
 		WithHTTP(server.Client()).
 		WithUserHomeDir(func() (string, error) { return home, nil })

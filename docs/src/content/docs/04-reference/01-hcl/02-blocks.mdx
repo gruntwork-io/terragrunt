@@ -8,6 +8,12 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
+import HclItemCards from '@components/HclItemCards.astro';
+
+<HclAnchorRedirects kind="blocks" />
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -100,6 +106,19 @@ The `terraform` block supports the following arguments:
   file into your source repository from your working directory as described in
   [Lock File Handling](/features/units/lock-files). This attribute allows you to disable the copy
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
+
+<Since version="v1.2.2">
+
+- `no_dot_terragrunt_cache` (attribute): Run OpenTofu/Terraform in the unit directory instead of a copy in
+  `.terragrunt-cache`, the way `no_dot_terragrunt_stack` skips `.terragrunt-stack` for stacks. Setting it to `true`
+  together with `source` or `--source` is an error. Files a run creates stay in the unit directory. Merged through
+  `include` like the other `terraform` attributes. Default is `false`.
+
+  <Aside type="tip" title="Experimental">
+    The `no_dot_terragrunt_cache` attribute is gated behind the `no-dot-terragrunt-cache` experiment. Enable it with `--experiment no-dot-terragrunt-cache` (or `TG_EXPERIMENT=no-dot-terragrunt-cache`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#no-dot-terragrunt-cache).
+  </Aside>
+
+</Since>
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
   about its usage in the [Keep your CLI flags DRY](/features/units/extra-arguments) use case overview. Supports
@@ -795,6 +814,62 @@ terraform {
 }
 ```
 
+<Since version="v1.2.2">
+
+Two keys in the `encryption` map go to the generated `state` and `plan` blocks instead of the key provider:
+
+- `fallback`: Set to `{ method = "unencrypted" }` to let OpenTofu read state and plan files written before encryption was enabled. Any other value is an error.
+- `enforced`: Set to `true` to make OpenTofu error instead of writing unencrypted state or plan files.
+
+Once encryption is configured, OpenTofu refuses to read plaintext state. A unit with existing state therefore needs the fallback for one run, as described under [pre-existing project](https://opentofu.org/docs/language/state/encryption/#pre-existing-project) in the OpenTofu docs:
+
+```hcl
+# terragrunt.hcl
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+
+  encryption = {
+    key_provider = "pbkdf2"
+    passphrase   = get_env("PBKDF2_PASSPHRASE")
+    fallback     = { method = "unencrypted" }
+  }
+}
+```
+
+Terragrunt adds an `unencrypted` method and points both blocks at it:
+
+```hcl
+# backend.tf
+
+  encryption {
+    # key_provider and method "aes_gcm" as above
+    method "unencrypted" "fallback" {
+    }
+    state {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+    plan {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+  }
+```
+
+Run `terragrunt apply` so OpenTofu writes the state back encrypted. Then replace `fallback` with `enforced = true`.
+
+</Since>
+
 ## include
 
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
@@ -904,6 +979,9 @@ terraform {
 ```
 
 ### Multiple includes
+
+When two `include` blocks merge the same setting, the later `include` overrides the earlier one, and the child config
+overrides both.
 
 ```hcl
 # root.hcl
@@ -2070,33 +2148,6 @@ locals {
 generate = local.common.generate
 ```
 
-## catalog
-
-The `catalog` block is used to configure IaC catalogs for use with the [`catalog`](/reference/cli/commands/catalog) and [`scaffold`](/reference/cli/commands/scaffold) commands. It defines where Terragrunt should look for reusable patterns like OpenTofu/Terraform modules and Boilerplate templates, in addition to configuring behavior for scaffolding.
-
-The `catalog` block supports the following attributes:
-
-- `urls` (attribute, required): A list of URLs pointing to module catalogs. These can be local file paths or remote URLs (e.g., GitHub repositories). Relative paths are resolved relative to the configuration file.
-- `default_template` (attribute, optional): Path to a default [Boilerplate](https://github.com/gruntwork-io/boilerplate) template to use when scaffolding modules that don't include their own `.boilerplate` directory.
-- `no_shell` (attribute, optional): When `true`, disables shell command execution in Boilerplate templates during scaffolding. Defaults to `false`. Can be overridden via the `--no-shell` CLI flag.
-- `no_hooks` (attribute, optional): When `true`, disables hook execution in Boilerplate templates during scaffolding. Defaults to `false`. Can be overridden via the `--no-hooks` CLI flag.
-
-Example:
-
-```hcl
-# terragrunt.hcl
-
-catalog {
-  urls = [
-    "/Users/acme/modules",
-    "github.com/acme/infrastructure-modules",
-  ]
-  default_template = "/Users/acme/templates/default"
-}
-```
-
-For more details, see the [Catalog feature documentation](/features/catalog).
-
 ## engine
 
 The `engine` block is used to configure experimental Terragrunt engine configuration.
@@ -2403,6 +2454,62 @@ errors {
     }
 }
 ```
+
+## variables
+
+<Before version="v1.2.2">
+
+The `variables` block is available in Terragrunt v1.2.2 and later, behind the `variables-block` experiment.
+
+</Before>
+
+<Since version="v1.2.2">
+
+The `variables` block sets OpenTofu/Terraform variables like the [`inputs`](/reference/hcl/attributes#inputs) attribute, and chooses how Terragrunt passes them.
+
+<Aside type="tip" title="Experimental">
+  The `variables` block is gated behind the `variables-block` experiment. Enable it with `--experiment variables-block` (or `TG_EXPERIMENT=variables-block`) until it graduates to general availability. See the [experiment documentation](/reference/experiments/active#variables-block).
+</Aside>
+
+The `variables` block supports the following arguments:
+
+- `inputs` (attribute, required): A map of variable names to values, written the same way as the `inputs` attribute.
+- `kind` (attribute): How Terragrunt passes the inputs.
+  - `env` (default): `TF_VAR_` environment variables, as the `inputs` attribute does.
+  - `tfvar`: A `terragrunt.auto.tfvars` file in the directory where OpenTofu/Terraform runs.
+  - `json`: A `terragrunt.auto.tfvars.json` file in the directory where OpenTofu/Terraform runs.
+- `nullable` (attribute): When `true`, a `null` value sets its variable to `null`. Defaults to `false`, which drops `null` values so the variable keeps its default.
+- `validate` (attribute): When `true`, the run stops before OpenTofu/Terraform starts if the module does not declare every variable the block sets. Defaults to `false`.
+
+Example:
+
+```hcl
+# terragrunt.hcl
+
+variables {
+  kind     = "tfvar"
+  validate = true
+
+  inputs = {
+    vpc_id  = dependency.vpc.outputs.vpc_id
+    subnets = local.subnets
+  }
+}
+```
+
+A configuration can have any number of `variables` blocks, alongside an `inputs` attribute. Terragrunt returns an error when one file sets an input twice, in two `variables` blocks or in a `variables` block and the `inputs` attribute.
+
+If a unit defines an input that is also defined by an include, the input in the unit overrides the value from the include. This applies whether each side uses a `variables` block or the `inputs` attribute, and the input uses the `kind` and `validate` set in the unit. With `merge_strategy = "deep"`, nested maps and lists combine with the include's value, as they do for the `inputs` attribute.
+
+A `TF_VAR_` environment variable set before Terragrunt runs, or through `env_vars` in `extra_arguments`, takes precedence over an `env` input. A `tfvar` or `json` input takes precedence over it.
+
+In `.terragrunt-cache`, the variables files stay after the run, so running `tofu`/`terraform` directly in that directory loads the `tfvar` and `json` inputs. It does not see `env` inputs, which exist as environment variables set for the invocation of OpenTofu/Terraform. A unit that runs in its own directory with the [`no-dot-terragrunt-cache`](/reference/experiments/active#no-dot-terragrunt-cache) experiment has no variables files after the run.
+
+<Aside type="caution">
+  The `tfvar` and `json` kinds write input values to disk in plain text, sensitive values included. Use `env` for values that must not be written to disk.
+</Aside>
+
+</Since>
 
 ## unit
 
@@ -2961,6 +3068,12 @@ inputs = {
 
 Expressions in the autoinclude body resolve at generation time, in the context of the stack file: `local.*`, `values.*`, `unit.<name>.path`, `stack.<name>.path`, and function calls all become literals in the generated file. Because functions evaluate against the stack file rather than the unit, directory functions report the stack file's location (`get_terragrunt_dir()` returns the stack file's directory, and `path_relative_to_include()` returns `"."`). Only `dependency.*` references are kept verbatim, because dependency outputs exist only when the unit runs.
 
+<Since version="v1.2.2">
+
+In a `unit` block's `autoinclude`, the generated file also repeats in a `locals` block each `mark_as_read()` call whose path resolves at generation time, so the generated unit is marked as reading that file. See [Files read by stacks](/features/filter/attributes#files-read-by-stacks).
+
+</Since>
+
 `autoinclude` works with [`expansion`](#expansion). When the `unit` or `stack` block declares an `expansion`, each element gets its own generated file, and `each.key`, `each.value`, and `count.index` in the autoinclude body resolve to that element.
 
 A `dependency` block in the body can declare its own `expansion` block. Generation evaluates `for_each` or `count` in the stack file's context and writes the result into the generated `expansion` block as a literal. `config_path` resolves once per element and is written as a lookup by `each.key` or `count.index`. Any other `each.*` or `count.index` reference inside the dependency block is kept verbatim, and the generated unit expands the dependency again when it is parsed:
@@ -3107,3 +3220,11 @@ A `dependency` block is rejected in a stack-level autoinclude, because stacks th
 - Stacks are opaque dependency boundaries. `unit.<name>.path` and `stack.<name>.path` only see components declared in the same stack file, so an autoinclude cannot target a unit inside another stack. Depend on the whole stack instead, or pass a component's path down to the child stack through `values`.
 - An `autoinclude` block cannot directly contain another `autoinclude` block. A `unit` or `stack` block injected by a stack-level autoinclude may declare its own `autoinclude`; it resolves during the next generation pass. Its `unit.<name>.path` and `stack.<name>.path` references resolve in the stack file that declares it.
 - Only HCL stack files support `autoinclude`. A stack file written as JSON fails generation if it declares one.
+
+## Unit blocks
+
+<Aside type="note" title="Moving to individual pages">
+Every block is getting its own page soon. Blocks that haven't moved yet are documented on this page, and the blocks below already have their own.
+</Aside>
+
+<HclItemCards kind="blocks" config="unit" />

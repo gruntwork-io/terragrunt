@@ -2,6 +2,8 @@ package tflint_test
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -9,11 +11,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -608,6 +609,129 @@ func TestRunTflintWithOpts_MissingConfigSurfacesNotFound(t *testing.T) {
 	assert.ErrorAs(t, err, &notFound, "expected ConfigNotFound, got %T", err)
 }
 
+func TestRunTflintWithOpts_TooDeeplyNestedInputsFailBeforeRunning(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, "/work/unit/.tflint.hcl", []byte("config {}"), 0o644))
+
+	exec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		require.FailNow(t, "subprocess invoked despite unencodable inputs")
+		return vexec.Result{}
+	})
+
+	err := runWithOpts(t, fsys, exec, &runcfg.Hook{
+		Name:     "tflint",
+		Commands: []string{"plan"},
+		Execute:  []string{"tflint"},
+	}, &runcfg.RunConfig{Inputs: map[string]any{"deep": nestedInput(tooDeepInput)}})
+
+	require.Error(t, err, "inputs nested past the encoding limit should fail the run")
+}
+
+func TestInputsToTflintVar_RejectsTooDeeplyNestedInputs(t *testing.T) {
+	t.Parallel()
+
+	_, err := tflint.InputsToTflintVar(map[string]any{"deep": nestedInput(tooDeepInput)})
+	require.Error(t, err, "inputs nested past the encoding limit should not be encoded")
+
+	vars, err := tflint.InputsToTflintVar(map[string]any{"deep": nestedInput(tooDeepInput - 1)})
+	require.NoError(t, err)
+	assert.Len(t, vars, 1, "the deepest accepted nesting should still be encoded")
+}
+
+func TestTFArgumentsToVar_SkipsOptionalVarFileThatCannotBeRead(t *testing.T) {
+	t.Parallel()
+
+	const unreadable = "/work/unreadable.tfvars"
+
+	fsys := statFailingFS{FS: vfs.NewMemMapFS(), path: unreadable}
+
+	vars, err := tflint.TFArgumentsToVar(
+		logger.CreateLogger(),
+		fsys,
+		&runcfg.Hook{Commands: []string{"plan"}},
+		&runcfg.TerraformConfig{ExtraArgs: []runcfg.TerraformExtraArguments{
+			{
+				Commands:         []string{"plan"},
+				RequiredVarFiles: []string{"/work/required.tfvars"},
+				OptionalVarFiles: []string{unreadable},
+			},
+		}},
+	)
+
+	require.NoError(t, err, "an unreadable optional var file should not fail the conversion")
+	assert.Equal(t, []string{"--var-file=/work/required.tfvars"}, vars,
+		"an unreadable optional var file should be left out")
+}
+
+func TestFindConfigInProject_SurfacesStatErrors(t *testing.T) {
+	t.Parallel()
+
+	fsys := statFailingFS{FS: vfs.NewMemMapFS(), path: filepath.FromSlash("/work/unit/.tflint.hcl")}
+
+	_, err := tflint.FindConfigInProject(logger.CreateLogger(), fsys, &tflint.TFLintOptions{
+		WorkingDir:        "/work/unit",
+		RootWorkingDir:    "/work",
+		MaxFoldersToCheck: 3,
+	})
+
+	require.ErrorIs(t, err, errStat, "a failing stat should not read as a missing config")
+}
+
+func TestErrorTypes_Error(t *testing.T) {
+	t.Parallel()
+
+	errCause := errors.New("exit status 2")
+	args := []string{"tflint", "--chdir", "./unit"}
+
+	testCases := []struct {
+		err       error
+		cause     error
+		name      string
+		mentioned []string
+	}{
+		{
+			name:      "run error with a cause",
+			err:       tflint.ErrorRunningTflint{Args: args, Err: errCause},
+			cause:     errCause,
+			mentioned: []string{"--chdir", "./unit", errCause.Error()},
+		},
+		{
+			name:      "run error without a cause",
+			err:       tflint.ErrorRunningTflint{Args: args},
+			mentioned: []string{"--chdir", "./unit"},
+		},
+		{
+			name: "issues found",
+			err:  tflint.IssuesFound{},
+		},
+		{
+			name: "unknown status code",
+			err:  tflint.UnknownError{},
+		},
+		{
+			name: "config not found",
+			err:  tflint.ConfigNotFound{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			msg := tc.err.Error()
+			require.NotEmpty(t, msg, "every error should describe itself")
+
+			for _, want := range tc.mentioned {
+				assert.Contains(t, msg, want, "the message should name the failing invocation and its cause")
+			}
+
+			assert.Equal(t, tc.cause, errors.Unwrap(tc.err), "only a run error with a cause should unwrap")
+		})
+	}
+}
+
 // runWithOpts wires the standard test fixture so each test does not have to
 // rebuild the same TFLintOptions and Venv.
 func runWithOpts(
@@ -626,7 +750,7 @@ func runWithOpts(
 		MaxFoldersToCheck: 5,
 	}
 
-	v := venvtest.New().WithExec(exec).WithFS(fsys)
+	v := venv.MemVenv().WithExec(exec).WithFS(fsys)
 
 	l := logger.CreateLogger()
 
@@ -640,4 +764,35 @@ func cloneInvocation(inv *vexec.Invocation) vexec.Invocation {
 		Args: slices.Clone(inv.Args),
 		Env:  slices.Clone(inv.Env),
 	}
+}
+
+// tooDeepInput is one level past the deepest nesting the input encoder accepts.
+const tooDeepInput = 101
+
+// errStat is the error statFailingFS reports.
+var errStat = errors.New("stat failed")
+
+// statFailingFS fails Stat for one path and serves everything else from FS.
+type statFailingFS struct {
+	vfs.FS
+	path string
+}
+
+func (fsys statFailingFS) Stat(name string) (os.FileInfo, error) {
+	if name == fsys.path {
+		return nil, errStat
+	}
+
+	return fsys.FS.Stat(name)
+}
+
+// nestedInput returns a map nested depth levels deep.
+func nestedInput(depth int) any {
+	var value any = "leaf"
+
+	for range depth {
+		value = map[string]any{"next": value}
+	}
+
+	return value
 }

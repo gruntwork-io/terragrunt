@@ -30,7 +30,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 				Name:        StrictFlagName,
 				EnvVars:     tgPrefix.EnvVars(StrictFlagName),
 				Destination: &opts.HCLValidateStrict,
-				Usage:       "Enables strict mode. When used in combination with the `--inputs` flag, any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
+				Usage:       "Enables strict mode. When used in combination with the --inputs flag, any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
 			},
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars(
 				"strict-validate",             // `TG_STRICT_VALIDATE`

@@ -29,7 +29,7 @@ type RelationshipPhase struct {
 type relationshipTraversalState struct {
 	opts                     *options.TerragruntOptions
 	discovery                *Discovery
-	allComponents            *component.Components
+	componentsByPath         map[string]component.Component
 	interTransientComponents *component.ThreadSafeComponents
 }
 
@@ -84,12 +84,20 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 		return nil
 	}
 
-	interTransientComponents := component.NewThreadSafeComponents(v.FS, component.Components{})
+	interTransientComponents := component.NewThreadSafeComponents(discovery.paths, component.Components{})
+
+	componentsByPath := make(map[string]component.Component, len(input.Components))
+
+	for _, c := range input.Components {
+		if _, ok := componentsByPath[c.Path()]; !ok {
+			componentsByPath[c.Path()] = c
+		}
+	}
 
 	state := &relationshipTraversalState{
 		opts:                     input.Opts,
 		discovery:                discovery,
-		allComponents:            &input.Components,
+		componentsByPath:         componentsByPath,
 		interTransientComponents: interTransientComponents,
 	}
 
@@ -102,22 +110,10 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 	g.SetLimit(p.numWorkers)
 
 	for _, c := range input.Components {
-		// terminalTracker tracks components that, if encountered, indicate we can stop
-		// traversal, as they are terminal components in the dependency graph.
-		terminalTracker := newTerminalTracker(
-			slices.Collect(func(yield func(component.Component) bool) {
-				for _, rc := range input.Components {
-					if rc != nil && rc != c {
-						if !yield(rc) {
-							return
-						}
-					}
-				}
-			}),
-		)
-
 		g.Go(func() error {
-			err := p.discoverRelationships(ctx, l, v, state, c, terminalTracker, p.maxDepth)
+			tracker := newTerminalTracker(componentsByPath, c.Path())
+
+			err := p.discoverRelationships(ctx, l, v, state, c, tracker, p.maxDepth)
 			if err != nil {
 				errMu.Lock()
 
@@ -172,7 +168,7 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	cfg := unit.Config()
 
-	paths, err := extractDependencyPaths(v.FS, cfg, c)
+	paths, err := extractDependencyPaths(state.discovery.paths, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -193,14 +189,7 @@ func (p *RelationshipPhase) discoverRelationships(
 		// is still read and linked, so the units that do run can order against
 		// it and fetch its outputs. [Discovery.dropOutsideBoundary] decides what
 		// is returned.
-		dep, created := p.dependencyToDiscover(
-			v.FS,
-			c,
-			path,
-			state.allComponents,
-			state.interTransientComponents,
-			state.discovery,
-		)
+		dep, created := state.dependencyToDiscover(v.FS, c, path)
 
 		tracker.remove(dep.Path())
 
@@ -260,30 +249,25 @@ func (p *RelationshipPhase) discoverRelationships(
 }
 
 // dependencyToDiscover resolves a dependency path and links it to the component.
-func (p *RelationshipPhase) dependencyToDiscover(
+func (s *relationshipTraversalState) dependencyToDiscover(
 	fsys vfs.FS,
 	c component.Component,
 	path string,
-	allComponents *component.Components,
-	interTransientComponents *component.ThreadSafeComponents,
-	discovery *Discovery,
 ) (component.Component, bool) {
-	for _, dep := range *allComponents {
-		if dep.Path() == path {
-			if !slices.Contains(c.Dependencies(), dep) {
-				c.AddDependency(dep)
-			}
-
-			return dep, false
+	if dep, ok := s.componentsByPath[path]; ok {
+		if !slices.Contains(c.Dependencies(), dep) {
+			c.AddDependency(dep)
 		}
+
+		return dep, false
 	}
 
 	newUnit := component.NewUnit(path)
 
-	dep, created := interTransientComponents.EnsureComponent(fsys, newUnit)
+	dep, created := s.interTransientComponents.EnsureComponent(newUnit)
 
-	if created && discovery.discoveryContext != nil {
-		discoveryCtx := discovery.discoveryContext.Copy()
+	if created && s.discovery.discoveryContext != nil {
+		discoveryCtx := s.discovery.discoveryContext.Copy()
 		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
 		dep.SetDiscoveryContext(discoveryCtx)
 
@@ -297,32 +281,39 @@ func (p *RelationshipPhase) dependencyToDiscover(
 	return dep, created
 }
 
-// terminalTracker provides thread-safe tracking of terminal components.
-// Components are removed as they're discovered as dependencies.
-// When empty, relationship discovery can stop early.
+// terminalTracker records which discovered components one traversal has
+// reached as dependencies. Once it has reached all of them, relationship
+// discovery can stop early. It is safe for concurrent use.
 type terminalTracker struct {
-	components component.Components
+	components map[string]component.Component
+	seen       map[string]struct{}
 	mu         sync.RWMutex
 }
 
-func newTerminalTracker(components component.Components) *terminalTracker {
+// newTerminalTracker returns a tracker over every component in components
+// except the one at ownPath, which must be a key of components. The tracker
+// never writes to components, so trackers can share one map.
+func newTerminalTracker(components map[string]component.Component, ownPath string) *terminalTracker {
 	return &terminalTracker{
 		components: components,
+		seen:       map[string]struct{}{ownPath: {}},
 	}
 }
 
 func (t *terminalTracker) remove(path string) {
+	if _, ok := t.components[path]; !ok {
+		return
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.components = slices.DeleteFunc(t.components, func(tc component.Component) bool {
-		return tc != nil && tc.Path() == path
-	})
+	t.seen[path] = struct{}{}
 }
 
 func (t *terminalTracker) isEmpty() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	return len(t.components) == 0
+	return len(t.seen) == len(t.components)
 }

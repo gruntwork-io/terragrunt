@@ -13,7 +13,7 @@ import (
 )
 
 // gitSourceToken is the credential in [unitGitSourceConfig]'s source address.
-const gitSourceToken = "s3cr3t-token"
+const gitSourceToken = "fake-token"
 
 // unitGitSourceConfig points a unit at a git source, so producing its outputs
 // starts with a git download.

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -42,7 +43,7 @@ func runValidate(t *testing.T, run validateRun) validateResult {
 	var stdout bytes.Buffer
 
 	root := venvtest.Root("/repo")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, run.files)).WithWriter(&stdout)
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, run.files)).WithWriter(&stdout)
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(
@@ -328,7 +329,7 @@ func TestRunValidateShowsPathsRelativeToWorkingDir(t *testing.T) {
 	var stdout bytes.Buffer
 
 	root := venvtest.Root("/repo")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
 		"live/app/terragrunt.hcl": "dependency \"db\" {\n  config_path = \"../db\"\n}\n",
 	})).WithWriter(&stdout)
 

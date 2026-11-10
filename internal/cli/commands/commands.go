@@ -9,7 +9,10 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -64,6 +67,8 @@ const (
 	MainCommandsCategoryName = "Main commands"
 	// CatalogCommandsCategoryName represents commands for managing Terragrunt catalogs.
 	CatalogCommandsCategoryName = "Catalog commands"
+	// PortalCommandsCategoryName represents commands for the Gruntwork Developer Portal.
+	PortalCommandsCategoryName = "Gruntwork Developer Portal commands"
 	// DiscoveryCommandsCategoryName represents commands for discovering Terragrunt configurations.
 	DiscoveryCommandsCategoryName = "Discovery commands"
 	// ConfigurationCommandsCategoryName represents commands for managing Terragrunt configurations.
@@ -76,6 +81,7 @@ const (
 const (
 	mainCommandsOrder = iota + 1
 	catalogCommandsOrder
+	portalCommandsOrder
 	discoveryCommandsOrder
 	configurationCommandsOrder
 	shortcutsCommandsOrder
@@ -98,11 +104,19 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	catalogCommands := clihelper.Commands{
 		catalog.NewCommand(l, opts, v),  // catalog
 		scaffold.NewCommand(l, opts, v), // scaffold
-		login.NewCommand(l, opts, v),    // login
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
 			Order: catalogCommandsOrder,
+		},
+	)
+
+	portalCommands := clihelper.Commands{
+		login.NewCommand(l, opts, v), // login
+	}.SetCategory(
+		&clihelper.Category{
+			Name:  PortalCommandsCategoryName,
+			Order: portalCommandsOrder,
 		},
 	)
 
@@ -142,12 +156,16 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 
 	allCommands := mainCommands.
 		Merge(catalogCommands...).
+		Merge(portalCommands...).
 		Merge(discoveryCommands...).
 		Merge(configurationCommands...).
 		Merge(shortcutsCommands...)
 
 	return allCommands
 }
+
+// telemetryShutdownTimeout limits how long the telemetry flush can delay exit.
+const telemetryShutdownTimeout = 30 * time.Second
 
 // WrapWithTelemetry wraps CLI command execution with telemetry initialization,
 // context setting and labels. If telemetry is disabled, just runs the command.
@@ -178,8 +196,12 @@ func WrapWithTelemetry(
 			return err
 		}
 
+		// Flush even after an interrupt cancels ctx, but do not wait forever.
 		defer func() {
-			if err := telemeter.Shutdown(ctx); err != nil {
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), telemetryShutdownTimeout)
+			defer cancel()
+
+			if err := telemeter.Shutdown(shutdownCtx); err != nil {
 				if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
 					l.Debugf("Failed to report telemetry shutdown error %v: %v", err, writeErr)
 				}
@@ -188,14 +210,10 @@ func WrapWithTelemetry(
 
 		ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
 
-		cmdName := fmt.Sprintf(
-			"%s %s", cliCtx.Command.Name, opts.TerraformCommand,
-		)
+		resolveErr := resolveWorkingDir(v, opts)
 
-		return telemeter.Collect(ctx, l, cmdName, map[string]any{
-			"terraformCommand": opts.TerraformCommand,
-			"args":             opts.TerraformCliArgs,
-			"dir":              opts.WorkingDir,
+		return telemeter.Collect(ctx, l, cliCtx.Command.Name, map[string]any{
+			"dir": opts.WorkingDir,
 		}, func(childCtx context.Context, l log.Logger) error {
 			// Engines emit telemetry during shutdown, so stop them while the
 			// command span is still open (and before the telemeter's deferred
@@ -213,9 +231,15 @@ func WrapWithTelemetry(
 				}
 			}()
 
+			if resolveErr != nil {
+				return resolveErr
+			}
+
 			if err := initialSetup(cliCtx, l, v, opts); err != nil {
 				return err
 			}
+
+			setCommandSpanAttributes(childCtx, cliCtx, opts)
 
 			if err := RunAction(childCtx, cliCtx, l, opts, v, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
@@ -529,6 +553,36 @@ func setupAutoProviderCacheDir(
 	return nil
 }
 
+// resolveWorkingDir makes opts.WorkingDir a clean absolute path, using the
+// current directory when it is unset.
+func resolveWorkingDir(v *venv.Venv, opts *options.TerragruntOptions) error {
+	if opts.WorkingDir == "" {
+		currentDir, err := v.Platform.Getwd()
+		if err != nil {
+			return err
+		}
+
+		opts.WorkingDir = filepath.Clean(currentDir)
+
+		return nil
+	}
+
+	if filepath.IsAbs(opts.WorkingDir) {
+		opts.WorkingDir = filepath.Clean(opts.WorkingDir)
+
+		return nil
+	}
+
+	workingDir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		return err
+	}
+
+	opts.WorkingDir = filepath.Clean(workingDir)
+
+	return nil
+}
+
 // mostly preparing terragrunt options
 func initialSetup(
 	cliCtx *clihelper.Context,
@@ -554,27 +608,8 @@ func initialSetup(
 		args = append(args, tf.FlagNameNoColor)
 	}
 
-	opts.TerraformCommand = cmdName
+	opts.TofuCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
-
-	// --- Working Dir
-	if opts.WorkingDir == "" {
-		currentDir, err := v.Platform.Getwd()
-		if err != nil {
-			return err
-		}
-
-		opts.WorkingDir = currentDir
-	} else if !filepath.IsAbs(opts.WorkingDir) {
-		workingDir, err := filepath.Abs(opts.WorkingDir)
-		if err != nil {
-			return err
-		}
-
-		opts.WorkingDir = workingDir
-	}
-
-	opts.WorkingDir = filepath.Clean(opts.WorkingDir)
 
 	l = l.WithField(placeholders.WorkDirKeyName, opts.WorkingDir)
 
@@ -685,7 +720,7 @@ func initialSetup(
 	}
 
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
-	opts.OriginalTerraformCommand = opts.TerraformCliArgs.CommandName(opts.TerraformCommand)
+	opts.OriginalTofuCommand = opts.TerraformCliArgs.CommandName(opts.TofuCommand)
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 	if !exec.PrepareConsole(l) {
@@ -694,4 +729,38 @@ func initialSetup(
 	}
 
 	return nil
+}
+
+// setCommandSpanAttributes records on the command span the tofu command and
+// arguments that initialSetup resolves, for a command that runs OpenTofu/Terraform.
+func setCommandSpanAttributes(ctx context.Context, cliCtx *clihelper.Context, opts *options.TerragruntOptions) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	if !runsTofu(cliCtx) || opts.TofuCommand == "" {
+		return
+	}
+
+	span.SetAttributes(
+		attribute.String("tofu_command", opts.TofuCommand),
+		attribute.StringSlice("args", opts.TerraformCliArgs.Slice()),
+	)
+}
+
+// runsTofu reports whether cliCtx is a command that passes its arguments to
+// OpenTofu/Terraform: run, stack run, a subcommand of run, or a shortcut.
+func runsTofu(cliCtx *clihelper.Context) bool {
+	if cliCtx.Command.Name == runcmd.CommandName {
+		return true
+	}
+
+	if cliCtx.Command.Category != nil && cliCtx.Command.Category.Name == ShortcutsCommandsCategoryName {
+		return true
+	}
+
+	parent := cliCtx.Parent().Command
+
+	return parent != nil && parent.Name == runcmd.CommandName
 }

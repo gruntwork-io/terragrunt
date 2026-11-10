@@ -17,9 +17,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.9.12
+          version: 2026.11.0
           cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
@@ -47,7 +47,7 @@ jobs:
 
       - name: Run markdownlint
         if: ${{ !cancelled() }}
-        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
+        uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34 # v25.0.0
         with:
           globs: |
             docs/**/*.md
@@ -86,7 +86,13 @@ jobs:
 
       - name: Run bats
         if: ${{ !cancelled() }}
-        run: bats --print-output-on-failure .github/scripts/ci/tests/ .github/scripts/release/tests/ .github/scripts/coverage/tests/ .github/scripts/security-scan/tests/
+        run: |
+          bats --print-output-on-failure \
+            .github/scripts/ci/tests/ \
+            .github/scripts/release/tests/ \
+            .github/scripts/coverage/tests/ \
+            .github/scripts/security-scan/tests/ \
+            .github/scripts/update-codified-remote-deps/tests/
 
       - name: Install script dependencies
         id: bun-install

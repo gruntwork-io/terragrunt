@@ -1,11 +1,9 @@
 package config_test
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -121,7 +119,7 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -199,7 +197,7 @@ include "base" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -329,7 +327,7 @@ dependency "leak" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	parsed, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
 	require.NoError(t, err)
@@ -614,7 +612,7 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -657,7 +655,7 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -961,7 +959,7 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
 		WithSkipOutputsResolution()
 
@@ -998,12 +996,6 @@ inputs = {
 `), 0644))
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
-	ctx = context.WithValue(
-		ctx,
-		config.TerragruntConfigCacheContextKey,
-		cache.NewCache[*config.TerragruntConfig]("test-config-cache"),
-	)
 	pctx.UsePartialParseConfigCache = true
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
@@ -1061,21 +1053,72 @@ remote_state {
 }
 
 // A unit partial-parsed with a present autoinclude, then re-parsed after the autoinclude is EDITED
-// in-process, must reflect the edit rather than the first cached result.
+// in-process at the same mtime, must reflect the edit rather than the first cached result.
 func TestPartialParseAutoIncludeCacheNotStaleOnEdit(t *testing.T) {
 	t.Parallel()
 
-	v, tmpDir := newMemTestDir(t)
-	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	testCases := []struct {
+		name   string
+		edited string
+	}{
+		{name: "different size", edited: "second"},
+		{name: "same size", edited: "third"},
+	}
 
-	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, tmpDir := newMemTestDir(t)
+			cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+			require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = {
   name = "from-unit"
 }
 `), 0644))
 
-	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
+			autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+			require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, autoIncludeRemoteStateHCL("first"), 0644))
+
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			pctx.UsePartialParseConfigCache = true
+			pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+			pctx = pctx.WithDecodeList(config.RemoteStateBlock).WithSkipOutputsResolution()
+
+			l := logger.CreateLogger()
+
+			first, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			require.NoError(t, err)
+			require.NotNil(t, first)
+			require.NotNil(t, first.RemoteState)
+			assert.Equal(t, "first", first.RemoteState.BackendConfig["path"])
+
+			firstInfo, err := v.FS.Stat(autoIncludePath)
+			require.NoError(t, err)
+
+			firstModTime := firstInfo.ModTime()
+
+			require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, autoIncludeRemoteStateHCL(tc.edited), 0644))
+			require.NoError(t, v.FS.Chtimes(autoIncludePath, firstModTime, firstModTime))
+
+			second, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			require.NoError(t, err)
+			require.NotNil(t, second)
+			require.NotNil(t, second.RemoteState)
+			assert.Equal(
+				t,
+				tc.edited,
+				second.RemoteState.BackendConfig["path"],
+				"the edited autoinclude must win, not the stale cached result",
+			)
+		})
+	}
+}
+
+// autoIncludeRemoteStateHCL returns an autoinclude whose local remote_state config sets path.
+func autoIncludeRemoteStateHCL(path string) []byte {
+	return []byte(`
 remote_state {
   backend = "local"
   generate = {
@@ -1083,54 +1126,10 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    path = "first"
+    path = "` + path + `"
   }
 }
-`), 0644))
-
-	ctx, pctx := newTestParsingContext(t, cfgPath)
-	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
-	ctx = context.WithValue(
-		ctx,
-		config.TerragruntConfigCacheContextKey,
-		cache.NewCache[*config.TerragruntConfig]("test-config-cache"),
-	)
-	pctx.UsePartialParseConfigCache = true
-	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx = pctx.WithDecodeList(config.RemoteStateBlock).WithSkipOutputsResolution()
-
-	l := logger.CreateLogger()
-
-	first, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
-	require.NoError(t, err)
-	require.NotNil(t, first)
-	require.NotNil(t, first.RemoteState)
-	assert.Equal(t, "first", first.RemoteState.BackendConfig["path"])
-
-	// Edit the autoinclude in-process; the changed content must change the cache key.
-	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
-remote_state {
-  backend = "local"
-  generate = {
-    path      = "backend.tf"
-    if_exists = "overwrite"
-  }
-  config = {
-    path = "second"
-  }
-}
-`), 0644))
-
-	second, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
-	require.NoError(t, err)
-	require.NotNil(t, second)
-	require.NotNil(t, second.RemoteState)
-	assert.Equal(
-		t,
-		"second",
-		second.RemoteState.BackendConfig["path"],
-		"the edited autoinclude must win, not the stale cached result",
-	)
+`)
 }
 
 // A dependencies block path that overlaps a DISABLED dependency block of the same path must survive a
@@ -1284,7 +1283,7 @@ inputs = {
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -1306,10 +1305,10 @@ inputs = {
 	assert.Equal(t, "./vpc", vpcDep["config_path"])
 }
 
-// TestValidateStackAutoIncludes_ReportsMalformedAutoInclude pins that the strict autoinclude parse
+// TestStackAutoIncludes_ReportsMalformedAutoInclude pins that the strict autoinclude parse
 // behind `hcl validate` reports a malformed autoinclude block (here a locals block, which is
 // explicitly rejected) that the lenient ParseStackConfig decode lets through into Remain.
-func TestValidateStackAutoIncludes_ReportsMalformedAutoInclude(t *testing.T) {
+func TestStackAutoIncludes_ReportsMalformedAutoInclude(t *testing.T) {
 	t.Parallel()
 
 	v, tmpDir := newMemTestDir(t)
@@ -1340,7 +1339,7 @@ unit "app" {
 		"the lenient stack decode must keep accepting the malformed autoinclude block",
 	)
 
-	err = config.ValidateStackAutoIncludes(ctx, l, v, pctx, stackPath, stackCfg, nil)
+	_, err = config.StackAutoIncludes(ctx, l, v, pctx, stackPath, stackCfg, nil)
 	require.Error(t, err, "the strict autoinclude parse must report the locals block")
 
 	var stageErr config.AutoIncludeParserStageError
@@ -1443,7 +1442,7 @@ region = "us-east-1"
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),
@@ -1513,7 +1512,7 @@ dependency "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),
@@ -1568,7 +1567,7 @@ dependency "other" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),
@@ -1606,7 +1605,7 @@ inputs = {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),
@@ -1670,7 +1669,7 @@ dependency "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -1728,7 +1727,7 @@ dependency "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
@@ -1776,7 +1775,7 @@ dependency "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),

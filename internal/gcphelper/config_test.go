@@ -90,7 +90,7 @@ func TestGCPConfigWithGoogleCredentialsEnv(t *testing.T) {
 		"type": "service_account",
 		"project_id": "test-project",
 		"private_key_id": "test-key-id",
-		"private_key": "-----BEGIN PRIVATE KEY-----\nfake-private-key\n-----END PRIVATE KEY-----\n",
+		"private_key": "fake-private-key",
 		"client_email": "test@test-project.iam.gserviceaccount.com",
 		"client_id": "123456789",
 		"auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -235,7 +235,7 @@ func TestGCPConfigWithGoogleCredentialsFile(t *testing.T) {
 		"type": "service_account",
 		"project_id": "test-project",
 		"private_key_id": "test-key-id",
-		"private_key": "-----BEGIN PRIVATE KEY-----\nfake-private-key\n-----END PRIVATE KEY-----\n",
+		"private_key": "fake-private-key",
 		"client_email": "test@test-project.iam.gserviceaccount.com",
 		"client_id": "123456789"
 	}`
@@ -333,7 +333,7 @@ const virtualCredentialsPath = "/virtual/gcp/credentials.json"
 func gcpCredentialsVenv(t *testing.T, payload []byte) *venv.Venv {
 	t.Helper()
 
-	v := venvtest.New().WithEnv(map[string]string{})
+	v := venv.MemVenv().WithEnv(map[string]string{})
 
 	require.NoError(t, v.FS.MkdirAll(filepath.Dir(virtualCredentialsPath), 0o755))
 	require.NoError(t, vfs.WriteFile(v.FS, virtualCredentialsPath, payload, 0o600))

@@ -2,22 +2,37 @@ package format_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/iotest"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
+
+const (
+	// formatUnformatted is HCL that format rewrites into formatFormatted.
+	formatUnformatted = "inputs   =   {}\n"
+	formatFormatted   = "inputs = {}\n"
+)
+
+// errFormatIO is the failure the faulting readers and writers below report.
+var errFormatIO = errors.New("io failed")
 
 // readFixture reads a fixture-relative path out of the in-memory filesystem.
 func readFixture(t *testing.T, fsys vfs.FS, root string, elem ...string) string {
@@ -58,7 +73,7 @@ func TestHCLFmt(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 	tgOptions.HclExclude = []string{".history"}
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -126,7 +141,7 @@ func TestHCLFmtErrors(t *testing.T) {
 
 			newTgOptions.WorkingDir = tgHclDir
 
-			err = format.Run(t.Context(), l, venvtest.New().WithFS(fsys), newTgOptions)
+			err = format.Run(t.Context(), l, venv.MemVenv().WithFS(fsys), newTgOptions)
 			require.Error(t, err)
 		})
 	}
@@ -145,7 +160,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -179,7 +194,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -212,7 +227,7 @@ func TestHCLFmtFile(t *testing.T) {
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
 	tgOptions.WorkingDir = tmpPath
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
@@ -300,7 +315,7 @@ func TestHCLFmtStdin(t *testing.T) {
 
 			var out bytes.Buffer
 
-			v := venvtest.New().
+			v := venv.MemVenv().
 				WithStdin(strings.NewReader(tc.input)).
 				WithWriter(&out)
 
@@ -346,7 +361,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	assert.Equal(t, expected, readFixture(t, fsys, tmpPath, "terragrunt.hcl"))
@@ -376,7 +391,7 @@ func TestRunForFiles(t *testing.T) {
 	err = format.RunForFiles(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New().WithFS(fsys),
+		venv.MemVenv().WithFS(fsys),
 		tgOptions,
 		tmpPath,
 		files,
@@ -409,7 +424,7 @@ func TestRunForFilesEmptyList(t *testing.T) {
 	err = format.RunForFiles(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New(),
+		venv.MemVenv(),
 		tgOptions,
 		"/empty",
 		nil,
@@ -439,7 +454,7 @@ func TestHCLFmtFilter(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -497,7 +512,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -555,7 +570,7 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 
 	tgOptions.Filters = filters
 
-	err = format.Run(t.Context(), logger.CreateLogger(), venvtest.New().WithFS(fsys), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -612,7 +627,7 @@ func TestHCLFmtDiffFile(t *testing.T) {
 	require.NoError(t, format.Run(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New().WithFS(fsys).WithWriter(&out),
+		venv.MemVenv().WithFS(fsys).WithWriter(&out),
 		tgOptions,
 	))
 
@@ -623,4 +638,248 @@ func TestHCLFmtDiffFile(t *testing.T) {
 	)
 
 	assert.Equal(t, header+onDisk(t, filepath.Join(fixture, "expected.diff")), out.String())
+}
+
+// TestHCLFmtRejectsStdinWithFile pins that the two input flags cannot be combined.
+func TestHCLFmtRejectsStdinWithFile(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	tgOptions.HclFromStdin = true
+	tgOptions.HclFile = "terragrunt.hcl"
+
+	v := venv.MemVenv().WithStdin(strings.NewReader(formatUnformatted))
+
+	require.Error(t, format.Run(t.Context(), logger.CreateLogger(), v, tgOptions))
+}
+
+// TestHCLFmtStdinFailures pins that a failure at each stage of formatting stdin reaches the caller.
+func TestHCLFmtStdinFailures(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		stdin   io.Reader
+		stdout  io.Writer
+		wantErr error
+		name    string
+		diff    bool
+	}{
+		{
+			name:    "read",
+			stdin:   iotest.ErrReader(errFormatIO),
+			wantErr: errFormatIO,
+		},
+		{
+			name:    "diff write",
+			stdin:   strings.NewReader(formatUnformatted),
+			stdout:  failingWriter{},
+			diff:    true,
+			wantErr: errFormatIO,
+		},
+		{
+			name:    "flush",
+			stdin:   strings.NewReader(formatUnformatted),
+			stdout:  failingWriter{},
+			wantErr: errFormatIO,
+		},
+		{
+			name:    "write larger than the output buffer",
+			stdin:   strings.NewReader(formatUnformatted + strings.Repeat("# padding\n", 1024)),
+			stdout:  failingWriter{},
+			wantErr: errFormatIO,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tgOptions, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
+
+			tgOptions.HclFromStdin = true
+			tgOptions.Diff = tc.diff
+
+			v := venv.MemVenv().WithStdin(tc.stdin)
+			if tc.stdout != nil {
+				v = v.WithWriter(tc.stdout)
+			}
+
+			err = format.Run(t.Context(), logger.CreateLogger(), v, tgOptions)
+			require.ErrorIs(t, err, tc.wantErr)
+		})
+	}
+}
+
+// TestHCLFmtStdinInvalidHCL pins that a parse failure on stdin stays matchable as HCL diagnostics.
+func TestHCLFmtStdinInvalidHCL(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	tgOptions.HclFromStdin = true
+
+	stdout := new(bytes.Buffer)
+	v := venv.MemVenv().WithStdin(strings.NewReader("inputs = {")).WithWriter(stdout)
+
+	var diags hcl.Diagnostics
+
+	err = format.Run(t.Context(), logger.CreateLogger(), v, tgOptions)
+	require.ErrorAs(t, err, &diags)
+	assert.Empty(t, stdout.String(), "nothing should be printed for input that does not parse")
+}
+
+// TestHCLFmtFileFailures pins that a relative file path resolves against the working directory, and how it fails.
+func TestHCLFmtFileFailures(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+
+	testCases := []struct {
+		stdout  io.Writer
+		wantErr error
+		name    string
+		file    string
+		diff    bool
+	}{
+		{
+			name:    "missing file",
+			file:    "missing.hcl",
+			wantErr: fs.ErrNotExist,
+		},
+		{
+			name:    "diff write",
+			file:    "terragrunt.hcl",
+			stdout:  failingWriter{},
+			diff:    true,
+			wantErr: errFormatIO,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := venvtest.NewFS(t, root, map[string]string{"terragrunt.hcl": formatUnformatted})
+
+			tgOptions, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
+
+			tgOptions.WorkingDir = root
+			tgOptions.HclFile = tc.file
+			tgOptions.Diff = tc.diff
+
+			v := venv.MemVenv().WithFS(fsys)
+			if tc.stdout != nil {
+				v = v.WithWriter(tc.stdout)
+			}
+
+			err = format.Run(t.Context(), logger.CreateLogger(), v, tgOptions)
+			require.ErrorIs(t, err, tc.wantErr)
+		})
+	}
+}
+
+// TestHCLFmtMissingWorkingDir pins that a working directory that cannot be walked is an error, not an empty run.
+func TestHCLFmtMissingWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = venvtest.Root("/missing")
+
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv(), tgOptions)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+// TestHCLFmtFilterRequiringDiscovery pins the typed error for a filter the file walk cannot answer.
+func TestHCLFmtFilterRequiringDiscovery(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{"terragrunt.hcl": formatUnformatted})
+
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"...unit"})
+	require.NoError(t, err)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = root
+	tgOptions.Filters = filters
+
+	var requiresDiscovery filter.FilterQueryRequiresDiscoveryError
+
+	err = format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions)
+	require.ErrorAs(t, err, &requiresDiscovery)
+	assert.Equal(t, formatUnformatted, readFixture(t, fsys, root, "terragrunt.hcl"), "no file should be formatted")
+}
+
+// TestHCLFmtExplicitParallelism pins that a run limited by --parallelism still formats every file.
+func TestHCLFmtExplicitParallelism(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"a/terragrunt.hcl": formatUnformatted,
+		"b/terragrunt.hcl": formatUnformatted,
+	})
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = root
+	tgOptions.Parallelism = 1
+
+	require.NoError(t, format.Run(t.Context(), logger.CreateLogger(), venv.MemVenv().WithFS(fsys), tgOptions))
+
+	assert.Equal(t, formatFormatted, readFixture(t, fsys, root, "a", "terragrunt.hcl"))
+	assert.Equal(t, formatFormatted, readFixture(t, fsys, root, "b", "terragrunt.hcl"))
+}
+
+// TestRunForFilesCollectsFailures pins that one unparsable file fails the run without stopping the others.
+func TestRunForFilesCollectsFailures(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"bad.hcl":  "inputs = {",
+		"good.hcl": formatUnformatted,
+	})
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	var diags hcl.Diagnostics
+
+	err = format.RunForFiles(
+		t.Context(),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys),
+		tgOptions,
+		root,
+		[]string{"bad.hcl", "good.hcl"},
+	)
+	require.ErrorAs(t, err, &diags)
+	assert.Equal(t, formatFormatted, readFixture(t, fsys, root, "good.hcl"))
+}
+
+// TestFileNeedsFormattingErrorNamesTheFile pins that the message tells the user which file to format.
+func TestFileNeedsFormattingErrorNamesTheFile(t *testing.T) {
+	t.Parallel()
+
+	err := format.FileNeedsFormattingError{Path: "live/terragrunt.hcl"}
+
+	assert.Contains(t, err.Error(), "live/terragrunt.hcl")
+}
+
+// failingWriter refuses every write with errFormatIO.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errFormatIO
 }

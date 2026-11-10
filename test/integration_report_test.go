@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -46,7 +47,7 @@ func TestTerragruntReportDisableSummary(t *testing.T) {
 			root := venvtest.Root("/repo")
 			stub := &reportStub{root: root, planExit: tc.planExit}
 
-			v := venvtest.New().
+			v := venv.MemVenv().
 				WithFS(venvtest.NewFS(t, root, map[string]string{
 					filepath.Join("unit", "terragrunt.hcl"): "",
 					filepath.Join("unit", "main.tf"):        "",

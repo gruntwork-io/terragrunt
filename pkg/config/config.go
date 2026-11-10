@@ -74,6 +74,7 @@ const (
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
 	MetadataIamWebIdentityToken         = "iam_web_identity_token"
 	MetadataInputs                      = "inputs"
+	MetadataVariables                   = "variables"
 	MetadataLocals                      = "locals"
 	MetadataLocal                       = "local"
 	MetadataCatalog                     = "catalog"
@@ -134,6 +135,7 @@ type TerragruntConfig struct {
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	IamAssumeRoleDuration       *int64
 	Inputs                      map[string]any
+	Variables                   []VariablesConfig
 	Engine                      *EngineConfig
 	Catalog                     *CatalogConfig
 	IamWebIdentityToken         string
@@ -280,6 +282,13 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 	if cfg.Catalog != nil {
 		rootBody.AppendBlock(catalogBlock(cfg.Catalog, cfgAsCty.GetAttr("catalog")))
+	}
+
+	if len(cfg.Variables) > 0 {
+		for it := cfgAsCty.GetAttr(MetadataVariables).ElementIterator(); it.Next(); {
+			_, block := it.Element()
+			rootBody.AppendBlock(variablesBlock(block))
+		}
 	}
 
 	appendRootAttributes(rootBody, cfg, cfgAsCty)
@@ -884,6 +893,7 @@ type TerragruntConfigFile struct {
 	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
 	TerragruntVersionConstraint *string          `hcl:"terragrunt_version_constraint,attr"`
 	Inputs                      *cty.Value       `hcl:"inputs,attr"`
+	Variables                   []VariablesBlock `hcl:"variables,block"`
 
 	// We allow users to configure remote state (backend) via blocks:
 	//
@@ -1124,6 +1134,7 @@ type TerraformConfig struct {
 	ExcludeFromCopy *[]string `hcl:"exclude_from_copy,attr"`
 
 	CopyTerraformLockFile *bool                     `hcl:"copy_terraform_lock_file,attr"`
+	NoDotTerragruntCache  *bool                     `hcl:"no_dot_terragrunt_cache,attr"`
 	ExtraArgs             []TerraformExtraArguments `hcl:"extra_arguments,block"`
 	BeforeHooks           []Hook                    `hcl:"before_hook,block"`
 	AfterHooks            []Hook                    `hcl:"after_hook,block"`
@@ -1496,7 +1507,7 @@ func ParseConfigFile(
 
 	var config *TerragruntConfig
 
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
 
 	// Build cache key components before tracing to determine cache hit status
 	childKey := "nil"
@@ -1518,16 +1529,16 @@ func ParseConfigFile(
 		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
 
-	cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v",
+	cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v-%v",
 		cfgPath,
 		pctx.WorkingDir,
 		childKey,
 		decodeListKey,
 		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
 	)
 
-	// Check cache hit status before tracing
-	_, cacheHit := hclCache.Get(ctx, cacheKey)
+	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, cfgPath)
 
 	isPartial := len(pctx.PartialParseDecodeList) > 0
 
@@ -1539,26 +1550,22 @@ func ParseConfigFile(
 		isPartial,
 		pctx.PartialParseDecodeList,
 		includeFromChild,
-		cacheHit,
+		cached != nil,
 		func(childCtx context.Context, l log.Logger) error {
-			var file *hclparse.File
-
-			if cacheConfig, found := hclCache.Get(childCtx, cacheKey); found {
-				file = cacheConfig.Rebind(pctx.NewParser(l, v))
-			} else {
-				// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-				var parseErr error
-
-				file, parseErr = pctx.NewParser(l, v).
-					ParseFromFile(v.FS, cfgPath)
-				if parseErr != nil {
-					return parseErr
-				}
-
-				hclCache.Put(childCtx, cacheKey, file)
+			file, parseErr := rebindOrParseHCLFile(
+				childCtx,
+				l,
+				v,
+				pctx,
+				hclCache,
+				cached,
+				cacheKey,
+				cfgPath,
+				fileInfo.ModTime(),
+			)
+			if parseErr != nil {
+				return parseErr
 			}
-
-			var parseErr error
 
 			config, parseErr = ParseConfig(childCtx, l, v, pctx, file, includeFromChild)
 			if parseErr != nil {
@@ -1740,6 +1747,10 @@ func ParseConfig(
 	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
 	// Only replace config on success; the merge helper returns nil on failure and handleInclude below would nil-deref it.
 	if config != nil {
+		if err := ValidateInputDefinitions(file, config); err != nil {
+			errs = append(errs, err)
+		}
+
 		merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, l, v, pctx, config)
 		if autoMergeErr != nil {
 			errs = append(errs, autoMergeErr)
@@ -2028,6 +2039,15 @@ func CompleteTerragruntConfigFile(
 		cfgFile.Inputs = &inputs
 	}
 
+	for i := range cfgFile.Variables {
+		inputs, err := ctyhelper.UpdateUnknownCtyValValues(cfgFile.Variables[i].Inputs)
+		if err != nil {
+			return nil, err
+		}
+
+		cfgFile.Variables[i].Inputs = inputs
+	}
+
 	return cfgFile, nil
 }
 
@@ -2271,6 +2291,8 @@ func ConvertToTerragruntConfig(
 			return nil, err
 		}
 
+		generateBlocks = slices.Grow(generateBlocks, len(generateMap))
+
 		for name, block := range generateMap {
 			var generateBlock TerragruntGenerateBlock
 			if err := mapstructure.WeakDecode(block, &generateBlock); err != nil {
@@ -2365,6 +2387,13 @@ func ConvertToTerragruntConfig(
 			defaultMetadata,
 		)
 	}
+
+	variables, err := convertVariablesBlocks(pctx, cfgPath, cfgFromFile.Variables)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	cfg.Variables = variables
 
 	if pctx.Locals != nil && *pctx.Locals != cty.NilVal {
 		localsParsed, err := ctyhelper.ParseCtyValueToMap(*pctx.Locals)

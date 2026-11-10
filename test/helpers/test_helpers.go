@@ -286,12 +286,12 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 // when using t.TempDir(). It's generally annoying to deal with in tests, as it breaks filepath comparisons, so
 // using this function is preferred over calling t.TempDir() directly unless you are sure it doesn't matter if the
 // temporary directory is a symlink.
-func TmpDirWOSymlinks(t *testing.T) string {
-	t.Helper()
+func TmpDirWOSymlinks(tb testing.TB) string {
+	tb.Helper()
 
-	tmpDir := t.TempDir()
+	tmpDir := tb.TempDir()
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return tmpDir
 }

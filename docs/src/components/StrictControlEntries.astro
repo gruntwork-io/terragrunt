@@ -23,7 +23,7 @@ const entries = allEntries
       : !isCompleted(entry, latestVersion) &&
         (showUnreleased || !entry.data.since || isReleased(entry.data.since, latestVersion))
   )
-  .sort((a, b) => a.data.name.localeCompare(b.data.name));
+  .sort((a, b) => a.data.name.localeCompare(b.data.name, 'en'));
 
 const rendered = await Promise.all(
   entries.map(async (entry) => {

@@ -34,6 +34,7 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 		tfImpl               tfimpl.Type
 		expectedMessage      string
 		providerCacheEnabled bool
+		noTips               bool
 	}{
 		{
 			name:                 "non-windows skips",
@@ -91,6 +92,47 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 			tfVersion:            openTofuV1110,
 			expectedMessage:      tips.WindowsSymlinkWarningMessage,
 		},
+		{
+			name: "windows probe dir creation fails skips",
+			goos: "windows",
+			fs: &vfs.NoSymlinkFS{
+				FS: newFaultFS(vfs.NewMemMapFS(), atBasePrefix("mkdir", "terragrunt-test-symlink")),
+			},
+			environ:              cacheEnv,
+			providerCacheEnabled: true,
+			tfImpl:               tfimpl.Terraform,
+			expectedMessage:      "",
+		},
+		{
+			name:                 "windows probe source creation fails skips",
+			goos:                 "windows",
+			fs:                   &vfs.NoSymlinkFS{FS: newFaultFS(vfs.NewMemMapFS(), atBasePrefix("mkdir", "source"))},
+			environ:              cacheEnv,
+			providerCacheEnabled: true,
+			tfImpl:               tfimpl.Terraform,
+			expectedMessage:      "",
+		},
+		{
+			name: "windows probe cleanup failure still shows tip",
+			goos: "windows",
+			fs: &vfs.NoSymlinkFS{
+				FS: newFaultFS(vfs.NewMemMapFS(), atBasePrefix("removeall", "terragrunt-test-symlink")),
+			},
+			environ:              cacheEnv,
+			providerCacheEnabled: true,
+			tfImpl:               tfimpl.Terraform,
+			expectedMessage:      tips.WindowsSymlinkWarningMessage,
+		},
+		{
+			name:                 "windows symlink fails without the tip registered skips",
+			goos:                 "windows",
+			fs:                   &vfs.NoSymlinkFS{FS: vfs.NewMemMapFS()},
+			environ:              cacheEnv,
+			providerCacheEnabled: true,
+			tfImpl:               tfimpl.Terraform,
+			noTips:               true,
+			expectedMessage:      "",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -98,7 +140,11 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 			t.Parallel()
 
 			logger, output := newTestLogger()
+
 			allTips := tips.NewTips()
+			if tc.noTips {
+				allTips = tips.Tips{}
+			}
 
 			commands.GiveWindowsSymlinksTip(
 				logger,

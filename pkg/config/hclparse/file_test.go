@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +39,7 @@ func TestJustAttributesRejectsInvalidIdentifier(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	parser := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), &buf, true))
+	parser := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venv.MemVenv(), &buf, true))
 
 	file, err := parser.ParseFromString(jsonWithInvalidIdentifier, "/virtual/test.hcl.json")
 	require.NoError(t, err)
@@ -61,12 +61,12 @@ func TestRebindRoutesDiagnosticsThroughNewWriter(t *testing.T) {
 		reboundBuf  bytes.Buffer
 	)
 
-	original := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), &originalBuf, true))
+	original := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venv.MemVenv(), &originalBuf, true))
 
 	file, err := original.ParseFromString(hclWithUndefinedVar, fixturePath)
 	require.NoError(t, err)
 
-	rebound := file.Rebind(hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), &reboundBuf, true)))
+	rebound := file.Rebind(hclparse.NewParser(hclparse.WithDiagnosticsWriter(venv.MemVenv(), &reboundBuf, true)))
 
 	var out fooOnly
 
@@ -89,12 +89,12 @@ func TestRebindLeavesOriginalFileUnaffected(t *testing.T) {
 		reboundBuf  bytes.Buffer
 	)
 
-	original := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), &originalBuf, true))
+	original := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venv.MemVenv(), &originalBuf, true))
 
 	file, err := original.ParseFromString(hclWithUndefinedVar, fixturePath)
 	require.NoError(t, err)
 
-	rebound := file.Rebind(hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), &reboundBuf, true)))
+	rebound := file.Rebind(hclparse.NewParser(hclparse.WithDiagnosticsWriter(venv.MemVenv(), &reboundBuf, true)))
 	require.NotNil(t, rebound, "Rebind must return a usable file wrapper")
 
 	var out fooOnly
@@ -117,12 +117,12 @@ func TestRebindRendersSourceSnippet(t *testing.T) {
 
 	var reboundBuf bytes.Buffer
 
-	original := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), io.Discard, true))
+	original := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venv.MemVenv(), io.Discard, true))
 
 	file, err := original.ParseFromString(hclWithUndefinedVar, fixturePath)
 	require.NoError(t, err)
 
-	rebound := file.Rebind(hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), &reboundBuf, true)))
+	rebound := file.Rebind(hclparse.NewParser(hclparse.WithDiagnosticsWriter(venv.MemVenv(), &reboundBuf, true)))
 
 	var out fooOnly
 
@@ -150,7 +150,7 @@ func TestRebindWithRacing(t *testing.T) {
 
 	const goroutines = 32
 
-	cached, err := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), io.Discard, true)).
+	cached, err := hclparse.NewParser(hclparse.WithDiagnosticsWriter(venv.MemVenv(), io.Discard, true)).
 		ParseFromString(hclWithUndefinedVar, fixturePath)
 	require.NoError(t, err)
 
@@ -167,7 +167,7 @@ func TestRebindWithRacing(t *testing.T) {
 
 			var buf bytes.Buffer
 
-			rebound := cached.Rebind(hclparse.NewParser(hclparse.WithDiagnosticsWriter(venvtest.New(), &buf, true)))
+			rebound := cached.Rebind(hclparse.NewParser(hclparse.WithDiagnosticsWriter(venv.MemVenv(), &buf, true)))
 
 			var out fooOnly
 

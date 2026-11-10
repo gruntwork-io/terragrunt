@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -27,9 +28,9 @@ func TestMissingRunAllArguments(t *testing.T) {
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	tgOptions.TerraformCommand = ""
+	tgOptions.TofuCommand = ""
 
-	err = runall.Run(t.Context(), logger.CreateLogger(), venvtest.New(), tgOptions)
+	err = runall.Run(t.Context(), logger.CreateLogger(), venv.MemVenv(), tgOptions)
 	require.Error(t, err)
 
 	var missingCommand runall.MissingCommand
@@ -45,7 +46,7 @@ func TestRunGivesStackTargetTipOnEarlyReturn(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/repo")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
 		filepath.Join("envs", "prod", config.DefaultStackFile): "",
 	}))
 
@@ -56,7 +57,7 @@ func TestRunGivesStackTargetTipOnEarlyReturn(t *testing.T) {
 	require.NoError(t, err)
 
 	opts.WorkingDir = root
-	opts.TerraformCommand = ""
+	opts.TofuCommand = ""
 	opts.Filters = filter.Filters{stackFilter}
 
 	output := new(bytes.Buffer)

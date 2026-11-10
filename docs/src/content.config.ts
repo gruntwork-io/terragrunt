@@ -67,6 +67,97 @@ const flags = defineCollection({
 	}),
 });
 
+// The configuration files an HCL block, attribute, or function is valid in:
+// `unit` for `terragrunt.hcl` and the files it includes, `stack` for
+// `terragrunt.stack.hcl`.
+const hclConfigs = z.array(z.enum(["unit", "stack"])).nonempty();
+
+// `code` is HCL, and a leading `# terragrunt.hcl` comment becomes the code
+// block's title. `description` is Markdown. It appears above the code, so it
+// states how the item behaves and doesn't name values from `code`.
+const hclExamples = z.array(z.object({
+	description: z.string().optional(),
+	code: z.string(),
+})).nonempty();
+
+// Shared by every HCL reference entry. `name` is the identifier as written in
+// HCL and names the page at `/reference/hcl/<kind>/<name>/`. `description` is
+// one plain-text sentence, used as the page's meta description and in index
+// tables.
+const hclItem = {
+	name: z.string().regex(/^[a-z][a-z0-9_]*$/),
+	description: z.string(),
+	configs: hclConfigs,
+	since: releaseVersion.optional(),
+	examples: hclExamples,
+};
+
+// An attribute set inside a block. `type` uses HCL type syntax, e.g.
+// `list(string)`. `description` is Markdown. `example` is HCL showing the
+// attribute set inside its block.
+const hclBlockAttribute = z
+	.object({
+		name: z.string(),
+		type: z.string(),
+		required: z.boolean().default(false),
+		default: z.string().optional(),
+		description: z.string(),
+		example: z.string(),
+	})
+	.refine((attribute) => !attribute.required || attribute.default === undefined, {
+		message: "A required attribute can't have a default",
+	});
+
+const hclBlocks = defineCollection({
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/hcl/blocks" }),
+	schema: z
+		.object({
+			...hclItem,
+			// Each attribute has its own example, so a block only needs these to
+			// show something the attribute examples can't.
+			examples: hclExamples.optional(),
+			// Required attributes come first, so the first example on the page is
+			// the simplest valid block.
+			attributes: z
+				.array(hclBlockAttribute)
+				.refine(
+					(attributes) => {
+						const requiredCount = attributes.filter((attribute) => attribute.required).length;
+						return attributes.slice(0, requiredCount).every((attribute) => attribute.required);
+					},
+					{ message: 'Required attributes must come before optional ones' },
+				)
+				.optional(),
+		})
+		.refine((block) => block.examples !== undefined || (block.attributes ?? []).length > 0, {
+			message: 'A block needs attributes or examples',
+		}),
+});
+
+const hclAttributes = defineCollection({
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/hcl/attributes" }),
+	schema: z.object({
+		...hclItem,
+		type: z.string(),
+		default: z.string().optional(),
+	}),
+});
+
+const hclFunctions = defineCollection({
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/hcl/functions" }),
+	schema: z.object({
+		...hclItem,
+		// In call order. `description` is Markdown.
+		params: z.array(z.object({
+			name: z.string(),
+			type: z.string(),
+			optional: z.boolean().default(false),
+			description: z.string(),
+		})),
+		returns: z.string(),
+	}),
+});
+
 const faq = defineCollection({
 	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/faq" }),
 	schema: z.object({
@@ -146,4 +237,17 @@ const strictControls = defineCollection({
 	}),
 });
 
-export const collections = { changelog, commands, compatibility, docs, experiments, faq, flags, patterns, strictControls };
+export const collections = {
+	changelog,
+	commands,
+	compatibility,
+	docs,
+	experiments,
+	faq,
+	flags,
+	hclAttributes,
+	hclBlocks,
+	hclFunctions,
+	patterns,
+	strictControls,
+};

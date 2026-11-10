@@ -237,7 +237,7 @@ func writeUnits(t *testing.T, fsys vfs.FS, units map[string]string) {
 func memRepoRootVenv(t *testing.T, repoRoot string) *venv.Venv {
 	t.Helper()
 
-	return venvtest.New().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
+	return venv.MemVenv().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
 		".git": "gitdir: /elsewhere/.git\n",
 	}))
 }

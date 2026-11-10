@@ -324,6 +324,16 @@ func (s *GitServer) RequireSSH() {
 	))
 }
 
+// SSHPrivateKey returns the OpenSSH-format private key the SSH endpoint
+// accepts, for a test that authenticates some way other than the
+// `GIT_SSH_COMMAND` [GitServer.RequireSSH] sets. Call RequireSSH first.
+func (s *GitServer) SSHPrivateKey() []byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.sshKeyPEM
+}
+
 // retagLocked points every tag and branch at s.headSHA in one git call; the caller holds s.mu.
 func (s *GitServer) retagLocked() error {
 	refs := make(map[string]string, len(TerragruntMirrorTags)+len(TerragruntMirrorBranches))

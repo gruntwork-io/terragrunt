@@ -80,11 +80,26 @@ func newTaggedRemote(t *testing.T, v *venv.Venv, dir string, tags ...string) str
 	remote := filepath.Join(dir, "remote.git")
 
 	require.NoError(t, os.MkdirAll(filepath.Join(work, "modules", "vpc"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(work, "modules", "vpc", "main.tf"), []byte("variable \"cidr\" {}\n"), 0o600))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(work, "modules", "vpc", "main.tf"), []byte("variable \"cidr\" {}\n"), 0o600),
+	)
 
 	runGit(t, v, work, "init", "--quiet", "--initial-branch", "main")
 	runGit(t, v, work, "add", "--all")
-	runGit(t, v, work, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "--message", "init")
+	runGit(
+		t,
+		v,
+		work,
+		"-c",
+		"user.name=test",
+		"-c",
+		"user.email=test@example.com",
+		"commit",
+		"--quiet",
+		"--message",
+		"init",
+	)
 
 	for _, tag := range tags {
 		runGit(t, v, work, "tag", tag)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -156,7 +157,7 @@ func TestDeterministicTreeHash(t *testing.T) {
 func TestProcessStackComponent_RemoteSourceRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithExec(newStubGitExec(func(context.Context, vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithExec(newStubGitExec(func(context.Context, vexec.Invocation) vexec.Result {
 		return vexec.Result{}
 	}))
 

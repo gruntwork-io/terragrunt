@@ -1,0 +1,12 @@
+---
+version: "v1.2.2"
+category: "experiments-updated"
+---
+
+#### `mcp-command` — `terragrunt mcp` serves a `scaffold` tool
+
+The [`mcp`](/reference/cli/commands/mcp) command serves a new `scaffold` tool. It writes new configuration from a module, unit, or stack source as [`terragrunt scaffold`](/reference/cli/commands/scaffold) does, without prompting. `values` sets what to fill in. A required value left out is written as a `TODO` placeholder and listed in `todo`.
+
+Files go in `output_folder`, which defaults to `working_dir`, must resolve under the server root, and must be empty or not exist yet. A failed call removes what it wrote. A remote source needs `--allow=http`, or `--allow=exec` for `git`. A local source needs no capability.
+
+A template's shell helpers and hooks never run, even under `--allow=exec`. The tool refuses a template that declares dependencies or uses template syntax in a file or directory name, and a source with a symlink leading out of it.

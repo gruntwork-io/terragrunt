@@ -9,6 +9,23 @@ interface CacheEntry<T> {
 const cache = new Map<string, CacheEntry<unknown>>();
 
 /**
+ * Returns the headers every GitHub API request sends. A `GITHUB_TOKEN` in the
+ * environment is sent as a bearer token: without one, requests draw on a
+ * per-address quota that a shared network exhausts, and a rate-limited build
+ * treats every gated version as unreleased.
+ */
+function githubHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'User-Agent': 'Terragrunt-Docs' };
+
+  const token = process.env.GITHUB_TOKEN;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return headers;
+}
+
+/**
  * Memoized fetch that caches results for 1 hour.
  * Used to avoid rate limiting on GitHub API calls during builds.
  */
@@ -77,9 +94,7 @@ export async function getGitHubRepo(
         const response = await fetch(
           `https://api.github.com/repos/${owner}/${repo}`,
           {
-            headers: {
-              'User-Agent': 'Terragrunt-Docs',
-            },
+            headers: githubHeaders(),
             signal: controller.signal,
           }
         );
@@ -123,9 +138,7 @@ export async function getLatestRelease(
         const response = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
           {
-            headers: {
-              'User-Agent': 'Terragrunt-Docs',
-            },
+            headers: githubHeaders(),
             signal: controller.signal,
           }
         );
@@ -170,9 +183,7 @@ export async function getReleaseByTag(
         const response = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`,
           {
-            headers: {
-              'User-Agent': 'Terragrunt-Docs',
-            },
+            headers: githubHeaders(),
             signal: controller.signal,
           }
         );
@@ -224,9 +235,7 @@ export async function compareCommits(
         const response = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/compare/${base}...${head}`,
           {
-            headers: {
-              'User-Agent': 'Terragrunt-Docs',
-            },
+            headers: githubHeaders(),
             signal: controller.signal,
           }
         );

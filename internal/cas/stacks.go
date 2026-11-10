@@ -106,7 +106,8 @@ func (c *CAS) ProcessStackComponent(
 		return nil, fmt.Errorf("failed to parse source URL %q: %w", redact.NewURL(detectedURL), err)
 	}
 
-	strippedURL, ref := StripGitURLParams(parsedURL)
+	strippedURL, params := StripGitURLParams(parsedURL)
+	ref := params.Ref
 
 	cleanURL := redact.NewURL(strings.TrimPrefix(strippedURL.String(), "git::"))
 
@@ -121,7 +122,7 @@ func (c *CAS) ProcessStackComponent(
 	// stacks; CommitHash returns the user input as-is for the
 	// commit-ref path, and the canonical hash for the symbolic-ref
 	// path.
-	resolved, err := c.resolveReference(ctx, l, gv, cleanURL, ref)
+	resolved, err := c.resolveReference(ctx, l, gv, cleanURL, ref, params.SSHKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve reference %q: %w", ref, err)
 	}
@@ -143,7 +144,8 @@ func (c *CAS) ProcessStackComponent(
 
 	if err := c.Clone(ctx, l, v, cleanURL, WithDir(cloneDir),
 		WithBranch(ref),
-		WithDepth(c.cloneDepth)); err != nil {
+		WithDepth(c.cloneDepth),
+		WithSSHKey(params.SSHKey)); err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to CAS clone %q: %w", cleanURL, err)

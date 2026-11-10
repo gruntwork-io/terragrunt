@@ -378,17 +378,7 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		if cfg.Terraform == nil {
 			cfg.Terraform = sourceConfig.Terraform
 		} else {
-			if sourceConfig.Terraform.Source != nil {
-				cfg.Terraform.Source = sourceConfig.Terraform.Source
-			}
-
-			if sourceConfig.Terraform.Version != nil {
-				cfg.Terraform.Version = sourceConfig.Terraform.Version
-			}
-
-			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
-				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
-			}
+			MergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
 
 			mergeExtraArgs(l, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
@@ -429,6 +419,8 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 	if sourceConfig.Inputs != nil {
 		cfg.Inputs = mergeInputs(sourceConfig.Inputs, cfg.Inputs)
 	}
+
+	cfg.mergeVariables(sourceConfig.Inputs, sourceConfig.Variables)
 
 	CopyFieldsMetadata(sourceConfig, cfg)
 
@@ -577,17 +569,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		if cfg.Terraform == nil {
 			cfg.Terraform = sourceConfig.Terraform
 		} else {
-			if sourceConfig.Terraform.Source != nil {
-				cfg.Terraform.Source = sourceConfig.Terraform.Source
-			}
-
-			if sourceConfig.Terraform.Version != nil {
-				cfg.Terraform.Version = sourceConfig.Terraform.Version
-			}
-
-			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
-				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
-			}
+			MergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
 
 			if sourceConfig.Terraform.IncludeInCopy != nil {
 				srcList := *sourceConfig.Terraform.IncludeInCopy
@@ -621,14 +603,16 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		}
 	}
 
-	if sourceConfig.Inputs != nil {
-		mergedInputs, err := deepMergeInputs(sourceConfig.Inputs, cfg.Inputs)
-		if err != nil {
-			return err
-		}
-
-		cfg.Inputs = mergedInputs
+	inputs, variables, err := cfg.deepMergedDefinitions(sourceConfig)
+	if err != nil {
+		return err
 	}
+
+	if sourceConfig.Inputs != nil {
+		cfg.Inputs = mergeInputs(inputs, cfg.Inputs)
+	}
+
+	cfg.mergeVariables(inputs, variables)
 
 	// MAINTAINER'S NOTE: The following structs cannot be deep merged due to an implementation detail (they do not
 	// support nil attributes, so we can't determine if an attribute was intentionally set, or was defaulted from
@@ -703,7 +687,7 @@ func mergeDependencyBlocks(
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
-	keys := []string{}
+	keys := make([]string, 0, len(targetDependencies)+len(sourceDependencies))
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
@@ -737,7 +721,7 @@ func deepMergeDependencyBlocks(
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
-	keys := []string{}
+	keys := make([]string, 0, len(targetDependencies)+len(sourceDependencies))
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
@@ -801,6 +785,26 @@ func mergeExtraArgs(
 	}
 
 	*parentExtraArgs = result
+}
+
+// MergeTerraformAttributes copies the scalar terraform block attributes that are set on sourceConfig onto cfg.
+// Attributes that sourceConfig leaves unset keep their value in cfg.
+func MergeTerraformAttributes(cfg, sourceConfig *TerraformConfig) {
+	if sourceConfig.Source != nil {
+		cfg.Source = sourceConfig.Source
+	}
+
+	if sourceConfig.Version != nil {
+		cfg.Version = sourceConfig.Version
+	}
+
+	if sourceConfig.CopyTerraformLockFile != nil {
+		cfg.CopyTerraformLockFile = sourceConfig.CopyTerraformLockFile
+	}
+
+	if sourceConfig.NoDotTerragruntCache != nil {
+		cfg.NoDotTerragruntCache = sourceConfig.NoDotTerragruntCache
+	}
 }
 
 func mergeInputs(childInputs map[string]any, parentInputs map[string]any) map[string]any {

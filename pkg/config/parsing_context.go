@@ -62,7 +62,7 @@ type ParsingContext struct {
 	DownloadDir                  string
 	Source                       string
 	TerraformCommand             string
-	OriginalTerraformCommand     string
+	OriginalTofuCommand          string
 	AuthProviderCmd              string
 	TFPath                       string
 	ScaffoldRootFileName         string
@@ -116,7 +116,8 @@ type ParsingContext struct {
 	// the unit being parsed and prevents an autoinclude that includes another file from recursing.
 	SkipAutoIncludeMerge bool
 
-	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig].
+	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig], and
+	// runs run_cmd beside the root config when parsing the child it generates.
 	catalogOnly bool
 
 	// stubWorkingDirFunc makes get_working_dir return an empty string, for the parse

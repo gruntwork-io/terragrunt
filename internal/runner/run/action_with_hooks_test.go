@@ -8,10 +8,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +24,7 @@ func TestRunActionWithHooks_FiresBeforeActionAfterInOrder(t *testing.T) {
 
 	var order []string
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		order = append(order, inv.Name)
 		return vexec.Result{}
 	})
@@ -98,7 +97,7 @@ func TestRunActionWithHooks_BeforeHookFailureSkipsAction(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -161,7 +160,7 @@ func TestRunActionWithHooks_ActionFailureTriggersErrorHook(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -217,7 +216,7 @@ func TestRunActionWithHooks_AfterHooksSkipOnActionFailure(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	l := logger.CreateLogger()
 
 	cfg := &runcfg.RunConfig{
@@ -272,7 +271,7 @@ func TestRunActionWithHooks_NoHooksRunsActionDirectly(t *testing.T) {
 		return vexec.Result{}
 	})
 
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	l := logger.CreateLogger()
 
 	actionFired := 0

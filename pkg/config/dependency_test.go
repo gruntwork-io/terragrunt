@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -370,7 +371,7 @@ func TestDependencyDeepMergeExpansion(t *testing.T) {
 func parseDependencyStringStrict(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(tb, config.DefaultTerragruntConfigPath)
 
 	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
@@ -579,7 +580,7 @@ func parseDependencyConfigPath(
 	root := venvtest.Root("/repo")
 	configPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, files))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, files))
 	ctx, pctx := newTestParsingContext(t, configPath)
 
 	for _, name := range strictControls {

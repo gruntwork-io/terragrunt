@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	gogetter "github.com/hashicorp/go-getter/v2"
@@ -149,7 +150,7 @@ func TestS3ClientForTargetContainerCredentialHosts(t *testing.T) {
 			t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", tt.endpoint)
 
 			_, err := getter.S3ClientForTarget(
-				t.Context(), logger.CreateLogger(), venvtest.New(), &getter.S3FetchTarget{})
+				t.Context(), logger.CreateLogger(), venv.MemVenv(), &getter.S3FetchTarget{})
 
 			if tt.wantReject {
 				require.Error(t, err)
@@ -204,7 +205,7 @@ func TestS3ClientForTargetEKSPodIdentityCredentials(t *testing.T) {
 	t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", tokenFile)
 
 	client, err := getter.S3ClientForTarget(
-		t.Context(), logger.CreateLogger(), venvtest.New(), &getter.S3FetchTarget{})
+		t.Context(), logger.CreateLogger(), venv.MemVenv(), &getter.S3FetchTarget{})
 	require.NoError(t, err)
 
 	creds, err := client.Options().Credentials.Retrieve(t.Context())

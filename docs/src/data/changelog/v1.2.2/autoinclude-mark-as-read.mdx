@@ -1,0 +1,37 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `mark_as_read` in a unit's `autoinclude` block marks the file as read by the unit
+
+A `mark_as_read()` call in a unit's `autoinclude` block did not mark the file as read. Terragrunt ran the call when it generated the stack and wrote only the path into the generated `terragrunt.autoinclude.hcl`. `terragrunt find --reading` did not list the template for `render`, and `--filter 'reading=tpl/msg.tftpl'` matched nothing:
+
+```hcl
+# live/terragrunt.stack.hcl
+
+unit "src" {
+  source = "../catalog/units/echo"
+  path   = "src"
+}
+
+unit "render" {
+  source = "../catalog/units/echo"
+  path   = "render"
+
+  autoinclude {
+    dependency "src" {
+      config_path = unit.src.path
+    }
+
+    inputs = {
+      content = templatefile(
+        mark_as_read("${get_terragrunt_dir()}/tpl/msg.tftpl"),
+        { v = dependency.src.outputs.content },
+      )
+    }
+  }
+}
+```
+
+The generated `terragrunt.autoinclude.hcl` now repeats the call in a `locals` block, so `--filter 'reading=tpl/msg.tftpl'` matches `render`. The `inputs-read-not-tracked` tip no longer points at these calls. See [Files read by stacks](/features/filter/attributes#files-read-by-stacks).

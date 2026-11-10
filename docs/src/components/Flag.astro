@@ -1,6 +1,7 @@
 ---
-import { Badge } from '@astrojs/starlight/components';
-import Card from '@components/vendored/starlight/Card.astro';
+import DefaultValue from '@components/DefaultValue.astro';
+import ReferenceCard from '@components/ReferenceCard.astro';
+import TypeBadge from '@components/TypeBadge.astro';
 import type { CollectionEntry } from 'astro:content';
 import { render, getEntry } from 'astro:content';
 import { isPublished } from '@lib/release';
@@ -19,17 +20,11 @@ const { aliases, description, type, env, name, defaultVal } = flagEntry.data;
 
 {visible && (
   <section id={name}>
-    <Card title={"--" + name} icon="custom:terragrunt">
+    <ReferenceCard title={"--" + name}>
+      <TypeBadge slot="meta" type={type} optional defaultVal={defaultVal} />
       <p id={name}>{description}</p>
+      <DefaultValue type={type} value={defaultVal} />
       <Content />
-      <div>
-        <span>Type: </span><Badge text={type} variant="note" style={{ fontWeight: 'bold' }}/>
-      </div>
-      {defaultVal && (
-        <div>
-          <span>Default: </span><Badge text={defaultVal} variant="tip" style={{ fontWeight: 'bold' }}/>
-        </div>
-      )}
       {aliases && aliases.length > 0 && (
         <>
           <p>Aliases:</p>
@@ -50,6 +45,6 @@ const { aliases, description, type, env, name, defaultVal } = flagEntry.data;
           </ul>
         </>
       )}
-    </Card>
+    </ReferenceCard>
   </section>
 )}

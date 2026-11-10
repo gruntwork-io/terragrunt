@@ -290,7 +290,8 @@ func assertRanInEveryOutputAllUnit(t *testing.T, commands []helpers.RecordedComm
 		assert.True(
 			t,
 			slices.ContainsFunc(commands, func(c helpers.RecordedCommand) bool {
-				return len(c.Args) > 0 && c.Args[0] == command && (c.Dir == unitPath || strings.HasPrefix(c.Dir, unitPath+string(filepath.Separator)))
+				return len(c.Args) > 0 && c.Args[0] == command &&
+					(c.Dir == unitPath || strings.HasPrefix(c.Dir, unitPath+string(filepath.Separator)))
 			}),
 			"expected %s in %s, got %v",
 			command,

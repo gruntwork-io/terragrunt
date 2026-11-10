@@ -8,6 +8,8 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 Match units and stacks by their configuration attributes.
 
@@ -107,6 +109,93 @@ Reading a file directly in the `inputs` attribute will not mark the file as read
 To mark many files at once, use [`mark_glob_as_read`](/reference/hcl/functions/#mark_glob_as_read), which accepts a glob (with `**` support) and marks every matching file.
 
 If a unit's `terraform` block points at a local module source, Terragrunt automatically marks that module's `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` files as read. Reading-based filters cascade local module changes to every unit that consumes the module.
+
+### Files read by stacks
+
+A stack reads the files its `terragrunt.stack.hcl` file reads, so `reading=regions.yml` matches this stack:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  values = {
+    regions = yamldecode(file("regions.yml"))
+  }
+}
+```
+
+<Since version="v1.2.2">
+
+Terragrunt tracks reads anywhere in a stack file and in the stack files it includes, except inside [`autoinclude`](/reference/hcl/blocks#autoinclude) blocks.
+
+</Since>
+
+<Before version="v1.2.2">
+
+Terragrunt tracks reads in `locals` only. A file read anywhere else, such as in the `values` above, is not marked as read. Read the file in `locals` and reference the local instead.
+
+</Before>
+
+<Aside type="caution">
+A file read inside an `autoinclude` block is not marked as read. Terragrunt reads the file when it generates the stack and writes its content into the generated unit, so the unit does not read the file either. When the file changes, reading filters and Git filters do not regenerate the stack, and the unit keeps the old content. Read the file in `locals` and reference the local from the `autoinclude` block:
+
+```hcl
+# terragrunt.stack.hcl
+
+locals {
+  config = yamldecode(file("config.yml"))
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    inputs = {
+      message = local.config.message
+    }
+  }
+}
+```
+</Aside>
+
+<Since version="v1.2.2">
+
+A `mark_as_read()` call in a unit's `autoinclude` block is the exception. The generated unit repeats the call, so `reading=tpl/msg.tftpl` matches the unit `render`, not the whole stack. Use it for a template that the unit renders with dependency outputs, which `locals` cannot reference:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "src" {
+  source = "../catalog/units/src"
+  path   = "src"
+}
+
+unit "render" {
+  source = "../catalog/units/render"
+  path   = "render"
+
+  autoinclude {
+    dependency "src" {
+      config_path = unit.src.path
+    }
+
+    inputs = {
+      content = templatefile(
+        mark_as_read("${get_terragrunt_dir()}/tpl/msg.tftpl"),
+        { v = dependency.src.outputs.content },
+      )
+    }
+  }
+}
+```
+
+Terragrunt skips a call whose path depends on a dependency output or on a `for` expression variable.
+
+</Since>
 
 ## Source-Based Expressions
 
