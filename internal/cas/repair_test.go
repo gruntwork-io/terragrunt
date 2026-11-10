@@ -41,23 +41,25 @@ func TestFetchSource_MissingBlobIsReIngested(t *testing.T) {
 	}
 
 	dst1 := filepath.Join(t.TempDir(), "dst1")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
+	_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
 		Scheme:   "http",
 		URL:      redact.NewURL(url),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, files, &fetchCalls),
-	}))
+	})
+	require.NoError(t, err)
 	require.Equal(t, int32(1), fetchCalls.Load())
 
 	require.NoError(t, v.FS.Remove(storedBlobPath(t, c, v, key, "main.tf")))
 
 	dst2 := filepath.Join(t.TempDir(), "dst2")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
+	_, err = c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
 		Scheme:   "http",
 		URL:      redact.NewURL(url),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, files, &fetchCalls),
-	}))
+	})
+	require.NoError(t, err)
 
 	assert.Equal(
 		t,
@@ -87,12 +89,13 @@ func TestFetchSource_MissingBlobTheSourceCannotSupply(t *testing.T) {
 	var fetchCalls atomic.Int32
 
 	dst1 := filepath.Join(t.TempDir(), "dst1")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
+	_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst1}, cas.SourceRequest{
 		Scheme:   "http",
 		URL:      redact.NewURL(url),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, map[string]string{"main.tf": "# hello"}, &fetchCalls),
-	}))
+	})
+	require.NoError(t, err)
 
 	blobPath := storedBlobPath(t, c, v, key, "main.tf")
 	require.NoError(t, v.FS.Remove(blobPath))
@@ -113,7 +116,7 @@ func TestFetchSource_MissingBlobTheSourceCannotSupply(t *testing.T) {
 	}
 
 	dst2 := filepath.Join(t.TempDir(), "dst2")
-	err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
+	_, err = c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst2}, cas.SourceRequest{
 		Scheme:   "http",
 		URL:      redact.NewURL(url),
 		Resolver: resolver,
@@ -150,12 +153,13 @@ func TestFetchSource_ConcurrentRepairWithRacing(t *testing.T) {
 	}
 
 	dst := filepath.Join(t.TempDir(), "dst")
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
+	_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dst}, cas.SourceRequest{
 		Scheme:   "http",
 		URL:      redact.NewURL(url),
 		Resolver: resolver,
 		Fetch:    fakeFetcher(c, files, &fetchCalls),
-	}))
+	})
+	require.NoError(t, err)
 
 	require.NoError(t, v.FS.Remove(storedBlobPath(t, c, v, key, "main.tf")))
 
@@ -170,12 +174,14 @@ func TestFetchSource_ConcurrentRepairWithRacing(t *testing.T) {
 
 	for i := range workers {
 		g.Go(func() error {
-			return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dsts[i]}, cas.SourceRequest{
+			_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: dsts[i]}, cas.SourceRequest{
 				Scheme:   "http",
 				URL:      redact.NewURL(url),
 				Resolver: resolver,
 				Fetch:    fakeFetcher(c, files, &fetchCalls),
 			})
+
+			return err
 		})
 	}
 
