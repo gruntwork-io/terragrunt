@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 
 The `--filter` flag provides a sophisticated querying syntax for targeting specific [units](/features/units) and [stacks](/features/stacks) in Terragrunt commands. This unified approach offers powerful filtering capabilities using a flexible query language.
 
@@ -82,6 +83,13 @@ The following commands all support the `--filter` flag using the same filtering 
 - [stack run](/reference/cli/commands/stack/run)
 - [stack generate](/reference/cli/commands/stack/generate)
 - [dag graph](/reference/cli/commands/dag/graph)
+
+<Since version="v1.2.2">
+
+- [render](/reference/cli/commands/render)
+- [info print](/reference/cli/commands/info/print)
+
+</Since>
 
 This flag is intended to be a flexible way to target specific infrastructure that allows you to dry-run infrastructure targeting using discovery commands (like `find` and `list`) before running a command that actually affects infrastructure (like `run`).
 

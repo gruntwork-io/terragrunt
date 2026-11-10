@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -333,6 +334,29 @@ func TestRenderAllFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "inputs = {\n  name = \"a\"\n}\n", outputBuffer.String())
+}
+
+func TestRenderAllDiscoveryBoundaryMustExist(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = tmpDir
+	tgOptions.RunAll = true
+	tgOptions.DiscoveryBoundary = filepath.Join(tmpDir, "missing")
+
+	err = render.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), render.NewOptions(tgOptions),
+	)
+
+	var boundaryErr discovery.DiscoveryBoundaryDirError
+
+	require.ErrorAs(t, err, &boundaryErr)
 }
 
 // setupTest writes config to a terragrunt.hcl in a fresh temporary directory

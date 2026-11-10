@@ -130,6 +130,31 @@ func TestNewCommandAllPrintsOneLinePerUnit(t *testing.T) {
 	assert.Equal(t, filepath.Join(memRoot, "b"), workingDirs[1], "b failed to parse and keeps its own directory")
 }
 
+// TestNewCommandAllPrintsOnlyFilteredUnits pins that --all prints only the units --filter selects.
+func TestNewCommandAllPrintsOnlyFilteredUnits(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+		"a/terragrunt.hcl": "",
+		"b/terragrunt.hcl": "",
+	}))
+
+	require.NoError(
+		t,
+		runCommand(
+			t,
+			print.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v, new(rewrite.Store)),
+			"--all", "--filter", "a",
+		),
+	)
+
+	var got print.InfoOutput
+
+	require.NoError(t, json.Unmarshal(out.Bytes(), &got), "one unit prints one JSON document")
+	assert.Equal(t, filepath.Join(memRoot, "a", "terragrunt.hcl"), got.ConfigPath)
+}
+
 // TestRunReportsAWriteFailure pins how a failed write reaches the caller in single and --all runs.
 func TestRunReportsAWriteFailure(t *testing.T) {
 	t.Parallel()

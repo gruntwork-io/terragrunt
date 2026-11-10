@@ -11,10 +11,8 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
-	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -45,23 +43,13 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 }
 
 func runAll(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
-	d, cleanupWorktrees, err := discoverysetup.Worktrees(
-		ctx, l, v, s, opts.TerragruntOptions,
-		discovery.NewDiscovery(opts.WorkingDir).WithFilters(opts.Filters),
-	)
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts.TerragruntOptions)
 
 	defer cleanupWorktrees(ctx)
 
 	if err != nil {
 		return err
 	}
-
-	components, err := d.Discover(ctx, l, v, s, opts.TerragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	var errs []error
 

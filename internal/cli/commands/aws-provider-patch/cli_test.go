@@ -13,6 +13,7 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -317,6 +318,31 @@ func TestNewCommandAllPatchesEveryUnit(t *testing.T) {
 			assert.Len(t, joined.Unwrap(), tc.wantJoined, "one error per failed unit")
 		})
 	}
+}
+
+// TestRunAllPatchesOnlyFilteredUnits pins that --all patches only the units opts.Filters select.
+func TestRunAllPatchesOnlyFilteredUnits(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeInit{modulesJSON: modulesJSON, moduleFiles: map[string]string{"main.tf": moduleCode}}
+	v := fake.venv(t, map[string]string{
+		"a/terragrunt.hcl": "", "a/main.tf": "",
+		"b/terragrunt.hcl": "",
+	})
+
+	l := logger.CreateLogger()
+
+	opts := newOpts(t, v, "")
+	opts.RunAll = true
+	opts.AwsProviderPatchOverrides = map[string]string{"region": `"eu-west-1"`}
+
+	var err error
+
+	opts.Filters, err = filter.ParseFilterQueries(l, []string{"a"})
+	require.NoError(t, err)
+
+	require.NoError(t, awsproviderpatch.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts))
+	assert.Len(t, fake.initDirs(), 1, "b has no OpenTofu files and fails if patched")
 }
 
 // TestRunAllReadsTheConfiguredConfigFilename pins that --all reads each unit's config by the configured filename.
