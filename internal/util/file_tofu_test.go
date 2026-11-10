@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -465,7 +466,7 @@ module "database" {
 			regex, err := regexp.Compile(tc.pattern)
 			require.NoError(t, err)
 
-			actual, err := util.RegexFoundInTFFiles(vfs.NewOSFS(), tmpDir, regex)
+			actual, err := util.RegexFoundInTFFiles(venvtest.NewOSOverlayFS(), tmpDir, regex)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expected, actual, "For test case: %s", tc.description)
@@ -481,7 +482,7 @@ func TestRegexFoundInTFFilesErrorHandling(t *testing.T) {
 		t.Parallel()
 
 		regex := regexp.MustCompile("test")
-		_, err := util.RegexFoundInTFFiles(vfs.NewOSFS(), "/non/existent/directory", regex)
+		_, err := util.RegexFoundInTFFiles(venvtest.NewOSOverlayFS(), "/non/existent/directory", regex)
 		assert.Error(t, err)
 	})
 
@@ -505,7 +506,7 @@ func TestRegexFoundInTFFilesErrorHandling(t *testing.T) {
 		}()
 
 		regex := regexp.MustCompile("test")
-		_, err = util.RegexFoundInTFFiles(vfs.NewOSFS(), tmpDir, regex)
+		_, err = util.RegexFoundInTFFiles(venvtest.NewOSOverlayFS(), tmpDir, regex)
 		// We expect an error due to permission denied, but don't fail the test
 		// if the OS doesn't enforce permission restrictions in the test environment
 		if err == nil {
@@ -590,7 +591,7 @@ func TestListTfFiles(t *testing.T) {
 				require.NoError(t, os.WriteFile(filePath, []byte("# Test file content"), 0644))
 			}
 
-			actual, err := util.ListTfFiles(vfs.NewOSFS(), tmpDir)
+			actual, err := util.ListTfFiles(venvtest.NewOSOverlayFS(), tmpDir)
 			require.NoError(t, err)
 
 			assert.Len(
@@ -672,7 +673,7 @@ func BenchmarkDirContainsTFFiles(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		result, err := util.DirContainsTFFiles(vfs.NewOSFS(), tmpDir)
+		result, err := util.DirContainsTFFiles(venvtest.NewOSOverlayFS(), tmpDir)
 		require.NoError(b, err)
 
 		benchmarkBoolSink = benchmarkBoolSink != result

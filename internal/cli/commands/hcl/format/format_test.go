@@ -49,7 +49,7 @@ func readFixture(t *testing.T, fsys vfs.FS, root string, elem ...string) string 
 func onDisk(t *testing.T, path string) string {
 	t.Helper()
 
-	contents, err := vfs.ReadFile(vfs.NewOSFS(), path)
+	contents, err := vfs.ReadFile(venvtest.NewOSOverlayFS(), path)
 	require.NoError(t, err)
 
 	return string(contents)

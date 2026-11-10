@@ -20,6 +20,14 @@ func NewWithOSFS() *venv.Venv {
 	return venv.MemVenv().WithFS(vfs.NewOSFS())
 }
 
+// NewOSOverlayFS returns the real filesystem under an in-memory write layer,
+// for tests whose subject reads fixtures on disk and must not change them. A
+// write the subject makes lands in memory, and removing or renaming what is
+// on disk fails; [vfs.NewOverlayFS] has the details.
+func NewOSOverlayFS() vfs.FS {
+	return vfs.NewOverlayFS(vfs.NewOSFS(), vfs.NewMemMapFS())
+}
+
 // NewOSWithEmptyEnv returns the OS-backed bundle with an empty environment, so
 // a variable set on the machine running the suite cannot reach the code under
 // test. Tests that drive the real filesystem and real subprocesses need it;
