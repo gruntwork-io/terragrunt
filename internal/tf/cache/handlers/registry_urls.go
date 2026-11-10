@@ -10,6 +10,7 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 )
 
@@ -43,7 +44,9 @@ func (urls *RegistryURLs) String() string {
 }
 
 // DiscoveryURL performs Terraform service discovery against registryName
-// over c, parsing the well-known terraform.json document.
+// over c, parsing the well-known terraform.json document. A 404 or 500 answer
+// returns [NotFoundWellKnownURLError], and any other answer but 200 OK a
+// [*helpers.StatusError].
 func DiscoveryURL(ctx context.Context, c vhttp.Client, registryName string) (*RegistryURLs, error) {
 	url := fmt.Sprintf("https://%s/%s", registryName, wellKnownURL)
 
@@ -63,7 +66,7 @@ func DiscoveryURL(ctx context.Context, c vhttp.Client, registryName string) (*Re
 		return nil, NotFoundWellKnownURLError{wellKnownURL}
 	case http.StatusOK:
 	default:
-		return nil, fmt.Errorf("%s returned %s", url, resp.Status)
+		return nil, helpers.NewStatusError(url, resp)
 	}
 
 	content, err := io.ReadAll(io.LimitReader(resp.Body, maxDiscoveryResponseBytes))
