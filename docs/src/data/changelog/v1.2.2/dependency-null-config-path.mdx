@@ -1,0 +1,24 @@
+---
+version: "v1.2.2"
+category: "breaking-changes"
+---
+
+#### `dependency` blocks reject a null `config_path`
+
+An enabled `dependency` block whose `config_path` is `null` is now an error:
+
+```text
+/path/to/terragrunt.hcl: dependency db sets config_path to null; set it to a path, or set enabled to false
+```
+
+Terragrunt used to drop these blocks without a warning. A reference to the block failed with `This object does not have an attribute named "db"`, and setting an included block's `config_path` to `null` did not remove it: the unit still read the included block's outputs.
+
+To turn a block off, set `enabled = false`. A disabled block can keep a `null` `config_path`, and its `mock_outputs` are still available to the unit:
+
+```hcl
+dependency "db" {
+  config_path  = local.use_db ? "../db" : null
+  enabled      = local.use_db
+  mock_outputs = { id = "mock" }
+}
+```

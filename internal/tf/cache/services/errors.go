@@ -40,8 +40,11 @@ func (e *UnexpectedProviderCachePathError) Error() string {
 type ChecksumField string
 
 const (
-	FieldSHA256Sum              ChecksumField = "shasum"
-	FieldSHA256SumsURL          ChecksumField = "shasums_url"
+	// FieldSHA256Sum is the SHA-256 hash of the provider archive.
+	FieldSHA256Sum ChecksumField = "shasum"
+	// FieldSHA256SumsURL is the URL of the SHA256SUMS document that lists the archive hash.
+	FieldSHA256SumsURL ChecksumField = "shasums_url"
+	// FieldSHA256SumsSignatureURL is the URL of the signature over the SHA256SUMS document.
 	FieldSHA256SumsSignatureURL ChecksumField = "shasums_signature_url"
 )
 

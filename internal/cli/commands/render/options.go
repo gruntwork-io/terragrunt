@@ -17,6 +17,7 @@ const (
 	jsonOutputName = "terragrunt.rendered.json"
 )
 
+// Options holds the render command's configuration.
 type Options struct {
 	*options.TerragruntOptions
 
@@ -34,6 +35,8 @@ type Options struct {
 	RenderMetadata bool
 }
 
+// NewOptions returns Options wrapping the given Terragrunt options, set to
+// print [FormatHCL] to stdout.
 func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
 		TerragruntOptions: opts,
@@ -43,6 +46,7 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 	}
 }
 
+// Clone returns a copy of o whose TerragruntOptions is cloned too.
 func (o *Options) Clone() *Options {
 	return &Options{
 		TerragruntOptions: o.TerragruntOptions.Clone(),

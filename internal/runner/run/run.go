@@ -39,13 +39,19 @@ import (
 )
 
 const (
+	// CommandNameTerragruntReadConfig is the pseudo command set while after hooks run once Terragrunt has read the
+	// config, so a hook whose commands list includes it runs at that point.
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
-	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
-	varsFileMode                    = 0o600
-	tofuCPUProfileName              = "tofu_cpu.prof"
-	tofuProfileDirMode              = 0o700
+	// NullTFVarsFile is the auto-loaded tfvars file that passes inputs set to null, since TF_VAR_ environment
+	// variables cannot express null.
+	NullTFVarsFile     = ".terragrunt-null-vars.auto.tfvars.json"
+	varsFileMode       = 0o600
+	tofuCPUProfileName = "tofu_cpu.prof"
+	tofuProfileDirMode = 0o700
 )
 
+// TerraformCommandsThatUseState lists the tofu commands that read or write state. Only these commands bootstrap
+// the remote state backend before they run.
 var TerraformCommandsThatUseState = []string{
 	"init",
 	"apply",
@@ -75,6 +81,8 @@ var TerraformCommandsThatDoNotNeedInit = []string{
 	"engine",
 }
 
+// ModuleRegex matches a module block header, such as `module "vpc"`. A unit whose code matches it and that has no
+// downloaded modules needs init.
 var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
 // sourceChangeLocks is a map of per-directory mutexes that serializes concurrent access to cache directories.

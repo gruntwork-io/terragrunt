@@ -23,6 +23,8 @@ const (
 )
 
 var (
+	// AppStyle pads the body of every catalog view. Its frame size is
+	// subtracted from the window to size the lists and the pager.
 	AppStyle          = lipgloss.NewStyle().Padding(bodyPaddingVertical, bodyPaddingHorizontal)
 	infoPositionStyle = lipgloss.NewStyle().Padding(0, 1).BorderStyle(lipgloss.HiddenBorder())
 	infoLineStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D252F"))

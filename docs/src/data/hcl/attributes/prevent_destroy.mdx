@@ -15,4 +15,6 @@ examples:
       prevent_destroy = true
 ---
 
-The `prevent_destroy` attribute protects selected units. It stops the `destroy` and `run --all destroy` commands from destroying the unit's resources. Use it for units you want to protect carefully, such as a database or a unit that provides auth.
+The `prevent_destroy` attribute protects a unit's resources from being destroyed. Use it for units such as a database or a unit that provides auth.
+
+`destroy`, `plan -destroy`, and `apply -destroy` fail on a protected unit. `run --all destroy` skips the protected unit and the units it depends on, and destroys the rest. Destroying one of those dependencies on its own still works.

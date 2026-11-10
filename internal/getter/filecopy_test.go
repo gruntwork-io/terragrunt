@@ -1,7 +1,6 @@
 package getter_test
 
 import (
-	"context"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -50,10 +49,6 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 	require.NoError(t, os.MkdirAll(srcDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.tf"), []byte("# hi\n"), 0o644))
 
-	client := &getter.Client{
-		Getters: []getter.Getter{tggetter.NewFileCopyGetter(vfs.NewOSFS())},
-	}
-
 	testCases := []struct {
 		name          string
 		src           string
@@ -101,7 +96,11 @@ func TestFileCopyGetterHandlesSpacesInLocalPaths(t *testing.T) {
 				t.Skip(tc.skipOnWindows)
 			}
 
-			_, err := client.Get(context.Background(), &getter.Request{
+			client := &getter.Client{
+				Getters: []getter.Getter{tggetter.NewFileCopyGetter(vfs.NewOSFS())},
+			}
+
+			_, err := client.Get(t.Context(), &getter.Request{
 				Src:     tc.src,
 				Dst:     tc.dst,
 				GetMode: tc.mode,

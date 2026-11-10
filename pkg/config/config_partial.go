@@ -29,17 +29,30 @@ import (
 type PartialDecodeSectionType int
 
 const (
+	// DependenciesBlock decodes the `dependencies` block.
 	DependenciesBlock PartialDecodeSectionType = iota
+	// DependencyBlock decodes the `dependency` blocks and adds their config paths to the config's dependencies.
 	DependencyBlock
+	// TerraformBlock decodes the whole `terraform` block.
 	TerraformBlock
+	// TerraformSource decodes only the `source` attribute of the `terraform` block.
 	TerraformSource
+	// TerragruntFlags decodes the `prevent_destroy`, `iam_role`, and `iam_web_identity_token` attributes.
 	TerragruntFlags
+	// TerragruntVersionConstraints decodes the `terragrunt_version_constraint`, `terraform_version_constraint`, and
+	// `terraform_binary` attributes.
 	TerragruntVersionConstraints
+	// RemoteStateBlock decodes the `remote_state` block or attribute.
 	RemoteStateBlock
+	// FeatureFlagsBlock decodes the `feature` blocks.
 	FeatureFlagsBlock
+	// EngineBlock decodes the `engine` block.
 	EngineBlock
+	// ExcludeBlock evaluates the `exclude` block.
 	ExcludeBlock
+	// ErrorsBlock decodes the `errors` block.
 	ErrorsBlock
+	// TerraformExtraArgs decodes the `source` attribute and `extra_arguments` blocks of the `terraform` block.
 	TerraformExtraArgs
 )
 
@@ -804,20 +817,7 @@ func PartialParseConfig(
 				return nil, err
 			}
 
-			decoded := TerragruntDependency{Dependencies: decodedDeps}
-
-			// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
-			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()
-
-			output.TerragruntDependencies = decoded.Dependencies
-			// Convert dependency blocks into module dependency lists. If we already decoded some dependencies,
-			// merge them in. Otherwise, set as the new list.
-			dependencies := dependencyBlocksToModuleDependencies(l, decoded.Dependencies)
-			if output.Dependencies != nil {
-				output.Dependencies.Merge(dependencies)
-			} else {
-				output.Dependencies = dependencies
-			}
+			output.TerragruntDependencies = decodedDeps
 
 		case EngineBlock:
 			decoded := terragruntEngine{}
@@ -994,7 +994,8 @@ func PartialParseConfig(
 	return output, nil
 }
 
-// processExcludes evaluate exclude blocks and merge them into the config.
+// processExcludes evaluates the exclude block of file, which replaces any exclude config includes set, as
+// [ParseConfig] does.
 func processExcludes(
 	ctx context.Context,
 	l log.Logger,
@@ -1017,11 +1018,7 @@ func processExcludes(
 		return config, nil
 	}
 
-	if config.Exclude != nil {
-		config.Exclude.Merge(excludeConfig)
-	} else {
-		config.Exclude = excludeConfig
-	}
+	config.Exclude = excludeConfig
 
 	return config, nil
 }
@@ -1127,89 +1124,12 @@ func mergeAutoIncludePartialIfPresent(
 		return fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
-	// Capture paths from each side's dependencies block before the merge flattens block derived paths together.
-	unitDependenciesBlockPaths := dependenciesBlockOnlyPaths(l, output)
-	autoDependenciesBlockPaths := dependenciesBlockOnlyPaths(l, autoIncludeConfig)
-
 	// Shallow merge with the autoinclude as the winning source, matching a regular include's default strategy.
 	if err := output.Merge(l, autoIncludeConfig); err != nil {
 		return fmt.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}
 
-	// Merge only appends the module dependency path list so rebuild it from the by name merged blocks to drop any overridden stale path.
-	reconcileAutoIncludeModulePaths(
-		l,
-		output,
-		unitDependenciesBlockPaths,
-		autoDependenciesBlockPaths,
-	)
-
 	return nil
-}
-
-// dependenciesBlockOnlyPaths returns the module dependency paths that came from a dependencies block rather than being derived from a dependency block.
-func dependenciesBlockOnlyPaths(l log.Logger, cfg *TerragruntConfig) []string {
-	if cfg == nil || cfg.Dependencies == nil {
-		return nil
-	}
-
-	blockPaths := make(map[string]struct{})
-
-	// Classify block derived paths through the same helper the rebuild uses so disabled and unresolved blocks are treated identically and a dependencies block edge overlapping a disabled block is not dropped.
-	blockDerived := dependencyBlocksToModuleDependencies(l, cfg.TerragruntDependencies)
-	if blockDerived != nil {
-		for _, path := range blockDerived.Paths {
-			blockPaths[path] = struct{}{}
-		}
-	}
-
-	blockOnly := make([]string, 0, len(cfg.Dependencies.Paths))
-
-	for _, path := range cfg.Dependencies.Paths {
-		if _, ok := blockPaths[path]; ok {
-			continue
-		}
-
-		blockOnly = append(blockOnly, path)
-	}
-
-	return blockOnly
-}
-
-// reconcileAutoIncludeModulePaths rebuilds the module dependency path list from the by name merged dependency blocks plus the preserved literal dependencies paths.
-func reconcileAutoIncludeModulePaths(
-	l log.Logger,
-	output *TerragruntConfig,
-	preservedPaths ...[]string,
-) {
-	rebuilt := dependencyBlocksToModuleDependencies(l, output.TerragruntDependencies)
-	if rebuilt == nil {
-		rebuilt = &ModuleDependencies{}
-	}
-
-	for _, set := range preservedPaths {
-		rebuilt.Paths = append(rebuilt.Paths, set...)
-	}
-
-	seen := make(map[string]struct{}, len(rebuilt.Paths))
-	deduped := make([]string, 0, len(rebuilt.Paths))
-
-	for _, path := range rebuilt.Paths {
-		if _, ok := seen[path]; ok {
-			continue
-		}
-
-		seen[path] = struct{}{}
-		deduped = append(deduped, path)
-	}
-
-	if len(deduped) == 0 {
-		output.Dependencies = nil
-		return
-	}
-
-	rebuilt.Paths = deduped
-	output.Dependencies = rebuilt
 }
 
 // autoIncludeCacheKeySuffix folds the sibling autoinclude existence and content into the partial-parse cache key when the StackDependencies experiment is on, returning the empty string with the experiment off so the existing key stays byte-for-byte unchanged.
@@ -1271,6 +1191,7 @@ func autoIncludeContentSuffix(fsys vfs.FS, autoIncludePath string) string {
 
 // Custom error types
 
+// InvalidPartialBlockName reports a [PartialDecodeSectionType] that partial parsing does not handle.
 type InvalidPartialBlockName struct {
 	sectionCode PartialDecodeSectionType
 }

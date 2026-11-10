@@ -1,15 +1,21 @@
 package getter
 
 import (
+	"errors"
+	"fmt"
 	"net/url"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/detect"
 	getter "github.com/hashicorp/go-getter/v2"
 	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
 )
+
+// ErrSubdirNotResolved wraps every failure to resolve a subdir glob to one directory.
+var ErrSubdirNotResolved = errors.New("subdir glob did not resolve to one directory")
 
 // URLParse wraps go-getter/v2/helper/url.Parse, which delegates to net/url.Parse
 // but returns Windows-safe URLs on Windows.
@@ -34,10 +40,38 @@ func SourceDirSubdir(src string) (string, string) {
 	return getter.SourceDirSubdir(src)
 }
 
-// SubdirGlob expands a globbed subdirectory path against a directory on disk
-// and returns the resolved subdirectory path.
+// IsArchiveURL reports whether the inner fetch would unpack u, by its archive= value or a decompressor extension.
+func IsArchiveURL(u *url.URL) bool {
+	if archive := u.Query().Get(archiveQueryKey); archive != "" {
+		if enabled, err := strconv.ParseBool(archive); err == nil {
+			return enabled && hasDecompressorExtension(u.Path)
+		}
+
+		return getter.Decompressors[archive] != nil
+	}
+
+	return hasDecompressorExtension(u.Path)
+}
+
+// hasDecompressorExtension reports whether p ends in an extension go-getter unpacks.
+func hasDecompressorExtension(p string) bool {
+	for ext := range getter.Decompressors {
+		if strings.HasSuffix(p, "."+ext) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// SubdirGlob expands a globbed subdirectory path against a directory on disk; returns [ErrSubdirNotResolved] on a miss.
 func SubdirGlob(dst, subDir string) (string, error) {
-	return getter.SubdirGlob(dst, subDir)
+	selected, err := getter.SubdirGlob(dst, subDir)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrSubdirNotResolved, err)
+	}
+
+	return selected, nil
 }
 
 // Detect runs the default detector chain (the equivalent of v1's
@@ -62,7 +96,7 @@ func Detect(source, pwd string) (string, error) {
 //     the source wins, and any detected forced-getter / subdir selector is
 //     reattached.
 func DetectWith(source, pwd string, detectors []Detector) (string, error) {
-	getForce, getSrc := splitForcedGetter(source)
+	getForce, getSrc := SplitForcedGetter(source)
 	getSrc, subDir := SourceDirSubdir(getSrc)
 
 	if u, err := URLParse(getSrc); err == nil && u.Scheme != "" {
@@ -79,7 +113,7 @@ func DetectWith(source, pwd string, detectors []Detector) (string, error) {
 			continue
 		}
 
-		detectForce, result := splitForcedGetter(result)
+		detectForce, result := SplitForcedGetter(result)
 		result, detectSubdir := SourceDirSubdir(result)
 
 		final, err := rewriteDetectedResult(result, detectForce, detectSubdir, subDir, getForce)
@@ -179,10 +213,10 @@ func defaultDetectors() []Detector {
 	}
 }
 
-// splitForcedGetter splits "<getter>::<rest>" into its prefix and remainder.
+// SplitForcedGetter splits "<getter>::<rest>" into its prefix and remainder.
 // It returns ("", src) when src has no forced-getter prefix, matching the
 // behavior of go-getter v1's getForcedGetter.
-func splitForcedGetter(src string) (string, string) {
+func SplitForcedGetter(src string) (string, string) {
 	prefix, rest, ok := strings.Cut(src, "::")
 	if !ok || prefix == "" || !isASCIIAlnum(prefix) {
 		return "", src

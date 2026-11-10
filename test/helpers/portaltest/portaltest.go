@@ -27,16 +27,26 @@ import (
 )
 
 const (
-	AuthorizePath    = "/api/v1/oauth/device/authorize"
-	TokenPath        = "/api/v1/oauth/device/token"
-	CatalogPath      = "/api/v1/catalog"
+	// AuthorizePath is the path of the device authorization endpoint.
+	AuthorizePath = "/api/v1/oauth/device/authorize"
+	// TokenPath is the path of the token endpoint the CLI polls.
+	TokenPath = "/api/v1/oauth/device/token"
+	// CatalogPath is the path of the catalog API.
+	CatalogPath = "/api/v1/catalog"
+	// VerificationPath is the path of the page where the user approves or denies a login.
 	VerificationPath = "/auth/device"
 
-	ClientID          = "terragrunt-cli"
-	ScopeCatalogRead  = "catalog:read"
-	DeviceCodeGrant   = "urn:ietf:params:oauth:grant-type:device_code"
-	UserCodeParam     = "user_code"
-	DecisionParam     = "decision"
+	// ClientID is the only client ID the portal accepts.
+	ClientID = "terragrunt-cli"
+	// ScopeCatalogRead is the only scope the portal grants.
+	ScopeCatalogRead = "catalog:read"
+	// DeviceCodeGrant is the grant type the token endpoint accepts.
+	DeviceCodeGrant = "urn:ietf:params:oauth:grant-type:device_code"
+	// UserCodeParam is the query and form parameter that holds the user code on the verification page.
+	UserCodeParam = "user_code"
+	// DecisionParam is the form parameter that holds the user's [Decision].
+	DecisionParam = "decision"
+	// TokenTypeBearer is the type of an issued token and the Authorization scheme the catalog API takes.
 	TokenTypeBearer   = "Bearer"
 	formContentType   = "application/x-www-form-urlencoded"
 	jsonContentType   = "application/json"
@@ -46,20 +56,33 @@ const (
 )
 
 const (
+	// ErrorAuthorizationPending answers a poll while the user has not decided.
 	ErrorAuthorizationPending = "authorization_pending"
-	ErrorSlowDown             = "slow_down"
-	ErrorAccessDenied         = "access_denied"
-	ErrorExpiredToken         = "expired_token"
-	ErrorInvalidGrant         = "invalid_grant"
-	ErrorInvalidClient        = "invalid_client"
-	ErrorInvalidScope         = "invalid_scope"
-	ErrorInvalidRequest       = "invalid_request"
-	ErrorInvalidToken         = "invalid_token"
+	// ErrorSlowDown answers a poll sent before the interval elapsed, or one of the first [Config.SlowDowns] polls.
+	// Each one adds 5 seconds to the interval.
+	ErrorSlowDown = "slow_down"
+	// ErrorAccessDenied answers a poll after the user denied the login.
+	ErrorAccessDenied = "access_denied"
+	// ErrorExpiredToken answers a poll after the device code expired.
+	ErrorExpiredToken = "expired_token"
+	// ErrorInvalidGrant answers a poll for a device code that is unknown or already redeemed.
+	ErrorInvalidGrant = "invalid_grant"
+	// ErrorInvalidClient answers a request that names a client other than [ClientID].
+	ErrorInvalidClient = "invalid_client"
+	// ErrorInvalidScope answers an authorization request for a scope other than [ScopeCatalogRead].
+	ErrorInvalidScope = "invalid_scope"
+	// ErrorInvalidRequest answers a request with the wrong content type, an unreadable body, or the wrong grant type.
+	ErrorInvalidRequest = "invalid_request"
+	// ErrorInvalidToken answers a catalog request whose token is missing, unknown, revoked, or expired.
+	ErrorInvalidToken = "invalid_token"
 )
 
 const (
-	DefaultInterval      = 5 * time.Second
-	DefaultExpiresIn     = 10 * time.Minute
+	// DefaultInterval is the poll interval when [Config.Interval] is zero.
+	DefaultInterval = 5 * time.Second
+	// DefaultExpiresIn is how long a login request waits when [Config.ExpiresIn] is zero.
+	DefaultExpiresIn = 10 * time.Minute
+	// DefaultTokenLifetime is how long an issued token lasts when [Config.TokenLifetime] is zero.
 	DefaultTokenLifetime = 30 * 24 * time.Hour
 )
 
@@ -67,8 +90,10 @@ const (
 type Decision string
 
 const (
+	// Approve grants the login.
 	Approve Decision = "approve"
-	Deny    Decision = "deny"
+	// Deny refuses the login.
+	Deny Decision = "deny"
 )
 
 // ErrVerificationRefused reports a verification page that would not take the

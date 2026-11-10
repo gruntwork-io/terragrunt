@@ -74,6 +74,8 @@ func ShowCommandHelp(ctx context.Context, cliCtx *Context) error {
 	return NewExitError(nil, ExitCodeSuccess)
 }
 
+// HelpPrinterCustom renders the template tpl for cliCtx to its writer. The template can call
+// parentCommands, offsetCommands, and the functions in customFuncs.
 func HelpPrinterCustom(cliCtx *Context, tpl string, customFuncs map[string]any) {
 	var funcs = map[string]any{
 		"parentCommands": parentCommands,
@@ -87,6 +89,11 @@ func HelpPrinterCustom(cliCtx *Context, tpl string, customFuncs map[string]any) 
 	cli.HelpPrinterCustom(cliCtx.Writer, tpl, cliCtx, funcs)
 }
 
+// ShowVersion prints the app version with the app's custom version template, or with
+// [AppVersionTemplate] when the app has none.
+//
+// Returns an error when neither template is set. Otherwise returns an [ExitCoder] with
+// [ExitCodeSuccess], which ends the run.
 func ShowVersion(_ context.Context, cliCtx *Context) error {
 	tpl := cliCtx.CustomAppVersionTemplate
 	if tpl == "" {

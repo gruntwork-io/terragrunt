@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -270,7 +271,7 @@ func TestDiscovery_SimpleFilesystem(t *testing.T) {
 		WorkingDir: tmpDir,
 	})
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 3, "should discover 3 components")
 }
@@ -310,7 +311,7 @@ func TestDiscovery_WithPathFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components in apps/")
 }
@@ -350,7 +351,7 @@ func TestDiscovery_WithNegatedFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (excluding bar)")
 
@@ -395,7 +396,7 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (apps/* minus baz)")
 
@@ -516,7 +517,7 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithReadFiles()
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Find the app component
@@ -567,7 +568,7 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	_, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+	_, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.Error(t, err)
 
 	var coexistErr discovery.CoexistenceError
@@ -598,7 +599,13 @@ func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
+		opts,
+	)
 	require.NoError(t, err)
 	assert.Len(t, components, 1)
 	assert.Equal(t, component.UnitKind, components[0].Kind())
@@ -643,7 +650,13 @@ unit "app" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithParseStackConfigs()
 
-	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
+		opts,
+	)
 	require.NoError(t, err)
 
 	stacks := make(map[string]*component.Stack)
@@ -735,8 +748,7 @@ func TestDiscovery_TracksReadsOnlyWhenRequested(t *testing.T) {
 			components, err := d.Discover(
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv(),
-				opts,
+				venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
 			)
 			require.NoError(t, err)
 
@@ -999,8 +1011,7 @@ unit "echo" {
 				Discover(
 					config.WithCaches(t.Context()),
 					logger.CreateLogger(),
-					venvtest.NewOSWithEmptyEnv(),
-					opts,
+					venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
 				)
 			require.NoError(t, err)
 
@@ -1157,8 +1168,7 @@ unit "api" {
 			_, err := d.Discover(
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv(),
-				opts,
+				venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
 			)
 			require.NoError(t, err)
 

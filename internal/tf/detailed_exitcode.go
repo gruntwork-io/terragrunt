@@ -5,8 +5,12 @@ import (
 )
 
 const (
+	// DetailedExitCodeSuccess is the `-detailed-exitcode` exit code for a run with no changes.
 	DetailedExitCodeSuccess = 0
-	DetailedExitCodeError   = 1
+	// DetailedExitCodeError is the `-detailed-exitcode` exit code for a failed run.
+	DetailedExitCodeError = 1
+	// DetailedExitCodeChanges is the `-detailed-exitcode` exit code for a successful run with
+	// changes pending.
 	DetailedExitCodeChanges = 2
 )
 

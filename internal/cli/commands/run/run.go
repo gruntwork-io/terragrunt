@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -24,7 +25,7 @@ import (
 )
 
 // Run runs the run command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) error {
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCliArgs.IsDestroy(opts.TofuCommand) {
@@ -49,11 +50,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	tgOpts := opts.OptionsFromContext(ctx)
 
 	if tgOpts.RunAll {
-		return runall.Run(ctx, l, v, tgOpts)
+		return runall.Run(ctx, l, v, s, tgOpts)
 	}
 
 	if tgOpts.Graph {
-		return graph.Run(ctx, l, v, tgOpts)
+		return graph.Run(ctx, l, v, s, tgOpts)
 	}
 
 	if opts.ReportSchemaFile != "" {
@@ -103,7 +104,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	}
 
 	if opts.CheckDependentUnits {
-		allowDestroy := confirmActionWithDependentUnits(ctx, l, v, opts, cfg)
+		allowDestroy := confirmActionWithDependentUnits(ctx, l, v, s, opts, cfg)
 		if !allowDestroy {
 			return nil
 		}
@@ -283,10 +284,11 @@ func confirmActionWithDependentUnits(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) bool {
-	units := findDependentUnits(ctx, l, v, opts, cfg)
+	units := findDependentUnits(ctx, l, v, s, opts, cfg)
 	if len(units) != 0 {
 		if _, err := v.Writers.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
 			l.Error(err)
@@ -319,10 +321,11 @@ func findDependentUnits(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []string {
-	units := runner.FindDependentUnits(ctx, l, v, opts, cfg)
+	units := runner.FindDependentUnits(ctx, l, v, s, opts, cfg)
 
 	paths := make([]string, len(units))
 	for i, unit := range units {

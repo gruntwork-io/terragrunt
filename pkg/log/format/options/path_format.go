@@ -12,11 +12,24 @@ import (
 const PathFormatOptionName = "path"
 
 const (
+	// NonePath leaves the text as it is. It has no name in a format string.
 	NonePath PathFormatValue = iota
+	// RelativePath, `path=relative`, rewrites every absolute path in the text
+	// that shares its top-level directory with the base directory to a path
+	// relative to the base directory. It leaves the text as it is when relative
+	// paths are disabled.
 	RelativePath
+	// ShortRelativePath, `path=short-relative`, rewrites the path as
+	// [RelativePath] does, drops a leading `./`, and outputs nothing for the base
+	// directory itself. It leaves the text as it is when relative paths are
+	// disabled.
 	ShortRelativePath
+	// ShortPath, `path=short`, outputs nothing when the path is the base
+	// directory and leaves any other path as it is.
 	ShortPath
+	// FilenamePath, `path=filename`, outputs the last element of the path.
 	FilenamePath
+	// DirectoryPath, `path=dir`, outputs all but the last element of the path.
 	DirectoryPath
 )
 
@@ -28,8 +41,11 @@ var pathFormatList = NewMapValue(map[PathFormatValue]string{
 	DirectoryPath:     "dir",
 })
 
+// PathFormatValue selects how [PathFormatOption] rewrites a path.
 type PathFormatValue byte
 
+// PathFormatOption is the `path` option. It rewrites the paths in the text
+// relative to the base directory or to one of their elements.
 type PathFormatOption struct {
 	*CommonOption[PathFormatValue]
 }

@@ -7,6 +7,9 @@ import (
 	"strings"
 )
 
+// MatchesAny reports whether s matches any of the regular expressions in regExps.
+//
+// Returns an error when a pattern before the first match fails to compile.
 func MatchesAny(regExps []string, s string) (bool, error) {
 	for _, item := range regExps {
 		matched, err := regexp.MatchString(item, s)

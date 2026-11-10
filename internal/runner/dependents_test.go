@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -81,7 +82,14 @@ func TestFindDependentUnits(t *testing.T) {
 
 			opts := newStackOpts(t, filepath.Join(memRoot, tc.unit), tf.CommandNameDestroy)
 
-			units := runner.FindDependentUnits(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts, tc.cfg)
+			units := runner.FindDependentUnits(
+				config.WithCaches(t.Context()),
+				thlogger.CreateLogger(),
+				v,
+				new(rewrite.Store),
+				opts,
+				tc.cfg,
+			)
 
 			paths := make([]string, 0, len(units))
 			for _, unit := range units {

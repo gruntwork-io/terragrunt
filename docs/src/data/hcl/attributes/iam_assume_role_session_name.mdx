@@ -1,0 +1,23 @@
+---
+name: iam_assume_role_session_name
+description: Sets the STS session name for the IAM role Terragrunt assumes.
+configs: [unit]
+type: string
+default: terragrunt-<timestamp>
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      iam_assume_role_session_name = "terragrunt-ci"
+---
+
+The `iam_assume_role_session_name` attribute sets the STS session name for the IAM role Terragrunt assumes before invoking OpenTofu/Terraform.
+
+### Precedence
+
+Terragrunt uses the first of these that is set:
+
+1. The [`--iam-assume-role-session-name`](/reference/cli/commands/run#iam-assume-role-session-name) flag.
+2. The `TG_IAM_ASSUME_ROLE_SESSION_NAME` environment variable.
+3. `iam_assume_role_session_name` in the unit's `terragrunt.hcl`.
+4. `iam_assume_role_session_name` in a file the unit includes.

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/hashicorp/hcl/v2"
@@ -31,6 +32,7 @@ func RunGenerate(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
@@ -95,7 +97,7 @@ func RunGenerate(
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context, l log.Logger) error {
-		return gen.GenerateStacks(ctx, l, v, opts, wts)
+		return gen.GenerateStacks(ctx, l, v, s, opts, wts)
 	})
 	if err != nil {
 		return err
@@ -117,20 +119,20 @@ func RunGenerate(
 }
 
 // Run executes the stack command.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
 	opts.StackAction = "run"
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_run", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context, l log.Logger) error {
-		return RunGenerate(ctx, l, v, opts)
+		return RunGenerate(ctx, l, v, s, opts)
 	})
 	if err != nil {
 		return err
 	}
 
-	return runall.Run(ctx, l, v, opts)
+	return runall.Run(ctx, l, v, s, opts)
 }
 
 // RunOutput stack output.
@@ -138,6 +140,7 @@ func RunOutput(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	index string,
 ) error {
@@ -151,7 +154,7 @@ func RunOutput(
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context, l log.Logger) error {
-		stackOutputs, err := output.StackOutput(ctx, l, v, opts)
+		stackOutputs, err := output.StackOutput(ctx, l, v, s, opts)
 		outputs = stackOutputs
 
 		return err

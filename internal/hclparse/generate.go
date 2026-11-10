@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 // AutoIncludeKind identifies whether a generated autoinclude file is unit-level or stack-level. The values intentionally match internal/component.{UnitKind,StackKind} but are defined here because internal/component -> pkg/config -> internal/hclparse is the established import direction; reusing the component constants would create a cycle.
@@ -133,6 +134,12 @@ func GenerateAutoIncludeFile(
 		CommentTokens(generatedAutoIncludeHeader),
 	)
 
+	var marked markAsReadCalls
+
+	if resolved.Kind == KindUnit {
+		evalCtx = marked.record(evalCtx)
+	}
+
 	// Write dependency blocks with resolved config_path.
 	for _, dep := range resolved.Dependencies {
 		origBlock := FindBlock(body, blockDependency, dep.Name)
@@ -159,11 +166,7 @@ func GenerateAutoIncludeFile(
 		return err
 	}
 
-	if resolved.Kind == KindUnit {
-		if err := writeMarkAsReadLocals(outBody, body, evalCtx, targetDir); err != nil {
-			return err
-		}
-	}
+	marked.writeLocals(outBody, resolved.StackDir, targetDir)
 
 	filePath := filepath.Join(targetDir, AutoIncludeFileNameForKind(resolved.Kind))
 
@@ -453,77 +456,70 @@ func writeNonDependencyContent(
 	return nil
 }
 
-// writeMarkAsReadLocals repeats the generate-time mark_as_read calls of body in a locals block.
-func writeMarkAsReadLocals(
-	outBody *hclwrite.Body,
-	body *hclsyntax.Body,
-	evalCtx *hcl.EvalContext,
-	targetDir string,
-) error {
-	paths, diags := markAsReadPaths(body, evalCtx)
-	if diags.HasErrors() {
-		return diags
-	}
-
-	if len(paths) == 0 {
-		return nil
-	}
-
-	calls := make([]hclwrite.Tokens, 0, len(paths))
-
-	for _, path := range paths {
-		calls = append(calls, hclwrite.TokensForFunctionCall(
-			funcMarkAsRead,
-			quotedStringTokens(relativeConfigPath(targetDir, path)),
-		))
-	}
-
-	outBody.AppendNewline()
-
-	locals := outBody.AppendNewBlock(blockLocals, nil)
-	locals.Body().SetAttributeRaw(localMarkedAsRead, hclwrite.TokensForTuple(calls))
-
-	return nil
+// markAsReadCalls collects the paths mark_as_read is called with while an autoinclude file is generated.
+type markAsReadCalls struct {
+	paths []string
 }
 
-// markAsReadPaths returns the sorted distinct paths of the generate-time mark_as_read calls in body.
-func markAsReadPaths(body *hclsyntax.Body, evalCtx *hcl.EvalContext) ([]string, hcl.Diagnostics) {
-	var paths []string
+// record returns evalCtx, or when it has mark_as_read a child whose mark_as_read also collects each call's path.
+func (calls *markAsReadCalls) record(evalCtx *hcl.EvalContext) *hcl.EvalContext {
+	markAsRead, ok := lookupFunction(evalCtx, funcMarkAsRead)
+	if !ok {
+		return evalCtx
+	}
 
-	diags := hclsyntax.VisitAll(body, func(node hclsyntax.Node) hcl.Diagnostics {
-		if path, ok := markAsReadPath(node, evalCtx); ok {
-			paths = append(paths, path)
+	child := evalCtx.NewChild()
+	child.Functions = map[string]function.Function{
+		funcMarkAsRead: function.New(&function.Spec{
+			Params: []function.Parameter{{Name: "path", Type: cty.String}},
+			Type:   function.StaticReturnType(cty.String),
+			Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+				calls.paths = append(calls.paths, args[0].AsString())
+
+				return markAsRead.Call(args)
+			},
+		}),
+	}
+
+	return child
+}
+
+// writeLocals writes a locals block marking the collected paths, resolved against stackDir, relative to targetDir.
+func (calls *markAsReadCalls) writeLocals(outBody *hclwrite.Body, stackDir, targetDir string) {
+	if len(calls.paths) == 0 {
+		return
+	}
+
+	paths := make([]string, 0, len(calls.paths))
+
+	for _, path := range calls.paths {
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(stackDir, path)
 		}
 
-		return nil
-	})
+		paths = append(paths, relativeConfigPath(targetDir, path))
+	}
 
 	slices.Sort(paths)
 
-	return slices.Compact(paths), diags
+	repeated := make([]hclwrite.Tokens, 0, len(paths))
+	for _, path := range slices.Compact(paths) {
+		repeated = append(repeated, hclwrite.TokensForFunctionCall(funcMarkAsRead, quotedStringTokens(path)))
+	}
+
+	locals := outBody.AppendNewBlock(blockLocals, nil)
+	locals.Body().SetAttributeRaw(localMarkedAsRead, hclwrite.TokensForTuple(repeated))
 }
 
-// markAsReadPath returns the path node marks as read when it is a mark_as_read call resolvable at generate time.
-func markAsReadPath(node hclsyntax.Node, evalCtx *hcl.EvalContext) (string, bool) {
-	call, ok := node.(*hclsyntax.FunctionCallExpr)
-	if !ok || call.Name != funcMarkAsRead {
-		return "", false
+// lookupFunction returns the function that name resolves to in evalCtx or its parents.
+func lookupFunction(evalCtx *hcl.EvalContext, name string) (function.Function, bool) {
+	for ctx := evalCtx; ctx != nil; ctx = ctx.Parent() {
+		if fn, ok := ctx.Functions[name]; ok {
+			return fn, true
+		}
 	}
 
-	if len(call.Args) != 1 || !IsPure(call.Args[0], deferredRoots) {
-		return "", false
-	}
-
-	val, diags := call.Args[0].Value(evalCtx)
-	if diags.HasErrors() || val.Type() != cty.String {
-		return "", false
-	}
-
-	if !val.IsKnown() || val.IsNull() {
-		return "", false
-	}
-
-	return val.AsString(), true
+	return function.Function{}, false
 }
 
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.

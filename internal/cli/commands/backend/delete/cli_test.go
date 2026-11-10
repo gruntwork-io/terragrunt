@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend/delete"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -40,7 +41,7 @@ func TestNewCommandExposesTheDeleteFlags(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := delete.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v)
+	cmd := delete.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v, new(rewrite.Store))
 
 	assert.Equal(t, delete.CommandName, cmd.Name)
 
@@ -89,7 +90,7 @@ func TestNewCommandDeletesTheUnitState(t *testing.T) {
 
 			opts := newOpts(t, v, filepath.Join(memRoot, "unit", "terragrunt.hcl"))
 
-			err := runCommand(t, delete.NewCommand(logger.CreateLogger(), opts, v), tc.args...)
+			err := runCommand(t, delete.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)), tc.args...)
 			if !tc.wantErr {
 				require.NoError(t, err)
 
@@ -152,7 +153,7 @@ func TestNewCommandAllDeletesEveryUnit(t *testing.T) {
 
 			v := venv.MemVenv().WithFS(venvtest.NewFS(t, memRoot, tc.files))
 
-			err := runCommand(t, delete.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v), tc.args...)
+			err := runCommand(t, delete.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v, new(rewrite.Store)), tc.args...)
 			if !tc.wantErr {
 				require.NoError(t, err)
 
@@ -185,7 +186,7 @@ func TestNewCommandAllFailsOnAMissingWorkingDir(t *testing.T) {
 	opts := newOpts(t, v, "")
 	opts.WorkingDir = filepath.Join(memRoot, "missing")
 
-	err := runCommand(t, delete.NewCommand(logger.CreateLogger(), opts, v), "--all")
+	err := runCommand(t, delete.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)), "--all")
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
@@ -202,7 +203,7 @@ func TestRunUsesTheConfiguredConfigFilename(t *testing.T) {
 	opts.WorkingDir = memRoot
 	opts.RunAll = true
 
-	err := delete.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+	err := delete.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 
 	var diags hcl.Diagnostics
 

@@ -46,49 +46,86 @@ import (
 )
 
 const (
-	DefaultTerragruntConfigPath     = "terragrunt.hcl"
-	DefaultStackFile                = "terragrunt.stack.hcl"
+	// DefaultTerragruntConfigPath is the file name of a unit's Terragrunt config.
+	DefaultTerragruntConfigPath = "terragrunt.hcl"
+	// DefaultStackFile is the file name of a stack config.
+	DefaultStackFile = "terragrunt.stack.hcl"
+	// DefaultTerragruntJSONConfigPath is the file name of a unit's Terragrunt config written in HCL JSON syntax.
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
-	DefaultAutoIncludeFile          = inthclparse.AutoIncludeFile
-	DefaultAutoIncludeStackFile     = inthclparse.AutoIncludeStackFile
-	RecommendedParentConfigName     = "root.hcl"
+	// DefaultAutoIncludeFile is the file name of the autoinclude file stack generation writes into a unit.
+	DefaultAutoIncludeFile = inthclparse.AutoIncludeFile
+	// DefaultAutoIncludeStackFile is the file name of the autoinclude file stack generation writes into a stack.
+	DefaultAutoIncludeStackFile = inthclparse.AutoIncludeStackFile
+	// RecommendedParentConfigName is the file name `terragrunt scaffold` gives the root config that units include.
+	RecommendedParentConfigName = "root.hcl"
 
+	// FoundInFile is the field metadata key whose value is the path of the config file that set the field.
 	FoundInFile = "found_in_file"
 
 	iamRoleCacheName = "iamRoleCache"
 
 	logMsgSeparator = "\n"
 
-	DefaultEngineType                   = "rpc"
-	MetadataTerraform                   = "terraform"
-	MetadataTerraformBinary             = "terraform_binary"
-	MetadataTerraformVersionConstraint  = "terraform_version_constraint"
+	// DefaultEngineType is the engine type used when the `engine` block sets no `type`.
+	DefaultEngineType = "rpc"
+	// MetadataTerraform names the `terraform` block.
+	MetadataTerraform = "terraform"
+	// MetadataTerraformBinary names the `terraform_binary` attribute.
+	MetadataTerraformBinary = "terraform_binary"
+	// MetadataTerraformVersionConstraint names the `terraform_version_constraint` attribute.
+	MetadataTerraformVersionConstraint = "terraform_version_constraint"
+	// MetadataTerragruntVersionConstraint names the `terragrunt_version_constraint` attribute.
 	MetadataTerragruntVersionConstraint = "terragrunt_version_constraint"
-	MetadataRemoteState                 = "remote_state"
-	MetadataDependencies                = "dependencies"
-	MetadataDependency                  = "dependency"
-	MetadataDownloadDir                 = "download_dir"
-	MetadataPreventDestroy              = "prevent_destroy"
-	MetadataIamRole                     = "iam_role"
-	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
-	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
-	MetadataIamWebIdentityToken         = "iam_web_identity_token"
-	MetadataInputs                      = "inputs"
-	MetadataVariables                   = "variables"
-	MetadataLocals                      = "locals"
-	MetadataLocal                       = "local"
-	MetadataCatalog                     = "catalog"
-	MetadataEngine                      = "engine"
-	MetadataGenerateConfigs             = "generate"
-	MetadataInclude                     = "include"
-	MetadataFeatureFlag                 = "feature"
-	MetadataExclude                     = "exclude"
-	MetadataErrors                      = "errors"
-	MetadataRetry                       = "retry"
-	MetadataIgnore                      = "ignore"
-	MetadataValues                      = "values"
-	MetadataStack                       = "stack"
-	MetadataUnit                        = "unit"
+	// MetadataRemoteState names the `remote_state` block.
+	MetadataRemoteState = "remote_state"
+	// MetadataDependencies names the `dependencies` block.
+	MetadataDependencies = "dependencies"
+	// MetadataDependency names the `dependency` block and the variable that exposes its outputs.
+	MetadataDependency = "dependency"
+	// MetadataDownloadDir names the `download_dir` attribute.
+	MetadataDownloadDir = "download_dir"
+	// MetadataPreventDestroy names the `prevent_destroy` attribute.
+	MetadataPreventDestroy = "prevent_destroy"
+	// MetadataIamRole names the `iam_role` attribute.
+	MetadataIamRole = "iam_role"
+	// MetadataIamAssumeRoleDuration names the `iam_assume_role_duration` attribute.
+	MetadataIamAssumeRoleDuration = "iam_assume_role_duration"
+	// MetadataIamAssumeRoleSessionName names the `iam_assume_role_session_name` attribute.
+	MetadataIamAssumeRoleSessionName = "iam_assume_role_session_name"
+	// MetadataIamWebIdentityToken names the `iam_web_identity_token` attribute.
+	MetadataIamWebIdentityToken = "iam_web_identity_token"
+	// MetadataInputs names the `inputs` attribute.
+	MetadataInputs = "inputs"
+	// MetadataVariables names the `variables` block.
+	MetadataVariables = "variables"
+	// MetadataLocals names the `locals` block.
+	MetadataLocals = "locals"
+	// MetadataLocal names the variable that exposes locals in expressions, as in `local.name`.
+	MetadataLocal = "local"
+	// MetadataCatalog names the `catalog` block.
+	MetadataCatalog = "catalog"
+	// MetadataEngine names the `engine` block.
+	MetadataEngine = "engine"
+	// MetadataGenerateConfigs names the `generate` block.
+	MetadataGenerateConfigs = "generate"
+	// MetadataInclude names the `include` block and the variable that exposes included configs.
+	MetadataInclude = "include"
+	// MetadataFeatureFlag names the `feature` block and the variable that exposes feature flags.
+	MetadataFeatureFlag = "feature"
+	// MetadataExclude names the `exclude` block.
+	MetadataExclude = "exclude"
+	// MetadataErrors names the `errors` block.
+	MetadataErrors = "errors"
+	// MetadataRetry names the `retry` block nested in `errors`.
+	MetadataRetry = "retry"
+	// MetadataIgnore names the `ignore` block nested in `errors`.
+	MetadataIgnore = "ignore"
+	// MetadataValues names the `values` variable.
+	MetadataValues = "values"
+	// MetadataStack names the `stack` block of a stack file.
+	MetadataStack = "stack"
+	// MetadataUnit names the `unit` block of a stack file.
+	MetadataUnit = "unit"
 )
 
 var (
@@ -99,6 +136,7 @@ var (
 		DefaultTerragruntConfigPath,
 	}
 
+	// DefaultGenerateBlockIfDisabledValueStr is the `if_disabled` value of a `generate` block that sets none.
 	DefaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
 )
 
@@ -150,6 +188,9 @@ type TerragruntConfig struct {
 	IsPartial                   bool
 }
 
+// GetRemoteState returns the config's `remote_state` block, or nil when the config has none.
+//
+// When the block exists, GetRemoteState also sets pctx.WorkingDir to the directory the unit's source downloads into.
 func (cfg *TerragruntConfig) GetRemoteState(
 	ctx context.Context,
 	l log.Logger,
@@ -228,6 +269,46 @@ func (cfg *TerragruntConfig) GetIAMRoleOptions() iam.RoleOptions {
 	}
 
 	return configIAMRoleOptions
+}
+
+// DependencyPaths returns the paths cfg depends on: the config_path of each enabled dependency block, then each path
+// in the dependencies block, without duplicates. A relative path is relative to the directory of the unit.
+//
+// It also returns the name of each enabled dependency block whose config_path is not a non-empty known string, in
+// declaration order. A partial parse can leave config_path unknown, and such a block has no path to return.
+func (cfg *TerragruntConfig) DependencyPaths() (paths, unresolved []string) {
+	seen := make(map[string]struct{}, len(cfg.TerragruntDependencies))
+
+	add := func(path string) {
+		if _, ok := seen[path]; ok {
+			return
+		}
+
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+
+	for i := range cfg.TerragruntDependencies {
+		dep := &cfg.TerragruntDependencies[i]
+		if !dep.isEnabled() {
+			continue
+		}
+
+		if !IsValidConfigPath(dep.ConfigPath) {
+			unresolved = append(unresolved, dep.Name)
+			continue
+		}
+
+		add(dep.ConfigPath.AsString())
+	}
+
+	if cfg.Dependencies != nil {
+		for _, path := range cfg.Dependencies.Paths {
+			add(path)
+		}
+	}
+
+	return paths, unresolved
 }
 
 // WriteTo writes the terragrunt config to a writer
@@ -984,6 +1065,7 @@ type TerragruntGenerateBlock struct {
 	Contents         string  `hcl:"contents,attr"          mapstructure:"contents"`
 }
 
+// IncludeConfigsMap maps `include` block labels to their configs.
 type IncludeConfigsMap map[string]IncludeConfig
 
 // ContainsPath returns true if the given path is contained in at least one configuration.
@@ -997,6 +1079,7 @@ func (cfgs IncludeConfigsMap) ContainsPath(path string) bool {
 	return false
 }
 
+// IncludeConfigs lists `include` blocks in the order they appear in a config.
 type IncludeConfigs []IncludeConfig
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -1031,6 +1114,7 @@ func (include *IncludeConfig) String() string {
 	)
 }
 
+// GetExpose reports whether the `include` block sets `expose = true`. It returns false for a nil include.
 func (include *IncludeConfig) GetExpose() bool {
 	if include == nil || include.Expose == nil {
 		return false
@@ -1039,6 +1123,9 @@ func (include *IncludeConfig) GetExpose() bool {
 	return *include.Expose
 }
 
+// GetMergeStrategy returns the `merge_strategy` of the `include` block, or [ShallowMerge] when it sets none.
+//
+// Returns [InvalidMergeStrategyTypeError] when `merge_strategy` names no known strategy.
 func (include *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
 	if include.MergeStrategy == nil {
 		return ShallowMerge, nil
@@ -1059,12 +1146,18 @@ func (include *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
 	}
 }
 
+// MergeStrategyType is a `merge_strategy` value, which decides how an included config or a dependency's mock
+// outputs merge into the config that declares them.
 type MergeStrategyType string
 
 const (
-	NoMerge          MergeStrategyType = "no_merge"
-	ShallowMerge     MergeStrategyType = "shallow"
-	DeepMerge        MergeStrategyType = "deep"
+	// NoMerge skips the merge.
+	NoMerge MergeStrategyType = "no_merge"
+	// ShallowMerge merges only top-level keys. A key set on both sides takes one side's value whole.
+	ShallowMerge MergeStrategyType = "shallow"
+	// DeepMerge concatenates lists and merges maps recursively. Mock outputs reject it.
+	DeepMerge MergeStrategyType = "deep"
+	// DeepMergeMapOnly merges maps recursively and replaces lists whole. Only mock outputs accept it.
 	DeepMergeMapOnly MergeStrategyType = "deep_map_only"
 )
 
@@ -1102,6 +1195,8 @@ type Hook struct {
 	Execute        []string `hcl:"execute,attr"         cty:"execute"`
 }
 
+// ErrorHook is an `error_hook` block: a command to run when the error message of a failed run matches one of the
+// OnErrors regular expressions.
 type ErrorHook struct {
 	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
 	WorkingDir     *string  `hcl:"working_dir,attr"     cty:"working_dir"`
@@ -1145,6 +1240,7 @@ func (cfg *TerraformConfig) String() string {
 	return fmt.Sprintf("TerraformConfig{Source = %v}", cfg.Source)
 }
 
+// GetBeforeHooks returns the `before_hook` blocks, or nil for a nil config.
 func (cfg *TerraformConfig) GetBeforeHooks() []Hook {
 	if cfg == nil {
 		return nil
@@ -1153,6 +1249,7 @@ func (cfg *TerraformConfig) GetBeforeHooks() []Hook {
 	return cfg.BeforeHooks
 }
 
+// GetAfterHooks returns the `after_hook` blocks, or nil for a nil config.
 func (cfg *TerraformConfig) GetAfterHooks() []Hook {
 	if cfg == nil {
 		return nil
@@ -1161,6 +1258,7 @@ func (cfg *TerraformConfig) GetAfterHooks() []Hook {
 	return cfg.AfterHooks
 }
 
+// GetErrorHooks returns the `error_hook` blocks, or nil for a nil config.
 func (cfg *TerraformConfig) GetErrorHooks() []ErrorHook {
 	if cfg == nil {
 		return nil
@@ -1169,6 +1267,9 @@ func (cfg *TerraformConfig) GetErrorHooks() []ErrorHook {
 	return cfg.ErrorHooks
 }
 
+// ValidateHooks checks that every hook has a non-empty first `execute` argument.
+//
+// Returns [InvalidArgError] naming the first hook that does not.
 func (cfg *TerraformConfig) ValidateHooks() error {
 	beforeAndAfterHooks := append(cfg.GetBeforeHooks(), cfg.GetAfterHooks()...)
 
@@ -1243,6 +1344,8 @@ func (args *TerraformExtraArguments) String() string {
 		args.EnvVars)
 }
 
+// GetVarFiles returns every `required_var_files` entry followed by each `optional_var_files` entry that exists in
+// fsys. Each list drops repeated paths, keeping the last occurrence.
 func (args *TerraformExtraArguments) GetVarFiles(l log.Logger, fsys vfs.FS) []string {
 	var varFiles []string
 
@@ -1581,6 +1684,7 @@ func ParseConfigFile(
 	return config, nil
 }
 
+// ParseConfigString parses configString as the Terragrunt config at cfgPath and decodes it with [ParseConfig].
 func ParseConfigString(
 	ctx context.Context,
 	l log.Logger,

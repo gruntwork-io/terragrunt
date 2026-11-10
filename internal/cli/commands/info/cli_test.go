@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/strict"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -24,7 +25,7 @@ func TestNewCommandShowsHelpWithItsSubcommands(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := info.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v)
+	cmd := info.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
 	cmd.CustomHelpTemplate = subcommandsTemplate
 
 	out := new(bytes.Buffer)

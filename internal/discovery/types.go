@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -112,7 +113,13 @@ type PhaseInput struct {
 type Phase interface {
 	Name() string
 	Kind() PhaseKind
-	Run(ctx context.Context, l log.Logger, v *venv.Venv, input *PhaseInput) (*PhaseResults, error)
+	Run(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		s *rewrite.Store,
+		input *PhaseInput,
+	) (*PhaseResults, error)
 }
 
 // Discovery is the main configuration for discovery.

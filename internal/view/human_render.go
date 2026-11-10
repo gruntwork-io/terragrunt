@@ -40,11 +40,14 @@ func (err MissingSnippetError) Error() string {
 	return fmt.Sprintf("diagnostic points into %s but has no source snippet to show", err.Filename)
 }
 
+// HumanRender formats diagnostics for a terminal, wrapped to its width and colored unless disabled.
 type HumanRender struct {
 	width        int
 	disableColor bool
 }
 
+// NewHumanRender returns a [HumanRender] sized to v's terminal, or 78 columns when the width is unknown. Colors are
+// off when disableColor is set or stderr is not a terminal.
 func NewHumanRender(v *venv.Venv, disableColor bool) Render {
 	v.RequireTerminal()
 
@@ -71,6 +74,7 @@ func (render *HumanRender) styled(style *lipgloss.Style, text string) string {
 	return style.Render(text)
 }
 
+// ShowConfigPath formats filenames one per line.
 func (render *HumanRender) ShowConfigPath(filenames []string) (string, error) {
 	var buf bytes.Buffer
 

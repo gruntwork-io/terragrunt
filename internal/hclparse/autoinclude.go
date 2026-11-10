@@ -56,8 +56,11 @@ type AutoIncludeResolved struct {
 	RawBody hcl.Body
 	// SourceBytes are the bytes of the file RawBody was parsed from. Generation slices expressions by HCL byte ranges and must use these bytes, not the root stack file's bytes, when the autoinclude originated in an included file.
 	SourceBytes []byte
+	// StackDir is the directory that relative paths in the autoinclude resolve against at generate time.
+	StackDir string
 	// Kind is KindUnit or KindStack and drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
-	Kind         AutoIncludeKind
+	Kind AutoIncludeKind
+	// Dependencies are the dependency blocks of the autoinclude, each with its config_path resolved.
 	Dependencies []AutoIncludeDependency
 }
 

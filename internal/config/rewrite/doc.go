@@ -5,7 +5,17 @@
 // A parse fetches no dependency outputs. It decodes the tagged fields of each block struct and the queue parts,
 // which [QueueBodies] names, with no `dependency` variable in scope, and keeps both. [UnitConfig.ToV1] fetches the
 // outputs, decodes the run parts, which [RunBodies] names, and converts the parse's result and its own together. An
-// exclude block that reads `dependency` is a run part. Every part evaluates once, and nothing a parse produced changes afterwards.
+// exclude block that reads `dependency` is a run part. Every part evaluates once, and nothing a parse produced
+// changes afterwards.
+//
+// The engine block is the one part of both: a parse decodes it with `dependency` unknown, as discovery needs it, and
+// ToV1 decodes it again with the outputs.
+//
+// Every parse goes through a [Store], which shares a file's syntax tree across the units that include it
+// and reuses a unit's parse for a later caller with the same context. What the context covers is the
+// contract of the run digest in profile.go. A memoized result holds nothing of its caller's: each stage takes the
+// settings and sinks of a [ParseContext], and assembles a [pkgconfig.TerragruntConfig] of the caller's own, which the
+// merges change in place. [EnvRewrite] selects this package's parser for discovery.
 //
 // pkg/config must never import this package, which depguard enforces. Delete the package, or merge it into
 // pkg/config, once it is the default parser and its parity test has passed across the fixture corpus for one

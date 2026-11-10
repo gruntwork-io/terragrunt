@@ -321,6 +321,14 @@
     color: var(--color-code-text);
   }
 
+  starlight-file-tree .comment code {
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--sl-color-gray-2);
+    font-size: inherit;
+  }
+
   #starlight__sidebar ul li {
     margin: 0;
   }

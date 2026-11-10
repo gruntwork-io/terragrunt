@@ -9,17 +9,20 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// InvalidCommandNameError reports a command name that matches no command.
 type InvalidCommandNameError string
 
 func (cmdName InvalidCommandNameError) Error() string {
 	return fmt.Sprintf("invalid command name %q", string(cmdName))
 }
 
+// InvalidKeyValueError reports a map flag entry that does not split into a key and a value.
 type InvalidKeyValueError struct {
 	value string
 	sep   string
 }
 
+// NewInvalidKeyValueError returns an [InvalidKeyValueError] for value, which did not split on sep.
 func NewInvalidKeyValueError(sep, value string) *InvalidKeyValueError {
 	return &InvalidKeyValueError{value, sep}
 }
@@ -110,8 +113,12 @@ func (err InvalidValueError) Unwrap() error {
 	return err.underlyingError
 }
 
+// ErrMsgFlagUndefined is the prefix of the error the standard flag package returns for an
+// undefined flag.
 const ErrMsgFlagUndefined = "flag provided but not defined:"
 
+// UndefinedFlagError reports a flag that no flag in scope defines. Its value is the flag name
+// without dashes.
 type UndefinedFlagError string
 
 func (flag UndefinedFlagError) Error() string {
@@ -119,10 +126,18 @@ func (flag UndefinedFlagError) Error() string {
 }
 
 var (
-	ErrMultipleTimesSettingFlag   = errors.New("setting the flag multiple times")
+	// ErrMultipleTimesSettingFlag is returned when a single-value flag appears more than once on the
+	// command line.
+	ErrMultipleTimesSettingFlag = errors.New("setting the flag multiple times")
+	// ErrMultipleTimesSettingEnvVar is returned when more than one env var sets a single-value flag.
 	ErrMultipleTimesSettingEnvVar = errors.New("setting the env var multiple times")
 )
 
+// IsMultipleTimesSettingError reports whether the message of err contains the message of
+// [ErrMultipleTimesSettingFlag] or [ErrMultipleTimesSettingEnvVar].
+//
+// It matches on the message because the standard flag package wraps setter errors with %v,
+// which drops the error chain.
 func IsMultipleTimesSettingError(err error) bool {
 	return strings.Contains(err.Error(), ErrMultipleTimesSettingFlag.Error()) ||
 		strings.Contains(err.Error(), ErrMultipleTimesSettingEnvVar.Error())

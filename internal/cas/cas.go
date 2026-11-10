@@ -557,7 +557,7 @@ func (c *CAS) Clone(
 
 	resolver := c.newGitResolver(l, v, opts.Branch, opts.SSHKey)
 
-	return c.FetchSource(ctx, l, v, &clonedOpts, SourceRequest{
+	_, err := c.FetchSource(ctx, l, v, &clonedOpts, SourceRequest{
 		Scheme:       gitScheme,
 		URL:          u,
 		Resolver:     resolver,
@@ -565,6 +565,8 @@ func (c *CAS) Clone(
 		Attrs:        map[string]any{"branch": opts.Branch},
 		ProbeCaching: ProbeCachedByResolver,
 	})
+
+	return err
 }
 
 // EnsureBlob stores the blob named by hash unless the store already has

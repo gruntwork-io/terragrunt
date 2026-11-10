@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	// BackendName is the remote_state backend value this backend handles.
 	BackendName = "azurerm"
 
 	// defaultSoftDeleteRetentionDays is applied when enable_soft_delete is set
