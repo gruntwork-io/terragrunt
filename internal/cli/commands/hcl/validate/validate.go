@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -40,7 +41,7 @@ const splitCount = 2
 //
 // Returns an error when --inputs is combined with --show-config-path or
 // --json, or when --strict is set without --inputs.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf(
@@ -58,14 +59,14 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 			)
 		}
 
-		return RunValidateInputs(ctx, l, v, opts)
+		return RunValidateInputs(ctx, l, v, s, opts)
 	}
 
 	if opts.HCLValidateStrict {
 		return fmt.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputsFlagName)
 	}
 
-	return RunValidate(ctx, l, v, opts)
+	return RunValidate(ctx, l, v, s, opts)
 }
 
 // RunValidate parses every unit and stack discovered from opts.WorkingDir and
@@ -76,6 +77,7 @@ func RunValidate(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	collector := &DiagnosticsCollector{}
@@ -109,7 +111,7 @@ func RunValidate(
 		}
 	}()
 
-	components, discoveryErr, err := discoverComponents(ctx, l, v, opts, worktrees)
+	components, discoveryErr, err := discoverComponents(ctx, l, v, s, opts, worktrees)
 	if err != nil {
 		return err
 	}
@@ -249,6 +251,7 @@ func RunValidateInputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	opts = opts.Clone()
@@ -286,7 +289,7 @@ func RunValidateInputs(
 		return err
 	}
 
-	components, err := d.Discover(ctx, l, v, opts)
+	components, err := d.Discover(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}
@@ -730,6 +733,7 @@ func discoverComponents(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) (components component.Components, discoveryErr, err error) {
@@ -738,7 +742,7 @@ func discoverComponents(
 		return nil, nil, err
 	}
 
-	components, discoveryErr = d.Discover(ctx, l, v, opts)
+	components, discoveryErr = d.Discover(ctx, l, v, s, opts)
 	if discoveryErr == nil {
 		return components, nil, nil
 	}
@@ -748,7 +752,7 @@ func discoverComponents(
 		return nil, nil, err
 	}
 
-	components, err = d.WithSuppressParseErrors().Discover(ctx, l, v, opts)
+	components, err = d.WithSuppressParseErrors().Discover(ctx, l, v, s, opts)
 	if err != nil {
 		return nil, nil, err
 	}

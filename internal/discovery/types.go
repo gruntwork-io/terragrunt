@@ -113,7 +113,13 @@ type PhaseInput struct {
 type Phase interface {
 	Name() string
 	Kind() PhaseKind
-	Run(ctx context.Context, l log.Logger, v *venv.Venv, input *PhaseInput) (*PhaseResults, error)
+	Run(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		s *rewrite.Store,
+		input *PhaseInput,
+	) (*PhaseResults, error)
 }
 
 // Discovery is the main configuration for discovery.
@@ -123,9 +129,6 @@ type Discovery struct {
 
 	// worktrees is the worktrees created for Git-based filters.
 	worktrees *worktrees.Worktrees
-
-	// parseStore memoizes the parses the config rewrite makes when [rewrite.EnvRewrite] selects it.
-	parseStore *rewrite.Store
 
 	// workingDir is the logical working directory for filter evaluation and display paths.
 	workingDir string

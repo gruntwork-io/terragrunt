@@ -155,7 +155,7 @@ func benchmarkDependents(
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(config.WithCaches(b.Context()), l, v, opts)
+		components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(rewrite.Store), opts)
 		require.NoError(b, err)
 		require.Len(b, components, selected)
 	}
@@ -186,7 +186,7 @@ func benchmarkPathExpression(b *testing.B, n int) {
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(config.WithCaches(b.Context()), l, v, opts)
+		components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(rewrite.Store), opts)
 		require.NoError(b, err)
 		require.Len(b, components, 2)
 	}
@@ -214,7 +214,7 @@ func benchmarkGraphExpression(b *testing.B, n int) {
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(config.WithCaches(b.Context()), l, v, opts)
+		components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(rewrite.Store), opts)
 		require.NoError(b, err)
 		require.Len(b, components, 2)
 	}
@@ -245,7 +245,7 @@ func benchmarkPathAndGraphExpression(b *testing.B, n int) {
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(config.WithCaches(b.Context()), l, v, opts)
+		components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(rewrite.Store), opts)
 		require.NoError(b, err)
 		require.Len(b, components, 4)
 	}

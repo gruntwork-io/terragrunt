@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
@@ -214,7 +215,7 @@ func runAllCommand(
 	// the real stdout, which is meaningless under the MCP transport.
 	r := report.NewReport().WithWorkingDir(dir).WithDisableColor().WithFormat(report.FormatJSON)
 
-	rnr, err := runner.New(ctx, l, cv, opts, runnerOpts...)
+	rnr, err := runner.New(ctx, l, cv, new(rewrite.Store), opts, runnerOpts...)
 	if err != nil {
 		return runAllOutput{}, err
 	}

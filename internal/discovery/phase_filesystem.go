@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -47,6 +48,7 @@ func (p *FilesystemPhase) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	_ *rewrite.Store,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()

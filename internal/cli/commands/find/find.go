@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -25,7 +26,7 @@ import (
 )
 
 // Run runs the find command.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
@@ -42,7 +43,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		return err
 	}
 
-	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, opts.TerragruntOptions, d)
+	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, s, opts.TerragruntOptions, d)
 
 	defer cleanupWorktrees(ctx)
 
@@ -63,7 +64,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 			"mode":         opts.Mode,
 			"exclude":      opts.Exclude,
 		}, func(ctx context.Context, l log.Logger) error {
-			components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
+			components, discoverErr = d.Discover(ctx, l, v, s, opts.TerragruntOptions)
 			return discoverErr
 		})
 	if telemetryErr != nil {

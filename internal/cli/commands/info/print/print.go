@@ -12,6 +12,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -40,10 +41,10 @@ const (
 //
 // A unit whose config or source fails to prepare still prints the context
 // known so far, and Run returns nil for it.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
 	// If --all flag is set, use discovery to find all units and print info for each one
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
 	return runPrint(ctx, l, v, opts, prettyJSON)
@@ -95,11 +96,12 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, v, opts)
+	components, err := d.Discover(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}

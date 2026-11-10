@@ -14,6 +14,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -31,9 +32,9 @@ const defaultKeyParts = 2
 // attributes in opts.AwsProviderPatchOverrides in every provider "aws" block of
 // the modules that init downloaded. With opts.RunAll set, it patches every
 // discovered unit instead.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
 	return runSingle(ctx, l, v, opts)
@@ -74,11 +75,12 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, v, opts)
+	components, err := d.Discover(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}

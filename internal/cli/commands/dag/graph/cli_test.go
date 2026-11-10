@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -75,8 +76,7 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			err = graph.Run(
 				config.WithCaches(b.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-				terragruntOptions,
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), terragruntOptions,
 			)
 
 			b.StopTimer()
@@ -93,7 +93,7 @@ func TestNewCommandExposesTheQueueFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := graph.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venv.MemVenv(),
+		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venv.MemVenv(), new(rewrite.Store),
 	)
 
 	assert.Equal(t, graph.CommandName, cmd.Name)
@@ -123,7 +123,7 @@ func TestNewCommandRendersTheDependencyGraph(t *testing.T) {
 	opts.WorkingDir = root
 	opts.RootWorkingDir = root
 
-	cmd := graph.NewCommand(logger.CreateLogger(), opts, v)
+	cmd := graph.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store))
 	require.NoError(t, cmd.Action(config.WithCaches(t.Context()), &clihelper.Context{}))
 
 	assert.Equal(

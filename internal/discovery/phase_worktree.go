@@ -17,6 +17,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -70,6 +71,7 @@ func (p *WorktreePhase) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
@@ -105,7 +107,7 @@ func (p *WorktreePhase) Run(
 			if len(removalFilters) > 0 {
 				fromToG.Go(func() error {
 					components, err := p.discoverInWorktree(
-						fromToCtx, l, v, input, pair.FromWorktree, removalFilters, FromWorktreeKind, boundary,
+						fromToCtx, l, v, s, input, pair.FromWorktree, removalFilters, FromWorktreeKind, boundary,
 					)
 					if err != nil {
 						return err
@@ -125,7 +127,7 @@ func (p *WorktreePhase) Run(
 
 					if len(deletedReadFilters) > 0 {
 						translated, err := p.deletedReadingComponentsToFilters(
-							fromToCtx, l, v, input, pair.FromWorktree, deletedReadFilters, boundary,
+							fromToCtx, l, v, s, input, pair.FromWorktree, deletedReadFilters, boundary,
 						)
 						if err != nil {
 							return err
@@ -142,6 +144,7 @@ func (p *WorktreePhase) Run(
 						fromToCtx,
 						l,
 						v,
+						s,
 						input,
 						pair.ToWorktree,
 						finalToFilters,
@@ -165,7 +168,7 @@ func (p *WorktreePhase) Run(
 	}
 
 	discoveryGroup.Go(func() error {
-		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, v, input, w, boundary)
+		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, v, s, input, w, boundary)
 		if err != nil {
 			return err
 		}
@@ -215,6 +218,7 @@ func (p *WorktreePhase) discoverInWorktree(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 	wt worktrees.Worktree,
 	filters filter.Filters,
@@ -264,7 +268,7 @@ func (p *WorktreePhase) discoverInWorktree(
 		subDiscovery = subDiscovery.WithWalkRoot(walkRoot)
 	}
 
-	return subDiscovery.Discover(ctx, l, v, input.Opts)
+	return subDiscovery.Discover(ctx, l, v, s, input.Opts)
 }
 
 // withParseSettingsFrom carries a parent discovery's parse settings onto a worktree
@@ -279,7 +283,7 @@ func (d *Discovery) withParseSettingsFrom(parent *Discovery) *Discovery {
 		d = d.WithTrackReads()
 	}
 
-	return d.WithParseStore(parent.parseStore)
+	return d
 }
 
 // deletedReadingComponentsToFilters discovers, in the from worktree, the units that read files
@@ -293,6 +297,7 @@ func (p *WorktreePhase) deletedReadingComponentsToFilters(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 	fromWorktree worktrees.Worktree,
 	readingFilters filter.Filters,
@@ -302,6 +307,7 @@ func (p *WorktreePhase) deletedReadingComponentsToFilters(
 		ctx,
 		l,
 		v,
+		s,
 		input,
 		fromWorktree,
 		readingFilters,
@@ -348,6 +354,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 	w *worktrees.Worktrees,
 	boundary string,
@@ -393,6 +400,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 				ctx,
 				l,
 				v,
+				s,
 				input,
 				changed.FromStack,
 				changed.ToStack,
@@ -431,6 +439,7 @@ func (p *WorktreePhase) walkChangedStack(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 	fromStack *component.Stack,
 	toStack *component.Stack,
@@ -482,7 +491,7 @@ func (p *WorktreePhase) walkChangedStack(
 
 		var fromDiscoveryErr error
 
-		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, v, input.Opts)
+		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, v, s, input.Opts)
 		if fromDiscoveryErr != nil {
 			mu.Lock()
 
@@ -511,7 +520,7 @@ func (p *WorktreePhase) walkChangedStack(
 
 		var toDiscoveryErr error
 
-		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, l, v, input.Opts)
+		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, l, v, s, input.Opts)
 		if toDiscoveryErr != nil {
 			mu.Lock()
 

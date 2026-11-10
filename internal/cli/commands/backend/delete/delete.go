@@ -9,6 +9,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -24,9 +25,9 @@ import (
 //
 // Returns an error when the bucket has versioning disabled and
 // opts.ForceBackendDelete is unset, or when opts.DeleteBucket is set.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
 	return runDelete(ctx, l, v, opts)
@@ -76,11 +77,12 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, v, opts)
+	components, err := d.Discover(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}

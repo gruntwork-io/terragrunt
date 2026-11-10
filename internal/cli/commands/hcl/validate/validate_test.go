@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -135,7 +136,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 
 	opts.AuthProviderCmd = "fake-auth-provider"
 
-	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 	require.Error(
 		t,
 		err,
@@ -161,6 +162,6 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 	require.NoError(t, err)
 }

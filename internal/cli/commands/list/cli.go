@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -163,7 +164,7 @@ func NewFlags(l log.Logger, opts *Options, v *venv.Venv) clihelper.Flags {
 }
 
 // NewCommand returns the `terragrunt list` command.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
 
 	sharedFlags := shared.NewBackendFlags(opts, nil)
@@ -205,7 +206,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, cmdOpts)
+			return Run(ctx, l, v, s, cmdOpts)
 		},
 	}
 }

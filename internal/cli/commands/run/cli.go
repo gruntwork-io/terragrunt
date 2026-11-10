@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -22,7 +23,7 @@ const (
 // NewCommand returns the `terragrunt run` command. It runs the command over
 // every discovered unit with --all, over the dependency graph with --graph,
 // and in the current unit otherwise, printing help when given no arguments.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmdFlags := NewFlags(l, opts, v, nil)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewGraphFlag(opts, nil))
 
@@ -36,23 +37,23 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			"# Run output with -json flag\nterragrunt run -- output -json\n# Shortcut:\n# terragrunt output -json",
 		},
 		Flags:       cmdFlags,
-		Subcommands: NewSubcommands(l, opts, v),
+		Subcommands: NewSubcommands(l, opts, v, s),
 		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 
 			if tgOpts.RunAll {
-				return runall.Run(ctx, l, v, tgOpts)
+				return runall.Run(ctx, l, v, s, tgOpts)
 			}
 
 			if tgOpts.Graph {
-				return graph.Run(ctx, l, v, tgOpts)
+				return graph.Run(ctx, l, v, s, tgOpts)
 			}
 
 			if len(cliCtx.Args()) == 0 {
 				return clihelper.ShowCommandHelp(ctx, cliCtx)
 			}
 
-			return Action(l, opts, v)(ctx, cliCtx)
+			return Action(l, opts, v, s)(ctx, cliCtx)
 		},
 	}
 
@@ -66,6 +67,7 @@ func NewSubcommands(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
+	s *rewrite.Store,
 ) clihelper.Commands {
 	var subcommands = make(clihelper.Commands, len(tf.CommandNames))
 
@@ -78,7 +80,7 @@ func NewSubcommands(
 			Hidden:     !visible,
 			CustomHelp: ShowTFHelp(l, opts, v),
 			Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
-				return Action(l, opts, v)(ctx, cliCtx)
+				return Action(l, opts, v, s)(ctx, cliCtx)
 			},
 		}
 		subcommands[i] = subcommand
@@ -89,8 +91,8 @@ func NewSubcommands(
 
 // Action returns the action that runs the tofu command in opts against the
 // current unit through [Run].
-func Action(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.ActionFunc {
+func Action(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) clihelper.ActionFunc {
 	return func(ctx context.Context, _ *clihelper.Context) error {
-		return Run(ctx, l, opts, v)
+		return Run(ctx, l, opts, v, s)
 	}
 }

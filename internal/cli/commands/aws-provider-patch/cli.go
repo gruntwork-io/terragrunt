@@ -36,6 +36,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -74,7 +75,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 // NewCommand returns the hidden, deprecated `terragrunt aws-provider-patch`
 // command, which fails when its deprecated-command strict control is enabled.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	control := controls.NewDeprecatedCommand(CommandName)
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).
 		AddSubcontrols(control)
@@ -95,7 +96,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
+			return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
 		},
 		DisabledErrorOnUndefinedFlag: true,
 	}

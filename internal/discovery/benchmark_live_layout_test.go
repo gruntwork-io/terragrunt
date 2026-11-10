@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -105,7 +106,7 @@ func benchmarkLiveLayout(b *testing.B, root string, shape liveLayoutQuery) {
 			d = d.WithRelationships()
 		}
 
-		_, err := d.Discover(config.WithCaches(b.Context()), l, v, opts)
+		_, err := d.Discover(config.WithCaches(b.Context()), l, v, new(rewrite.Store), opts)
 		require.NoError(b, err)
 	}
 }

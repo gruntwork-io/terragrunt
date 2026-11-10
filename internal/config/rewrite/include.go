@@ -353,7 +353,7 @@ func (c *UnitConfig) resolveIncludedConfig(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-	p *Store,
+	s *Store,
 	include *pkgconfig.IncludeConfig,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
 	if include.Path == "" {
@@ -371,7 +371,7 @@ func (c *UnitConfig) resolveIncludedConfig(
 		includedPC = includedPC.withDiagnosticsSuppressed()
 	}
 
-	included, cfg, err := p.resolveFile(ctx, l, v, includedPC, include.Path)
+	included, cfg, err := s.resolveFile(ctx, l, v, includedPC, include.Path)
 	if err != nil {
 		return included, nil, includeParseError(err, include, pc)
 	}
