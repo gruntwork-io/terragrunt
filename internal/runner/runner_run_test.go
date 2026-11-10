@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -61,7 +62,7 @@ func TestRunnerRun_ExcludedUnitsAreReported(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, r))
 
 	for _, unit := range []*component.Unit{vpc, app} {
 		run, err := r.GetRun(unit.Path())
@@ -101,7 +102,7 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, r))
 
 	vpcRun, err := r.GetRun(vpc.Path())
 	require.NoError(t, err)
@@ -143,7 +144,7 @@ func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, r))
 
 	appRun, err := r.GetRun(app.Path())
 	require.NoError(t, err)
@@ -167,7 +168,7 @@ func TestRunnerRun_WithoutReport(t *testing.T) {
 	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil))
 	assert.Contains(
 		t,
 		opts.TerraformCliArgs.Slice(),
@@ -200,7 +201,7 @@ func TestRunnerRun_AuthProviderFailureFailsUnit(t *testing.T) {
 	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), vexec.ErrNoSpawn)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil), vexec.ErrNoSpawn)
 }
 
 // TestRunnerRun_UnitRunFailsWithoutBinary pins the error a parsed unit hits when no binary may be spawned.
@@ -217,7 +218,7 @@ func TestRunnerRun_UnitRunFailsWithoutBinary(t *testing.T) {
 	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), vexec.ErrNoSpawn)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil), vexec.ErrNoSpawn)
 }
 
 // TestRunnerRun_UnitTerraformBinaryOverride pins that the unit run spawns a unit's terraform_binary.
@@ -233,7 +234,7 @@ func TestRunnerRun_UnitTerraformBinaryOverride(t *testing.T) {
 
 	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
-	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil))
 
 	plan := commandInvocation(t, invocations(), tf.CommandNamePlan)
 	assert.Equal(t, "custom-tofu", plan.Name, "the plan runs the unit's terraform_binary")
@@ -253,7 +254,7 @@ func TestRunnerRun_EmptyStack(t *testing.T) {
 
 	require.NoError(
 		t,
-		rnr.Run(config.WithCaches(t.Context()), l, v, opts, report.NewReport().WithWorkingDir(memRoot)),
+		rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, report.NewReport().WithWorkingDir(memRoot)),
 	)
 }
 
@@ -356,7 +357,7 @@ func TestRunnerRun_SyncsUnitCliArgs(t *testing.T) {
 				component.Components{vpc},
 			)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil))
 
 			if tc.jsonOutput {
 				exists, err := vfs.FileExists(v.FS, vpc.OutputJSONFile(memRoot, opts.JSONOutputFolder))
@@ -440,7 +441,7 @@ func TestRunnerRun_PlanWithRemoteStateErrors(t *testing.T) {
 
 			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, components)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil))
 		})
 	}
 }
@@ -494,7 +495,7 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 			ctx := tf.ContextWithDetailedExitCode(config.WithCaches(t.Context()), exitCodes)
 			r := report.NewReport().WithWorkingDir(memRoot)
 
-			err = rnr.Run(ctx, l, v, opts, r)
+			err = rnr.Run(ctx, l, v, new(rewrite.Store), opts, r)
 			assert.Equal(t, tc.wantErr, err != nil, "run error: %v", err)
 
 			run, err := r.GetRun(vpc.Path())
@@ -536,7 +537,7 @@ func TestRunnerRun_SplitsUnitOutput(t *testing.T) {
 
 	splitter := &recordingSplitter{units: map[string]*bytes.Buffer{}, closed: map[string]struct{}{}}
 
-	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v.WithWriter(splitter), opts, nil))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v.WithWriter(splitter), new(rewrite.Store), opts, nil))
 
 	assert.Empty(t, splitter.shared.String(), "unit output must not reach the shared stream")
 
@@ -596,7 +597,7 @@ inputs = {
 	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{dep, app})
 	require.NoError(t, err)
 
-	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil))
 
 	depDirs := calls.dirsUnder(dep.Path())
 	require.Len(t, depDirs, 1, "the dependency's plan and the fetch of its outputs share one working directory")
@@ -627,7 +628,7 @@ func TestRunnerRun_OutputFolderCannotBeCreated(t *testing.T) {
 	faulty := *v
 	faulty.FS = &faultFS{FS: v.FS, op: faultMkdirAll, under: opts.OutputFolder}
 
-	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, &faulty, opts, nil), errInjected)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, &faulty, new(rewrite.Store), opts, nil), errInjected)
 }
 
 // The report refuses relative paths, so those units are left out and the run goes on.
@@ -658,7 +659,11 @@ func TestRunnerRun_RelativeUnitPathsAreLeftOutOfTheReport(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, r), "the unit without a config file fails")
+	require.Error(
+		t,
+		rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, r),
+		"the unit without a config file fails",
+	)
 
 	require.Len(t, r.Runs, 1, "the report only records absolute unit paths")
 	assert.Equal(t, reported.Path(), r.Runs[0].Path)
@@ -684,7 +689,7 @@ func TestRunnerRun_UnitOptionsCannotBeBuilt(t *testing.T) {
 
 	var target config.ParsingModulePathError
 
-	require.ErrorAs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), &target)
+	require.ErrorAs(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil), &target)
 }
 
 // Two units run in each case, so a warning given per unit instead of per run would be counted twice.
@@ -763,7 +768,7 @@ func TestRunnerRun_WarnsOnLocalStateWithGitRef(t *testing.T) {
 
 			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, units)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil))
 
 			assert.Equal(
 				t,
@@ -792,7 +797,7 @@ func TestRunnerRun_EngineShutdownFailureKeepsUnitResult(t *testing.T) {
 	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil))
 	assert.Contains(t, out.String(), "Error shutting down engine for unit", "no engine clients were set up to release")
 }
 
@@ -819,7 +824,7 @@ func TestRunnerRun_OutputFlushFailureFailsUnit(t *testing.T) {
 	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, opts, nil), writeErr)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts, nil), writeErr)
 }
 
 func TestRunnerRun_RecordsTaskOutcomeOnSpan(t *testing.T) {
@@ -839,7 +844,7 @@ func TestRunnerRun_RecordsTaskOutcomeOnSpan(t *testing.T) {
 	buf, tlm := newConsoleTelemeter(t)
 	ctx := telemetry.ContextWithTelemeter(config.WithCaches(t.Context()), tlm)
 
-	require.Error(t, rnr.Run(ctx, l, v, opts, nil))
+	require.Error(t, rnr.Run(ctx, l, v, new(rewrite.Store), opts, nil))
 	require.NoError(t, tlm.Shutdown(ctx))
 
 	outcomes := map[any]any{}
@@ -867,7 +872,7 @@ func TestRunnerRun_JSONOutputCannotBeWritten(t *testing.T) {
 	faulty := *v
 	faulty.FS = &faultFS{FS: v.FS, op: faultMkdirAll, under: opts.JSONOutputFolder}
 
-	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, &faulty, opts, nil), errInjected)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, &faulty, new(rewrite.Store), opts, nil), errInjected)
 }
 
 func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
