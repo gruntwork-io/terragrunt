@@ -70,7 +70,7 @@ terragrunt run -- import google_compute_network.this projects/my-project/global/
 </Fragment>
 </StatefulTabs>
 
-The resource address is resolved against the module the unit sources in its [`terraform` block](/reference/hcl/blocks#terraform), not against your `terragrunt.hcl`. If the unit sources a module that wraps the resource in a submodule, address it through that path:
+The resource address is resolved against the module the unit sources in its [`terraform` block](/reference/hcl/blocks/terraform/), not against your `terragrunt.hcl`. If the unit sources a module that wraps the resource in a submodule, address it through that path:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">

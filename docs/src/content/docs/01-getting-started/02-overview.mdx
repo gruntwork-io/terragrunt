@@ -478,7 +478,7 @@ You want to be mindful not to do too much with this configuration block, as it c
 
 The `terraform` block is used to indicate where to source the OpenTofu/Terraform module from (it's called `terraform` for historical reasons, but it controls behavior pertinent to both OpenTofu and Terraform).
 
-In this example, all it is doing is controlling where Terragrunt should fetch the OpenTofu/Terraform module from. The configuration block [can do a lot more](/reference/hcl/blocks#terraform), but the `source` attribute is the most common attribute you'll set on the `terraform` block.
+In this example, all it is doing is controlling where Terragrunt should fetch the OpenTofu/Terraform module from. The configuration block [can do a lot more](/reference/hcl/blocks/terraform/), but the `source` attribute is the most common attribute you'll set on the `terraform` block.
 
 You'll notice that in the examples above, we were using `find` to locate the `.tf` files being generated and placed within the OpenTofu/Terraform module being downloaded here within the `.terragrunt-cache` directory. This is because Terragrunt aims to operate as an orchestrator, at a level of abstraction higher than OpenTofu/Terraform.
 
