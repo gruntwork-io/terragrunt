@@ -1,0 +1,64 @@
+---
+name: engine
+description: Runs the unit's OpenTofu/Terraform commands through an IaC engine plugin.
+configs: [unit]
+attributes:
+  - name: source
+    type: string
+    required: true
+    description: Where to get the engine, e.g. a GitHub repository, an HTTP(S) URL to a release archive, or a local absolute path.
+    example: |
+      # terragrunt.hcl
+
+      engine {
+        source  = "github.com/gruntwork-io/terragrunt-engine-opentofu"
+        version = "v0.2.0"
+      }
+  - name: version
+    type: string
+    description: The release of a GitHub `source` to download. Without it, Terragrunt downloads the latest release.
+    example: |
+      # terragrunt.hcl
+
+      engine {
+        source  = "github.com/gruntwork-io/terragrunt-engine-opentofu"
+        version = "v0.2.0"
+      }
+  - name: type
+    type: string
+    default: '"rpc"'
+    description: The engine type. `rpc` is the only type.
+    example: |
+      # terragrunt.hcl
+
+      engine {
+        source = "github.com/gruntwork-io/terragrunt-engine-opentofu"
+        type   = "rpc"
+      }
+  - name: meta
+    type: map(any)
+    description: Settings for the engine, e.g. a tool version or connection details. Each engine defines the keys it reads.
+    example: |
+      # terragrunt.hcl
+
+      engine {
+        source = "github.com/gruntwork-io/terragrunt-engine-opentofu"
+
+        meta = {
+          key_1 = ["value1", "value2"]
+          key_2 = "1.6.0"
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+
+The `engine` block is gated behind the [`iac-engine`](/reference/experiments/active#iac-engine) experiment. Enable it with `--experiment iac-engine` or `TG_EXPERIMENT=iac-engine`. Its behavior may change in future releases.
+
+</Aside>
+
+Without the experiment, Terragrunt ignores the block and runs `tofu`/`terraform` itself. [`--no-engine`](/reference/cli/commands/run#no-engine) does the same for one run.
+
+See [IaC engines](/features/units/engine) for caching, checksum checks, and how engines use `meta`.

@@ -21,7 +21,7 @@ terraform {
 terragrunt run --experiment no-dot-terragrunt-cache -- plan
 ```
 
-Files that a run creates stay in the unit directory: the output of `generate` blocks, the `.terraform` directory, `.terraform.lock.hcl`, and local state. Add the ones you do not want to commit to `.gitignore`. When an input is `null`, Terragrunt writes a temporary `.terragrunt-null-vars.auto.tfvars.json` for the run and removes it afterwards. If a file with that name already exists, the run stops with an error rather than replacing it. The `tfvar` and `json` kinds of a [`variables`](/reference/hcl/blocks#variables) block do the same with `terragrunt.auto.tfvars` and `terragrunt.auto.tfvars.json`.
+Files that a run creates stay in the unit directory: the output of `generate` blocks, the `.terraform` directory, `.terraform.lock.hcl`, and local state. Add the ones you do not want to commit to `.gitignore`. When an input is `null`, Terragrunt writes a temporary `.terragrunt-null-vars.auto.tfvars.json` for the run and removes it afterwards. If a file with that name already exists, the run stops with an error rather than replacing it. The `tfvar` and `json` kinds of a [`variables`](/reference/hcl/blocks/variables) block do the same with `terragrunt.auto.tfvars` and `terragrunt.auto.tfvars.json`.
 
 The attribute is merged through `include` like the other `terraform` attributes: a root configuration found with `find_in_parent_folders()` can set it for every unit, and a unit can override it in its own `terraform` block.
 

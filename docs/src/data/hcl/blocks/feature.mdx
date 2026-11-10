@@ -1,0 +1,67 @@
+---
+name: feature
+description: Declares a feature flag that the configuration reads as feature.<name>.value, with a default the --feature flag can override.
+configs: [unit]
+labels:
+  - name: name
+    description: Names the flag. The configuration reads its value as `feature.<name>.value`, and `--feature <name>=<value>` sets it.
+attributes:
+  - name: default
+    type: any
+    required: true
+    description: The flag's value when no `--feature` flag or `TG_FEATURE` environment variable sets it. It's an expression, so it can call a function, e.g. `run_cmd` to ask an external feature flag service.
+    example: |
+      # terragrunt.hcl
+
+      feature "s3_version" {
+        default = "v1.0.0"
+      }
+
+      terraform {
+        source = "git::git@github.com:acme/infrastructure-modules.git//storage/s3?ref=${feature.s3_version.value}"
+      }
+examples:
+  - description: Runs a hook only when the `run_hook` flag is `true`, and passes another flag to the module as an input.
+    code: |
+      # terragrunt.hcl
+
+      feature "run_hook" {
+        default = false
+      }
+
+      feature "string_flag" {
+        default = "test"
+      }
+
+      terraform {
+        before_hook "feature_flag" {
+          commands = ["apply", "plan", "destroy"]
+          execute  = feature.run_hook.value ? ["sh", "-c", "feature_flag_script.sh"] : ["sh", "-c", "exit", "0"]
+        }
+      }
+
+      inputs = {
+        string_feature_flag = feature.string_flag.value
+      }
+  - description: Reads the default from an external feature flag service, e.g. [LaunchDarkly](https://launchdarkly.com/) or [AWS AppConfig](https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html), through a command that prints the value.
+    code: |
+      # terragrunt.hcl
+
+      feature "new_networking" {
+        default = run_cmd("--terragrunt-quiet", "./scripts/get-flag.sh", "new_networking")
+      }
+---
+
+Set a flag for a run with [`--feature`](/reference/cli/commands/run#feature), once per flag, or with the `TG_FEATURE` environment variable, as comma-separated pairs:
+
+```bash
+terragrunt run --feature run_hook=true --feature string_flag=dev -- apply
+```
+
+```bash
+TG_FEATURE=run_hook=true,string_flag=dev terragrunt run -- apply
+```
+
+When the flag's `default` is a bool, Terragrunt converts the value to a bool, so `run_hook=true` sets `true`. A value for any other flag is a string. In a `run --all`, the value applies to every unit that declares the flag.
+
+Feature flags can also turn off a unit with an [`exclude`](/reference/hcl/blocks/exclude) block. See [Feature flags](/features/units/runtime-control#feature-flags) for more uses.

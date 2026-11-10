@@ -46,11 +46,11 @@ terragrunt run --all --filter-affected -- plan
 
 ## Shared configuration in one place
 
-Backend configuration, provider blocks, and common inputs live in a root configuration file that units pull in with an [`include` block](/features/units/includes/). [`generate` blocks](/reference/hcl/blocks#generate) write files into the module before a run, so you can inject a provider or backend into a module you do not control. You write these once rather than in every root module.
+Backend configuration, provider blocks, and common inputs live in a root configuration file that units pull in with an [`include` block](/features/units/includes/). [`generate` blocks](/reference/hcl/blocks/generate) write files into the module before a run, so you can inject a provider or backend into a module you do not control. You write these once rather than in every root module.
 
 ## Rolling changes out without a pile of pull requests
 
-Promoting a change through environments usually means either applying it everywhere at once or opening a pull request per environment to bump versions one at a time. [Feature flags](/features/units/runtime-control/) offer a third option: codify both configurations, then control which one is active at runtime with the [`feature` block](/reference/hcl/blocks#feature) or the `--feature` flag. Shipping the change and turning it on become separate steps.
+Promoting a change through environments usually means either applying it everywhere at once or opening a pull request per environment to bump versions one at a time. [Feature flags](/features/units/runtime-control/) offer a third option: codify both configurations, then control which one is active at runtime with the [`feature` block](/reference/hcl/blocks/feature) or the `--feature` flag. Shipping the change and turning it on become separate steps.
 
 ## Self-service for people who are not IaC experts
 
@@ -58,7 +58,7 @@ The [catalog](/features/catalog/) gives you a searchable [terminal UI](/features
 
 ## Surviving flaky infrastructure
 
-Large runs fail for boring reasons: rate limits, eventual consistency, an API having a bad minute. The [`errors` block](/reference/hcl/blocks#errors) makes that configuration rather than a shell retry loop. `retry` matches errors by regex and retries with a bounded attempt count and sleep interval; `ignore` lets known-safe errors through without failing the run.
+Large runs fail for boring reasons: rate limits, eventual consistency, an API having a bad minute. The [`errors` block](/reference/hcl/blocks/errors) makes that configuration rather than a shell retry loop. `retry` matches errors by regex and retries with a bounded attempt count and sleep interval; `ignore` lets known-safe errors through without failing the run.
 
 ## Operational work that does not belong in a module
 

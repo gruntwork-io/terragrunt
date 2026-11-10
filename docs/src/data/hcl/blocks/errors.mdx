@@ -1,0 +1,135 @@
+---
+name: errors
+description: Retries or ignores errors from OpenTofu/Terraform commands and source downloads that match patterns you set.
+configs: [unit]
+examples:
+  - description: Retries a transient network error up to twice, and ignores a known safe warning unless the error also matches the negative pattern.
+    code: |
+      # terragrunt.hcl
+
+      errors {
+        retry "transient_errors" {
+          retryable_errors   = ["Error: transient network issue"]
+          max_attempts       = 3
+          sleep_interval_sec = 5
+        }
+
+        ignore "known_safe_errors" {
+          ignorable_errors = [
+            "Error: safe warning",
+            "!Error: do not ignore",
+          ]
+          message = "Ignoring safe warning errors"
+          signals = {
+            alert_team = false
+          }
+        }
+      }
+  - description: Retries a source download that fails with a transient error. The `errors` block handles errors while Terragrunt downloads the module, as well as errors from OpenTofu/Terraform.
+    code: |
+      # terragrunt.hcl
+
+      terraform {
+        source = "https://unreliable-source.com/module.zip"
+      }
+
+      errors {
+        retry "source_fetch" {
+          retryable_errors   = ["Error: transient network issue"]
+          max_attempts       = 3
+          sleep_interval_sec = 5
+        }
+      }
+blocks:
+  - name: retry
+    description: Runs the command again when its error matches one of `retryable_errors`. [`--no-auto-retry`](/reference/cli/commands/run#no-auto-retry) turns off retries for a run.
+    labels:
+      - name: name
+        description: Names the rule. Terragrunt logs it with each retry.
+    attributes:
+      - name: retryable_errors
+        type: list(string)
+        required: true
+        description: Regular expressions for the errors to retry. A pattern that starts with `!` keeps a matching error from being retried. See [Matching errors](/reference/hcl/blocks/errors#matching-errors).
+      - name: max_attempts
+        type: number
+        required: true
+        description: How many times to run the command in total, the first run included, e.g. `3` for up to two retries. It must be at least `1`.
+      - name: sleep_interval_sec
+        type: number
+        required: true
+        description: Seconds to wait between attempts.
+    example: |
+      # terragrunt.hcl
+
+      errors {
+        retry "transient_errors" {
+          retryable_errors   = ["Error: transient"]
+          max_attempts       = 5
+          sleep_interval_sec = 10
+        }
+      }
+  - name: ignore
+    description: Treats a matching error as success. Terragrunt logs a warning with `message` and carries on.
+    labels:
+      - name: name
+        description: Names the rule.
+    attributes:
+      - name: ignorable_errors
+        type: list(string)
+        required: true
+        description: Regular expressions for the errors to ignore. A pattern that starts with `!` keeps a matching error from being ignored. See [Matching errors](/reference/hcl/blocks/errors#matching-errors).
+      - name: message
+        type: string
+        description: The warning Terragrunt logs when it ignores an error.
+      - name: signals
+        type: map(any)
+        description: Values Terragrunt writes as JSON to `error-signals.json` in the unit's directory when it ignores an error. See [Error signals](/reference/hcl/blocks/errors#error-signals).
+    example: |
+      # terragrunt.hcl
+
+      errors {
+        ignore "known_safe_errors" {
+          ignorable_errors = [
+            "Error: safe-to-ignore",
+            "!Error: critical",
+          ]
+          message = "Ignoring safe-to-ignore errors"
+          signals = {
+            safe_to_revert = true
+          }
+        }
+      }
+---
+
+A configuration file can have one `errors` block, holding any number of `retry` and `ignore` blocks.
+
+### Matching errors
+
+Terragrunt checks an error against the `ignore` blocks first, then the `retry` blocks, and the first block that matches handles the error. An error that matches both an `ignore` and a `retry` block is ignored, not retried.
+
+A block matches when the error matches at least one of its patterns and none of its `!` patterns, wherever the `!` pattern sits in the list. Patterns match anywhere in the error, so they need no leading or trailing `.*`.
+
+For a failed OpenTofu/Terraform command, the error is the command's stderr. Before matching, Terragrunt replaces every character other than letters, digits, spaces, and `. / ' " ( ) : = -` with a space, and joins the lines with single spaces. Write patterns against that text. An error that mentions `missing_file.txt` matches `missing file` but not `missing_file`:
+
+```hcl
+# terragrunt.hcl
+
+errors {
+  ignore "missing_file" {
+    ignorable_errors = ["no file exists at .*missing file"]
+  }
+}
+```
+
+### Error signals
+
+The `signals` of an `ignore` block tell automation what to do about an ignored error. Terragrunt writes them to `error-signals.json` in the unit's directory:
+
+```json
+{
+  "safe_to_revert": true
+}
+```
+
+A CI/CD pipeline can act on them, e.g. find every unit whose `error-signals.json` sets `safe_to_revert`, check out the previous commit for those units, and apply them to revert the change.
