@@ -85,7 +85,7 @@ e.g. A module might represent a generic pattern for a VPC, a database, or a serv
 
 Modules can be located either in the local filesystem, in a remote repository, or in any of [these supported locations](https://opentofu.org/docs/language/modules/sources/).
 
-To integrate a module into a Terragrunt unit, reference the module using the `source` attribute of the [terraform block](/reference/hcl/blocks#terraform).
+To integrate a module into a Terragrunt unit, reference the module using the `source` attribute of the [terraform block](/reference/hcl/blocks/terraform/).
 
 Terragrunt users typically spend a good deal of time authoring modules, as they are the primary way of defining the infrastructure patterns that Terragrunt is going to be orchestrating. Using tooling like [Terratest](https://github.com/gruntwork-io/terratest) can help to ensure that modules are well-tested and reliable.
 

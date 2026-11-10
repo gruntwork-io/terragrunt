@@ -19,6 +19,12 @@ export type BlockAttribute = NonNullable<CollectionEntry<'hclBlocks'>['data']['a
 
 export type BlockLabel = NonNullable<CollectionEntry<'hclBlocks'>['data']['labels']>[number];
 
+export type NestedBlock = NonNullable<CollectionEntry<'hclBlocks'>['data']['blocks']>[number];
+
+export type KeyGroups = NonNullable<BlockAttribute['keyGroups']>;
+
+export type MapKey = KeyGroups['groups'][number]['keys'][number];
+
 export type HclConfig = HclEntry['data']['configs'][number];
 
 type Heading = { depth: number; slug: string; text: string };
@@ -60,11 +66,20 @@ export function itemHeadings(entry: HclEntry, bodyHeadings: Heading[]): Heading[
 
 /**
  * Returns the fragments an item's page defines besides its fixed sections: the
- * slugs of the body's headings and, for a block, its attribute names.
+ * slugs of the body's headings and, for a block, its attribute names, key
+ * group sections, and nested block names.
  */
 export function itemAnchors(entry: HclEntry, bodyHeadings: Heading[]): string[] {
-	const attributes = entry.collection === 'hclBlocks' ? (entry.data.attributes ?? []).map((attr) => attr.name) : [];
-	return [...bodyHeadings.map((heading) => heading.slug), ...attributes];
+	if (entry.collection !== 'hclBlocks') return bodyHeadings.map((heading) => heading.slug);
+	const attributes = entry.data.attributes ?? [];
+	const keyGroups = attributeKeyGroups(attributes).flatMap((keys) => [keys.slug, ...keys.groups.map((group) => group.name)]);
+	const blocks = (entry.data.blocks ?? []).map((block) => block.name);
+	return [
+		...bodyHeadings.map((heading) => heading.slug),
+		...attributes.map((attr) => attr.name),
+		...keyGroups,
+		...blocks,
+	];
 }
 
 /**
@@ -100,9 +115,15 @@ export function referenceMarkdown(entry: HclEntry): { before: string; after: str
 			const labels = entry.data.labels ?? [];
 			const attributes = entry.data.attributes ?? [];
 			const examples = entry.data.examples ? [examplesMarkdown(entry.data.examples)] : [];
+			const blocks = entry.data.blocks ?? [];
 			const labelSections = labels.length ? ['## Labels', labels.map(blockLabelMarkdown).join('\n')] : [];
 			const sections = attributes.length ? ['## Attributes', ...attributes.map(blockAttributeMarkdown)] : [];
-			return { before: '## Usage', after: [...examples, ...labelSections, ...sections].join('\n\n') };
+			const keySections = attributeKeyGroups(attributes).map(keyGroupsMarkdown);
+			const blockSections = blocks.length ? ['## Blocks', ...blocks.map(nestedBlockMarkdown)] : [];
+			return {
+				before: '## Usage',
+				after: [...examples, ...labelSections, ...sections, ...keySections, ...blockSections].join('\n\n'),
+			};
 		}
 		case 'hclAttributes': {
 			const lines = [`**Type:** ${code(entry.data.type)}`];
@@ -146,11 +167,15 @@ function referenceHeadings(entry: HclEntry): Heading[] {
 		case 'hclBlocks': {
 			const labels = entry.data.labels?.length ? [{ depth: 2, slug: 'labels', text: 'Labels' }] : [];
 			const attributes = entry.data.attributes ?? [];
-			if (attributes.length === 0) return labels;
+			const blocks = entry.data.blocks ?? [];
 			return [
 				...labels,
-				{ depth: 2, slug: 'attributes', text: 'Attributes' },
-				...attributes.map((attr) => ({ depth: 3, slug: attr.name, text: attr.name })),
+				...namedSection('attributes', 'Attributes', attributes),
+				...attributeKeyGroups(attributes).flatMap((keys) => [
+					{ depth: 2, slug: keys.slug, text: keys.title },
+					...keys.groups.map((group) => ({ depth: 3, slug: group.name, text: group.title })),
+				]),
+				...namedSection('blocks', 'Blocks', blocks),
 			];
 		}
 		case 'hclAttributes':
@@ -166,6 +191,51 @@ function examplesMarkdown(examples: NonNullable<HclEntry['data']['examples']>): 
 		hclFence(example.code),
 	]);
 	return ['## Examples', ...lines].join('\n\n');
+}
+
+function namedSection(slug: string, text: string, items: { name: string }[]): Heading[] {
+	if (items.length === 0) return [];
+	return [{ depth: 2, slug, text }, ...items.map((item) => ({ depth: 3, slug: item.name, text: item.name }))];
+}
+
+function attributeKeyGroups(attributes: BlockAttribute[]): KeyGroups[] {
+	return attributes.flatMap((attr) => (attr.keyGroups ? [attr.keyGroups] : []));
+}
+
+function keyGroupsMarkdown(keys: KeyGroups): string {
+	const groups = keys.groups.map((group) =>
+		[
+			`### ${group.title}`,
+			...(group.description ? [group.description] : []),
+			group.keys.map((key) => mapKeyMarkdown(key, '')).join('\n'),
+			...(group.note ? [group.note] : []),
+		].join('\n\n'),
+	);
+	return [`## ${keys.title}`, keys.description, ...groups].join('\n\n');
+}
+
+function mapKeyMarkdown(key: MapKey, indent: string): string {
+	const meta = [code(key.type), key.required ? 'required' : 'optional'];
+	if (key.default !== undefined) meta.push(`default ${code(key.default)}`);
+	if (key.provisioning) meta.push('used by Terragrunt for backend provisioning');
+	if (key.deprecated) meta.push('deprecated');
+	const line = `${indent}- ${code(key.name)} (${meta.join(', ')}): ${key.description}`;
+	const children = (key.keys ?? []).map((child) => mapKeyMarkdown(child, `${indent}  `));
+	return [line, ...children].join('\n');
+}
+
+function nestedBlockMarkdown(block: NestedBlock): string {
+	const labels = (block.labels ?? []).map(blockLabelMarkdown);
+	const attributes = block.attributes.map((attr) => {
+		const meta = [code(attr.type), attr.required ? 'required' : 'optional'];
+		if (attr.default !== undefined) meta.push(`default ${code(attr.default)}`);
+		return `- ${code(attr.name)} (${meta.join(', ')}): ${attr.description}`;
+	});
+	const lists = [
+		...(labels.length ? ['Labels:', labels.join('\n')] : []),
+		...(attributes.length ? ['Attributes:', attributes.join('\n')] : []),
+	];
+	return [`### ${code(block.name)}`, block.description, ...lists, hclFence(block.example)].join('\n\n');
 }
 
 function blockLabelMarkdown(label: BlockLabel): string {

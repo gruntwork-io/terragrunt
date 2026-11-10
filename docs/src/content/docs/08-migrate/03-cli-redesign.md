@@ -261,7 +261,7 @@ This offers a flexible way to integrate Terragrunt with other tools, besides jus
 
 ### Use the new `backend` capabilities
 
-Previously, Terragrunt would automatically provision any backend resources defined in the [remote_state](/reference/hcl/blocks#remote_state) block of a `terragrunt.hcl` file.
+Previously, Terragrunt would automatically provision any backend resources defined in the [remote_state](/reference/hcl/blocks/remote_state/) block of a `terragrunt.hcl` file.
 
 This was a source of confusion for many users, as it was potentially performing additional actions that users did not intend without asking for it.
 
