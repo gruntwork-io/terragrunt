@@ -50,4 +50,4 @@ That is warned about by default too. Under the control it is an error naming bot
 /path/to/terragrunt.hcl: dependencies vpc and network both point at ../vpc; declare that dependency once and reference it under one name
 ```
 
-Blocks are compared by the address they resolve to rather than by label alone, so the elements of a block expanded with an [`expansion`](/reference/hcl/blocks#expansion) block, which all carry the label the block was written with, remain valid.
+Blocks are compared by the address they resolve to rather than by label alone, so the elements of a block expanded with an [`expansion`](/reference/hcl/blocks/expansion/) block, which all carry the label the block was written with, remain valid.

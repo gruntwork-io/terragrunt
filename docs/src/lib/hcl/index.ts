@@ -17,6 +17,8 @@ export type HclEntry =
 
 export type BlockAttribute = NonNullable<CollectionEntry<'hclBlocks'>['data']['attributes']>[number];
 
+export type BlockLabel = NonNullable<CollectionEntry<'hclBlocks'>['data']['labels']>[number];
+
 export type HclConfig = HclEntry['data']['configs'][number];
 
 type Heading = { depth: number; slug: string; text: string };
@@ -95,10 +97,12 @@ export function anchorRedirects(kind: HclKind, items: { name: string; anchors: s
 export function referenceMarkdown(entry: HclEntry): { before: string; after: string } {
 	switch (entry.collection) {
 		case 'hclBlocks': {
+			const labels = entry.data.labels ?? [];
 			const attributes = entry.data.attributes ?? [];
 			const examples = entry.data.examples ? [examplesMarkdown(entry.data.examples)] : [];
+			const labelSections = labels.length ? ['## Labels', labels.map(blockLabelMarkdown).join('\n')] : [];
 			const sections = attributes.length ? ['## Attributes', ...attributes.map(blockAttributeMarkdown)] : [];
-			return { before: '## Usage', after: [...examples, ...sections].join('\n\n') };
+			return { before: '## Usage', after: [...examples, ...labelSections, ...sections].join('\n\n') };
 		}
 		case 'hclAttributes': {
 			const lines = [`**Type:** ${code(entry.data.type)}`];
@@ -140,9 +144,11 @@ export function referenceMarkdown(entry: HclEntry): { before: string; after: str
 function referenceHeadings(entry: HclEntry): Heading[] {
 	switch (entry.collection) {
 		case 'hclBlocks': {
+			const labels = entry.data.labels?.length ? [{ depth: 2, slug: 'labels', text: 'Labels' }] : [];
 			const attributes = entry.data.attributes ?? [];
-			if (attributes.length === 0) return [];
+			if (attributes.length === 0) return labels;
 			return [
+				...labels,
 				{ depth: 2, slug: 'attributes', text: 'Attributes' },
 				...attributes.map((attr) => ({ depth: 3, slug: attr.name, text: attr.name })),
 			];
@@ -160,6 +166,10 @@ function examplesMarkdown(examples: NonNullable<HclEntry['data']['examples']>): 
 		hclFence(example.code),
 	]);
 	return ['## Examples', ...lines].join('\n\n');
+}
+
+function blockLabelMarkdown(label: BlockLabel): string {
+	return `- ${code(label.name)}: ${label.description}`;
 }
 
 function blockAttributeMarkdown(attr: BlockAttribute): string {

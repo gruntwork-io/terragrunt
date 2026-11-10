@@ -23,4 +23,4 @@ Any other CAS failure on a source, such as a store file that cannot be read, als
 terragrunt run --all --cas-offline -- plan
 ```
 
-Every source the CAS resolves through a cheap probe is covered: Git, HTTP and HTTPS, S3, GCS, OCI, the OpenTofu/Terraform registry, and Mercurial. A source with no cheap probe, such as an SMB share, has nothing recorded and is still fetched. Local paths are copied as usual. The flag has no effect when the CAS is disabled with `--no-cas`, and it cannot be combined with `--cas-refresh`.
+Every source the CAS resolves through a cheap probe is covered: Git, HTTP and HTTPS, S3, GCS, OCI, the OpenTofu/Terraform registry, and Mercurial. A source with no cheap probe, such as an SMB share, has nothing recorded and is still fetched. A source pinned with a literal `checksum=` needs no recorded probe, since the checksum is its key, while one whose checksum comes from a `checksum=file:` reference fails, since the checksum is not known until the file is read. Local paths are copied as usual. The flag has no effect when the CAS is disabled with `--no-cas`, and it cannot be combined with `--cas-refresh`.

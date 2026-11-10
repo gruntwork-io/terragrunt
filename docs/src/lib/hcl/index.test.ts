@@ -94,6 +94,14 @@ describe('itemHeadings', () => {
 		]);
 	});
 
+	test('puts Labels before Attributes for a block with both', () => {
+		const entry = blockEntry({
+			labels: [{ name: 'name', description: 'Name.' }],
+			attributes: [{ name: 'path', type: 'string', required: true, description: 'Path.', example: '' }],
+		});
+		expect(slugs(entry)).toEqual(['usage', 'examples', 'labels', 'attributes', 'path']);
+	});
+
 	test('omits Examples for a block with none', () => {
 		const entry = blockEntry({
 			examples: undefined,
@@ -192,6 +200,13 @@ describe('referenceMarkdown', () => {
 		const entry = attributeEntry({ note: { title: 'Engines', body: 'Skipped with an [engine](/engine/).' } });
 		expect(referenceMarkdown(entry).after).toBe(
 			['## Examples', '```hcl\nx = 1\n```', '> **Engines:** Skipped with an [engine](/engine/).'].join('\n\n'),
+		);
+	});
+
+	test('lists block labels after the examples', () => {
+		const entry = blockEntry({ labels: [{ name: 'name', description: 'Names the unit.' }] });
+		expect(referenceMarkdown(entry).after).toBe(
+			['## Examples', '```hcl\nx = 1\n```', '## Labels', '- `name`: Names the unit.'].join('\n\n'),
 		);
 	});
 

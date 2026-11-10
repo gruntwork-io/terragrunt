@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -486,6 +487,20 @@ func (err StackUnitOutputFetchError) Error() string {
 }
 
 func (err StackUnitOutputFetchError) Unwrap() error {
+	return err.Err
+}
+
+// StackPackageFetchError is returned when a stack component's package cannot be fetched through the CAS.
+type StackPackageFetchError struct {
+	Err    error
+	Source redact.URL
+}
+
+func (err StackPackageFetchError) Error() string {
+	return fmt.Sprintf("failed to fetch %s through CAS: %v", err.Source, err.Err)
+}
+
+func (err StackPackageFetchError) Unwrap() error {
 	return err.Err
 }
 

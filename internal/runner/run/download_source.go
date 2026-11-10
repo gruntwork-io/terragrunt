@@ -737,8 +737,11 @@ func tryCASDownload(
 // outright, and while --cas-offline is set no source reaching here has a
 // fallback left: a local path never gets this far, so every route the
 // standard getter has is to the remote the flag forbids.
+// A checksum mismatch or an unresolved subdir glob fails the same way after a second download.
 func casFailureIsFatal(opts *Options, err error) bool {
-	if errors.Is(err, cas.ErrCASOffline) {
+	var checksumErr *getter.ChecksumError
+
+	if errors.Is(err, cas.ErrCASOffline) || errors.Is(err, getter.ErrSubdirNotResolved) || errors.As(err, &checksumErr) {
 		return true
 	}
 

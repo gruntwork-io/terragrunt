@@ -193,7 +193,7 @@ func TestGitStoreEnsureRefLockReleaseAllowsWaiterToProceedWithRacing(t *testing.
 	require.NoError(t, repo2.Unlock())
 }
 
-// TestGitStoreEnsureRefLockWaitProgress runs on real time, as a synctest bubble cannot wait on the real Git server.
+// TestGitStoreEnsureRefLockWaitProgress checks that the lock wait is drawn with a reporter and hides the password.
 func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
 	t.Parallel()
 
@@ -225,13 +225,7 @@ func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
 			holder, err := store.EnsureRef(t.Context(), logger.CreateLogger(), gv, shownURL, "main", hash, 0)
 			require.NoError(t, err)
 
-			released := make(chan error, 1)
-
-			go func() {
-				time.Sleep(50 * time.Millisecond)
-
-				released <- holder.Unlock()
-			}()
+			released := unlockAfter(holder, 50*time.Millisecond)
 
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
@@ -315,6 +309,19 @@ func resolveHead(t *testing.T, url string) string {
 	require.NotEmpty(t, results)
 
 	return results[0].Hash
+}
+
+// unlockAfter unlocks repo after delay on the real clock, as a synctest bubble cannot wait on git or its server.
+func unlockAfter(repo *cas.GitStoreRepo, delay time.Duration) <-chan error {
+	released := make(chan error, 1)
+
+	go func() {
+		time.Sleep(delay)
+
+		released <- repo.Unlock()
+	}()
+
+	return released
 }
 
 // drawingReporter returns a reporter that draws its progress line on term from the start.

@@ -2,6 +2,7 @@ package getter_test
 
 import (
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -89,8 +90,7 @@ func TestDetectWithErrorPropagates(t *testing.T) {
 	det := []getter.Detector{erroringDetector{err: want}}
 
 	_, err := getter.DetectWith("foo", "/tmp", det)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, want)
+	require.ErrorIs(t, err, want)
 }
 
 // TestDetectWithNoMatchReturnsOriginal is the contract when no detector in
@@ -157,6 +157,41 @@ func TestFileURL(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tc.want, getter.FileURL(tc.path).String())
+		})
+	}
+}
+
+func TestIsArchiveURL(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{name: "zip extension", raw: "https://example.com/catalog.zip", want: true},
+		{name: "tar.gz extension", raw: "https://example.com/catalog.tar.gz", want: true},
+		{name: "archive query names a format", raw: "https://example.com/catalog?archive=zip", want: true},
+		{name: "archive query names an unknown format", raw: "https://example.com/catalog?archive=bogus", want: false},
+		{name: "archive query enabled with an extension", raw: "https://example.com/catalog.zip?archive=true", want: true},
+		{
+			name: "archive query enabled without an extension",
+			raw:  "https://example.com/acme/catalog?archive=true",
+			want: false,
+		},
+		{name: "archive query disabled", raw: "https://example.com/catalog.zip?archive=false", want: false},
+		{name: "repository path", raw: "https://example.com/acme/catalog.git", want: false},
+		{name: "plain path", raw: "https://example.com/acme/catalog", want: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			u, err := url.Parse(tc.raw)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, getter.IsArchiveURL(u))
 		})
 	}
 }
