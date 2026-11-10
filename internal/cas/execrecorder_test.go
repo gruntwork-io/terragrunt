@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // stubHash is the commit hash lsRemoteStub reports.
@@ -36,7 +35,7 @@ type lsRemoteStub struct {
 
 // venv returns an in-memory bundle whose git is the stub.
 func (s *lsRemoteStub) venv() *venv.Venv {
-	return venvtest.New().WithExec(newStubGitExec(
+	return venv.MemVenv().WithExec(newStubGitExec(
 		func(ctx context.Context, inv vexec.Invocation) vexec.Result {
 			if len(inv.Args) == 0 || inv.Args[0] != "ls-remote" {
 				return vexec.Result{}

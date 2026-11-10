@@ -9,10 +9,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ func TestNoHooksFlagSetsNoRunHooks(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venv.MemVenv(), nil)
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}, map[string]string{}))
 	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
@@ -32,7 +32,7 @@ func TestNoDependencyOutputsFlagSetsSkipOutput(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venv.MemVenv(), nil)
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}, map[string]string{}))
 	require.NoError(t, flags.RunActions(context.Background(), &clihelper.Context{}))
@@ -287,7 +287,7 @@ func TestNewFlagsReportFlagsSetTheReportFormat(t *testing.T) {
 func parseRunFlags(t *testing.T, opts *options.TerragruntOptions, args clihelper.Args) error {
 	t.Helper()
 
-	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
+	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venv.MemVenv(), nil)
 
 	if err := flags.Parse(args, map[string]string{}); err != nil {
 		return err

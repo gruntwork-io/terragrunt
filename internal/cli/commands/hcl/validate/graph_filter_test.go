@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -42,7 +44,7 @@ func runValidate(t *testing.T, run validateRun) validateResult {
 	var stdout bytes.Buffer
 
 	root := venvtest.Root("/repo")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, run.files)).WithWriter(&stdout)
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, run.files)).WithWriter(&stdout)
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(
@@ -59,7 +61,10 @@ func runValidate(t *testing.T, run validateRun) validateResult {
 		require.NoError(t, opts.StrictControls.EnableControl(name))
 	}
 
-	result := validateResult{root: root, err: validate.RunValidate(config.WithCaches(t.Context()), l, v, opts)}
+	result := validateResult{
+		root: root,
+		err:  validate.RunValidate(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts),
+	}
 
 	if stdout.Len() > 0 {
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &result.diags))
@@ -328,7 +333,7 @@ func TestRunValidateShowsPathsRelativeToWorkingDir(t *testing.T) {
 	var stdout bytes.Buffer
 
 	root := venvtest.Root("/repo")
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, map[string]string{
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
 		"live/app/terragrunt.hcl": "dependency \"db\" {\n  config_path = \"../db\"\n}\n",
 	})).WithWriter(&stdout)
 
@@ -337,7 +342,10 @@ func TestRunValidateShowsPathsRelativeToWorkingDir(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	require.Error(t, validate.RunValidate(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
+	require.Error(
+		t,
+		validate.RunValidate(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts),
+	)
 
 	assert.Contains(t, stdout.String(), " --> "+filepath.Join("app", "terragrunt.hcl")+":2:17\n")
 }

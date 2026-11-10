@@ -1,9 +1,9 @@
-package mcp_test
+package venv_test
 
 import (
 	"testing"
 
-	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -209,7 +209,7 @@ func TestAllowCmdMatchesWordByWord(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			cmd, err := tgmcp.ParseAllowCmd(tc.pattern)
+			cmd, err := venv.ParseAllowCmd(tc.pattern)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.want, cmd.Matches(tc.program, tc.args))
@@ -237,8 +237,8 @@ func TestParseAllowCmdRefusesAPatternItCannotHonor(t *testing.T) {
 		t.Run(pattern, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := tgmcp.ParseAllowCmd(pattern)
-			require.ErrorIs(t, err, tgmcp.ErrInvalidAllowCmd)
+			_, err := venv.ParseAllowCmd(pattern)
+			require.ErrorIs(t, err, venv.ErrInvalidAllowCmd)
 		})
 	}
 }

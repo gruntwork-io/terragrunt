@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -18,7 +19,7 @@ func TestNewCommandExposesTheFormatFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := format.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
+		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venv.MemVenv(),
 	)
 
 	assert.Equal(t, format.CommandName, cmd.Name)
@@ -49,7 +50,7 @@ func TestNewCommandActionFormatsTheWorkingDir(t *testing.T) {
 
 	opts.WorkingDir = root
 
-	cmd := format.NewCommand(logger.CreateLogger(), opts, venvtest.New().WithFS(fsys))
+	cmd := format.NewCommand(logger.CreateLogger(), opts, venv.MemVenv().WithFS(fsys))
 
 	require.NoError(t, cmd.Action(t.Context(), &clihelper.Context{}))
 	assert.Equal(t, formatFormatted, readFixture(t, fsys, root, "terragrunt.hcl"))
@@ -89,7 +90,7 @@ func TestNewFlagsMapsEachEnvVarToOneFlag(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
-			flagSet := format.NewFlags(logger.CreateLogger(), opts, venvtest.New(), nil)
+			flagSet := format.NewFlags(logger.CreateLogger(), opts, venv.MemVenv(), nil)
 
 			require.NoError(t, flagSet.Parse(clihelper.Args{}, map[string]string{tc.envVar: "true"}))
 

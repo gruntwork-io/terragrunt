@@ -38,11 +38,6 @@ func CloneFile(fsys FS, oldname, newname string) error {
 // with nothing to share between two files, so the clone is a full copy; it
 // reports the same outcomes a copy-on-write clone would, and refuses a symlink
 // at oldname with ELOOP as the Linux clone does.
-//
-// The content moves in one read and one write rather than through a copy
-// buffer. Every write to an in-memory file reallocates and recopies the
-// whole destination, so streaming a 4 MiB file in 32 KiB chunks costs seven
-// times the time and nearly three times the allocation of reading it once.
 func (fsys *memMapFS) CloneFileIfPossible(oldname, newname string) error {
 	linkErr := func(err error) error {
 		return &os.LinkError{Op: cloneOp, Old: oldname, New: newname, Err: err}
@@ -64,6 +59,10 @@ func (fsys *memMapFS) CloneFileIfPossible(oldname, newname string) error {
 		return linkErr(err)
 	}
 
+	// One read and one write rather than a copy buffer: every write to an
+	// in-memory file reallocates and recopies the whole destination, so
+	// streaming a 4 MiB file in 32 KiB chunks measured seven times slower
+	// with nearly three times the allocation.
 	data, err := afero.ReadFile(fsys.Fs, oldResolved)
 	if err != nil {
 		return linkErr(err)

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +66,7 @@ func TestWriterShowConfigPath(t *testing.T) {
 	}{
 		{
 			name:     "human",
-			render:   view.NewHumanRender(venvtest.New(), true),
+			render:   view.NewHumanRender(venv.MemVenv(), true),
 			expected: "app/terragrunt.hcl\ndb/terragrunt.hcl\n",
 		},
 		{
@@ -94,7 +94,7 @@ func TestWriterDiagnosticsRenderError(t *testing.T) {
 
 	var out bytes.Buffer
 
-	err := view.NewWriter(&out, view.NewHumanRender(venvtest.New(), true)).Diagnostics(diagnostic.Diagnostics{{
+	err := view.NewWriter(&out, view.NewHumanRender(venv.MemVenv(), true)).Diagnostics(diagnostic.Diagnostics{{
 		Range:    &diagnostic.Range{Filename: "terragrunt.hcl"},
 		Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 		Summary:  "Unsupported block type",

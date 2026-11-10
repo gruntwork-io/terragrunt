@@ -88,7 +88,7 @@ func (fsys lockingFS) TryLock(name string) (vfs.Unlocker, bool, error) {
 func TestSaveTokenRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, portalBaseURL, issuedToken("org_fake", "Acme"))
 
@@ -110,7 +110,7 @@ func TestSaveTokenRoundTrip(t *testing.T) {
 func TestSaveTokenKeepsTheTokensForOtherOrgs(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, portalBaseURL, issuedToken("org_one", "Acme"))
 	saveToken(t, v, portalBaseURL, issuedToken("org_two", "Initech"))
@@ -129,7 +129,7 @@ func TestSaveTokenKeepsTheTokensForOtherOrgs(t *testing.T) {
 func TestSaveTokenKeepsBothCredentialsWithRacing(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	orgIDs := []string{"org_one", "org_two", "org_three", "org_four", "org_five", "org_six"}
 
@@ -152,7 +152,7 @@ func TestSaveTokenKeepsBothCredentialsWithRacing(t *testing.T) {
 func TestSaveTokenKeepsTheTokensForOtherPortals(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, portalBaseURL, issuedToken("org_fake", "Acme"))
 	saveToken(t, v, previewPortalBaseURL, issuedToken("org_fake", "Acme"))
@@ -172,7 +172,7 @@ func TestSaveTokenKeepsTheTokensForOtherPortals(t *testing.T) {
 func TestLoadCredentialsKeepsTheSchemesApart(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, "https://portal.example.com", issuedToken("org_fake", "Acme"))
 
@@ -186,7 +186,7 @@ func TestLoadCredentialsKeepsTheSchemesApart(t *testing.T) {
 func TestLoadCredentialsReadsOnePortalWrittenSeveralWays(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, "https://portal.example.com", issuedToken("org_fake", "Acme"))
 
@@ -207,7 +207,7 @@ func TestLoadCredentialsReadsOnePortalWrittenSeveralWays(t *testing.T) {
 func TestSaveTokenRefreshesTheOrgName(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, portalBaseURL, issuedToken("org_fake", "Acme"))
 	saveToken(t, v, portalBaseURL, issuedToken("org_fake", "Acme Holdings"))
@@ -224,7 +224,7 @@ func TestLoadCredentialsLeavesOutAnExpiredToken(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		v := venvtest.New()
+		v := venv.MemVenv()
 
 		saveToken(t, v, portalBaseURL, issuedToken("org_fake", "Acme"))
 		require.Len(t, loadTokens(t, v, portalBaseURL), 1)
@@ -243,7 +243,7 @@ func TestLoadCredentialsReportsAnOrgWhoseTokenRanOut(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		v := venvtest.New()
+		v := venv.MemVenv()
 
 		saveToken(t, v, portalBaseURL, issuedToken("org_fake", "Acme"))
 
@@ -265,7 +265,7 @@ func TestSaveTokenTakesAnExpiredTokenOffDisk(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		v := venvtest.New()
+		v := venv.MemVenv()
 
 		saveToken(t, v, portalBaseURL, issuedToken("org_old", "Acme"))
 		saveToken(t, v, previewPortalBaseURL, issuedToken("org_old", "Acme"))
@@ -285,7 +285,7 @@ func TestSaveTokenTakesAnExpiredTokenOffDisk(t *testing.T) {
 func TestSaveTokenWritesAnOwnerOnlyStore(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, portalBaseURL, issuedToken("org_fake", "Acme"))
 
@@ -316,7 +316,7 @@ func (fsys *wideCreateFS) OpenFile(name string, flag int, _ os.FileMode) (vfs.Fi
 func TestSaveTokenClosesAScratchFileCreatedWide(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v.WithFS(&wideCreateFS{FS: v.FS}), portalBaseURL, issuedToken("org_fake", "Acme"))
 
@@ -332,7 +332,7 @@ func TestSaveTokenClosesAScratchFileCreatedWide(t *testing.T) {
 func TestSaveTokenTightensAStoreThatWasAlreadyThere(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, portalBaseURL, issuedToken("org_one", "Acme"))
 
@@ -403,7 +403,7 @@ func TestLoadCredentialsIgnoresAStoreItCannotRead(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			path := storePath(t, v)
 
 			require.NoError(t, vfs.EnsureDirectory(v.FS, filepath.Dir(path)))
@@ -436,7 +436,7 @@ func (fsys *renameFailingFS) Rename(_, _ string) error {
 func TestSaveTokenLeavesTheStoreIntactWhenTheWriteFails(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, portalBaseURL, issuedToken("org_one", "Acme"))
 
@@ -470,7 +470,7 @@ func storeDirEntries(t *testing.T, v *venv.Venv) []string {
 func TestSaveTokenRejectsUnusableBaseURL(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	tc := []struct {
 		want    error
@@ -502,7 +502,7 @@ func TestSaveTokenRejectsUnusableBaseURL(t *testing.T) {
 func TestStoredTokenDoesNotReachFormattedOutput(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	saveToken(t, v, portalBaseURL, issuedToken("org_fake", "Acme"))
 

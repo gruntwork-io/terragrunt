@@ -89,6 +89,7 @@ func GenerateEmptyUnits(b *testing.B, dir string, n int) {
 	GenerateNUnits(b, dir, n, includeRootConfig, emptyMainTf)
 }
 
+// Init runs `terragrunt run --all init` in dir and reports its duration as the init_s/op metric.
 func Init(b *testing.B, dir string) {
 	b.Helper()
 
@@ -111,6 +112,7 @@ func Init(b *testing.B, dir string) {
 	b.ReportMetric(float64(planDuration.Seconds()), "init_s/op")
 }
 
+// Plan runs `terragrunt run --all plan` in dir and reports its duration as the plan_s/op metric.
 func Plan(b *testing.B, dir string) {
 	b.Helper()
 
@@ -133,6 +135,7 @@ func Plan(b *testing.B, dir string) {
 	b.ReportMetric(float64(planDuration.Seconds()), "plan_s/op")
 }
 
+// Apply runs `terragrunt run --all apply` in dir and reports its duration as the apply_s/op metric.
 func Apply(b *testing.B, dir string) {
 	b.Helper()
 
@@ -155,6 +158,7 @@ func Apply(b *testing.B, dir string) {
 	b.ReportMetric(float64(applyDuration.Seconds()), "apply_s/op")
 }
 
+// ApplyWithRunnerPool is [Apply] with the runner-pool experiment enabled.
 func ApplyWithRunnerPool(b *testing.B, dir string) {
 	b.Helper()
 

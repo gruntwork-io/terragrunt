@@ -11,14 +11,15 @@ import (
 
 	hclvalidate "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -90,7 +91,7 @@ func runValidate(
 	// diagnostics are being collected.
 	opts.SkipOutput = true
 
-	if d.allowExec {
+	if d.granted.Has(venv.CapabilityExec) {
 		// The full parse's dependency-output fetches drive real runs into
 		// the shared per-unit cache dirs.
 		release, err := d.acquireRunSlot(ctx)
@@ -171,19 +172,22 @@ func runValidate(
 	for _, parseErr := range parseErrs {
 		// Exec-denied failures are sandbox artifacts, not configuration
 		// bugs: surface them as degradation so agents don't chase them.
-		if errors.Is(parseErr, ErrExecDenied) {
+		if errors.Is(parseErr, venv.ErrExecDenied) {
 			degraded = append(
 				degraded,
-				fmt.Sprintf("parse degraded by disabled subprocess execution: %v", parseErr),
+				fmt.Sprintf(
+					"parse degraded by disabled subprocess execution; restart the MCP server with --allow=exec: %v",
+					parseErr,
+				),
 			)
 
 			continue
 		}
 
-		if errors.Is(parseErr, ErrSopsDenied) {
+		if errors.Is(parseErr, venv.ErrSopsDenied) {
 			degraded = append(
 				degraded,
-				fmt.Sprintf("parse degraded by disabled SOPS decryption: %v", parseErr),
+				fmt.Sprintf("parse degraded by disabled SOPS decryption; restart the MCP server with --allow=sops: %v", parseErr),
 			)
 
 			continue
@@ -243,7 +247,7 @@ func validateDiscoveredTree(
 		disc = disc.WithWorktrees(w)
 	}
 
-	components, discErr := disc.Discover(ctx, l, v, opts)
+	components, discErr := disc.Discover(ctx, l, v, new(rewrite.Store), opts)
 	if discErr != nil && len(components) == 0 {
 		return nil, nil, discErr
 	}

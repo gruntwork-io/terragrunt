@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -69,7 +70,7 @@ func newFakeRepo(t *testing.T, fsys vfs.FS, repoDir string) *module.Repo {
 	repo, err := module.NewRepo(
 		t.Context(),
 		logger.CreateLogger(),
-		venvtest.New().WithFS(fsys),
+		venv.MemVenv().WithFS(fsys),
 		&module.RepoOpts{
 			CloneURL:       repoDir,
 			Path:           repoDir,

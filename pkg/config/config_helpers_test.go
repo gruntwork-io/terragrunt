@@ -1097,7 +1097,7 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 func newMemTestDir(tb testing.TB) (*venv.Venv, string) {
 	tb.Helper()
 
-	return venvtest.New(), tb.TempDir()
+	return venv.MemVenv(), tb.TempDir()
 }
 
 // newTestParsingContext creates a ParsingContext for configPath with the defaults

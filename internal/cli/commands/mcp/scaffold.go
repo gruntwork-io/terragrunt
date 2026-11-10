@@ -14,11 +14,11 @@ import (
 
 	bpconfig "github.com/gruntwork-io/boilerplate/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/modelcontextprotocol/go-sdk/mcp"

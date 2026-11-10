@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	// DownloadDirFlagName is the flag name for `--download-dir`, the directory Terragrunt downloads
+	// modules into.
 	DownloadDirFlagName = "download-dir"
 )
 

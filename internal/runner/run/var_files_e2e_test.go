@@ -23,10 +23,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestRunWritesVarFilesToCacheDir(t *testing.T) {
@@ -34,7 +34,7 @@ func TestRunWritesVarFilesToCacheDir(t *testing.T) {
 
 	s := setupRunE2EScaffold(t)
 	files := &varFilesRecorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(files.handler())).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(files.handler())).WithFS(vfs.NewOSFS())
 
 	cfg := &runcfg.RunConfig{
 		Inputs: map[string]any{"from_env": "env"},
@@ -107,7 +107,7 @@ func TestRunWritesTFVarsThatParse(t *testing.T) {
 
 			s := setupRunE2EScaffold(t)
 			files := &varFilesRecorder{}
-			v := venvtest.New().WithExec(vexec.NewMemExec(files.handler())).WithFS(vfs.NewOSFS())
+			v := venv.MemVenv().WithExec(vexec.NewMemExec(files.handler())).WithFS(vfs.NewOSFS())
 
 			cfg := &runcfg.RunConfig{TFVarsInputs: map[string]any{"value": tc.value}}
 
@@ -151,7 +151,7 @@ func TestRunWritesVarFilesForOwnerOnly(t *testing.T) {
 
 	s := setupRunE2EScaffold(t)
 	files := &varFilesRecorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(files.handler())).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(files.handler())).WithFS(vfs.NewOSFS())
 
 	cfg := &runcfg.RunConfig{
 		TFVarsInputs: map[string]any{"name": "value"},
@@ -190,7 +190,7 @@ variable "from_json" {}
 `), 0o644))
 
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	opts := newRunE2EOpts(t, s, "plan")
 	opts.Debug = true
@@ -213,7 +213,7 @@ func TestRunWritesVarFilesForInputsSetInEnv(t *testing.T) {
 
 	s := setupRunE2EScaffold(t)
 	files := &varFilesRecorder{}
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithExec(vexec.NewMemExec(files.handler())).
 		WithFS(vfs.NewOSFS()).
 		WithEnv(map[string]string{"TF_VAR_name": `"from-env"`, "TF_VAR_other": `"from-env"`})
@@ -247,7 +247,7 @@ func TestRunRemovesStaleVarFilesFromCacheDir(t *testing.T) {
 
 	s := setupRunE2EScaffold(t)
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 	opts := newRunE2EOpts(t, s, "plan")
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.VariablesBlock))
@@ -289,7 +289,7 @@ func TestRunReservesVarFileNamesOnlyWithTheExperiment(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(s.dir, run.JSONVarsFile), []byte(`{"other": "mine"}`), 0o644))
 
 			rec := &recorder{}
-			v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+			v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 			opts := newRunE2EOpts(t, s, "plan")
 			if tc.experiment {
@@ -321,7 +321,7 @@ func TestRunNoDotTerragruntCacheVarFilesAreWrittenForTheRun(t *testing.T) {
 
 	s := setupRunE2EScaffold(t)
 	files := &varFilesRecorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(files.handler())).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(files.handler())).WithFS(vfs.NewOSFS())
 
 	cfg := &runcfg.RunConfig{
 		Terraform:    runcfg.TerraformConfig{NoDotTerragruntCache: true},
@@ -353,7 +353,7 @@ func TestRunNoDotTerragruntCacheVarFilesKeepExistingFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(tfvars, []byte(`name = "mine"`), 0o644))
 
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	cfg := &runcfg.RunConfig{
 		Terraform:    runcfg.TerraformConfig{NoDotTerragruntCache: true},
@@ -384,7 +384,7 @@ func TestRunNoDotTerragruntCacheRemovesWrittenFileWhenALaterWriteFails(t *testin
 	require.NoError(t, os.WriteFile(existing, []byte(`{"name": "mine"}`), 0o644))
 
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	cfg := &runcfg.RunConfig{
 		Terraform:    runcfg.TerraformConfig{NoDotTerragruntCache: true},
@@ -417,7 +417,7 @@ func TestRunNoDotTerragruntCacheKeepsFileOfUnusedKind(t *testing.T) {
 	require.NoError(t, os.WriteFile(jsonVars, []byte(`{"name": "mine"}`), 0o644))
 
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	cfg := &runcfg.RunConfig{
 		Terraform:    runcfg.TerraformConfig{NoDotTerragruntCache: true},
@@ -439,7 +439,7 @@ func TestRunRejectsTFVarsInputWithInvalidName(t *testing.T) {
 
 	s := setupRunE2EScaffold(t)
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	cfg := &runcfg.RunConfig{TFVarsInputs: map[string]any{"not-valid.name": "value"}}
 
@@ -481,7 +481,7 @@ func TestRunValidatesDeclaredInputs(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(s.dir, "main.tf"), []byte(tc.module), 0o644))
 
 			rec := &recorder{}
-			v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+			v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 			validated := map[string]struct{}{"declared": {}}
 			if tc.undeclared != nil {
@@ -521,7 +521,7 @@ func TestRunValidatesDeclaredInputsReportsInvalidModule(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(s.dir, "main.tf"), []byte(`variable {{{`), 0o644))
 
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	cfg := &runcfg.RunConfig{ValidatedInputs: map[string]struct{}{"name": {}}}
 
@@ -546,7 +546,7 @@ terraform {
 `), 0o644))
 
 	rec := &recorder{}
-	v := venvtest.New().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
 
 	opts := newRunE2EOpts(t, s, "init")
 	opts.BackendBootstrap = true

@@ -151,7 +151,7 @@ func TestProviderServiceInitFailsWithoutSafeTempDir(t *testing.T) {
 func TestProviderServiceInitOnMemFS(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	service := services.NewProviderService(venvtest.Root("/cache/providers"), "", nil, logger.CreateLogger(), v)
 

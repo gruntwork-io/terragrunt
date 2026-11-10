@@ -18,6 +18,8 @@ const (
 	downloadPath = "/downloads"
 )
 
+// DownloaderController serves provider archives from the cache when it has them, and proxies
+// the download from the remote host otherwise.
 type DownloaderController struct {
 	*router.Router
 

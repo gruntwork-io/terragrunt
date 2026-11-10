@@ -1,0 +1,46 @@
+---
+name: iam_web_identity_token
+description: Sets the web identity token, or the path to it, for assuming iam_role with AssumeRoleWithWebIdentity.
+configs: [unit]
+type: string
+examples:
+  - description: If your Git provider provides the OIDC token as an environment variable, read it with `get_env()`.
+    code: |
+      # terragrunt.hcl
+
+      iam_role = "arn:aws:iam::<AWS account number>:role/<IAM role name>"
+
+      iam_web_identity_token = get_env("<variable name>")
+  - description: If your Git provider provides the OIDC token as a file, pass the file's path.
+    code: |
+      # terragrunt.hcl
+
+      iam_role = "arn:aws:iam::<AWS account number>:role/<IAM role name>"
+
+      iam_web_identity_token = "/path/to/token/file"
+---
+
+The `iam_web_identity_token` attribute works with `iam_role` to assume a role using AssumeRoleWithWebIdentity, and has no effect without it. Set it to either the token value (typically using `get_env()`) or the path to a file on disk.
+
+AssumeRoleWithWebIdentity lets you run Terragrunt in your CI/CD pipelines without static AWS credentials.
+
+### Precedence
+
+Terragrunt uses the first of these that is set:
+
+1. The [`--iam-assume-role-web-identity-token`](/reference/cli/commands/run#iam-assume-role-web-identity-token) flag.
+2. The `TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` environment variable.
+3. `iam_web_identity_token` in the unit's `terragrunt.hcl`.
+4. `iam_web_identity_token` in a file the unit includes.
+
+### Git provider configuration
+
+To use AssumeRoleWithWebIdentity in your CI/CD environment, you must first configure an AWS [OpenID Connect provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) to trust the OIDC service provided by your Git provider.
+
+Follow the instructions for whichever Git provider you use:
+
+- GitLab: [Configure OpenID Connect in AWS to retrieve temporary credentials](https://docs.gitlab.com/ee/ci/cloud_services/aws/)
+- GitHub: [Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
+- CircleCI: [Using OpenID Connect tokens in jobs](https://circleci.com/docs/openid-connect-tokens/)
+
+Once you have configured your OpenID Connect provider and the trust policy of your IAM role, configure Terragrunt to use the Web Identity Token as shown in the examples below.

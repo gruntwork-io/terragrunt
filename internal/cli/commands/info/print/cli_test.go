@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -43,8 +44,8 @@ var (
 func TestNewCommandExposesThePrintFlags(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
-	cmd := print.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v)
+	v := venv.MemVenv()
+	cmd := print.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
 
 	assert.Equal(t, print.CommandName, cmd.Name)
 
@@ -72,7 +73,7 @@ func TestNewCommandPrintsTheUnitContext(t *testing.T) {
 			t.Parallel()
 
 			out := new(bytes.Buffer)
-			v := venvtest.New().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+			v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 				"unit/terragrunt.hcl": tc.hcl,
 			}))
 
@@ -80,7 +81,7 @@ func TestNewCommandPrintsTheUnitContext(t *testing.T) {
 			opts := newOpts(t, v, configPath)
 			opts.TFPath = "tofu"
 
-			require.NoError(t, runCommand(t, print.NewCommand(logger.CreateLogger(), opts, v)))
+			require.NoError(t, runCommand(t, print.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store))))
 
 			var got print.InfoOutput
 
@@ -98,12 +99,15 @@ func TestNewCommandAllPrintsOneLinePerUnit(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	v := venvtest.New().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+	v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 		"a/terragrunt.hcl": "",
 		"b/terragrunt.hcl": invalidHCL,
 	}))
 
-	require.NoError(t, runCommand(t, print.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v), "--all"))
+	require.NoError(
+		t,
+		runCommand(t, print.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v, new(rewrite.Store)), "--all"),
+	)
 
 	var workingDirs []string
 
@@ -146,7 +150,7 @@ func TestRunReportsAWriteFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithWriter(failingWriter{}).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+			v := venv.MemVenv().WithWriter(failingWriter{}).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 				"a/terragrunt.hcl": "",
 				"b/terragrunt.hcl": "",
 			}))
@@ -155,7 +159,7 @@ func TestRunReportsAWriteFailure(t *testing.T) {
 			opts.RunAll = tc.runAll
 			opts.FailFast = tc.failFast
 
-			err := print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+			err := print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 			require.ErrorIs(t, err, errWrite)
 
 			var joined interface{ Unwrap() []error }
@@ -181,13 +185,13 @@ func TestRunIgnoresAWriteFailureAfterAPreparationFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithWriter(failingWriter{}).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+			v := venv.MemVenv().WithWriter(failingWriter{}).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
 				"unit/terragrunt.hcl": tc.hcl,
 			}))
 
 			opts := newOpts(t, v, filepath.Join(memRoot, "unit", "terragrunt.hcl"))
 
-			require.NoError(t, print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts))
+			require.NoError(t, print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
 		})
 	}
 }
@@ -196,12 +200,12 @@ func TestRunIgnoresAWriteFailureAfterAPreparationFailure(t *testing.T) {
 func TestRunAllFailsOnAMissingWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	opts := newOpts(t, v, "")
 	opts.WorkingDir = filepath.Join(memRoot, "missing")
 	opts.RunAll = true
 
-	err := print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+	err := print.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 

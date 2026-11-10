@@ -6,6 +6,7 @@ import (
 
 	runcommand "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,7 @@ func TestNewCommandExposesEveryOpenTofuTerraformCommand(t *testing.T) {
 	rec := &recorder{}
 	v := rec.venv(t, nil)
 
-	cmd := runcommand.NewCommand(logger.CreateLogger(), newOpts(t, v, "", ""), v)
+	cmd := runcommand.NewCommand(logger.CreateLogger(), newOpts(t, v, "", ""), v, new(rewrite.Store))
 
 	assert.Equal(t, runcommand.CommandName, cmd.Name)
 	assert.NotNil(t, cmd.Flags.Get(shared.AllFlagName), shared.AllFlagName)
@@ -42,7 +43,7 @@ func TestNewCommandShowsHelpWithoutACommand(t *testing.T) {
 	rec := &recorder{}
 	v := rec.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
 
-	cmd := runcommand.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit", tf.CommandNamePlan), v)
+	cmd := runcommand.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit", tf.CommandNamePlan), v, new(rewrite.Store))
 	cmd.CustomHelpTemplate = "run help"
 
 	out, err := runCommand(t, cmd)
@@ -71,7 +72,7 @@ func TestNewCommandRunsTheCommand(t *testing.T) {
 			rec := &recorder{}
 			v := rec.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
 
-			cmd := runcommand.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit", tf.CommandNamePlan), v)
+			cmd := runcommand.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit", tf.CommandNamePlan), v, new(rewrite.Store))
 
 			_, err := runCommand(t, cmd, tc.args...)
 			require.NoError(t, err)
@@ -103,7 +104,7 @@ func TestNewCommandRunsEveryUnit(t *testing.T) {
 			opts := newOpts(t, v, tc.unit, tf.CommandNamePlan)
 			opts.GraphRoot = memRoot
 
-			_, err := runCommand(t, runcommand.NewCommand(logger.CreateLogger(), opts, v), tc.args...)
+			_, err := runCommand(t, runcommand.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)), tc.args...)
 			require.NoError(t, err)
 			assert.Equal(
 				t,

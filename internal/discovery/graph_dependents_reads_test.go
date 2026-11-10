@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -130,7 +131,7 @@ func discoverWithCountingFS(
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
-		Discover(config.WithCaches(t.Context()), l, v, opts)
+		Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	return components.Filter(component.UnitKind).Paths(), counting

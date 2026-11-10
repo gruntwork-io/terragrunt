@@ -152,6 +152,7 @@ const (
 	StatusCompleted
 )
 
+// Experiments is the set of known experiments with their enabled state and status.
 type Experiments []*Experiment
 
 // NewExperiments returns a new Experiments map with all experiments disabled.

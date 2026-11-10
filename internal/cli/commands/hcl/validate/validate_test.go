@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -127,7 +128,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 		return vexec.Result{ExitCode: 127, Stderr: []byte("unexpected invocation: " + inv.Name)}
 	})
 
-	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
@@ -135,7 +136,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 
 	opts.AuthProviderCmd = "fake-auth-provider"
 
-	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 	require.Error(
 		t,
 		err,
@@ -155,12 +156,12 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 
 	tmpDir := writeValidateInputsUnits(t, "inputs = {\n  region = \"eu-west-1\"\n}\n")
 
-	v := venvtest.New().WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 	require.NoError(t, err)
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -77,7 +78,7 @@ func TestParseVariablesIgnoresSubdirectories(t *testing.T) {
 
 	inputs, err := config.ParseVariables(
 		logger.CreateLogger(),
-		venvtest.New().WithFS(fsys),
+		venv.MemVenv().WithFS(fsys),
 		controls.New(),
 		moduleDir,
 	)

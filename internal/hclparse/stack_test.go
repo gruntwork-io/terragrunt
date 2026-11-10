@@ -1125,7 +1125,7 @@ func TestParseStackFileFromPath_StackDirIsFileReturnsError(t *testing.T) {
 		filePath := filepath.Join(tmpDir, "another-name.hcl")
 		require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
 
-		result, err := hclparse.ParseStackFileFromPath(t.Context(), vfs.NewOSFS(), filePath)
+		result, err := hclparse.ParseStackFileFromPath(t.Context(), venvtest.NewOSOverlayFS(), filePath)
 		assert.Nil(t, result)
 
 		var readErr hclparse.FileReadError
@@ -1177,7 +1177,7 @@ unit "app" {
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
 	// Parse via the symlink - should work the same as via real path
-	result, err := hclparse.ParseStackFileFromPath(t.Context(), vfs.NewOSFS(), symlinkDir)
+	result, err := hclparse.ParseStackFileFromPath(t.Context(), venvtest.NewOSOverlayFS(), symlinkDir)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Len(t, result.Units, 1)
@@ -1204,7 +1204,7 @@ unit "vpc" {
 
 	paths, err := hclparse.UnitPathsFromStackDir(
 		t.Context(),
-		vfs.NewOSFS(),
+		venvtest.NewOSOverlayFS(),
 		symlinkDir,
 		&hclparse.StackDirArgs{FuncsFor: noFuncs},
 	)

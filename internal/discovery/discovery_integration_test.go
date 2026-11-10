@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -96,7 +97,7 @@ func TestDiscovery_BasicWithHiddenDirectories(t *testing.T) {
 				d = d.WithNoHidden()
 			}
 
-			components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+			components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 			require.NoError(t, err)
 
 			units := components.Filter(component.UnitKind).Paths()
@@ -131,7 +132,7 @@ func TestDiscovery_StackHiddenDiscovered(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Contains(t, components.Filter(component.UnitKind).Paths(), stackHiddenDir)
 }
@@ -202,7 +203,7 @@ func TestDiscovery_WithDependencies(t *testing.T) {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithRelationships()
 
-		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		// Should discover all internal components
@@ -250,7 +251,7 @@ func TestDiscovery_WithDependencies(t *testing.T) {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithFilters(filters)
 
-		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		// Should discover all components including external dependency
@@ -319,7 +320,7 @@ dependency "foo" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err, "Discovery should complete even with cycles")
 
 	// Verify that a cycle is detected
@@ -388,7 +389,7 @@ dependency "foo" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err, "Discovery should complete")
 
 	// Verify that a cycle is NOT detected because one dependency is disabled
@@ -457,7 +458,7 @@ exclude {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithParseExclude()
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Verify we found all configurations
@@ -539,7 +540,7 @@ func TestDiscovery_WithCustomConfigFilenames(t *testing.T) {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithConfigFilenames([]string{"custom.hcl"})
 
-		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		units := components.Filter(component.UnitKind).Paths()
@@ -554,7 +555,7 @@ func TestDiscovery_WithCustomConfigFilenames(t *testing.T) {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithConfigFilenames([]string{"terragrunt.hcl", "custom.hcl"})
 
-		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		units := components.Filter(component.UnitKind).Paths()
@@ -612,7 +613,7 @@ func TestDiscovery_WithReadFiles(t *testing.T) {
 		WithFilters(filters).
 		WithReadFiles()
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Find the app component
@@ -700,7 +701,7 @@ inputs = {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Verify that both stack and unit configurations are discovered
@@ -790,7 +791,7 @@ func TestDiscovery_IncludeExcludeFilterSemantics(t *testing.T) {
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
-			components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+			components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.want, components.Filter(component.UnitKind).Paths())
 		})
@@ -823,7 +824,7 @@ func TestDiscovery_HiddenIncludedByIncludeDirs(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{hiddenUnitDir}, components.Filter(component.UnitKind).Paths())
 }
@@ -870,7 +871,7 @@ func TestDiscovery_ExternalDependencies(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Find app config and assert it has external dependency
@@ -949,7 +950,7 @@ dependency "foo" {
 		WithFilters(filters).
 		WithBreakCycles()
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err, "Discovery should complete with break cycles enabled")
 
 	// With break cycles enabled, the cycle should be resolved (one component removed)
@@ -981,7 +982,7 @@ func TestDiscovery_WithNumWorkers(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithNumWorkers(2)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 5)
 }
@@ -1045,7 +1046,7 @@ dependency "d" {
 			WithFilters(filters).
 			WithMaxDependencyDepth(100)
 
-		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		paths := components.Paths()
@@ -1066,7 +1067,7 @@ dependency "d" {
 			WithFilters(filters).
 			WithMaxDependencyDepth(1)
 
-		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		paths := components.Paths()
@@ -1109,7 +1110,7 @@ terraform {
 		WithParseExclude().
 		WithSuppressParseErrors()
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err, "Discovery should succeed with suppressed parse errors")
 
 	// Valid config should be discovered
@@ -1192,7 +1193,7 @@ dependency "dependency" {
 				WithParseExclude().
 				WithRelationships()
 
-			components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+			components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 			require.NoError(t, err)
 
 			var dependentUnit, dependencyUnit *component.Unit
@@ -1277,7 +1278,7 @@ dependency "db" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Find the app component

@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -48,8 +49,8 @@ var memRoot = venvtest.Root("/migrate")
 func TestNewCommandExposesTheMigrateFlags(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
-	cmd := migrate.NewCommand(logger.CreateLogger(), newOpts(t, v), v)
+	v := venv.MemVenv()
+	cmd := migrate.NewCommand(logger.CreateLogger(), newOpts(t, v), v, new(rewrite.Store))
 
 	assert.Equal(t, migrate.CommandName, cmd.Name)
 
@@ -141,7 +142,7 @@ func TestNewCommandMigratesBetweenUnits(t *testing.T) {
 
 			v := newVenv().WithFS(venvtest.NewFS(t, memRoot, tc.files))
 
-			err := runCommand(t, migrate.NewCommand(logger.CreateLogger(), newOpts(t, v), v), tc.args...)
+			err := runCommand(t, migrate.NewCommand(logger.CreateLogger(), newOpts(t, v), v, new(rewrite.Store)), tc.args...)
 			if tc.wantErr {
 				require.Error(t, err)
 
@@ -165,14 +166,14 @@ func TestRunFailsOnAMissingWorkingDir(t *testing.T) {
 	opts := newOpts(t, v)
 	opts.WorkingDir = filepath.Join(memRoot, "missing")
 
-	err := migrate.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, "src", "dst", opts)
+	err := migrate.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), "src", "dst", opts)
 
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
 // newVenv returns an in-memory venv whose binary reports an OpenTofu version, so the stack builds.
 func newVenv() *venv.Venv {
-	return venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	return venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("OpenTofu v1.9.0\n")}
 	})
 }

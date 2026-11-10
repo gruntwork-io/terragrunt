@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,12 +21,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestBuild pins which units Build discovers for a given set of options.
@@ -42,6 +43,7 @@ func TestNew(t *testing.T) {
 			config.WithCaches(t.Context()),
 			thlogger.CreateLogger(),
 			v,
+			new(rewrite.Store),
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
 		)
 		require.NoError(t, err)
@@ -59,6 +61,7 @@ func TestNew(t *testing.T) {
 			config.WithCaches(t.Context()),
 			thlogger.CreateLogger(),
 			v,
+			new(rewrite.Store),
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
 		)
 		require.NoError(t, err)
@@ -84,7 +87,7 @@ func TestNew(t *testing.T) {
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 		opts.WorkingDir = filepath.Join(memRoot, "app")
 
-		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(rewrite.Store), opts)
 		require.NoError(t, err)
 		assert.Len(
 			t,
@@ -105,7 +108,7 @@ func TestNew(t *testing.T) {
 		opts.RootWorkingDir = ""
 		opts.WorkingDir = filepath.Join(memRoot, "app")
 
-		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		units := rnr.GetStack().Units
@@ -127,7 +130,7 @@ func TestNew(t *testing.T) {
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 		opts.TerragruntConfigPath = filepath.Join(memRoot, "custom.hcl")
 
-		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		units := rnr.GetStack().Units
@@ -158,6 +161,7 @@ func TestNew(t *testing.T) {
 			config.WithCaches(t.Context()),
 			l,
 			v,
+			new(rewrite.Store),
 			opts,
 			runner.WithWorktrees(&worktrees.Worktrees{OriginalWorkingDir: memRoot}),
 		)
@@ -178,6 +182,7 @@ func TestNew(t *testing.T) {
 			config.WithCaches(t.Context()),
 			thlogger.CreateLogger(),
 			v,
+			new(rewrite.Store),
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
 		)
 		require.Error(t, err)
@@ -193,7 +198,7 @@ func TestNew(t *testing.T) {
 		opts.WorkingDir = filepath.Join(memRoot, "does-not-exist")
 		opts.RootWorkingDir = opts.WorkingDir
 
-		_, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
+		_, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(rewrite.Store), opts)
 		require.Error(t, err)
 	})
 }
@@ -259,7 +264,7 @@ func TestNew_VersionConstraints(t *testing.T) {
 			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 			opts.TerragruntVersion = semver.MustParse("0.1.0")
 
-			rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
+			rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(rewrite.Store), opts)
 
 			if tc.assertErr != nil {
 				tc.assertErr(t, err)
@@ -309,7 +314,7 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 		invoked []string
 	)
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -324,6 +329,7 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		v,
+		new(rewrite.Store),
 		newStackOpts(t, memRoot, tf.CommandNamePlan),
 	)
 	require.NoError(t, err)
@@ -340,14 +346,14 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 func TestNew_EngineSkipsVersionProbe(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	writeUnit(t, v, memRoot, "vpc", engineBlock)
 	writeUnit(t, v, memRoot, "app", engineBlock+"\n"+dependencyBlock("../vpc"))
 
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.IacEngine))
 
-	rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
+	rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, rnr.GetStack().Units, 2)
 }
@@ -363,6 +369,7 @@ func TestNew_DependencyCycle(t *testing.T) {
 		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		v,
+		new(rewrite.Store),
 		newStackOpts(t, memRoot, tf.CommandNamePlan),
 	)
 	require.Error(t, err, "units that depend on each other cannot be ordered")
@@ -380,7 +387,7 @@ func TestNew_UnparsableUnitSource(t *testing.T) {
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 	opts.Source = "/local/modules"
 
-	rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, opts)
+	rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(rewrite.Store), opts)
 
 	var target config.ParsingModulePathError
 

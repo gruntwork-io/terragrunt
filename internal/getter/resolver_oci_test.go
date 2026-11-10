@@ -9,9 +9,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/opencontainers/go-digest"
 	ociv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
@@ -258,7 +258,7 @@ func TestOCIResolverProbeConcurrentWithRacing(t *testing.T) {
 func TestDefaultSourceResolversOCIConfig(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	_, found := getter.DefaultSourceResolvers(v)[getter.SchemeOCI]
 	assert.False(t, found, "oci resolver must be absent without WithOCIConfig")

@@ -9,6 +9,7 @@ type Context struct {
 	shellComplete bool
 }
 
+// NewAppContext returns the top-level [Context] for app, with no command set.
 func NewAppContext(app *App, args Args) *Context {
 	return &Context{
 		App:  app,
@@ -16,6 +17,7 @@ func NewAppContext(app *App, args Args) *Context {
 	}
 }
 
+// NewCommandContext returns a child of ctx for command and its args.
 func (ctx *Context) NewCommandContext(command *Command, args Args) *Context {
 	return &Context{
 		App:           ctx.App,
@@ -26,6 +28,7 @@ func (ctx *Context) NewCommandContext(command *Command, args Args) *Context {
 	}
 }
 
+// Parent returns the context of the enclosing command, or nil for the app context.
 func (ctx *Context) Parent() *Context {
 	return ctx.parent
 }

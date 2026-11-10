@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -344,7 +345,7 @@ func TestDownloaderControllerProxiesUncachedDownload(t *testing.T) {
 			l := logger.CreateLogger()
 
 			downloader := controllers.NewDownloaderController(
-				services.NewProviderService("", "", nil, l, venvtest.New()),
+				services.NewProviderService("", "", nil, l, venv.MemVenv()),
 				handlers.NewProxyProviderHandler(l, up.client(), nil),
 			)
 

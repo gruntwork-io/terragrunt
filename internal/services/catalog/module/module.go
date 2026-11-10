@@ -18,8 +18,10 @@ const (
 
 var ignoreFiles = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
 
+// Modules is a list of catalog modules.
 type Modules []*Module
 
+// Module is an OpenTofu/Terraform module found in a catalog repository, with its README.
 type Module struct {
 	*Repo
 	*Doc
@@ -84,6 +86,8 @@ func (module *Module) Description() string {
 	return defaultDescription
 }
 
+// URL returns the address to view the module in a browser. It is the local path when the repository has no
+// remote, and empty when the catalog does not support the remote's format.
 func (module *Module) URL() string {
 	return module.url
 }
@@ -117,6 +121,7 @@ func (module *Module) isValid(fsys vfs.FS) (bool, error) {
 	return false, nil
 }
 
+// ModuleDir returns the module's directory relative to the repository root.
 func (module *Module) ModuleDir() string {
 	return module.moduleDir
 }

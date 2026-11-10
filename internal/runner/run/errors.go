@@ -7,12 +7,15 @@ import (
 
 // Custom error types
 
+// MissingCommand is the error for a run invoked without a tofu command, such as plan.
 type MissingCommand struct{}
 
 func (err MissingCommand) Error() string {
 	return "Missing OpenTofu/Terraform command (Example: terragrunt run plan)"
 }
 
+// BackendNotDefined is the error for a unit that sets remote_state while its OpenTofu/Terraform code declares no
+// backend block.
 type BackendNotDefined struct {
 	ConfigPath  string
 	WorkingDir  string
@@ -33,6 +36,8 @@ func (err BackendNotDefined) Error() string {
 	)
 }
 
+// NoTerraformFilesFound is the error for a working directory with no *.tofu or *.tf files. Its value is the
+// directory.
 type NoTerraformFilesFound string
 
 func (path NoTerraformFilesFound) Error() string {
@@ -82,6 +87,7 @@ func (err UndeclaredInputsError) Error() string {
 	)
 }
 
+// ModuleIsProtected is returned by [CheckProtectedModuleRunCfg] for a destroy of a unit that sets prevent_destroy.
 type ModuleIsProtected struct {
 	ConfigPath string
 }
@@ -95,6 +101,7 @@ func (err ModuleIsProtected) Error() string {
 
 // Legacy retry error removed in favor of error handling via options.Errors
 
+// RunAllDisabledErr is the error for a tofu command that cannot run with run --all, with the reason.
 type RunAllDisabledErr struct {
 	command string
 	reason  string

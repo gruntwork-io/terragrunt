@@ -28,12 +28,18 @@ import (
 )
 
 const (
-	TerraformLockFile     = ".terraform.lock.hcl"
-	TerragruntCacheDir    = ".terragrunt-cache"
-	TerraformCacheDir     = ".terraform"
-	GitDir                = ".git"
+	// TerraformLockFile is the name of the OpenTofu/Terraform dependency lock file.
+	TerraformLockFile = ".terraform.lock.hcl"
+	// TerragruntCacheDir is the name of the directory where Terragrunt downloads and runs remote sources.
+	TerragruntCacheDir = ".terragrunt-cache"
+	// TerraformCacheDir is the name of the directory where OpenTofu/Terraform keeps providers, modules, and backend state.
+	TerraformCacheDir = ".terraform"
+	// GitDir is the name of a Git repository's metadata directory.
+	GitDir = ".git"
+	// DefaultBoilerplateDir is the name of the directory that holds a Boilerplate template.
 	DefaultBoilerplateDir = ".boilerplate"
-	ChecksumReadBlock     = 8192
+	// ChecksumReadBlock is a read buffer size, in bytes, for checksumming files.
+	ChecksumReadBlock = 8192
 )
 
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
@@ -1181,6 +1187,8 @@ func assertCopyPathsSafe(source, destination string, filter func(absolutePath st
 	}
 }
 
+// TerragruntExcludes reports whether Terragrunt skips path when copying a working directory: any path with a
+// hidden component, except a [TerraformLockFile].
 func TerragruntExcludes(path string) bool {
 	if filepath.Base(path) == TerraformLockFile {
 		return false
@@ -1688,6 +1696,8 @@ func WithMaxManifestEntries(maxEntries int) FileManifestOption {
 	}
 }
 
+// NewFileManifest returns a manifest stored as manifestFile in manifestFolder that records the paths Terragrunt
+// copies into manifestFolder, so a later run can delete them.
 func NewFileManifest(
 	fsys vfs.FS,
 	manifestFolder string,

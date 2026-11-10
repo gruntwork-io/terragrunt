@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -62,6 +63,7 @@ dependency "db" {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
+		new(rewrite.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -114,14 +116,14 @@ dependency "db" {
 	configsA, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithFilters(filters).
-		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
-		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(
@@ -162,6 +164,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
+		new(rewrite.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -207,6 +210,7 @@ dependency "vpc" {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
+		new(rewrite.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -237,7 +241,7 @@ func writeUnits(t *testing.T, fsys vfs.FS, units map[string]string) {
 func memRepoRootVenv(t *testing.T, repoRoot string) *venv.Venv {
 	t.Helper()
 
-	return venvtest.New().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
+	return venv.MemVenv().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
 		".git": "gitdir: /elsewhere/.git\n",
 	}))
 }

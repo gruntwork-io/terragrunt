@@ -7,6 +7,7 @@ type InvalidControlNameError struct {
 	allowedNames []string
 }
 
+// NewInvalidControlNameError returns an [InvalidControlNameError] that lists allowedNames.
 func NewInvalidControlNameError(allowedNames []string) *InvalidControlNameError {
 	return &InvalidControlNameError{
 		allowedNames: allowedNames,

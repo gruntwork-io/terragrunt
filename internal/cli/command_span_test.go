@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -84,7 +85,7 @@ func TestWrapWithTelemetryCommandSpan(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testV := venvtest.New()
+			testV := venv.MemVenv()
 			testV.Env["TG_TELEMETRY_TRACE_EXPORTER"] = "console"
 
 			stdout := runWithTelemetry(t, testV, append([]string{"--working-dir", workDir}, tc.args...), nil)
@@ -126,7 +127,7 @@ func TestWrapWithTelemetryCommandMetricDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testV := venvtest.New()
+			testV := venv.MemVenv()
 			testV.Env["TG_TELEMETRY_METRIC_EXPORTER"] = "console"
 			testV.Platform.Getwd = func() (string, error) { return workDir, nil }
 
@@ -145,7 +146,7 @@ func TestWrapWithTelemetryCommandMetricDir(t *testing.T) {
 func TestWrapWithTelemetryWorkingDirErrorMarksSpanFailed(t *testing.T) {
 	t.Parallel()
 
-	testV := venvtest.New()
+	testV := venv.MemVenv()
 	testV.Env["TG_TELEMETRY_TRACE_EXPORTER"] = "console"
 	testV.Platform.Getwd = func() (string, error) { return "", errGetwd }
 
@@ -159,7 +160,7 @@ func TestWrapWithTelemetryWorkingDirErrorMarksSpanFailed(t *testing.T) {
 func TestWrapWithTelemetryWorkingDirErrorCountsFailure(t *testing.T) {
 	t.Parallel()
 
-	testV := venvtest.New()
+	testV := venv.MemVenv()
 	testV.Env["TG_TELEMETRY_METRIC_EXPORTER"] = "console"
 	testV.Platform.Getwd = func() (string, error) { return "", errGetwd }
 
@@ -180,7 +181,7 @@ func runWithTelemetry(t *testing.T, testV *venv.Venv, args []string, wantErr err
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.NoAutoProviderCacheDir = true
 
-	terragruntCommands := commands.New(l, opts, testV)
+	terragruntCommands := commands.New(l, opts, testV, new(rewrite.Store))
 	setCommandAction(
 		func(context.Context, *clihelper.Context) error { return nil },
 		terragruntCommands...)
