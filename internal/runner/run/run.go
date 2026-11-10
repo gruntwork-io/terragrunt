@@ -81,10 +81,6 @@ var TerraformCommandsThatDoNotNeedInit = []string{
 	"engine",
 }
 
-// ModuleRegex matches a module block header, such as `module "vpc"`. A unit whose code matches it and that has no
-// downloaded modules needs init.
-var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
-
 // sourceChangeLocks is a map of per-directory mutexes that serializes concurrent access to cache directories.
 // It prevents generated code from being overwritten while a hook (e.g. `tflint`) is running, and prevents
 // concurrent source downloads from racing on the same cache directory (see DownloadTerraformSource).
@@ -422,11 +418,29 @@ func runTerragruntWithConfig(
 				if out == nil {
 					l.Errorf("%s invocation failed in %s", opts.TofuImplementation, opts.CacheDir)
 				}
+
+				return errors.Join(runTerraformError, lockFileError)
 			}
 
-			return errors.Join(runTerraformError, lockFileError)
+			var fingerprintError error
+			if opts.TerraformCliArgs.First() == tf.CommandNameInit {
+				fingerprintError = recordInitFingerprint(v.FS, opts, v.Env)
+			}
+
+			return errors.Join(lockFileError, fingerprintError)
 		},
 	)
+}
+
+// recordInitFingerprint stores the [tf.InitFingerprint] of the working directory after a
+// successful init, for [needsInitRunCfg] to compare against on later runs.
+func recordInitFingerprint(fsys vfs.FS, opts *Options, env map[string]string) error {
+	fingerprint, err := tf.InitFingerprint(fsys, opts.CacheDir, opts.DataDir(env))
+	if err != nil {
+		return err
+	}
+
+	return tf.WriteInitFingerprint(fsys, opts.DataDir(env), fingerprint)
 }
 
 // ShouldCopyLockFile verifies if the lock file should be copied to the user's working directory
@@ -654,23 +668,16 @@ func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, bool
 	return l, initOptions, suppressInitStdout, nil
 }
 
-// Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
-// Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
-// modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
-// complicated and not something we handle at the moment.
+// modulesNeedInit reports whether init must run to install modules: the root module calls
+// modules and none are installed yet. It only detects missing modules, not stale ones; a
+// source change requests init through [ModuleInitRequiredFile] instead.
 func modulesNeedInit(fsys vfs.FS, opts *Options, env map[string]string) (bool, error) {
 	modulesPath := filepath.Join(opts.DataDir(env), "modules")
 	if vfs.Exists(fsys, modulesPath) {
 		return false, nil
 	}
 
-	// Check for module definitions in .tf and .tofu files using WalkDir
-	hasModuleDefinition, err := util.RegexFoundInTFFiles(fsys, opts.CacheDir, ModuleRegex)
-	if err != nil {
-		return false, err
-	}
-
-	return hasModuleDefinition, nil
+	return tf.HasModuleCalls(fsys, opts.CacheDir)
 }
 
 // remoteStateNeedsInit determines whether remote state initialization is required before running a Terraform command.
@@ -908,17 +915,26 @@ func needsInitRunCfg(
 		return true, nil
 	}
 
-	if providersNeedInit(v.FS, opts, v.Env) {
-		return true, nil
-	}
-
-	modulesNeedsInit, err := modulesNeedInit(v.FS, opts, v.Env)
+	state, err := checkInitFingerprint(v.FS, opts, v.Env)
 	if err != nil {
 		return false, err
 	}
 
-	if modulesNeedsInit {
+	if state == fingerprintStale {
 		return true, nil
+	}
+
+	// Without a fingerprint, init last ran outside Terragrunt or under a version that recorded
+	// none, so what it left behind is the only evidence.
+	if state == fingerprintMissing {
+		missing, err := initArtifactsMissing(v.FS, opts, v.Env)
+		if err != nil {
+			return false, err
+		}
+
+		if missing {
+			return true, nil
+		}
 	}
 
 	if cfg.RemoteState.Config == nil {
@@ -926,6 +942,49 @@ func needsInitRunCfg(
 	}
 
 	return remoteStateNeedsInit(ctx, l, v, &cfg.RemoteState, opts)
+}
+
+// initFingerprintState is how the fingerprint recorded by the last init relates to the working
+// directory as it is now.
+type initFingerprintState int
+
+const (
+	fingerprintMissing initFingerprintState = iota
+	fingerprintCurrent
+	fingerprintStale
+)
+
+// checkInitFingerprint compares the fingerprint recorded by the last init, if any, against a
+// fresh [tf.InitFingerprint] of the working directory.
+func checkInitFingerprint(fsys vfs.FS, opts *Options, env map[string]string) (initFingerprintState, error) {
+	recorded, err := vfs.ReadFile(fsys, filepath.Join(opts.DataDir(env), tf.InitFingerprintFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return fingerprintMissing, nil
+	}
+
+	if err != nil {
+		return fingerprintMissing, err
+	}
+
+	current, err := tf.InitFingerprint(fsys, opts.CacheDir, opts.DataDir(env))
+	if err != nil {
+		return fingerprintMissing, err
+	}
+
+	if current != string(recorded) {
+		return fingerprintStale, nil
+	}
+
+	return fingerprintCurrent, nil
+}
+
+// initArtifactsMissing reports whether the working directory lacks something init installs.
+func initArtifactsMissing(fsys vfs.FS, opts *Options, env map[string]string) (bool, error) {
+	if providersNeedInit(fsys, opts, env) {
+		return true, nil
+	}
+
+	return modulesNeedInit(fsys, opts, env)
 }
 
 // runTerraformInitRunCfg runs terraform init using runcfg types.

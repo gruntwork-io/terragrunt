@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Auto-init no longer runs `init` before every command in units that use no provider
+
+A unit that uses no provider, e.g. one that only calls local modules, gets no `.terraform.lock.hcl` and no `.terraform/providers` directory from `init`. Auto-init read their absence as `init` never having run, so every command ran `init` first.
+
+Terragrunt now runs `init` again only when the unit's configuration files, a local module it calls, or the lock file has changed since the last `init`. See [Auto-init](/features/units/auto-init).

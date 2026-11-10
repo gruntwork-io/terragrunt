@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,6 +131,137 @@ func TestTFAutoInitSkippedWhenOnlyUncopiedFilesChange(t *testing.T) {
 		"has been successfully initialized!",
 		"second plan should not re-run init when only a file the copy skips changed",
 	)
+}
+
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/7220
+func TestTFAutoInitRunsOnceWhenOnlyASubdirectoryCallsModules(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitModuleBlockInSubdir)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitModuleBlockInSubdir)
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+
+	for range 3 {
+		_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+			t,
+			v,
+			"terragrunt plan --non-interactive --working-dir "+rootPath,
+		)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(
+		t,
+		[]string{tf.CommandNameInit, tf.CommandNamePlan, tf.CommandNamePlan, tf.CommandNamePlan},
+		recordedTFSubcommands(recorder.Commands()),
+	)
+}
+
+func TestTFAutoInitRunsOnceWhenTheUnitUsesNoProvider(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitNoProviders)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitNoProviders)
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+
+	for range 3 {
+		_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+			t,
+			v,
+			"terragrunt plan --non-interactive --working-dir "+rootPath,
+		)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(
+		t,
+		[]string{tf.CommandNameInit, tf.CommandNamePlan, tf.CommandNamePlan, tf.CommandNamePlan},
+		recordedTFSubcommands(recorder.Commands()),
+	)
+}
+
+func TestTFAutoInitRunsAgainWhenAModuleOutsideTheUnitChangesInPlace(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitInPlaceModuleOutsideUnit)
+	fixturePath := filepath.Join(tmpEnvPath, testFixtureAutoInitInPlaceModuleOutsideUnit)
+	unitPath := filepath.Join(fixturePath, "unit")
+	outsideModule := filepath.Join(fixturePath, "modules", "outside", "main.tf")
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+
+	plan := func() {
+		t.Helper()
+
+		_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+			t,
+			v,
+			"terragrunt plan --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+unitPath,
+		)
+		require.NoError(t, err)
+	}
+
+	plan()
+	plan()
+
+	randomProvider := `
+terraform {
+  required_providers {
+    random = {
+      source  = "registry.opentofu.org/hashicorp/random"
+      version = "~> 3.6"
+    }
+  }
+}
+
+resource "random_pet" "this" {}
+`
+	outsideModuleFile, err := os.OpenFile(outsideModule, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+
+	_, err = outsideModuleFile.WriteString(randomProvider)
+	require.NoError(t, err)
+	require.NoError(t, outsideModuleFile.Close())
+
+	plan()
+	plan()
+
+	assert.Equal(
+		t,
+		[]string{
+			tf.CommandNameInit, tf.CommandNamePlan,
+			tf.CommandNamePlan,
+			tf.CommandNameInit, tf.CommandNamePlan,
+			tf.CommandNamePlan,
+		},
+		recordedTFSubcommands(recorder.Commands()),
+	)
+}
+
+// recordedTFSubcommands returns the subcommand of every recorded OpenTofu/Terraform invocation,
+// in order, leaving out the version probe.
+func recordedTFSubcommands(commands []helpers.RecordedCommand) []string {
+	subcommands := make([]string, 0, len(commands))
+
+	for _, c := range commands {
+		name := filepath.Base(c.Name)
+		if (name != helpers.TofuBinary && name != helpers.TerraformBinary) || len(c.Args) == 0 {
+			continue
+		}
+
+		if c.Args[0] == tf.FlagNameVersion {
+			continue
+		}
+
+		subcommands = append(subcommands, c.Args[0])
+	}
+
+	return subcommands
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834

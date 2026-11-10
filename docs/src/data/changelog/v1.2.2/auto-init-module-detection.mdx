@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Auto-init no longer runs `init` before every command for `module` blocks outside the root module
+
+Since v0.88.1, a unit whose root module calls no modules ran `init` before every `plan` and `apply` when a subdirectory such as `examples/` contained a `module` block, or when a comment mentioned one. With [`--no-auto-init`](/features/units/auto-init#disabling-auto-init), every run warned that `init` was needed.
+
+Auto-init searched every `.tf` and `.tofu` file under the working directory for the text `module "..."`. It now parses only the files OpenTofu/Terraform load for the root module. Module calls in `.tf.json` and `.tofu.json` files, which the text search missed, now trigger `init`.
