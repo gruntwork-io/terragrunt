@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 var outputsContractFiles = map[string]string{
@@ -1462,9 +1463,13 @@ outputs {
 	})
 	delete(files, "vpc/main.tf")
 
+	fsys := vfs.NewMemMapFS()
+	cacheDir := filepath.Join(venvtest.Root("/repo"), "vpc", ".terragrunt-cache")
+
 	var (
-		mu  sync.Mutex
-		ran []string
+		mu            sync.Mutex
+		ran           []string
+		fetchedBefore bool
 	)
 
 	exec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
@@ -1474,6 +1479,8 @@ outputs {
 		ran = append(ran, inv.Name)
 
 		if inv.Name == "fetch-creds" {
+			fetchedBefore = fetchedBefore || vfs.Exists(fsys, cacheDir)
+
 			return vexec.Result{Stdout: []byte(`{"envs": {"TG_TEST_CREDENTIAL": "granted"}}`)}
 		}
 
@@ -1481,6 +1488,7 @@ outputs {
 	})
 
 	result := runValidate(t, &validateRun{
+		fs:              fsys,
 		files:           files,
 		experiments:     []string{experiment.OutputsBlock},
 		exec:            exec,
@@ -1494,6 +1502,8 @@ outputs {
 	defer mu.Unlock()
 
 	assert.Contains(t, ran, "fetch-creds")
+	assert.False(t, fetchedBefore, "the credentials are obtained before the fetch begins")
+	assert.True(t, vfs.Exists(fsys, cacheDir), "the fetch ran")
 }
 
 // TestRunValidateOutputsContractsRejectsInPlaceWithSource expects the cache guard of a run before any fetch.

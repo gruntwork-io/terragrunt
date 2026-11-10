@@ -110,6 +110,7 @@ func readDeclaredOutputs(
 
 	parsePctx := pctx.Clone()
 	parsePctx.FilesRead = NewFilesRead()
+	parsePctx.UsePartialParseConfigCache = false
 
 	readAt := time.Now()
 

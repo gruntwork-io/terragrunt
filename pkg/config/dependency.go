@@ -1143,13 +1143,14 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(pctx) &&
 			dependencyConfig.MockOutputs != nil {
 			state, mocks := *outputVal, *dependencyConfig.MockOutputs
+			strategy := dependencyConfig.getMockOutputsMergeStrategy()
 
-			merged, err := mergeMockOutputsWithState(dependencyConfig.getMockOutputsMergeStrategy(), state, mocks)
+			merged, err := mergeMockOutputsWithState(strategy, state, mocks)
 			if err != nil || declared == nil {
 				return merged, err
 			}
 
-			marked := withDeclaredMockMarks(*merged, mocks, state)
+			marked := withDeclaredMockMarks(strategy, *merged, mocks, state)
 
 			return &marked, nil
 		} else if !isEmpty {
@@ -3125,8 +3126,8 @@ func mergeMockOutputsWithState(strategy MergeStrategyType, state, mocks cty.Valu
 	}
 }
 
-// withDeclaredMockMarks returns merged with each output state lacks taken from mocks whole, marks included.
-func withDeclaredMockMarks(merged, mocks, state cty.Value) cty.Value {
+// withDeclaredMockMarks fills merged with the mock values state lacks, marks included, nested too for a deep merge.
+func withDeclaredMockMarks(strategy MergeStrategyType, merged, mocks, state cty.Value) cty.Value {
 	mockValues, ok := mockValueMap(&mocks)
 	if !ok {
 		return merged
@@ -3137,17 +3138,29 @@ func withDeclaredMockMarks(merged, mocks, state cty.Value) cty.Value {
 		return merged
 	}
 
-	values := merged.AsValueMap()
+	values, ok := mockValueMap(&merged)
+	if !ok {
+		return merged
+	}
+
 	if values == nil {
 		values = map[string]cty.Value{}
 	}
 
 	for key, mock := range mockValues {
-		if _, inState := stateValues[key]; inState {
+		stateValue, inState := stateValues[key]
+		if !inState {
+			values[key] = mock
+
 			continue
 		}
 
-		values[key] = mock
+		mergedValue, inMerged := values[key]
+		if !inMerged || strategy != DeepMergeMapOnly {
+			continue
+		}
+
+		values[key] = withDeclaredMockMarks(strategy, mergedValue, mock, stateValue)
 	}
 
 	return cty.ObjectVal(values)

@@ -32,6 +32,7 @@ type validateResult struct {
 
 // validateRun describes one hcl validate run over an in-memory repository.
 type validateRun struct {
+	fs              vfs.FS
 	files           map[string]string
 	links           map[string]string
 	exec            vexec.Exec
@@ -109,14 +110,19 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 func repository(t *testing.T, run *validateRun) (string, vfs.FS) {
 	t.Helper()
 
-	if !run.onDisk {
+	if !run.onDisk && run.fs == nil {
 		root := venvtest.Root("/repo")
 
 		return root, venvtest.NewFS(t, root, run.files)
 	}
 
-	root := t.TempDir()
-	fsys := vfs.NewOSFS()
+	root := venvtest.Root("/repo")
+	fsys := run.fs
+
+	if run.onDisk {
+		root = t.TempDir()
+		fsys = vfs.NewOSFS()
+	}
 
 	for path, content := range run.files {
 		require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, filepath.FromSlash(path)), []byte(content), 0o644))

@@ -77,6 +77,15 @@ inputs = {
 }
 `
 
+const nestedSensitivityInputs = `
+inputs = {
+  token_id               = dependency.vpc.outputs.token.id
+  token_id_sensitive     = issensitive(dependency.vpc.outputs.token.id)
+  token_secret           = dependency.vpc.outputs.token.secret
+  token_secret_sensitive = issensitive(dependency.vpc.outputs.token.secret)
+}
+`
+
 const vpcModule = `
 output "vpc_id" {
   value = "vpc-real"
@@ -576,6 +585,26 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
   "undocumented": {"sensitive": false, "type": "string", "value": "real"}
 }`
 
+	const vpcStateWithToken = `{
+  "vpc_id": {"sensitive": false, "type": "string", "value": "vpc-real"},
+  "token": {"sensitive": false, "type": ["object", {"id": "string"}], "value": {"id": "token-real"}},
+  "undocumented": {"sensitive": false, "type": "string", "value": "real"}
+}`
+
+	const tokenDeclaration = `
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "token" {
+    mock_value = {
+      id     = "token-mock"
+      secret = sensitive("token-secret")
+    }
+  }
+}
+`
+
 	mockSubnets := []any{"subnet-mock-1", "subnet-mock-2"}
 
 	testCases := []struct {
@@ -963,6 +992,44 @@ outputs {
 			},
 		},
 		{
+			name: "a sensitive nested declared mock field filled into state keeps its mark",
+			vpcConfig: `
+outputs {
+  mock_strategy {
+    merge_with_state = "deep_map_only"
+  }
+` + tokenDeclaration,
+			command:  "plan",
+			vpcState: vpcStateWithToken,
+			inputs:   nestedSensitivityInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "token-real", cfg.Inputs["token_id"])
+				assert.Equal(t, false, cfg.Inputs["token_id_sensitive"])
+				assert.Equal(t, "token-secret", cfg.Inputs["token_secret"])
+				assert.Equal(t, true, cfg.Inputs["token_secret_sensitive"])
+			},
+		},
+		{
+			name: "a shallow merge keeps an output of the state whole",
+			vpcConfig: `
+outputs {
+  mock_strategy {
+    merge_with_state = "shallow"
+  }
+` + tokenDeclaration,
+			command:  "plan",
+			vpcState: vpcStateWithToken,
+			inputs:   nestedSensitivityInputs,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				requireDiagnostic(t, err, "Unsupported attribute")
+			},
+		},
+		{
 			name: "a reader that ignores diagnostics still gets the error of a broken unit config",
 			vpcConfig: `
 outputs {
@@ -1325,7 +1392,7 @@ func TestDependencyDeclaredOutputsReplaysFilesRead(t *testing.T) {
 
 	const vpcConfig = `
 locals {
-  vars = jsondecode(read_tfvars_file("${get_terragrunt_dir()}/vpc.tfvars"))
+  vars = jsondecode(read_tfvars_file("vpc.tfvars"))
 }
 
 outputs {
@@ -1360,6 +1427,103 @@ outputs {
 
 		assert.Equal(t, []string{vpcConfigPath, tfvarsPath}, readerPctx.FilesRead.Paths(), reader)
 	}
+}
+
+// TestDependencyDeclaredOutputsRefreshesIncludedDeclarations expects a refresh to read the included files again.
+func TestDependencyDeclaredOutputsRefreshesIncludedDeclarations(t *testing.T) {
+	t.Parallel()
+
+	const rootConfig = `
+locals {
+  vars = jsondecode(read_tfvars_file("${get_terragrunt_dir()}/vpc.tfvars"))
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = local.vars.mock
+  }
+}
+`
+
+	const vpcConfig = `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`
+
+	root := venvtest.Root("/fixture")
+	fsys := frozenModTimeFS{FS: vfs.NewMemMapFS(), modTime: time.Now()}
+	vpcDir := filepath.Join(root, "vpc")
+	vpcConfigPath := filepath.Join(vpcDir, config.DefaultTerragruntConfigPath)
+	tfvarsPath := filepath.Join(vpcDir, "vpc.tfvars")
+
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte(rootConfig), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(vpcConfig), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, tfvarsPath, []byte(`mock = "vpc-mock-a"`), 0o644))
+
+	l := createLogger()
+	v := venv.MemVenv().WithFS(fsys)
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	pctx.UsePartialParseConfigCache = true
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	first, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	assert.Equal(t, "vpc-mock-a", first.Outputs[0].MockValue.AsString())
+
+	require.NoError(t, vfs.WriteFile(fsys, tfvarsPath, []byte(`mock = "vpc-mock-b"`), 0o644))
+
+	second, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	assert.Equal(t, "vpc-mock-b", second.Outputs[0].MockValue.AsString())
+}
+
+// TestDependencyDeclaredOutputsReadsARewrittenAutoinclude expects an edited autoinclude file to be read again.
+func TestDependencyDeclaredOutputsReadsARewrittenAutoinclude(t *testing.T) {
+	t.Parallel()
+
+	const autoInclude = `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock-%s"
+  }
+}
+`
+
+	root := venvtest.Root("/fixture")
+	fsys := frozenModTimeFS{FS: vfs.NewMemMapFS(), modTime: time.Now()}
+	vpcDir := filepath.Join(root, "vpc")
+	autoIncludePath := filepath.Join(vpcDir, "terragrunt.autoinclude.hcl")
+
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(vpcDir, config.DefaultTerragruntConfigPath), []byte("\n"), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, autoIncludePath, fmt.Appendf(nil, autoInclude, "a"), 0o644))
+
+	l := createLogger()
+	v := venv.MemVenv().WithFS(fsys)
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	pctx.FilesRead = config.NewFilesRead()
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	first, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	assert.Equal(t, "vpc-mock-a", first.Outputs[0].MockValue.AsString())
+	assert.Contains(t, pctx.FilesRead.Paths(), autoIncludePath)
+
+	require.NoError(t, vfs.WriteFile(fsys, autoIncludePath, fmt.Appendf(nil, autoInclude, "b"), 0o644))
+
+	second, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	assert.Equal(t, "vpc-mock-b", second.Outputs[0].MockValue.AsString())
 }
 
 // TestDependencyOnStackDirectoryWithUnitFileReadsNoDeclaredOutputs expects a stack target to keep its unit file out.

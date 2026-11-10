@@ -2050,9 +2050,10 @@ The `outputs` block is available in Terragrunt v1.2.2 and later, behind the `out
   The `outputs` block is gated behind the `outputs-block` experiment. Enable it with `--experiment outputs-block` (or `TG_EXPERIMENT=outputs-block`) until it graduates to general availability. Declaring the block without the experiment enabled returns an error. See the [experiment documentation](/reference/experiments/active#outputs-block).
 </Aside>
 
-The `outputs` block declares the outputs a unit emits. Each output can set a mock value that dependents read while
-the unit's state has no outputs, e.g. before its first apply. A `mock_strategy` block says when dependents may read
-the mocks. A backend error while reading the state still fails the command.
+The `outputs` block declares the outputs a unit emits. It belongs in a unit's `terragrunt.hcl`; a stack file does not
+accept it. Each output can set a mock value that dependents read while the unit has no state yet or its state holds
+no outputs, e.g. before its first apply, under the rules of `mock_outputs` on a `dependency` block: any other failure
+to read the state is an error. A `mock_strategy` block says when dependents may read the mocks.
 
 The `outputs` block supports the following arguments:
 

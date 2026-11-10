@@ -1123,6 +1123,8 @@ func registerSiblingAutoInclude(
 		return
 	}
 
+	pctx.FilesRead.Add(autoIncludePath)
+
 	trackInclude.AutoIncludeOverride = &IncludeConfig{Path: autoIncludePath}
 }
 
