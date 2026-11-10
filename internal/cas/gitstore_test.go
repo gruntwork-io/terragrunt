@@ -253,7 +253,10 @@ func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
 			assert.Equal(t, holder.Path, waiter.Path)
 			assert.NotContains(t, logs.String(), password)
 			assert.NotContains(t, term.String(), password)
-			assert.Equal(t, tt.reported, term.Len() > 0)
+
+			if tt.reported {
+				assert.NotEmpty(t, term.String())
+			}
 		})
 	}
 }

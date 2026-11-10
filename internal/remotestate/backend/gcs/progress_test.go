@@ -27,10 +27,11 @@ func TestGCSBucketWaitProgress(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name     string
-		reporter bool
+		name         string
+		wantLogLines int
+		reporter     bool
 	}{
-		{name: "reporter on the context", reporter: true},
+		{name: "reporter on the context", reporter: true, wantLogLines: 1},
 		{name: "plain context"},
 	}
 
@@ -53,7 +54,7 @@ func TestGCSBucketWaitProgress(t *testing.T) {
 			require.Positive(t, stub.polls.Load(), "the wait must have polled the endpoint")
 
 			assert.Equal(t, tc.reporter, term.Len() > 0)
-			assert.Equal(t, tc.reporter, strings.Count(logs.String(), "\n") == 1, logs)
+			assert.Equal(t, tc.wantLogLines, strings.Count(logs.String(), "\n"), logs)
 		})
 	}
 }

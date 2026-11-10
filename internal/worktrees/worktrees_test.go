@@ -993,15 +993,16 @@ func TestWorktreeCleanupWithCancelledContextWithRacing(t *testing.T) {
 	}
 }
 
-// TestNewWorktreesComparisonProgress checks that comparing Git references is drawn only with a reporter.
+// TestNewWorktreesComparisonProgress checks that comparing Git references logs its two lines only with a reporter.
 func TestNewWorktreesComparisonProgress(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name     string
-		reported bool
+		name          string
+		wantInfoLines int
+		reported      bool
 	}{
-		{name: "reporter on the context", reported: true},
+		{name: "reporter on the context", reported: true, wantInfoLines: 4},
 		{name: "plain context"},
 	}
 
@@ -1012,7 +1013,9 @@ func TestNewWorktreesComparisonProgress(t *testing.T) {
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 			commitUnits(t, tmpDir, 2)
 
+			logs := new(bytes.Buffer)
 			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
 
 			filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
 			require.NoError(t, err)
@@ -1020,11 +1023,9 @@ func TestNewWorktreesComparisonProgress(t *testing.T) {
 			gitExpressions := filters.UniqueGitFilters()
 			require.Len(t, gitExpressions, 1)
 
-			term := new(bytes.Buffer)
-
 			ctx := t.Context()
 			if tc.reported {
-				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
+				ctx = spinner.ContextWithReporter(ctx, spinner.New(venv.MemVenv(), spinner.Options{}))
 			}
 
 			v := venvtest.NewOSWithEmptyEnv()
@@ -1044,7 +1045,7 @@ func TestNewWorktreesComparisonProgress(t *testing.T) {
 			pair := w.WorktreePairs[gitExpressions[0].String()]
 			require.NotNil(t, pair, "the expression is compared with and without a reporter")
 			assert.Equal(t, []string{"unit-1/terragrunt.hcl"}, pair.Diffs.Added)
-			assert.Equal(t, tc.reported, term.Len() > 0)
+			assert.Equal(t, tc.wantInfoLines, strings.Count(logs.String(), "level=info"), logs)
 		})
 	}
 }

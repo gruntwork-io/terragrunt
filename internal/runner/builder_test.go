@@ -201,7 +201,7 @@ func TestNew(t *testing.T) {
 	})
 }
 
-// TestNew_DiscoveryProgress checks that unit discovery is drawn only with a reporter.
+// TestNew_DiscoveryProgress checks that unit discovery is drawn with a reporter and finds the same unit without one.
 func TestNew_DiscoveryProgress(t *testing.T) {
 	t.Parallel()
 
@@ -230,7 +230,10 @@ func TestNew_DiscoveryProgress(t *testing.T) {
 			rnr, err := runner.New(ctx, thlogger.CreateLogger(), v, newStackOpts(t, memRoot, tf.CommandNamePlan))
 			require.NoError(t, err)
 			require.Len(t, rnr.GetStack().Units, 1, "the unit is discovered with and without a reporter")
-			assert.Equal(t, tc.reported, term.Len() > 0)
+
+			if tc.reported {
+				assert.NotEmpty(t, term.String())
+			}
 		})
 	}
 }

@@ -105,8 +105,10 @@ func DownloadTerraformSource(
 	}, func() error {
 		dirLock.Lock()
 
-		return nil
+		return ctx.Err()
 	}); err != nil {
+		dirLock.Unlock()
+
 		return nil, err
 	}
 
@@ -395,9 +397,10 @@ func DownloadTerraformSourceIfNecessary(
 		cfg,
 		r,
 		func(childCtx context.Context) error {
-			sourceURL := strings.TrimPrefix(
-				redact.NewURL(terraformSource.CanonicalSourceURL.String()).String(),
-				fileURIScheme,
+			sourceURL := util.RelPathForLog(
+				opts.RootWorkingDir,
+				strings.TrimPrefix(redact.NewURL(terraformSource.CanonicalSourceURL.String()).String(), fileURIScheme),
+				opts.LogShowAbsPaths,
 			)
 
 			return spinner.ShowAfter(

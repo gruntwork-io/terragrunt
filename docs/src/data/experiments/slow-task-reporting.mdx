@@ -24,14 +24,14 @@ On a terminal, Terragrunt draws one progress line with the operation, its elapse
 | Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
 ```
 
-The line is cut to the terminal width. Log lines are written above it. When the operation succeeds, Terragrunt replaces the line with an INFO log line that has the elapsed time. In `run --all`, all units share the line, and it shows the oldest running operation.
+The line is cut to the terminal width. Log lines are written above it. When the operation succeeds, Terragrunt replaces the line with an INFO log line, with the elapsed time if it took 1s or more. In `run --all`, all units share the line, and it shows the oldest running operation.
 
 Otherwise, Terragrunt writes INFO log lines: one when the operation is first reported, one every 30 seconds while it runs, and one when it succeeds. The 30-second lines keep CI systems from stopping a job that looks idle.
 
 ```text
-INFO   Fetching outputs of dependency ../vpc...
-INFO   Fetching outputs of dependency ../vpc... (30s elapsed)
-INFO   Fetched outputs of dependency ../vpc (41.7s)
+INFO   Fetching outputs of dependency ../vpc/terragrunt.hcl...
+INFO   Fetching outputs of dependency ../vpc/terragrunt.hcl... (30s elapsed)
+INFO   Fetched outputs of dependency ../vpc/terragrunt.hcl (41.7s)
 ```
 
 Terragrunt writes log lines instead of the progress line when:

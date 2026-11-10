@@ -1228,7 +1228,7 @@ func terminalVenv(out io.Writer, width int) *venv.Venv {
 	return v
 }
 
-func newLogger(out interface{ Write([]byte) (int, error) }) log.Logger {
+func newLogger(out io.Writer) log.Logger {
 	return log.New(log.WithLevel(log.InfoLevel), log.WithOutput(out))
 }
 

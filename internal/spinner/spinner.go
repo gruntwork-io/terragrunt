@@ -57,7 +57,9 @@ func ContextWithReporter(ctx context.Context, reporter *Reporter) context.Contex
 
 // ContextWithLogOnly returns ctx with a reporter that writes log lines where the reporter on ctx draws.
 func ContextWithLogOnly(ctx context.Context) context.Context {
-	return ContextWithReporter(ctx, reporterFromContext(ctx).LogOnly())
+	reporter := reporterFromContext(ctx)
+
+	return ContextWithReporter(ctx, &Reporter{threshold: reporter.threshold, logs: reporter.logs || reporter.Animated()})
 }
 
 // InputRead tells the reporter on ctx that a prompt was answered.
@@ -74,26 +76,27 @@ func (reporter *Reporter) Animated() bool {
 	return reporter.term != nil
 }
 
-// LogOnly returns a reporter that writes log lines where reporter draws.
-func (reporter *Reporter) LogOnly() *Reporter {
-	return &Reporter{threshold: reporter.threshold, logs: reporter.logs || reporter.Animated()}
-}
-
 // Guard wraps w so each write clears and redraws the progress line of an animated reporter.
 func (reporter *Reporter) Guard(w io.Writer) io.Writer {
 	return &guard{term: reporter.term, w: w}
 }
 
-// GuardLogger wraps the output of l with [Reporter.Guard] and returns a function that unwraps it.
+// GuardLogger wraps the output of l with [Reporter.Guard] and returns a function that puts the output back.
 func (reporter *Reporter) GuardLogger(l log.Logger) func() {
-	l.SetOptions(log.WithOutputWrapper(reporter.Guard))
+	var output io.Writer
+
+	l.SetOptions(log.WithOutputWrapper(func(w io.Writer) io.Writer {
+		output = w
+
+		return reporter.Guard(w)
+	}))
 
 	return func() {
-		l.SetOptions(log.WithOutputWrapper(reporter.unguard))
+		l.SetOptions(log.WithOutput(output))
 	}
 }
 
-// ShowAfter runs fn, reports it after the threshold, and logs the done message if it succeeds.
+// ShowAfter runs fn, reports it past the threshold, and logs the done message if it was reported and succeeded.
 func (reporter *Reporter) ShowAfter(ctx context.Context, l log.Logger, msgs Messages, fn func() error) error {
 	return reporter.show(ctx, l, reporter.threshold, msgs, fn)
 }
@@ -109,15 +112,6 @@ func (reporter *Reporter) inputRead() {
 	}
 
 	reporter.term.inputRead()
-}
-
-func (reporter *Reporter) unguard(w io.Writer) io.Writer {
-	guarded, ok := w.(*guard)
-	if !ok || guarded.term != reporter.term {
-		return w
-	}
-
-	return guarded.w
 }
 
 func (reporter *Reporter) show(

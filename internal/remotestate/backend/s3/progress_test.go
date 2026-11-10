@@ -12,12 +12,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 
-	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -171,32 +168,12 @@ func writeBody(w http.ResponseWriter, status int, body string) {
 func newStubbedClient(t *testing.T, stub *awsStub) *s3backend.Client {
 	t.Helper()
 
-	srv := httptest.NewServer(stub)
-	t.Cleanup(srv.Close)
+	return newMemS3Client(t, func(_ context.Context, req *http.Request) (*http.Response, error) {
+		recorder := httptest.NewRecorder()
+		stub.ServeHTTP(recorder, req)
 
-	cfg := &s3backend.ExtendedRemoteStateConfigS3{
-		SkipCredentialsValidation: true,
-		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
-			Region:           "us-east-1",
-			Endpoint:         srv.URL,
-			DynamoDBEndpoint: srv.URL,
-			S3ForcePathStyle: true,
-		},
-	}
-
-	v := venv.MemVenv().
-		WithFS(vfs.NewOSFS()).
-		WithHTTP(vhttp.NewOSClient()).
-		WithEnv(map[string]string{
-			"AWS_ACCESS_KEY_ID":     "test-key",
-			"AWS_SECRET_ACCESS_KEY": "test-secret",
-			"AWS_REGION":            "us-east-1",
-		})
-
-	client, err := s3backend.NewClient(t.Context(), log.New(), v, cfg, &backend.Options{})
-	require.NoError(t, err)
-
-	return client
+		return recorder.Result(), nil
+	})
 }
 
 // drawingReporter returns a reporter that draws its progress line on term from the start.

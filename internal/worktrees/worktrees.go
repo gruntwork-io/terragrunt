@@ -1007,15 +1007,9 @@ func createGitWorktrees(
 			})
 		}
 
-		if err := g.Wait(); err != nil {
-			errs = append(errs, err)
-		}
+		waitErr := g.Wait()
 
-		if len(errs) == 0 {
-			return nil
-		}
-
-		return errors.Join(errs...)
+		return errors.Join(append(errs, waitErr)...)
 	}
 
 	if err := spinner.ShowAfter(ctx, l, slowWorktreeMsg(gitRefs), create); err != nil {

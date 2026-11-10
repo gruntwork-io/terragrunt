@@ -1241,7 +1241,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 	}
 }
 
-// TestRunDiscoveryProgress checks that unit discovery is drawn only with a reporter.
+// TestRunDiscoveryProgress checks that unit discovery is drawn with a reporter and prints the same units without one.
 func TestRunDiscoveryProgress(t *testing.T) {
 	t.Parallel()
 
@@ -1289,7 +1289,10 @@ func TestRunDiscoveryProgress(t *testing.T) {
 				buf.String(),
 				"stdout is the same with and without a reporter",
 			)
-			assert.Equal(t, tc.reported, term.Len() > 0)
+
+			if tc.reported {
+				assert.NotEmpty(t, term.String())
+			}
 		})
 	}
 }

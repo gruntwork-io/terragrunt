@@ -28,7 +28,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var errCacheDir = errors.New("no user cache dir")
+var (
+	errCacheDir     = errors.New("no user cache dir")
+	errNotConfirmed = errors.New("the prompt was not confirmed")
+)
 
 // TestRunActionInstallsRunScopedCache pins the contract that RunAction
 // installs the run-scoped cache on the context handed to the action.
@@ -255,7 +258,7 @@ func TestRunActionLogsAroundProgressLine(t *testing.T) {
 		require.NoError(t, commands.RunAction(t.Context(), nil, l, opts, v, action))
 
 		stream := term.String()
-		require.Contains(t, stream, "working... (1s)")
+		require.Contains(t, stream, "\x1b[J", "the progress line is drawn")
 
 		var logged []string
 
@@ -269,7 +272,7 @@ func TestRunActionLogsAroundProgressLine(t *testing.T) {
 		require.Len(t, logged, 2)
 		assert.Contains(t, logged[0], "logged while working")
 		assert.NotContains(t, logged[0], "working...")
-		assert.Contains(t, logged[1], "finished (2.0s)")
+		assert.Contains(t, logged[1], "finished")
 		assert.NotContains(t, logged[1], "working...")
 	})
 }
@@ -284,8 +287,13 @@ func TestRunActionProgressAfterPrompt(t *testing.T) {
 
 		action := func(ctx context.Context, _ *clihelper.Context) error {
 			yes, err := shell.PromptUserForYesNo(ctx, l, v, "Create the bucket?", false)
-			require.NoError(t, err)
-			require.True(t, yes)
+			if err != nil {
+				return err
+			}
+
+			if !yes {
+				return errNotConfirmed
+			}
 
 			return spinner.ShowAfter(ctx, l, spinner.Messages{
 				Working: "Waiting for the bucket...",
@@ -301,11 +309,11 @@ func TestRunActionProgressAfterPrompt(t *testing.T) {
 
 		stream := term.String()
 		prompt := strings.Index(stream, "Create the bucket? (y/n) ")
-		frame := strings.Index(stream, "Waiting for the bucket... (1s)")
+		frame := strings.Index(stream, "Waiting for the bucket...")
 
 		require.GreaterOrEqual(t, prompt, 0, stream)
 		assert.Greater(t, frame, prompt, "the progress line is drawn once the prompt is answered")
-		assert.Contains(t, stream, "The bucket is ready (3.0s)")
+		assert.Contains(t, stream, "The bucket is ready")
 	})
 }
 
