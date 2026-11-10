@@ -86,6 +86,7 @@ func newTerminal(out io.Writer, width func() int, frames []string) *terminal {
 	}
 }
 
+// animate adds the operation to the progress line and redraws it until the operation finishes or ctx is cancelled.
 func (term *terminal) animate(
 	ctx context.Context,
 	l log.Logger,
@@ -108,6 +109,7 @@ func (term *terminal) animate(
 	}
 }
 
+// inputRead draws the progress line again once a prompt was answered on a terminal that echoes input.
 func (term *terminal) inputRead() {
 	if !term.echoesInput {
 		return
@@ -245,6 +247,7 @@ func printable(text string) string {
 	}, text)
 }
 
+// logFailure logs a failed terminal write at debug level, and nothing for a nil failure.
 func logFailure(l log.Logger, failure error) {
 	if failure == nil {
 		return

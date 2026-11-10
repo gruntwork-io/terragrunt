@@ -77,7 +77,9 @@ func TestRemoteStateWaitProgress(t *testing.T) {
 				t.Parallel()
 
 				synctest.Test(t, func(t *testing.T) {
-					stub := newAWSStub(tc.created, tc.missingHeads)
+					stub := new(awsStub)
+					stub.created.Store(tc.created)
+					stub.headMisses.Store(tc.missingHeads)
 
 					term := new(bytes.Buffer)
 					logs := new(bytes.Buffer)
@@ -96,7 +98,9 @@ func TestRemoteStateWaitProgress(t *testing.T) {
 				t.Parallel()
 
 				synctest.Test(t, func(t *testing.T) {
-					stub := newAWSStub(tc.created, tc.missingHeads)
+					stub := new(awsStub)
+					stub.created.Store(tc.created)
+					stub.headMisses.Store(tc.missingHeads)
 
 					logs := new(bytes.Buffer)
 					l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
@@ -182,15 +186,6 @@ func writeBody(w http.ResponseWriter, status int, body string) {
 	if _, err := w.Write([]byte(body)); err != nil {
 		panic(err)
 	}
-}
-
-// newAWSStub returns a stub whose first missingHeads bucket checks answer 404.
-func newAWSStub(created bool, missingHeads int64) *awsStub {
-	stub := new(awsStub)
-	stub.created.Store(created)
-	stub.headMisses.Store(missingHeads)
-
-	return stub
 }
 
 func newStubbedClient(t *testing.T, stub *awsStub) *s3backend.Client {

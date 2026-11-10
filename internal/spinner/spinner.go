@@ -112,6 +112,7 @@ func (reporter *Reporter) Show(ctx context.Context, l log.Logger, msgs Messages,
 	return reporter.show(ctx, l, 0, msgs, fn)
 }
 
+// inputRead tells the terminal of an animated reporter that a prompt was answered.
 func (reporter *Reporter) inputRead() {
 	if !reporter.Animated() {
 		return
@@ -120,6 +121,7 @@ func (reporter *Reporter) inputRead() {
 	reporter.term.inputRead()
 }
 
+// show runs fn and reports it once it has run for threshold.
 func (reporter *Reporter) show(
 	ctx context.Context,
 	l log.Logger,

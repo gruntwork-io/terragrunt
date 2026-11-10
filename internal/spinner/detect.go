@@ -49,6 +49,7 @@ func frames(env map[string]string, goos string) []string {
 	return slices.Clone(asciiFrames)
 }
 
+// inCI reports whether CI is set to anything but false, 0, no or off, or a CI marker variable is set.
 func inCI(env map[string]string) bool {
 	switch strings.ToLower(strings.TrimSpace(env["CI"])) {
 	case "", "0", "false", "no", "off":
@@ -61,6 +62,7 @@ func inCI(env map[string]string) bool {
 	})
 }
 
+// firstSet returns the first non-empty value of names in env, or "" when none is set.
 func firstSet(env map[string]string, names ...string) string {
 	for _, name := range names {
 		if value := env[name]; value != "" {
