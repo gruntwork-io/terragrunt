@@ -1,0 +1,149 @@
+---
+name: unit
+description: Defines a unit that Terragrunt generates from a stack file.
+configs: [stack]
+labels:
+  - name: name
+    description: Names the unit. Names are unique within a stack file. `terragrunt stack output` lists the unit's outputs under its name, and `unit.<name>.path` refers to its generated directory in [`autoinclude`](/reference/hcl/blocks/autoinclude/) blocks and in `values`.
+attributes:
+  - name: source
+    type: string
+    required: true
+    description: Where to fetch the unit's configuration from, in the same syntax as the `source` attribute of the [`terraform`](/reference/hcl/blocks#terraform) block. The [`--source-map`](/reference/cli/commands/run#source-map) flag can replace it.
+    example: |
+      # terragrunt.stack.hcl
+
+      unit "vpc" {
+        source = "git::https://github.com/acme/units.git//vpc?ref=v1.0.0"
+        path   = "vpc"
+      }
+  - name: path
+    type: string
+    required: true
+    description: The directory to generate the unit in, relative to the stack's `.terragrunt-stack` directory. Each unit in a stack file needs its own path. Terragrunt rejects an absolute path and a path that leaves the stack directory.
+    example: |
+      # terragrunt.stack.hcl
+
+      unit "vpc" {
+        source = "../catalog/units/vpc"
+        path   = "networking/vpc"
+      }
+  - name: values
+    type: map(any)
+    description: Values to write to a `terragrunt.values.hcl` file next to the unit's `terragrunt.hcl` file. The unit reads each one as `values.<name>`. A `terragrunt.values.hcl` file in the unit's source supplies the values when the block sets none, and `values` replaces it otherwise.
+    example: |
+      # terragrunt.stack.hcl
+
+      unit "vpc" {
+        source = "../catalog/units/vpc"
+        path   = "vpc"
+        values = {
+          vpc_name = "main"
+          cidr     = "10.0.0.0/16"
+        }
+      }
+  - name: enabled
+    type: bool
+    default: "true"
+    description: When `false`, Terragrunt skips the unit during stack generation and leaves it out of `terragrunt stack output`. Changing it leaves the unit's address and path unchanged. See [`enabled` vs `expansion`](/reference/hcl/blocks/expansion#enabled-vs-expansion).
+    example: |
+      # terragrunt.stack.hcl
+
+      locals {
+        deploy_canary = false
+      }
+
+      unit "canary" {
+        source  = "../catalog/units/app"
+        path    = "canary"
+        enabled = local.deploy_canary
+      }
+  - name: no_dot_terragrunt_stack
+    type: bool
+    default: "false"
+    description: Resolves `path` against the stack file's directory, so the unit is generated outside `.terragrunt-stack`. Use it to move existing units into a stack file without moving their directories or their state.
+    example: |
+      # terragrunt.stack.hcl
+
+      unit "rds" {
+        source                  = "../catalog/units/rds"
+        path                    = "rds"
+        no_dot_terragrunt_stack = true
+      }
+  - name: no_validation
+    type: bool
+    default: "false"
+    description: Skips the check that the generated directory has a `terragrunt.hcl` file at its root. The [`--no-stack-validate`](/reference/cli/commands/stack/generate) flag skips it for every unit and stack.
+    example: |
+      # terragrunt.stack.hcl
+
+      unit "legacy" {
+        source        = "../catalog/units/legacy"
+        path          = "legacy"
+        no_validation = true
+      }
+  - name: update_source_with_cas
+    type: bool
+    default: "false"
+    description: Lets a catalog's stack file give `source` as a path relative to the catalog. Terragrunt rewrites it to a reference into its content-addressable store. See [CAS integration](/features/stacks/explicit#cas-integration).
+    example: |
+      # stacks/service/terragrunt.stack.hcl
+
+      unit "service" {
+        source                 = "../..//units/service"
+        path                   = "service"
+        update_source_with_cas = true
+      }
+  - name: mutable
+    type: bool
+    default: "false"
+    description: Makes the files Terragrunt copies from its content-addressable store into the unit's directory writable. Terragrunt writes them read-only by default, so an edit can't reach the shared store.
+    example: |
+      # terragrunt.stack.hcl
+
+      unit "service" {
+        source  = "git::https://github.com/acme/units.git//service?ref=v1.0.0"
+        path    = "service"
+        mutable = true
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+The `unit` block defines a unit in a `terragrunt.stack.hcl` file. [`terragrunt stack generate`](/reference/cli/commands/stack/generate) fetches the unit's configuration from `source` into `path`, under the stack's `.terragrunt-stack` directory:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+  values = {
+    cidr = "10.0.0.0/16"
+  }
+}
+```
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - vpc
+    - terragrunt.hcl
+    - **terragrunt.values.hcl**
+
+</FileTree>
+
+The generated `terragrunt.hcl` file reads `values` from `terragrunt.values.hcl`:
+
+```hcl
+# .terragrunt-stack/vpc/terragrunt.hcl
+
+inputs = {
+  cidr = values.cidr
+}
+```
+
+To generate more than one unit from a block, add an [`expansion`](/reference/hcl/blocks/expansion/) block. To add dependencies or other configuration to the generated unit, add an [`autoinclude`](/reference/hcl/blocks/autoinclude/) block.
+
+To choose between a `unit` block and a `stack` block, see [Unit and stack blocks](/reference/hcl/stacks/#unit-and-stack-blocks).
