@@ -121,14 +121,21 @@ func TestDiscoveryCheckout(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name    string
-		queries []string
-		want    worktrees.Checkout
+		name          string
+		queries       []string
+		want          worktrees.Checkout
+		requiresParse bool
 	}{
 		{
 			name:    "a Git expression alone",
 			queries: []string{"[main...HEAD]"},
 			want:    worktrees.CheckoutFilteredPaths,
+		},
+		{
+			name:          "a Git expression for a discovery that parses configurations",
+			queries:       []string{"[main...HEAD]"},
+			requiresParse: true,
+			want:          worktrees.CheckoutEverything,
 		},
 		{
 			name:    "several Git expressions",
@@ -167,8 +174,9 @@ func TestDiscoveryCheckout(t *testing.T) {
 
 			d, err := discovery.NewForDiscoveryCommand(l, venvtest.NewOSWithEmptyEnv().FS,
 				&discovery.DiscoveryCommandOptions{
-					WorkingDir: helpers.TmpDirWOSymlinks(t),
-					Filters:    filters,
+					WorkingDir:        helpers.TmpDirWOSymlinks(t),
+					Filters:           filters,
+					WithRequiresParse: tc.requiresParse,
 				})
 			require.NoError(t, err)
 
