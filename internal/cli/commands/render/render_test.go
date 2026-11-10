@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -292,6 +293,46 @@ func TestRenderJSON_NumberOutOfRange(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, "Number out of range", diags[0].Summary)
 	assert.Equal(t, 6, diags[0].Subject.Start.Line)
+}
+
+func TestRenderAllFilter(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	for _, name := range []string{"a", "b"} {
+		unitDir := filepath.Join(tmpDir, name)
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(unitDir, "terragrunt.hcl"),
+			[]byte(`inputs = { name = "`+name+`" }`+"\n"),
+			0644,
+		))
+	}
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	tgOptions.WorkingDir = tmpDir
+	tgOptions.RunAll = true
+	tgOptions.Filters, err = filter.ParseFilterQueries(l, []string{"a"})
+	require.NoError(t, err)
+
+	opts := render.NewOptions(tgOptions)
+	opts.Format = render.FormatHCL
+
+	var outputBuffer bytes.Buffer
+
+	err = render.Run(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "inputs = {\n  name = \"a\"\n}\n", outputBuffer.String())
 }
 
 // setupTest writes config to a terragrunt.hcl in a fresh temporary directory

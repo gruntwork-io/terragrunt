@@ -1,5 +1,5 @@
 // Package discoverysetup shares setup steps common to the discovery
-// commands (find, list, browse).
+// commands (find, list, browse) and `render --all`.
 package discoverysetup
 
 import (

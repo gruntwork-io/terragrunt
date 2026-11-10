@@ -10,6 +10,7 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -25,7 +26,7 @@ import (
 
 // Run renders the fully resolved config of the unit at opts.TerragruntConfigPath
 // in opts.Format, to stdout or, with opts.Write set, to opts.OutputPath. With
-// opts.RunAll set, it renders every discovered unit.
+// opts.RunAll set, it renders every discovered unit that opts.Filters selects.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
@@ -44,7 +45,16 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 }
 
 func runAll(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	d, cleanupWorktrees, err := discoverysetup.Worktrees(
+		ctx, l, v, s, opts.TerragruntOptions,
+		discovery.NewDiscovery(opts.WorkingDir).WithFilters(opts.Filters),
+	)
+
+	defer cleanupWorktrees(ctx)
+
+	if err != nil {
+		return err
+	}
 
 	components, err := d.Discover(ctx, l, v, s, opts.TerragruntOptions)
 	if err != nil {
