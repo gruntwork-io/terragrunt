@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -145,16 +146,6 @@ func TestPartialParseExcludeWithNullSensitiveOrDependencyString(t *testing.T) {
 		exclude   string
 	}{
 		{
-			name:    "null bool if",
-			exclude: `if = null`,
-			want:    &config.ExcludeConfig{Actions: []string{"plan"}},
-		},
-		{
-			name:    "null string if",
-			exclude: `if = tostring(null)`,
-			want:    &config.ExcludeConfig{Actions: []string{"plan"}},
-		},
-		{
 			name:    "null string no_run",
 			exclude: "if = true\nno_run = tostring(null)",
 			want:    &config.ExcludeConfig{If: true, Actions: []string{"plan"}},
@@ -259,6 +250,63 @@ exclude {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, parsed.Exclude)
+		})
+	}
+}
+
+// TestPartialParseExcludeWithNullOrMissingIfErrors pins that discovery rejects an exclude block with no usable if,
+// as the full parse does, where it used to read the block as excluding nothing.
+func TestPartialParseExcludeWithNullOrMissingIfErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		exclude     string
+		wantSummary string
+	}{
+		{name: "null bool if", exclude: `if = null`, wantSummary: "Unsuitable value type"},
+		{name: "null string if", exclude: `if = tostring(null)`, wantSummary: "Unsuitable value type"},
+		{name: "missing if", exclude: ``, wantSummary: "Missing required argument"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/live")
+			cfgPath := filepath.Join(root, config.DefaultTerragruntConfigPath)
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				config.DefaultTerragruntConfigPath: `
+exclude {
+  actions              = ["plan"]
+  exclude_dependencies = true
+  ` + tt.exclude + `
+}
+`,
+			})
+
+			v := venv.MemVenv().WithFS(fsys)
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			pctx = pctx.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
+
+			_, partialErr := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+
+			var partialDiags hcl.Diagnostics
+
+			require.ErrorAs(t, partialErr, &partialDiags)
+			require.Len(t, partialDiags, 1)
+			assert.Equal(t, tt.wantSummary, partialDiags[0].Summary)
+
+			fullCtx, fullPctx := newTestParsingContext(t, cfgPath)
+			_, fullErr := config.ParseConfigFile(fullCtx, logger.CreateLogger(), v, fullPctx, cfgPath, nil)
+
+			var fullDiags hcl.Diagnostics
+
+			require.ErrorAs(t, fullErr, &fullDiags)
+			require.Len(t, fullDiags, 1)
+			assert.Equal(t, fullDiags[0].Summary, partialDiags[0].Summary)
+			assert.Equal(t, fullDiags[0].Detail, partialDiags[0].Detail)
+			assert.Equal(t, fullDiags[0].Subject, partialDiags[0].Subject)
 		})
 	}
 }
