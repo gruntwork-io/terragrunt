@@ -39,7 +39,7 @@ func TestRunOptionsFromParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Equal(t, pctx.Source, runOpts.Source)
 	assert.Equal(t, pctx.SourceMap, runOpts.SourceMap)
 	assert.Equal(t, pctx.TerraformCommand, runOpts.TerraformCommand)
-	assert.Equal(t, pctx.OriginalTerraformCommand, runOpts.OriginalTerraformCommand)
+	assert.Equal(t, pctx.OriginalTofuCommand, runOpts.OriginalTofuCommand)
 	assert.Same(t, pctx.TerraformCliArgs, runOpts.TerraformCliArgs)
 	assert.Equal(t, pctx.IAMRoleOptions, runOpts.IAMRoleOptions)
 	assert.Equal(t, pctx.OriginalIAMRoleOptions, runOpts.OriginalIAMRoleOptions)
@@ -79,7 +79,7 @@ func parsingContextWithDistinctValues(t *testing.T) *config.ParsingContext {
 	pctx.Source = "github.com/acme/modules//vpc"
 	pctx.SourceMap = map[string]string{"github.com/acme/modules": "/local/modules"}
 	pctx.TerraformCommand = "output"
-	pctx.OriginalTerraformCommand = "plan"
+	pctx.OriginalTofuCommand = "plan"
 	pctx.TerraformCliArgs = iacargs.New("output", "-json")
 	pctx.IAMRoleOptions = iam.RoleOptions{RoleARN: "arn:aws:iam::111111111111:role/dep"}
 	pctx.OriginalIAMRoleOptions = iam.RoleOptions{RoleARN: "arn:aws:iam::111111111111:role/original"}

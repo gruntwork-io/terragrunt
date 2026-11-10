@@ -9,16 +9,20 @@ import (
 )
 
 const (
+	// AWSCredentials names credentials that set the AWS access key environment variables.
 	AWSCredentials CredentialsName = "AWS"
 )
 
+// CredentialsName identifies the kind of credentials a [Credentials] holds, such as [AWSCredentials].
 type CredentialsName string
 
+// Credentials is a set of environment variables that authenticate as one kind of identity.
 type Credentials struct {
 	Envs map[string]string
 	Name CredentialsName
 }
 
+// Provider obtains credentials from one source, such as an external command or STS role assumption.
 type Provider interface {
 	// Name returns the name of the provider.
 	Name() string

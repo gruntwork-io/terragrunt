@@ -8,8 +8,10 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
+// Option configures a [Parser].
 type Option func(*Parser) *Parser
 
+// WithLogger sets the logger the parser warns through when reading or parsing a file fails.
 func WithLogger(logger log.Logger) Option {
 	return func(parser *Parser) *Parser {
 		parser.logger = logger
@@ -18,6 +20,7 @@ func WithLogger(logger log.Logger) Option {
 	}
 }
 
+// WithDiagnosticsWriter writes diagnostics that contain an error to writer, formatted for the terminal v describes.
 func WithDiagnosticsWriter(v *venv.Venv, writer io.Writer, disableColor bool) Option {
 	return func(parser *Parser) *Parser {
 		diagsWriter := parser.GetDiagnosticsWriter(v, writer, disableColor)
@@ -87,6 +90,8 @@ func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 	}
 }
 
+// WithDiagnosticsHandler adds fn to the diagnostics handlers, running it after any handler set before. fn returns
+// the diagnostics to keep: nil drops them, and an error replaces them.
 func WithDiagnosticsHandler(
 	fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error),
 ) Option {

@@ -116,6 +116,8 @@ const hclBlocks = defineCollection({
 			// Each attribute has its own example, so a block only needs these to
 			// show something the attribute examples can't.
 			examples: hclExamples.optional(),
+			// In the order they follow the block name. `description` is Markdown.
+			labels: z.array(z.object({ name: z.string(), description: z.string() })).optional(),
 			// Required attributes come first, so the first example on the page is
 			// the simplest valid block.
 			attributes: z
@@ -140,6 +142,8 @@ const hclAttributes = defineCollection({
 		...hclItem,
 		type: z.string(),
 		default: z.string().optional(),
+		// An Aside after the examples, which the body can't reach. `body` is Markdown.
+		note: z.object({ title: z.string(), body: z.string() }).optional(),
 	}),
 });
 

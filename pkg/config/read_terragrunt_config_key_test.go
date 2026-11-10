@@ -10,8 +10,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // keyedParsingContextFields changes each exported [config.ParsingContext] field that is part of
@@ -29,7 +29,7 @@ var keyedParsingContextFields = map[string]func(*config.ParsingContext){
 	"DownloadDir":               func(pctx *config.ParsingContext) { pctx.DownloadDir = "other" },
 	"Source":                    func(pctx *config.ParsingContext) { pctx.Source = "other" },
 	"TerraformCommand":          func(pctx *config.ParsingContext) { pctx.TerraformCommand = "plan" },
-	"OriginalTerraformCommand":  func(pctx *config.ParsingContext) { pctx.OriginalTerraformCommand = "plan" },
+	"OriginalTofuCommand":       func(pctx *config.ParsingContext) { pctx.OriginalTofuCommand = "plan" },
 	"TerragruntStackConfigPath": func(pctx *config.ParsingContext) { pctx.TerragruntStackConfigPath = "other" },
 	"IAMRoleOptions": func(pctx *config.ParsingContext) {
 		pctx.IAMRoleOptions = iam.RoleOptions{RoleARN: "arn:aws:iam::111111111111:role/other"}
@@ -163,7 +163,7 @@ func TestReadTerragruntConfigKeyChangesWithEachKeyedField(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			cfgPath := filepath.Join(t.TempDir(), config.DefaultTerragruntConfigPath)
 
 			_, base := newTestParsingContext(t, cfgPath)

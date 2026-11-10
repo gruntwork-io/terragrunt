@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -395,7 +396,7 @@ func TestTFExcludeBlockNullStringDiscovery(t *testing.T) {
 	}
 }
 
-// TestTFExcludeBlockNullStringRunAll tests that run --all fails only the null string unit.
+// TestTFExcludeBlockNullStringRunAll tests that run --all with a null string unit fails before any unit runs.
 func TestTFExcludeBlockNullStringRunAll(t *testing.T) {
 	t.Parallel()
 
@@ -411,24 +412,17 @@ func TestTFExcludeBlockNullStringRunAll(t *testing.T) {
 		reportFile,
 	)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-	require.Error(t, err)
-	assert.Contains(t, stderr, "null value is not allowed")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	require.Len(t, diags, 1)
+	assert.Equal(t, "Unsuitable value: null value is not allowed", diags[0].Detail)
 
 	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err)
-
-	want := map[string]string{
-		"dep":         "succeeded",
-		"null-string": "failed",
-	}
-	require.Len(t, runs, len(want), "Found: %v", runs.Names())
-
-	for unit, result := range want {
-		run := runs.FindByName(unit)
-		require.NotNil(t, run, "unit %s not found in report. Found: %v", unit, runs.Names())
-		assert.Equal(t, result, run.Result, "unit %s", unit)
-	}
+	assert.Empty(t, runs, "Found: %v", runs.Names())
 }
 
 // TestTFExcludeBlockDependencyOutputErrors tests that run --all and single unit runs reject an exclude block that reads a dependency output.

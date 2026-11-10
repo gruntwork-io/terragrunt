@@ -11,7 +11,7 @@ import (
 
 // dependentUnitCounts sizes the dependents fixtures: every unit but the target
 // depends on the target, so the count is also the size of the selection.
-var dependentUnitCounts = []int{10, 50, 200}
+var dependentUnitCounts = []int{10, 100, 1000}
 
 // BenchmarkDependentsFilter benchmarks a dependents query against a target that
 // every other unit in the fixture depends on. The dependents sit at four
@@ -22,7 +22,7 @@ func BenchmarkDependentsFilter(b *testing.B) {
 	b.Run("from_repo_root", func(b *testing.B) {
 		for _, n := range dependentUnitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromRepoRoot, fanInDependentsFixture(n))
+				benchmarkDependents(b, dependentsFromRepoRoot, fanInDependentsFixture(n), defaultParser)
 			})
 		}
 	})
@@ -30,7 +30,7 @@ func BenchmarkDependentsFilter(b *testing.B) {
 	b.Run("from_target_dir", func(b *testing.B) {
 		for _, n := range dependentUnitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromTargetDir, fanInDependentsFixture(n))
+				benchmarkDependents(b, dependentsFromTargetDir, fanInDependentsFixture(n), defaultParser)
 			})
 		}
 	})

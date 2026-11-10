@@ -21,6 +21,7 @@ const (
 // Option represents an option to customize deep copied results.
 type Option func(*Config)
 
+// Config is the set of rules an [Option] adjusts: which types to shadow copy and which to skip.
 type Config struct {
 	shadowCopyTypes []reflect.Type
 	skippingTypes   []reflect.Type
@@ -30,10 +31,12 @@ type Config struct {
 	tagPriorityOnce bool
 }
 
+// Cloner deep copies values of type T according to its [Config].
 type Cloner[T any] struct {
 	*Config
 }
 
+// Clone returns a deep copy of src, honoring the `clone` struct tags and the [Config] rules.
 func (cloner *Cloner[T]) Clone(src T) T {
 	var dst T
 

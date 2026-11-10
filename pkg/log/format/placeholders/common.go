@@ -18,6 +18,9 @@ func WithCommonOptions(opts ...options.Option) options.Options {
 	))
 }
 
+// CommonPlaceholder is the name and options every placeholder embeds. Its Format
+// applies the options to empty text, so it outputs only what the `content` option
+// sets.
 type CommonPlaceholder struct {
 	name string
 	opts options.Options

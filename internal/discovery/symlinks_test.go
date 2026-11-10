@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -58,7 +59,7 @@ func TestDiscoverySymlinksExperiment(t *testing.T) {
 		}
 
 		components, err := discovery.NewDiscovery(root).
-			Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts)
+			Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		return components.Filter(component.UnitKind).Paths()
@@ -110,7 +111,7 @@ func TestDiscoverySymlinkedWorkingDir(t *testing.T) {
 		}
 
 		components, err := discovery.NewDiscovery(linkDir).
-			Discover(t.Context(), logger.CreateLogger(), v, opts)
+			Discover(t.Context(), logger.CreateLogger(), v, new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		return components.Filter(component.UnitKind).Paths()

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -118,6 +119,57 @@ func TestGitRunner_Clone(t *testing.T) {
 		require.ErrorAs(t, err, &wrappedErr)
 		assert.ErrorIs(t, wrappedErr.Err, git.ErrGitClone)
 	})
+}
+
+// TestGitRunnerErrorsRedactTheRemote pins that a credential in a remote stays
+// out of the error when git prints the remote back, as given or less its
+// userinfo.
+func TestGitRunnerErrorsRedactTheRemote(t *testing.T) {
+	t.Parallel()
+
+	const (
+		secret = "fake-token"
+		remote = "https://user:" + secret + "@example.com/repo.git?token=" + secret
+		bare   = "https://example.com/repo.git?token=" + secret
+	)
+
+	ops := map[string]func(ctx context.Context, runner *git.GitRunner) error{
+		"clone": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.Clone(ctx, remote, false, 0, "")
+		},
+		"fetch": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.Fetch(ctx, remote, "main", 0)
+		},
+		"fetch tags": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.FetchTags(ctx, remote)
+		},
+		"pull": func(ctx context.Context, runner *git.GitRunner) error {
+			return runner.PullFastForward(ctx, remote, "main", 0)
+		},
+		"ls-remote": func(ctx context.Context, runner *git.GitRunner) error {
+			_, err := runner.LsRemote(ctx, remote, "main")
+			return err
+		},
+	}
+
+	for name, op := range ops {
+		for spelling, printed := range map[string]string{"as given": remote, "without userinfo": bare} {
+			t.Run(name+" "+spelling, func(t *testing.T) {
+				t.Parallel()
+
+				runner := newMemRunner(t, staticResult(vexec.Result{
+					ExitCode: 128,
+					Stderr:   []byte("fatal: unable to access '" + printed + "/': Could not resolve host"),
+				}))
+
+				err := op(t.Context(), runner.WithWorkDir(t.TempDir()))
+
+				require.Error(t, err)
+				assert.NotContains(t, err.Error(), secret)
+				assert.Contains(t, err.Error(), "example.com/repo.git?token=REDACTED/")
+			})
+		}
+	}
 }
 
 func TestGitRunner_LsTree(t *testing.T) {
@@ -270,7 +322,7 @@ func TestCreateTempDirFailures(t *testing.T) {
 	t.Run("temp directory cannot be removed", func(t *testing.T) {
 		t.Parallel()
 
-		v := venvtest.New()
+		v := venv.MemVenv()
 		v = v.WithFS(removeRefusingFS{FS: v.FS})
 
 		_, cleanup, err := newMemRunner(t, staticResult(vexec.Result{})).CreateTempDir(v)
@@ -565,7 +617,7 @@ func (removeRefusingFS) RemoveAll(string) error {
 func newMemRunner(t *testing.T, h vexec.Handler) *git.GitRunner {
 	t.Helper()
 
-	r, err := git.NewGitRunner(venvtest.New().WithExec(vexec.NewMemExec(h)))
+	r, err := git.NewGitRunner(venv.MemVenv().WithExec(vexec.NewMemExec(h)))
 	require.NoError(t, err)
 
 	return r
@@ -589,7 +641,7 @@ func newArgvCapturingRunner(t *testing.T, captured *[]string, stdout []byte) *gi
 		return vexec.Result{Stdout: stdout}
 	})
 
-	r, err := git.NewGitRunner(venvtest.New().WithExec(e))
+	r, err := git.NewGitRunner(venv.MemVenv().WithExec(e))
 	require.NoError(t, err)
 
 	return r

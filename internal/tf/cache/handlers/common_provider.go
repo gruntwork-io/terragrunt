@@ -9,6 +9,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// CommonProviderHandler has what every provider source shares: the include and exclude
+// patterns that select its providers and a cache of discovered registry URLs.
 type CommonProviderHandler struct {
 	logger     log.Logger
 	httpClient vhttp.Client

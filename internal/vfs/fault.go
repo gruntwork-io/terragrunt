@@ -8,8 +8,7 @@ import (
 
 // NoSymlinkFS wraps a filesystem so it refuses to create symbolic links, as
 // Windows does for a process without the symlink privilege. It embeds only
-// the FS interface, so the optional hard link and copy-on-write clone
-// interfaces are unavailable too.
+// the FS interface, so every other optional interface is unavailable too.
 type NoSymlinkFS struct {
 	FS
 }

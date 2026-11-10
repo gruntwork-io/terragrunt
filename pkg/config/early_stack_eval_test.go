@@ -13,7 +13,6 @@ import (
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -315,7 +314,7 @@ unit "vpc" {
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
 		t.Context(),
-		vfs.NewOSFS(),
+		venvtest.NewOSOverlayFS(),
 		stackDir,
 		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
 	)
@@ -359,7 +358,7 @@ unit "vpc" {
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
 		t.Context(),
-		vfs.NewOSFS(),
+		venvtest.NewOSOverlayFS(),
 		stackDir,
 		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
 	)

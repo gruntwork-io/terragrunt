@@ -14,11 +14,15 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt exec` command.
 	CommandName = "exec"
 
+	// InDownloadDirFlagName is the name of the flag that runs the command in
+	// the unit's download directory after init.
 	InDownloadDirFlagName = "in-download-dir"
 )
 
+// NewFlags returns the flags of `terragrunt exec`, bound to opts and cmdOpts.
 func NewFlags(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -51,6 +55,9 @@ func NewFlags(
 	)
 }
 
+// NewCommand returns the `terragrunt exec` command. It runs the arguments
+// after `--` as the command, or every argument when `--` is absent, and prints
+// help when there are none.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdOpts := NewOptions()
 

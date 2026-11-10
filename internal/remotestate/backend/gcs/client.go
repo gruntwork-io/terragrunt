@@ -26,6 +26,7 @@ const (
 	gcpSleepBetweenRetries = 10 * time.Second
 )
 
+// Client is a GCS storage client paired with the remote state config it acts on.
 type Client struct {
 	*ExtendedRemoteStateConfigGCS
 	*storage.Client
@@ -314,6 +315,7 @@ func (client *Client) DeleteGCSBucketIfNecessary(
 	)
 }
 
+// DeleteGCSBucket deletes the bucket and waits until GCS no longer reports it. The bucket must already be empty.
 func (client *Client) DeleteGCSBucket(ctx context.Context, l log.Logger, bucketName string) error {
 	bucket := client.Bucket(bucketName)
 
@@ -492,6 +494,8 @@ func (client *Client) DoesGCSObjectExist(
 	return true, nil
 }
 
+// DoesGCSObjectExistWithLogging returns the result of [Client.DoesGCSObjectExist] and logs a debug message when
+// the object is missing or inaccessible.
 func (client *Client) DoesGCSObjectExistWithLogging(
 	ctx context.Context,
 	l log.Logger,

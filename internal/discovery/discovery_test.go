@@ -6,8 +6,11 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -268,7 +271,7 @@ func TestDiscovery_SimpleFilesystem(t *testing.T) {
 		WorkingDir: tmpDir,
 	})
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 3, "should discover 3 components")
 }
@@ -308,7 +311,7 @@ func TestDiscovery_WithPathFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components in apps/")
 }
@@ -348,7 +351,7 @@ func TestDiscovery_WithNegatedFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (excluding bar)")
 
@@ -393,7 +396,7 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (apps/* minus baz)")
 
@@ -514,7 +517,7 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithReadFiles()
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Find the app component
@@ -565,7 +568,7 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	_, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+	_, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.Error(t, err)
 
 	var coexistErr discovery.CoexistenceError
@@ -596,7 +599,13 @@ func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
+		opts,
+	)
 	require.NoError(t, err)
 	assert.Len(t, components, 1)
 	assert.Equal(t, component.UnitKind, components[0].Kind())
@@ -641,7 +650,13 @@ unit "app" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithParseStackConfigs()
 
-	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
+		opts,
+	)
 	require.NoError(t, err)
 
 	stacks := make(map[string]*component.Stack)
@@ -733,8 +748,7 @@ func TestDiscovery_TracksReadsOnlyWhenRequested(t *testing.T) {
 			components, err := d.Discover(
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv(),
-				opts,
+				venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
 			)
 			require.NoError(t, err)
 
@@ -757,6 +771,422 @@ func TestDiscovery_TracksReadsOnlyWhenRequested(t *testing.T) {
 			}
 
 			assert.Contains(t, app.Reading(), sharedHCL)
+		})
+	}
+}
+
+func TestDiscovery_TracksStackReads(t *testing.T) {
+	t.Parallel()
+
+	const includedStackFile = `
+unit "included" {
+  source = "../units/echo"
+  path   = "included"
+
+  values = {
+    message = yamldecode(file("shared.yml")).message
+  }
+}
+`
+
+	testCases := []struct {
+		name      string
+		stackFile string
+		wantReads []string
+	}{
+		{
+			name: "file in locals",
+			stackFile: `
+locals {
+  config = yamldecode(file("shared.yml"))
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    message = local.config.message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in values",
+			stackFile: `
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    message = yamldecode(file("shared.yml")).message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "mark_as_read in values",
+			stackFile: `
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    config = mark_as_read("shared.yml")
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in stack values",
+			stackFile: `
+stack "nested" {
+  source = "../stacks/nested"
+  path   = "nested"
+
+  values = {
+    message = yamldecode(file("shared.yml")).message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in expansion",
+			stackFile: `
+unit "echo" {
+  expansion {
+    for_each = toset([yamldecode(file("shared.yml")).message])
+  }
+
+  source = "../units/echo"
+  path   = "echo-${each.key}"
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in values referencing a sibling path",
+			stackFile: `
+unit "vpc" {
+  source = "../units/echo"
+  path   = "vpc"
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    vpc_path = unit.vpc.path
+    message  = yamldecode(file("shared.yml")).message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in values beside an autoinclude dependency",
+			stackFile: `
+unit "vpc" {
+  source = "../units/echo"
+  path   = "vpc"
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    message = yamldecode(file("shared.yml")).message
+  }
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs = {
+        vpc_id = "vpc-mock"
+      }
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "file in autoinclude dependency expansion",
+			stackFile: `
+unit "vpc" {
+  expansion {
+    for_each = toset(["v2"])
+  }
+
+  source = "../units/echo"
+  path   = "vpc-${each.key}"
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  autoinclude {
+    dependency "vpc" {
+      expansion {
+        for_each = toset([yamldecode(file("shared.yml")).message])
+      }
+
+      config_path = unit.vpc[each.key].path
+    }
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+		{
+			name: "included stack file",
+			stackFile: `
+include "shared" {
+  path = "shared.stack.hcl"
+}
+
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+}
+`,
+			wantReads: []string{"shared.stack.hcl", "shared.yml"},
+		},
+		{
+			name: "file in values beside a values reference with no values file",
+			stackFile: `
+unit "echo" {
+  source = "../units/echo"
+  path   = "echo"
+
+  values = {
+    region  = values.region
+    message = yamldecode(file("shared.yml")).message
+  }
+}
+`,
+			wantReads: []string{"shared.yml"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+			liveDir := filepath.Join(tmpDir, "live")
+
+			files := map[string]string{
+				filepath.Join(liveDir, "shared.yml"):                              "message: v2\n",
+				filepath.Join(liveDir, "shared.stack.hcl"):                        includedStackFile,
+				filepath.Join(liveDir, "terragrunt.stack.hcl"):                    tc.stackFile,
+				filepath.Join(tmpDir, "units", "echo", "terragrunt.hcl"):          "",
+				filepath.Join(tmpDir, "stacks", "nested", "terragrunt.stack.hcl"): "",
+			}
+
+			for path, contents := range files {
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+				require.NoError(t, os.WriteFile(path, []byte(contents), 0644))
+			}
+
+			opts := &options.TerragruntOptions{
+				WorkingDir:     tmpDir,
+				RootWorkingDir: tmpDir,
+			}
+
+			components, err := discovery.NewDiscovery(tmpDir).
+				WithReadFiles().
+				Discover(
+					config.WithCaches(t.Context()),
+					logger.CreateLogger(),
+					venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
+				)
+			require.NoError(t, err)
+
+			var live component.Component
+
+			for _, c := range components {
+				if c.Path() == liveDir {
+					live = c
+
+					break
+				}
+			}
+
+			require.NotNil(t, live, "live stack should be discovered")
+
+			for _, read := range tc.wantReads {
+				assert.Contains(t, live.Reading(), filepath.Join(liveDir, read))
+			}
+		})
+	}
+}
+
+// TestDiscovery_ReportsInputsReads pins the reads in inputs attributes that discovery reports
+// for the inputs-read-not-tracked tip: those of a unit, of the files it includes, and of the
+// autoinclude blocks of a stack, each once, and none when reads are not tracked.
+func TestDiscovery_ReportsInputsReads(t *testing.T) {
+	t.Parallel()
+
+	const unitFile = `include "root" {
+  path = "../root.hcl"
+}
+
+locals {
+  tracked = yamldecode(file("../shared.yml"))
+}
+
+inputs = {
+  message = local.tracked.message
+  region  = yamldecode(file("../shared.yml")).region
+  config  = read_terragrunt_config("../shared.hcl")
+}
+`
+
+	const rootFile = `inputs = {
+  account = yamldecode(file("account.yml")).name
+}
+`
+
+	const stackFile = `unit "iam" {
+  source = "../units/service"
+  path   = "iam"
+}
+
+unit "api" {
+  source = "../units/service"
+  path   = "api"
+
+  autoinclude {
+    dependency "iam" {
+      config_path = unit.iam.path
+    }
+
+    inputs = {
+      policy  = templatefile("policy.json.tftpl", { role_arn = dependency.iam.outputs.role_arn })
+      message = yamldecode(file("shared.yml")).message
+    }
+  }
+}
+`
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	files := map[string]string{
+		filepath.Join(tmpDir, "root.hcl"):                           rootFile,
+		filepath.Join(tmpDir, "account.yml"):                        "name: dev\n",
+		filepath.Join(tmpDir, "shared.yml"):                         "message: v2\nregion: us-east-1\n",
+		filepath.Join(tmpDir, "shared.hcl"):                         "",
+		filepath.Join(tmpDir, "app", "terragrunt.hcl"):              unitFile,
+		filepath.Join(tmpDir, "other", "terragrunt.hcl"):            unitFile,
+		filepath.Join(tmpDir, "live", "terragrunt.stack.hcl"):       stackFile,
+		filepath.Join(tmpDir, "live", "shared.yml"):                 "message: v2\n",
+		filepath.Join(tmpDir, "units", "service", "terragrunt.hcl"): "",
+	}
+
+	for path, contents := range files {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0644))
+	}
+
+	type read struct {
+		file  string
+		expr  string
+		line  int
+		place tips.InputsReadPlace
+	}
+
+	testCases := []struct {
+		configure func(*discovery.Discovery) *discovery.Discovery
+		name      string
+		want      []read
+	}{
+		{
+			name: "reads tracked",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithReadFiles()
+			},
+			want: []read{
+				{file: filepath.Join("app", "terragrunt.hcl"), expr: `file("../shared.yml")`, line: 11},
+				{file: filepath.Join("app", "terragrunt.hcl"), expr: `read_terragrunt_config("../shared.hcl")`, line: 12},
+				{
+					file:  filepath.Join("live", "terragrunt.stack.hcl"),
+					expr:  `"policy.json.tftpl"`,
+					line:  16,
+					place: tips.InputsReadInAutoInclude,
+				},
+				{
+					file:  filepath.Join("live", "terragrunt.stack.hcl"),
+					expr:  `file("shared.yml")`,
+					line:  17,
+					place: tips.InputsReadInAutoInclude,
+				},
+				{file: filepath.Join("other", "terragrunt.hcl"), expr: `file("../shared.yml")`, line: 11},
+				{file: filepath.Join("other", "terragrunt.hcl"), expr: `read_terragrunt_config("../shared.hcl")`, line: 12},
+				{file: "root.hcl", expr: `file("account.yml")`, line: 2},
+			},
+		},
+		{
+			name: "reads not tracked",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithRequiresParse().WithRelationships()
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			exps := experiment.NewExperiments()
+			require.NoError(t, exps.EnableExperiment(experiment.StackDependencies))
+
+			opts := &options.TerragruntOptions{
+				WorkingDir:     tmpDir,
+				RootWorkingDir: tmpDir,
+				Experiments:    exps,
+			}
+
+			d := tc.configure(discovery.NewDiscovery(tmpDir))
+
+			_, err := d.Discover(
+				config.WithCaches(t.Context()),
+				logger.CreateLogger(),
+				venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
+			)
+			require.NoError(t, err)
+
+			got := make([]read, 0, len(d.InputsReads()))
+			for _, r := range d.InputsReads() {
+				assert.Equal(t, r.File, r.Range.Filename)
+
+				got = append(got, read{
+					file:  r.File,
+					expr:  string(r.Range.SliceBytes(r.Source)),
+					line:  r.Range.Start.Line,
+					place: r.Place,
+				})
+			}
+
+			if len(tc.want) == 0 {
+				assert.Empty(t, got)
+
+				return
+			}
+
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }

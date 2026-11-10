@@ -7,10 +7,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +22,7 @@ func TestProcessHooks_FiresHooksInDeclarationOrder(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
+	v := venv.MemVenv().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -64,7 +63,7 @@ func TestProcessHooks_AccumulatesErrorsAcrossHooks(t *testing.T) {
 		return vexec.Result{}
 	}
 
-	v := venvtest.New().WithHandler(h)
+	v := venv.MemVenv().WithHandler(h)
 	l := logger.CreateLogger()
 
 	hooks := []runcfg.Hook{
@@ -111,7 +110,7 @@ func TestProcessHooks_PropagatesWorkingDir(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	v := venvtest.New().WithHandler(rec.handler(vexec.Result{}))
+	v := venv.MemVenv().WithHandler(rec.handler(vexec.Result{}))
 	l := logger.CreateLogger()
 
 	opts := newHookOpts()
@@ -181,7 +180,7 @@ func TestProcessErrorHooks_FiresAllMatchingHooks(t *testing.T) {
 		run.ProcessErrorHooks(
 			t.Context(),
 			l,
-			venvtest.New().WithExec(exec),
+			venv.MemVenv().WithExec(exec),
 			hooks,
 			&runcfg.RunConfig{},
 			newHookOpts(),
@@ -238,7 +237,7 @@ func TestProcessErrorHooks_AccumulatesFailures(t *testing.T) {
 	err := run.ProcessErrorHooks(
 		t.Context(),
 		l,
-		venvtest.New().WithExec(exec),
+		venv.MemVenv().WithExec(exec),
 		hooks,
 		&runcfg.RunConfig{},
 		newHookOpts(),

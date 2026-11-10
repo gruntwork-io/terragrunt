@@ -157,7 +157,14 @@ func TestProviderVersionsMatchCanonicalVersions(t *testing.T) {
 
 	for key, exemption := range providerVersionExemptions {
 		for _, rule := range exemption.rules {
-			assert.Contains(t, waived[key], rule, "%s is exempt from %s but nothing there breaks it; remove the exemption", key, rule)
+			assert.Contains(
+				t,
+				waived[key],
+				rule,
+				"%s is exempt from %s but nothing there breaks it; remove the exemption",
+				key,
+				rule,
+			)
 		}
 	}
 
@@ -182,7 +189,13 @@ func pinnedProvidersTF(sources ...string) string {
 		}
 
 		_, name, _ := strings.Cut(source, "/")
-		fmt.Fprintf(&b, "    %s = {\n      source  = %q\n      version = %q\n    }\n", name, openTofuRegistry+"/"+source, version)
+		fmt.Fprintf(
+			&b,
+			"    %s = {\n      source  = %q\n      version = %q\n    }\n",
+			name,
+			openTofuRegistry+"/"+source,
+			version,
+		)
 	}
 
 	b.WriteString("  }\n}\n\n")
@@ -549,7 +562,10 @@ func (d *providerDir) addLockFile(file string, src []byte) {
 
 	parsed, diags := hclsyntax.ParseConfig(src, file, hcl.InitialPos)
 	if diags.HasErrors() {
-		d.violations = append(d.violations, providerViolation{rule: ruleLockEntry, message: fmt.Sprintf("%s: %v", file, diags)})
+		d.violations = append(
+			d.violations,
+			providerViolation{rule: ruleLockEntry, message: fmt.Sprintf("%s: %v", file, diags)},
+		)
 
 		return
 	}
@@ -566,7 +582,10 @@ func (d *providerDir) addLockFile(file string, src []byte) {
 
 		version, err := stringValue(attr.Expr, nil)
 		if err != nil {
-			d.violations = append(d.violations, providerViolation{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %v", file, err)})
+			d.violations = append(
+				d.violations,
+				providerViolation{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %v", file, err)},
+			)
 
 			continue
 		}
@@ -763,11 +782,18 @@ func versionViolations(where, source, version string) []providerViolation {
 
 	canonical, known := canonicalProviderVersions[source]
 	if !known {
-		return []providerViolation{{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %s has no entry in canonicalProviderVersions", where, source)}}
+		return []providerViolation{
+			{
+				rule:    ruleCanonicalVersion,
+				message: fmt.Sprintf("%s: %s has no entry in canonicalProviderVersions", where, source),
+			},
+		}
 	}
 
 	if strings.TrimSpace(strings.TrimPrefix(version, "=")) != canonical {
-		return []providerViolation{{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %s is %q, want %q", where, source, version, canonical)}}
+		return []providerViolation{
+			{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %s is %q, want %q", where, source, version, canonical)},
+		}
 	}
 
 	return nil

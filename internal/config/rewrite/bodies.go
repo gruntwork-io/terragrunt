@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"slices"
 
 	"github.com/hashicorp/hcl/v2"
@@ -15,8 +16,13 @@ import (
 // decodes them once, with no `dependency` variable in scope, and keeps them as [UnitConfig.Queue]. A nil pointer is
 // an absent part, or an exclude block that reads `dependency`, which [RunBodies] holds instead. Each slice aligns by
 // index with the HCL slice it decodes.
+//
+// Engine is the exception to that scope: the parse decodes it with `dependency` unknown, as
+// [pkgconfig.PartialParseConfigFile] does when it skips resolving outputs, and [RunBodies] holds it again decoded with
+// the outputs.
 type QueueBodies struct {
 	Exclude *ExcludeBody
+	Engine  *EngineBody
 	Retry   []RetryBody
 	Ignore  []IgnoreBody
 }
@@ -36,6 +42,7 @@ type RunBodies struct {
 	AfterHooks      []HookBody
 	ErrorHooks      []ErrorHookBody
 	Generate        []GenerateBody
+	Variables       []VariablesBody
 }
 
 // decodeQueue decodes the queue parts of c with evalCtx, which defines no `dependency` variable in the parse.
@@ -55,6 +62,37 @@ func (c *UnitConfig) decodeQueue(evalCtx *hcl.EvalContext) (QueueBodies, hcl.Dia
 	}
 
 	return q, diags
+}
+
+// decodeQueueEngine decodes the engine block of c with evalCtx and `dependency` unknown. It decodes nothing when c
+// has no engine block.
+func (c *UnitConfig) decodeQueueEngine(evalCtx *hcl.EvalContext) (*EngineBody, hcl.Diagnostics) {
+	if c.Engine == nil {
+		return nil, nil
+	}
+
+	var body *EngineBody
+
+	diags := decodeInto(withUnknownDependency(evalCtx), c.Engine.Remain, &body)
+
+	return body, diags
+}
+
+// withUnknownDependency returns evalCtx with an unknown `dependency` variable, or evalCtx itself when it is nil or
+// already defines one, which is the value the run supplied.
+func withUnknownDependency(evalCtx *hcl.EvalContext) *hcl.EvalContext {
+	if evalCtx == nil {
+		return nil
+	}
+
+	if _, ok := evalCtx.Variables[pkgconfig.MetadataDependency]; ok {
+		return evalCtx
+	}
+
+	vars := maps.Clone(evalCtx.Variables)
+	vars[pkgconfig.MetadataDependency] = cty.DynamicVal
+
+	return &hcl.EvalContext{Variables: vars, Functions: evalCtx.Functions}
 }
 
 // decodeRun decodes the run parts of c with evalCtx.
@@ -88,6 +126,7 @@ func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagno
 	}
 
 	diags = append(diags, decodeEach(evalCtx, c.GenerateBlocks, &r.Generate, (*GenerateHCL).remain)...)
+	diags = append(diags, decodeEach(evalCtx, c.VariablesBlocks, &r.Variables, (*VariablesHCL).remain)...)
 
 	return &r, diags
 }
@@ -171,4 +210,8 @@ func (i *IgnoreHCL) remain() hcl.Body {
 
 func (g *GenerateHCL) remain() hcl.Body {
 	return g.Remain
+}
+
+func (b *VariablesHCL) remain() hcl.Body {
+	return b.Remain
 }

@@ -7,9 +7,15 @@ import (
 )
 
 const (
-	BackendBootstrapFlagName        = "backend-bootstrap"
+	// BackendBootstrapFlagName is the flag name for `--backend-bootstrap`, which creates missing backend
+	// resources before use.
+	BackendBootstrapFlagName = "backend-bootstrap"
+	// BackendRequireBootstrapFlagName is the flag name for `--backend-require-bootstrap`, which fails the
+	// run when the remote state bucket does not exist.
 	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
-	DisableBucketUpdateFlagName     = "disable-bucket-update"
+	// DisableBucketUpdateFlagName is the flag name for `--disable-bucket-update`, which stops Terragrunt
+	// from updating an existing remote state bucket.
+	DisableBucketUpdateFlagName = "disable-bucket-update"
 )
 
 // NewBackendFlags defines backend-related flags that should be available to both `run` and `backend` commands.

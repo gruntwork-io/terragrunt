@@ -3,7 +3,7 @@ package run
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -64,7 +64,7 @@ func Test_computeVersionFilesCacheKey(t *testing.T) {
 			assert.Equalf(
 				t,
 				tt.want,
-				computeVersionFilesCacheKey(vfs.NewOSFS(), tt.workingDir, tt.versionFiles, tt.tfPath),
+				computeVersionFilesCacheKey(venvtest.NewOSOverlayFS(), tt.workingDir, tt.versionFiles, tt.tfPath),
 				"computeVersionFilesCacheKey(%v, %v, %v)",
 				tt.workingDir,
 				tt.versionFiles,

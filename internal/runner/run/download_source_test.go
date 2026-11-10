@@ -1,11 +1,13 @@
 package run_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,7 +16,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -34,6 +38,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -724,7 +729,7 @@ func createConfig(
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 	})
 
-	versionV := venvtest.New().WithExec(versionExec).WithEnv(venvtest.NewOSWithEmptyEnv().Env)
+	versionV := venv.MemVenv().WithExec(versionExec).WithEnv(venvtest.NewOSWithEmptyEnv().Env)
 	_, ver, impl, err := run.PopulateTFVersion(
 		config.WithCaches(t.Context()),
 		l,
@@ -1342,7 +1347,11 @@ func TestDownloadSourceWithCASOfflineDamagedStoreFails(t *testing.T) {
 
 	require.ErrorAs(t, err, &refused, "the flag forbids the re-ingest that would repair the store")
 
-	assert.NoFileExists(t, filepath.Join(offline.DownloadDir, "main.tf"), "the standard getter must not have fetched the source")
+	assert.NoFileExists(
+		t,
+		filepath.Join(offline.DownloadDir, "main.tf"),
+		"the standard getter must not have fetched the source",
+	)
 }
 
 // TestDownloadSourceWithCASOfflineMissFails pins that --cas-offline turns a
@@ -1905,4 +1914,85 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "wired", cred.Username,
 		"BuildDownloadClient must thread the run's venv into the OCI credential store")
+}
+
+// TestDownloadSourceWithCASChecksumMismatchFailsOnce: a wrong terraform.source checksum is downloaded once.
+func TestDownloadSourceWithCASChecksumMismatchFailsOnce(t *testing.T) {
+	t.Parallel()
+
+	archive := zipOf(t, map[string]string{"main.tf": "# hello\n"})
+
+	var downloads atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			downloads.Add(1)
+		}
+
+		http.ServeContent(w, r, "mod.zip", time.Time{}, bytes.NewReader(archive))
+	}))
+	t.Cleanup(srv.Close)
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	downloadDir := filepath.Join(tmpDir, "download")
+
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, srv.URL+"/mod.zip?checksum=sha256:"+strings.Repeat("0", 64)),
+		DownloadDir:        downloadDir,
+		WorkingDir:         downloadDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	v := venvtest.NewOSWithEmptyEnv()
+	v.HTTP = srv.Client()
+	platform := *v.Platform
+	platform.UserCacheDir = func() (string, error) { return filepath.Join(tmpDir, "cache"), nil }
+	v.Platform = &platform
+
+	_, err = run.DownloadTerraformSourceIfNecessary(
+		config.WithCaches(t.Context()),
+		l,
+		v,
+		src,
+		configbridge.NewRunOptions(opts),
+		cfg,
+		report.NewReport(),
+	)
+
+	var checksumErr *getter.ChecksumError
+	require.ErrorAs(t, err, &checksumErr)
+	assert.Equal(t, int32(1), downloads.Load(), "the standard getter must not repeat the failed download")
+}
+
+// zipOf packs files into a zip archive in name order.
+func zipOf(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	w := zip.NewWriter(&buf)
+
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		f, err := w.Create(name)
+		require.NoError(t, err)
+
+		_, err = f.Write([]byte(files[name]))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, w.Close())
+
+	return buf.Bytes()
 }

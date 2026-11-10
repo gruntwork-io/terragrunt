@@ -9,6 +9,9 @@ import (
 // WidthOptionName is the option name.
 const WidthOptionName = "width"
 
+// WidthOption is the `width` option. It pads the text with trailing spaces or
+// truncates it to fill exactly its value in terminal columns, ignoring ANSI escape
+// sequences. A width of zero leaves the text as it is.
 type WidthOption struct {
 	*CommonOption[int]
 }

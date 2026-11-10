@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -88,7 +89,13 @@ func TestGraphPhase_ConcurrentDependencyDiscoveryWithRacing(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
+		opts,
+	)
 	require.NoError(t, err)
 
 	paths := components.Paths()
@@ -181,7 +188,13 @@ func TestGraphPhase_ConcurrentUpstreamDownstreamSharedDependencyWithRacing(t *te
 		WithGitRoot(workingDir).
 		WithFilters(filters)
 
-	components, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
+		opts,
+	)
 	require.NoError(t, err)
 
 	require.Contains(t, components.Paths(), filepath.Join(extDir, "shared"))
@@ -280,6 +293,6 @@ func TestGraphPhase_UpstreamCandidatePublishBeforeContextWithRacing(t *testing.T
 		WithGitRoot(gitRoot).
 		WithFilters(filters)
 
-	_, err = d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+	_, err = d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 }

@@ -60,7 +60,9 @@ func PopulateTFVersion(
 	in PopulateTFVersionInput,
 ) (log.Logger, *semver.Version, tfimpl.Type, error) {
 	if in.TFOpts.ShellOptions.EngineEnabled() {
-		l.Debugf("Skipping the OpenTofu/Terraform version probe: an engine runs the commands, so the version and implementation stay unknown")
+		l.Debugf(
+			"Skipping the OpenTofu/Terraform version probe: an engine runs the commands, so the version and implementation stay unknown",
+		)
 
 		return l, nil, tfimpl.Unknown, nil
 	}
@@ -355,6 +357,8 @@ func computeVersionFilesCacheKey(
 
 // Custom error types
 
+// InvalidTerraformVersionSyntax is the error for `tofu --version` output, or a cached version entry, that holds no
+// parseable version. Its value is the unparsed text.
 type InvalidTerraformVersionSyntax string
 
 func (err InvalidTerraformVersionSyntax) Error() string {
@@ -372,6 +376,8 @@ const (
 	ConfigConstraint
 )
 
+// InvalidTerraformVersion is the error for an installed OpenTofu or Terraform version that does not satisfy
+// VersionConstraints.
 type InvalidTerraformVersion struct {
 	Implementation     tfimpl.Type
 	CurrentVersion     *semver.Version
@@ -379,6 +385,8 @@ type InvalidTerraformVersion struct {
 	ConstraintSource   ConstraintSource
 }
 
+// InvalidTerragruntVersion is returned by [CheckTerragruntVersionMeetsConstraint] when the running Terragrunt
+// version does not satisfy VersionConstraints.
 type InvalidTerragruntVersion struct {
 	CurrentVersion     *semver.Version
 	VersionConstraints semver.Constraints

@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -19,6 +20,7 @@ func FindDependentUnits(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []*component.Unit {
@@ -32,6 +34,7 @@ func FindDependentUnits(
 				ctx,
 				l,
 				v,
+				s,
 				dir,
 				opts,
 			),
@@ -67,7 +70,7 @@ func discoverPathsToCheck(
 		uniquePaths[filepath.Dir(includePath.Path)] = true
 	}
 
-	var pathsToCheck []string
+	pathsToCheck := make([]string, 0, len(uniquePaths))
 	for path := range uniquePaths {
 		pathsToCheck = append(pathsToCheck, path)
 	}
@@ -80,6 +83,7 @@ func findMatchingUnitsInPath(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	dir string,
 	opts *options.TerragruntOptions,
 ) map[string]*component.Unit {
@@ -94,14 +98,14 @@ func findMatchingUnitsInPath(
 	}
 
 	cfgOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-	cfgOpts.TerraformCommand = opts.TerraformCommand
+	cfgOpts.TofuCommand = opts.TofuCommand
 	cfgOpts.TerraformCliArgs = opts.TerraformCliArgs
 	cfgOpts.CheckDependentUnits = opts.CheckDependentUnits
 	cfgOpts.NonInteractive = true
 
 	l.Infof("Discovering dependent units for %s", opts.TerragruntConfigPath)
 
-	rnr, err := New(ctx, l, v, cfgOpts)
+	rnr, err := New(ctx, l, v, s, cfgOpts)
 	if err != nil {
 		l.Debugf("Failed to build unit stack %v", err)
 		return matchedUnitsMap

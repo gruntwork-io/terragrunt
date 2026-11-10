@@ -57,6 +57,9 @@ const (
 // a user name, such as ~alice/main.tf, which upstream refuses to expand.
 var ErrUserSpecificHomeDir = errors.New("cannot expand user-specific home dir")
 
+// FuncNameTemplateFile is the name templatefile is registered under in [Functions].
+const FuncNameTemplateFile = "templatefile"
+
 // Functions returns the replacements for the upstream functions commented out
 // of the vendored function table, each going through the Terragrunt venv or
 // logger. funcsCb returns the table templatefile renders a template with,
@@ -87,11 +90,28 @@ func Functions(
 		"filebase64sha512": FileHashFunc(
 			v, baseDir, sha512.New, base64.StdEncoding.EncodeToString, onRead,
 		),
-		"filemd5":      FileHashFunc(v, baseDir, md5.New, hex.EncodeToString, onRead),
-		"filesha1":     FileHashFunc(v, baseDir, sha1.New, hex.EncodeToString, onRead),
-		"filesha256":   FileHashFunc(v, baseDir, sha256.New, hex.EncodeToString, onRead),
-		"filesha512":   FileHashFunc(v, baseDir, sha512.New, hex.EncodeToString, onRead),
-		"templatefile": TemplateFileFunc(v, l, baseDir, funcsCb, onRead),
+		"filemd5":            FileHashFunc(v, baseDir, md5.New, hex.EncodeToString, onRead),
+		"filesha1":           FileHashFunc(v, baseDir, sha1.New, hex.EncodeToString, onRead),
+		"filesha256":         FileHashFunc(v, baseDir, sha256.New, hex.EncodeToString, onRead),
+		"filesha512":         FileHashFunc(v, baseDir, sha512.New, hex.EncodeToString, onRead),
+		FuncNameTemplateFile: TemplateFileFunc(v, l, baseDir, funcsCb, onRead),
+	}
+}
+
+// ReadingFunctionNames returns the names of the functions in [Functions] that report their reads to onRead.
+func ReadingFunctionNames() []string {
+	return []string{
+		"file",
+		"filebase64",
+		"filebase64sha256",
+		"filebase64sha512",
+		"fileexists",
+		"filemd5",
+		"fileset",
+		"filesha1",
+		"filesha256",
+		"filesha512",
+		FuncNameTemplateFile,
 	}
 }
 
@@ -382,7 +402,7 @@ func templateFileFunc(
 		nested := make(map[string]function.Function, len(given))
 
 		for name, fn := range given {
-			if name == "templatefile" {
+			if name == FuncNameTemplateFile {
 				fn = templateFileFunc(v, l, baseDir, funcsCb, onRead, depth+1)
 			}
 

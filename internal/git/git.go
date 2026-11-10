@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -115,7 +116,7 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 	if err := cmd.Run(); err != nil {
 		return nil, &WrappedError{
 			Op:      "git_ls_remote",
-			Context: stderr.String(),
+			Context: redactRemotes(stderr.String(), repo),
 			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
@@ -336,7 +337,7 @@ func (g *GitRunner) Clone(
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
 			Op:      "git_clone",
-			Context: stderr.String(),
+			Context: redactRemotes(stderr.String(), repo),
 			Err:     errors.Join(ErrGitClone, err),
 		}
 	}
@@ -1271,7 +1272,7 @@ func (g *GitRunner) fetch(ctx context.Context, repo, ref string, args []string) 
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
 			Op:      "git_fetch",
-			Context: stderr.String(),
+			Context: redactRemotes(stderr.String(), repo),
 			Err:     errors.Join(ErrGitFetch, err),
 		}
 	}
@@ -1295,12 +1296,31 @@ func (g *GitRunner) runInWorkDir(ctx context.Context, op string, args ...string)
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
 			Op:      op,
-			Context: stderr.String(),
+			Context: redactRemotes(stderr.String(), args...),
 			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 
 	return nil
+}
+
+// redactRemotes returns stderr with each remote replaced by its redacted
+// rendering. git prints a remote as it was given, less any userinfo, and a
+// remote can carry a credential in its query, so both spellings are replaced.
+func redactRemotes(stderr string, remotes ...string) string {
+	// Each remote has two spellings, each an old and a new string.
+	const entriesPerRemote = 4
+
+	replacements := make([]string, 0, entriesPerRemote*len(remotes))
+
+	for _, remote := range remotes {
+		u := redact.NewURL(remote)
+		safe := u.String()
+
+		replacements = append(replacements, remote, safe, u.WithoutUserinfo(), safe)
+	}
+
+	return strings.NewReplacer(replacements...).Replace(stderr)
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) vexec.Cmd {

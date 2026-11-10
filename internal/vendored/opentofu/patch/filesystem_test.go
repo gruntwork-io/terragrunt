@@ -39,7 +39,7 @@ const (
 func memVenv(t *testing.T, files map[string]string) *venv.Venv {
 	t.Helper()
 
-	return venvtest.New().WithFS(venvtest.NewFS(t, baseDir, files))
+	return venv.MemVenv().WithFS(venvtest.NewFS(t, baseDir, files))
 }
 
 func TestFileReadsThroughTheVenv(t *testing.T) {
@@ -99,7 +99,7 @@ func TestFileLeavesARelativeBaseDirToTheFilesystem(t *testing.T) {
 		vfs.WriteFile(fsys, "data.txt", []byte("beside the root\n"), 0o644),
 	)
 
-	v := venvtest.New().WithFS(fsys)
+	v := venv.MemVenv().WithFS(fsys)
 	v.Platform.Getwd = func() (string, error) { return "/elsewhere", nil }
 
 	got, err := patch.FileFunc(v, ".", false, noRead).

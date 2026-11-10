@@ -124,9 +124,7 @@ func TestHTTPResolver_SchemeReportsRegisteredScheme(t *testing.T) {
 	assert.Equal(t, "https", getter.NewHTTPSResolver().Scheme())
 }
 
-// TestHTTPResolver_StripsOuterClientMagicParams pins that probes for
-// the same URL with and without the outer-client magic params share
-// a cache key, and that the params do not reach the wire on HEAD.
+// TestHTTPResolver_StripsOuterClientMagicParams: HEAD omits the magic params; the key drops only the checksum.
 func TestHTTPResolver_StripsOuterClientMagicParams(t *testing.T) {
 	t.Parallel()
 
@@ -150,12 +148,36 @@ func TestHTTPResolver_StripsOuterClientMagicParams(t *testing.T) {
 	magicKey, err := r.Probe(t.Context(), redact.NewURL(withMagic))
 	require.NoError(t, err)
 
-	assert.Equal(t, plainKey, magicKey,
-		"magic params must not split the cache key; the outer client strips them before fetch")
+	assert.Equal(t, cas.OpaqueKey("http", plain, "abc123"), plainKey)
+	assert.Equal(t, cas.OpaqueKey("http", srv.URL+"/mod.tgz?archive=zip&filename=override.tgz", "abc123"), magicKey,
+		"the key keeps archive and filename and drops the checksum")
 
 	require.Len(t, seenQueries, 2)
 	assert.Empty(t, seenQueries[0], "first probe has no query")
 	assert.Empty(t, seenQueries[1], "magic params must be stripped before the HEAD request")
+}
+
+// TestHTTPResolver_KeysArchiveModesApart: archive=false, no archive value and an archive format get three keys.
+func TestHTTPResolver_KeysArchiveModesApart(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("ETag", `"abc123"`)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	r := getter.NewHTTPResolver()
+	keys := map[string]struct{}{}
+
+	for _, query := range []string{"", "?archive=false", "?archive=zip"} {
+		key, err := r.Probe(t.Context(), redact.NewURL(srv.URL+"/mod.zip"+query))
+		require.NoError(t, err)
+
+		keys[key] = struct{}{}
+	}
+
+	assert.Len(t, keys, 3, "a raw download and an extracted tree must not share a key")
 }
 
 // TestHTTPResolver_PreservesNonMagicQueryParams pins that stripping

@@ -244,6 +244,9 @@ linters:
       ignore-map-keys: true
       min-len: 3
       min-occurrences: 5
+    godoclint:
+      enable:
+        - require-doc
     gocritic:
       enabled-tags:
         - performance
@@ -283,6 +286,16 @@ linters:
           - mnd
           - unparam
         path: _test\.go
+      # Test files have no API to document.
+      - linters:
+          - godoclint
+        text: should have a godoc
+        path: _test\.go
+      # These methods satisfy error and fmt.Stringer; a godoc would only
+      # restate the interface.
+      - linters:
+          - godoclint
+        text: should have a godoc \("(Error|Unwrap|String)"\)
       # Tests frequently drive real fixtures on disk, so tests
       # are allowed to bypass venv. The text match lifts only the venv rules,
       # so the testify rule still applies here.
@@ -389,9 +402,13 @@ issues:
 formatters:
   enable:
     - goimports
+    - golines
   settings:
     gofmt:
       simplify: true
+    golines:
+      max-len: 120
+      tab-len: 1
   exclusions:
     generated: lax
     paths:

@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -123,7 +124,7 @@ func TestGetConvenience(t *testing.T) {
 func TestGetCopiesHiddenFilesByDefault(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	src := venvtest.Root("/src/repo")
 	dst := venvtest.Root("/dst/repo")
 

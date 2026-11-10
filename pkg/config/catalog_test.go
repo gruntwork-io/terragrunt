@@ -1,10 +1,14 @@
 package config_test
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -146,5 +150,130 @@ func TestCatalogParseConfigFile(t *testing.T) {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 			}
 		})
+	}
+}
+
+// TestReadCatalogConfigRunsCommandsBesideTheConfigNamingThem pins where run_cmd
+// runs while the catalog block is read. The block's own commands run beside the
+// root config, since the child config generated for the read has no directory
+// on disk. A command in a config the root reads runs beside that config.
+func TestReadCatalogConfigRunsCommandsBesideTheConfigNamingThem(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		files   map[string]string
+		wantDir string
+	}{
+		"in the catalog block": {
+			files: map[string]string{
+				"root.hcl": `catalog { urls = [run_cmd("--terragrunt-quiet", "print-url")] }`,
+			},
+		},
+		"in a local of the root config": {
+			files: map[string]string{
+				"root.hcl": `
+locals { url = run_cmd("--terragrunt-quiet", "print-url") }
+catalog { urls = [local.url] }
+`,
+			},
+		},
+		"in a config the root config reads": {
+			files: map[string]string{
+				"root.hcl": `
+locals { shared = read_terragrunt_config("${get_parent_terragrunt_dir()}/shared/shared.hcl") }
+catalog { urls = [local.shared.locals.url] }
+`,
+				"shared/shared.hcl": `locals { url = run_cmd("--terragrunt-quiet", "print-url") }`,
+			},
+			wantDir: "shared",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu   sync.Mutex
+				dirs []string
+			)
+
+			printURL := func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				mu.Lock()
+				defer mu.Unlock()
+
+				dirs = append(dirs, inv.Dir)
+
+				return vexec.Result{Stdout: []byte("https://example.com/modules")}
+			}
+
+			v := venvtest.NewWithOSFS().WithExec(vexec.NewMemExec(printURL))
+
+			rootDir, err := vfs.EvalSymlinks(v.FS, t.TempDir())
+			require.NoError(t, err)
+
+			for path, content := range tc.files {
+				file := filepath.Join(rootDir, filepath.FromSlash(path))
+				require.NoError(t, v.FS.MkdirAll(filepath.Dir(file), 0o755))
+				require.NoError(t, vfs.WriteFile(v.FS, file, []byte(content), 0o644))
+			}
+
+			ctx, pctx := newTestParsingContext(t, filepath.Join(rootDir, "terragrunt.hcl"))
+			pctx.ScaffoldRootFileName = "root.hcl"
+
+			cfg, err := config.ReadCatalogConfig(ctx, logger.CreateLogger(), v, pctx)
+			require.NoError(t, err)
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, []string{"https://example.com/modules"}, cfg.URLs)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			require.NotEmpty(t, dirs)
+
+			for _, dir := range dirs {
+				assert.Equal(t, filepath.Join(rootDir, tc.wantDir), dir)
+			}
+		})
+	}
+}
+
+// TestParseConfigStringKeepsCommandsInAMissingConfigDir pins that only a catalog
+// read moves run_cmd out of a directory that doesn't exist. Any other parse
+// fails there, so a config never runs a program somewhere it did not name.
+func TestParseConfigStringKeepsCommandsInAMissingConfigDir(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu   sync.Mutex
+		dirs []string
+	)
+
+	printDir := func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		mu.Lock()
+		defer mu.Unlock()
+
+		dirs = append(dirs, inv.Dir)
+
+		return vexec.Result{}
+	}
+
+	v := venvtest.NewWithOSFS().WithExec(vexec.NewMemExec(printDir))
+
+	configDir := filepath.Join(t.TempDir(), "missing")
+	configPath := filepath.Join(configDir, "terragrunt.hcl")
+
+	ctx, pctx := newTestParsingContext(t, configPath)
+
+	_, err := config.ParseConfigString(ctx, logger.CreateLogger(), v, pctx, configPath,
+		`locals { out = run_cmd("--terragrunt-quiet", "print-dir") }`, nil)
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.NotEmpty(t, dirs)
+
+	for _, dir := range dirs {
+		assert.Equal(t, configDir, dir)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -102,7 +103,7 @@ func (c *commandLog) envOf(t *testing.T, prefix, name string) string {
 
 // gitVenv returns an in-memory venv whose exec answers through log.
 func gitVenv(log *commandLog) *venv.Venv {
-	return venvtest.New().WithHandler(log.handler())
+	return venv.MemVenv().WithHandler(log.handler())
 }
 
 // download fetches src into dst with a client whose only getter is g.
@@ -141,7 +142,7 @@ func TestGitGetterClonesRefAtDepth(t *testing.T) {
 	}, log.argv())
 
 	assert.NotContains(t, log.trusted, false, "every git command must run as Terragrunt's own")
-	assert.Equal(t, "ssh", log.envOf(t, "git clone", getter.EnvGitSSHCommand))
+	assert.Equal(t, "ssh", log.envOf(t, "git clone", git.EnvGitSSHCommand))
 }
 
 func TestGitGetterRefreshesExistingCheckout(t *testing.T) {
@@ -196,7 +197,7 @@ func TestGitGetterRefreshWithoutRefFollowsRemoteHead(t *testing.T) {
 func TestGitGetterHandsSSHKeyToSSH(t *testing.T) {
 	t.Parallel()
 
-	key := []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nplaceholder\n")
+	key := []byte("fake-ssh-key\n")
 
 	var (
 		keyPath string
@@ -215,7 +216,7 @@ func TestGitGetterHandsSSHKeyToSSH(t *testing.T) {
 		}
 
 		for _, kv := range inv.Env {
-			if cmd, ok := strings.CutPrefix(kv, getter.EnvGitSSHCommand+"="); ok {
+			if cmd, ok := strings.CutPrefix(kv, git.EnvGitSSHCommand+"="); ok {
 				keyPath = strings.TrimPrefix(cmd, "ssh -i ")
 			}
 		}
@@ -250,7 +251,7 @@ func TestGitGetterRefusesSSHKeyOnOldGit(t *testing.T) {
 	src := "git::ssh://git@example.com/org/repo.git?sshkey=" + base64.StdEncoding.EncodeToString([]byte("key"))
 
 	err := download(t, getter.NewGitGetter(gitVenv(log)), src, venvtest.Root("/work/module"), getter.ModeDir)
-	require.ErrorIs(t, err, getter.ErrGitTooOldForSSHKey)
+	require.ErrorIs(t, err, git.ErrGitTooOldForSSHKey)
 	assert.Equal(t, []string{"git version"}, log.argv(), "nothing may be cloned with a git too old for the key")
 }
 
@@ -279,7 +280,7 @@ func TestGitGetterRefusesPortOutOfRange(t *testing.T) {
 func TestGitGetterFailsWhenExecRefuses(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithHandler(func(context.Context, vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(context.Context, vexec.Invocation) vexec.Result {
 		return vexec.Result{Err: errDenied}
 	})
 
@@ -307,7 +308,7 @@ func TestGitGetterErrorKeepsEndOfLongStderr(t *testing.T) {
 func TestGitGetterKeepsCredentialsOutOfErrors(t *testing.T) {
 	t.Parallel()
 
-	const token = "s3cr3t-token"
+	const token = "fake-token"
 
 	tests := []struct {
 		name   string
@@ -370,13 +371,13 @@ func TestGitGetterGetsOneFile(t *testing.T) {
 func TestGitGetterRefusesSymlinkedFile(t *testing.T) {
 	t.Parallel()
 
-	if venvtest.New().Platform.GOOS == "windows" {
+	if venv.MemVenv().Platform.GOOS == "windows" {
 		t.Skip("creating a symlink on Windows needs a privilege the test runner may not hold")
 	}
 
 	log := &commandLog{}
 	tmp := t.TempDir()
-	v := venvtest.New().WithFS(vfs.NewOSFS()).WithTempDir(func() string { return tmp }).WithHandler(log.handler())
+	v := venv.MemVenv().WithFS(vfs.NewOSFS()).WithTempDir(func() string { return tmp }).WithHandler(log.handler())
 
 	log.onRun = func(inv *vexec.Invocation) {
 		if inv.Args[0] == "clone" {

@@ -16,8 +16,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -283,7 +283,7 @@ func TestCatFileBatch_CloseReportsExit(t *testing.T) {
 func TestCatFileBatch_StartFailure(t *testing.T) {
 	t.Parallel()
 
-	runner, err := git.NewGitRunner(venvtest.New().WithExec(&fakeBatchExec{startErr: errFakeBatch}))
+	runner, err := git.NewGitRunner(venv.MemVenv().WithExec(&fakeBatchExec{startErr: errFakeBatch}))
 	require.NoError(t, err)
 
 	_, err = runner.WithWorkDir("/repo").StartCatFileBatch(t.Context())
@@ -443,7 +443,7 @@ func (refusingWriter) Write([]byte) (int, error) {
 func startFakeBatch(t *testing.T, ctx context.Context, e *fakeBatchExec) *git.CatFileBatch {
 	t.Helper()
 
-	runner, err := git.NewGitRunner(venvtest.New().WithExec(e))
+	runner, err := git.NewGitRunner(venv.MemVenv().WithExec(e))
 	require.NoError(t, err)
 
 	batch, err := runner.WithWorkDir("/repo").StartCatFileBatch(ctx)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errfmt"
@@ -52,20 +53,21 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) (err error) {
 	defer func() {
 		giveTips(l, v, opts, err)
 	}()
 
-	if opts.TerraformCommand == "" {
+	if opts.TofuCommand == "" {
 		return MissingCommand{}
 	}
 
-	reason, isDisabled := runAllDisabledCommands[opts.TerraformCommand]
+	reason, isDisabled := runAllDisabledCommands[opts.TofuCommand]
 	if isDisabled {
 		return RunAllDisabledErr{
-			command: opts.TerraformCommand,
+			command: opts.TofuCommand,
 			reason:  reason,
 		}
 	}
@@ -176,7 +178,7 @@ func Run(
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context, l log.Logger) error {
-			return gen.GenerateStacks(ctx, l, v, opts, wts)
+			return gen.GenerateStacks(ctx, l, v, s, opts, wts)
 		})
 
 		// Handle any errors during stack generation
@@ -204,7 +206,7 @@ func Run(
 		runnerOpts = append(runnerOpts, runner.WithWorktrees(wts))
 	}
 
-	rnr, err := runner.New(ctx, l, v, opts, runnerOpts...)
+	rnr, err := runner.New(ctx, l, v, s, opts, runnerOpts...)
 	if err != nil {
 		return err
 	}
@@ -223,7 +225,7 @@ func RunAllOnStack(
 ) error {
 	l.Debugf("%s", rnr.GetStack().String())
 
-	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
+	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TofuCommand)
 	if err := rnr.LogUnitDeployOrder(
 		l,
 		v,
@@ -236,7 +238,7 @@ func RunAllOnStack(
 
 	var prompt string
 
-	switch opts.TerraformCliArgs.CommandName(opts.TerraformCommand) {
+	switch opts.TerraformCliArgs.CommandName(opts.TofuCommand) {
 	case tf.CommandNameApply:
 		prompt = "Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above?"
 	case tf.CommandNameDestroy:
@@ -267,8 +269,8 @@ func RunAllOnStack(
 
 	telemetryErr := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "run_all_on_stack", map[string]any{
-			"terraform_command": opts.TerraformCommand,
-			"working_dir":       opts.WorkingDir,
+			"tofu_command": opts.TofuCommand,
+			"working_dir":  opts.WorkingDir,
 		}, func(ctx context.Context, l log.Logger) error {
 			err := rnr.Run(ctx, l, v, opts, r)
 			if err != nil {
@@ -302,7 +304,7 @@ func RunAllOnStack(
 // - JSON report format is specified (--report-format=json)
 func shouldSkipSummary(opts *options.TerragruntOptions) bool {
 	// Skip summary for 'output' command as it's typically used programmatically
-	if opts.TerraformCommand == tf.CommandNameOutput {
+	if opts.TofuCommand == tf.CommandNameOutput {
 		return true
 	}
 

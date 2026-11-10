@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// TerragruntTFVarsFile is the name of the file [WriteTerragruntDebugFile] writes next to the unit's terragrunt.hcl.
 const TerragruntTFVarsFile = "terragrunt-debug.tfvars.json"
 
 const defaultPermissions = int(0600)
@@ -116,6 +117,22 @@ func writeDebugVars(
 				"WARN: The variable %s was omitted because it is not defined in the OpenTofu/Terraform module.",
 				varName,
 			)
+		}
+	}
+
+	for _, inputs := range []map[string]any{cfg.TFVarsInputs, cfg.JSONInputs} {
+		for varName, varValue := range inputs {
+			if !slices.Contains(moduleVariables, varName) {
+				l.Debugf(
+					"WARN: The variable %s was omitted because it is not defined in the OpenTofu/Terraform module.",
+					varName,
+				)
+
+				continue
+			}
+
+			// Variable files override TF_VAR_ env vars, so unlike the loop above this does not check the env.
+			jsonValuesByKey[varName] = varValue
 		}
 	}
 

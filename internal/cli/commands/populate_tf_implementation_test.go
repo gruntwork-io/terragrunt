@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -21,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,7 @@ func TestPopulateTFImplementation(t *testing.T) {
 	t.Run("probes the binary and stores the result", func(t *testing.T) {
 		t.Parallel()
 
-		v := venvtest.New().WithHandler(fakeTerraformVersionHandler)
+		v := venv.MemVenv().WithHandler(fakeTerraformVersionHandler)
 
 		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.TFPath = "terraform"
@@ -59,7 +59,10 @@ func TestPopulateTFImplementation(t *testing.T) {
 		opts.TerraformVersion = version.Must(version.NewVersion("1.0.0"))
 
 		// venvtest's fail-closed exec errors on any spawn, so success proves no probe ran.
-		require.NoError(t, commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venvtest.New()))
+		require.NoError(
+			t,
+			commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venv.MemVenv()),
+		)
 		assert.Equal(t, tfimpl.OpenTofu, opts.TofuImplementation)
 	})
 
@@ -69,7 +72,10 @@ func TestPopulateTFImplementation(t *testing.T) {
 		opts := options.NewTerragruntOptions(vexec.NewOSExec())
 		opts.TFPath = "terraform"
 
-		require.Error(t, commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venvtest.New()))
+		require.Error(
+			t,
+			commands.PopulateTFImplementation(config.WithCaches(t.Context()), logger.CreateLogger(), opts, venv.MemVenv()),
+		)
 		assert.Equal(t, tfimpl.Unknown, opts.TofuImplementation)
 		assert.Nil(t, opts.TerraformVersion)
 	})
@@ -104,7 +110,7 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 	t.Run("stores the detected implementation where InitServer reads it", func(t *testing.T) {
 		t.Parallel()
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithGOOS("linux").
 			WithHandler(fakeTerraformVersionHandler)
 		v.Listen = listen
@@ -121,7 +127,7 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 	t.Run("failed detection falls back without failing the run", func(t *testing.T) {
 		t.Parallel()
 
-		v := venvtest.New().WithGOOS("linux")
+		v := venv.MemVenv().WithGOOS("linux")
 		v.Listen = listen
 
 		opts := newOpts()
@@ -148,7 +154,7 @@ func TestRunActionProviderCacheUsesDetectedImplementation(t *testing.T) {
 		mirror  = "https://mirror.example.test/providers/"
 	)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithGOOS("linux").
 		WithUserHomeDir(func() (string, error) { return home, nil }).
 		WithHandler(func(ctx context.Context, inv vexec.Invocation) vexec.Result {

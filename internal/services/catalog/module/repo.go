@@ -56,6 +56,7 @@ var (
 	modulesPaths = []string{"modules"}
 )
 
+// Repo is a catalog repository, cloned or local, that the catalog searches for modules.
 type Repo struct {
 	cloneURL       string
 	sourceURL      string
@@ -371,6 +372,7 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger, v *venv.Ve
 	}
 }
 
+// CloneOptions describes the clone of a catalog repository: the source URL and the directory to clone into.
 type CloneOptions struct {
 	Context    context.Context
 	SourceURL  string
@@ -523,12 +525,13 @@ func removeIncompleteClone(fsys vfs.FS, cloneRoot, clonePath string) error {
 	return fsys.RemoveAll(clonePath)
 }
 
+// extractRepoName returns the last URL segment as the clone directory name, or "temp" when it is missing or all dots.
 func (repo *Repo) extractRepoName() string {
 	repoName := "temp"
 	if match := repoNameFromCloneURLReg.FindStringSubmatch(
 		repo.cloneURL,
 	); len(match) > 0 &&
-		match[1] != "" {
+		strings.Trim(match[1], ".") != "" {
 		repoName = match[1]
 	}
 

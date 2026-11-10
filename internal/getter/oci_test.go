@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -1043,7 +1044,7 @@ func TestNewClientWithoutOCIRejectsOCISources(t *testing.T) {
 func TestDefaultGenericFetchersOCIConfig(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	_, found := getter.DefaultGenericFetchers(v)[getter.SchemeOCI]
 	assert.False(t, found, "oci fetcher must be absent without WithOCIConfig")

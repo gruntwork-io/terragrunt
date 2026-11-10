@@ -27,7 +27,7 @@ func TestURLString(t *testing.T) {
 		},
 		{
 			name: "token as user",
-			in:   "https://ghp_abc123@github.com/org/repo.git",
+			in:   "https://fake-token@github.com/org/repo.git",
 			want: "https://github.com/org/repo.git",
 		},
 		{
@@ -62,7 +62,7 @@ func TestURLString(t *testing.T) {
 		},
 		{
 			name: "forced getter with credential query",
-			in:   "s3::https://s3.amazonaws.com/bucket/key.tgz?aws_access_key_id=AKIAEXAMPLE&aws_access_key_secret=SECRET",
+			in:   "s3::https://s3.amazonaws.com/bucket/key.tgz?aws_access_key_id=fake-access-key-id&aws_access_key_secret=fake-secret",
 			want: "s3::https://s3.amazonaws.com/bucket/key.tgz?aws_access_key_id=REDACTED&aws_access_key_secret=REDACTED",
 		},
 		{
@@ -71,9 +71,34 @@ func TestURLString(t *testing.T) {
 			want: "git@github.com:org/repo.git",
 		},
 		{
+			name: "scp form with credential query",
+			in:   "git@github.com:org/repo.git?sshkey=abc",
+			want: "git@github.com:org/repo.git?sshkey=REDACTED",
+		},
+		{
+			name: "forced getter scp form with credential query",
+			in:   "git::git@github.com:org/repo.git?sshkey=abc",
+			want: "git::git@github.com:org/repo.git?sshkey=REDACTED",
+		},
+		{
+			name: "no scheme with credential query",
+			in:   "github.com/org/repo?token=abc",
+			want: "github.com/org/repo?token=REDACTED",
+		},
+		{
 			name: "unparsable unchanged",
 			in:   "https://example.com/%zz",
 			want: "https://example.com/%zz",
+		},
+		{
+			name: "unparsable with credential query",
+			in:   "https://example.com/%zz?token=abc",
+			want: "https://example.com/%zz?token=REDACTED",
+		},
+		{
+			name: "unparsable drops a malformed pair",
+			in:   "https://example.com/%zz?token=%zz",
+			want: "https://example.com/%zz?",
 		},
 		{
 			name: "empty",
@@ -106,8 +131,13 @@ func TestURLStringKeepsRevision(t *testing.T) {
 		},
 		{
 			name: "ref kept, sshkey redacted",
-			in:   "git::ssh://example.com/org/repo.git?ref=v1.2.3&sshkey=SECRET",
+			in:   "git::ssh://example.com/org/repo.git?ref=v1.2.3&sshkey=fake-secret",
 			want: "git::ssh://example.com/org/repo.git?ref=v1.2.3&sshkey=REDACTED",
+		},
+		{
+			name: "scp form ref kept, sshkey redacted",
+			in:   "git@github.com:org/repo.git?ref=v1.2.3&sshkey=fake-secret",
+			want: "git@github.com:org/repo.git?ref=v1.2.3&sshkey=REDACTED",
 		},
 		{
 			name: "version kept",
@@ -116,7 +146,7 @@ func TestURLStringKeepsRevision(t *testing.T) {
 		},
 		{
 			name: "s3 credentials redacted",
-			in:   "s3::https://s3.amazonaws.com/bucket/key.tgz?aws_access_key_secret=SECRET",
+			in:   "s3::https://s3.amazonaws.com/bucket/key.tgz?aws_access_key_secret=fake-secret",
 			want: "s3::https://s3.amazonaws.com/bucket/key.tgz?aws_access_key_secret=REDACTED",
 		},
 	}
@@ -211,7 +241,10 @@ func FuzzURLString(f *testing.F) {
 		"https://:secret@example.com/repo.git",
 		"git::https://user:token@example.com/org/repo.git",
 		"git@github.com:org/repo.git",
+		"git@github.com:org/repo.git?sshkey=abc",
+		"github.com/org/repo?token=abc",
 		"https://example.com/%zz",
+		"https://example.com/%zz?token=abc",
 	} {
 		f.Add(seed)
 	}

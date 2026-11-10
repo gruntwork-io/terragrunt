@@ -85,7 +85,7 @@
 //		WithRelationships().
 //		WithMaxDependencyDepth(10)
 //
-//	components, err := d.Discover(ctx, logger, opts)
+//	components, err := d.Discover(ctx, logger, v, s, opts)
 //
 // # Thread Safety
 //

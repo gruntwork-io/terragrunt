@@ -11,6 +11,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
@@ -22,13 +23,16 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
+// Run renders the fully resolved config of the unit at opts.TerragruntConfigPath
+// in opts.Format, to stdout or, with opts.Write set, to opts.OutputPath. With
+// opts.RunAll set, it renders every discovered unit.
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
 
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts.TerragruntOptions)
@@ -39,10 +43,10 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	return runRender(l, v, opts, prepared.Cfg)
 }
 
-func runAll(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
+func runAll(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
-	components, err := d.Discover(ctx, l, v, opts.TerragruntOptions)
+	components, err := d.Discover(ctx, l, v, s, opts.TerragruntOptions)
 	if err != nil {
 		return err
 	}

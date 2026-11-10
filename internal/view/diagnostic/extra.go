@@ -2,6 +2,8 @@ package diagnostic
 
 import "github.com/hashicorp/hcl/v2"
 
+// ExtraInfo returns the value of type T in diag's Extra field, unwrapping [DiagnosticExtraUnwrapper] layers to find
+// it. It returns the zero T when no layer is a T.
 func ExtraInfo[T any](diag *hcl.Diagnostic) T {
 	extra := diag.Extra
 	if ret, ok := extra.(T); ok {

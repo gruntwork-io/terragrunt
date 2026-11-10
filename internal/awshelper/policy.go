@@ -22,6 +22,7 @@ type Statement struct {
 	Effect       string          `json:"Effect"`
 }
 
+// UnmarshalPolicy parses a JSON AWS policy document into a [Policy].
 func UnmarshalPolicy(policy string) (Policy, error) {
 	var p Policy
 
@@ -33,6 +34,7 @@ func UnmarshalPolicy(policy string) (Policy, error) {
 	return p, nil
 }
 
+// MarshalPolicy encodes policy as a JSON AWS policy document.
 func MarshalPolicy(policy Policy) ([]byte, error) {
 	policyJSON, err := json.Marshal(policy)
 	if err != nil {

@@ -12,8 +12,10 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -102,6 +104,7 @@ func ensureParsed(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -125,8 +128,26 @@ func ensureParsed(
 	}
 
 	return unit.GuardConfigParse(func() error {
-		return parseComponent(ctx, l, v, c, opts, discovery)
+		return parseComponent(ctx, l, v, s, c, opts, discovery)
 	})
+}
+
+// parseConfig parses the config of c at cfgPath with pkg/config, or with the config rewrite through p when
+// [rewrite.EnvRewrite] selects it and c is a unit.
+func parseConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	s *rewrite.Store,
+	c component.Component,
+	cfgPath string,
+) (*config.TerragruntConfig, error) {
+	if _, isUnit := c.(*component.Unit); !isUnit || !rewrite.Enabled(v.Env) {
+		return config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	}
+
+	return s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(pctx), cfgPath)
 }
 
 // ParsePhase parses HCL configurations for filter evaluation.
@@ -159,6 +180,7 @@ func (p *ParsePhase) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
@@ -178,6 +200,8 @@ func (p *ParsePhase) Run(
 	// When readFiles, parseExclude, or parseIncludes is enabled, also parse discovered components
 	// to populate the Reading field, Exclude configuration, or ProcessedIncludes even without filters
 	if discovery.readFiles || discovery.parseExclude || discovery.parseIncludes {
+		componentsToParse = slices.Grow(componentsToParse, len(input.Components))
+
 		for _, c := range input.Components {
 			componentsToParse = append(componentsToParse, DiscoveryResult{
 				Component: c,
@@ -202,7 +226,7 @@ func (p *ParsePhase) Run(
 
 	for _, candidate := range componentsToParse {
 		g.Go(func() error {
-			result, err := p.parseAndReclassify(ctx, l, v, input.Opts, discovery, candidate)
+			result, err := p.parseAndReclassify(ctx, l, v, s, input.Opts, discovery, candidate)
 			if err != nil {
 				errMu.Lock()
 
@@ -246,6 +270,7 @@ func (p *ParsePhase) parseAndReclassify(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
 	candidate DiscoveryResult,
@@ -253,7 +278,7 @@ func (p *ParsePhase) parseAndReclassify(
 	c := candidate.Component
 	ctx = contextWithParsePhase(ctx, parsePhaseTagParse)
 
-	if err := parseComponent(ctx, l, v, c, opts, discovery); err != nil {
+	if err := parseComponent(ctx, l, v, s, c, opts, discovery); err != nil {
 		if discovery.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 
@@ -311,6 +336,7 @@ func parseComponent(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -398,13 +424,14 @@ func parseComponent(
 				parsingCtx.Parser.IgnoreDiagnostics = true
 			}
 
-			cfg, err := config.PartialParseConfigFile(
+			cfg, err := parseConfig(
 				ctx,
 				l,
 				parseV,
 				parsingCtx,
+				s,
+				c,
 				parseOpts.TerragruntConfigPath,
-				nil,
 			)
 			if err != nil {
 				if discovery.suppressParseErrors {
@@ -429,11 +456,61 @@ func parseComponent(
 				unit.StoreConfig(cfg)
 			}
 
-			if parsingCtx.FilesRead.Tracking() {
-				readFiles := sanitizeReadFiles(parsingCtx.FilesRead.Paths())
-				c.SetReading(readFiles...)
+			if !parsingCtx.FilesRead.Tracking() {
+				return nil
 			}
+
+			if _, ok := c.(*component.Stack); ok {
+				autoIncludes := trackStackComponentReads(ctx, l, parseV, parsingCtx, parseOpts.TerragruntConfigPath)
+				discovery.recordAutoIncludeInputsReads(l, parseOpts.TerragruntConfigPath, autoIncludes)
+			} else {
+				discovery.recordUnitInputsReads(l, v.FS, parseOpts.TerragruntConfigPath, cfg)
+			}
+
+			c.SetReading(sanitizeReadFiles(parsingCtx.FilesRead.Paths())...)
 
 			return nil
 		})
+}
+
+// trackStackComponentReads records in pctx.FilesRead the files read by the unit and
+// stack blocks of the stack file at stackFilePath, and by the config_path and expansion
+// of each dependency in their autoinclude blocks, and returns the resolved autoinclude
+// blocks. Stack generation evaluates all of these, but the partial parse evaluates only
+// locals.
+//
+// It is best-effort and never fails discovery. Diagnostics are logged at debug level
+// and dropped, and a parse that fails keeps the reads recorded before the failure,
+// since a catalog stack can reference values.* that only the parent stack generating
+// it supplies.
+func trackStackComponentReads(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	stackFilePath string,
+) map[string]*inthclparse.AutoIncludeResolved {
+	pctx = pctx.Clone()
+	pctx.Parser.IgnoreDiagnostics = true
+
+	values, err := config.ReadValues(ctx, l, v, pctx, filepath.Dir(stackFilePath))
+	if err != nil {
+		l.Debugf("Discovery: skipping read tracking for %s: %v", stackFilePath, err)
+
+		return nil
+	}
+
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
+	if err != nil {
+		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
+
+		return nil
+	}
+
+	autoIncludes, err := config.StackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackCfg, values)
+	if err != nil {
+		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
+	}
+
+	return autoIncludes
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -14,17 +15,31 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt render` command.
 	CommandName = "render"
 
-	FormatFlagName                  = "format"
-	JSONFlagName                    = "json"
-	WriteFlagName                   = "write"
-	WriteAliasFlagName              = "w"
-	OutFlagName                     = "out"
-	WithMetadataFlagName            = "with-metadata"
+	// FormatFlagName is the name of the flag that selects the output format:
+	// [FormatHCL] or [FormatJSON].
+	FormatFlagName = "format"
+	// JSONFlagName is the name of the flag that is shorthand for --format=json.
+	JSONFlagName = "json"
+	// WriteFlagName is the name of the flag that writes the rendered config to
+	// a file in place of stdout.
+	WriteFlagName = "write"
+	// WriteAliasFlagName is the short alias of the --write flag.
+	WriteAliasFlagName = "w"
+	// OutFlagName is the name of the flag that sets the file --write writes to,
+	// relative to the unit's config directory.
+	OutFlagName = "out"
+	// WithMetadataFlagName is the name of the flag that records, in JSON
+	// output, the file that set each value.
+	WithMetadataFlagName = "with-metadata"
+	// DisableDependentModulesFlagName is the name of the hidden, deprecated flag
+	// that has no effect. Setting it evaluates its strict control.
 	DisableDependentModulesFlagName = "disable-dependent-modules"
 )
 
+// NewFlags returns the flags of `terragrunt render`, bound to opts.
 func NewFlags(opts *Options) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
@@ -129,7 +144,8 @@ func NewFlags(opts *Options) clihelper.Flags {
 	return renderFlags
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+// NewCommand returns the `terragrunt render` command.
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	renderOpts := NewOptions(opts)
 
 	cmdFlags := append(runcmd.NewFlags(l, opts, v, nil), NewFlags(renderOpts)...)
@@ -145,7 +161,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			clonedOpts := renderOpts.Clone()
 			clonedOpts.TerragruntOptions = tgOpts
 
-			return Run(ctx, l, v, clonedOpts)
+			return Run(ctx, l, v, s, clonedOpts)
 		},
 	}
 

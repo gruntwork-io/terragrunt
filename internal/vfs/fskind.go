@@ -95,7 +95,7 @@ func FSKinds() []FSKind {
 	return kinds
 }
 
-// asserts that fsKindNames must hold exactly one entry per kind.
+// These fail to compile unless fsKindNames holds one entry per kind.
 const (
 	_ = uint(len(fsKindNames) - int(fsKindCount))
 	_ = uint(int(fsKindCount) - len(fsKindNames))
@@ -110,18 +110,16 @@ func (k FSKind) String() string {
 	return fsKindNames[k]
 }
 
-// DetectFSKind reports the filesystem backing path, using one
-// statfs-family syscall.
+// DetectFSKind reports the filesystem backing path, using one statfs-family
+// syscall.
 //
-// Returns one of three values:
+// Besides a measured [FSKind], it returns:
 //
-// - a real [FSKind] filesystem
-//
-// - [FSUnknown] for a filesystem that the Go runtime recognizes, but hasn't
-// had performance characteristics measured by Terragrunt.
-//
-// - [FSUnprobed] for a path the platform declined to describe at all,
-// which is usually a sign that [path] doesn't exist on disk.
+//   - [FSVirtual] when fsys is not [NewOSFS]
+//   - [FSUnknown] for a filesystem the platform names but Terragrunt has not
+//     measured
+//   - [FSUnprobed] when the platform will not describe path, usually because
+//     it does not exist yet
 func DetectFSKind(fsys FS, path string) FSKind {
 	if !IsOSFS(fsys) {
 		return FSVirtual
