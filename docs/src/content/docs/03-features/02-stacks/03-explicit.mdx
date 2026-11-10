@@ -251,7 +251,7 @@ inputs = {
 
 Terragrunt merges this file into the `app` unit's configuration whenever the unit is parsed, so `run --all` orders `vpc` before `app`, and `app` receives `vpc_id` as an input. The `vpc` unit's own `terragrunt.hcl` stays untouched.
 
-The same block can depend on a sibling stack through `stack.<name>.path`, and read that stack's outputs keyed by unit name. See [Depending on a stack](/features/stacks/stack-operations#depending-on-a-stack) for how such a dependency behaves, and the [`autoinclude` block reference](/reference/hcl/blocks#autoinclude) for the full contract: what an autoinclude body may contain, how the merge works, and stack-level autoincludes.
+The same block can depend on a sibling stack through `stack.<name>.path`, and read that stack's outputs keyed by unit name. See [Depending on a stack](/features/stacks/stack-operations#depending-on-a-stack) for how such a dependency behaves, and the [`autoinclude` block reference](/reference/hcl/blocks/autoinclude/) for the full contract: what an autoinclude body may contain, how the merge works, and stack-level autoincludes.
 
 ## Stack Outputs
 

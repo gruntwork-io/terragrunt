@@ -79,7 +79,7 @@ Generally speaking, any HCL file found in a Terragrunt project that isn't named 
 
 ## Formatting HCL files
 
-You can rewrite the HCL files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar to `tofu fmt`, this command applies a subset of [the OpenTofu/Terraform language style conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for readability.
+You can rewrite the HCL files to a canonical format using the [`hcl fmt`](/reference/cli/commands/hcl/fmt) command built into `terragrunt`. Similar to `tofu fmt`, this command applies a subset of [the OpenTofu/Terraform language style conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for readability.
 
 By default, this command will recursively search for hcl files and format all of them for a given stack. Consider the following file structure:
 
@@ -114,10 +114,18 @@ If you run `terragrunt hcl fmt` at the `root`, this will update:
 
 - `root/qa/services/service01/terragrunt.hcl`
 
-You can set `--diff` option. `terragrunt hcl fmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
+To print the changes as a unified diff, pass `--diff`.
 
-Additionally, there's a flag `--check`. `terragrunt hcl fmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
+To check formatting without rewriting any file, pass `--check`. Terragrunt exits with status 1 if any file is unformatted, and 0 otherwise.
 
-You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hcl fmt --exclude-dir=qa/services`.
+To format only some files, pass [`--filter`](/reference/cli/commands/hcl/fmt#filter) with a path expression. A `!` prefix excludes the paths it matches, e.g. to skip `qa/services`:
 
-If you want to format a single file, you can use the `--file` flag. For example, `terragrunt hcl fmt --file qa/services/services.hcl`.
+```bash
+terragrunt hcl fmt --filter '!./qa/services/**'
+```
+
+To format a single file, filter on its path:
+
+```bash
+terragrunt hcl fmt --filter './qa/services/services.hcl'
+```
