@@ -142,12 +142,29 @@ var (
 
 // DecodedBaseBlocks decoded base blocks struct
 type DecodedBaseBlocks struct {
+	// TrackInclude is the include blocks of the file.
 	TrackInclude *TrackInclude
-	Locals       *cty.Value
+	// Locals is the evaluated locals block.
+	Locals *cty.Value
+	// FeatureFlags is the value of the `feature` variable: the file's flags merged with those of its includes.
 	FeatureFlags *cty.Value
+	// FeatureFlagBlocks is the feature blocks the file itself declares.
+	FeatureFlagBlocks FeatureFlags
 }
 
-// IncludeParse selects how [DecodeBaseBlocks] parses the included configs it reads feature defaults from.
+// IncludedFeatureFlags returns the feature blocks that the config include names declares, for the parse whose
+// include blocks are trackInclude.
+type IncludedFeatureFlags func(
+	ctx context.Context,
+	l log.Logger,
+	trackInclude *TrackInclude,
+	include *IncludeConfig,
+) (FeatureFlags, error)
+
+// IncludedDependencies returns the dependency blocks that the config include names declares.
+type IncludedDependencies func(ctx context.Context, l log.Logger, include *IncludeConfig) (Dependencies, error)
+
+// IncludeParse selects how this package parses the included configs it reads feature defaults from.
 type IncludeParse int
 
 const (
@@ -1789,7 +1806,15 @@ func ParseConfig(
 	pctx = pctx.WithValues(unitValues)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, pctx, file, includeFromChild, IncludeParseFeatureFlags)
+	baseBlocks, err := DecodeBaseBlocks(
+		ctx,
+		l,
+		v,
+		pctx,
+		file,
+		includeFromChild,
+		parsedIncludeFeatureFlags(v, pctx, IncludeParseFeatureFlags),
+	)
 	if err != nil {
 		// Surface the error here so it reaches stderr; the multi-error returned at
 		// the function end is not always rendered to the user by the CLI's final
@@ -2120,7 +2145,7 @@ func CompleteTerragruntConfigFile(
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(
+	dependencies, err := DecodeDependencyBlocks(
 		ctx,
 		l,
 		v,

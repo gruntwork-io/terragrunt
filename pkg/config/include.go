@@ -225,17 +225,17 @@ func mergeIncludedConfig(l log.Logger, mergeStrategy MergeStrategyType, included
 	return included.DeepMerge(l, base)
 }
 
-// handleIncludeForDependency is a partial merge of the included config to handle dependencies. This only merges the
+// MergeIncludedDependencies is a partial merge of the included config to handle dependencies. This only merges the
 // dependency block configurations between the included config and the child config. This allows us to merge the two
 // dependencies prior to retrieving the outputs, allowing you to have partial configuration that is overridden by a
-// child.
-func handleIncludeForDependency(
+// child. The blocks of each included config come from included.
+func MergeIncludedDependencies(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
 	pctx *ParsingContext,
-	childDecodedDependency TerragruntDependency,
-) (*TerragruntDependency, error) {
+	childDependencies Dependencies,
+	included IncludedDependencies,
+) (Dependencies, error) {
 	if pctx.TrackInclude == nil {
 		return nil, errors.New(
 			"you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG",
@@ -244,7 +244,7 @@ func handleIncludeForDependency(
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
 	includeList := pctx.TrackInclude.CurrentList
-	baseDependencyBlock := childDecodedDependency.Dependencies
+	baseDependencyBlock := childDependencies
 
 	for _, includeConfig := range slices.Backward(includeList) {
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
@@ -280,25 +280,19 @@ func handleIncludeForDependency(
 			)
 		}
 
-		includedPartialParse, err := partialParseIncludedConfig(
-			ctx,
-			l,
-			v,
-			pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock),
-			&includeConfig,
-		)
+		includedDependencies, err := included(ctx, l, &includeConfig)
 		if err != nil {
 			return nil, err
 		}
 
 		if mergeStrategy == ShallowMerge {
-			baseDependencyBlock = mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
+			baseDependencyBlock = mergeDependencyBlocks(includedDependencies, baseDependencyBlock)
 
 			continue
 		}
 
 		mergedDependencyBlock, err := deepMergeDependencyBlocks(
-			includedPartialParse.TerragruntDependencies,
+			includedDependencies,
 			baseDependencyBlock,
 		)
 		if err != nil {
@@ -308,7 +302,26 @@ func handleIncludeForDependency(
 		baseDependencyBlock = mergedDependencyBlock
 	}
 
-	return &TerragruntDependency{Dependencies: baseDependencyBlock}, nil
+	return baseDependencyBlock, nil
+}
+
+// ParsedIncludeDependencies returns an [IncludedDependencies] that partially parses each included config with pctx
+// to read its dependency blocks.
+func ParsedIncludeDependencies(v *venv.Venv, pctx *ParsingContext) IncludedDependencies {
+	return func(ctx context.Context, l log.Logger, include *IncludeConfig) (Dependencies, error) {
+		parsed, err := partialParseIncludedConfig(
+			ctx,
+			l,
+			v,
+			pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock),
+			include,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return parsed.TerragruntDependencies, nil
+	}
 }
 
 // Merge performs a shallow merge of the given sourceConfig into the targetConfig. sourceConfig will override common
