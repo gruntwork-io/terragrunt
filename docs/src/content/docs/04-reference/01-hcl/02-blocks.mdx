@@ -1625,6 +1625,10 @@ The `variables` block supports the following arguments:
 - `nullable` (attribute): When `true`, a `null` value sets its variable to `null`. Defaults to `false`, which drops `null` values so the variable keeps its default.
 - `validate` (attribute): When `true`, the run stops before OpenTofu/Terraform starts if the module does not declare every variable the block sets. Defaults to `false`.
 
+<Aside type="caution" title="Null inputs">
+  The [`inputs`](/reference/hcl/attributes/inputs/) attribute passes a `null` value to the module, and a `variables` block drops it by default. When you move a map from `inputs` into a `variables` block, set `nullable = true` to keep passing `null`.
+</Aside>
+
 Example:
 
 ```hcl
@@ -1644,6 +1648,8 @@ variables {
 A configuration can have any number of `variables` blocks, alongside an `inputs` attribute. Terragrunt returns an error when one file sets an input twice, in two `variables` blocks or in a `variables` block and the `inputs` attribute.
 
 If a unit defines an input that is also defined by an include, the input in the unit overrides the value from the include. This applies whether each side uses a `variables` block or the `inputs` attribute, and the input uses the `kind` and `validate` set in the unit. With `merge_strategy = "deep"`, nested maps and lists combine with the include's value, as they do for the `inputs` attribute.
+
+Inputs set in a stack's [`autoinclude`](/reference/hcl/blocks/autoinclude) block override the unit's, and use the `kind` and `validate` set in the `autoinclude` block. An `inputs` attribute there passes `TF_VAR_` environment variables even when the unit uses `tfvar` or `json`. To write those inputs to a variables file, set them in a `variables` block inside `autoinclude`.
 
 A `TF_VAR_` environment variable set before Terragrunt runs, or through `env_vars` in `extra_arguments`, takes precedence over an `env` input. A `tfvar` or `json` input takes precedence over it.
 
