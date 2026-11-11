@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -19,7 +20,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -190,10 +193,10 @@ func TestNewWorktreesForSeveralRefsWithRacing(t *testing.T) {
 	assert.Positive(t, materialized)
 }
 
-// TestNewWorktreesFilteredPathsOnly pins how much of a reference is checked
+// TestNewWorktreesCheckoutFilteredPaths pins how much of a reference is checked
 // out. A caller that only locates the components a filter names gets those
 // directories, and anything that parses configurations gets the whole tree.
-func TestNewWorktreesFilteredPathsOnly(t *testing.T) {
+func TestNewWorktreesCheckoutFilteredPaths(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -323,10 +326,10 @@ func TestNewWorktreesFilteredPathsOnly(t *testing.T) {
 			}
 
 			w, err := worktrees.NewWorktrees(t.Context(), logger.CreateLogger(), v, worktrees.WorktreeOpts{
-				WorkingDir:        tmpDir,
-				GitExpressions:    filters.UniqueGitFilters(),
-				Experiments:       experiments,
-				FilteredPathsOnly: true,
+				WorkingDir:     tmpDir,
+				GitExpressions: filters.UniqueGitFilters(),
+				Experiments:    experiments,
+				Checkout:       worktrees.CheckoutFilteredPaths,
 			})
 			require.NoError(t, err)
 
@@ -990,6 +993,96 @@ func TestWorktreeCleanupWithCancelledContextWithRacing(t *testing.T) {
 	}
 }
 
+// TestNewWorktreesComparisonProgress checks that comparing Git references logs its two lines only with a reporter.
+func TestNewWorktreesComparisonProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		wantInfoLines int
+		reported      bool
+	}{
+		{name: "reporter on the context", reported: true, wantInfoLines: 4},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+			commitUnits(t, tmpDir, 2)
+
+			logs := new(bytes.Buffer)
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
+
+			filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+			require.NoError(t, err)
+
+			gitExpressions := filters.UniqueGitFilters()
+			require.Len(t, gitExpressions, 1)
+
+			ctx := t.Context()
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, spinner.New(venv.MemVenv(), spinner.Options{}))
+			}
+
+			v := venvtest.NewOSWithEmptyEnv()
+
+			w, err := worktrees.NewWorktrees(
+				ctx,
+				l,
+				v,
+				worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions},
+			)
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				require.NoError(t, w.Cleanup(t.Context(), l, v))
+			})
+
+			pair := w.WorktreePairs[gitExpressions[0].String()]
+			require.NotNil(t, pair, "the expression is compared with and without a reporter")
+			assert.Equal(t, []string{"unit-1/terragrunt.hcl"}, pair.Diffs.Added)
+			assert.Equal(t, tc.wantInfoLines, strings.Count(logs.String(), "level=info"), logs)
+		})
+	}
+}
+
+// TestNewWorktreesFailedCheckoutProgress checks that a failed checkout logs no done line for the worktree.
+func TestNewWorktreesFailedCheckoutProgress(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	commitUnits(t, tmpDir, 2)
+
+	logs := new(bytes.Buffer)
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
+
+	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	term := new(bytes.Buffer)
+	ctx := spinner.ContextWithReporter(t.Context(), drawingReporter(term))
+
+	v := venvtest.NewOSWithEmptyEnv()
+	v = v.WithExec(&failOnCheckoutExec{Exec: v.Exec})
+
+	_, err = worktrees.NewWorktrees(
+		ctx,
+		l,
+		v,
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
+	)
+	require.Error(t, err)
+
+	assert.NotEmpty(t, term.String())
+	assert.Equal(t, 1, strings.Count(logs.String(), "level=info"), logs)
+	assert.Empty(t, registeredWorktrees(t, tmpDir))
+}
+
 // TestNewWorktreesWithoutExpressions pins that a run with no Git expressions needs no git at all.
 func TestNewWorktreesWithoutExpressions(t *testing.T) {
 	t.Parallel()
@@ -1078,13 +1171,11 @@ func TestNewWorktreesReportsSlowCreation(t *testing.T) {
 					return vexec.Result{}
 				})
 
-				experiments := experiment.NewExperiments()
-				require.NoError(t, experiments.EnableExperiment(experiment.SlowTaskReporting))
+				ctx := spinner.ContextWithReporter(t.Context(), spinner.New(venv.MemVenv(), spinner.Options{}))
 
-				_, err := worktrees.NewWorktrees(t.Context(), l, v, worktrees.WorktreeOpts{
+				_, err := worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
 					WorkingDir:     root,
 					GitExpressions: gitExpressions(t),
-					Experiments:    experiments,
 				})
 				require.NoError(t, err)
 
@@ -1431,6 +1522,22 @@ func TestWorktreeCleanupFailures(t *testing.T) {
 	}
 }
 
+type failOnCheckoutExec struct {
+	vexec.Exec
+}
+
+func (e *failOnCheckoutExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
+	if !slices.Contains(args, "checkout") {
+		return e.Exec.Command(ctx, name, args...)
+	}
+
+	failing := vexec.NewMemExec(func(context.Context, vexec.Invocation) vexec.Result {
+		return vexec.Result{ExitCode: 1, Stderr: []byte("fatal: checkout failed")}
+	})
+
+	return failing.Command(ctx, name, args...)
+}
+
 // cancelOnCheckoutExec cancels a context when a `git checkout` is prepared,
 // which is after a worktree is registered and before it is filled.
 type cancelOnCheckoutExec struct {
@@ -1593,4 +1700,14 @@ func treePaths(paths ...string) git.TreePaths {
 	}
 
 	return tree
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

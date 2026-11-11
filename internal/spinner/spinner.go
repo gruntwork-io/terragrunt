@@ -1,195 +1,261 @@
-// Package spinner reports the progress of an operation the user is waiting on.
-//
-// On a terminal the report is an animated spinner. Where there is none it is a
-// log line, repeated with an elapsed time so a CI system watching for output
-// does not take the wait for a hang.
-//
-// [Show] reports from the start. [ShowAfter] waits for a threshold first.
+// Package spinner reports slow operations as a progress line on a terminal and as log lines elsewhere.
 package spinner
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// spinnerFrames are braille dot characters used for the progress spinner.
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+const (
+	// DefaultThreshold is how long an operation runs before it is reported.
+	DefaultThreshold = 100 * time.Millisecond
 
-const spinnerInterval = 100 * time.Millisecond
+	keepaliveInterval = 30 * time.Second
+)
 
-// keepaliveInterval is how often a progress log line is emitted in non-interactive
-// environments (no TTY) to prevent CI systems from killing the job due to inactivity.
-const keepaliveInterval = 30 * time.Second
+type reporterKey struct{}
 
-// spinnerLineOverhead is the number of extra bytes the spinner line uses beyond the message itself
-// (braille character 3 bytes + space 1 byte). Since braille dots occupy a single terminal column,
-// this over-clears by a couple of columns, which is harmless.
-const spinnerLineOverhead = 4
-
-// Messages holds the messages for ShowAfter.
+// Messages describes how one operation is reported.
 type Messages struct {
-	// Working is shown while the operation is in progress (e.g. "Creating Git worktree for ref main...").
 	Working string
-	// Done is logged as INFO when the operation completes (e.g. "Created Git worktree for ref main").
-	Done string
+	Done    string
+	Started bool
 }
 
-// Writer returns v's error writer if it is an interactive terminal, nil
-// otherwise. Use the returned writer as the spinnerW argument to ShowAfter.
-func Writer(v *venv.Venv) io.Writer {
-	v.RequireTerminal()
+// Options configures [New].
+type Options struct {
+	Threshold     time.Duration
+	LogsForHumans bool
+}
 
-	if v.Terminal.StderrIsTTY() {
-		return v.Writers.ErrWriter
+// Reporter reports slow operations as a progress line or as log lines.
+type Reporter struct {
+	term      *terminal
+	threshold time.Duration
+	logs      bool
+}
+
+// New returns a reporter that draws on the stderr of v when it is a terminal, and writes log lines otherwise.
+func New(v *venv.Venv, opts Options) *Reporter {
+	v.RequireTerminal()
+	v.RequireWriters()
+	v.RequireGOOS()
+
+	if !animatable(v, opts) {
+		return &Reporter{threshold: opts.Threshold, logs: true}
+	}
+
+	term := newTerminal(v.Writers.ErrWriter, v.Terminal.ErrWidth, frames(v.Env, v.Platform.GOOS))
+	term.echoesInput = v.Terminal.StdinIsTTY()
+
+	return &Reporter{term: term, threshold: opts.Threshold}
+}
+
+// ContextWithReporter returns ctx with reporter installed for [ShowAfter] and [InputRead].
+func ContextWithReporter(ctx context.Context, reporter *Reporter) context.Context {
+	return context.WithValue(ctx, reporterKey{}, reporter)
+}
+
+// ContextWithLogOnly returns ctx with a reporter that writes log lines where the reporter on ctx draws.
+func ContextWithLogOnly(ctx context.Context) context.Context {
+	reporter := reporterFromContext(ctx)
+
+	return ContextWithReporter(ctx, &Reporter{threshold: reporter.threshold, logs: reporter.logs || reporter.Animated()})
+}
+
+// InputRead tells the reporter on ctx that a prompt was answered.
+func InputRead(ctx context.Context) {
+	reporterFromContext(ctx).inputRead()
+}
+
+// ShowAfter runs fn and reports it through the reporter on ctx.
+func ShowAfter(ctx context.Context, l log.Logger, msgs Messages, fn func() error) error {
+	return reporterFromContext(ctx).ShowAfter(ctx, l, msgs, fn)
+}
+
+// Animated reports whether the reporter draws a progress line.
+func (reporter *Reporter) Animated() bool {
+	return reporter.term != nil
+}
+
+// Guard wraps w so each write clears and redraws the progress line of an animated reporter.
+func (reporter *Reporter) Guard(w io.Writer) io.Writer {
+	return &guard{term: reporter.term, w: w}
+}
+
+// GuardLogger wraps the output of l with [Reporter.Guard] and returns a function that puts the output back.
+func (reporter *Reporter) GuardLogger(l log.Logger) func() {
+	var output io.Writer
+
+	l.SetOptions(log.WithOutputWrapper(func(w io.Writer) io.Writer {
+		output = w
+
+		return reporter.Guard(w)
+	}))
+
+	return func() {
+		l.SetOptions(log.WithOutput(output))
+	}
+}
+
+// ShowAfter runs fn, reports it past the threshold, and logs the done message if it was reported and succeeded.
+func (reporter *Reporter) ShowAfter(ctx context.Context, l log.Logger, msgs Messages, fn func() error) error {
+	return reporter.show(ctx, l, reporter.threshold, msgs, fn)
+}
+
+// Show runs fn and reports it from the start, for operations known to be slow.
+func (reporter *Reporter) Show(ctx context.Context, l log.Logger, msgs Messages, fn func() error) error {
+	return reporter.show(ctx, l, 0, msgs, fn)
+}
+
+// inputRead tells the terminal of an animated reporter that a prompt was answered.
+func (reporter *Reporter) inputRead() {
+	if !reporter.Animated() {
+		return
+	}
+
+	reporter.term.inputRead()
+}
+
+// show runs fn and reports it once it has run for threshold.
+func (reporter *Reporter) show(
+	ctx context.Context,
+	l log.Logger,
+	threshold time.Duration,
+	msgs Messages,
+	fn func() error,
+) error {
+	if !reporter.Animated() && !reporter.logs {
+		return fn()
+	}
+
+	start := time.Now()
+	finished := make(chan struct{})
+	reported := make(chan bool, 1)
+
+	go func() {
+		reported <- reporter.watch(ctx, l, threshold, msgs, start, finished)
+	}()
+
+	shown := false
+
+	err := func() error {
+		defer func() {
+			close(finished)
+
+			shown = <-reported
+		}()
+
+		return fn()
+	}()
+
+	if err != nil || !shown {
+		return err
+	}
+
+	if ctx.Err() == nil {
+		logDone(l, msgs.Done, start)
 	}
 
 	return nil
 }
 
-// Show runs fn and reports its progress from the moment it starts, for an
-// operation already known to be slow. Use [ShowAfter] for one that is usually
-// quick, so nothing is reported unless it turns out not to be.
-func Show(ctx context.Context, l log.Logger, spinnerW io.Writer, msgs Messages, fn func() error) error {
-	return ShowAfter(ctx, l, spinnerW, 0, msgs, fn)
-}
-
-// ShowAfter runs fn and, if it takes longer than timeout, shows a spinner on spinnerW.
-// When fn completes successfully, the spinner is replaced by an INFO log with the done message and elapsed time.
-// When fn returns an error, the spinner is cleared but no success message is logged.
-func ShowAfter(
+// watch reports the operation from threshold until it finishes and returns whether it was reported.
+func (reporter *Reporter) watch(
 	ctx context.Context,
 	l log.Logger,
-	spinnerW io.Writer,
-	timeout time.Duration,
-	msgs Messages,
-	fn func() error,
-) error {
-	result := make(chan error, 1)
-	showed := make(chan struct{})
-	start := time.Now()
-
-	go notifyLoop(ctx, l, spinnerW, timeout, msgs, start, result, showed)
-
-	err := fn()
-
-	result <- err
-
-	<-showed
-
-	return err
-}
-
-// notifyLoop waits for the timeout, then shows a spinner until done.
-// On successful completion it clears the spinner and logs the done message with elapsed time.
-// On error or context cancellation no completion message is logged.
-func notifyLoop(
-	ctx context.Context,
-	l log.Logger,
-	spinnerW io.Writer,
-	timeout time.Duration,
+	threshold time.Duration,
 	msgs Messages,
 	start time.Time,
-	result <-chan error,
-	showed chan<- struct{},
-) {
-	defer close(showed)
+	finished <-chan struct{},
+) bool {
+	if threshold > 0 {
+		timer := time.NewTimer(threshold)
+		defer timer.Stop()
 
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
+		if !waitTick(ctx, timer.C, finished) {
+			return false
+		}
+	}
+
+	if !reporter.Animated() {
+		logProgress(ctx, l, msgs, start, finished)
+
+		return true
+	}
+
+	reporter.term.animate(ctx, l, msgs.Working, start, finished)
+
+	return true
+}
+
+// waitTick returns true when tick fires first, false when the operation finishes or ctx is cancelled.
+func waitTick(ctx context.Context, tick <-chan time.Time, finished <-chan struct{}) bool {
+	select {
+	case <-tick:
+	case <-finished:
+		return false
+	case <-ctx.Done():
+		return false
+	}
 
 	select {
-	case <-timer.C:
-	case <-result:
-		return
+	case <-finished:
+		return false
 	case <-ctx.Done():
-		return
-	}
-
-	// No spinner writer — log and emit periodic keepalive lines so CI systems
-	// (e.g. CircleCI) do not kill the job due to prolonged output silence.
-	if spinnerW == nil {
-		l.Info(msgs.Working)
-
-		ticker := time.NewTicker(keepaliveInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				l.Infof("%s (%.0fs elapsed)", msgs.Working, time.Since(start).Seconds())
-			case err := <-result:
-				if err == nil {
-					logDone(l, msgs.Done, start)
-				}
-
-				return
-			case <-ctx.Done():
-				return
-			}
-		}
-	}
-
-	// Animate spinner until the operation finishes.
-	ticker := time.NewTicker(spinnerInterval)
-	defer ticker.Stop()
-
-	frame := 0
-
-	writeSpinnerFrame(l, spinnerW, spinnerFrames[0], msgs.Working)
-
-	frame++
-
-	for {
-		select {
-		case <-ticker.C:
-			writeSpinnerFrame(l, spinnerW, spinnerFrames[frame%len(spinnerFrames)], msgs.Working)
-
-			frame++
-		case err := <-result:
-			clearSpinner(l, spinnerW, msgs.Working)
-
-			if err == nil {
-				logDone(l, msgs.Done, start)
-			}
-
-			return
-		case <-ctx.Done():
-			clearSpinner(l, spinnerW, msgs.Working)
-
-			return
-		}
+		return false
+	default:
+		return true
 	}
 }
 
-// logDone logs the completion message, appending elapsed seconds when > 1s.
+// logProgress logs the working message unless the caller did, then repeats it every keepaliveInterval from start.
+func logProgress(
+	ctx context.Context,
+	l log.Logger,
+	msgs Messages,
+	start time.Time,
+	finished <-chan struct{},
+) {
+	if !msgs.Started {
+		l.Info(msgs.Working)
+	}
+
+	next := start.Add(keepaliveInterval)
+
+	timer := time.NewTimer(time.Until(next))
+	defer timer.Stop()
+
+	for waitTick(ctx, timer.C, finished) {
+		l.Infof("%s (%.0fs elapsed)", msgs.Working, time.Since(start).Seconds())
+
+		next = next.Add(keepaliveInterval)
+		timer.Reset(time.Until(next))
+	}
+}
+
+// logDone logs the done message, with the elapsed time if it is 1s or more.
 func logDone(l log.Logger, msg string, start time.Time) {
 	elapsed := time.Since(start)
-
-	if elapsed >= time.Second {
-		l.Infof("%s (%.1fs)", msg, elapsed.Seconds())
-	} else {
+	if elapsed < time.Second {
 		l.Info(msg)
+
+		return
 	}
+
+	l.Infof("%s (%.1fs)", msg, elapsed.Seconds())
 }
 
-// writeSpinnerFrame writes a single spinner frame to the writer.
-func writeSpinnerFrame(l log.Logger, w io.Writer, frame, msg string) {
-	if _, err := fmt.Fprintf(w, "\r%s %s", frame, msg); err != nil {
-		l.Debugf("Failed to write spinner frame: %v", err)
+// reporterFromContext returns the reporter on ctx, or a reporter that reports nothing when ctx has none.
+func reporterFromContext(ctx context.Context) *Reporter {
+	reporter, ok := ctx.Value(reporterKey{}).(*Reporter)
+	if !ok {
+		return new(Reporter)
 	}
-}
 
-// clearSpinner overwrites the spinner line with spaces and returns the cursor to the start.
-func clearSpinner(l log.Logger, w io.Writer, msg string) {
-	blank := strings.Repeat(" ", len(msg)+spinnerLineOverhead)
-
-	if _, err := fmt.Fprintf(w, "\r%s\r", blank); err != nil {
-		l.Debugf("Failed to clear spinner: %v", err)
-	}
+	return reporter
 }

@@ -723,7 +723,7 @@ func newDiscovery(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) (*discovery.Discovery, error) {
-	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+	d, err := discovery.NewFiltered(l, v.FS, discovery.FilteredOptions{
 		WorkingDir:        opts.WorkingDir,
 		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,

@@ -1,0 +1,42 @@
+---
+version: "v1.2.2"
+category: "strict-controls-added"
+---
+
+#### `cas-source-inside-stack` strict control
+
+A `unit` or `stack` block with `update_source_with_cas` could set a source inside the directory of its own stack file, e.g. a catalog with its stack at the root and its units under `units/`:
+
+```hcl
+# catalog/terragrunt.stack.hcl
+
+unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+```
+
+Stack generation copies the stack directory whole. For a `stack "bar"` block with `source = "../catalog"`, the generated stack contained the unit twice, and `run --all` ran both, the copy without the values its stack gives the generated unit:
+
+```text
+.terragrunt-stack/bar/.terragrunt-stack/foo
+.terragrunt-stack/bar/units/foo
+```
+
+Existing support will be retained for v1.x for backwards compatibility, to obey the [Terragrunt 1.0 guarantees](/process/1-0-guarantees#hcl-configurations).
+
+Terragrunt now warns about each such block:
+
+```
+WARN  Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is deprecated and will be removed in a future version of Terragrunt. Stack generation copies the stack directory whole, so `run --all` also runs the copy. Move the source out of the stack directory, and select the stack with a `//` subdirectory in its source.
+WARN  stack bar: unit "foo" in terragrunt.stack.hcl sets update_source_with_cas on source "./units/foo" inside the stack directory, so the generated stack also contains a copy of it; move the source out of the stack directory and select the stack with a // subdirectory in its source
+```
+
+With the new [`cas-source-inside-stack`](/reference/strict-controls/active#cas-source-inside-stack) strict control enabled, each of those blocks is an error instead:
+
+```bash
+terragrunt stack generate --strict-control cas-source-inside-stack
+```
+
+Move the stack into a subdirectory of the catalog, e.g. `stacks/bar`, keep its sources outside that subdirectory, and select it with `source = "../catalog//stacks/bar"`. The `cas-source-inside-stack` control is also part of the `deprecated-configs` group.

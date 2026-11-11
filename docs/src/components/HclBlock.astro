@@ -3,6 +3,8 @@ import { render, type CollectionEntry } from 'astro:content';
 import HclBlockAttribute from '@components/HclBlockAttribute.astro';
 import HclConfigs from '@components/HclConfigs.astro';
 import HclExamples from '@components/HclExamples.astro';
+import HclKeyGroups from '@components/HclKeyGroups.astro';
+import HclNestedBlock from '@components/HclNestedBlock.astro';
 import ReferenceCard from '@components/ReferenceCard.astro';
 import { renderMarkdownField } from '@lib/hcl/markdown';
 
@@ -19,6 +21,7 @@ const labels = await Promise.all(
 	})),
 );
 const attributes = entry.data.attributes ?? [];
+const blocks = entry.data.blocks ?? [];
 ---
 
 <HclConfigs configs={entry.data.configs} />
@@ -49,6 +52,21 @@ const attributes = entry.data.attributes ?? [];
 			<div>
 				{attributes.map((attribute) => (
 					<HclBlockAttribute attribute={attribute} />
+				))}
+			</div>
+		</>
+	)
+}
+
+{attributes.map((attribute) => attribute.keyGroups && <HclKeyGroups keys={attribute.keyGroups} />)}
+
+{
+	blocks.length > 0 && (
+		<>
+			<h2 id="blocks">Blocks</h2>
+			<div>
+				{blocks.map((block) => (
+					<HclNestedBlock block={block} />
 				))}
 			</div>
 		</>

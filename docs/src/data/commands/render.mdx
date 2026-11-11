@@ -16,13 +16,14 @@ flags:
   - render-format
   - render-write
   - render-all
+  - render-filter
+  - render-filter-affected
+  - render-discovery-boundary
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Render the Terragrunt configuration in the current working directory, with as much work done as possible beforehand (that is, with all includes merged, dependencies resolved/interpolated, function calls executed, etc).
-
-The only supported format at the moment is JSON, but support for HCL will be added in a future version.
 
 Example:
 

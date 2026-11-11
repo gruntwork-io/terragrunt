@@ -2,16 +2,21 @@ package config
 
 import (
 	"context"
+	"io"
 	"maps"
+	"path/filepath"
 	"slices"
 	"time"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -199,6 +204,152 @@ func parseDeclaredOutputs(
 	}
 
 	return cfg.Outputs, nil
+}
+
+// settleDeclaredOutputs caches the outputs block of the unit config at targetConfig when its files give it unevaluated.
+func settleDeclaredOutputs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	targetConfig string,
+	includes IncludeConfigsMap,
+) {
+	if !pctx.Experiments.Evaluate(experiment.OutputsBlock) {
+		return
+	}
+
+	declaredCache := cache.ContextCache[*declaredOutputsResult](ctx, DeclaredOutputsCacheContextKey)
+	if result, found := declaredCache.Get(ctx, targetConfig); found && result.fresh(v.FS) {
+		return
+	}
+
+	if result := declaredOutputsInFiles(ctx, l, v, pctx, targetConfig, includes); result != nil {
+		declaredCache.Put(ctx, targetConfig, result)
+	}
+}
+
+// declaredOutputsInFiles returns the outputs block only targetConfig can declare, absent or all constants, else nil.
+func declaredOutputsInFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	targetConfig string,
+	includes IncludeConfigsMap,
+) *declaredOutputsResult {
+	readAt := time.Now()
+
+	source, err := vfs.ReadFile(v.FS, targetConfig)
+	if err != nil {
+		return nil
+	}
+
+	quiet := hclparse.WithLogger(l.WithOptions(log.WithOutput(io.Discard)))
+
+	file, err := hclparse.NewParser(quiet).ParseFromBytes(source, targetConfig)
+	if err != nil {
+		return nil
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok || topLevelBlocks(body, MetadataInclude) != len(includes) {
+		return nil
+	}
+
+	files := map[string]fileStamp{targetConfig: stampFile(v.FS, targetConfig, readAt)}
+
+	for _, include := range includes {
+		includePath := include.Path
+		if !filepath.IsAbs(includePath) {
+			includePath = filepath.Join(filepath.Dir(targetConfig), includePath)
+		}
+
+		if includeDeclaresOutputs(ctx, l, v, pctx, includePath) {
+			return nil
+		}
+
+		files[includePath] = stampFile(v.FS, includePath, readAt)
+	}
+
+	if autoIncludeBeside(v.FS, pctx, targetConfig) {
+		return nil
+	}
+
+	if topLevelBlocks(body, MetadataOutputs) == 0 {
+		return &declaredOutputsResult{files: files}
+	}
+
+	decoded := terragruntOutputs{}
+	if err := file.Decode(&decoded, &hcl.EvalContext{}); err != nil {
+		return nil
+	}
+
+	if err := decoded.Outputs.Validate(pctx.Experiments, targetConfig); err != nil {
+		return nil
+	}
+
+	return &declaredOutputsResult{declared: decoded.Outputs, files: files}
+}
+
+// includeDeclaresOutputs reports whether the included config at path can add an outputs block, or true when unsure.
+func includeDeclaresOutputs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	path string,
+) bool {
+	if autoIncludeBeside(v.FS, pctx, path) {
+		return true
+	}
+
+	info, err := v.FS.Stat(path)
+	if err != nil {
+		return true
+	}
+
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
+	key := partialParseCacheKey(path, info)
+
+	file, err := rebindOrParseHCLFile(
+		ctx,
+		l,
+		v,
+		pctx,
+		hclCache,
+		cachedHCLFile(ctx, v.FS, hclCache, key, path),
+		key,
+		path,
+		info.ModTime(),
+	)
+	if err != nil {
+		return true
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+
+	return !ok || topLevelBlocks(body, MetadataOutputs) > 0
+}
+
+// autoIncludeBeside reports whether a parse of the config at path merges an autoinclude file beside it.
+func autoIncludeBeside(fsys vfs.FS, pctx *ParsingContext, path string) bool {
+	autoInclude, ok := siblingAutoIncludePath(pctx, path)
+
+	return ok && vfs.Exists(fsys, autoInclude)
+}
+
+// topLevelBlocks returns how many top-level blocks of body have the type blockType.
+func topLevelBlocks(body *hclsyntax.Body, blockType string) int {
+	count := 0
+
+	for _, block := range body.Blocks {
+		if block.Type == blockType {
+			count++
+		}
+	}
+
+	return count
 }
 
 // checkDeclaredOutputs returns [DeclaredOutputMissingError] for the first declared output missing from stateOutputs.

@@ -1,7 +1,9 @@
 package runner_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -20,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -201,6 +204,49 @@ func TestNew(t *testing.T) {
 		_, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(rewrite.Store), opts)
 		require.Error(t, err)
 	})
+}
+
+// TestNew_DiscoveryProgress checks that unit discovery is drawn with a reporter and finds the same unit without one.
+func TestNew_DiscoveryProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := memVenv(tfVersionOutput)
+			writeUnit(t, v, memRoot, "vpc", "")
+
+			term := new(bytes.Buffer)
+
+			ctx := config.WithCaches(t.Context())
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
+			}
+
+			rnr, err := runner.New(
+				ctx,
+				thlogger.CreateLogger(),
+				v,
+				new(rewrite.Store),
+				newStackOpts(t, memRoot, tf.CommandNamePlan),
+			)
+			require.NoError(t, err)
+			require.Len(t, rnr.GetStack().Units, 1, "the unit is discovered with and without a reporter")
+
+			if tc.reported {
+				assert.NotEmpty(t, term.String())
+			}
+		})
+	}
 }
 
 // TestBuild_VersionConstraints pins the typed errors Build returns for unsatisfied version constraints.
@@ -447,4 +493,14 @@ func dependencyBlock(configPath string) string {
 	return `dependency "dep" {
   config_path = "` + configPath + `"
 }`
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

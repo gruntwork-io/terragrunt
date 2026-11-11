@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -348,6 +349,15 @@ func RunAction(
 	// [github.com/gruntwork-io/terragrunt/internal/git.GoRepoRoot] and
 	// the version probes below share state across the whole action.
 	actionCtx := cache.ContextWithCache(ctx)
+
+	if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
+		reporter := newProgressReporter(l, opts, v)
+		actionCtx = spinner.ContextWithReporter(actionCtx, reporter)
+
+		if reporter.Animated() {
+			defer guardTerminal(l, v, reporter)()
+		}
+	}
 
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
@@ -730,6 +740,33 @@ func initialSetup(
 	}
 
 	return nil
+}
+
+// newProgressReporter returns a reporter that draws only next to text logs at info level or lower.
+func newProgressReporter(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *spinner.Reporter {
+	textLogs := !opts.JSONLogFormat && !l.Formatter().DisabledOutput()
+
+	return spinner.New(v, spinner.Options{
+		Threshold:     spinner.DefaultThreshold,
+		LogsForHumans: textLogs && l.Level() >= log.InfoLevel,
+	})
+}
+
+// guardTerminal wraps the logger, stderr and stdout around the progress line and returns a function that unwraps them.
+func guardTerminal(l log.Logger, v *venv.Venv, reporter *spinner.Reporter) func() {
+	writers := v.Writers
+	restoreLogger := reporter.GuardLogger(l)
+
+	v.Writers = writers.WithErrWriter(reporter.Guard(writers.ErrWriter))
+	if v.Terminal.StdoutIsTTY() {
+		v.Writers = v.Writers.WithWriter(reporter.Guard(writers.Writer))
+	}
+
+	return func() {
+		v.Writers = writers
+
+		restoreLogger()
+	}
 }
 
 // setCommandSpanAttributes records on the command span the tofu command and

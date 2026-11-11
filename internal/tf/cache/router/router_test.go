@@ -88,6 +88,11 @@ func TestRouterMiddlewareScope(t *testing.T) {
 			wantTrace: []string{"root-first", "root-second", "v1"},
 		},
 		{
+			name:      "route at the exact group prefix runs root and group middleware in order",
+			target:    "/v1",
+			wantTrace: []string{"root-first", "root-second", "v1"},
+		},
+		{
 			name:      "route under a sibling prefix runs only root middleware",
 			target:    "/v1x/items",
 			wantTrace: []string{"root-first", "root-second"},
@@ -119,6 +124,7 @@ func TestRouterMiddlewareScope(t *testing.T) {
 
 			v1 := root.Group("v1")
 			v1.Use(record("v1"))
+			v1.GET("", ok)
 			v1.GET("/items", ok)
 
 			// v1x shares the v1 prefix as a string but is a different path segment.

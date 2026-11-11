@@ -1694,3 +1694,72 @@ dependency "db" {
 		})
 	}
 }
+
+// TestRunValidateOutputsContractsOpenNoConfigAgainWithoutAContract expects the experiment alone to reread no unit.
+func TestRunValidateOutputsContractsOpenNoConfigAgainWithoutAContract(t *testing.T) {
+	t.Parallel()
+
+	const rootInclude = `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`
+
+	files := map[string]string{
+		"root.hcl":           "\n",
+		"vpc/main.tf":        outputsContractFiles["vpc/main.tf"],
+		"vpc/terragrunt.hcl": rootInclude,
+		"app/main.tf":        outputsContractFiles["app/main.tf"],
+		"app/terragrunt.hcl": rootInclude + `
+dependency "vpc" {
+  config_path = "../vpc"
+
+  mock_outputs = {
+    vpc_id = "vpc-mock"
+  }
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+`,
+	}
+
+	opens := func(experiments ...string) int {
+		fsys := &openCountingFS{FS: vfs.NewMemMapFS(), opens: map[string]int{}}
+		result := runValidate(t, &validateRun{files: files, fs: fsys, experiments: experiments})
+
+		require.NoError(t, result.err)
+		assert.Empty(t, result.diags)
+
+		return fsys.count(filepath.Join(result.root, "app", config.DefaultTerragruntConfigPath))
+	}
+
+	without := opens()
+	with := opens(experiment.OutputsBlock)
+
+	assert.Positive(t, without)
+	assert.Equal(t, without, with)
+}
+
+type openCountingFS struct {
+	vfs.FS
+	opens map[string]int
+	mu    sync.Mutex
+}
+
+func (fsys *openCountingFS) Open(name string) (vfs.File, error) {
+	fsys.mu.Lock()
+	fsys.opens[filepath.Clean(name)]++
+	fsys.mu.Unlock()
+
+	return fsys.FS.Open(name)
+}
+
+// count returns how often name was opened.
+func (fsys *openCountingFS) count(name string) int {
+	fsys.mu.Lock()
+	defer fsys.mu.Unlock()
+
+	return fsys.opens[filepath.Clean(name)]
+}

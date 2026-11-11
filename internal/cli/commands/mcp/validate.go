@@ -227,7 +227,7 @@ func validateDiscoveredTree(
 	dir string,
 	parser hclvalidate.ComponentParser,
 ) ([]error, []string, error) {
-	disc, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+	disc, err := discovery.NewFiltered(l, v.FS, discovery.FilteredOptions{
 		WorkingDir:        dir,
 		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,

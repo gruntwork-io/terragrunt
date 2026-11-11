@@ -1,0 +1,84 @@
+---
+import { Badge } from '@astrojs/starlight/components';
+import TerragruntIcon from '@components/TerragruntIcon.astro';
+import TypeBadge from '@components/TypeBadge.astro';
+import { renderMarkdownField } from '@lib/hcl/markdown';
+
+export interface KeyRow {
+	id: string;
+	name: string;
+	type: string;
+	optional?: boolean;
+	defaultVal?: string;
+	terragruntLabel?: string;
+	tags?: string[];
+	description: string;
+	children?: KeyRow[];
+}
+
+interface Props {
+	rows: KeyRow[];
+}
+
+const rows = await Promise.all(
+	Astro.props.rows.map(async (row) => ({ ...row, descriptionHtml: await renderMarkdownField(row.description) })),
+);
+---
+
+<dl>
+	{
+		rows.map(({ id, name, type, optional, defaultVal, terragruntLabel, tags = [], descriptionHtml, children }) => (
+			<div id={id}>
+				<dt>
+					<code>{name}</code>
+					{terragruntLabel && <TerragruntIcon label={terragruntLabel} />}
+					{tags.map((tag) => (
+						<Badge text={tag} variant="note" size="small" />
+					))}
+					<TypeBadge type={type} optional={optional} defaultVal={defaultVal} />
+				</dt>
+				<dd>
+					<Fragment set:html={descriptionHtml} />
+					{children && children.length > 0 && <Astro.self rows={children} />}
+				</dd>
+			</div>
+		))
+	}
+</dl>
+
+<style>
+	dl {
+		margin: 1rem 0 0;
+	}
+
+	dl > div {
+		padding-block: 0.75rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+	}
+
+	dd dl {
+		margin: 0.5rem 0 0;
+		padding-inline-start: 1rem;
+		border-inline-start: 1px solid var(--sl-color-gray-5);
+	}
+
+	dd dl > div:first-child {
+		border-top: 0;
+	}
+
+	dt {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		font-weight: normal;
+	}
+
+	dd {
+		margin: 0.25rem 0 0;
+	}
+
+	dd :global(p) {
+		margin: 0;
+	}
+</style>

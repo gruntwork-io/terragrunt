@@ -285,6 +285,29 @@ func TestStart_KeepsCollectedErrorsWhenAlreadyRunning(t *testing.T) {
 	assert.ErrorIs(t, wp.Wait(), errTask, "starting a running pool should keep the errors it collected")
 }
 
+func TestStart_ClearsCollectedErrorsAfterFullStopWithRacing(t *testing.T) {
+	t.Parallel()
+
+	errTask := errors.New("task failed")
+
+	wp := worker.NewWorkerPool(1)
+	defer wp.Stop()
+
+	wp.Start()
+	wp.Submit(func() error { return errTask })
+	require.ErrorIs(t, wp.GracefulStop(), errTask)
+	require.False(t, wp.IsRunning(), "GracefulStop should leave the pool stopped")
+
+	wp.Start()
+
+	require.NoError(t, wp.Wait(), "starting a stopped pool should drop the errors it collected")
+
+	errRestarted := errors.New("restarted task failed")
+
+	wp.Submit(func() error { return errRestarted })
+	require.ErrorIs(t, wp.Wait(), errRestarted, "a restarted pool should run new tasks")
+}
+
 func TestSubmit_DropsTasksWhileStopping(t *testing.T) {
 	t.Parallel()
 

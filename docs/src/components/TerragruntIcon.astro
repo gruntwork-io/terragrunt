@@ -1,0 +1,26 @@
+---
+import darkThemeIcon from '@assets/icons/terragrunt-icon.svg';
+import lightThemeIcon from '@assets/icons/terragrunt-icon-dark.svg';
+
+interface Props {
+	label?: string;
+}
+
+const { label } = Astro.props;
+---
+
+<span class="terragrunt-icon" title={label}>
+	<img class="light:sl-hidden" src={darkThemeIcon.src} alt={label ?? ''} width="18" height="18" />
+	<img class="dark:sl-hidden" src={lightThemeIcon.src} alt={label ?? ''} width="18" height="18" />
+</span>
+
+<style>
+	.terragrunt-icon {
+		display: inline-flex;
+		flex-shrink: 0;
+	}
+
+	img {
+		margin: 0;
+	}
+</style>

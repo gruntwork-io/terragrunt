@@ -16,7 +16,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -594,7 +596,9 @@ func generateUnits(
 					"unit_source": unit.Source,
 					"unit_path":   unit.Path,
 				}, func(ctx context.Context, l log.Logger) error {
-					return generateComponent(ctx, l, v, opts, &item)
+					return spinner.ShowAfter(ctx, l, generateMessages(opts, &item), func() error {
+						return generateComponent(ctx, l, v, opts, &item)
+					})
 				})
 		})
 	}
@@ -647,7 +651,9 @@ func generateStacks(
 					"stack_source": stack.Source,
 					"stack_path":   stack.Path,
 				}, func(ctx context.Context, l log.Logger) error {
-					return generateComponent(ctx, l, v, opts, &item)
+					return spinner.ShowAfter(ctx, l, generateMessages(opts, &item), func() error {
+						return generateComponent(ctx, l, v, opts, &item)
+					})
 				})
 		})
 	}
@@ -677,6 +683,25 @@ type componentToGenerate struct {
 	noValidation bool
 	mutable      bool
 	kind         componentKind
+}
+
+// generateMessages returns the progress messages for generating one unit or stack.
+func generateMessages(opts *generateOpts, cmp *componentToGenerate) spinner.Messages {
+	kindStr := "unit"
+	if cmp.kind == stackKind {
+		kindStr = "stack"
+	}
+
+	return spinner.Messages{
+		Working: fmt.Sprintf(
+			"Generating %s %s from %s...",
+			kindStr,
+			cmp.address,
+			util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths),
+		),
+		Done:    fmt.Sprintf("Generated %s %s", kindStr, cmp.address),
+		Started: true,
+	}
 }
 
 // resolveDestPath builds and validates the destination path for a generated component.
@@ -972,6 +997,18 @@ func fetchViaCAS(
 
 	defer result.Cleanup()
 
+	for i := range result.SourcesInsideStack {
+		if err := evaluateDetailControl(
+			ctx,
+			l,
+			opts.strictControls,
+			controls.CASSourceInsideStack,
+			CASSourceInsideStackError{Component: kindStr + " " + cmp.address, Block: &result.SourcesInsideStack[i]},
+		); err != nil {
+			return err
+		}
+	}
+
 	// A copy failure can leave partial content in dest, so reset it before
 	// falling through to the standard getter. ProcessStackComponent writes only
 	// to its own temp dir, so failures before this point never touch dest.
@@ -1017,20 +1054,25 @@ func rewriteViaCAS(
 		return nil, err
 	}
 
-	if err := opts.casInstance.ProcessStoredStackComponent(
+	inside, err := opts.casInstance.ProcessStoredStackComponent(
 		ctx,
 		l,
 		v,
 		staged.root,
 		staged.contentDir,
 		staged.treeKey,
-	); err != nil {
+	)
+	if err != nil {
 		staged.cleanup()
 
 		return nil, err
 	}
 
-	return &cas.StackCASResult{ContentDir: staged.contentDir, Cleanup: staged.cleanup}, nil
+	return &cas.StackCASResult{
+		ContentDir:         staged.contentDir,
+		Cleanup:            staged.cleanup,
+		SourcesInsideStack: inside,
+	}, nil
 }
 
 // resolveLocalCASSource normalizes a relative local source against sourceDir so
@@ -2357,9 +2399,13 @@ func stackNameSet(stacks []*Stack) map[string]struct{} {
 
 // casFailureIsFinal reports whether a CAS failure is final: a fallback would repeat it or skip a required rewrite.
 func casFailureIsFinal(err error) bool {
-	var packageErr StackPackageFetchError
+	var (
+		packageErr StackPackageFetchError
+		insideErr  CASSourceInsideStackError
+	)
 
-	return errors.Is(err, cas.ErrSourceNotLiteral) ||
+	return errors.As(err, &insideErr) ||
+		errors.Is(err, cas.ErrSourceNotLiteral) ||
 		errors.Is(err, cas.ErrUpdateSourceWithCASNotConstant) ||
 		errors.Is(err, cas.ErrCASOffline) ||
 		errors.Is(err, cas.ErrSourceEscapesRepo) ||

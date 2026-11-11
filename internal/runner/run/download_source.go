@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -98,7 +97,21 @@ func DownloadTerraformSource(
 	// is checking for them (e.g. during CheckFolderContainsTerraformCode).
 	rawLock, _ := sourceChangeLocks.LoadOrStore(terraformSource.DownloadDir, &sync.Mutex{})
 	dirLock := rawLock.(*sync.Mutex)
-	dirLock.Lock()
+	shownDir := util.RelPathForLog(opts.RootWorkingDir, terraformSource.DownloadDir, opts.LogShowAbsPaths)
+
+	if err := spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Acquiring lock on " + shownDir + "...",
+		Done:    "Acquired lock on " + shownDir,
+	}, func() error {
+		dirLock.Lock()
+
+		return ctx.Err()
+	}); err != nil {
+		dirLock.Unlock()
+
+		return nil, err
+	}
+
 	defer dirLock.Unlock()
 
 	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, v, terraformSource, opts, cfg, r)
@@ -384,28 +397,24 @@ func DownloadTerraformSourceIfNecessary(
 		cfg,
 		r,
 		func(childCtx context.Context) error {
-			if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
-				sourceURL := strings.TrimPrefix(
-					redact.NewURL(terraformSource.CanonicalSourceURL.String()).String(),
-					fileURIScheme,
-				)
+			sourceURL := util.RelPathForLog(
+				opts.RootWorkingDir,
+				strings.TrimPrefix(redact.NewURL(terraformSource.CanonicalSourceURL.String()).String(), fileURIScheme),
+				opts.LogShowAbsPaths,
+			)
 
-				return spinner.ShowAfter(
-					childCtx,
-					l,
-					spinner.Writer(v),
-					time.Second,
-					spinner.Messages{
-						Working: "Downloading source from " + sourceURL + "...",
-						Done:    "Downloaded source from " + sourceURL,
-					},
-					func() error {
-						return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
-					},
-				)
-			}
-
-			return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
+			return spinner.ShowAfter(
+				childCtx,
+				l,
+				spinner.Messages{
+					Working: "Downloading source from " + sourceURL + "...",
+					Done:    "Downloaded source from " + sourceURL,
+					Started: true,
+				},
+				func() error {
+					return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
+				},
+			)
 		},
 	)
 	if downloadErr != nil {

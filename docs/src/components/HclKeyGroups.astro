@@ -1,0 +1,88 @@
+---
+import HclKeyList, { type KeyRow } from '@components/HclKeyList.astro';
+import ReferenceCard from '@components/ReferenceCard.astro';
+import TerragruntIcon from '@components/TerragruntIcon.astro';
+import type { KeyGroups, MapKey } from '@lib/hcl';
+import { renderMarkdownField } from '@lib/hcl/markdown';
+
+interface Props {
+	keys: KeyGroups;
+}
+
+const { keys } = Astro.props;
+const provisioningLabel = 'Used by Terragrunt for backend provisioning';
+const hasProvisioningKeys = keys.groups.some((group) =>
+	group.keys.some((key) => key.provisioning || key.keys?.some((child) => child.provisioning)),
+);
+
+function toRow(prefix: string, key: MapKey | NonNullable<MapKey['keys']>[number]): KeyRow {
+	const id = `${prefix}-${key.name}`;
+	const children = 'keys' in key ? (key.keys ?? []).map((child) => toRow(id, child)) : [];
+	return {
+		id,
+		name: key.name,
+		type: key.type,
+		optional: !key.required,
+		defaultVal: key.default,
+		terragruntLabel: key.provisioning ? provisioningLabel : undefined,
+		tags: key.deprecated ? ['deprecated'] : [],
+		description: key.description,
+		children,
+	};
+}
+
+const descriptionHtml = await renderMarkdownField(keys.description);
+const groups = await Promise.all(
+	keys.groups.map(async (group) => ({
+		...group,
+		descriptionHtml: group.description && (await renderMarkdownField(group.description)),
+		noteHtml: group.note && (await renderMarkdownField(group.note)),
+		rows: group.keys.map((key) => toRow(group.name, key)),
+	})),
+);
+---
+
+<h2 id={keys.slug}>{keys.title}</h2>
+
+<Fragment set:html={descriptionHtml} />
+
+{
+	hasProvisioningKeys && (
+		<p class="legend">
+			<TerragruntIcon />
+			{provisioningLabel}
+		</p>
+	)
+}
+
+{
+	groups.map(({ name, title, descriptionHtml, noteHtml, rows }) => (
+		<section id={name}>
+			<ReferenceCard title={title}>
+				<code slot="meta" class="selector">{`${keys.selector} = "${name}"`}</code>
+				{descriptionHtml && <Fragment set:html={descriptionHtml} />}
+				<HclKeyList rows={rows} />
+				{noteHtml && <div class="note" set:html={noteHtml} />}
+			</ReferenceCard>
+		</section>
+	))
+}
+
+<style>
+	.selector {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+
+	.legend {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+
+	.note {
+		margin-top: 1rem;
+	}
+</style>

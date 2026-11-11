@@ -1,0 +1,70 @@
+---
+name: cas-source-inside-stack
+status: active
+since: "v1.2.2"
+---
+
+Throw an error when a `unit` or `stack` block with `update_source_with_cas` sets a source inside the directory of its stack file.
+
+### `cas-source-inside-stack` - Reason
+
+Stack generation copies the directory of a stack file whole. With [`update_source_with_cas`](/reference/hcl/blocks/unit#update_source_with_cas), a source inside that directory is generated twice: once from the CAS reference, and once as part of the copy. `run --all` discovers the copy and runs it as its own unit, without the values its stack would give it.
+
+Here the stack sits at the root of its source, so its units must sit inside the stack directory:
+
+```hcl
+# catalog/terragrunt.stack.hcl
+
+unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+```
+
+```hcl
+# live/terragrunt.stack.hcl
+
+stack "bar" {
+  source = "../catalog"
+  path   = "bar"
+}
+```
+
+```text
+.terragrunt-stack/bar/.terragrunt-stack/foo
+.terragrunt-stack/bar/units/foo
+```
+
+Existing support will be retained for v1.x for backwards compatibility, to obey the [Terragrunt 1.0 guarantees](/process/1-0-guarantees#hcl-configurations).
+
+By default, Terragrunt warns once about each such block, naming the block and its source:
+
+```text
+stack bar: unit "foo" in terragrunt.stack.hcl sets update_source_with_cas on source "./units/foo" inside the stack directory, so the generated stack also contains a copy of it; move the source out of the stack directory and select the stack with a // subdirectory in its source
+```
+
+Enabling the control turns each warning into an error with the same message.
+
+Move the stack into a subdirectory of the catalog, keep its sources outside that subdirectory, and select the stack with `//`:
+
+```hcl
+# catalog/stacks/bar/terragrunt.stack.hcl
+
+unit "foo" {
+  source                 = "../../units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+```
+
+```hcl
+# live/terragrunt.stack.hcl
+
+stack "bar" {
+  source = "../catalog//stacks/bar"
+  path   = "bar"
+}
+```
+
+Everything before `//` is the catalog that `update_source_with_cas` sources resolve within, and only the directory after it is copied.

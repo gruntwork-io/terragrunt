@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/hcl/v2"
 	hclparser "github.com/hashicorp/hcl/v2/hclparse"
@@ -133,19 +135,21 @@ func outputsContractDiagnostics(
 	moduleFS vfs.FS,
 	moduleDir string,
 ) ([]contractDiagnostics, error) {
-	if cfg.Outputs == nil && len(cfg.TerragruntDependencies) == 0 && len(cfg.ProcessedIncludes) == 0 {
+	contracts := readDependencyContracts(ctx, l, v, pctx, cfg)
+	if cfg.Outputs == nil && !contracts.bind() {
 		return nil, nil
 	}
 
-	file, err := pctx.NewParser(l, v).ParseFromFile(v.FS, opts.TerragruntConfigPath)
-	if err != nil {
-		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
-	}
+	unitFile := sync.OnceValues(func() (*hclparse.File, error) {
+		return pctx.NewParser(l, v).ParseFromFile(v.FS, opts.TerragruntConfigPath)
+	})
 
 	var checks []contractDiagnostics
 
 	if cfg.Outputs != nil {
-		moduleChecks, err := declaredOutputsDiagnostics(moduleFS, moduleDir, moduleEngine(ctx, l, v, opts, cfg), cfg, file)
+		engine := moduleEngine(ctx, l, v, opts, cfg)
+
+		moduleChecks, err := declaredOutputsDiagnostics(moduleFS, moduleDir, engine, cfg, unitFile)
 		if err != nil {
 			return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 		}
@@ -153,12 +157,21 @@ func outputsContractDiagnostics(
 		checks = append(checks, moduleChecks...)
 	}
 
+	if !contracts.bind() {
+		return checks, nil
+	}
+
+	file, err := unitFile()
+	if err != nil {
+		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
+	}
+
 	replaced, err := autoIncludeReplacements(l, v, pctx, opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 	}
 
-	referenceDiags, err := dependencyOutputReferenceDiagnostics(ctx, l, v, pctx, cfg, file, replaced)
+	referenceDiags, err := dependencyOutputReferenceDiagnostics(cfg, contracts, file, replaced)
 	if err != nil {
 		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 	}
@@ -171,12 +184,21 @@ func outputsContractDiagnostics(
 	}
 
 	for _, includedPath := range includedPaths {
-		included, err := pctx.NewParser(l, v).ParseFromFile(v.FS, includedPath)
+		source, err := vfs.ReadFile(v.FS, includedPath)
 		if err != nil {
 			return nil, OutputsContractError{ConfigPath: includedPath, Err: err}
 		}
 
-		includedDiags, err := dependencyOutputReferenceDiagnostics(ctx, l, v, pctx, cfg, included, nil)
+		if !bytes.Contains(source, []byte(config.MetadataDependency)) {
+			continue
+		}
+
+		included, err := pctx.NewParser(l, v).ParseFromBytes(source, includedPath)
+		if err != nil {
+			return nil, OutputsContractError{ConfigPath: includedPath, Err: err}
+		}
+
+		includedDiags, err := dependencyOutputReferenceDiagnostics(cfg, contracts, included, nil)
 		if err != nil {
 			return nil, OutputsContractError{ConfigPath: includedPath, Err: err}
 		}
@@ -319,7 +341,7 @@ func declaredOutputsDiagnostics(
 	moduleDir string,
 	engine tfimpl.Type,
 	cfg *config.TerragruntConfig,
-	file *hclparse.File,
+	unitFile func() (*hclparse.File, error),
 ) ([]contractDiagnostics, error) {
 	moduleOutputs, err := tf.ModuleOutputs(moduleFS, moduleDir, engine)
 	if err != nil {
@@ -331,15 +353,23 @@ func declaredOutputsDiagnostics(
 		return moduleParseDiagnostics(moduleFS, moduleDir, engine, moduleDiags)
 	}
 
+	missing := slices.DeleteFunc(cfg.Outputs.Names(), func(name string) bool {
+		return slices.Contains(moduleOutputs, name)
+	})
+	if len(missing) == 0 {
+		return nil, nil
+	}
+
+	file, err := unitFile()
+	if err != nil {
+		return nil, err
+	}
+
 	ranges := config.OutputDeclarationRanges(file)
 
 	var diags hcl.Diagnostics
 
-	for _, name := range cfg.Outputs.Names() {
-		if slices.Contains(moduleOutputs, name) {
-			continue
-		}
-
+	for _, name := range missing {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  summaryDeclaredOutputNotInModule,
@@ -646,11 +676,8 @@ func declarationSubject(file *hclparse.File, ranges map[string]hcl.Range, name s
 
 // dependencyOutputReferenceDiagnostics reports each reference in file to an output its dependency does not declare.
 func dependencyOutputReferenceDiagnostics(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
+	contracts dependencyContracts,
 	file *hclparse.File,
 	replaced map[string]struct{},
 ) (hcl.Diagnostics, error) {
@@ -659,30 +686,17 @@ func dependencyOutputReferenceDiagnostics(
 		return nil, err
 	}
 
-	if len(references) == 0 {
-		return nil, nil
-	}
-
-	declared := make(map[string]*config.OutputsConfig, len(cfg.TerragruntDependencies))
-
 	var diags hcl.Diagnostics
 
 	for _, reference := range references {
 		address := reference.Address()
 
-		contract, read := declared[address]
-		if !read {
-			var err error
-
-			contract, err = declaredOutputsOf(ctx, l, v, pctx, cfg, address)
-			if err != nil {
-				return nil, err
-			}
-
-			declared[address] = contract
+		contract := contracts[address]
+		if contract.err != nil {
+			return nil, contract.err
 		}
 
-		if contract == nil || contract.Declares(reference.Output) {
+		if contract.declared == nil || contract.declared.Declares(reference.Output) {
 			continue
 		}
 
@@ -694,7 +708,7 @@ func dependencyOutputReferenceDiagnostics(
 					"Fix the reference or add output %q to the outputs block of the dependency.",
 				address,
 				reference.Output,
-				strings.Join(contract.Names(), ", "),
+				strings.Join(contract.declared.Names(), ", "),
 				reference.Output,
 			),
 			Subject: &reference.Range,
@@ -704,25 +718,47 @@ func dependencyOutputReferenceDiagnostics(
 	return diags, nil
 }
 
-// declaredOutputsOf returns the outputs block of the unit the dependency at address reads, or nil when there is none.
-func declaredOutputsOf(
+type dependencyContract struct {
+	declared *config.OutputsConfig
+	err      error
+}
+
+type dependencyContracts map[string]dependencyContract
+
+// bind reports whether a reference can break a contract: one declares outputs or could not be read.
+func (contracts dependencyContracts) bind() bool {
+	for _, contract := range contracts {
+		if contract.err != nil || contract.declared != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+// readDependencyContracts returns what the unit each dependency of cfg reads declares, by dependency address.
+func readDependencyContracts(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
-	address string,
-) (*config.OutputsConfig, error) {
+) dependencyContracts {
+	contracts := make(dependencyContracts, len(cfg.TerragruntDependencies))
+
 	for i := range cfg.TerragruntDependencies {
 		dep := &cfg.TerragruntDependencies[i]
-		if dep.Address() != address {
+
+		address := dep.Address()
+		if _, read := contracts[address]; read {
 			continue
 		}
 
-		return dep.DeclaredOutputs(ctx, l, v, pctx)
+		declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+		contracts[address] = dependencyContract{declared: declared, err: err}
 	}
 
-	return nil, nil
+	return contracts
 }
 
 // pointAtOutputsErrors turns the outputs contract errors in err into diagnostics and returns the ones it cannot place.

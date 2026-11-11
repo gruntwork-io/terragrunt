@@ -1526,6 +1526,253 @@ outputs {
 	assert.Equal(t, "vpc-mock-b", second.Outputs[0].MockValue.AsString())
 }
 
+// TestDependencyDeclaredOutputsMatchAfterADependentParse expects a dependent parse to leave what a read gives.
+func TestDependencyDeclaredOutputsMatchAfterADependentParse(t *testing.T) {
+	t.Parallel()
+
+	const rootInclude = `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`
+
+	const rootLocals = `
+locals {
+  region = "us-east-1"
+}
+`
+
+	testCases := []struct {
+		files map[string]string
+		name  string
+		fails bool
+	}{
+		{
+			name:  "a unit with no outputs block",
+			files: map[string]string{"vpc/terragrunt.hcl": rootLocals},
+		},
+		{
+			name:  "an including unit with no outputs block",
+			files: map[string]string{"root.hcl": rootLocals, "vpc/terragrunt.hcl": rootInclude},
+		},
+		{
+			name:  "constant outputs",
+			files: map[string]string{"root.hcl": rootLocals, "vpc/terragrunt.hcl": rootInclude + outputsBlockConfig},
+		},
+		{
+			name: "outputs merged with the outputs of an include",
+			files: map[string]string{
+				"root.hcl": `
+outputs {
+  output "region" {
+    mock_value = "us-east-1"
+  }
+}
+`,
+				"vpc/terragrunt.hcl": rootInclude + outputsBlockConfig,
+			},
+		},
+		{
+			name:  "outputs of an include alone",
+			files: map[string]string{"root.hcl": outputsBlockConfig, "vpc/terragrunt.hcl": rootInclude},
+		},
+		{
+			name: "a mock value read from a local",
+			files: map[string]string{
+				"vpc/terragrunt.hcl": `
+locals {
+  id = "vpc-local"
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = local.id
+  }
+}
+`,
+			},
+		},
+		{
+			name: "a sensitive mock value",
+			files: map[string]string{
+				"vpc/terragrunt.hcl": `
+outputs {
+  output "vpc_id" {
+    mock_value = sensitive("vpc-secret")
+  }
+}
+`,
+			},
+		},
+		{
+			name: "outputs of the autoinclude file",
+			files: map[string]string{
+				"vpc/terragrunt.hcl":             "\n",
+				"vpc/terragrunt.autoinclude.hcl": outputsBlockConfig,
+			},
+		},
+		{
+			name: "an output declared twice",
+			files: map[string]string{
+				"vpc/terragrunt.hcl": `
+outputs {
+  output "vpc_id" {}
+
+  output "vpc_id" {}
+}
+`,
+			},
+			fails: true,
+		},
+		{
+			name: "an unclosed outputs block",
+			files: map[string]string{
+				"vpc/terragrunt.hcl": `
+outputs {
+  output "vpc_id" {
+`,
+			},
+			fails: true,
+		},
+		{
+			name: "a failing local beside constant outputs",
+			files: map[string]string{
+				"vpc/terragrunt.hcl": `
+locals {
+  absent = file("absent.txt")
+}
+` + outputsBlockConfig,
+			},
+			fails: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/fixture")
+			fsys := vfs.NewMemMapFS()
+			appConfigPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+			appConfig := strings.Replace(dependentConfigWithoutInputs, "%s", `mock_outputs = { vpc_id = "app-mock" }`, 1)
+
+			require.NoError(t, vfs.WriteFile(fsys, appConfigPath, []byte(appConfig), 0o644))
+			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "vpc", "main.tf"), []byte(vpcModule), 0o644))
+
+			for path, content := range tc.files {
+				require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, filepath.FromSlash(path)), []byte(content), 0o644))
+			}
+
+			l := createLogger()
+			v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
+			dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+			readCtx, readPctx := newDependentParsingContext(t, appConfigPath, "plan")
+			require.NoError(t, readPctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+			read, readErr := dep.DeclaredOutputs(readCtx, l, v, readPctx)
+
+			parsedCtx, parsedPctx := newDependentParsingContext(t, appConfigPath, "plan")
+			require.NoError(t, parsedPctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+			_, parseErr := config.ParseConfigFile(parsedCtx, l, v, parsedPctx, appConfigPath, nil)
+			afterParse, afterParseErr := dep.DeclaredOutputs(parsedCtx, l, v, parsedPctx)
+
+			if tc.fails {
+				var blockErr config.DependencyBlockError
+
+				require.Error(t, parseErr)
+				require.ErrorAs(t, readErr, &blockErr)
+				require.ErrorAs(t, afterParseErr, &blockErr)
+
+				return
+			}
+
+			require.NoError(t, readErr)
+			require.NoError(t, parseErr)
+			require.NoError(t, afterParseErr)
+			assert.Equal(t, read, afterParse)
+		})
+	}
+}
+
+// TestDependencyConstantDeclaredOutputsTakeNoEvaluation expects a dependent parse to settle them off the syntax tree.
+func TestDependencyConstantDeclaredOutputsTakeNoEvaluation(t *testing.T) {
+	t.Parallel()
+
+	const vpcConfig = `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+locals {
+  vars = jsondecode(read_tfvars_file("vpc.tfvars"))
+}
+`
+
+	testCases := []struct {
+		name      string
+		outputs   string
+		evaluates bool
+	}{
+		{name: "no outputs block"},
+		{name: "constant outputs", outputs: outputsBlockConfig},
+		{
+			name: "a mock value read from a local",
+			outputs: `
+outputs {
+  output "vpc_id" {
+    mock_value = local.vars.name
+  }
+}
+`,
+			evaluates: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/fixture")
+			fsys := vfs.NewMemMapFS()
+			vpcDir := filepath.Join(root, "vpc")
+			tfvarsPath := filepath.Join(vpcDir, "vpc.tfvars")
+			appConfigPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+			appConfig := strings.Replace(dependentConfigWithoutInputs, "%s", `mock_outputs = { vpc_id = "app-mock" }`, 1)
+			files := map[string]string{
+				filepath.Join(root, "root.hcl"):                           "\n",
+				filepath.Join(vpcDir, config.DefaultTerragruntConfigPath): vpcConfig + tc.outputs,
+				filepath.Join(vpcDir, "main.tf"):                          vpcModule,
+				tfvarsPath:                                                `name = "vpc"`,
+				appConfigPath:                                             appConfig,
+			}
+
+			for path, content := range files {
+				require.NoError(t, vfs.WriteFile(fsys, path, []byte(content), 0o644))
+			}
+
+			l := createLogger()
+			v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
+			ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+			_, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+			require.NoError(t, err)
+
+			readerPctx := pctx.Clone()
+			readerPctx.FilesRead = config.NewFilesRead()
+
+			dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+			_, err = dep.DeclaredOutputs(ctx, l, v, readerPctx)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.evaluates, slices.Contains(readerPctx.FilesRead.Paths(), tfvarsPath))
+		})
+	}
+}
+
 // TestDependencyOnStackDirectoryWithUnitFileReadsNoDeclaredOutputs expects a stack target to keep its unit file out.
 func TestDependencyOnStackDirectoryWithUnitFileReadsNoDeclaredOutputs(t *testing.T) {
 	t.Parallel()

@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -48,6 +49,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -408,8 +410,8 @@ func validateDependencyConfigPathDirs(
 			continue
 		}
 
-		return evaluateDependencyControl(
-			ctx, pctx, l,
+		return evaluateDetailControl(
+			ctx, l, pctx.StrictControls,
 			controls.DependencyConfigPathFile,
 			DependencyConfigPathFileError{
 				ConfigPath:     cfgPath,
@@ -439,10 +441,10 @@ func validateUniqueDependencies(
 	deps Dependencies,
 ) error {
 	if address, found := duplicateDependencyAddress(deps); found {
-		return evaluateDependencyControl(
+		return evaluateDetailControl(
 			ctx,
-			pctx,
 			l,
+			pctx.StrictControls,
 			controls.DuplicateDependencyLabels,
 			DuplicateDependencyError{
 				ConfigPath: cfgPath,
@@ -452,10 +454,10 @@ func validateUniqueDependencies(
 	}
 
 	if dup, found := duplicateDependencyConfigPath(cfgPath, deps); found {
-		return evaluateDependencyControl(
+		return evaluateDetailControl(
 			ctx,
-			pctx,
 			l,
+			pctx.StrictControls,
 			controls.DuplicateDependencyLabels,
 			DuplicateDependencyConfigPathError{
 				ConfigPath:     cfgPath,
@@ -469,17 +471,17 @@ func validateUniqueDependencies(
 	return nil
 }
 
-// evaluateDependencyControl returns strictErr when the strict control called name is enabled.
+// evaluateDetailControl returns strictErr when the strict control called name is enabled.
 // Otherwise it logs the control's warning and the message of strictErr, each once per command,
 // so every config the control would reject is named.
-func evaluateDependencyControl(
+func evaluateDetailControl(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	strictControls strict.Controls,
 	name string,
 	strictErr error,
 ) error {
-	control := pctx.StrictControls.Find(name)
+	control := strictControls.Find(name)
 	if control == nil {
 		return errors.New("failed to find control " + name)
 	}
@@ -798,6 +800,8 @@ func decodeDependencies(
 
 			continue
 		}
+
+		settleDeclaredOutputs(ctx, l, v, pctx, depPath, depConfig.ProcessedIncludes)
 
 		inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
 		if err != nil {
@@ -1803,7 +1807,33 @@ func getOutputJSONWithCaching(
 				return nil
 			}
 
-			fetched, strategy, fetchErr := resolveOutputJSON(fetchCtx, l, v, pctx, targetConfig)
+			var (
+				fetched  []byte
+				strategy string
+			)
+
+			target := util.RelPathForLog(pctx.RootWorkingDir, targetConfig, pctx.LogShowAbsPaths)
+
+			fetchErr := spinner.ShowAfter(fetchCtx, l, spinner.Messages{
+				Working: "Fetching outputs of dependency " + target + "...",
+				Done:    "Fetched outputs of dependency " + target,
+			}, func() error {
+				var err error
+
+				fetched, strategy, err = resolveOutputJSON(fetchCtx, l, v, pctx, targetConfig)
+				if err != nil {
+					return err
+				}
+
+				trimmed, trimErr := tf.ExtractFirstJSONObject(fetched)
+				if trimErr != nil {
+					return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
+				}
+
+				fetched = trimmed
+
+				return nil
+			})
 
 			if span := trace.SpanFromContext(fetchCtx); span.IsRecording() {
 				span.SetAttributes(attribute.Bool("cache_hit", false))
@@ -1817,22 +1847,7 @@ func getOutputJSONWithCaching(
 				return fetchErr
 			}
 
-			// `tofu/terraform output -json` stdout can be polluted with non-JSON text on either side of the JSON object:
-			//   - Leading: AWS Client Side Monitoring (CSM) logs (e.g., "2023/05/04 20:22:43 Enabling CSM"),
-			//     ANSI color escape sequences from warning blocks.
-			//     Refs: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
-			//           https://github.com/gruntwork-io/terragrunt/issues/2233
-			//   - Trailing: Terraform 1.15+ emits backend deprecation warnings (e.g., for the S3
-			//     `dynamodb_table` parameter) on stdout after the JSON has already been printed.
-			//     Refs: https://github.com/gruntwork-io/terragrunt/issues/6001
-			//
-			// To make parsing robust to either, isolate the first JSON object in the buffer.
-			trimmed, trimErr := tf.ExtractFirstJSONObject(fetched)
-			if trimErr != nil {
-				return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
-			}
-
-			newJSONBytes = trimmed
+			newJSONBytes = fetched
 			jsonCache.Put(fetchCtx, targetConfig, newJSONBytes)
 
 			return nil

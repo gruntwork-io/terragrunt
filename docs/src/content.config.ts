@@ -93,20 +93,89 @@ const hclItem = {
 };
 
 // An attribute set inside a block. `type` uses HCL type syntax, e.g.
-// `list(string)`. `description` is Markdown. `example` is HCL showing the
-// attribute set inside its block.
-const hclBlockAttribute = z
+// `list(string)`. `description` is Markdown. An attribute with `since` is left
+// out of its block until that release.
+const hclAttributeFields = {
+	name: z.string(),
+	type: z.string(),
+	required: z.boolean().default(false),
+	default: z.string().optional(),
+	description: z.string(),
+	since: releaseVersion.optional(),
+};
+
+const requiredHasNoDefault = [
+	(attribute: { required: boolean; default?: string }) => !attribute.required || attribute.default === undefined,
+	{ message: "A required attribute can't have a default" },
+] as const;
+
+// Required attributes come first, so the first example on the page is the
+// simplest valid block.
+function requiredFirst<T extends z.ZodType<{ required: boolean }>>(attribute: T) {
+	return z.array(attribute).refine(
+		(attributes) => {
+			const requiredCount = attributes.filter((attr) => attr.required).length;
+			return attributes.slice(0, requiredCount).every((attr) => attr.required);
+		},
+		{ message: 'Required attributes must come before optional ones' },
+	);
+}
+
+// A key of a map attribute, e.g. `bucket` in `remote_state`'s `config`.
+// `provisioning` marks a key Terragrunt uses only to provision the backend,
+// and doesn't pass on to OpenTofu/Terraform. `keys` lists the keys of a key
+// that is itself a map.
+const hclKeyFields = {
+	...hclAttributeFields,
+	provisioning: z.boolean().default(false),
+	deprecated: z.boolean().default(false),
+};
+
+const hclMapKey = z
 	.object({
-		name: z.string(),
-		type: z.string(),
-		required: z.boolean().default(false),
-		default: z.string().optional(),
-		description: z.string(),
-		example: z.string(),
+		...hclKeyFields,
+		keys: requiredFirst(z.object(hclKeyFields).refine(...requiredHasNoDefault)).optional(),
 	})
-	.refine((attribute) => !attribute.required || attribute.default === undefined, {
-		message: "A required attribute can't have a default",
-	});
+	.refine(...requiredHasNoDefault);
+
+// The keys a map attribute accepts, in groups chosen by another attribute of
+// the block, `selector`, e.g. one group per `remote_state` `backend`. Each
+// group's `name` is the `selector` value that chooses it, and the page anchor
+// of its card. `description` and `note` are Markdown, before and after the keys.
+const hclKeyGroups = z.object({
+	slug: z.string().regex(/^[a-z][a-z0-9-]*$/),
+	title: z.string(),
+	selector: z.string(),
+	description: z.string(),
+	groups: z.array(
+		z.object({
+			name: z.string().regex(/^[a-z][a-z0-9_]*$/),
+			title: z.string(),
+			description: z.string().optional(),
+			keys: requiredFirst(hclMapKey),
+			note: z.string().optional(),
+		}),
+	),
+});
+
+// `example` is HCL showing the attribute set inside its block.
+const hclBlockAttribute = z
+	.object({ ...hclAttributeFields, example: z.string(), keyGroups: hclKeyGroups.optional() })
+	.refine(...requiredHasNoDefault);
+
+// In the order they follow the block name. `description` is Markdown.
+const hclBlockLabels = z.array(z.object({ name: z.string(), description: z.string() }));
+
+// A block that only appears inside another block, e.g. `before_hook` inside
+// `terraform`. Its attributes share one `example`, HCL showing the block inside
+// its parent. `description` is Markdown.
+const hclNestedBlock = z.object({
+	name: z.string().regex(/^[a-z][a-z0-9_]*$/),
+	description: z.string(),
+	labels: hclBlockLabels.optional(),
+	attributes: requiredFirst(z.object(hclAttributeFields).refine(...requiredHasNoDefault)),
+	example: z.string(),
+});
 
 const hclBlocks = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/hcl/blocks" }),
@@ -116,20 +185,9 @@ const hclBlocks = defineCollection({
 			// Each attribute has its own example, so a block only needs these to
 			// show something the attribute examples can't.
 			examples: hclExamples.optional(),
-			// In the order they follow the block name. `description` is Markdown.
-			labels: z.array(z.object({ name: z.string(), description: z.string() })).optional(),
-			// Required attributes come first, so the first example on the page is
-			// the simplest valid block.
-			attributes: z
-				.array(hclBlockAttribute)
-				.refine(
-					(attributes) => {
-						const requiredCount = attributes.filter((attribute) => attribute.required).length;
-						return attributes.slice(0, requiredCount).every((attribute) => attribute.required);
-					},
-					{ message: 'Required attributes must come before optional ones' },
-				)
-				.optional(),
+			labels: hclBlockLabels.optional(),
+			attributes: requiredFirst(hclBlockAttribute).optional(),
+			blocks: z.array(hclNestedBlock).optional(),
 		})
 		.refine((block) => block.examples !== undefined || (block.attributes ?? []).length > 0, {
 			message: 'A block needs attributes or examples',

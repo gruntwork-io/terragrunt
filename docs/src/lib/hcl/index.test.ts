@@ -102,6 +102,19 @@ describe('itemHeadings', () => {
 		expect(slugs(entry)).toEqual(['usage', 'examples', 'labels', 'attributes', 'path']);
 	});
 
+	test('puts Blocks after Attributes, with an entry per nested block', () => {
+		const entry = blockEntry({
+			attributes: [{ name: 'source', type: 'string', required: true, description: 'Source.', example: '' }],
+			blocks: [{ name: 'before_hook', description: 'Runs a command first.', labels: [{ name: 'name', description: 'Names the hook.' }], attributes: [{ name: 'commands', type: 'list(string)', required: true, description: 'Commands to run before.' }], example: 'before_hook "fmt" {}' }],
+		});
+		expect(slugs(entry)).toEqual(['usage', 'examples', 'attributes', 'source', 'blocks', 'before_hook']);
+	});
+
+	test('puts each key group after Attributes, with an entry per group', () => {
+		const entry = blockEntry({ attributes: [{ name: 'config', type: 'map(any)', required: true, description: 'Config.', example: '', keyGroups: { slug: 'backend-config-keys', title: 'Backend config keys', selector: 'backend', description: 'Keys Terragrunt reads.', groups: [{ name: 's3', title: 'S3', keys: [{ name: 'bucket', type: 'string', required: true, provisioning: false, deprecated: false, description: 'The bucket.' }, { name: 'endpoints', type: 'object', required: false, provisioning: false, deprecated: false, description: 'Endpoints.', keys: [{ name: 's3', type: 'string', required: false, provisioning: false, deprecated: false, description: 'S3 endpoint.' }] }, { name: 's3_bucket_tags', type: 'map(string)', required: false, provisioning: true, deprecated: false, description: 'Tags.' }] }] } }] });
+		expect(slugs(entry)).toEqual(['usage', 'examples', 'attributes', 'config', 'backend-config-keys', 's3']);
+	});
+
 	test('omits Examples for a block with none', () => {
 		const entry = blockEntry({
 			examples: undefined,
@@ -140,6 +153,14 @@ describe('itemAnchors', () => {
 	test('adds attribute names for a block', () => {
 		const body = [{ depth: 2, slug: 'merge-behavior', text: 'Merge behavior' }];
 		expect(itemAnchors(blockEntry({ attributes: [urls] }), body)).toEqual(['merge-behavior', 'urls']);
+	});
+
+	test('adds key group anchors for a block', () => {
+		expect(itemAnchors(blockEntry({ attributes: [{ name: 'config', type: 'map(any)', required: true, description: 'Config.', example: '', keyGroups: { slug: 'backend-config-keys', title: 'Backend config keys', selector: 'backend', description: 'Keys Terragrunt reads.', groups: [{ name: 's3', title: 'S3', keys: [{ name: 'bucket', type: 'string', required: true, provisioning: false, deprecated: false, description: 'The bucket.' }, { name: 'endpoints', type: 'object', required: false, provisioning: false, deprecated: false, description: 'Endpoints.', keys: [{ name: 's3', type: 'string', required: false, provisioning: false, deprecated: false, description: 'S3 endpoint.' }] }, { name: 's3_bucket_tags', type: 'map(string)', required: false, provisioning: true, deprecated: false, description: 'Tags.' }] }] } }] }), [])).toEqual(['config', 'backend-config-keys', 's3']);
+	});
+
+	test('adds nested block names for a block', () => {
+		expect(itemAnchors(blockEntry({ attributes: [urls], blocks: [{ name: 'before_hook', description: 'Runs a command first.', labels: [{ name: 'name', description: 'Names the hook.' }], attributes: [{ name: 'commands', type: 'list(string)', required: true, description: 'Commands to run before.' }], example: 'before_hook "fmt" {}' }] }), [])).toEqual(['urls', 'before_hook']);
 	});
 
 	test('returns nothing for an attribute without body headings', () => {
@@ -207,6 +228,39 @@ describe('referenceMarkdown', () => {
 		const entry = blockEntry({ labels: [{ name: 'name', description: 'Names the unit.' }] });
 		expect(referenceMarkdown(entry).after).toBe(
 			['## Examples', '```hcl\nx = 1\n```', '## Labels', '- `name`: Names the unit.'].join('\n\n'),
+		);
+	});
+
+	test('lists a nested block\'s labels and attributes before its example', () => {
+		const entry = blockEntry({ blocks: [{ name: 'before_hook', description: 'Runs a command first.', labels: [{ name: 'name', description: 'Names the hook.' }], attributes: [{ name: 'commands', type: 'list(string)', required: true, description: 'Commands to run before.' }], example: 'before_hook "fmt" {}' }] });
+		expect(referenceMarkdown(entry).after).toContain(
+			[
+				'## Blocks',
+				'### `before_hook`',
+				'Runs a command first.',
+				'Labels:',
+				'- `name`: Names the hook.',
+				'Attributes:',
+				'- `commands` (`list(string)`, required): Commands to run before.',
+				'```hcl\nbefore_hook "fmt" {}\n```',
+			].join('\n\n'),
+		);
+	});
+
+	test('lists each key group\'s keys with nested keys indented and provisioning keys marked', () => {
+		const entry = blockEntry({ attributes: [{ name: 'config', type: 'map(any)', required: true, description: 'Config.', example: '', keyGroups: { slug: 'backend-config-keys', title: 'Backend config keys', selector: 'backend', description: 'Keys Terragrunt reads.', groups: [{ name: 's3', title: 'S3', keys: [{ name: 'bucket', type: 'string', required: true, provisioning: false, deprecated: false, description: 'The bucket.' }, { name: 'endpoints', type: 'object', required: false, provisioning: false, deprecated: false, description: 'Endpoints.', keys: [{ name: 's3', type: 'string', required: false, provisioning: false, deprecated: false, description: 'S3 endpoint.' }] }, { name: 's3_bucket_tags', type: 'map(string)', required: false, provisioning: true, deprecated: false, description: 'Tags.' }] }] } }] });
+		expect(referenceMarkdown(entry).after).toContain(
+			[
+				'## Backend config keys',
+				'Keys Terragrunt reads.',
+				'### S3',
+				[
+					'- `bucket` (`string`, required): The bucket.',
+					'- `endpoints` (`object`, optional): Endpoints.',
+					'  - `s3` (`string`, optional): S3 endpoint.',
+					'- `s3_bucket_tags` (`map(string)`, optional, used by Terragrunt for backend provisioning): Tags.',
+				].join('\n'),
+			].join('\n\n'),
 		);
 	});
 
