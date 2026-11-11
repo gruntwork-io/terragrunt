@@ -408,6 +408,23 @@ the whole suite.
 The tests create and delete blob containers with unique names on each run; they never create or delete the storage
 account itself.
 
+##### Azure Key Vault encryption
+
+The OpenTofu state encryption test requires both the `azure` and `tofu` build tags. It uses local state, so it does not
+require a storage account or the storage-related environment variables above. It requires an existing Key Vault key
+and an identity authorized to read the key and perform wrap and unwrap operations, for example through the
+`Key Vault Crypto User` role on an RBAC-enabled vault. Authenticate using `az login` or credentials supported by
+OpenTofu's `azure_vault` key provider.
+
+```bash
+export TG_AZURE_TEST_VAULT_URI="https://example-vault.vault.azure.net"
+export TG_AZURE_TEST_VAULT_KEY_NAME="example-encryption-key"
+go test -v -count=1 -tags=azure,tofu -run '^TestAzureTofuStateEncryptionAzureVault$' ./test
+```
+
+The test verifies that the state file is encrypted and that OpenTofu can decrypt it to read an output. It does not
+create or delete the vault or key.
+
 #### Race tests
 
 Given that Terragrunt is a tool that frequently involves running concurrent code, there's a higher than average risk
