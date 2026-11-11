@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -143,20 +144,16 @@ func TestTFAutoInitRunsOnceWhenOnlyASubdirectoryCallsModules(t *testing.T) {
 	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
 	v := helpers.RunVenv(t).WithExec(recorder)
 
+	ranInit := make([]bool, 0, 3)
+
 	for range 3 {
-		_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
-			t,
-			v,
-			"terragrunt plan --non-interactive --working-dir "+rootPath,
+		ranInit = append(
+			ranInit,
+			planRunsInit(t, v, recorder, "terragrunt plan --non-interactive --working-dir "+rootPath),
 		)
-		require.NoError(t, err)
 	}
 
-	assert.Equal(
-		t,
-		[]string{tf.CommandNameInit, tf.CommandNamePlan, tf.CommandNamePlan, tf.CommandNamePlan},
-		recordedTFSubcommands(recorder.Commands()),
-	)
+	assert.Equal(t, []bool{true, false, false}, ranInit)
 }
 
 func TestTFAutoInitRunsOnceWhenTheUnitUsesNoProvider(t *testing.T) {
@@ -168,20 +165,16 @@ func TestTFAutoInitRunsOnceWhenTheUnitUsesNoProvider(t *testing.T) {
 	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
 	v := helpers.RunVenv(t).WithExec(recorder)
 
+	ranInit := make([]bool, 0, 3)
+
 	for range 3 {
-		_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
-			t,
-			v,
-			"terragrunt plan --non-interactive --working-dir "+rootPath,
+		ranInit = append(
+			ranInit,
+			planRunsInit(t, v, recorder, "terragrunt plan --non-interactive --working-dir "+rootPath),
 		)
-		require.NoError(t, err)
 	}
 
-	assert.Equal(
-		t,
-		[]string{tf.CommandNameInit, tf.CommandNamePlan, tf.CommandNamePlan, tf.CommandNamePlan},
-		recordedTFSubcommands(recorder.Commands()),
-	)
+	assert.Equal(t, []bool{true, false, false}, ranInit)
 }
 
 func TestTFAutoInitRunsAgainWhenAModuleOutsideTheUnitChangesInPlace(t *testing.T) {
@@ -195,19 +188,19 @@ func TestTFAutoInitRunsAgainWhenAModuleOutsideTheUnitChangesInPlace(t *testing.T
 	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
 	v := helpers.RunVenv(t).WithExec(recorder)
 
-	plan := func() {
+	plan := func() bool {
 		t.Helper()
 
-		_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+		return planRunsInit(
 			t,
 			v,
+			recorder,
 			"terragrunt plan --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+unitPath,
 		)
-		require.NoError(t, err)
 	}
 
-	plan()
-	plan()
+	ranInit := make([]bool, 0, 4)
+	ranInit = append(ranInit, plan(), plan())
 
 	randomProvider := `
 terraform {
@@ -228,40 +221,28 @@ resource "random_pet" "this" {}
 	require.NoError(t, err)
 	require.NoError(t, outsideModuleFile.Close())
 
-	plan()
-	plan()
+	ranInit = append(ranInit, plan(), plan())
 
-	assert.Equal(
-		t,
-		[]string{
-			tf.CommandNameInit, tf.CommandNamePlan,
-			tf.CommandNamePlan,
-			tf.CommandNameInit, tf.CommandNamePlan,
-			tf.CommandNamePlan,
-		},
-		recordedTFSubcommands(recorder.Commands()),
-	)
+	assert.Equal(t, []bool{true, false, true, false}, ranInit)
 }
 
-// recordedTFSubcommands returns the subcommand of every recorded OpenTofu/Terraform invocation,
-// in order, leaving out the version probe.
-func recordedTFSubcommands(commands []helpers.RecordedCommand) []string {
-	subcommands := make([]string, 0, len(commands))
+// planRunsInit runs command against v and reports whether the run executed `init`.
+//
+// With the provider cache server enabled, one auto-init executes `init` twice.
+func planRunsInit(t *testing.T, v *venv.Venv, recorder *helpers.ExecRecorder, command string) bool {
+	t.Helper()
 
-	for _, c := range commands {
+	recordedBefore := len(recorder.Commands())
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v, command)
+	require.NoError(t, err)
+
+	return slices.ContainsFunc(recorder.Commands()[recordedBefore:], func(c helpers.RecordedCommand) bool {
 		name := filepath.Base(c.Name)
-		if (name != helpers.TofuBinary && name != helpers.TerraformBinary) || len(c.Args) == 0 {
-			continue
-		}
 
-		if c.Args[0] == tf.FlagNameVersion {
-			continue
-		}
-
-		subcommands = append(subcommands, c.Args[0])
-	}
-
-	return subcommands
+		return (name == helpers.TofuBinary || name == helpers.TerraformBinary) &&
+			len(c.Args) > 0 && c.Args[0] == tf.CommandNameInit
+	})
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
