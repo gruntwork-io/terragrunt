@@ -37,6 +37,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -1014,6 +1015,135 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	cachedContent, err := os.ReadFile(cachedMainTf)
 	require.NoError(t, err)
 	assert.Equal(t, mainTfContent, string(cachedContent), "File contents should match")
+}
+
+// TestDownloadTerraformSourceLockWaitProgress checks that the download dir lock wait is logged only with a reporter.
+func TestDownloadTerraformSourceLockWaitProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		unitDir       string
+		wantInfoLines int
+		reported      bool
+	}{
+		{name: "run with a reporter", unitDir: venvtest.Root("/virtual/reported"), reported: true, wantInfoLines: 4},
+		{name: "run without a reporter", unitDir: venvtest.Root("/virtual/unreported"), wantInfoLines: 1},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv()
+
+			require.NoError(t, v.FS.MkdirAll(tc.unitDir, 0o755))
+			require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(tc.unitDir, "main.tf"), []byte("# unit\n"), 0o644))
+
+			opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tc.unitDir, "terragrunt.hcl"))
+			require.NoError(t, err)
+
+			opts.DownloadDir = filepath.Join(tc.unitDir, ".terragrunt-cache")
+			opts.LogShowAbsPaths = true
+
+			ctx := t.Context()
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, spinner.New(venv.MemVenv(), spinner.Options{}))
+			}
+
+			logs := new(bytes.Buffer)
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
+
+			updatedOpts, err := run.DownloadTerraformSource(
+				ctx,
+				l,
+				v,
+				".",
+				configbridge.NewRunOptions(opts),
+				&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+				report.NewReport(),
+			)
+			require.NoError(t, err)
+			require.True(t, strings.HasPrefix(updatedOpts.CacheDir, opts.DownloadDir), updatedOpts.CacheDir)
+			assert.True(t, vfs.Exists(v.FS, filepath.Join(updatedOpts.CacheDir, "main.tf")))
+
+			assert.Equal(t, tc.wantInfoLines, strings.Count(logs.String(), "level=info"), logs)
+		})
+	}
+}
+
+// TestDownloadTerraformSourceProgressRelativePath checks that the source download is logged without its absolute path.
+func TestDownloadTerraformSourceProgressRelativePath(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/virtual/live")
+	unitDir := filepath.Join(root, "app")
+	moduleDir := filepath.Join(root, "modules", "vpc")
+
+	v := venv.MemVenv()
+
+	require.NoError(t, v.FS.MkdirAll(unitDir, 0o755))
+	require.NoError(t, v.FS.MkdirAll(moduleDir, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(moduleDir, "main.tf"), []byte("# module\n"), 0o644))
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(unitDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.RootWorkingDir = root
+	opts.DownloadDir = filepath.Join(unitDir, ".terragrunt-cache")
+
+	logs := new(bytes.Buffer)
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
+
+	ctx := spinner.ContextWithReporter(t.Context(), spinner.New(venv.MemVenv(), spinner.Options{}))
+
+	updatedOpts, err := run.DownloadTerraformSource(
+		ctx,
+		l,
+		v,
+		"../modules/vpc",
+		configbridge.NewRunOptions(opts),
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+		report.NewReport(),
+	)
+	require.NoError(t, err)
+	require.True(t, vfs.Exists(v.FS, filepath.Join(updatedOpts.CacheDir, "main.tf")))
+
+	require.Equal(t, 4, strings.Count(logs.String(), "level=info"), logs)
+	assert.NotContains(t, logs.String(), moduleDir, logs)
+}
+
+// TestDownloadTerraformSourceCancelled checks that a cancelled run stops at the download dir lock without downloading.
+func TestDownloadTerraformSourceCancelled(t *testing.T) {
+	t.Parallel()
+
+	unitDir := venvtest.Root("/virtual/cancelled")
+	v := venv.MemVenv()
+
+	require.NoError(t, v.FS.MkdirAll(unitDir, 0o755))
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(unitDir, "main.tf"), []byte("# unit\n"), 0o644))
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(unitDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.DownloadDir = filepath.Join(unitDir, ".terragrunt-cache")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err = run.DownloadTerraformSource(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		".",
+		configbridge.NewRunOptions(opts),
+		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
+		report.NewReport(),
+	)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.False(t, vfs.Exists(v.FS, opts.DownloadDir))
 }
 
 // TestDownloadSourceWithCASExperimentDisabled tests that CAS is not used when the experiment is disabled

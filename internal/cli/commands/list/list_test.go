@@ -1,6 +1,7 @@
 package list_test
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
@@ -1250,6 +1252,62 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 	}
 }
 
+// TestRunDiscoveryProgress checks that unit discovery is drawn with a reporter and prints the same units without one.
+func TestRunDiscoveryProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/list-progress"
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				"alpha/terragrunt.hcl": "",
+				"zulu/terragrunt.hcl":  "",
+			})
+
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := list.NewOptions(tgOpts)
+			opts.Format = list.FormatLong
+
+			l := newTestLogger(t)
+			term := new(bytes.Buffer)
+
+			ctx := t.Context()
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
+			}
+
+			var buf strings.Builder
+
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+			require.NoError(t, list.Run(ctx, l, v, new(rewrite.Store), opts))
+
+			assert.Equal(
+				t,
+				"Type  Path\nunit  alpha\nunit  zulu\n",
+				buf.String(),
+				"stdout is the same with and without a reporter",
+			)
+
+			if tc.reported {
+				assert.NotEmpty(t, term.String())
+			}
+		})
+	}
+}
+
 // widePathPrefix is longer than any terminal the tabular renderer assumes.
 const widePathPrefix = "a-directory-with-a-deliberately-long-name/" +
 	"a-directory-with-a-deliberately-long-name/" +
@@ -1387,4 +1445,14 @@ exclude {
 `,
 		buf.String(),
 	)
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

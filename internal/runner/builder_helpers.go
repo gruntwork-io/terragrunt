@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -136,9 +137,16 @@ func discoverWithRetry(
 		"working_dir":  opts.WorkingDir,
 		"tofu_command": opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
-		var discoveryErr error
+		discoveryErr := spinner.ShowAfter(childCtx, l, spinner.Messages{
+			Working: "Discovering units...",
+			Done:    "Discovered units",
+		}, func() error {
+			var err error
 
-		discovered, discoveryErr = d.Discover(childCtx, l, v, s, opts)
+			discovered, err = d.Discover(childCtx, l, v, s, opts)
+
+			return err
+		})
 		if discoveryErr == nil {
 			l.Debugf("Runner pool discovery found %d configs", len(discovered))
 		}
