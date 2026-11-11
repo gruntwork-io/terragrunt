@@ -422,25 +422,35 @@ func runTerragruntWithConfig(
 				return errors.Join(runTerraformError, lockFileError)
 			}
 
-			var fingerprintError error
+			var recordInitError error
 			if opts.TerraformCliArgs.First() == tf.CommandNameInit {
-				fingerprintError = recordInitFingerprint(v.FS, opts, v.Env)
+				recordInitError = recordInit(v.FS, opts, v.Env)
 			}
 
-			return errors.Join(lockFileError, fingerprintError)
+			return errors.Join(lockFileError, recordInitError)
 		},
 	)
 }
 
-// recordInitFingerprint stores the [tf.InitFingerprint] of the working directory after a
-// successful init, for [needsInitRunCfg] to compare against on later runs.
-func recordInitFingerprint(fsys vfs.FS, opts *Options, env map[string]string) error {
+// recordInit updates what [needsInitRunCfg] reads on later runs after a successful init: it
+// stores the [tf.InitFingerprint] of the working directory and removes the
+// [ModuleInitRequiredFile] that requested the init.
+func recordInit(fsys vfs.FS, opts *Options, env map[string]string) error {
 	fingerprint, err := tf.InitFingerprint(fsys, opts.CacheDir, opts.DataDir(env))
 	if err != nil {
 		return err
 	}
 
-	return tf.WriteInitFingerprint(fsys, opts.DataDir(env), fingerprint)
+	if err := tf.WriteInitFingerprint(fsys, opts.DataDir(env), fingerprint); err != nil {
+		return err
+	}
+
+	initRequiredFile := filepath.Join(opts.CacheDir, ModuleInitRequiredFile)
+	if !vfs.Exists(fsys, initRequiredFile) {
+		return nil
+	}
+
+	return fsys.Remove(initRequiredFile)
 }
 
 // ShouldCopyLockFile verifies if the lock file should be copied to the user's working directory
@@ -1017,7 +1027,7 @@ func runTerraformInitRunCfg(
 		initV = initV.WithWriter(io.Discard)
 	}
 
-	if err := runTerragruntWithConfig(
+	return runTerragruntWithConfig(
 		ctx,
 		l,
 		initV,
@@ -1025,16 +1035,7 @@ func runTerraformInitRunCfg(
 		initOptions,
 		cfg,
 		r,
-	); err != nil {
-		return err
-	}
-
-	moduleNeedInit := filepath.Join(opts.CacheDir, ModuleInitRequiredFile)
-	if vfs.Exists(v.FS, moduleNeedInit) {
-		return v.FS.Remove(moduleNeedInit)
-	}
-
-	return nil
+	)
 }
 
 // CheckProtectedModuleRunCfg rejects a destroy of a unit that sets `prevent_destroy`.

@@ -380,6 +380,45 @@ resource "null_resource" "this" {
 	}
 }
 
+func TestRunExplicitInitRemovesInitRequiredFile(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewOSFS()
+	dir := filepath.Join(t.TempDir(), "unit")
+	require.NoError(t, fsys.MkdirAll(dir, 0o755))
+
+	configPath := filepath.Join(dir, "terragrunt.hcl")
+	require.NoError(t, vfs.WriteFile(fsys, configPath, nil, 0o644))
+
+	initRequiredFile := filepath.Join(dir, run.ModuleInitRequiredFile)
+	writeUnitFiles(t, fsys, dir, map[string]string{
+		"main.tf":                  nullProviderTF,
+		run.ModuleInitRequiredFile: "",
+	})
+
+	rec := &recorder{}
+	v := venv.MemVenv().
+		WithExec(vexec.NewMemExec(fakeTofu(fsys, rec, initInstallsProviders, nil))).
+		WithFS(fsys)
+	s := runE2EScaffold{dir: dir, configPath: configPath}
+
+	for _, command := range []string{tf.CommandNameInit, tf.CommandNamePlan} {
+		opts := newRunE2EOpts(t, s, command)
+		opts.AutoInit = true
+		require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+
+		cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}}
+
+		require.NoError(
+			t,
+			run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter()),
+		)
+	}
+
+	assert.NoFileExists(t, initRequiredFile)
+	assert.Equal(t, []string{tf.CommandNameInit, tf.CommandNamePlan}, tofuCommands(rec.snapshot()))
+}
+
 func writeUnitFiles(t *testing.T, fsys vfs.FS, dir string, files map[string]string) {
 	t.Helper()
 
