@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -64,7 +65,17 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 			"mode":         opts.Mode,
 			"exclude":      opts.Exclude,
 		}, func(ctx context.Context, l log.Logger) error {
-			components, discoverErr = d.Discover(ctx, l, v, s, opts.TerragruntOptions)
+			discoverErr = spinner.ShowAfter(ctx, l, spinner.Messages{
+				Working: "Discovering units...",
+				Done:    "Discovered units",
+			}, func() error {
+				var err error
+
+				components, err = d.Discover(ctx, l, v, s, opts.TerragruntOptions)
+
+				return err
+			})
+
 			return discoverErr
 		})
 	if telemetryErr != nil {

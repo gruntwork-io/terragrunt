@@ -147,6 +147,7 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 	root := venvtest.Root("/outer")
 	unit := filepath.Join(root, "live", "prod", "vpc")
 	mid := filepath.Join(root, "live")
+	unclean := uncleanJoin(root, "live")
 
 	for _, tc := range []struct {
 		name    string
@@ -183,8 +184,39 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 			// does to a real symlinked path is covered against the binary in
 			// TestExecGoRepoRootCeilingMatchesGit.
 			name:    "leading empty entry is not itself an entry",
-			ceiling: strings.Join([]string{"", mid}, string(filepath.ListSeparator)),
+			ceiling: ceilingList("", filepath.ToSlash(mid)),
 			blocked: true,
+		},
+		{
+			name:    "kept entry with native separators matches only where they are slashes",
+			ceiling: ceilingList("", mid),
+			want:    root,
+			blocked: filepath.Separator == '/',
+		},
+		{
+			name:    "entry after an empty entry is kept as written",
+			ceiling: ceilingList("", unclean),
+			want:    root,
+		},
+		{
+			name:    "empty entry anywhere keeps later entries as written",
+			ceiling: ceilingList("relative", "", unclean),
+			want:    root,
+		},
+		{
+			name:    "entry before an empty entry is still cleaned",
+			ceiling: ceilingList(unclean, ""),
+			blocked: true,
+		},
+		{
+			name:    "kept entry may end with a slash",
+			ceiling: ceilingList("", filepath.ToSlash(mid)+"/"),
+			blocked: true,
+		},
+		{
+			name:    "kept root entry does not block a repository below it",
+			ceiling: ceilingList("", filepath.ToSlash(venvtest.Root("/"))),
+			want:    root,
 		},
 		{
 			name:    "sibling sharing a prefix is not an ancestor",
@@ -209,6 +241,45 @@ func TestGoRepoRootCeilingDirectories(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestGoRepoRootCeilingAtFilesystemRoot(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/")
+	unit := filepath.Join(root, "live", "vpc")
+
+	for _, tc := range []struct {
+		name    string
+		ceiling string
+		blocked bool
+	}{
+		{name: "unset ceiling finds the root repository"},
+		{
+			name:    "kept root entry blocks the root repository",
+			ceiling: ceilingList("", filepath.ToSlash(root)),
+			blocked: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv().
+				WithFS(venvtest.NewFS(t, root, map[string]string{".git": "gitdir: /elsewhere/.git\n", "live/vpc/main.tf": ""})).
+				WithEnv(map[string]string{git.EnvNameGitCeilingDirectories: tc.ceiling})
+
+			got, err := git.GoRepoRoot(cache.ContextWithCache(t.Context()), v, unit)
+
+			if tc.blocked {
+				require.ErrorIs(t, err, git.ErrNoRepoRoot)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, root, got)
 		})
 	}
 }
@@ -389,4 +460,14 @@ func TestGoRepoRootDefaultWalkDepth(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Equal(t, root, got)
+}
+
+// ceilingList joins entries into a GIT_CEILING_DIRECTORIES value.
+func ceilingList(entries ...string) string {
+	return strings.Join(entries, string(filepath.ListSeparator))
+}
+
+// uncleanJoin joins dir and name through a "." element.
+func uncleanJoin(dir, name string) string {
+	return dir + string(filepath.Separator) + "." + string(filepath.Separator) + name
 }

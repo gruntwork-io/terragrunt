@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -912,6 +913,20 @@ func convertToDynamoTags(tags map[string]string) []dynamodbtypes.Tag {
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
 // about that S3 bucket has propagated everywhere.
 func (client *Client) WaitUntilS3BucketExists(
+	ctx context.Context,
+	l log.Logger,
+	bucketName string,
+) error {
+	return spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Creating S3 bucket " + bucketName + "...",
+		Done:    "S3 bucket " + bucketName + " created",
+	}, func() error {
+		return client.pollUntilS3BucketExists(ctx, l, bucketName)
+	})
+}
+
+// pollUntilS3BucketExists checks for the bucket up to maxRetriesWaitingForS3Bucket times, sleeping between checks.
+func (client *Client) pollUntilS3BucketExists(
 	ctx context.Context,
 	l log.Logger,
 	bucketName string,
@@ -2145,14 +2160,19 @@ func (client *Client) waitForTableToBeActive(
 	maxRetries int,
 	sleepBetweenRetries time.Duration,
 ) error {
-	return client.WaitForTableToBeActiveWithRandomSleep(
-		ctx,
-		l,
-		tableName,
-		maxRetries,
-		sleepBetweenRetries,
-		sleepBetweenRetries,
-	)
+	return spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Waiting for availability of DynamoDB table " + tableName + "...",
+		Done:    "DynamoDB table " + tableName + " is available",
+	}, func() error {
+		return client.WaitForTableToBeActiveWithRandomSleep(
+			ctx,
+			l,
+			tableName,
+			maxRetries,
+			sleepBetweenRetries,
+			sleepBetweenRetries,
+		)
+	})
 }
 
 // WaitForTableToBeActiveWithRandomSleep waits for the given table as described above,
@@ -2230,7 +2250,13 @@ func (client *Client) UpdateLockTableSetSSEncryptionOnIfNecessary(
 		)
 	}
 
-	if err := client.waitForEncryptionToBeEnabled(ctx, l, tableName); err != nil {
+	err = spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Enabling encryption on DynamoDB table " + tableName + "...",
+		Done:    "DynamoDB table " + tableName + " is encrypted",
+	}, func() error {
+		return client.waitForEncryptionToBeEnabled(ctx, l, tableName)
+	})
+	if err != nil {
 		return err
 	}
 

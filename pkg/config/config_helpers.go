@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -950,13 +952,13 @@ func findInParentFoldersImpl(
 
 	previousDir := filepath.Dir(pctx.TerragruntConfigPath)
 
-	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
-		allControls := pctx.StrictControls
-		rootTGHCLControl := allControls.FilterByNames(controls.RootTerragruntHCL)
-		logger := log.ContextWithLogger(ctx, l)
+	name := filepath.Clean(fileToFindParam)
+	namesDefault := fileToFindParam == "" || name == DefaultTerragruntConfigPath
+	namesRootFile := !namesDefault && namesUpwardDefaultConfig(name)
 
-		if err := rootTGHCLControl.Evaluate(logger); err != nil {
-			return "", clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
+	if namesDefault {
+		if err := evaluateRootTerragruntHCL(ctx, l, pctx); err != nil {
+			return "", err
 		}
 	}
 
@@ -990,6 +992,14 @@ func findInParentFoldersImpl(
 		fileToFind := parentFileCandidate(v.FS, currentDir, fileToFindParam)
 
 		if parentFileExists(ctx, v.FS, probes, fileToFind) {
+			if !namesRootFile {
+				return fileToFind, nil
+			}
+
+			if err := evaluateFoundRootFile(ctx, l, v.FS, pctx, fileToFind); err != nil {
+				return "", err
+			}
+
 			return fileToFind, nil
 		}
 
@@ -1001,6 +1011,83 @@ func findInParentFoldersImpl(
 		File:  fileToFindStr,
 		Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", pctx.MaxFoldersToCheck),
 	}
+}
+
+// evaluateRootTerragruntHCL returns the root-terragrunt-hcl error, or logs its warning when the control is disabled.
+func evaluateRootTerragruntHCL(ctx context.Context, l log.Logger, pctx *ParsingContext) error {
+	rootTGHCLControl := pctx.StrictControls.FilterByNames(controls.RootTerragruntHCL)
+
+	if err := rootTGHCLControl.Evaluate(log.ContextWithLogger(ctx, l)); err != nil {
+		return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
+	}
+
+	return nil
+}
+
+// namesUpwardDefaultConfig reports whether a cleaned name is terragrunt.hcl in any letter case, reached only upward.
+func namesUpwardDefaultConfig(name string) bool {
+	if !strings.EqualFold(filepath.Base(name), DefaultTerragruntConfigPath) {
+		return false
+	}
+
+	for part := range strings.SplitSeq(filepath.ToSlash(filepath.Dir(name)), "/") {
+		if part != "." && part != ".." {
+			return false
+		}
+	}
+
+	return true
+}
+
+// evaluateFoundRootFile evaluates root-terragrunt-hcl when found resolves to a terragrunt.hcl file.
+func evaluateFoundRootFile(ctx context.Context, l log.Logger, fsys vfs.FS, pctx *ParsingContext, found string) error {
+	isDefault, err := isDefaultConfigFile(fsys, found)
+	if err != nil {
+		return fmt.Errorf("checking root file %s for %s: %w", found, controls.RootTerragruntHCL, err)
+	}
+
+	if !isDefault {
+		return nil
+	}
+
+	return evaluateRootTerragruntHCL(ctx, l, pctx)
+}
+
+// isDefaultConfigFile reports whether path, named terragrunt.hcl in any letter case, resolves to a terragrunt.hcl file.
+func isDefaultConfigFile(fsys vfs.FS, path string) (bool, error) {
+	if !strings.EqualFold(filepath.Base(path), DefaultTerragruntConfigPath) {
+		return false, nil
+	}
+
+	resolved, err := vfs.EvalSymlinks(fsys, path)
+	if err != nil {
+		return false, err
+	}
+
+	name := filepath.Base(resolved)
+	if name == DefaultTerragruntConfigPath {
+		return true, nil
+	}
+
+	if !strings.EqualFold(name, DefaultTerragruntConfigPath) {
+		return false, nil
+	}
+
+	info, err := fsys.Stat(resolved)
+	if err != nil {
+		return false, err
+	}
+
+	defaultInfo, err := fsys.Stat(filepath.Join(filepath.Dir(resolved), DefaultTerragruntConfigPath))
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return os.SameFile(info, defaultInfo), nil
 }
 
 // parentFileCandidate names the file to probe in dir. An empty fileName means

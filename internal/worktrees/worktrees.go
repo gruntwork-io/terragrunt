@@ -72,12 +72,23 @@ type Worktree struct {
 	Path string
 }
 
+// Checkout is how much of a reference each worktree holds.
+type Checkout int
+
+const (
+	// CheckoutEverything holds the whole reference.
+	CheckoutEverything Checkout = iota
+	// CheckoutFilteredPaths holds only the directories the Git expressions
+	// expand to.
+	CheckoutFilteredPaths
+)
+
 // WorktreeOpts contains parameters for NewWorktrees.
 type WorktreeOpts struct {
-	WorkingDir        string
-	GitExpressions    filter.GitExpressions
-	Experiments       experiment.Experiments
-	FilteredPathsOnly bool
+	WorkingDir     string
+	GitExpressions filter.GitExpressions
+	Experiments    experiment.Experiments
+	Checkout       Checkout
 }
 
 // DisplayPath translates a worktree path to the equivalent path in the original repository
@@ -599,9 +610,9 @@ func (s *gitSurvey) refsToMaterialize(l log.Logger, gitExpressions filter.GitExp
 func (s *gitSurvey) checkoutPathspecs(
 	l log.Logger,
 	gitExpressions filter.GitExpressions,
-	filteredPathsOnly bool,
+	checkout Checkout,
 ) map[string][]string {
-	if !filteredPathsOnly {
+	if checkout != CheckoutFilteredPaths {
 		return nil
 	}
 
@@ -717,10 +728,11 @@ func surveyGitExpressions(
 //
 // Note that it is the responsibility of the caller to call Cleanup on the Worktrees object when it is no longer needed.
 //
-// Set FilteredPathsOnly only when the caller reads the worktrees to discover
-// the components the filters name and reads nothing else. A worktree created
-// for such a caller may contain those directories alone, leaving out the module
-// sources a run needs and the files a configuration being parsed can read.
+// Set Checkout to [CheckoutFilteredPaths] only when the caller reads the
+// worktrees to discover the components the filters name and reads nothing
+// else. A worktree created for such a caller may contain those directories
+// alone, leaving out the module sources a run needs and the files a
+// configuration being parsed can read.
 func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
@@ -762,7 +774,18 @@ func NewWorktrees(
 		func(ctx context.Context) error {
 			// The survey decides which references get a worktree and how much
 			// of each one is checked out, so it runs before any of them are.
-			survey, err := surveyGitExpressions(ctx, v, gitRunner, gitExpressions, gitRefs, repoRemote)
+			var survey *gitSurvey
+
+			err := spinner.ShowAfter(ctx, l, spinner.Messages{
+				Working: "Comparing Git references for filters...",
+				Done:    "Compared Git references for filters",
+			}, func() error {
+				var surveyErr error
+
+				survey, surveyErr = surveyGitExpressions(ctx, v, gitRunner, gitExpressions, gitRefs, repoRemote)
+
+				return surveyErr
+			})
 			if err != nil {
 				worktrees = newEmptyWorktrees(workingDir)
 				outerErr = err
@@ -773,9 +796,12 @@ func NewWorktrees(
 			// A symlink in a checked-out directory can point anywhere in the
 			// reference, so discovery that follows one walks out of the
 			// directories the filters name.
-			filteredPaths := opts.FilteredPathsOnly && !experiments.Evaluate(experiment.Symlinks)
+			checkout := opts.Checkout
+			if experiments.Evaluate(experiment.Symlinks) {
+				checkout = CheckoutEverything
+			}
 
-			pathspecs := survey.checkoutPathspecs(l, gitExpressions, filteredPaths)
+			pathspecs := survey.checkoutPathspecs(l, gitExpressions, checkout)
 
 			refsToPaths, err := createGitWorktrees(
 				ctx,
@@ -786,7 +812,6 @@ func NewWorktrees(
 				repoRemote,
 				repoBranch,
 				repoCommit,
-				experiments,
 				pathspecs,
 			)
 
@@ -951,7 +976,6 @@ func createGitWorktrees(
 	gitRunner *git.GitRunner,
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
-	experiments experiment.Experiments,
 	pathspecs map[string][]string,
 ) (map[string]string, error) {
 	refsToPaths := make(map[string]string, len(gitRefs))
@@ -1000,26 +1024,13 @@ func createGitWorktrees(
 			})
 		}
 
-		return g.Wait()
+		waitErr := g.Wait()
+
+		return errors.Join(append(errs, waitErr)...)
 	}
 
-	if experiments.Evaluate(experiment.SlowTaskReporting) {
-		if err := spinner.ShowAfter(
-			ctx,
-			l,
-			spinner.Writer(v),
-			time.Second,
-			slowWorktreeMsg(gitRefs),
-			create,
-		); err != nil {
-			errs = append(errs, err)
-		}
-	} else if err := create(); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return refsToPaths, errors.Join(errs...)
+	if err := spinner.ShowAfter(ctx, l, slowWorktreeMsg(gitRefs), create); err != nil {
+		return refsToPaths, err
 	}
 
 	return refsToPaths, nil

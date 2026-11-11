@@ -8,10 +8,9 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -58,14 +57,13 @@ func runAll(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)
 
-	components, err := d.Discover(ctx, l, v, s, opts)
+	defer cleanupWorktrees(ctx)
+
 	if err != nil {
 		return err
 	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	return telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "backend_bootstrap_all", map[string]any{

@@ -7,7 +7,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -390,5 +392,5 @@ func parseAndRunActions(t *testing.T, fs clihelper.Flags, args clihelper.Args, e
 		return err
 	}
 
-	return fs.RunActions(t.Context(), &clihelper.Context{})
+	return fs.RunActions(log.ContextWithLogger(t.Context(), logger.CreateLogger()), &clihelper.Context{})
 }

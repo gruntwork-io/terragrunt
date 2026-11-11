@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
@@ -492,6 +493,10 @@ func (p *Plan) Generate(
 		shared.NoIncludeRootFlagName,
 	)
 	setVarDefault(l, p.vars, rootFileName, opts.ScaffoldRootFileName, shared.RootFileNameFlagName)
+
+	if err := p.checkRootFile(ctx, l, v, opts); err != nil {
+		return err
+	}
 
 	l.Debugf("Running boilerplate generation to %s", p.outputDir)
 	boilerplateOpts := NewBoilerplateOptions(p.boilerplateDir, p.outputDir, p.vars, opts)
@@ -1211,6 +1216,45 @@ func dependencyFilePath(outputDir, outputFolder, file string) string {
 	}
 
 	return p
+}
+
+// checkRootFile looks up the root file the generated include names, applying root-terragrunt-hcl.
+func (p *Plan) checkRootFile(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+	include, err := rootIncludeEnabled(p.vars[enableRootInclude])
+	if err != nil {
+		return fmt.Errorf("parsing %s: %w", enableRootInclude, err)
+	}
+
+	if !include {
+		return nil
+	}
+
+	name := fmt.Sprint(p.vars[rootFileName])
+
+	pctx := config.NewParsingContext(config.WithStrictControls(opts.StrictControls))
+	pctx.TerragruntConfigPath = filepath.Join(p.outputDir, config.DefaultTerragruntConfigPath)
+	pctx.MaxFoldersToCheck = opts.MaxFoldersToCheck
+
+	_, err = config.FindInParentFolders(ctx, l, v, pctx, []string{name})
+	if errors.As(err, new(config.ParentFileNotFoundError)) {
+		return nil
+	}
+
+	return err
+}
+
+// rootIncludeEnabled reads EnableRootInclude the way boilerplate converts it to a bool.
+func rootIncludeEnabled(value any) (bool, error) {
+	switch v := value.(type) {
+	case nil:
+		return false, nil
+	case bool:
+		return v, nil
+	case string:
+		return strconv.ParseBool(v)
+	}
+
+	return true, nil
 }
 
 // MaxDependencyDepthExceededError reports boilerplate dependencies nested 100

@@ -8,7 +8,6 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import Before from '@components/Before.astro';
 import Since from '@components/Since.astro';
 
 Match units and stacks by their configuration attributes.
@@ -127,17 +126,7 @@ unit "app" {
 }
 ```
 
-<Since version="v1.2.2">
-
 Terragrunt tracks reads anywhere in a stack file and in the stack files it includes, except inside [`autoinclude`](/reference/hcl/blocks/autoinclude/) blocks.
-
-</Since>
-
-<Before version="v1.2.2">
-
-Terragrunt tracks reads in `locals` only. A file read anywhere else, such as in the `values` above, is not marked as read. Read the file in `locals` and reference the local instead.
-
-</Before>
 
 <Aside type="caution">
 A file read inside an `autoinclude` block is not marked as read. Terragrunt reads the file when it generates the stack and writes its content into the generated unit, so the unit does not read the file either. When the file changes, reading filters and Git filters do not regenerate the stack, and the unit keeps the old content. Read the file in `locals` and reference the local from the `autoinclude` block:
@@ -162,7 +151,7 @@ unit "app" {
 ```
 </Aside>
 
-<Since version="v1.2.2">
+<Since version="v1.2.3">
 
 A `mark_as_read()` call in a unit's `autoinclude` block is the exception. The generated unit marks that file as read, so `reading=config.yml` matches the unit `app`, not the whole stack:
 

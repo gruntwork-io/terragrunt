@@ -83,8 +83,6 @@ flags:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 
 <Aside type="caution" title="This is not a sandbox">
 The flags on this page limit what Terragrunt does when a tool asks it to. They do not contain the programs Terragrunt
@@ -104,21 +102,6 @@ directory that holds the units it needs.
 
 ## Tools
 
-<Before version="v1.2.2">
-
-| Name            | What it does                                                                 | Needs                                                  |
-| --------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `discover`      | Lists the units and stacks under a directory                                 | None                                                   |
-| `render_config` | Evaluates one unit's `terragrunt.hcl` and returns the resolved configuration | `exec` to read dependency outputs                      |
-| `validate`      | Reports syntax and evaluation errors in the configurations under a directory | None                                                   |
-| `run_order`     | Reports the order units run in, and what blocks each one                     | None                                                   |
-| `get_outputs`   | Reads the applied outputs of one unit                                        | `exec`, or `http` for `s3`, `gcs`, and `azurerm` state |
-| `plan`          | Runs `run --all plan` across the units and returns the per-unit result       | `exec`                                                 |
-
-</Before>
-
-<Since version="v1.2.2">
-
 | Name            | What it does                                                                 | Needs                                                  |
 | --------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `discover`      | Lists the units and stacks under a directory                                 | None                                                   |
@@ -133,8 +116,6 @@ directory that holds the units it needs.
 
 A server started with no `--allow` flag can still write under its root: `scaffold` generates files from a local source,
 and `fmt` rewrites `.hcl` files.
-
-</Since>
 
 Two more tools are served only under
 [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply). They change real infrastructure.
@@ -162,8 +143,6 @@ The tools that run OpenTofu/Terraform use the binary the server was started with
 [`--tf-path`](/reference/cli/commands/mcp#tf-path), as a program name found in `PATH` or as a filepath. It defaults to
 `tofu`, or to `terraform` when `tofu` is not installed. A unit's `terraform_binary` and `engine` block are ignored.
 
-<Since version="v1.2.2">
-
 `scaffold` writes new configuration the way [`scaffold`](/features/catalog/scaffold) does, without prompting. The agent
 passes the values the form would ask for, and anything it leaves out is written as a `TODO` placeholder.
 
@@ -179,8 +158,6 @@ Under [`--allow=docs`](/reference/cli/commands/mcp#allow), the server also relay
 [Terragrunt docs MCP server](/getting-started/install#terragrunt-docs-mcp-server), so an agent connected to
 `terragrunt mcp` can search the Terragrunt documentation without a second server configured. Each tool keeps its name
 on the docs server with a `docs_` prefix, e.g. `search_docs` is served as `docs_search_docs`.
-
-</Since>
 
 ### discover
 
@@ -269,8 +246,6 @@ A unit that printed nothing has no `stdout`, and a unit whose plan failed has no
 The files go in a directory under the system temp directory, readable only by the server's user, and are deleted when
 the server stops.
 
-<Since version="v1.2.2">
-
 `fmt` rewrites the `.hcl` files under a directory into canonical format. It skips `.terragrunt-cache`,
 `.terragrunt-stack`, and `.boilerplate` directories, as [`hcl fmt`](/reference/cli/commands/hcl/fmt) does.
 
@@ -289,8 +264,6 @@ and `file_count` is the number of files examined.
 `fmt` skips symlinks. A symlinked file is listed in `skipped`, and a symlinked directory is not walked. A `file` whose
 directory resolves outside the server root is refused. The check comes before the read, so a symlink that another
 process swaps in after the check, before the read, is followed.
-
-</Since>
 
 ### apply and destroy
 
@@ -319,18 +292,6 @@ it from. Each client decides where the file lives and how much of this shape it 
 
 The server denies every capability at startup, and grants each one separately:
 
-<Before version="v1.2.2">
-
-| Flag                                                                                | What it allows                                                   |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| [`--allow`](/reference/cli/commands/mcp#allow)                                      | Any of `exec`, `http`, `sops`, or `env`. Repeat it for each one. |
-| [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd)                              | A command pattern a configuration may run                        |
-| [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply)  | The `apply` and `destroy` tools                                  |
-
-</Before>
-
-<Since version="v1.2.2">
-
 | Flag                                                                                | What it allows                                                           |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | [`--allow`](/reference/cli/commands/mcp#allow)                                      | Any of `exec`, `http`, `sops`, `env`, or `docs`. Repeat it for each one. |
@@ -342,8 +303,6 @@ The server denies every capability at startup, and grants each one separately:
 docs server does not answer at startup, the server starts without its tools and logs a warning, and only a restart
 tries again. Every argument an agent passes to a `docs_` tool leaves the machine, including any configuration it pastes
 in.
-
-</Since>
 
 Wherever a denied capability stops a tool, the result includes a `degraded` list naming what it did instead, such as
 substituting `mock_outputs` for a dependency output.
@@ -361,9 +320,9 @@ To run a program a configuration names, allow it with an [`--allow-cmd`](/refere
 pattern, or accept it when a tool asks. A pattern naming `git` matches the `git` on the server's `PATH`, not a `./git`
 in the tree.
 
-`discover`, `render_config`, `validate`, <Since version="v1.2.2">`run_order`, and `catalog`</Since><Before version="v1.2.2">and `run_order`</Before> ask. When a configuration names a refused program, the call
+`discover`, `render_config`, `validate`, `run_order`, and `catalog` ask. When a configuration names a refused program, the call
 returns an elicitation naming the programs, then runs again with the ones the person operating the client accepts. An
-acceptance covers those programs for that call only. `get_outputs`, `plan`, <Since version="v1.2.2">`scaffold`,</Since> `apply`, and `destroy` never ask.
+acceptance covers those programs for that call only. `get_outputs`, `plan`, `scaffold`, `apply`, and `destroy` never ask.
 
 ### http
 

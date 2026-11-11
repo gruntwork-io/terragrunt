@@ -7,7 +7,6 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
 
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format in the form of traces, metrics, and logs.
 
@@ -65,9 +64,9 @@ The OTLP log exporters read the standard [OTLP exporter environment variables](h
 - `OTEL_EXPORTER_OTLP_COMPRESSION` or `OTEL_EXPORTER_OTLP_LOGS_COMPRESSION` - set to `gzip` to compress exports.
 - `OTEL_EXPORTER_OTLP_TIMEOUT` or `OTEL_EXPORTER_OTLP_LOGS_TIMEOUT` - the export timeout in milliseconds.
 
-Each record carries the trace and span IDs of the span it was logged in, so logs link to traces in the backend. <Since version="v1.2.2">Records logged outside a unit, such as by the run queue, link to the root command span.</Since> Records carry these IDs only when a trace exporter is also set.
+Each record carries the trace and span IDs of the span it was logged in, so logs link to traces in the backend. Records logged outside a unit, such as by the run queue, link to the root command span. Records carry these IDs only when a trace exporter is also set.
 
-Only records at or above the [log level](/reference/logging) are exported, so `--log-level` also controls how many records reach the backend. <Since version="v1.2.2">Record bodies are plain text, without ANSI color codes.</Since> Records are sent in batches, and buffered records are flushed when the command exits. <Since version="v1.2.2">This also happens when a run is interrupted, and the flush waits at most 30 seconds.</Since> Records that do not fit in the buffer are dropped. These variables tune the buffer:
+Only records at or above the [log level](/reference/logging) are exported, so `--log-level` also controls how many records reach the backend. Record bodies are plain text, without ANSI color codes. Records are sent in batches, and buffered records are flushed when the command exits. This also happens when a run is interrupted, and the flush waits at most 30 seconds. Records that do not fit in the buffer are dropped. These variables tune the buffer:
 
 - `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records buffered before new records are dropped. Defaults to `2048`.
 - `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to `512`.

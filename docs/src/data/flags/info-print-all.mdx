@@ -1,0 +1,15 @@
+---
+name: all
+description: Print the context of every unit discovered from the current working directory.
+type: bool
+env:
+  - TG_ALL
+aliases:
+  - a
+---
+
+Print the context of every unit discovered from the current working directory, one JSON document per line.
+
+```bash
+terragrunt info print --all
+```

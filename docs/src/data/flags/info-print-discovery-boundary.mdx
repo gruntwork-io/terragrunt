@@ -1,0 +1,16 @@
+---
+name: discovery-boundary
+description: Directory that encloses graph discovery for filters, instead of the git repository root
+type: string
+env:
+  - TG_DISCOVERY_BOUNDARY
+since: "v1.2.2"
+---
+
+Replace the git repository root as the outer limit for filter expressions that traverse the dependency graph. `info print` does not print a unit that traversal reaches outside the boundary.
+
+```bash
+terragrunt info print --filter '...vpc' --discovery-boundary environments/staging
+```
+
+See [`--discovery-boundary`](/reference/cli/commands/run#discovery-boundary) for how the boundary applies.

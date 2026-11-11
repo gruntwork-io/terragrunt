@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -123,6 +124,26 @@ func (s *Store) ResolveRunConfig(
 	}
 
 	return c.ToV1(ctx, l, v, pc)
+}
+
+// ReadTerragruntConfig reads the config file of run as [pkgconfig.ReadTerragruntConfig] does. When [EnvRewrite]
+// selects this package's parser, it resolves the file as [Store.ResolveRunConfig] does.
+func (s *Store) ReadTerragruntConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	run *pkgconfig.ParsingContext,
+) (*pkgconfig.TerragruntConfig, error) {
+	if !Enabled(v.Env) {
+		return pkgconfig.ReadTerragruntConfig(ctx, l, v, run)
+	}
+
+	l.Debugf(
+		"Reading Terragrunt config file at %s",
+		util.RelPathForLog(run.RootWorkingDir, run.TerragruntConfigPath, run.LogShowAbsPaths),
+	)
+
+	return s.ResolveRunConfig(ctx, l, v, NewParseContext(run), run.TerragruntConfigPath)
 }
 
 // resolvedFile is what a memoized resolution produces.

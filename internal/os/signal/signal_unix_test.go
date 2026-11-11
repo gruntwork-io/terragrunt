@@ -4,11 +4,13 @@ package signal_test
 
 import (
 	"os"
+	ossignal "os/signal"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +23,7 @@ func TestNotifier_DeliversSignal(t *testing.T) {
 
 	got := make(chan os.Signal, 1)
 
-	signal.Notifier(forward(got), syscall.SIGUSR1)
+	venv.OSVenv().Signals(t.Context(), forward(got), syscall.SIGUSR1)
 
 	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGUSR1))
 
@@ -33,7 +35,7 @@ func TestNotifierWithContext_DeliversSignal(t *testing.T) {
 
 	got := make(chan os.Signal, 1)
 
-	signal.NotifierWithContext(t.Context(), forward(got), syscall.SIGUSR2)
+	signal.NewNotifier(ossignal.Notify, ossignal.Stop)(t.Context(), forward(got), syscall.SIGUSR2)
 
 	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGUSR2))
 
