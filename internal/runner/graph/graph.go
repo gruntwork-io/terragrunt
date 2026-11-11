@@ -18,7 +18,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -46,7 +45,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 
 	pctx := configbridge.NewParsingContext(opts)
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx)
+	cfg, err := s.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
 		return err
 	}
@@ -134,5 +133,5 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 		return err
 	}
 
-	return runall.RunAllOnStack(ctx, l, v, graphOpts, rnr, r)
+	return runall.RunAllOnStack(ctx, l, v, s, graphOpts, rnr, r)
 }

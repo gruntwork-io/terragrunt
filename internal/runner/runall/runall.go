@@ -211,7 +211,7 @@ func Run(
 		return err
 	}
 
-	return RunAllOnStack(ctx, l, v, opts, rnr, r)
+	return RunAllOnStack(ctx, l, v, s, opts, rnr, r)
 }
 
 // RunAllOnStack drives the supplied [runner.Runner] to completion.
@@ -219,6 +219,7 @@ func RunAllOnStack(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	rnr *runner.Runner,
 	r *report.Report,
@@ -272,7 +273,7 @@ func RunAllOnStack(
 			"tofu_command": opts.TofuCommand,
 			"working_dir":  opts.WorkingDir,
 		}, func(ctx context.Context, l log.Logger) error {
-			err := rnr.Run(ctx, l, v, opts, r)
+			err := rnr.Run(ctx, l, v, s, opts, r)
 			if err != nil {
 				// At this stage, we can't handle the error any further, so we just log it and return nil.
 				// After this point, we'll need to report on what happened, and we want that to happen

@@ -215,12 +215,14 @@ func runAllCommand(
 	// the real stdout, which is meaningless under the MCP transport.
 	r := report.NewReport().WithWorkingDir(dir).WithDisableColor().WithFormat(report.FormatJSON)
 
-	rnr, err := runner.New(ctx, l, cv, new(rewrite.Store), opts, runnerOpts...)
+	s := new(rewrite.Store)
+
+	rnr, err := runner.New(ctx, l, cv, s, opts, runnerOpts...)
 	if err != nil {
 		return runAllOutput{}, err
 	}
 
-	runErr := runall.RunAllOnStack(ctx, l, cv, opts, rnr, r)
+	runErr := runall.RunAllOnStack(ctx, l, cv, s, opts, rnr, r)
 
 	capture.close(l)
 
