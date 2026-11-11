@@ -8,7 +8,6 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import Since from '@components/Since.astro';
 
 Match units and stacks by their configuration attributes.
 
@@ -150,27 +149,6 @@ unit "app" {
 }
 ```
 </Aside>
-
-<Since version="v1.2.3">
-
-A `mark_as_read()` call in a unit's `autoinclude` block is the exception. The generated unit marks that file as read, so `reading=config.yml` matches the unit `app`, not the whole stack:
-
-```hcl
-# terragrunt.stack.hcl
-
-unit "app" {
-  source = "../catalog/units/app"
-  path   = "app"
-
-  autoinclude {
-    inputs = {
-      message = yamldecode(file(mark_as_read("config.yml"))).message
-    }
-  }
-}
-```
-
-</Since>
 
 ## Source-Based Expressions
 
