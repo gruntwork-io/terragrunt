@@ -8,8 +8,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 import AnchorRedirects from '@components/AnchorRedirects.astro';
 import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
 import HclItemCards from '@components/HclItemCards.astro';
@@ -1611,14 +1609,6 @@ errors {
 
 ## variables
 
-<Before version="v1.2.2">
-
-The `variables` block is available in Terragrunt v1.2.2 and later, behind the `variables-block` experiment.
-
-</Before>
-
-<Since version="v1.2.2">
-
 The `variables` block sets OpenTofu/Terraform variables like the [`inputs`](/reference/hcl/attributes/inputs/) attribute, and chooses how Terragrunt passes them.
 
 <Aside type="tip" title="Experimental">
@@ -1662,8 +1652,6 @@ In `.terragrunt-cache`, the variables files stay after the run, so running `tofu
 <Aside type="caution">
   The `tfvar` and `json` kinds write input values to disk in plain text, sensitive values included. Use `env` for values that must not be written to disk.
 </Aside>
-
-</Since>
 
 ## Unit blocks
 

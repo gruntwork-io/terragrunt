@@ -46,7 +46,6 @@ examples:
 
 import { Aside } from '@astrojs/starlight/components';
 import SideBySide from '@components/SideBySide.astro';
-import Since from '@components/Since.astro';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 The `inputs` attribute sets a module's variables. Each key sets the variable of the same name.
@@ -112,11 +111,7 @@ Environment variables are strings, so OpenTofu/Terraform uses a variable's [type
 
 A `null` input reaches the module as `null`, which overrides the variable's default. A literal `${...}` in a value reaches the module as written.
 
-<Since version="v1.2.2">
-
 A unit with many or large inputs can exceed the operating system's limit on the size of a process environment. The [`variables-block`](/reference/experiments/active#variables-block) experiment adds a [`variables`](/reference/hcl/blocks#variables) block that can write inputs to an auto-loaded variables file.
-
-</Since>
 
 ### Variable precedence
 

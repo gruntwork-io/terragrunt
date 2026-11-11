@@ -585,7 +585,6 @@ examples:
 ---
 
 import SideBySide from '@components/SideBySide.astro';
-import Since from '@components/Since.astro';
 
 The `remote_state` block configures the backend that stores a unit's state, so you can set it once in a file every unit includes. See [State backend](/features/units/state-backend/).
 
@@ -686,8 +685,6 @@ terraform {
 
 </SideBySide>
 
-<Since version="v1.2.2">
-
 Two keys in the `encryption` map go to the generated `state` and `plan` blocks instead of the key provider:
 
 - `fallback`: Set to `{ method = "unencrypted" }` to let OpenTofu read state and plan files written before encryption was enabled. Any other value is an error.
@@ -739,5 +736,3 @@ Terragrunt adds an `unencrypted` method and points both blocks at it:
 ```
 
 Run `terragrunt apply` so OpenTofu writes the state back encrypted. Then replace `fallback` with `enforced = true`.
-
-</Since>

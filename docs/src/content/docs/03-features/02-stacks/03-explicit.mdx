@@ -8,7 +8,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
 
 For an alternate approach (that is more flexible, but not necessarily always the better solution), you can define explicit stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units at runtime.
 
@@ -526,11 +525,7 @@ Requirements:
 - The `--no-cas` flag must not be set.
 - Sources using `update_source_with_cas` must be relative paths within the same catalog.
 
-<Since version="v1.2.2">
-
 - The source of a `unit` or `stack` block using `update_source_with_cas` should sit outside the directory of its stack file. Stack generation copies that directory whole, so a source inside it is generated twice, and `run --all` runs the copy too. Terragrunt warns about such a source, and the [`cas-source-inside-stack`](/reference/strict-controls/active#cas-source-inside-stack) strict control makes it an error.
-
-</Since>
 
 ### Local catalog sources
 
